@@ -196,6 +196,12 @@ def _testo_ofi() -> str:
     return sezioni_in_markdown(guida.GUIDA_OFI["sezioni"])
 
 
+def _testo_assistente() -> str:
+    from ai_assistant import guida
+
+    return sezioni_in_markdown(guida.sezioni())
+
+
 def _file_modulo(modulo: str) -> Callable[[], list[Path]]:
     def _file() -> list[Path]:
         import importlib
@@ -272,6 +278,8 @@ def _registro() -> list[Guida]:
     ):
         testo, file = _da_template(template)
         guide.append(Guida(slug, modulo, _reverse(url_name), testo, file, parole=parole))
+    guide.append(Guida("assistente-ai", "Assistente AI", _reverse("ai_assistant:guida"), _testo_assistente,
+                       _file_modulo("ai_assistant.guida"), parole="assistente chatbot chat conversazione conversazioni"))
     guide.extend(_guida_soc(nome) for nome in _SOC_DOCS)
     return guide
 

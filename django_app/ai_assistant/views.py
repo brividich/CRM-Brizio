@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from urllib.parse import urlsplit
 
@@ -27,8 +28,11 @@ from .services import (
     open_ollama_stream,
     sgi_rag_access,
 )
+from . import conversazioni
 from .guide_portale import guide_consentite
 from .tools import build_runtime_context
+
+logger = logging.getLogger(__name__)
 
 
 def _json_payload(request) -> dict:
@@ -255,6 +259,46 @@ def _build_suggested_questions(user_message: str, assistant_reply: str) -> list[
     return _FALLBACK_SUGGESTIONS
 
 
+def _conversation_state(request, payload: dict) -> tuple[object, object, bool]:
+    """(conversazione dell'utente o None, history da passare al modello, rigenera).
+
+    Per una conversazione salvata lo storico arriva dal DB e non dal browser; con
+    «Rigenera» si tolgono l'ultima risposta e l'ultima domanda (che è il prompt).
+    """
+    history = payload.get("history")
+    rigenera = bool(payload.get("regenerate"))
+    if not conversazioni.abilitato():
+        return None, history, rigenera
+    conversazione = conversazioni.conversazione_di(request, payload.get("conversation_id"))
+    if conversazione is None:
+        return None, history, rigenera
+    storico = conversazioni.storico_per_modello(conversazione)
+    if rigenera:
+        if storico and storico[-1]["role"] == "assistant":
+            storico.pop()
+        if storico and storico[-1]["role"] == "user":
+            storico.pop()
+    return conversazione, storico, rigenera
+
+
+def _save_turn(request, conversazione, *, message, answer, sources, model, rigenera) -> int | None:
+    """Salva il turno nello storico; un errore di salvataggio non rompe mai la chat."""
+    try:
+        saved = conversazioni.registra_turno(
+            request,
+            conversation_id=getattr(conversazione, "pk", None),
+            domanda=message,
+            risposta=answer,
+            fonti=sources,
+            modello=model,
+            rigenera=rigenera and conversazione is not None,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("ai_assistant: salvataggio conversazione fallito")
+        return None
+    return saved.pk if saved is not None else None
+
+
 @login_required
 def chat_page(request):
     base_url = str(getattr(settings, "OLLAMA_BASE_URL", "") or "").strip()
@@ -269,6 +313,8 @@ def chat_page(request):
         "ollama_timeout": int(getattr(settings, "OLLAMA_REQUEST_TIMEOUT_SECONDS", 60) or 60),
         "max_prompt_chars": int(getattr(settings, "OLLAMA_CHAT_MAX_PROMPT_CHARS", 4000) or 4000),
         "can_manage_knowledge": _can_manage_knowledge(request),
+        "chat_history_enabled": conversazioni.abilitato(),
+        "chat_history_days": conversazioni.giorni_conservazione(),
     }
     return render(request, "ai_assistant/chat.html", context)
 
@@ -288,10 +334,10 @@ def api_chat(request):
 
     payload = _json_payload(request)
     message = str(payload.get("message") or "").strip()
-    history = payload.get("history")
     preferences = _clean_chat_preferences(payload.get("preferences"))
     if not message:
         return JsonResponse({"ok": False, "error": "Scrivi un messaggio prima di inviare."}, status=400)
+    conversazione, history, rigenera = _conversation_state(request, payload)
 
     started = time.monotonic()
     runtime_context = build_runtime_context(request, message, history=history)
@@ -350,6 +396,10 @@ def api_chat(request):
             sources.append(source)
 
     suggested_questions = _build_suggested_questions(message, result.content)
+    conversation_id = _save_turn(
+        request, conversazione, message=message, answer=result.content,
+        sources=sources, model=result.model, rigenera=rigenera,
+    )
 
     return JsonResponse(
         {
@@ -359,6 +409,7 @@ def api_chat(request):
             "elapsed_ms": elapsed_ms,
             "sources": sources,
             "suggested_questions": suggested_questions,
+            "conversation_id": conversation_id,
         }
     )
 
@@ -393,10 +444,10 @@ def api_chat_stream(request):
 
     payload = _json_payload(request)
     message = str(payload.get("message") or "").strip()
-    history = payload.get("history")
     preferences = _clean_chat_preferences(payload.get("preferences"))
     if not message:
         return JsonResponse({"ok": False, "error": "Scrivi un messaggio prima di inviare."}, status=400)
+    conversazione, history, rigenera = _conversation_state(request, payload)
 
     started = time.monotonic()
     runtime_context = build_runtime_context(request, message, history=history)
@@ -500,6 +551,10 @@ def api_chat_stream(request):
             "elapsed_ms": elapsed_ms,
             "sources": sources,
             "suggested_questions": _build_suggested_questions(message, full_text),
+            "conversation_id": _save_turn(
+                request, conversazione, message=message, answer=full_text,
+                sources=sources, model=meta.get("model") or model, rigenera=rigenera,
+            ),
         }
         if stream_error:
             done_event["partial_error"] = stream_error
@@ -791,3 +846,59 @@ def api_feedback(request):
             "feedback_id": feedback.id,
         }
     )
+
+
+@login_required
+def guida(request):
+    from .guida import sezioni
+
+    return render(request, "ai_assistant/guida.html", {"page_title": "Assistente AI — guida", "sezioni": sezioni()})
+
+
+# ── Storico conversazioni (solo il proprietario) ─────────────────────────────
+
+
+def _history_disabled_response() -> JsonResponse:
+    return JsonResponse({"ok": False, "error": "Lo storico delle conversazioni non è attivo."}, status=404)
+
+
+@login_required
+def api_conversazioni(request):
+    if not conversazioni.abilitato():
+        return _history_disabled_response()
+    return JsonResponse({
+        "ok": True,
+        "conversazioni": conversazioni.elenco(request),
+        "giorni_conservazione": conversazioni.giorni_conservazione(),
+    })
+
+
+@login_required
+def api_conversazione(request, conversation_id: int):
+    if not conversazioni.abilitato():
+        return _history_disabled_response()
+    conversazione = conversazioni.conversazione_di(request, conversation_id)
+    if conversazione is None:
+        return JsonResponse({"ok": False, "error": "Conversazione non trovata."}, status=404)
+    return JsonResponse({"ok": True, **conversazioni.dettaglio(conversazione)})
+
+
+@require_POST
+@login_required
+def api_conversazione_elimina(request, conversation_id: int):
+    if not conversazioni.abilitato():
+        return _history_disabled_response()
+    if not conversazioni.elimina(request, conversation_id):
+        return JsonResponse({"ok": False, "error": "Conversazione non trovata."}, status=404)
+    log_action(request, "ai_conversazione_eliminata", "ai_assistant", {"conversazioni": 1})
+    return JsonResponse({"ok": True})
+
+
+@require_POST
+@login_required
+def api_conversazioni_elimina_tutte(request):
+    if not conversazioni.abilitato():
+        return _history_disabled_response()
+    numero = conversazioni.elimina_tutte(request)
+    log_action(request, "ai_conversazione_eliminata", "ai_assistant", {"conversazioni": numero, "tutte": True})
+    return JsonResponse({"ok": True, "eliminate": numero})

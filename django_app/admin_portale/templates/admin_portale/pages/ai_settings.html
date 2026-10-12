@@ -919,6 +919,28 @@ body.theme-dark .ai-faq-title {
   {% if active_tab == 'governance' %}
   <div class="ai-grid" style="grid-template-columns:1fr;">
 
+    {% if conversazioni_stats %}
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">Storico chat degli utenti</div>
+          <div class="ai-card-subtitle">Ogni utente vede e cancella solo le proprie conversazioni. Qui solo i numeri: i contenuti non sono consultabili. Cancellazione automatica dopo {{ conversazioni_stats.giorni_conservazione }} giorni dall'ultimo messaggio.</div>
+        </div>
+        <span class="ai-badge {% if conversazioni_stats.abilitato %}blue{% endif %}">{% if conversazioni_stats.abilitato %}Attivo{% else %}Spento (AI_CHAT_HISTORY_ENABLED){% endif %}</span>
+      </div>
+      <div class="ai-card-body">
+        <p style="margin:0 0 12px;">Conversazioni: <strong>{{ conversazioni_stats.conversazioni }}</strong> &middot; messaggi: <strong>{{ conversazioni_stats.messaggi }}</strong> &middot; utenti: <strong>{{ conversazioni_stats.utenti }}</strong></p>
+        <form method="post" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="purge_ai_conversations">
+          <input type="hidden" name="tab" value="governance">
+          <label style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" name="conferma" value="1" required> Confermo: cancella lo storico chat di tutti gli utenti</label>
+          <button type="submit" class="btn btn-secondary btn-sm">Svuota storico chat</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
     <section class="ai-card">
       <div class="ai-card-head">
         <div>

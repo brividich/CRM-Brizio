@@ -322,6 +322,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 900}},
     },
     {
+        # Storico chat dell'assistente AI: cancella le conversazioni ferme da più di
+        # AI_CHAT_HISTORY_RETENTION_DAYS (default 90). Fail-safe.
+        "name": "ai_pulisci_conversazioni",
+        "func": "ai_assistant.tasks.run_pulisci_conversazioni",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "15 2 * * *",   # ogni notte alle 02:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Qualità del RAG SGI: dopo il warm dell'indice (03:30) misura recall/MRR
         # con ai_eval --rag-sgi e avvisa gli admin se l'indice è vuoto (sgi_chunks=0)
         # o la recall scende sotto OLLAMA_RAG_SGI_MIN_RECALL. Complementare alla

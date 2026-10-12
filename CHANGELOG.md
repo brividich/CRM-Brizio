@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Assistente AI — storico conversazioni personale e guida in-app** (`django_app/ai_assistant/models.py`, `migrations/0005_conversazioni.py` nuova, `conversazioni.py` nuovo, `views.py`, `urls.py`, `tasks.py`, `guida.py` nuovo, `guide_portale.py`, `management/commands/ai_pulisci_conversazioni.py` nuovo, template `chat.html`, `guida.html` nuovo, `django_app/core/middleware.py`, `django_app/admin_portale/views.py`, `admin_portale/templates/admin_portale/pages/ai_settings.html`, `django_app/automazioni/schedules.py`, `config/settings/base.py`, test `ai_assistant/tests_conversazioni.py` nuovo, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/GUIDA_AI.html`, `docs/moduli/ai_assistant.md`, `docs/AUTOMAZIONI.md`):
+  - **«Le tue conversazioni»** nella chat: ogni conversazione si salva dopo la prima risposta, si riapre e si continua; × ne elimina una, «Elimina tutte» tutto lo storico; «Nuova chat» non cancella più.
+  - **Solo il proprietario** vede e cancella le proprie conversazioni (altrui → 404); agli amministratori solo conteggi aggregati e «Svuota storico chat» in Gestione AI → Governance.
+  - **Conservazione 90 giorni** dall'ultimo messaggio (`AI_CHAT_HISTORY_RETENTION_DAYS`), job notturno `ai_pulisci_conversazioni` e comando omonimo; `AI_CHAT_HISTORY_ENABLED=False` spegne il salvataggio.
+  - Per una conversazione salvata lo storico passato al modello si legge dal server; «Rigenera» sostituisce l'ultima risposta salvata.
+  - **Guida in-app** `/assistente-ai/guida/` con il pulsante «? Guida», conosciuta anche dall'assistente.
+  - Deploy: `migrate ai_assistant 0005`, `setup_q_schedules`; aggiornare l'informativa privacy interna prima dell'uso in produzione.
+
 - **Assistente AI — conosce le guide dei moduli, ticket per periodo, regole anti-invenzione** (`django_app/ai_assistant/guide_portale.py` nuovo, `ai_assistant/services.py`, `ai_assistant/tools.py`, `ai_assistant/views.py`, `config/settings/base.py`, test `ai_assistant/tests_guide_portale.py` nuovo, `docs/moduli/ai_assistant.md`, `docs/ai/GUIDA_AI.html`):
   - **Guide in-app nel RAG**: i capitoli delle guide «? Guida» (Registro Timbri, Anomalie, Audit interni, Registro OFI/NC, Asset, Formazione, Formazione online, Persone e account, Gestione specifiche, Glossario, Security Center) sono indicizzati con fonte `guida:<slug>` e link alla guida, **filtrati con l'ACL della pagina guida**. Si aggiornano da soli quando cambia la guida. Flag `OLLAMA_RAG_GUIDE_ENABLED` (default on).
   - **Recupero**: le parole del modulo pesano come titolo e la guida del modulo nominato va in testa; le domande di seguito («come lo inserisco nel modulo?») usano anche la domanda precedente.

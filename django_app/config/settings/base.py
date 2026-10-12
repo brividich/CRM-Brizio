@@ -458,6 +458,11 @@ OLLAMA_NUM_CTX = int(env("OLLAMA_NUM_CTX", "16384") or "16384")
 OLLAMA_NUM_PREDICT = int(env("OLLAMA_NUM_PREDICT", "1536") or "1536")
 # Throttle per-utente delle richieste alla chat AI (protegge l'istanza Ollama e i
 # thread Waitress). 0 = disabilitato. Finestra fissa in secondi.
+# Storico conversazioni dell'assistente (ai_assistant/conversazioni.py): visibile solo
+# al proprietario, cancellato dal job notturno ai_pulisci_conversazioni dopo
+# AI_CHAT_HISTORY_RETENTION_DAYS giorni dall'ultimo messaggio. False = nessun salvataggio.
+AI_CHAT_HISTORY_ENABLED = env_bool("AI_CHAT_HISTORY_ENABLED", True)
+AI_CHAT_HISTORY_RETENTION_DAYS = int(env("AI_CHAT_HISTORY_RETENTION_DAYS", "90") or "90")
 OLLAMA_CHAT_RATE_LIMIT = int(env("OLLAMA_CHAT_RATE_LIMIT", "20") or "20")
 OLLAMA_CHAT_RATE_WINDOW_SECONDS = int(env("OLLAMA_CHAT_RATE_WINDOW_SECONDS", "60") or "60")
 OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS", "1800") or "1800")

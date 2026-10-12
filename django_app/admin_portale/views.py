@@ -2415,6 +2415,16 @@ def _ai_runtime_tool_test(request: HttpRequest) -> dict[str, object]:
     return result
 
 
+def _ai_conversazioni_stats() -> dict | None:
+    """Conteggi aggregati dello storico chat AI (mai i contenuti); None se non disponibile."""
+    try:
+        from ai_assistant.conversazioni import abilitato, statistiche
+
+        return {**statistiche(), "abilitato": abilitato()}
+    except Exception:
+        return None
+
+
 @legacy_admin_required
 def ai_settings(request: HttpRequest):
     ollama_defaults = _ollama_diag_defaults()
@@ -2481,6 +2491,23 @@ def ai_settings(request: HttpRequest):
             )
             messages.success(request, "Cache RAG/runtime svuotata.")
             return redirect(f"{reverse('admin_portale:ai_settings')}?tab=tools")
+        elif action == "purge_ai_conversations":
+            # Storico chat: l'admin non legge i contenuti, può solo svuotarlo per tutti.
+            from ai_assistant.models import AiConversation
+
+            if (request.POST.get("conferma") or "") != "1":
+                messages.error(request, "Spunta la conferma per cancellare lo storico chat di tutti gli utenti.")
+            else:
+                numero = AiConversation.objects.count()
+                AiConversation.objects.all().delete()
+                _audit_safe(
+                    request,
+                    "ai_conversazioni_svuotate",
+                    "ai_assistant",
+                    {"conversazioni": numero, "scope": "tutti_gli_utenti"},
+                )
+                messages.success(request, f"Storico chat svuotato: {numero} conversazioni cancellate.")
+            return redirect(f"{reverse('admin_portale:ai_settings')}?tab=governance")
         elif action == "save_governance_review":
             active_tab = "governance"
             tool_key = (request.POST.get("tool_key") or "").strip()[:80]
@@ -2627,6 +2654,7 @@ def ai_settings(request: HttpRequest):
             "governance_edit_key": governance_edit_key,
             "governance_edit_review": governance_edit_review,
             "governance_doc_url": "../../docs/ai/13_AI_GOVERNANCE.md",
+            "conversazioni_stats": _ai_conversazioni_stats(),
             # Feedback tab
             "feedback_page_obj": feedback_page_obj,
             "feedback_filter": feedback_filter,

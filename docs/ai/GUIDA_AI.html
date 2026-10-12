@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-10-12 · Versione guida 2.4</span>
+    <span class="badge">Ultimo aggiornamento: 2026-10-12 · Versione guida 2.5</span>
   </div>
 </header>
 
@@ -270,6 +270,10 @@
     <li><strong>Read-only</strong>: nessuna scrittura nei moduli, nessuna decisione automatica.</li>
     <li><strong>Niente invenzioni</strong>: se un dato non c'è o non è autorizzato, lo dichiara.</li>
     <li><strong>Audit solo-metadati</strong>: si registra l'uso del tool, non i contenuti.</li>
+    <li><strong>Storico chat personale</strong>: le conversazioni si salvano in «Le tue conversazioni» e le vede
+      <strong>solo chi le ha scritte</strong> (gli amministratori vedono solo quante sono). Si cancellano da sole dopo
+      <strong>90 giorni</strong> dall'ultimo messaggio, oppure subito con × o «Elimina tutte». Non alimentano la
+      memoria documentale né le FAQ.</li>
     <li><strong>Matrice campi</strong> per modulo (whitelist/blacklist): mai CF, IBAN, dati sanitari, retributivi o documenti.</li>
     <li>Ogni nuovo tool va in produzione <strong>solo dopo una revisione privacy approvata</strong> (<code>AiToolPrivacyReview</code>).</li>
   </ul>
@@ -293,6 +297,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-10-12</td><td>2.5</td><td><strong>Storico conversazioni.</strong> Ogni conversazione resta in «Le tue conversazioni»: si riapre e si continua, «Nuova chat» non la cancella più. Visibile solo al proprietario, cancellazione automatica dopo 90 giorni dall'ultimo messaggio, × per una e «Elimina tutte» per tutto. Quando si continua una conversazione salvata, l'assistente legge gli ultimi messaggi dal server. Nuova guida in-app dell'assistente (<code>/assistente-ai/guida/</code>), che l'assistente stesso conosce.</td></tr>
     <tr><td>2026-10-12</td><td>2.4</td><td><strong>L'assistente conosce le guide dei moduli.</strong> Le guide in-app («? Guida») entrano nella memoria documentale, filtrate con i permessi della pagina guida, e vengono preferite per le domande su <em>come si fa</em> una cosa nel portale. Prima, a «come inserisco un timbro?», l'assistente citava solo la procedura SGI e, appena partiva il catalogo moduli, perdeva anche quella. <strong>Ticket</strong>: «quanti ticket ho aperto questo mese?» ora conta i ticket aperti dall'utente nel periodo, in qualsiasi stato (prima contava solo quelli ancora aperti). <strong>Regole anti-invenzione</strong> sempre attive: niente sigle sciolte a fantasia (es. «MSM»), niente «non hai accesso» se i permessi non lo dicono, niente «non vedo i dati» quando i dati live ci sono.</td></tr>
     <tr><td>2026-07-06</td><td>2.3</td><td><strong>Memoria documentale filtrata per permessi di modulo.</strong> La ricerca sui documenti SGI (chat e report PDF) ora rispetta l'ACL dei moduli d'origine: le <strong>Specifiche</strong> sono citabili solo da chi può aprire <em>Gestione specifiche</em>, le <strong>Procedure</strong> solo dai <strong>gestori</strong> (come la libreria documenti di <em>Procedure</em>). Prima chiunque autenticato poteva estrarre il contenuto integrale di quei documenti chiedendolo alla chat o generando un report, anche senza accesso al modulo. Anche la <em>panoramica documento</em> (scopo + indice) è filtrata. Le guide del portale e le FAQ curate restano condivise. Nessun impatto su tool live, difese anti-allucinazione o prestazioni (la cache dell'indice resta condivisa; il filtro è per-richiesta).</td></tr>
     <tr><td>2026-07-02</td><td>2.2</td><td>Tool live <strong>Skill Matrix</strong>: nuova capacità <strong>«dove può lavorare NOME»</strong> (reverse persona→macchine: dato l'operatore, elenca le macchine su cui è abilitato con livello/stato/operatività). Corretto anche un <strong>leak di contesto</strong> per cui il codice-macchina di una domanda precedente (es. «…sulla DM11») dirottava la domanda successiva su un altro operatore, facendola rispondere «non abilitato su DM11»: ora le entità (codice-macchina, nominativo) si leggono dalla <strong>domanda corrente</strong>, lo storico resta solo per capire il dominio. Persona non riconosciuta o senza abilitazioni → risposta onesta, mai inventata.</td></tr>

@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 63
+**Totale automazioni disponibili:** 64
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -275,6 +275,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:30
 - **Task eseguito:** `ai_assistant.tasks.run_index_sgi_documents`
 - **Cosa fa:** Warm dell'indice RAG + cache embeddings del corpus documentale SGI (specifiche in vigore / procedure correnti). La PRIMA build è la più costosa (estrazione PDF + embedding); il run notturno la anticipa così non è la prima chat della giornata a pagarla. Utile soprattutto con OLLAMA_EMBED_ENABLED=1; con embeddings spenti ricostruisce solo l'indice BM25 (cheap). Fail-safe / no-op se RAG o SGI sono disattivi o Ollama è giù.
+
+### `ai_pulisci_conversazioni`
+
+- **Quando gira:** ogni giorno, alle 02:15
+- **Task eseguito:** `ai_assistant.tasks.run_pulisci_conversazioni`
+- **Cosa fa:** Storico chat dell'assistente AI: cancella le conversazioni ferme da più di AI_CHAT_HISTORY_RETENTION_DAYS (default 90). Fail-safe.
 
 ### `ai_rag_quality_alert`
 
