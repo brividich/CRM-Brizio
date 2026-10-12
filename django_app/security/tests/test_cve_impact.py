@@ -575,8 +575,92 @@ class AutoLinkTests(_Base):
         self._cve(criteria=[{"part": "a", "vendor": "democorp", "product": "demoviewer_pro", "version": "*", "start_including": "",
                              "start_excluding": "", "end_including": "", "end_excluding": "22.0", "requires_platform": False}])
         page = self.client.get(reverse("security:software_mapping"), {"stato": "proposte"})
-        self.assertContains(page, "Proposte da confermare (1)")
+        self.assertContains(page, "Da decidere (1)")
         self.assertContains(page, "demo corp|||demoviewer|||democorp:demoviewer_pro")
         self.client.post(reverse("security:software_mapping"), {"action": "cpe_confirm_bulk", "bulk": ["demo corp|||demoviewer|||democorp:demoviewer_pro"]})
         mapping = SoftwareCpeMapping.objects.get(product="demoviewer")
         self.assertEqual((mapping.cpe_vendor, mapping.cpe_product, mapping.confirmed, mapping.origin), ("democorp", "demoviewer_pro", True, ""))
+
+
+class MappingTriageTests(_Base):
+    """«Da decidere» vs «Senza CVE note», azioni in blocco e regole «non applicabile»."""
+
+    EXTRA = (
+        "Computer;Editore;Software;Versione;Rilevato il\n"
+        "PC-DEMO-01;Demo Corp;DemoViewer;21H2;01/10/2026\n"
+        "PC-DEMO-01;Microsoft;Demo Redistributable 2015;14.0;01/10/2026\n"
+        "PC-DEMO-02;Microsoft;Demo Redistributable 2019;14.2;01/10/2026\n"
+        "PC-DEMO-02;Intel;Demo Graphics Driver;31.0;01/10/2026\n"
+    ).encode("utf-8")
+    URL = "security:software_mapping"
+
+    def setUp(self):
+        super().setUp()
+        self._import(self.EXTRA)
+        # CVE sintetica dal nome simile a DemoViewer: unica riga «da decidere».
+        self._cve(criteria=[{"part": "a", "vendor": "democorp", "product": "demoviewer_pro", "version": "*", "start_including": "",
+                             "start_excluding": "", "end_including": "", "end_excluding": "22.0", "requires_platform": False}])
+
+    def _page(self, **params):
+        return self.client.get(reverse(self.URL), params)
+
+    def test_states_split_work_from_noise(self):
+        page = self._page(stato="proposte")
+        self.assertContains(page, "Da decidere (1)")
+        self.assertContains(page, "Senza CVE note (3)")
+        self.assertContains(page, "demoviewer")
+        self.assertNotContains(page, "demo graphics driver")
+        self.assertContains(self._page(stato="senza_cve"), "demo graphics driver")
+        # Il vecchio filtro apre «Da decidere».
+        self.assertEqual(self._page(stato="da_mappare").context["stato"], "proposte")
+
+    def test_confirm_unique_across_pages(self):
+        self.client.post(reverse(self.URL), {"action": "cpe_confirm_unique", "q": "", "stato": "proposte"})
+        mapping = SoftwareCpeMapping.objects.get(product="demoviewer")
+        self.assertEqual((mapping.cpe_vendor, mapping.cpe_product, mapping.confirmed), ("democorp", "demoviewer_pro", True))
+        self.assertEqual(SoftwareCpeMapping.objects.filter(confirmed=True).count(), 1)
+
+    def test_na_bulk_and_na_search(self):
+        self.client.post(reverse(self.URL), {"action": "cpe_na_bulk", "bulk": ["intel|||demo graphics driver|||"]})
+        self.assertTrue(SoftwareCpeMapping.objects.get(product="demo graphics driver").not_applicable)
+        self.client.post(reverse(self.URL), {"action": "cpe_na_search", "q": "re"})  # troppo corta: niente
+        self.assertFalse(SoftwareCpeMapping.objects.filter(product__contains="redistributable").exists())
+        self.client.post(reverse(self.URL), {"action": "cpe_na_search", "q": "redistributable", "stato": ""})
+        self.assertEqual(SoftwareCpeMapping.objects.filter(product__contains="redistributable", not_applicable=True).count(), 2)
+        self.assertContains(self._page(stato="non_applicabili"), "Non applicabili (3)")
+
+    def test_rule_applies_spares_proposals_and_reopens_on_delete(self):
+        from security.models import SoftwareNaRule
+        from security.services.cpe_rules import apply_rules
+
+        SoftwareCpeMapping.objects.create(vendor="intel", product="demo graphics driver", cpe_vendor="intel", cpe_product="x", confirmed=True)
+        self.client.post(reverse(self.URL), {"action": "na_rule", "pattern": " Demo ", "note": "sintetica"})
+        rule = SoftwareNaRule.objects.get(pattern="demo")
+        excluded = SoftwareCpeMapping.objects.filter(na_rule=rule, not_applicable=True, origin=SoftwareCpeMapping.ORIGIN_RULE)
+        # Solo i due redistributable: DemoViewer ha una proposta, il driver è già confermato.
+        self.assertEqual(sorted(excluded.values_list("product", flat=True)), ["demo redistributable 2015", "demo redistributable 2019"])
+        self.assertFalse(SoftwareCpeMapping.objects.filter(product="demoviewer", not_applicable=True).exists())
+        self.assertTrue(SoftwareCpeMapping.objects.get(product="demo graphics driver").confirmed)
+        # Import successivo con un prodotto nuovo: la regola vale anche lì.
+        self._import("Computer;Editore;Software;Versione;Rilevato il\nPC-DEMO-03;Microsoft;Demo Redistributable 2022;14.3;01/10/2026\n".encode("utf-8"))
+        apply_rules()
+        self.assertTrue(SoftwareCpeMapping.objects.get(product="demo redistributable 2022").not_applicable)
+        # Una CVE dal nome simile arrivata dopo riporta il software in «Da decidere».
+        self._cve("CVE-2099-0002", criteria=[{"part": "a", "vendor": "microsoft", "product": "demo_redistributable", "version": "*",
+                                              "start_including": "", "start_excluding": "", "end_including": "", "end_excluding": "",
+                                              "requires_platform": False}])
+        page = self._page(stato="proposte")
+        self.assertContains(page, "è arrivata una CVE dal nome simile")
+        # Eliminare la regola riapre ciò che aveva escluso.
+        self.client.post(reverse(self.URL), {"action": "na_rule_delete", "rule_id": rule.pk})
+        self.assertFalse(SoftwareNaRule.objects.exists())
+        self.assertFalse(SoftwareCpeMapping.objects.filter(product__contains="redistributable", not_applicable=True).exists())
+
+    def test_rule_vendor_filter_and_min_length(self):
+        from security.models import SoftwareNaRule
+
+        self.client.post(reverse(self.URL), {"action": "na_rule", "pattern": "dr"})
+        self.assertFalse(SoftwareNaRule.objects.exists())
+        self.client.post(reverse(self.URL), {"action": "na_rule", "pattern": "demo", "vendor": "Intel"})
+        self.assertEqual(list(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("product", flat=True)), ["demo graphics driver"])
+        self.assertEqual(self._page().status_code, 200)

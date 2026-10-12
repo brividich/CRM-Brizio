@@ -1403,6 +1403,27 @@ class SoftwareAlias(models.Model):
         return f"{self.raw} → {self.canonical}"
 
 
+class SoftwareNaRule(models.Model):
+    """Regola «non applicabile»: i software il cui nome contiene ``pattern`` non hanno CVE da seguire.
+
+    Vale anche per gli import futuri. Non tocca le decisioni delle persone né i software per cui
+    esiste già una CVE dal nome simile (quelli restano da decidere a mano).
+    """
+
+    pattern = models.CharField(max_length=160)
+    vendor = models.CharField(max_length=120, blank=True)
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["pattern", "vendor"]
+        constraints = [models.UniqueConstraint(fields=["vendor", "pattern"], name="uniq_software_na_rule")]
+
+    def __str__(self):
+        return f"{self.vendor + ' · ' if self.vendor else ''}contiene «{self.pattern}»"
+
+
 class SoftwareCpeMapping(models.Model):
     """Prodotto normalizzato ↔ CPE (vendor:product). I suggerimenti valgono solo dopo conferma."""
 
@@ -1418,7 +1439,10 @@ class SoftwareCpeMapping(models.Model):
     ORIGIN_MANUAL = ""
     ORIGIN_AUTO = "auto"
     ORIGIN_AUTO_REJECTED = "auto_rifiutato"
+    # "regola" = segnata non applicabile da una SoftwareNaRule (si annulla eliminando la regola).
+    ORIGIN_RULE = "regola"
     origin = models.CharField(max_length=16, blank=True, default="", db_index=True)
+    na_rule = models.ForeignKey(SoftwareNaRule, on_delete=models.SET_NULL, null=True, blank=True, related_name="mappings")
     confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     confirmed_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
