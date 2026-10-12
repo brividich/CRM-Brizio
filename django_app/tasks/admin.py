@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MeetingIssue, MeetingRoom, Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment, TaskEvent
+from .models import MeetingIssue, MeetingRoom, Project, ProjectComment, ProjectMember, SubTask, Task, TaskAttachment, TaskComment, TaskEvent
 
 
 class SubTaskInline(admin.TabularInline):
@@ -56,6 +56,13 @@ class TaskEventAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at",)
 
 
+class ProjectMemberInline(admin.TabularInline):
+    model = ProjectMember
+    extra = 0
+    raw_id_fields = ("user",)
+    fields = ("role_code", "user")
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = (
@@ -81,12 +88,7 @@ class ProjectAdmin(admin.ModelAdmin):
         "created_by",
         "similar_project",
     )
-    filter_horizontal = (
-        "project_managers",
-        "capi_commessa",
-        "programmers",
-        "caporeparti",
-    )
+    inlines = (ProjectMemberInline,)
     readonly_fields = ("created_at", "updated_at")
 
 

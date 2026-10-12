@@ -23,7 +23,7 @@ from tasks.models import (
     Project,
     Task,
 )
-from tasks.tests import (
+from tasks.tests_utils import (
     TasksBaseTestCase,
     _create_user_with_legacy,
     _ensure_role,
@@ -810,7 +810,7 @@ class MeetingRunTaskLinkTests(TasksBaseTestCase):
         item_id = self.meeting.agenda_items[0]["id"]
         bloccato = {"status": "blocked", "label": "", "is_blocked": True,
                     "days_pending": 9, "show_upload_cta": True}
-        with _patch("tasks.views._vrf_status_detail", return_value=bloccato):
+        with _patch("tasks.views.meetings._vrf_status_detail", return_value=bloccato):
             response = self.client.post(self.task_create_url, {
                 "item_id": item_id, "title": "Non deve nascere",
             })
@@ -1784,7 +1784,7 @@ class MeetingTaskFromStepTests(TasksBaseTestCase):
 
     def test_l_attivita_resta_creata_anche_se_l_attrezzatura_inciampa(self):
         with patch(
-            "tasks.views._apply_task_tooling_action", side_effect=RuntimeError("boom")
+            "tasks.views.meetings._apply_task_tooling_action", side_effect=RuntimeError("boom")
         ):
             response = self.client.post(self.step_url, {
                 "title": "Attivita' con attrezzo storto",

@@ -1897,10 +1897,10 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
     if not _should_run(request, "tasks", _wants_task_context(prompt)):
         return RuntimeContext()
 
-    from tasks import views as task_views
+    from tasks import access as task_access
     from tasks.models import TaskStatus
 
-    if not task_views._has_task_permission(request, "tasks_view"):
+    if not task_access.has_task_permission(request, "tasks_view"):
         return RuntimeContext(
             text=(
                 "DATI LIVE PORTALE - KICK-OFF / TASKS\n"
@@ -1914,7 +1914,7 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
     text = _norm_text(prompt)
     today = timezone.localdate()
     active_statuses = (TaskStatus.TODO, TaskStatus.IN_PROGRESS)
-    qs = task_views._scoped_tasks_queryset(request)
+    qs = task_access.scoped_tasks_queryset(request)
     filters: list[str] = []
 
     if re.search(r"\b(ritardo|ritardi|scadut[ioa]?)\b", text):
@@ -1965,7 +1965,7 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
     project_lines = ""
     project_count = 0
     if re.search(r"\b(progetto|progetti|kick-off|kickoff|portfolio)\b", text):
-        projects = list(task_views._scoped_projects_queryset(request).order_by("-updated_at")[:10])
+        projects = list(task_access.scoped_projects_queryset(request).order_by("-updated_at")[:10])
         project_count = len(projects)
         project_lines = "\n\nProgetti visibili:\n" + (
             "\n".join(_project_line(project) for project in projects)
@@ -1973,7 +1973,7 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
             else "Nessun progetto visibile per l'utente corrente."
         )
 
-    scope = "tutti i KICK-OFF/task autorizzati dal modulo" if task_views._has_task_permission(request, "tasks_admin") else "KICK-OFF/task visibili all'utente corrente"
+    scope = "tutti i KICK-OFF/task autorizzati dal modulo" if task_access.has_task_permission(request, "tasks_admin") else "KICK-OFF/task visibili all'utente corrente"
     return RuntimeContext(
         text=(
             "DATI LIVE PORTALE - KICK-OFF / TASKS\n"
@@ -1990,7 +1990,7 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
         audit={
             "tool": "tasks_summary",
             "allowed": True,
-            "scope": "admin" if task_views._has_task_permission(request, "tasks_admin") else "scoped",
+            "scope": "admin" if task_access.has_task_permission(request, "tasks_admin") else "scoped",
             "filters": filters,
             "row_count": len(rows),
             "project_count": project_count,

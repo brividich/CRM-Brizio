@@ -1276,8 +1276,8 @@ def _board_data_progetti(legacy_user_id: int | None, params: dict) -> list[dict]
         user = profile.user
         max_items = min(int(params.get("max_items") or 8), MAX_BOARD_WIDGET_ITEMS)
         qs = (
-            Project.objects.filter(capi_commessa=user)
-            .prefetch_related("project_managers")
+            Project.objects.filter(Project.team_q(user, ["capi_commessa"]))
+            .prefetch_related(Project.team_prefetch())
             .distinct()[:max_items]
         )
         out = []

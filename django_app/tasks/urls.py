@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import views, views_projects
+from . import views
 
 app_name = "tasks"
 
@@ -15,17 +15,17 @@ urlpatterns = [
     path("tasks/projects/new/", views.project_create, name="project_create"),
     path(
         "tasks/projects/identity-suggest/",
-        views_projects.identity_suggest,
+        views.identity_suggest,
         name="identity_suggest",
     ),
     path(
         "tasks/projects/<int:project_id>/azioni/",
-        views_projects.project_actions,
+        views.project_actions,
         name="project_actions",
     ),
     path(
         "tasks/projects/<int:project_id>/",
-        views_projects.project_overview,
+        views.project_overview,
         name="project_overview",
     ),
     path("tasks/projects/<int:project_id>/set-phase/", views.project_set_phase, name="project_set_phase"),
