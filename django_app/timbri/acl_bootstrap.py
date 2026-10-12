@@ -77,13 +77,13 @@ def _bootstrap_navigation() -> bool:
     item, created = NavigationItem.objects.get_or_create(
         code="timbri",
         defaults={
-            "label": "Timbri",
+            "label": "Registro Timbri MOD.130-RTF-Rev.2",
             "section": "topbar",
             "route_name": "timbri:index",
             "order": 58,
             "is_visible": True,
             "is_enabled": True,
-            "description": "Registro timbri e firme",
+            "description": "Registro timbri, firme e sigle (MOD.130-RTF-Rev.2)",
         },
     )
     if created:

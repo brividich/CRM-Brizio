@@ -175,7 +175,7 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
     ),
     "timbri": ModuleDefinition(
         key="timbri",
-        default_label="Timbri",
+        default_label="Registro Timbri MOD.130-RTF-Rev.2",
         icon="clock",
         order=60,
         route_name="timbri:index",
@@ -183,7 +183,7 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         permission_namespace="timbri",
         navigation_codes=("timbri",),
         default_short_label="Timbri",
-        default_menu_label="Registro Timbri",
+        default_menu_label="Registro Timbri MOD.130-RTF-Rev.2",
         default_dashboard_label="Timbri",
     ),
     "planimetria": ModuleDefinition(

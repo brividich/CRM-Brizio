@@ -3,4 +3,5 @@
   {% if can_manage_timbri_config %}
     <a class="sub-a{% if current == 'timbri:configurazione' %} active{% endif %}" href="{% url 'timbri:configurazione' %}?tab=permessi">Impostazioni</a>
   {% endif %}
+  <a class="sub-a{% if current == 'timbri:guida' %} active{% endif %}" href="{% url 'timbri:index' %}?guida=1" title="Guida d'uso del registro (MOD.130-RTF-Rev.2)">Guida</a>
 </div>

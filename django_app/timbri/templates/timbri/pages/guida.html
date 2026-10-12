@@ -1,0 +1,94 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida · {{ doc_nome }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+{% include "timbri/components/_timbri_ui.html" %}
+<style>
+.tim-guide{ display:grid; grid-template-columns:240px minmax(0,1fr); gap:22px; align-items:start; }
+.tim-guide-toc{ position:sticky; top:16px; padding:16px 18px; }
+.tim-guide-toc-t{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--tim-muted); margin-bottom:8px; }
+.tim-guide-toc ol{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.tim-guide-toc a{ color:var(--tim-ink); text-decoration:none; }
+.tim-guide-toc a:hover{ color:var(--tim-cyan); text-decoration:underline; }
+.tim-guide-body{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+.tim-guide-sec{ padding:20px 24px; scroll-margin-top:16px; }
+.tim-guide-sec h2{ margin:0 0 10px; font-size:17px; font-weight:800; color:var(--tim-navy); display:flex; gap:10px; align-items:baseline; }
+.tim-guide-n{ font-family:var(--tim-mono); font-size:12px; font-weight:800; color:var(--tim-cyan); }
+.tim-guide-sec p{ margin:0 0 10px; line-height:1.6; color:var(--tim-ink); font-size:14px; }
+.tim-guide-sec ul{ margin:0 0 10px; padding-left:20px; display:flex; flex-direction:column; gap:6px; line-height:1.55; font-size:14px; color:var(--tim-ink); }
+.tim-guide-sec dl{ margin:0 0 10px; display:grid; grid-template-columns:minmax(150px,230px) minmax(0,1fr); gap:8px 18px; font-size:14px; line-height:1.55; }
+.tim-guide-sec dt{ font-weight:700; color:var(--tim-navy); }
+.tim-guide-sec dd{ margin:0; color:var(--tim-ink); }
+.tim-guide-nota{ display:flex; gap:10px; padding:11px 14px; border:1px solid #fdba74; background:#fff7ed; border-radius:10px; color:#7c2d12; font-size:13.5px; line-height:1.55; }
+.tim-guide-doc{ display:inline-flex; align-items:center; gap:6px; font-family:var(--tim-mono); font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(31,135,205,.1); color:var(--tim-cyan); }
+body.theme-dark .tim-guide-sec h2, body.theme-dark .tim-guide-sec dt{ color:#dbeafe; }
+body.theme-dark .tim-guide-sec p, body.theme-dark .tim-guide-sec ul, body.theme-dark .tim-guide-sec dd, body.theme-dark .tim-guide-toc a{ color:#cbd5e1; }
+body.theme-dark .tim-guide-nota{ background:rgba(251,146,60,.12); border-color:rgba(251,146,60,.45); color:#fed7aa; }
+@media (max-width:900px){
+  .tim-guide{ grid-template-columns:1fr; }
+  .tim-guide-toc{ position:static; }
+  .tim-guide-sec{ padding:16px; }
+  .tim-guide-sec dl{ grid-template-columns:1fr; gap:2px; }
+  .tim-guide-sec dd{ margin-bottom:8px; }
+}
+@media print{
+  .subnav, .tim-guide-toc, .fmd-pagehead-actions{ display:none !important; }
+  .tim-guide{ display:block; }
+  .tim-guide-sec{ break-inside:avoid; box-shadow:none; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd tim-ui">
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">{{ module_branding_display_label }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-award"/></svg>Guida · {{ doc_titolo }}</h1>
+        <p class="fmd-ph-sub"><span class="tim-guide-doc">{{ doc_codice }}</span> Come si consulta e si tiene aggiornato il registro di timbri, firme e sigle del personale.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-primary" href="{% url 'timbri:index' %}?guida=pdf"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica PDF</a>
+      </div>
+    </div>
+
+    <div class="tim-guide">
+      <nav class="fmd-panel tim-guide-toc" aria-label="Indice della guida">
+        <div class="tim-guide-toc-t">Indice</div>
+        <ol>
+          {% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}
+        </ol>
+      </nav>
+
+      <div class="tim-guide-body">
+        {% for sez in sezioni %}
+          <section class="fmd-panel tim-guide-sec" id="{{ sez.id }}">
+            <h2><span class="tim-guide-n">{{ forloop.counter }}</span>{{ sez.titolo }}</h2>
+            {% for kind, contenuto in sez.blocchi %}
+              {% if kind == "p" %}
+                <p>{{ contenuto }}</p>
+              {% elif kind == "ul" %}
+                <ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
+              {% elif kind == "def" %}
+                <dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+              {% elif kind == "nota" %}
+                <div class="tim-guide-nota" role="note"><svg class="fmd-ico" style="flex:none;margin-top:2px;"><use href="#i-alert-tri"/></svg><div>{{ contenuto }}</div></div>
+              {% endif %}
+            {% endfor %}
+          </section>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

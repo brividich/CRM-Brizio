@@ -4,7 +4,7 @@ from django.apps import AppConfig
 class TimbriConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "timbri"
-    verbose_name = "Registro timbri"
+    verbose_name = "Registro Timbri MOD.130-RTF-Rev.2"
 
     def ready(self):
         try:
