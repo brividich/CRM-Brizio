@@ -4,7 +4,7 @@
 
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
 
-{% block content %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
 <div class="rc-wrap">
   <a class="rc-back" href="{% url 'sistema_gestione:soa_revisione' voce.revisione.numero %}#c-{{ voce.controllo.codice }}">← SoA Rev.{{ voce.revisione.numero }}</a>
   <div class="page-header">

@@ -45,6 +45,7 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
   <div class="fmd-wrap" style="max-width:960px;margin:0 auto;">
+    {% include "registro_ofi/_guida_link.html" %}
 
     <section class="fmd-hero">
       <div class="fmd-hero-bg" aria-hidden="true"></div>
@@ -55,7 +56,7 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
             {% if voce.tipo == "OFI" %}<span class="fmd-badge fmd-b-amber">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</h1>
           <p class="fmd-sub">Modulo d'origine: <strong>{{ voce.modulo_display }}</strong> · Fase {{ voce.get_fase_display }} (TOT {{ voce.tot_letter }}).</p>
           <p class="fmd-sub">
-            {% if voce.modulo_origine == "sistema_gestione" and voce.origine.audit_id %}<a href="{% url 'sistema_gestione:audit_dettaglio' voce.origine.audit_id %}#esito-{{ voce.origine.pk }}">Rilievo dell'audit {{ voce.origine.audit.numero }}{% if voce.origine.clausola_effettiva %} · § {{ voce.origine.clausola_effettiva }}{% endif %}</a> · {% endif %}<a href="{% url 'sistema_gestione:procedura_car' voce.pk %}">Azione correttiva MT CN 11: analisi, scadenze, proroga ed efficacia</a>
+            {% if voce.modulo_origine == "sistema_gestione" and voce.origine.audit_id %}<a href="{% url 'sistema_gestione:audit_dettaglio' voce.origine.audit_id %}#esito-{{ voce.origine.pk }}">Rilievo dell'audit {{ voce.origine.audit.numero }}{% if voce.origine.clausola_effettiva %} · § {{ voce.origine.clausola_effettiva }}{% endif %}</a> · {% endif %}<a href="{% url 'sistema_gestione:procedura_car' voce.pk %}">Azione correttiva MT CN 11: analisi, scadenze, proroga ed efficacia</a>{% if voce.tipo == "OFI" %} <span class="fmd-muted">(facoltativa per le OFI)</span>{% endif %}
           </p>
         </div>
         <div class="fmd-hero-side">
@@ -90,7 +91,8 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
       <dl class="ofi-dl">
         <dt>Data apertura</dt><dd>{{ voce.data_apertura|date:"d/m/Y" }}</dd>
         <dt>REF</dt><dd>{{ voce.ref|default:"—" }}</dd>
-        <dt>Normative</dt><dd>{% if voce.norma_iso27001 %}<span class="fmd-badge fmd-b-cyan">27001</span> {% endif %}{% if voce.norma_iso45001 %}<span class="fmd-badge fmd-b-cyan">45001</span> {% endif %}{% if voce.norma_en9100 %}<span class="fmd-badge fmd-b-cyan">9100</span>{% endif %}{% if not voce.norma_iso27001 and not voce.norma_iso45001 and not voce.norma_en9100 %}—{% endif %}</dd>
+        <dt>Fonte</dt><dd>{{ voce.fonte|default:"—" }}</dd>
+        <dt>Normative</dt><dd>{% for sigla in voce.norme_sigle %}<span class="fmd-badge fmd-b-cyan">{{ sigla }}</span> {% empty %}—{% endfor %}</dd>
         <dt>Rif. norma</dt><dd>{{ voce.rif_norma|default:"—" }}</dd>
         <dt>Processo/area</dt><dd>{{ voce.processo|default:"—" }}</dd>
         <dt>Opportunità</dt><dd>{{ voce.opportunita|default:"—" }}</dd>
@@ -101,7 +103,7 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Ciclo PDCA</div></div>
       <dl class="ofi-dl">
         <dt>PLAN</dt><dd>{{ voce.plan|default:"—" }}</dd>
-        <dt>Allegato/Link</dt><dd>{% if voce.allegato_link %}<a class="fmd-data-link" href="{{ voce.allegato_link }}" target="_blank" rel="noopener">{{ voce.allegato_link }}</a>{% else %}—{% endif %}</dd>
+        <dt>Allegato/Link</dt><dd>{% if voce.allegato_link and not voce.allegato_link_sicuro %}{{ voce.allegato_link }}{% elif voce.allegato_link %}<a class="fmd-data-link" href="{{ voce.allegato_link }}" target="_blank" rel="noopener">{{ voce.allegato_link }}</a>{% else %}—{% endif %}</dd>
         <dt>DO</dt><dd>{{ voce.do|default:"—" }}</dd>
         <dt>CHECK</dt><dd>{{ voce.verifica|default:"—" }}</dd>
         <dt>ACT</dt><dd>{{ voce.act|default:"—" }}</dd>

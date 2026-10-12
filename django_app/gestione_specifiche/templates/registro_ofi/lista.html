@@ -44,6 +44,7 @@
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
+  {% include "registro_ofi/_guida_link.html" %}
 
   {# ── Hero ───────────────────────────────────────────────────────────── #}
   <section class="fmd-hero">
@@ -55,7 +56,7 @@
         <p class="fmd-sub">Registro trasversale delle Opportunità di miglioramento e non conformità con ciclo <strong>PLAN-DO-CHECK-ACT</strong>, normative, priorità, owner di processo e scadenza con reminder. {% if modulo %}<a href="{% url 'registro_ofi:lista' %}">← Registro unico (tutti i moduli)</a>{% else %}Filtra per modulo per vedere il registro del singolo modulo.{% endif %}</p>
       </div>
       <div class="fmd-hero-side">
-        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.tot }}</span><span class="fmd-lbl">Voci OFI</span></div>
+        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.tot }}</span><span class="fmd-lbl">Voci OFI/NC</span></div>
         <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.pct }}%</span><span class="fmd-lbl">Completamento</span></div>
       </div>
     </div>
@@ -64,6 +65,12 @@
   {# ── Toolbar filtri ─────────────────────────────────────────────────── #}
   <section class="fmd-panel" style="margin-bottom:16px;">
     <form method="get" class="fmd-toolbar">
+      <input class="fmd-select" type="search" name="q" value="{{ q }}" placeholder="Cerca numero, processo, descrizione, norma, fonte, owner…" aria-label="Cerca nel registro" style="min-width:260px;">
+      <button type="submit" class="fmd-btn fmd-btn-ghost">Cerca</button>
+      <select class="fmd-select" name="tipo" onchange="this.form.submit()" aria-label="Filtra OFI o NC">
+        <option value="">OFI e NC</option>
+        {% for val, lab in TIPO_CHOICES %}<option value="{{ val }}" {% if tipo == val %}selected{% endif %}>{{ val }} · {{ lab }}</option>{% endfor %}
+      </select>
       {% if moduli_opts %}
       <select class="fmd-select" name="modulo" onchange="this.form.submit()" aria-label="Filtra per modulo">
         <option value="">Tutti i moduli (registro unico)</option>
@@ -82,6 +89,8 @@
         <input type="checkbox" name="scaduti" value="1" {% if solo_scaduti %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Solo scaduti
       </label>
       <span class="fmd-spacer"></span>
+      <a href="{% url 'registro_ofi:guida' %}" class="fmd-btn fmd-btn-ghost">Guida</a>
+      <a href="?{% if filtri_query %}{{ filtri_query }}&amp;{% endif %}export=xlsx" class="fmd-btn fmd-btn-ghost" title="Scarica le voci filtrate nel formato del MOD.174"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta Excel</a>
       {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo inserimento</a>{% endif %}
     </form>
   </section>
@@ -110,6 +119,7 @@
             <th class="fmd-nowrap">DATA</th>
             <th>OFI/NC</th>
             <th class="fmd-nowrap" title="Stato PDCA: Plan · Do · Check · Act">STATO PDCA</th>
+            <th title="Chi ha rilevato la voce (colonna «27001» del MOD.174)">FONTE</th>
             <th>Normative</th>
             <th>REF NORMA</th>
             <th>PROCESSO</th>
@@ -138,12 +148,13 @@
             <td class="fmd-nowrap fmd-muted">{{ v.data_apertura|date:"d-m-Y" }}</td>
             <td>{% if v.tipo == "OFI" %}<span class="fmd-badge fmd-b-amber">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</td>
             <td class="fmd-nowrap"><span class="ofi-mini">{% for s in v.pdca_steps %}<span class="ofi-mini-s ofi-mini-{{ s.state }} ofi-k-{{ s.letter|lower }}" title="{{ s.label }} — {% if s.state == 'done' %}completata{% elif s.state == 'current' %}in corso{% else %}da fare{% endif %}">{{ s.letter }}</span>{% endfor %}</span></td>
-            <td><span class="ofi-norma">{% if v.norma_iso27001 %}<span class="fmd-badge fmd-b-cyan">27001</span>{% endif %}{% if v.norma_iso45001 %}<span class="fmd-badge fmd-b-cyan">45001</span>{% endif %}{% if v.norma_en9100 %}<span class="fmd-badge fmd-b-cyan">9100</span>{% endif %}</span></td>
+            <td class="ofi-txt">{{ v.fonte|default:"—" }}</td>
+            <td><span class="ofi-norma">{% for sigla in v.norme_sigle %}<span class="fmd-badge fmd-b-cyan">{{ sigla }}</span>{% endfor %}</span></td>
             <td class="ofi-txt">{{ v.rif_norma|default:"—" }}</td>
             <td class="ofi-txt">{{ v.processo|default:"—" }}</td>
             <td class="ofi-txt" title="{{ v.opportunita }}">{{ v.opportunita|default:"—" }}</td>
             <td class="ofi-txt" title="{{ v.plan }}">{{ v.plan|default:"—" }}</td>
-            <td class="ofi-txt">{% if v.allegato_link %}<a class="fmd-data-link" href="{{ v.allegato_link }}" target="_blank" rel="noopener">link</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+            <td class="ofi-txt">{% if v.allegato_link and not v.allegato_link_sicuro %}<span class="fmd-muted" title="{{ v.allegato_link }}">testo</span>{% elif v.allegato_link %}<a class="fmd-data-link" href="{{ v.allegato_link }}" target="_blank" rel="noopener">link</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
             <td class="ofi-txt" title="{{ v.do }}">{{ v.do|default:"—" }}</td>
             <td class="ofi-txt" title="{{ v.verifica }}">{{ v.verifica|default:"—" }}</td>
             <td class="ofi-txt" title="{{ v.act }}">{{ v.act|default:"—" }}</td>
@@ -164,8 +175,8 @@
     {% else %}
     <div class="fmd-empty">
       <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or modulo %} con questi filtri{% endif %}</span>
-      <span class="fmd-em">Le voci nascono generando un OFI da una riga MOD.133 con impatto{% if can_add %}, oppure con «Nuovo OFI»{% endif %}.</span>
+      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or modulo or tipo or q %} con questi filtri{% endif %}</span>
+      <span class="fmd-em">Le voci nascono dai rilievi degli audit interni e dalle righe MOD.133 con impatto{% if can_add %}, oppure con «Nuovo inserimento»{% endif %}.</span>
     </div>
     {% endif %}
   </section>

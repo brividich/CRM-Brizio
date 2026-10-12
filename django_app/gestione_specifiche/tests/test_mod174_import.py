@@ -77,6 +77,22 @@ class ParseMod174Tests(TestCase):
         self.assertEqual(r2["data_chiusura"], date(2026, 3, 1))
         self.assertEqual(r2["fase"], RegistroOFI.FASE_CHIUSO)  # chiusa
 
+    def test_colonna_fonte_come_nel_mod174_compilato(self):
+        """Nel MOD.174 reale la colonna D («27001») riporta DEKRA/INTERNO: diventa la fonte,
+        la norma si ricava dal REF NORMA."""
+        bio = _fake_mod174()
+        wb = openpyxl.load_workbook(bio)
+        ws = wb.active
+        ws.cell(row=5, column=4, value="DEKRA")
+        ws.cell(row=5, column=5, value="27002- 7.2")
+        out = io.BytesIO()
+        wb.save(out)
+        out.seek(0)
+        r1 = leggi_righe_mod174(out)[0]
+        self.assertEqual(r1["fonte"], "DEKRA")
+        self.assertTrue(r1["norma_iso27001"])
+        self.assertFalse(r1["norma_en9100"])
+
     def test_file_non_mod174_solleva(self):
         wb = openpyxl.Workbook()
         wb.active["A1"] = "qualcosa d'altro"
