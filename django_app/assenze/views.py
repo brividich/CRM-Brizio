@@ -29,6 +29,9 @@ from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
 from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
+from core.permessi import decisione, sistema_ruoli_attivo
+
+MODULO = "assenze"
 
 from .constants import (
     AUTO_FINE_MINUTI,
@@ -693,6 +696,17 @@ def _combined_manager_assignment_where_clause(
     assenze_alias: str = "a",
     capi_alias: str = "cr",
 ) -> tuple[str, list, bool]:
+    if sistema_ruoli_attivo():
+        # Ruoli del portale: il perimetro del capo e' il suo team d'organigramma
+        # (core.permessi.team), lo stesso per coda, conteggi, storico e calendario.
+        from core.permessi.team import team_di
+
+        team = sorted(team_di(legacy_user_id)) if legacy_user_id else []
+        if not team or not _has_assenze_column("utente_id"):
+            return "", [], False
+        placeholders = ", ".join(["%s"] * len(team))
+        return f"{assenze_alias}.utente_id IN ({placeholders})", list(team), False
+
     clauses: list[str] = []
     params: list = []
 
@@ -897,6 +911,32 @@ def _assenze_permissions(request) -> dict:
     # approvare.
     insert_for_others_scope = "all" if can_insert_for_others else "none"
 
+    team_utenti_ids: frozenset[int] = frozenset()
+    if sistema_ruoli_attivo():
+        # Ruoli del portale: i flag storici si ricavano dalla matrice. Il team e'
+        # quello dell'organigramma (core.permessi.team), non piu' i capi_reparto.
+        vedere = decisione(request, MODULO, "vedere")
+        creare = decisione(request, MODULO, "creare")
+        approvare = decisione(request, MODULO, "approvare")
+        cancellare = decisione(request, MODULO, "cancellare")
+        view_scope = {"tutti": "all", "team": "reparto"}.get(vedere.ambito, "own") if vedere.consentito else "none"
+        view_scope_source = "ruoli"
+        can_insert = creare.consentito
+        can_insert_for_others = creare.consentito and creare.ambito in {"team", "tutti"}
+        insert_for_others_scope = "all" if can_insert_for_others else "none"
+        # «Gestire» apre le impostazioni (permessi di pagina), non le approvazioni:
+        # approva solo chi ha «approvare», sul perimetro del suo ambito.
+        can_update_any = approvare.consentito and approvare.ambito == "tutti"
+        can_update_owned = not can_update_any and approvare.consentito and approvare.ambito == "team"
+        can_delete_any = cancellare.consentito and cancellare.ambito == "tutti"
+        can_skip_approval = can_update_any or can_update_owned
+        can_view_calendar = view_scope in {"all", "reparto"}
+        group = "AMMINISTRAZIONE" if can_update_any else ("CAR" if can_update_owned else "UTENTI")
+        if can_update_owned or view_scope == "reparto":
+            from core.permessi.team import team_di
+
+            team_utenti_ids = team_di(legacy_user_id)
+
     perms = {
         "group": group,
         "view_scope": view_scope,
@@ -917,6 +957,7 @@ def _assenze_permissions(request) -> dict:
         "can_edit_events": can_update_any or can_update_owned,
         "owned_capo_local_ids": owned_local_ids,
         "owned_capo_lookup_ids": owned_lookup_ids,
+        "team_utenti_ids": team_utenti_ids,
         "role_labels": sorted(role_labels),
     }
     setattr(request, "_assenze_perm_cache", perms)
@@ -932,6 +973,12 @@ def _events_manager_scope(request) -> dict | None:
     perms = _assenze_permissions(request)
     if perms.get("view_scope") == "all":
         return None
+    if perms.get("view_scope_source") == "ruoli":
+        # Ruoli del portale: perimetro per persone (sé stessi + team d'organigramma).
+        ids = set(perms.get("team_utenti_ids") or ()) if perms.get("view_scope") == "reparto" else set()
+        if perms.get("legacy_user_id") and perms.get("view_scope") != "none":
+            ids.add(int(perms["legacy_user_id"]))
+        return {"utenti_ids": sorted(ids)}
     return {
         "legacy_user_id": perms.get("legacy_user_id"),
         "manager_name": perms.get("manager_name") or "",
@@ -1063,6 +1110,11 @@ def _can_manage_record(request, row: dict, *, require_delete: bool = False) -> b
         return True
     if not perms.get("can_update_owned"):
         return False
+
+    if perms.get("view_scope_source") == "ruoli":
+        # Ruoli del portale: si approva chi sta nel proprio team d'organigramma.
+        utente_id = _as_int(row.get("utente_id") or row.get("legacy_user_id"))
+        return utente_id is not None and utente_id in set(perms.get("team_utenti_ids") or ())
 
     lookup_id = _as_int(row.get("capo_reparto_lookup_id"))
     if lookup_id is not None and lookup_id in set(perms.get("owned_capo_lookup_ids") or set()):
@@ -2745,7 +2797,15 @@ def _load_events(
     # tutta l'azienda: e' la vista di chi ha `view_all_assenze`. Con il perimetro di
     # reparto si vedono SOLO i dipendenti di cui si e' capo assegnato — lo stesso
     # insieme che si puo' approvare, calcolato dalla stessa clausola.
-    if manager_scope is not None:
+    if manager_scope is not None and "utenti_ids" in manager_scope:
+        # Perimetro dei ruoli del portale: elenco esplicito di persone. Vuoto o
+        # colonna assente = fail-closed.
+        ids = [int(i) for i in manager_scope.get("utenti_ids") or []]
+        if not ids or not _has_assenze_column("utente_id"):
+            return []
+        where_clauses.append(f"a.utente_id IN ({', '.join(['%s'] * len(ids))})")
+        params.extend(ids)
+    elif manager_scope is not None:
         scope_where, scope_params, use_legacy_join = _combined_manager_assignment_where_clause(
             legacy_user_id=manager_scope.get("legacy_user_id"),
             manager_name=str(manager_scope.get("manager_name") or ""),
@@ -5786,8 +5846,14 @@ def export_assenze_car_csv(request):
     """Esporta in CSV le assenze visibili: il proprio reparto, o tutte per chi ha
     la visibilita' aziendale."""
     perms = _assenze_permissions(request)
-    if perms.get("view_scope") == "own":
+    if perms.get("view_scope") in {"own", "none"}:
         return HttpResponseForbidden("Permessi insufficienti.")
+    if sistema_ruoli_attivo():
+        esportare = decisione(request, MODULO, "esportare")
+        if not esportare.consentito or esportare.ambito == "propri":
+            from core.permessi.negato import risposta_negata
+
+            return risposta_negata(request, pagina="Assenze")
 
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     legacy_user_id = int(legacy_user.id) if legacy_user else None

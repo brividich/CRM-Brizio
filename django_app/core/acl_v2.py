@@ -696,8 +696,13 @@ def resolve_acl_access(
         trace.append({"step": "legacy_user", "result": "deny", "detail": "missing_legacy_user"})
         return result
 
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
     ruolo_id = getattr(legacy_user, "ruolo_id", None)
-    if not ruolo_id:
+    # Con i ruoli del portale attivi il ruolo legacy non serve piu': ogni
+    # utente ha almeno il ruolo base, e decidono i ruoli.
+    if not ruolo_id and not ruoli_attivi:
         result["decision_source"] = "deny_missing_role"
         result["decision_kind"] = "deny"
         result["reason"] = "Utente legacy senza ruolo_id: accesso negato."
@@ -712,7 +717,13 @@ def resolve_acl_access(
         binding = None
         matched_by = ""
 
-    compat_result = _resolve_anomalie_menu_compat_access(path_norm=path_norm, legacy_user=legacy_user)
+    # La compat del menu anomalie legge i permessi del ruolo legacy: con i ruoli
+    # del portale attivi non si applica.
+    compat_result = (
+        None
+        if ruoli_attivi
+        else _resolve_anomalie_menu_compat_access(path_norm=path_norm, legacy_user=legacy_user)
+    )
 
     if binding is not None:
         permission = binding.permission
@@ -804,6 +815,15 @@ def resolve_acl_access(
         result["decision_kind"] = "canonical"
         result["reason"] = decision.reason
         result["canonical"]["effective_level"] = decision.level
+        return result
+
+    if ruoli_attivi:
+        result["decision_source"] = "deny_unbound_route"
+        result["decision_kind"] = "deny"
+        result["reason"] = (
+            "Sistema dei ruoli attivo: pagina senza permesso collegato, accesso negato."
+        )
+        trace.append({"step": "canonical_binding", "result": "deny", "detail": "ruoli_attivi_no_fallback"})
         return result
 
     trace.append({"step": "canonical_binding", "result": "missing", "detail": "fallback_legacy"})

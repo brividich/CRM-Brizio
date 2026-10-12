@@ -98,12 +98,22 @@ def _serialize_group_grant(grant: GroupPermissionGrant) -> dict:
     }
 
 
+def _sistema_ruoli_attivo() -> bool:
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    return sistema_ruoli_attivo()
+
+
 def user_group_ids(legacy_user_id: int | None) -> list[int]:
-    """Id dei gruppi attivi a cui appartiene l'utente legacy."""
+    """Id dei gruppi attivi a cui appartiene l'utente legacy.
+
+    Con il sistema dei ruoli attivo (``core.permessi``) ogni utente ha anche
+    il ruolo base «Dipendente», senza bisogno di iscriverlo.
+    """
     if not legacy_user_id:
         return []
     try:
-        return list(
+        ids = list(
             AccessGroupMembership.objects.filter(
                 legacy_user_id=int(legacy_user_id),
                 group__is_active=True,
@@ -111,6 +121,13 @@ def user_group_ids(legacy_user_id: int | None) -> list[int]:
         )
     except DatabaseError:
         return []
+    if _sistema_ruoli_attivo():
+        from core.permessi.motore import id_ruolo_base
+
+        base = id_ruolo_base()
+        if base and base not in ids:
+            ids.append(base)
+    return ids
 
 
 def resolve_group_grant(*, permission_code: str, legacy_user_id: int | None) -> tuple[dict | None, list[dict]]:
@@ -248,6 +265,16 @@ def resolve_permission_decision(
             + ("consente" if decision.allowed else "nega")
             + f" '{permission.code}'."
         )
+        return decision
+
+    # Sistema dei ruoli attivo: decidono solo override e ruoli del portale.
+    # Il ruolo legacy (utenti.ruolo_id) e la tabella permessi non concedono
+    # piu' nulla: negato per default.
+    if _sistema_ruoli_attivo():
+        decision.role_grant = {"exists": False, "enabled": None}
+        decision.allowed = False
+        decision.level = LEVEL_DENY
+        decision.reason = f"Nessun ruolo concede '{permission.code}': accesso negato."
         return decision
 
     # 5. Grant di ruolo.

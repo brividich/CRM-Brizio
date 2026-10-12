@@ -32,6 +32,7 @@ from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
 from core.acl_v2 import request_has_permission_code
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
+from core.permessi import puo_fare, sistema_ruoli_attivo, utenti_visibili
 
 from .models import (
     CATEGORIE_IT,
@@ -52,6 +53,8 @@ from .models import (
 )
 from core import naming
 from core.upload_limits import DOCUMENT_MAX_BYTES
+
+from .registro_permessi import MODULO_PER_TIPO
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +249,8 @@ def _can_open_tickets(request, tipo: str) -> bool:
     """Controlla se l'utente può aprire ticket del tipo dato."""
     if not request.user.is_authenticated:
         return False
+    if sistema_ruoli_attivo():
+        return puo_fare(request, MODULO_PER_TIPO.get(tipo, "ticket_it"), "creare")
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return True
@@ -262,10 +267,13 @@ def _can_manage_tickets(request, tipo: str | None = None) -> bool:
     """Controlla se l'utente è gestore ticket (IT o MAN o entrambi)."""
     if not request.user.is_authenticated:
         return False
+    tipi = [tipo] if tipo else [TipoTicket.IT, TipoTicket.MAN]
+    if sistema_ruoli_attivo():
+        # Gestire IT non vuol dire gestire la manutenzione: due moduli in matrice.
+        return any(puo_fare(request, MODULO_PER_TIPO.get(t, "ticket_it"), "gestire") for t in tipi)
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return True
-    tipi = [tipo] if tipo else [TipoTicket.IT, TipoTicket.MAN]
     identities = _user_acl_identities(request)
     for t in tipi:
         cfg = TicketImpostazioni.objects.filter(tipo=t).first()
@@ -435,19 +443,79 @@ def _ticket_form_context(tipo: str = "", error: str = "", form_data=None,
     }
 
 
+def _is_richiedente(request, ticket: Ticket) -> bool:
+    """La persona e' il richiedente del ticket? Solo identificativi stabili.
+
+    Account Django, id utente legacy, email aziendale non vuota. Mai il solo
+    nome: due omonimi vedrebbero l'uno i ticket dell'altro.
+    """
+    _name, email, legacy_id = _legacy_identity(request)
+    return bool(
+        ticket.richiedente_user_id == request.user.id
+        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
+        # Email vuota da entrambe le parti non e' un'identita'.
+        or (email and (ticket.richiedente_email or "").lower() == email.lower())
+    )
+
+
+def filtro_ticket_visibili(request) -> Q:
+    """Q dei ticket che la persona puo' vedere secondo i ruoli, tipo per tipo.
+
+    Propri sempre per identificativi stabili; team o tutti secondo la
+    visibilita' del ruolo su «Ticket IT» e «Ticket manutenzione». Usato da
+    lista, ricerca globale e assistente AI: la regola e' una sola.
+    """
+    _name, email, legacy_id = _legacy_identity(request)
+    propri = Q(richiedente_user_id=request.user.id)
+    if legacy_id:
+        propri |= Q(richiedente_legacy_user_id=legacy_id)
+    if email:
+        propri |= Q(richiedente_email__iexact=email)
+
+    risultato = Q(pk__in=[])
+    for tipo, chiave in MODULO_PER_TIPO.items():
+        ammessi = utenti_visibili(request, chiave, "vedere")
+        if ammessi is None:
+            risultato |= Q(tipo=tipo)
+        elif ammessi:
+            ids = list(ammessi)
+            risultato |= Q(tipo=tipo) & (
+                propri
+                | Q(richiedente_legacy_user_id__in=ids)
+                | Q(richiedente_user__profile__legacy_user_id__in=ids)
+            )
+    return risultato
+
+
+def ticket_visibili_queryset(request, qs):
+    """Restringe ``qs`` ai ticket visibili: ruoli se attivi, altrimenti regola storica."""
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)):
+        return qs
+    if sistema_ruoli_attivo():
+        return qs.filter(filtro_ticket_visibili(request))
+    _name, email, legacy_id = _legacy_identity(request)
+    visibili = Q(richiedente_user_id=request.user.id)
+    if legacy_id:
+        visibili |= Q(richiedente_legacy_user_id=legacy_id)
+    if email:
+        visibili |= Q(richiedente_email__iexact=email)
+    for tipo in (TipoTicket.IT, TipoTicket.MAN):
+        if _can_manage_tickets(request, tipo):
+            visibili |= Q(tipo=tipo)
+    return qs.filter(visibili)
+
+
 def _ticket_access_flags(request, ticket: Ticket) -> dict:
     name, email, legacy_id = _legacy_identity(request)
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = bool(legacy_user and is_legacy_admin(legacy_user))
     is_gestore = _can_manage_tickets(request, ticket.tipo)
-    is_richiedente = (
-        ticket.richiedente_user_id == request.user.id
-        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
-        or ticket.richiedente_nome == name
-        # Email vuota da entrambe le parti non e' un'identita': senza la guardia
-        # ogni utente privo di email risultava richiedente dei ticket senza email.
-        or bool(email and ticket.richiedente_email.lower() == email.lower())
-    )
+    is_richiedente = _is_richiedente(request, ticket)
+    can_view = bool(is_richiedente or is_gestore or is_admin)
+    if not can_view and sistema_ruoli_attivo():
+        # Visibilita' del ruolo: «team» (preposto, responsabile) o «tutti» (Direzione).
+        can_view = puo_fare(request, MODULO_PER_TIPO.get(ticket.tipo, "ticket_it"), "vedere", ticket)
     return {
         "name": name,
         "email": email,
@@ -455,6 +523,7 @@ def _ticket_access_flags(request, ticket: Ticket) -> dict:
         "is_admin": is_admin,
         "is_gestore": is_gestore,
         "is_richiedente": is_richiedente,
+        "can_view": can_view,
     }
 
 
@@ -821,7 +890,11 @@ def ticket_dashboard(request):
     # flag "Sicurezza" di TUTTI i ticket a qualsiasi utente autenticato. Si usano
     # gli identificatori stabili (account Django, id legacy, email); il match
     # solo-per-nome è escluso di proposito perché ambiguo tra omonimi.
-    if not (is_admin or is_gestore):
+    if sistema_ruoli_attivo() and not is_admin:
+        visibili = filtro_ticket_visibili(request)
+        qs = qs.filter(visibili)
+        kpi_qs = kpi_qs.filter(visibili)
+    elif not (is_admin or is_gestore):
         from django.db.models import Q
         own = Q(richiedente_user=request.user)
         if legacy_id:
@@ -1003,7 +1076,7 @@ def ticket_detail(request, pk: int):
     is_admin = access["is_admin"]
     is_gestore = access["is_gestore"]
     is_richiedente = access["is_richiedente"]
-    if not (is_richiedente or is_gestore or is_admin):
+    if not access["can_view"]:
         return render(request, "core/pages/forbidden.html", status=403)
 
     commenti = ticket.commenti.all()
@@ -1039,7 +1112,7 @@ def ticket_detail(request, pk: int):
 def ticket_download_allegato(request, allegato_id: int):
     allegato = get_object_or_404(TicketAllegato.objects.select_related("ticket"), pk=allegato_id)
     access = _ticket_access_flags(request, allegato.ticket)
-    if not (access["is_richiedente"] or access["is_gestore"] or access["is_admin"]):
+    if not access["can_view"]:
         log_action(
             request,
             "download_allegato",
@@ -1227,7 +1300,7 @@ def ticket_valida_allegato(request, allegato_id: int):
 def ticket_pdf(request, pk: int):
     ticket = get_object_or_404(Ticket, pk=pk)
     access = _ticket_access_flags(request, ticket)
-    if not (access["is_richiedente"] or access["is_gestore"] or access["is_admin"]):
+    if not access["can_view"]:
         return render(request, "core/pages/forbidden.html", status=403)
 
     include_internal = bool(access["is_gestore"] or access["is_admin"])
@@ -1367,12 +1440,16 @@ def ticket_gestione_list(request):
         ),
         n_allegati_da_validare=subquery_conteggio_allegati(StatoValidazioneAllegato.DA_VALIDARE),
     )
+    # Ogni team vede solo i ticket del tipo che gestisce: chi gestisce l'IT non
+    # gestisce per questo la manutenzione (e viceversa).
+    can_it = is_admin or _can_manage_tickets(request, TipoTicket.IT)
+    can_man = is_admin or _can_manage_tickets(request, TipoTicket.MAN)
     if tipo_f in (TipoTicket.IT, TipoTicket.MAN):
-        tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT))  if tipo_f == TipoTicket.IT  else None
-        tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if tipo_f == TipoTicket.MAN else None
+        tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT))  if tipo_f == TipoTicket.IT and can_it else None
+        tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if tipo_f == TipoTicket.MAN and can_man else None
     else:
-        tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT))
-        tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN))
+        tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT)) if can_it else None
+        tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if can_man else None
 
     ctx = {
         "tickets_it":    tickets_it,
@@ -1721,12 +1798,7 @@ def api_commento(request):
         return _json_err("Non autorizzato", 403)
 
     # Verifica che l'utente possa commentare su questo ticket
-    is_richiedente = (
-        ticket.richiedente_user_id == request.user.id
-        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
-        or ticket.richiedente_nome == name
-        or ticket.richiedente_email.lower() == email.lower()
-    )
+    is_richiedente = _is_richiedente(request, ticket)
     if not (is_richiedente or is_gestore or is_admin):
         return _json_err("Non autorizzato", 403)
 
@@ -1798,11 +1870,7 @@ def api_allegato(request):
     is_gestore = _can_manage_tickets(request, ticket.tipo)
     legacy_user= getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin   = bool(legacy_user and is_legacy_admin(legacy_user))
-    is_richiedente = (
-        ticket.richiedente_user_id == request.user.id
-        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
-        or ticket.richiedente_nome == name
-    )
+    is_richiedente = _is_richiedente(request, ticket)
     if not (is_richiedente or is_gestore or is_admin):
         return _json_err("Non autorizzato", 403)
 

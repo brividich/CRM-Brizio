@@ -281,7 +281,10 @@ def build_forbidden_context(request, decision: dict | None) -> dict:
         except Exception:
             context["flash"] = None
 
-    if not (getattr(request, "impersonation_active", False) and acting_admin(request)):
+    # I dettagli tecnici (origine e motivo della decisione) servono a chi
+    # amministra, non a chi ha ricevuto il diniego.
+    context["mostra_tecnico"] = bool(getattr(request, "impersonation_active", False) and acting_admin(request))
+    if not context["mostra_tecnico"]:
         return context
 
     target = getattr(request, "legacy_user", None)

@@ -36,6 +36,10 @@ class CoreConfig(AppConfig):
         post_migrate.connect(_ensure_legacy_anagrafica_columns, sender=self)
         _install_user_full_name()
 
+        from .permessi.segnali import collega_segnali
+
+        collega_segnali()
+
 
 def _user_get_full_name(self) -> str:
     """Nominativo dell'utente nel formato unico del portale: ``COGNOME NOME``.

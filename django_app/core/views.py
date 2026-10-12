@@ -1591,7 +1591,11 @@ def api_global_search(request):
         if not _global_search_module_allowed(request, "/tickets/"):
             raise _ModuleHidden
         from tickets.models import Ticket
-        tickets_qs = Ticket.objects.filter(
+        from tickets.views import ticket_visibili_queryset
+
+        # Stessa visibilita' della lista ticket: avere accesso al modulo non
+        # vuol dire vedere i ticket degli altri.
+        tickets_qs = ticket_visibili_queryset(request, Ticket.objects.all()).filter(
             Q(numero_ticket__icontains=q)
             | Q(titolo__icontains=q)
             | Q(descrizione__icontains=q)

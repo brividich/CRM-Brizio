@@ -1902,14 +1902,13 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
             scope_label = f"ticket gestibili {dict(TipoTicket.choices).get(manager_types[0], manager_types[0])}"
     else:
         name, email, legacy_id = _legacy_identity(request)
-        identity_q = Q()
+        # Solo identificativi stabili: il nome non identifica (omonimi).
+        identity_q = Q(richiedente_user_id=request.user.id)
         if legacy_id is not None:
             identity_q |= Q(richiedente_legacy_user_id=legacy_id)
         if email:
             identity_q |= Q(richiedente_email__iexact=email)
-        if name:
-            identity_q |= Q(richiedente_nome__iexact=name)
-        if not identity_q:
+        if not getattr(request.user, "is_authenticated", False):
             return RuntimeContext(
                 text=(
                     "DATI LIVE PORTALE - TICKET\n"
@@ -2306,21 +2305,25 @@ def _carichi_context(request, prompt: str) -> RuntimeContext:
     if not _should_run(request, "carichi", _wants_carico_context(prompt)):
         return RuntimeContext()
 
-    # Confine reale del modulo: oggi gestione_carichi_macchina e' protetto solo da
-    # @login_required (nessun binding ACL v2: arriva al Passo 6). Il gate del tool
-    # rispecchia quel confine.
-    # TODO(ACL v2): stringere a user_can_modulo_action(request,
-    # "gestione_carichi_macchina", "<azione_list>") quando il modulo avra' il
-    # binding canonico, allineando il tool al permesso reale.
-    if not getattr(request.user, "is_authenticated", False):
+    # Stesso confine della pagina: il permesso di consultazione del piano carichi
+    # (binding canonico del modulo). Prima bastava essere autenticati e chiunque
+    # otteneva carichi e saturazione dal chatbot senza poter aprire il modulo.
+    from core.acl_v2 import request_has_permission_code
+
+    anonimo = not getattr(request.user, "is_authenticated", False)
+    if anonimo or not request_has_permission_code(request, "gestione_carichi_macchina.piano.view"):
         return RuntimeContext(
             text=(
                 "DATI LIVE PORTALE - CARICHI MACCHINA\n"
-                "Esito autorizzazione: negato. L'utente corrente non e' autenticato; "
+                "Esito autorizzazione: negato. L'utente corrente non ha accesso al modulo Carichi macchina; "
                 "non fornire dati su carichi o saturazione delle macchine."
             ),
             sources=("tool:carichi:accesso-negato",),
-            audit={"tool": "carichi_macchina", "allowed": False, "reason": "anonymous"},
+            audit={
+                "tool": "carichi_macchina",
+                "allowed": False,
+                "reason": "anonymous" if anonimo else "missing_piano_view",
+            },
         )
 
     from gestione_carichi_macchina.models import Macchina, MacchinaAlias, Pianificazione
@@ -4675,6 +4678,8 @@ def _cross_domain_contexts(request, prompt: str) -> list[RuntimeContext] | None:
     )
     contexts = [_cross_domain_router_context(prompt)]
     for tool, routed_prompt in specs:
+        if not tool_consentito(request, tool):
+            continue
         context = tool(request, routed_prompt)
         if context.text.strip():
             contexts.append(context)
@@ -4860,6 +4865,45 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _rischi_mansione_context,
     _unavailable_domain_context,
 )
+
+# Tool di dati -> moduli del sistema dei permessi (core.permessi). Con i ruoli
+# attivi un tool gira solo se la persona puo' «vedere» almeno uno dei suoi
+# moduli: il chatbot non legge dati di moduli che l'utente non vede. I tool
+# senza voce (catalogo moduli, permessi, dominio non disponibile) non leggono
+# dati di modulo. Il test core.tests_permessi controlla che la mappa copra
+# tutti i tool di RUNTIME_TOOLS.
+TOOL_MODULI: dict[RuntimeTool, tuple[str, ...]] = {
+    _absence_context: ("assenze",),
+    _ticket_context: ("ticket_it", "ticket_manutenzione"),
+    _tasks_context: ("kickoff",),
+    _assets_context: ("assets",),
+    _carichi_context: ("carichi_macchina",),
+    _contatori_context: ("contatori",),
+    _soc_context: ("soc",),
+    _dpi_context: ("dpi",),
+    _anagrafica_context: ("anagrafica",),
+    _skillmatrix_context: ("anagrafica",),
+    _anomalie_context: ("anomalie",),
+    _suggestion_context: ("suggestion_corner",),
+    _schede_sicurezza_context: ("schede_sicurezza",),
+    _procedure_context: ("procedure",),
+    _notizie_context: ("notizie",),
+    _sicurezza_context: ("diario_preposto", "rilevazione_incidenti"),
+    _rischi_mansione_context: ("formazione",),
+}
+TOOL_SENZA_DATI_DI_MODULO = (_module_catalog_context, _permessi_context, _unavailable_domain_context)
+
+
+def tool_consentito(request, tool: RuntimeTool) -> bool:
+    """Il tool puo' leggere dati per questa persona? Regole storiche se i ruoli sono spenti."""
+    from core.permessi import puo_fare, sistema_ruoli_attivo
+
+    if not sistema_ruoli_attivo():
+        return True
+    moduli = TOOL_MODULI.get(tool)
+    if not moduli:
+        return True
+    return any(puo_fare(request, modulo, "vedere") for modulo in moduli)
 
 
 def _runtime_context_priority(context: RuntimeContext) -> int:
@@ -5195,6 +5239,8 @@ def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeC
     if contexts is None:
         contexts = []
         for tool in RUNTIME_TOOLS:
+            if not tool_consentito(request, tool):
+                continue
             context = tool(request, enriched)
             if context.text.strip():
                 contexts.append(context)

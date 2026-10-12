@@ -95,13 +95,14 @@
 
   <div class="card">
     <div class="card-body">
-      {% if acl_decision %}
-        <p class="acl-why">Se questa pagina ti serve per lavorare, chiedi all'amministratore del portale: il tentativo è stato registrato e può abilitarti da lì.</p>
+      {% if acl_view.messaggio_ruoli %}
+        <p class="acl-why"><strong>{{ acl_view.messaggio_ruoli }}</strong></p>
       {% endif %}
+      <p class="acl-why">Se ti serve per il tuo lavoro, rivolgiti al <strong>reparto IT</strong>: indica la pagina e l'operazione che volevi fare.{% if acl_decision %} Il tentativo è stato registrato e da lì possono abilitarti.{% endif %}</p>
       <div class="acl-actions">
         <a href="{% url 'dashboard' %}" class="btn btn-secondary">Torna alla dashboard</a>
       </div>
-      {% if acl_decision %}
+      {% if acl_decision and acl_view.mostra_tecnico %}
         <details class="acl-tech" style="margin-top:14px;">
           <summary>Dettagli tecnici</summary>
           <dl>
