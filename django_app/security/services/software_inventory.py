@@ -95,6 +95,13 @@ def read_table(data: bytes, filename: str) -> ParsedTable:
 
 
 def _decode(data):
+    # WatchGuard EPDR esporta in UTF-16 LE con BOM (testo «Unicode» di Windows, separato da tab):
+    # senza questo ramo cp1252 lo decodifica come spazzatura piena di NUL e il CSV non si legge.
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            return data.decode("utf-16")
+        except UnicodeDecodeError as exc:
+            raise InventoryFileError("CSV in UTF-16 non leggibile.") from exc
     for encoding in ("utf-8-sig", "utf-8", "cp1252"):
         try:
             return data.decode(encoding)
@@ -171,7 +178,9 @@ def suggest_mapping(headers):
     mapping, used = {}, set()
     for field_name, hints in HEADER_HINTS.items():
         for hint in hints:
-            match = next((orig for key, orig in keys.items() if orig not in used and (key == hint or key.startswith(hint + " "))), None)
+            # Prima il nome esatto, poi il prefisso: «Computer type» non deve battere «Computer».
+            match = next((orig for key, orig in keys.items() if orig not in used and key == hint), None)
+            match = match or next((orig for key, orig in keys.items() if orig not in used and key.startswith(hint + " ")), None)
             if match:
                 mapping[field_name] = match
                 used.add(match)
