@@ -1,0 +1,91 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida · {{ doc_titolo }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ag-guide { --ag-navy: #1f3a5f; --ag-cyan: #1f87cd; max-width: 1180px; margin: 0 auto; }
+.ag-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.ag-back { font-size: 13px; color: var(--hub-color-text-muted, #4a5568); text-decoration: none; }
+.ag-back:hover { text-decoration: underline; }
+.ag-head h1 { margin: 6px 0 4px; font-size: clamp(22px, 3vw, 30px); font-weight: 800; color: var(--hub-color-text, #1a202c); }
+.ag-head p { margin: 0; color: var(--hub-color-text-muted, #4a5568); font-size: 14px; }
+.ag-pdf {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px;
+  background: var(--ag-navy); color: #fff; text-decoration: none; font-weight: 700; font-size: 13px;
+}
+.ag-pdf:hover { filter: brightness(1.1); }
+.ag-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 22px; align-items: start; }
+.ag-panel {
+  background: var(--hub-color-surface, #fff); border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-radius: 12px;
+}
+/* Sotto la barra di navigazione fissa del portale (60px). */
+.ag-toc { position: sticky; top: 76px; padding: 16px 18px; }
+.ag-toc-t { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--hub-color-text-muted, #4a5568); margin-bottom: 8px; }
+.ag-toc ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ag-toc a { color: var(--hub-color-text, #1a202c); text-decoration: none; }
+.ag-toc a:hover { color: var(--ag-cyan); text-decoration: underline; }
+.ag-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ag-sec { padding: 20px 24px; scroll-margin-top: 76px; }
+/* Il paragrafo aperto dal pulsante «?» della pagina si riconosce subito. */
+.ag-sec:target { border-color: var(--ag-cyan); box-shadow: 0 0 0 3px rgba(31, 135, 205, .18); }
+.ag-sec h2 { margin: 0 0 10px; font-size: 17px; font-weight: 800; color: var(--ag-navy); display: flex; gap: 10px; align-items: baseline; }
+.ag-n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 800; color: var(--ag-cyan); }
+.ag-sec p { margin: 0 0 10px; line-height: 1.6; color: var(--hub-color-text, #1a202c); font-size: 14px; }
+.ag-sec ul, .ag-sec ol { margin: 0 0 10px; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; line-height: 1.55; font-size: 14px; color: var(--hub-color-text, #1a202c); }
+.ag-sec ol.ag-passi li::marker { font-weight: 800; color: var(--ag-cyan); }
+.ag-sec dl { margin: 0 0 10px; display: grid; grid-template-columns: minmax(150px, 240px) minmax(0, 1fr); gap: 8px 18px; font-size: 14px; line-height: 1.55; }
+.ag-sec dt { font-weight: 700; color: var(--ag-navy); }
+.ag-sec dd { margin: 0; color: var(--hub-color-text, #1a202c); }
+.ag-nota { padding: 11px 14px; border: 1px solid #fdba74; background: #fff7ed; border-radius: 10px; color: #7c2d12; font-size: 13.5px; line-height: 1.55; margin-bottom: 10px; }
+body.theme-dark .ag-guide { --ag-navy: #bfdbfe; --ag-cyan: #7cc4f2; }
+body.theme-dark .ag-pdf { background: #1e3a5f; }
+body.theme-dark .ag-nota { background: rgba(251, 146, 60, .12); border-color: rgba(251, 146, 60, .45); color: #fed7aa; }
+@media (max-width: 900px) {
+  .ag-layout { grid-template-columns: 1fr; }
+  .ag-toc { position: static; }
+  .ag-sec { padding: 16px; }
+  .ag-sec dl { grid-template-columns: 1fr; gap: 2px; }
+  .ag-sec dd { margin-bottom: 8px; }
+}
+@media print {
+  .ag-toc, .ag-head-actions, .ag-back { display: none !important; }
+  .ag-layout { display: block; }
+  .ag-sec { break-inside: avoid; box-shadow: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ag-guide">
+  <div class="ag-head">
+    <div>
+      <a class="ag-back" href="{{ torna_url }}">&#8592; Torna alla pagina</a>
+      <h1>Guida · {{ doc_titolo }}</h1>
+      <p>Come si segnalano le anomalie, come decide il capocommessa e dove si ritrovano mail, statistiche e non conformità.</p>
+    </div>
+    <div class="ag-head-actions">
+      <a class="ag-pdf" href="?guida=pdf">&#8595; Scarica PDF</a>
+    </div>
+  </div>
+
+  <div class="ag-layout">
+    <nav class="ag-panel ag-toc" aria-label="Indice della guida">
+      <div class="ag-toc-t">Indice</div>
+      <ol>
+        {% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}
+      </ol>
+    </nav>
+
+    <div class="ag-body">
+      {% for sez in sezioni %}
+        <section class="ag-panel ag-sec" id="{{ sez.id }}">
+          <h2><span class="ag-n">{{ forloop.counter }}</span>{{ sez.titolo }}</h2>
+          {% include "anomalie/partials/_guida_blocchi.html" with blocchi=sez.blocchi %}
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

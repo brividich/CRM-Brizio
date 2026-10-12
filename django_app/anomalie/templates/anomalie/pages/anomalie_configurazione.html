@@ -993,6 +993,7 @@
     decisioni_operatore_attivo: {% if escalation_cfg.decisioni_operatore_attivo %}true{% else %}false{% endif %}
   };
 </script>
+{% include "anomalie/partials/_guida_btn.html" with sezione="configurazione" %}
 {% endblock %}
 
 {% block extra_scripts %}

@@ -19,6 +19,8 @@ from django.views.decorators.http import require_http_methods
 from core.audit import log_action
 from core.public_headers import risposta_pubblica
 
+from .guida import sezione as guida_sezione
+
 logger = logging.getLogger(__name__)
 
 # Azioni che modificano lo stato: monouso.
@@ -102,6 +104,9 @@ def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
             "op_nominativo": token_obj.op_nominativo,
             "is_dispositive": is_dispositive,
             "can_edit": True,  # il token valido è l'unica autorizzazione su questa pagina pubblica
+            # Pagina pubblica: la guida non può rimandare a una pagina col login,
+            # quindi il paragrafo che la riguarda viene mostrato qui.
+            "guida": guida_sezione("mail"),
         },
     )
 
