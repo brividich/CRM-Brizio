@@ -34,6 +34,9 @@ _READ_ROLE_NAMES = {"admin", "amministrazione", "caporeparto", "hr"}
 _EDIT_ROLE_NAMES = {"admin", "amministrazione"}
 _COPY_ROLE_NAMES = {"admin", "amministrazione", "hr"}
 _DOWNLOAD_ROLE_NAMES = {"admin", "amministrazione", "hr"}
+# Nome del modulo (documento di sistema MOD.130-RTF-Rev.2); il nome a video si può
+# cambiare da Impostazioni (branding del modulo), che ha la precedenza.
+_MODULE_LABEL = "Registro Timbri MOD.130-RTF-Rev.2"
 _TIMBRI_REQUIRED_TABLES = {
     "timbri_operatoretimbri",
     "timbri_registrotimbro",
@@ -501,15 +504,16 @@ def _base_context(request, **extra):
         or request.user.get_full_name()
         or request.user.username
     )
+    branding = get_module_branding_context("timbri", fallback_label=_MODULE_LABEL)
     base = {
-        "page_title": "Registro timbri",
+        "page_title": branding["module_branding_display_label"],
         "current": extra.get("current", "timbri:index"),
         "username": display_name,
         "can_edit_timbri": _can_edit_timbri(request),
         "can_copy_timbri": _can_copy_timbri(request),
         "can_download_timbri": _can_download_timbri(request),
         "can_manage_timbri_config": _can_manage_timbri_config(request),
-        **get_module_branding_context("timbri", fallback_label="Timbri"),
+        **branding,
     }
     base.update(extra)
     return base
@@ -578,9 +582,10 @@ def _export_elenco(request, entries, fmt, *, q, reparto, qualifica, stato):
     })
 
     filename = f"registro_timbri_{today.strftime('%Y%m%d')}"
+    title = get_module_branding_context("timbri", fallback_label=_MODULE_LABEL)["module_branding_display_label"]
     if fmt == "pdf":
         response = HttpResponse(
-            render_table_pdf(title="Registro timbri", headers=headers, rows=rows, subtitle=f"{subtitle} · {filters_label}"),
+            render_table_pdf(title=title, headers=headers, rows=rows, subtitle=f"{subtitle} · {filters_label}"),
             content_type="application/pdf",
         )
         response["Content-Disposition"] = f'attachment; filename="{filename}.pdf"'
@@ -590,9 +595,39 @@ def _export_elenco(request, entries, fmt, *, q, reparto, qualifica, stato):
         columns=headers,
         rows=rows,
         sheet_title="Registro timbri",
-        title="Registro timbri",
+        title=title,
         subtitle=subtitle,
         filters_label=filters_label,
+    )
+
+
+def _guida(request, fmt):
+    """Guida d'uso del registro (MOD.130-RTF-Rev.2): pagina o PDF.
+
+    Servita dalla route dell'elenco (`?guida=1|pdf`), come l'export: stessi
+    permessi di consultazione, nessun binding ACL nuovo.
+    """
+    from .guida import DOC_CODICE, DOC_NOME, DOC_TITOLO, SEZIONI, render_guida_pdf
+
+    if fmt == "pdf":
+        actor = (request.user.get_full_name() or request.user.get_username() or "").strip()
+        response = HttpResponse(
+            render_guida_pdf(generato_da=actor, generato_il=timezone.localdate().strftime("%d-%m-%Y")),
+            content_type="application/pdf",
+        )
+        response["Content-Disposition"] = 'attachment; filename="MOD.130-RTF-Rev.2_Guida_Registro_Timbri.pdf"'
+        return response
+    return render(
+        request,
+        "timbri/pages/guida.html",
+        _base_context(
+            request,
+            current="timbri:guida",
+            doc_codice=DOC_CODICE,
+            doc_titolo=DOC_TITOLO,
+            doc_nome=DOC_NOME,
+            sezioni=SEZIONI,
+        ),
     )
 
 
@@ -600,6 +635,10 @@ def _export_elenco(request, entries, fmt, *, q, reparto, qualifica, stato):
 def index(request):
     if not _can_view_timbri(request):
         return _forbidden()
+
+    guida = str(request.GET.get("guida") or "").strip().lower()
+    if guida in ("1", "pdf"):
+        return _guida(request, guida)
 
     schema_issue = _timbri_schema_issue()
     if schema_issue:
@@ -1324,7 +1363,7 @@ def configurazione_page(request):
             module_key="timbri",
             redirect_to=redirect_url,
             audit_module="timbri",
-            fallback_label="Timbri",
+            fallback_label=_MODULE_LABEL,
         )
         if branding_response is not None:
             return branding_response
