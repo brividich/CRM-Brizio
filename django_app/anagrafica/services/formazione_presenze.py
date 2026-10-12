@@ -30,6 +30,10 @@ def applica_firme_lezione(lezione, firme: dict, *, utente=None, metodo: str = "U
     from django.utils import timezone
 
     from ..models_formazione import TrainingLessonAttendance
+    from .formazione_integrita import verifica_edizione_modificabile
+
+    # Edizione chiusa: le presenze sono già l'evidenza degli attestati.
+    verifica_edizione_modificabile(lezione.sessione)
     from ..views import _ricalcola_presenza_enrollment
     from .training_turni import iscritti_attesi_lezione
 

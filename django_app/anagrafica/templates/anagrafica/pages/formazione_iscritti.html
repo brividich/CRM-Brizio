@@ -25,6 +25,8 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
 <div class="hr-shell">
   {% include "anagrafica/components/flash_messages.html" %}
 
+  {% if motivo_blocco %}<div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>{% endif %}
+
   {# ── Header ─────────────────────────────────────────────────────────────── #}
   <div class="hr-pagehead">
     <div>
@@ -36,7 +38,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
         <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a>
         &rsaquo; Iscritti
       </div>
-      <h2 class="hr-pagehead-title">Iscritti — {{ sessione.codice_sessione }}</h2>
+      <h2 class="hr-pagehead-title">Iscritti — {{ sessione.codice_sessione }} {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="iscritti" %}</h2>
       <p class="hr-pagehead-desc">
         {{ sessione.corso.titolo }}
         &nbsp;·&nbsp;
@@ -54,13 +56,15 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
       <a href="{% url 'anagrafica:formazione_sessione_fascicolo' sessione.pk %}" target="_blank" rel="noopener"
          class="hr-btn hr-btn-ghost"
          title="Fascicolo formativo dell'edizione: progettazione, programma, partecipanti ed esiti, relazione (PDF per ispezione)">📁 Fascicolo formativo</a>
-      {% if candidati_rinnovo %}
+      {% if puo_iscrivere and candidati_rinnovo %}
       <button class="hr-btn hr-btn-ghost"
               onclick="togglePanel('panel-rinnovo')"
               title="Candidati pertinenti al corso (scaduti, in scadenza o mai frequentati), con controllo prerequisiti">↻ Candidati ({{ candidati.idonei|length }})</button>
       {% endif %}
+      {% if puo_iscrivere %}
       <button class="hr-btn hr-btn-primary"
               onclick="togglePanel('panel-add-iscritto')">+ Aggiungi iscritto</button>
+      {% endif %}
     </div>
     {% endif %}
   </div>
@@ -105,7 +109,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
   </div>
 
   {# ── Panel aggiunta iscritto ─────────────────────────────────────────────── #}
-  {% if is_editor %}
+  {% if puo_iscrivere %}
   <div id="panel-add-iscritto" style="display:none;margin-bottom:16px;">
     <div class="hr-card" style="padding:16px 20px;">
       <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:12px;">Iscrivi dipendente</div>
@@ -138,7 +142,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
   {% endif %}
 
   {# ── Panel candidati (idonei + non idonei) — bulk enroll ─────────────────── #}
-  {% if is_editor and candidati_rinnovo %}
+  {% if puo_iscrivere and candidati_rinnovo %}
   <div id="panel-rinnovo" style="display:none;margin-bottom:16px;">
     <div class="hr-card" style="padding:16px 20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
@@ -287,6 +291,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
             {% endif %}
             {% if is_editor %}
             <td>
+              {% if puo_esiti %}
               <button class="hr-btn hr-btn-sm"
                       onclick="openEditIscrizione(
                         {{ isc.pk }},
@@ -303,6 +308,23 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               <button class="hr-btn hr-btn-sm"
                       title="Carica l'attestato rilasciato dall'organizzatore e chiudi il corso"
                       onclick="openAttestatoIscrizione({{ isc.pk }}, '{{ isc.nome_dip|escapejs }}')">📎 Attestato</button>
+              {% endif %}
+              {% if isc.record_attivo %}
+              {% if puo_esiti %}
+              <details style="display:inline-block;vertical-align:top;">
+                <summary class="hr-btn hr-btn-sm hr-btn-danger" style="list-style:none;cursor:pointer;"
+                         title="Annulla il completamento a libretto indicando il motivo (non si cancella)">Annulla compl.</summary>
+                <form method="post" action="{% url 'anagrafica:formazione_record_annulla' isc.record_attivo.pk %}"
+                      style="display:flex;gap:6px;margin-top:6px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <input type="text" name="motivo" required maxlength="500" class="fm-input"
+                         placeholder="Motivo dell'annullamento" aria-label="Motivo dell'annullamento">
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Conferma</button>
+                </form>
+              </details>
+              {% endif %}
+              {% elif puo_iscrivere %}
               <form method="post"
                     action="{% url 'anagrafica:formazione_iscrizione_delete' sessione.pk isc.pk %}"
                     style="display:inline;"
@@ -310,6 +332,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
                 {% csrf_token %}
                 <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
               </form>
+              {% endif %}
             </td>
             {% endif %}
           </tr>
@@ -400,6 +423,23 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
     </div>
     {% endif %}
   </div>
+
+  {% if annullati %}
+  <div class="hr-card fm-section" style="margin-top:16px;">
+    <div class="fm-section-head"><h3 class="fm-section-title" style="margin:0;">Completamenti annullati</h3></div>
+    <p class="muted" style="font-size:12px;margin:4px 0 8px;">Non contano più per requisiti, scadenze e libretto. Restano qui come traccia della correzione.</p>
+    <table class="fm-table">
+      <thead><tr><th>Dipendente</th><th>Completato il</th><th>Annullato il</th><th>Da</th><th>Motivo</th></tr></thead>
+      <tbody>
+      {% for r in annullati %}
+        <tr><td>{{ r.nome_dip }}</td><td>{{ r.data_completamento|date:"d-m-Y" }}</td>
+            <td>{{ r.annullato_il|date:"d-m-Y H:i" }}</td><td>{{ r.annullato_da_nome|default:"—" }}</td>
+            <td>{{ r.annullato_motivo }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 
 </div>
 
@@ -522,9 +562,9 @@ function openEditIscrizione(pk, stato, oreFq, percPresenza, idoneo, esitoEsame, 
     fld('Stato *',
       `<select name="stato" required class="fm-input fm-select">${statoSel}</select>`),
     fld('Ore frequentate',
-      inp('ore_frequentate', 'number', oreFq, 'min="0" step="0.5"')),
+      inp('ore_frequentate', 'number', oreFq, 'min="0" step="0.5"{% if lezioni %} readonly title="Calcolato dalle presenze"{% endif %}')),
     fld('% Presenza',
-      inp('percentuale_presenza', 'number', percPresenza, 'min="0" max="100" step="0.01"')),
+      inp('percentuale_presenza', 'number', percPresenza, 'min="0" max="100" step="0.01"{% if lezioni %} readonly title="Calcolato dalle presenze"{% endif %}')),
     fld('Verifica finale di apprendimento',
       `<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
         <input type="checkbox" name="verifica_superata" ${verificaSup === 'true' ? 'checked' : ''}

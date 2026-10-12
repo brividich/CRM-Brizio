@@ -695,7 +695,7 @@ def formazione_verifica_attestato(request, codice: str = ""):
     resp = render(request, "anagrafica/pages/formazione_verifica_attestato.html", {
         "esito": esito, "codice": av.formatta(av.normalizza(codice)) if codice else "", "limitato": limitato,
         "STATI": {"VALIDO": av.VALIDO, "SCADUTO": av.SCADUTO, "NON_VALIDO": av.NON_VALIDO,
-                  "SCONOSCIUTO": av.SCONOSCIUTO, "ALTERATO": av.ALTERATO},
+                  "SCONOSCIUTO": av.SCONOSCIUTO, "ALTERATO": av.ALTERATO, "ANNULLATO": av.ANNULLATO},
     }, status=429 if limitato else 200)
     resp["Referrer-Policy"] = "no-referrer"
     return resp

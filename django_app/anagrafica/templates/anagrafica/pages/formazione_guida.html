@@ -1,0 +1,172 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida formazione d'aula | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<style>
+.elg-sec{ padding:20px 22px; scroll-margin-top:80px; }
+.elg-sec h2{ font-size:17px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+.elg-sec h3{ font-size:14px; margin:16px 0 6px; }
+.elg-sec p, .elg-sec li{ font-size:14px; line-height:1.55; }
+.elg-sec ul, .elg-sec ol{ margin:6px 0 10px; padding-left:22px; }
+.elg-sec li{ margin-bottom:4px; }
+.elg-indice{ display:flex; flex-wrap:wrap; gap:6px 14px; padding:16px 22px; font-size:14px; }
+.elg-indice strong{ width:100%; font-size:13px; }
+.elg-nota{ border-left:4px solid #f59e0b; padding:8px 12px; margin:10px 0; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:900px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Guida formazione d'aula</h1>
+        <p class="fmd-ph-sub">Come si registra un'edizione dal calendario all'approvazione del MOD.040, come si correggono i dati senza perderne la traccia, e quali documenti SGI il portale applica.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-cap"/></svg>Formazione</a>
+        <a href="{% url 'anagrafica:formazione_online_guida' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-book"/></svg>Guida e-learning</a>
+      </div>
+    </div>
+
+    <nav class="fmd-panel elg-indice" aria-label="Indice della guida">
+      <strong>In questa guida</strong>
+      <a class="fmd-data-link" href="#ciclo">Il ciclo di un'edizione</a>
+      <a class="fmd-data-link" href="#edizione">Calendario e giornate</a>
+      <a class="fmd-data-link" href="#iscritti">Iscritti ed esiti</a>
+      <a class="fmd-data-link" href="#presenze">Presenze e registro firme</a>
+      <a class="fmd-data-link" href="#chiusura">Chiusura e approvazione MOD.040</a>
+      <a class="fmd-data-link" href="#verifica-nc">Verifica NC a 6 mesi</a>
+      <a class="fmd-data-link" href="#correzioni">Correggere un dato</a>
+      <a class="fmd-data-link" href="#annullare">Annullare un completamento</a>
+      <a class="fmd-data-link" href="#diretto">Completamento senza edizione</a>
+      <a class="fmd-data-link" href="#integrita">Integrità dati</a>
+      <a class="fmd-data-link" href="#permessi">Chi può fare cosa</a>
+      <a class="fmd-data-link" href="#sgi">Riferimenti SGI</a>
+    </nav>
+
+    <section class="fmd-panel elg-sec" id="ciclo">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Il ciclo di un'edizione</h2>
+      <ol>
+        <li><strong>Pianificata</strong>: crei l'edizione dal corso, generi le giornate, iscrivi i partecipanti.</li>
+        <li><strong>In corso</strong>: registri le presenze di ogni giornata (a mano o dal registro firme).</li>
+        <li><strong>Completata</strong>: da «Modifica sessione» porti lo stato a «Completata». Da questo momento calendario, iscritti e presenze <strong>non si modificano più</strong>; restano aperti solo gli esiti dei partecipanti.</li>
+        <li><strong>Approvata</strong>: MSM, o MSO quale delegato, approva il MOD.040 con il pulsante «Approva MOD.040». L'edizione è chiusa del tutto, esiti compresi.</li>
+        <li><strong>Verifica NC</strong>: dopo 6 mesi dalla fine dell'edizione si registra l'esito della verifica di assenza NC.</li>
+      </ol>
+      <p class="elg-nota">Un'edizione chiusa mostra in alto il riquadro 🔒 con il motivo. Per correggerla si usa «Riapri», mai la modifica diretta.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="edizione">
+      <h2><svg class="fmd-ico"><use href="#i-calendar"/></svg>Calendario e giornate</h2>
+      <ul>
+        <li>«Genera giornate» crea una lezione per ogni giorno scelto con lo stesso orario; la pausa si scala dalle ore formative (08:00–17:00 con 60′ di pausa = 8 ore).</li>
+        <li>«Aggiungi lezione» inserisce una giornata singola. L'ora di fine deve seguire quella di inizio e la data deve cadere fra inizio e fine dell'edizione.</li>
+        <li>Il numero della giornata lo assegna il portale e non torna disponibile se cancelli una giornata: un numero già stampato sul registro firme resta di quella giornata.</li>
+        <li>La data di fine dell'edizione non può precedere la data di inizio (vincolo anche sul database).</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="iscritti">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Iscritti ed esiti</h2>
+      <ul>
+        <li>Dalla pagina «Iscritti & presenze» si aggiungono partecipanti, si assegnano i turni e si chiude l'esito con «Modifica».</li>
+        <li><strong>Ore frequentate</strong> e <strong>% presenza</strong> si calcolano dalle presenze quando l'edizione ha giornate a calendario: nel modulo sono in sola lettura. Si scrivono a mano solo per le edizioni senza calendario (per esempio corsi esterni).</li>
+        <li>La soglia proposta per la verifica finale è il «punteggio minimo» del corso; se inserisci punteggio e soglia, il portale decide da solo se la verifica è superata.</li>
+        <li>Le date di completamento e di verifica non possono essere future né precedere l'inizio dell'edizione.</li>
+        <li>Portando l'esito a «Completato» il portale controlla la regola di superamento (frequenza minima, verifica finale). Se manca qualcosa la chiusura si blocca; la forzatura è possibile e resta nel registro attività.</li>
+        <li>Un iscritto con il completamento già a libretto <strong>non si elimina</strong>: se il completamento è sbagliato si annulla (vedi sotto); se la persona non ha partecipato si usa lo stato «Ritirato». Ogni eliminazione di iscrizione resta nel registro attività.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="presenze">
+      <h2><svg class="fmd-ico"><use href="#i-check"/></svg>Presenze e registro firme</h2>
+      <ul>
+        <li>La presenza si registra solo per chi è iscritto all'edizione e solo da quando la giornata si è svolta.</li>
+        <li>Le ore effettive non possono superare la durata formativa della giornata; per un'assenza le ore non si scrivono.</li>
+        <li>«Registro presenze» stampa il foglio firme con il QR; la scansione caricata in «Scansione del foglio firme di questa lezione» propone le presenze, che una persona conferma con «✍ Autocompila presenze dal registro firmato».</li>
+        <li>Se l'edizione è chiusa le scansioni che arrivano dalla cartella di acquisizione vengono archiviate ma le presenze non vengono scritte.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="chiusura">
+      <h2><svg class="fmd-ico"><use href="#i-award"/></svg>Chiusura e approvazione MOD.040</h2>
+      <p>Nel dettaglio dell'edizione il riquadro «Chiusura e approvazione (MOD.040)» dice cosa manca prima dell'approvazione. Il portale richiede il contenuto minimo della registrazione (MT CN 06 §9.2):</p>
+      <ul>
+        <li>stato «Completata»;</li>
+        <li>argomento: almeno una voce di programma o una giornata con argomento;</li>
+        <li>almeno un partecipante;</li>
+        <li>docente o tutor sull'edizione o su almeno una giornata;</li>
+        <li>esito per ogni partecipante (nessuno ancora «Iscritto» o «In corso»).</li>
+      </ul>
+      <p>Con tutto in ordine chi ha il permesso di approvazione vede «Approva MOD.040». L'approvazione è una verifica formale (MT CN 06 §9.3): registra chi e quando, e vale come validazione dei completamenti dell'edizione. La valutazione tecnica dell'efficacia resta al Responsabile di Reparto o al tutor.</p>
+      <p>«🖨 MOD.040» stampa il Registro Corsi Rev.4 con corso, oggetto, argomento, tutor, giornate e ore con il totale, partecipanti con esito, verifica NC e approvazione. Le firme di tutor e partecipanti restano da apporre sul cartaceo.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="verifica-nc">
+      <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Verifica NC a 6 mesi</h2>
+      <p>Il MOD.040 chiede la «verifica assenza NC nei successivi 6 mesi». Dopo l'approvazione il riquadro mostra da quando la verifica è dovuta (fine edizione + 6 mesi). MSM/MSO registra l'esito: «Sì, nessuna NC», «No, NC riconducibili alla formazione» (in questo caso va descritto l'esito e l'azione decisa) oppure «Non applicabile».</p>
+      <p>Le NC del portale sono registrate per ordine di produzione, non per persona: per questo l'esito lo decide chi verifica, non un calcolo automatico. Le verifiche scadute compaiono in «Integrità dati».</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="correzioni">
+      <h2><svg class="fmd-ico"><use href="#i-gear"/></svg>Correggere un dato</h2>
+      <p>Per correggere un'edizione chiusa usa «Riapri l'edizione per correggere un dato» e scrivi il motivo: resta nel registro attività con lo stato precedente e l'eventuale approvazione revocata (MT CN 08 §7.3: la correzione lascia leggibile chi, quando e perché). L'edizione torna «In corso»; finita la correzione riportala a «Completata» e, se era approvata, falla approvare di nuovo.</p>
+      <p class="elg-nota">Riaprire un'edizione approvata richiede il permesso di approvazione.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="annullare">
+      <h2><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Annullare un completamento</h2>
+      <p>Un completamento a libretto non si cancella: si annulla con «Annulla compl.» nella pagina iscritti, indicando il motivo. Da quel momento:</p>
+      <ul>
+        <li>non conta più per requisiti, scadenze, libretto ed export;</li>
+        <li>l'iscrizione torna «In corso» e si può chiudere di nuovo con i dati giusti;</li>
+        <li>la qualifica che lo usava come prova torna sul completamento valido precedente, oppure resta «da verificare»;</li>
+        <li>la verifica dell'attestato con il codice o il QR risponde «Attestato annullato»;</li>
+        <li>resta visibile in «Completamenti annullati» (pagina iscritti e Integrità dati) con chi, quando e perché.</li>
+      </ul>
+      <p>I completamenti di un'edizione approvata si annullano solo dopo averla riaperta.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="diretto">
+      <h2><svg class="fmd-ico"><use href="#i-cap"/></svg>Completamento senza edizione</h2>
+      <p>«✅ Registra completamento senza sessione» nel dettaglio corso porta a libretto un corso frequentato altrove o recuperato dallo storico. Se per la stessa persona il corso risulta già registrato in quella data, il secondo invio viene saltato. Chi registra non lo valida: la validazione formale resta a MSM/MSO.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="integrita">
+      <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Integrità dati</h2>
+      <p>La pagina «Integrità dati» (dal cruscotto Formazione) elenca i controlli di coerenza con il riferimento SGI e il numero di casi: edizioni con date invertite, giornate senza durata o fuori intervallo, presenze di non iscritti o con più ore della giornata, completamenti futuri, doppi o senza record, scadenze incoerenti, edizioni senza docente o da approvare, verifiche NC dovute.</p>
+      <p>La pagina legge soltanto. «Applica le correzioni automatiche» corregge solo i casi senza margine di interpretazione (date invertite, giornate fuori intervallo, ore di assenze, ore oltre la durata) e lascia traccia nel registro attività; il resto va sistemato a mano. Lo stesso controllo si lancia da riga di comando con <code>manage.py verifica_integrita_formazione</code> (<code>--json</code>, <code>--correggi</code>).</p>
+      <p class="elg-nota">«Frequenza diversa dal corso» sulle regole di obbligatorietà non è applicata al calcolo delle scadenze: vale la validità del corso. Il campo non è più nel modulo e le regole che lo avevano compilato compaiono qui.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="permessi">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Chi può fare cosa</h2>
+      <ul>
+        <li><strong>Consultare</strong>: chi ha «Formazione (visualizza)».</li>
+        <li><strong>Gestire</strong> edizioni, iscritti, presenze, annullamenti e correzioni: chi ha «Formazione (gestisci)».</li>
+        <li><strong>Approvare il MOD.040</strong>, registrare la verifica NC e riaprire un'edizione approvata: chi ha «Formazione (approva MOD.040)», da assegnare a MSM e MSO in Accessi → ACL canonico. Per default ce l'ha solo il ruolo admin.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="sgi">
+      <h2><svg class="fmd-ico"><use href="#i-book"/></svg>Riferimenti SGI</h2>
+      <ul>
+        <li><strong>MT CN 06 Rev.21 Risorse Umane §9</strong>: pianificazione, registrazione minima (argomento, date, partecipanti, docente o tutor, esito), approvazione del MOD.040 da MSM/MSO, valutazione dell'efficacia del Responsabile di Reparto o tutor.</li>
+        <li><strong>MOD.040 Registro Corsi Rev.4</strong>: la stampa del portale ne segue le voci.</li>
+        <li><strong>MT CN 08 Rev.3 §7.3</strong>: le correzioni lasciano leggibile il dato precedente con chi e quando; qui con riapertura e annullamento motivati.</li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

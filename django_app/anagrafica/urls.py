@@ -12,6 +12,7 @@ from . import views_sorveglianza
 from . import views_elenco
 from . import views_account
 from . import views_admin_hub
+from . import views_formazione_integrita
 
 app_name = "anagrafica"
 
@@ -549,6 +550,14 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/elimina", views.formazione_iscrizione_delete, name="formazione_iscrizione_delete"),
     # Fascicolo formativo dell'edizione (progettazione+programma+esiti+relazione) in PDF
     path("formazione/sessioni/<int:sessione_id>/fascicolo.pdf", views.formazione_sessione_fascicolo, name="formazione_sessione_fascicolo"),
+    # Chiusura e approvazione dell'edizione (MOD.040, MT CN 06 §9.3), integrità dati, guida
+    path("formazione/sessioni/<int:sessione_id>/approva", views_formazione_integrita.formazione_sessione_approva, name="formazione_sessione_approva"),
+    path("formazione/sessioni/<int:sessione_id>/riapri", views_formazione_integrita.formazione_sessione_riapri, name="formazione_sessione_riapri"),
+    path("formazione/sessioni/<int:sessione_id>/verifica-nc", views_formazione_integrita.formazione_sessione_verifica_nc, name="formazione_sessione_verifica_nc"),
+    path("formazione/sessioni/<int:sessione_id>/mod040.pdf", views_formazione_integrita.formazione_sessione_mod040, name="formazione_sessione_mod040"),
+    path("formazione/completamenti/<int:record_id>/annulla", views_formazione_integrita.formazione_record_annulla, name="formazione_record_annulla"),
+    path("formazione/integrita/", views_formazione_integrita.formazione_integrita, name="formazione_integrita"),
+    path("formazione/guida/", views_formazione_integrita.formazione_guida, name="formazione_guida"),
 
     # ── Formazione HR — Scadenzario ─────────────────────────────────────────
     path("formazione/scadenzario/", views.formazione_scadenzario, name="formazione_scadenzario"),
