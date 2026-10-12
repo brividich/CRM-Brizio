@@ -8,36 +8,52 @@
 {% block soc_content %}
 <section class="sec-panel">
   <p class="sec-muted sec-small">
-    Un software dell'inventario conta per l'impatto CVE quando è collegato al suo CPE (vendor:product di NVD). Il sistema collega <strong>da solo</strong> i software il cui nome coincide senza dubbi con un CPE delle {{ known_cpes }} coppie presenti nelle CVE scaricate (badge «automatico», si annulla con «Azzera»); gli altri restano <strong>proposte</strong> da confermare, anche in blocco.
-    <a href="{% url 'security:inventory' %}">Inventario</a> · <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#collegare-i-software-alle-cve-cpe">Guida</a>
+    Un software dell'inventario conta per l'impatto CVE quando è collegato al suo CPE (vendor:product di NVD). I CPE candidati sono le {{ known_cpes }} coppie presenti nelle CVE già nel sistema: il sistema collega <strong>da solo</strong> i nomi che coincidono senza dubbi (badge «automatico», si annulla con «Azzera»). Il lavoro vero è solo <strong>«Da decidere»</strong>: software con una CVE dal nome simile. I software <strong>«Senza CVE note»</strong> non richiedono azioni: se arriva una CVE che li riguarda, passano da soli in «Da decidere».
+    <a href="{% url 'security:inventory' %}">Inventario</a> · <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#collegare-i-software-alle-cve-cpe">? Guida</a>
   </p>
   <div class="sec-actions" style="flex-wrap:wrap;gap:6px">
     <a class="sec-button{% if not stato %} sec-button-primary{% endif %}" href="?q={{ q|urlencode }}">Tutti</a>
-    <a class="sec-button{% if stato == 'proposte' %} sec-button-primary{% endif %}" href="?stato=proposte&q={{ q|urlencode }}">Proposte da confermare ({{ counts.proposte }})</a>
+    <a class="sec-button{% if stato == 'proposte' %} sec-button-primary{% endif %}" href="?stato=proposte&q={{ q|urlencode }}" title="Software con almeno una CVE dal nome simile: va confermato il CPE o segnato N/A">Da decidere ({{ counts.proposte }})</a>
+    <a class="sec-button{% if stato == 'senza_cve' %} sec-button-primary{% endif %}" href="?stato=senza_cve&q={{ q|urlencode }}" title="Nessuna CVE nel sistema ha un nome simile: oggi non c'è nulla da fare">Senza CVE note ({{ counts.senza_cve }})</a>
     <a class="sec-button{% if stato == 'automatici' %} sec-button-primary{% endif %}" href="?stato=automatici&q={{ q|urlencode }}">Collegati in automatico ({{ counts.automatici }})</a>
-    <a class="sec-button{% if stato == 'da_mappare' %} sec-button-primary{% endif %}" href="?stato=da_mappare&q={{ q|urlencode }}">Da mappare</a>
+    <a class="sec-button{% if stato == 'non_applicabili' %} sec-button-primary{% endif %}" href="?stato=non_applicabili&q={{ q|urlencode }}">Non applicabili ({{ counts.non_applicabili }})</a>
     <span class="sec-small sec-muted">Confermati a mano: {{ counts.confermati }}</span>
   </div>
   <form method="get" class="sec-inline"><input type="hidden" name="stato" value="{{ stato }}"><input type="search" name="q" value="{{ q }}" placeholder="Cerca vendor o prodotto" aria-label="Cerca software"><button type="submit" class="sec-button">Cerca</button></form>
   <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_auto"><button type="submit" class="sec-button" title="Collega i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate">Collega automaticamente ora</button></form>
   <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button type="submit" class="sec-button">Ricalcola impatti</button></form>
-  <form method="post" id="bulk-form" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_confirm_bulk"><button type="submit" class="sec-button sec-button-primary" title="Conferma la prima proposta delle righe spuntate">Conferma selezionati</button></form>
+  <div class="sec-actions" style="flex-wrap:wrap;gap:6px;margin-top:8px">
+    <form method="post" id="bulk-form" class="sec-inline">{% csrf_token %}
+      <button type="submit" name="action" value="cpe_confirm_bulk" class="sec-button sec-button-primary" title="Conferma la prima proposta delle righe spuntate (le righe senza proposta sono ignorate)">Conferma selezionati</button>
+      <button type="submit" name="action" value="cpe_na_bulk" class="sec-button" title="Segna non applicabili le righe spuntate" onclick="return confirm('Segnare non applicabili i software selezionati?');">N/A selezionati</button>
+    </form>
+    {% if unique_proposals %}
+    <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_confirm_unique"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="stato" value="{{ stato }}">
+      <button type="submit" class="sec-button" title="Conferma, su tutte le pagine di questa vista, i software con una sola proposta" onclick="return confirm('Confermare {{ unique_proposals }} proposte a candidato unico (tutte le pagine di questa vista)?');">Conferma tutte le proposte a candidato unico ({{ unique_proposals }})</button>
+    </form>
+    {% endif %}
+    {% if q|length >= 3 and open_in_view %}
+    <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_na_search"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="stato" value="{{ stato }}">
+      <button type="submit" class="sec-button" title="Segna non applicabili tutti i software aperti trovati da questa ricerca, su tutte le pagine" onclick="return confirm('Segnare non applicabili {{ open_in_view }} software che contengono «{{ q|escapejs }}»?');">N/A tutti i risultati di «{{ q }}» ({{ open_in_view }})</button>
+    </form>
+    {% endif %}
+  </div>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
     <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th><span class="sr-only">Seleziona</span></th><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
+      <thead><tr><th><input type="checkbox" aria-label="Seleziona tutte le righe della pagina" title="Seleziona tutte le righe della pagina" onchange="document.querySelectorAll('input[name=bulk][form=bulk-form]').forEach(function(c){c.checked=this.checked;}, this);"></th><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for row in page.object_list %}
         <tr>
-          <td>{% if row.local_suggestions and not row.mapping.confirmed and not row.mapping.not_applicable %}<input type="checkbox" form="bulk-form" name="bulk" value="{{ row.vendor }}|||{{ row.product }}|||{{ row.local_suggestions.0 }}" aria-label="Conferma {{ row.local_suggestions.0 }} per {{ row.product }}">{% endif %}</td>
+          <td>{% if not row.mapping.confirmed and not row.mapping.not_applicable or row.mapping.origin == "regola" and row.local_suggestions %}<input type="checkbox" form="bulk-form" name="bulk" value="{{ row.vendor }}|||{{ row.product }}|||{{ row.local_suggestions.0|default:'' }}" aria-label="Seleziona {{ row.product }}">{% endif %}</td>
           <td>{{ row.vendor|default:"—" }}</td>
           <td class="sec-title-cell">{{ row.product }}</td>
           <td class="sec-num">{{ row.hosts }}</td>
           <td>
             {% if row.mapping.confirmed %}<span class="sec-badge sec-badge-success">{{ row.mapping.cpe_vendor }}:{{ row.mapping.cpe_product }}</span>{% if row.mapping.origin == "auto" %} <span class="sec-badge sec-badge-muted" title="Collegato dal sistema: il nome coincide con un CPE delle CVE scaricate">automatico</span>{% endif %}
-            {% elif row.mapping.not_applicable %}<span class="sec-badge sec-badge-muted">Non applicabile</span>
+            {% elif row.mapping.not_applicable %}<span class="sec-badge sec-badge-muted">Non applicabile</span>{% if row.mapping.origin == "regola" %} <small class="sec-muted" title="Escluso da una regola: si riapre eliminando la regola">(regola «{{ row.mapping.na_rule.pattern|default:'—' }}»){% if row.local_suggestions %} · è arrivata una CVE dal nome simile: decidi{% endif %}</small>{% endif %}
             {% else %}<span class="sec-badge warning">Da mappare</span>{% if row.mapping.origin == "auto_rifiutato" %} <small class="sec-muted">(collegamento automatico annullato)</small>{% endif %}{% endif %}
           </td>
           <td class="sec-small">
@@ -64,6 +80,24 @@
   {% if page.has_other_pages %}
     <div class="sec-actions">{% if page.has_previous %}<a class="sec-button" href="?stato={{ stato }}&q={{ q|urlencode }}&page={{ page.previous_page_number }}">‹</a>{% endif %}<span class="sec-small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="sec-button" href="?stato={{ stato }}&q={{ q|urlencode }}&page={{ page.next_page_number }}">›</a>{% endif %}</div>
   {% endif %}
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Regole «non applicabile»</h2><span class="sec-badge sec-badge-muted">{{ na_rules|length }}</span></div>
+  <p class="sec-muted sec-small">Esclude in modo permanente i software il cui nome <strong>contiene</strong> un testo (es. <code>driver</code>, <code>redistributable</code>, <code>language pack</code>), anche negli import futuri. Non tocca i software già decisi né quelli con una CVE dal nome simile, che restano da decidere a mano. Eliminando la regola, i software che aveva escluso tornano da valutare.</p>
+  <form method="post" class="sec-inline" style="flex-wrap:wrap;gap:6px">
+    {% csrf_token %}<input type="hidden" name="action" value="na_rule">
+    <label>Il prodotto contiene <input type="text" name="pattern" required minlength="3" maxlength="160" placeholder="redistributable"></label>
+    <label>Solo produttore <input type="text" name="vendor" maxlength="120" placeholder="facoltativo, es. intel" style="width: 12em;"></label>
+    <label>Nota <input type="text" name="note" maxlength="200" placeholder="runtime Microsoft"></label>
+    <button type="submit" class="sec-button sec-button-primary">Salva e applica</button>
+  </form>
+  <div class="sec-table-wrap" style="margin-top: 8px;">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Contiene</th><th>Produttore</th><th>Nota</th><th class="sec-num">Software esclusi</th><th><span class="sr-only">Azioni</span></th></tr></thead>
+      <tbody>{% for r in na_rules %}<tr><td>{{ r.pattern }}</td><td>{{ r.vendor|default:"tutti" }}</td><td class="sec-small">{{ r.note|default:"—" }}</td><td class="sec-num">{{ r.n }}</td><td><form method="post" class="sec-inline" onsubmit="return confirm('Eliminare la regola? I {{ r.n }} software esclusi tornano da valutare.');">{% csrf_token %}<input type="hidden" name="action" value="na_rule_delete"><input type="hidden" name="rule_id" value="{{ r.pk }}"><button type="submit" class="sec-button">Elimina</button></form></td></tr>{% empty %}<tr><td colspan="5" class="sec-empty">Nessuna regola.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">
