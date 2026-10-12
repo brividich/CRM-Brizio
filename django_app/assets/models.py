@@ -1596,6 +1596,73 @@ class SoftwareLicense(models.Model):
             raise ValidationError({"renewal_date": "Il rinnovo non puo essere successivo alla scadenza attuale."})
 
 
+class SoftwareLicenseRenewal(models.Model):
+    """Un rinnovo di una licenza: lo storico non si sovrascrive quando cambia la scadenza."""
+
+    license = models.ForeignKey(SoftwareLicense, on_delete=models.CASCADE, related_name="renewals")
+    renewed_on = models.DateField(default=timezone.localdate)
+    period_start = models.DateField(null=True, blank=True)
+    period_end = models.DateField(null=True, blank=True)
+    previous_expiry = models.DateField(null=True, blank=True)
+    seats_total = models.PositiveIntegerField(null=True, blank=True)
+    cost_eur = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    supplier = models.ForeignKey("anagrafica.Fornitore", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    reference = models.CharField(max_length=200, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-renewed_on", "-id"]
+        verbose_name = "Rinnovo licenza software"
+        verbose_name_plural = "Rinnovi licenze software"
+
+    def __str__(self) -> str:
+        return f"{self.license} · rinnovo {self.renewed_on:%d/%m/%Y}"
+
+
+class SoftwareCatalogEntry(models.Model):
+    """Decisioni dell'azienda su un prodotto dell'inventario: classificazione, licenza, versione minima."""
+
+    CLASS_UNREVIEWED = "da_classificare"
+    CLASS_ALLOWED = "consentito"
+    CLASS_REMOVE = "da_rimuovere"
+    CLASS_FORBIDDEN = "non_autorizzato"
+    CLASSIFICATION_CHOICES = [
+        (CLASS_UNREVIEWED, "Da classificare"),
+        (CLASS_ALLOWED, "Consentito"),
+        (CLASS_REMOVE, "Da rimuovere"),
+        (CLASS_FORBIDDEN, "Non autorizzato"),
+    ]
+    LICENSING_UNKNOWN = "da_verificare"
+    LICENSING_FREE = "gratuito"
+    LICENSING_PAID = "a_pagamento"
+    LICENSING_CHOICES = [
+        (LICENSING_UNKNOWN, "Da verificare"),
+        (LICENSING_FREE, "Gratuito"),
+        (LICENSING_PAID, "A pagamento"),
+    ]
+
+    inventory_key = models.CharField(max_length=300, unique=True)
+    display_name = models.CharField(max_length=255, blank=True, default="")
+    vendor_name = models.CharField(max_length=255, blank=True, default="")
+    classification = models.CharField(max_length=20, choices=CLASSIFICATION_CHOICES, default=CLASS_UNREVIEWED, db_index=True)
+    licensing = models.CharField(max_length=20, choices=LICENSING_CHOICES, default=LICENSING_UNKNOWN)
+    min_version = models.CharField(max_length=120, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["display_name", "inventory_key"]
+        verbose_name = "Software a catalogo"
+        verbose_name_plural = "Catalogo software"
+
+    def __str__(self) -> str:
+        return self.display_name or self.inventory_key
+
+
 class WorkMachine(models.Model):
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="work_machine")
     source_key = models.CharField(max_length=64, unique=True, db_index=True)
