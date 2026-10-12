@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_asset_qr, views_asset_storico, views_it, views_report_catalog, views_maintenance, views_verifiche, views_reporting
+from . import views, views_asset_qr, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_verifiche, views_reporting
 
 app_name = "assets"
 
@@ -11,6 +11,7 @@ urlpatterns = [
     path("assets/impostazioni/reportistica/<int:pk>/esegui/", views_reporting.run_now, name="reporting_run"),
     path("assets/impostazioni/reportistica/report/<int:pk>/riprova/", views_reporting.retry, name="reporting_retry"),
     path("assets/reports/archivio/", views_reporting.archive, name="reporting_archive"),
+    path("assets/guida/", views_guida.guida, name="guida"),
     path("assets/reports/catalogo/", views_report_catalog.catalog, name="report_catalog"),
     path("assets/reports/catalogo/salvati/<int:pk>/elimina/", views_report_catalog.delete, name="report_catalog_delete"),
     path("assets/reports/catalogo/<slug:code>/", views_report_catalog.run, name="report_catalog_run"),

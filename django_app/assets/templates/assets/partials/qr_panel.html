@@ -24,7 +24,7 @@
       {% if qr_can_manage_public %}
         <div class="aq-public">
           <div class="aq-label">Link pubblico</div>
-          <p class="aq-note">{% if qr_public_active %}Chi inquadra il QR vede la scheda mobile in sola lettura, senza login.{% else %}Con il link pubblico il QR si apre anche senza login (tecnici esterni, ispettori). Resta spento finché non lo abiliti.{% endif %}</p>
+          <p class="aq-note">{% if qr_public_active %}Chi inquadra il QR vede la scheda mobile in sola lettura, senza login.{% else %}Con il link pubblico il QR si apre anche senza login (tecnici esterni, ispettori). Resta spento finché non lo abiliti.{% endif %} <a href="{% url 'assets:guida' %}#qr" target="_blank" rel="noopener">Come funziona</a></p>
           <form method="post" action="{{ qr_public_action_url }}" class="aq-public-form">
             {% csrf_token %}
             <input type="hidden" name="next" value="" data-aq-next>
