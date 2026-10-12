@@ -469,6 +469,14 @@ _SAFETY_GRUPPI = (
 )
 
 
+# Icona (path SVG 24x24, tratto) della scheda di ciascun gruppo.
+_SAFETY_ICONE = {
+    "Operatività": "M3 12h4l3-8 4 16 3-8h4",
+    "Sorveglianza sanitaria": "M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z",
+    "Rischi e mansioni": "M12 3 2 20h20L12 3zm0 6v5m0 3v.01",
+    "Formazione e DPI": "M22 10 12 5 2 10l10 5 10-5zM6 12v5c3 2 9 2 12 0v-5",
+}
+
 _SAFETY_CACHE_TTL = 300
 
 
@@ -553,11 +561,20 @@ def safety_subnav(context, active=""):
             if contatore:
                 contatori_voluti.add(contatore)
         if visibili:
-            gruppi.append({"titolo": titolo, "voci": visibili, "active": any(v["active"] for v in visibili)})
+            gruppi.append({
+                "titolo": titolo, "voci": visibili, "url": visibili[0]["url"],
+                "icona": _SAFETY_ICONE.get(titolo, ""),
+                "active": any(v["active"] for v in visibili),
+            })
+    # Due livelli: la sezione accesa mostra le sue voci; senza voce accesa
+    # (pagina non mappata) si apre la prima sezione.
+    if gruppi and not any(g["active"] for g in gruppi):
+        gruppi[0]["active"] = True
     conteggi = _safety_conteggi(contatori_voluti, request)
     for gruppo in gruppi:
         for voce in gruppo["voci"]:
             voce["n"] = conteggi.get(voce["contatore"] or "", 0)
+        gruppo["n"] = sum(v["n"] for v in gruppo["voci"])
     return gruppi
 
 

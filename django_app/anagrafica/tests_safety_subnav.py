@@ -51,6 +51,21 @@ class SafetySubnavTests(TestCase):
         self.assertTrue(voci["visite"]["active"])
         self.assertFalse(voci["scadenzario"]["active"])
 
+    def test_due_livelli_sezione_accesa_e_totale(self):
+        with patch("anagrafica.views._build_scadenzario_voci", return_value=VOCI_SCADUTE):
+            gruppi = self._gruppi(reverse("anagrafica:visite_mediche_sessioni"))
+        accese = [g["titolo"] for g in gruppi if g["active"]]
+        self.assertEqual(accese, ["Sorveglianza sanitaria"])
+        sanitaria = next(g for g in gruppi if g["titolo"] == "Sorveglianza sanitaria")
+        self.assertEqual(sanitaria["url"], reverse("anagrafica:visite_mediche_dashboard"))
+        self.assertEqual(sanitaria["n"], 1)
+
+    def test_pagina_non_mappata_apre_la_prima_sezione(self):
+        with patch("anagrafica.views._build_scadenzario_voci", return_value=[]):
+            gruppi = self._gruppi(reverse("anagrafica:index"))
+        self.assertEqual([g["active"] for g in gruppi][0], True)
+        self.assertEqual(sum(g["active"] for g in gruppi), 1)
+
     def test_voci_negate_dall_acl_non_compaiono_e_gruppo_vuoto_sparisce(self):
         sanitarie = {reverse(n) for n in ("anagrafica:visite_mediche_dashboard", "anagrafica:referti_coda",
                                           "anagrafica:libretto_sanitario_generale")}
