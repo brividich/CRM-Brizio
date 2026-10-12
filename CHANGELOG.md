@@ -13,6 +13,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - Pulsante «Guida» su ogni pagina coinvolta, che apre il paragrafo giusto; il test verifica che ogni pulsante punti a un paragrafo esistente.
   - Corretta l'icona del titolo di «Viste elenco» (`i-list` non esiste nel set di icone: ora `i-grid`).
   - Deploy: `migrate anagrafica` (0164 copia sulla guida il binding ACL di `anagrafica:dipendenti_list`).
+- **Timbri — il modulo diventa «Registro Timbri MOD.130-RTF-Rev.2» e ha una guida d'uso nel portale** (`django_app/timbri/guida.py` nuovo, `timbri/templates/timbri/pages/guida.html` nuovo, `timbri/views.py`, `timbri/templates/timbri/components/subnav.html`, `timbri/templates/timbri/pages/index.html`, `operatore_detail.html`, `record_form.html`, `timbri/apps.py`, `timbri/acl_bootstrap.py`, `timbri/tests.py`, `django_app/core/module_registry.py`, `docs/moduli/timbri.md`, `README.md`).
+  - Nome del modulo «Registro Timbri MOD.130-RTF-Rev.2» nel menu, nei titoli e nei breadcrumb delle pagine e nell'intestazione degli export Excel/PDF. Un nome già impostato da Impostazioni (branding del modulo) ha la precedenza; la voce di menu esistente non viene riscritta, prende il nome dal registro dei moduli.
+  - Nuova voce **Guida** nella subnav: pagina con indice e dieci sezioni (scopo, permessi, elenco, scheda, registrazione record, stati, MOD.128 e sospensione automatica, riservatezza delle immagini, impostazioni, domande frequenti) e pulsante **Scarica PDF** con intestazione e piè di pagina MOD.130-RTF-Rev.2. Testo in un solo posto (`timbri/guida.py`) per pagina e PDF.
+  - Servita dalla route dell'elenco (`?guida=1|pdf`), come l'export: stessi permessi di consultazione, nessuna route e nessun binding ACL nuovi, nessuna migrazione.
+  - Test: pagina con tutte le sezioni, PDF scaricabile, guida visibile a chi consulta e negata (403) agli altri.
 
 - **Anagrafica — binding ACL del salvataggio «Avviso IT ai nuovi ingressi»** (`django_app/anagrafica/migrations/0163_avviso_it_acl.py`): la route `anagrafica:avviso_it_save` riceve il binding di `anagrafica:workflow_campo_create` (o, se manca, di `anagrafica:impostazioni`); senza, con ACL strict il salvataggio sarebbe negato ai non superuser. Deploy: `migrate anagrafica` (0162-0163).
 

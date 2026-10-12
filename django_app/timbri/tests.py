@@ -185,8 +185,44 @@ class TimbriViewTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("timbri:index"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Registro timbri")
+        self.assertContains(response, "Registro Timbri MOD.130-RTF-Rev.2")
         self.assertContains(response, "GENTILE SARA")
+        self.assertContains(response, "?guida=1")
+
+    def test_guida_pagina_mostra_tutte_le_sezioni(self):
+        from django.utils.html import escape
+
+        from timbri.guida import SEZIONI
+
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"), {"guida": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "timbri/pages/guida.html")
+        self.assertContains(response, "MOD.130-RTF-Rev.2")
+        self.assertContains(response, "?guida=pdf")
+        for sez in SEZIONI:
+            self.assertContains(response, f'id="{sez["id"]}"')
+            self.assertContains(response, escape(sez["titolo"]))
+        self.assertNotContains(response, "GENTILE SARA")
+
+    def test_guida_pdf_scaricabile(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"), {"guida": "pdf"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("MOD.130-RTF-Rev.2", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_guida_visibile_a_chi_consulta_negata_agli_altri(self):
+        self.client.force_login(self.user)
+        capo = SimpleNamespace(id=2, nome="Capo", ruolo="caporeparto", ruolo_id=2)
+        with patch("timbri.views.get_legacy_user", return_value=capo):
+            self.assertEqual(self.client.get(reverse("timbri:index"), {"guida": "1"}).status_code, 200)
+        operaio = SimpleNamespace(id=3, nome="Operaio", ruolo="operatore", ruolo_id=3)
+        with patch("timbri.views.get_legacy_user", return_value=operaio), \
+                patch("timbri.views.user_can_modulo_action", return_value=False):
+            self.assertEqual(self.client.get(reverse("timbri:index"), {"guida": "1"}).status_code, 403)
+            self.assertEqual(self.client.get(reverse("timbri:index"), {"guida": "pdf"}).status_code, 403)
 
     def test_index_200_when_schema_is_missing(self):
         self.client.force_login(self.admin)
