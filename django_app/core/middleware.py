@@ -81,6 +81,12 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "ai_assistant:api_chat",
     "ai_assistant:api_chat_stream",
     "ai_assistant:api_daily_brief",
+    # Storico chat: ogni utente vede e cancella solo le proprie (filtro in-view).
+    "ai_assistant:api_conversazioni",
+    "ai_assistant:api_conversazione",
+    "ai_assistant:api_conversazione_elimina",
+    "ai_assistant:api_conversazioni_elimina_tutte",
+    "ai_assistant:guida",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

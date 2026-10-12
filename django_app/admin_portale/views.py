@@ -2415,6 +2415,40 @@ def _ai_runtime_tool_test(request: HttpRequest) -> dict[str, object]:
     return result
 
 
+def _moduli_senza_dati_rows(counter: dict[str, int]) -> list[dict]:
+    """Moduli più chiesti dall'assistente senza dati live, con nome leggibile."""
+    try:
+        from ai_assistant.permessi_utente import MODULI
+
+        nomi = {m.slug: (m.nome, bool(m.tool_prefix)) for m in MODULI}
+    except Exception:
+        nomi = {}
+    righe = []
+    for slug, count in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))[:15]:
+        nome, ha_tool = nomi.get(slug, (slug, False))
+        righe.append({"slug": slug, "nome": nome, "count": count, "ha_tool": ha_tool})
+    return righe
+
+
+def _faq_gruppi() -> list:
+    try:
+        from ai_assistant.faq_suggerite import gruppi_da_rivedere
+
+        return gruppi_da_rivedere()
+    except Exception:
+        return []
+
+
+def _ai_conversazioni_stats() -> dict | None:
+    """Conteggi aggregati dello storico chat AI (mai i contenuti); None se non disponibile."""
+    try:
+        from ai_assistant.conversazioni import abilitato, statistiche
+
+        return {**statistiche(), "abilitato": abilitato()}
+    except Exception:
+        return None
+
+
 @legacy_admin_required
 def ai_settings(request: HttpRequest):
     ollama_defaults = _ollama_diag_defaults()
@@ -2481,6 +2515,53 @@ def ai_settings(request: HttpRequest):
             )
             messages.success(request, "Cache RAG/runtime svuotata.")
             return redirect(f"{reverse('admin_portale:ai_settings')}?tab=tools")
+        elif action in {"faq_genera_bozza", "faq_approva_gruppo", "faq_scarta_gruppo"}:
+            # Fase 4: FAQ suggerite dai 👎. Solo chi gestisce la knowledge base.
+            from ai_assistant import faq_suggerite
+            from ai_assistant.views import _can_manage_knowledge
+
+            redirect_url = f"{reverse('admin_portale:ai_settings')}?tab=suggerimenti"
+            if not _can_manage_knowledge(request):
+                messages.error(request, "Serve il permesso «Assistente AI - Gestione knowledge base».")
+                return redirect(redirect_url)
+            ids = faq_suggerite.parse_ids(request.POST.get("ids"))
+            if action == "faq_genera_bozza":
+                bozza, esito = faq_suggerite.genera_bozza(request, ids)
+                (messages.success if bozza else messages.warning)(request, esito)
+                _audit_safe(request, "ai_faq_bozza", "ai_assistant",
+                            {"feedback": len(ids), "bozza_id": getattr(bozza, "pk", None)})
+            elif action == "faq_approva_gruppo":
+                entry = faq_suggerite.approva(
+                    request, ids, request.POST.get("question") or "", request.POST.get("answer") or "",
+                )
+                if entry is None:
+                    messages.error(request, "Domanda e risposta sono obbligatorie.")
+                else:
+                    messages.success(request, "FAQ attivata: l'assistente la usa da subito.")
+                    _audit_safe(request, "ai_faq_approvata", "ai_assistant",
+                                {"feedback": len(ids), "knowledge_entry_id": entry.pk})
+            else:
+                numero = faq_suggerite.scarta(ids)
+                messages.success(request, f"Gruppo scartato ({numero} feedback chiusi).")
+                _audit_safe(request, "ai_faq_scartata", "ai_assistant", {"feedback": numero})
+            return redirect(redirect_url)
+        elif action == "purge_ai_conversations":
+            # Storico chat: l'admin non legge i contenuti, può solo svuotarlo per tutti.
+            from ai_assistant.models import AiConversation
+
+            if (request.POST.get("conferma") or "") != "1":
+                messages.error(request, "Spunta la conferma per cancellare lo storico chat di tutti gli utenti.")
+            else:
+                numero = AiConversation.objects.count()
+                AiConversation.objects.all().delete()
+                _audit_safe(
+                    request,
+                    "ai_conversazioni_svuotate",
+                    "ai_assistant",
+                    {"conversazioni": numero, "scope": "tutti_gli_utenti"},
+                )
+                messages.success(request, f"Storico chat svuotato: {numero} conversazioni cancellate.")
+            return redirect(f"{reverse('admin_portale:ai_settings')}?tab=governance")
         elif action == "save_governance_review":
             active_tab = "governance"
             tool_key = (request.POST.get("tool_key") or "").strip()[:80]
@@ -2581,6 +2662,7 @@ def ai_settings(request: HttpRequest):
     # Sessioni senza dati: nessun tool live (runtime_sources_count=0) e nessun RAG (rag_sources_count=0)
     # I valori sono in dettaglio (JSONField). Conta le sessioni con entrambi a 0.
     no_data_sessions = 0
+    moduli_senza_dati_counter: dict[str, int] = {}
     prompt_short = 0   # < 50 char
     prompt_medium = 0  # 50-200 char
     prompt_long = 0    # > 200 char
@@ -2591,18 +2673,15 @@ def ai_settings(request: HttpRequest):
         prompt_chars = detail.get("prompt_chars", 0) or 0
         if runtime_cnt == 0 and rag_cnt == 0:
             no_data_sessions += 1
+        for slug in detail.get("moduli_senza_dati") or []:
+            slug = str(slug)[:40]
+            moduli_senza_dati_counter[slug] = moduli_senza_dati_counter.get(slug, 0) + 1
         if prompt_chars < 50:
             prompt_short += 1
         elif prompt_chars <= 200:
             prompt_medium += 1
         else:
             prompt_long += 1
-
-    # Correzioni pendenti ad alta priorità per i suggerimenti
-    pending_corrections = AiChatFeedback.objects.filter(
-        rating="down",
-        is_reviewed=False,
-    ).exclude(correction="").select_related("user").order_by("-created_at")[:20]
 
     return render(
         request,
@@ -2627,17 +2706,19 @@ def ai_settings(request: HttpRequest):
             "governance_edit_key": governance_edit_key,
             "governance_edit_review": governance_edit_review,
             "governance_doc_url": "../../docs/ai/13_AI_GOVERNANCE.md",
+            "conversazioni_stats": _ai_conversazioni_stats(),
+            "faq_gruppi": _faq_gruppi() if active_tab == "suggerimenti" else [],
             # Feedback tab
             "feedback_page_obj": feedback_page_obj,
             "feedback_filter": feedback_filter,
             "feedback_pending_count": feedback_pending_count,
             # Suggerimenti tab
             "no_data_sessions": no_data_sessions,
+            "moduli_senza_dati": _moduli_senza_dati_rows(moduli_senza_dati_counter),
             "total_chat_sessions": total_chat_sessions,
             "prompt_short": prompt_short,
             "prompt_medium": prompt_medium,
             "prompt_long": prompt_long,
-            "pending_corrections": pending_corrections,
         },
     )
 

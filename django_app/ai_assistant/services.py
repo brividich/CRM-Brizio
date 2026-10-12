@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.core.cache import cache
 
-from . import glossario_rag
+from . import glossario_rag, guide_portale
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +380,40 @@ def _load_glossario_chunks() -> list[KnowledgeChunk]:
             )
         )
     return chunks
+
+
+def _load_guide_chunks() -> list[KnowledgeChunk]:
+    """Capitoli delle guide in-app dei moduli (fonte ``guida:<slug>``).
+
+    Ogni chunk porta nel testo modulo e link della guida, così la risposta può
+    indicare dove aprirla. Il gate ACL è a valle, in ``build_knowledge_context``.
+    """
+    max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 1600) or 1600)
+    chunks: list[KnowledgeChunk] = []
+    for numero, sezione in enumerate(guide_portale.sezioni()):
+        title = f"Guida {sezione.modulo} — {sezione.titolo}"[:200]
+        header = f"{title}\nGuida completa nel portale: {sezione.url}\n"
+        budget = max(200, max_chars - len(header))
+        source = f"{guide_portale.SOURCE_PREFIX}{sezione.slug}#{numero}"
+        # Le parole del modulo («timbro», «firma»...) contano come titolo nel BM25:
+        # «nuovo timbro» deve preferire i capitoli del Registro Timbri.
+        title_tokens = frozenset(_tokenize(f"{title} {sezione.parole}"))
+        for piece in _split_long_section(source, title, sezione.testo, max_chars=budget):
+            content = header + piece.content
+            chunks.append(
+                KnowledgeChunk(
+                    source=source,
+                    title=title,
+                    content=content,
+                    tokens=Counter(_tokenize(f"{title}\n{sezione.parole}\n{content}")),
+                    title_tokens=title_tokens,
+                )
+            )
+    return chunks
+
+
+def _guide_enabled() -> bool:
+    return bool(getattr(settings, "OLLAMA_RAG_GUIDE_ENABLED", True))
 
 
 def _curated_knowledge_signature() -> tuple[int, str]:
@@ -1494,6 +1528,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         _curated_knowledge_signature(),
         _sgi_documents_signature(),
         glossario_rag.firma(),
+        guide_portale.firma() if _guide_enabled() else (),
     )
     ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
     now = time.monotonic()
@@ -1518,6 +1553,8 @@ def _load_knowledge_index() -> KnowledgeIndex:
         chunks.extend(_chunk_document(path, text))
     chunks.extend(_load_curated_knowledge_chunks())
     chunks.extend(_load_glossario_chunks())
+    if _guide_enabled():
+        chunks.extend(_load_guide_chunks())
     if bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
         chunks.extend(_load_sgi_document_chunks())
 
@@ -1810,18 +1847,68 @@ def sgi_rag_access(request) -> tuple[bool, bool]:
     return (allow_specifiche, allow_procedure)
 
 
+def _guide_chunk_allowed(chunk: KnowledgeChunk, allowed_guides: frozenset[str] | None) -> bool:
+    """Gate ACL delle guide in-app: ammessa solo se l'utente può aprire la guida.
+    Le fonti che non sono guide restano ammesse (le decide ``_sgi_chunk_allowed``)."""
+    slug = guide_portale.slug_da_source(chunk.source)
+    if slug is None:
+        return True
+    return bool(allowed_guides) and slug in allowed_guides
+
+
+_GUIDE_PROMOTE_MAX = 3
+
+
+def _promote_mentioned_guides(
+    selected_indices: list[int], index: KnowledgeIndex, query_tokens: Counter[str]
+) -> list[int]:
+    """Porta in testa (al massimo 3) i capitoli della guida del modulo nominato.
+
+    Se la domanda nomina il modulo («timbro», «audit»), i suoi capitoli più
+    pertinenti precedono quelli di altri moduli che condividono parole generiche
+    («nuovo», «inserire»). Il resto dell'ordine non cambia, così le fonti SGI
+    sullo stesso tema restano nel contesto.
+    """
+    mentioned = guide_portale.guide_menzionate(query_tokens.keys(), _tokenize)
+    if not mentioned:
+        return selected_indices
+    promoted: list[int] = []
+    for i in selected_indices:
+        if guide_portale.slug_da_source(index.chunks[i].source) in mentioned:
+            promoted.append(i)
+            if len(promoted) >= _GUIDE_PROMOTE_MAX:
+                break
+    if not promoted:
+        return selected_indices
+    promoted_set = set(promoted)
+    return promoted + [i for i in selected_indices if i not in promoted_set]
+
+
 def build_knowledge_context(
-    prompt: str, *, allow_specifiche: bool = False, allow_procedure: bool = False
+    prompt: str,
+    *,
+    allow_specifiche: bool = False,
+    allow_procedure: bool = False,
+    allowed_guides: frozenset[str] | None = None,
+    only_guides: bool = False,
+    max_chunks: int | None = None,
 ) -> KnowledgeContext:
+    """Contesto RAG per il prompt.
+
+    ``allowed_guides``: slug delle guide in-app che l'utente può aprire (``None`` →
+    nessuna, fail-closed). ``only_guides``: solo capitoli delle guide, usato quando
+    risponde un tool live e i documenti generali confonderebbero il modello.
+    """
     index = _load_knowledge_index()
     if not index.chunks:
         return KnowledgeContext(text="", sources=())
 
-    overview = _document_overview_context(
-        prompt, index, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
-    )
-    if overview is not None:
-        return overview
+    if not only_guides:
+        overview = _document_overview_context(
+            prompt, index, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+        )
+        if overview is not None:
+            return overview
 
     query_tokens = Counter(_tokenize(prompt))
     selected_indices = _select_chunk_indices(prompt, query_tokens, index)
@@ -1835,11 +1922,15 @@ def build_knowledge_context(
         if _sgi_chunk_allowed(
             index.chunks[i], allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
         )
+        and _guide_chunk_allowed(index.chunks[i], allowed_guides)
+        and (not only_guides or guide_portale.slug_da_source(index.chunks[i].source) is not None)
     ]
     if not selected_indices:
         return KnowledgeContext(text="", sources=())
+    selected_indices = _promote_mentioned_guides(selected_indices, index, query_tokens)
 
-    max_chunks = int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4)
+    if max_chunks is None:
+        max_chunks = int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4)
     max_context_chars = int(getattr(settings, "OLLAMA_RAG_MAX_CONTEXT_CHARS", 5000) or 5000)
     selected = [index.chunks[i] for i in selected_indices[:max_chunks]]
 
@@ -1861,6 +1952,123 @@ def build_knowledge_context(
             sources.append(label)
 
     return KnowledgeContext(text="\n\n".join(blocks).strip(), sources=tuple(sources))
+
+
+# Domande su COME si fa una cosa nel portale: anche quando risponde un tool live
+# (es. il catalogo moduli) la guida del modulo resta la fonte giusta per i passi.
+_HOWTO_INTENT_RE = re.compile(
+    r"\b(come|dove|in che modo|procedura|passi|passaggi|istruzioni|indicazioni|guida|"
+    r"inserir\w*|aggiung\w*|crea\w*|registr\w*|modific\w*|caric\w*|archivi\w*|esport\w*|"
+    r"stamp\w*|scaric\w*|approv\w*|chiud\w*|apr[io]\w*)\b",
+    re.IGNORECASE,
+)
+
+# Tool live che descrivono la navigazione, non dati operativi: non tolgono il RAG.
+_NAVIGATIONAL_RUNTIME_SOURCES = ("tool:portale:moduli", "tool:portale:permessi")
+
+
+# Riferimenti al turno precedente: «inserirlo», «aprirla», «questo», «lo stesso».
+_ANAPHORA_RE = re.compile(
+    r"\b\w{3,}(?:rlo|rla|rli|rle|rne)\b|\b(questo|questa|quello|quella|stesso|stessa)\b",
+    re.IGNORECASE,
+)
+_FOLLOWUP_MAX_TOKENS = 8
+
+
+def _retrieval_query(prompt: str, history: Any) -> str:
+    """Domanda per il retrieval: aggiunge l'ultima domanda utente se questa la continua.
+
+    «ok dammi le indicazioni su come inserirlo nel modulo» da sola non dice quale
+    modulo: se rimanda al turno precedente (pronome) o è corta e non nomina alcun
+    modulo, il retrieval usa anche la domanda precedente. Il prompt al modello
+    resta quello originale.
+    """
+    if not isinstance(history, list):
+        return prompt
+    previous = ""
+    for item in reversed(history):
+        if isinstance(item, dict) and str(item.get("role") or "").lower() == "user":
+            previous = _clean_text(item.get("content"), limit=500)
+            if previous:
+                break
+    if not previous or previous.strip() == (prompt or "").strip():
+        return prompt
+    tokens = _tokenize(prompt or "")
+    names_module = bool(guide_portale.guide_menzionate(tokens, _tokenize))
+    short_without_module = len(set(tokens)) < _FOLLOWUP_MAX_TOKENS and not names_module
+    if _ANAPHORA_RE.search(prompt or "") or short_without_module:
+        return f"{prompt}\n{previous}"
+    return prompt
+
+
+@dataclass(frozen=True)
+class ChatKnowledge:
+    knowledge_text: str = ""
+    guide_text: str = ""
+    sources: tuple[str, ...] = ()
+
+    @property
+    def chars(self) -> int:
+        return len(self.knowledge_text) + len(self.guide_text)
+
+
+def _knowledge_for_chat(
+    prompt: str,
+    *,
+    runtime_context: str,
+    runtime_sources: tuple[str, ...] | list[str] | None,
+    allow_specifiche: bool,
+    allow_procedure: bool,
+    allowed_guides: frozenset[str] | None,
+    history: Any = None,
+) -> ChatKnowledge:
+    """Sceglie quale conoscenza documentale affiancare alla domanda.
+
+    - Nessun contesto live, o solo tool di navigazione: RAG completo (guide comprese).
+    - Contesto live con dati operativi: niente RAG generale (i modelli piccoli
+      confondono le due fonti), ma se la domanda chiede *come* fare qualcosa si
+      aggiungono al massimo due capitoli delle guide in-app autorizzate.
+    """
+    has_runtime = bool((runtime_context or "").strip())
+    sources = tuple(runtime_sources or ())
+    navigational_only = has_runtime and bool(sources) and all(
+        source.startswith(_NAVIGATIONAL_RUNTIME_SOURCES) for source in sources
+    )
+    query = _retrieval_query(prompt, history)
+    if not has_runtime or navigational_only:
+        knowledge = build_knowledge_context(
+            query,
+            allow_specifiche=allow_specifiche,
+            allow_procedure=allow_procedure,
+            allowed_guides=allowed_guides,
+        )
+        return ChatKnowledge(knowledge_text=knowledge.text, sources=knowledge.sources)
+    if not allowed_guides or not _HOWTO_INTENT_RE.search(prompt or ""):
+        return ChatKnowledge()
+    guide = build_knowledge_context(
+        query,
+        allowed_guides=allowed_guides,
+        only_guides=True,
+        max_chunks=int(getattr(settings, "OLLAMA_RAG_GUIDE_MAX_CHUNKS_WITH_LIVE", 2) or 2),
+    )
+    return ChatKnowledge(guide_text=guide.text, sources=guide.sources)
+
+
+# Regole di grounding sempre attive, separate dal system prompt (che può essere
+# sovrascritto da .env e viene troncato a OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS).
+_GROUNDING_RULES = (
+    "REGOLE DI AFFIDABILITA' (sempre valide): "
+    "1) Non sciogliere sigle (ruoli, uffici, moduli: MSM, CAR, RSPP, HR...) e non attribuire nomi o "
+    "funzioni a una sigla se il contesto non li riporta: usa la sigla così com'è. "
+    "2) Non dire che l'utente non ha accesso, permessi o abilitazioni se il contesto non lo dice "
+    "esplicitamente; se non lo sai, indica il percorso e aggiungi che i pulsanti compaiono solo "
+    "a chi ha il permesso. "
+    "3) Se il CONTESTO LIVE contiene dati o conteggi, quelli sono dati reali a cui hai accesso: "
+    "non rispondere mai che non puoi vedere i dati. Se il conteggio è zero, dillo come risultato. "
+    "4) Per spiegare COME si fa una cosa nel portale preferisci le fonti 'guida:' (guide d'uso dei "
+    "moduli): riporta i nomi esatti di pagine e pulsanti e indica il link della guida completa. "
+    "5) Non ripetere la stessa spiegazione due volte nella stessa risposta."
+)
 
 
 def _clean_history(raw_history: Any, *, max_messages: int, max_chars: int) -> list[dict[str, str]]:
@@ -1886,6 +2094,7 @@ def build_ollama_messages(
     *,
     knowledge_context: str = "",
     runtime_context: str = "",
+    guide_context: str = "",
     user_preferences: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     max_prompt_chars = int(getattr(settings, "OLLAMA_CHAT_MAX_PROMPT_CHARS", 2000) or 2000)
@@ -1900,8 +2109,10 @@ def build_ollama_messages(
         raise OllamaChatError("Scrivi un messaggio prima di inviare.")
 
     messages: list[dict[str, str]] = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
+    # Le regole di affidabilità stanno nello stesso messaggio del system prompt: restano
+    # attive anche quando il prompt è sovrascritto da .env o troncato.
+    system_content = f"{system_prompt}\n\n{_GROUNDING_RULES}" if system_prompt else _GROUNDING_RULES
+    messages.append({"role": "system", "content": system_content})
     preferences_prompt = _build_preferences_prompt(user_preferences)
     if preferences_prompt:
         messages.append({"role": "system", "content": preferences_prompt})
@@ -1921,6 +2132,19 @@ def build_ollama_messages(
                     "Non aggiungere nominativi o dettagli non presenti nel contesto. "
                     "Se il dato non e' qui, dillo esplicitamente senza inventare procedure, comandi o sezioni. "
                     "Per richieste predittive separa fatti osservati, ipotesi e raccomandazioni."
+                ),
+            }
+        )
+    if guide_context:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "GUIDA D'USO DEL MODULO (dalle guide in-app del portale):\n"
+                    f"{guide_context}\n\n"
+                    "ISTRUZIONE: usa questa guida SOLO per spiegare come si fa l'operazione nel portale "
+                    "(pagine, pulsanti, passi). I dati dell'utente vengono esclusivamente dal contesto live. "
+                    "Indica il link della guida completa."
                 ),
             }
         )
@@ -2084,6 +2308,8 @@ def chat_with_ollama(
     timeout: int | None = None,
     allow_specifiche: bool = False,
     allow_procedure: bool = False,
+    allowed_guides: frozenset[str] | None = None,
+    runtime_sources: tuple[str, ...] | list[str] | None = None,
 ) -> OllamaChatResult:
     base_url = str(getattr(settings, "OLLAMA_BASE_URL", "") or "").strip().rstrip("/")
     provider = str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower()
@@ -2094,21 +2320,26 @@ def chat_with_ollama(
     if not model:
         raise OllamaChatError("OLLAMA_CHAT_MODEL non configurato.")
 
-    knowledge = build_knowledge_context(
-        prompt, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+    # Con un contesto live di dati operativi il RAG generale resta fuori dal payload
+    # (i modelli small confondono le due fonti): passano solo le guide d'uso, e solo
+    # per le domande «come si fa». Vedi _knowledge_for_chat.
+    knowledge = _knowledge_for_chat(
+        prompt,
+        runtime_context=runtime_context,
+        runtime_sources=runtime_sources,
+        allow_specifiche=allow_specifiche,
+        allow_procedure=allow_procedure,
+        allowed_guides=allowed_guides,
+        history=history,
     )
-    has_runtime_context = bool(runtime_context.strip())
-    # Se c'è un contesto live (dati operativi reali), non iniettare il RAG nel payload:
-    # i modelli small ignorano l'istruzione "ignora i documenti se c'è contesto live"
-    # e confondono le due fonti. Anche le fonti RAG restano nascoste nella UI quando risponde un tool live.
-    rag_for_llm = "" if has_runtime_context else knowledge.text
     payload = {
         "model": model,
         "messages": build_ollama_messages(
             prompt,
             history,
-            knowledge_context=rag_for_llm,
+            knowledge_context=knowledge.knowledge_text,
             runtime_context=runtime_context,
+            guide_context=knowledge.guide_text,
             user_preferences=user_preferences,
         ),
         "stream": False,
@@ -2177,8 +2408,8 @@ def chat_with_ollama(
         content=content,
         model=str(data.get("model") or model) if isinstance(data, dict) else model,
         done=bool(data.get("done", True)) if isinstance(data, dict) else True,
-        sources=() if has_runtime_context else knowledge.sources,
-        rag_context_chars=0 if has_runtime_context else len(knowledge.text),
+        sources=knowledge.sources,
+        rag_context_chars=knowledge.chars,
     )
 
 
@@ -2273,6 +2504,8 @@ def open_ollama_stream(
     user_preferences: dict[str, Any] | None = None,
     allow_specifiche: bool = False,
     allow_procedure: bool = False,
+    allowed_guides: frozenset[str] | None = None,
+    runtime_sources: tuple[str, ...] | list[str] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     """Apre una richiesta streaming verso Ollama/Open WebUI.
 
@@ -2288,18 +2521,23 @@ def open_ollama_stream(
     if not model:
         raise OllamaChatError("OLLAMA_CHAT_MODEL non configurato.")
 
-    knowledge = build_knowledge_context(
-        prompt, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+    knowledge = _knowledge_for_chat(
+        prompt,
+        runtime_context=runtime_context,
+        runtime_sources=runtime_sources,
+        allow_specifiche=allow_specifiche,
+        allow_procedure=allow_procedure,
+        allowed_guides=allowed_guides,
+        history=history,
     )
-    has_runtime_context = bool(runtime_context.strip())
-    rag_for_llm = "" if has_runtime_context else knowledge.text
     payload: dict[str, Any] = {
         "model": model,
         "messages": build_ollama_messages(
             prompt,
             history,
-            knowledge_context=rag_for_llm,
+            knowledge_context=knowledge.knowledge_text,
             runtime_context=runtime_context,
+            guide_context=knowledge.guide_text,
             user_preferences=user_preferences,
         ),
         "stream": True,
@@ -2350,8 +2588,8 @@ def open_ollama_stream(
     meta = {
         "model": model,
         "provider": provider,
-        "sources": () if has_runtime_context else knowledge.sources,
-        "rag_context_chars": 0 if has_runtime_context else len(knowledge.text),
+        "sources": knowledge.sources,
+        "rag_context_chars": knowledge.chars,
     }
     return response, meta
 

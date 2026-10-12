@@ -165,3 +165,20 @@ def run_rag_quality_alert() -> dict:
     except Exception:
         logger.exception("run_rag_quality_alert: invio alert fallito")
     return result
+
+
+def run_pulisci_conversazioni() -> dict:
+    """Cancella le conversazioni AI senza messaggi da più di AI_CHAT_HISTORY_RETENTION_DAYS.
+
+    Fail-safe: non solleva mai. Gira anche con lo storico spento, così le conversazioni
+    salvate prima dello spegnimento scadono comunque.
+    """
+    from ai_assistant.conversazioni import giorni_conservazione, pulisci_scadute
+
+    try:
+        giorni = giorni_conservazione()
+        eliminate = pulisci_scadute(giorni=giorni)
+        return {"ok": True, "eliminate": eliminate, "giorni": giorni}
+    except Exception:
+        logger.exception("run_pulisci_conversazioni: errore inatteso")
+        return {"ok": False, "eliminate": 0, "message": "errore inatteso"}

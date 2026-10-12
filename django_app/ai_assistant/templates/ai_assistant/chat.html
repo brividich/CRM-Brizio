@@ -10,7 +10,7 @@
   margin: 0 auto;
   min-height: calc(100vh - 170px);
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr;
   gap: 14px;
 }
 
@@ -760,6 +760,78 @@ body.theme-dark .ai-segmented button.is-active {
   color: #fff;
 }
 
+.ai-no-source-hint {
+  margin: 4px 0 0 46px;
+  font-size: 11.5px;
+  color: var(--text-light, #64748b);
+}
+
+/* ── Storico conversazioni ───────────────────────────────────────── */
+.ai-history-body {
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding: 12px 14px 14px;
+}
+.ai-history-note {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-light, #64748b);
+}
+.ai-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 9px;
+  padding: 2px 4px 2px 2px;
+}
+.ai-history-item.is-active { border-color: #1e40af; background: #eef4ff; }
+.ai-history-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 7px 8px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text, #0f172a);
+  font: inherit;
+  font-size: 13px;
+}
+.ai-history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.ai-history-date { flex-shrink: 0; font-size: 11.5px; color: var(--text-light, #64748b); }
+.ai-history-del {
+  border: 0;
+  background: transparent;
+  color: var(--text-light, #64748b);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.ai-history-del:hover { background: #fee2e2; color: #b91c1c; }
+.ai-history-empty { font-size: 12.5px; color: var(--text-light, #64748b); padding: 4px 2px; }
+.ai-history-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+.ai-history-foot .ai-action-btn:disabled { opacity: .45; cursor: default; }
+body.theme-dark .ai-history-body { border-color: var(--border); }
+body.theme-dark .ai-history-item { border-color: var(--border); }
+body.theme-dark .ai-history-item.is-active { background: rgba(30,64,175,.25); border-color: #3b82f6; }
+body.theme-dark .ai-history-open { color: var(--text); }
+body.theme-dark .ai-history-del:hover { background: rgba(185,28,28,.25); color: #fca5a5; }
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .ai-shell { min-height: calc(100vh - 130px); }
@@ -811,7 +883,10 @@ body.theme-dark .ai-segmented button.is-active {
       </div>
     </div>
     <div class="ai-hero-actions">
-      <button class="ai-hero-btn ai-hero-btn-secondary" type="button" data-ai-new-chat title="Nuova conversazione (cancella la sessione corrente)">
+      <a class="ai-hero-btn ai-hero-btn-secondary" href="{% url 'ai_assistant:guida' %}" title="Come si usa l'assistente">
+        ? Guida
+      </a>
+      <button class="ai-hero-btn ai-hero-btn-secondary" type="button" data-ai-new-chat title="{% if chat_history_enabled %}Nuova conversazione (quella attuale resta in «Le tue conversazioni»){% else %}Nuova conversazione (cancella la sessione corrente){% endif %}">
         &#x1F504; Nuova chat
       </button>
       <button class="ai-hero-btn ai-hero-btn-secondary" type="button" data-ai-report {% if not ollama_enabled %}disabled{% endif %} title="Genera un report PDF sull'argomento (dati live filtrati dai tuoi permessi)">
@@ -863,6 +938,26 @@ body.theme-dark .ai-segmented button.is-active {
       </div>
     </div>
   </details>
+
+  {% if chat_history_enabled %}
+  <details class="ai-config ai-history" data-ai-history
+    data-list-url="{% url 'ai_assistant:api_conversazioni' %}"
+    data-detail-url="{% url 'ai_assistant:api_conversazione' 0 %}"
+    data-delete-url="{% url 'ai_assistant:api_conversazione_elimina' 0 %}"
+    data-clear-url="{% url 'ai_assistant:api_conversazioni_elimina_tutte' %}">
+    <summary>
+      <span>Le tue conversazioni</span>
+      <span class="ai-config-summary" data-ai-history-summary>Caricamento&hellip;</span>
+    </summary>
+    <div class="ai-history-body">
+      <p class="ai-history-note">Le vedi solo tu. Ogni conversazione si cancella da sola dopo {{ chat_history_days }} giorni dall'ultimo messaggio; puoi eliminarla prima con &times;.</p>
+      <ul class="ai-history-list" data-ai-history-list></ul>
+      <div class="ai-history-foot">
+        <button class="ai-action-btn" type="button" data-ai-history-clear>Elimina tutte</button>
+      </div>
+    </div>
+  </details>
+  {% endif %}
 
   <!-- Chat panel -->
   <section class="ai-panel" aria-label="Conversazione assistente AI">
@@ -954,6 +1049,12 @@ body.theme-dark .ai-segmented button.is-active {
   var styleButtons = Array.from(root.querySelectorAll("[data-ai-style-option]"));
   var preferences  = { style: "operativo", show_limits: true };
 
+  var historyBox     = root.querySelector("[data-ai-history]");
+  var historyList    = historyBox ? historyBox.querySelector("[data-ai-history-list]") : null;
+  var historySummary = historyBox ? historyBox.querySelector("[data-ai-history-summary]") : null;
+  var historyClear   = historyBox ? historyBox.querySelector("[data-ai-history-clear]") : null;
+  var conversationId = null;
+
   /* ── CSRF ────────────────────────────────────────────────────── */
   function csrf() {
     var m = document.querySelector("meta[name='csrf-token']");
@@ -1042,7 +1143,10 @@ body.theme-dark .ai-segmented button.is-active {
   updatePreferencesUi();
 
   /* ── Reset / nuova conversazione ────────────────────────────── */
-  function resetSession() {
+  function resetSession(silent) {
+    conversationId = null;
+    setConversationInUrl(null);
+    markActiveConversation();
     history = [];
     lastPair = null;
     msgCount = 0;
@@ -1055,15 +1159,20 @@ body.theme-dark .ai-segmented button.is-active {
     /* aggiungi conferma visiva */
     var notice = document.createElement("div");
     notice.className = "ai-notice ai-notice-success";
-    notice.innerHTML = '<span class="ai-notice-icon">&#x1F504;</span><span>Nuova conversazione avviata. La sessione precedente è stata cancellata.</span>';
-    log.appendChild(notice);
-    setTimeout(function () { if (notice.parentNode) notice.remove(); }, 3500);
+    notice.innerHTML = '<span class="ai-notice-icon">&#x1F504;</span><span>' + (historyBox ? "Nuova conversazione avviata. La precedente è in «Le tue conversazioni»." : "Nuova conversazione avviata. La sessione precedente è stata cancellata.") + '</span>';
+    if (!silent) {
+      log.appendChild(notice);
+      setTimeout(function () { if (notice.parentNode) notice.remove(); }, 3500);
+    }
     scrollDown();
-    if (input) { input.value = ""; autoResize(); updateCounter(); input.focus(); }
+    if (input) { input.value = ""; autoResize(); updateCounter(); if (!silent) input.focus(); }
   }
   newChatBtn && newChatBtn.addEventListener("click", function () {
     if (msgCount === 0) return;
-    if (!confirm("Cancellare la conversazione corrente e iniziarne una nuova?")) return;
+    var question = historyBox
+      ? "Iniziare una nuova conversazione? Quella attuale resta in «Le tue conversazioni»."
+      : "Cancellare la conversazione corrente e iniziarne una nuova?";
+    if (!confirm(question)) return;
     resetSession();
   });
 
@@ -1320,7 +1429,14 @@ body.theme-dark .ai-segmented button.is-active {
   /* ── Streaming NDJSON dall'endpoint /api/chat/stream/ ─────────── */
   /* Risolve con il testo accumulato + metadati. Rigetta con err.handled=true
      per gli errori funzionali (mostrali subito, niente fallback). */
-  async function sendStream(text, hist, bubble, signal) {
+  function chatPayload(text, hist, regenerate) {
+    var body = { message: text, history: hist, preferences: preferences };
+    if (conversationId) body.conversation_id = conversationId;
+    if (regenerate) body.regenerate = true;
+    return body;
+  }
+
+  async function sendStream(text, hist, bubble, signal, regenerate) {
     var response = await fetch(streamUrl, {
       method: "POST",
       headers: {
@@ -1329,7 +1445,7 @@ body.theme-dark .ai-segmented button.is-active {
         "X-CSRFToken": csrf(),
         "X-Requested-With": "XMLHttpRequest"
       },
-      body: JSON.stringify({ message: text, history: hist, preferences: preferences }),
+      body: JSON.stringify(chatPayload(text, hist, regenerate)),
       signal: signal
     });
 
@@ -1413,7 +1529,7 @@ body.theme-dark .ai-segmented button.is-active {
   }
 
   /* ── Fallback non-streaming (endpoint classico /api/chat/) ───── */
-  async function sendNonStream(text, hist, bubble, signal) {
+  async function sendNonStream(text, hist, bubble, signal, regenerate) {
     var response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -1422,7 +1538,7 @@ body.theme-dark .ai-segmented button.is-active {
         "X-CSRFToken": csrf(),
         "X-Requested-With": "XMLHttpRequest"
       },
-      body: JSON.stringify({ message: text, history: hist, preferences: preferences }),
+      body: JSON.stringify(chatPayload(text, hist, regenerate)),
       signal: signal
     });
     var data = await window.portalReadJsonResponse(response);
@@ -1435,7 +1551,8 @@ body.theme-dark .ai-segmented button.is-active {
         model: data.model || "",
         elapsed_ms: data.elapsed_ms || 0,
         sources: Array.isArray(data.sources) ? data.sources : [],
-        suggested_questions: Array.isArray(data.suggested_questions) ? data.suggested_questions : []
+        suggested_questions: Array.isArray(data.suggested_questions) ? data.suggested_questions : [],
+        conversation_id: data.conversation_id || null
       }
     };
   }
@@ -1511,11 +1628,11 @@ body.theme-dark .ai-segmented button.is-active {
     removeLastAnswerDom();
     lastPair = null;
     if (learnBtn) learnBtn.disabled = true;
-    runAssistant(question, history.slice(0, -1));
+    runAssistant(question, history.slice(0, -1), true);
   }
 
   /* ── Esecuzione di un turno assistente (usata da submit e rigenera) ── */
-  async function runAssistant(text, historyToSend) {
+  async function runAssistant(text, historyToSend, regenerate) {
     currentAbort = (typeof AbortController !== "undefined") ? new AbortController() : null;
     var signal = currentAbort ? currentAbort.signal : undefined;
     setGenerating(true);
@@ -1552,6 +1669,12 @@ body.theme-dark .ai-segmented button.is-active {
 
       if (answer) {
         log.appendChild(renderActions(answer));
+        if (!sources.length && !meta.stopped) {
+          var hint = document.createElement("div");
+          hint.className = "ai-no-source-hint";
+          hint.textContent = "Nessuna fonte per questa risposta. Se non ti è utile premi 👎 e, se la conosci, scrivi la risposta giusta: un amministratore la aggiungerà alle FAQ.";
+          log.appendChild(hint);
+        }
         log.appendChild(renderFeedback(text, answer));
       }
 
@@ -1559,6 +1682,11 @@ body.theme-dark .ai-segmented button.is-active {
       if (learnBtn && answer) learnBtn.disabled = false;
       remember("assistant", answer);
       lastPair = { question: text, answer: answer };
+      if (meta.conversation_id) {
+        conversationId = meta.conversation_id;
+        setConversationInUrl(conversationId);
+        loadConversations();
+      }
     }
 
     function fail(message) {
@@ -1569,7 +1697,7 @@ body.theme-dark .ai-segmented button.is-active {
     }
 
     try {
-      var streamed = await sendStream(text, historyToSend, bubble, signal);
+      var streamed = await sendStream(text, historyToSend, bubble, signal, regenerate);
       finalize(streamed.answer, streamed.meta);
     } catch (errStream) {
       if (errStream && errStream.handled) {
@@ -1577,7 +1705,7 @@ body.theme-dark .ai-segmented button.is-active {
       } else if (!bubble.dataset.streamed) {
         /* Streaming non disponibile (rete/proxy/browser): ripiega sull'endpoint classico */
         try {
-          var legacy = await sendNonStream(text, historyToSend, bubble, signal);
+          var legacy = await sendNonStream(text, historyToSend, bubble, signal, regenerate);
           finalize(legacy.answer, legacy.meta);
         } catch (errLegacy) {
           if (!(errLegacy && errLegacy.name === "AbortError")) fail(errLegacy && errLegacy.message);
@@ -1612,6 +1740,182 @@ body.theme-dark .ai-segmented button.is-active {
     updateSessionChip();
     runAssistant(text, history.slice(0, -1));
   });
+
+  /* ── Storico conversazioni (solo le proprie, lato server) ───── */
+  function historyUrl(attr, id) {
+    return historyBox.dataset[attr].replace(/\/0\/(elimina\/)?$/, "/" + id + "/$1");
+  }
+
+  function setConversationInUrl(id) {
+    if (!historyBox || !window.history || !window.history.replaceState) return;
+    try {
+      var url = new URL(window.location.href);
+      if (id) url.searchParams.set("c", id); else url.searchParams.delete("c");
+      window.history.replaceState(null, "", url.toString());
+    } catch (_) { /* URL non aggiornabile: nessun effetto sulla chat */ }
+  }
+
+  function markActiveConversation() {
+    if (!historyList) return;
+    Array.from(historyList.querySelectorAll("[data-conv-id]")).forEach(function (li) {
+      li.classList.toggle("is-active", String(li.dataset.convId) === String(conversationId));
+    });
+  }
+
+  function formatDate(iso) {
+    try {
+      var d = new Date(iso);
+      if (d.toDateString() === new Date().toDateString()) {
+        return "oggi " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+      }
+      return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+    } catch (_) { return ""; }
+  }
+
+  async function postJson(url) {
+    var response = await fetch(url, {
+      method: "POST",
+      headers: { "Accept": "application/json", "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" }
+    });
+    return window.portalReadJsonResponse(response);
+  }
+
+  function renderConversations(items) {
+    historyList.innerHTML = "";
+    if (historySummary) {
+      historySummary.textContent = items.length === 0 ? "Nessuna conversazione salvata"
+        : (items.length === 1 ? "1 conversazione" : items.length + " conversazioni");
+    }
+    if (historyClear) historyClear.disabled = items.length === 0;
+    if (!items.length) {
+      var empty = document.createElement("li");
+      empty.className = "ai-history-empty";
+      empty.textContent = "Le conversazioni compaiono qui dopo la prima risposta.";
+      historyList.appendChild(empty);
+      return;
+    }
+    items.forEach(function (item) {
+      var li = document.createElement("li");
+      li.className = "ai-history-item";
+      li.dataset.convId = item.id;
+      var open = document.createElement("button");
+      open.type = "button";
+      open.className = "ai-history-open";
+      open.title = "Riapri la conversazione";
+      var title = document.createElement("span");
+      title.className = "ai-history-title";
+      title.textContent = item.titolo;
+      var date = document.createElement("span");
+      date.className = "ai-history-date";
+      date.textContent = formatDate(item.updated_at);
+      open.appendChild(title);
+      open.appendChild(date);
+      open.addEventListener("click", function () { openConversation(item.id); });
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "ai-history-del";
+      del.title = "Elimina la conversazione";
+      del.setAttribute("aria-label", "Elimina la conversazione «" + item.titolo + "»");
+      del.innerHTML = "&times;";
+      del.addEventListener("click", function () { deleteConversation(item.id, item.titolo); });
+      li.appendChild(open);
+      li.appendChild(del);
+      historyList.appendChild(li);
+    });
+    markActiveConversation();
+  }
+
+  async function loadConversations() {
+    if (!historyBox) return;
+    try {
+      var response = await fetch(historyBox.dataset.listUrl, {
+        headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
+      });
+      var data = await window.portalReadJsonResponse(response);
+      renderConversations(Array.isArray(data.conversazioni) ? data.conversazioni : []);
+    } catch (_) {
+      if (historySummary) historySummary.textContent = "Storico non disponibile";
+    }
+  }
+
+  function renderStoredAnswer(message) {
+    var parts = createRow("bot");
+    renderAnswer(parts.bubble, message.content);
+    var srcEl = renderSources(Array.isArray(message.sources) ? message.sources : []);
+    if (srcEl) parts.bubble.appendChild(srcEl);
+    log.appendChild(renderMeta("bot", message.model || "", 0));
+  }
+
+  async function openConversation(id) {
+    if (sendBtn.disabled) return;
+    try {
+      var response = await fetch(historyUrl("detailUrl", id), {
+        headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
+      });
+      var data = await window.portalReadJsonResponse(response);
+      resetSession(true);
+      var messages = Array.isArray(data.messaggi) ? data.messaggi : [];
+      var lastQuestion = "";
+      messages.forEach(function (m) {
+        if (m.role === "user") {
+          appendUser(m.content);
+          lastQuestion = m.content;
+          msgCount += 1;
+        } else {
+          renderStoredAnswer(m);
+          lastPair = { question: lastQuestion, answer: m.content };
+        }
+        remember(m.role, m.content);
+      });
+      if (lastPair) log.appendChild(renderActions(lastPair.answer));
+      if (learnBtn && lastPair) learnBtn.disabled = false;
+      conversationId = data.id;
+      setConversationInUrl(conversationId);
+      markActiveConversation();
+      updateSessionChip();
+      scrollDown();
+    } catch (err) {
+      setConversationInUrl(null);
+      var notice = document.createElement("div");
+      notice.className = "ai-notice";
+      notice.innerHTML = '<span class="ai-notice-icon">&#x274C;</span><span>' + escapeHtml((err && err.message) || "Conversazione non disponibile.") + "</span>";
+      log.appendChild(notice);
+      loadConversations();
+    }
+  }
+
+  async function deleteConversation(id, titolo) {
+    if (!confirm("Eliminare la conversazione «" + titolo + "»? Non si può recuperare.")) return;
+    try {
+      await postJson(historyUrl("deleteUrl", id));
+      if (String(id) === String(conversationId)) resetSession(true);
+    } catch (err) {
+      window.alert((err && err.message) || "Eliminazione non riuscita.");
+    }
+    loadConversations();
+  }
+
+  historyClear && historyClear.addEventListener("click", async function () {
+    if (!confirm("Eliminare tutte le tue conversazioni salvate? Non si possono recuperare.")) return;
+    try {
+      await postJson(historyBox.dataset.clearUrl);
+      if (conversationId) resetSession(true);
+    } catch (err) {
+      window.alert((err && err.message) || "Eliminazione non riuscita.");
+    }
+    loadConversations();
+  });
+
+  if (historyBox) {
+    loadConversations();
+    try {
+      var initialId = new URL(window.location.href).searchParams.get("c");
+      if (initialId && /^\d+$/.test(initialId)) {
+        historyBox.open = true;
+        openConversation(initialId);
+      }
+    } catch (_) { /* nessuna conversazione da riaprire */ }
+  }
 
   /* ── Save to FAQ ────────────────────────────────────────────── */
   learnBtn && learnBtn.addEventListener("click", async function () {
