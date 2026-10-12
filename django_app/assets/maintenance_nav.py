@@ -169,6 +169,13 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
             ),
             NavItem("contratti", "Contratti assistenza", "assistance_contract_list", sidebar_code="maintenance_contratti"),
             NavItem("licenze", "Licenze software", "software_license_list", sidebar_code="licenze"),
+            NavItem(
+                "catalogo_software",
+                "Catalogo software",
+                "software_catalog",
+                sidebar_code="catalogo_software",
+                routes=frozenset({"software_catalog_detail"}),
+            ),
         ),
     ),
 )
@@ -287,6 +294,11 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
     'licenze': (
         'Licenze software assegnate a un asset, a una persona o a un reparto.',
         'Le scadenze delle licenze compaiono anche in Calendario, Scadenzario e promemoria.',
+    ),
+    'catalogo_software': (
+        "Tutti i programmi installati sui PC secondo l'ultimo inventario, con PC, versioni, licenza e CVE.",
+        'Apri un programma e decidi: Consentito, Da rimuovere o Non autorizzato; indica se è a pagamento e la versione minima.',
+        'Il SOC segnala con un alert i PC con software non autorizzato, da rimuovere o sotto la versione minima.',
     ),
 }
 

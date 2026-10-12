@@ -1,0 +1,29 @@
+{% if show %}
+<section class="af-card af-span-full" id="asset-software" aria-labelledby="asset-software-title" style="margin-top:18px;" data-af-tab="Software">
+  <div class="af-card-head"><div><div class="af-card-kicker">INVENTARIO SOFTWARE</div><h2 class="af-card-title" id="asset-software-title">Software installati</h2></div></div>
+  <div class="af-card-body">
+  <p class="af-note">{{ present }} software presenti{% if removed %}, {{ removed }} non più rilevati{% endif %} · inventario del {{ inventory_date|date:"d/m/Y" }}. Le date vengono dagli import dell'inventario, non dal PC in tempo reale.</p>
+  <div class="af-table-wrap">
+    <table class="af-table">
+      <thead><tr><th>Software</th><th>Versione</th><th>Rilevato dal</th><th>Ultima rilevazione</th><th>Licenza</th>{% if show_cve %}<th>CVE</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr{% if not row.present %} style="opacity:.65"{% endif %}>
+          <td><a href="{{ row.catalog_url }}"><strong>{{ row.name }}</strong></a>{% if row.classification == "non_autorizzato" %} <span class="af-pill af-pill--danger">Non autorizzato</span>{% elif row.classification == "da_rimuovere" %} <span class="af-pill af-pill--warn">Da rimuovere</span>{% endif %}<br><span class="af-note">{{ row.vendor|default:"produttore n/d" }}</span></td>
+          <td>
+            {% if row.present %}{{ row.versions|join:", "|default:"—" }}{% else %}<span class="af-pill af-pill--warn">Non più rilevato</span>{% endif %}
+            {% if row.previous %}<br><span class="af-note">Prima: {% for prev in row.previous %}{{ prev.version|default:"—" }} (fino al {{ prev.until|date:"d/m/Y" }}){% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+          </td>
+          <td style="white-space:nowrap">{{ row.first_seen|date:"d/m/Y" }}</td>
+          <td style="white-space:nowrap">{{ row.last_seen|date:"d/m/Y" }}</td>
+          <td>{% if row.license == "coperta" %}<span class="af-pill af-pill--ok">Licenza valida</span>{% elif row.license == "scaduta" %}<span class="af-pill af-pill--danger">Licenza scaduta</span>{% else %}<span class="af-note">—</span>{% endif %}</td>
+          {% if show_cve %}<td>{% if row.cve_impacts %}<span class="af-pill af-pill--danger" title="{{ row.cve_impacts|join:', ' }}">{{ row.cve_impacts|length }} CVE</span>{% for cve in row.cve_impacts|slice:":2" %} <a href="{% url 'security:cve_detail' cve %}">{{ cve }}</a>{% endfor %}{% elif row.cve_to_verify %}<span class="af-pill af-pill--warn">{{ row.cve_to_verify }} da verificare</span>{% else %}<span class="af-note">—</span>{% endif %}</td>{% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="af-note">«Licenza» compare per i software collegati a una licenza in <a href="{% url 'assets:software_license_list' %}">Licenze software</a>. Un software senza licenza collegata non è per forza a pagamento.</p>
+  </div>
+</section>
+{% endif %}

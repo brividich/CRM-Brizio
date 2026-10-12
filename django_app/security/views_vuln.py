@@ -68,7 +68,18 @@ def vulnerabilities_dashboard(request):
             "hosts": SoftwareInstallation.objects.filter(still_detected=True).values("host").distinct().count(),
         },
         "can_edit": can_manage_security_config(request.user),
+        "software_policy": _software_policy_summary(),
     })
+
+
+def _software_policy_summary():
+    try:
+        from .services.software_policy import summary
+
+        return summary()
+    except Exception:  # noqa: BLE001 - il riquadro è accessorio: la pagina vulnerabilità resta leggibile
+        logger.exception("Riepilogo software non conforme non disponibile")
+        return []
 
 
 def cve_detail(request, cve_id):
@@ -212,6 +223,7 @@ def _inventory_run(request, item, date_format):
     software_inventory.discard_stored(item)
     audit_config_change(request.user, "import", item, field_name="rows_imported", new_value=item.rows_imported, request=request)
     _queue_recompute()
+    _run_software_policy()
     messages.success(request, f"Importate {item.rows_imported} righe ({item.rows_new} nuove) da {item.hosts_count} host; "
                               f"{item.rows_skipped} scartate; {item.rows_marked_missing} installazioni non più rilevate.")
     return redirect("security:inventory")
@@ -229,6 +241,17 @@ def inventory_discard(request, pk):
     item.save(update_fields=["status"])
     messages.info(request, "Import annullato: il file caricato è stato eliminato.")
     return redirect("security:inventory")
+
+
+def _run_software_policy():
+    """Software non conforme (Catalogo software del modulo Asset): un import non fallisce per questo controllo."""
+    try:
+        from .services.software_policy import run
+
+        return run()
+    except Exception:  # noqa: BLE001
+        logger.exception("Controllo software non conforme non eseguito dopo l'import")
+        return 0
 
 
 def _queue_recompute():

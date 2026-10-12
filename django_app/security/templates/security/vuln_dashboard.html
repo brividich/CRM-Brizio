@@ -60,4 +60,15 @@
     </div>
   </div>
 </section>
+
+<section class="sec-panel" style="margin-top: 12px;" id="software-non-conforme">
+  <div class="sec-section-head"><h2>Software non conforme</h2><a class="sec-small" href="{% url 'assets:software_catalog' %}">Catalogo software</a></div>
+  <p class="sec-muted sec-small">Confronto tra l'inventario e le decisioni del Catalogo software (modulo Asset). Gli alert nascono quando nuovi PC entrano in uno di questi casi.</p>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Caso</th><th class="sec-num">Prodotti</th><th class="sec-num">PC</th><th></th></tr></thead>
+      <tbody>{% for s in software_policy %}<tr><td>{{ s.label|capfirst }}</td><td class="sec-num">{{ s.products }}</td><td class="sec-num">{{ s.hosts }}</td><td><a class="sec-small" href="{% url 'assets:software_catalog' %}?f={% if s.kind == 'versione_vecchia' %}vecchi{% else %}{{ s.kind }}{% endif %}">Vedi</a></td></tr>{% empty %}<tr><td colspan="4" class="sec-empty">Nessun dato: classifica i software nel Catalogo software.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}
