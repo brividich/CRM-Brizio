@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -994,7 +994,7 @@ class AiAssistantTests(TestCase):
         with override_settings(OLLAMA_CHAT_SYSTEM_PROMPT="Sistema", OLLAMA_CHAT_MAX_PROMPT_CHARS=50):
             messages = build_ollama_messages("Domanda", knowledge_context="[fonte: README.md] testo")
 
-        self.assertEqual(messages[0]["content"], "Sistema")
+        self.assertTrue(messages[0]["content"].startswith("Sistema"))
         self.assertIn("CONTESTO PORTALE", messages[1]["content"])
 
     def test_build_messages_includes_runtime_context(self):
@@ -2210,6 +2210,8 @@ class AiAssistantTests(TestCase):
             user_preferences={},
             allow_specifiche=True,
             allow_procedure=True,
+            allowed_guides=ANY,
+            runtime_sources=("tool:assenze:periodo",),
         )
         self.assertEqual(response.json()["sources"], ["tool:assenze:periodo"])
 
@@ -2246,6 +2248,8 @@ class AiAssistantTests(TestCase):
             user_preferences={"style": "dettagliato", "show_limits": True},
             allow_specifiche=True,
             allow_procedure=True,
+            allowed_guides=ANY,
+            runtime_sources=(),
         )
 
 

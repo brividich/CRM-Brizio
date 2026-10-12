@@ -314,6 +314,13 @@ _TICKET_KEYWORDS = {
     "guasto",
     "guasti",
 }
+# Ticket richiesti dall'utente stesso (non la coda che gestisce).
+_TICKET_SELF_RE = re.compile(
+    r"\b(miei|mie|mio|personali|da me)\b"
+    r"|\bho\s+(aperto|aperti|creato|creati|inviato|inviati|segnalato|fatto|chiesto)\b"
+    r"|\b(aperti|creati|inviati)\s+da\s+me\b"
+)
+_TICKET_MAX_ROWS = 200
 _TASK_KEYWORDS = {
     "task",
     "tasks",
@@ -804,7 +811,7 @@ def _wants_ticket_context(prompt: str) -> bool:
         return False
     return bool(
         re.search(
-            r"\b(chi|quali|elenco|lista|riepilogo|mostra|dimmi|vedere|sono|ho|miei|mie|personali|aperti|aperte|urgenti)\b",
+            r"\b(chi|quali|quanti|quante|elenco|lista|riepilogo|mostra|dimmi|vedere|sono|ho|miei|mie|personali|aperti|aperte|urgenti)\b",
             text,
         )
         or re.search(r"\b(chiusi|chiuse|risolti|risolte|storico)\b", text)
@@ -1796,7 +1803,9 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
         for ticket_type in (TipoTicket.IT, TipoTicket.MAN)
         if ticket_views._can_manage_tickets(request, ticket_type)
     ]
-    manager_scope = bool(manager_types) and not re.search(r"\b(miei|mie|mio|personali)\b", text)
+    # «ho aperto», «creati da me»: i ticket richiesti dall'utente, anche se gestisce la coda.
+    self_request = bool(_TICKET_SELF_RE.search(text))
+    manager_scope = bool(manager_types) and not self_request
 
     filters: list[str] = []
     if manager_scope:
@@ -1830,6 +1839,17 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
         scope = "personale"
         scope_label = "ticket aperti o richiesti dall'utente corrente"
 
+    # Periodo di apertura («questo mese», «oggi», «settembre»): filtra su created_at.
+    period = _target_period(prompt)
+    period_label = ""
+    if period:
+        period_label, period_start, period_end = period
+        if timezone.is_naive(period_start):
+            period_start = timezone.make_aware(period_start)
+            period_end = timezone.make_aware(period_end)
+        qs = qs.filter(created_at__gte=period_start, created_at__lt=period_end)
+        filters.append(f"aperti in {period_label}")
+
     open_statuses = (StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA)
     if re.search(r"\b(urgente|urgenti|critico|critici)\b", text):
         qs = qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=open_statuses)
@@ -1837,13 +1857,14 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
     elif re.search(r"\b(chiusi|chiuse|chiuso|risolti|risolte|risolto)\b", text):
         qs = qs.filter(stato__in=(StatoTicket.RISOLTO, StatoTicket.CHIUSO))
         filters.append("stato=risolto/chiuso")
-    elif re.search(r"\b(tutti|tutte|storico)\b", text):
+    elif re.search(r"\b(tutti|tutte|storico)\b", text) or period or self_request:
+        # «quanti ticket ho aperto questo mese»: «aperto» è l'azione, non lo stato.
         filters.append("stato=tutti")
     else:
         qs = qs.filter(stato__in=open_statuses)
         filters.append("stato=aperto")
 
-    rows = list(qs.order_by("-created_at")[:60])
+    rows = list(qs.order_by("-created_at")[:_TICKET_MAX_ROWS])
 
     # filtri post-ACL estratti dal prompt
     richiedente_filter = _extract_name_filter(prompt)
@@ -1867,17 +1888,31 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
         ]
         extra_filters.append(f"reparto/area contiene '{reparto_filter}'")
     filters.extend(extra_filters)
+    total = len(rows)
+    total_label = f"almeno {total}" if total >= _TICKET_MAX_ROWS else str(total)
     rows = rows[:30]
 
     lines = "\n".join(_ticket_line(ticket) for ticket in rows) if rows else "Nessun ticket trovato per i filtri richiesti."
+    shown_note = f" (mostrati i {len(rows)} più recenti)" if total > len(rows) else ""
+
+    direct = ""
+    if re.search(r"\b(quanti|quante|numero|conta|contare|totale)\b", text):
+        who = "Hai aperto" if scope == "personale" else "Risultano"
+        when = f" in {period_label}" if period_label else ""
+        direct = (
+            f"RISPOSTA DIRETTA: {who} {total_label} ticket{when} "
+            f"(filtri: {', '.join(filters) if filters else 'nessuno'}).\n"
+        )
 
     return RuntimeContext(
         text=(
             "DATI LIVE PORTALE - TICKET\n"
             f"Ambito autorizzato: {scope_label}.\n"
             f"Filtri applicati: {', '.join(filters) if filters else 'nessuno'}.\n"
-            f"Ticket trovati: {len(rows)}.\n"
-            "ISTRUZIONE RISPOSTA: elenca tutti i ticket qui sotto uno per uno. "
+            f"Ticket trovati: {total_label}{shown_note}.\n"
+            f"{direct}"
+            "ISTRUZIONE RISPOSTA: questi sono dati reali del modulo Ticket letti per l'utente. "
+            "Se e' presente la RISPOSTA DIRETTA, parti da quella. Poi elenca i ticket qui sotto uno per uno. "
             "Non sintetizzare, non raggruppare, non inventare dati non presenti. "
             "Riporta numero, titolo, tipo, stato, priorita, richiedente, assegnatario e data apertura.\n"
             f"{lines}"
@@ -1889,6 +1924,7 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
             "scope": scope,
             "filters": filters,
             "row_count": len(rows),
+            "total": total,
         },
     )
 

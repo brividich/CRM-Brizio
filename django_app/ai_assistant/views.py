@@ -27,6 +27,7 @@ from .services import (
     open_ollama_stream,
     sgi_rag_access,
 )
+from .guide_portale import guide_consentite
 from .tools import build_runtime_context
 
 
@@ -303,6 +304,8 @@ def api_chat(request):
             user_preferences=preferences,
             allow_specifiche=allow_specifiche,
             allow_procedure=allow_procedure,
+            allowed_guides=guide_consentite(request),
+            runtime_sources=runtime_context.sources,
         )
     except OllamaChatError as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -409,6 +412,8 @@ def api_chat_stream(request):
             user_preferences=preferences,
             allow_specifiche=allow_specifiche,
             allow_procedure=allow_procedure,
+            allowed_guides=guide_consentite(request),
+            runtime_sources=runtime_context.sources,
         )
     except OllamaChatError as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)

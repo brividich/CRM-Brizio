@@ -315,6 +315,12 @@ OLLAMA_RAG_BM25_B = float(env("OLLAMA_RAG_BM25_B", "0.75") or "0.75")
 # Overlap (caratteri) tra chunk consecutivi della stessa sezione: preserva il
 # contesto a cavallo del confine. 0 = nessun overlap.
 OLLAMA_RAG_CHUNK_OVERLAP_CHARS = int(env("OLLAMA_RAG_CHUNK_OVERLAP_CHARS", "150") or "150")
+# Guide in-app dei moduli («? Guida») nel RAG, fonte guida:<slug>, filtrate con
+# l'ACL della pagina guida (ai_assistant/guide_portale.py). Quando risponde un tool
+# live di dati entrano al massimo ..._MAX_CHUNKS_WITH_LIVE capitoli, solo per le
+# domande «come si fa».
+OLLAMA_RAG_GUIDE_ENABLED = env_bool("OLLAMA_RAG_GUIDE_ENABLED", True)
+OLLAMA_RAG_GUIDE_MAX_CHUNKS_WITH_LIVE = int(env("OLLAMA_RAG_GUIDE_MAX_CHUNKS_WITH_LIVE", "2") or "2")
 # Corpus documentale SGI nel RAG: indicizza le Specifiche in vigore (stato S3) e
 # le revisioni procedura correnti, rendendole citabili in chat (handle spec:/proc:).
 # OPT-OUT con OLLAMA_RAG_SGI_ENABLED=False. Cap dedicati perche' il corpus SGI

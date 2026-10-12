@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-07-01 · Versione guida 2.1</span>
+    <span class="badge">Ultimo aggiornamento: 2026-10-12 · Versione guida 2.4</span>
   </div>
 </header>
 
@@ -95,7 +95,8 @@
   <ul>
     <li>la <strong>documentazione SGI</strong> (manuali tecnici, procedure, piani qualità, DVR…) <strong>citando la fonte</strong>;</li>
     <li>i <strong>dati operativi live</strong> del portale (assenze, ticket, task, asset, carichi macchina, contatori MFC, DPI, anomalie, procedure, notizie, sicurezza, anagrafica), <strong>sempre nei limiti dei permessi dell'utente</strong>;</li>
-    <li>la <strong>navigazione</strong> (quali moduli e funzioni sono disponibili).</li>
+    <li>la <strong>navigazione</strong> (quali moduli e funzioni sono disponibili);</li>
+    <li><strong>come si usa il portale</strong>: conosce le <strong>guide in-app dei moduli</strong> (pulsante «? Guida») e spiega i passi con i nomi reali di pagine e pulsanti, con il link alla guida completa.</li>
     <li>genera <strong>report PDF scaricabili</strong> su un argomento, <strong>ancorati ai dati autorizzati</strong> (in stile NOVICROM HUB; bozza da verificare e firmare).</li>
   </ul>
   <div class="callout ok"><strong>Principio guida:</strong> «<strong>l'AI propone, l'umano firma</strong>».
@@ -136,7 +137,8 @@
     <tr><td>«Qual è il consumo stampe per reparto / l'andamento delle fotocopie?»</td><td>Tool live <em>Contatori MFC</em> (solo aggregati, gated)</td></tr>
     <tr><td>«A che punto è il ciclo PDCA delle segnalazioni SMS?»</td><td>Tool live <em>Suggestion Corner</em> (aggregati; guardrail anonimato)</td></tr>
     <tr><td>«Qual è la scheda di sicurezza corrente dell'acetone / quali sono scadute?»</td><td>Tool live <em>Schede di Sicurezza</em> (stato/metadati; prese visione = conteggio)</td></tr>
-    <tr><td>«Quali ticket aperti ho?»</td><td>Tool live <em>Ticket</em> (scope personale/gestione da ACL)</td></tr>
+    <tr><td>«Quali ticket aperti ho?» · «Quanti ticket ho aperto questo mese?»</td><td>Tool live <em>Ticket</em> (scope personale/gestione da ACL; periodo e conteggio)</td></tr>
+    <tr><td>«Come inserisco un nuovo timbro nel registro?»</td><td>Guida in-app del modulo (<em>Registro Timbri</em>) → passi e pulsanti + link alla guida</td></tr>
     <tr><td>«Chi è assente domani?»</td><td>Tool live <em>Assenze</em></td></tr>
     <tr><td>«Quali moduli posso usare?»</td><td>Tool <em>Catalogo moduli</em> (navigazione visibile)</td></tr>
     <tr><td>«Cosa devo fare oggi?»</td><td>Router cross-dominio: brief operativo dai tool autorizzati</td></tr>
@@ -167,6 +169,14 @@
       primo soccorso, incompatibilità — leggendo i <strong>campi curati dall'RSPP</strong> (nessun PDF ri-parsato).
       È <strong>informazione di sicurezza organizzativa, non personale</strong>, quindi condivisa come le guide/FAQ.
       Es. «quali DPI servono per il prodotto X?».</li>
+    <li><strong>Guide d'uso dei moduli</strong> (fonte <code>guida:&lt;modulo&gt;</code>): le stesse guide che si aprono
+      con «? Guida» — Registro Timbri, Anomalie, Audit interni, Registro OFI/NC, Asset, Formazione, Formazione online,
+      Persone e account, Gestione specifiche, Glossario, Security Center. Una guida entra nella risposta <strong>solo se
+      l'utente può aprirla</strong> (stessa ACL della pagina). Quando la guida di un modulo cambia, l'assistente la
+      rilegge da sola: non c'è nulla da reindicizzare a mano. Anche quando risponde un tool di dati live, alle domande
+      «come si fa» l'assistente affianca al massimo due capitoli della guida del modulo.</li>
+    <li><strong>Domande di seguito</strong>: se la domanda rimanda alla precedente («e come lo inserisco nel modulo?»),
+      la ricerca nei documenti usa anche la domanda precedente.</li>
   </ul>
   <p class="muted">Espansioni previste del corpus citabile: formazione, manuali macchina. Vedi §8.</p>
 </section>
@@ -283,6 +293,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-10-12</td><td>2.4</td><td><strong>L'assistente conosce le guide dei moduli.</strong> Le guide in-app («? Guida») entrano nella memoria documentale, filtrate con i permessi della pagina guida, e vengono preferite per le domande su <em>come si fa</em> una cosa nel portale. Prima, a «come inserisco un timbro?», l'assistente citava solo la procedura SGI e, appena partiva il catalogo moduli, perdeva anche quella. <strong>Ticket</strong>: «quanti ticket ho aperto questo mese?» ora conta i ticket aperti dall'utente nel periodo, in qualsiasi stato (prima contava solo quelli ancora aperti). <strong>Regole anti-invenzione</strong> sempre attive: niente sigle sciolte a fantasia (es. «MSM»), niente «non hai accesso» se i permessi non lo dicono, niente «non vedo i dati» quando i dati live ci sono.</td></tr>
     <tr><td>2026-07-06</td><td>2.3</td><td><strong>Memoria documentale filtrata per permessi di modulo.</strong> La ricerca sui documenti SGI (chat e report PDF) ora rispetta l'ACL dei moduli d'origine: le <strong>Specifiche</strong> sono citabili solo da chi può aprire <em>Gestione specifiche</em>, le <strong>Procedure</strong> solo dai <strong>gestori</strong> (come la libreria documenti di <em>Procedure</em>). Prima chiunque autenticato poteva estrarre il contenuto integrale di quei documenti chiedendolo alla chat o generando un report, anche senza accesso al modulo. Anche la <em>panoramica documento</em> (scopo + indice) è filtrata. Le guide del portale e le FAQ curate restano condivise. Nessun impatto su tool live, difese anti-allucinazione o prestazioni (la cache dell'indice resta condivisa; il filtro è per-richiesta).</td></tr>
     <tr><td>2026-07-02</td><td>2.2</td><td>Tool live <strong>Skill Matrix</strong>: nuova capacità <strong>«dove può lavorare NOME»</strong> (reverse persona→macchine: dato l'operatore, elenca le macchine su cui è abilitato con livello/stato/operatività). Corretto anche un <strong>leak di contesto</strong> per cui il codice-macchina di una domanda precedente (es. «…sulla DM11») dirottava la domanda successiva su un altro operatore, facendola rispondere «non abilitato su DM11»: ora le entità (codice-macchina, nominativo) si leggono dalla <strong>domanda corrente</strong>, lo storico resta solo per capire il dominio. Persona non riconosciuta o senza abilitazioni → risposta onesta, mai inventata.</td></tr>
     <tr><td>2026-07-01</td><td>2.1</td><td>Copilota <strong>Specifiche/MOD.133</strong> esteso col <strong>confronto revisione precedente↔nuova</strong>: un diff testuale deterministico individua i cambiamenti e l'AI pre-compila il MOD.133 sui soli paragrafi modificati (endpoint <code>ai_diff_mod133</code>, ACL come gli altri copiloti). Read-only, «l'AI propone, l'umano firma».</td></tr>
