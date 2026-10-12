@@ -14,6 +14,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - Scheda Software dell'asset: nome con link al catalogo e badge «Non autorizzato» / «Da rimuovere».
   - Deploy: `migrate assets` (0129-0130).
 
+- **Asset — storico dei rinnovi delle licenze software** (`django_app/assets/forms.py`, `assets/views.py`, `assets/templates/assets/pages/software_license_list.html`, `assets/templates/assets/pages/guida.html`, test nuovo `assets/tests_licenze_rinnovi.py`, `docs/moduli/assets.md`).
+  - Licenze software: nuova azione **Rinnova** su ogni riga (solo per chi gestisce le licenze) con nuova scadenza obbligatoria, data rinnovo (oggi di default), inizio periodo, posti, costo €, fornitore tra i Fornitori attivi, riferimento ordine/fattura e note. Il salvataggio, in una sola transazione, registra il rinnovo con la scadenza precedente e aggiorna la licenza (scadenza, data rinnovo, posti se indicati, licenza attiva); azione tracciata nel log (`renew_software_license`). La nuova scadenza non può precedere l'inizio del periodo.
+  - Storico automatico: se la scadenza cambia da «Modifica», viene comunque aggiunta una riga di rinnovo con la nota «Scadenza modificata dalla scheda licenza».
+  - Elenco: sotto la scadenza «N rinnovi» apre lo storico (data, periodo, scadenza precedente → nuova, posti, costo, fornitore, riferimento, chi l'ha registrato) e il totale speso; storico caricato senza query per riga.
+  - Guida in-app: nella sezione «Software installati e licenze» il nuovo paragrafo «Rinnovi e storico».
+  - Deploy: `migrate assets` (0129, già nel commit dei modelli).
+
 - **Asset — software installati nella scheda e licenze collegate all'inventario** (`django_app/security/services/software_catalog.py` nuovo, `security/templatetags/security_asset.py`, `security/templates/security/partials/asset_software.html` nuovo, `assets/models.py`, `assets/migrations/0128_licenza_software_inventario.py` nuovo, `assets/forms.py`, `assets/views.py`, `assets/templates/assets/pages/asset_detail.html`, `software_license_list.html`, `guida.html`, `security/guide/12_AUTOMATISMI_E_VULNERABILITA.md`, test `security/tests/test_software_catalog.py`, `docs/moduli/assets.md`).
   - Scheda asset, nuova scheda **Software**: i programmi rilevati sul PC dall'inventario (export WatchGuard/BusinessLog importato nel SOC) con versione, versioni precedenti e data fino a cui c'erano, prima e ultima rilevazione, «Non più rilevato», licenza collegata (valida/scaduta) e, solo a chi vede il SOC, le CVE della versione installata.
   - Licenze software: nuovo campo **Software dell'inventario** (elenco dei prodotti con il numero di PC); l'elenco mostra «Installato su N PC su M posti» e avvisa con «Più installazioni che posti» e «Scaduta ma ancora installata».

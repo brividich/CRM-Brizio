@@ -24,7 +24,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
-from django.db.models import Avg, Case, Count, IntegerField, Max, Q, When
+from django.db.models import Avg, Case, Count, IntegerField, Max, Prefetch, Q, When
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect, render
@@ -87,6 +87,7 @@ from .forms import (
     PeriodicVerificationForm,
     PlantLayoutForm,
     SoftwareLicenseForm,
+    SoftwareLicenseRenewalForm,
     WorkMachineAssetForm,
     DeviceFilterForm,
     IT_DEVICE_TYPES,
@@ -128,6 +129,7 @@ from .models import (
     AssetTimelineEntry,
     AssetTimelineHiddenEvent,
     SoftwareLicense,
+    SoftwareLicenseRenewal,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
@@ -13256,6 +13258,16 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
         )
 
 
+def _active_supplier_options() -> list:
+    """Fornitori attivi per il menu del rinnovo licenza (una sola query per tutta la pagina)."""
+    from anagrafica.models import Fornitore
+
+    try:
+        return list(Fornitore.objects.filter(is_active=True).order_by("ragione_sociale", "id"))
+    except DatabaseError:
+        return []
+
+
 @login_required
 def software_license_list(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
@@ -13328,7 +13340,12 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         action = _clean_string(request.POST.get("action"))
-        if action in {"create_software_license", "update_software_license", "delete_software_license"} and not can_manage_licenses:
+        if action in {
+            "create_software_license",
+            "update_software_license",
+            "delete_software_license",
+            "renew_software_license",
+        } and not can_manage_licenses:
             messages.error(request, "Solo admin puo gestire le licenze software.")
             return redirect(
                 _software_licenses_page_url(
@@ -13351,8 +13368,22 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                 employee_choices=employee_choices,
                 employee_details=employee_details,
             )
+            # La scadenza va letta prima di is_valid(): il ModelForm scrive i nuovi valori sull'istanza.
+            previous_expiry = instance.expiry_date if instance is not None else None
             if form.is_valid():
-                license_row = form.save()
+                auto_renewal = None
+                with transaction.atomic():
+                    license_row = form.save()
+                    if instance is not None and license_row.expiry_date != previous_expiry:
+                        # Storico automatico: anche un cambio di scadenza dalla scheda resta tracciato.
+                        auto_renewal = SoftwareLicenseRenewal.objects.create(
+                            license=license_row,
+                            renewed_on=today,
+                            period_end=license_row.expiry_date,
+                            previous_expiry=previous_expiry,
+                            notes="Scadenza modificata dalla scheda licenza",
+                            created_by=request.user if request.user.is_authenticated else None,
+                        )
                 log_action(
                     request,
                     "update_software_license" if instance is not None else "create_software_license",
@@ -13362,6 +13393,7 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                         "asset_id": license_row.asset_id,
                         "assigned_anagrafica_id": license_row.assigned_anagrafica_id,
                         "assigned_legacy_user_id": license_row.assigned_legacy_user_id,
+                        "renewal_id": auto_renewal.id if auto_renewal is not None else None,
                     },
                 )
                 messages.success(
@@ -13378,6 +13410,61 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                         q=q,
                     )
                 )
+        elif action == "renew_software_license":
+            license_row = SoftwareLicense.objects.filter(
+                pk=_as_int(request.POST.get("license_id"), default=0)
+            ).first()
+            if license_row is None:
+                messages.error(request, "Licenza software non trovata.")
+            else:
+                renewal_form = SoftwareLicenseRenewalForm(request.POST, prefix=f"renew-{license_row.id}")
+                if renewal_form.is_valid():
+                    data = renewal_form.cleaned_data
+                    with transaction.atomic():
+                        renewal = renewal_form.save(commit=False)
+                        renewal.license = license_row
+                        renewal.renewed_on = data["renewed_on"]
+                        renewal.previous_expiry = license_row.expiry_date
+                        renewal.created_by = request.user if request.user.is_authenticated else None
+                        renewal.save()
+                        license_row.expiry_date = data["period_end"]
+                        license_row.renewal_date = data["renewed_on"]
+                        if data.get("seats_total") is not None:
+                            license_row.seats_total = data["seats_total"]
+                        license_row.is_active = True
+                        license_row.save(
+                            update_fields=["expiry_date", "renewal_date", "seats_total", "is_active", "updated_at"]
+                        )
+                    log_action(
+                        request,
+                        "renew_software_license",
+                        "assets",
+                        {
+                            "license_id": license_row.id,
+                            "renewal_id": renewal.id,
+                            "previous_expiry": str(renewal.previous_expiry or ""),
+                            "new_expiry": str(renewal.period_end or ""),
+                        },
+                    )
+                    messages.success(
+                        request,
+                        f"Licenza rinnovata: nuova scadenza {renewal.period_end:%d/%m/%Y}.",
+                    )
+                else:
+                    error_text = " ".join(
+                        str(error) for errors in renewal_form.errors.values() for error in errors
+                    )
+                    messages.error(request, f"Rinnovo non salvato. {error_text}".strip())
+            return redirect(
+                _software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                    category=category_filter,
+                    status=status_filter,
+                    assignee=assignee_filter,
+                    q=q,
+                )
+            )
         elif action == "delete_software_license":
             license_row = SoftwareLicense.objects.filter(
                 pk=_as_int(request.POST.get("license_id"), default=0)
@@ -13408,7 +13495,14 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                 )
             )
 
-    license_qs = SoftwareLicense.objects.select_related("asset").order_by(
+    license_qs = SoftwareLicense.objects.select_related("asset").prefetch_related(
+        Prefetch(
+            "renewals",
+            queryset=SoftwareLicenseRenewal.objects.select_related("supplier", "created_by").order_by(
+                "-renewed_on", "-id"
+            ),
+        )
+    ).order_by(
         "category",
         "vendor",
         "product_name",
@@ -13467,10 +13561,19 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
     license_rows: list[dict[str, object]] = []
     for license_row in license_qs:
         state = _software_license_state_payload(license_row, today=today)
+        renewals = list(license_row.renewals.all())
+        renewal_costs = [renewal.cost_eur for renewal in renewals if renewal.cost_eur is not None]
         license_rows.append(
             {
                 "license": license_row,
                 "state": state,
+                "renewals": renewals,
+                "renewal_count": len(renewals),
+                "renewal_total_cost": sum(renewal_costs, Decimal("0")) if renewal_costs else None,
+                "renew_prefix": f"renew-{license_row.id}",
+                "renew_default_start": (
+                    license_row.expiry_date + timedelta(days=1) if license_row.expiry_date else None
+                ),
                 "asset_url": (
                     reverse("assets:asset_view", kwargs={"id": license_row.asset_id})
                     if license_row.asset_id
@@ -13525,6 +13628,10 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                 if row["license"].assignment_scope == "unassigned"
             ),
             "can_manage_licenses": can_manage_licenses,
+            "renewal_supplier_options": (
+                _active_supplier_options() if can_manage_licenses else []
+            ),
+            "today": today,
             "is_edit": edit_license is not None,
             "edit_license": edit_license,
             "selected_asset": selected_asset,

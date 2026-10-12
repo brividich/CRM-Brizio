@@ -126,6 +126,17 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ol>
       <p>L'elenco avvisa con <em>Più installazioni che posti</em> se i PC con il software superano i posti acquistati, e con <em>Scaduta ma ancora installata</em> se la licenza è scaduta o disattivata ma il software è ancora sui PC.</p>
       <p class="ag-note">I numeri valgono quanto l'ultimo inventario importato: caricane uno nuovo per aggiornarli. Il campo <em>Posti utilizzati</em> resta manuale.</p>
+      <h3>Rinnovi e storico</h3>
+      <p>Quando una licenza viene rinnovata, registra il rinnovo invece di cambiare solo la data: così resta la traccia di tutti i rinnovi e di quanto sono costati.</p>
+      <ol>
+        <li>Apri <a href="{% url 'assets:software_license_list' %}">Licenze software</a> e trova la licenza nell'elenco.</li>
+        <li>Premi <span class="ag-btn">Rinnova</span> nella colonna delle azioni: si apre un piccolo modulo.</li>
+        <li>Scrivi la <strong>Nuova scadenza</strong> (obbligatoria). La <strong>Data rinnovo</strong> è già oggi; se serve, cambiala.</li>
+        <li>Se li conosci, aggiungi inizio del periodo, posti acquistati, costo, fornitore e numero dell'ordine o della fattura.</li>
+        <li>Premi <span class="ag-btn">Salva rinnovo</span>. La licenza prende la nuova scadenza e torna attiva.</li>
+      </ol>
+      <p>Sotto la scadenza compare <strong>N rinnovi</strong>: aprilo per vedere, dal più recente, la data, la scadenza di prima e quella nuova, i posti, il costo, il fornitore, il riferimento e chi l'ha registrato. Accanto c'è il totale speso.</p>
+      <p class="ag-note">Se cambi la data di scadenza con <span class="ag-btn">Modifica</span>, il cambio viene comunque aggiunto allo storico con la nota «Scadenza modificata dalla scheda licenza». Il rinnovo può farlo solo chi gestisce le licenze; la nuova scadenza non può essere prima dell'inizio del periodo.</p>
     </section>
 
     <section class="ag-sec" id="catalogo">
