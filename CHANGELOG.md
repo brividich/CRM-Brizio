@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Monitoring — pagina Schedule allineata** (`django_app/monitoring/templates/monitoring/pages/schedules.html`): la tabella veniva presa dal potenziamento automatico delle tabelle, che metteva la barra di ricerca in cima alla pagina fuori dal contenitore; esclusa con `data-fm-table-skip`.
+
 - **Deploy — pacchetto: DB di test del release guard riusato fra un pacchetto e l'altro** (`deployment/scripts/package-release.ps1`): il guard creava ogni volta il DB di test dell'export da zero (~700 migrazioni, 15-20 minuti su macchina carica). Ora parte dalla copia già migrata del pacchetto precedente (`django_app/.tmp_tests/package_export_runtime.sqlite3` nel checkout condiviso, ignorata da git) e applica solo le migrazioni nuove (misurato: 20 s). Se la copia non è compatibile con il branch si rifà da zero; il log riporta la durata del migrate.
 
 - **SOC — collegamento automatico software ↔ CVE (CPE)** (`django_app/security/services/cpe_auto.py` nuovo, `security/models.py`, `security/migrations/0021_cpe_mapping_origine.py` nuovo, `security/services/cve_feeds.py`, `security/services/cve_impact.py`, `security/views_vuln.py`, `security/templates/security/vuln_software.html`, `security/guide/12_AUTOMATISMI_E_VULNERABILITA.md`, test `security/tests/test_cve_impact.py`, `docs/moduli/security.md`).
