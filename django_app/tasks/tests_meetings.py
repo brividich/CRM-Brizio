@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from .models import (
     KickoffMeeting,
+    MeetingAgendaItem,
     MeetingIssue,
     MeetingIssueStatus,
     MeetingStatus,
@@ -138,6 +139,20 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
         self.assertEqual(issue.status, MeetingIssueStatus.OPEN)
         self.assertIsNone(issue.resolution_meeting)
 
+    def test_problemi_aperti_storico_in_sola_lettura(self):
+        self.client.force_login(self.user)
+        meeting = KickoffMeeting.objects.create(
+            project=self.project, data=timezone.localdate(), created_by=self.user,
+            problemi_aperti="Appunto storico",
+        )
+        url = reverse("tasks:project_meeting_minutes", args=[self.project.id, meeting.id])
+        page = self.client.get(url)
+        self.assertContains(page, "Appunto storico")
+        self.assertNotContains(page, 'name="problemi_aperti"')
+        self.client.post(url, {"note": "verbale", "problemi_aperti": "sovrascritto", "next_steps": ""})
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.problemi_aperti, "Appunto storico")
+
 
 class MeetingsCalendarTests(TestCase):
     """Calendario incontri — griglia mensile pura."""
@@ -244,3 +259,77 @@ class MeetingCreateTaskButtonTests(TasksBaseTestCase):
         self.assertContains(response, "Crea / assegna attività")
         self.assertContains(response, 'id="ctm-overlay"')
         self.assertContains(response, 'name="assigned_to"')
+
+
+class MeetingAgendaStoreTests(TestCase):
+    """`agenda_items` resta una lista di dict, ma i dati stanno in MeetingAgendaItem."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="agenda-owner", password="x")
+        self.project = make_project(name="Agenda store", created_by=self.user)
+
+    def _meeting(self, items):
+        return KickoffMeeting.objects.create(
+            project=self.project, data="2026-10-12", created_by=self.user, agenda_items=items,
+        )
+
+    def test_create_salva_le_righe_in_ordine(self):
+        meeting = self._meeting([
+            {"id": "a", "titolo": "Primo", "durata_minuti": 10},
+            {"id": "b", "titolo": "Secondo", "done": True},
+        ])
+        righe = list(MeetingAgendaItem.objects.filter(meeting=meeting))
+        self.assertEqual([(r.item_id, r.titolo, r.ordine, r.done) for r in righe],
+                         [("a", "Primo", 0, False), ("b", "Secondo", 1, True)])
+        meeting = KickoffMeeting.objects.get(pk=meeting.pk)
+        self.assertEqual(meeting.agenda_items[0]["durata_minuti"], 10)
+        self.assertEqual(set(meeting.agenda_items[0]), {
+            "id", "titolo", "nota", "task_id", "task_label", "issue_id", "action_id", "source",
+            "locked", "responsabile_id", "responsabile_label", "durata_minuti",
+            "tempo_effettivo_minuti", "custom_fields", "done",
+        })
+
+    def test_modifica_sul_posto_e_update_fields(self):
+        meeting = self._meeting([{"id": "a", "titolo": "Punto"}])
+        meeting = KickoffMeeting.objects.get(pk=meeting.pk)
+        meeting.agenda_items[0]["nota"] = "scritta in riunione"
+        meeting.save(update_fields=["agenda_items", "updated_at"])
+        self.assertEqual(MeetingAgendaItem.objects.get(meeting=meeting).nota, "scritta in riunione")
+
+    def test_id_duplicati_o_vuoti_diventano_univoci(self):
+        meeting = self._meeting([
+            {"id": "x", "titolo": "Uno"}, {"id": "x", "titolo": "Due"}, {"titolo": "Tre"},
+        ])
+        ids = [item["id"] for item in meeting.agenda_items]
+        self.assertEqual(ids[0], "x")
+        self.assertEqual(len(set(ids)), 3)
+
+    def test_collegamenti_a_record_inesistenti_si_azzerano(self):
+        meeting = self._meeting([{"id": "p", "titolo": "Problema sparito", "issue_id": 999999,
+                                  "task_id": 999999, "responsabile_id": 999999}])
+        item = KickoffMeeting.objects.get(pk=meeting.pk).agenda_items[0]
+        self.assertEqual((item["issue_id"], item["task_id"], item["responsabile_id"]), (None, None, None))
+        # resta riconoscibile come punto nato da un problema tracciato
+        self.assertEqual(item["source"], "meeting_issue")
+
+    def test_problema_cancellato_azzera_il_collegamento(self):
+        issue = MeetingIssue.objects.create(project=self.project, title="Da cancellare", created_by=self.user)
+        meeting = self._meeting([{"id": "p", "titolo": "Problema", "issue_id": issue.pk,
+                                  "source": "meeting_issue"}])
+        issue.delete()
+        item = KickoffMeeting.objects.get(pk=meeting.pk).agenda_items[0]
+        self.assertIsNone(item["issue_id"])
+
+    def test_refresh_from_db_rilegge_le_righe(self):
+        meeting = self._meeting([{"id": "a", "titolo": "Prima"}])
+        MeetingAgendaItem.objects.filter(meeting=meeting).update(titolo="Dopo")
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.agenda_items[0]["titolo"], "Dopo")
+
+    def test_salvataggio_senza_modifiche_non_riscrive(self):
+        meeting = self._meeting([{"id": "a", "titolo": "Fermo"}])
+        meeting = KickoffMeeting.objects.get(pk=meeting.pk)
+        riga = MeetingAgendaItem.objects.get(meeting=meeting)
+        meeting.agenda_items  # letto, non modificato
+        meeting.save()
+        self.assertTrue(MeetingAgendaItem.objects.filter(pk=riga.pk).exists())

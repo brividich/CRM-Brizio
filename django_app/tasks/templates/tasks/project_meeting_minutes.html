@@ -164,18 +164,20 @@
           <p class="mf-hint">Ogni nuovo problema resta tracciato sul kickoff e viene riproposto negli incontri successivi finché non viene risolto.</p>
         </div>
 
+        {% if meeting.problemi_aperti %}
         <div class="mf-field" style="margin-bottom:0">
-          <button type="button" class="mf-collapsible-toggle" id="toggle-problems-note">
+          <button type="button" class="mf-collapsible-toggle open" id="toggle-problems-note">
             <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-            Note problemi legacy / testo libero
+            Note problemi (storico)
           </button>
-          <div class="mf-collapsible-body" id="problems-note">
+          <div class="mf-collapsible-body open" id="problems-note">
             <div style="margin-top:10px">
-              {{ form.problemi_aperti }}
-              <p class="mf-hint">Campo storico mantenuto per appunti liberi; la gestione tracciata usa i problemi strutturati sopra.</p>
+              <p style="margin:0;padding:10px 12px;border:1px solid var(--border, #d7dde6);border-radius:8px;background:var(--surface-alt, #f8fafc);color:var(--text, inherit)">{{ meeting.problemi_aperti|linebreaksbr }}</p>
+              <p class="mf-hint">Testo libero degli incontri precedenti ai problemi strutturati: resta consultabile ma non si modifica più. I problemi nuovi si aggiungono sopra.</p>
             </div>
           </div>
         </div>
+        {% endif %}
       </div>
     </div>
 
@@ -556,11 +558,6 @@
       problemsBody.classList.toggle('open');
       problemsToggle.classList.toggle('open');
     });
-    const field = document.querySelector('[name="problemi_aperti"]');
-    if (field && field.value.trim()) {
-      problemsBody.classList.add('open');
-      problemsToggle.classList.add('open');
-    }
   }
 
   const stepsToggle = document.getElementById('toggle-steps-note');

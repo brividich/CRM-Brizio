@@ -1145,12 +1145,8 @@ class KickoffMeeting(models.Model):
         default=0, verbose_name="Riaperture della minuta"
     )
 
-    # Punti strutturati all'ordine del giorno
-    agenda_items = models.JSONField(
-        default=list,
-        blank=True,
-        verbose_name="Punti all'ordine del giorno",
-    )
+    # I punti strutturati all'ordine del giorno sono righe `MeetingAgendaItem`
+    # (related_name `agenda_rows`), esposte come lista di dict da `agenda_items`.
 
     # Integrazione Outlook Calendar
     sync_outlook = models.BooleanField(
@@ -1184,7 +1180,60 @@ class KickoffMeeting(models.Model):
         verbose_name = "Incontro kickoff"
         verbose_name_plural = "Incontri kickoff"
 
+    # --- Ordine del giorno -------------------------------------------------
+    # `agenda_items` si comporta come il vecchio campo JSON: si legge, si
+    # modifica (anche sul posto) e si salva con `save()`, anche con
+    # `update_fields=["agenda_items", ...]`. I dati stanno in `MeetingAgendaItem`.
+
+    @property
+    def agenda_items(self) -> list[dict]:
+        pending = self.__dict__.get("_agenda_pending")
+        if pending is not None:
+            return pending
+        cache = self.__dict__.get("_agenda_cache")
+        if cache is None:
+            cache = [row.as_agenda_dict() for row in self.agenda_rows.all()] if self.pk else []
+            self._remember_agenda(cache)
+        return cache
+
+    @agenda_items.setter
+    def agenda_items(self, value) -> None:
+        self.__dict__["_agenda_pending"] = value if isinstance(value, list) else []
+
+    def _remember_agenda(self, items: list[dict]) -> None:
+        import copy
+
+        self.__dict__["_agenda_cache"] = items
+        self.__dict__["_agenda_snapshot"] = copy.deepcopy(items)
+
+    def _sync_agenda_rows(self) -> None:
+        pending = self.__dict__.pop("_agenda_pending", None)
+        if pending is None:
+            cache = self.__dict__.get("_agenda_cache")
+            if cache is None or cache == self.__dict__.get("_agenda_snapshot"):
+                return
+            pending = cache
+        rows = MeetingAgendaItem.rows_from_dicts(self, pending)
+        with transaction.atomic():
+            MeetingAgendaItem.objects.filter(meeting=self).delete()
+            MeetingAgendaItem.objects.bulk_create(rows)
+        # La lista del chiamante resta quella viva (come col campo JSON), ma con
+        # i valori normalizzati: id univoci, collegamenti validi.
+        pending[:] = [row.as_agenda_dict() for row in rows]
+        self._remember_agenda(pending)
+        prefetched = getattr(self, "_prefetched_objects_cache", None)
+        if prefetched:
+            prefetched.pop("agenda_rows", None)
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        for key in ("_agenda_pending", "_agenda_cache", "_agenda_snapshot"):
+            self.__dict__.pop(key, None)
+
     def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = [name for name in update_fields if name != "agenda_items"]
         if not self.pk and not self.numero:
             # Audit S8: due incontri creati insieme non vanno in 500 sul vincolo
             # (project, numero): si ricalcola il numero e si riprova.
@@ -1197,8 +1246,11 @@ class KickoffMeeting(models.Model):
             def reset():
                 self.numero = None
 
-            return save_with_next_number(assign, lambda: super(KickoffMeeting, self).save(*args, **kwargs), on_conflict=reset)
-        super().save(*args, **kwargs)
+            result = save_with_next_number(assign, lambda: super(KickoffMeeting, self).save(*args, **kwargs), on_conflict=reset)
+        else:
+            result = super().save(*args, **kwargs)
+        self._sync_agenda_rows()
+        return result
 
     def get_all_attendee_emails(self) -> list[str]:
         """Restituisce la lista deduplicata di email da inviare all'evento Outlook."""
@@ -1675,6 +1727,167 @@ class MeetingAgendaProposal(models.Model):
 
     def __str__(self) -> str:
         return self.titolo
+
+
+AGENDA_ITEM_ID_MAX = 255
+
+
+def _agenda_int(value) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _agenda_source(item: dict) -> str:
+    """Origine del punto; se manca la si deduce dal collegamento.
+
+    Serve quando il problema o l'azione collegati non esistono piu' e il
+    collegamento si azzera: il punto resta riconoscibile come generato.
+    """
+    source = str(item.get("source") or "").strip()[:40]
+    if not source and _agenda_int(item.get("issue_id")):
+        return "meeting_issue"
+    if not source and _agenda_int(item.get("action_id")):
+        return "meeting_action"
+    return source
+
+
+class MeetingAgendaItem(models.Model):
+    """Punto all'ordine del giorno di un incontro.
+
+    Prima i punti vivevano in un campo JSON di ``KickoffMeeting``: i
+    collegamenti ad attivita', problemi, azioni e responsabile erano interi
+    senza vincolo (restavano puntati a record cancellati) e ogni lettura
+    trasversale, come i suggerimenti ODG, scandiva il JSON in Python.
+
+    ``KickoffMeeting.agenda_items`` resta l'interfaccia: una lista di dict con
+    le stesse chiavi di prima, letta da queste righe e riscritta qui al
+    ``save()`` dell'incontro (vedi ``KickoffMeeting._sync_agenda_rows``).
+    """
+
+    meeting = models.ForeignKey(
+        KickoffMeeting, on_delete=models.CASCADE, related_name="agenda_rows", verbose_name="Incontro"
+    )
+    ordine = models.PositiveIntegerField(default=0, verbose_name="Ordine")
+    item_id = models.CharField(max_length=AGENDA_ITEM_ID_MAX, verbose_name="Id punto")
+    titolo = models.CharField(max_length=240, verbose_name="Titolo")
+    nota = models.TextField(blank=True, default="", verbose_name="Nota")
+    source = models.CharField(max_length=40, blank=True, default="", verbose_name="Origine")
+    locked = models.BooleanField(default=False, verbose_name="Bloccato")
+    done = models.BooleanField(default=False, verbose_name="Trattato")
+    task = models.ForeignKey(
+        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Attivita'"
+    )
+    task_label = models.CharField(max_length=200, blank=True, default="")
+    issue = models.ForeignKey(
+        MeetingIssue, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Problema"
+    )
+    action = models.ForeignKey(
+        MeetingActionItem, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="Azione"
+    )
+    responsabile = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Responsabile",
+    )
+    responsabile_label = models.CharField(max_length=150, blank=True, default="")
+    durata_minuti = models.PositiveIntegerField(null=True, blank=True, verbose_name="Durata prevista (min)")
+    tempo_effettivo_minuti = models.PositiveIntegerField(null=True, blank=True, verbose_name="Tempo effettivo (min)")
+    custom_fields = models.JSONField(default=list, blank=True, verbose_name="Campi aggiuntivi")
+
+    class Meta:
+        ordering = ["meeting", "ordine", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["meeting", "item_id"], name="tasks_agendaitem_meeting_item_uniq"),
+        ]
+        verbose_name = "Punto ordine del giorno"
+        verbose_name_plural = "Punti ordine del giorno"
+
+    def __str__(self) -> str:
+        return self.titolo
+
+    def as_agenda_dict(self) -> dict:
+        return {
+            "id": self.item_id,
+            "titolo": self.titolo,
+            "nota": self.nota,
+            "task_id": self.task_id,
+            "task_label": self.task_label,
+            "issue_id": self.issue_id,
+            "action_id": self.action_id,
+            "source": self.source,
+            "locked": self.locked,
+            "responsabile_id": self.responsabile_id,
+            "responsabile_label": self.responsabile_label,
+            "durata_minuti": self.durata_minuti,
+            "tempo_effettivo_minuti": self.tempo_effettivo_minuti,
+            "custom_fields": list(self.custom_fields or []),
+            "done": self.done,
+        }
+
+    @classmethod
+    def rows_from_dicts(cls, meeting, items) -> list["MeetingAgendaItem"]:
+        """Righe pronte da salvare a partire dalla lista di dict dell'incontro.
+
+        Id vuoti o ripetuti ricevono un id nuovo (prima due punti con lo stesso
+        id ricevevano nota e spunta l'uno dell'altro); i collegamenti a record
+        che non esistono piu' si azzerano invece di far fallire il salvataggio.
+        """
+        from uuid import uuid4
+
+        from django.contrib.auth import get_user_model
+
+        items = [item for item in (items or []) if isinstance(item, dict)]
+        wanted = {"task": set(), "issue": set(), "action": set(), "user": set()}
+        for item in items:
+            for key, bucket in (("task_id", "task"), ("issue_id", "issue"), ("action_id", "action"), ("responsabile_id", "user")):
+                value = _agenda_int(item.get(key))
+                if value:
+                    wanted[bucket].add(value)
+        existing = {
+            "task": set(Task.objects.filter(pk__in=wanted["task"]).values_list("pk", flat=True)) if wanted["task"] else set(),
+            "issue": set(MeetingIssue.objects.filter(pk__in=wanted["issue"]).values_list("pk", flat=True)) if wanted["issue"] else set(),
+            "action": set(MeetingActionItem.objects.filter(pk__in=wanted["action"]).values_list("pk", flat=True)) if wanted["action"] else set(),
+            "user": set(get_user_model().objects.filter(pk__in=wanted["user"]).values_list("pk", flat=True)) if wanted["user"] else set(),
+        }
+
+        def ref(item, key, bucket):
+            value = _agenda_int(item.get(key))
+            return value if value in existing[bucket] else None
+
+        rows: list[MeetingAgendaItem] = []
+        seen: set[str] = set()
+        for index, item in enumerate(items):
+            item_id = str(item.get("id") or "").strip()[:AGENDA_ITEM_ID_MAX]
+            if not item_id or item_id in seen:
+                item_id = f"item-{index}-{uuid4().hex[:8]}"
+            seen.add(item_id)
+            custom_fields = item.get("custom_fields")
+            rows.append(cls(
+                meeting=meeting,
+                ordine=index,
+                item_id=item_id,
+                titolo=str(item.get("titolo") or "").strip()[:240],
+                nota=str(item.get("nota") or ""),
+                source=_agenda_source(item),
+                locked=bool(item.get("locked", False)),
+                done=bool(item.get("done", False)),
+                task_id=ref(item, "task_id", "task"),
+                task_label=str(item.get("task_label") or "").strip()[:200],
+                issue_id=ref(item, "issue_id", "issue"),
+                action_id=ref(item, "action_id", "action"),
+                responsabile_id=ref(item, "responsabile_id", "user"),
+                responsabile_label=str(item.get("responsabile_label") or "").strip()[:150],
+                durata_minuti=_agenda_int(item.get("durata_minuti")),
+                tempo_effettivo_minuti=_agenda_int(item.get("tempo_effettivo_minuti")),
+                custom_fields=custom_fields if isinstance(custom_fields, list) else [],
+            ))
+        return rows
 
 
 class MeetingRoom(models.Model):

@@ -1388,18 +1388,13 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
 
     class Meta:
         model = KickoffMeeting
-        fields = ["presenti_utenti", "note", "problemi_aperti", "next_steps"]
+        # `problemi_aperti` e' testo storico in sola lettura: i problemi si
+        # registrano come MeetingIssue.
+        fields = ["presenti_utenti", "note", "next_steps"]
         widgets = {
             "presenti_utenti": forms.CheckboxSelectMultiple(),
             "note": forms.Textarea(
                 attrs={"class": "input", "rows": 8, "placeholder": "Note generali (quelle dei singoli punti vanno sotto il punto)"}
-            ),
-            "problemi_aperti": forms.Textarea(
-                attrs={
-                    "class": "input",
-                    "rows": 4,
-                    "placeholder": "Campo storico: usa i problemi strutturati qui sopra",
-                }
             ),
             "next_steps": forms.Textarea(
                 attrs={"class": "input", "rows": 5, "placeholder": "Chi fa cosa entro quando (una riga per azione)"}

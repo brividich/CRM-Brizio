@@ -70,6 +70,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 ## Struttura del codice
 
 - `access.py` — gate di modulo, livelli di accesso per ruolo, queryset filtrati per utente. API pubblica: `has_task_permission`, `scoped_tasks_queryset`, `scoped_projects_queryset`, `can_manage_project`, `can_manage_task`
-- `services/` — logica senza request: `calendar_it` (festivita'), `absences`, `notify`, `gantt`, `asset_conflicts`, `agenda`
+- Punti dell'ordine del giorno: righe `MeetingAgendaItem` (FK a incontro, attività, problema, azione, responsabile; id univoco per incontro), esposte da `KickoffMeeting.agenda_items` come lista di dict e riscritte al `save()` dell'incontro. Il vecchio testo libero «problemi aperti» dell'esito è in sola lettura
+- `services/` — logica senza request: `calendar_it` (delega a `core/calendario_it.py`), `absences` (assenze dal modulo Assenze per anagrafica: ferie, malattia, permessi approvati o in attesa), `notify` (unico punto di uscita delle notifiche, rispetta le preferenze utente), `gantt`, `asset_conflicts`, `agenda`
 - `views/` — viste per area: `task`, `projects`, `overview`, `gantt`, `meetings`, `vrf`, `settings`, `import_excel`; helper comuni in `_shared`, `_tooling`, `_extra_fields`. `tasks.views.<nome>` resta importabile
 - Test per area: `tests_access`, `tests_task`, `tests_projects`, `tests_gantt`, `tests_meetings`, `tests_settings` (+ i `tests_*` tematici); helper e base `TasksBaseTestCase` in `tests_utils`

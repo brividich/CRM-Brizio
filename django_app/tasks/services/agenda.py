@@ -11,6 +11,7 @@ from django.db.models import Q
 from ..models import (
     KickoffMeeting,
     MeetingActionStatus,
+    MeetingAgendaItem,
     MeetingAgendaTemplate,
     MeetingIssue,
     MeetingIssueStatus,
@@ -174,9 +175,7 @@ def _agenda_templates_payload() -> list[dict]:
     ]
 
 
-# Quanti incontri passati si guardano per costruire i suggerimenti ODG: il
-# JSON degli items si scandisce in Python (JSONField non e' aggregabile in SQL
-# Server), quindi la finestra resta limitata per non pesare sul form.
+# Quanti incontri passati (i piu' recenti) alimentano i suggerimenti ODG.
 AGENDA_SUGGESTIONS_SCAN_LIMIT = 400
 AGENDA_SUGGESTIONS_MAX = 60
 
@@ -193,35 +192,34 @@ def _agenda_title_suggestions() -> list[dict]:
     aperte): non sono testo scritto da qualcuno, e come suggerimento
     riproporrebbero il problema di un'altra commessa.
     """
+    meeting_ids = list(
+        KickoffMeeting.objects.order_by("-id").values_list("id", flat=True)[:AGENDA_SUGGESTIONS_SCAN_LIMIT]
+    )
     rows = (
-        KickoffMeeting.objects
-        .order_by("-id")
-        .values_list("agenda_items", flat=True)[:AGENDA_SUGGESTIONS_SCAN_LIMIT]
+        MeetingAgendaItem.objects
+        .filter(meeting_id__in=meeting_ids, issue__isnull=True, action__isnull=True)
+        .exclude(source__in=("meeting_issue", "meeting_action"))
+        .order_by("-meeting_id", "ordine")
+        .values_list("titolo", "nota", "durata_minuti")
     )
     suggestions: dict[str, dict] = {}
-    for items in rows:
-        if not isinstance(items, list):
+    for titolo, nota, durata in rows:
+        titolo = str(titolo or "").strip()
+        if not titolo:
             continue
-        for item in items:
-            if not isinstance(item, dict) or item.get("issue_id") or item.get("action_id"):
-                continue
-            titolo = str(item.get("titolo", "")).strip()
-            if not titolo:
-                continue
-            key = titolo.casefold()
-            existing = suggestions.get(key)
-            if existing is None:
-                # I meeting arrivano dal piu' recente: la prima occorrenza e'
-                # quella da cui prendere nota e durata.
-                durata = item.get("durata_minuti")
-                suggestions[key] = {
-                    "titolo": titolo,
-                    "nota": str(item.get("nota", "")).strip(),
-                    "durata_minuti": durata if isinstance(durata, int) else None,
-                    "usi": 1,
-                }
-            else:
-                existing["usi"] += 1
+        key = titolo.casefold()
+        existing = suggestions.get(key)
+        if existing is None:
+            # I meeting arrivano dal piu' recente: la prima occorrenza e'
+            # quella da cui prendere nota e durata.
+            suggestions[key] = {
+                "titolo": titolo,
+                "nota": str(nota or "").strip(),
+                "durata_minuti": durata,
+                "usi": 1,
+            }
+        else:
+            existing["usi"] += 1
     ordered = sorted(suggestions.values(), key=lambda s: (-s["usi"], s["titolo"].casefold()))
     return ordered[:AGENDA_SUGGESTIONS_MAX]
 
@@ -240,7 +238,7 @@ def _previous_meeting_agenda(project: Project, *, exclude_meeting_id: int | None
         return []
     items = []
     for item in last.agenda_items or []:
-        if not isinstance(item, dict) or item.get("issue_id"):
+        if not isinstance(item, dict) or item.get("issue_id") or item.get("source") == "meeting_issue":
             continue
         titolo = str(item.get("titolo", "")).strip()
         if not titolo:
