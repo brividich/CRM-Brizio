@@ -139,6 +139,21 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
         self.assertEqual(issue.status, MeetingIssueStatus.OPEN)
         self.assertIsNone(issue.resolution_meeting)
 
+    def test_js_degli_incontri_e_statico_con_config_data(self):
+        self.client.force_login(self.user)
+        meeting = KickoffMeeting.objects.create(project=self.project, data=timezone.localdate(), created_by=self.user)
+        args = [self.project.id, meeting.id]
+        attese = {
+            "tasks:project_meeting_run": ("tasks/js/meeting_run.js", 'data-item-update-url="/tasks/'),
+            "tasks:project_meeting_minutes": ("tasks/js/meeting_minutes.js", 'id="ko-minutes-impatti"'),
+            "tasks:project_meeting_detail": ("tasks/js/meeting_detail.js", 'data-toggle-base="/tasks/'),
+            "tasks:project_meeting_edit": ("tasks/js/meeting_form.js", 'data-luogo-id="id_luogo"'),
+        }
+        for name, (script, config) in attese.items():
+            html = self.client.get(reverse(name, args=args)).content.decode()
+            self.assertIn(script, html, name)
+            self.assertIn(config, html, name)
+
     def test_problemi_aperti_storico_in_sola_lettura(self):
         self.client.force_login(self.user)
         meeting = KickoffMeeting.objects.create(

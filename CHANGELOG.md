@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **KICK-OFF — JavaScript di incontri e Gantt in file statici** (nuovi `django_app/tasks/static/tasks/js/meeting_form.js`, `meeting_run.js`, `meeting_minutes.js`, `meeting_detail.js`, `project_gantt.js`; template `tasks/templates/tasks/project_meeting_form.html`, `project_meeting_run.html`, `project_meeting_minutes.html`, `project_meeting_detail.html`, `project_gantt.html`; `tasks/tests_meetings.py`).
+  - Circa 1.300 righe di script scritte dentro i template ora sono file statici, cacheabili e controllabili a parte. URL e valori del server arrivano dagli attributi `data-` del tag `<script>`; gli elenchi di opzioni (responsabili, impatto delle decisioni) da un `<template>` in pagina. Comportamento invariato, verificato nel browser: conduzione (spunta punto con salvataggio), convocazione, esito, dettaglio e Gantt senza errori JavaScript.
+  - Deploy: i nuovi file statici richiedono il consueto `collectstatic`.
+
 - **KICK-OFF — il team di commessa in una tabella sola (`ProjectMember`)** (`django_app/tasks/models.py`, nuova migrazione `tasks/migrations/0048_projectmember.py`, `tasks/access.py`, `tasks/readiness.py`, `tasks/da_gestire.py`, `tasks/meeting_alerts.py`, `tasks/forms.py`, `tasks/admin.py`, `tasks/views/__init__.py`, `tasks/views/gantt.py`, `tasks/views/task.py`, `tasks/views/settings.py`, `tasks/views/projects.py`, `tasks/views/import_excel.py`, `django_app/dashboard/views.py`, `tasks/tests_utils.py`, `tasks/tests_projects.py`, `tasks/tests_action_register.py`, `docs/moduli/tasks.md`).
   - I quattro elenchi del team (Project manager, Capocommessa, Programmatore, Caporeparto) erano quattro campi M2M: ogni filtro di visibilità ripeteva quattro condizioni e un ruolo nuovo richiedeva un campo e una migrazione. Ora sono righe `ProjectMember(kickoff, persona, codice ruolo)` con codici PM / CC / PRG / CR. Form, pagine, email e regole di accesso per ruolo funzionano come prima.
   - Elenchi più leggeri: il team si carica con una query invece di quattro (portfolio, registro azioni, Gantt).
