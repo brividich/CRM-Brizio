@@ -692,8 +692,8 @@ $includeDirs = @(
 $includeRootFiles = @(
     "VERSION",
     "README.md",
-    "CHANGELOG.md",
-    "CLAUDE.md"
+    "CHANGELOG.md"
+    # CLAUDE.md escluso: istruzioni per gli agenti di sviluppo, inutili in prod.
 )
 
 Write-Log "Copia file sorgenti in temp dir (allowlist)..." "STEP"

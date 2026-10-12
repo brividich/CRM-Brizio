@@ -301,3 +301,7 @@ docs/gestione_carichi_macchina/GUIDA_UTILIZZO.pdf
 
 # Output temporanei del runserver locale (audit 09/10)
 .tmp_runserver_*.txt
+
+# File di lavoro degli agenti: restano locali (audit sicurezza 2026-10-09)
+_AGENT_CONTROL/
+session_checkpoint.md

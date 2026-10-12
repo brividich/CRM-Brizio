@@ -212,6 +212,8 @@ Foglio operativo di tutti gli script eseguibili (Django management commands + Po
 | `python django_app\manage.py encrypt_existing_documents` | 🔴 | Cifra at-rest i file privati esistenti (una-tantum) |
 | `python django_app\manage.py ensure_legacy_schema` | 🔴 | Crea/riallinea le tabelle legacy su SQL Server |
 | `python django_app\manage.py cleanup_run_logs` | 🟡 | Retention RunLog automazioni |
+| `python django_app\manage.py pulizia_pre_golive` | 🟢 | Pulizia pre go-live: conteggi dei log operativi da svuotare (dry-run) |
+| `python django_app\manage.py pulizia_pre_golive --esegui` | 🔴 | Svuota i log operativi di sviluppo/collaudo (una tantum, **dopo il backup del DB**); `--solo <codici>` per limitarla |
 | `python django_app\manage.py report_reparti_orfani` | 🟢 | Elenca i dipendenti con reparto legacy "orfano" (cancellato dal catalogo `Reparto`) |
 | `python django_app\manage.py report_reparti_orfani --reassign "VECCHIO=NUOVO"` | 🟢 | Anteprima dry-run di una rimappatura reparto |
 | `python django_app\manage.py report_reparti_orfani --reassign "VECCHIO=NUOVO" --apply --eseguito-da <user>` | 🟡 | Applica la rimappatura (storicizza + risincronizza area/caporeparto) |

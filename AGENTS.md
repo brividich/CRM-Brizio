@@ -35,7 +35,7 @@ Non aprire direttamente VS Code quando si lavora in modalità agente condivisa.
 
 Prima di modificare qualsiasi file, l'agente deve leggere:
 
-- `session_checkpoint.md` se presente, poi solo il delta di `CHANGELOG.md` e `_AGENT_CONTROL/AGENT_CHANGELOG.md` rispetto al checkpoint
+- le voci recenti di `CHANGELOG.md` (lo storico pre go-live è archiviato in `docs/changelog/`) e di `_AGENT_CONTROL/AGENT_CHANGELOG.md` (file locale, non versionato)
 - `_AGENT_CONTROL/ACTIVE_SESSION.md`
 - `_AGENT_CONTROL/WORK_LOCKS.md`
 - `_AGENT_CONTROL/CRITICAL_FILES.md`
@@ -53,8 +53,7 @@ Regole:
 7. Non modificare .env, segreti, certificati, database locali, media privati.
 8. Non introdurre nuove dipendenze senza autorizzazione.
 9. Aggiornare sempre `_AGENT_CONTROL/AGENT_CHANGELOG.md` a fine sessione.
-10. Aggiornare `session_checkpoint.md` a fine sessione con le nuove voci viste o aggiunte.
-11. Aggiornare README.md e CHANGELOG.md quando cambia il comportamento operativo del progetto.
+10. Aggiornare README.md e CHANGELOG.md quando cambia il comportamento operativo del progetto.
 
 ## File critici
 
