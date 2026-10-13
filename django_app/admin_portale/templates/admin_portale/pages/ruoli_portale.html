@@ -170,6 +170,14 @@
                 <td class="rp-mod">
                   <div class="acl-text">{{ r.spec.nome }}{% if r.spec.solo_amministratore %} <span class="acl-chip unset">solo amministratori</span>{% endif %}</div>
                   <div class="acl-muted">{{ r.spec.descrizione }}</div>
+                  <select class="rp-riga-tutta" aria-label="{{ r.spec.nome }}: imposta tutta la riga" title="Imposta tutte le azioni del modulo con lo stesso valore (poi salva la matrice)">
+                    <option value="">Tutta la riga…</option>
+                    <option value="propri">Tutto: Propri</option>
+                    <option value="team">Tutto: Team</option>
+                    <option value="tutti">Tutto: Tutti</option>
+                    <option value="no">Tutto: No</option>
+                    <option value="__vuoto">Svuota la riga (—)</option>
+                  </select>
                 </td>
                 {% for c in r.celle %}
                   <td class="rp-cell">
@@ -207,6 +215,20 @@
           <button class="btn" type="submit">Salva matrice</button>
         </div>
       </form>
+      <script>
+        document.querySelectorAll("select.rp-riga-tutta").forEach(function (sel) {
+          sel.addEventListener("change", function () {
+            var valore = sel.value === "__vuoto" ? "" : sel.value;
+            if (sel.value) {
+              sel.closest("tr").querySelectorAll("td.rp-cell select").forEach(function (cella) {
+                cella.value = valore;
+                cella.dataset.v = valore;
+              });
+            }
+            sel.value = "";
+          });
+        });
+      </script>
     {% endif %}
 
     <details class="acl-tech" style="margin-top:16px;">
@@ -347,7 +369,7 @@
     <h3>Le schede</h3>
     <ul>
       <li><strong>Persone</strong>: cerca la persona, spunta i suoi ruoli, salva. La nota finisce nel registro.</li>
-      <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.</li>
+      <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. Il menu «Tutta la riga…» sotto il nome di ogni modulo applica lo stesso valore a tutte le sue azioni in un colpo (le azioni proprie sotto la riga restano da impostare a mano); il salvataggio è sempre da confermare con «Salva matrice». I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.</li>
       <li><strong>Cosa vede questa persona</strong>: per ogni modulo, le azioni consentite, su quali dati e quale ruolo decide.</li>
       <li><strong>Registro modifiche</strong>: chi ha cambiato ruoli, matrice o stato del sistema, e quando.</li>
       <li><strong>Sistema</strong>: interruttore generale. Spento valgono le regole storiche; acceso decidono solo i ruoli.</li>

@@ -35,3 +35,5 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **Crea Release** (`/admin-portale/crea-release/`) con package zip, riavvio IIS TEST/PROD automatico via task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` e terminale web con preset Django/ACL sull'ambiente selezionato
 - **Impersonazione e 2FA degli amministratori**: impersonare un amministratore (admin legacy o account superuser/staff) e modificarne il 2FA (attiva/disattiva, reset, metodo, email OTP) è riservato ai superuser; i tentativi negati finiscono nell'audit (`impersonation_denied`, `twofa_user_change_denied`)
 - **Utenti disattivati**: la disattivazione (singola o massiva) chiude anche le sessioni aperte. **Upload immagini** (logo, favicon, icone menu, card): solo PNG/JPEG/GIF/WebP (e ICO per favicon/icone), verificati sul contenuto reale; niente SVG
+
+- **Ruoli e permessi, matrice**: il menu «Tutta la riga…» sotto ogni modulo imposta in un colpo tutte le sue azioni (Propri / Team / Tutti / No / svuota). Solo lato pagina: il salvataggio resta quello della matrice. Le azioni proprie del modulo (righe «↳») non sono incluse.
