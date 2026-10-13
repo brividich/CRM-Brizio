@@ -239,3 +239,27 @@ class ConsumabiliTests(_AuthedClientMixin, TestCase):
             r = self.client.get(reverse("contatori:consumabili_riepilogo", args=[m.pk]))
         self.assertContains(r, 'data-stato="errore"')
         self.assertContains(r, "Mai letta")
+
+
+class LicenzeApparatiTests(TestCase):
+    def test_apparato_senza_asset_e_da_collegare(self):
+        from contatori.models import DispositivoSNMP
+
+        DispositivoSNMP.objects.create(nome="Switch demo", host="192.0.2.10")
+        riepilogo = services.licenze_asset_apparati()
+        self.assertEqual(len(riepilogo["da_collegare"]), 1)
+        self.assertEqual((riepilogo["scadute"], riepilogo["in_scadenza"]), (0, 0))
+
+
+class LicenzeSchedaApparatoTests(_AuthedClientMixin, TestCase):
+    def test_scheda_mfc_mostra_licenze_dell_asset(self):
+        from assets.models import Asset, SoftwareLicense
+
+        asset = Asset.objects.create(asset_tag="LIC-MFC-1", name="MFC licenze")
+        m = Macchina.objects.create(reparto="Reparto demo", matricola="LICMFC001", asset=asset)
+        SoftwareLicense.objects.create(product_name="Modulo scansione demo", asset=asset)
+        response = self.client.get(reverse("contatori:macchina", args=[m.pk]))
+        self.assertContains(response, "Licenze e software dell'asset")
+        self.assertContains(response, "Modulo scansione demo")
+        dash = self.client.get(reverse("contatori:dashboard"))
+        self.assertContains(dash, "Licenze degli apparati")

@@ -13353,6 +13353,7 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             "update_software_license",
             "delete_software_license",
             "renew_software_license",
+            "link_software_inventory",
         } and not can_manage_licenses:
             messages.error(request, "Solo admin puo gestire le licenze software.")
             return redirect(
@@ -13463,6 +13464,35 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                         str(error) for errors in renewal_form.errors.values() for error in errors
                     )
                     messages.error(request, f"Rinnovo non salvato. {error_text}".strip())
+            return redirect(
+                _software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                    category=category_filter,
+                    status=status_filter,
+                    assignee=assignee_filter,
+                    q=q,
+                )
+            )
+        elif action == "link_software_inventory":
+            from security.services.software_catalog import catalog as _inventory_catalog
+
+            license_row = SoftwareLicense.objects.filter(
+                pk=_as_int(request.POST.get("license_id"), default=0)
+            ).first()
+            key = _clean_string(request.POST.get("inventory_key"))
+            if license_row is None or key not in {item["key"] for item in _inventory_catalog()}:
+                messages.error(request, "Licenza o prodotto dell'inventario non validi.")
+            else:
+                license_row.inventory_key = key
+                license_row.save(update_fields=["inventory_key", "updated_at"])
+                log_action(
+                    request,
+                    "link_software_inventory",
+                    "assets",
+                    {"license_id": license_row.id, "inventory_key": key},
+                )
+                messages.success(request, f"Licenza «{license_row}» collegata al software installato.")
             return redirect(
                 _software_licenses_page_url(
                     asset_id=selected_asset.id if selected_asset else 0,
@@ -13618,11 +13648,19 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
         row["over_seats"] = bool(installed and lic.seats_total and installed > lic.seats_total)
         row["expired_but_installed"] = bool(installed and row["state"]["status"] in {"expired", "inactive"})
 
+    try:
+        from assets.services.software_licenze import coverage_report
+
+        coverage = coverage_report(today)
+    except Exception:  # noqa: BLE001 - senza inventario l'elenco licenze resta usabile
+        coverage = None
+
     return render(
         request,
         "assets/pages/software_license_list.html",
         {
             "page_title": "Licenze software",
+            "coverage": coverage,
             "form": form,
             "license_rows": license_rows,
             "license_total": len(license_rows),
