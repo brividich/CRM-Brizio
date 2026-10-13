@@ -154,6 +154,9 @@ NATURE_ORDER = [NATURE_CONFIG, NATURE_OPERATIVO]
 # normalizza gestione/configurazione/impostazioni/wizard/toggle: e' il segnale
 # piu' affidabile che il permesso governa il modulo invece di usarlo.
 _CONFIG_ACTIONS = {"manage"}
+_STANDARD_ACTIONS = {
+    "view", "create", "edit", "delete", "approve", "export", "import", "run", "manage", "list", "read", "write",
+}
 
 # Risorse che sono amministrazione a prescindere dall'azione: anche un semplice
 # `view` sui permessi o sugli utenti e' materia di configurazione.
@@ -178,6 +181,39 @@ _CONFIG_RESOURCE_TOKENS = {
     "users",
     "utenti",
     "wizard",
+    # Pagine che cambiano il comportamento del modulo, non lo usano.
+    "import",
+    "importa",
+    "template",
+    "templates",
+    "mailbox",
+    "backup",
+    "branding",
+    "navigation",
+    "impersonate",
+    "reconfigure",
+    "ldap",
+    "release",
+}
+
+# Moduli interamente amministrativi/tecnici: ogni loro permesso e' configurazione.
+# Fanno eccezione le risorse in `_OPERATIVE_RESOURCE_TOKENS` (es. checklist,
+# guide, ricerche), usate da chi non amministra il portale.
+_CONFIG_MODULES = {
+    "admin",
+    "admin_portale",
+    "hub_tools",
+    "impersonation",
+    "gestione_utenti",
+    "monitoring",
+    "monitoring_admin",
+    "setup_wizard",
+}
+# Risorse che sono uso quotidiano anche se il nome sembra amministrativo
+# (guide, ricerche, segnalazioni, letture, sonde di salute): prevalgono sul resto.
+_OPERATIVE_RESOURCE_TOKENS = {
+    "checklist", "topbar", "guide", "guida", "healthz", "readyz", "health",
+    "problem", "cerca", "search", "lettura", "letture", "stop",
 }
 
 
@@ -198,7 +234,16 @@ def nature_for_code(code: str, module: str = "") -> str:
         return NATURE_CONFIG
     resource = derive_resource(code, module)
     tokens = {token for chunk in resource.split(".") for token in chunk.split("_") if token}
+    parts = [segment for segment in (code or "").lower().split(".") if segment]
+    if len(parts) > 1 and parts[-1] not in _STANDARD_ACTIONS:
+        # Code legacy: l'ultimo segmento non e' un'azione ma il nome della pagina
+        # (`legacy.dpi.dpi_impostazioni`) e dice cosa governa.
+        tokens |= {token for token in parts[-1].split("_") if token}
+    if tokens & _OPERATIVE_RESOURCE_TOKENS:
+        return NATURE_OPERATIVO
     if tokens & _CONFIG_RESOURCE_TOKENS:
+        return NATURE_CONFIG
+    if (module or "").strip().lower() in _CONFIG_MODULES:
         return NATURE_CONFIG
     return NATURE_OPERATIVO
 

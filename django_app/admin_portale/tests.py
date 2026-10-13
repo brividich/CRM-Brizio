@@ -3872,6 +3872,22 @@ class AclPermissionTaxonomyTests(SimpleTestCase):
         # Nel dubbio si ricade su 'operativo': mai una terza natura, mai nascosto.
         self.assertEqual(nature_for_code("", ""), "operativo")
 
+    def test_nature_for_code_legacy_moduli_amministrativi_e_import(self):
+        from core.permission_taxonomy import nature_for_code
+
+        # Code legacy: l'ultimo segmento e' il nome della pagina, non un'azione.
+        self.assertEqual(nature_for_code("legacy.dpi.dpi_impostazioni", "dpi"), "configurazione")
+        self.assertEqual(nature_for_code("legacy.timbri.timbri_import", "timbri"), "configurazione")
+        self.assertEqual(nature_for_code("legacy.tasks.admin_tasks", "tasks"), "configurazione")
+        # Moduli interamente amministrativi.
+        self.assertEqual(nature_for_code("admin_portale.utente.delete", "admin_portale"), "configurazione")
+        self.assertEqual(nature_for_code("hub_tools.hub_db_backup.view", "hub_tools"), "configurazione")
+        # ...con le eccezioni d'uso quotidiano.
+        self.assertEqual(nature_for_code("admin_portale.checklist_utente.view", "admin_portale"), "operativo")
+        self.assertEqual(nature_for_code("hub_tools.hub_guide.view", "hub_tools"), "operativo")
+        self.assertEqual(nature_for_code("tickets.api_cerca_utenti.view", "tickets"), "operativo")
+        self.assertEqual(nature_for_code("assets.work_orders.create", "assets"), "operativo")
+
     def test_action_for_code(self):
         from core.permission_taxonomy import action_for_code
 
