@@ -52,3 +52,33 @@ class RiallineaAssetDaExcelTests(TestCase):
     def test_riga_senza_asset_e_solo_segnalata(self):
         out = self._run("--apply")
         self.assertIn("non trovati=1", out)
+
+
+class RiallineaGuardieTests(TestCase):
+    def test_seriale_valido(self):
+        from assets.management.commands.riallinea_asset_da_excel import _seriale_valido
+        self.assertFalse(_seriale_valido("VM", ""))
+        self.assertFalse(_seriale_valido("CLUSTER", ""))
+        self.assertFalse(_seriale_valido("ACV237W2P1", "ACV237W2P1-1"))
+        self.assertTrue(_seriale_valido("ACV237W2P1", ""))
+        self.assertTrue(_seriale_valido("SN123", "OLD99"))
+
+    def test_nessun_aggancio_per_seriale_e_switch_non_firewall(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Management 172.16.13.x"
+        ws.append(["REPARTO", "NOME PC", "VLAN", "IP", "TIPO", "MODELLO", "ID"])
+        ws.append(["CED", "ALTRO NOME", 13, 5, "PC", "Nuovo", "SERIE12345"])
+        ws.append(["CED", "SW1", 13, 6, "SWITCH", "HP 2930", None])
+        path = str(Path(d.name) / "i.xlsx")
+        wb.save(path)
+        gemello = Asset.objects.create(name="GEMELLO", serial_number="SERIE12345", model="Vecchio")
+        sw = Asset.objects.create(name="SW1", asset_type=Asset.TYPE_OTHER)
+        call_command("riallinea_asset_da_excel", file=path, sheets="Management", apply=True, stdout=StringIO())
+        gemello.refresh_from_db()
+        sw.refresh_from_db()
+        self.assertEqual(gemello.model, "Vecchio")
+        self.assertEqual(sw.asset_type, Asset.TYPE_OTHER)
+        self.assertEqual(sw.model, "HP 2930")
