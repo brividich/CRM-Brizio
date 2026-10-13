@@ -17,6 +17,7 @@ from django.test import RequestFactory, TestCase
 
 from core.models import AccessGroup, AuditLog, RuoloPermessoModulo
 from core.permessi.preset import applica_preset
+from core.permessi.registro import moduli_registrati
 from core.tests_permessi import PersoneMixin, ensure_anagrafica_table
 
 User = get_user_model()
@@ -370,10 +371,27 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         self.client.force_login(self.admin)
 
     def test_tutte_le_schede_si_aprono(self):
-        for tab in ("persone", "matrice", "anteprima", "registro", "sistema", "guida"):
+        for tab in ("persone", "matrice", "modulo", "anteprima", "registro", "sistema", "guida"):
             with self.subTest(tab=tab):
                 risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab={tab}")
                 self.assertEqual(risposta.status_code, 200)
+
+    def test_riepilogo_per_modulo_ogni_modulo_si_apre_e_mostra_i_grant(self):
+        for chiave in moduli_registrati():
+            with self.subTest(modulo=chiave):
+                risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab=modulo&modulo={chiave}")
+                self.assertEqual(risposta.status_code, 200)
+        # Un grant concesso dalla matrice compare come tale nel riepilogo.
+        from core.models import PermissionDefinition
+
+        PermissionDefinition.objects.create(code="tasks.elenco.view", label="Elenco attivita", module="tasks")
+        ruolo = AccessGroup.objects.get(code="ruolo-magazzino")
+        self.client.post(f"/admin-portale/ruoli-portale/matrice/{ruolo.id}/", {"c__kickoff__vedere": "tutti"})
+        risposta = self.client.get("/admin-portale/ruoli-portale/?tab=modulo&modulo=kickoff")
+        pagine = risposta.context["pagine"]
+        self.assertEqual([p["code"] for p in pagine], ["tasks.elenco.view"])
+        colonna = [r.id for r in risposta.context["ruoli_colonne"]].index(ruolo.id)
+        self.assertTrue(any(p["stati"][colonna] == "matrice" for p in pagine))
 
     def test_non_amministratore_respinto(self):
         user, _ = self.persona("Curioso")

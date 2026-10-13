@@ -28,6 +28,7 @@
   <nav class="rp-tabs" aria-label="Sezioni">
     <a href="?tab=persone" class="{% if tab == 'persone' %}active{% endif %}">Persone</a>
     <a href="?tab=matrice" class="{% if tab == 'matrice' %}active{% endif %}">Matrice dei ruoli</a>
+    <a href="?tab=modulo" class="{% if tab == 'modulo' %}active{% endif %}">Riepilogo per modulo</a>
     <a href="?tab=anteprima" class="{% if tab == 'anteprima' %}active{% endif %}">Cosa vede questa persona</a>
     <a href="?tab=registro" class="{% if tab == 'registro' %}active{% endif %}">Registro modifiche</a>
     <a href="?tab=sistema" class="{% if tab == 'sistema' %}active{% endif %}">Sistema</a>
@@ -356,6 +357,73 @@
   </div></div>
   {% endif %}
 
+  {% if tab == "modulo" %}
+  <div class="card"><div class="card-body">
+    <form method="get" class="rp-search">
+      <input type="hidden" name="tab" value="modulo">
+      <select class="input" name="modulo" aria-label="Modulo" onchange="this.form.submit()">
+        {% for m in moduli %}<option value="{{ m.chiave }}"{% if m.chiave == modulo_scelto %} selected{% endif %}>{{ m.area|default:"Altro" }} › {{ m.nome }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn" type="submit">Mostra</button></noscript>
+    </form>
+
+    {% if spec %}
+    <h3>Cosa concede ogni ruolo su «{{ spec.nome }}»</h3>
+    <div class="acl-table-wrap">
+      <table class="acl-table">
+        <thead><tr><th>Ruolo</th><th>Azioni concesse (valore)</th></tr></thead>
+        <tbody>
+        {% for r in riepilogo_ruoli %}
+          <tr>
+            <td><strong>{{ r.ruolo.label }}</strong>{% if r.ruolo.amministratore %} <span class="acl-chip">amministratore</span>{% endif %}{% if r.vede_tutto %} <span class="acl-chip">vede tutto</span>{% endif %}</td>
+            <td>{% for v in r.voci %}<span class="acl-chip{% if v.valore == 'no' %} unset{% endif %}">{{ v.label }}: {{ v.valore }}</span> {% empty %}<span class="acl-muted">— nessuna cella impostata{% if r.vede_tutto %} (solo lettura per «vede tutto»){% endif %}</span>{% endfor %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:20px;">Pagine e API del modulo, ruolo per ruolo</h3>
+    {% if pagine_senza_ruolo %}
+      <div class="acl-flash warning">{{ pagine_senza_ruolo }} pagine/API di questo modulo non sono aperte a <strong>nessun</strong> ruolo (le vede solo l'amministratore): se devono essere usate, manca un permesso.</div>
+    {% endif %}
+    <div class="acl-table-wrap rp-matrix-wrap">
+      <table class="acl-table rp-matrix">
+        <thead>
+          <tr>
+            <th>Pagina / API</th><th>Tipo</th>
+            {% for ruolo in ruoli_colonne %}<th title="{{ ruolo.label }}">{{ ruolo.label }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in pagine %}
+          <tr{% if p.nessuno %} class="rp-row-active"{% endif %}>
+            <td>
+              <div class="acl-text">{{ p.label }}</div>
+              <div class="acl-muted"><code>{{ p.code }}</code>{% if p.rotte %} · {{ p.rotte|join:", " }}{% endif %}{% if p.api %} · <strong>API</strong>{% endif %}</div>
+            </td>
+            <td>{{ p.capacita|default:"?" }}</td>
+            {% for stato in p.stati %}
+              <td class="rp-cell" style="text-align:center;">
+                {% if stato == "admin" %}<span title="Amministratore: sempre">●</span>
+                {% elif stato == "matrice" %}<span title="Concesso dalla matrice">✓</span>
+                {% elif stato == "mano" %}<span title="Concesso a mano (Accessi)"><strong>✓ a mano</strong></span>
+                {% elif stato == "no" %}<span title="Negato esplicitamente">✗</span>
+                {% else %}<span class="acl-muted" title="Il ruolo non si esprime">—</span>{% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="{{ ruoli_colonne|length|add:2 }}" class="acl-muted">Nessun permesso di pagina collegato a questo modulo.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="acl-muted">● amministratore · ✓ concesso dalla matrice · ✓ a mano = grant manuale dalla pagina Accessi · ✗ negato · — il ruolo non si esprime. Le righe evidenziate non sono aperte a nessun ruolo. Sola lettura: per cambiare usa «Matrice dei ruoli».</p>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
   {% if tab == "guida" %}
   <div class="card"><div class="card-body rp-guide">
     <h3>Come funziona</h3>
@@ -370,6 +438,7 @@
     <ul>
       <li><strong>Persone</strong>: cerca la persona, spunta i suoi ruoli, salva. La nota finisce nel registro.</li>
       <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. Il menu «Tutta la riga…» sotto il nome di ogni modulo applica lo stesso valore a tutte le sue azioni in un colpo (le azioni proprie sotto la riga restano da impostare a mano); il salvataggio è sempre da confermare con «Salva matrice». I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.</li>
+      <li><strong>Riepilogo per modulo</strong>: scegli un modulo e vedi cosa concede ogni ruolo e, per ogni pagina e API del modulo, quali ruoli la aprono (dalla matrice o a mano). Evidenzia le pagine che nessun ruolo apre: utile prima del go-live. Sola lettura.</li>
       <li><strong>Cosa vede questa persona</strong>: per ogni modulo, le azioni consentite, su quali dati e quale ruolo decide.</li>
       <li><strong>Registro modifiche</strong>: chi ha cambiato ruoli, matrice o stato del sistema, e quando.</li>
       <li><strong>Sistema</strong>: interruttore generale. Spento valgono le regole storiche; acceso decidono solo i ruoli.</li>

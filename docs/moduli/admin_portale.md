@@ -37,3 +37,4 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **Utenti disattivati**: la disattivazione (singola o massiva) chiude anche le sessioni aperte. **Upload immagini** (logo, favicon, icone menu, card): solo PNG/JPEG/GIF/WebP (e ICO per favicon/icone), verificati sul contenuto reale; niente SVG
 
 - **Ruoli e permessi, matrice**: il menu «Tutta la riga…» sotto ogni modulo imposta in un colpo tutte le sue azioni (Propri / Team / Tutti / No / svuota). Solo lato pagina: il salvataggio resta quello della matrice. Le azioni proprie del modulo (righe «↳») non sono incluse.
+- **Ruoli e permessi, «Riepilogo per modulo»**: scheda in sola lettura (`?tab=modulo&modulo=<chiave>`) con le azioni concesse da ogni ruolo e la tabella pagine/API × ruoli (matrice, a mano, negato, amministratore); evidenzia le pagine non aperte a nessun ruolo.

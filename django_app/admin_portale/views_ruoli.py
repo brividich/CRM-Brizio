@@ -30,7 +30,7 @@ from core.permessi.sync import sincronizza_ruolo, sincronizza_tutti
 
 from .decorators import legacy_admin_required
 
-TABS = ("persone", "matrice", "anteprima", "registro", "sistema", "guida")
+TABS = ("persone", "matrice", "modulo", "anteprima", "registro", "sistema", "guida")
 VALORE_NO = "no"
 MODULO_AUDIT = "permessi"
 
@@ -86,6 +86,7 @@ def ruoli_portale(request):
     builder = {
         "persone": _ctx_persone,
         "matrice": _ctx_matrice,
+        "modulo": _ctx_modulo,
         "anteprima": _ctx_anteprima,
         "registro": _ctx_registro,
         "sistema": _ctx_sistema,
@@ -210,6 +211,94 @@ def _ctx_matrice(request) -> dict:
         "ambiti": AMBITI,
         "preset_ruolo": PRESETS_PER_CHIAVE.get(getattr(ruolo, "preset", "")),
         "persone_ruolo": AccessGroupMembership.objects.filter(group=ruolo).count() if ruolo else 0,
+    }
+
+
+# ── Riepilogo per modulo ─────────────────────────────────────────────────────
+
+
+def _ctx_modulo(request) -> dict:
+    """Per un modulo: cosa concede ogni ruolo e quali pagine/API sono aperte a chi."""
+    from core.acl_capability import capability_index
+    from core.models import GroupPermissionGrant, PermissionDefinition
+    from core.permessi.sync import NOTA_MATRICE, capacita_permessi, codici_per_modulo
+
+    specs = moduli_registrati()
+    chiave = str(request.GET.get("modulo") or "").strip()
+    if chiave not in specs:
+        chiave = next(iter(specs), "")
+    spec = specs.get(chiave)
+    ruoli = _ruoli()
+    base = {
+        "moduli": [{"chiave": s.chiave, "nome": s.nome, "area": s.area} for s in specs.values()],
+        "modulo_scelto": chiave,
+        "spec": spec,
+        "ruoli_colonne": ruoli,
+    }
+    if spec is None:
+        return {**base, "riepilogo_ruoli": [], "pagine": []}
+
+    azioni = list(AZIONI_STANDARD) + [a for a, _label in spec.azioni_extra]
+    celle = {}
+    for c in RuoloPermessoModulo.objects.filter(modulo=chiave):
+        celle[(c.ruolo_id, c.azione)] = (c.ambito if c.consentito else VALORE_NO)
+    riepilogo = []
+    for ruolo in ruoli:
+        if ruolo.amministratore:
+            voci = [{"label": "tutto", "valore": "tutti"}]
+        else:
+            voci = [
+                {"label": spec.etichetta_azione(a), "valore": celle[(ruolo.id, a)]}
+                for a in azioni
+                if (ruolo.id, a) in celle
+            ]
+        riepilogo.append({"ruolo": ruolo, "voci": voci, "vede_tutto": ruolo.vede_tutto and not spec.solo_amministratore})
+
+    codes = codici_per_modulo().get(chiave, [])
+    capacita = capacita_permessi()
+    indice = capability_index(use_cache=True)
+    definizioni = {
+        d.code: d for d in PermissionDefinition.objects.filter(code__in=codes)
+    }
+    grant = {
+        (g.group_id, g.permission_id): g
+        for g in GroupPermissionGrant.objects.filter(permission_id__in=codes)
+    }
+    pagine = []
+    for code in codes:
+        rotte = sorted(set(indice.governed_routes.get(code, [])) | {r for r, _c in indice.subtree_routes.get(code, [])})
+        stati = []
+        aperto_a = 0
+        for ruolo in ruoli:
+            g = grant.get((ruolo.id, code))
+            if ruolo.amministratore:
+                stato = "admin"
+            elif g is not None and g.enabled:
+                stato = "matrice" if g.note == NOTA_MATRICE else "mano"
+            elif g is not None:
+                stato = "no"
+            else:
+                stato = ""
+            if stato in {"admin", "matrice", "mano"}:
+                aperto_a += 1
+            stati.append(stato)
+        d = definizioni.get(code)
+        pagine.append(
+            {
+                "code": code,
+                "label": d.label if d else code,
+                "capacita": capacita.get(code, ""),
+                "rotte": rotte,
+                "api": [r for r in rotte if "api" in r.lower()],
+                "stati": stati,
+                "nessuno": aperto_a == 0,
+            }
+        )
+    return {
+        **base,
+        "riepilogo_ruoli": riepilogo,
+        "pagine": pagine,
+        "pagine_senza_ruolo": sum(1 for p in pagine if p["nessuno"]),
     }
 
 
