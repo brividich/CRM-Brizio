@@ -9,6 +9,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Accessi (unificata): interruttore accanto al permesso** — l'interruttore di ogni permesso passa a sinistra, prima del nome, e sotto il codice compaiono le prime 3 rotte governate (+N). File: `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, `docs/moduli/admin_portale.md`.
 - **Ruoli e permessi: «Riepilogo per modulo»** — nuova scheda (sola lettura): per il modulo scelto mostra cosa concede ogni ruolo e, per ogni pagina/API, quali ruoli la aprono (dalla matrice, a mano, negata, amministratore); evidenzia le pagine che nessun ruolo apre. File: `django_app/admin_portale/views_ruoli.py` (`_ctx_modulo`), `django_app/admin_portale/templates/admin_portale/pages/ruoli_portale.html` (scheda + testo Guida), `django_app/core/tests_permessi_moduli.py`, `docs/moduli/admin_portale.md`.
 - **Ruoli e permessi: «Tutta la riga» nella matrice** — sotto il nome di ogni modulo un menu applica lo stesso valore (Propri / Team / Tutti / No / svuota) a tutte le azioni del modulo, senza scegliere le celle una a una; resta da confermare con «Salva matrice» (nessuna modifica lato server). File: `django_app/admin_portale/templates/admin_portale/pages/ruoli_portale.html` (menu + script, testo della scheda «Guida»), `docs/moduli/admin_portale.md`.
 
