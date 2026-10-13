@@ -145,3 +145,7 @@ Asset IT: mini-andamenti nel cruscotto (pagine MFC, sonde SNMP, esiti backup); p
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) amministra il modulo chi ha «gestire» con visibilità «tutti» (preset Tecnico IT e Tecnico Manutenzione). L'elenco non è filtrato per assegnatario.
+
+## Riallineamento asset da Excel
+
+Comando operativo (no UI): `python manage.py riallinea_asset_da_excel --file <xlsx> [--sheets Management,Trust,Segmentation,WIRED-OSPITI,TVCC] [--report out.csv] [--apply]`. Aggancia per nome PC, poi IP, poi seriale; non crea asset; sovrascrive i valori diversi (reparto, produttore, modello, seriale, VLAN, punto, porta switch, OS/CPU/RAM/disco, flag IT). Senza `--apply` e solo simulazione.
