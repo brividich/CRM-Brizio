@@ -43,7 +43,6 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
   - Deploy: `migrate security` (0022).
 /^>>>>>>> feature/core-fix-loop/d
 - **Notizie obbligatorie — loop di redirect (ERR_TOO_MANY_REDIRECTS) con utente non onboardato, tipico in impersonificazione** (`django_app/notizie/mandatory_middleware.py`, test `django_app/notizie/tests.py`): l'ACL mandava l'utente da `/notizie/obbligatorie/` a `/onboarding/` e il middleware delle notizie obbligatorie lo rimandava a `/notizie/obbligatorie/`. Ora `/onboarding/` (e relativi percorsi condivisi) e l'uscita dall'impersonificazione sono esenti dal blocco: prima si completa il wizard, poi le notizie.
->>>>>>> feature/core-fix-loop-onboarding-notizie
 
 - **Monitoring — pagina Schedule allineata** (`django_app/monitoring/templates/monitoring/pages/schedules.html`): la tabella veniva presa dal potenziamento automatico delle tabelle, che metteva la barra di ricerca in cima alla pagina fuori dal contenitore; esclusa con `data-fm-table-skip`.
 
