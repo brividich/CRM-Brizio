@@ -560,6 +560,7 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
     <input type="hidden" name="granted_json" id="granted-json">
 
     {{ access_levels|json_script:"acl-levels-data" }}
+    {{ preset_modulo|json_script:"acl-presets-data" }}
 
     {% comment %}Livelli: insiemi preimpostati di permessi ("solo lettura", "lettura e
        modifica", ...). Applicarli muove gli interruttori, non salva: si salva
@@ -624,6 +625,8 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
           </span>
           <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}">Accendi tutto</button>
           <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}">Spegni tutto</button>
+          <button type="button" class="btn btn-secondary btn-sm acl-preset-save" data-modulo="{{ mod.modulo }}" title="Salva gli interruttori accesi di questo modulo come preset con un nome, da riapplicare a qualsiasi ruolo">Salva come preset…</button>
+          <button type="button" class="btn btn-secondary btn-sm acl-preset-del" data-modulo="{{ mod.modulo }}" hidden title="Elimina il preset selezionato (non toglie nulla ai ruoli che lo hanno già usato)">Elimina preset</button>
           <span class="acl-bulk__count">{{ mod.total_count }} permessi</span>
         </div>
         {% for grp in mod.gruppi %}
@@ -744,7 +747,46 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
   var levelByKey = {};
   levels.forEach(function (lv) { levelByKey[lv.key] = lv; });
 
+  // Preset di modulo salvati dall'amministratore: stesso meccanismo dei livelli
+  // (muovono gli interruttori, si salva col pulsante in fondo), ma l'elenco dei
+  // permessi lo sceglie lui. modulo -> [{id, nome, descrizione, codici}]
+  var presets = {};
+  var presetsNode = document.getElementById('acl-presets-data');
+  if (presetsNode) {
+    try { presets = JSON.parse(presetsNode.textContent) || {}; } catch (e) { presets = {}; }
+  }
+  function presetsOf(modulo) { return presets[modulo] || (presets[modulo] = []); }
+  function presetByKey(modulo, key) {
+    var found = null;
+    presetsOf(modulo).forEach(function (p) { if ('preset:' + p.id === key) { found = p; } });
+    return found;
+  }
+  function renderPresetOptions(modulo) {
+    var pick = form.querySelector('.acl-level-pick[data-modulo="' + modulo + '"]');
+    if (!pick) { return; }
+    var old = pick.querySelector('optgroup.acl-preset-group');
+    if (old) { old.remove(); }
+    var list = presetsOf(modulo);
+    if (!list.length) { return; }
+    var group = document.createElement('optgroup');
+    group.className = 'acl-preset-group';
+    group.label = 'Preset del modulo';
+    list.forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = 'preset:' + p.id;
+      opt.textContent = p.nome + ' (' + p.codici.length + ')';
+      if (p.descrizione) { opt.title = p.descrizione; }
+      group.appendChild(opt);
+    });
+    pick.appendChild(group);
+  }
+
   function applyLevel(modulo, key) {
+    var preset = presetByKey(modulo, key);
+    if (preset) {
+      boxes(modulo).forEach(function (cb) { cb.checked = preset.codici.indexOf(cb.value) !== -1; });
+      return;
+    }
     var level = levelByKey[key];
     if (!level) { return; }
     boxes(modulo).forEach(function (cb) {
@@ -765,6 +807,14 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
         if (all[j].checked !== expected) { match = false; break; }
       }
       if (match) { return level.key; }
+    }
+    var mine = presetsOf(modulo);
+    for (var k = 0; k < mine.length; k += 1) {
+      var same = true;
+      for (var m = 0; m < all.length; m += 1) {
+        if (all[m].checked !== (mine[k].codici.indexOf(all[m].value) !== -1)) { same = false; break; }
+      }
+      if (same) { return 'preset:' + mine[k].id; }
     }
     return '';
   }
@@ -816,6 +866,8 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
 
       var pick = bank.querySelector('.acl-level-pick');
       if (pick) { pick.value = detectLevel(modulo); }
+      var del = bank.querySelector('.acl-preset-del');
+      if (del) { del.hidden = !(pick && pick.value.indexOf('preset:') === 0); }
 
       bank.querySelectorAll('.acl-group').forEach(function (group) {
         var rows = boxes(modulo, group.dataset.natura);
@@ -860,6 +912,61 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
       applyLevel(pick.dataset.modulo, pick.value);
       refresh(pick.dataset.modulo);
       markPending();
+    });
+  });
+
+  function postPreset(data) {
+    var token = form.querySelector('input[name="csrfmiddlewaretoken"]');
+    return fetch('{% url "admin_portale:accessi_preset" %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': token ? token.value : '', 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+      body: new URLSearchParams(data)
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: false, errore: 'Risposta non valida (' + r.status + ').' }; });
+    });
+  }
+
+  form.querySelectorAll('.acl-level-pick').forEach(function (pick) {
+    renderPresetOptions(pick.dataset.modulo);
+    refresh(pick.dataset.modulo);
+  });
+
+  form.querySelectorAll('.acl-preset-save').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var modulo = btn.dataset.modulo;
+      var codes = [];
+      boxes(modulo).forEach(function (cb) { if (cb.checked) { codes.push(cb.value); } });
+      if (!codes.length) { window.alert('Accendi prima i permessi che vuoi nel preset.'); return; }
+      var nome = window.prompt('Nome del preset (' + codes.length + ' permessi accesi di questo modulo):', '');
+      if (!nome || !nome.trim()) { return; }
+      nome = nome.trim();
+      var existing = presetsOf(modulo).filter(function (p) { return p.nome.toLowerCase() === nome.toLowerCase(); })[0];
+      if (existing && !window.confirm('Esiste già un preset «' + existing.nome + '»: lo sostituisco?')) { return; }
+      postPreset({ azione: 'salva', modulo: modulo, nome: existing ? existing.nome : nome, codici: JSON.stringify(codes) })
+        .then(function (res) {
+          if (!res.ok) { window.alert(res.errore || 'Salvataggio non riuscito.'); return; }
+          var list = presetsOf(modulo).filter(function (p) { return p.id !== res.preset.id; });
+          list.push(res.preset);
+          list.sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+          presets[modulo] = list;
+          renderPresetOptions(modulo);
+          refresh(modulo);
+        });
+    });
+  });
+  form.querySelectorAll('.acl-preset-del').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var modulo = btn.dataset.modulo;
+      var pick = form.querySelector('.acl-level-pick[data-modulo="' + modulo + '"]');
+      var preset = pick ? presetByKey(modulo, pick.value) : null;
+      if (!preset || !window.confirm('Eliminare il preset «' + preset.nome + '»? I ruoli che lo hanno già usato non cambiano.')) { return; }
+      postPreset({ azione: 'elimina', modulo: modulo, id: preset.id }).then(function (res) {
+        if (!res.ok) { window.alert(res.errore || 'Eliminazione non riuscita.'); return; }
+        presets[modulo] = presetsOf(modulo).filter(function (p) { return p.id !== preset.id; });
+        renderPresetOptions(modulo);
+        refresh(modulo);
+      });
     });
   });
 

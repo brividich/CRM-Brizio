@@ -12381,8 +12381,97 @@ def accessi_unificati(request):
                 }
                 for level in ACCESS_LEVELS
             ],
+            "preset_modulo": _preset_modulo_per_pagina(),
         },
     )
+
+
+def _preset_modulo_per_pagina() -> dict[str, list[dict]]:
+    """modulo -> preset salvati, per il menu «Livello» della pagina Accessi."""
+    from core.models import PresetPermessiModulo
+
+    risultato: dict[str, list[dict]] = {}
+    try:
+        for preset in PresetPermessiModulo.objects.all():
+            risultato.setdefault(preset.modulo, []).append(
+                {"id": preset.id, "nome": preset.nome, "descrizione": preset.descrizione, "codici": preset.codici}
+            )
+    except DatabaseError:
+        return {}
+    return risultato
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def accessi_preset(request):
+    """Salva o elimina un preset di permessi di un modulo (risposta JSON).
+
+    Il preset e' solo un elenco di permessi con un nome: non concede nulla da
+    solo. Applicarlo muove gli interruttori; i grant si scrivono col «Salva» di
+    sempre. Ogni creazione/modifica/eliminazione va in AuditLog.
+    """
+    from core.models import PresetPermessiModulo
+
+    azione = str(request.POST.get("azione") or "").strip()
+    modulo = str(request.POST.get("modulo") or "").strip().lower()[:80]
+    if azione == "elimina":
+        preset = PresetPermessiModulo.objects.filter(id=_safe_int_or_none(request.POST.get("id")), modulo=modulo).first()
+        if preset is None:
+            return JsonResponse({"ok": False, "errore": "Preset non trovato."}, status=404)
+        nome = preset.nome
+        preset.delete()
+        log_action(request, "accessi_preset_elimina", "permessi", {"modulo": modulo, "nome": nome})
+        return JsonResponse({"ok": True})
+    if azione != "salva":
+        return JsonResponse({"ok": False, "errore": "Azione non riconosciuta."}, status=400)
+
+    nome = " ".join(str(request.POST.get("nome") or "").split())[:80]
+    if not modulo or not nome:
+        return JsonResponse({"ok": False, "errore": "Servono il nome del preset e il modulo."}, status=400)
+    try:
+        richiesti = json.loads(request.POST.get("codici") or "[]")
+    except ValueError:
+        return JsonResponse({"ok": False, "errore": "Selezione non leggibile."}, status=400)
+    if not isinstance(richiesti, list):
+        return JsonResponse({"ok": False, "errore": "Selezione non leggibile."}, status=400)
+    # Solo permessi attivi del modulo: un codice inventato non entra nel preset.
+    validi = set(
+        PermissionDefinition.objects.filter(is_active=True, code__in=[str(c) for c in richiesti]).values_list("code", flat=True)
+    )
+    codici = sorted(validi)
+    if not codici:
+        return JsonResponse({"ok": False, "errore": "Accendi almeno un permesso del modulo prima di salvare il preset."}, status=400)
+    descrizione = " ".join(str(request.POST.get("descrizione") or "").split())[:300]
+    preset, creato = PresetPermessiModulo.objects.update_or_create(
+        modulo=modulo,
+        nome=nome,
+        defaults={
+            "descrizione": descrizione,
+            "codici_json": json.dumps(codici),
+            "creato_da": str(getattr(request.user, "username", "") or "")[:150],
+        },
+    )
+    log_action(
+        request,
+        "accessi_preset_salva",
+        "permessi",
+        {"modulo": modulo, "nome": nome, "permessi": len(codici), "nuovo": creato},
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "preset": {"id": preset.id, "nome": preset.nome, "descrizione": preset.descrizione, "codici": codici},
+            "nuovo": creato,
+        }
+    )
+
+
+def _safe_int_or_none(value):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def _accessi_group_create(request) -> str:
