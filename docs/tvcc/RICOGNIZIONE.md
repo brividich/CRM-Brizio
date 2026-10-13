@@ -113,3 +113,18 @@ Conseguenza: per TVT lo SNMP si fa **con i mattoni esistenti** (nuovi `ProfiloSN
 - Il supporto ONVIF Profile G (Recording/Search) sugli NVR TVT è da verificare: senza, la profondità archivio non è disponibile via ONVIF.
 - Drift orario: WS-UsernameToken fallisce se l'ora del device è molto sfasata → serve `GetSystemDateAndTime` non autenticato prima dell'autenticazione.
 - Identità del servizio qcluster in prod: ICMP e uscita verso la VLAN TVCC da verificare (regole WatchGuard).
+
+## 11. Decisioni confermate (2026-10-13)
+
+Perimetro ridotto: **solo dati SNMP**, mostrati sugli asset esistenti.
+
+| # | Esito |
+|---|---|
+| 1 | No nuova app: la categoria asset TVCC esiste già; servono solo le info che arrivano dallo SNMP (motore `contatori`). |
+| 2 | No campo ruolo NVR/telecamera. |
+| 3 | Sì: MAC dichiarato su `AssetEndpoint.mac`, tracciato nello storico. |
+| 4 | Telecamere interrogate ogni **30 minuti**; rilevazioni ripulite oltre **14 giorni**. |
+| 5 | ONVIF: non ora. |
+| 6–8 | Reachability, permessi dedicati e alert: non servono. |
+
+Prossimo passo: catture SNMP reali con il comando esistente `snmp_capture`, poi preset `tvt-nvr`/`tvt-ipc` con soli OID verificati.
