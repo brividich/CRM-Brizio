@@ -28,6 +28,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <strong>In questa guida</strong>
     <a href="#qr">QR ed etichette</a>
     <a href="#mfc">Stampanti multifunzione</a>
+    <a href="#tvcc">Videosorveglianza (TVCC)</a>
     <a href="#storico">Storico delle modifiche</a>
     <a href="#software">Software installati e licenze</a>
     <a href="#catalogo">Catalogo software</a>
@@ -90,6 +91,15 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Se la scheda di una stampante dice che non è collegata a nessuna MFC, sotto trovi le MFC che corrispondono per matricola o IP con il pulsante <span class="ag-btn">Collega</span>: il collegamento passa dalla riconciliazione IT, che verifica che l'abbinamento sia univoco.</p>
     </section>
 
+    <section class="ag-sec" id="tvcc">
+      <h2>Videosorveglianza (TVCC)</h2>
+      <p>NVR e telecamere restano asset della categoria di videosorveglianza. Nella modifica dell'asset il riquadro <strong>Rete e cablaggio</strong> ora compare anche per le telecamere, con il nuovo campo <strong>MAC</strong> (es. aa:bb:cc:dd:ee:ff; qualunque formato viene riscritto così).</p>
+      <h3>Dati letti via SNMP</h3>
+      <p>Se l'apparato è collegato a un dispositivo del Monitor SNMP (tipo «TVCC - Videoregistratore (NVR)» o «TVCC - Telecamera IP»), il tab <strong>Monitoraggio</strong> della scheda mostra stato, ultimo controllo, da quanti giorni è acceso, nome e descrizione letti e gli ultimi valori (MAC, velocità del collegamento, errori di rete). Aprire la scheda non interroga l'apparato: sono i valori dell'ultima lettura automatica.</p>
+      <p>Accanto al MAC letto: <strong>= dichiarato</strong> se coincide con il campo MAC dell'asset, <strong>diverso dal dichiarato</strong> se non coincide, <strong>non dichiarato</strong> se il campo è vuoto. Il monitoraggio non cambia mai i dati dell'asset.</p>
+      <p class="ag-note">Ogni quanto si leggono NVR e telecamere e quanti giorni di storico si tengono si imposta nel modulo Contatori (Configurazione SNMP globale). Il portale non mostra né salva immagini o video.</p>
+    </section>
+
     <section class="ag-sec" id="storico">
       <h2>Storico delle modifiche</h2>
       <p>Il portale registra ogni cambio di questi campi, chiunque lo faccia e da qualunque parte (scheda, modifica in blocco, import Excel, amministrazione, job):</p>
@@ -97,7 +107,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <thead><tr><th>Gruppo</th><th>Campi</th></tr></thead>
         <tbody>
           <tr><td>Stato e assegnazione</td><td>Stato, Reparto, Assegnatario (utente), Assegnato a, Reparto assegnazione, Ubicazione</td></tr>
-          <tr><td>Rete</td><td>Nome punto rete, IP, VLAN, Switch, Porta switch, Porta patch panel</td></tr>
+          <tr><td>Rete</td><td>Nome punto rete, IP, VLAN, Switch, Porta switch, Porta patch panel, MAC</td></tr>
         </tbody>
       </table></div>
       <h3>Dove lo trovi</h3>

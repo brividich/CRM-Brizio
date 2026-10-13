@@ -95,6 +95,35 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "tvcc",
+        "titolo": "Videosorveglianza (NVR e telecamere TVT)",
+        "blocchi": [
+            ("p", "NVR e telecamere IP si aggiungono come dispositivi SNMP («+ Nuovo» → «+ Dispositivo SNMP») "
+                  "con tipo «TVCC - Videoregistratore (NVR)» o «TVCC - Telecamera IP», e si collegano "
+                  "all'asset di videosorveglianza già censito. Il portale legge solo dati tecnici via SNMP: "
+                  "nessuna immagine e nessun flusso video."),
+            ("def", [
+                ("Profilo «TVT NVR (videoregistratore)»", "MAC, velocità del collegamento ed errori di rete. "
+                                                          "RAM, CPU, stato e occupazione dischi sono già nel "
+                                                          "profilo ma spenti: si accendono dal Catalogo profili "
+                                                          "quando l'apparato li espone."),
+                ("Profilo «TVT telecamera IP»", "MAC, velocità del collegamento ed errori di rete."),
+                ("Colonne non verificate", "TVT non pubblica una MIB propria: il profilo usa solo OID delle MIB "
+                                           "standard, segnati «verificati» dopo il confronto con una lettura "
+                                           "reale dell'apparato."),
+            ]),
+            ("p", "In «Stampanti MFC» → «Configurazione SNMP globale» (link «Impostazioni SNMP e TVCC» nel "
+                  "Monitor SNMP) si impostano: «TVCC - Intervallo NVR (minuti)» (predefinito 5), «TVCC - "
+                  "Intervallo telecamere (minuti)» (predefinito 30) e «TVCC - Storico rilevazioni (giorni)» "
+                  "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate; stampanti "
+                  "e altri apparati conservano tutto lo storico."),
+            ("p", "Nella scheda dell'asset, tab «Monitoraggio», compaiono stato, ultimo controllo, da quanti "
+                  "giorni è acceso e gli ultimi valori letti. Il MAC letto è confrontato con quello "
+                  "dichiarato nel campo «MAC» dell'asset: «= dichiarato», «diverso dal dichiarato» oppure "
+                  "«non dichiarato». Il monitoraggio non modifica mai i dati dell'asset."),
+        ],
+    },
+    {
         "id": "permessi",
         "titolo": "Chi può fare cosa",
         "blocchi": [

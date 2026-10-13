@@ -545,6 +545,8 @@ def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
         ProfiloSNMP.Categoria.STORAGE: DispositivoSNMP.Categoria.STORAGE,
         ProfiloSNMP.Categoria.UPS: DispositivoSNMP.Categoria.UPS,
         ProfiloSNMP.Categoria.AMBIENTE: DispositivoSNMP.Categoria.AMBIENTE,
+        ProfiloSNMP.Categoria.TVCC_NVR: DispositivoSNMP.Categoria.TVCC_NVR,
+        ProfiloSNMP.Categoria.TVCC_TELECAMERA: DispositivoSNMP.Categoria.TVCC_TELECAMERA,
         ProfiloSNMP.Categoria.GENERICO: DispositivoSNMP.Categoria.ALTRO,
     }[profilo.categoria]
     if dispositivo.categoria != categoria:
@@ -860,6 +862,17 @@ def interroga_dispositivo(dispositivo):
             esiti.append({
                 "sonda": sonda, "numero": None, "testo": testo,
                 "stato": stato, "errore": "",
+            })
+            continue
+        if sonda.tipo_valore == SondaSNMP.TipoValore.MAC:
+            from assets.services.mac import normalizza_mac
+
+            mac = normalizza_mac(grezzo)
+            ha_warning = ha_warning or not mac
+            esiti.append({
+                "sonda": sonda, "numero": None, "testo": mac,
+                "stato": StatoSNMP.OK if mac else StatoSNMP.ERROR,
+                "errore": "" if mac else "Valore non riconosciuto come MAC",
             })
             continue
         if sonda.tipo_valore == SondaSNMP.TipoValore.TESTO:

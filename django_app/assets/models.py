@@ -737,6 +737,9 @@ class AssetEndpoint(models.Model):
     switch_name = models.CharField(max_length=120, blank=True, default="")
     switch_port = models.CharField(max_length=120, blank=True, default="")
     punto = models.CharField(max_length=120, blank=True, default="")
+    # MAC dichiarato, normalizzato aa:bb:cc:dd:ee:ff (services/mac.py): si confronta
+    # con quello letto via SNMP senza mai essere sovrascritto dal monitoraggio.
+    mac = models.CharField(max_length=17, blank=True, default="", db_index=True)
 
     class Meta:
         constraints = [
@@ -754,6 +757,12 @@ class AssetEndpoint(models.Model):
         if self.ip:
             parts.append(self.ip)
         return " | ".join(parts)
+
+    def save(self, *args, **kwargs):
+        from .services.mac import normalizza_mac
+
+        self.mac = normalizza_mac(self.mac)
+        super().save(*args, **kwargs)
 
 
 class AssetITDetails(models.Model):

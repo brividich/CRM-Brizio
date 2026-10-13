@@ -10695,6 +10695,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 if asset.prodotto_chimico_id else []
             ),
             "asset_completeness": asset.completeness(),
+            # MAC dichiarati sui punti rete: confronto con quello letto via SNMP (blocco Monitoraggio).
+            "endpoint_macs": [e.mac for e in asset.endpoints.all() if e.mac],
             "asset_status": asset_status,
             # Chi ha toccato QUESTO asset, e quando. Vedi core.audit.storico_oggetto:
             # compaiono le voci agganciate all'asset, non tutte quelle del modulo.

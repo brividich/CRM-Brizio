@@ -689,6 +689,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
         {% if asset.production_date %}<span class="af-hero-tag"><span>Data fabbricazione</span>{{ asset.production_date|date:"d-m-Y" }}</span>{% endif %}
         {% if it_presentation %}{% for endpoint in it_presentation.endpoints %}
           {% if endpoint.ip %}<span class="af-hero-tag"><span>IP</span>{{ endpoint.ip }}</span>{% endif %}
+          {% if endpoint.mac %}<span class="af-hero-tag"><span>MAC</span>{{ endpoint.mac }}</span>{% endif %}
           {% if endpoint.switch_port %}<span class="af-hero-tag"><span>Porta SW{% if endpoint.switch_name %} · {{ endpoint.switch_name }}{% endif %}</span>{{ endpoint.switch_port }}</span>{% endif %}
           {% if endpoint.punto %}<span class="af-hero-tag"><span>Porta patch panel</span>{{ endpoint.punto }}</span>{% endif %}
         {% endfor %}{% endif %}
@@ -814,12 +815,28 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           </div>
         {% endfor %}
         {% for dispositivo in dispositivi_snmp %}
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
-            <strong>{{ dispositivo.get_categoria_display }} · {{ dispositivo.nome }}</strong>
-            <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
-            <span style="margin-left:auto;">{{ dispositivo.host }}</span>
-            <a class="as-link-subtle" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
+          {# Ultima rilevazione salvata dal monitor: aprire la scheda non interroga mai il dispositivo. #}
+          {% with ril=dispositivo.rilevazioni.first %}
+          <div style="padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <strong>{{ dispositivo.get_categoria_display }} · {{ dispositivo.nome }}</strong>
+              <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
+              <span style="margin-left:auto;">{{ dispositivo.host }}</span>
+              <a class="as-link-subtle" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
+            </div>
+            <div class="as-help" style="margin-top:4px;">
+              {% if dispositivo.snmp_ultimo_controllo %}Ultimo controllo {{ dispositivo.snmp_ultimo_controllo|timesince }} fa{% else %}Mai interrogato{% endif %}{% if dispositivo.sys_uptime_seconds is not None %} · acceso da circa {% widthratio dispositivo.sys_uptime_seconds 86400 1 %} giorni{% endif %}{% if dispositivo.sys_name %} · {{ dispositivo.sys_name }}{% endif %}{% if dispositivo.sys_description %} · {{ dispositivo.sys_description|truncatechars:90 }}{% endif %}
+              {% if dispositivo.snmp_ultimo_errore %}<div class="as-error">{{ dispositivo.snmp_ultimo_errore|truncatechars:120 }}</div>{% endif %}
+            </div>
+            {% if ril %}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+              {% for valore in ril.valori.all %}
+                <span class="af-hero-tag"><span>{{ valore.sonda.nome }}</span>{{ valore.valore_display }}{% if valore.sonda.tipo_valore == 'MAC' and valore.valore_testo %}{% if valore.valore_testo in endpoint_macs %} <span class="as-badge as-badge--ok">= dichiarato</span>{% elif endpoint_macs %} <span class="as-badge as-badge--warn">diverso dal dichiarato</span>{% else %} <span class="as-badge">non dichiarato</span>{% endif %}{% endif %}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
           </div>
+          {% endwith %}
         {% endfor %}
       </div>
     </article>

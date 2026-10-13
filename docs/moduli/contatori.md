@@ -10,6 +10,14 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+**Videosorveglianza TVCC via SNMP** (ottobre 2026). Migrazioni `contatori 0033` (categorie TVCC, tipo valore MAC, aggregazione «Primo valore non vuoto», impostazioni TVCC) e `0034` (preset TVT). Contesto e decisioni: [`docs/tvcc/RICOGNIZIONE.md`](../tvcc/RICOGNIZIONE.md).
+- Dispositivo SNMP: tipi «TVCC - Videoregistratore (NVR)» e «TVCC - Telecamera IP» (anche nel wizard «+ Dispositivo SNMP»). Profili «TVT NVR (videoregistratore)» (`tvt-nvr`) e «TVT telecamera IP» (`tvt-ipc`), categoria profilo omonima.
+- Preset solo con OID delle MIB standard (TVT non ha MIB pubblica): attivi MAC (`ifPhysAddress`, primo non vuoto), velocità collegamento (`ifSpeed`, Mbit/s), errori in/out (`ifInErrors`/`ifOutErrors`, somma). Sull'NVR spenti finché la cattura non li conferma: RAM totale/disponibile, carico CPU, stato dispositivi interni (`hrDeviceStatus`), occupazione massima dischi (`dskPercent`), CPU inattiva. Tutte `verificata=False`, nessun prefisso sysObjectID/pattern sysDescr, nessuna soglia: profilo da assegnare a mano.
+- Impostazioni SNMP (pagina «Stampanti MFC» → Configurazione SNMP globale, link «Impostazioni SNMP e TVCC» nel Monitor SNMP): «TVCC - Intervallo NVR (minuti)» 5, «TVCC - Intervallo telecamere (minuti)» 30 (minimo 5: il giro `contatori_poll_snmp` resta ogni 5 minuti e salta i TVCC non ancora dovuti, tolleranza 150 s), «TVCC - Storico rilevazioni (giorni)» 14.
+- Retention: schedule `contatori_pulizia_tvcc` (cron `40 3 * * *`, `contatori.tasks.pulisci_rilevazioni_tvcc`) cancella a blocchi di 500 le `RilevazioneSNMP` (e i valori) dei soli dispositivi TVCC più vecchie della soglia. Dopo il deploy: `setup_q_schedules` + riavvio qcluster.
+- Catture per verificare gli OID: `snmp_capture --host <ip> ... --out C:\snmp_capture\<nome>.snmprec`, poi `--sanitize-from` per la fixture.
+- Guida in-app: sezione «Videosorveglianza (NVR e telecamere TVT)» in `/contatori/riconciliazione/guida/`.
+
 **Fattura Copylab e riconciliazione per contratto** (ottobre 2026). Migrazioni `contatori 0031` (campo `Fattura.dettaglio`) e `0032` (binding ACL `contatori:riconciliazione_guida` → `contatori.modulo.view`).
 - Import fattura: oltre al tracciato BASE («N. Contratto:», contatore dal prezzo per copia) legge il tracciato **Copylab** («Matricola:… Contratto:…», righe «COPIE EFFETTUATE B/N» e «COPIE EFFETTUATE COLORE»). Il contratto si prende dall'anagrafica tramite matricola (avviso se la MFC non ha il contratto); più MFC con lo stesso contratto si sommano.
 - «Letture in fattura»: *A4/A3 B/N e colore* (default) o *Solo totali B/N e colore*. Con i totali, B/N è salvato in `a4_bn`, colore in `a4_col`, e si confrontano con A4 + A3 interni (contatori «BN totale» / «COL totale»).

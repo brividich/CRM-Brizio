@@ -311,6 +311,15 @@ def aggrega_colonna(valori, aggregazione="PRIMO"):
         raise SNMPError("colonna senza valori")
     if aggregazione == "PRIMO":
         return valori[0]
+    if aggregazione == "VALIDO":
+        # Primo valore non vuoto e non tutto a zero (es. MAC del loopback).
+        for valore in valori:
+            if isinstance(valore, (bytes, bytearray)):
+                if any(valore):
+                    return valore
+            elif valore is not None and str(valore).strip(" 0:.-"):
+                return valore
+        raise SNMPError("la colonna contiene solo valori vuoti")
     try:
         numeri = [int(str(v).strip()) for v in valori]
     except (TypeError, ValueError) as exc:

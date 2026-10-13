@@ -125,6 +125,8 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 
 ## Note di rilascio
 
+**MAC del punto rete e dati SNMP TVCC** (ottobre 2026, migrazione `assets 0131`). `AssetEndpoint.mac` (normalizzato `aa:bb:cc:dd:ee:ff`, `services/mac.py`) nel riquadro «Rete e cablaggio» della modifica asset, ora visibile anche per gli asset di videosorveglianza; tracciato nello storico campi (gruppo Rete). Nel tab «Monitoraggio» della scheda, per ogni dispositivo SNMP collegato: ultimo controllo, uptime, sysName/sysDescr, ultimi valori letti e confronto MAC letto/dichiarato («= dichiarato», «diverso dal dichiarato», «non dichiarato»). Nessun dato TVCC nella pagina QR pubblica. Guida in-app: sezione «Videosorveglianza (TVCC)».
+
 Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](../../docs/ai/CHECKLIST_ASSET_IT.md).
 
 Anche gli asset legacy di tipo Altro possono usare il profilo IT della categoria, senza cambiare l'anagrafica. Specifiche/rete, backup e segnali popolati sono visibili direttamente; nelle MFC compaiono modello, IP, riferimento contratto e quattro contatori.
