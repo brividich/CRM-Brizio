@@ -320,3 +320,55 @@ class AccessiUnificatiTest(TestCase):
             {"action": "save_grants", "subject": f"group:{group.id}", "granted_json": "{non-json"},
         )
         self.assertTrue(GroupPermissionGrant.objects.filter(group=group, permission_id=PERM_A).exists())
+
+    # ── Preset di permessi per modulo ───────────────────────────────────────
+
+    def test_preset_modulo_salva_elimina_e_non_concede_nulla(self):
+        import json
+
+        from core.models import AuditLog, PresetPermessiModulo
+
+        url = reverse("admin_portale:accessi_preset")
+        risposta = self.client.post(
+            url,
+            {"azione": "salva", "modulo": "assets", "nome": "Operatore", "codici": json.dumps([PERM_B, "inventato.x.view"])},
+        )
+        self.assertEqual(risposta.status_code, 200)
+        dati = risposta.json()
+        self.assertTrue(dati["ok"])
+        # Un codice che non esiste a catalogo non entra nel preset.
+        self.assertEqual(dati["preset"]["codici"], [PERM_B])
+        preset = PresetPermessiModulo.objects.get(modulo="assets", nome="Operatore")
+        self.assertEqual(preset.codici, [PERM_B])
+        # Il preset da solo non scrive alcun grant.
+        self.assertFalse(GroupPermissionGrant.objects.exists())
+        self.assertTrue(AuditLog.objects.filter(modulo="permessi", azione="accessi_preset_salva").exists())
+
+        # Stesso nome: sostituisce, non duplica.
+        self.client.post(url, {"azione": "salva", "modulo": "assets", "nome": "Operatore", "codici": json.dumps([PERM_A, PERM_B])})
+        self.assertEqual(PresetPermessiModulo.objects.filter(modulo="assets").count(), 1)
+        self.assertEqual(PresetPermessiModulo.objects.get(modulo="assets").codici, sorted([PERM_A, PERM_B]))
+
+        pagina = self.client.get(self.url)
+        self.assertEqual(pagina.status_code, 200)
+        self.assertEqual(pagina.context["preset_modulo"]["assets"][0]["nome"], "Operatore")
+
+        risposta = self.client.post(url, {"azione": "elimina", "modulo": "assets", "id": preset.id})
+        self.assertTrue(risposta.json()["ok"])
+        self.assertFalse(PresetPermessiModulo.objects.exists())
+
+    def test_preset_modulo_rifiuta_selezione_vuota_e_non_admin(self):
+        import json
+
+        from core.models import PresetPermessiModulo
+
+        url = reverse("admin_portale:accessi_preset")
+        vuoto = self.client.post(url, {"azione": "salva", "modulo": "assets", "nome": "Vuoto", "codici": json.dumps([])})
+        self.assertEqual(vuoto.status_code, 400)
+        senza_nome = self.client.post(url, {"azione": "salva", "modulo": "assets", "nome": " ", "codici": json.dumps([PERM_B])})
+        self.assertEqual(senza_nome.status_code, 400)
+
+        self.client.logout()
+        anonimo = self.client.post(url, {"azione": "salva", "modulo": "assets", "nome": "X", "codici": json.dumps([PERM_B])})
+        self.assertIn(anonimo.status_code, (301, 302, 401, 403))
+        self.assertFalse(PresetPermessiModulo.objects.exists())

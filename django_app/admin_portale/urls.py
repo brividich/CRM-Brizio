@@ -118,6 +118,7 @@ urlpatterns = [
     path("notifiche-config/", views.notifiche_config_view, name="notifiche_config"),
     path("health/", views.admin_health_check, name="health_check"),
     path("accessi/", views.accessi_unificati, name="accessi"),
+    path("accessi/preset/", views.accessi_preset, name="accessi_preset"),
     path("ruoli-portale/", views_ruoli.ruoli_portale, name="ruoli_portale"),
     path("ruoli-portale/persona/<int:legacy_user_id>/", views_ruoli.ruoli_portale_persona, name="ruoli_portale_persona"),
     path("ruoli-portale/matrice/<int:ruolo_id>/", views_ruoli.ruoli_portale_matrice, name="ruoli_portale_matrice"),

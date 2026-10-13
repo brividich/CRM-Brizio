@@ -1366,3 +1366,43 @@ class AclDenialEvent(models.Model):
 
     def __str__(self) -> str:
         return f"AclDenial<user={self.legacy_user_id} key={self.dedup_key} status={self.status}>"
+
+
+class PresetPermessiModulo(models.Model):
+    """Insieme di permessi di pagina di un modulo, salvato con un nome.
+
+    Serve a dare a un ruolo «l'Operatore di Assets» senza riselezionare ogni
+    volta gli stessi interruttori nella pagina Accessi. Applicarlo muove solo
+    gli interruttori del modulo: i grant si scrivono col normale «Salva».
+    I codici sono un elenco JSON in un TextField (niente JSONField: su SQL Server
+    diventa ISJSON e rompe i filtri).
+    """
+
+    modulo = models.CharField(max_length=80, db_index=True)
+    nome = models.CharField(max_length=80)
+    descrizione = models.CharField(max_length=300, blank=True, default="")
+    codici_json = models.TextField(default="[]")
+    creato_da = models.CharField(max_length=150, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["modulo", "nome"]
+        constraints = [
+            models.UniqueConstraint(fields=["modulo", "nome"], name="uniq_preset_permessi_modulo_nome"),
+        ]
+        verbose_name = "Preset permessi di modulo"
+        verbose_name_plural = "Preset permessi di modulo"
+
+    def __str__(self) -> str:
+        return f"{self.modulo}: {self.nome}"
+
+    @property
+    def codici(self) -> list[str]:
+        import json
+
+        try:
+            dati = json.loads(self.codici_json or "[]")
+        except ValueError:
+            return []
+        return [str(c) for c in dati] if isinstance(dati, list) else []
