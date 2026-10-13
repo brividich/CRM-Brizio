@@ -9,6 +9,8 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Assets: `riallinea_asset_da_excel` crea le interfacce di rete mancanti** — se l'asset non ha interfacce crea quella con VLAN, IP completo (rete ricavata dalla VLAN: 1=10.0.0, 1010=10.10.10, 13=172.16.13, 23=192.168.23, 24=192.168.24, 98=192.168.98), switch, porta switch e punto; sulle interfacce esistenti compila solo l'IP se vuoto. File: `django_app/assets/management/commands/riallinea_asset_da_excel.py`, `django_app/assets/tests_riallinea_asset_excel.py`.
+
 - **Assets: `riallinea_asset_da_excel` più prudente** — aggancio solo per nome o IP (mai per seriale, per non confondere gemelli IoT); seriali scartati se non validi (`VM`, `CLUSTER`) o se in prod hanno solo un suffisso `-1`/`-2`; switch/router/AP non diventano più FIREWALL; spazi non separabili ripuliti. File: `django_app/assets/management/commands/riallinea_asset_da_excel.py`, `django_app/assets/tests_riallinea_asset_excel.py`.
 
 - **Assets: comando `riallinea_asset_da_excel`** — riallinea gli asset già presenti all'inventario IT in Excel (match per nome PC, poi IP, poi seriale; non crea asset, non tocca nome/IP/stato; sovrascrive i valori diversi). Default dry-run, `--apply` per scrivere, `--report` CSV; storico asset tracciato; password/PIN/PUK mai letti. File: `django_app/assets/management/commands/riallinea_asset_da_excel.py`, `django_app/assets/tests_riallinea_asset_excel.py`, `docs/moduli/assets.md`.

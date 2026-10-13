@@ -56,6 +56,23 @@ def _seriale_valido(nuovo: str, attuale) -> bool:
     return True
 
 
+# VLAN -> prefisso della rete (l'Excel riporta solo l'ultimo numero dell'IP).
+PREFISSO_VLAN = {1: "10.0.0", 1010: "10.10.10", 13: "172.16.13", 23: "192.168.23", 24: "192.168.24", 98: "192.168.98"}
+
+
+def _vlan(valore):
+    """VLAN come intero; '1010/1' -> 1010."""
+    return _parse_int(_clean_str(valore).split("/")[0])
+
+
+def _ip_completo(valore, vlan) -> str:
+    """Ultimo ottetto + VLAN -> IP completo; 'DHCP' o IP gia' completi restano com'e'."""
+    testo = _clean_str(valore)
+    if testo.isdigit() and vlan in PREFISSO_VLAN:
+        return f"{PREFISSO_VLAN[vlan]}.{testo}"
+    return testo
+
+
 def _prefisso_ip(nome_foglio: str) -> str:
     """'Management 172.16.13.x' -> '172.16.13.'; vuoto se il titolo non ha un solo prefisso."""
     trovati = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3})\.[xX]", nome_foglio)
@@ -182,8 +199,24 @@ class Command(BaseCommand):
                 if da_salvare and apply:
                     asset.save(update_fields=da_salvare + ["updated_at"])
 
-                vlan = _parse_int(v.get("vlan"))
+                vlan = _vlan(v.get("vlan"))
+                ip = _ip_completo(v.get("ip"), vlan)[:80]
                 ep = asset.endpoints.order_by("id").first()
+                if ep is None:
+                    campi = {"endpoint_name": (_pulisci(v.get("name")) or asset.name)[:255], "vlan": vlan,
+                             "ip": ip or None,
+                             **{a: _pulisci(v.get(k))[:l] for k, (a, l) in CAMPI_ENDPOINT.items()}}
+                    if vlan is not None or ip or any(campi[a] for a in ("switch_name", "switch_port", "punto")):
+                        modifiche.append(("endpoint.CREATO", "", " | ".join(
+                            f"{k}={x}" for k, x in campi.items() if x not in (None, ""))))
+                        if apply:
+                            AssetEndpoint.objects.create(asset=asset, **campi)
+                else:
+                    if ip and not (ep.ip or "").strip():
+                        modifiche.append(("endpoint.ip", "", ip))
+                        ep.ip = ip
+                        if apply:
+                            ep.save(update_fields=["ip"])
                 if ep is not None:
                     mod_ep = []
                     if vlan is not None and ep.vlan != vlan:
