@@ -432,3 +432,12 @@ class GatingMiddlewareTests(TestCase):
         # Non deve essere redirect a obbligatorie ma potrebbe esserlo per altri motivi
         # Il test principale è che il path /notizie/ è safe nel middleware
         self.assertNotEqual(resp.status_code, 500)
+
+    def test_onboarding_non_rimandato_a_obbligatorie(self):
+        """Regressione loop: /onboarding/ con obbligatorie pendenti non deve redirigere a /notizie/obbligatorie/."""
+        invalidate_pending_mandatory_cache(88)
+        request = RequestFactory().get(reverse("onboarding_wizard"))
+        request.user = self.user
+        sentinel = object()
+        response = NotizieMandatoryMiddleware(lambda req: sentinel)(request)
+        self.assertIs(response, sentinel)

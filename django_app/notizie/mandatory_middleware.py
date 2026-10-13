@@ -88,6 +88,16 @@ class NotizieMandatoryMiddleware:
         if any(path.startswith(p) for p in all_safe):
             return self.get_response(request)
 
+        # Il wizard di primo accesso precede le notizie obbligatorie: l'ACLMiddleware
+        # manda l'utente non onboardato su /onboarding/ (anche da /notizie/obbligatorie/);
+        # rimandarlo qui creerebbe un loop di redirect (ERR_TOO_MANY_REDIRECTS).
+        # Uscita dall'impersonificazione sempre raggiungibile.
+        from core.middleware import is_acl_onboarding_shared_path
+        from core.impersonation import is_impersonation_stop_path
+
+        if is_acl_onboarding_shared_path(path) or is_impersonation_stop_path(path):
+            return self.get_response(request)
+
         legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
         if legacy_user is not None:
             try:
