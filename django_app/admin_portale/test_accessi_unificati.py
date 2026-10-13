@@ -347,7 +347,7 @@ class AccessiUnificatiTest(TestCase):
         # Stesso nome: sostituisce, non duplica.
         self.client.post(url, {"azione": "salva", "modulo": "assets", "nome": "Operatore", "codici": json.dumps([PERM_A, PERM_B])})
         self.assertEqual(PresetPermessiModulo.objects.filter(modulo="assets").count(), 1)
-        self.assertEqual(PresetPermessiModulo.objects.get(modulo="assets").codici, [PERM_A, PERM_B])
+        self.assertEqual(PresetPermessiModulo.objects.get(modulo="assets").codici, sorted([PERM_A, PERM_B]))
 
         pagina = self.client.get(self.url)
         self.assertEqual(pagina.status_code, 200)
