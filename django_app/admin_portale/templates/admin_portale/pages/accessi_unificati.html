@@ -242,7 +242,10 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 .acl-grid td { padding: 9px var(--hub-space-4, 16px); border-bottom: 1px solid var(--hub-color-border, #d7e0ea); vertical-align: middle; }
 .acl-grid tr:last-child td { border-bottom: 0; }
 .acl-grid tbody tr:hover td { background: var(--hub-color-surface-raised, #fbfdff); }
-.acl-grid td.is-switch { width: 74px; text-align: right; }
+.acl-grid td.is-switch { width: 56px; text-align: left; padding-right: 0; }
+.acl-routes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.acl-routes code { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--hub-color-surface-raised, #fbfdff); border: 1px solid var(--hub-color-border, #d7e0ea); color: var(--hub-color-text-muted, #4a5568); }
+.acl-routes__more { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); align-self: center; }
 .acl-grid td.is-scope { width: 88px; }
 .acl-perm { font-size: var(--hub-font-xs, 12px); font-weight: 600; color: var(--hub-color-text, #1a202c); }
 .acl-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--hub-color-text-muted, #4a5568); }
@@ -649,11 +652,21 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
             <tbody>
               {% for perm in sub.permissions %}
               <tr data-search="{{ perm.code }} {{ perm.label|lower }} {{ perm.stored_label|lower }} {{ perm.routes_preview|join:' '|lower }}" data-link="{{ perm.link_status }}">
+                <td class="is-switch">
+                  <label class="acl-switch">
+                    <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
+                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}" data-sottomodulo="{{ perm.submodule }}"
+                           data-capacita="{{ perm.capability }}" {% if perm.enabled %}checked{% endif %}
+                           aria-label="{{ perm.label }}">
+                    <span></span>
+                  </label>
+                </td>
                 <td>
                   <div class="acl-perm" {% if perm.description %}title="{{ perm.description }}"{% endif %}>{{ perm.label }}{% if perm.source_module %}<span class="acl-from" title="A database il permesso appartiene al modulo «{{ perm.source_module }}».">da {{ perm.source_module }}</span>{% endif %}</div>
                   <div class="acl-code">{{ perm.code }}<span
                       class="acl-cap acl-cap--{{ perm.capability }}{% if perm.governs_subtree %} acl-cap--sub{% endif %}"
                       title="{% if perm.capability_unknown %}Il nome non dice cosa faccia: lo accende solo il livello «Amministratore del modulo».{% else %}I livelli accendono questo permesso a partire da «{{ perm.capability_label }}».{% endif %}{% if perm.governs_subtree %} Governa un intero sottoalbero di URL, quindi la capacità tiene conto anche delle rotte che vi ricadono sotto.{% endif %}">{{ perm.capability_label }}</span></div>
+                  {% if perm.routes_preview %}<div class="acl-routes" title="Rotte governate:&#10;{{ perm.routes_title }}">{% for r in perm.routes_preview|slice:":3" %}<code>{{ r }}</code>{% endfor %}{% if perm.route_count > 3 %}<span class="acl-routes__more">+{{ perm.route_count|add:"-3" }}</span>{% endif %}</div>{% endif %}
                 </td>
                 <td class="is-scope">
                   {% if perm.link_status == "pagine" %}
@@ -665,15 +678,6 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
                   {% else %}
                     <span class="acl-scope" title="Nessun binding di rotta: il permesso è verificato nel codice di una pagina (sezioni, pulsanti, azioni).">sezione</span>
                   {% endif %}
-                </td>
-                <td class="is-switch">
-                  <label class="acl-switch">
-                    <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
-                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}" data-sottomodulo="{{ perm.submodule }}"
-                           data-capacita="{{ perm.capability }}" {% if perm.enabled %}checked{% endif %}
-                           aria-label="{{ perm.label }}">
-                    <span></span>
-                  </label>
                 </td>
               </tr>
               {% endfor %}
