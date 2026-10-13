@@ -82,3 +82,26 @@ class RiallineaGuardieTests(TestCase):
         self.assertEqual(gemello.model, "Vecchio")
         self.assertEqual(sw.asset_type, Asset.TYPE_OTHER)
         self.assertEqual(sw.model, "HP 2930")
+
+
+class RiallineaCreaInterfacciaTests(TestCase):
+    def test_crea_interfaccia_con_ip_completo(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Trust 10.0.0.x - 10.10.10.x"
+        ws.append(["REPARTO", "NOME PC", "VLAN", "IP", "PUNTO", "PORTA SWITCH", "TIPO"])
+        ws.append(["CED", "PCNET", 1, 42, "Q1.05", "A1.07", "PC"])
+        ws.append(["CED", "PCNET2", "1010/1", 9, None, None, "PC"])
+        ws.append(["CED", "PCDHCP", 98, "DHCP", None, "A0.3.18", "PC"])
+        path = str(Path(d.name) / "t.xlsx")
+        wb.save(path)
+        for n in ("PCNET", "PCNET2", "PCDHCP"):
+            Asset.objects.create(name=n, asset_type=Asset.TYPE_PC)
+        call_command("riallinea_asset_da_excel", file=path, sheets="Trust", apply=True, stdout=StringIO())
+        e = AssetEndpoint.objects.get(asset__name="PCNET")
+        self.assertEqual((e.vlan, e.ip, e.punto, e.switch_port), (1, "10.0.0.42", "Q1.05", "A1.07"))
+        e2 = AssetEndpoint.objects.get(asset__name="PCNET2")
+        self.assertEqual((e2.vlan, e2.ip), (1010, "10.10.10.9"))
+        self.assertEqual(AssetEndpoint.objects.get(asset__name="PCDHCP").ip, "DHCP")
