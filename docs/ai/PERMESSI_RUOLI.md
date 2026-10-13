@@ -106,6 +106,14 @@ capacità si legge dalle rotte che il permesso governa davvero, non dal suffisso
 (`dpi.approva.view` è un'approvazione). I grant messi a mano non vengono toccati, e
 non si scrive mai `enabled=False`.
 
+Il verso inverso e' **in sola lettura**: `stato_pagine_ruolo(ruolo)` dice, per ogni cella
+(modulo, azione standard), quante pagine dell'azione il ruolo ha davvero (`pieno` /
+`parziale` / `vuoto`) e quali sono state accese o tolte a mano dalla pagina Accessi
+(`a_mano`, `tolte_a_mano`). La matrice lo mostra come badge «pagine N/M» sotto la cella,
+Accessi segna «da matrice» i grant con `NOTA_MATRICE`. Una modifica fatta in Accessi non
+riscrive la cella: al prossimo salvataggio della matrice le pagine tolte a mano tornano,
+quelle aggiunte a mano restano.
+
 ## Comandi
 
 ```powershell

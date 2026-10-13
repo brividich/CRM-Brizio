@@ -153,6 +153,13 @@
         <span><strong>Tutti</strong> tutta l'azienda</span>
         <span><strong>No</strong> nega anche se un ruolo più basso concede</span>
       </div>
+      <div class="rp-legend">
+        <span>Sotto ogni cella, i <strong>permessi di pagina</strong> che il ruolo ha davvero adesso (passa il mouse per l'elenco):</span>
+        <span><span class="rp-pag rp-pag-pieno">pagine 3/3</span> tutte</span>
+        <span><span class="rp-pag rp-pag-parziale">pagine 1/3</span> solo alcune</span>
+        <span><span class="rp-pag rp-pag-vuoto">pagine 0/3</span> nessuna</span>
+        <span><span class="rp-pag rp-pag-vuoto rp-pag-ecc">· a mano</span> modificate dalla pagina Accessi: al prossimo salvataggio della matrice le pagine tolte a mano tornano, quelle aggiunte a mano restano</span>
+      </div>
 
       <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}">
         {% csrf_token %}
@@ -189,6 +196,9 @@
                       <option value="tutti"{% if c.valore == "tutti" %} selected{% endif %}>Tutti</option>
                       <option value="no"{% if c.valore == "no" %} selected{% endif %}>No</option>
                     </select>
+                    {% if c.pagine %}
+                      <a class="rp-pag rp-pag-{{ c.pagine.stato }}{% if c.pagine.eccezione %} rp-pag-ecc{% endif %}" href="?tab=modulo&modulo={{ r.spec.chiave }}" title="{{ c.pagine.dettaglio }}">pagine {{ c.pagine.concesse|length }}/{{ c.pagine.totale }}{% if c.pagine.eccezione %} · a mano{% endif %}</a>
+                    {% endif %}
                   </td>
                 {% endfor %}
               </tr>
@@ -437,7 +447,8 @@
     <h3>Le schede</h3>
     <ul>
       <li><strong>Persone</strong>: cerca la persona, spunta i suoi ruoli, salva. La nota finisce nel registro.</li>
-      <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. Il menu «Tutta la riga…» sotto il nome di ogni modulo applica lo stesso valore a tutte le sue azioni in un colpo (le azioni proprie sotto la riga restano da impostare a mano); il salvataggio è sempre da confermare con «Salva matrice». I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.</li>
+      <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. Il menu «Tutta la riga…» sotto il nome di ogni modulo applica lo stesso valore a tutte le sue azioni in un colpo (le azioni proprie sotto la riga restano da impostare a mano); il salvataggio è sempre da confermare con «Salva matrice». I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.
+        Sotto ogni cella il badge «pagine N/M» dice quante pagine dell'azione il ruolo ha davvero adesso (verde tutte, giallo solo alcune, grigio nessuna; passa il mouse per l'elenco, clic per il riepilogo del modulo). Se qualcuno ha acceso o spento quei permessi dalla pagina <strong>Accessi</strong>, il badge lo mostra subito con la scritta «· a mano». Al prossimo «Salva matrice» di quel ruolo le pagine tolte a mano tornano accese; quelle aggiunte a mano restano. Nella pagina Accessi i permessi accesi dalla matrice hanno l'etichetta «da matrice», con il link alla matrice del ruolo.</li>
       <li><strong>Riepilogo per modulo</strong>: scegli un modulo e vedi cosa concede ogni ruolo e, per ogni pagina e API del modulo, quali ruoli la aprono (dalla matrice o a mano). Evidenzia le pagine che nessun ruolo apre: utile prima del go-live. Sola lettura.</li>
       <li><strong>Cosa vede questa persona</strong>: per ogni modulo, le azioni consentite, su quali dati e quale ruolo decide.</li>
       <li><strong>Registro modifiche</strong>: chi ha cambiato ruoli, matrice o stato del sistema, e quando.</li>

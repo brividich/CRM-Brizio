@@ -365,6 +365,45 @@ class SincronizzazioneEInterruttoreTests(PersoneMixin, TestCase):
         sincronizza_tutti()
         self.assertFalse(GroupPermissionGrant.objects.filter(group=base, permission_id="dpi.detail.view").exists())
 
+    def test_stato_pagine_riflette_la_matrice(self):
+        from core.permessi.sync import STATO_PIENO, STATO_VUOTO, sincronizza_tutti, stato_pagine_ruolo
+
+        sincronizza_tutti()
+        base = AccessGroup.objects.get(code="ruolo-dipendente")
+        stato = stato_pagine_ruolo(base)
+        vedere = stato[("dpi", "vedere")]
+        self.assertEqual(vedere.stato, STATO_PIENO)
+        self.assertFalse(vedere.eccezione)
+        self.assertIn("dpi.detail.view", vedere.concesse)
+        self.assertEqual(stato[("dpi", "approvare")].stato, STATO_VUOTO)
+
+    def test_stato_pagine_segna_le_modifiche_fatte_a_mano(self):
+        from core.permessi.sync import STATO_PIENO, STATO_VUOTO, sincronizza_tutti, stato_pagine_ruolo
+
+        sincronizza_tutti()
+        base = AccessGroup.objects.get(code="ruolo-dipendente")
+        # Da Accessi: tolta una pagina che la matrice concede, aggiunta una che non concede.
+        GroupPermissionGrant.objects.filter(group=base, permission_id="dpi.detail.view").delete()
+        GroupPermissionGrant.objects.create(group=base, permission_id="dpi.approva.view", enabled=True)
+        stato = stato_pagine_ruolo(base)
+        vedere, approvare = stato[("dpi", "vedere")], stato[("dpi", "approvare")]
+        self.assertEqual(vedere.stato, STATO_VUOTO)
+        self.assertEqual(vedere.tolte_a_mano, ["dpi.detail.view"])
+        self.assertEqual(approvare.stato, STATO_PIENO)
+        self.assertEqual(approvare.a_mano, ["dpi.approva.view"])
+        self.assertTrue(vedere.eccezione and approvare.eccezione)
+        self.assertIn("a mano", approvare.dettaglio)
+
+    def test_stato_pagine_non_scrive_nulla(self):
+        from core.permessi.sync import sincronizza_tutti, stato_pagine_ruolo
+
+        sincronizza_tutti()
+        base = AccessGroup.objects.get(code="ruolo-dipendente")
+        prima = list(GroupPermissionGrant.objects.order_by("id").values_list("id", "permission_id", "enabled", "note"))
+        stato_pagine_ruolo(base)
+        dopo = list(GroupPermissionGrant.objects.order_by("id").values_list("id", "permission_id", "enabled", "note"))
+        self.assertEqual(prima, dopo)
+
     def test_sistema_attivo_ignora_il_ruolo_legacy(self):
         from core.acl_resolver import resolve_permission_decision
         from core.legacy_models import Ruolo

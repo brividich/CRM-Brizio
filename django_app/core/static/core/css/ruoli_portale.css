@@ -130,3 +130,22 @@
 .rp-kpi { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
 .rp-kpi strong { display: block; font-size: 22px; color: var(--text); }
 .rp-kpi span { font-size: 12px; color: var(--text-mid); }
+
+/* Stato reale dei permessi di pagina sotto ogni cella della matrice. */
+.rp-pag {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--text-mid);
+  background: var(--surface);
+}
+.rp-cell .rp-pag { display: block; width: fit-content; }
+.rp-pag-pieno { border-color: var(--success); background: var(--success-bg); color: var(--text); }
+.rp-pag-parziale { border-color: var(--warning); background: var(--warning-bg); color: var(--text); }
+.rp-pag-ecc { border-style: dashed; border-color: var(--warning); font-weight: 600; }
