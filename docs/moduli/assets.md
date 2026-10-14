@@ -126,6 +126,8 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 
 ## Note di rilascio
 
+Scheda asset: «Anagrafica e assegnazione» su due colonne; ogni riquadro è richiudibile (stato in `localStorage`, chiave `af-card-collapsed:<codice>`).
+
 Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](../../docs/ai/CHECKLIST_ASSET_IT.md).
 
 Anche gli asset legacy di tipo Altro possono usare il profilo IT della categoria, senza cambiare l'anagrafica. Specifiche/rete, backup e segnali popolati sono visibili direttamente; nelle MFC compaiono modello, IP, riferimento contratto e quattro contatori.
