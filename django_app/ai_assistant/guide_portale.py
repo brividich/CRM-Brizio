@@ -196,6 +196,12 @@ def _testo_ofi() -> str:
     return sezioni_in_markdown(guida.GUIDA_OFI["sezioni"])
 
 
+def _testo_home() -> str:
+    from dashboard import guida
+
+    return sezioni_in_markdown(guida.SEZIONI)
+
+
 def _testo_assistente() -> str:
     from ai_assistant import guida
 
@@ -261,6 +267,8 @@ def _registro() -> list[Guida]:
               _file_modulo("sistema_gestione.guida"), parole="audit auditor ispettiva ispettive"),
         Guida("registro-ofi", "Registro OFI / NC (MOD.174)", _reverse("registro_ofi:guida"), _testo_ofi,
               _file_modulo("sistema_gestione.guida"), parole="ofi conformita correttiva correttive miglioramento"),
+        Guida("home", "Home del portale", _reverse("home_portale:guida"), _testo_home,
+              _file_modulo("dashboard.guida"), parole="home stanza stanze self-help scaffale rspp rls preposto"),
     ]
     for slug, modulo, url_name, template, parole in (
         ("assets", "Asset e manutenzione", "assets:guida", "assets/pages/guida.html",

@@ -140,7 +140,7 @@ sequenceDiagram
 |---|---|---|---|---|
 | 1 | [`core`](django_app/core/) | Core | — (`/capa/`) | Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ricerca globale, legacy models, **azioni CAPA** correttive/preventive trasversali · [scheda](docs/moduli/core.md) |
 | 1b | [`twofa`](django_app/twofa/) | Core | `/2fa/` | **2FA**: TOTP app authenticator e OTP email, policy per ruolo/rete interna, setup self-service con QR code, reset/toggle admin, pannello `/admin-portale/2fa/` |
-| 2 | [`dashboard`](django_app/dashboard/) | Core | `/` | Home "Bacheca" info-hub: News + **Documenti & Collegamenti** (gestibili da admin), KPI, "Cose da fare", launcher moduli · [scheda](docs/moduli/dashboard.md) |
+| 2 | [`dashboard`](django_app/dashboard/) | Core | `/` | Home a stanze: Oggi, Sapere (self-help e documenti), Persone & sicurezza, Moduli · [scheda](docs/moduli/dashboard.md) |
 | 2b | [`ai_assistant`](django_app/ai_assistant/) | Core | `/assistente-ai/` | Chatbot interno autenticato con console admin AI e backend Ollama/Open WebUI configurabile · [scheda](docs/moduli/ai_assistant.md) |
 | 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attivita utente, log e archiviazione notifiche, branding e template PDF · [scheda](docs/moduli/admin_portale.md) |
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide · [scheda](docs/moduli/hub_tools.md) |

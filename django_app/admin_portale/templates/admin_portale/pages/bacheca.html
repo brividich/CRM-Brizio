@@ -37,6 +37,9 @@
   .bz-hint{ font-size:var(--fs-xs); color:var(--text-light); margin:2px 0 0 }
   .bz-empty{ padding:14px; color:var(--text-light); font-size:var(--fs-sm) }
   .bz-off{ opacity:.5 }
+  .bz-inline{ min-height:32px; padding:4px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:var(--fs-sm) }
+  input[type=color].bz-inline, .bz-field input[type=color]{ padding:2px; width:48px; cursor:pointer }
+  .bz-sigla{ flex-shrink:0; min-width:44px; text-align:center; padding:3px 6px; border-radius:6px; color:#fff; font-size:var(--fs-2xs); font-weight:800; letter-spacing:.02em }
 </style>
 {% endblock %}
 
@@ -46,7 +49,7 @@
   <div class="page-header">
     <div class="page-header-main">
       <h1 class="page-h">Documenti &amp; Collegamenti</h1>
-      <p class="page-sub">Gestisci le risorse mostrate nella bacheca della home. Le voci senza ruoli assegnati sono visibili a tutti.</p>
+      <p class="page-sub">Gestisci le risorse mostrate nella home, stanza «Sapere». Le categorie «Documenti &amp; collegamenti» compaiono come elenco; le categorie «Risorse self-help» (guide, manuali, video) compaiono come scaffale con una copertina per voce, del colore della categoria e con la sigla della voce. Le voci senza ruoli assegnati sono visibili a tutti.</p>
     </div>
   </div>
 
@@ -57,7 +60,17 @@
       <div class="bz-form">
         <div class="bz-field" style="flex:1">
           <label>Nome categoria</label>
-          <input type="text" id="newCatName" placeholder="Es. Modulistica, Qualità/SGI, Collegamenti utili">
+          <input type="text" id="newCatName" placeholder="Es. Modulistica, IT e accessi, Collegamenti utili">
+        </div>
+        <div class="bz-field">
+          <label>Sezione della home</label>
+          <select id="newCatSezione">
+            {% for value, label in sezioni %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="bz-field" style="min-width:110px">
+          <label>Colore copertine</label>
+          <input type="color" id="newCatColore" value="#1f4f86">
         </div>
         <button class="bz-btn primary" onclick="createCategory()">+ Aggiungi categoria</button>
       </div>
@@ -69,6 +82,10 @@
           <h3>{{ cat.name }}</h3>
           <span class="bz-chip">{{ cat.links.count }} voci</span>
           <span class="sp"></span>
+          <select class="bz-inline" aria-label="Sezione della home" onchange="updateCategory({{ cat.id }}, {sezione:this.value})">
+            {% for value, label in sezioni %}<option value="{{ value }}"{% if cat.sezione == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <input class="bz-inline" type="color" aria-label="Colore copertine" title="Colore copertine self-help" value="{{ cat.colore|default:'#1f4f86' }}" onchange="updateCategory({{ cat.id }}, {colore:this.value})">
           <button class="bz-btn danger" onclick="deleteCategory({{ cat.id }}, '{{ cat.name|escapejs }}')">Elimina categoria</button>
         </div>
 
@@ -76,6 +93,7 @@
           {% for link in cat.links.all %}
             <div class="bz-row{% if not link.is_visible %} bz-off{% endif %}" data-link="{{ link.id }}">
               <span class="bz-kind {{ link.kind }}">{{ link.get_kind_display }}</span>
+              {% if cat.sezione == "self_help" %}<span class="bz-sigla" style="background:{{ cat.colore|default:'#1f4f86' }}" title="Sigla della copertina">{{ link.sigla_copertina }}</span>{% endif %}
               <div class="bz-row-bd">
                 <div class="bz-row-t">{{ link.title }}</div>
                 <div class="bz-row-m">{{ link.description }}</div>
@@ -111,6 +129,10 @@
           <div class="bz-field" style="flex:1">
             <label>Descrizione</label>
             <input type="text" name="description" placeholder="Facoltativa">
+          </div>
+          <div class="bz-field" style="min-width:110px">
+            <label>Sigla copertina</label>
+            <input type="text" name="sigla" maxlength="8" placeholder="Es. VPN">
           </div>
           <div class="bz-field bz-t-url" style="flex:1">
             <label>URL esterno</label>
@@ -156,7 +178,13 @@ function fail(res){ alert('Errore: ' + (res && res.error ? res.error : 'operazio
 async function createCategory(){
   const name = document.getElementById('newCatName').value.trim();
   if(!name){ return; }
-  const res = await postJson("{% url 'admin_portale:api_hub_category_create' %}", {name});
+  const sezione = document.getElementById('newCatSezione').value;
+  const colore = document.getElementById('newCatColore').value;
+  const res = await postJson("{% url 'admin_portale:api_hub_category_create' %}", {name, sezione, colore});
+  if(res.ok){ location.reload(); } else { fail(res); }
+}
+async function updateCategory(id, fields){
+  const res = await postJson("{% url 'admin_portale:api_hub_category_update' %}", Object.assign({id}, fields));
   if(res.ok){ location.reload(); } else { fail(res); }
 }
 async function deleteCategory(id, name){
@@ -193,7 +221,7 @@ async function createLink(ev, categoryId){
     r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {
       method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
       body: JSON.stringify({category_id:categoryId, kind, title:form.title.value, description:form.description.value,
-                            url:form.url.value, route_name:form.route_name.value, role_ids})
+                            sigla:form.sigla.value, url:form.url.value, route_name:form.route_name.value, role_ids})
     });
   }
   const res = await r.json().catch(() => ({ok:false, error:'Risposta non valida'}));

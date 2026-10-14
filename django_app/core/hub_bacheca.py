@@ -28,8 +28,11 @@ def link_visible_to_role(link, legacy_role_id, is_admin: bool) -> bool:
     return any(a.legacy_role_id == legacy_role_id and a.can_view for a in accesses)
 
 
-def visible_bacheca(legacy_role_id, is_admin: bool = False, preview_limit=None) -> list[dict]:
+def visible_bacheca(legacy_role_id, is_admin: bool = False, preview_limit=None, sezione=None) -> list[dict]:
     """Categorie visibili con le rispettive voci filtrate per ruolo.
+
+    ``sezione`` restringe alle categorie di quella sezione della home
+    (``HubLinkCategory.SEZIONE_*``); ``None`` le prende tutte.
 
     Ritorna: [{"category": HubLinkCategory, "items": [HubLink], "total": int, "more": int}]
     Le categorie senza voci visibili sono escluse.
@@ -39,6 +42,8 @@ def visible_bacheca(legacy_role_id, is_admin: bool = False, preview_limit=None) 
         .prefetch_related("links__role_accesses")
         .order_by("order", "name", "id")
     )
+    if sezione:
+        categories = categories.filter(sezione=sezione)
     result: list[dict] = []
     for cat in categories:
         items = [
