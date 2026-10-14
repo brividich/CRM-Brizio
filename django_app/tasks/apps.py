@@ -7,6 +7,7 @@ class TasksConfig(AppConfig):
     verbose_name = "KICK-OFF"
 
     def ready(self):
+        from . import signals  # noqa: F401  (registra i receiver)
         from core.acl_bootstrap_base import should_skip_runtime_bootstrap
 
         if should_skip_runtime_bootstrap():

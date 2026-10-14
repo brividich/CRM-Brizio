@@ -110,7 +110,8 @@ class MeetingAlertsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 200)
         data = build_kickoff_da_gestire(response.wsgi_request, "mine")
         # Quattro sezioni costruite: nessuna persa per eccezione inghiottita.
-        self.assertEqual(len(data["sections"]), 4)
+        # Azioni e problemi assegnati, VRF, commesse non pronte, attivita' critiche, incontri.
+        self.assertEqual(len(data["sections"]), 5)
 
 
 class ProjectListRoutingTests(TasksBaseTestCase):

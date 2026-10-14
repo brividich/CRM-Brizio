@@ -30,6 +30,7 @@ from ..minute_email import note_generali
 from ..models import (
     KickoffMeeting,
     MeetingActionItem,
+    MeetingAgendaItem,
     MeetingAgendaProposal,
     MeetingAgendaTemplate,
     MeetingDecision,
@@ -68,6 +69,13 @@ from ..services.agenda import (
     _previous_meeting_agenda,
     _project_tasks_for_picker,
     _set_meeting_agenda_issue_done,
+)
+from ..services.meeting_tasks import (
+    KickoffBloccatoVRF,
+    crea_attivita_da_incontro,
+    notify_meeting_item_assignment,
+    notify_task_assignment,
+    titolo_attivita,
 )
 from ..services.notify import (
     notify_user,
@@ -139,20 +147,33 @@ def incontri_lista(request):
     stato = (request.GET.get("stato") or "").strip()
     periodo = (request.GET.get("periodo") or "tutti").strip()
     q_text = (request.GET.get("q") or "").strip()
+    progetto = _safe_int(request.GET.get("progetto"))
+    minuta = (request.GET.get("minuta") or "").strip()
     today = timezone.localdate()
 
     if mine and request.user.is_authenticated:
-        meetings = meetings.filter(
-            Q(partecipanti_utenti=request.user)
-            | Q(presenti_utenti=request.user)
-            | Q(created_by=request.user)
-        ).distinct()
+        from ..meeting_alerts import _mine_filter
+
+        meetings = meetings.filter(_mine_filter(request.user)).distinct()
     if stato in dict(MeetingStatus.choices):
         meetings = meetings.filter(stato=stato)
     if periodo == "prossimi":
         meetings = meetings.filter(data__gte=today)
     elif periodo == "passati":
         meetings = meetings.filter(data__lt=today)
+    elif periodo == "settimana":
+        from datetime import timedelta
+
+        meetings = meetings.filter(data__gte=today, data__lte=today + timedelta(days=7))
+    if progetto:
+        meetings = meetings.filter(project_id=progetto)
+    # Incontri che aspettano qualcosa: esito non registrato o minuta da approvare.
+    if minuta == "da_registrare":
+        meetings = meetings.filter(stato=MeetingStatus.PIANIFICATO, data__lt=today)
+    elif minuta == "da_approvare":
+        meetings = meetings.filter(stato=MeetingStatus.SVOLTO, minuta_chiusa_at__isnull=True)
+    elif minuta == "approvata":
+        meetings = meetings.filter(minuta_chiusa_at__isnull=False)
     if q_text:
         meetings = meetings.filter(
             Q(titolo__icontains=q_text)
@@ -176,6 +197,9 @@ def incontri_lista(request):
             "filter_stato": stato,
             "filter_periodo": periodo,
             "filter_q": q_text,
+            "filter_progetto": progetto or "",
+            "filter_minuta": minuta,
+            "projects_choices": list(projects.order_by("name").values("id", "name")),
             "stato_choices": MeetingStatus.choices,
         },
     )
@@ -212,6 +236,65 @@ def _meeting_task_modal_context(project: Project, *, project_id: int, meeting_id
             kwargs={"project_id": project_id, "meeting_id": meeting_id},
         ),
     }
+
+
+def meeting_is_deletable(meeting: KickoffMeeting) -> bool:
+    """Eliminabile solo se mai svolto e senza decisioni registrate."""
+    if meeting.stato == MeetingStatus.SVOLTO or meeting.minuta_chiusa:
+        return False
+    return not meeting.decisions.exists()
+
+
+def _next_meeting_initial(previous: KickoffMeeting) -> dict:
+    """Dati di partenza del prossimo incontro, presi dal precedente.
+
+    La data proposta e' una settimana dopo il precedente, mai nel passato.
+    """
+    from datetime import timedelta
+
+    today = timezone.localdate()
+    proposta = previous.data + timedelta(days=7) if previous.data else today
+    if proposta < today:
+        proposta = today + timedelta(days=7)
+    return {
+        "data": proposta,
+        "ora": previous.ora,
+        "luogo": previous.luogo,
+        "partecipanti_utenti": list(previous.partecipanti_utenti.values_list("pk", flat=True)),
+        "partecipanti_email_extra": previous.partecipanti_email_extra,
+        "cc_utenti": list(previous.cc_utenti.values_list("pk", flat=True)),
+        "cc_email_extra": previous.cc_email_extra,
+        "sync_outlook": previous.sync_outlook,
+        "outlook_organizer_email": previous.outlook_organizer_email,
+    }
+
+
+def _send_invite_if_requested(request, form, meeting: KickoffMeeting) -> None:
+    """Spunta «Invia la convocazione» del form: parte subito dopo il salvataggio."""
+    if not form.cleaned_data.get("invia_convocazione") or meeting.stato != MeetingStatus.PIANIFICATO:
+        return
+    from ..minute_email import send_meeting_invite
+
+    try:
+        outcome = send_meeting_invite(meeting, sent_by=request.user)
+    except Exception:
+        logger.exception("Invio convocazione fallito (meeting=%s)", meeting.pk)
+        outcome = {"sent": False, "reason": "send_error"}
+    _meeting_mail_feedback(request, outcome, kind="Convocazione")
+    log_action(
+        request, "kickoff_meeting_send_invite", "tasks",
+        {"meeting_id": meeting.pk, "project_id": meeting.project_id, "sent": bool(outcome.get("sent")), "da_form": True},
+    )
+
+
+def _vrf_blocked_response(project: Project) -> JsonResponse:
+    """Kickoff bloccato per VRF: le scorciatoie dall'incontro non lo aggirano."""
+    return JsonResponse({
+        "ok": False,
+        "reason": "vrf_blocked",
+        "message": "Kickoff bloccato: carica il documento VRF prima di creare attività.",
+        "vrf_upload_url": reverse("tasks:project_vrf_upload", kwargs={"project_id": project.pk}),
+    }, status=409)
 
 
 def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMeeting) -> None:
@@ -297,7 +380,7 @@ def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMe
                 linked_task = project.tasks.get(pk=int(linked_task_id))
             except (Task.DoesNotExist, ValueError):
                 linked_task = None
-        MeetingIssue.objects.create(
+        issue = MeetingIssue.objects.create(
             project=project,
             source_meeting=meeting,
             title=title[:220],
@@ -307,6 +390,7 @@ def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMe
             linked_task=linked_task,
             created_by=request.user if request.user.is_authenticated else None,
         )
+        notify_meeting_item_assignment(issue, actor=request.user)
 
 
 def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffMeeting) -> None:
@@ -356,7 +440,7 @@ def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffM
                 linked_task = project.tasks.get(pk=int(linked_task_id))
             except (Task.DoesNotExist, ValueError):
                 linked_task = None
-        MeetingActionItem.objects.create(
+        action = MeetingActionItem.objects.create(
             project=project,
             source_meeting=meeting,
             title=title[:220],
@@ -366,6 +450,7 @@ def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffM
             linked_task=linked_task,
             created_by=request.user if request.user.is_authenticated else None,
         )
+        notify_meeting_item_assignment(action, actor=request.user)
 
 
 def _sync_meeting_decisions_from_post(request, project: Project, meeting: KickoffMeeting) -> None:
@@ -469,6 +554,7 @@ def project_meeting_create(request, project_id: int):
             _sync_meeting_outlook(request, meeting)
             log_action(request, "kickoff_meeting_create", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
             messages.success(request, f"Incontro {meeting.numero} aggiunto.")
+            _send_invite_if_requested(request, form, meeting)
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting.pk)
     else:
         auto_agenda = [_meeting_issue_agenda_item(issue) for issue in meeting_issues]
@@ -477,12 +563,17 @@ def project_meeting_create(request, project_id: int):
             for action in _open_meeting_actions_for_project(project)
         ]
         auto_agenda += _carry_over_agenda_items(project)
-        default_partecipanti = project.team_user_ids
-        form = KickoffMeetingForm(initial={
+        initial = {
             "data": timezone.localdate(),
             "agenda_items_raw": json.dumps(auto_agenda),
-            "partecipanti_utenti": default_partecipanti,
-        })
+            "partecipanti_utenti": project.team_user_ids,
+        }
+        # «Pianifica prossimo incontro»: si riparte dal precedente (convocati,
+        # copia, luogo, ora), non solo dal team di commessa.
+        previous = project.meetings.filter(pk=_safe_int(request.GET.get("da"))).first() if request.GET.get("da") else None
+        if previous is not None:
+            initial.update(_next_meeting_initial(previous))
+        form = KickoffMeetingForm(initial=initial)
     project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
@@ -547,6 +638,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "meeting": meeting,
             "note_generali": note_generali(meeting),
             "can_manage": can_manage,
+            "can_delete": can_manage and meeting_is_deletable(meeting),
             "meeting_issues": meeting_issues,
             "open_issue_count": open_issue_count,
             "meeting_actions": list(_meeting_actions_for_form(project, meeting)),
@@ -569,13 +661,27 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
         messages.error(request, "Non hai i permessi per modificare questo incontro.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     if request.method == "POST":
+        old_data, old_stato = meeting.data, meeting.stato
         form = KickoffMeetingForm(request.POST, instance=meeting)
         if form.is_valid():
             with transaction.atomic():
-                meeting = form.save()
-            _sync_meeting_outlook(request, meeting)
+                meeting = form.save(commit=False)
+                # Incontro rinviato: il promemoria del giorno prima va rifatto
+                # sulla data nuova, anche se era gia' partito per quella vecchia.
+                if meeting.data != old_data:
+                    meeting.reminder_sent_at = None
+                # Incontro annullato ripristinato: via i dati dell'annullamento.
+                if old_stato == MeetingStatus.ANNULLATO and meeting.stato == MeetingStatus.PIANIFICATO:
+                    meeting.annullato_at = None
+                    meeting.annullato_da = None
+                    meeting.annullato_motivo = ""
+                meeting.save()
+                form.save_m2m()
+            if meeting.stato != MeetingStatus.ANNULLATO:
+                _sync_meeting_outlook(request, meeting)
             log_action(request, "kickoff_meeting_edit", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
             messages.success(request, "Incontro aggiornato.")
+            _send_invite_if_requested(request, form, meeting)
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     else:
         form = KickoffMeetingForm(instance=meeting)
@@ -684,7 +790,10 @@ def _meeting_mail_feedback(request, outcome: dict, *, kind: str) -> None:
     """Traduce l'esito di send_meeting_invite/minute in un messaggio utente."""
     if outcome.get("sent"):
         recipients = outcome.get("recipients") or []
-        messages.success(request, f"{kind} inviata a {len(recipients)} destinatari.")
+        if outcome.get("aggiornamento"):
+            messages.success(request, f"Aggiornamento della convocazione inviato a {len(recipients)} destinatari.")
+        else:
+            messages.success(request, f"{kind} inviata a {len(recipients)} destinatari.")
         return
     reason = outcome.get("reason") or ""
     if reason == "no_recipients":
@@ -850,6 +959,15 @@ def project_meeting_delete(request, project_id: int, meeting_id: int):
     if not can_manage_project(request, project):
         messages.error(request, "Non hai i permessi per eliminare questo incontro.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    # Un incontro tenuto e' un fatto documentato: con lui spariscono le decisioni
+    # del registro di commessa. Si eliminano solo incontri mai svolti.
+    if not meeting_is_deletable(meeting):
+        messages.error(
+            request,
+            "Questo incontro è stato svolto: non si può eliminare, perché con lui sparirebbero "
+            "verbale e decisioni. Se non si è tenuto davvero, riapri la minuta e correggi l'esito.",
+        )
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     numero = meeting.numero
     # Prima di cancellare il record va rimosso l'evento dal calendario dei
     # partecipanti: `sync_meeting_outlook_event` cancella su Graph quando
@@ -865,11 +983,67 @@ def project_meeting_delete(request, project_id: int, meeting_id: int):
 
 @require_POST
 @task_permissions_required("tasks_create")
+def project_meeting_cancel(request, project_id: int, meeting_id: int):
+    """Annulla un incontro pianificato: motivo obbligatorio, Outlook e convocati avvisati.
+
+    Prima «Annullato» era una voce del menu Stato: l'evento restava nei
+    calendari e nessuno sapeva che l'incontro non si teneva piu'.
+    """
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    detail = redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if not can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per annullare questo incontro.")
+        return detail
+    if meeting.stato != MeetingStatus.PIANIFICATO:
+        messages.info(request, "Si possono annullare solo gli incontri pianificati.")
+        return detail
+    motivo = (request.POST.get("motivo") or "").strip()
+    if not motivo:
+        messages.error(request, "Per annullare l'incontro serve un motivo: lo ricevono i convocati.")
+        return detail
+
+    meeting.stato = MeetingStatus.ANNULLATO
+    meeting.annullato_at = timezone.now()
+    meeting.annullato_da = request.user
+    meeting.annullato_motivo = motivo[:2000]
+    meeting.save(update_fields=["stato", "annullato_at", "annullato_da", "annullato_motivo", "updated_at"])
+
+    # Evento Outlook: con `sync_outlook` falso il sync lo cancella da Graph.
+    if meeting.outlook_event_id:
+        meeting.sync_outlook = False
+        _sync_meeting_outlook(request, meeting)
+        meeting.save(update_fields=["sync_outlook"])
+
+    avvisa = request.POST.get("avvisa") not in ("0", "false", "off")
+    sent = False
+    if avvisa:
+        from ..minute_email import send_meeting_cancellation
+
+        try:
+            outcome = send_meeting_cancellation(meeting, sent_by=request.user)
+        except Exception:
+            logger.exception("Invio annullamento fallito (meeting=%s)", meeting.pk)
+            outcome = {"sent": False, "reason": "send_error"}
+        sent = bool(outcome.get("sent"))
+        _meeting_mail_feedback(request, outcome, kind="Comunicazione di annullamento")
+    log_action(request, "kickoff_meeting_cancel", "tasks", {
+        "meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id,
+        "motivo": motivo[:500], "avvisati": sent,
+    })
+    messages.success(request, f"Incontro {meeting.numero} annullato.")
+    return detail
+
+
+@require_POST
+@task_permissions_required("tasks_view")
 def project_meeting_issue_status(request, project_id: int, meeting_id: int, issue_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     issue = get_object_or_404(MeetingIssue, pk=issue_id, project=project)
-    if not can_manage_project(request, project):
+    # Il responsabile chiude da se' il proprio problema: prima doveva chiederlo
+    # a chi gestisce la commessa.
+    if not (can_manage_project(request, project) or issue.assigned_to_id == request.user.pk):
         messages.error(request, "Non hai i permessi per aggiornare i problemi di questo kickoff.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
@@ -1023,13 +1197,13 @@ def project_meeting_proposal_decide(request, project_id: int, meeting_id: int, p
 
 
 @require_POST
-@task_permissions_required("tasks_create")
+@task_permissions_required("tasks_view")
 def project_meeting_action_status(request, project_id: int, meeting_id: int, action_id: int):
     """Chiude o riapre un'azione dell'incontro dal dettaglio."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     action = get_object_or_404(MeetingActionItem, pk=action_id, project=project)
-    if not can_manage_project(request, project):
+    if not (can_manage_project(request, project) or action.assigned_to_id == request.user.pk):
         messages.error(request, "Non hai i permessi per aggiornare le azioni di questo kickoff.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
@@ -1089,6 +1263,16 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
 
     items = _ensure_unique_agenda_item_ids(meeting)
     planned_minutes = sum(int(item.get("durata_minuti") or 0) for item in items)
+    presenti_ids = set(meeting.presenti_utenti.values_list("pk", flat=True))
+    presenti_email = set(meeting.get_presenti_email_list())
+    appello = [
+        {"user_id": user.pk, "email": "", "label": user.get_full_name() or user.username,
+         "presente": user.pk in presenti_ids}
+        for user in meeting.partecipanti_utenti.all()
+    ] + [
+        {"user_id": "", "email": email, "label": email, "presente": email in presenti_email}
+        for email in meeting.get_partecipanti_email_list()
+    ]
     return render(
         request,
         "tasks/project_meeting_run.html",
@@ -1097,6 +1281,11 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
             "page_title": f"Conduci incontro {meeting.numero} - {project.name}",
             "project": project,
             "meeting": meeting,
+            "appello": appello,
+            "attendance_url": reverse(
+                "tasks:project_meeting_attendance",
+                kwargs={"project_id": project_id, "meeting_id": meeting_id},
+            ),
             "agenda_items": items,
             "planned_minutes": planned_minutes,
             "done_count": sum(1 for item in items if item.get("done")),
@@ -1121,6 +1310,46 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
 
 @require_POST
 @task_permissions_required("tasks_create")
+def project_meeting_attendance(request, project_id: int, meeting_id: int):
+    """Appello dalla conduzione: segna presente/assente un convocato (autosave).
+
+    Le presenze prima si registravano solo nell'esito, a incontro finito e a
+    memoria. Il dato e' lo stesso che l'esito mostra e la minuta usa.
+    """
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    presente = (request.POST.get("presente") or "").lower() in ("1", "true", "on")
+    user_id = _safe_int(request.POST.get("user_id"))
+    email = (request.POST.get("email") or "").strip()
+    with transaction.atomic():
+        if user_id:
+            user = meeting.partecipanti_utenti.filter(pk=user_id).first()
+            if user is None:
+                return JsonResponse({"ok": False, "reason": "not_convocato"}, status=404)
+            if presente:
+                meeting.presenti_utenti.add(user)
+            else:
+                meeting.presenti_utenti.remove(user)
+        elif email:
+            if email not in meeting.get_partecipanti_email_list():
+                return JsonResponse({"ok": False, "reason": "not_convocato"}, status=404)
+            presenti = [e for e in meeting.get_presenti_email_list() if e != email]
+            if presente:
+                presenti.append(email)
+            meeting.presenti_email_extra = "\n".join(presenti)
+        else:
+            return JsonResponse({"ok": False, "reason": "missing_target"}, status=400)
+        if not meeting.presenze_registrate_at:
+            meeting.presenze_registrate_at = timezone.now()
+        meeting.save(update_fields=["presenti_email_extra", "presenze_registrate_at", "updated_at"])
+    return JsonResponse({"ok": True, "presente": presente, "presenti": meeting.presenti_count})
+
+
+@require_POST
+@task_permissions_required("tasks_create")
 def project_meeting_agenda_item_update(request, project_id: int, meeting_id: int):
     """Autosave di nota, spunta e tempo effettivo su un punto dell'agenda."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
@@ -1129,49 +1358,52 @@ def project_meeting_agenda_item_update(request, project_id: int, meeting_id: int
         return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
 
     item_id = (request.POST.get("item_id") or "").strip()
-    items = meeting.agenda_items or []
-    target = None
-    for item in items:
-        if isinstance(item, dict) and str(item.get("id", "")) == item_id:
-            target = item
-            break
-    if target is None:
+    # Si aggiorna solo la riga del punto: riscrivere tutto l'ordine del giorno a
+    # ogni autosave faceva perdere una nota se nel frattempo arrivava una spunta.
+    row = MeetingAgendaItem.objects.filter(meeting=meeting, item_id=item_id).first()
+    if row is None:
         return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
 
+    changed: list[str] = []
     if "nota" in request.POST:
-        target["nota"] = (request.POST.get("nota") or "").strip()[:1000]
+        row.nota = (request.POST.get("nota") or "").strip()[:1000]
+        changed.append("nota")
     if "done" in request.POST:
-        target["done"] = (request.POST.get("done") or "").lower() in ("1", "true", "on")
+        row.done = (request.POST.get("done") or "").lower() in ("1", "true", "on")
+        changed.append("done")
     if "tempo_effettivo_minuti" in request.POST:
         try:
             minuti = int(request.POST.get("tempo_effettivo_minuti") or 0)
         except (TypeError, ValueError):
             minuti = 0
-        target["tempo_effettivo_minuti"] = minuti if 0 < minuti <= 480 else None
+        row.tempo_effettivo_minuti = minuti if 0 < minuti <= 480 else None
+        changed.append("tempo_effettivo_minuti")
     if "task_id" in request.POST:
         # Collegamento all'attivita' anche durante la conduzione: mentre si
         # parla si capisce quale attivita' copre il punto, e prima lo si poteva
         # dire solo tornando nella convocazione.
         raw_task_id = (request.POST.get("task_id") or "").strip()
         if not raw_task_id:
-            target["task_id"] = None
-            target["task_label"] = ""
+            row.task = None
+            row.task_label = ""
         else:
             task = project.tasks.filter(pk=_safe_int(raw_task_id)).first()
             if task is None:
                 return JsonResponse({"ok": False, "reason": "task_not_found"}, status=404)
-            target["task_id"] = task.pk
-            target["task_label"] = task.title
+            row.task = task
+            row.task_label = task.title[:200]
+        changed += ["task", "task_label"]
 
-    meeting.agenda_items = items
-    meeting.save(update_fields=["agenda_items", "updated_at"])
+    if changed:
+        row.save(update_fields=changed)
+        KickoffMeeting.objects.filter(pk=meeting.pk).update(updated_at=timezone.now())
     return JsonResponse({
         "ok": True,
         "item_id": item_id,
-        "done": bool(target.get("done")),
-        "tempo_effettivo_minuti": target.get("tempo_effettivo_minuti"),
-        "task_id": target.get("task_id"),
-        "task_label": target.get("task_label") or "",
+        "done": bool(row.done),
+        "tempo_effettivo_minuti": row.tempo_effettivo_minuti,
+        "task_id": row.task_id,
+        "task_label": row.task_label or "",
     })
 
 
@@ -1203,48 +1435,30 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
     if not title:
         return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
 
-    # Stessa guardia del form completo (`task_create`): su un kickoff bloccato per
-    # VRF mancante non si creano attivita', e questa scorciatoia non puo' essere
-    # la via per aggirarla.
-    vrf_detail = _vrf_status_detail(project, TaskImpostazioni.get_singleton())
-    if vrf_detail["is_blocked"]:
-        return JsonResponse({
-            "ok": False,
-            "reason": "vrf_blocked",
-            "message": "Kickoff bloccato: carica il documento VRF prima di creare attività.",
-            "vrf_upload_url": reverse(
-                "tasks:project_vrf_upload", kwargs={"project_id": project.pk}
-            ),
-        }, status=409)
-
     assigned_to = None
     assigned_to_id = (request.POST.get("assigned_to") or "").strip()
     if assigned_to_id:
         assigned_to = User.objects.filter(pk=_safe_int(assigned_to_id)).first()
     due_date = _parse_optional_date(request.POST.get("due_date") or "")
     priority = (request.POST.get("priority") or TaskPriority.MEDIUM).strip().upper()
-    if priority not in (TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH):
-        priority = TaskPriority.MEDIUM
 
-    nota = str(target.get("nota") or "").strip()
-    descrizione = f"Punto all'ordine del giorno dell'incontro #{meeting.numero} ({meeting.data:%d-%m-%Y})"
-    if nota:
-        descrizione = descrizione + "\n\n" + nota
-    with transaction.atomic():
-        task = Task.objects.create(
-            title=title[:220],
-            project=project,
-            assigned_to=assigned_to,
-            due_date=due_date,
-            priority=priority,
-            status=TaskStatus.TODO,
-            created_by=request.user if request.user.is_authenticated else None,
-            description=descrizione,
-        )
-        target["task_id"] = task.pk
-        target["task_label"] = task.title
-        meeting.agenda_items = items
-        meeting.save(update_fields=["agenda_items", "updated_at"])
+    try:
+        with transaction.atomic():
+            task = crea_attivita_da_incontro(
+                project=project,
+                meeting=meeting,
+                user=request.user,
+                title=title,
+                assigned_to=assigned_to,
+                due_date=due_date,
+                priority=priority,
+                nota=str(target.get("nota") or ""),
+            )
+            MeetingAgendaItem.objects.filter(meeting=meeting, item_id=item_id).update(
+                task=task, task_label=task.title[:200]
+            )
+    except KickoffBloccatoVRF:
+        return _vrf_blocked_response(project)
 
     log_action(request, "kickoff_task_from_agenda_item", "tasks", {
         "task_id": task.pk, "item_id": item_id,
@@ -1309,6 +1523,8 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
     else:
         return JsonResponse({"ok": False, "reason": "invalid_kind"}, status=400)
 
+    if kind in ("action", "issue"):
+        notify_meeting_item_assignment(record, actor=request.user)
     log_action(request, "kickoff_meeting_quick_capture", "tasks", {
         "kind": kind, "record_id": record.pk, "meeting_id": meeting.pk, "project_id": project.pk,
     })
@@ -1324,20 +1540,14 @@ def project_meeting_agenda_toggle(request, project_id: int, meeting_id: int, ite
     if not can_manage_project(request, project):
         return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
 
-    new_done = None
-    items = meeting.agenda_items or []
-    for item in items:
-        if str(item.get("id", "")) == item_id:
-            item["done"] = not bool(item.get("done", False))
-            new_done = item["done"]
-            break
-
-    if new_done is None:
+    row = MeetingAgendaItem.objects.filter(meeting=meeting, item_id=item_id).first()
+    if row is None:
         return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
 
-    meeting.agenda_items = items
-    meeting.save(update_fields=["agenda_items", "updated_at"])
-    return JsonResponse({"ok": True, "done": new_done, "item_id": item_id})
+    row.done = not row.done
+    row.save(update_fields=["done"])
+    KickoffMeeting.objects.filter(pk=meeting.pk).update(updated_at=timezone.now())
+    return JsonResponse({"ok": True, "done": row.done, "item_id": item_id})
 
 
 @require_POST
@@ -1405,8 +1615,9 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
     if existing_task is not None:
         task = existing_task
         updated_fields: list[str] = []
-        if title and title != task.title:
-            task.title = title[:200]
+        assignee_changed = assigned_to is not None and assigned_to.pk != task.assigned_to_id
+        if title and titolo_attivita(title) != task.title:
+            task.title = titolo_attivita(title)
             updated_fields.append("title")
         if start_date:
             task.next_step_due = start_date
@@ -1422,21 +1633,24 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
             updated_fields.append("category")
         if updated_fields:
             task.save(update_fields=[*updated_fields, "updated_at"])
+        if assignee_changed:
+            notify_task_assignment(task, actor=request.user)
         created = False
     else:
-        task = Task(
-            title=title,
-            project=project,
-            assigned_to=assigned_to,
-            category=category,
-            next_step_due=start_date,
-            due_date=due_date,
-            priority=priority_raw,
-            status=TaskStatus.TODO,
-            created_by=request.user,
-            description=f"Dall'incontro #{meeting.numero} ({meeting.data:%d-%m-%Y})",
-        )
-        task.save()
+        try:
+            task = crea_attivita_da_incontro(
+                project=project,
+                meeting=meeting,
+                user=request.user,
+                title=title,
+                assigned_to=assigned_to,
+                category=category,
+                start_date=start_date,
+                due_date=due_date,
+                priority=priority_raw,
+            )
+        except KickoffBloccatoVRF:
+            return _vrf_blocked_response(project)
         created = True
 
     tooling_mode = (request.POST.get("tooling_mode") or TaskForm.TOOLING_NONE).strip()

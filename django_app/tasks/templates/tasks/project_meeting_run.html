@@ -7,14 +7,36 @@
 
 {% block tasks_shell_actions %}
   <a class="ts-hero-action" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Dettaglio</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Chiudi e vai all'esito</a>
+  <a class="ts-hero-action primary" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Termina incontro e registra l'esito</a>
 {% endblock %}
+{% block tasks_shell_guide_anchor %}#conduzione{% endblock %}
 
 {% block tasks_shell_content %}
 <div class="run-wrap">
 
   {# Token per le chiamate JSON di questa pagina (nessun form tradizionale) #}
   <form id="run-csrf" style="display:none">{% csrf_token %}</form>
+
+  {# Appello: chi c'e' davvero, si salva al clic e l'esito lo ritrova. #}
+  {% if appello %}
+  <section class="ts-panel">
+    <div class="ts-panel-head">
+      <h2 class="ts-panel-title">Appello</h2>
+      <span class="mf-hint" style="margin:0 0 0 auto;"><strong id="run-presenti-count">{{ meeting.presenti_count }}</strong> presenti su {{ appello|length }} convocati</span>
+    </div>
+    <div class="ts-panel-body">
+      <div class="run-appello" id="run-appello" data-url="{{ attendance_url }}">
+        {% for p in appello %}
+          <label class="run-appello-item{% if p.presente %} is-present{% endif %}">
+            <input type="checkbox" data-user-id="{{ p.user_id }}" data-email="{{ p.email }}"{% if p.presente %} checked{% endif %}>
+            {{ p.label }}
+          </label>
+        {% endfor %}
+      </div>
+      <p class="mf-hint">Spunta chi è presente: si salva da solo e vale anche per la minuta. Chi non è spuntato risulta assente.</p>
+    </div>
+  </section>
+  {% endif %}
 
   {# Barra tempi: pianificato vs trascorso da quando la pagina e' aperta #}
   <div class="run-timebar">
@@ -85,9 +107,11 @@
         </article>
       {% endfor %}
   </div>
-  {# Stesso blocco delle card stampate dal server, per i punti aperti a riunione
-     in corso: senza, un punto nato qui restava senza attivita' collegata fino al
-     ricaricamento della pagina. #}
+  {% comment %}
+  Stesso blocco delle card stampate dal server, per i punti aperti a riunione
+  in corso: senza, un punto nato qui restava senza attivita' collegata fino al
+  ricaricamento della pagina.
+  {% endcomment %}
   <template id="run-task-box-template">
     <div class="run-item-task" data-role="task-box">
       <label class="tpl-inline">
@@ -179,4 +203,31 @@
 {{ project_tasks_json|json_script:"project-tasks-data" }}
 <script src="{% static 'tasks/js/meeting_run.js' %}" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
+<script>
+  (function () {
+    var box = document.getElementById('run-appello');
+    if (!box) return;
+    var tokenInput = document.querySelector('#run-csrf [name="csrfmiddlewaretoken"]');
+    var counter = document.getElementById('run-presenti-count');
+    box.addEventListener('change', function (ev) {
+      var input = ev.target;
+      if (!input || input.type !== 'checkbox') return;
+      var label = input.closest('.run-appello-item');
+      var body = new URLSearchParams();
+      body.append('presente', input.checked ? '1' : '0');
+      if (input.dataset.userId) body.append('user_id', input.dataset.userId);
+      if (input.dataset.email) body.append('email', input.dataset.email);
+      fetch(box.dataset.url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': tokenInput ? tokenInput.value : '', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+        credentials: 'same-origin'
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        if (!data.ok) { input.checked = !input.checked; return; }
+        if (label) label.classList.toggle('is-present', input.checked);
+        if (counter) counter.textContent = data.presenti;
+      }).catch(function () { input.checked = !input.checked; });
+    });
+  })();
+</script>
 {% endblock %}

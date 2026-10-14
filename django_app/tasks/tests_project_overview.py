@@ -143,8 +143,9 @@ class ProjectOverviewTests(TasksBaseTestCase):
         self.assertContains(response, "2/2")
         self.assertContains(response, "Pronto 4/4")
 
-    def test_tab_action_counter_uses_three_count_queries(self):
-        with self.assertNumQueries(3):
+    def test_tab_action_counter_uses_one_count_query_per_source(self):
+        # problemi, azioni d'incontro, attivita', sotto-attivita'
+        with self.assertNumQueries(4):
             action_count = count_project_open_actions(self.project)
 
         self.assertEqual(action_count, 3)

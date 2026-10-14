@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v9"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v10"
 
 MODULE = "tasks"
 
@@ -109,6 +109,10 @@ _ROUTE_BINDINGS = {
     "tasks:da_gestire": "tasks.kickoff.view",
     "tasks:incontri_calendario": "tasks.kickoff.view",
     "tasks:incontri_lista": "tasks.kickoff.view",
+    # Azioni e problemi assegnati a me: la view filtra sul responsabile.
+    "tasks:mie_azioni": "tasks.kickoff.view",
+    "tasks:mia_voce_stato": "tasks.kickoff.view",
+    "tasks:guida": "tasks.kickoff.view",
     # Proporre un punto e' consentito ai convocati: la view verifica che
     # l'utente sia fra i partecipanti, il permesso resta quello di lettura.
     "tasks:project_meeting_proposal_create": "tasks.kickoff.view",
@@ -138,6 +142,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_minute_close": "tasks.kickoff.edit",
     "tasks:project_meeting_ai_punti": "tasks.kickoff.edit",
     "tasks:project_meeting_minute_reopen": "tasks.kickoff.edit",
+    "tasks:project_meeting_cancel": "tasks.kickoff.edit",
     # Commenti, sottotask, allegati e agenda incontri
     "tasks:add_comment": "tasks.kickoff.comment",
     "tasks:add_subtask": "tasks.kickoff.comment",
@@ -151,6 +156,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_agenda_toggle": "tasks.kickoff.comment",
     "tasks:project_meeting_agenda_item_update": "tasks.kickoff.comment",
     "tasks:project_meeting_quick_capture": "tasks.kickoff.comment",
+    "tasks:project_meeting_attendance": "tasks.kickoff.comment",
     # Gestione amministrativa
     "tasks:gestione_admin": "tasks.kickoff.admin",
     "tasks:impostazioni": "tasks.kickoff.admin",

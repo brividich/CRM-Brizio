@@ -12,7 +12,7 @@ from ..access import (
     scoped_projects_queryset,
     task_permissions_required,
 )
-from ..action_register import build_project_actions
+from ..action_register import ACTION_ORIGIN_CHOICES, build_project_actions, filter_action_rows
 from ..identity import normalize_client_name, normalize_part_number
 from ..models import MeetingStatus
 from ..readiness import annotate_readiness_qs, compute_project_readiness
@@ -74,12 +74,25 @@ def project_actions(request, project_id: int):
     """Mostra in un unico registro issue, attivita' e sotto-attivita'."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     include_closed = request.GET.get("closed") == "1"
-    actions = build_project_actions(project, include_closed=include_closed)
-    open_count = sum(row.is_open for row in actions)
-    overdue_count = sum(row.is_overdue for row in actions)
-    closed_count = sum(not row.is_open for row in actions)
-    unassigned_count = sum(row.is_open and not row.owner_label for row in actions)
-    no_due_count = sum(row.is_open and row.due_date is None for row in actions)
+    all_actions = build_project_actions(project, include_closed=include_closed)
+    open_count = sum(row.is_open for row in all_actions)
+    overdue_count = sum(row.is_overdue for row in all_actions)
+    closed_count = sum(not row.is_open for row in all_actions)
+    unassigned_count = sum(row.is_open and not row.owner_label for row in all_actions)
+    no_due_count = sum(row.is_open and row.due_date is None for row in all_actions)
+
+    # Filtri: i KPI restano sull'intero registro, la tabella mostra il filtrato.
+    filters = {
+        "tipo": (request.GET.get("tipo") or "").strip(),
+        "responsabile": (request.GET.get("responsabile") or "").strip(),
+        "scadenza": (request.GET.get("scadenza") or "").strip(),
+        "q": (request.GET.get("q") or "").strip(),
+    }
+    actions = filter_action_rows(all_actions, **filters)
+    owners = sorted(
+        {(row.owner_id, row.owner_label) for row in all_actions if row.owner_id},
+        key=lambda pair: pair[1].casefold(),
+    )
     return render(
         request,
         "tasks/project_actions.html",
@@ -93,6 +106,10 @@ def project_actions(request, project_id: int):
             "page_title": f"Registro azioni - {project.name}",
             "project": project,
             "actions": actions,
+            "filters": filters,
+            "filters_active": any(filters.values()),
+            "owners": owners,
+            "tipo_choices": ACTION_ORIGIN_CHOICES,
             "include_closed": include_closed,
             "open_count": open_count,
             "overdue_count": overdue_count,

@@ -89,7 +89,8 @@ class MeetingTwoStepFlowTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 200)
         body = response.content.decode()
         self.assertIn('name="note"', body)
-        self.assertIn('name="next_steps"', body)
+        # I next steps a testo libero sono storici: le azioni sono strutturate.
+        self.assertNotIn('name="next_steps"', body)
         self.assertNotIn('name="data"', body)
 
     def test_salvare_la_convocazione_non_declassa_un_incontro_svolto(self):
@@ -599,7 +600,8 @@ class MeetingsDigestJobTests(TasksBaseTestCase):
 
         self.assertEqual(len(mail.outbox), 1)
         body = mail.outbox[0].body
-        self.assertIn("Incontri KICK-OFF di domani", body)
+        self.assertIn("Prossimi incontri KICK-OFF", body)
+        self.assertIn("domani", body)
         self.assertIn("Problema scaduto", body)
 
     def test_problema_scaduto_fuori_lunedi_non_genera_sollecito(self):
@@ -810,7 +812,8 @@ class MeetingRunTaskLinkTests(TasksBaseTestCase):
         item_id = self.meeting.agenda_items[0]["id"]
         bloccato = {"status": "blocked", "label": "", "is_blocked": True,
                     "days_pending": 9, "show_upload_cta": True}
-        with _patch("tasks.views.meetings._vrf_status_detail", return_value=bloccato):
+        # Il controllo VRF sta nel servizio unico delle attivita' da incontro.
+        with _patch("tasks.views._shared._vrf_status_detail", return_value=bloccato):
             response = self.client.post(self.task_create_url, {
                 "item_id": item_id, "title": "Non deve nascere",
             })
@@ -1257,8 +1260,11 @@ class MeetingListaTests(TasksBaseTestCase):
         self.altro = _create_user_with_legacy(
             username="lista-altro", legacy_user_id=542, role_id=2, role_name="tasks"
         )
+        # Commessa di un altro: chi e' nel team o l'ha creata vede «suoi» tutti
+        # gli incontri, qui l'utente e' solo convocato al primo. Il progetto gli
+        # resta visibile perche' partecipa a un suo incontro.
         self.project = make_project(
-            name="", created_by=self.user, project_manager=self.user
+            name="", created_by=self.altro, project_manager=self.altro
         )
         self.mio = KickoffMeeting.objects.create(
             project=self.project, data="2026-09-10", titolo="Incontro mio",

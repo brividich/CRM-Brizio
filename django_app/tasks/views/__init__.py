@@ -168,6 +168,8 @@ from .meetings import (  # noqa: F401
     project_meeting_agenda_toggle,
     project_meeting_ai_punti,
     project_meeting_create,
+    project_meeting_attendance,
+    project_meeting_cancel,
     project_meeting_delete,
     project_meeting_detail,
     project_meeting_edit,
@@ -249,4 +251,9 @@ from .overview import (  # noqa: F401
     identity_suggest,
     project_actions,
     project_overview,
+)
+from .mie_azioni import (  # noqa: F401
+    guida,
+    mia_voce_stato,
+    mie_azioni,
 )

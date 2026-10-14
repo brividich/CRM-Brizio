@@ -29,16 +29,16 @@ class ProjectPhase(models.TextChoices):
 
 
 class TaskStatus(models.TextChoices):
-    TODO = "TODO", "To do"
-    IN_PROGRESS = "IN_PROGRESS", "In progress"
-    DONE = "DONE", "Done"
-    CANCELED = "CANCELED", "Canceled"
+    TODO = "TODO", "Da fare"
+    IN_PROGRESS = "IN_PROGRESS", "In corso"
+    DONE = "DONE", "Completata"
+    CANCELED = "CANCELED", "Annullata"
 
 
 class TaskPriority(models.TextChoices):
-    LOW = "LOW", "Low"
-    MEDIUM = "MEDIUM", "Medium"
-    HIGH = "HIGH", "High"
+    LOW = "LOW", "Bassa"
+    MEDIUM = "MEDIUM", "Media"
+    HIGH = "HIGH", "Alta"
 
 
 class TaskEventType(models.TextChoices):
@@ -389,9 +389,11 @@ class Task(models.Model):
 
     def clean(self):
         super().clean()
-        if self.next_step_due and self.due_date and self.due_date <= self.next_step_due:
+        # Inizio e fine nello stesso giorno sono ammessi: un'attivita' di una
+        # giornata e' un caso normale, non un errore di compilazione.
+        if self.next_step_due and self.due_date and self.due_date < self.next_step_due:
             raise ValidationError(
-                {"due_date": "La data fine deve essere successiva alla data inizio (next step)."}
+                {"due_date": "La data fine non può precedere la data inizio."}
             )
 
     @property
@@ -1138,6 +1140,23 @@ class KickoffMeeting(models.Model):
         null=True, blank=True, verbose_name="Promemoria pre-incontro inviato il",
         help_text="Marcato dal job periodico che avvisa i partecipanti il giorno prima; evita doppi invii.",
     )
+    # Convocazione: quando e' partita e con quali dati. La firma confrontata con
+    # quella corrente dice se data, luogo, convocati o ordine del giorno sono
+    # cambiati dopo l'invio (e la convocazione va reinviata).
+    convocazione_inviata_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Convocazione inviata il"
+    )
+    convocazione_firma = models.CharField(max_length=64, blank=True, default="")
+    annullato_at = models.DateTimeField(null=True, blank=True, verbose_name="Annullato il")
+    annullato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="kickoff_meetings_annullati",
+        verbose_name="Annullato da",
+    )
+    annullato_motivo = models.TextField(blank=True, default="", verbose_name="Motivo dell'annullamento")
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
@@ -1368,6 +1387,42 @@ class KickoffMeeting(models.Model):
             if email and email in convocati and email not in emails:
                 emails.append(email)
         return emails
+
+    def firma_convocazione(self) -> str:
+        """Impronta dei dati che finiscono nella convocazione."""
+        import hashlib
+        import json
+
+        payload = {
+            # str(): data e ora possono essere ancora stringhe su un'istanza appena creata.
+            "data": str(self.data or ""),
+            "ora": str(self.ora or "")[:5],
+            "luogo": (self.luogo or "").strip(),
+            "convocati": sorted(self.partecipanti_utenti.values_list("pk", flat=True)) if self.pk else [],
+            "esterni": sorted(self.get_partecipanti_email_list()),
+            "odg": [
+                (str(item.get("titolo") or ""), item.get("durata_minuti"))
+                for item in (self.agenda_items or [])
+                if isinstance(item, dict)
+            ],
+        }
+        raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    @property
+    def convocazione_inviata(self) -> bool:
+        return self.convocazione_inviata_at is not None
+
+    @property
+    def convocazione_da_reinviare(self) -> bool:
+        """Convocazione partita, ma i dati sono cambiati dopo l'invio."""
+        if not self.convocazione_inviata or self.stato != MeetingStatus.PIANIFICATO:
+            return False
+        return bool(self.convocazione_firma) and self.convocazione_firma != self.firma_convocazione()
+
+    @property
+    def is_annullato(self) -> bool:
+        return self.stato == MeetingStatus.ANNULLATO
 
     @property
     def minuta_chiusa(self) -> bool:

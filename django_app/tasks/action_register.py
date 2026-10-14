@@ -8,7 +8,7 @@ import logging
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import MeetingIssueStatus, SubTask, TaskStatus
+from .models import MeetingActionStatus, MeetingIssueStatus, SubTask, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class ActionRow:
     is_overdue: bool
     source_label: str
     url: str
+    owner_id: int | None = None
 
 
 def _owner_label(user) -> str:
@@ -56,11 +57,45 @@ def _collect_issues(project, *, include_closed: bool) -> list[ActionRow]:
                 obj_id=issue.pk,
                 title=issue.title,
                 owner_label=_owner_label(issue.assigned_to),
+                owner_id=issue.assigned_to_id,
                 due_date=issue.due_date,
                 is_open=is_open,
                 is_overdue=bool(is_open and issue.due_date and issue.due_date < today),
                 source_label=source_label,
                 url=f"{url}#issue-{issue.pk}",
+            )
+        )
+    return rows
+
+
+def _collect_meeting_actions(project, *, include_closed: bool) -> list[ActionRow]:
+    """Azioni decise negli incontri: prima mancavano dal registro di commessa."""
+    queryset = project.meeting_actions.select_related("assigned_to", "source_meeting")
+    if not include_closed:
+        queryset = queryset.filter(status=MeetingActionStatus.OPEN)
+
+    today = timezone.localdate()
+    rows = []
+    for action in queryset:
+        is_open = action.status == MeetingActionStatus.OPEN
+        if action.source_meeting is None:
+            source_label = "Azione senza incontro"
+            url = reverse("tasks:project_meetings", args=[project.pk])
+        else:
+            source_label = f"Azione dell'incontro {action.source_meeting.numero}"
+            url = reverse("tasks:project_meeting_detail", args=[project.pk, action.source_meeting_id])
+        rows.append(
+            ActionRow(
+                origin="action",
+                obj_id=action.pk,
+                title=action.title,
+                owner_label=_owner_label(action.assigned_to),
+                owner_id=action.assigned_to_id,
+                due_date=action.due_date,
+                is_open=is_open,
+                is_overdue=bool(is_open and action.due_date and action.due_date < today),
+                source_label=source_label,
+                url=f"{url}#action-{action.pk}",
             )
         )
     return rows
@@ -78,6 +113,7 @@ def _collect_tasks(project, *, include_closed: bool) -> list[ActionRow]:
             obj_id=task.pk,
             title=task.title,
             owner_label=_owner_label(task.assigned_to),
+            owner_id=task.assigned_to_id,
             due_date=task.due_date,
             is_open=task.status not in closed_statuses,
             is_overdue=task.is_overdue,
@@ -104,6 +140,7 @@ def _collect_subtasks(project, *, include_closed: bool) -> list[ActionRow]:
                 obj_id=subtask.pk,
                 title=subtask.title,
                 owner_label=_owner_label(subtask.assigned_to),
+                owner_id=subtask.assigned_to_id,
                 due_date=subtask.due_date,
                 is_open=is_open,
                 is_overdue=bool(is_open and subtask.due_date and subtask.due_date < today),
@@ -141,6 +178,7 @@ def build_project_actions(project, *, include_closed: bool = False) -> list[Acti
     rows: list[ActionRow] = []
     collectors = (
         ("issue", _collect_issues),
+        ("action", _collect_meeting_actions),
         ("task", _collect_tasks),
         ("subtask", _collect_subtasks),
     )
@@ -156,6 +194,41 @@ def build_project_actions(project, *, include_closed: bool = False) -> list[Acti
     return sorted(rows, key=_sort_key)
 
 
+ACTION_ORIGIN_CHOICES = (
+    ("action", "Azione d'incontro"),
+    ("issue", "Problema"),
+    ("task", "Attività"),
+    ("subtask", "Sotto-attività"),
+)
+
+
+def filter_action_rows(
+    rows: list[ActionRow], *, tipo: str = "", responsabile: str = "", scadenza: str = "", q: str = "",
+) -> list[ActionRow]:
+    """Filtri del registro: tipo, responsabile («nessuno» = non assegnate), scadenza, testo."""
+    from datetime import timedelta
+
+    today = timezone.localdate()
+    out = rows
+    if tipo in {code for code, _label in ACTION_ORIGIN_CHOICES}:
+        out = [row for row in out if row.origin == tipo]
+    if responsabile == "nessuno":
+        out = [row for row in out if not row.owner_id]
+    elif responsabile.isdigit():
+        out = [row for row in out if row.owner_id == int(responsabile)]
+    if scadenza == "scadute":
+        out = [row for row in out if row.is_overdue]
+    elif scadenza == "settimana":
+        limite = today + timedelta(days=7)
+        out = [row for row in out if row.is_open and row.due_date and today <= row.due_date <= limite]
+    elif scadenza == "senza":
+        out = [row for row in out if row.is_open and row.due_date is None]
+    if q:
+        needle = q.casefold()
+        out = [row for row in out if needle in row.title.casefold() or needle in row.source_label.casefold()]
+    return out
+
+
 def annotate_open_action_counts(projects_qs):
     """Annota `open_action_count`/`overdue_action_count` sul queryset di progetti.
 
@@ -167,7 +240,7 @@ def annotate_open_action_counts(projects_qs):
     from django.db.models import Count, F, IntegerField, OuterRef, Subquery
     from django.db.models.functions import Coalesce
 
-    from .models import MeetingIssue, SubTask, Task
+    from .models import MeetingActionItem, MeetingIssue, SubTask, Task
 
     today = timezone.localdate()
     closed_statuses = (TaskStatus.DONE, TaskStatus.CANCELED)
@@ -186,6 +259,19 @@ def annotate_open_action_counts(projects_qs):
         MeetingIssue.objects.filter(
             project=OuterRef("pk"),
             status=MeetingIssueStatus.OPEN,
+            due_date__isnull=False,
+            due_date__lt=today,
+        ),
+        "project",
+    )
+    action_open = _count_subquery(
+        MeetingActionItem.objects.filter(project=OuterRef("pk"), status=MeetingActionStatus.OPEN),
+        "project",
+    )
+    action_overdue = _count_subquery(
+        MeetingActionItem.objects.filter(
+            project=OuterRef("pk"),
+            status=MeetingActionStatus.OPEN,
             due_date__isnull=False,
             due_date__lt=today,
         ),
@@ -214,15 +300,20 @@ def annotate_open_action_counts(projects_qs):
 
     return projects_qs.annotate(
         _oa_issue_open=Coalesce(issue_open, 0),
+        _oa_action_open=Coalesce(action_open, 0),
+        _oa_action_overdue=Coalesce(action_overdue, 0),
         _oa_task_open=Coalesce(task_open, 0),
         _oa_subtask_open=Coalesce(subtask_open, 0),
         _oa_issue_overdue=Coalesce(issue_overdue, 0),
         _oa_task_overdue=Coalesce(task_overdue, 0),
         _oa_subtask_overdue=Coalesce(subtask_overdue, 0),
     ).annotate(
-        open_action_count=F("_oa_issue_open") + F("_oa_task_open") + F("_oa_subtask_open"),
+        open_action_count=(
+            F("_oa_issue_open") + F("_oa_action_open") + F("_oa_task_open") + F("_oa_subtask_open")
+        ),
         overdue_action_count=(
-            F("_oa_issue_overdue") + F("_oa_task_overdue") + F("_oa_subtask_overdue")
+            F("_oa_issue_overdue") + F("_oa_action_overdue") + F("_oa_task_overdue")
+            + F("_oa_subtask_overdue")
         ),
     )
 
@@ -232,6 +323,7 @@ def count_project_open_actions(project) -> int:
     closed_statuses = {TaskStatus.DONE, TaskStatus.CANCELED}
     return (
         project.meeting_issues.filter(status=MeetingIssueStatus.OPEN).count()
+        + project.meeting_actions.filter(status=MeetingActionStatus.OPEN).count()
         + project.tasks.exclude(status__in=closed_statuses).count()
         + SubTask.objects.filter(task__project=project)
         .exclude(status__in=closed_statuses)

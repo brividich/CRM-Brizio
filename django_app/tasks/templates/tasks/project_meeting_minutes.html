@@ -274,18 +274,20 @@
           <p class="mf-hint">Crea l'attività con date e attrezzatura, oppure scegli un'attività già creata per correggerne la data inizio. Si salva subito, indipendentemente dall'esito.</p>
         </div>
 
+        {% if meeting.next_steps %}
         <div class="mf-field" style="margin-bottom:0">
           <button type="button" class="mf-collapsible-toggle" id="toggle-steps-note">
             <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-            Next steps legacy / testo libero
+            Next steps (storico)
           </button>
           <div class="mf-collapsible-body" id="steps-note">
             <div style="margin-top:10px">
-              {{ form.next_steps }}
-              <p class="mf-hint">Campo storico mantenuto per appunti liberi; la gestione tracciata usa le azioni strutturate sopra.</p>
+              <p style="margin:0;padding:10px 12px;border:1px solid var(--border, #d7dde6);border-radius:8px;background:var(--surface-alt, #f8fafc);color:var(--text, inherit)">{{ meeting.next_steps|linebreaksbr }}</p>
+              <p class="mf-hint">Testo libero degli incontri precedenti alle azioni strutturate: resta consultabile ma non si modifica più. Le azioni nuove si aggiungono sopra.</p>
             </div>
           </div>
         </div>
+        {% endif %}
       </div>
     </div>
 

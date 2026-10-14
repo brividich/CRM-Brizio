@@ -2,9 +2,11 @@
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Incontri</span>{% endblock %}
 {% block tasks_shell_title %}Elenco incontri{% endblock %}
-{% block tasks_shell_subtitle %}Tutti gli incontri a cui hai accesso, con ricerca nel verbale.{% endblock %}
+{% block tasks_shell_subtitle %}Tutti gli incontri a cui hai accesso, con ricerca nel verbale. «I miei» comprende quelli in cui sei convocato, in copia, presente o nel team di commessa.{% endblock %}
+{% block tasks_shell_guide_anchor %}#elenco-incontri{% endblock %}
 
 {% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:mie_azioni' %}">Le mie azioni</a>
   <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Calendario</a>
 {% endblock %}
 
@@ -26,8 +28,21 @@
       </select>
       <select class="input" name="periodo">
         <option value="tutti"{% if filter_periodo == "tutti" %} selected{% endif %}>Tutto il periodo</option>
+        <option value="settimana"{% if filter_periodo == "settimana" %} selected{% endif %}>Prossimi 7 giorni</option>
         <option value="prossimi"{% if filter_periodo == "prossimi" %} selected{% endif %}>Da oggi in poi</option>
         <option value="passati"{% if filter_periodo == "passati" %} selected{% endif %}>Passati</option>
+      </select>
+      <select class="input" name="minuta" aria-label="Esito e minuta">
+        <option value="">Esito e minuta: tutti</option>
+        <option value="da_registrare"{% if filter_minuta == "da_registrare" %} selected{% endif %}>Esito da registrare</option>
+        <option value="da_approvare"{% if filter_minuta == "da_approvare" %} selected{% endif %}>Minuta da approvare</option>
+        <option value="approvata"{% if filter_minuta == "approvata" %} selected{% endif %}>Minuta approvata</option>
+      </select>
+      <select class="input" name="progetto" aria-label="Commessa">
+        <option value="">Tutte le commesse</option>
+        {% for p in projects_choices %}
+          <option value="{{ p.id }}"{% if filter_progetto == p.id %} selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
       </select>
       <button type="submit" class="md-btn">Filtra</button>
     </form>

@@ -274,19 +274,21 @@
             </div>
           {% endif %}
 
-          {# Note testuali legacy ODG #}
+          {# ODG testuale storico: solo lettura, i punti strutturati sono l'unico metodo. #}
+          {% if is_edit and meeting.ordine_del_giorno %}
           <div style="margin-top:14px">
-            <button type="button" class="mf-collapsible-toggle" id="toggle-odg-note">
+            <button type="button" class="mf-collapsible-toggle open" id="toggle-odg-note">
               <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-              Note testuali aggiuntive (testo libero)
+              Ordine del giorno testuale (storico)
             </button>
-            <div class="mf-collapsible-body" id="odg-note">
+            <div class="mf-collapsible-body open" id="odg-note">
               <div style="margin-top:10px">
-                {{ form.ordine_del_giorno }}
-                <p class="mf-hint">Usa questo campo per testo libero o appunti iniziali — i punti strutturati sopra sono il metodo principale.</p>
+                <p style="margin:0;padding:10px 12px;border:1px solid var(--border, #d7dde6);border-radius:8px;background:var(--surface-alt, #f8fafc);color:var(--text, inherit)">{{ meeting.ordine_del_giorno|linebreaksbr }}</p>
+                <p class="mf-hint">Testo libero degli incontri precedenti ai punti strutturati: resta consultabile ma non si modifica più.</p>
               </div>
             </div>
           </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -329,6 +331,12 @@
 
     {# ── Submit ────────────────────────────────────────────────────── #}
     <div class="mf-actions">
+      {% if not is_edit or meeting.stato == "PIANIFICATO" %}
+        <label class="mf-send-invite" for="{{ form.invia_convocazione.id_for_label }}" style="display:inline-flex;align-items:center;gap:8px;margin-right:auto;font-size:.875rem;">
+          {{ form.invia_convocazione }}
+          <span>{% if is_edit and meeting.convocazione_inviata %}Invia l'aggiornamento della convocazione ai partecipanti dopo il salvataggio{% else %}Invia la convocazione ai partecipanti dopo il salvataggio{% endif %}</span>
+        </label>
+      {% endif %}
       <button type="submit" class="mf-btn primary">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
         {% if is_edit %}Salva convocazione{% else %}Crea incontro{% endif %}

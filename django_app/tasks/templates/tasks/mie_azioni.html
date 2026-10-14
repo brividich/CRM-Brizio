@@ -1,0 +1,106 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Le mie azioni</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#mie-azioni{% endblock %}
+{% block tasks_shell_title %}Le mie azioni{% endblock %}
+{% block tasks_shell_subtitle %}Azioni e problemi degli incontri di cui sei responsabile, su tutte le commesse.{% endblock %}
+
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">{{ open_count }} aperte</span>
+  {% if overdue_count %}<span class="ts-hero-pill">{{ overdue_count }} scadute</span>{% endif %}
+{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Le mie attività</a>
+  <a class="ts-hero-action" href="{% url 'tasks:incontri_lista' %}">I miei incontri</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body">
+    <form method="get" class="ml-filters">
+      <div class="ml-scope">
+        <a class="ml-scope-btn{% if filters.stato == 'aperte' %} active{% endif %}" href="?stato=aperte">Aperte</a>
+        <a class="ml-scope-btn{% if filters.stato == 'chiuse' %} active{% endif %}" href="?stato=chiuse">Chiuse</a>
+        <a class="ml-scope-btn{% if filters.stato == 'tutte' %} active{% endif %}" href="?stato=tutte">Tutte</a>
+      </div>
+      <input type="hidden" name="stato" value="{{ filters.stato }}">
+      <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, dettaglio, commessa…">
+      <select class="input" name="tipo" aria-label="Tipo">
+        <option value="">Azioni e problemi</option>
+        <option value="azione"{% if filters.tipo == "azione" %} selected{% endif %}>Solo azioni</option>
+        <option value="problema"{% if filters.tipo == "problema" %} selected{% endif %}>Solo problemi</option>
+      </select>
+      <select class="input" name="scadenza" aria-label="Scadenza">
+        <option value="">Qualsiasi scadenza</option>
+        <option value="scadute"{% if filters.scadenza == "scadute" %} selected{% endif %}>Scadute</option>
+        <option value="settimana"{% if filters.scadenza == "settimana" %} selected{% endif %}>In scadenza entro 7 giorni</option>
+        <option value="senza"{% if filters.scadenza == "senza" %} selected{% endif %}>Senza scadenza</option>
+      </select>
+      <select class="input" name="progetto" aria-label="Commessa">
+        <option value="">Tutte le commesse</option>
+        {% for p in my_projects %}
+          <option value="{{ p.id }}"{% if filters.progetto == p.id %} selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="md-btn">Filtra</button>
+    </form>
+
+    {% if rows %}
+      <div class="tl-table-wrap">
+        <table class="tl-table" data-fm-hide-search="1">
+          <thead>
+            <tr>
+              <th style="width:36%">Voce</th>
+              <th>Commessa</th>
+              <th>Scadenza</th>
+              <th>Stato</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr class="{% if row.is_overdue %}status-overdue{% elif not row.is_open %}status-done{% endif %}">
+                <td>
+                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% else %}Azione{% endif %}</span>
+                  {% if row.meeting %}
+                    <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' row.project.id row.meeting.id %}">{{ row.title }}</a>
+                    <div class="tl-task-desc">Dall'incontro {{ row.meeting.numero }} del {{ row.meeting.data|date:"d-m-Y" }}</div>
+                  {% else %}
+                    <span class="tl-task-link">{{ row.title }}</span>
+                  {% endif %}
+                  {% if row.linked_task %}<div class="tl-task-desc">Attività collegata: <a href="{% url 'tasks:detail' row.linked_task.id %}">{{ row.linked_task.title }}</a></div>{% endif %}
+                </td>
+                <td><a class="tl-ko-link" href="{% url 'tasks:project_actions' row.project.id %}">{{ row.project.name }}</a></td>
+                <td>
+                  {% if row.due_date %}<span class="tl-date{% if row.is_overdue %} overdue{% endif %}">{{ row.due_date|date:"d-m-Y" }}</span>{% else %}<span class="tl-date">&mdash;</span>{% endif %}
+                </td>
+                <td>
+                  {% if row.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif row.is_open %}<span class="ts-chip ok">Aperta</span>{% else %}<span class="ts-chip soft">Chiusa</span>{% endif %}
+                </td>
+                <td>
+                  <div class="ma-actions">
+                    <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      {% if row.is_open %}
+                        <input type="hidden" name="action" value="done">
+                        <button type="submit" class="md-btn">{% if row.kind == "problema" %}Risolto{% else %}Fatta{% endif %}</button>
+                      {% else %}
+                        <input type="hidden" name="action" value="reopen">
+                        <button type="submit" class="md-btn">Riapri</button>
+                      {% endif %}
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna azione o problema corrisponde ai filtri.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
