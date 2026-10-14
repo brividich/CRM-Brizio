@@ -1126,6 +1126,7 @@
                 <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>
                 {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">RDC{a.numero_rdc ? ` ${a.numero_rdc}` : ""}</span>}
                 {a.segnalare && <span className="ga-pill ga-pill--cli">Cliente</span>}
+                {a.seriali_parziali && <span className="ga-pill ga-pill--muted" title={`Solo sui S/N: ${a.seriali_parziali}`}>Solo {a.seriali_parziali}</span>}
                 {!a.blocco_id && (a.testo || a.desc) && <span className="ga-an__sub">{a.testo || a.desc}</span>}
                 <span className="ga-an__id">#{a.local_id}</span>
               </span>
@@ -1286,7 +1287,7 @@
                     <div className="ga-det__crumb">
                       <span>{op.id}</span>
                       <span className="ga-det__sep">›</span>
-                      <span className="ga-mono">S/N {sn.blocco_label || sn.sn || "—"}</span>
+                      <span className="ga-mono">S/N {sn.seriali_parziali || sn.blocco_label || sn.sn || "—"}</span>
                       {sn.fase && <><span className="ga-det__sep">›</span><span>Fase {sn.fase}</span></>}
                       <span className={`ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`}>{isBenestare ? "Collaudo di benestare" : "Altro controllo"}</span>
                     </div>

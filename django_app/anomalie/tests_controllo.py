@@ -20,7 +20,7 @@ from django.utils import timezone
 
 from anomalie import controllo_service as cs
 from anomalie.quality_models import AnomaliaBlocco, AnomaliaControllo, AnomaliaSegnalazioneMeta
-from anomalie.seriali import conta_pezzi, espandi_seriale_composito, etichetta_blocco, normalizza_voci
+from anomalie.seriali import comprimi_seriali, conta_pezzi, espandi_seriale_composito, etichetta_blocco, normalizza_voci
 
 User = get_user_model()
 OP = "OP/2026/0042"
@@ -52,6 +52,13 @@ class SerialiTests(SimpleTestCase):
         self.assertEqual(conta_pezzi(voci), 7)
         self.assertEqual(etichetta_blocco(voci), "LCN00005-LCN00010, LCN00020 (7 pezzi)")
         self.assertEqual(etichetta_blocco(["LCN00001"]), "LCN00001")
+
+    def test_comprimi_seriali_in_range(self):
+        self.assertEqual(
+            comprimi_seriali(["LCN00001", "LCN00002", "LCN00003", "LCN00007", "lcn00002", "ABC00008"]),
+            ["LCN00001-LCN00003", "LCN00007", "ABC00008"],
+        )
+        self.assertEqual(comprimi_seriali(["SN-A", "LCN00009", "LCN00010"]), ["SN-A", "LCN00009-LCN00010"])
 
     def test_descrizione_con_stato_superficie(self):
         testo = cs.componi_descrizione("Graffio sulla flangia", ["Finito trattato"])
@@ -221,6 +228,47 @@ class ControlloApiTests(LegacyTableMixin, TestCase):
         self.assertEqual(controllo.da_notificare, ids)
         blocco = data["controllo"]["blocchi"][0]
         self.assertEqual([a["testo"] for a in blocco["anomalie"]], ["Graffio sul diametro esterno", "Foro fuori quota"])
+
+    def test_anomalia_solo_su_parte_dei_seriali(self):
+        cid = self.apri()
+        r = self.post("api_anomalie_controllo_blocco", {
+            "seriali": ["LCN00001-LCN00005"],
+            "anomalie": [
+                {"testo": "Graffio su tutto il lotto"},
+                {"testo": "Foro fuori quota", "tutti": False, "seriali": ["LCN00002", "LCN00003", "LCN00005", "XXX99999"]},
+                {"testo": "Bava", "tutti": False, "seriali": ["LCN00001-LCN00005"]},
+            ],
+        }, cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        ids = [x["local_id"] for x in r.json()["risultati"]]
+        self.assertEqual(self.riga(ids[0])["seriale"], "LCN00001-LCN00005 (5 pezzi)")
+        # Solo i S/N del blocco, compressi in range; quelli estranei sono ignorati.
+        self.assertEqual(self.riga(ids[1])["seriale"], "LCN00002-LCN00003, LCN00005 (3 pezzi)")
+        # Tutti scelti a mano = tutti.
+        self.assertEqual(self.riga(ids[2])["seriale"], "LCN00001-LCN00005 (5 pezzi)")
+        anomalie = r.json()["controllo"]["blocchi"][0]["anomalie"]
+        self.assertEqual([a["tutti"] for a in anomalie], [True, False, True])
+        self.assertEqual(anomalie[1]["seriali"], ["LCN00002-LCN00003", "LCN00005"])
+        # Riaperto e risalvato uguale: la riga non cambia.
+        r = self.post("api_anomalie_controllo_blocco", {
+            "blocco_id": r.json()["blocco_id"], "seriali": ["LCN00001-LCN00005"],
+            "anomalie": [
+                {"local_id": ids[0], "testo": "Graffio su tutto il lotto"},
+                {"local_id": ids[1], "testo": "Foro fuori quota", "tutti": False, "seriali": anomalie[1]["seriali"]},
+                {"local_id": ids[2], "testo": "Bava"},
+            ],
+        }, cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(all(x.get("invariata") for x in r.json()["risultati"]))
+
+    def test_anomalia_parziale_senza_seriali_rifiutata(self):
+        cid = self.apri()
+        r = self.post("api_anomalie_controllo_blocco", {
+            "seriali": ["LCN00001-LCN00003"],
+            "anomalie": [{"testo": "Graffio", "tutti": False, "seriali": ["ZZZ00001"]}],
+        }, cid)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Anomalia 1", r.json()["error"])
 
     def test_blocco_senza_seriali_o_testo_rifiutato(self):
         cid = self.apri()
@@ -436,6 +484,12 @@ class ControlloMailTests(LegacyTableMixin, TestCase):
         self.assertEqual([r["id"] for r in gruppi[0]["righe"]], self.ids)
         self.assertEqual(gruppi[0]["righe"][0]["testo"], "Graffio")
         self.assertEqual(gruppi[0]["righe"][0]["stato_superficie"], "Con sovrametallo")
+        self.assertEqual(gruppi[0]["righe"][0]["seriali_parziali"], "")
+
+    def test_gruppi_per_blocco_seriali_parziali(self):
+        rows = [{"id": self.ids[0], "seriale": "LCN00002", "descrizione": "Graffio"}]
+        gruppi = cs.gruppi_per_blocco(rows)
+        self.assertEqual(gruppi[0]["righe"][0]["seriali_parziali"], "LCN00002")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
