@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 64
+**Totale automazioni disponibili:** 65
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -395,6 +395,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 5 minuti
 - **Task eseguito:** `contatori.tasks.run_poll_snmp`
 - **Cosa fa:** CONTATORI — monitor SNMP dei dispositivi attivi, con un job per apparato. Stato, sonde ed errori sono consultabili nella Centrale MFC/SNMP.
+
+### `contatori_pulizia_tvcc`
+
+- **Quando gira:** ogni giorno, alle 03:40
+- **Task eseguito:** `contatori.tasks.pulisci_rilevazioni_tvcc`
+- **Cosa fa:** CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40. Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
 
 ### `security_cve_enrichment`
 

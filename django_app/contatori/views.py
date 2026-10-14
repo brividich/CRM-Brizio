@@ -613,7 +613,10 @@ def snmp_centrale(request):
         macchine = services.filtra_flotta(macchine.filter(pk__in=mfc_monitorate), flotta)
     else:
         flotta = ""
-    if categoria in DispositivoSNMP.Categoria.values:
+    if categoria == "TVCC":
+        # Videosorveglianza: NVR e telecamere insieme.
+        dispositivi = dispositivi.filter(categoria__in=DispositivoSNMP.CATEGORIE_TVCC)
+    elif categoria in DispositivoSNMP.Categoria.values:
         dispositivi = dispositivi.filter(categoria=categoria)
     if stato in StatoSNMP.values:
         dispositivi = dispositivi.filter(snmp_stato=stato)
@@ -624,7 +627,7 @@ def snmp_centrale(request):
         "riepilogo": services.centrale_snmp_riepilogo(),
         "categoria": categoria,
         "stato": stato,
-        "categorie": DispositivoSNMP.Categoria.choices,
+        "categorie": [("TVCC", "Videosorveglianza (NVR e telecamere)"), *DispositivoSNMP.Categoria.choices],
         "stati": StatoSNMP.choices,
     })
 
