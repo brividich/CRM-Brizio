@@ -193,7 +193,7 @@
       <div class="md-section-head"><h2>Esiti</h2></div>
       <div class="md-scroll">
         <table class="md-table pc-table-auto" data-fm-table-skip="1">
-          <thead><tr><th>Voce / punto / rilievo</th><th>Esito</th><th>Nota</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+          <thead><tr><th>Voce / punto / rilievo</th><th>Esito</th><th>Nota</th>{% if has_work_orders %}<th class="md-right">Ordine di lavoro</th>{% endif %}</tr></thead>
           <tbody>
             {% for r in items %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
             {% for r in points %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
@@ -202,9 +202,6 @@
           </tbody>
         </table>
       </div>
-      {% if not default_asset and can_register %}
-        <p class="pc-muted" style="padding:10px 16px;margin:0">L'impianto non ha un asset di riferimento: sceglilo per ogni ordine di lavoro{% if can_configure %}, oppure impostalo in <a href="{% url 'assets:periodic_check_systems' %}?modifica={{ check_type.system.id }}">Impianti</a>{% endif %}.</p>
-      {% endif %}
     </section>
   {% endif %}
 

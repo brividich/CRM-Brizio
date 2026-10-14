@@ -241,7 +241,7 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "Verifiche periodiche sugli impianti (illuminazione di emergenza, quadri, cabine, terra, antincendio...): una riga per tipo di verifica, raggruppate per impianto.",
         "«Apri scheda» porta alla pagina della verifica: in cima «Come funziona questa verifica» dice i passi, cosa manca e il pulsante per farlo.",
         "Verifiche a planimetria: «Stampa foglio» crea il foglio con il QR per il tecnico, poi si carica la scansione. Le altre: «Registra» con il rapportino.",
-        "Nella scheda: stato attuale, statistiche, storico, ordini di lavoro nati dai rilievi, documenti.",
+        "Nella scheda: stato attuale, statistiche, storico con i rilievi segnalati, documenti. I rilievi non aprono ordini di lavoro.",
         "«Cartella scansioni»: i fogli scansionati nella cartella dello scanner tornano da soli alla loro verifica; quelli senza QR si smistano a mano.",
     ),
     'officina': (

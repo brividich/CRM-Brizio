@@ -25,9 +25,7 @@
 <div class="md-page">
   {% include "assets/partials/periodic_check_type_tabs.html" %}
   {% if tab == "panoramica" %}{% include "assets/partials/periodic_check_tab_panoramica.html" %}
-  {% elif tab == "storico" %}{% include "assets/partials/periodic_check_tab_storico.html" %}
-  {% elif tab == "odl" %}{% include "assets/partials/periodic_check_tab_odl.html" %}
-  {% elif tab == "documenti" %}{% include "assets/partials/periodic_check_tab_documenti.html" %}
+  {% elif tab == "storico" %}{% include "assets/partials/periodic_check_tab_storico.html" %}  {% elif tab == "documenti" %}{% include "assets/partials/periodic_check_tab_documenti.html" %}
   {% else %}{% include "assets/partials/periodic_check_tab_impostazioni.html" %}{% endif %}
 </div>
 {% include "assets/partials/periodic_check_form_js.html" %}

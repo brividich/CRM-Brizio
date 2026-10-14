@@ -52,7 +52,6 @@ class TypeStats:
     on_time: int = 0
     on_time_total: int = 0
     open_findings: int = 0
-    open_work_orders: int = 0
     last_session: PeriodicCheckSession | None = None
     trend: list[dict] = field(default_factory=list)
     trend_series: list[dict] = field(default_factory=list)
@@ -119,12 +118,10 @@ def type_stats(check_type: PeriodicCheckType, today: date | None = None) -> Type
 
     # Rilievi aperti: solo quelli dell'ultima verifica con esiti (le precedenti sono superate).
     latest = next((s for s in reversed(sessions) if s.outcome != PeriodicCheckSession.OUTCOME_ARCHIVE), None)
+    # Si segnalano e basta: nessun ordine di lavoro da aprire.
     stats.open_findings = sum(
-        1 for r in (latest.results.all() if latest else []) if r.result == PeriodicCheckResult.RESULT_KO and not r.work_order_id
+        1 for r in (latest.results.all() if latest else []) if r.result == PeriodicCheckResult.RESULT_KO
     )
-    stats.open_work_orders = WorkOrder.objects.filter(
-        periodic_check_results__session__check_type=check_type, status=WorkOrder.STATUS_OPEN
-    ).distinct().count()
 
     # Andamento: rilievi per verifica, divisi per categoria (solo verifiche con esiti)
     categories = check_type.category_list
