@@ -116,6 +116,22 @@ def discovery_applica_ip(request, pk):
     return redirect("contatori:discovery")
 
 
+def _licenze_software_asset(asset):
+    """Licenze (modulo Asset) e software installato (inventario SOC) dell'asset collegato all'apparato."""
+    if asset is None:
+        return {"licenze_asset": [], "software_asset": None}
+    from assets.services.software_licenze import licenses_for_asset
+
+    software = None
+    try:
+        from security.services.software_catalog import software_for_hub_asset
+
+        software = software_for_hub_asset(asset)
+    except Exception:  # noqa: BLE001 - la scheda apparato non dipende dall'inventario software
+        software = None
+    return {"licenze_asset": licenses_for_asset(asset), "software_asset": software}
+
+
 def dashboard(request):
     cruscotto = services.cruscotto_operativo()
     trimestre = cruscotto["trimestre"]
@@ -130,6 +146,7 @@ def dashboard(request):
         "etichette_flotta": services.FLOTTA,
         "errori_snmp": services.ultimi_errori_snmp(),
         "da_riconciliare": services.fatture_da_riconciliare(),
+        "licenze_apparati": services.licenze_asset_apparati(),
     })
 
 
@@ -249,6 +266,7 @@ def macchina_detail(request, pk):
         "produzione": services.produzione_macchina(macchina),
         "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
         "letture_mensili": macchina.letture_mensili.all()[:24],
+        **_licenze_software_asset(macchina.asset),
     })
 
 
@@ -645,6 +663,7 @@ def dispositivo_snmp_detail(request, pk):
         "info_snmp": services.info_snmp(dispositivo),
         "ultima_ok": dispositivo.rilevazioni.filter(stato=StatoSNMP.OK).order_by("-rilevata_il").first(),
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
+        **_licenze_software_asset(dispositivo.asset),
     })
 
 

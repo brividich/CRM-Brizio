@@ -89,7 +89,7 @@ SEZIONI: list[dict] = [
                   "(solo con il permesso di gestione)."),
             ("p", "La Centrale sta in una schermata: in alto gli indicatori (letture del trimestre, copie, "
                   "riconciliazione del trimestre precedente, stato flotta SNMP, consumabili sotto soglia, "
-                  "letture da confermare, fatture da riconciliare), sotto tre colonne che scorrono ognuna per "
+                  "letture da confermare, fatture da riconciliare, licenze degli apparati), sotto tre colonne che scorrono ognuna per "
                   "conto suo: «Da fare», «Parco MFC» e «SNMP». Ogni indicatore e ogni voce aprono la pagina "
                   "dove si interviene; nel Parco MFC il dettaglio A4/A3 compare passando il mouse sul totale."),
         ],
@@ -131,6 +131,25 @@ SEZIONI: list[dict] = [
                   "ultimi valori letti. Il MAC letto è confrontato con quello "
                   "dichiarato nel campo «MAC» dell'asset: «= dichiarato», «diverso dal dichiarato» oppure "
                   "«non dichiarato». Il monitoraggio non modifica mai i dati dell'asset."),
+        ],
+    },
+    {
+        "id": "licenze",
+        "titolo": "Licenze e software degli apparati",
+        "blocchi": [
+            ("p", "Le licenze stanno nel modulo Asset («Licenze software»): la Centrale e le schede le leggono "
+                  "dall'asset collegato all'MFC o al dispositivo SNMP, senza duplicarle."),
+            ("ul", [
+                "Indicatore «Licenze degli apparati»: licenze scadute e in scadenza (entro 30 giorni) degli asset "
+                "collegati ad apparati attivi, più il numero di apparati senza asset. Apre l'elenco licenze filtrato.",
+                "Nella colonna «Da fare», elenco «Apparati senza asset collegato»: MFC e dispositivi senza asset. Senza collegamento "
+                "non si vedono licenze, software installato e scadenze: apri l'apparato e collegalo dalla modifica.",
+                "Nella scheda MFC e dispositivo, riquadro «Asset collegato»: nome, tipo, seriale e codice "
+                "dell'asset, numero di licenze e di software rilevati dall'inventario del SOC, poi ogni licenza "
+                "con scadenza, giorni mancanti (o trascorsi) e stato (valida, in scadenza, scaduta, disattiva). "
+                "Pulsanti «Gestisci licenze» e «Apri scheda asset». Se l'apparato non ha un asset, il riquadro "
+                "lo dice e chi gestisce il modulo ha il pulsante «Collega un asset» (apre la modifica).",
+            ]),
         ],
     },
     {

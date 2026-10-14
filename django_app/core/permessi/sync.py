@@ -136,6 +136,90 @@ def codici_desiderati(ruolo, *, capacita=None, per_modulo=None) -> tuple[set[str
     return desiderati, governati
 
 
+STATO_PIENO = "pieno"
+STATO_PARZIALE = "parziale"
+STATO_VUOTO = "vuoto"
+
+
+@dataclass
+class StatoPagine:
+    """Cosa i permessi di pagina del ruolo concedono davvero per una cella."""
+
+    totale: int = 0
+    concesse: list[str] = field(default_factory=list)
+    chiuse: list[str] = field(default_factory=list)  # senza grant o con diniego
+    negate: list[str] = field(default_factory=list)
+    a_mano: list[str] = field(default_factory=list)  # concesse fuori dalla matrice
+    tolte_a_mano: list[str] = field(default_factory=list)  # la matrice le vuole, il grant manca
+
+    @property
+    def stato(self) -> str:
+        if not self.concesse:
+            return STATO_VUOTO
+        return STATO_PIENO if len(self.concesse) == self.totale else STATO_PARZIALE
+
+    @property
+    def eccezione(self) -> bool:
+        return bool(self.a_mano or self.tolte_a_mano)
+
+    @property
+    def dettaglio(self) -> str:
+        """Testo per il tooltip della cella: quali pagine e perche'."""
+        righe = [f"Pagine concesse: {len(self.concesse)} su {self.totale}"]
+        aperte = [c for c in self.concesse if c not in self.a_mano]
+        chiuse = [c for c in self.chiuse if c not in self.tolte_a_mano]
+        for titolo, codes in (
+            ("concesse dalla matrice", aperte),
+            ("concesse a mano (Accessi)", self.a_mano),
+            ("tolte a mano (Accessi), la matrice le vorrebbe", self.tolte_a_mano),
+            ("non concesse", chiuse),
+        ):
+            if codes:
+                righe.append(f"{titolo}:")
+                righe.extend(f"  {c}" for c in codes)
+        return "\n".join(righe)
+
+
+def stato_pagine_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict[tuple[str, str], StatoPagine]:
+    """(modulo, azione) -> stato reale dei permessi di pagina del ruolo.
+
+    E' il verso inverso della sincronizzazione, in sola lettura: la matrice
+    mostra cosa i grant di gruppo concedono davvero, compresi quelli messi o
+    tolti a mano dalla pagina Accessi. Solo le azioni standard: le azioni
+    proprie dei moduli non hanno pagine. Le celle senza pagine non compaiono.
+    """
+    from core.models import GroupPermissionGrant
+
+    capacita = capacita if capacita is not None else capacita_permessi()
+    per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
+    desiderati, _governati = codici_desiderati(ruolo, capacita=capacita, per_modulo=per_modulo)
+    grant = {
+        g.permission_id: g
+        for g in GroupPermissionGrant.objects.filter(group=ruolo)
+    }
+    risultato: dict[tuple[str, str], StatoPagine] = {}
+    for chiave, codes in per_modulo.items():
+        for azione, capacita_azione in AZIONE_CAPACITA.items():
+            pagine = [c for c in codes if capacita.get(c, CAPABILITY_IGNOTO) in capacita_azione]
+            if not pagine:
+                continue
+            stato = StatoPagine(totale=len(pagine))
+            for code in pagine:
+                g = grant.get(code)
+                if g is not None and g.enabled:
+                    stato.concesse.append(code)
+                    if code not in desiderati:
+                        stato.a_mano.append(code)
+                else:
+                    stato.chiuse.append(code)
+                    if g is not None:
+                        stato.negate.append(code)
+                    if code in desiderati:
+                        stato.tolte_a_mano.append(code)
+            risultato[(chiave, azione)] = stato
+    return risultato
+
+
 def sincronizza_ruolo(ruolo, *, capacita=None, per_modulo=None, dry_run: bool = False) -> EsitoSync:
     from core.models import GroupPermissionGrant
 

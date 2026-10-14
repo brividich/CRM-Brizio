@@ -189,6 +189,14 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-cust-grid { margin-top: 10px; display: grid; gap: 6px; }
 .af-cust-row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid #f1f5f9; padding-top: 6px; font-size: var(--fs-base); }
 .af-cust-row span:first-child { color: #64748b; }
+.af-cust-grid--2col { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; row-gap: 6px; }
+@media (max-width: 720px) { .af-cust-grid--2col { grid-template-columns: 1fr; } }
+.af-card-toggle { margin-left:auto; flex:0 0 auto; border:1px solid #dbe1ea; background:#fff; color:#64748b; border-radius:6px; width:26px; height:26px; line-height:1; cursor:pointer; padding:0; }
+.af-card-toggle::before { content:"BE"; display:inline-block; transition:transform .15s; }
+.af-card.is-collapsed .af-card-toggle::before { transform:rotate(-90deg); }
+.af-card.is-collapsed > :not(.af-card-head) { display:none !important; }
+.af-card.is-collapsed > .af-card-head { border-bottom:none; }
+body.theme-dark .af-card-toggle { background:var(--surface); border-color:var(--border); color:var(--text-light); }
 .af-doc-tabs { display: flex; gap: 8px; border-bottom: 1px solid #e5e7eb; padding: 0 14px; flex-wrap: wrap; }
 .af-doc-tab {
   border: none; background: none; font-size: var(--fs-sm); font-weight: 600; color: #64748b; padding: 10px 4px; border-bottom: 2px solid transparent; cursor: pointer;
@@ -625,6 +633,15 @@ body.theme-dark .af-kpi2--warn .af-kpi2-value { color:#fde68a; }
 body.theme-dark .af-kpi2--bad { border-left-color:#ef4444; }
 body.theme-dark .af-kpi2--bad .af-kpi2-value { color:#fca5a5; }
 body.theme-dark .af-tabs { background:rgba(15,23,42,.92); border-color:var(--border); }
+.af-mon-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.af-mon-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px; border:1px solid #dbe3f0; border-radius:12px; background:linear-gradient(90deg,#f5f8ff 0%,#fff 70%); }
+.af-mon-ico { flex:0 0 auto; display:inline-grid; place-items:center; width:44px; height:36px; border-radius:10px; background:#0f172a; color:#fff; font-size:11px; font-weight:800; letter-spacing:.04em; }
+.af-mon-main { flex:1; min-width:180px; display:flex; flex-direction:column; gap:2px; }
+.af-mon-main > span { color:#64748b; font-size:var(--fs-sm); }
+.af-mon-host { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+body.theme-dark .af-mon-row { border-color:var(--border); background:linear-gradient(90deg,rgba(59,130,246,.10) 0%,transparent 70%); }
+body.theme-dark .af-mon-ico { background:#1e293b; }
+body.theme-dark .af-mon-main > span { color:var(--text-light); }
 body.theme-dark .af-tab { color:var(--text-light); }
 body.theme-dark .af-tab:hover { background:rgba(255,255,255,.07); color:#93c5fd; }
 body.theme-dark .af-tab[aria-selected="true"] { background:#2563eb; color:#fff; }
@@ -805,39 +822,34 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
         <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_centrale' %}">Apri centrale</a>
       </div>
       <div class="af-card-body">
+        <ul class="af-mon-list">
         {% for macchina in mfc_collegate %}
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
-            <strong>MFC · {{ macchina.reparto }}</strong>
-            <span>{{ macchina.matricola }}</span>
+          <li class="af-mon-row">
+            <span class="af-mon-ico" aria-hidden="true">MFC</span>
+            <div class="af-mon-main"><strong>MFC · {{ macchina.reparto }}</strong><span>Matricola {{ macchina.matricola }} · <span class="af-mon-host">{{ macchina.host|default:"host non impostato" }}</span></span></div>
             <span class="as-badge {% if macchina.snmp_stato == 'OK' %}as-badge--ok{% elif macchina.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ macchina.get_snmp_stato_display }}</span>
-            <span style="margin-left:auto;">{{ macchina.host|default:"host non impostato" }}</span>
-            <a class="as-link-subtle" href="{% url 'contatori:macchina' macchina.pk %}">Dettagli</a>
-          </div>
+            <a class="af-btn af-btn-ghost" href="{% url 'contatori:macchina' macchina.pk %}">Dettagli</a>
+          </li>
         {% endfor %}
         {% for dispositivo in dispositivi_snmp %}
           {# Ultima rilevazione salvata dal monitor: aprire la scheda non interroga mai il dispositivo. #}
-          {% with ril=dispositivo.rilevazioni.first %}
-          <div style="padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-              <strong>{{ dispositivo.get_categoria_display }} · {{ dispositivo.nome }}</strong>
-              <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
-              <span style="margin-left:auto;">{{ dispositivo.host }}</span>
-              <a class="as-link-subtle" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
-            </div>
-            <div class="as-help" style="margin-top:4px;">
-              {% if dispositivo.snmp_ultimo_controllo %}Ultimo controllo {{ dispositivo.snmp_ultimo_controllo|timesince }} fa{% else %}Mai interrogato{% endif %}{% if dispositivo.categoria == 'TVCC_NVR' and dispositivo.sys_object_id %} · modello {{ dispositivo.sys_object_id }}{% endif %}{% if dispositivo.sys_uptime_seconds is not None and dispositivo.categoria != 'TVCC_CAMERA' %} · acceso da circa {% widthratio dispositivo.sys_uptime_seconds 86400 1 %} giorni{% endif %}{% if dispositivo.sys_name %} · {{ dispositivo.sys_name }}{% endif %}{% if dispositivo.sys_description %} · {{ dispositivo.sys_description|truncatechars:90 }}{% endif %}
-              {% if dispositivo.snmp_ultimo_errore %}<div class="as-error">{{ dispositivo.snmp_ultimo_errore|truncatechars:120 }}</div>{% endif %}
-            </div>
-            {% if ril %}
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+          <li class="af-mon-row">
+            <span class="af-mon-ico" aria-hidden="true">SNMP</span>
+            <div class="af-mon-main"><strong>{{ dispositivo.nome }}</strong><span>{{ dispositivo.get_categoria_display }} · <span class="af-mon-host">{{ dispositivo.host }}</span></span>
+              <span>{% if dispositivo.snmp_ultimo_controllo %}Ultimo controllo {{ dispositivo.snmp_ultimo_controllo|timesince }} fa{% else %}Mai interrogato{% endif %}{% if dispositivo.categoria == 'TVCC_NVR' and dispositivo.sys_object_id %} · modello {{ dispositivo.sys_object_id }}{% endif %}{% if dispositivo.sys_uptime_seconds is not None and dispositivo.categoria != 'TVCC_CAMERA' %} · acceso da circa {% widthratio dispositivo.sys_uptime_seconds 86400 1 %} giorni{% endif %}{% if dispositivo.sys_name %} · {{ dispositivo.sys_name }}{% endif %}{% if dispositivo.sys_description %} · {{ dispositivo.sys_description|truncatechars:90 }}{% endif %}</span>
+              {% if dispositivo.snmp_ultimo_errore %}<div class="as-error">{{ dispositivo.snmp_ultimo_errore|truncatechars:120 }}</div>{% endif %}</div>
+            <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
+            <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
+            {% with ril=dispositivo.rilevazioni.first %}{% if ril %}
+            <div style="flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;">
               {% for valore in ril.valori.all %}
                 <span class="af-hero-tag"><span>{{ valore.sonda.nome }}</span>{{ valore.valore_display }}{% if valore.sonda.tipo_valore == 'MAC' and valore.valore_testo %}{% if valore.valore_testo in endpoint_macs %} <span class="as-badge as-badge--ok">= dichiarato</span>{% elif endpoint_macs %} <span class="as-badge as-badge--warn">diverso dal dichiarato</span>{% else %} <span class="as-badge">non dichiarato</span>{% endif %}{% endif %}</span>
               {% endfor %}
             </div>
-            {% endif %}
-          </div>
-          {% endwith %}
+            {% endif %}{% endwith %}
+          </li>
         {% endfor %}
+        </ul>
       </div>
     </article>
   </section>
@@ -1389,7 +1401,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           <div class="af-card-body">
             <div class="af-profile-group">
               <div class="af-profile-group-title">Anagrafica</div>
-              <div class="af-cust-grid">
+              <div class="af-cust-grid af-cust-grid--2col">
                 {% for row in profile_rows %}
                   <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
                 {% endfor %}
@@ -1418,7 +1430,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
                   Dipendente non collegato
                 {% endif %}
               </p>
-              <div class="af-cust-grid">
+              <div class="af-cust-grid af-cust-grid--2col">
                 {% for row in assignment_rows %}
                   <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
                 {% endfor %}
@@ -2105,6 +2117,30 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   overlay.addEventListener('click', closeLightbox);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !overlay.hidden) { closeLightbox(); }
+  });
+})();
+</script>
+<script>
+(function () {
+  function key(card) { return "af-card-collapsed:" + (card.getAttribute("data-card-code") || ""); }
+  function load(k) { try { return window.localStorage.getItem(k) === "1"; } catch (e) { return false; } }
+  function save(k, v) { try { window.localStorage.setItem(k, v ? "1" : "0"); } catch (e) {} }
+  document.querySelectorAll(".af-sections > article.af-card").forEach(function (card) {
+    var head = card.querySelector(":scope > .af-card-head");
+    if (!head || !card.getAttribute("data-card-code")) { return; }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "af-card-toggle";
+    btn.setAttribute("aria-label", "Riduci o espandi la scheda");
+    btn.title = "Riduci / espandi";
+    var k = key(card);
+    function apply(c) { card.classList.toggle("is-collapsed", c); btn.setAttribute("aria-expanded", c ? "false" : "true"); }
+    apply(load(k));
+    btn.addEventListener("click", function () {
+      var c = !card.classList.contains("is-collapsed");
+      apply(c); save(k, c);
+    });
+    head.appendChild(btn);
   });
 })();
 </script>

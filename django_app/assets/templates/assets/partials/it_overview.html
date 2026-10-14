@@ -26,18 +26,30 @@
 </nav>
 <details class="af-card af-it-disclosure" id="asset-it-technical" data-af-tab="Tecnica e rete"{% if spec_pairs and it_presentation.show_specs or it_presentation.endpoints or asset_primary_kpis %} open{% endif %}>
   <summary>Tecnica e rete</summary>
+  <div class="af-card-head af-it-tabhead"><div><div class="af-card-kicker">DATI DI INVENTARIO</div><h2 class="af-card-title">Tecnica e rete</h2></div></div>
   <div class="af-it-body">
     <p class="af-note">Dati di inventario e campi configurati; non costituiscono misurazioni in tempo reale.</p>
-    {% if spec_pairs and it_presentation.show_specs %}<h3>{{ detail_specs_title }}</h3><div class="af-specs">{% for key, value in spec_pairs %}<div class="af-spec-item"><span class="af-spec-k">{{ key }}</span><span class="af-spec-v">{{ value }}</span></div>{% endfor %}</div>{% else %}<p>Specifiche non compilate o nascoste dal layout.</p>{% endif %}
-    {% if asset_primary_kpis %}<h3>Altri dati configurati</h3><div class="af-specs">{% for metric in asset_primary_kpis %}<div class="af-spec-item"><span class="af-spec-k">{{ metric.label }}</span><span class="af-spec-v">{{ metric.value }}</span></div>{% endfor %}</div>{% endif %}
-    <h3>Interfacce e collegamenti di rete</h3>
-    <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Endpoint</th><th>IP</th><th>MAC</th><th>VLAN</th><th>Switch</th><th>Porta SW</th><th>Porta patch panel</th></tr></thead><tbody>
-    {% for endpoint in it_presentation.endpoints %}<tr><td>{{ endpoint.endpoint_name|default:"Non indicato" }}</td><td>{{ endpoint.ip|default:"—" }}</td><td>{{ endpoint.mac|default:"—" }}</td><td>{{ endpoint.vlan|default_if_none:"—" }}</td><td>{{ endpoint.switch_name|default:"—" }}</td><td>{{ endpoint.switch_port|default:"—" }}</td><td>{{ endpoint.punto|default:"—" }}</td></tr>{% empty %}<tr><td colspan="7">Nessuna interfaccia censita.</td></tr>{% endfor %}
-    </tbody></table></div>
+    {% if spec_pairs and it_presentation.show_specs %}<h3 class="af-it-sub">{{ detail_specs_title }}</h3><div class="af-specs af-it-tiles">{% for key, value in spec_pairs %}<div class="af-spec-item"><span class="af-spec-k">{{ key }}</span><span class="af-spec-v">{{ value }}</span></div>{% endfor %}</div>{% else %}<p>Specifiche non compilate o nascoste dal layout.</p>{% endif %}
+    {% if asset_primary_kpis %}<h3 class="af-it-sub">Altri dati configurati</h3><div class="af-specs af-it-tiles">{% for metric in asset_primary_kpis %}<div class="af-spec-item"><span class="af-spec-k">{{ metric.label }}</span><span class="af-spec-v">{{ metric.value }}</span></div>{% endfor %}</div>{% endif %}
+    <h3 class="af-it-sub">Interfacce e collegamenti di rete</h3>
+    <div class="af-net-list">
+    {% for endpoint in it_presentation.endpoints %}<div class="af-net-card">
+      <div class="af-net-head"><span class="af-net-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="18" height="7" rx="1.5"/><path d="M7 14v-3h10v3M12 11V4M9 4h6"/></svg></span>
+        <div class="af-net-id"><span class="af-net-label">Endpoint</span><strong>{{ endpoint.endpoint_name|default:"Non indicato" }}</strong></div>
+        <div class="af-net-id"><span class="af-net-label">IP</span><strong class="af-it-mono">{{ endpoint.ip|default:"—" }}</strong></div>
+        <div class="af-net-id"><span class="af-net-label">MAC</span><strong class="af-it-mono">{{ endpoint.mac|default:"—" }}</strong></div>
+        <span class="af-net-vlan">VLAN {{ endpoint.vlan|default_if_none:"—" }}</span></div>
+      <ol class="af-net-path" aria-label="Percorso fisico">
+        <li><span class="af-net-label">Switch</span><strong>{{ endpoint.switch_name|default:"—" }}</strong></li>
+        <li><span class="af-net-label">Porta SW</span><strong class="af-it-mono">{{ endpoint.switch_port|default:"—" }}</strong></li>
+        <li><span class="af-net-label">Porta patch panel</span><strong class="af-it-mono">{{ endpoint.punto|default:"—" }}</strong></li>
+      </ol>
+    </div>{% empty %}<p class="af-it-empty">Nessuna interfaccia censita.</p>{% endfor %}
+    </div>
     {% include "assets/partials/storico_campi_lazy.html" with storico_gruppo="rete" storico_titolo="Cosa è cambiato nella rete" storico_target="asset-storico-rete" %}
-    {% if it_presentation.profile != 'printer' %}<h3>Configurazione dichiarata</h3>
+    {% if it_presentation.profile != 'printer' %}<h3 class="af-it-sub">Configurazione dichiarata</h3>
     <p class="af-note">I vecchi campi Sì/No non distinguono un controllo negativo da un dato mai verificato. Queste dichiarazioni non attestano lo stato attuale; MFA e credenziali si verificano nelle rispettive console.</p>
-    <div class="af-specs">{% for row in it_presentation.declarations %}<div class="af-spec-item"><span class="af-spec-k">{{ row.label }}</span><span class="af-spec-v">{{ row.value }}</span></div>{% empty %}<p>Profilo IT non compilato.</p>{% endfor %}</div>
+    <div class="af-specs af-it-tiles">{% for row in it_presentation.declarations %}<div class="af-spec-item"><span class="af-spec-k">{{ row.label }}</span><span class="af-spec-v">{{ row.value }}</span></div>{% empty %}<p>Profilo IT non compilato.</p>{% endfor %}</div>
     {% endif %}
   </div>
 </details>

@@ -125,6 +125,8 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
     readings = {row["id"]: row for row in LetturaMensileContatori.objects.filter(
         pk__in=[row["reading_id"] for row in permitted_machines if row["reading_id"]],
     ).values("id", "mese", "rilevata_il", "a4_bn", "a3_bn", "a4_col", "a3_col")}
+    for row in readings.values():
+        row["totale"] = row["a4_bn"] + row["a3_bn"] + row["a4_col"] + row["a3_col"]
     from .mfc_stats import candidati_collegamento, statistiche_mfc
 
     stats = statistiche_mfc(permitted_machines)

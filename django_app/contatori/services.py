@@ -1368,3 +1368,28 @@ def conferma_proposta(proposta, trimestre):
                   "fonte": LetturaContatori.Fonte.SNMP,
                   "note": f"Da lettura mensile del {mensile.mese:%m/%Y}"})
     return lettura, creata
+
+
+def licenze_asset_apparati():
+    """Licenze software degli asset collegati ad apparati (MFC e dispositivi SNMP) e apparati senza asset.
+
+    Ritorna ``scadute``/``in_scadenza`` (numero di licenze attive degli asset collegati) e ``da_collegare``
+    (apparati attivi senza asset). Nessun match per apparato: il numero di query non cresce con la flotta.
+    """
+    from assets.services.software_licenze import expiring_for_assets
+
+    macchine = list(Macchina.objects.filter(attiva=True).select_related("asset"))
+    dispositivi = list(DispositivoSNMP.objects.filter(attivo=True).select_related("asset"))
+    ids = {o.asset_id for o in (*macchine, *dispositivi) if o.asset_id}
+    conteggi = expiring_for_assets(ids)
+    da_collegare = []
+    for kind, oggetti in (("macchina", macchine), ("dispositivo", dispositivi)):
+        for o in oggetti:
+            if o.asset_id:
+                continue
+            da_collegare.append({"kind": kind, "oggetto": o, "nome": getattr(o, "nome", "") or o.reparto})
+    return {
+        "scadute": sum(s for s, _ in conteggi.values()),
+        "in_scadenza": sum(i for _, i in conteggi.values()),
+        "da_collegare": da_collegare,
+    }

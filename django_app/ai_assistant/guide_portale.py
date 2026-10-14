@@ -278,6 +278,15 @@ def _registro() -> list[Guida]:
     ):
         testo, file = _da_template(template)
         guide.append(Guida(slug, modulo, _reverse(url_name), testo, file, parole=parole))
+    # Guide amministrative: il gate ACL sulla loro pagina le riserva a chi gestisce i permessi.
+    for slug, modulo, url_name, query, template, parole in (
+        ("ruoli-permessi", "Ruoli e permessi", "admin_portale:ruoli_portale", "?tab=guida",
+         "admin_portale/components/ruoli_portale_guida.html", "ruolo ruoli permesso permessi matrice"),
+        ("accessi", "Accessi (permessi di pagina)", "admin_portale:accessi", "?guida=1",
+         "admin_portale/components/accessi_guida.html", "accessi accesso gruppo gruppi acl permesso permessi"),
+    ):
+        testo, file = _da_template(template)
+        guide.append(Guida(slug, modulo, _reverse(url_name, query), testo, file, parole=parole))
     guide.append(Guida("assistente-ai", "Assistente AI", _reverse("ai_assistant:guida"), _testo_assistente,
                        _file_modulo("ai_assistant.guida"), parole="assistente chatbot chat conversazione conversazioni"))
     guide.extend(_guida_soc(nome) for nome in _SOC_DOCS)

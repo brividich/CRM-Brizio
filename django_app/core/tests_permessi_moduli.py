@@ -393,6 +393,20 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         colonna = [r.id for r in risposta.context["ruoli_colonne"]].index(ruolo.id)
         self.assertTrue(any(p["stati"][colonna] == "matrice" for p in pagine))
 
+    def test_matrice_mostra_lo_stato_reale_delle_pagine(self):
+        from core.models import GroupPermissionGrant, PermissionDefinition
+
+        PermissionDefinition.objects.create(code="tasks.elenco.view", label="Elenco attivita", module="tasks")
+        ruolo = AccessGroup.objects.get(code="ruolo-magazzino")
+        self.client.post(f"/admin-portale/ruoli-portale/matrice/{ruolo.id}/", {"c__kickoff__vedere": "tutti"})
+        risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab=matrice&ruolo={ruolo.id}")
+        self.assertContains(risposta, "rp-pag rp-pag-pieno")
+        self.assertContains(risposta, "pagine 1/1")
+        # Tolta a mano dalla pagina Accessi: la cella lo segnala.
+        GroupPermissionGrant.objects.filter(group=ruolo, permission_id="tasks.elenco.view").delete()
+        risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab=matrice&ruolo={ruolo.id}")
+        self.assertContains(risposta, "pagine 0/1 · a mano")
+
     def test_non_amministratore_respinto(self):
         user, _ = self.persona("Curioso")
         self.client.force_login(user)

@@ -1,0 +1,27 @@
+{% comment %}Riquadro «Asset collegato» delle schede apparato: identità dell'asset, licenze software e inventario. Usa dal contesto: asset, edit_url, g, licenze_asset, software_asset.{% endcomment %}
+<section class="panel asset-coll" id="licenze-software">
+  <div class="panel-head"><div><h2>Asset collegato</h2><p>Scheda nel modulo Asset, licenze software e programmi rilevati dall'inventario.</p></div>
+  {% if asset %}<div class="spacer"></div><div class="actions"><a class="btn ghost small" href="{% url 'assets:software_license_list' %}?asset={{ asset.pk }}">Gestisci licenze</a><a class="btn ghost small" href="{% url 'assets:asset_view' asset.pk %}">Apri scheda asset</a></div>{% endif %}</div>
+  {% if asset %}
+  <div class="asset-coll-id">
+    <span class="asset-coll-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+    <div class="asset-coll-nome"><a class="plain" href="{% url 'assets:asset_view' asset.pk %}">{{ asset.name }}</a>
+      <span class="muted">{{ asset.get_asset_type_display }}{% if asset.manufacturer or asset.model %} · {{ asset.manufacturer|default:"" }} {{ asset.model|default:"" }}{% endif %}{% if asset.serial_number %} · S/N <span class="mono">{{ asset.serial_number }}</span>{% endif %}</span></div>
+    <span class="asset-coll-tag mono">{{ asset.asset_tag }}</span>
+  </div>
+  <div class="asset-coll-stat">
+    <span><b>{{ licenze_asset|length }}</b> licenz{{ licenze_asset|length|pluralize:"a,e" }}</span>
+    {% if software_asset and software_asset.rows %}<span><b>{{ software_asset.present }}</b> software rilevati{% if software_asset.inventory_date %} · inventario del {{ software_asset.inventory_date|date:"d/m/Y" }}{% endif %}</span>{% else %}<span class="muted">Nessun software dall'inventario</span>{% endif %}
+  </div>
+  {% if licenze_asset %}
+  <ul class="lic-list">{% for r in licenze_asset %}
+    <li class="lic-item {{ r.status }}"><span class="lic-dot" aria-hidden="true"></span>
+      <div class="lic-body"><strong>{{ r.license.product_name }}</strong><span>{% if r.license.vendor %}{{ r.license.vendor }} · {% endif %}{% if r.license.expiry_date %}{% if r.status == 'expired' %}scaduta il {{ r.license.expiry_date|date:"d/m/Y" }} · da {{ r.giorni }} giorn{{ r.giorni|pluralize:"o,i" }}{% else %}scade il {{ r.license.expiry_date|date:"d/m/Y" }}{% endif %}{% if r.status == 'expired' %}{% elif r.status == 'expiring' %} · tra {{ r.giorni }} giorn{{ r.giorni|pluralize:"o,i" }}{% endif %}{% else %}senza scadenza{% endif %}</span></div>
+      <span class="pill {% if r.status == 'active' %}ok{% elif r.status == 'expiring' %}warn{% elif r.status == 'expired' %}danger{% endif %}">{% if r.status == 'active' %}valida{% elif r.status == 'expiring' %}in scadenza{% elif r.status == 'expired' %}scaduta{% else %}disattiva{% endif %}</span>
+    </li>{% endfor %}
+  </ul>
+  {% else %}<p class="asset-coll-vuoto">Nessuna licenza registrata su questo asset. <a class="plain" href="{% url 'assets:software_license_list' %}?asset={{ asset.pk }}">Aggiungila da «Licenze software»</a>.</p>{% endif %}
+  {% else %}
+  <div class="asset-coll-vuoto asset-coll-nessuno"><div><strong>Apparato non collegato a un asset</strong><span class="muted">Collegalo per vedere qui licenze, software installato e la scheda dell'inventario.</span></div>{% if g %}<a class="btn small" href="{{ edit_url }}">Collega un asset</a>{% endif %}</div>
+  {% endif %}
+</section>

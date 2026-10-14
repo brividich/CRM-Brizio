@@ -12124,11 +12124,14 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None, capabilities=
         return []
 
     granted: dict[str, bool] = {}
+    from_matrix: set[str] = set()
     if kind == SUBJECT_GROUP and subject_id:
-        granted = {
-            str(row.permission_id): bool(row.enabled)
-            for row in GroupPermissionGrant.objects.filter(group_id=subject_id)
-        }
+        from core.permessi.sync import NOTA_MATRICE
+
+        for row in GroupPermissionGrant.objects.filter(group_id=subject_id):
+            granted[str(row.permission_id)] = bool(row.enabled)
+            if row.note == NOTA_MATRICE:
+                from_matrix.add(str(row.permission_id))
     elif kind == SUBJECT_ROLE and subject_id:
         granted = {
             str(row.permission_id): bool(row.enabled)
@@ -12159,6 +12162,9 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None, capabilities=
                 "stored_label": permission.label,
                 "description": permission.description,
                 "enabled": bool(granted.get(permission.code, False)),
+                # Acceso dalla matrice dei ruoli: spegnerlo qui vale fino al
+                # prossimo salvataggio della matrice di quel ruolo.
+                "from_matrix": permission.code in from_matrix,
                 "governs_route": link_status == LINK_PAGES,
                 "link_status": link_status,
                 "route_count": len(routes),
@@ -12305,7 +12311,14 @@ def accessi_unificati(request):
     spunta poteva quindi funzionare o non funzionare a seconda della pagina.
     Qui si scrivono solo grant canonici, per singolo permesso.
     """
-    groups = list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
+    if request.method == "GET" and request.GET.get("guida") == "1":
+        # Stessa rotta (stesso permesso) della pagina: la guida non apre un varco.
+        return render(
+            request,
+            "admin_portale/pages/accessi_guida.html",
+            {"page_title": "Guida Accessi", "subject": str(request.GET.get("subject") or "")[:40]},
+        )
+    groups =list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
     try:
         roles = list(Ruolo.objects.all().order_by("nome"))
     except DatabaseError:

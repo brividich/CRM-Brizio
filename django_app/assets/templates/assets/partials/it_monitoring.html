@@ -2,7 +2,6 @@
 <style>
 .af-mfc-stale { margin:6px 0; padding:8px 10px; border-radius:8px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; }
 body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgba(251,146,60,.35); color:#fdba74; }
-.af-mfc-bar { display:block; height:8px; min-width:2px; border-radius:4px; background:#3b82f6; }
 .af-mfc-pages td:last-child { width:30%; }
 .af-it-supply small { display:block; opacity:.75; }
 </style>
@@ -24,8 +23,13 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
       </div>
     {% endif %}
     {% for device in it_monitoring.devices %}
-      <h3><a href="{{ device.url }}">{{ device.nome }}</a> · {{ device.host }}</h3>
-      <p>{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ device.state_label }}{% else %}mai registrato{% endif %}.</p>
+      <div class="af-it-dev">
+        <span class="af-it-dev-ico" aria-hidden="true">SNMP</span>
+        <div class="af-it-dev-main"><a class="af-it-dev-name" href="{{ device.url }}">{{ device.nome }}</a>
+          <span class="af-it-dev-meta"><span class="af-it-mono">{{ device.host }}</span> · {% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
+        {% if device.snmp_ultimo_controllo %}<span class="as-badge as-badge--{% if device.snmp_stato == 'OK' %}ok{% elif device.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}">{{ device.state_label }}</span>{% endif %}
+        <a class="af-btn af-btn-ghost" href="{{ device.url }}">Apri in Contatori</a>
+      </div>
       {% if device.readings %}
       <details class="af-it-disclosure"{% if it_presentation.profile != 'printer' %} open{% endif %}><summary>Valori rilevati</summary>
         <p>Fonte: rilevazione SNMP del {{ device.snapshot.rilevata_il|date:"d/m/Y H:i" }}.</p>
@@ -48,22 +52,27 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
       {% endif %}
     {% endfor %}
     {% for machine in it_monitoring.machines %}
-      <h3><a href="{{ machine.url }}">MFC · {{ machine.reparto }}</a> · {{ machine.matricola }}</h3>
+      <div class="af-it-dev">
+        <span class="af-it-dev-ico" aria-hidden="true">MFC</span>
+        <div class="af-it-dev-main"><a class="af-it-dev-name" href="{{ machine.url }}">MFC · {{ machine.reparto }}</a>
+          <span class="af-it-dev-meta">Matricola <span class="af-it-mono">{{ machine.matricola }}</span> · {% if not machine.attiva %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if machine.snmp_ultimo_controllo %}{{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
+        {% if machine.snmp_ultimo_controllo %}<span class="as-badge as-badge--{% if machine.snmp_stato == 'OK' %}ok{% elif machine.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}">{{ machine.state_label }}</span>{% endif %}
+        <a class="af-btn af-btn-ghost" href="{{ machine.url }}">Apri in Contatori</a>
+      </div>
       <div class="af-it-facts">
         {% if machine.modello %}<div><span>Modello</span><strong>{{ machine.modello }}</strong></div>{% endif %}
         {% if machine.host %}<div><span>Indirizzo IP</span><strong>{{ machine.host }}</strong></div>{% endif %}
         {% if machine.contratto %}<div><span>Contratto MFC</span><strong>{{ machine.contratto }}</strong><small>{{ machine.fornitore }} · riferimento, non verifica di copertura</small></div>{% endif %}
       </div>
-      <p>{% if not machine.attiva %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if machine.snmp_ultimo_controllo %}{{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ machine.state_label }}{% else %}mai registrato{% endif %}.</p>
       <details class="af-it-disclosure" open><summary>Contatori mensili MFC</summary>
       {% with reading=machine.reading %}{% if reading %}
         <p>Fonte: lettura mensile MFC · mese {{ reading.mese|date:"m/Y" }} · rilevata il {{ reading.rilevata_il|date:"d/m/Y H:i" }}. Valori cumulativi, non consumo del mese.</p>
-        <div class="af-it-facts af-it-counters"><div><span>A4 B/N</span><strong>{{ reading.a4_bn }}</strong></div><div><span>A3 B/N</span><strong>{{ reading.a3_bn }}</strong></div><div><span>A4 colore</span><strong>{{ reading.a4_col }}</strong></div><div><span>A3 colore</span><strong>{{ reading.a3_col }}</strong></div></div>
+        <div class="af-it-facts af-it-counters"><div class="is-bn"><span>A4 B/N</span><strong>{{ reading.a4_bn }}</strong></div><div class="is-bn"><span>A3 B/N</span><strong>{{ reading.a3_bn }}</strong></div><div class="is-col"><span>A4 colore</span><strong>{{ reading.a4_col }}</strong></div><div class="is-col"><span>A3 colore</span><strong>{{ reading.a3_col }}</strong></div><div class="is-tot"><span>Totale</span><strong>{{ reading.totale }}</strong></div></div>
       {% else %}<p>Nessuna lettura mensile disponibile.</p>{% endif %}{% endwith %}
       </details>
       {% with s=machine.stats %}
       <div class="af-it-live af-mfc-stats" id="mfc-stats-{{ machine.id }}">
-        <h3>Consumabili MFC</h3>
+        <h3 class="af-it-sub">Consumabili MFC</h3>
         {% if s.consumabili %}
           {% if s.consumabili_vecchi %}
             <p class="af-mfc-stale" role="status"><strong>Dati del {{ s.consumabili.rilevata_il|date:"d/m/Y" }}:</strong> il job non legge da {{ s.consumabili_eta_giorni }} giorni. I livelli qui sotto non sono quelli attuali.</p>
@@ -71,9 +80,9 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
             <p class="af-note">Ultima lettura: {{ s.consumabili.rilevata_il|date:"d/m/Y H:i" }} (job giornaliero). Stima dal consumo dall'ultima sostituzione.</p>
           {% endif %}
           <div class="af-it-supplies">{% for v in s.consumabili.voci %}
-            <div class="af-it-supply">
+            <div class="af-it-supply{% if v.critico %} is-critico{% endif %}">
               <span>{{ v.nome }}</span>
-              {% if v.pct is not None %}<strong>{{ v.pct }}%</strong><progress max="100" value="{{ v.pct }}" aria-label="{{ v.nome }}: {{ v.pct }}%"{% if v.critico %} class="af-it-low"{% endif %}></progress>{% else %}<strong>Quantità non comunicata</strong>{% endif %}
+              {% if v.pct is not None %}<strong>{{ v.pct }}%</strong><span class="af-it-meter{% if v.critico or v.pct < 20 %} is-low{% elif v.pct < 50 %} is-mid{% endif %}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ v.pct }}" aria-label="{{ v.nome }}: {{ v.pct }}%"><span style="width:{{ v.pct }}%"></span></span>{% else %}<strong>Quantità non comunicata</strong>{% endif %}
               <small>{% if v.giorni is None %}Esaurimento non stimabile{% elif v.giorni == 0 %}Esaurito secondo il ritmo di consumo{% elif v.giorni > 365 %}Oltre un anno{% else %}Circa {{ v.giorni }} giorni{% endif %}</small>
             </div>{% endfor %}
           </div>
@@ -88,21 +97,22 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         <div id="mfc-supplies-{{ machine.id }}" aria-live="polite"></div>
         {% endif %}
 
-        <h3>Pagine stampate per mese <a class="af-note" style="font-weight:400;font-size:.8em" href="{% url 'assets:guida' %}#mfc">Come leggere questi dati</a></h3>
+        <h3 class="af-it-sub">Pagine stampate per mese <a class="af-it-help" href="{% url 'assets:guida' %}#mfc">Come leggere questi dati</a></h3>
         {% if s.pagine_mesi %}
           {% if s.contatori_vecchi %}<p class="af-mfc-stale" role="status"><strong>Ultima lettura contatori del {{ machine.reading.rilevata_il|date:"d/m/Y" }}:</strong> il job mensile non legge da {{ s.contatori_eta_giorni }} giorni.</p>{% endif %}
           {% if s.trend %}<p class="af-note">Ultimi 3 mesi: media {{ s.trend.media_recente }} pagine/mese, {% if s.trend.direzione == 'su' %}in aumento del {{ s.trend.delta_pct }}%{% elif s.trend.direzione == 'giu' %}in calo del {{ s.trend.delta_abs }}%{% else %}stabile{% endif %} rispetto ai 3 precedenti.</p>{% endif %}
-          <div class="af-table-wrap"><table class="af-table af-mfc-pages"><thead><tr><th>Mese</th><th>B/N</th><th>Colore</th><th>Totale</th><th aria-hidden="true"></th></tr></thead><tbody>
+          <div class="af-mfc-legend" aria-hidden="true"><span><i class="sw bn"></i>B/N</span><span><i class="sw col"></i>Colore</span></div>
+          <div class="af-table-wrap"><table class="af-table af-mfc-pages" data-fm-table-skip="1"><thead><tr><th>Mese</th><th class="num">B/N</th><th class="num">Colore</th><th class="num">Totale</th><th aria-hidden="true"></th></tr></thead><tbody>
             {% for m in s.pagine_mesi reversed %}<tr>
               <td>{{ m.mese|date:"m/Y" }}</td>
               {% if m.totale is None %}<td colspan="3"><small>Non calcolabile (mese mancante o contatore azzerato)</small></td><td></td>
-              {% else %}<td>{{ m.bn }}</td><td>{{ m.col }}</td><td><strong>{{ m.totale }}</strong></td><td aria-hidden="true"><span class="af-mfc-bar" style="width:{{ m.altezza_pct }}%"></span></td>{% endif %}
+              {% else %}<td class="num">{{ m.bn }}</td><td class="num">{{ m.col }}</td><td class="num"><strong>{{ m.totale }}</strong></td><td aria-hidden="true"><span class="af-mfc-bar" style="width:{{ m.altezza_pct }}%"><span class="bn" style="flex:{{ m.bn }}"></span><span class="col" style="flex:{{ m.col }}"></span></span></td>{% endif %}
             </tr>{% endfor %}
           </tbody></table></div>
         {% else %}<p class="af-note">Servono almeno due letture mensili consecutive per calcolare le pagine del mese.</p>{% endif %}
 
         {% if s.errore_snmp %}<p class="af-mfc-stale"><strong>Ultimo errore SNMP</strong>{% if machine.snmp_ultimo_controllo %} ({{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }}){% endif %}: {{ s.errore_snmp }}</p>{% endif %}
-        <p><a class="as-link-subtle" href="{{ machine.url }}">Apri la scheda in Contatori →</a></p>
+        <p class="af-it-foot"><a class="as-link-subtle" href="{{ machine.url }}">Apri la scheda in Contatori →</a></p>
       </div>
       {% endwith %}
     {% endfor %}

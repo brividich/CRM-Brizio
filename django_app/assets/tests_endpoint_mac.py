@@ -81,7 +81,7 @@ class SchedaMonitoraggioTvccTests(TestCase):
 
     def test_valori_e_mac_uguale(self):
         risposta = self._pagina()
-        self.assertContains(risposta, "TVCC - Telecamera IP · Cam magazzino")
+        self.assertContains(risposta, "<strong>Cam magazzino</strong><span>TVCC - Telecamera IP · ")
         # Uptime della telecamera = servizio SNMP, non l'apparato: non si mostra.
         self.assertNotContains(risposta, "acceso da circa")
         self.assertContains(risposta, "= dichiarato")

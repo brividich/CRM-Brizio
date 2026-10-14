@@ -1818,7 +1818,10 @@ function GestioneAnomalie() {
       className: "ga-pill ga-pill--rdc"
     }, "RDC", a.numero_rdc ? ` ${a.numero_rdc}` : ""), a.segnalare && /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--cli"
-    }, "Cliente"), !a.blocco_id && (a.testo || a.desc) && /*#__PURE__*/React.createElement("span", {
+    }, "Cliente"), a.seriali_parziali && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--muted",
+      title: `Solo sui S/N: ${a.seriali_parziali}`
+    }, "Solo ", a.seriali_parziali), !a.blocco_id && (a.testo || a.desc) && /*#__PURE__*/React.createElement("span", {
       className: "ga-an__sub"
     }, a.testo || a.desc), /*#__PURE__*/React.createElement("span", {
       className: "ga-an__id"
@@ -2033,7 +2036,7 @@ function GestioneAnomalie() {
     className: "ga-det__sep"
   }, "\u203A"), /*#__PURE__*/React.createElement("span", {
     className: "ga-mono"
-  }, "S/N ", sn.blocco_label || sn.sn || "—"), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+  }, "S/N ", sn.seriali_parziali || sn.blocco_label || sn.sn || "—"), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "ga-det__sep"
   }, "\u203A"), /*#__PURE__*/React.createElement("span", null, "Fase ", sn.fase)), /*#__PURE__*/React.createElement("span", {
     className: `ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`

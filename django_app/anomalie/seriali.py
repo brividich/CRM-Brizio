@@ -64,6 +64,45 @@ def conta_pezzi(items) -> int:
     return len(seen)
 
 
+def comprimi_seriali(tokens) -> list[str]:
+    """Singoli seriali -> voci, con i consecutivi (stesso prefisso e cifre) in range.
+
+    ``LCN00001, LCN00002, LCN00003, LCN00007`` -> ``LCN00001-LCN00003, LCN00007``.
+    L'ordine di comparsa resta quello dei token; i doppioni spariscono.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    run: list | None = None  # [prefisso, cifre, inizio, fine]
+
+    def _chiudi():
+        if run is None:
+            return
+        prefix, pad, a, b = run
+        da = f"{prefix}{str(a).zfill(pad)}"
+        out.append(da if a == b else f"{da}-{prefix}{str(b).zfill(pad)}")
+
+    for raw in tokens or []:
+        token = str(raw or "").strip()
+        if not token or token.lower() in seen:
+            continue
+        seen.add(token.lower())
+        m = re.match(r"^(.*?)(\d+)$", token)
+        if m is None:
+            _chiudi()
+            run = None
+            out.append(token)
+            continue
+        prefix, digits = m.group(1), m.group(2)
+        n = int(digits)
+        if run is not None and run[0].lower() == prefix.lower() and run[1] == len(digits) and n == run[3] + 1:
+            run[3] = n
+            continue
+        _chiudi()
+        run = [prefix, len(digits), n, n]
+    _chiudi()
+    return out
+
+
 def etichetta_blocco(items) -> str:
     """Testo composito per la colonna legacy ``seriale`` (max 200 caratteri)."""
     voci = normalizza_voci(items)

@@ -52,3 +52,56 @@ class RiallineaAssetDaExcelTests(TestCase):
     def test_riga_senza_asset_e_solo_segnalata(self):
         out = self._run("--apply")
         self.assertIn("non trovati=1", out)
+
+
+class RiallineaGuardieTests(TestCase):
+    def test_seriale_valido(self):
+        from assets.management.commands.riallinea_asset_da_excel import _seriale_valido
+        self.assertFalse(_seriale_valido("VM", ""))
+        self.assertFalse(_seriale_valido("CLUSTER", ""))
+        self.assertFalse(_seriale_valido("ACV237W2P1", "ACV237W2P1-1"))
+        self.assertTrue(_seriale_valido("ACV237W2P1", ""))
+        self.assertTrue(_seriale_valido("SN123", "OLD99"))
+
+    def test_nessun_aggancio_per_seriale_e_switch_non_firewall(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Management 172.16.13.x"
+        ws.append(["REPARTO", "NOME PC", "VLAN", "IP", "TIPO", "MODELLO", "ID"])
+        ws.append(["CED", "ALTRO NOME", 13, 5, "PC", "Nuovo", "SERIE12345"])
+        ws.append(["CED", "SW1", 13, 6, "SWITCH", "HP 2930", None])
+        path = str(Path(d.name) / "i.xlsx")
+        wb.save(path)
+        gemello = Asset.objects.create(name="GEMELLO", serial_number="SERIE12345", model="Vecchio")
+        sw = Asset.objects.create(name="SW1", asset_type=Asset.TYPE_OTHER)
+        call_command("riallinea_asset_da_excel", file=path, sheets="Management", apply=True, stdout=StringIO())
+        gemello.refresh_from_db()
+        sw.refresh_from_db()
+        self.assertEqual(gemello.model, "Vecchio")
+        self.assertEqual(sw.asset_type, Asset.TYPE_OTHER)
+        self.assertEqual(sw.model, "HP 2930")
+
+
+class RiallineaCreaInterfacciaTests(TestCase):
+    def test_crea_interfaccia_con_ip_completo(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Trust 10.0.0.x - 10.10.10.x"
+        ws.append(["REPARTO", "NOME PC", "VLAN", "IP", "PUNTO", "PORTA SWITCH", "TIPO"])
+        ws.append(["CED", "PCNET", 1, 42, "Q1.05", "A1.07", "PC"])
+        ws.append(["CED", "PCNET2", "1010/1", 9, None, None, "PC"])
+        ws.append(["CED", "PCDHCP", 98, "DHCP", None, "A0.3.18", "PC"])
+        path = str(Path(d.name) / "t.xlsx")
+        wb.save(path)
+        for n in ("PCNET", "PCNET2", "PCDHCP"):
+            Asset.objects.create(name=n, asset_type=Asset.TYPE_PC)
+        call_command("riallinea_asset_da_excel", file=path, sheets="Trust", apply=True, stdout=StringIO())
+        e = AssetEndpoint.objects.get(asset__name="PCNET")
+        self.assertEqual((e.vlan, e.ip, e.punto, e.switch_port), (1, "10.0.0.42", "Q1.05", "A1.07"))
+        e2 = AssetEndpoint.objects.get(asset__name="PCNET2")
+        self.assertEqual((e2.vlan, e2.ip), (1010, "10.10.10.9"))
+        self.assertEqual(AssetEndpoint.objects.get(asset__name="PCDHCP").ip, "DHCP")

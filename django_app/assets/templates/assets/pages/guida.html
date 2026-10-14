@@ -74,9 +74,12 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Nella scheda di una stampante collegata a una MFC del modulo Contatori trovi il riquadro <strong>Stampante, consumabili e contatori</strong>. Aprire la scheda <strong>non interroga la stampante</strong>: mostra le ultime letture salvate dai job automatici.</p>
       <h3>Cosa vedi</h3>
       <ul>
-        <li><strong>Consumabili MFC</strong>: livello di ogni toner all'ultima lettura (job giornaliero) e stima di esaurimento in base al ritmo di consumo dall'ultima sostituzione.</li>
+        <li>In testa, per ogni MFC o dispositivo SNMP collegato, un riquadro con nome, matricola o indirizzo, ultimo controllo, esito (badge verde, arancione o rosso) e il pulsante <strong>Apri in Contatori</strong>.</li>
+        <li><strong>Consumabili MFC</strong>: livello di ogni toner all'ultima lettura (job giornaliero) e stima di esaurimento in base al ritmo di consumo dall'ultima sostituzione. Barra verde da 50% in su, arancione tra 20% e 49%, rossa sotto il 20% o se il consumabile è critico (riquadro rosato).</li>
         <li><strong>Pagine stampate per mese</strong>: B/N e colore degli ultimi {{ mesi_trend }} mesi, ricavate dalle letture mensili. La media degli ultimi 3 mesi è confrontata con i 3 precedenti (in aumento, in calo, stabile oltre ±10%). Un mese in cui il contatore scende (sostituzione scheda, azzeramento) resta vuoto invece di dare un numero sbagliato.</li>
-        <li><strong>Contatori mensili MFC</strong>: valori cumulativi, non il consumo del mese.</li>
+        <li><strong>Contatori mensili MFC</strong>: valori cumulativi, non il consumo del mese; bordo blu per il B/N, arancione per il colore, più il totale.</li>
+        <li>Nella tabella delle pagine la barra di ogni mese è divisa in B/N (blu) e colore (arancione).</li>
+        <li>Nella scheda <strong>Tecnica e rete</strong> (tutti gli asset IT) ogni interfaccia è un riquadro con endpoint, IP e VLAN, e sotto il percorso fisico <strong>Switch → Porta SW → Porta patch panel</strong>; le specifiche sono a tessere.</li>
       </ul>
       <h3>Dati vecchi</h3>
       <p>Se i consumabili non vengono letti da più di {{ soglia_consumabili }} giorni, o i contatori da più di {{ soglia_contatori }}, compare un avviso arancione: i numeri sotto non sono quelli attuali. Di solito la stampante è spenta, senza IP o con il monitoraggio disattivato; il motivo è scritto nell'avviso o nell'ultimo errore SNMP.</p>
@@ -126,6 +129,8 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <section class="ag-sec" id="software">
       <h2>Software installati e licenze</h2>
       <p>I software dei PC arrivano dall'<strong>inventario software</strong>: l'export di WatchGuard (o BusinessLog) caricato nel SOC in <em>Configurazione › Inventario software</em>. Un PC compare collegato al suo asset quando il nome del computer nell'export corrisponde all'asset.</p>
+      <h3>Schede richiudibili</h3>
+      <p>Nella scheda asset ogni riquadro ha in alto a destra il pulsante <span class="ag-btn">&#9662;</span>: premilo per richiuderlo e risparmiare spazio, premilo di nuovo per riaprirlo. Il browser ricorda la scelta. «Anagrafica e assegnazione» mostra i dati su due colonne (una sola sui telefoni).</p>
       <h3>Nella scheda asset</h3>
       <p>Il riquadro <strong>Software installati</strong> (scheda <span class="ag-btn">Software</span>) elenca per ogni programma:</p>
       <ul>
@@ -141,6 +146,16 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Salva. Nell'elenco licenze compare <strong>Installato su N PC su M posti</strong>.</li>
       </ol>
       <p>L'elenco avvisa con <em>Più installazioni che posti</em> se i PC con il software superano i posti acquistati, e con <em>Scaduta ma ancora installata</em> se la licenza è scaduta o disattivata ma il software è ancora sui PC.</p>
+      <h3>Riquadro «Da sistemare: licenze e software installato»</h3>
+      <p>In cima a <a href="{% url 'assets:software_license_list' %}">Licenze software</a> compare quando qualcosa non quadra con l'inventario importato nel SOC. Sono solo segnalazioni: nessuna licenza cambia da sola.</p>
+      <ul>
+        <li><strong>Installati a pagamento senza licenza valida</strong>: prodotti marcati <em>A pagamento</em> nel catalogo software, presenti sui PC, senza una licenza valida collegata;</li>
+        <li><strong>Più PC che posti</strong>: i PC con il software superano la somma dei posti delle licenze valide;</li>
+        <li><strong>Licenza scaduta o disattiva, software ancora installato</strong>;</li>
+        <li><strong>Licenza valida ma software non più rilevato</strong>: possibile licenza da non rinnovare;</li>
+        <li><strong>Licenze non collegate all'inventario</strong>: se il nome corrisponde a un solo prodotto dell'inventario, chi gestisce le licenze vede il pulsante <em>Collega a «…»</em>; altrimenti si collega da <em>Modifica</em>.</li>
+      </ul>
+      <p>Le stesse licenze si vedono nel modulo Contatori, nella scheda di ogni MFC o dispositivo SNMP collegato all'asset.</p>
       <p class="ag-note">I numeri valgono quanto l'ultimo inventario importato: caricane uno nuovo per aggiornarli. Il campo <em>Posti utilizzati</em> resta manuale.</p>
       <h3>Rinnovi e storico</h3>
       <p>Quando una licenza viene rinnovata, registra il rinnovo invece di cambiare solo la data: così resta la traccia di tutti i rinnovi e di quanto sono costati.</p>

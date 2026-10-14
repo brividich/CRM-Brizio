@@ -107,6 +107,7 @@
     .stato-pill.s-recupero::before, .stato-pill.s-apertura::before { background: #a855f7; }
 
     /* Badge "Stato superficie" in risalto */
+    .sn-parziale-badge { flex-shrink: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 800; border-radius: 6px; padding: 3px 9px; background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; font-family: Consolas, monospace; }
     .superficie-badge {
       flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
       font-size: 10px; font-weight: 800; border-radius: 6px; padding: 3px 9px;
@@ -401,6 +402,7 @@
           <div class="anomalia-row-info">
             <span class="anomalia-num">#{{ a.id }}</span>
             <span class="anomalia-desc-compact">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|truncatechars:90 }}</span>
+            {% if a.seriali_parziali %}<span class="sn-parziale-badge" title="Presente solo sui S/N: {{ a.seriali_parziali }}">Solo S/N {{ a.seriali_parziali }}</span>{% endif %}
             {% if a.stato_superficie %}
             <span class="superficie-badge" title="Stato superficie: {{ a.stato_superficie }}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M2 7h20"/><path d="M2 17h20"/></svg>

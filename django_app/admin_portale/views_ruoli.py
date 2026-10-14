@@ -26,7 +26,7 @@ from core.permessi.motore import (
 )
 from core.permessi.preset import PRESETS_PER_CHIAVE, applica_preset
 from core.permessi.registro import AMBITI, AMBITI_LABEL, AZIONI_LABEL, AZIONI_STANDARD, moduli_registrati
-from core.permessi.sync import sincronizza_ruolo, sincronizza_tutti
+from core.permessi.sync import sincronizza_ruolo, sincronizza_tutti, stato_pagine_ruolo
 
 from .decorators import legacy_admin_required
 
@@ -175,11 +175,16 @@ def _ctx_matrice(request) -> dict:
     if ruolo is None and ruoli:
         ruolo = ruoli[0]
     celle = {}
+    pagine = {}
     if ruolo is not None:
         celle = {
             (c.modulo, c.azione): (c.ambito if c.consentito else VALORE_NO)
             for c in RuoloPermessoModulo.objects.filter(ruolo=ruolo)
         }
+        if not ruolo.amministratore:
+            # Stato reale dei permessi di pagina: riflette anche le modifiche
+            # fatte a mano dalla pagina Accessi. Solo lettura, non scrive nulla.
+            pagine = stato_pagine_ruolo(ruolo)
     righe = []
     for spec in moduli_registrati().values():
         righe.append(
@@ -190,6 +195,7 @@ def _ctx_matrice(request) -> dict:
                         "azione": azione,
                         "label": spec.etichetta_azione(azione),
                         "valore": celle.get((spec.chiave, azione), ""),
+                        "pagine": pagine.get((spec.chiave, azione)),
                     }
                     for azione in AZIONI_STANDARD
                 ],
