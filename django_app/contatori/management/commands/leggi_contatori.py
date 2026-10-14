@@ -1,44 +1,20 @@
 """Legge i contatori via SNMP e salva le letture del trimestre corrente."""
 from django.core.management.base import BaseCommand
-from django.utils import timezone
-from contatori.models import Macchina, LetturaContatori
-from contatori.snmp import leggi_macchina, SNMPError
+
+from contatori.services import salva_letture_trimestrali_snmp
 
 
 class Command(BaseCommand):
-    help = "Legge i contatori via SNMP di tutte le macchine attive con host"
-
-    def add_arguments(self, parser):
-        parser.add_argument("--community", default=None,
-                            help="Vuoto = community della configurazione SNMP globale")
-        parser.add_argument("--timeout", type=int, default=3)
-        parser.add_argument(
-            "--snmp-version",
-            dest="version",
-            default="v1",
-            choices=["v1", "v2c"],
-        )
+    help = ("Legge via SNMP le MFC attive con IP e salva la lettura del trimestre corrente "
+            "(stessi parametri e controlli di «Leggi MFC ora»)")
 
     def handle(self, *args, **o):
-        from django.core.management.base import CommandError
-        from contatori.models import ImpostazioniSNMP
-        o["community"] = o["community"] or ImpostazioniSNMP.get_solo().community
-        if not o["community"]:
-            raise CommandError("[SNMP-008] Community SNMP non configurata: passa --community "
-                               "o impostala nella configurazione SNMP globale.")
-        oggi = timezone.localdate()
-        trim = f"{oggi.year}-Q{(oggi.month-1)//3+1}"
-        ok = 0
-        for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True):
-            try:
-                vals = leggi_macchina(m, community=o["community"],
-                                      timeout=o["timeout"], version=o["version"])
-                LetturaContatori.objects.update_or_create(
-                    macchina=m, trimestre=trim,
-                    defaults={**vals, "data": oggi, "fonte": "SNMP"})
-                ok += 1
-                self.stdout.write(self.style.SUCCESS(f"{m.reparto}: {vals}"))
-            except SNMPError as e:
-                from contatori.errori_snmp import testo_con_codice
-                self.stderr.write(self.style.WARNING(f"{m.reparto}: {testo_con_codice(e)}"))
-        self.stdout.write(f"\n{ok} macchine lette ({trim}).")
+        esito = salva_letture_trimestrali_snmp()
+        if esito["manuali"]:
+            self.stdout.write("Lettura manuale già presente, non sovrascritta: " + ", ".join(esito["manuali"]))
+        if esito["incoerenti"]:
+            self.stderr.write(self.style.WARNING(
+                "Più basse dell'ultima lettura salvata, non salvate: " + ", ".join(esito["incoerenti"])))
+        for errore in esito["errori"]:
+            self.stderr.write(self.style.WARNING(errore))
+        self.stdout.write(f"\n{esito['lette']} macchine lette ({esito['trimestre']}).")

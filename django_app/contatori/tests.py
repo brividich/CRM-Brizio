@@ -21,13 +21,13 @@ class SNMPManagementCommandParserTest(SimpleTestCase):
 
         self.assertEqual(options.version, "v2c")
 
-    def test_leggi_contatori_accetta_snmp_version(self):
-        from contatori.management.commands.leggi_contatori import Command
-
-        parser = Command().create_parser("manage.py", "leggi_contatori")
-        options = parser.parse_args(["--snmp-version", "v2c"])
-
-        self.assertEqual(options.version, "v2c")
+    def test_leggi_contatori_usa_il_servizio_di_leggi_mfc_ora(self):
+        from io import StringIO
+        esito = {"trimestre": "2026-Q4", "lette": 0, "manuali": [], "incoerenti": [], "errori": []}
+        with mock.patch("contatori.management.commands.leggi_contatori.salva_letture_trimestrali_snmp",
+                   return_value=esito) as servizio:
+            call_command("leggi_contatori", stdout=StringIO(), stderr=StringIO())
+        servizio.assert_called_once_with()
 
 
 class _AuthedClientMixin:
@@ -270,7 +270,7 @@ class ExportExcelTest(_AuthedClientMixin, TestCase):
                          ["Andamento", "Consumo", "Classifica reparti", "Ripartizione"])
         # verifica un valore noto: totale andamento Q2
         ws = wb["Andamento"]
-        ultima = list(ws.iter_rows(values_only=True))[-1]
+        ultima = list(ws.iter_rows(values_only=True))[-1][:8]
         self.assertEqual(ultima[0], "2026-Q2")
         self.assertEqual(ultima[-1], 726853)
 
