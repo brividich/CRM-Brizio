@@ -3,7 +3,7 @@
 {% block modulo %}
 <div class="eyebrow">Letture trimestrali</div>
 <h1>Letture {{ trimestre }} dalle mensili</h1>
-<p class="sub">Per le MFC senza lettura del trimestre il portale propone la lettura SNMP mensile più vicina alla chiusura (di solito quella del giorno 1 del mese successivo). Controlla e conferma: nulla viene salvato senza conferma.</p>
+<p class="sub">Per le MFC senza lettura del trimestre il portale propone la lettura SNMP mensile di chiusura: quella del mese successivo, presa entro il giorno 7. Le letture di altri mesi non vengono proposte. Controlla e conferma: nulla viene salvato senza conferma.</p>
 
 <section class="panel">
   <div class="row" style="gap:14px;align-items:flex-end;flex-wrap:wrap">
@@ -23,7 +23,7 @@
       <td>{{ p.mensile.rilevata_il|date:"d/m/Y H:i" }}{% if p.mensile.ritardo_testo %} <span class="pill warn" title="Letta dopo la chiusura del giorno 1 alle 00:00">{{ p.mensile.ritardo_testo }}</span>{% endif %}<div class="muted">mese {{ p.mensile.mese|date:"m/Y" }}</div></td>
       <td class="num">{{ p.mensile.a4_bn }}</td><td class="num">{{ p.mensile.a3_bn }}</td><td class="num">{{ p.mensile.a4_col }}</td><td class="num">{{ p.mensile.a3_col }}</td>
       <td class="num"><strong>{{ p.mensile.totale }}</strong></td>
-      <td>{% if p.incoerente %}<span class="pill danger">Più bassa del {{ p.precedente.trimestre }}</span><div class="muted"><a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ p.macchina.pk }}&amp;trimestre={{ trimestre }}">Inserisci a mano</a></div>{% elif p.precedente %}<span class="pill ok">+{{ p.delta }} copie</span><div class="muted">sul {{ p.precedente.trimestre }}</div>{% else %}<span class="pill">prima lettura</span>{% endif %}</td>
+      <td>{% if p.incoerente %}<span class="pill danger">{{ p.motivo }}</span><div class="muted"><a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ p.macchina.pk }}&amp;trimestre={{ trimestre }}">Inserisci a mano</a></div>{% elif p.precedente %}<span class="pill ok">+{{ p.delta }} copie</span><div class="muted">sul {{ p.precedente.trimestre }}</div>{% else %}<span class="pill">prima lettura</span>{% endif %}</td>
     </tr>{% endfor %}</tbody>
   </table></div>
   <div class="form-actions"><button class="btn" type="submit">Conferma le letture selezionate</button></div>

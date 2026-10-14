@@ -60,7 +60,8 @@ SEZIONI: list[dict] = [
                   "(una somma parziale darebbe un falso allarme): l'esito è «lettura interna mancante» e "
                   "accanto alla macchina c'è «+ Lettura»."),
             ("nota", "Il contratto deve essere scritto identico su tutte le MFC del pool. Una MFC dismessa "
-                     "che conserva il contratto continua a contare: togli il contratto alla vecchia."),
+                     "(non attiva) conta solo nei trimestri in cui ha una lettura: dopo la sostituzione non "
+                     "risulta più «lettura mancante»."),
         ],
     },
     {
@@ -108,6 +109,35 @@ SEZIONI: list[dict] = [
                 "«N letture mensili saltate»: la MFC non ha mai risposto, controlla che sia accesa e in rete.",
                 "La prima lettura riuscita del mese non viene più sovrascritta.",
             ]),
+        ],
+    },
+    {
+        "id": "controlli",
+        "titolo": "Controlli sulle letture SNMP",
+        "blocchi": [
+            ("p", "Una lettura SNMP viene scartata, e non salvata, quando i numeri non possono essere quelli "
+                  "della macchina. Il motivo compare nella salute SNMP della MFC (scheda e Centrale) e nel "
+                  "«Test» dell'elenco stampanti."),
+            ("ul", [
+                "Matricola diversa: all'IP risponde una stampante con un'altra matricola (IP cambiato o "
+                "riassegnato). Correggi l'IP nella scheda MFC.",
+                "Somma dei quattro contatori oltre le pagine totali dichiarate dalla stampante: il profilo "
+                "SNMP conta due volte le stesse pagine. Verifica il profilo.",
+                "Contatore più basso dell'ultima lettura salvata (trimestrale o mensile): o la lettura salvata "
+                "è sbagliata, e va corretta, o la macchina è stata azzerata/sostituita. In quel caso inserisci "
+                "la lettura a mano con «Confermo i valori».",
+            ]),
+            ("p", "Il «Test» mostra comunque i valori letti e avvisa con «Non verrebbe salvata» se sono più "
+                  "bassi dell'ultima lettura. «Leggi MFC ora» e la raccolta mensile applicano gli stessi controlli."),
+            ("p", "Letture da confermare: per un trimestre viene proposta solo la lettura mensile di chiusura, "
+                  "cioè quella del mese successivo presa entro il giorno 7. Una lettura più bassa del trimestre "
+                  "precedente o più alta del successivo non si conferma: va inserita a mano."),
+            ("p", "Lettura a mano: la data deve stare nel trimestre o nei 45 giorni dopo la chiusura, e non "
+                  "può essere nel futuro."),
+            ("p", "Analisi: le copie di un trimestre sono la differenza tra due trimestri consecutivi. Se a una "
+                  "MFC manca una lettura, le sue copie non vengono attribuite a nessuno dei due trimestri e il "
+                  "trimestre è segnato «parziale N/M MFC». Il trimestre corrente è «in corso» e la Centrale non "
+                  "lo confronta; la variazione percentuale compare solo tra due trimestri completi."),
             ("p", "MFC Kyocera (TASKalfa): ogni contatore è la somma di stampe e copie dello stesso colore e "
                   "formato. In un profilo SNMP una colonna può sommare più OID scrivendoli uniti da + "
                   "(solo modalità GET)."),

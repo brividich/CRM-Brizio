@@ -16,7 +16,7 @@
 
 <div class="cards">
   <div class="card">
-    <div class="k">Totale copie ({{ ripartizione.trimestre }})</div>
+    <div class="k">Totale copie (ultime letture)</div>
     <div class="v">{{ ripartizione.totale }}</div>
   </div>
   <div class="card">
@@ -35,7 +35,7 @@
 
 <!-- Ripartizione -->
 <div class="panel">
-  <h2>Ripartizione (totali cumulati {{ ripartizione.trimestre }})</h2>
+  <h2>Ripartizione (totali cumulati, ultima lettura di {{ ripartizione.macchine }} MFC)</h2>
   <div style="margin-bottom:14px">
     <div class="row" style="justify-content:space-between"><span>Bianco/Nero</span><strong>{{ ripartizione.bn_pct }}%</strong></div>
     <div class="bar" style="height:14px"><span style="width:{{ ripartizione.bn_pct }}%"></span></div>
@@ -57,13 +57,14 @@
 <!-- Consumo per trimestre (delta) -->
 <div class="panel">
   <h2>Consumo per trimestre <span class="pos" style="font-weight:400">— copie effettivamente prodotte</span></h2>
-  {% if anomalie_consumo %}<div class="banner">⚠ {{ anomalie_consumo }} calo/i di lettura ignorati nel calcolo (refusi di monotonìa).</div>{% endif %}
+  <p class="pos">Differenza tra le letture di due trimestri consecutivi. Una MFC senza lettura in un trimestre non viene contata né in quello né nel successivo: il trimestre risulta «parziale».</p>
+  {% if anomalie_consumo %}<div class="banner">⚠ {{ anomalie_consumo }} calo/i di lettura contati come 0 nel calcolo (refuso o azzeramento).</div>{% endif %}
   <table>
     <thead><tr><th>Trimestre</th><th class="num">BN</th><th class="num">Colore</th><th class="num">Totale prodotto</th><th style="width:40%">Volume</th></tr></thead>
     <tbody>
     {% for c in consumo %}
       <tr>
-        <td><strong>{{ c.trimestre }}</strong></td>
+        <td><strong>{{ c.trimestre }}</strong>{% if c.in_corso %} <span class="pill">in corso</span>{% endif %}{% if c.parziale %} <span class="pill warn" title="MFC senza lettura nel trimestre o in quello precedente: le loro copie non sono contate">parziale {{ c.macchine }}/{{ c.attese }} MFC</span>{% endif %}</td>
         <td class="num">{{ c.bn }}</td>
         <td class="num">{{ c.col }}</td>
         <td class="num"><strong>{{ c.totale }}</strong></td>
@@ -107,7 +108,7 @@
     <tbody>
     {% for a in andamento %}
       <tr>
-        <td><strong>{{ a.trimestre }}</strong></td>
+        <td><strong>{{ a.trimestre }}</strong>{% if a.parziale %} <span class="pill warn" title="Mancano letture: il totale è più basso del reale">{{ a.macchine }}/{{ a.attese }} MFC</span>{% endif %}</td>
         <td class="num">{{ a.a4_bn }}</td><td class="num">{{ a.a3_bn }}</td>
         <td class="num">{{ a.a4_col }}</td><td class="num">{{ a.a3_col }}</td>
         <td class="num">{{ a.bn }}</td><td class="num">{{ a.col }}</td>

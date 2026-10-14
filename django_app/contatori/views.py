@@ -384,35 +384,15 @@ def leggi_snmp(request):
     """Legge via SNMP le MFC attive con host e salva la lettura del trimestre corrente.
 
     Non sovrascrive mai una lettura manuale o da fattura e non salva valori piu'
-    bassi del trimestre precedente (contatore azzerato o IP che punta a un'altra
-    macchina): in entrambi i casi la macchina viene solo segnalata.
+    bassi dell'ultima lettura salvata (contatore azzerato, lettura precedente
+    sbagliata): in entrambi i casi la macchina viene solo segnalata. Matricola
+    diversa o somma oltre le pagine totali sono scartate da interroga_macchina.
     """
     if request.method != "POST":
         return redirect("contatori:dashboard")
-    from .models import CONTATORI
-    from .snmp import SNMPError
-    oggi = timezone.localdate()
-    trimestre = services.trimestre_di(oggi)
-    presenti = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
-    lette, manuali, incoerenti, errori = 0, [], [], []
-    for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True).order_by("reparto"):
-        esistente = presenti.get(m.id)
-        if esistente and esistente.fonte != LetturaContatori.Fonte.SNMP:
-            manuali.append(m.reparto)
-            continue
-        try:
-            vals = services.interroga_macchina(m)
-        except SNMPError as e:
-            errori.append(f"{m.reparto} ({e})")
-            continue
-        prima = m.letture.filter(trimestre__lt=trimestre).order_by("-trimestre").first()
-        if prima and any(vals[c] < getattr(prima, c) for c, _ in CONTATORI):
-            incoerenti.append(m.reparto)
-            continue
-        LetturaContatori.objects.update_or_create(
-            macchina=m, trimestre=trimestre,
-            defaults={**vals, "data": oggi, "fonte": LetturaContatori.Fonte.SNMP})
-        lette += 1
+    esito = services.salva_letture_trimestrali_snmp()
+    trimestre, lette = esito["trimestre"], esito["lette"]
+    manuali, incoerenti, errori = esito["manuali"], esito["incoerenti"], esito["errori"]
     log_action(request, "letture_snmp", "contatori", dettaglio={
         "trimestre": trimestre, "lette": lette, "manuali": len(manuali),
         "incoerenti": len(incoerenti), "errori": len(errori)})
@@ -421,10 +401,10 @@ def leggi_snmp(request):
     if manuali:
         messages.info(request, "Non sovrascritte (lettura manuale già presente): " + ", ".join(manuali) + ".")
     if incoerenti:
-        messages.warning(request, "Valori più bassi del trimestre precedente, non salvati: "
-                         + ", ".join(incoerenti) + ". Verifica IP o azzeramento del contatore.")
+        messages.warning(request, "Valori più bassi dell'ultima lettura salvata, non salvati: "
+                         + ", ".join(incoerenti) + ". Il dettaglio è nella salute SNMP della MFC.")
     if errori:
-        messages.error(request, "Non raggiungibili: " + "; ".join(errori[:10])
+        messages.error(request, "Non lette: " + "; ".join(errori[:10])
                        + (f" e altre {len(errori) - 10}." if len(errori) > 10 else "."))
     if not (lette or manuali or incoerenti or errori):
         messages.info(request, "Nessuna MFC attiva con indirizzo IP da leggere.")
@@ -636,13 +616,14 @@ def macchina_test_snmp(request, pk):
     """Testa la lettura SNMP di una macchina; ritorna il frammento con l'esito."""
     from .snmp import SNMPError
     macchina = get_object_or_404(Macchina, pk=pk)
-    valori, errore = None, None
+    valori, errore, incoerenze = None, None, []
     try:
         valori = services.interroga_macchina(macchina)
+        incoerenze = services.incoerenze_lettura(macchina, valori)
     except SNMPError as e:
         errore = str(e)
     return render(request, "contatori/_snmp_result.html",
-                  {"valori": valori, "errore": errore, "macchina": macchina})
+                  {"valori": valori, "errore": errore, "incoerenze": incoerenze, "macchina": macchina})
 
 
 # --- Centrale dispositivi e lettori SNMP ----------------------------------

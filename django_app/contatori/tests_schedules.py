@@ -29,7 +29,7 @@ class MonthlyReadingsTests(TestCase):
     def test_retry_non_rilegge_e_non_sovrascrive_trimestre(self, poll):
         poll.return_value = self.valori
         trimestre = LetturaContatori.objects.create(
-            macchina=self.macchina, trimestre="2026-Q3", data=date(2026, 9, 1), a4_bn=99,
+            macchina=self.macchina, trimestre="2026-Q3", data=date(2026, 9, 1), a4_bn=9,
         )
         prima, creata = leggi_mensile_macchina(self.macchina)
         seconda, ricreata = leggi_mensile_macchina(self.macchina)
@@ -40,7 +40,7 @@ class MonthlyReadingsTests(TestCase):
         self.assertEqual(prima.mese, self.mese)
         poll.assert_called_once_with(self.macchina)
         trimestre.refresh_from_db()
-        self.assertEqual(trimestre.a4_bn, 99)
+        self.assertEqual(trimestre.a4_bn, 9)
 
     @patch("contatori.services.interroga_macchina")
     def test_due_mesi_conservano_due_snapshot(self, poll):

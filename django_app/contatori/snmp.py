@@ -52,6 +52,12 @@ SYS_CONTACT = "1.3.6.1.2.1.1.4.0"            # referente configurato sul device
 SYS_NAME = "1.3.6.1.2.1.1.5.0"               # nome host della stampante
 SYS_LOCATION = "1.3.6.1.2.1.1.6.0"           # posizione configurata sul device
 PRT_SERIAL = "1.3.6.1.2.1.43.5.1.1.17.1"     # Printer-MIB: numero di serie (= matricola)
+PRT_LIFECOUNT = "1.3.6.1.2.1.43.10.2.1.4.1.1"  # Printer-MIB: pagine totali (prtMarkerLifeCount)
+# Controlli di coerenza di una lettura MFC, letti DOPO i contatori: le pagine totali
+# non possono essere meno della somma dei quattro contatori.
+OID_CONTROLLO_MFC = (PRT_SERIAL, PRT_LIFECOUNT)
+# Margine per le pagine stampate durante la lettura (colonne in WALK lette dopo).
+TOLLERANZA_PAGINE = 50
 
 SYSTEM_OIDS = (
     SYS_DESCR, SYS_OBJECT_ID, SYS_UPTIME, SYS_CONTACT, SYS_NAME, SYS_LOCATION,
@@ -660,6 +666,38 @@ def leggi_consumabili(macchina, community="", port=161, timeout=3, version="v1")
     return out
 
 
+def _matricola_normalizzata(valore):
+    return re.sub(r"[^A-Z0-9]", "", _testo(valore).upper())
+
+
+def verifica_lettura_mfc(macchina, contatori, *, seriale=None, pagine_totali=None):
+    """Scarta una lettura che non e' della macchina o non torna con le pagine totali.
+
+    - matricola letta (prtGeneralSerialNumber) diversa da quella in anagrafica: l'IP
+      risponde con un'altra stampante (IP cambiato o riassegnato);
+    - somma dei quattro contatori oltre le pagine totali (prtMarkerLifeCount): gli OID
+      del profilo contano due volte le stesse pagine.
+    Se l'apparato non espone i due OID il controllo relativo non si applica.
+    """
+    letta, attesa = _matricola_normalizzata(seriale), _matricola_normalizzata(macchina.matricola)
+    if letta and attesa and letta != attesa and not (
+            min(len(letta), len(attesa)) >= 6 and (letta in attesa or attesa in letta)):
+        raise SNMPError(
+            f"all'indirizzo {macchina.host} risponde la stampante con matricola "
+            f"{_testo(seriale)}, non {macchina.matricola}: l'IP e' cambiato o e' assegnato "
+            "a un'altra macchina. Lettura scartata: correggi l'IP nella scheda MFC")
+    try:
+        totale = int(pagine_totali) if pagine_totali is not None else None
+    except (TypeError, ValueError):
+        totale = None
+    somma = sum(contatori.values())
+    if totale and somma > totale + TOLLERANZA_PAGINE:
+        raise SNMPError(
+            f"la somma dei quattro contatori ({somma}) supera le pagine totali dichiarate "
+            f"dalla stampante ({totale}): gli OID del profilo contano piu' volte le stesse "
+            "pagine. Lettura scartata: verifica il profilo SNMP")
+
+
 def leggi_macchina(macchina, community="", port=161, timeout=3, version="v1"):
     """Ritorna dict {a4_bn, a3_bn, a4_col, a3_col} oppure solleva SNMPError.
 
@@ -687,4 +725,11 @@ def leggi_macchina(macchina, community="", port=161, timeout=3, version="v1"):
             mancanti.append(num)
     if mancanti:
         raise SNMPError(f"contatori assenti nella macchina: {mancanti}")
+    try:
+        controllo, _ = leggi_oids(macchina.host, OID_CONTROLLO_MFC, community=community,
+                                  port=port, timeout=timeout, version=version)
+    except SNMPError:
+        controllo = {}
+    verifica_lettura_mfc(macchina, out, seriale=controllo.get(PRT_SERIAL),
+                         pagine_totali=controllo.get(PRT_LIFECOUNT))
     return out

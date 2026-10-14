@@ -240,6 +240,10 @@ class DiscoveryBackgroundForm(forms.Form):
         return [int(key) for key, _ in self.fields["communities"].choices if key in values]
 
 
+# Lettura di chiusura del trimestre: ammessa fino a 45 giorni dopo la fine.
+GIORNI_DATA_DOPO_CHIUSURA = 45
+
+
 class LetturaForm(SezioniFormMixin, forms.ModelForm):
     sezioni_def = (
         ("Rilevazione", "", ("macchina", "trimestre", "data", "fonte")),
@@ -288,6 +292,18 @@ class LetturaForm(SezioniFormMixin, forms.ModelForm):
             self.add_error("trimestre", f"Esiste già una lettura di {macchina.reparto} per il "
                                         f"{trimestre} (del {doppia.data:%d/%m/%Y}): modifica quella.")
             return data
+        quando = data.get("data")
+        if quando:
+            from datetime import timedelta
+            from django.utils import timezone
+            from .services import limiti_trimestre
+            inizio, chiusura = limiti_trimestre(trimestre)
+            if quando > timezone.localdate():
+                self.add_error("data", "La data della rilevazione è nel futuro.")
+            elif not inizio <= quando < chiusura + timedelta(days=GIORNI_DATA_DOPO_CHIUSURA):
+                self.add_error("data", f"La data non è del {trimestre}: va dal {inizio:%d/%m/%Y} al "
+                                       f"{chiusura + timedelta(days=GIORNI_DATA_DOPO_CHIUSURA - 1):%d/%m/%Y} "
+                                       "(la lettura di chiusura si può fare nei giorni dopo il trimestre).")
         prima, dopo = self._vicine(macchina, trimestre)
         incoerenze = {}
         for campo, _ in CONTATORI:
