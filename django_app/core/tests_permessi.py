@@ -394,6 +394,63 @@ class SincronizzazioneEInterruttoreTests(PersoneMixin, TestCase):
         self.assertTrue(vedere.eccezione and approvare.eccezione)
         self.assertIn("a mano", approvare.dettaglio)
 
+    def test_anteprima_prevede_il_risultato_del_salvataggio(self):
+        """Lo stesso calcolo che fa la pagina (JS) coincide con la sincronizzazione vera."""
+        from core.permessi.sync import (
+            dati_anteprima_ruolo,
+            sincronizza_ruolo,
+            sincronizza_tutti,
+            stato_pagine_ruolo,
+        )
+
+        sincronizza_tutti()
+        base = AccessGroup.objects.get(code="ruolo-dipendente")
+        # Eccezioni manuali che la sincronizzazione non tocca.
+        GroupPermissionGrant.objects.create(group=base, permission_id="tickets.impostazioni.manage", enabled=True)
+        GroupPermissionGrant.objects.update_or_create(
+            group=base, permission_id="dpi.detail.view", defaults={"enabled": False, "note": "negato a mano"}
+        )
+        dati = dati_anteprima_ruolo(base)
+        # Chiave del modulo che possiede le pagine ticket (dal registro, non scritta a mano).
+        tk = next(k for k, m in dati["moduli"].items() if any(p[0] == "tickets.impostazioni.manage" for p in m["pagine"]))
+        nuove = {("dpi", "approvare"): "tutti", ("dpi", "vedere"): "tutti", (tk, "vedere"): ""}
+
+        def previsto(modulo, azione):
+            celle = {
+                (c.modulo, c.azione): (c.ambito if c.consentito else "no")
+                for c in RuoloPermessoModulo.objects.filter(ruolo=base, modulo=modulo)
+            }
+            celle.update({k: v for k, v in nuove.items() if k[0] == modulo})
+            voluti = {
+                cap for (m, a), v in celle.items() if v in ("propri", "team", "tutti") for cap in dati["azioni"].get(a, [])
+            }
+            info = dati["moduli"][modulo]
+            caps = dati["azioni"][azione]
+            return sum(
+                1
+                for _code, cap, a_mano, negata in info["pagine"]
+                if cap in caps
+                and (a_mano or (not negata and (cap in voluti or (dati["vede_tutto"] and not info["solo_admin"] and cap == dati["lettura"]))))
+            )
+
+        attesi = {k: previsto(*k) for k in [("dpi", "vedere"), ("dpi", "approvare"), (tk, "vedere"), (tk, "gestire")]}
+        for (modulo, azione), valore in nuove.items():
+            if valore:
+                RuoloPermessoModulo.objects.update_or_create(
+                    ruolo=base, modulo=modulo, azione=azione, defaults={"consentito": True, "ambito": valore}
+                )
+            else:
+                RuoloPermessoModulo.objects.filter(ruolo=base, modulo=modulo, azione=azione).delete()
+        sincronizza_ruolo(base)
+        stato = stato_pagine_ruolo(base)
+        for chiave, atteso in attesi.items():
+            with self.subTest(cella=chiave):
+                self.assertEqual(len(stato[chiave].concesse), atteso)
+        # Il diniego manuale resta e l'acceso a mano pure.
+        self.assertEqual(attesi[("dpi", "vedere")], 0)
+        self.assertEqual(attesi[("dpi", "approvare")], 1)
+        self.assertEqual(attesi[(tk, "gestire")], 1)
+
     def test_stato_pagine_non_scrive_nulla(self):
         from core.permessi.sync import sincronizza_tutti, stato_pagine_ruolo
 
