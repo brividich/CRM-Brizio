@@ -1,8 +1,9 @@
 """Dominio delle verifiche periodiche sugli impianti.
 
 Tutta la logica che cambia dati passa da qui (viste, import dello storico, test):
-registrazione di una verifica, conferma, ricalcolo della prossima scadenza del tipo,
-OdL dai rilievi non conformi. Vedi docs/ai/VERIFICHE_PERIODICHE.md.
+registrazione di una verifica, conferma, ricalcolo della prossima scadenza del tipo.
+I rilievi non conformi restano segnalati sulla verifica: non aprono ordini di lavoro.
+Vedi docs/ai/VERIFICHE_PERIODICHE.md.
 """
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ from ..models import (
     PeriodicCheckResult,
     PeriodicCheckSession,
     PeriodicCheckType,
-    WorkOrder,
 )
 
 STATE_OVERDUE = "overdue"
@@ -191,32 +191,6 @@ def last_session(check_type: PeriodicCheckType) -> PeriodicCheckSession | None:
         .order_by("-performed_on", "-id")
         .first()
     )
-
-
-def create_work_order(result: PeriodicCheckResult, *, asset, user=None, title: str = "") -> WorkOrder:
-    """OdL correttivo da un rilievo non conforme; il rilievo resta collegato all'OdL."""
-    if result.work_order_id:
-        return result.work_order
-    session = result.session
-    check_type = session.check_type
-    description = (
-        f"Da verifica periodica «{check_type.name}» ({check_type.system.name}) "
-        f"del {session.performed_on:%d/%m/%Y}.\n{result.label}"
-    )
-    if result.note:
-        description += f"\n{result.note}"
-    work_order = WorkOrder.objects.create(
-        asset=asset,
-        kind=WorkOrder.KIND_CORRECTIVE,
-        origin=WorkOrder.ORIGIN_MANUAL,
-        status=WorkOrder.STATUS_OPEN,
-        title=(title or f"{check_type.name}: {result.label}")[:255],
-        description=description,
-        supplier_id=check_type.supplier_id,
-    )
-    result.work_order = work_order
-    result.save(update_fields=["work_order"])
-    return work_order
 
 
 # ---------------------------------------------------------------------------

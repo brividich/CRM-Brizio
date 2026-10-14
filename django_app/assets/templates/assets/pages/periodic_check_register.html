@@ -40,7 +40,7 @@
 
   {% if item_rows %}
     <fieldset class="md-fieldset pc-card">
-      <legend class="pc-card-head"><span class="pc-card-n">2</span><span><strong>Checklist</strong><small>Tutto OK di default: segna solo le voci che non vanno. Una voce non OK potra' diventare un ordine di lavoro.</small></span></legend>
+      <legend class="pc-card-head"><span class="pc-card-n">2</span><span><strong>Checklist</strong><small>Tutto OK di default: segna solo le voci che non vanno: restano segnalate come rilievi.</small></span></legend>
       <div class="pc-checklist">
         {% for row in item_rows %}
           <div class="pc-check">
@@ -81,7 +81,7 @@
   {% endif %}
 
   <fieldset class="md-fieldset pc-card">
-    <legend class="pc-card-head"><span class="pc-card-n">{% if item_rows or point_rows or grid %}3{% else %}2{% endif %}</span><span><strong>Rilievi e documenti</strong><small>Ogni rilievo, uno per riga, potra' diventare un ordine di lavoro.</small></span></legend>
+    <legend class="pc-card-head"><span class="pc-card-n">{% if item_rows or point_rows or grid %}3{% else %}2{% endif %}</span><span><strong>Rilievi e documenti</strong><small>Un rilievo per riga: resta segnalato sulla verifica.</small></span></legend>
     {% include "assets/components/_md_field.html" with field=form.remarks_text %}
     <div class="md-field">
       <span class="pc-label">Rapportino / verbale</span>

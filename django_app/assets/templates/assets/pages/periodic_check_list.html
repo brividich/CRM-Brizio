@@ -38,7 +38,7 @@
       </ul>
       {% if todo_more %}<p class="pc-muted pc-todo-more">Altre {{ todo_more }} cose da fare: usa i filtri qui sotto.</p>{% endif %}
     {% else %}
-      <p class="pc-todo-ok"><span aria-hidden="true">✓</span> Tutto in regola: nessuna verifica scaduta, nessun foglio in attesa, nessun rilievo senza ordine di lavoro.</p>
+      <p class="pc-todo-ok"><span aria-hidden="true">✓</span> Tutto in regola: nessuna verifica scaduta, nessun foglio in attesa.</p>
     {% endif %}
   </section>
   {% endif %}
@@ -118,7 +118,7 @@
                   <a href="{% url 'assets:periodic_check_type_detail' t.id %}" title="Apri la scheda: stato, statistiche, storico, documenti">{{ t.name }}</a>
                   {% if t.drafts %}<span class="pc-flag">{{ t.drafts }} da confermare</span>{% endif %}
                   {% if t.issued %}<span class="pc-flag">{{ t.issued }} {% if t.issued == 1 %}foglio{% else %}fogli{% endif %} in giro</span>{% endif %}
-                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} {% if t.open_ko == 1 %}rilievo{% else %}rilievi{% endif %} senza OdL</span>{% endif %}
+                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} {% if t.open_ko == 1 %}rilievo{% else %}rilievi{% endif %}</span>{% endif %}
                   <span class="md-sub">
                     {% if group_by == "categoria" %}{{ t.system.name }}{% elif t.category %}<span class="pc-cat is-{{ t.category.color }}">{{ t.category.name }}</span>{% endif %}
                     {{ t.get_method_display }}{% if t.reference_code %} · cod. {{ t.reference_code }}{% endif %}
