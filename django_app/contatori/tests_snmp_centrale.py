@@ -77,6 +77,17 @@ class ProfiliSNMPTest(TestCase):
         self.assertTrue(device.sonde.filter(modalita="WALK").exists())
         self.assertFalse(device.sonde.filter(profilo_colonna__isnull=True).exists())
 
+    def test_profilo_generico_non_cambia_il_tipo_scelto(self):
+        device = DispositivoSNMP.objects.create(nome="Switch", host="192.0.2.84", categoria="RETE")
+        generico = ProfiloSNMP.objects.create(slug="syn-generico", nome="Generico sintetico", categoria="GENERICO")
+        services.applica_profilo_dispositivo(device, generico)
+        device.refresh_from_db()
+        self.assertEqual(device.categoria, "RETE")
+        # Un profilo specifico invece decide il tipo.
+        services.applica_profilo_dispositivo(device, ProfiloSNMP.objects.get(slug="fortinet"))
+        device.refresh_from_db()
+        self.assertEqual(device.categoria, "FIREWALL")
+
     def test_cambio_profilo_rimuove_solo_sonde_generate_dal_vecchio(self):
         device = DispositivoSNMP.objects.create(nome="Appliance", host="192.0.2.83")
         fortinet = ProfiloSNMP.objects.get(slug="fortinet")
