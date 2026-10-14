@@ -163,3 +163,45 @@ class DiscoveryV3Tests(SimpleTestCase):
             self.assertEqual(list(scansiona_hosts(
                 ["10.0.0.1"], communities=[segreto + " " * 80], version="v3",
                 timeout=1, max_duration=5)), [])
+
+
+class SondaEngineV3Tests(SimpleTestCase):
+    """Discovery v3 senza credenziali contro un finto agente UDP locale."""
+
+    # Report net-snmp reale (engine ID sintetico 80001f8880 0102030405060708).
+    REPORT = bytes.fromhex(
+        "306a0201033011020442424242020300ffe3040100020103041e301c040d80001f8880010203040506"
+        "0708020101020202a30400040004003032040d80001f88800102030405060708 0400a81f0204434343"
+        "430201000201003011300f060a2b060106030f01010400410101".replace(" ", ""))
+
+    def _agente(self, risposta):
+        import socket
+        import threading
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.bind(("127.0.0.1", 0))
+        s.settimeout(5)
+        self.addCleanup(s.close)
+        ricevuti = []
+
+        def servi():
+            try:
+                dati, mittente = s.recvfrom(4096)
+            except OSError:
+                return
+            ricevuti.append(dati)
+            if risposta:
+                s.sendto(risposta, mittente)
+        threading.Thread(target=servi, daemon=True).start()
+        return s.getsockname()[1], ricevuti
+
+    def test_risposta_restituisce_engine_id(self):
+        from .snmp import sonda_engine_v3
+        porta, ricevuti = self._agente(self.REPORT)
+        self.assertEqual(sonda_engine_v3("127.0.0.1", porta, timeout=2), "80001f88800102030405060708")
+        # Richiesta v3 senza utente: nessuna credenziale esce dal portale.
+        self.assertTrue(ricevuti[0].startswith(b"\x30") and b"\x02\x01\x03" in ricevuti[0][:6])
+
+    def test_nessuna_risposta(self):
+        from .snmp import sonda_engine_v3
+        porta, _ = self._agente(None)
+        self.assertEqual(sonda_engine_v3("127.0.0.1", porta, timeout=0.3), "")

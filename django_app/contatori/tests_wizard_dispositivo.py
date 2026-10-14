@@ -152,6 +152,29 @@ class TestConnessioneTests(WizardBase):
         self.assertContains(r, "community errata")
         self.assertEqual(leggi.call_args.kwargs["timeout"], 3)
 
+    def _timeout_v3(self, engine):
+        self.fino_a_credenziali(versione="v3")
+        self.post("avanti", v3_utente="syn", v3_auth="sha1", v3_auth_key="chiave-sintetica-1",
+                  v3_priv="aes", v3_priv_key="chiave-sintetica-2")
+        with mock.patch(LEGGI_OIDS, side_effect=_errore(Timeout("3 second timeout"))) as leggi, \
+                mock.patch("contatori.snmp.sonda_engine_v3", return_value=engine) as sonda:
+            r = self.post("test")
+        self.assertEqual(leggi.call_count, 2)
+        sonda.assert_called_once_with("192.0.2.50", 161, timeout=3)
+        self.assertNotContains(r, "community")
+        return r
+
+    def test_v3_timeout_apparato_raggiungibile_snmp_009(self):
+        r = self._timeout_v3("80001f8880aabbccdd")
+        self.assertContains(r, "SNMP-009")
+        self.assertContains(r, "engine ID 80001f8880aabbccdd")
+        self.assertContains(r, "AES-128")
+
+    def test_v3_timeout_apparato_muto_snmp_010(self):
+        r = self._timeout_v3("")
+        self.assertContains(r, "SNMP-010")
+        self.assertContains(r, "SNMPv3 non attivo")
+
     def test_v3_rifiutato_snmp_004_senza_retry(self):
         self.fino_a_credenziali(versione="v3")
         self.post("avanti", v3_utente="syn", v3_auth="sha1", v3_auth_key="chiave-sintetica-1")

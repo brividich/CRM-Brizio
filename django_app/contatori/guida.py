@@ -177,6 +177,30 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "snmpv3",
+        "titolo": "SNMPv3 e test di connessione",
+        "blocchi": [
+            ("p", "Con «SNMPv3 (utente e chiavi)» al passo «Rete» del wizard, il passo «Credenziali» chiede solo "
+                  "«SNMPv3 - utente», «SNMPv3 - autenticazione» (SHA o MD5) con la sua chiave e «SNMPv3 - "
+                  "cifratura» (AES o DES) con la sua chiave, oppure una credenziale v3 del catalogo. "
+                  "La community non serve. Il portale supporta AES-128 e DES, SHA-1 e MD5: "
+                  "AES-192/256 e SHA-224/256/384/512 non sono supportati."),
+            ("p", "Se il test va in timeout con SNMPv3, il portale invia all'apparato una richiesta di "
+                  "identificazione senza credenziali e mostra il codice giusto:"),
+            ("def", [
+                ("SNMP-009 · apparato raggiungibile, credenziali scartate", "la rete funziona: l'apparato "
+                 "risponde a SNMPv3 (si vede il suo engine ID) ma ignora la lettura. Quasi sempre è la "
+                 "cifratura: protocollo diverso (AES/DES, oppure AES-192/256 sull'apparato) o chiave di "
+                 "cifratura errata. Ricontrolla l'utente sull'apparato e reinserisci tutte le chiavi."),
+                ("SNMP-010 · nessuna risposta SNMPv3", "l'apparato non risponde nemmeno all'identificazione: "
+                 "spento, IP errato, SNMPv3 non attivo, firewall o VLAN che bloccano UDP 161 dal server del "
+                 "portale, oppure l'apparato accetta solo gestori autorizzati."),
+                ("SNMP-004 · credenziali SNMPv3 rifiutate", "l'apparato risponde con un errore esplicito: "
+                 "utente sconosciuto o chiave/protocollo di autenticazione errati."),
+            ]),
+        ],
+    },
+    {
         "id": "permessi",
         "titolo": "Chi può fare cosa",
         "blocchi": [

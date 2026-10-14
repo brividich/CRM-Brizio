@@ -323,7 +323,8 @@ class ConnessioneSNMPMixin:
                                              port=porta, timeout=TEST_TIMEOUT, version=versione,
                                              max_duration=TEST_TIMEOUT + 2)
             except SNMPError as exc:
-                errore = errori_snmp.da_eccezione(exc, host=host, porta=porta, timeout=TEST_TIMEOUT)
+                errore = errori_snmp.da_eccezione(exc, host=host, porta=porta, timeout=TEST_TIMEOUT,
+                                                  versione=versione if _tentativo else None)
                 if errore["codice"] != "SNMP-003":
                     break
                 continue

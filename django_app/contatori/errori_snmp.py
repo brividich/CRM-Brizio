@@ -36,6 +36,18 @@ CATALOGO = {v.codice: v for v in (
                "Cause: dispositivo spento, IP errato, SNMP disattivato, firewall o VLAN che bloccano "
                "UDP 161. Con v1/v2c anche una community errata produce un timeout: molti apparati "
                "scartano in silenzio le richieste non autorizzate."),
+    VoceErrore("SNMP-010", "Nessuna risposta SNMPv3",
+               "L'apparato non risponde nemmeno alla richiesta di identificazione SNMPv3 (che non usa "
+               "credenziali). Cause: dispositivo spento, IP errato, SNMPv3 non attivo sull'apparato, "
+               "firewall o VLAN che bloccano UDP 161 dal server del portale, oppure l'apparato accetta "
+               "richieste solo da indirizzi gestori autorizzati."),
+    VoceErrore("SNMP-009", "SNMPv3: apparato raggiungibile, credenziali scartate",
+               "La rete è a posto: l'apparato risponde a SNMPv3 ma scarta in silenzio la richiesta con "
+               "le credenziali inserite. Quasi sempre è la cifratura: protocollo diverso (AES/DES) o "
+               "chiave di cifratura errata. Il portale supporta solo AES-128 e DES: AES-192/256 non "
+               "funzionano. Lo stesso accade con autenticazione SHA-224/256/384/512 (il portale usa "
+               "SHA-1 o MD5) o se l'utente sull'apparato richiede un livello di sicurezza diverso. "
+               "Ricontrolla i parametri dell'utente sull'apparato e reinseriscili tutti."),
     VoceErrore("SNMP-004", "Credenziali SNMPv3 rifiutate",
                "Controlla utente, protocollo e chiave di autenticazione (e di cifratura, se usata): "
                "devono coincidere con quelli configurati sull'apparato."),
@@ -88,16 +100,33 @@ def classifica(testo) -> VoceErrore:
     return CATALOGO["SNMP-000"]
 
 
-def da_eccezione(exc, *, oid=None, host=None, porta=None, timeout=None) -> dict:
-    """{codice, titolo, messaggio, azione} per un'eccezione di lettura SNMP."""
-    from .snmp import descrivi_errore
+def da_eccezione(exc, *, oid=None, host=None, porta=None, timeout=None, versione=None) -> dict:
+    """{codice, titolo, messaggio, azione} per un'eccezione di lettura SNMP.
+
+    Con SNMPv3 un timeout viene approfondito con una discovery senza credenziali:
+    se l'apparato risponde, il problema sono le credenziali (SNMP-009), non la rete.
+    """
+    from .snmp import descrivi_errore, sonda_engine_v3
     if isinstance(exc, ErroreSNMPCatalogato):
         voce, messaggio = exc.voce, str(exc)
     else:
         messaggio = descrivi_errore(exc, oid)
         voce = classifica(messaggio)
         if voce.codice == "SNMP-003" and host:
-            messaggio = f"Nessuna risposta da {host}:{porta or 161} in {timeout or 3} s."
+            bersaglio = f"{host}:{porta or 161}"
+            messaggio = f"Nessuna risposta da {bersaglio} in {timeout or 3} s."
+            if versione == "v3":
+                engine = sonda_engine_v3(host, porta or 161, timeout=min(timeout or 3, 3))
+                if engine:
+                    voce = CATALOGO["SNMP-009"]
+                    dettaglio = f" (engine ID {engine})" if engine != "?" else ""
+                    messaggio = (f"{bersaglio} risponde alla richiesta di identificazione SNMPv3"
+                                 f"{dettaglio}, ma non ha risposto alla lettura con le credenziali "
+                                 f"inserite entro {timeout or 3} s.")
+                else:
+                    voce = CATALOGO["SNMP-010"]
+                    messaggio = (f"Nessuna risposta SNMPv3 da {bersaglio}: neppure la richiesta di "
+                                 "identificazione senza credenziali ha avuto risposta.")
     return {"codice": voce.codice, "titolo": voce.titolo, "messaggio": messaggio[:500],
             "azione": voce.azione}
 
