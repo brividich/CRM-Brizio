@@ -47,6 +47,12 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 
 ## Note di rilascio
 
+#### Qcluster: script aggiornati dal deploy, un solo cluster (14/10/2026)
+
+- Il deploy del Setup Wizard, dopo l'attivazione della release, copia `start_qcluster.ps1` e `watch_qcluster.ps1` in `shared\scripts` (solo se già installati e diversi, con backup `.<data>.bak`) e riavvia `QCluster_<ENV>`. Non serve più ricopiarli a mano né riavviare il qcluster dopo `migrate`. Un task disabilitato (manutenzione dalla console qcluster) non viene riavviato.
+- Il launcher lega a sé i processi python (job object kill-on-close): fermando o uccidendo il task non restano python orfani. All'avvio chiude comunque ogni `qcluster` residuo dello stesso venv, così non partono due cluster sulla stessa coda.
+- Test: `deployment\tests\test-qcluster-orphans.ps1 -VenvPath <venv>` (processi sintetici).
+
 #### Qcluster: ripartenza dopo riavvio del server (14/10/2026)
 
 - Il task `QCluster_<ENV>` deve girare con account **non interattivo** (Password, S4U o ServiceAccount). «Installa task» del Setup Wizard non tocca più un task già non interattivo; se lo crea o lo trova interattivo lo registra con l'account corrente in **S4U**. Un task interattivo dopo riavvio o logoff non parte: il watchdog ora lo segnala nel registro eventi (ID 4104).

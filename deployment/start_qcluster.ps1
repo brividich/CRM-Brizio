@@ -97,6 +97,67 @@ if (-not $ownsMutex) { Write-Log "Launcher gia attivo per questo ambiente." "WAR
 try {
 Write-Log "=== qcluster START (env=$Environment, pid=$PID) ==="
 
+# -- Residui di un launcher precedente -------------------------------------
+# Stop-ScheduledTask / Stop-Process uccidono SOLO il launcher: i python figli
+# restano vivi senza padre e il nuovo launcher (mutex abbandonato) avvierebbe
+# un secondo cluster sulla stessa coda. Qui teniamo il mutex, quindi ogni
+# qcluster di questo venv e' un residuo: si chiude con tutto l'albero.
+try {
+    $leftovers = @(Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -OperationTimeoutSec 10 -ErrorAction Stop |
+        Where-Object { $_.ExecutablePath -eq $VenvPython -and $_.CommandLine -match '\bqcluster\b' })
+    foreach ($old in $leftovers) {
+        & "$env:SystemRoot\System32\taskkill.exe" /PID $old.ProcessId /T /F 2>&1 | Out-Null
+        Write-Log "Chiuso qcluster residuo di un launcher precedente (PID $($old.ProcessId))." "WARN"
+    }
+} catch {
+    Write-Log "Verifica qcluster residui non riuscita: $_" "WARN"
+}
+
+# -- Figli legati al launcher ----------------------------------------------
+# Job object con KILL_ON_JOB_CLOSE: se il launcher muore (stop del task, kill,
+# riavvio) Windows chiude anche tutti i processi python avviati da qui.
+# Non con -Once: chi lancia il test resterebbe nel job.
+if (-not $Once) {
+    try {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class NovicromQcJob {
+    [StructLayout(LayoutKind.Sequential)]
+    struct BasicLimit { public long a; public long b; public uint LimitFlags; public IntPtr c; public IntPtr d; public uint e; public IntPtr f; public uint g; public uint h; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct IoCounters { public ulong a; public ulong b; public ulong c; public ulong d; public ulong e; public ulong f; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct ExtendedLimit { public BasicLimit Basic; public IoCounters Io; public IntPtr a; public IntPtr b; public IntPtr c; public IntPtr d; }
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateJobObject(IntPtr attr, string name);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr job, int cls, IntPtr info, uint size);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+    [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+    public static IntPtr Handle;
+    public static void BindCurrentProcess() {
+        IntPtr job = CreateJobObject(IntPtr.Zero, null);
+        if (job == IntPtr.Zero) throw new System.ComponentModel.Win32Exception();
+        ExtendedLimit info = new ExtendedLimit();
+        info.Basic.LimitFlags = 0x2000;
+        int size = Marshal.SizeOf(typeof(ExtendedLimit));
+        IntPtr ptr = Marshal.AllocHGlobal(size);
+        try {
+            Marshal.StructureToPtr(info, ptr, false);
+            if (!SetInformationJobObject(job, 9, ptr, (uint)size)) throw new System.ComponentModel.Win32Exception();
+        } finally { Marshal.FreeHGlobal(ptr); }
+        if (!AssignProcessToJobObject(job, GetCurrentProcess())) throw new System.ComponentModel.Win32Exception();
+        Handle = job;
+    }
+}
+'@ -ErrorAction Stop
+        # L'handle resta aperto fino all'uscita del launcher: nessuna chiusura esplicita.
+        [NovicromQcJob]::BindCurrentProcess()
+        Write-Log "Processi qcluster legati al launcher (job kill-on-close)."
+    } catch {
+        Write-Log "Job object non disponibile, i figli potrebbero sopravvivere al launcher: $_" "WARN"
+    }
+}
+
 # -- Loop di restart -------------------------------------------------------
 $attempt = 0
 while ($true) {
