@@ -147,8 +147,32 @@ SEZIONI: list[dict] = [
                 "Nella scheda MFC e dispositivo, riquadro «Asset collegato»: nome, tipo, seriale e codice "
                 "dell'asset, numero di licenze e di software rilevati dall'inventario del SOC, poi ogni licenza "
                 "con scadenza, giorni mancanti (o trascorsi) e stato (valida, in scadenza, scaduta, disattiva). "
-                "Pulsanti «Gestisci licenze» e «Apri scheda asset». Se l'apparato non ha un asset, il riquadro "
-                "lo dice e chi gestisce il modulo ha il pulsante «Collega un asset» (apre la modifica).",
+                "Pulsanti «Gestisci licenze» e «Apri scheda asset». Se negli ultimi 12 mesi sull'asset ci sono "
+                "importi registrati (rinnovi licenze, interventi chiusi, adempimenti) compare il totale con il link "
+                "«dettaglio» al riquadro «Costi registrati» della scheda asset.",
+                "Apparato senza asset: se il portale trova un solo asset con la stessa matricola/seriale o lo stesso "
+                "IP lo propone («Asset trovato per seriale», «per indirizzo IP», …) e chi gestisce il modulo lo collega "
+                "con «Collega» (registrato nell'audit). Con «Scegli un altro», o se non c'è una proposta univoca, "
+                "«Collega un asset» apre la modifica dell'apparato.",
+            ]),
+        ],
+    },
+    {
+        "id": "firmware",
+        "titolo": "Firmware dei dispositivi SNMP",
+        "blocchi": [
+            ("p", "A ogni interrogazione riuscita il portale legge la versione firmware: prima da una sonda di testo "
+                  "il cui nome contiene «Firmware» (es. preset Kyocera, HPE iLO), altrimenti dal sysDescr "
+                  "(«Version 15.2(4)E10», «Firmware 2.5.1»)."),
+            ("ul", [
+                "Nella scheda del dispositivo, riga «Firmware» in «Identità SNMP»: versione, fonte e data di lettura; "
+                "con più versioni viste, l'elenco «N versioni viste» con le date di inizio e fine.",
+                "Il firmware compare anche nel tab «Monitoraggio» della scheda asset collegata.",
+                "Se il dispositivo ha produttore e modello, il firmware entra nell'inventario software del SOC "
+                "come «<modello> firmware» (fonte «Firmware da monitoraggio SNMP»): il SOC lo confronta con le CVE "
+                "come il software dei PC. Una versione nuova sostituisce la precedente.",
+                "Le MFC del modulo (letture contatori) non leggono il sysDescr: per il firmware di una stampante "
+                "aggiungila anche in Monitor SNMP.",
             ]),
         ],
     },

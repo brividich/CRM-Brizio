@@ -116,10 +116,50 @@ def discovery_applica_ip(request, pk):
     return redirect("contatori:discovery")
 
 
-def _licenze_software_asset(asset):
+def _asset_proposto(apparato, tipo):
+    """Asset proposto per un apparato senza asset: stesso abbinamento della riconciliazione IT."""
+    try:
+        from assets.services.identity_match import match_hub_asset
+
+        if tipo == "snmp":
+            asset, motivo = match_hub_asset(serial=apparato.matricola, ip=apparato.host, hostname=apparato.sys_name)
+        else:
+            asset, motivo = match_hub_asset(serial=apparato.matricola, ip=apparato.host or "")
+    except Exception:  # noqa: BLE001 - la proposta e' un aiuto, la scheda non dipende da essa
+        return None
+    if asset is None:
+        return None
+    return {"asset": asset, "motivo": motivo, "tipo": tipo, "apparato_pk": apparato.pk}
+
+
+@require_POST
+@richiede_gestione
+def apparato_collega_asset(request, tipo, pk):
+    """Collega MFC o dispositivo SNMP all'asset proposto: solo se la proposta e' ancora quella mostrata."""
+    model, dettaglio = {"mfc": (Macchina, "contatori:macchina"),
+                        "snmp": (DispositivoSNMP, "contatori:snmp_dispositivo")}.get(tipo, (None, None))
+    if model is None:
+        return redirect("contatori:dashboard")
+    apparato = get_object_or_404(model, pk=pk)
+    proposta = _asset_proposto(apparato, tipo) if apparato.asset_id is None else None
+    if proposta is None or str(proposta["asset"].pk) != request.POST.get("asset", ""):
+        messages.warning(request, "Collegamento non eseguito: l'apparato è già collegato o la proposta è cambiata.")
+        return redirect(dettaglio, pk=pk)
+    asset = proposta["asset"]
+    apparato.asset = asset
+    apparato.save(update_fields=["asset", "aggiornato_il"] if tipo == "snmp" else ["asset"])
+    log_action(request, "apparato_collegato_asset", "contatori",
+               {"tipo": tipo, "apparato_id": apparato.pk, "asset_id": asset.pk, "asset_tag": asset.asset_tag,
+                "motivo": proposta["motivo"]})
+    messages.success(request, f"Apparato collegato all'asset {asset.asset_tag}.")
+    return redirect(dettaglio, pk=pk)
+
+
+def _licenze_software_asset(asset, apparato=None, tipo=""):
     """Licenze (modulo Asset) e software installato (inventario SOC) dell'asset collegato all'apparato."""
     if asset is None:
-        return {"licenze_asset": [], "software_asset": None}
+        proposta = _asset_proposto(apparato, tipo) if apparato is not None else None
+        return {"licenze_asset": [], "software_asset": None, "asset_proposto": proposta}
     from assets.services.software_licenze import licenses_for_asset
 
     software = None
@@ -129,7 +169,14 @@ def _licenze_software_asset(asset):
         software = software_for_hub_asset(asset)
     except Exception:  # noqa: BLE001 - la scheda apparato non dipende dall'inventario software
         software = None
-    return {"licenze_asset": licenses_for_asset(asset), "software_asset": software}
+    costi = None
+    try:
+        from assets.services.costi_asset import costi_asset
+
+        costi = costi_asset(asset)
+    except Exception:  # noqa: BLE001 - la scheda apparato non dipende dai costi
+        costi = None
+    return {"licenze_asset": licenses_for_asset(asset), "software_asset": software, "costi_asset": costi}
 
 
 def dashboard(request):
@@ -266,7 +313,7 @@ def macchina_detail(request, pk):
         "produzione": services.produzione_macchina(macchina),
         "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
         "letture_mensili": macchina.letture_mensili.all()[:24],
-        **_licenze_software_asset(macchina.asset),
+        **_licenze_software_asset(macchina.asset, macchina, "mfc"),
     })
 
 
@@ -663,7 +710,8 @@ def dispositivo_snmp_detail(request, pk):
         "info_snmp": services.info_snmp(dispositivo),
         "ultima_ok": dispositivo.rilevazioni.filter(stato=StatoSNMP.OK).order_by("-rilevata_il").first(),
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
-        **_licenze_software_asset(dispositivo.asset),
+        **_licenze_software_asset(dispositivo.asset, dispositivo, "snmp"),
+        "firmware_storico": list(dispositivo.firmware_storico.all()[:20]),
     })
 
 

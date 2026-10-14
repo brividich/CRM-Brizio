@@ -11,6 +11,8 @@ urlpatterns = [
     path("fatture/<int:pk>/", views.fattura_edit, name="fattura_edit"),
     path("fatture/<int:pk>/elimina/", views.fattura_elimina, name="fattura_elimina"),
     path("macchina/<int:pk>/", views.macchina_detail, name="macchina"),
+    path("apparati/<slug:tipo>/<int:pk>/collega-asset/", views.apparato_collega_asset,
+         name="apparato_collega_asset"),
     path("lettura/nuova/", views.importa_lettura, name="importa_lettura"),
     path("letture/proposte/", views.letture_proposte, name="letture_proposte"),
     path("letture/<int:pk>/", views.importa_lettura, name="lettura_edit"),

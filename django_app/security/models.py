@@ -1294,6 +1294,7 @@ class SoftwareSourceKind(models.TextChoices):
     WATCHGUARD = "watchguard", "WatchGuard EPDR / Panda"
     BUSINESSLOG = "businesslog", "BusinessLog"
     OTHER = "other", "Altro export"
+    SNMP_FIRMWARE = "snmp_firmware", "Firmware da monitoraggio SNMP"
 
 
 class SoftwareImportPreset(models.Model):

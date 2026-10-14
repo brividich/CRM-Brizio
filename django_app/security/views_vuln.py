@@ -113,7 +113,8 @@ def inventory_page(request):
     return render(request, "security/vuln_inventory.html", {
         "imports": SoftwareInventoryImport.objects.select_related("preset", "uploaded_by")[:30],
         "presets": SoftwareImportPreset.objects.all(),
-        "source_kinds": SoftwareSourceKind.choices,
+        # Il firmware arriva dal monitoraggio SNMP, non da un file.
+        "source_kinds": [c for c in SoftwareSourceKind.choices if c[0] != SoftwareSourceKind.SNMP_FIRMWARE],
         "max_mb": software_inventory.MAX_UPLOAD_BYTES // (1024 * 1024),
     })
 
@@ -134,7 +135,8 @@ def _inventory_upload(request):
         messages.error(request, str(exc))
         return redirect("security:inventory")
     source_kind = request.POST.get("source_kind", SoftwareSourceKind.OTHER)
-    source_kind = source_kind if source_kind in dict(SoftwareSourceKind.choices) else SoftwareSourceKind.OTHER
+    if source_kind not in dict(SoftwareSourceKind.choices) or source_kind == SoftwareSourceKind.SNMP_FIRMWARE:
+        source_kind = SoftwareSourceKind.OTHER
     preset = SoftwareImportPreset.objects.filter(pk=request.POST.get("preset") or 0).first()
     sha = software_inventory.file_sha256(data)
     column_map = preset.column_map if preset else software_inventory.suggest_mapping(table.headers)

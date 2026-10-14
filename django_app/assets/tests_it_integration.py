@@ -130,7 +130,7 @@ class AssetPageIntegrationTests(TestCase):
 
     def test_snmp_identity_diff_and_apply(self):
         response = self.page()
-        self.assertContains(response, "Il monitoraggio legge dati diversi dall")
+        self.assertContains(response, "Il monitoraggio ha dati diversi dall")
         self.assertContains(response, "SN-LETTO")
         url = reverse("assets:asset_view", args=[self.asset.pk])
         # Un valore non letto via SNMP viene rifiutato.
@@ -140,6 +140,13 @@ class AssetPageIntegrationTests(TestCase):
         self.client.post(url, {"action": "apply_snmp_identity", "field": "serial_number", "value": "SN-LETTO"})
         self.asset.refresh_from_db()
         self.assertEqual(self.asset.serial_number, "SN-LETTO")
+
+    def test_seriale_che_differisce_solo_per_separatori_non_e_una_differenza(self):
+        from .services.it_identity_diff import snmp_identity_diffs
+
+        self.asset.serial_number = "sn letto"
+        self.asset.save(update_fields=["serial_number"])
+        self.assertNotIn("serial_number", [d["field"] for d in snmp_identity_diffs(self.asset)])
 
     def test_unlinked_asset_shows_soc_candidate(self):
         other = Asset.objects.create(asset_tag="DEMO-PC9", name="PC-NONCOLLEGATO", asset_type="PC")

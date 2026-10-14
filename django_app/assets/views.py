@@ -10687,10 +10687,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     from .services.asset_kpis import device_kpis as _device_kpis
 
     device_kpis = _device_kpis(request, asset, it_presentation)
+    from .services.costi_asset import costi_asset as _costi_asset
+
+    asset_costi = _costi_asset(asset)
     return render(
         request,
         "assets/pages/asset_detail.html",
         {
+            "asset_costi": asset_costi,
             "page_title": f"Dettaglio asset {asset.asset_tag}",
             "asset": asset,
             "prodotto_chimico": asset.prodotto_chimico,

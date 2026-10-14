@@ -60,6 +60,8 @@ def _range_text(c):
 
 
 def _source_text(install):
+    if install.source_kind == "snmp_firmware":
+        return f"fonte: monitoraggio SNMP del {install.last_inventory_date:%d/%m/%Y}"
     return f"fonte: export {install.get_source_kind_display()} del {install.last_inventory_date:%d/%m/%Y}"
 
 
