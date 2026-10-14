@@ -1,0 +1,43 @@
+<h3>A cosa serve la pagina Accessi</h3>
+<p>Da qui si concedono i <strong>permessi di pagina</strong> (ACL canonica) a un <strong>gruppo</strong> o a un <strong>ruolo legacy</strong>, un permesso alla volta. È il livello su cui il portale decide davvero se una pagina o un'API si apre. Per dire cosa può fare un ruolo modulo per modulo (vedere, creare, approvare… su dati propri, del team o di tutti) si usa invece <strong>Ruoli e permessi</strong> → «Matrice dei ruoli»: la matrice accende da sola i permessi di pagina che le servono.</p>
+
+<h3>Scegliere chi configurare</h3>
+<ul>
+  <li>In alto a sinistra scegli dal menu un <strong>Gruppo</strong> o un <strong>Ruolo</strong> legacy e premi «Cambia».</li>
+  <li>Il contatore «Permessi concessi» dice quanti interruttori sono accesi sul totale.</li>
+  <li>Per un gruppo, «Chi ne fa parte» elenca le persone: aggiungile con «Email o ID legacy» → «Aggiungi al gruppo», toglile con la ×. Nome, priorità e stato si cambiano con «Salva il gruppo»; un gruppo nuovo si crea da «Crea un gruppo».</li>
+  <li>Se due gruppi della stessa persona dicono cose diverse sullo stesso permesso decide quello con <strong>priorità più alta</strong>; a parità vince il diniego.</li>
+</ul>
+
+<h3>Accendere e spegnere i permessi</h3>
+<ul>
+  <li>Ogni permesso ha l'interruttore a sinistra; sotto il nome ci sono il codice, la capacità (lettura, modifica, approvazione, amministrazione) e le prime rotte che governa.</li>
+  <li>I moduli sono divisi in «Configurazione e amministrazione» e «Operativo», e poi in categorie: «Accendi tutto» / «Spegni tutto», «Accendi» / «Spegni» e «Accendi categoria» / «Spegni categoria» agiscono sul blocco.</li>
+  <li>Il menu <strong>Livello</strong> di ogni modulo accende gli interruttori giusti in un colpo: «Nessun accesso», «Solo lettura», «Lettura e modifica», «Operativo completo», «Amministratore del modulo». «Livello su tutti i moduli» → «Applica a tutti» fa lo stesso su ogni modulo.</li>
+  <li>«Salva come preset…» salva con un nome gli interruttori accesi del modulo; il preset compare nel menu Livello e si applica a qualsiasi gruppo o ruolo. «Elimina preset» lo rimuove senza toccare chi l'ha già usato.</li>
+  <li>Livelli, preset e pulsanti muovono solo gli interruttori: niente è salvato finché non premi <strong>«Salva i permessi»</strong>.</li>
+  <li>Per un gruppo, spegnere un interruttore cancella il permesso (il gruppo tace) e non lo nega: non toglie ciò che la persona riceve da un altro gruppo o dal suo ruolo.</li>
+</ul>
+
+<h3>Permessi «da matrice»</h3>
+<p>Accanto ad alcuni permessi di un gruppo compare l'etichetta <strong>«da matrice»</strong>: li ha accesi la Matrice dei ruoli, e il link porta alla matrice di quel ruolo. Puoi spegnerli anche qui, ma la matrice resta la fonte di verità:</p>
+<ul>
+  <li>nella matrice, sotto la cella, il badge «pagine N/M» lo mostra subito con la scritta «· a mano»;</li>
+  <li>al prossimo «Salva matrice» di quel ruolo le pagine tolte a mano tornano accese. Per toglierle davvero cambia la cella della matrice;</li>
+  <li>i permessi accesi a mano qui, invece, restano anche dopo il salvataggio della matrice, e la matrice li segna «· a mano».</li>
+</ul>
+
+<h3>Trovare un permesso</h3>
+<ul>
+  <li>Il campo «Filtra per permesso, codice, modulo, categoria o pagina» filtra mentre scrivi; «Apri tutti» / «Chiudi tutti» espandono i moduli.</li>
+  <li>Il filtro sul collegamento mostra solo i permessi che aprono pagine, solo le voci di menu, solo quelli di sezione o solo i collegamenti oscurati.</li>
+</ul>
+
+<h3>Verifica dei collegamenti</h3>
+<p>Dice quanti permessi aprono pagine, quanti comandano solo voci di menu, quanti sono «di sezione» (verificati dentro la pagina, su pulsanti e azioni) e quanti hanno un collegamento <strong>oscurato</strong>: concessi da soli non aprono nulla, perché il loro binding punta a rotte che non esistono più o è sempre scavalcato da uno più specifico. «Binding da rivedere» li elenca.</p>
+
+<h3>Da sapere</h3>
+<ul>
+  <li>Il menu non è un controllo di sicurezza: una voce visibile non apre la pagina se il permesso manca.</li>
+  <li>Chi apre una pagina senza permesso vede «Accesso negato»; le API rispondono con un errore 401/403.</li>
+</ul>

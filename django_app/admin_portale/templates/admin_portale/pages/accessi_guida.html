@@ -1,0 +1,18 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida Accessi | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Guida · Accessi" page_subtitle="Come si concedono i permessi di pagina a gruppi e ruoli." %}
+  <div class="acl-actions" style="margin-bottom:12px;">
+    <a class="btn btn-secondary" href="{% url 'admin_portale:accessi' %}{% if subject %}?subject={{ subject|urlencode }}{% endif %}">← Torna ad Accessi</a>
+    <a class="btn btn-secondary" href="{% url 'admin_portale:ruoli_portale' %}?tab=guida">Guida Ruoli e permessi</a>
+  </div>
+  <div class="card"><div class="card-body">
+    {% include "admin_portale/components/accessi_guida.html" %}
+  </div></div>
+{% endblock %}

@@ -1,0 +1,22 @@
+<h3>Come funziona</h3>
+<p>Ogni persona ha uno o più <strong>ruoli</strong>. Ogni ruolo dice, modulo per modulo, quali azioni concede (vedere, creare, modificare, approvare, chiudere/gestire, esportare, cancellare) e su quali dati: <strong>propri</strong>, <strong>team</strong> (le persone del suo team d'organigramma) o <strong>tutti</strong>.</p>
+<p>Se una persona ha più ruoli, per ogni azione decide il ruolo con <strong>ordine più alto</strong> fra quelli che si esprimono su quell'azione. Un ruolo che non dice nulla («—») lascia decidere il ruolo successivo. «No» nega anche se un ruolo più basso concede. A parità di ordine vince il «No», e fra due «sì» la visibilità più ampia.</p>
+<p>Tutti hanno il ruolo base <strong>Dipendente</strong> (vede e crea solo i propri dati). <strong>Amministratore</strong> e <strong>Direzione</strong> vedono tutto su ogni modulo, anche su quelli che verranno; la Direzione non modifica.</p>
+<p>Alcuni moduli hanno <strong>azioni proprie</strong>, mostrate nella matrice sotto la riga del modulo (es. Anagrafica → «Dati riservati»: IBAN, codice fiscale, contratti, documenti riservati).</p>
+<p>Le pagine che elencano <strong>tutti i dipendenti</strong> (gestione anagrafica, dati riservati, visite mediche, formazione) si aprono solo con visibilità <strong>Tutti</strong>: chi ha «Team» vede i dati del suo team dalla scheda del singolo dipendente, non dalle pagine globali.</p>
+<h3>Il team</h3>
+<p>Il team viene dall'<strong>organigramma per ruolo</strong> (Anagrafica → Ruoli, campo «Riporta a»). Chi ricopre un ruolo ha nel team tutte le persone che ricoprono ruoli che gli riportano, anche indirettamente. Chi ricopre lo stesso ruolo è un collega, non un membro del team. Senza ruoli d'organigramma il team è vuoto.</p>
+<h3>Le schede</h3>
+<ul>
+  <li><strong>Persone</strong>: cerca la persona, spunta i suoi ruoli, salva. La nota finisce nel registro.</li>
+  <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. Il menu «Tutta la riga…» sotto il nome di ogni modulo applica lo stesso valore a tutte le sue azioni in un colpo (le azioni proprie sotto la riga restano da impostare a mano); il salvataggio è sempre da confermare con «Salva matrice». I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.
+    Sotto ogni cella il badge «pagine N/M» dice quante pagine dell'azione il ruolo ha davvero adesso (verde tutte, giallo solo alcune, grigio nessuna; passa il mouse per l'elenco, clic per il riepilogo del modulo). Se qualcuno ha acceso o spento quei permessi dalla pagina <strong>Accessi</strong>, il badge lo mostra subito con la scritta «· a mano». Al prossimo «Salva matrice» di quel ruolo le pagine tolte a mano tornano accese; quelle aggiunte a mano restano. Nella pagina Accessi i permessi accesi dalla matrice hanno l'etichetta «da matrice», con il link alla matrice del ruolo.</li>
+  <li><strong>Riepilogo per modulo</strong>: scegli un modulo e vedi cosa concede ogni ruolo e, per ogni pagina e API del modulo, quali ruoli la aprono (dalla matrice o a mano). Evidenzia le pagine che nessun ruolo apre: utile prima del go-live. Sola lettura.</li>
+  <li><strong>Cosa vede questa persona</strong>: per ogni modulo, le azioni consentite, su quali dati e quale ruolo decide.</li>
+  <li><strong>Registro modifiche</strong>: chi ha cambiato ruoli, matrice o stato del sistema, e quando.</li>
+  <li><strong>Sistema</strong>: interruttore generale. Spento valgono le regole storiche; acceso decidono solo i ruoli.</li>
+</ul>
+<h3>Cosa vedono le persone senza permesso</h3>
+<p>Chi apre una pagina o un'operazione che il suo ruolo non consente vede «Accesso negato» con l'invito a rivolgersi al reparto IT. L'Assistente AI usa gli stessi permessi: non risponde con dati di moduli che la persona non vede.</p>
+<h3>Visibilità dei moduli nel menu</h3>
+<p>Quali moduli compaiono nel menu lo decidi dal <strong>Navigation Builder</strong>. Il menu però non è un controllo di sicurezza: le pagine e le API si aprono solo se il ruolo lo consente.</p>
