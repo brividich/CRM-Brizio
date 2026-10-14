@@ -28,7 +28,7 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         <div class="af-it-dev-main"><a class="af-it-dev-name" href="{{ device.url }}">{{ device.nome }}</a>
           <span class="af-it-dev-meta"><span class="af-it-mono">{{ device.host }}</span> · {% if device.firmware %}Firmware <span class="af-it-mono">{{ device.firmware }}</span> · {% endif %}{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
         {% if device.snmp_ultimo_controllo %}<span class="as-badge as-badge--{% if device.snmp_stato == 'OK' %}ok{% elif device.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}">{{ device.state_label }}</span>{% endif %}
-        <a class="af-btn af-btn-ghost" href="{{ device.url }}">Apri in Contatori</a>
+        <a class="af-btn af-btn-ghost" href="{{ device.url }}">Apri in Contatori IT</a>
       </div>
       {% if device.readings %}
       <details class="af-it-disclosure"{% if it_presentation.profile != 'printer' %} open{% endif %}><summary>Valori rilevati</summary>
@@ -57,7 +57,7 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         <div class="af-it-dev-main"><a class="af-it-dev-name" href="{{ machine.url }}">MFC · {{ machine.reparto }}</a>
           <span class="af-it-dev-meta">Matricola <span class="af-it-mono">{{ machine.matricola }}</span> · {% if not machine.attiva %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if machine.snmp_ultimo_controllo %}{{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
         {% if machine.snmp_ultimo_controllo %}<span class="as-badge as-badge--{% if machine.snmp_stato == 'OK' %}ok{% elif machine.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}">{{ machine.state_label }}</span>{% endif %}
-        <a class="af-btn af-btn-ghost" href="{{ machine.url }}">Apri in Contatori</a>
+        <a class="af-btn af-btn-ghost" href="{{ machine.url }}">Apri in Contatori IT</a>
       </div>
       <div class="af-it-facts">
         {% if machine.modello %}<div><span>Modello</span><strong>{{ machine.modello }}</strong></div>{% endif %}
@@ -112,13 +112,13 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         {% else %}<p class="af-note">Servono almeno due letture mensili consecutive per calcolare le pagine del mese.</p>{% endif %}
 
         {% if s.errore_snmp %}<p class="af-mfc-stale"><strong>Ultimo errore SNMP</strong>{% if machine.snmp_ultimo_controllo %} ({{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }}){% endif %}: {{ s.errore_snmp }}</p>{% endif %}
-        <p class="af-it-foot"><a class="as-link-subtle" href="{{ machine.url }}">Apri la scheda in Contatori →</a></p>
+        <p class="af-it-foot"><a class="as-link-subtle" href="{{ machine.url }}">Apri la scheda in Contatori IT →</a></p>
       </div>
       {% endwith %}
     {% endfor %}
     {% if it_monitoring.mfc_unlinked %}
       <div class="af-it-diff af-mfc-unlinked" role="group" aria-label="Stampante non collegata">
-        <p><strong>Questa stampante non è collegata a nessuna MFC del modulo Contatori:</strong> consumabili e pagine stampate non possono comparire qui.</p>
+        <p><strong>Questa stampante non è collegata a nessuna MFC di Contatori IT:</strong> consumabili e pagine stampate non possono comparire qui.</p>
         {% if it_monitoring.mfc_unlinked.candidates %}
           <p>MFC non collegate con la stessa matricola o lo stesso IP:</p>
           <ul>{% for c in it_monitoring.mfc_unlinked.candidates %}<li>
@@ -128,9 +128,10 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         {% else %}
           <p class="af-note">Nessuna MFC corrisponde per matricola o IP. {% if it_monitoring.mfc_unlinked.can_link %}<a href="{{ it_monitoring.mfc_unlinked.reconcile_url }}?vista=senza">Apri la riconciliazione</a>.{% endif %}</p>
         {% endif %}
+        {% if it_monitoring.add_url %}<p><a class="af-btn af-btn-secondary" href="{{ it_monitoring.add_url }}">Monitora via SNMP</a> <small>Se la stampante non è ancora in Contatori IT: apre il wizard «Nuovo apparato» con questo asset già scelto.</small></p>{% endif %}
       </div>
     {% endif %}
-    {% if not it_monitoring.devices and not it_monitoring.machines and not it_monitoring.mfc_unlinked %}<p>Nessun monitoraggio collegato consultabile. Non equivale a dispositivo spento.</p>{% endif %}
+    {% if not it_monitoring.devices and not it_monitoring.machines and not it_monitoring.mfc_unlinked %}<p>Nessun monitoraggio collegato consultabile. Non equivale a dispositivo spento.</p>{% if it_monitoring.add_url %}<p><a class="af-btn af-btn-secondary" href="{{ it_monitoring.add_url }}">Monitora via SNMP</a> <small>Apre il wizard «Nuovo apparato» di Contatori IT con questo asset già scelto.</small></p>{% endif %}{% endif %}
     <p class="af-note">Massimo 10 collegamenti per tipo. Consulta la centrale per l'elenco completo; apparati diversi non vengono sommati.</p>
     {% include "assets/partials/storico_campi_lazy.html" with storico_gruppo="" storico_titolo="Cosa è cambiato: stato, assegnazione e rete" storico_target="asset-storico-monitor" %}
   </div>

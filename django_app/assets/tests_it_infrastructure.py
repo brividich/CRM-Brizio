@@ -63,6 +63,22 @@ class InfrastructureProfilesTests(TestCase):
         # Stampante senza MFC: lo si dice esplicitamente (PROMPT 06 - B).
         self.assertContains(response, "non è collegata a nessuna MFC")
 
+    def test_monitora_via_snmp_apre_il_wizard_con_asset_e_tipo(self):
+        wizard = reverse("contatori:wizard_avvia", args=["apparato"])
+        for kind, tipo in (("STAMPANTE", "MFC"), ("SERVER", "SERVER")):
+            with self.subTest(kind=kind):
+                asset = self.asset(kind)
+                response = self.page(asset)
+                self.assertContains(response, "Monitora via SNMP")
+                self.assertContains(response, f"{wizard}?asset={asset.pk}&amp;tipo_apparato={tipo}")
+
+    def test_monitora_via_snmp_assente_se_gia_monitorato_o_senza_gestione(self):
+        asset = self.asset("SERVER")
+        with patch("contatori.permessi.puo_gestire", return_value=False):
+            self.assertNotContains(self.page(asset), "Monitora via SNMP")
+        DispositivoSNMP.objects.create(nome="Server demo", host="192.0.2.45", asset=asset)
+        self.assertNotContains(self.page(asset), "Monitora via SNMP")
+
     def test_printer_still_shows_soc_when_explicitly_linked(self):
         asset = self.asset("STAMPANTE")
         SecurityAsset.objects.create(hostname="PRINTER-DEMO", hub_asset=asset)

@@ -5,7 +5,7 @@ CATEGORY = ("soc_it_cn", "SOC IT - CN", "#0f766e", 70)  # key, label, topbar_col
 
 NAV = dict(
     code="contatori",
-    label="Contatori MFC",
+    label="Contatori IT",
     route_name="contatori:dashboard",
     section="topbar",
     icon="printer",
