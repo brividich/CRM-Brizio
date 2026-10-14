@@ -58,6 +58,11 @@
     <span class="v {% if da_riconciliare %}health-warning{% endif %}">{{ da_riconciliare|length }}</span>
     <span class="meta">{% if da_riconciliare %}{% for r in da_riconciliare %}{{ r.trimestre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}In ordine{% endif %}</span>
   </a>{% endwith %}
+  <a class="kpi" href="{% url 'assets:software_license_list' %}?status={% if licenze_apparati.scadute %}expired{% else %}expiring{% endif %}">
+    <span class="k">Licenze degli apparati</span>
+    <span class="v {% if licenze_apparati.scadute %}health-error{% elif licenze_apparati.in_scadenza %}health-warning{% endif %}">{{ licenze_apparati.scadute }}</span>
+    <span class="meta">scadute · {{ licenze_apparati.in_scadenza }} in scadenza{% if licenze_apparati.da_collegare %} · {{ licenze_apparati.da_collegare|length }} apparati senza asset{% endif %}</span>
+  </a>
 </div>
 
 <div class="centrale-grid">
@@ -77,6 +82,9 @@
     {% endif %}
     {% if c.cali %}<h3 id="cali" class="centrale-sub">Cali di lettura</h3>
     <table class="compatta" data-fm-table-skip="1"><tbody>{% for p in c.cali %}<tr><td>{{ p.macchina }}<div class="muted">{{ p.contatore }}</div></td><td class="num">{{ p.da_val }} <span class="muted">({{ p.da_trim }})</span></td><td class="num neg">{{ p.a_val }} <span class="muted">({{ p.a_trim }})</span></td></tr>{% endfor %}</tbody></table>{% endif %}
+    {% if licenze_apparati.da_collegare %}<h3 id="da-collegare" class="centrale-sub">Apparati senza asset collegato</h3>
+    <p class="muted">Senza asset non si vedono licenze, software e scadenze: collegalo da «Modifica».</p>
+    <ul class="disp-list">{% for r in licenze_apparati.da_collegare %}<li><div>{% if r.kind == 'macchina' %}<a class="plain" href="{% url 'contatori:macchina' r.oggetto.pk %}">{{ r.nome }}</a>{% else %}<a class="plain" href="{% url 'contatori:snmp_dispositivo' r.oggetto.pk %}">{{ r.nome }}</a>{% endif %}<div class="muted">{% if r.kind == 'macchina' %}Multifunzione{% else %}{{ r.oggetto.get_categoria_display }}{% endif %}{% if r.oggetto.host %} · <span class="mono">{{ r.oggetto.host }}</span>{% endif %}</div></div><span class="pill warn">non collegato</span></li>{% endfor %}</ul>{% endif %}
     </div>
   </section>
 

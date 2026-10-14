@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 from django.urls import reverse
 
 from anagrafica.models import Fornitore
@@ -180,3 +181,38 @@ class SoftwareLicenseRenewalTests(TestCase):
         self.assertContains(response, "FATT-0042")
         self.assertContains(response, "Rivenditore Sintetico Srl")
         self.assertContains(response, "Salva rinnovo")
+
+
+class CoperturaLicenzeSoftwareTests(TestCase):
+    def test_licenza_senza_chiave_e_stati(self):
+        from datetime import timedelta
+
+        from assets.models import SoftwareLicense
+        from assets.services.software_licenze import coverage_report, license_status
+
+        oggi = timezone.localdate()
+        scaduta = SoftwareLicense.objects.create(product_name="Tool Demo", expiry_date=oggi - timedelta(days=1))
+        valida = SoftwareLicense.objects.create(product_name="Altro Demo", expiry_date=oggi + timedelta(days=90))
+        self.assertEqual(license_status(scaduta, oggi), "expired")
+        self.assertEqual(license_status(valida, oggi), "active")
+        report = coverage_report(oggi)
+        self.assertEqual(len(report["unlinked"]), 2)
+        self.assertEqual(report["unlicensed"], [])
+
+    def test_pagina_mostra_da_sistemare_e_collega_proposto(self):
+        from unittest import mock
+
+        admin = User.objects.create_superuser(username="lic-cov-admin", email="c@test.local", password="pass12345")
+        lic = SoftwareLicense.objects.create(product_name="Editor Demo", vendor="Demo Soft")
+        voce = {"key": "demosoft|editordemo", "label": "Editor Demo", "vendor_label": "Demo Soft", "hosts": 3}
+        self.client.force_login(admin)
+        with mock.patch("security.services.software_catalog.catalog", return_value=[voce]):
+            response = self.client.get(reverse("assets:software_license_list"))
+            self.assertContains(response, "Da sistemare: licenze e software installato")
+            self.assertContains(response, "Collega a «Editor Demo» (3 PC)")
+            response = self.client.post(reverse("assets:software_license_list"), {
+                "action": "link_software_inventory", "license_id": lic.id, "inventory_key": voce["key"],
+            })
+        self.assertEqual(response.status_code, 302)
+        lic.refresh_from_db()
+        self.assertEqual(lic.inventory_key, voce["key"])

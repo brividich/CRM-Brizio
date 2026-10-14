@@ -10,6 +10,8 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+**Licenze e software degli apparati** (ottobre 2026, nessuna migrazione). Scheda MFC e dispositivo SNMP: riquadro «Licenze e software dell'asset» (licenze del modulo Asset con stato, software rilevati dall'inventario SOC, link alla gestione licenze). Centrale: indicatore «Licenze degli apparati» (scadute / in scadenza entro 30 gg / apparati senza asset) e, nella colonna «Da fare», l'elenco «Apparati senza asset collegato». Servizio `services.licenze_asset_apparati()`, numero di query costante rispetto alla flotta. Guida in-app: sezione «Licenze e software degli apparati».
+
 **Fattura Copylab e riconciliazione per contratto** (ottobre 2026). Migrazioni `contatori 0031` (campo `Fattura.dettaglio`) e `0032` (binding ACL `contatori:riconciliazione_guida` → `contatori.modulo.view`).
 - Import fattura: oltre al tracciato BASE («N. Contratto:», contatore dal prezzo per copia) legge il tracciato **Copylab** («Matricola:… Contratto:…», righe «COPIE EFFETTUATE B/N» e «COPIE EFFETTUATE COLORE»). Il contratto si prende dall'anagrafica tramite matricola (avviso se la MFC non ha il contratto); più MFC con lo stesso contratto si sommano.
 - «Letture in fattura»: *A4/A3 B/N e colore* (default) o *Solo totali B/N e colore*. Con i totali, B/N è salvato in `a4_bn`, colore in `a4_col`, e si confrontano con A4 + A3 interni (contatori «BN totale» / «COL totale»).

@@ -5,6 +5,14 @@
 <div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
 {% if macchina.snmp_ultimo_errore %}{% include "contatori/_errore_snmp.html" with errore=macchina.snmp_ultimo_errore %}{% endif %}
 
+<section class="panel" id="licenze-software"><h2>Licenze e software dell'asset</h2>
+{% if macchina.asset %}
+  {% if licenze_asset %}<table class="info-table" data-fm-table-skip="1">{% for r in licenze_asset %}<tr><th>{{ r.license }}</th><td>{% if r.license.expiry_date %}scade {{ r.license.expiry_date|date:"d/m/Y" }}{% else %}senza scadenza{% endif %} <span class="pill {% if r.status == 'active' %}ok{% elif r.status == 'expiring' %}warn{% else %}danger{% endif %}">{% if r.status == 'active' %}valida{% elif r.status == 'expiring' %}in scadenza{% elif r.status == 'expired' %}scaduta{% else %}disattiva{% endif %}</span></td></tr>{% endfor %}</table>
+  {% else %}<p class="muted">Nessuna licenza assegnata a questo asset.</p>{% endif %}
+  {% if software_asset and software_asset.rows %}<p class="muted">{{ software_asset.present }} software rilevati dall'inventario{% if software_asset.inventory_date %} del {{ software_asset.inventory_date|date:"d/m/Y" }}{% endif %}: <a class="plain" href="{% url 'assets:asset_view' macchina.asset.pk %}">vedi la scheda asset</a>.</p>{% endif %}
+  <p><a class="plain" href="{% url 'assets:software_license_list' %}?asset={{ macchina.asset.pk }}">Gestisci le licenze di questo asset</a></p>
+{% else %}<p class="muted">Collega l'apparato a un asset per vedere licenze e software.</p>{% endif %}
+</section>
 <div class="grid-2" id="info">
 <section class="panel"><h2>Info</h2><table class="info-table" data-fm-table-skip="1">
   <tr><th>Reparto</th><td>{{ macchina.reparto }}{% if not macchina.attiva %} <span class="pill warn">disattivata</span>{% endif %}</td></tr>
