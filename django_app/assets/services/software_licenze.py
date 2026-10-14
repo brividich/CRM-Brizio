@@ -30,11 +30,12 @@ def license_status(lic, today=None):
 
 
 def licenses_for_asset(asset, today=None):
-    """Licenze assegnate all'asset, con stato; le più urgenti per prime."""
+    """Licenze assegnate all'asset, con stato e giorni dalla/alla scadenza; le più urgenti per prime."""
     today = today or timezone.localdate()
     order = {"expired": 0, "expiring": 1, "inactive": 2, "active": 3}
     rows = [
-        {"license": lic, "status": license_status(lic, today)}
+        {"license": lic, "status": license_status(lic, today),
+         "giorni": abs((lic.expiry_date - today).days) if lic.expiry_date else None}
         for lic in SoftwareLicense.objects.filter(asset=asset)
     ]
     rows.sort(key=lambda r: (order[r["status"]], r["license"].product_name.lower()))

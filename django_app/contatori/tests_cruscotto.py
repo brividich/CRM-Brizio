@@ -259,7 +259,30 @@ class LicenzeSchedaApparatoTests(_AuthedClientMixin, TestCase):
         m = Macchina.objects.create(reparto="Reparto demo", matricola="LICMFC001", asset=asset)
         SoftwareLicense.objects.create(product_name="Modulo scansione demo", asset=asset)
         response = self.client.get(reverse("contatori:macchina", args=[m.pk]))
-        self.assertContains(response, "Licenze e software dell'asset")
+        self.assertContains(response, "Asset collegato")
+        self.assertContains(response, "LIC-MFC-1")
         self.assertContains(response, "Modulo scansione demo")
+        self.assertContains(response, "senza scadenza")
         dash = self.client.get(reverse("contatori:dashboard"))
         self.assertContains(dash, "Licenze degli apparati")
+
+    def test_scheda_senza_asset_propone_collegamento(self):
+        m = Macchina.objects.create(reparto="Reparto demo", matricola="LICMFC002")
+        response = self.client.get(reverse("contatori:macchina", args=[m.pk]))
+        self.assertContains(response, "Apparato non collegato a un asset")
+        self.assertContains(response, reverse("contatori:macchina_edit", args=[m.pk]))
+
+    def test_licenza_scaduta_mostra_giorni(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from assets.models import Asset, SoftwareLicense
+
+        asset = Asset.objects.create(asset_tag="LIC-MFC-3", name="MFC scaduta")
+        m = Macchina.objects.create(reparto="Reparto demo", matricola="LICMFC003", asset=asset)
+        SoftwareLicense.objects.create(
+            product_name="Modulo demo", asset=asset, expiry_date=timezone.localdate() - timedelta(days=4))
+        response = self.client.get(reverse("contatori:macchina", args=[m.pk]))
+        self.assertContains(response, "da 4 giorni")
+        self.assertContains(response, "scaduta")
