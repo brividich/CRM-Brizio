@@ -552,7 +552,9 @@ def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
         ProfiloSNMP.Categoria.TVCC_TELECAMERA: DispositivoSNMP.Categoria.TVCC_TELECAMERA,
         ProfiloSNMP.Categoria.GENERICO: DispositivoSNMP.Categoria.ALTRO,
     }[profilo.categoria]
-    if dispositivo.categoria != categoria:
+    # Un profilo generico non dice che apparato sia: il tipo scelto dall'utente resta.
+    generico = profilo.categoria == ProfiloSNMP.Categoria.GENERICO
+    if dispositivo.categoria != categoria and not (generico and dispositivo.categoria):
         dispositivo.categoria = categoria
         campi.append("categoria")
     if sovrascrivi or not dispositivo.versione:
