@@ -192,7 +192,7 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-cust-grid--2col { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; row-gap: 6px; }
 @media (max-width: 720px) { .af-cust-grid--2col { grid-template-columns: 1fr; } }
 .af-card-toggle { margin-left:auto; flex:0 0 auto; border:1px solid #dbe1ea; background:#fff; color:#64748b; border-radius:6px; width:26px; height:26px; line-height:1; cursor:pointer; padding:0; }
-.af-card-toggle::before { content:"BE"; display:inline-block; transition:transform .15s; }
+.af-card-toggle::before { content:"\25BE"; display:inline-block; transition:transform .15s; }
 .af-card.is-collapsed .af-card-toggle::before { transform:rotate(-90deg); }
 .af-card.is-collapsed > :not(.af-card-head) { display:none !important; }
 .af-card.is-collapsed > .af-card-head { border-bottom:none; }
@@ -627,6 +627,54 @@ body.theme-dark .af-kpiband { background:var(--surface); border-color:var(--bord
 body.theme-dark .af-kpiband-title, body.theme-dark .af-kpi2-value { color:var(--text); }
 body.theme-dark .af-kpiband-note, body.theme-dark .af-kpi2-label, body.theme-dark .af-kpi2-sub { color:var(--text-light); }
 body.theme-dark .af-kpi2 { background:var(--surface-alt); border-color:var(--border); }
+/* Scheda compatta e colorata: ogni sezione ha il suo colore d'accento */
+.af-card { --af-accent:#2563eb; --af-tint:#dbeafe; }
+.af-card[data-card-code="profile"] { --af-accent:#2563eb; --af-tint:#dbeafe; }
+.af-card[data-card-code="qr"] { --af-accent:#7c3aed; --af-tint:#ede9fe; }
+.af-card[data-card-code="maintenance"] { --af-accent:#0d9488; --af-tint:#ccfbf1; }
+.af-card[data-card-code="documents"] { --af-accent:#d97706; --af-tint:#fef3c7; }
+.af-card[data-card-code="tickets"] { --af-accent:#e11d48; --af-tint:#ffe4e6; }
+.af-card[data-card-code="licenses"] { --af-accent:#4f46e5; --af-tint:#e0e7ff; }
+.af-card[data-card-code="map"] { --af-accent:#16a34a; --af-tint:#dcfce7; }
+.af-card[data-card-code="quick_actions"] { --af-accent:#0284c7; --af-tint:#e0f2fe; }
+.af-sections > .af-card { border-top:3px solid var(--af-accent); margin-bottom:8px; }
+.af-page.af-tabbed .af-sections { gap:8px; }
+.af-card-head { padding:6px 12px; background:linear-gradient(90deg,var(--af-tint) 0%,#fff 70%); }
+.af-card-title { font-size:var(--fs-base); }
+.af-card-title:before, .af-card[data-card-code] .af-card-title:before { width:6px; height:14px; background:var(--af-accent); }
+.af-card-body { padding:8px 12px; }
+.af-card-toggle { width:22px; height:22px; color:var(--af-accent); border-color:color-mix(in srgb, var(--af-accent) 30%, #fff); }
+.af-profile-group + .af-profile-group { margin-top:8px; padding-top:8px; }
+.af-profile-group-title { display:inline-block; margin-bottom:2px; padding:1px 8px; border-radius:999px; background:var(--af-tint); color:var(--af-accent); font-size:var(--fs-2xs); }
+.af-cust-grid { margin-top:4px; gap:0 28px; }
+.af-cust-grid--2col { row-gap:0; column-gap:28px; }
+.af-cust-row { padding:3px 0; font-size:var(--fs-sm); }
+.af-cust-row span:last-child { font-weight:600; color:#0f172a; text-align:right; }
+.af-cust-row:hover { background:linear-gradient(90deg,var(--af-tint) 0%,transparent 100%); }
+.af-cust-row span:first-child { padding-left:4px; }
+.af-cust-name { font-size:var(--fs-md); display:inline; }
+.af-cust-sub { display:inline; margin:0 0 0 8px; font-size:var(--fs-sm); }
+.af-specs { grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:4px 14px; }
+.af-spec-item { gap:0; }
+.af-spec-k { font-size:var(--fs-xs); }
+.af-spec-v { font-size:var(--fs-base); }
+.af-statusband { gap:8px; margin-bottom:8px; }
+.af-statusband-col { padding:8px 12px 8px 16px; box-shadow:none; background:linear-gradient(90deg,#ccfbf1 0%,#fff 80%); }
+.af-statusband-col + .af-statusband-sep + .af-statusband-col { background:linear-gradient(90deg,#fef3c7 0%,#fff 80%); }
+.af-statusband-col.is-ok:before { background:#16a34a; }
+.af-statusband-col.is-warn:before { background:#d97706; }
+.af-statusband-col.is-danger:before { background:#dc2626; }
+.af-statusband-col.is-ok { background:linear-gradient(90deg,#dcfce7 0%,#fff 80%) !important; }
+.af-statusband-col.is-warn { background:linear-gradient(90deg,#fef3c7 0%,#fff 80%) !important; }
+.af-statusband-col.is-danger { background:linear-gradient(90deg,#fee2e2 0%,#fff 80%) !important; }
+.af-statusband .af-metric-value { font-size:var(--fs-md); }
+body.theme-dark .af-card-head { background:linear-gradient(90deg,color-mix(in srgb, var(--af-accent) 18%, transparent) 0%,transparent 70%); }
+body.theme-dark .af-profile-group-title { background:color-mix(in srgb, var(--af-accent) 22%, transparent); color:var(--text); }
+body.theme-dark .af-cust-row span:last-child { color:var(--text); }
+body.theme-dark .af-cust-row:hover { background:color-mix(in srgb, var(--af-accent) 14%, transparent); }
+body.theme-dark .af-card-toggle { border-color:var(--border); }
+body.theme-dark .af-statusband-col, body.theme-dark .af-statusband-col + .af-statusband-sep + .af-statusband-col { background:var(--surface); }
+body.theme-dark .af-statusband-col.is-ok, body.theme-dark .af-statusband-col.is-warn, body.theme-dark .af-statusband-col.is-danger { background:var(--surface) !important; }
 body.theme-dark .af-kpi2--ok { border-left-color:#22c55e; }
 body.theme-dark .af-kpi2--warn { border-left-color:#f59e0b; }
 body.theme-dark .af-kpi2--warn .af-kpi2-value { color:#fde68a; }
@@ -753,25 +801,25 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   {% if asset_status_band %}
     <section class="af-statusband" data-af-tab="Panoramica">
       {% with c=asset_status_band.coverage %}
-        <div class="af-statusband-col">
+        <div class="af-statusband-col{% if c.badge_class == 'ok' %} is-ok{% elif c.badge_class == 'warn' %} is-warn{% elif c.badge_class == 'danger' %} is-danger{% endif %}">
           <div class="af-metric-head">
             <span class="af-metric-label">{{ c.label }}</span>
             {% if c.badge_label %}<span class="as-badge as-badge--{{ c.badge_class }}">{{ c.badge_label }}</span>{% endif %}
           </div>
           <span class="af-metric-value">{{ c.value }}</span>
-          {% if c.meta %}<span class="af-metric-meta">{{ c.meta }}</span>{% endif %}
+          {% if c.meta and c.meta != c.value %}<span class="af-metric-meta">{{ c.meta }}</span>{% endif %}
           {% if c.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ c.link_url }}">{{ c.link_label }}</a></div>{% endif %}
         </div>
       {% endwith %}
       <div class="af-statusband-sep"></div>
       {% with d=asset_status_band.deadline %}
-        <div class="af-statusband-col">
+        <div class="af-statusband-col{% if d.badge_class == 'ok' %} is-ok{% elif d.badge_class == 'warn' %} is-warn{% elif d.badge_class == 'danger' %} is-danger{% endif %}">
           <div class="af-metric-head">
             <span class="af-metric-label">{{ d.label }}</span>
             {% if d.badge_label %}<span class="as-badge as-badge--{{ d.badge_class }}">{{ d.badge_label }}</span>{% endif %}
           </div>
           <span class="af-metric-value">{{ d.value }}</span>
-          {% if d.meta %}<span class="af-metric-meta">{{ d.meta }}</span>{% endif %}
+          {% if d.meta and d.meta != d.value %}<span class="af-metric-meta">{{ d.meta }}</span>{% endif %}
           {% if d.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ d.link_url }}">{{ d.link_label }}</a></div>{% endif %}
         </div>
       {% endwith %}
