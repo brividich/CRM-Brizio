@@ -192,7 +192,7 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-cust-grid--2col { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; row-gap: 6px; }
 @media (max-width: 720px) { .af-cust-grid--2col { grid-template-columns: 1fr; } }
 .af-card-toggle { margin-left:auto; flex:0 0 auto; border:1px solid #dbe1ea; background:#fff; color:#64748b; border-radius:6px; width:26px; height:26px; line-height:1; cursor:pointer; padding:0; }
-.af-card-toggle::before { content:"BE"; display:inline-block; transition:transform .15s; }
+.af-card-toggle::before { content:"\25BE"; display:inline-block; transition:transform .15s; }
 .af-card.is-collapsed .af-card-toggle::before { transform:rotate(-90deg); }
 .af-card.is-collapsed > :not(.af-card-head) { display:none !important; }
 .af-card.is-collapsed > .af-card-head { border-bottom:none; }
@@ -627,6 +627,90 @@ body.theme-dark .af-kpiband { background:var(--surface); border-color:var(--bord
 body.theme-dark .af-kpiband-title, body.theme-dark .af-kpi2-value { color:var(--text); }
 body.theme-dark .af-kpiband-note, body.theme-dark .af-kpi2-label, body.theme-dark .af-kpi2-sub { color:var(--text-light); }
 body.theme-dark .af-kpi2 { background:var(--surface-alt); border-color:var(--border); }
+/* Scheda compatta e colorata: ogni sezione ha il suo colore d'accento */
+.af-card { --af-accent:#2563eb; --af-tint:#dbeafe; }
+.af-card[data-card-code="profile"] { --af-accent:#2563eb; --af-tint:#dbeafe; }
+.af-card[data-card-code="qr"] { --af-accent:#7c3aed; --af-tint:#ede9fe; }
+.af-card[data-card-code="maintenance"] { --af-accent:#0d9488; --af-tint:#ccfbf1; }
+.af-card[data-card-code="documents"] { --af-accent:#d97706; --af-tint:#fef3c7; }
+.af-card[data-card-code="tickets"] { --af-accent:#e11d48; --af-tint:#ffe4e6; }
+.af-card[data-card-code="licenses"] { --af-accent:#4f46e5; --af-tint:#e0e7ff; }
+.af-card[data-card-code="map"] { --af-accent:#16a34a; --af-tint:#dcfce7; }
+.af-card[data-card-code="quick_actions"] { --af-accent:#0284c7; --af-tint:#e0f2fe; }
+.af-sections > .af-card { border-top:3px solid var(--af-accent); margin-bottom:8px; }
+.af-page.af-tabbed .af-sections { gap:8px; }
+.af-card-head { padding:6px 12px; background:linear-gradient(90deg,var(--af-tint) 0%,#fff 70%); }
+.af-card-title { font-size:var(--fs-base); }
+.af-card-title:before, .af-card[data-card-code] .af-card-title:before { width:6px; height:14px; background:var(--af-accent); }
+.af-card-body { padding:8px 12px; }
+.af-card-toggle { width:22px; height:22px; color:var(--af-accent); border-color:color-mix(in srgb, var(--af-accent) 30%, #fff); }
+.af-profile-group + .af-profile-group { margin-top:8px; padding-top:8px; }
+.af-profile-group-title { display:inline-block; margin-bottom:2px; padding:1px 8px; border-radius:999px; background:var(--af-tint); color:var(--af-accent); font-size:var(--fs-2xs); }
+.af-cust-grid { margin-top:4px; gap:0 28px; }
+.af-cust-grid--2col { row-gap:0; column-gap:28px; }
+.af-cust-row { padding:3px 0; font-size:var(--fs-sm); }
+.af-cust-row span:last-child { font-weight:600; color:#0f172a; text-align:right; }
+.af-cust-row:hover { background:linear-gradient(90deg,var(--af-tint) 0%,transparent 100%); }
+.af-cust-row span:first-child { padding-left:4px; }
+.af-cust-name { font-size:var(--fs-md); display:inline; }
+.af-cust-sub { display:inline; margin:0 0 0 8px; font-size:var(--fs-sm); }
+.af-specs { grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:4px 14px; }
+.af-spec-item { gap:0; }
+.af-spec-k { font-size:var(--fs-xs); }
+.af-spec-v { font-size:var(--fs-base); }
+.af-statusband { gap:8px; margin-bottom:8px; }
+.af-statusband-col { padding:8px 12px 8px 16px; box-shadow:none; background:linear-gradient(90deg,#ccfbf1 0%,#fff 80%); }
+.af-statusband-col + .af-statusband-sep + .af-statusband-col { background:linear-gradient(90deg,#fef3c7 0%,#fff 80%); }
+.af-statusband-col.is-ok:before { background:#16a34a; }
+.af-statusband-col.is-warn:before { background:#d97706; }
+.af-statusband-col.is-danger:before { background:#dc2626; }
+.af-statusband-col.is-ok { background:linear-gradient(90deg,#dcfce7 0%,#fff 80%) !important; }
+.af-statusband-col.is-warn { background:linear-gradient(90deg,#fef3c7 0%,#fff 80%) !important; }
+.af-statusband-col.is-danger { background:linear-gradient(90deg,#fee2e2 0%,#fff 80%) !important; }
+.af-statusband .af-metric-value { font-size:var(--fs-md); }
+body.theme-dark .af-card-head { background:linear-gradient(90deg,color-mix(in srgb, var(--af-accent) 18%, transparent) 0%,transparent 70%); }
+body.theme-dark .af-profile-group-title { background:color-mix(in srgb, var(--af-accent) 22%, transparent); color:var(--text); }
+body.theme-dark .af-cust-row span:last-child { color:var(--text); }
+/* Contenuto dei riquadri: tessere etichetta/valore, responsabile, QR */
+.af-kv { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px 8px; margin-top:4px; }
+@media (max-width:720px) { .af-kv { grid-template-columns:1fr; } }
+.af-kv-item { display:flex; justify-content:space-between; align-items:baseline; gap:10px; min-width:0; padding:6px 10px; border-radius:8px; background:color-mix(in srgb, var(--af-tint) 45%, #fff); border-left:3px solid color-mix(in srgb, var(--af-accent) 55%, #fff); transition:background .12s; }
+.af-kv-item:hover { background:var(--af-tint); }
+.af-kv-k { font-size:var(--fs-xs); font-weight:600; color:#64748b; white-space:nowrap; }
+.af-kv-v { font-size:var(--fs-sm); font-weight:700; color:#0f172a; text-align:right; overflow-wrap:anywhere; }
+.af-kv-v.is-empty { font-weight:500; color:#94a3b8; font-style:italic; }
+.af-owner { display:flex; align-items:center; gap:10px; margin:4px 0 6px; padding:8px 10px; border-radius:10px; background:linear-gradient(90deg,var(--af-tint) 0%,transparent 90%); }
+.af-owner-avatar { flex:0 0 auto; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:var(--fs-md); color:#fff; background:linear-gradient(135deg,var(--af-accent),color-mix(in srgb, var(--af-accent) 60%, #7c3aed)); box-shadow:0 2px 6px color-mix(in srgb, var(--af-accent) 35%, transparent); }
+.af-owner.is-empty .af-owner-avatar { background:#e2e8f0; color:#94a3b8; box-shadow:none; }
+.af-owner.is-empty { background:linear-gradient(90deg,#fef3c7 0%,transparent 90%); }
+.af-owner-text { display:grid; gap:1px; min-width:0; }
+.af-owner-name { font-size:var(--fs-md); font-weight:800; color:#0f172a; }
+.af-owner-sub { font-size:var(--fs-xs); color:#92400e; }
+.af-owner-link { font-size:var(--fs-xs); font-weight:700; color:var(--af-accent); text-decoration:none; }
+.af-owner-link:hover { text-decoration:underline; }
+.af-qr-body { display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:linear-gradient(90deg,color-mix(in srgb, var(--af-tint) 60%, #fff) 0%,#fff 70%); }
+.af-qr-frame { padding:4px; border-radius:10px; background:#fff; border:2px solid color-mix(in srgb, var(--af-accent) 35%, #fff); line-height:0; }
+.af-qr-text { display:grid; gap:4px; flex:1 1 220px; min-width:0; }
+.af-qr-pill { justify-self:start; padding:2px 10px; border-radius:999px; font-size:var(--fs-2xs); font-weight:800; text-transform:uppercase; letter-spacing:.05em; background:#e2e8f0; color:#475569; }
+.af-qr-pill.is-public { background:#dcfce7; color:#15803d; }
+.af-qr-actions { display:flex; gap:8px; flex-wrap:wrap; }
+body.theme-dark .af-kv-item { background:color-mix(in srgb, var(--af-accent) 10%, transparent); border-left-color:color-mix(in srgb, var(--af-accent) 60%, transparent); }
+body.theme-dark .af-kv-item:hover { background:color-mix(in srgb, var(--af-accent) 18%, transparent); }
+body.theme-dark .af-kv-k { color:var(--text-light); }
+body.theme-dark .af-kv-v { color:var(--text); }
+body.theme-dark .af-kv-v.is-empty { color:var(--text-light); }
+body.theme-dark .af-owner, body.theme-dark .af-qr-body { background:color-mix(in srgb, var(--af-accent) 12%, transparent); }
+body.theme-dark .af-owner.is-empty { background:rgba(245,158,11,.12); }
+body.theme-dark .af-owner-name { color:var(--text); }
+body.theme-dark .af-owner-sub { color:#fbbf24; }
+body.theme-dark .af-owner.is-empty .af-owner-avatar { background:var(--border); color:var(--text-light); }
+body.theme-dark .af-qr-frame { border-color:var(--border); }
+body.theme-dark .af-qr-pill { background:var(--border); color:var(--text-light); }
+body.theme-dark .af-qr-pill.is-public { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .af-cust-row:hover { background:color-mix(in srgb, var(--af-accent) 14%, transparent); }
+body.theme-dark .af-card-toggle { border-color:var(--border); }
+body.theme-dark .af-statusband-col, body.theme-dark .af-statusband-col + .af-statusband-sep + .af-statusband-col { background:var(--surface); }
+body.theme-dark .af-statusband-col.is-ok, body.theme-dark .af-statusband-col.is-warn, body.theme-dark .af-statusband-col.is-danger { background:var(--surface) !important; }
 body.theme-dark .af-kpi2--ok { border-left-color:#22c55e; }
 body.theme-dark .af-kpi2--warn { border-left-color:#f59e0b; }
 body.theme-dark .af-kpi2--warn .af-kpi2-value { color:#fde68a; }
@@ -778,25 +862,25 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   {% if asset_status_band %}
     <section class="af-statusband" data-af-tab="Panoramica">
       {% with c=asset_status_band.coverage %}
-        <div class="af-statusband-col">
+        <div class="af-statusband-col{% if c.badge_class == 'ok' %} is-ok{% elif c.badge_class == 'warn' %} is-warn{% elif c.badge_class == 'danger' %} is-danger{% endif %}">
           <div class="af-metric-head">
             <span class="af-metric-label">{{ c.label }}</span>
             {% if c.badge_label %}<span class="as-badge as-badge--{{ c.badge_class }}">{{ c.badge_label }}</span>{% endif %}
           </div>
           <span class="af-metric-value">{{ c.value }}</span>
-          {% if c.meta %}<span class="af-metric-meta">{{ c.meta }}</span>{% endif %}
+          {% if c.meta and c.meta != c.value %}<span class="af-metric-meta">{{ c.meta }}</span>{% endif %}
           {% if c.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ c.link_url }}">{{ c.link_label }}</a></div>{% endif %}
         </div>
       {% endwith %}
       <div class="af-statusband-sep"></div>
       {% with d=asset_status_band.deadline %}
-        <div class="af-statusband-col">
+        <div class="af-statusband-col{% if d.badge_class == 'ok' %} is-ok{% elif d.badge_class == 'warn' %} is-warn{% elif d.badge_class == 'danger' %} is-danger{% endif %}">
           <div class="af-metric-head">
             <span class="af-metric-label">{{ d.label }}</span>
             {% if d.badge_label %}<span class="as-badge as-badge--{{ d.badge_class }}">{{ d.badge_label }}</span>{% endif %}
           </div>
           <span class="af-metric-value">{{ d.value }}</span>
-          {% if d.meta %}<span class="af-metric-meta">{{ d.meta }}</span>{% endif %}
+          {% if d.meta and d.meta != d.value %}<span class="af-metric-meta">{{ d.meta }}</span>{% endif %}
           {% if d.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ d.link_url }}">{{ d.link_label }}</a></div>{% endif %}
         </div>
       {% endwith %}
@@ -1429,38 +1513,38 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           <div class="af-card-body">
             <div class="af-profile-group">
               <div class="af-profile-group-title">Anagrafica</div>
-              <div class="af-cust-grid af-cust-grid--2col">
+              <div class="af-kv">
                 {% for row in profile_rows %}
-                  <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
+                  <div class="af-kv-item"><span class="af-kv-k">{{ row.label }}</span><span class="af-kv-v{% if not row.value or row.value == 'N/D' or row.value == '-' %} is-empty{% endif %}">{% if row.label == "Ultimo sync" %}{{ row.value|cut:"Ultimo sync: " }}{% else %}{{ row.value|default:"—" }}{% endif %}</span></div>
                 {% endfor %}
               </div>
             </div>
             {% if spec_pairs and not it_presentation %}
             <div class="af-profile-group">
               <div class="af-profile-group-title">{{ detail_specs_title|default:"Specifiche tecniche" }}</div>
-              <div class="af-specs">
+              <div class="af-kv">
                 {% for key, value in spec_pairs %}
-                  <div class="af-spec-item">
-                    <span class="af-spec-k">{{ key }}</span>
-                    <span class="af-spec-v">{{ value }}</span>
-                  </div>
+                  <div class="af-kv-item"><span class="af-kv-k">{{ key }}</span><span class="af-kv-v{% if not value or value == 'N/D' %} is-empty{% endif %}">{{ value|default:"—" }}</span></div>
                 {% endfor %}
               </div>
             </div>
             {% endif %}
             <div class="af-profile-group">
               <div class="af-profile-group-title">{{ detail_assignment_title|default:"Assegnazione" }}</div>
-              <p class="af-cust-name">{{ asset.assignment_to|default:"Non assegnato" }}</p>
-              <p class="af-cust-sub">
-                {% if assigned_user_admin_url %}
-                  <a href="{{ assigned_user_admin_url }}" style="color:#2563eb;text-decoration:none;">Apri scheda dipendente</a>
-                {% else %}
-                  Dipendente non collegato
-                {% endif %}
-              </p>
-              <div class="af-cust-grid af-cust-grid--2col">
+              <div class="af-owner{% if not asset.assignment_to %} is-empty{% endif %}">
+                <span class="af-owner-avatar" aria-hidden="true">{% if asset.assignment_to %}{{ asset.assignment_to|slice:":1"|upper }}{% else %}?{% endif %}</span>
+                <div class="af-owner-text">
+                  <span class="af-owner-name">{{ asset.assignment_to|default:"Non assegnato" }}</span>
+                  {% if assigned_user_admin_url %}
+                    <a class="af-owner-link" href="{{ assigned_user_admin_url }}">Apri scheda dipendente &rarr;</a>
+                  {% else %}
+                    <span class="af-owner-sub">Dipendente non collegato</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="af-kv">
                 {% for row in assignment_rows %}
-                  <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
+                  <div class="af-kv-item"><span class="af-kv-k">{{ row.label }}</span><span class="af-kv-v{% if not row.value or row.value == 'N/D' %} is-empty{% endif %}">{{ row.value|default:"—" }}</span></div>
                 {% endfor %}
               </div>
             </div>
@@ -1583,13 +1667,18 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             {% endif %}
           </div>
         {% elif card.code == "QR" %}
-          <div class="af-card-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            {% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id qr_size="lg" %}
-            <a class="af-btn af-btn-secondary" href="{{ asset_qr_url }}" target="_blank" rel="noopener">Apri etichetta QR</a>
-            {% if asset_label_designer_url %}
-              <a class="af-btn" href="{{ asset_label_designer_url }}">Personalizza</a>
-            {% endif %}
-            <span class="af-note" style="margin-left:auto;">{% if asset.public_qr_enabled and asset.public_qr_token %}Il QR apre la scheda mobile pubblica (senza login).{% else %}Il QR apre la scheda mobile dietro login.{% endif %}</span>
+          <div class="af-card-body af-qr-body">
+            <div class="af-qr-frame">{% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id qr_size="lg" %}</div>
+            <div class="af-qr-text">
+              <span class="af-qr-pill{% if asset.public_qr_enabled and asset.public_qr_token %} is-public{% endif %}">{% if asset.public_qr_enabled and asset.public_qr_token %}Scheda pubblica{% else %}Dietro login{% endif %}</span>
+              <span class="af-note">{% if asset.public_qr_enabled and asset.public_qr_token %}Il QR apre la scheda mobile pubblica (senza login).{% else %}Il QR apre la scheda mobile dietro login.{% endif %}</span>
+            </div>
+            <div class="af-qr-actions">
+              <a class="af-btn af-btn-secondary" href="{{ asset_qr_url }}" target="_blank" rel="noopener">Apri etichetta QR</a>
+              {% if asset_label_designer_url %}
+                <a class="af-btn" href="{{ asset_label_designer_url }}">Personalizza</a>
+              {% endif %}
+            </div>
           </div>
         {% elif card.code == "QUICK_ACTIONS" %}
           <div class="af-card-body">
