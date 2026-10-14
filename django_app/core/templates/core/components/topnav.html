@@ -1,4 +1,4 @@
-{% load ui_icons %}
+{% load ui_icons guide_tags %}
 <nav class="topnav" id="topnav"{% if topbar_color %} style="--topnav-bg: {{ topbar_color }}"{% endif %}>
   <a class="nav-logo" href="{% url 'dashboard_home' %}" aria-label="Vai alla dashboard">
     <span class="brand-mark nav-logo-mark{% if not portal_branding.brand_logo_full and not portal_branding.brand_logo_compact %} is-fallback{% endif %}">
@@ -88,6 +88,11 @@
           <span class="nav-pending-text">da approvare</span>
         </a>
       {% endif %}
+
+      {% guida_corrente as guida_nav %}
+      <a href="{{ guida_nav.url }}" class="nav-icon nav-icon-guida" title="{{ guida_nav.titolo }}" aria-label="{{ guida_nav.titolo }}">
+        <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.3h.01"/></svg>
+      </a>
 
       <a href="{% url 'ai_assistant:chat' %}" class="nav-icon nav-icon-ai" title="Assistente AI (Alt+A)" aria-label="Assistente AI">
         <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/></svg>
