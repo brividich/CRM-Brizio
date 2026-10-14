@@ -285,7 +285,8 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
                     f"Outlook: per Microsoft 365 '{organizer_email}' non è una mailbox personale "
                     "su cui creare un evento (casella condivisa, gruppo di distribuzione o alias)."
                     f"{hint} "
-                    "L'incontro è salvato e la convocazione via email parte lo stesso."
+                    "L'incontro è salvato; la convocazione via email è un canale a parte e parte solo "
+                    "con «Invia convocazione» (o con la spunta di invio nel form)."
                 ),
             )
         # Graph scrive «Access is denied»: con gli spazi non combacia con
@@ -305,7 +306,8 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
                     "Application con consenso amministratore, e che nessuna Application Access "
                     "Policy di Exchange escluda quella mailbox. Dopo la concessione riavvia l'app "
                     "pool: il token resta in cache."
-                    f"{hint} L'incontro è salvato e la convocazione via email parte lo stesso."
+                    f"{hint} L'incontro è salvato; la convocazione via email è un canale a parte e parte "
+                    "solo con «Invia convocazione» (o con la spunta di invio nel form)."
                 ),
             )
         return ("warning", f"Outlook: {exc_text}")

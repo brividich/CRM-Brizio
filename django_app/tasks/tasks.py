@@ -33,6 +33,35 @@ def run_send_task_reminders(*, limit: int = 0) -> dict:
     return {"limit": limit, "output": out[:500]}
 
 
+def meeting_reminder_dates(today) -> list:
+    """Date degli incontri da ricordare oggi: quelli fino al prossimo giorno lavorativo.
+
+    Il promemoria parte il giorno lavorativo precedente: venerdi' per il lunedi',
+    e prima di un ponte per il giorno dopo il ponte. Prima partiva la sera prima
+    di calendario, cioe' di domenica per gli incontri del lunedi'.
+    """
+    from datetime import timedelta
+
+    from core.calendario_it import is_lavorativo
+
+    dates = []
+    giorno = today + timedelta(days=1)
+    # Si includono i giorni non lavorativi intermedi e il primo lavorativo.
+    for _ in range(14):
+        dates.append(giorno)
+        if is_lavorativo(giorno):
+            break
+        giorno += timedelta(days=1)
+    return dates
+
+
+def _quando(data, today) -> str:
+    giorni = (data - today).days
+    if giorni == 1:
+        return "Domani"
+    return f"{['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'][data.weekday()]} {data:%d/%m}"
+
+
 @system_job_run("tasks_meetings_digest")
 def run_meetings_digest(**kwargs) -> dict:
     """Digest giornaliero unico per gli incontri KICK-OFF.
@@ -67,15 +96,17 @@ def run_meetings_digest(**kwargs) -> dict:
     )
 
     today = timezone.localdate()
-    tomorrow = today + timedelta(days=1)
     include_overdue_issues = today.weekday() == 0  # lunedi
+    reminder_dates = meeting_reminder_dates(today)
 
-    by_email: dict[str, dict] = defaultdict(lambda: {"meetings": [], "issues": [], "actions": []})
+    by_email: dict[str, dict] = defaultdict(
+        lambda: {"meetings": [], "issues": [], "actions": [], "upcoming": []}
+    )
 
     meetings = list(
         KickoffMeeting.objects.filter(
             stato=MeetingStatus.PIANIFICATO,
-            data=tomorrow,
+            data__in=reminder_dates,
             reminder_sent_at__isnull=True,
         )
         .select_related("project")
@@ -92,7 +123,7 @@ def run_meetings_digest(**kwargs) -> dict:
                     invia_notifica(
                         int(legacy_id),
                         "generico",
-                        f'Domani hai l\'incontro "{label}" [{getattr(meeting.project, "name", "")}].'[:500],
+                        f'{_quando(meeting.data, today)} hai l\'incontro "{label}" [{getattr(meeting.project, "name", "")}].'[:500],
                         meeting_url(meeting),
                     )
                 except (TypeError, ValueError):
@@ -138,6 +169,24 @@ def run_meetings_digest(**kwargs) -> dict:
             if email:
                 by_email[email]["actions"].append(action)
 
+        # In scadenza nei prossimi 7 giorni: il sollecito arrivava solo a
+        # scadenza gia' passata, ora la settimana si apre con cio' che scade.
+        week_end = today + timedelta(days=6)
+        upcoming_filter = {
+            "due_date__gte": today, "due_date__lte": week_end, "assigned_to__isnull": False,
+        }
+        upcoming = list(
+            MeetingActionItem.objects.filter(status=MeetingActionStatus.OPEN, **upcoming_filter)
+            .select_related("assigned_to", "project")
+        ) + list(
+            MeetingIssue.objects.filter(status=MeetingIssueStatus.OPEN, **upcoming_filter)
+            .select_related("assigned_to", "project")
+        )
+        for item in sorted(upcoming, key=lambda i: i.due_date):
+            email = (getattr(item.assigned_to, "email", "") or "").strip()
+            if email:
+                by_email[email]["upcoming"].append(item)
+
         for email, issue_list in by_issue_email.items():
             try:
                 for luid in legacy_user_ids_for_email(email):
@@ -159,8 +208,8 @@ def run_meetings_digest(**kwargs) -> dict:
                 if m.ora:
                     when += f" alle {m.ora.strftime('%H:%M')}"
                 m_label = m.titolo or f"Incontro {m.numero}"
-                rows.append(f"- {m_label} [{getattr(m.project, 'name', '')}] — {when}")
-            parts.append("Incontri KICK-OFF di domani:\n" + "\n".join(rows))
+                rows.append(f"- {m_label} [{getattr(m.project, 'name', '')}] — {_quando(m.data, today).lower()}, {when}")
+            parts.append("Prossimi incontri KICK-OFF:\n" + "\n".join(rows))
         if data["issues"]:
             rows = [
                 f"- {i.title} (KICK-OFF {getattr(i.project, 'kickoff_number', '') or ''}, "
@@ -175,17 +224,26 @@ def run_meetings_digest(**kwargs) -> dict:
                 for a in data["actions"]
             ]
             parts.append("Azioni scadute a te assegnate:\n" + "\n".join(rows))
+        if data["upcoming"]:
+            rows = [
+                f"- {'Problema' if isinstance(i, MeetingIssue) else 'Azione'}: {i.title} "
+                f"(KICK-OFF {getattr(i.project, 'kickoff_number', '') or ''}, entro il {i.due_date:%d/%m/%Y})"
+                for i in data["upcoming"]
+            ]
+            parts.append("In scadenza questa settimana:\n" + "\n".join(rows))
         if not parts:
             continue
 
-        if data["meetings"] and (data["issues"] or data["actions"]):
-            subject = "Promemoria KICK-OFF: incontro domani e scadenze aperte"
+        has_deadlines = data["issues"] or data["actions"] or data["upcoming"]
+        if data["meetings"] and has_deadlines:
+            subject = "Promemoria KICK-OFF: prossimo incontro e scadenze"
         elif data["meetings"]:
-            first_label = data["meetings"][0].titolo or f"Incontro {data['meetings'][0].numero}"
-            subject = f"Promemoria incontro domani — {first_label}"
+            first = data["meetings"][0]
+            first_label = first.titolo or f"Incontro {first.numero}"
+            subject = f"Promemoria incontro {_quando(first.data, today).lower()} — {first_label}"
         else:
-            scaduti = len(data["issues"]) + len(data["actions"])
-            subject = f"Scadenze KICK-OFF aperte ({scaduti})"
+            scadenze = len(data["issues"]) + len(data["actions"]) + len(data["upcoming"])
+            subject = f"Scadenze KICK-OFF ({scadenze})"
 
         try:
             n = send_hub_mail(

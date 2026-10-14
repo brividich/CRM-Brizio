@@ -692,8 +692,8 @@ class TaskForm(forms.ModelForm):
             project_link_mode = self.PROJECT_LINK_EXISTING
         cleaned_data["project_link_mode"] = project_link_mode
 
-        if due_date and next_step_due and due_date <= next_step_due:
-            self.add_error("due_date", "La data richiesta fine deve essere successiva alla data inizio.")
+        if due_date and next_step_due and due_date < next_step_due:
+            self.add_error("due_date", "La data richiesta fine non può precedere la data inizio.")
 
         if cleaned_data.get("status") not in {TaskStatus.DONE, TaskStatus.CANCELED}:
             assigned_to = cleaned_data.get("assigned_to")
@@ -1008,9 +1008,9 @@ class TaskStartDateForm(forms.ModelForm):
     def clean_next_step_due(self):
         next_step_due = self.cleaned_data.get("next_step_due")
         due_date = getattr(self.instance, "due_date", None)
-        if next_step_due and due_date and due_date <= next_step_due:
+        if next_step_due and due_date and due_date < next_step_due:
             raise forms.ValidationError(
-                "La data inizio deve essere precedente alla data fine gia' impostata."
+                "La data inizio non può essere successiva alla data fine gia' impostata."
             )
         return next_step_due
 
@@ -1188,6 +1188,13 @@ class KickoffMeetingForm(forms.ModelForm):
         required=False,
         widget=forms.HiddenInput(attrs={"id": "id_agenda_items_raw"}),
     )
+    # Salvare non invia nulla da solo: con questa spunta la convocazione parte
+    # subito dopo il salvataggio, senza passare dal pulsante del dettaglio.
+    invia_convocazione = forms.BooleanField(
+        required=False,
+        label="Invia la convocazione ai partecipanti dopo il salvataggio",
+        widget=forms.CheckboxInput(attrs={"class": "mf-toggle"}),
+    )
 
     class Meta:
         model = KickoffMeeting
@@ -1195,7 +1202,8 @@ class KickoffMeetingForm(forms.ModelForm):
             "titolo", "data", "ora", "luogo", "stato",
             "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
             "cc_utenti", "cc_email_extra",
-            "ordine_del_giorno",
+            # `ordine_del_giorno` (testo libero) e' storico in sola lettura: i
+            # punti sono quelli strutturati di `agenda_items_raw`.
             "sync_outlook", "outlook_organizer_email",
         ]
         widgets = {
@@ -1215,7 +1223,6 @@ class KickoffMeetingForm(forms.ModelForm):
             "partecipanti_testo": forms.Textarea(
                 attrs={"class": "input", "rows": 2, "placeholder": "Note aggiuntive sui partecipanti (facoltativo)"}
             ),
-            "ordine_del_giorno": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Note testuali aggiuntive (facoltativo — usa i punti strutturati sopra)"}),
             "sync_outlook": forms.CheckboxInput(attrs={"class": "mf-toggle"}),
             "outlook_organizer_email": forms.EmailInput(
                 attrs={"class": "input", "placeholder": "organizzatore@azienda.it (lascia vuoto = tuo account)"}
@@ -1236,14 +1243,20 @@ class KickoffMeetingForm(forms.ModelForm):
         self.fields["partecipanti_testo"].required = False
         self.fields["outlook_organizer_email"].required = False
         # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
-        # Resta fra le scelte solo se l'incontro e' gia' svolto, per non declassarlo
-        # salvando la convocazione.
-        if self.instance.pk and self.instance.stato == MeetingStatus.SVOLTO:
-            self.fields["stato"].choices = MeetingStatus.choices
+        # «Annullato» nemmeno: si annulla con l'azione dedicata del dettaglio,
+        # che chiede il motivo, toglie l'evento Outlook e avvisa i convocati.
+        # Qui l'incontro annullato si puo' solo ripianificare.
+        stato_attuale = self.instance.stato if self.instance.pk else MeetingStatus.PIANIFICATO
+        if stato_attuale == MeetingStatus.SVOLTO:
+            self.fields["stato"].choices = [(MeetingStatus.SVOLTO.value, MeetingStatus.SVOLTO.label)]
+        elif stato_attuale == MeetingStatus.ANNULLATO:
+            self.fields["stato"].choices = [
+                (MeetingStatus.ANNULLATO.value, MeetingStatus.ANNULLATO.label),
+                (MeetingStatus.PIANIFICATO.value, "Pianificato (ripristina l'incontro)"),
+            ]
         else:
             self.fields["stato"].choices = [
                 (MeetingStatus.PIANIFICATO.value, MeetingStatus.PIANIFICATO.label),
-                (MeetingStatus.ANNULLATO.value, MeetingStatus.ANNULLATO.label),
             ]
         # Pre-popola il campo hidden con i punti agenda dell'istanza (per edit)
         if self.instance.pk:
@@ -1384,16 +1397,14 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
 
     class Meta:
         model = KickoffMeeting
-        # `problemi_aperti` e' testo storico in sola lettura: i problemi si
-        # registrano come MeetingIssue.
-        fields = ["presenti_utenti", "note", "next_steps"]
+        # `problemi_aperti` e `next_steps` sono testo storico in sola lettura:
+        # problemi e azioni si registrano come MeetingIssue e MeetingActionItem,
+        # con responsabile e scadenza.
+        fields = ["presenti_utenti", "note"]
         widgets = {
             "presenti_utenti": forms.CheckboxSelectMultiple(),
             "note": forms.Textarea(
                 attrs={"class": "input", "rows": 8, "placeholder": "Note generali (quelle dei singoli punti vanno sotto il punto)"}
-            ),
-            "next_steps": forms.Textarea(
-                attrs={"class": "input", "rows": 5, "placeholder": "Chi fa cosa entro quando (una riga per azione)"}
             ),
         }
 

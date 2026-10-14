@@ -177,6 +177,12 @@ def _testo_timbri() -> str:
     return sezioni_in_markdown(guida.SEZIONI)
 
 
+def _testo_kickoff() -> str:
+    from tasks import guida
+
+    return sezioni_in_markdown(guida.SEZIONI)
+
+
 def _testo_anomalie() -> str:
     from anomalie import guida
 
@@ -263,6 +269,8 @@ def _registro() -> list[Guida]:
     guide = [
         Guida("timbri", "Registro Timbri (MOD.130-RTF)", _reverse("timbri:index", "?guida=1"), _testo_timbri,
               _file_modulo("timbri.guida"), parole="timbro timbri firma firme sigla sigle"),
+        Guida("kickoff", "KICK-OFF (commesse, incontri, azioni)", _reverse("tasks:guida"), _testo_kickoff,
+              _file_modulo("tasks.guida"), parole="kickoff incontro incontri convocazione minuta azione azioni attivita commessa"),
         Guida("anomalie", "Gestione anomalie", lambda: "/gestione-anomalie?guida=1", _testo_anomalie,
               _file_modulo("anomalie.guida"), parole="anomalia anomalie seriale seriali capocommessa"),
         Guida("audit", "Audit interni (MT CN 12)", _reverse("sistema_gestione:audit_guida"), _testo_audit,

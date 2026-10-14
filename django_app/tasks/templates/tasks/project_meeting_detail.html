@@ -37,36 +37,76 @@
     </div>
     {% if can_manage %}
       <div class="md-actions">
-        {% if not meeting.minuta_chiusa %}
+        {% if not meeting.minuta_chiusa and not meeting.is_annullato %}
           {% if not meeting.is_svolto %}
             <a class="md-btn" href="{% url 'tasks:project_meeting_run' project.id meeting.id %}">Conduci incontro</a>
           {% endif %}
           <a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
         {% endif %}
+        {% if meeting.is_svolto %}
+          <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro</a>
+        {% endif %}
         <button type="button" class="md-btn" onclick="openCreateTaskModal('', null)">Crea / assegna attività</button>
         <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
-        <form method="post" action="{% url 'tasks:project_meeting_delete' project.id meeting.id %}" style="display:inline;"
-              onsubmit="return confirm('Eliminare definitivamente questo incontro?')">
-          {% csrf_token %}
-          <button type="submit" class="md-btn danger-ghost">Elimina</button>
-        </form>
+        {% if meeting.stato == "PIANIFICATO" %}
+          <button type="button" class="md-btn danger-ghost" id="meeting-cancel-open">Annulla incontro</button>
+        {% endif %}
+        {% if can_delete %}
+          <form method="post" action="{% url 'tasks:project_meeting_delete' project.id meeting.id %}" style="display:inline;"
+                onsubmit="return confirm('Eliminare definitivamente questo incontro?')">
+            {% csrf_token %}
+            <button type="submit" class="md-btn danger-ghost">Elimina</button>
+          </form>
+        {% endif %}
       </div>
     {% endif %}
   </div>
 
+  {% if can_manage and meeting.stato == "PIANIFICATO" %}
+    <form method="post" action="{% url 'tasks:project_meeting_cancel' project.id meeting.id %}" class="md-convocazione-note warn" id="meeting-cancel-box" hidden>
+      {% csrf_token %}
+      <strong>Annulla l'incontro</strong>
+      <input type="text" class="input" name="motivo" maxlength="2000" required placeholder="Motivo (obbligatorio, lo ricevono i convocati)" style="flex:1;min-width:240px;">
+      <label style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" name="avvisa" value="1" checked> Avvisa i convocati via email</label>
+      <button type="submit" class="md-btn danger-ghost">Conferma annullamento</button>
+    </form>
+  {% endif %}
+
+  {% if meeting.is_annullato %}
+    <div class="md-convocazione-note warn">
+      <strong>Incontro annullato</strong>
+      {% if meeting.annullato_at %}il {{ meeting.annullato_at|date:"d-m-Y H:i" }}{% endif %}{% if meeting.annullato_da %} da {{ meeting.annullato_da.get_full_name|default:meeting.annullato_da.username }}{% endif %}{% if meeting.annullato_motivo %} — {{ meeting.annullato_motivo }}{% endif %}
+      {% if can_manage %}<span>Per riprogrammarlo apri «Convocazione» e riporta lo stato a Pianificato.</span>{% endif %}
+    </div>
+  {% elif meeting.stato == "PIANIFICATO" %}
+    {% if meeting.convocazione_da_reinviare %}
+      <div class="md-convocazione-note warn">
+        <strong>Convocazione da reinviare:</strong> data, luogo, convocati o ordine del giorno sono cambiati dopo l'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.
+      </div>
+    {% elif meeting.convocazione_inviata %}
+      <div class="md-convocazione-note">Convocazione inviata il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.</div>
+    {% elif can_manage %}
+      <div class="md-convocazione-note">Convocazione non ancora inviata: salvare l'incontro non manda email. Usa «Invia convocazione».</div>
+    {% endif %}
+  {% endif %}
+
   <div class="md-docbar">
     <span class="md-docbar-label">Documenti</span>
     {% if can_manage %}
+      {% if meeting.stato == "PIANIFICATO" %}
       <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
-            onsubmit="return confirm('Inviare la convocazione con l'ordine del giorno a tutti i partecipanti?')">
+            onsubmit="return confirm('Inviare la convocazione con l\'ordine del giorno a tutti i partecipanti?')">
         {% csrf_token %}
-        <button type="submit" class="md-btn white">Invia convocazione</button>
+        <button type="submit" class="md-btn white">{% if meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione{% endif %}</button>
       </form>
+      {% endif %}
+      {% if not meeting.is_annullato %}
       <form method="post" action="{% url 'tasks:project_meeting_send_minute' project.id meeting.id %}"
-            onsubmit="return confirm('Inviare la minuta dell'incontro a tutti i partecipanti?')">
+            onsubmit="return confirm('Inviare la minuta dell\'incontro a tutti i partecipanti?')">
         {% csrf_token %}
         <button type="submit" class="md-btn white">Invia minuta</button>
       </form>
+      {% endif %}
     {% endif %}
     <a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>
     {# Approvazione della minuta: chiude il documento, la riapertura resta a registro. #}
@@ -94,7 +134,7 @@
         Minuta approvata il {{ meeting.minuta_chiusa_at|date:"d-m-Y H:i" }}{% if meeting.minuta_chiusa_da %} da {{ meeting.minuta_chiusa_da.get_full_name|default:meeting.minuta_chiusa_da.username }}{% endif %}{% if meeting.minuta_riaperture %} · {{ meeting.minuta_riaperture }} riapertur{{ meeting.minuta_riaperture|pluralize:"a,e" }}{% endif %}
       </span>
     {% endif %}
-    {% if not meeting.is_svolto %}
+    {% if not meeting.is_svolto and not meeting.is_annullato %}
       <p class="md-docbar-hint">L'incontro non è ancora registrato come svolto: la minuta conterrà solo la convocazione.</p>
     {% endif %}
   </div>
@@ -256,7 +296,7 @@
         <div class="md-card-body">
           <div class="md-issue-list">
             {% for issue in meeting_issues %}
-              <div class="md-issue{% if issue.is_resolved %} resolved{% endif %}">
+              <div class="md-issue{% if issue.is_resolved %} resolved{% endif %}" id="issue-{{ issue.id }}">
                 <div class="md-issue-head">
                   <div>
                     <div class="md-issue-title">{{ issue.title }}</div>
@@ -272,7 +312,7 @@
                 </div>
                 {% if issue.description %}<p class="md-issue-desc">{{ issue.description }}</p>{% endif %}
                 {% if issue.resolution_note %}<p class="md-issue-resolution-note"><strong>Risoluzione:</strong> {{ issue.resolution_note }}</p>{% endif %}
-                {% if can_manage %}
+                {% if can_manage or issue.assigned_to_id == request.user.pk %}
                   <form method="post" action="{% url 'tasks:project_meeting_issue_status' project.id meeting.id issue.id %}" class="md-issue-form">
                     {% csrf_token %}
                     {% if issue.is_resolved %}
@@ -400,7 +440,7 @@
         </div>
         <div class="md-card-body">
           {% for action in meeting_actions %}
-            <div class="md-action-row{% if action.is_done %} done{% endif %}">
+            <div class="md-action-row{% if action.is_done %} done{% endif %}" id="action-{{ action.id }}">
               <div class="md-action-main">
                 <div class="md-action-title">{{ action.title }}</div>
                 <div class="mf-issue-meta">
@@ -410,8 +450,9 @@
                   {% if action.source_meeting %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
                 </div>
                 {% if action.description %}<div class="mf-issue-desc">{{ action.description }}</div>{% endif %}
+                {% if action.linked_task %}<div class="mf-issue-desc">Attività collegata: <a href="{% url 'tasks:detail' action.linked_task.id %}">{{ action.linked_task.title }}</a> — si chiude da sola quando l'attività è completata.</div>{% endif %}
               </div>
-              {% if can_manage %}
+              {% if can_manage or action.assigned_to_id == request.user.pk %}
                 <form method="post" action="{% url 'tasks:project_meeting_action_status' project.id meeting.id action.id %}">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="{% if action.is_done %}reopen{% else %}done{% endif %}">
@@ -430,7 +471,7 @@
       <div class="md-card md-nextsteps{% if next_steps_lines and can_manage %} full{% endif %}">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-          <span>Next steps</span>
+          <span>Next steps (storico)</span>
           {% if next_steps_lines and can_manage %}
             <span style="margin-left:auto;font-size:.75rem;color:var(--success);font-weight:500;opacity:.8;">{{ next_steps_lines|length }} rig{% if next_steps_lines|length == 1 %}a{% else %}he{% endif %} · clicca per creare task</span>
           {% endif %}
@@ -467,7 +508,7 @@
             <span><strong>{{ open_issue_count }}</strong> problem{{ open_issue_count|pluralize:"a,i" }} ancora apert{{ open_issue_count|pluralize:"o,i" }}{% if open_issue_count %} — {{ open_issue_count|pluralize:"entra,entrano" }} automaticamente nell'agenda del prossimo incontro{% endif %}</span>
             <span><strong>{{ next_steps_lines|length }}</strong> next step registrat{{ next_steps_lines|length|pluralize:"o,i" }}</span>
           </div>
-          <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}">Pianifica prossimo incontro &rarr;</a>
+          <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro &rarr;</a>
         </div>
       </div>
     {% endif %}
@@ -494,6 +535,17 @@
 
 {% block tasks_shell_scripts %}
 <script src="{% static 'tasks/js/meeting_detail.js' %}" data-toggle-base="{{ agenda_toggle_url_base }}" data-can-manage="{{ can_manage|yesno:'1,0' }}"></script>
+<script>
+  (function () {
+    var open = document.getElementById('meeting-cancel-open');
+    var box = document.getElementById('meeting-cancel-box');
+    if (!open || !box) return;
+    open.addEventListener('click', function () {
+      box.hidden = !box.hidden;
+      if (!box.hidden) { var input = box.querySelector('[name="motivo"]'); if (input) input.focus(); }
+    });
+  })();
+</script>
 <style>
   #kai-card .kai { display:grid; gap:14px; }
   #kai-card .kai-h { font-weight:700; font-size:.8rem; text-transform:uppercase; letter-spacing:.03em; color:var(--text-mid); margin-bottom:6px; }

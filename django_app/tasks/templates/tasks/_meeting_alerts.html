@@ -71,4 +71,35 @@ Lo scope e' gia' filtrato in tasks/meeting_alerts.py (ACL + «i miei»).
     {% endif %}
   </article>
 
+  {# Azioni e problemi degli incontri di cui l'utente e' responsabile. #}
+  <article class="ka-col ka-col--todo">
+    <header class="ka-col-head">
+      <span class="ka-col-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+        Le mie azioni
+        {% if meeting_alerts.mie_voci_scadute %}<span class="ka-count">{{ meeting_alerts.mie_voci_scadute }}</span>{% endif %}
+      </span>
+      <a class="ka-col-link" href="{% url 'tasks:mie_azioni' %}">Tutte ({{ meeting_alerts.mie_voci_total }}) &rarr;</a>
+    </header>
+    {% if meeting_alerts.mie_voci %}
+      <ul class="ka-list">
+        {% for row in meeting_alerts.mie_voci %}
+          <li class="ka-item">
+            <span class="ka-dot ka-dot--{% if row.scaduta %}danger{% else %}info{% endif %}" aria-hidden="true"></span>
+            <span class="ka-body">
+              <a class="ka-title" href="{{ row.url }}">{{ row.title }}</a>
+              <span class="ka-meta">
+                <span>{{ row.kind }}</span>
+                <a href="{% url 'tasks:project_overview' row.project.id %}">· {{ row.project.name }}</a>
+              </span>
+            </span>
+            {% if row.due_date %}<span class="ka-reason ka-reason--{% if row.scaduta %}danger{% else %}info{% endif %}">{% if row.scaduta %}Scaduta il{% else %}Entro il{% endif %} {{ row.due_date|date:"d/m" }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="ka-empty">Nessuna azione o problema aperto a tuo nome.</p>
+    {% endif %}
+  </article>
+
 </section>

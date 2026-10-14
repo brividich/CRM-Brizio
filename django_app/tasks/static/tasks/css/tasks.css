@@ -1854,7 +1854,7 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
   font-size: 1.5rem; font-weight: 900;
 }
 .md-hero-body { flex: 1; }
-.md-hero-body h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 8px; }
+.md-hero-body h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 8px; color: #fff; }
 .md-hero-body .md-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: .875rem; opacity: .85; }
 .md-meta-item { display: flex; align-items: center; gap: 6px; }
 .md-meta-item svg { width: 15px; height: 15px; stroke: currentColor; }
@@ -4201,3 +4201,64 @@ body.theme-dark .mtg-num { color: #93c5fd; border-color: rgba(147,197,253,.28); 
 
 /* Mini-form attivita' dell'incontro: nota sotto un campo del pannello. */
 .ctm-hint { font-size: .75rem; color: var(--text-light); margin-top: 5px; line-height: 1.45; }
+
+/* ── Link «? Guida» nell'intestazione e pagina guida ── */
+.ts-guide-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hub-color-border);
+  background: var(--hub-color-bg);
+  color: var(--ts-accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.ts-guide-link:hover { border-color: var(--ts-accent); }
+
+.ts-guide { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+.ts-guide-toc { position: sticky; top: 16px; padding: 14px 16px; }
+.ts-guide-toc-t { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--hub-color-text-muted); margin-bottom: 8px; }
+.ts-guide-toc ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ts-guide-toc a { color: var(--hub-color-text); text-decoration: none; }
+.ts-guide-toc a:hover { color: var(--ts-accent); text-decoration: underline; }
+.ts-guide-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ts-guide-sec { padding: 18px 22px; scroll-margin-top: 16px; }
+.ts-guide-sec h2 { margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--hub-color-text); display: flex; gap: 10px; align-items: baseline; }
+.ts-guide-n { font-size: 12px; font-weight: 800; color: var(--ts-accent); }
+.ts-guide-sec p, .ts-guide-sec ul, .ts-guide-sec dl { margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: var(--hub-color-text); }
+.ts-guide-sec ul { padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.ts-guide-sec dl { display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); gap: 8px 18px; }
+.ts-guide-sec dt { font-weight: 700; }
+.ts-guide-sec dd { margin: 0; color: var(--hub-color-text-muted); }
+.ts-guide-nota { padding: 10px 14px; border: 1px solid #fdba74; background: #fff7ed; border-radius: 10px; color: #7c2d12; font-size: 13.5px; line-height: 1.55; }
+body.theme-dark .ts-guide-nota { background: rgba(251,146,60,.12); border-color: rgba(251,146,60,.45); color: #fed7aa; }
+@media (max-width: 900px) {
+  .ts-guide { grid-template-columns: 1fr; }
+  .ts-guide-toc { position: static; }
+  .ts-guide-sec dl { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* ── Le mie azioni ── */
+.ma-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ma-actions form { margin: 0; }
+.ma-kind { font-size: 11px; font-weight: 700; }
+
+/* ── Appello in conduzione ── */
+.run-appello { display: flex; flex-wrap: wrap; gap: 8px; }
+.run-appello-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--hub-color-border); background: var(--hub-color-surface);
+  color: var(--hub-color-text); font-size: 13px; cursor: pointer; user-select: none;
+}
+.run-appello-item.is-present { border-color: #16a34a; background: rgba(22,163,74,.1); }
+.run-appello-item input { margin: 0; }
+
+/* ── Avvisi convocazione nel dettaglio incontro ── */
+.md-convocazione-note { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; font-size: 13px; border: 1px solid var(--hub-color-border); background: var(--hub-color-bg); color: var(--hub-color-text); }
+.md-convocazione-note.warn { border-color: #fdba74; background: #fff7ed; color: #7c2d12; }
+body.theme-dark .md-convocazione-note.warn { background: rgba(251,146,60,.12); border-color: rgba(251,146,60,.45); color: #fed7aa; }
+.md-convocazione-note[hidden] { display: none; }

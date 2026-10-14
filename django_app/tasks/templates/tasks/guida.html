@@ -1,0 +1,38 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Guida</span>{% endblock %}
+{% block tasks_shell_title %}Guida KICK-OFF{% endblock %}
+{% block tasks_shell_subtitle %}Come si gestiscono commesse, incontri, azioni e attività nel modulo KICK-OFF.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna al KICK-OFF</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="ts-guide">
+  <nav class="ts-panel ts-guide-toc" aria-label="Indice della guida">
+    <div class="ts-guide-toc-t">Indice</div>
+    <ol>
+      {% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}
+    </ol>
+  </nav>
+  <div class="ts-guide-body">
+    {% for sez in sezioni %}
+      <section class="ts-panel ts-guide-sec" id="{{ sez.id }}">
+        <h2><span class="ts-guide-n">{{ forloop.counter }}</span>{{ sez.titolo }}</h2>
+        {% for kind, contenuto in sez.blocchi %}
+          {% if kind == "p" %}
+            <p>{{ contenuto }}</p>
+          {% elif kind == "ul" %}
+            <ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
+          {% elif kind == "def" %}
+            <dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+          {% elif kind == "nota" %}
+            <div class="ts-guide-nota" role="note">{{ contenuto }}</div>
+          {% endif %}
+        {% endfor %}
+      </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

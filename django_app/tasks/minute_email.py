@@ -316,28 +316,39 @@ def build_minute_email(meeting) -> tuple[str, str, str]:
     return subject, "\n".join(text_parts), "".join(html_parts)
 
 
-def build_invite_email(meeting) -> tuple[str, str, str]:
-    """Compone la CONVOCAZIONE (ordine del giorno, prima dell'incontro), senza verbale."""
+def _commessa_label(meeting) -> str:
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
-    titolo = (meeting.titolo or "").strip()
-    # Il cliente in oggetto: chi riceve la convocazione riconosce la commessa
-    # dalla lista dei messaggi, senza aprire la mail. Manca il cliente -> si salta.
+    # Il cliente in oggetto: chi riceve la mail riconosce la commessa dalla
+    # lista dei messaggi, senza aprirla. Manca il cliente -> si salta.
     cliente = (getattr(meeting.project, "client_name", "") or "").strip()
     commessa = f"KICK-OFF {kickoff}"
     if cliente:
         commessa = f"{cliente} · {commessa}"
-    subject = f"Convocazione incontro — {commessa}"
+    return commessa
+
+
+def build_invite_email(meeting, *, aggiornamento: bool = False) -> tuple[str, str, str]:
+    """Compone la CONVOCAZIONE (ordine del giorno, prima dell'incontro), senza verbale.
+
+    Con ``aggiornamento`` l'oggetto e l'apertura dicono che i dati sono
+    cambiati rispetto alla convocazione gia' ricevuta.
+    """
+    titolo = (meeting.titolo or "").strip()
+    prefisso = "Aggiornamento convocazione" if aggiornamento else "Convocazione incontro"
+    subject = f"{prefisso} — {_commessa_label(meeting)}"
     if titolo:
         subject += f": {titolo}"
 
     facts = _facts(meeting)
     sections = _invite_sections(meeting)
 
-    html_parts = [
-        "<p>Sei convocato/a al seguente incontro di avvio commessa.</p>",
-        email_facts_table(facts),
-    ]
-    text_parts = ["Sei convocato/a al seguente incontro."] + [f"{k}: {v}" for k, v in facts]
+    apertura = (
+        "La convocazione che hai ricevuto è stata aggiornata: questi sono i dati validi."
+        if aggiornamento
+        else "Sei convocato/a al seguente incontro di avvio commessa."
+    )
+    html_parts = [f"<p>{apertura}</p>", email_facts_table(facts)]
+    text_parts = [apertura] + [f"{k}: {v}" for k, v in facts]
     sec_html, sec_text = _sections_html_text(meeting, sections)
     html_parts += sec_html
     text_parts += sec_text
@@ -410,8 +421,32 @@ def build_minute_pdf(meeting) -> bytes:
     return buffer.getvalue()
 
 
-def build_meeting_ics(meeting) -> bytes:
-    """Genera un invito calendario .ics (VEVENT) per l'incontro."""
+def build_cancel_email(meeting) -> tuple[str, str, str]:
+    """Avviso di annullamento dell'incontro, con il motivo."""
+    from html import escape
+
+    titolo = (meeting.titolo or "").strip()
+    subject = f"Annullato: incontro — {_commessa_label(meeting)}"
+    if titolo:
+        subject += f": {titolo}"
+    facts = [(k, v) for k, v in _facts(meeting) if k != "Stato"]
+    motivo = (meeting.annullato_motivo or "").strip()
+    apertura = "L'incontro a cui eri convocato/a è stato annullato."
+    html_parts = [f"<p><strong>{apertura}</strong></p>", email_facts_table(facts)]
+    text_parts = [apertura] + [f"{k}: {v}" for k, v in facts]
+    if motivo:
+        html_parts.append(f"<h3 style='margin:18px 0 6px'>Motivo</h3>{text_to_html(motivo)}")
+        text_parts.append(f"\nMotivo\n{motivo}")
+    html_parts.append(f"<p>{escape('Se in calendario hai già l’evento, puoi eliminarlo.')}</p>")
+    return subject, "\n".join(text_parts), "".join(html_parts)
+
+
+def build_meeting_ics(meeting, *, cancel: bool = False) -> bytes:
+    """Genera un invito calendario .ics (VEVENT) per l'incontro.
+
+    Stesso UID a ogni invio: il calendario aggiorna l'evento invece di
+    duplicarlo. Con ``cancel`` l'evento esce come annullato.
+    """
     from datetime import datetime, timedelta
 
     from django.utils import timezone
@@ -429,11 +464,15 @@ def build_meeting_ics(meeting) -> bytes:
         "VERSION:2.0",
         "PRODID:-//NOVICROM HUB//KICK-OFF//IT",
         "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
+        "METHOD:CANCEL" if cancel else "METHOD:PUBLISH",
         "BEGIN:VEVENT",
         f"UID:kickoff-meeting-{meeting.pk}@novicrom-hub",
         f"DTSTAMP:{timezone.now().strftime('%Y%m%dT%H%M%SZ')}",
+        # SEQUENCE crescente: il client tratta l'invio come una versione nuova.
+        f"SEQUENCE:{int(timezone.now().timestamp())}",
     ]
+    if cancel:
+        lines.append("STATUS:CANCELLED")
     if ora is not None and hasattr(data, "strftime"):
         start = f"{data.strftime('%Y%m%d')}T{ora.strftime('%H%M%S')}"
         try:
@@ -555,14 +594,22 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
 
 
 def send_meeting_invite(meeting, *, sent_by=None) -> dict:
-    """Invia la convocazione (ordine del giorno) ai partecipanti."""
+    """Invia la convocazione (ordine del giorno) ai partecipanti.
+
+    A invio riuscito registra data e firma della convocazione: da li' il
+    dettaglio incontro sa dire se e' partita e se i dati sono cambiati dopo.
+    Un secondo invio esce come «Aggiornamento convocazione».
+    """
     recipients = meeting.get_all_attendee_emails()
     if not recipients:
         return {"sent": False, "recipients": [], "cc": [], "reason": "no_recipients"}
 
+    from django.utils import timezone
+
     from core.email_utils import send_hub_mail
 
-    subject, body_text, body_html = build_invite_email(meeting)
+    aggiornamento = bool(getattr(meeting, "convocazione_inviata_at", None))
+    subject, body_text, body_html = build_invite_email(meeting, aggiornamento=aggiornamento)
     cc = _cc_management(meeting, exclude=recipients)
     attachments = None
     try:
@@ -583,21 +630,71 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
     )
     if not sent_count:
         return {"sent": False, "recipients": recipients, "cc": cc, "reason": "send_error"}
+    if getattr(meeting, "pk", None):
+        from tasks.models import KickoffMeeting
+
+        meeting.convocazione_inviata_at = timezone.now()
+        meeting.convocazione_firma = meeting.firma_convocazione()
+        KickoffMeeting.objects.filter(pk=meeting.pk).update(
+            convocazione_inviata_at=meeting.convocazione_inviata_at,
+            convocazione_firma=meeting.convocazione_firma,
+        )
+    return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
+
+
+def send_meeting_cancellation(meeting, *, sent_by=None) -> dict:
+    """Avvisa i convocati che l'incontro e' annullato (.ics di annullamento allegato)."""
+    recipients = meeting.get_all_attendee_emails()
+    if not recipients:
+        return {"sent": False, "recipients": [], "cc": [], "reason": "no_recipients"}
+
+    from core.email_utils import send_hub_mail
+
+    subject, body_text, body_html = build_cancel_email(meeting)
+    cc = _cc_management(meeting, exclude=recipients)
+    attachments = None
+    try:
+        attachments = [("annullamento-incontro.ics", build_meeting_ics(meeting, cancel=True), "text/calendar")]
+    except Exception:
+        attachments = None
+    sent_count = send_hub_mail(
+        subject,
+        body_text,
+        recipients,
+        cc=cc,
+        title=f"Incontro annullato KICK-OFF {getattr(meeting.project, 'kickoff_number', '') or ''}",
+        email_type="VRF - KICK-OFF",
+        body_html_fragment=body_html,
+        attachments=attachments,
+        fail_silently=False,
+    )
+    if not sent_count:
+        return {"sent": False, "recipients": recipients, "cc": cc, "reason": "send_error"}
     return {"sent": True, "recipients": recipients, "cc": cc, "reason": ""}
 
 
 def create_tasks_from_next_steps(meeting) -> int:
-    """Crea un task KICK-OFF per ogni riga non vuota dei next steps (dedup per titolo+incontro)."""
-    from tasks.models import Task, TaskPriority, TaskStatus
+    """Crea un'attivita' KICK-OFF per ogni riga dei next steps (dedup per titolo+incontro).
+
+    Passa dal servizio unico: stesso taglio del titolo e stesso blocco VRF
+    delle altre strade. Un kickoff bloccato non riceve attivita' nuove.
+    """
+    from tasks.models import Task
+    from tasks.services.meeting_tasks import (
+        KickoffBloccatoVRF,
+        crea_attivita_da_incontro,
+        meeting_task_marker,
+        titolo_attivita,
+    )
 
     creator = getattr(meeting, "created_by", None)
     if creator is None:
         return 0
 
-    marker = f"#{meeting.numero}"
+    marker = meeting_task_marker(meeting)
     created = 0
     for raw in (meeting.next_steps or "").splitlines():
-        title = raw.strip()[:200]
+        title = titolo_attivita(raw)
         if not title:
             continue
         already = Task.objects.filter(
@@ -605,13 +702,11 @@ def create_tasks_from_next_steps(meeting) -> int:
         ).exists()
         if already:
             continue
-        Task.objects.create(
-            title=title,
-            project=meeting.project,
-            priority=TaskPriority.MEDIUM,
-            status=TaskStatus.TODO,
-            created_by=creator,
-            description=f"Dall'incontro {marker} ({_fmt(meeting.data, '%d-%m-%Y')})",
-        )
+        try:
+            crea_attivita_da_incontro(
+                project=meeting.project, meeting=meeting, user=creator, title=title, notifica=False,
+            )
+        except KickoffBloccatoVRF:
+            return created
         created += 1
     return created

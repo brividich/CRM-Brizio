@@ -28,11 +28,16 @@ def _url(name, *args) -> str:
 
 
 def _mine_filter(user) -> Q:
-    """Incontri «miei»: convocato, presente, creatore o nel team di commessa."""
+    """Incontri «miei»: convocato, in copia, presente, creatore o nel team di commessa.
+
+    Unico filtro per dashboard ed «Elenco incontri»: prima l'elenco ne usava
+    uno piu' stretto e chi era in copia o nel team non vi trovava l'incontro.
+    """
     from .models import Project
 
     q = (
         Q(partecipanti_utenti=user)
+        | Q(cc_utenti=user)
         | Q(presenti_utenti=user)
         | Q(created_by=user)
         | Q(project__created_by=user)
@@ -158,11 +163,49 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
             motivo=f"{meeting.aperti} problem{'a' if meeting.aperti == 1 else 'i'} apert{'o' if meeting.aperti == 1 else 'i'}",
         )
 
+    mie = _mie_voci(user, projects, today)
     return {
         "prossimi": prossimi,
         "da_gestire": da_gestire[: _LIMIT],
         "da_gestire_total": len(da_gestire),
+        "mie_voci": mie[: _LIMIT],
+        "mie_voci_total": len(mie),
+        "mie_voci_scadute": sum(1 for row in mie if row["scaduta"]),
         "personal": personal,
         "prossimo": prossimi[0] if prossimi else None,
-        "has_any": bool(prossimi or da_gestire),
+        "has_any": bool(prossimi or da_gestire or mie),
     }
+
+
+def _mie_voci(user, projects, today) -> list[dict]:
+    """Azioni e problemi aperti assegnati all'utente, scadute prima.
+
+    Sempre personali: e' la lista di chi deve fare qualcosa, non una vista di portfolio.
+    """
+    from .models import MeetingActionItem, MeetingActionStatus, MeetingIssue, MeetingIssueStatus
+
+    if not getattr(user, "is_authenticated", False):
+        return []
+    project_ids = projects.values("id")
+    rows = []
+    for model, status, kind in (
+        (MeetingActionItem, MeetingActionStatus.OPEN, "Azione"),
+        (MeetingIssue, MeetingIssueStatus.OPEN, "Problema"),
+    ):
+        for item in model.objects.filter(assigned_to=user, status=status, project_id__in=project_ids).select_related(
+            "project", "source_meeting"
+        ):
+            url = (
+                _url("tasks:project_meeting_detail", item.project_id, item.source_meeting_id)
+                if item.source_meeting_id else _url("tasks:project_actions", item.project_id)
+            )
+            rows.append({
+                "kind": kind,
+                "title": item.title,
+                "project": item.project,
+                "due_date": item.due_date,
+                "scaduta": bool(item.due_date and item.due_date < today),
+                "url": url,
+            })
+    rows.sort(key=lambda r: (not r["scaduta"], r["due_date"] is None, r["due_date"] or today))
+    return rows

@@ -2,7 +2,7 @@
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Azioni</span>{% endblock %}
 {% block tasks_shell_title %}Registro azioni{% endblock %}
-{% block tasks_shell_subtitle %}{{ project.name }} &middot; issue degli incontri, attività e sotto-attività in un solo punto operativo.{% endblock %}
+{% block tasks_shell_subtitle %}{{ project.name }} &middot; problemi e azioni degli incontri, attività e sotto-attività in un solo punto operativo.{% endblock %}
 
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{{ open_count }} aperte, {{ overdue_count }} scadute</span>
@@ -21,7 +21,7 @@
   <article class="ts-kpi blue">
     <div class="ts-kpi-label">Aperte</div>
     <div class="ts-kpi-value">{{ open_count }}</div>
-    <div class="ts-kpi-note">Issue, attività e sotto-attività da chiudere.</div>
+    <div class="ts-kpi-note">Problemi, azioni, attività e sotto-attività da chiudere.</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
   </article>
   <article class="ts-kpi red">
@@ -61,12 +61,35 @@
 {% block tasks_shell_content %}
 <section class="ts-panel">
   <div class="ts-panel-body">
-    <div class="ml-filters">
+    <form method="get" class="ml-filters">
       <div class="ml-scope">
         <a class="ml-scope-btn{% if not include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Solo aperte</a>
         <a class="ml-scope-btn{% if include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}?closed=1">Includi chiuse</a>
       </div>
-    </div>
+      {% if include_closed %}<input type="hidden" name="closed" value="1">{% endif %}
+      <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca nel titolo o nell'origine…">
+      <select class="input" name="tipo" aria-label="Tipo">
+        <option value="">Tutti i tipi</option>
+        {% for value, label in tipo_choices %}
+          <option value="{{ value }}"{% if filters.tipo == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="input" name="responsabile" aria-label="Responsabile">
+        <option value="">Tutti i responsabili</option>
+        <option value="nessuno"{% if filters.responsabile == "nessuno" %} selected{% endif %}>Non assegnate</option>
+        {% for owner_id, owner_label in owners %}
+          <option value="{{ owner_id }}"{% if filters.responsabile == owner_id|stringformat:"s" %} selected{% endif %}>{{ owner_label }}</option>
+        {% endfor %}
+      </select>
+      <select class="input" name="scadenza" aria-label="Scadenza">
+        <option value="">Qualsiasi scadenza</option>
+        <option value="scadute"{% if filters.scadenza == "scadute" %} selected{% endif %}>Scadute</option>
+        <option value="settimana"{% if filters.scadenza == "settimana" %} selected{% endif %}>In scadenza entro 7 giorni</option>
+        <option value="senza"{% if filters.scadenza == "senza" %} selected{% endif %}>Senza scadenza</option>
+      </select>
+      <button type="submit" class="md-btn">Filtra</button>
+      {% if filters_active %}<a class="md-btn" href="{% url 'tasks:project_actions' project.id %}{% if include_closed %}?closed=1{% endif %}">Azzera</a>{% endif %}
+    </form>
 
     {% if actions %}
       <div class="tl-table-wrap">
@@ -90,7 +113,9 @@
                 </td>
                 <td>
                   {% if action.origin == "issue" %}
-                    <span class="ts-chip warn">Issue</span>
+                    <span class="ts-chip warn">Problema</span>
+                  {% elif action.origin == "action" %}
+                    <span class="ts-chip info">Azione incontro</span>
                   {% elif action.origin == "task" %}
                     <span class="ts-chip info">Attività</span>
                   {% else %}
@@ -121,7 +146,7 @@
       </div>
     {% else %}
       <p class="empty" style="text-align:center;padding:28px 12px;">
-        Nessuna azione {% if not include_closed %}aperta {% endif %}su questa commessa.
+        {% if filters_active %}Nessuna voce corrisponde ai filtri.{% else %}Nessuna azione {% if not include_closed %}aperta {% endif %}su questa commessa.{% endif %}
       </p>
     {% endif %}
   </div>
