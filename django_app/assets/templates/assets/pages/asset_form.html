@@ -67,11 +67,11 @@
            style="grid-column:1/-1;display:{% if form.show_it_network_fields %}grid{% else %}none{% endif %};gap:10px;border:1px solid #bfdbfe;border-radius:12px;padding:14px;background:#f5f9ff;">
         <div>
           <h3 class="as-section-title" style="margin:0 0 4px;">Rete e cablaggio</h3>
-          <div class="as-help">Per PC e dispositivi IT: indirizzo IP, switch e porte di collegamento.</div>
+          <div class="as-help">Per PC, dispositivi IT e telecamere: indirizzo IP, MAC, switch e porte di collegamento.</div>
         </div>
         <div class="as-form-grid-3">
           {% for field in form %}
-            {% if field.name == 'network_ip' or field.name == 'network_switch_name' or field.name == 'network_switch_port' or field.name == 'network_patch_panel_port' %}
+            {% if field.name == 'network_ip' or field.name == 'network_switch_name' or field.name == 'network_switch_port' or field.name == 'network_patch_panel_port' or field.name == 'network_mac' %}
               <div>
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}

@@ -95,6 +95,45 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "tvcc",
+        "titolo": "Videosorveglianza (NVR e telecamere TVT)",
+        "blocchi": [
+            ("p", "NVR e telecamere IP si aggiungono come dispositivi SNMP («+ Nuovo» → «+ Dispositivo SNMP») "
+                  "con tipo «TVCC - Videoregistratore (NVR)» o «TVCC - Telecamera IP», e si collegano "
+                  "all'asset di videosorveglianza già censito. Il portale legge solo dati tecnici via SNMP: "
+                  "nessuna immagine e nessun flusso video."),
+            ("def", [
+                ("Profilo «TVT NVR (videoregistratore)»", "velocità e stato delle due schede di rete (eth0, "
+                                                          "eth1): una scheda non attiva mette l'NVR in "
+                                                          "«Attenzione». Modello e firmware compaiono nella "
+                                                          "scheda del dispositivo. L'NVR non espone via SNMP "
+                                                          "MAC, dischi né risorse."),
+                ("Profilo «TVT telecamera IP»", "solo controllo di raggiungibilità: «Operativo» se la "
+                                                "telecamera risponde, «Errore» se non risponde. Le telecamere "
+                                                "non espongono interfacce, MAC né risorse."),
+                ("Attivare SNMP", "sulla telecamera va abilitato SNMP (v2c con community di sola lettura, "
+                                  "oppure v3) dalla sua pagina web. La community di scrittura non serve: "
+                                  "il portale legge e basta."),
+            ]),
+            ("p", "Nel Monitor SNMP il pulsante «Videosorveglianza» (o la categoria «Videosorveglianza (NVR e "
+                  "telecamere)» nel filtro) mostra solo NVR e telecamere, con l'asset collegato."),
+            ("p", "In «Stampanti MFC» → «Configurazione SNMP globale» (link «Impostazioni SNMP e TVCC» nel "
+                  "Monitor SNMP) si impostano: «TVCC - Intervallo NVR (minuti)» (predefinito 5), «TVCC - "
+                  "Intervallo telecamere (minuti)» (predefinito 30) e «TVCC - Storico rilevazioni (giorni)» "
+                  "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate; stampanti "
+                  "e altri apparati conservano tutto lo storico."),
+            ("p", "Nella lista asset un pallino accanto al nome riassume lo stato SNMP dei dispositivi "
+                  "collegati: verde «Operativo», giallo «Attenzione», rosso «Errore» (non risponde), grigio "
+                  "«Mai interrogato»; con più dispositivi vince il peggiore. Passando il mouse si vede il "
+                  "dettaglio. Il pallino si vede solo con accesso al Monitor SNMP."),
+            ("p", "Nella scheda dell'asset, tab «Monitoraggio», compaiono stato, ultimo controllo, da quanti "
+                  "giorni è acceso (non per le telecamere: il loro dato riguarda il servizio SNMP) e gli "
+                  "ultimi valori letti. Il MAC letto è confrontato con quello "
+                  "dichiarato nel campo «MAC» dell'asset: «= dichiarato», «diverso dal dichiarato» oppure "
+                  "«non dichiarato». Il monitoraggio non modifica mai i dati dell'asset."),
+        ],
+    },
+    {
         "id": "licenze",
         "titolo": "Licenze e software degli apparati",
         "blocchi": [

@@ -211,7 +211,7 @@ class AssetSidebarButtonAdmin(admin.ModelAdmin):
 
 @admin.register(AssetEndpoint)
 class AssetEndpointAdmin(admin.ModelAdmin):
-    list_display = ("asset", "endpoint_name", "vlan", "ip", "switch_name", "switch_port", "punto")
+    list_display = ("asset", "endpoint_name", "vlan", "ip", "switch_name", "switch_port", "punto", "mac")
     search_fields = ("asset__asset_tag", "asset__name", "endpoint_name", "ip", "switch_name")
     list_filter = ("vlan",)
 

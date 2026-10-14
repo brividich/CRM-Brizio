@@ -124,6 +124,8 @@ class ProfiloSNMP(models.Model):
         STORAGE = "STORAGE", "NAS / storage"
         UPS = "UPS", "UPS / alimentazione"
         AMBIENTE = "AMBIENTE", "Sensore / ambiente"
+        TVCC_NVR = "TVCC_NVR", "TVCC - Videoregistratore (NVR)"
+        TVCC_TELECAMERA = "TVCC_CAMERA", "TVCC - Telecamera IP"
         GENERICO = "GENERICO", "Generico"
 
     class Versione(models.TextChoices):
@@ -187,6 +189,7 @@ class ColonnaProfiloSNMP(models.Model):
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
         ERRORI_STAMPANTE = "ERR_PRT", "Errori stampante (hrPrinterDetectedErrorState)"
+        MAC = "MAC", "Indirizzo MAC (ifPhysAddress)"
 
     class Modalita(models.TextChoices):
         GET = "GET", "GET (OID esatto)"
@@ -194,6 +197,9 @@ class ColonnaProfiloSNMP(models.Model):
 
     class Aggregazione(models.TextChoices):
         PRIMO = "PRIMO", "Primo valore"
+        # Salta i valori vuoti o a zero: in ifPhysAddress la prima riga e' spesso
+        # il loopback, senza MAC.
+        PRIMO_VALIDO = "VALIDO", "Primo valore non vuoto"
         MASSIMO = "MASSIMO", "Valore massimo"
         MINIMO = "MINIMO", "Valore minimo"
         SOMMA = "SOMMA", "Somma"
@@ -352,7 +358,12 @@ class DispositivoSNMP(models.Model):
         STORAGE = "STORAGE", "NAS / storage"
         UPS = "UPS", "UPS / alimentazione"
         AMBIENTE = "AMBIENTE", "Sensore ambiente"
+        # Videosorveglianza: intervallo di polling e retention propri (ImpostazioniSNMP).
+        TVCC_NVR = "TVCC_NVR", "TVCC - Videoregistratore (NVR)"
+        TVCC_TELECAMERA = "TVCC_CAMERA", "TVCC - Telecamera IP"
         ALTRO = "ALTRO", "Altro dispositivo"
+
+    CATEGORIE_TVCC = ("TVCC_NVR", "TVCC_CAMERA")
 
     class Versione(models.TextChoices):
         GLOBALE = "", "Usa configurazione globale"
@@ -436,6 +447,7 @@ class SondaSNMP(models.Model):
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
         ERRORI_STAMPANTE = "ERR_PRT", "Errori stampante (hrPrinterDetectedErrorState)"
+        MAC = "MAC", "Indirizzo MAC (ifPhysAddress)"
 
     class Modalita(models.TextChoices):
         GET = "GET", "GET (OID esatto)"
@@ -443,6 +455,9 @@ class SondaSNMP(models.Model):
 
     class Aggregazione(models.TextChoices):
         PRIMO = "PRIMO", "Primo valore"
+        # Salta i valori vuoti o a zero: in ifPhysAddress la prima riga e' spesso
+        # il loopback, senza MAC.
+        PRIMO_VALIDO = "VALIDO", "Primo valore non vuoto"
         MASSIMO = "MASSIMO", "Valore massimo"
         MINIMO = "MINIMO", "Valore minimo"
         SOMMA = "SOMMA", "Somma"
@@ -711,6 +726,18 @@ class ImpostazioniSNMP(models.Model):
     port = models.PositiveIntegerField(default=161)
     timeout = models.PositiveIntegerField(default=3, help_text="Secondi di attesa per macchina")
     version = models.CharField(max_length=4, choices=Versione.choices, default=Versione.V1)
+    # Videosorveglianza: il monitor gira ogni 5 minuti; questi intervalli dicono ogni
+    # quanto un NVR / una telecamera viene davvero interrogato (minimo un giro).
+    tvcc_intervallo_nvr = models.PositiveIntegerField(
+        default=5, validators=[MinValueValidator(5)],
+        help_text="Minuti tra due interrogazioni SNMP di un videoregistratore (NVR). Minimo 5.")
+    tvcc_intervallo_telecamere = models.PositiveIntegerField(
+        default=30, validators=[MinValueValidator(5)],
+        help_text="Minuti tra due interrogazioni SNMP di una telecamera IP. Minimo 5.")
+    tvcc_retention_giorni = models.PositiveIntegerField(
+        default=14, validators=[MinValueValidator(1)],
+        help_text="Giorni di storico delle rilevazioni SNMP TVCC: le piu' vecchie vengono "
+                  "cancellate ogni notte. Lo stato attuale del dispositivo resta.")
 
     class Meta:
         verbose_name = "Impostazioni SNMP"

@@ -43,6 +43,7 @@ CAMPI_ENDPOINT = {
     "switch_name": "Switch",
     "switch_port": "Porta switch",
     "punto": "Porta patch panel",
+    "mac": "MAC",
 }
 CAMPO_ENDPOINT_PRESENZA = "endpoint"
 ETICHETTE = {

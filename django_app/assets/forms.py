@@ -356,6 +356,10 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
     network_switch_name = forms.CharField(required=False, label="Switch", max_length=120)
     network_switch_port = forms.CharField(required=False, label="Porta SW", max_length=120)
     network_patch_panel_port = forms.CharField(required=False, label="Porta patch panel", max_length=120)
+    network_mac = forms.CharField(
+        required=False, label="MAC", max_length=32,
+        help_text="Es. aa:bb:cc:dd:ee:ff. Si confronta con il MAC letto via SNMP.",
+    )
     periodic_verification_ids = forms.ModelMultipleChoiceField(
         required=False,
         queryset=PeriodicVerification.objects.none(),
@@ -516,6 +520,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             # Il modello storico chiama questo dato `punto`; nell'inventario
             # IT viene usato per la porta del patch panel.
             "punto": (self.cleaned_data.get("network_patch_panel_port") or "").strip(),
+            "mac": self.cleaned_data.get("network_mac") or "",
         }
         if endpoint is None:
             if not any(values.values()):
@@ -548,6 +553,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         it_network_types = {
             Asset.TYPE_PC, Asset.TYPE_NOTEBOOK, Asset.TYPE_SERVER, Asset.TYPE_VM,
             Asset.TYPE_FIREWALL, Asset.TYPE_STAMPANTE, Asset.TYPE_HW, Asset.TYPE_FONIA,
+            Asset.TYPE_CCTV,
         }
         from .services.asset_catalog_import import classify_asset_type
 
@@ -573,6 +579,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             self.initial.setdefault("network_switch_name", endpoint.switch_name or "")
             self.initial.setdefault("network_switch_port", endpoint.switch_port or "")
             self.initial.setdefault("network_patch_panel_port", endpoint.punto or "")
+            self.initial.setdefault("network_mac", endpoint.mac or "")
         self.fields["asset_tag"].help_text = (
             "Lascia vuoto per assegnare il tag automaticamente in base alla categoria. "
             "Per i PC il formato è IT-000001."
@@ -651,6 +658,15 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         for field_name in ["include_in_plant_layout"]:
             if field_name in self.fields:
                 self.fields[field_name].widget.attrs["class"] = ""
+
+    def clean_network_mac(self):
+        from .services.mac import normalizza_mac
+
+        valore = (self.cleaned_data.get("network_mac") or "").strip()
+        mac = normalizza_mac(valore)
+        if valore and not mac:
+            raise forms.ValidationError("MAC non valido: usa 12 cifre esadecimali, es. aa:bb:cc:dd:ee:ff.")
+        return mac
 
     def clean(self):
         cleaned_data = super().clean()

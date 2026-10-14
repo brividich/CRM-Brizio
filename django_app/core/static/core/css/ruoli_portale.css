@@ -149,3 +149,5 @@
 .rp-pag-pieno { border-color: var(--success); background: var(--success-bg); color: var(--text); }
 .rp-pag-parziale { border-color: var(--warning); background: var(--warning-bg); color: var(--text); }
 .rp-pag-ecc { border-style: dashed; border-color: var(--warning); font-weight: 600; }
+/* Anteprima: la cella e' cambiata ma non ancora salvata. */
+.rp-pag-dasalvare { border-style: solid; border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 600; }

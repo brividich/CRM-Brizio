@@ -220,6 +220,40 @@ def stato_pagine_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict[tuple[s
     return risultato
 
 
+def dati_anteprima_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict:
+    """Quanto serve alla pagina per prevedere i badge prima del salvataggio.
+
+    Per ogni modulo, le sue pagine con capacita' e grant non governati dalla
+    matrice (acceso a mano / diniego), che la sincronizzazione non tocca. Il
+    calcolo lato pagina ripete ``codici_desiderati`` + ``sincronizza_ruolo``:
+    una pagina sara' concessa se e' accesa a mano, oppure se non e' negata e
+    una cella della riga (o «vede tutto» per la lettura) la vuole.
+    """
+    from core.models import GroupPermissionGrant
+
+    capacita = capacita if capacita is not None else capacita_permessi()
+    per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
+    specs = moduli_registrati()
+    grant = {g.permission_id: g for g in GroupPermissionGrant.objects.filter(group=ruolo)}
+    moduli = {}
+    for chiave, codes in per_modulo.items():
+        righe = []
+        for code in codes:
+            g = grant.get(code)
+            a_mano = g is not None and g.enabled and g.note != NOTA_MATRICE
+            # Un grant della matrice spento lo riaccende la sincronizzazione: non e' un diniego.
+            negata = g is not None and not g.enabled and g.note != NOTA_MATRICE
+            righe.append([code, capacita.get(code, CAPABILITY_IGNOTO), int(a_mano), int(negata)])
+        spec = specs.get(chiave)
+        moduli[chiave] = {"solo_admin": bool(spec and spec.solo_amministratore), "pagine": righe}
+    return {
+        "azioni": {azione: sorted(caps) for azione, caps in AZIONE_CAPACITA.items()},
+        "lettura": CAPABILITY_LETTURA,
+        "vede_tutto": bool(ruolo.vede_tutto),
+        "moduli": moduli,
+    }
+
+
 def sincronizza_ruolo(ruolo, *, capacita=None, per_modulo=None, dry_run: bool = False) -> EsitoSync:
     from core.models import GroupPermissionGrant
 

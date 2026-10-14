@@ -38,6 +38,7 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 
 - **Ruoli e permessi, matrice**: il menu «Tutta la riga…» sotto ogni modulo imposta in un colpo tutte le sue azioni (Propri / Team / Tutti / No / svuota). Solo lato pagina: il salvataggio resta quello della matrice. Le azioni proprie del modulo (righe «↳») non sono incluse.
 - **Accessi, guida in-app**: pulsante «? Guida» nella plancia (`?guida=1`, stessa rotta e permesso della pagina); guida e guida di «Ruoli e permessi» indicizzate dall'assistente AI.
+- **Ruoli e permessi, anteprima prima del salvataggio**: cambiando una cella i badge della riga mostrano «N/M → X/M · da salvare»; nulla cambia finché non si preme «Salva matrice».
 - **Ruoli e permessi, stato reale delle pagine**: sotto ogni cella della matrice il badge «pagine N/M» (tutte / alcune / nessuna, elenco nel tooltip) e «· a mano» se i permessi sono stati cambiati dalla pagina Accessi; in Accessi l'etichetta «da matrice» sui permessi accesi dalla matrice, con link al ruolo. Sola lettura.
 - **Ruoli e permessi, «Riepilogo per modulo»**: scheda in sola lettura (`?tab=modulo&modulo=<chiave>`) con le azioni concesse da ogni ruolo e la tabella pagine/API × ruoli (matrice, a mano, negato, amministratore); evidenzia le pagine non aperte a nessun ruolo.
 - **Accessi (unificata)**: interruttore di ogni permesso a sinistra del nome; sotto il codice le prime 3 rotte governate (+N), tutte nel suggerimento.

@@ -358,7 +358,15 @@ class MacchinaForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.ModelForm):
 class ImpostazioniSNMPForm(SezioniFormMixin, forms.ModelForm):
     class Meta:
         model = ImpostazioniSNMP
-        fields = ["community", "port", "timeout", "version"]
+        fields = [
+            "community", "port", "timeout", "version",
+            "tvcc_intervallo_nvr", "tvcc_intervallo_telecamere", "tvcc_retention_giorni",
+        ]
+        labels = {
+            "tvcc_intervallo_nvr": "TVCC - Intervallo NVR (minuti)",
+            "tvcc_intervallo_telecamere": "TVCC - Intervallo telecamere (minuti)",
+            "tvcc_retention_giorni": "TVCC - Storico rilevazioni (giorni)",
+        }
 
 
 class DispositivoSNMPForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.ModelForm):

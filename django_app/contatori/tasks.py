@@ -1,11 +1,13 @@
 """Job per lo scheduler django-q2 esistente del portale."""
-from datetime import date
+from datetime import date, timedelta
 
 from django.core.cache import cache
 from django.utils import timezone
 from django_q.tasks import async_task
 
-from .models import DispositivoSNMP, LetturaMensileContatori, Macchina, StatoSNMP
+from .models import (
+    DispositivoSNMP, ImpostazioniSNMP, LetturaMensileContatori, Macchina, RilevazioneSNMP, StatoSNMP,
+)
 from .services import interroga_dispositivo, leggi_mensile_macchina
 
 
@@ -27,13 +29,62 @@ def _enqueue(func, pk, *args):
     return True
 
 
+# Tolleranza sull'intervallo TVCC: il giro parte ogni 5 minuti ma non al secondo,
+# senza margine una telecamera a 30 minuti verrebbe letta ogni 35.
+_TOLLERANZA_INTERVALLO = timedelta(seconds=150)
+
+
+def _dispositivi_da_interrogare(adesso=None):
+    """Dispositivi attivi dovuti in questo giro: i TVCC rispettano il proprio intervallo."""
+    adesso = adesso or timezone.now()
+    cfg = ImpostazioniSNMP.get_solo()
+    intervalli = {
+        DispositivoSNMP.Categoria.TVCC_NVR: cfg.tvcc_intervallo_nvr,
+        DispositivoSNMP.Categoria.TVCC_TELECAMERA: cfg.tvcc_intervallo_telecamere,
+    }
+    dovuti = []
+    for pk, categoria, ultimo in DispositivoSNMP.objects.filter(attivo=True).values_list(
+        "pk", "categoria", "snmp_ultimo_controllo",
+    ):
+        minuti = intervalli.get(categoria)
+        if minuti and ultimo and ultimo > adesso - timedelta(minutes=minuti) + _TOLLERANZA_INTERVALLO:
+            continue
+        dovuti.append(pk)
+    return dovuti
+
+
 def run_poll_snmp():
     """Smista i dispositivi in job indipendenti entro il timeout del cluster."""
     queued = sum(
         _enqueue("contatori.tasks.poll_dispositivo", pk)
-        for pk in DispositivoSNMP.objects.filter(attivo=True).values_list("pk", flat=True)
+        for pk in _dispositivi_da_interrogare()
     )
     return {"accodati": queued}
+
+
+_BLOCCO_PULIZIA = 500
+
+
+def pulisci_rilevazioni_tvcc():
+    """Cancella le rilevazioni SNMP dei dispositivi TVCC oltre la retention impostata.
+
+    Solo NVR e telecamere: stampanti, server e gli altri apparati conservano lo
+    storico. Lo stato corrente resta sul dispositivo. A blocchi, per non tenere
+    una transazione enorme su SQL Server.
+    """
+    giorni = ImpostazioniSNMP.get_solo().tvcc_retention_giorni
+    limite = timezone.now() - timedelta(days=giorni)
+    vecchie = RilevazioneSNMP.objects.filter(
+        dispositivo__categoria__in=DispositivoSNMP.CATEGORIE_TVCC, rilevata_il__lt=limite,
+    )
+    cancellate = 0
+    while True:
+        blocco = list(vecchie.order_by("pk").values_list("pk", flat=True)[:_BLOCCO_PULIZIA])
+        if not blocco:
+            break
+        cancellate += RilevazioneSNMP.objects.filter(pk__in=blocco).delete()[1].get(
+            RilevazioneSNMP._meta.label, 0)
+    return {"giorni": giorni, "cancellate": cancellate}
 
 
 def poll_dispositivo(pk):
