@@ -73,9 +73,12 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Nella scheda di una stampante collegata a una MFC del modulo Contatori trovi il riquadro <strong>Stampante, consumabili e contatori</strong>. Aprire la scheda <strong>non interroga la stampante</strong>: mostra le ultime letture salvate dai job automatici.</p>
       <h3>Cosa vedi</h3>
       <ul>
-        <li><strong>Consumabili MFC</strong>: livello di ogni toner all'ultima lettura (job giornaliero) e stima di esaurimento in base al ritmo di consumo dall'ultima sostituzione.</li>
+        <li>In testa, per ogni MFC o dispositivo SNMP collegato, un riquadro con nome, matricola o indirizzo, ultimo controllo, esito (badge verde, arancione o rosso) e il pulsante <strong>Apri in Contatori</strong>.</li>
+        <li><strong>Consumabili MFC</strong>: livello di ogni toner all'ultima lettura (job giornaliero) e stima di esaurimento in base al ritmo di consumo dall'ultima sostituzione. Barra verde da 50% in su, arancione tra 20% e 49%, rossa sotto il 20% o se il consumabile è critico (riquadro rosato).</li>
         <li><strong>Pagine stampate per mese</strong>: B/N e colore degli ultimi {{ mesi_trend }} mesi, ricavate dalle letture mensili. La media degli ultimi 3 mesi è confrontata con i 3 precedenti (in aumento, in calo, stabile oltre ±10%). Un mese in cui il contatore scende (sostituzione scheda, azzeramento) resta vuoto invece di dare un numero sbagliato.</li>
-        <li><strong>Contatori mensili MFC</strong>: valori cumulativi, non il consumo del mese.</li>
+        <li><strong>Contatori mensili MFC</strong>: valori cumulativi, non il consumo del mese; bordo blu per il B/N, arancione per il colore, più il totale.</li>
+        <li>Nella tabella delle pagine la barra di ogni mese è divisa in B/N (blu) e colore (arancione).</li>
+        <li>Nella scheda <strong>Tecnica e rete</strong> (tutti gli asset IT) ogni interfaccia è un riquadro con endpoint, IP e VLAN, e sotto il percorso fisico <strong>Switch → Porta SW → Porta patch panel</strong>; le specifiche sono a tessere.</li>
       </ul>
       <h3>Dati vecchi</h3>
       <p>Se i consumabili non vengono letti da più di {{ soglia_consumabili }} giorni, o i contatori da più di {{ soglia_contatori }}, compare un avviso arancione: i numeri sotto non sono quelli attuali. Di solito la stampante è spenta, senza IP o con il monitoraggio disattivato; il motivo è scritto nell'avviso o nell'ultimo errore SNMP.</p>

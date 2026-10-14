@@ -633,6 +633,15 @@ body.theme-dark .af-kpi2--warn .af-kpi2-value { color:#fde68a; }
 body.theme-dark .af-kpi2--bad { border-left-color:#ef4444; }
 body.theme-dark .af-kpi2--bad .af-kpi2-value { color:#fca5a5; }
 body.theme-dark .af-tabs { background:rgba(15,23,42,.92); border-color:var(--border); }
+.af-mon-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.af-mon-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px; border:1px solid #dbe3f0; border-radius:12px; background:linear-gradient(90deg,#f5f8ff 0%,#fff 70%); }
+.af-mon-ico { flex:0 0 auto; display:inline-grid; place-items:center; width:44px; height:36px; border-radius:10px; background:#0f172a; color:#fff; font-size:11px; font-weight:800; letter-spacing:.04em; }
+.af-mon-main { flex:1; min-width:180px; display:flex; flex-direction:column; gap:2px; }
+.af-mon-main > span { color:#64748b; font-size:var(--fs-sm); }
+.af-mon-host { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+body.theme-dark .af-mon-row { border-color:var(--border); background:linear-gradient(90deg,rgba(59,130,246,.10) 0%,transparent 70%); }
+body.theme-dark .af-mon-ico { background:#1e293b; }
+body.theme-dark .af-mon-main > span { color:var(--text-light); }
 body.theme-dark .af-tab { color:var(--text-light); }
 body.theme-dark .af-tab:hover { background:rgba(255,255,255,.07); color:#93c5fd; }
 body.theme-dark .af-tab[aria-selected="true"] { background:#2563eb; color:#fff; }
@@ -812,23 +821,24 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
         <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_centrale' %}">Apri centrale</a>
       </div>
       <div class="af-card-body">
+        <ul class="af-mon-list">
         {% for macchina in mfc_collegate %}
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
-            <strong>MFC · {{ macchina.reparto }}</strong>
-            <span>{{ macchina.matricola }}</span>
+          <li class="af-mon-row">
+            <span class="af-mon-ico" aria-hidden="true">MFC</span>
+            <div class="af-mon-main"><strong>MFC · {{ macchina.reparto }}</strong><span>Matricola {{ macchina.matricola }} · <span class="af-mon-host">{{ macchina.host|default:"host non impostato" }}</span></span></div>
             <span class="as-badge {% if macchina.snmp_stato == 'OK' %}as-badge--ok{% elif macchina.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ macchina.get_snmp_stato_display }}</span>
-            <span style="margin-left:auto;">{{ macchina.host|default:"host non impostato" }}</span>
-            <a class="as-link-subtle" href="{% url 'contatori:macchina' macchina.pk %}">Dettagli</a>
-          </div>
+            <a class="af-btn af-btn-ghost" href="{% url 'contatori:macchina' macchina.pk %}">Dettagli</a>
+          </li>
         {% endfor %}
         {% for dispositivo in dispositivi_snmp %}
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
-            <strong>{{ dispositivo.get_categoria_display }} · {{ dispositivo.nome }}</strong>
+          <li class="af-mon-row">
+            <span class="af-mon-ico" aria-hidden="true">SNMP</span>
+            <div class="af-mon-main"><strong>{{ dispositivo.nome }}</strong><span>{{ dispositivo.get_categoria_display }} · <span class="af-mon-host">{{ dispositivo.host }}</span></span></div>
             <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
-            <span style="margin-left:auto;">{{ dispositivo.host }}</span>
-            <a class="as-link-subtle" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
-          </div>
+            <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
+          </li>
         {% endfor %}
+        </ul>
       </div>
     </article>
   </section>

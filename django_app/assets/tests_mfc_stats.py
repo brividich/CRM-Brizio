@@ -106,6 +106,19 @@ class SchedaAssetMfcTests(TestCase):
         self.assertContains(response, "Leggi adesso")
         self.assertContains(response, reverse("contatori:macchina", args=[m.pk]))
         self.assertNotContains(response, "il job non legge da")
+        self.assertContains(response, "Apri in Contatori")
+        self.assertContains(response, 'class="af-it-meter is-low"')
+
+    def test_contatori_con_totale_e_interfaccia_a_riquadro(self):
+        m = Macchina.objects.create(reparto="Gamma", matricola="SYN-MFC-3", host="192.0.2.83", asset=self.asset)
+        LetturaMensileContatori.objects.create(macchina=m, mese=date(2026, 9, 1), a4_bn=100, a3_bn=20, a4_col=30, a3_col=4)
+        AssetEndpoint.objects.create(asset=self.asset, endpoint_name="eth0", ip="192.0.2.83", vlan=23,
+                                     switch_name="SW-SYN-1", switch_port="Gi1/0/3", punto="PP-3")
+        response = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
+        self.assertContains(response, "<span>Totale</span><strong>154</strong>", html=False)
+        self.assertContains(response, 'class="af-net-card"')
+        self.assertContains(response, "SW-SYN-1")
+        self.assertContains(response, "VLAN 23")
 
     def test_lettura_vecchia_segnalata(self):
         m = Macchina.objects.create(reparto="Gamma", matricola="SYN-MFC-3", host="192.0.2.83", asset=self.asset)
