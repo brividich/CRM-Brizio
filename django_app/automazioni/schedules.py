@@ -83,12 +83,14 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
-        # CONTATORI — recupero alle 08:00 dello stesso giorno per le MFC spente o in
-        # sospensione a mezzanotte: accoda solo quelle ancora senza lettura del mese.
+        # CONTATORI — recupero per le MFC spente o in sospensione a mezzanotte: ogni
+        # 15 minuti dal giorno 1 al 7 accoda solo quelle ancora senza lettura del mese,
+        # cosi' una macchina viene letta entro 15 minuti da quando si riaccende.
+        # Stesso nome di prima: setup_q_schedules aggiorna il cron, nessuna schedule orfana.
         "name": "contatori_letture_mensili_recupero",
         "func": "contatori.tasks.run_letture_mensili",
         "schedule_type": "C",
-        "cron": "0 8 1 * *",
+        "cron": "*/15 * 1-7 * *",
         "repeats": -1,
         "kwargs": {},
     },

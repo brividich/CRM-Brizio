@@ -128,6 +128,11 @@ SEZIONI: list[dict] = [
                 "stanno nello stesso blocco: per ognuna scegli i seriali togliendo «Presente su tutti i seriali del "
                 "blocco». Nel blocco salvato, nel riepilogo, nella mail e nella gestione compare «Solo …» con i seriali "
                 "scelti.",
+                "Ogni seriale del blocco deve avere almeno un'anomalia. Se togli «Presente su tutti…» e qualche seriale "
+                "non è scelto in nessuna anomalia, compare l'avviso giallo «S/N senza nessuna anomalia» e al salvataggio "
+                "ti viene chiesto cosa fare: «Annulla, correggo» per sceglierli in un'anomalia, «Togli dal blocco e "
+                "salva» se sono pezzi buoni, oppure «Salva comunque». Se salvi comunque, il blocco salvato e il "
+                "riepilogo lo ricordano.",
                 "Gli avvisi gialli sui seriali (formato, prefisso diverso) non bloccano il salvataggio: servono a evitare "
                 "errori di battitura.",
                 "Se un seriale ha già un'anomalia aperta sull'OP, accanto al campo compaiono descrizione, stato e chi l'ha "

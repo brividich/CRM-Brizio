@@ -875,7 +875,8 @@
   const uid = () => `n${Date.now()}_${_uid += 1}`;
   // tutti: l'anomalia vale per tutti i seriali del blocco (default); altrimenti sel = S/N scelti.
   const newAnomalia = () => ({ key: uid(), localId: null, testo: '', files: [], existing: [], gestita: false, avanzamento: '', tutti: true, sel: [] });
-  const newEditor = () => ({ bloccoId: null, voci: [], stati: [], anomalie: [newAnomalia()], attiva: 0, bloccato: false, confermaRipetuti: false });
+  // confermaScoperti: S/N senza anomalia già confermati dall'operatore (chiave = elenco), vale solo se l'elenco non cambia.
+  const newEditor = () => ({ bloccoId: null, voci: [], stati: [], anomalie: [newAnomalia()], attiva: 0, bloccato: false, confermaRipetuti: false, confermaScoperti: '' });
   const editorFromBlocco = (b) => ({
     bloccoId: b.id,
     voci: [...(b.seriali || [])],
@@ -888,7 +889,37 @@
     attiva: -1,
     bloccato: !!b.bloccato,
     confermaRipetuti: false,
+    confermaScoperti: '',
   });
+  /* S/N del blocco senza nessuna anomalia (stessa regola di controllo_service.seriali_senza_anomalia). */
+  const serialiScoperti = (tokens, anomalie) => {
+    const piene = (anomalie || []).filter(a => a.localId || a.testo.trim() || a.files.length);
+    if (tokens.length <= 1 || !piene.length || piene.some(a => a.tutti)) return [];
+    const coperti = new Set();
+    piene.forEach(a => a.sel.forEach(t => coperti.add(t.toLowerCase())));
+    return tokens.filter(t => !coperti.has(t.toLowerCase()));
+  };
+  /* Singoli S/N -> voci, con i consecutivi in range (come seriali.comprimi_seriali). */
+  const comprimiTokens = (tokens) => {
+    const out = [];
+    let run = null;
+    const chiudi = () => {
+      if (!run) return;
+      const da = `${run.p}${String(run.a).padStart(run.w, '0')}`;
+      out.push(run.a === run.b ? da : `${da}-${run.p}${String(run.b).padStart(run.w, '0')}`);
+      run = null;
+    };
+    tokens.forEach(t => {
+      const m = String(t).match(/^(.*?)(\d+)$/);
+      if (!m) { chiudi(); out.push(t); return; }
+      const n = parseInt(m[2], 10);
+      if (run && run.p.toLowerCase() === m[1].toLowerCase() && run.w === m[2].length && n === run.b + 1) { run.b = n; return; }
+      chiudi();
+      run = { p: m[1], w: m[2].length, a: n, b: n };
+    });
+    chiudi();
+    return out;
+  };
   const editorDirty = (ed) => !!ed && (
     ed.bloccoId !== null
     || ed.voci.length > 0
@@ -1033,6 +1064,9 @@
             </li>
           ))}
         </ol>
+        {(b.seriali_scoperti || []).length > 0 && (
+          <div className="sn-warn">⚠ S/N senza anomalia: {comprimiTokens(b.seriali_scoperti).join(', ')}</div>
+        )}
         {canEdit && (
           <div className="blk-foot">
             <button type="button" className="btn-secondary btn-sm" onClick={onEdit}>Modifica o aggiungi anomalie</button>
@@ -1061,6 +1095,7 @@
     const nAll = blocchi.reduce((n, b) => n + b.anomalie.reduce((m, a) => m + (a.allegati || []).length, 0), 0);
     const ripetuti = serialiMultiBlocco(blocchi);
     const senzaSup = STATI_SUPERFICIE.length ? blocchi.filter(b => !(b.stato_superficie || []).length).map((b, i) => b.ordine || i + 1) : [];
+    const scoperti = blocchi.map((b, i) => ({ n: i + 1, sn: b.seriali_scoperti || [] })).filter(x => x.sn.length);
     return (
       <div className="riep">
         <div className="riep-kpi">
@@ -1079,6 +1114,9 @@
           <div className="riep-warn">S/N in più blocchi (confermato in inserimento): {ripetuti.slice(0, 10).map(r => `${r.token} → blocchi ${r.blocchi.join(', ')}`).join(' · ')}{ripetuti.length > 10 ? '…' : ''}</div>
         )}
         {senzaSup.length > 0 && <div className="riep-warn">Stato superficie non indicato nei blocchi {senzaSup.join(', ')}.</div>}
+        {scoperti.length > 0 && (
+          <div className="riep-warn">S/N senza nessuna anomalia (confermato in inserimento): {scoperti.map(x => `blocco ${x.n} → ${comprimiTokens(x.sn).join(', ')}`).join(' · ')}</div>
+        )}
         {blocchi.map((b, i) => (
           <div className="riep-blk" key={b.id}>
             <div className="riep-blk__head">
@@ -1297,6 +1335,9 @@
       const selDi = (a) => { const k = new Set(a.sel.map(t => t.toLowerCase())); return edTokens.filter(t => k.has(t.toLowerCase())); };
       const parzialeVuota = ed.anomalie.findIndex(a => !a.gestita && (a.localId || a.testo.trim() || a.files.length) && !a.tutti && edTokens.length > 1 && !selDi(a).length);
       if (parzialeVuota >= 0) { setError(`${MSG_SN_ANOM} (anomalia ${parzialeVuota + 1}).`); setEditor(prev => ({ ...prev, attiva: parzialeVuota })); return false; }
+      const scoperti = serialiScoperti(edTokens, ed.anomalie);
+      const scopertiOk = !scoperti.length || ed.confermaScoperti === scoperti.join('|');
+      if (!scopertiOk) { setError(''); setConfirmScoperti(scoperti); return false; }
       setError(''); setNotice(''); setSaving(true);
       try {
         const j = await postJson(urlFor(API.controllo_blocco, controllo.id), {
@@ -1304,6 +1345,7 @@
           seriali: ed.voci,
           stato_superficie: ed.stati,
           conferma_seriali_ripetuti: !!ed.confermaRipetuti,
+          conferma_seriali_scoperti: scoperti.length > 0 && scopertiOk,
           anomalie: anomalie.map(a => {
             const tutti = a.tutti || edTokens.length <= 1;
             return { local_id: a.localId, testo: a.testo.trim(), tutti, seriali: tutti ? [] : selDi(a) };
@@ -1337,6 +1379,7 @@
         setDestinatari(fresh.destinatari || null);
         setEditor(newEditor());
         setConfirmRipetuti(null);
+        setConfirmScoperti(null);
         loadSerialiAperti();
         const n = anomalie.length;
         setNotice(`Salvato: ${n} anomali${n === 1 ? 'a' : 'e'} su ${labelVoci(ed.voci)}.`
@@ -1345,6 +1388,7 @@
         return true;
       } catch (e) {
         if (e.data && e.data.code === 'seriali_ripetuti') { setConfirmRipetuti(e.data.seriali_ripetuti || []); setError(''); }
+        else if (e.data && e.data.code === 'seriali_scoperti') { setConfirmScoperti(e.data.seriali_scoperti || []); setError(''); }
         else setError(e.message);
         return false;
       } finally {
@@ -1363,6 +1407,26 @@
     useEffect(() => {
       if (salvaDopoConferma && editor.confermaRipetuti) { setSalvaDopoConferma(false); salvaBlocco(); }
     }, [salvaDopoConferma, editor.confermaRipetuti]);
+
+    // S/N del blocco senza nessuna anomalia: si salva solo dopo conferma, oppure
+    // togliendoli dal blocco (non se il capocommessa ha già deciso: i seriali sono fermi).
+    const [confirmScoperti, setConfirmScoperti] = useState(null);
+    const [salvaDopoScoperti, setSalvaDopoScoperti] = useState(false);
+    const confermaScopertiESalva = () => {
+      const chiave = (confirmScoperti || []).join('|');
+      setEditor(prev => ({ ...prev, confermaScoperti: chiave }));
+      setConfirmScoperti(null);
+      setSalvaDopoScoperti(true);
+    };
+    const togliScopertiESalva = () => {
+      const via = new Set((confirmScoperti || []).map(t => t.toLowerCase()));
+      setEditor(prev => ({ ...prev, voci: comprimiTokens(tokensOf(prev.voci).filter(t => !via.has(t.toLowerCase()))), confermaScoperti: '' }));
+      setConfirmScoperti(null);
+      setSalvaDopoScoperti(true);
+    };
+    useEffect(() => {
+      if (salvaDopoScoperti) { setSalvaDopoScoperti(false); salvaBlocco(); }
+    }, [salvaDopoScoperti]);
 
     // «Termina controllo» passa sempre dal riepilogo: l'operatore vede tutto prima della mail.
     const apriRiepilogo = async (salvaPrima) => {
@@ -1422,6 +1486,7 @@
     const primo = tokens.find(t => SN_PATTERN.test(t));
     const prefissoDiverso = primo ? tokens.filter(t => SN_PATTERN.test(t) && t.slice(0, 3).toUpperCase() !== primo.slice(0, 3).toUpperCase()) : [];
     const ripetutiEditor = tokens.filter(t => controlloTokens.has(t.toLowerCase())).map(t => ({ token: t, blocco: controlloTokens.get(t.toLowerCase()) }));
+    const scopertiEditor = serialiScoperti(tokens, editor.anomalie);
     const duplicati = (() => {
       const exist = new Set((serialiAperti.seriali || []).map(x => x.toLowerCase()));
       const out = [];
@@ -1736,8 +1801,26 @@
             })}
           </div>
           <button type="button" className="btn-outline anom-add" onClick={nuovaAnomalia} disabled={saving}>+ Nuova anomalia su questi seriali</button>
+          {scopertiEditor.length > 0 && (
+            <div className="sn-warn" role="status">
+              ⚠ {scopertiEditor.length} di {tokens.length} S/N senza nessuna anomalia: {comprimiTokens(scopertiEditor).slice(0, 8).join(', ')}{comprimiTokens(scopertiEditor).length > 8 ? '…' : ''}.
+              {' '}Assegnali a un’anomalia{editor.bloccato ? '' : ' o toglili dal blocco'}.
+            </div>
+          )}
           {attachErr && <div className="sn-warn">⚠ {attachErr}</div>}
         </div>
+
+        {confirmScoperti && (
+          <div className="confirm-box" role="alertdialog" aria-label="Seriali senza anomalia">
+            <div><strong>{confirmScoperti.length === 1 ? 'Questo seriale del blocco non ha' : `Questi ${confirmScoperti.length} seriali del blocco non hanno`} nessuna anomalia:</strong> {comprimiTokens(confirmScoperti).slice(0, 10).join(', ')}{comprimiTokens(confirmScoperti).length > 10 ? '…' : ''}.</div>
+            <div>Ogni S/N del blocco dovrebbe avere almeno un’anomalia. Hai dimenticato di selezionarli in un’anomalia, oppure sono pezzi buoni da togliere dal blocco?</div>
+            <div className="action-bar">
+              <button type="button" className="btn-secondary" onClick={() => setConfirmScoperti(null)}>Annulla, correggo</button>
+              {!editor.bloccato && <button type="button" className="btn-secondary" onClick={togliScopertiESalva} disabled={saving}>Togli dal blocco e salva</button>}
+              <button type="button" className="btn-primary" onClick={confermaScopertiESalva} disabled={saving}>Salva comunque</button>
+            </div>
+          </div>
+        )}
 
         {confirmRipetuti && (
           <div className="confirm-box" role="alertdialog" aria-label="Seriali già in un altro blocco">

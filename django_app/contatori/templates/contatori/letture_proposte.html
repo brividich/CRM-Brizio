@@ -20,7 +20,7 @@
     <tbody>{% for p in proposte %}<tr>
       <td>{% if not p.incoerente %}<input type="checkbox" name="macchina" value="{{ p.macchina.pk }}" checked aria-label="Conferma {{ p.macchina.reparto }}">{% endif %}</td>
       <td><a class="plain" href="{% url 'contatori:macchina' p.macchina.pk %}">{{ p.macchina.reparto }}</a><div class="muted">{{ p.macchina.matricola }}</div></td>
-      <td>{{ p.mensile.rilevata_il|date:"d/m/Y H:i" }}<div class="muted">mese {{ p.mensile.mese|date:"m/Y" }}</div></td>
+      <td>{{ p.mensile.rilevata_il|date:"d/m/Y H:i" }}{% if p.mensile.ritardo_testo %} <span class="pill warn" title="Letta dopo la chiusura del giorno 1 alle 00:00">{{ p.mensile.ritardo_testo }}</span>{% endif %}<div class="muted">mese {{ p.mensile.mese|date:"m/Y" }}</div></td>
       <td class="num">{{ p.mensile.a4_bn }}</td><td class="num">{{ p.mensile.a3_bn }}</td><td class="num">{{ p.mensile.a4_col }}</td><td class="num">{{ p.mensile.a3_col }}</td>
       <td class="num"><strong>{{ p.mensile.totale }}</strong></td>
       <td>{% if p.incoerente %}<span class="pill danger">Più bassa del {{ p.precedente.trimestre }}</span><div class="muted"><a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ p.macchina.pk }}&amp;trimestre={{ trimestre }}">Inserisci a mano</a></div>{% elif p.precedente %}<span class="pill ok">+{{ p.delta }} copie</span><div class="muted">sul {{ p.precedente.trimestre }}</div>{% else %}<span class="pill">prima lettura</span>{% endif %}</td>
