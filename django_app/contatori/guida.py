@@ -105,9 +105,11 @@ SEZIONI: list[dict] = [
                 "collegati ad apparati attivi, più il numero di apparati senza asset. Apre l'elenco licenze filtrato.",
                 "Nella colonna «Da fare», elenco «Apparati senza asset collegato»: MFC e dispositivi senza asset. Senza collegamento "
                 "non si vedono licenze, software installato e scadenze: apri l'apparato e collegalo dalla modifica.",
-                "Nella scheda MFC e dispositivo, riquadro «Licenze e software dell'asset»: ogni licenza con "
-                "scadenza e stato (valida, in scadenza, scaduta, disattiva), il numero di software rilevati "
-                "dall'inventario del SOC e il link «Gestisci le licenze di questo asset».",
+                "Nella scheda MFC e dispositivo, riquadro «Asset collegato»: nome, tipo, seriale e codice "
+                "dell'asset, numero di licenze e di software rilevati dall'inventario del SOC, poi ogni licenza "
+                "con scadenza, giorni mancanti (o trascorsi) e stato (valida, in scadenza, scaduta, disattiva). "
+                "Pulsanti «Gestisci licenze» e «Apri scheda asset». Se l'apparato non ha un asset, il riquadro "
+                "lo dice e chi gestisce il modulo ha il pulsante «Collega un asset» (apre la modifica).",
             ]),
         ],
     },
