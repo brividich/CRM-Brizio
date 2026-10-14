@@ -38,7 +38,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "anomalie": ("Operations", "#eab308", "Anomalie per OP e seriali"),
     "gestione_carichi_macchina": ("Operations", "#0891b2", "Pianificazione carichi macchina"),
     "checklist_operativa": ("Operations", "#0d9488", "Checklist di chiusura aziendale"),
-    "contatori": ("Operations", "#7c3aed", "Contatori MFC e monitor SNMP"),
+    "contatori": ("Operations", "#7c3aed", "Contatori IT: MFC e monitor SNMP"),
     "planimetria": ("Operations", "#a3a3a3", "Ponte verso le planimetrie di assets"),
     "diario_preposto": ("Sicurezza sul lavoro", "#ef4444", "Diario del preposto e ispezioni"),
     "rilevazione_incidenti": ("Sicurezza sul lavoro", "#f43f5e", "Incidenti, near miss, situazioni pericolose"),

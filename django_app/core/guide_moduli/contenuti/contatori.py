@@ -1,6 +1,6 @@
 GUIDA = {
     "slug": "contatori",
-    "titolo": "Contatori MFC e SNMP",
+    "titolo": "Contatori IT",
     "area": "IT e sicurezza informatica",
     "sintesi": "Contatori delle stampanti multifunzione, fatture del fornitore e monitoraggio di rete, UPS e apparati via SNMP.",
     "parole": "contatori mfc stampante stampanti copie toner snmp ups switch fattura copylab canon",
@@ -34,15 +34,15 @@ GUIDA = {
     "admin": [
         {
             "id": "dispositivo",
-            "titolo": "Aggiungere un apparato SNMP",
+            "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
             "blocchi": [
                 ("passi", [
-                    "Apri il wizard «Nuovo dispositivo SNMP».",
-                    "Scegli tipo e modello, poi l'indirizzo IP o il nome.",
-                    "Scegli le credenziali (community o utente SNMPv3) dal catalogo cifrato.",
-                    "Esegui il test di connessione: è obbligatorio.",
-                    "Controlla la mappatura (i valori letti compaiono accanto a ogni campo; in rosso quelli che non rispondono).",
-                    "Collega l'asset e il reparto e conferma.",
+                    "Clicca «+ Nuovo» → «+ Apparato». In alternativa, dalla scheda di un asset IT non monitorato: «Monitora via SNMP».",
+                    "Apparato: scegli l'asset del registro; nome, matricola, modello, reparto e IP vengono presi da lì. "
+                    "Il tipo «Stampante MFC a contratto» crea una MFC, gli altri un dispositivo del Monitor SNMP.",
+                    "Connessione: indirizzo, versione SNMP e credenziali (con SNMPv3 la community non serve).",
+                    "Verifica: un solo pulsante legge identità, modello e valori. Scegli qui il modello.",
+                    "Riepilogo: se viene proposto l'asset trovato per matricola o IP, clicca «Collega questo asset», poi conferma.",
                 ]),
                 ("nota", "La community SNMP non è scritta nel codice: si imposta in configurazione globale o per apparato e resta cifrata."),
             ],
@@ -62,7 +62,8 @@ GUIDA = {
             "perche": "il codice dell'errore dice la causa.",
             "fare": [
                 "Leggi il codice nella scheda: SNMP-001 indirizzo non valido, 002 nome non risolto, 003 nessuna risposta (spesso community sbagliata), "
-                "004 credenziali v3 rifiutate, 005 dato non disponibile, 006 valore non valido, 007 permessi/gestori ammessi sull'apparato, 008 credenziali mancanti.",
+                "004 credenziali v3 rifiutate, 005 dato non disponibile, 006 valore non valido, 007 permessi/gestori ammessi sull'apparato, 008 credenziali mancanti, "
+                "009 SNMPv3: apparato raggiungibile ma credenziali scartate (protocollo o chiave di cifratura), 010 nessuna risposta SNMPv3 (rete, firewall, SNMPv3 non attivo).",
                 "Per 003: controlla che l'apparato sia acceso e raggiungibile (ping) e che la community sia quella giusta.",
                 "Per 007: sull'apparato va autorizzato l'indirizzo del server del portale come gestore SNMP.",
             ],
