@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contatori', '0032_acl_riconciliazione_guida'),
+        ('contatori', '0034_preset_tvt_tvcc'),
     ]
 
     operations = [

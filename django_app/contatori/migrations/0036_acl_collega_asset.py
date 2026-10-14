@@ -7,7 +7,7 @@ from django.db import migrations
 
 GESTIONE = "contatori.gestione.manage"
 ROUTE_GESTIONE = ["apparato_collega_asset"]
-NOTA = "[CONTATORI_0034] binding collegamento guidato asset"
+NOTA = "[CONTATORI_0036] binding collegamento guidato asset"
 
 
 def avanti(apps, schema_editor):
@@ -34,7 +34,7 @@ def indietro(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("contatori", "0033_firmware_dispositivi"),
+        ("contatori", "0035_firmware_dispositivi"),
     ]
 
     operations = [migrations.RunPython(avanti, indietro)]
