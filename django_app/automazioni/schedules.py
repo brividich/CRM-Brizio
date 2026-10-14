@@ -61,6 +61,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40.
+        # Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
+        "name": "contatori_pulizia_tvcc",
+        "func": "contatori.tasks.pulisci_rilevazioni_tvcc",
+        "schedule_type": "C",
+        "cron": "40 3 * * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CONTATORI — snapshot mensile MFC il giorno 1 alle 00:00 (fuso del portale):
         # coincide con la chiusura usata dal fornitore in fattura ("Lett. al 30/09").
         # Una lettura per macchina/mese; Esegui ora recupera solo le letture mancanti.

@@ -365,12 +365,15 @@ class GestioneStampantiTest(_AuthedClientMixin, TestCase):
         r = self.client.post(reverse("contatori:macchine"), {
             "community": "altrogruppo", "port": "1610",
             "timeout": "5", "version": "v2c",
+            "tvcc_intervallo_nvr": "10", "tvcc_intervallo_telecamere": "45", "tvcc_retention_giorni": "7",
         })
         self.assertRedirects(r, reverse("contatori:macchine"))
         cfg = ImpostazioniSNMP.get_solo()
         self.assertEqual(cfg.community, "altrogruppo")
         self.assertEqual(cfg.version, "v2c")
         self.assertEqual(cfg.port, 1610)
+        self.assertEqual((cfg.tvcc_intervallo_nvr, cfg.tvcc_intervallo_telecamere, cfg.tvcc_retention_giorni),
+                         (10, 45, 7))
 
     def test_test_snmp_usa_config_salvata(self):
         ImpostazioniSNMP.objects.update_or_create(
