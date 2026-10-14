@@ -9075,10 +9075,24 @@ if ($t) {{
         return dest if dest.exists() else src
 
     def _q_register_ps(self, env: str, script_path, task_name: str) -> str:
-        """Script PowerShell che (ri)registra il task qcluster. Emette OK / ERR:."""
+        """Script PowerShell che (ri)registra il task qcluster. Emette OK / ERR:.
+
+        Mai un task interattivo: senza utente connesso (riavvio, logoff) non parte
+        e il watchdog lo "avvia" a vuoto. Un task gia' non interattivo
+        (Password/S4U/ServiceAccount, es. configurato dalla console qcluster)
+        non viene toccato: ri-registrarlo perderebbe l'account e la password.
+        """
         return f"""
 $ErrorActionPreference = 'Stop'
 try {{
+    $existing = Get-ScheduledTask -TaskPath '\\PortaleNovicrom\\' -TaskName '{task_name}' -ErrorAction SilentlyContinue
+    if ($existing -and [string]$existing.Principal.LogonType -in @('Password', 'S4U', 'ServiceAccount')) {{
+        Write-Output 'OK'
+        return
+    }}
+    $principal = New-ScheduledTaskPrincipal `
+        -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) `
+        -LogonType S4U -RunLevel Highest
     $action = New-ScheduledTaskAction `
         -Execute 'powershell.exe' `
         -Argument '-NonInteractive -ExecutionPolicy Bypass -File \"{script_path}\" -Environment {env}'
@@ -9095,7 +9109,7 @@ try {{
         -Action $action `
         -Trigger $trigger `
         -Settings $settings `
-        -RunLevel Highest `
+        -Principal $principal `
         -Force `
         -Description 'django-q2 qcluster NOVICROM HUB {env.upper()}'
     Write-Output 'OK'
@@ -9124,7 +9138,9 @@ try {{
             f"  Nome: \\PortaleNovicrom\\{task_name}\n"
             f"  Script: {script_path}\n"
             f"  Ambiente: {env.upper()}\n\n"
-            f"Il task verrà registrato con trigger 'All'avvio' e livello Highest.\n"
+            f"Il task verrà registrato con trigger 'All'avvio', livello Highest e\n"
+            f"account corrente senza sessione (S4U): parte anche dopo riavvio/logoff.\n"
+            f"Un task già configurato con account non interattivo resta invariato.\n"
             f"Procedere?",
         ):
             return

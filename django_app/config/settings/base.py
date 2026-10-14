@@ -621,6 +621,13 @@ def build_sqlserver_database() -> dict:
         extra_params += f"Encrypt={'yes' if env_bool('DB_ENCRYPT', True) else 'no'};"
     if not db_user:
         extra_params += "Trusted_Connection=yes;"
+    # Timeout query in secondi (0 = illimitato, default pyodbc). Senza, una connessione
+    # caduta o un lock appeso bloccano il processo per sempre: il launcher del qcluster
+    # lo imposta, cosi' il cluster va in errore e riparte invece di restare appeso.
+    try:
+        query_timeout = max(0, int(env("DB_QUERY_TIMEOUT", "0") or 0))
+    except ValueError:
+        query_timeout = 0
 
     return {
         "ENGINE": "mssql",
@@ -631,6 +638,7 @@ def build_sqlserver_database() -> dict:
         "OPTIONS": {
             "driver": driver,
             "extra_params": extra_params,
+            "query_timeout": query_timeout,
         },
     }
 
