@@ -216,7 +216,9 @@ SEZIONI: list[dict] = [
                 ("3 · Verifica", "un solo pulsante «Verifica»: legge identità, riconosce il modello e legge "
                                  "i valori (per le MFC i quattro contatori). «Modello (profilo SNMP)» si può "
                                  "scegliere qui; vuoto = riconosciuto dalla verifica. Una MFC prosegue solo "
-                                 "con i quattro contatori letti e numerici."),
+                                 "con i quattro contatori letti e numerici. Un profilo specifico (es. "
+                                 "Fortinet, APC) imposta anche il tipo di apparato; un profilo generico "
+                                 "lascia il tipo scelto al passo 1."),
                 ("4 · Riepilogo", "controlla e «Conferma e crea». Se non hai scelto un asset e il registro "
                                   "ne ha uno con la stessa matricola o lo stesso IP, il portale lo propone: "
                                   "«Collega questo asset»."),
