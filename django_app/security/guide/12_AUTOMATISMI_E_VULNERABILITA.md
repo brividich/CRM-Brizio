@@ -84,6 +84,7 @@ Una regola si può **accendere solo se è stata simulata negli ultimi 7 giorni**
 ### Da dove arrivano i dati
 
 - **Inventario software**: export dei software installati per PC, da WatchGuard EPDR (Panda) o da BusinessLog, caricato a mano in CSV o Excel.
+- **Firmware da monitoraggio SNMP**: per ogni dispositivo del Monitor SNMP con produttore, modello e versione firmware letta, il portale aggiunge da solo una riga «<modello> firmware» all'inventario (fonte «Firmware da monitoraggio SNMP», host = IP del dispositivo). Non si carica a mano: si aggiorna a ogni interrogazione e una versione nuova sostituisce la precedente. Per il confronto con le CVE va collegata al CPE come gli altri software (i CPE NVD dei firmware finiscono in `_firmware`).
 - **NVD** (National Vulnerability Database): per ogni CVE, quali prodotti e quali versioni sono vulnerabili.
 - **CISA KEV**: l'elenco delle CVE sfruttate attivamente.
 - **EPSS** (FIRST.org): la probabilità che una CVE venga sfruttata nei prossimi 30 giorni.

@@ -12,7 +12,6 @@
   <tr><th>Modello</th><td>{{ macchina.modello|default:"—" }}</td></tr>
   <tr><th>Matricola</th><td class="mono">{{ macchina.matricola }}</td></tr>
   <tr><th>Contratto · fornitore</th><td>{{ macchina.contratto|default:"—" }} · {{ macchina.get_fornitore_display }}</td></tr>
-  <tr><th>Asset collegato</th><td>{% if macchina.asset %}<a class="plain" href="{% url 'assets:asset_view' macchina.asset.id %}">{{ macchina.asset.name }}</a> <span class="pos">[{{ macchina.asset.asset_tag }}]</span>{% if macchina.asset.serial_number %} · serial {{ macchina.asset.serial_number }}{% endif %}{% else %}<span class="pill warn">non collegato</span>{% endif %}</td></tr>
 </table></section>
 <section class="panel"><h2>Connessione SNMP</h2><table class="info-table" data-fm-table-skip="1">
   <tr><th>Indirizzo</th><td class="mono">{% if macchina.host %}{{ macchina.host }}:{{ info_snmp.porta }}{% else %}—{% endif %}</td></tr>

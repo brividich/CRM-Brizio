@@ -269,3 +269,8 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .asset-coll-nessuno>div{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px}
 .contatori-module .asset-coll-nessuno strong{color:var(--cm-text)}
 @media(max-width:760px){.contatori-module .asset-coll-id{flex-wrap:wrap}.contatori-module .lic-item{flex-wrap:wrap}}
+.contatori-module .asset-coll-proposta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--cm-accent) 40%,var(--cm-border));border-radius:13px;background:color-mix(in srgb,var(--cm-accent) 6%,var(--cm-surface))}
+.contatori-module .asset-coll-proposta form{margin:0}
+.contatori-module .fw-versione{font-weight:700;padding:2px 7px;border-radius:7px;background:color-mix(in srgb,var(--cm-accent) 10%,var(--cm-surface))}
+.contatori-module .fw-storico{margin-top:6px;font-size:13px}.contatori-module .fw-storico summary{cursor:pointer;color:var(--cm-primary-mid);font-weight:650}
+.contatori-module .fw-storico ol{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
