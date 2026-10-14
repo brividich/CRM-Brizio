@@ -34,7 +34,7 @@ class CruscottoTests(TestCase):
         self.assertIn("1 MFC senza lettura 2026-Q3", titoli)
         self.assertIn("Fattura 2026-Q2 non caricata", titoli)
         self.assertIn("1 MFC non raggiungibili", titoli)
-        self.assertIn("2 letture mensili non registrate", titoli)
+        self.assertIn("2 letture mensili saltate", titoli)
         # Le criticita' rosse vengono prima
         da_fare = services.cruscotto_operativo(oggi=OGGI)["da_fare"]
         self.assertEqual(da_fare[0]["livello"], "danger")

@@ -8,7 +8,7 @@ La centrale usa lo scheduler **django-q2 già presente nel portale**. Windows av
 | --- | --- | --- |
 | `contatori_poll_snmp` | Ogni 5 minuti | Stato e storico sonde dei dispositivi attivi del Monitor SNMP |
 | `contatori_letture_mensili` | Giorno 1 alle 00:00, fuso del portale (predefinito Europe/Rome) | Una lettura cumulativa per MFC attiva con IP e mese, allineata alla chiusura del fornitore («Lett. al 30/09») |
-| `contatori_letture_mensili_recupero` | Giorno 1 alle 08:00 | Rilegge solo le MFC rimaste senza lettura del mese (spente o in sospensione a mezzanotte) |
+| `contatori_letture_mensili_recupero` | Ogni 15 minuti dal giorno 1 al 7 (`*/15 * 1-7 * *`) | Rilegge solo le MFC rimaste senza lettura del mese (spente o in sospensione a mezzanotte): la lettura arriva entro 15 minuti dalla riaccensione. Il ritardo rispetto alla chiusura compare come badge («+31 h») nella scheda MFC |
 | `contatori_consumabili` | Ogni giorno alle 07:30 | Livelli dei consumabili per MFC attiva con IP: storico, stima giorni residui, voce «Da fare» in Centrale |
 
 Non occorre creare altri task Windows. Se era stato creato un task separato per `poll_snmp_devices`, disabilitarlo quando si attiva questa integrazione, per evitare rilevazioni doppie.
@@ -32,7 +32,7 @@ Lo storico mensile conserva la **prima lettura riuscita del mese**, con data e o
 
 Le letture trimestrali e la riconciliazione fatture restano separate: il vecchio `leggi_contatori` aggiorna una sola riga per macchina/trimestre e non va schedulato come raccolta mensile. Nessuna lettura trimestrale manuale viene sostituita dal nuovo job.
 
-In caso di errore SNMP non viene creato uno snapshot con valori fittizi. Il job del singolo apparato fallisce nello storico django-q, il cluster applica i retry configurati e le altre macchine proseguono. **Esegui ora** sul job mensile riprova soltanto le macchine ancora senza lettura del mese corrente. Una lettura riuscita non viene sovrascritta; non è possibile ricostruire automaticamente mesi passati interrogando i contatori attuali.
+In caso di errore SNMP non viene creato uno snapshot con valori fittizi. Una MFC che non risponde non fa fallire il job (esito `non_raggiungibile`, errore visibile su «Salute SNMP» della macchina): la riprova il recupero ogni 15 minuti fino al giorno 7; dal giorno 8 la Centrale la segnala come «lettura mensile saltata». **Esegui ora** sul job mensile riprova soltanto le macchine ancora senza lettura del mese corrente. Una lettura riuscita non viene sovrascritta; non è possibile ricostruire automaticamente mesi passati interrogando i contatori attuali.
 
 Recupero da terminale, con gli stessi parametri SNMP globali della pagina MFC:
 
