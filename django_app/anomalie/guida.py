@@ -169,8 +169,11 @@ SEZIONI: list[dict] = [
                 "capocommessa e CAR. Il numero arancione su un OP indica le anomalie da decidere.",
                 "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
                 "senza decisione; le chiuse sono raccolte in fondo in «Chiuse».",
-                "Dettaglio: in alto OP, seriali, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
+                "Dettaglio: in alto OP, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
                 "passano all'anomalia precedente o successiva.",
+                "Sotto il titolo, la fascia «Pezzi interessati» mostra i seriali dell'anomalia uno per chip (un "
+                "intervallo appare come «LCN00060 → LCN00065») e il numero di pezzi. Se l'anomalia riguarda solo una "
+                "parte del controllo, gli altri seriali compaiono barrati e sbiaditi, con «su N del controllo».",
                 "«Nuova segnalazione» apre un controllo sull'OP. Il menu ⋯ contiene «Report OP», «Report OP in PDF», "
                 "«Duplica anomalia come nuovo record» e, per gli amministratori, «Configurazione modulo».",
             ]),
@@ -194,7 +197,7 @@ SEZIONI: list[dict] = [
                 "ORE/RIPI»: la pagina lo avvisa prima di salvare.",
                 "Con «Segnalare al cliente» l'avanzamento resta quello attuale.",
                 "«Applica la stessa decisione anche alle altre anomalie aperte di questi seriali» copia la decisione sulle "
-                "altre anomalie aperte del blocco.",
+                "altre anomalie aperte del blocco; sotto la frase sono ripetuti i seriali interessati.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
                 "Puoi aggiungere allegati anche qui (trascina, sfoglia o Ctrl+V) e correggere il testo con «Modifica testo».",
                 "«Cronologia azioni», in fondo al dettaglio, mostra chi ha fatto cosa sull'OP, dal portale e dalla mail.",
