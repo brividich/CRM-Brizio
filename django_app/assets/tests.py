@@ -417,6 +417,34 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, 'id="ad-enabled-widgets"', html=False)
         self.assertNotContains(response, "let adEnabled = [&quot;", html=False)
 
+    def test_asset_dashboard_verifiche_contano_i_piani_non_la_vecchia_tabella(self):
+        today = timezone.localdate()
+        # Piano gia' convertito in regola: non deve piu' contare ne' comparire.
+        PeriodicVerification.objects.create(
+            name="Piano convertito", frequency_months=12,
+            next_verification_date=today - timedelta(days=40), is_legacy=True,
+        )
+        PeriodicVerification.objects.create(
+            name="Piano da convertire", frequency_months=12,
+            next_verification_date=today - timedelta(days=3),
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        kpis = response.context["kpis"]
+        self.assertEqual(kpis["verifiche_scadute"], response.context["dash_deadlines"]["plan_overdue"])
+        self.assertEqual(kpis["verifiche_scadute"], 1)
+        codes = [tile["code"] for tile in response.context["launcher"]]
+        self.assertNotIn("verifications", codes)
+        # Il piano convertito sparisce; quello da convertire resta gestibile dalla sua pagina.
+        self.assertNotContains(response, "Piano convertito")
+        self.assertContains(response, "Piano da convertire")
+        # Il riquadro in alto «Verifiche scadute» non c'e' piu': doppiava «Manutenzioni scadute».
+        self.assertNotContains(response, "Verifiche scadute")
+        self.assertContains(response, "Piani di manutenzione scaduti")
+
     def test_asset_dashboard_claim_returns_to_dashboard(self):
         asset = Asset.objects.create(asset_tag="AST-DASH-002", name="Fresa dashboard")
         wo = WorkOrder.objects.create(asset=asset, title="Controllo cinghia")
