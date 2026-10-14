@@ -19087,8 +19087,8 @@ _WIDGET_META: dict[str, dict] = {
     "scadenze_90gg": {"label": "Scadenze 90 gg", "icon": "calendar", "color": "slate"},
     "wo_aperte": {"label": "OdL aperte", "icon": "clipboard-list", "color": "blue"},
     "wo_chiuse_mese": {"label": "OdL chiuse (mese)", "icon": "clipboard-check", "color": "green"},
-    "verifiche_scadute": {"label": "Verifiche scadute", "icon": "shield-alert", "color": "red"},
-    "verifiche_30gg": {"label": "Verifiche 30 gg", "icon": "shield-check", "color": "yellow"},
+    "verifiche_scadute": {"label": "Piani scaduti", "icon": "shield-alert", "color": "red"},
+    "verifiche_30gg": {"label": "Piani in scadenza 30 gg", "icon": "shield-check", "color": "yellow"},
     "asset_per_stato": {"label": "Asset per stato", "icon": "bar-chart", "color": "slate"},
     "asset_per_categoria": {"label": "Asset per categoria", "icon": "layers", "color": "slate"},
 }
@@ -19296,6 +19296,7 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
         })
     rows.sort(key=lambda r: (r["due_date"], r["title"]))
     overdue = [r for r in rows if r["is_overdue"]]
+    plan_sources = {feed.KIND_ORDINARY, "verification"}
     return {
         "items": rows[:limit],
         "total": len(rows),
@@ -19305,6 +19306,11 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
         "maintenance_due_soon": sum(
             1 for r in rows if r["source"] == feed.KIND_ORDINARY and not r["is_overdue"]
         ),
+        # Scadenze dei piani (regole + eventuali piani periodici non ancora
+        # convertiti): alimentano i riquadri "Verifiche" della dashboard.
+        "plan_overdue": sum(1 for r in overdue if r["source"] in plan_sources),
+        "plan_due_soon": sum(1 for r in rows if r["source"] in plan_sources and not r["is_overdue"]),
+        "plan_upcoming": [r for r in rows if r["source"] in plan_sources and not r["is_overdue"]][:8],
     }
 
 
@@ -19321,7 +19327,6 @@ def _dashboard_launcher(request: HttpRequest, counters: dict) -> list[dict]:
         ("shift", "Il mio turno", "Gli interventi assegnati a te", reverse("assets:il_mio_turno"), counters.get("wo_mine"), "blue"),
         ("deadlines", "Scadenzario", "Scadenze di piani, adempimenti e contratti", reverse("assets:maintenance_scadenze"), counters.get("deadlines_overdue"), "red"),
         ("plans", "Piani di manutenzione", "Cicli e frequenze per asset", reverse("assets:maintenance_plan_list"), None, ""),
-        ("verifications", "Verifiche periodiche", "Verifiche di legge sugli asset", reverse("assets:periodic_verifications"), counters.get("verifiche_overdue"), "red"),
         ("checks", "Verifiche impianti", "Luci di emergenza, estintori, impianti", reverse("assets:periodic_check_list"), None, ""),
         ("map", "Mappa officina", "Stato delle macchine in planimetria", reverse("assets:plant_layout_map"), None, ""),
         ("machines", "Macchine di lavoro", "Cruscotto del parco produttivo", reverse("assets:work_machine_dashboard"), None, ""),
@@ -19410,9 +19415,13 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "wo_open": dash_wo["total"],
         "wo_mine": dash_wo["mine"],
         "deadlines_overdue": dash_deadlines["overdue"],
-        "verifiche_overdue": kpis["verifiche_scadute"],
         "tickets_new": segnalazioni["nuove"],
     })
+    # I piani periodici sono convertiti in regole: le "Verifiche" della
+    # dashboard contano le scadenze dei piani, non piu' la vecchia tabella.
+    kpis["verifiche_scadute"] = dash_deadlines["plan_overdue"]
+    kpis["verifiche_30gg"] = dash_deadlines["plan_due_soon"]
+    kpis["prossime_verifiche"] = dash_deadlines["plan_upcoming"]
     status_rows = [row for row in kpis["asset_per_stato"] if row["status"] != Asset.STATUS_RETIRED]
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
     family_options = categories
