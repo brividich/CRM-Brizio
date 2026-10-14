@@ -114,13 +114,19 @@ SEZIONI: list[dict] = [
                 "Invio. Sotto compare il totale dei pezzi.",
                 "Se richiesto, scegli lo «Stato superficie del blocco»: vale per tutti i pezzi del blocco.",
                 "Descrivi l'anomalia: cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza.",
+                "Con più pezzi nel blocco, sotto la descrizione c'è la casella «Presente su tutti i N seriali del blocco», "
+                "già spuntata. Se l'anomalia è solo su alcuni pezzi toglila e tocca i seriali interessati (ci sono anche "
+                "«Seleziona tutti» e «Nessuno»).",
                 "Aggiungi foto e documenti: trascinali nel riquadro, sfogliali, oppure clicca nel riquadro e premi Ctrl+V "
                 "per incollare uno screenshot o una foto copiata.",
                 "Altre anomalie sugli stessi seriali: «+ Nuova anomalia su questi seriali». Le precedenti si comprimono.",
                 "Premi «Salva blocco»: il blocco si congela e se ne apre uno nuovo.",
             ]),
             ("ul", [
-                "Pezzi in stati superficie diversi vanno in blocchi separati.",
+                "Pezzi in stati superficie diversi vanno in blocchi separati. Anomalie diverse su pezzi diversi invece "
+                "stanno nello stesso blocco: per ognuna scegli i seriali togliendo «Presente su tutti i seriali del "
+                "blocco». Nel blocco salvato, nel riepilogo, nella mail e nella gestione compare «Solo …» con i seriali "
+                "scelti.",
                 "Gli avvisi gialli sui seriali (formato, prefisso diverso) non bloccano il salvataggio: servono a evitare "
                 "errori di battitura.",
                 "Se un seriale ha già un'anomalia aperta sull'OP, accanto al campo compaiono descrizione, stato e chi l'ha "

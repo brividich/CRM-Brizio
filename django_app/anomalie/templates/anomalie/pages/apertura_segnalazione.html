@@ -213,6 +213,22 @@
     .anom-card__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .anom-card__title { font-weight: 800; color: var(--text); flex: 1; }
     .anom-add { align-self: flex-start; }
+    /* Seriali della singola anomalia: tutti quelli del blocco (default) o solo alcuni */
+    .anom-sn { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+    .anom-sn.is-parziale { border-color: #fcd34d; }
+    .anom-sn__toggle { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); font-weight: 700; color: var(--text); cursor: pointer; user-select: none; }
+    .anom-sn__toggle input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
+    .anom-sn__toggle.is-disabled { cursor: default; opacity: .75; }
+    .anom-sn__chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 168px; overflow-y: auto; }
+    .anom-sn__chip { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: var(--fs-sm); font-weight: 700; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); border-radius: 999px; padding: 4px 11px; cursor: pointer; min-height: 0; }
+    .anom-sn__chip:hover:not(:disabled) { border-color: var(--accent); }
+    .anom-sn__chip.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .anom-sn__chip:disabled { cursor: default; }
+    .anom-sn__foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-mid); }
+    .anom-sn.is-missing .anom-sn__chip:not(.is-on) { border-color: var(--danger); }
+    .pill-parz { background: #fffbeb; color: #92400e; border-color: #fcd34d; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+    body.theme-dark .anom-sn.is-parziale { border-color: rgba(245,158,11,.45); }
+    body.theme-dark .pill-parz { background: rgba(245,158,11,.10); color: #fcd34d; border-color: rgba(245,158,11,.45); }
     .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 10px 12px; background: var(--bg); display: grid; gap: 10px; transition: border-color .15s, background .15s; }
     .drop-zone.is-over { border-color: var(--accent); background: var(--accent-light); }
     .drop-zone.is-disabled { border-style: solid; }
@@ -752,6 +768,7 @@
      Ogni anomalia diventa una riga a sé: il capocommessa decide su ciascuna. */
   const STATI_SUPERFICIE = CFG_STATI_SUPERFICIE;
   const MSG_SUP = 'Indica lo stato superficie del blocco.';
+  const MSG_SN_ANOM = 'Scegli su quali seriali è presente l’anomalia';
   const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
   const MAX_RANGE = 1000;
   const MAIL_MODES = [
@@ -853,7 +870,8 @@
 
   let _uid = 0;
   const uid = () => `n${Date.now()}_${_uid += 1}`;
-  const newAnomalia = () => ({ key: uid(), localId: null, testo: '', files: [], existing: [], gestita: false, avanzamento: '' });
+  // tutti: l'anomalia vale per tutti i seriali del blocco (default); altrimenti sel = S/N scelti.
+  const newAnomalia = () => ({ key: uid(), localId: null, testo: '', files: [], existing: [], gestita: false, avanzamento: '', tutti: true, sel: [] });
   const newEditor = () => ({ bloccoId: null, voci: [], stati: [], anomalie: [newAnomalia()], attiva: 0, bloccato: false, confermaRipetuti: false });
   const editorFromBlocco = (b) => ({
     bloccoId: b.id,
@@ -862,6 +880,7 @@
     anomalie: (b.anomalie || []).map(a => ({
       key: `s${a.local_id}`, localId: a.local_id, testo: a.testo || '', files: [], existing: a.allegati || [],
       gestita: !!a.gestita, avanzamento: a.avanzamento || '',
+      tutti: a.tutti !== false, sel: a.tutti === false ? tokensOf(a.seriali) : [],
     })),
     attiva: -1,
     bloccato: !!b.bloccato,
@@ -1001,6 +1020,7 @@
               <button type="button" className="blk-item__btn" onClick={() => setOpen(open === a.local_id ? false : a.local_id)} aria-expanded={open === a.local_id}>
                 <span className="blk-item__n">{i + 1}</span>
                 <span className={`blk-item__txt${open === a.local_id ? ' is-open' : ''}`}>{a.testo}</span>
+                {a.tutti === false && <span className="pill pill-parz" title={`Solo sui S/N: ${a.seriale_label}`}>Solo {a.seriale_label}</span>}
                 {a.allegati.length > 0 && <span className="blk-item__att">📎 {a.allegati.length}</span>}
                 <StatoPill a={a} />
               </button>
@@ -1070,6 +1090,7 @@
                   <span className="blk-item__n">{j + 1}</span>
                   <span className="riep-list__txt">{a.testo}</span>
                   <span className="riep-list__side">
+                    {a.tutti === false && <span className="pill pill-parz" title={`Solo sui S/N: ${a.seriale_label}`}>Solo {a.seriale_label}</span>}
                     <span className="blk-meta">#{a.local_id}</span>
                     {(a.allegati || []).length > 0 && <span className="blk-item__att">📎 {a.allegati.length}</span>}
                     <StatoPill a={a} />
@@ -1252,6 +1273,10 @@
       if (ripetutiEditor.length && !ed.confermaRipetuti) { setError(''); setConfirmRipetuti(ripetutiEditor.map(r => ({ seriale: r.token, blocco: r.blocco }))); return false; }
       const vuota = ed.anomalie.findIndex(a => (a.files.length || a.localId) && !a.testo.trim());
       if (vuota >= 0) { setError(`L’anomalia ${vuota + 1} ha allegati ma nessuna descrizione.`); setEditor(prev => ({ ...prev, attiva: vuota })); return false; }
+      const edTokens = tokensOf(ed.voci);
+      const selDi = (a) => { const k = new Set(a.sel.map(t => t.toLowerCase())); return edTokens.filter(t => k.has(t.toLowerCase())); };
+      const parzialeVuota = ed.anomalie.findIndex(a => !a.gestita && (a.localId || a.testo.trim() || a.files.length) && !a.tutti && edTokens.length > 1 && !selDi(a).length);
+      if (parzialeVuota >= 0) { setError(`${MSG_SN_ANOM} (anomalia ${parzialeVuota + 1}).`); setEditor(prev => ({ ...prev, attiva: parzialeVuota })); return false; }
       setError(''); setNotice(''); setSaving(true);
       try {
         const j = await postJson(urlFor(API.controllo_blocco, controllo.id), {
@@ -1259,7 +1284,10 @@
           seriali: ed.voci,
           stato_superficie: ed.stati,
           conferma_seriali_ripetuti: !!ed.confermaRipetuti,
-          anomalie: anomalie.map(a => ({ local_id: a.localId, testo: a.testo.trim() })),
+          anomalie: anomalie.map(a => {
+            const tutti = a.tutti || edTokens.length <= 1;
+            return { local_id: a.localId, testo: a.testo.trim(), tutti, seriali: tutti ? [] : selDi(a) };
+          }),
         }, 'Salvataggio blocco');
         const risultati = j.risultati || [];
         const uploadErrors = [];
@@ -1580,6 +1608,7 @@
                     onClick={() => setEditor(prev => ({ ...prev, attiva: i }))}>
                     <span className="anom-card__n">{i + 1}</span>
                     <span className="anom-card__txt">{a.testo.trim() || <em>Anomalia senza descrizione</em>}</span>
+                    {!a.tutti && tokens.length > 1 && <span className="pill pill-parz">Su {tokens.filter(t => a.sel.some(x => x.toLowerCase() === t.toLowerCase())).length} di {tokens.length} S/N</span>}
                     {nAll > 0 && <span className="anom-card__att">📎 {nAll}</span>}
                     {a.gestita && <span className="pill pill-info">{a.avanzamento || 'Gestita'}</span>}
                     <span className="anom-card__edit">{a.gestita ? 'Vedi' : 'Apri'}</span>
@@ -1601,6 +1630,40 @@
                     aria-label={`Descrizione anomalia ${i + 1}`}
                     placeholder="Cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza…"
                     value={a.testo} onChange={e => updAnomalia(i, { testo: e.target.value })} />
+                  {tokens.length > 1 && (() => {
+                    const selSet = new Set(a.sel.map(t => t.toLowerCase()));
+                    const nSel = tokens.filter(t => selSet.has(t.toLowerCase())).length;
+                    const missing = !a.tutti && !nSel && error.startsWith(MSG_SN_ANOM);
+                    return (
+                      <div className={`anom-sn${a.tutti ? '' : ' is-parziale'}${missing ? ' is-missing' : ''}`}>
+                        <label className={`anom-sn__toggle${a.gestita ? ' is-disabled' : ''}`}>
+                          <input type="checkbox" checked={a.tutti} disabled={a.gestita}
+                            onChange={e => { if (error.startsWith(MSG_SN_ANOM)) setError(''); updAnomalia(i, { tutti: e.target.checked }); }} />
+                          <span>Presente su tutti i {tokens.length} seriali del blocco</span>
+                        </label>
+                        {!a.tutti && (
+                          <>
+                            <div className="anom-sn__chips" role="group" aria-label={`Seriali con l’anomalia ${i + 1}`}>
+                              {tokens.map(t => {
+                                const on = selSet.has(t.toLowerCase());
+                                return (
+                                  <button key={t} type="button" className={`anom-sn__chip${on ? ' is-on' : ''}`} aria-pressed={on} disabled={a.gestita}
+                                    onClick={() => { if (error.startsWith(MSG_SN_ANOM)) setError(''); updAnomalia(i, { sel: on ? a.sel.filter(x => x.toLowerCase() !== t.toLowerCase()) : [...a.sel, t] }); }}>
+                                    {on ? '✓ ' : ''}{t}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="anom-sn__foot">
+                              <span>{nSel ? <>Selezionati <strong>{nSel}</strong> di {tokens.length}</> : 'Tocca i seriali su cui hai trovato questa anomalia.'}</span>
+                              {!a.gestita && nSel < tokens.length && <button type="button" className="link-btn" onClick={() => updAnomalia(i, { sel: [...tokens] })}>Seleziona tutti</button>}
+                              {!a.gestita && nSel > 0 && <button type="button" className="link-btn" onClick={() => updAnomalia(i, { sel: [] })}>Nessuno</button>}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <AttachmentZone files={a.files} existing={a.existing} disabled={a.gestita}
                     onAdd={files => addFiles(i, files, false)}
                     onRemove={fi => updAnomalia(i, { files: a.files.filter((_, idx) => idx !== fi) })} />

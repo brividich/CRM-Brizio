@@ -1223,6 +1223,14 @@ def _arricchisci_con_blocchi(payload_rows: list[dict]) -> None:
         row["fase"] = meta.fase if meta else ""
         row["blocco_id"] = meta.blocco_id if meta and meta.blocco_id else None
         row["blocco_label"] = (meta.blocco.seriale_label if meta and meta.blocco_id else "") or row.get("sn") or ""
+        # Anomalia presente solo su una parte dei seriali del blocco.
+        row["seriali_parziali"] = ""
+        if meta and meta.blocco_id:
+            from .controllo_service import seriali_anomalia
+
+            info = seriali_anomalia(row.get("sn"), meta.blocco)
+            if not info["tutti"]:
+                row["seriali_parziali"] = info["seriale_label"]
         controllo = meta.controllo if meta and meta.controllo_id else None
         row["controllo_id"] = controllo.pk if controllo else None
         row["controllo_operatore"] = controllo.operatore_display if controllo else ""

@@ -23,7 +23,7 @@ from core.audit import log_action
 
 from . import controllo_service as cs
 from .quality_models import AnomaliaBlocco, AnomaliaControllo, AnomaliaSegnalazioneMeta
-from .seriali import etichetta_blocco, normalizza_voci
+from .seriali import comprimi_seriali, espandi_voce, etichetta_blocco, normalizza_voci
 
 logger = logging.getLogger(__name__)
 
@@ -179,11 +179,31 @@ def api_controllo_blocco(request, pk: int):
         local_id = item.get("local_id")
         local_id = int(local_id) if str(local_id or "").isdigit() else None
         if testo or local_id:
-            anomalie.append({"local_id": local_id, "testo": testo})
+            # Flag «su tutti i seriali del blocco» (default sì); se spento, i S/N scelti.
+            tutti = item.get("tutti", True) is not False
+            scelti = item.get("seriali") if isinstance(item.get("seriali"), list) else []
+            anomalie.append({"local_id": local_id, "testo": testo, "tutti": tutti, "seriali": scelti})
     if not any(a["testo"] for a in anomalie):
         return _err("Descrivi almeno un'anomalia")
     if any(not a["testo"] for a in anomalie):
         return _err("Ogni anomalia deve avere una descrizione")
+
+    # Seriali di ciascuna anomalia: tutti quelli del blocco oppure solo una parte.
+    chiavi_blocco: dict[str, str] = {}
+    for voce in voci:
+        for t in espandi_voce(voce):
+            chiavi_blocco.setdefault(t.lower(), t)
+    token_blocco = list(chiavi_blocco.values())
+    for n, a in enumerate(anomalie, start=1):
+        a["sn"] = label
+        if a["tutti"]:
+            continue
+        scelti_lower = {t.lower() for v in normalizza_voci(a["seriali"]) for t in espandi_voce(v)}
+        subset = [t for t in token_blocco if t.lower() in scelti_lower]
+        if not subset:
+            return _err(f"Anomalia {n}: scegli su quali seriali è presente (o riattiva «Su tutti i seriali del blocco»)")
+        if len(subset) < len(chiavi_blocco):
+            a["sn"] = etichetta_blocco(comprimi_seriali(subset))
 
     blocco = None
     esistenti: dict[int, dict] = {}
@@ -254,7 +274,7 @@ def api_controllo_blocco(request, pk: int):
         prima = esistenti.get(a["local_id"]) if a["local_id"] else None
         if prima is not None:
             if cs.riga_gestita(prima) or (
-                str(prima.get("descrizione") or "").strip() == descrizione and str(prima.get("seriale") or "") == label
+                str(prima.get("descrizione") or "").strip() == descrizione and str(prima.get("seriale") or "") == a["sn"]
             ):
                 AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=a["local_id"]).update(ordine_nel_blocco=ordine)
                 risultati.append({"local_id": a["local_id"], "ok": True, "invariata": True})
@@ -263,7 +283,7 @@ def api_controllo_blocco(request, pk: int):
             "item_id": f"local:{a['local_id']}" if a["local_id"] else "",
             "op_id": controllo.op_id,
             "op_item_id": controllo.op_item_id,
-            "sn": label,
+            "sn": a["sn"],
             "desc": descrizione,
             "note": "",
             "avanzamento": "In attesa",
