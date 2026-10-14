@@ -1,0 +1,123 @@
+GUIDA = {
+    "slug": "tickets",
+    "titolo": "Ticket IT e manutenzione",
+    "area": "Produzione e operations",
+    "sintesi": "Per segnalare un guasto o chiedere aiuto all'IT o alla manutenzione, e seguire la risposta.",
+    "parole": "ticket guasto pc stampante rete manutenzione macchina rotta assistenza",
+    "url": "tickets:dashboard",
+    "prefissi": ("/tickets/",),
+    "uso": [
+        {
+            "id": "aprire",
+            "titolo": "Aprire un ticket",
+            "blocchi": [
+                ("passi", [
+                    "Apri Ticket e clicca «+ Ticket IT» (computer, stampanti, rete, telefoni, programmi) oppure "
+                    "«+ Ticket MAN» (macchine, impianti, attrezzature).",
+                    "Scrivi il «Titolo / oggetto» in poche parole, per esempio «Stampante ufficio tecnico non stampa».",
+                    "Scegli la categoria «Da catalogo», oppure «Libera» se non trovi quella giusta.",
+                    "Se riguarda una macchina o un PC, scegli l'«Asset coinvolto».",
+                    "Scegli la «Priorita» e descrivi il problema in «Descrizione»: cosa succede, da quando, cosa hai già provato.",
+                    "Clicca «Invia richiesta».",
+                ]),
+                ("p", "Puoi aprire un ticket anche inquadrando il QR attaccato alla macchina."),
+            ],
+        },
+        {
+            "id": "seguire",
+            "titolo": "Seguire il tuo ticket",
+            "blocchi": [
+                ("passi", [
+                    "Clicca «I miei ticket».",
+                    "Apri il ticket per vedere lo stato e i commenti del tecnico.",
+                    "Per rispondere scrivi nel riquadro e clicca «Invia commento».",
+                    "Per aggiungere una foto o un file usa «Carica allegati».",
+                ]),
+                ("def", [
+                    ("Aperto", "ricevuto, nessuno l'ha ancora preso."),
+                    ("In carico", "un tecnico ci sta lavorando."),
+                    ("In attesa", "si aspetta qualcosa (un pezzo, una tua risposta)."),
+                    ("Risolto / Chiuso", "il problema è sistemato."),
+                ]),
+            ],
+        },
+        {
+            "id": "gestire",
+            "titolo": "Lavorare i ticket (tecnici)",
+            "blocchi": [
+                ("passi", [
+                    "Apri «Gestione ticket». Puoi selezionare più ticket e usare «Assegna a…», «Cambia stato» o «Prendi in carico».",
+                    "Apri un ticket: «Prendi in carico» lo assegna a te.",
+                    "Ogni volta che lavori sul ticket clicca «+ Aggiungi intervento», scrivi cosa hai fatto e il tempo, poi «Registra intervento».",
+                    "Compila i dati tecnici (componente guasto, causa, ore di fermo macchina) e clicca «Salva dati tecnici».",
+                    "A lavoro finito clicca «Segna come risolto», poi «Chiudi ticket».",
+                ]),
+                ("ul", [
+                    "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
+                    "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
+                ]),
+            ],
+        },
+    ],
+    "admin": [
+        {
+            "id": "impostazioni",
+            "titolo": "Impostazioni dei ticket",
+            "blocchi": [
+                ("p", "Ticket → «Impostazioni». Ci sono due schede separate, IT e MAN: ognuna si salva con il suo pulsante («Salva IT», «Salva MAN»)."),
+                ("ul", [
+                    "Categorie: «Aggiungi», attiva/disattiva, «Elimina». Ogni categoria ha il suo tempo di risposta (SLA).",
+                    "Import delle categorie da file: «Scarica template CSV», compilalo, poi «Importa».",
+                    "Escalation dei ticket urgenti: accesa o spenta, soglia in ore (predefinita 4) e ora del resoconto (predefinita 8). «Salva escalation».",
+                ]),
+            ],
+        },
+        {
+            "id": "permessi",
+            "titolo": "Chi gestisce cosa",
+            "blocchi": [
+                ("ul", [
+                    "Ticket IT e Ticket manutenzione sono due permessi separati: chi gestisce l'IT non gestisce la manutenzione.",
+                    "Tutti vedono i propri ticket; i responsabili anche quelli del loro team; la Direzione tutti.",
+                    "I permessi si danno in Amministrazione → «Accessi» o «Ruoli e permessi».",
+                ]),
+            ],
+        },
+        {
+            "id": "automatismi",
+            "titolo": "Automatismi",
+            "blocchi": [
+                ("def", [
+                    ("Escalation urgenti", "ogni ora: i ticket URGENTI aperti e senza assegnatario oltre la soglia generano un promemoria al team e al richiedente."),
+                    ("Promemoria SLA", "comando send_sla_reminders: avvisa l'assegnatario dei ticket con SLA scaduto."),
+                    ("Registro manutenzione", "i ticket MAN collegati a un asset compaiono nel registro manutenzione dell'asset."),
+                ]),
+            ],
+        },
+    ],
+    "problemi": [
+        {
+            "sintomo": "Il tecnico non vede i ticket in «Gestione ticket»",
+            "fare": [
+                "Controlla che abbia il permesso di gestione del tipo giusto (IT oppure MAN).",
+                "Fagli ricaricare la pagina e togliere i filtri.",
+            ],
+        },
+        {
+            "sintomo": "Non arrivano i promemoria dell'escalation",
+            "fare": [
+                "Ticket → Impostazioni: controlla che l'escalation sia accesa e la soglia corretta.",
+                "Amministrazione → Monitoring → «Salute degli schedule»: controlla il lavoro di escalation dei ticket.",
+                "Se il cluster è fermo segui «Le automazioni non partono» nel Manuale di emergenza.",
+            ],
+        },
+        {
+            "sintomo": "Un allegato non si carica",
+            "perche": "il portale controlla il contenuto vero del file, non solo l'estensione, e ha un limite di dimensione.",
+            "fare": [
+                "Prova a salvarlo come PDF o JPG.",
+                "Controlla che sia sotto il limite di caricamento (100 MB).",
+            ],
+        },
+    ],
+}

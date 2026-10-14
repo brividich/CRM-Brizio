@@ -3,6 +3,7 @@ from django.urls import path
 from . import legacy_flask_views
 from . import views
 from . import views_capa
+from . import views_guide
 from .accounts.views import LegacyLoginView, cambia_password, logout_view
 from .accounts.windows_sso import windows_sso_view
 
@@ -29,6 +30,8 @@ urlpatterns = [
         {"endpoint": "gestione_utenti/modifica/<id>"},
         name="legacy_gestione_utenti_modifica",
     ),
+    path("guide/", views_guide.guide_indice, name="guide_indice"),
+    path("guide/<slug:slug>/", views_guide.guida_modulo, name="guida_modulo"),
     path("health", views.health, name="health"),
     path("version", views.version, name="version"),
     path("", views.root_redirect_to_dashboard, name="root"),

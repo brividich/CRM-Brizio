@@ -109,6 +109,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # accessibile a tutti i dipendenti autenticati; il gating reale è dentro le view
     # (@login_required + dati del solo dipendente collegato). Stesso schema di /capa/.
     "/anagrafica/formazione/corsi-online/",
+    # Centro guide: aperto a chi ha fatto l'accesso, nessun dato personale; le
+    # parti per amministratori sono verificate nella view (403).
+    "/guide/",
 )
 
 

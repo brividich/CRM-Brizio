@@ -1,0 +1,58 @@
+{% extends "core/base.html" %}
+
+{% block title %}Centro guide{% endblock %}
+
+{% block extra_head %}{% include "core/components/_guida_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="gm">
+  <div class="gm-head">
+    <div>
+      <div class="gm-crumb">NOVICROM HUB</div>
+      <h1>Centro guide</h1>
+      <p>Una guida per ogni modulo, scritta passo per passo. Dentro ogni modulo il pulsante «?» in alto apre direttamente la sua guida.</p>
+    </div>
+    <input type="search" class="gm-search" placeholder="Cerca un modulo (es. ferie, DPI, ticket)…" aria-label="Cerca un modulo" data-gm-search>
+  </div>
+
+  {% if is_admin_guide %}
+    <div class="gm-chi">Sei amministratore: in ogni guida trovi anche le parti «Amministratore e configurazione» e «Se qualcosa non va». Se il portale non risponde o ti manca un pezzo, parti dal <a href="{% url 'guida_modulo' 'emergenza' %}"><strong>Manuale di emergenza</strong></a>; la mappa delle tabelle è nello <a href="{% url 'hub_tools:hub_db_schema' %}"><strong>Schema DB</strong></a>.</div>
+  {% endif %}
+
+  {% for area, elenco in aree %}
+    <h2 class="gm-area" data-gm-area>{{ area }}</h2>
+    <div class="gm-cards">
+      {% for g in elenco %}
+        <article class="gm-card" data-gm-card data-cerca="{{ g.titolo|lower }} {{ g.sintesi|lower }} {{ g.parole|default:''|lower }}">
+          <h3><a href="{% url 'guida_modulo' g.slug %}">{{ g.titolo }}</a></h3>
+          <p>{{ g.sintesi }}</p>
+          <div class="gm-card-links">
+            {% if not g.solo_admin %}<a href="{% url 'guida_modulo' g.slug %}">Come si usa</a>{% endif %}
+            {% if is_admin_guide and g.admin %}<a href="{% url 'guida_modulo' g.slug %}?vista=admin">Configurazione</a>{% endif %}
+            {% if is_admin_guide and g.problemi %}<a href="{% url 'guida_modulo' g.slug %}?vista=problemi">Problemi</a>{% endif %}
+            {% if g.solo_admin %}<a href="{% url 'guida_modulo' g.slug %}">Apri il manuale</a>{% endif %}
+            {% if g.url_modulo %}<a href="{{ g.url_modulo }}">Apri il modulo →</a>{% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+<script>
+(function(){
+  var box = document.querySelector('[data-gm-search]');
+  if (!box) return;
+  box.addEventListener('input', function(){
+    var q = box.value.trim().toLowerCase();
+    document.querySelectorAll('[data-gm-card]').forEach(function(c){
+      c.hidden = q && c.getAttribute('data-cerca').indexOf(q) === -1;
+    });
+    document.querySelectorAll('[data-gm-area]').forEach(function(h){
+      var cards = h.nextElementSibling.querySelectorAll('[data-gm-card]:not([hidden])');
+      h.hidden = cards.length === 0;
+      h.nextElementSibling.hidden = cards.length === 0;
+    });
+  });
+})();
+</script>
+{% endblock %}

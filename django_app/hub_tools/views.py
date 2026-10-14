@@ -1032,8 +1032,18 @@ def setup_wizard_hub(request):
 
 @legacy_admin_or_acl_required("hub_tools", "db_schema")
 def db_schema(request):
-    """Infografica schema DB: modelli, campi e relazioni."""
-    return render(request, "hub_tools/db_schema.html")
+    """Schema DB generato dai modelli: tabelle, campi, collegamenti e sistemi esterni."""
+    from .schema_db import CONNESSIONI_ESTERNE, indice_ricerca, schema
+
+    dati = schema()
+    label = request.GET.get("app", "")
+    app_sel = next((app for app in dati["app"] if app["label"] == label), None)
+    return render(request, "hub_tools/db_schema.html", {
+        "schema": dati,
+        "app_sel": app_sel,
+        "esterne": CONNESSIONI_ESTERNE,
+        "indice": indice_ricerca(),
+    })
 
 
 @legacy_admin_or_acl_required("hub_tools", "guide_list")

@@ -605,3 +605,41 @@ class HubGuideCatalogTests(TestCase):
             )
         self.assertEqual(pdf_response.status_code, 200)
         self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+
+
+class HubDbSchemaTests(TestCase):
+    """Schema DB generato dai modelli: una tabella nuova compare senza toccare il template."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(
+            username="hub-schema-admin", email="hub.schema@test.local", password="test-pass-123",
+        )
+        self.client.force_login(self.admin)
+
+    def test_schema_copre_tutti_i_modelli_del_progetto(self):
+        from django.apps import apps
+
+        from hub_tools.schema_db import schema
+
+        dati = schema()
+        tabelle = {m["tabella"] for app in dati["app"] for m in app["modelli"]}
+        for modello in apps.get_models():
+            meta = modello._meta
+            if not meta.proxy and not meta.auto_created:
+                self.assertIn(meta.db_table, tabelle)
+        self.assertFalse([a["label"] for a in dati["app"] if a["area"] == "Altri moduli"],
+                         "app nuova: aggiungerla ad APP_INFO in hub_tools/schema_db.py")
+        self.assertEqual(dati["totali"]["modelli"], len(tabelle))
+
+    def test_panoramica_con_connessioni(self):
+        resp = self.client.get(reverse("hub_tools:hub_db_schema"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Connessioni verso")
+        self.assertContains(resp, "Microsoft Graph")
+        self.assertContains(resp, "Connessioni tra moduli")
+
+    def test_pagina_di_un_modulo(self):
+        resp = self.client.get(reverse("hub_tools:hub_db_schema"), {"app": "assenze"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "CertificazionePresenza")
+        self.assertContains(resp, "Usato da")
