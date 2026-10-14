@@ -825,7 +825,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
               <a class="as-link-subtle" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
             </div>
             <div class="as-help" style="margin-top:4px;">
-              {% if dispositivo.snmp_ultimo_controllo %}Ultimo controllo {{ dispositivo.snmp_ultimo_controllo|timesince }} fa{% else %}Mai interrogato{% endif %}{% if dispositivo.sys_uptime_seconds is not None %} · acceso da circa {% widthratio dispositivo.sys_uptime_seconds 86400 1 %} giorni{% endif %}{% if dispositivo.sys_name %} · {{ dispositivo.sys_name }}{% endif %}{% if dispositivo.sys_description %} · {{ dispositivo.sys_description|truncatechars:90 }}{% endif %}
+              {% if dispositivo.snmp_ultimo_controllo %}Ultimo controllo {{ dispositivo.snmp_ultimo_controllo|timesince }} fa{% else %}Mai interrogato{% endif %}{% if dispositivo.categoria == 'TVCC_NVR' and dispositivo.sys_object_id %} · modello {{ dispositivo.sys_object_id }}{% endif %}{% if dispositivo.sys_uptime_seconds is not None and dispositivo.categoria != 'TVCC_CAMERA' %} · acceso da circa {% widthratio dispositivo.sys_uptime_seconds 86400 1 %} giorni{% endif %}{% if dispositivo.sys_name %} · {{ dispositivo.sys_name }}{% endif %}{% if dispositivo.sys_description %} · {{ dispositivo.sys_description|truncatechars:90 }}{% endif %}
               {% if dispositivo.snmp_ultimo_errore %}<div class="as-error">{{ dispositivo.snmp_ultimo_errore|truncatechars:120 }}</div>{% endif %}
             </div>
             {% if ril %}

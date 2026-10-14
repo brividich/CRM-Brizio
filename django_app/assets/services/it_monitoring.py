@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db import DatabaseError
 from django.db.models import OuterRef, Subquery
 from django.urls import reverse
+from django.utils import timezone
 
 from core.middleware import acl_allows_path
 
@@ -144,3 +145,35 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
         }
     return {"devices": permitted, "machines": permitted_machines, "central_url": central_url,
             "mfc_unlinked": unlinked}
+
+
+# Gravita' per il pallino della lista: per piu' dispositivi sullo stesso asset vince il peggiore.
+_DOT_ORDER = {"OK": 0, "MAI": 1, "WARNING": 2, "ERROR": 3}
+_DOT_CLASS = {"OK": "ok", "MAI": "mai", "WARNING": "warning", "ERROR": "critical"}
+
+
+def monitoring_dots(request, asset_ids):
+    """Stato SNMP salvato (nessuna interrogazione) degli asset in pagina: ``{asset_id: dot}``.
+
+    Solo per chi puo' aprire il Monitor SNMP; i dispositivi disattivati non contano.
+    """
+    asset_ids = [pk for pk in asset_ids if pk]
+    if not asset_ids or not can_view_monitoring(request, reverse("contatori:snmp_centrale")):
+        return {}
+    from contatori.models import DispositivoSNMP
+
+    dots = {}
+    rows = DispositivoSNMP.objects.filter(asset_id__in=asset_ids, attivo=True).values_list(
+        "asset_id", "nome", "snmp_stato", "snmp_ultimo_controllo",
+    )
+    for asset_id, nome, stato, controllo in rows:
+        stato = stato if stato in _DOT_ORDER else "MAI"
+        dot = dots.setdefault(asset_id, {"state": "OK", "lines": []})
+        if _DOT_ORDER[stato] > _DOT_ORDER[dot["state"]]:
+            dot["state"] = stato
+        quando = f" · ultimo controllo {timezone.localtime(controllo):%d/%m/%Y %H:%M}" if controllo else ""
+        dot["lines"].append(f"{nome}: {STATE_LABELS.get(stato, stato)}{quando}")
+    for dot in dots.values():
+        dot["css"] = _DOT_CLASS[dot["state"]]
+        dot["title"] = "Monitor SNMP — " + "; ".join(dot["lines"])
+    return dots

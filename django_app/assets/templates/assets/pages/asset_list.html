@@ -149,6 +149,13 @@ body.theme-dark .li-nav-toggle:hover { background: rgba(255,255,255,.07); color:
 .dot.ok { background: #22c55e; }
 .dot.warning { background: #f59e0b; }
 .dot.critical { background: #ef4444; }
+.dot.mai { background: #94a3b8; }
+.snmp-dot { display:inline-block; vertical-align:middle; margin:0 6px 2px 0; }
+/* Pallino SNMP: i temi scuri ridefiniscono .ok come pill trasparente, qui serve il colore pieno. */
+.dot.snmp-dot.ok, body.theme-dark .dot.snmp-dot.ok { background:#22c55e; }
+.dot.snmp-dot.warning, body.theme-dark .dot.snmp-dot.warning { background:#f59e0b; }
+.dot.snmp-dot.critical, body.theme-dark .dot.snmp-dot.critical { background:#ef4444; }
+.dot.snmp-dot.mai, body.theme-dark .dot.snmp-dot.mai { background:#94a3b8; }
 .ad { margin: 4px 0 0 14px; color: #7088a8; font-size: var(--fs-sm); }
 .tm { margin: 4px 0 0 14px; color: #90a3bd; font-size: var(--fs-xs); }
 .admin { padding: 10px 12px; color: #56739d; font-size: var(--fs-base); }
@@ -750,7 +757,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
               {% for asset in assets %}
                 <tr class="r assets-row-link" data-href="{% url 'assets:asset_view' asset.id %}" data-asset-id="{{ asset.id }}">
                   <td><input type="checkbox" class="row-select-cb" value="{{ asset.id }}"></td>
-                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}{% if asset.internal_number %} &middot; N.{{ asset.internal_number }}{% endif %}</div></div></div></td>
+                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{% if asset.snmp_dot %}<span class="dot snmp-dot {{ asset.snmp_dot.css }}" title="{{ asset.snmp_dot.title }}" aria-label="{{ asset.snmp_dot.title }}" role="img"></span>{% endif %}{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}{% if asset.internal_number %} &middot; N.{{ asset.internal_number }}{% endif %}</div></div></div></td>
                   <td data-col="status">{% if asset.status == "IN_USE" %}<span class="st ok">In uso</span>{% elif asset.status == "IN_REPAIR" %}<span class="st er">Critico</span>{% elif asset.status == "IN_STOCK" %}<span class="st id">Inattivo</span>{% else %}<span class="st wg">{{ asset.get_status_display }}</span>{% endif %}</td>
                   <td data-col="category"><div class="cell-main"><div class="cell-title">{{ asset.category_label }}</div><div class="cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
                   <td data-col="assigned">{% if asset.assignment_to %}<div class="cell-main"><div class="cell-title">{{ asset.assignment_to }}</div><div class="cell-sub">{{ asset.assignment_reparto|default:"-" }}</div></div>{% else %}<span class="cell-muted">Non assegnato</span>{% endif %}</td>

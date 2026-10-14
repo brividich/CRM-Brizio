@@ -110,6 +110,9 @@ _ERRORI_TESTO = (
     ("unsupported security level", "livello di sicurezza SNMPv3 non accettato "
                                    "dall'apparato: allinea autenticazione e cifratura"),
     ("mismatching community", "l'apparato ha risposto con una community diversa"),
+    # Agent non conformi (es. NVR TVT): per un OID che non conoscono rispondono con un
+    # varbind malformato invece di noSuchObject, e la libreria non riesce a leggerlo.
+    ("cannot unpack non-iterable null", "OID non esposto da questo apparato: disattiva la colonna"),
 )
 
 

@@ -82,8 +82,19 @@ class SchedaMonitoraggioTvccTests(TestCase):
     def test_valori_e_mac_uguale(self):
         risposta = self._pagina()
         self.assertContains(risposta, "TVCC - Telecamera IP · Cam magazzino")
-        self.assertContains(risposta, "acceso da circa 3 giorni")
+        # Uptime della telecamera = servizio SNMP, non l'apparato: non si mostra.
+        self.assertNotContains(risposta, "acceso da circa")
         self.assertContains(risposta, "= dichiarato")
+
+    def test_nvr_mostra_modello_e_uptime(self):
+        from contatori.models import DispositivoSNMP
+
+        DispositivoSNMP.objects.create(nome="NVR QA", host="192.0.2.95", asset=self.asset,
+                                       categoria=DispositivoSNMP.Categoria.TVCC_NVR,
+                                       sys_object_id="TD-0000-QA", sys_uptime_seconds=20 * 86400)
+        risposta = self._pagina()
+        self.assertContains(risposta, "modello TD-0000-QA")
+        self.assertContains(risposta, "acceso da circa 20 giorni")
 
     def test_mac_diverso(self):
         self.valore.valore_testo = "00:18:9a:0b:0c:10"
@@ -94,3 +105,54 @@ class SchedaMonitoraggioTvccTests(TestCase):
         self.endpoint.mac = ""
         self.endpoint.save()
         self.assertContains(self._pagina(), "non dichiarato")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False, SITE_URL="")
+class ListaAssetPallinoSnmpTests(TestCase):
+    def setUp(self):
+        from contatori.models import DispositivoSNMP, StatoSNMP
+
+        from .tests_asset_qr import _user
+
+        self.admin = _user("tvcc.lista", superuser=True)
+        self.cam = Asset.objects.create(asset_tag="CCTV-QA-L1", name="Cam lista", asset_type=Asset.TYPE_CCTV)
+        self.altro = Asset.objects.create(asset_tag="CCTV-QA-L2", name="Senza SNMP", asset_type=Asset.TYPE_CCTV)
+        DispositivoSNMP.objects.create(nome="Cam lista SNMP", host="192.0.2.96", asset=self.cam,
+                                       categoria=DispositivoSNMP.Categoria.TVCC_TELECAMERA,
+                                       snmp_stato=StatoSNMP.OK)
+        self.guasto = DispositivoSNMP.objects.create(nome="Cam lista bis", host="192.0.2.97", asset=self.cam,
+                                                     categoria=DispositivoSNMP.Categoria.TVCC_TELECAMERA,
+                                                     snmp_stato=StatoSNMP.ERROR)
+
+    def _lista(self):
+        from django.urls import reverse
+
+        self.client.force_login(self.admin)
+        return self.client.get(reverse("assets:asset_list"))
+
+    def test_pallino_peggiore_e_solo_asset_monitorati(self):
+        risposta = self._lista()
+        self.assertContains(risposta, "snmp-dot critical", count=1)
+        self.assertContains(risposta, "Cam lista bis: Errore")
+        self.assertNotContains(risposta, "snmp-dot ok")
+
+    def test_dispositivo_disattivato_non_conta(self):
+        self.guasto.attivo = False
+        self.guasto.save()
+        self.assertContains(self._lista(), "snmp-dot ok", count=1)
+
+
+class KpiUptimeTelecameraTests(TestCase):
+    def test_telecamera_senza_tile_uptime_nvr_con(self):
+        from contatori.models import DispositivoSNMP
+
+        from .services.asset_kpis import _probe_tiles
+
+        cam = Asset.objects.create(asset_tag="CCTV-QA-K1", name="Cam kpi", asset_type=Asset.TYPE_CCTV)
+        nvr = Asset.objects.create(asset_tag="CCTV-QA-K2", name="Nvr kpi", asset_type=Asset.TYPE_CCTV)
+        for asset, cat, host in ((cam, DispositivoSNMP.Categoria.TVCC_TELECAMERA, "192.0.2.98"),
+                                 (nvr, DispositivoSNMP.Categoria.TVCC_NVR, "192.0.2.99")):
+            DispositivoSNMP.objects.create(nome=asset.name, host=host, asset=asset, categoria=cat,
+                                           sys_uptime_seconds=86400)
+        self.assertNotIn("Uptime", str(_probe_tiles(cam)))
+        self.assertIn("Uptime", str(_probe_tiles(nvr)))

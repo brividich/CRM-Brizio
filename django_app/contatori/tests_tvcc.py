@@ -38,49 +38,81 @@ class MacTests(TestCase):
 
 
 class PresetTvtTests(TestCase):
-    def test_preset_seminati_non_verificati_senza_riconoscimento(self):
+    """Preset verificati sulle letture reali (fixture sanificate tvt_*.snmprec)."""
+
+    def _poll(self, slug, fixture, host):
+        from contatori.tests_snmp_preset import FIXTURES, FixtureAgent
+
+        agent = FixtureAgent(FIXTURES / fixture)
+        dispositivo = DispositivoSNMP.objects.create(nome=slug, host=host, versione="v2c")
+        applica_profilo_dispositivo(dispositivo, ProfiloSNMP.objects.get(slug=slug))
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=agent.leggi_specifiche):
+            rilevazione = interroga_dispositivo(dispositivo)
+        dispositivo.refresh_from_db()
+        return dispositivo, rilevazione, {v.sonda.nome: v for v in rilevazione.valori.select_related("sonda")}
+
+    def test_preset_senza_riconoscimento_e_solo_get(self):
         for slug, categoria in (("tvt-nvr", "TVCC_NVR"), ("tvt-ipc", "TVCC_CAMERA")):
             profilo = ProfiloSNMP.objects.get(slug=slug)
             self.assertEqual(profilo.categoria, categoria)
             self.assertEqual((profilo.sys_object_id_prefix, profilo.sys_descr_pattern, profilo.oid_riconoscimento),
                              ("", "", ""))
-            self.assertFalse(profilo.colonne.filter(verificata=True).exists())
-            self.assertFalse(profilo.colonne.exclude(soglia_warning_max=None).exists())
-            # Nessun OID privato: solo rami MIB standard (mib-2) e UCD di net-snmp.
-            for oid in profilo.colonne.values_list("oid", flat=True):
-                self.assertTrue(oid.startswith(("1.3.6.1.2.1.", "1.3.6.1.4.1.2021.")), oid)
-
-    def test_telecamera_solo_if_mib_attive_nvr_risorse_spente(self):
-        ipc = ProfiloSNMP.objects.get(slug="tvt-ipc")
-        self.assertTrue(all(c.oid.startswith("1.3.6.1.2.1.2.2.1.") for c in ipc.colonne.filter(attiva=True)))
+            # L'agent dell'NVR non risponde a GETNEXT/GETBULK: nessun WALK.
+            self.assertFalse(profilo.colonne.exclude(modalita="GET").exists())
         nvr = ProfiloSNMP.objects.get(slug="tvt-nvr")
-        spente = set(nvr.colonne.filter(attiva=False).values_list("oid", flat=True))
-        self.assertIn("1.3.6.1.4.1.2021.9.1.9", spente)
-        self.assertIn("1.3.6.1.2.1.25.3.3.1.2", spente)
-        mac = nvr.colonne.get(oid=IF_PHYS)
-        self.assertEqual((mac.tipo_valore, mac.aggregazione), ("MAC", "VALIDO"))
+        self.assertEqual(nvr.colonne.filter(attiva=True, verificata=True).count(), 4)
+        self.assertFalse(ProfiloSNMP.objects.get(slug="tvt-ipc").colonne.exists())
 
-    def test_rilevazione_telecamera_salva_mac_normalizzato(self):
-        dispositivo = DispositivoSNMP.objects.create(nome="Telecamera QA", host="192.0.2.61")
-        applica_profilo_dispositivo(dispositivo, ProfiloSNMP.objects.get(slug="tvt-ipc"))
+    def test_nvr_legge_schede_e_modello(self):
+        dispositivo, rilevazione, valori = self._poll("tvt-nvr", "tvt_nvr_td3364h8.snmprec", "192.0.2.60")
+        self.assertEqual(dispositivo.categoria, DispositivoSNMP.Categoria.TVCC_NVR)
+        self.assertEqual(rilevazione.stato, StatoSNMP.OK, {k: v.errore for k, v in valori.items()})
+        self.assertEqual(dispositivo.sys_object_id, "TD-3364H8-A3H-B")
+        self.assertEqual(valori["Velocita collegamento eth0"].valore_display, "100 Mbit/s")
+        self.assertEqual(valori["Stato eth1"].valore_display, "Attiva")
+        sonda = dispositivo.sonde.get(nome="Stato eth0")
+        self.assertEqual(sonda.stato_per_valore(2), StatoSNMP.WARNING)
+
+    def test_telecamera_solo_raggiungibilita(self):
+        dispositivo, rilevazione, valori = self._poll("tvt-ipc", "tvt_ipc_generica.snmprec", "192.0.2.61")
         self.assertEqual(dispositivo.categoria, DispositivoSNMP.Categoria.TVCC_TELECAMERA)
+        self.assertEqual(rilevazione.stato, StatoSNMP.OK)
+        self.assertEqual(valori, {})
+
+    def test_telecamera_che_non_risponde_va_in_errore(self):
+        dispositivo = DispositivoSNMP.objects.create(nome="cam spenta", host="192.0.2.62", versione="v2c")
+        applica_profilo_dispositivo(dispositivo, ProfiloSNMP.objects.get(slug="tvt-ipc"))
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=SNMPError("nessuna risposta")):
+            rilevazione = interroga_dispositivo(dispositivo)
+        self.assertEqual(rilevazione.stato, StatoSNMP.ERROR)
+
+    def test_fixture_sanificate(self):
+        from contatori.tests_snmp_preset import FIXTURES
+
+        for nome in ("tvt_nvr_td3364h8.snmprec", "tvt_ipc_generica.snmprec"):
+            testo = (FIXTURES / nome).read_text(encoding="utf-8").lower()
+            for reale in ("novicrom", "marzot", "192.168.", "|64|"):
+                self.assertNotIn(reale, testo, nome)
+
+    def test_oid_non_esposto_messaggio_chiaro(self):
+        from contatori.snmp import descrivi_errore
+
+        self.assertIn("OID non esposto", descrivi_errore(TypeError("cannot unpack non-iterable Null object")))
+
+    def test_rilevazione_mac_normalizzato(self):
+        dispositivo = DispositivoSNMP.objects.create(nome="Switch QA", host="192.0.2.63")
+        dispositivo.sonde.create(nome="MAC", oid=IF_PHYS, tipo_valore="MAC", modalita="WALK", aggregazione="VALIDO")
 
         def finto(host, specifiche, **kwargs):
-            valori = {"1.3.6.1.2.1.1.1.0": b"Linux synthetic-ipc"}
+            valori = {"1.3.6.1.2.1.1.1.0": b"Linux synthetic"}
             for spec in specifiche:
-                oid = spec["oid"]
-                if oid == IF_PHYS:
-                    valori[oid] = aggrega_colonna([b"", MAC_BYTES], spec["aggregazione"])
-                elif oid.startswith("1.3.6.1.2.1.2.2.1."):
-                    valori[oid] = 100_000_000 if oid.endswith(".5") else 0
+                if spec["oid"] == IF_PHYS:
+                    valori[IF_PHYS] = aggrega_colonna([b"", MAC_BYTES], spec["aggregazione"])
             return valori, {}
 
         with mock.patch("contatori.snmp.leggi_specifiche", side_effect=finto):
             rilevazione = interroga_dispositivo(dispositivo)
-        self.assertEqual(rilevazione.stato, StatoSNMP.OK)
-        valori = {v.sonda.nome: v for v in rilevazione.valori.all()}
-        self.assertEqual(valori["MAC"].valore_testo, "00:18:9a:0b:0c:0d")
-        self.assertEqual(valori["Velocita collegamento"].valore_display, "100 Mbit/s")
+        self.assertEqual(rilevazione.valori.get(sonda__nome="MAC").valore_testo, "00:18:9a:0b:0c:0d")
 
 
 class IntervalliTvccTests(TestCase):
@@ -181,7 +213,7 @@ class ReadOnlyTvccTests(TestCase):
                 self.assertNotIn(vietato, sorgente, f"{nome}: {vietato}")
 
     def test_colonna_mac_accetta_le_nuove_scelte(self):
-        profilo = ProfiloSNMP.objects.get(slug="tvt-ipc")
+        profilo = ProfiloSNMP.objects.get(slug="tvt-nvr")
         colonna = ColonnaProfiloSNMP(profilo=profilo, nome="MAC bis", oid="1.3.6.1.2.1.2.2.1.6.2",
                                      tipo_valore="MAC", aggregazione="VALIDO")
         colonna.full_clean()

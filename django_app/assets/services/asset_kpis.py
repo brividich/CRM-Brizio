@@ -162,7 +162,8 @@ def _probe_tiles(asset):
 
     tiles = []
     for device in DispositivoSNMP.objects.filter(asset=asset, attivo=True)[:2]:
-        if device.sys_uptime_seconds:
+        # Telecamere TVCC: sysUpTime e' quello del servizio SNMP, non dell'apparato.
+        if device.sys_uptime_seconds and device.categoria != DispositivoSNMP.Categoria.TVCC_TELECAMERA:
             tiles.append(_tile("Uptime", _fmt_uptime(device.sys_uptime_seconds), device.nome, "none", TAB_MONITORING))
         snap = RilevazioneSNMP.objects.filter(dispositivo=device).order_by("-rilevata_il", "-pk").first()
         if snap is None:

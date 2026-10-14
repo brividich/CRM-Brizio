@@ -94,9 +94,15 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <section class="ag-sec" id="tvcc">
       <h2>Videosorveglianza (TVCC)</h2>
       <p>NVR e telecamere restano asset della categoria di videosorveglianza. Nella modifica dell'asset il riquadro <strong>Rete e cablaggio</strong> ora compare anche per le telecamere, con il nuovo campo <strong>MAC</strong> (es. aa:bb:cc:dd:ee:ff; qualunque formato viene riscritto così).</p>
+      <h3>Pallino nella lista asset</h3>
+      <p>Se all'asset è collegato un dispositivo del Monitor SNMP, nella lista accanto al nome compare un pallino: <strong>verde</strong> risponde, <strong>giallo</strong> attenzione (es. una scheda di rete dell'NVR non attiva), <strong>rosso</strong> non risponde, <strong>grigio</strong> mai interrogato. Con più dispositivi vince il peggiore; passando il mouse vedi nome, stato e ultimo controllo di ciascuno. È l'esito dell'ultima lettura automatica: aprire la lista non interroga gli apparati. Si vede solo con accesso al Monitor SNMP.</p>
       <h3>Dati letti via SNMP</h3>
-      <p>Se l'apparato è collegato a un dispositivo del Monitor SNMP (tipo «TVCC - Videoregistratore (NVR)» o «TVCC - Telecamera IP»), il tab <strong>Monitoraggio</strong> della scheda mostra stato, ultimo controllo, da quanti giorni è acceso, nome e descrizione letti e gli ultimi valori (MAC, velocità del collegamento, errori di rete). Aprire la scheda non interroga l'apparato: sono i valori dell'ultima lettura automatica.</p>
-      <p>Accanto al MAC letto: <strong>= dichiarato</strong> se coincide con il campo MAC dell'asset, <strong>diverso dal dichiarato</strong> se non coincide, <strong>non dichiarato</strong> se il campo è vuoto. Il monitoraggio non cambia mai i dati dell'asset.</p>
+      <p>Se l'apparato è collegato a un dispositivo del Monitor SNMP (tipo «TVCC - Videoregistratore (NVR)» o «TVCC - Telecamera IP»), il tab <strong>Monitoraggio</strong> della scheda mostra stato, ultimo controllo e gli ultimi valori letti. Aprire la scheda non interroga l'apparato.</p>
+      <ul>
+        <li><strong>NVR TVT</strong>: modello, firmware, da quanti giorni è acceso, velocità e stato delle schede di rete eth0 ed eth1.</li>
+        <li><strong>Telecamere TVT</strong>: solo se rispondono o no. Non espongono via SNMP né MAC né altri dati; il «da quanti giorni è acceso» non si mostra perché riguarda il servizio SNMP, non la telecamera.</li>
+      </ul>
+      <p>Quando un apparato espone il MAC, accanto al valore letto compare <strong>= dichiarato</strong>, <strong>diverso dal dichiarato</strong> o <strong>non dichiarato</strong> rispetto al campo MAC dell'asset. Il monitoraggio non cambia mai i dati dell'asset.</p>
       <p class="ag-note">Ogni quanto si leggono NVR e telecamere e quanti giorni di storico si tengono si imposta nel modulo Contatori (Configurazione SNMP globale). Il portale non mostra né salva immagini o video.</p>
     </section>
 

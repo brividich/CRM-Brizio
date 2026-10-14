@@ -1,66 +1,55 @@
 """Preset SNMP TVT per la videosorveglianza: NVR (`tvt-nvr`) e telecamere IP (`tvt-ipc`).
 
-TVT non pubblica una MIB privata: qui ci sono solo OID delle MIB standard
-(IF-MIB, HOST-RESOURCES-MIB, UCD-SNMP-MIB di net-snmp), nessun OID privato.
-Tutte le colonne nascono ``verificata=False``: si confermano sulle catture reali
-(`snmp_capture`) e solo allora si marcano verificate.
+Verificati sulle letture reali del 14/10/2026 (fixture sanificate in
+``contatori/fixtures/snmp/tvt_*.snmprec``):
 
-- Attive: solo IF-MIB (MAC, velocita' del collegamento, errori), presente su
-  praticamente ogni agent Linux. Una colonna che non risponde mette il
-  dispositivo in «Attenzione», quindi niente OID incerti attivi.
-- Spente (``attiva=False``) sull'NVR: HOST-RESOURCES e UCD. Si accendono dal
-  catalogo profili se la cattura le mostra.
-- Nessun riconoscimento automatico (prefisso sysObjectID / pattern sysDescr):
-  i valori reali si vedranno nelle catture; fino ad allora il profilo si
-  assegna a mano al dispositivo.
-- Nessuna soglia: senza catture non si sa quali interfacce/dischi sono inutilizzati,
-  e soglie a vuoto metterebbero in allarme tutte le telecamere.
+- NVR TD-3364H8-A3H-B (firmware 2.1.0.76943B250408): l'agent risponde solo a GET
+  su OID esatti (GETNEXT vuoto, GETBULK ignorato), quindi niente WALK. Espone
+  sysDescr (firmware), sysObjectID scritto come testo (modello), sysUpTime e,
+  della IF-MIB, ifDescr/ifSpeed/ifOperStatus di eth0 (.1) ed eth1 (.2). Non
+  espone MAC, errori, HOST-RESOURCES ne' UCD: niente dischi ne' risorse.
+- Telecamere IP: agent net-snmp generico che espone solo il gruppo system e le
+  statistiche SNMP. Nessuna interfaccia, MAC o risorsa: il profilo non ha
+  colonne e serve come controllo di raggiungibilita' (risponde / non risponde).
+
+Nessun riconoscimento automatico: sysDescr e sysObjectID non identificano TVT
+(la telecamera dichiara l'OID generico net-snmp). Il profilo si assegna a mano.
 """
 from decimal import Decimal
 
 from django.db import migrations
 
 D = Decimal
-FONTE = "MIB standard (IF-MIB / HOST-RESOURCES / UCD) - da verificare su cattura TVT"
-DA_KB_A_MIB = D("0.000977")
+FONTE_NVR = "Lettura GET su NVR TVT TD-3364H8-A3H-B fw 2.1.0.76943B250408 (14/10/2026)"
+STATO_IF = "1=Attiva, 2=Non attiva, 3=Test, 4=Sconosciuto, 5=Dormiente, 6=Assente, 7=Livello inferiore non attivo"
 
-IF_MIB = [
-    {"nome": "MAC", "oid": "1.3.6.1.2.1.2.2.1.6", "tipo_valore": "MAC", "modalita": "WALK",
-     "aggregazione": "VALIDO"},
-    {"nome": "Velocita collegamento", "oid": "1.3.6.1.2.1.2.2.1.5", "modalita": "WALK",
-     "aggregazione": "MASSIMO", "unita": "Mbit/s", "fattore": D("0.000001")},
-    {"nome": "Errori in ingresso", "oid": "1.3.6.1.2.1.2.2.1.14", "modalita": "WALK", "aggregazione": "SOMMA"},
-    {"nome": "Errori in uscita", "oid": "1.3.6.1.2.1.2.2.1.20", "modalita": "WALK", "aggregazione": "SOMMA"},
-]
-
-NVR_RISORSE = [
-    {"nome": "RAM totale", "oid": "1.3.6.1.2.1.25.2.2.0", "unita": "MiB", "fattore": DA_KB_A_MIB},
-    {"nome": "Carico CPU medio", "oid": "1.3.6.1.2.1.25.3.3.1.2", "modalita": "WALK",
-     "aggregazione": "MEDIA", "unita": "%"},
-    {"nome": "Stato dispositivi interni", "oid": "1.3.6.1.2.1.25.3.2.1.5", "modalita": "WALK",
-     "aggregazione": "MASSIMO",
-     "etichette": "1=Sconosciuto, 2=In funzione, 3=Attenzione, 4=In test, 5=Guasto"},
-    {"nome": "Occupazione massima dischi", "oid": "1.3.6.1.4.1.2021.9.1.9", "modalita": "WALK",
-     "aggregazione": "MASSIMO", "unita": "%"},
-    {"nome": "RAM disponibile", "oid": "1.3.6.1.4.1.2021.4.6.0", "unita": "MiB", "fattore": DA_KB_A_MIB},
-    {"nome": "CPU inattiva", "oid": "1.3.6.1.4.1.2021.11.11.0", "unita": "%"},
-]
+NVR = []
+for indice, scheda in ((1, "eth0"), (2, "eth1")):
+    NVR += [
+        {"nome": f"Velocita collegamento {scheda}", "oid": f"1.3.6.1.2.1.2.2.1.5.{indice}",
+         "unita": "Mbit/s", "fattore": D("0.000001")},
+        # ifOperStatus: 1 = attiva; qualunque altro codice mette l'NVR in «Attenzione».
+        {"nome": f"Stato {scheda}", "oid": f"1.3.6.1.2.1.2.2.1.8.{indice}",
+         "etichette": STATO_IF, "soglia_warning_max": D("1")},
+    ]
 
 PROFILI = {
     "tvt-nvr": {
         "nome": "TVT NVR (videoregistratore)",
         "categoria": "TVCC_NVR",
         "famiglia_modelli": "NVR TVT",
-        "descrizione": "Videoregistratore di rete TVT: interfacce di rete; risorse e dischi "
-                       "(HOST-RESOURCES/UCD) spenti finche' la cattura non li conferma.",
-        "colonne": [(c, True) for c in IF_MIB] + [(c, False) for c in NVR_RISORSE],
+        "descrizione": "Videoregistratore di rete TVT: velocita' e stato delle due schede di rete "
+                       "(eth0, eth1). Modello e firmware si leggono da sysObjectID e sysDescr. "
+                       "L'apparato non espone MAC, dischi ne' risorse.",
+        "colonne": NVR,
     },
     "tvt-ipc": {
         "nome": "TVT telecamera IP",
         "categoria": "TVCC_CAMERA",
         "famiglia_modelli": "Telecamere IP TVT",
-        "descrizione": "Telecamera IP TVT: MAC, velocita' del collegamento ed errori di rete.",
-        "colonne": [(c, True) for c in IF_MIB],
+        "descrizione": "Telecamera IP TVT: solo controllo di raggiungibilita' (l'agent SNMP risponde "
+                       "o no). La telecamera non espone interfacce, MAC ne' risorse.",
+        "colonne": [],
     },
 }
 
@@ -75,14 +64,14 @@ def forwards(apps, schema_editor):
             "famiglia_modelli": spec["famiglia_modelli"], "descrizione": spec["descrizione"],
             "precaricato": True, "attivo": True,
         })
-        for ordine, (colonna, attiva) in enumerate(spec["colonne"], 1):
+        for ordine, colonna in enumerate(spec["colonne"], 1):
             colonna = dict(colonna)
             oid = colonna.pop("oid")
-            # Create-only: una colonna gia' verificata o modificata dall'operatore non si tocca.
+            # Create-only: una colonna modificata dall'operatore non si tocca.
             Column.objects.get_or_create(profilo=profile, oid=oid, defaults={
                 "tipo_valore": "NUMERO", "modalita": "GET", "aggregazione": "PRIMO",
-                "unita": "", "fattore": D("1"), "verificata": False, "fonte": FONTE,
-                "ordine": ordine * 10, "attiva": attiva,
+                "unita": "", "fattore": D("1"), "verificata": True, "fonte": FONTE_NVR,
+                "ordine": ordine * 10, "attiva": True,
                 **colonna,
             })
 

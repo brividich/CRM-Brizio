@@ -9114,6 +9114,12 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     page_number = _as_int(request.GET.get("page"), default=1)
     page_obj = paginator.get_page(page_number)
     assets = page_obj.object_list
+    from .services.it_monitoring import monitoring_dots
+
+    # Pallino del Monitor SNMP (stato salvato, nessuna interrogazione) accanto al nome.
+    _dots = monitoring_dots(request, [a.id for a in assets])
+    for _asset in assets:
+        _asset.snmp_dot = _dots.get(_asset.id)
     visible_count = assets_filtered.count()
     page_start = ((page_obj.number - 1) * rows + 1) if visible_count else 0
     page_end = (page_start + len(assets) - 1) if visible_count else 0
