@@ -13,6 +13,16 @@
 body.theme-dark .sl-new > summary { color:#93c5fd; }
 
 .sl-grid { display:grid; gap:14px; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); align-items:start; }
+.sl-cov-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+.sl-cov-group { border:1px solid var(--border,#dbe1ea); border-left-width:4px; border-radius:12px; padding:12px 14px; background:transparent; }
+.sl-cov-group--danger { border-left-color:#dc2626; }
+.sl-cov-group--warn { border-left-color:#d97706; }
+.sl-cov-group h3 { margin:0 0 6px; font-size:var(--fs-sm); font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; }
+.sl-cov-list { list-style:none; margin:0; padding:0; }
+.sl-cov-list li { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border,#dbe1ea); font-size:var(--fs-sm); }
+.sl-cov-list li:last-child { border-bottom:0; }
+.sl-cov-list form { margin:0; }
+body.theme-dark .sl-cov-group h3 { color:#e2e8f0; }
 .sl-kpis { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
 .sl-kpi, .sl-card {
   border:1px solid #dbe1ea;
@@ -124,6 +134,43 @@ body.theme-dark .sl-renewals > summary { color:#93c5fd; }
     <article class="sl-kpi"><div class="sl-kpi-label">Scadute</div><div class="sl-kpi-value">{{ expired_count }}</div></article>
     <article class="sl-kpi"><div class="sl-kpi-label">Da assegnare</div><div class="sl-kpi-value">{{ unassigned_count }}</div></article>
   </section>
+
+  {% if coverage and coverage.total %}
+  <article class="sl-card" id="copertura">
+    <div class="sl-card-head"><div><h2>Da sistemare: licenze e software installato</h2>
+      <p>Confronto con l'inventario importato nel SOC. Sono segnalazioni: nessuna licenza viene modificata da sola.</p></div></div>
+    <div class="sl-card-body sl-cov-grid">
+      {% if coverage.unlicensed %}<section class="sl-cov-group sl-cov-group--danger">
+        <h3>A pagamento senza licenza valida <span class="as-badge as-badge--danger">{{ coverage.unlicensed|length }}</span></h3>
+        <ul class="sl-cov-list">{% for r in coverage.unlicensed %}<li><span>{{ r.name }}</span><span class="sl-meta">{{ r.hosts }} PC</span></li>{% endfor %}</ul>
+      </section>{% endif %}
+      {% if coverage.over_seats %}<section class="sl-cov-group sl-cov-group--danger">
+        <h3>Più PC che posti <span class="as-badge as-badge--danger">{{ coverage.over_seats|length }}</span></h3>
+        <ul class="sl-cov-list">{% for r in coverage.over_seats %}<li><span>{{ r.license }}</span><span class="sl-meta">{{ r.hosts }} PC su {{ r.seats }} posti</span></li>{% endfor %}</ul>
+      </section>{% endif %}
+      {% if coverage.expired_installed %}<section class="sl-cov-group sl-cov-group--warn">
+        <h3>Scadute ma ancora installate <span class="as-badge as-badge--warn">{{ coverage.expired_installed|length }}</span></h3>
+        <ul class="sl-cov-list">{% for r in coverage.expired_installed %}<li><span>{{ r.license }}</span><span class="sl-meta">{{ r.hosts }} PC</span></li>{% endfor %}</ul>
+      </section>{% endif %}
+      {% if coverage.unused %}<section class="sl-cov-group">
+        <h3>Valide ma software non più rilevato <span class="as-badge">{{ coverage.unused|length }}</span></h3>
+        <ul class="sl-cov-list">{% for r in coverage.unused %}<li><span>{{ r.license }}</span><span class="sl-meta">{% if r.license.expiry_date %}scade {{ r.license.expiry_date|date:"d/m/Y" }}{% else %}senza scadenza{% endif %}</span></li>{% endfor %}</ul>
+      </section>{% endif %}
+      {% if coverage.unlinked %}<section class="sl-cov-group">
+        <h3>Non collegate all'inventario <span class="as-badge">{{ coverage.unlinked|length }}</span></h3>
+        <ul class="sl-cov-list">{% for r in coverage.unlinked %}<li><span>{{ r.license }}</span>
+          {% if r.suggestion and can_manage_licenses %}
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="action" value="link_software_inventory">
+              <input type="hidden" name="license_id" value="{{ r.license.id }}">
+              <input type="hidden" name="inventory_key" value="{{ r.suggestion.key }}">
+              <button type="submit" class="btn btn-secondary btn-sm">Collega a «{{ r.suggestion.label }}» ({{ r.suggestion.hosts }} PC)</button>
+            </form>
+          {% else %}<span class="sl-meta">nessuna proposta univoca: usa «Modifica»</span>{% endif %}</li>{% endfor %}</ul>
+      </section>{% endif %}
+    </div>
+  </article>
+  {% endif %}
 
   <article class="sl-card">
     <div class="sl-card-head">
