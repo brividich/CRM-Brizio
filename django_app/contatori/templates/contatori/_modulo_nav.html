@@ -1,5 +1,5 @@
 {% load contatori_acl %}{% puo_gestire as g %}{% with n=request.resolver_match.url_name t=request.resolver_match.kwargs.tipo %}
-<nav class="cnav" aria-label="Sezioni contatori">
+<nav class="cnav" aria-label="Sezioni Contatori IT">
   <div class="cnav-gruppo">
     <span class="cnav-label">Operatività</span>
     <a href="{% url 'contatori:dashboard' %}" class="{% if n == 'dashboard' %}active{% endif %}">Centrale</a>

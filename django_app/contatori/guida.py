@@ -201,7 +201,9 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Un solo percorso guidato per stampanti MFC e dispositivi SNMP: «+ Nuovo» → «+ Apparato» "
                   "(anche «+ Nuova MFC» in Stampanti MFC, «+ Apparato» nel Monitor SNMP e «Aggiungi» nei "
-                  "risultati del Discovery, che precompilano i dati). Quattro passi:"),
+                  "risultati del Discovery, che precompilano i dati). Dalla scheda di un asset IT senza "
+                  "monitoraggio, il pulsante «Monitora via SNMP» apre il wizard con l'asset già scelto e il "
+                  "tipo proposto (stampante → MFC, server, firewall, TVCC). Quattro passi:"),
             ("def", [
                 ("1 · Apparato", "«Asset collegato (registro HUB)»: se l'apparato è già nel registro sceglilo, "
                                  "i campi lasciati vuoti prendono nome, matricola, modello, reparto e IP "
