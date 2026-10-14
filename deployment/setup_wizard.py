@@ -3879,6 +3879,7 @@ class InstallPage(Page):
             self._write_webconfig(ep, cfg)
             self._log_line("  ✓ web.config scritto", "ok")
             self._configure_iis(cfg)
+            self._q_sync_after_deploy(ep, cfg.environment, errors)
 
         # 12. Backup automatico schedulato
         step(12, "Pianificazione backup automatico", 98)
@@ -5914,6 +5915,7 @@ class ReleaseRunPage(Page):
             except Exception as e:
                 self._append_error(errors, "iis recycle")
                 self._log_line(f"  ✗ IIS recycle: {e}", "err")
+            self._q_sync_after_deploy(ep, cfg.environment, errors)
 
         # 8. Verifica post-deploy: schedule django-q + check + migrazioni + readyz
         step(8, "Verifica post-deploy", 96)
@@ -9073,6 +9075,69 @@ if ($t) {{
                 )
                 return src
         return dest if dest.exists() else src
+
+    def _q_sync_after_deploy(self, ep: Path, env: str, errors: list) -> None:
+        """Dopo l'attivazione: aggiorna gli script qcluster in shared\\scripts e riavvia il worker.
+
+        Il task e il watchdog eseguono le copie in shared\\scripts, non la release:
+        senza questo passo restano alla versione dell'ultima installazione manuale.
+        Si aggiornano solo gli script gia' installati (task/watchdog esistenti).
+        Il riavvio carica il codice e i modelli della nuova release.
+        """
+        src_dir = ep / "current" / "deployment"
+        dest_dir = Path(self.BASE_DIR) / "shared" / "scripts"
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        for name in ("start_qcluster.ps1", "watch_qcluster.ps1"):
+            src, dest = src_dir / name, dest_dir / name
+            if not src.exists() or not dest.exists():
+                self._log_line(f"  · {name}: non installato, nessuna copia", "dim")
+                continue
+            try:
+                if src.read_bytes() == dest.read_bytes():
+                    self._log_line(f"  ✓ {name} già aggiornato", "ok")
+                    continue
+                shutil.copy2(str(dest), str(dest_dir / f"{name}.{stamp}.bak"))
+                shutil.copy2(str(src), str(dest))
+                self._log_line(f"  ✓ {name} aggiornato in shared\\scripts", "ok")
+            except Exception as e:
+                self._append_error(errors, f"copia {name}")
+                self._log_line(f"  ✗ {name}: {e}", "err")
+
+        task_name = self._q_task_name(env)
+        # Il launcher nuovo chiude da solo eventuali python residui del precedente.
+        ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    $t = Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+    if (-not $t) {{ Write-Output 'NOTASK'; return }}
+    if ($t.State -eq 'Disabled') {{ Write-Output 'DISABLED'; return }}
+    Stop-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+    for ($i = 0; $i -lt 20 -and (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State -eq 'Running'; $i++) {{ Start-Sleep -Seconds 1 }}
+    Start-Sleep -Seconds 2
+    Start-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+    Start-Sleep -Seconds 5
+    Write-Output ('STATE:' + (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State)
+}} catch {{
+    Write-Output "ERR:$_"
+}}
+"""
+        try:
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+            out = (r.stdout or "").strip()
+        except Exception as exc:
+            out = f"ERR:{exc}"
+        if out == "NOTASK":
+            self._log_line(f"  · Task {task_name} non registrato: qcluster non riavviato", "warn")
+        elif out == "DISABLED":
+            self._log_line(f"  · Task {task_name} disabilitato (manutenzione): non riavviato", "warn")
+        elif out == "STATE:Running":
+            self._log_line(f"  ✓ qcluster riavviato con la nuova release ({task_name})", "ok")
+        else:
+            self._append_error(errors, "riavvio qcluster")
+            self._log_line(f"  ✗ Riavvio qcluster: {out[:200] or 'output vuoto'}", "err")
 
     def _q_register_ps(self, env: str, script_path, task_name: str) -> str:
         """Script PowerShell che (ri)registra il task qcluster. Emette OK / ERR:.
