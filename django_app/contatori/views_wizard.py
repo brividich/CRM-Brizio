@@ -1,4 +1,4 @@
-"""View unica dei wizard guidati del modulo Contatori (dispositivo, MFC, profilo, colonna, sonda)."""
+"""View unica dei wizard guidati del modulo Contatori (apparato = MFC o dispositivo, profilo, colonna, sonda)."""
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
@@ -9,7 +9,7 @@ from django.urls import reverse
 from core.audit import log_action
 
 from .permessi import richiede_gestione
-from .wizard import wizard_per_tipo
+from .wizard import ALIAS_APPARATO, wizard_per_tipo
 
 
 def _classe(tipo):
@@ -22,13 +22,17 @@ def _classe(tipo):
 @richiede_gestione
 def wizard_avvia(request, tipo):
     cls = _classe(tipo)
+    query = request.GET
+    if ALIAS_APPARATO.get(tipo) and not query.get("tipo_apparato"):
+        query = query.copy()
+        query["tipo_apparato"] = ALIAS_APPARATO[tipo]
     try:
-        iniziali, ctx = cls.da_query(request.GET)
+        iniziali, ctx = cls.da_query(query)
     except ValueError:
         messages.error(request, "Il wizard va aperto dalla pagina dell'oggetto a cui appartiene.")
         return redirect("contatori:snmp_centrale")
     wid = cls.avvia(request, iniziali, ctx)
-    return redirect("contatori:wizard", tipo=tipo, wid=wid)
+    return redirect("contatori:wizard", tipo=cls.tipo, wid=wid)
 
 
 def _fine(request, url):
@@ -68,13 +72,18 @@ def wizard(request, tipo, wid):
     if request.method == "POST":
         azione, _, destinazione = request.POST.get("azione", "").partition(":")
         passo = wiz.passo
-        if passo.form_class is not None and azione in ("avanti", "indietro", "bozza", "vai"):
+        azione_del_passo = azione in wiz.azioni and wiz.azioni[azione][0] == passo.chiave
+        # Wizard con scelte nel passo dell'azione (es. il modello alla verifica): prima si memorizzano.
+        memorizza_prima = azione_del_passo and wiz.memorizza_su_azione
+        if passo.form_class is not None and (azione in ("avanti", "indietro", "bozza", "vai") or memorizza_prima):
             form = wiz.form(passo.chiave, data=request.POST)
             if form.is_valid():
                 wiz.memorizza(passo.chiave, form)
             elif azione in ("indietro", "vai"):
                 wiz.ricorda_bozza(passo.chiave, form)  # tornando indietro non bloccano ne' si perdono
                 form = None
+            if memorizza_prima and form.is_valid():
+                form = None  # scelte del passo memorizzate prima dell'azione
         if azione == "indietro":
             wiz.vai(wiz.indice - 1)
             form = None
@@ -88,17 +97,16 @@ def wizard(request, tipo, wid):
                 if not avviso:
                     wiz.vai(wiz.indice + 1)
                     form = None
-        elif azione in wiz.azioni and wiz.azioni[azione][0] == passo.chiave:
+        elif azione_del_passo and form is None:
             avviso = getattr(wiz, wiz.azioni[azione][1])()
             # Ogni sonda verso la rete resta tracciata (mai il segreto).
-            if azione == "test":
+            if azione in ("test", "verifica"):
                 log_action(request, "snmp_wizard_test", "contatori", dettaglio=wiz.audit_test())
             elif azione == "prova":
                 log_action(request, "snmp_wizard_prova_oid", "contatori", dettaglio=wiz.audit_prova())
-        elif azione == "bozza" and wiz.consente_bozza:
-            if wiz.form_valido("tipo") is None or wiz.form_valido("rete") is None:
-                avviso = "Per salvare una bozza completa almeno «Tipo e modello» e «Rete»."
-            elif form is None or form.is_valid():
+        elif azione == "bozza" and (wiz.consente_bozza or wiz.puo_salvare_bozza()):
+            avviso = wiz.puo_salvare_bozza()
+            if not avviso and (form is None or form.is_valid()):
                 obj, avviso = _salva(wiz, bozza=True)
                 bozza = True
         elif azione == "conferma":
@@ -125,12 +133,6 @@ def wizard(request, tipo, wid):
         form = wiz.form(passo.chiave)
 
     contesto = {"wiz": wiz, "passo": passo, "form": form, "avviso": avviso, **wiz.contesto_passo(passo.chiave)}
-    proponi = contesto.pop("proposta_asset", None)
-    if proponi and form is not None and not form.is_bound and not form.initial.get("asset"):
-        asset, motivo = proponi()
-        if asset is not None:
-            form.initial["asset"] = asset.pk
-            contesto["proposta_asset"] = f"Proposto {asset.asset_tag} trovato tramite {motivo}: verifica."
     if passo.chiave == "riepilogo":
         contesto["riepilogo"] = wiz.riepilogo()
     return render(request, "contatori/snmp_wizard.html", contesto)

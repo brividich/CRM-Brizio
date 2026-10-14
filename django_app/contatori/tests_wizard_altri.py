@@ -1,21 +1,15 @@
-"""Wizard MFC, profilo, colonna di profilo e lettore OID. SNMP sempre mockato, dati sintetici."""
+"""Wizard profilo, colonna di profilo e lettore OID (MFC e dispositivi: tests_wizard_apparato). SNMP sempre mockato, dati sintetici."""
 from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import ColonnaProfiloSNMP, DispositivoSNMP, Macchina, ProfiloSNMP, SondaSNMP
-from .snmp import SNMPError, SYS_DESCR, SYS_OBJECT_ID
+from .models import ColonnaProfiloSNMP, DispositivoSNMP, ProfiloSNMP, SondaSNMP
+from .snmp import SNMPError
 from .tests import _AuthedClientMixin
 
-LEGGI_OIDS = "contatori.snmp.leggi_oids"
 LEGGI_SPEC = "contatori.snmp.leggi_specifiche"
-LEGGI_MFC = "contatori.snmp.leggi_macchina"
 OID = "1.3.6.1.4.1.99999.3.1.0"
-
-
-def _ok(*_a, **_k):
-    return {SYS_DESCR: b"Canon iR-ADV C5535i", SYS_OBJECT_ID: "1.3.6.1.4.1.1602.4.7"}, {}
 
 
 class _Base(_AuthedClientMixin, TestCase):
@@ -32,105 +26,6 @@ class _Base(_AuthedClientMixin, TestCase):
 
     def stato(self):
         return next(iter(self.client.session["contatori_wizard"].values()))
-
-
-class WizardMacchinaTests(_Base):
-    tipo = "macchina"
-
-    def _anagrafica(self, **kw):
-        dati = {"reparto": "Officina", "matricola": "SYN-MFC-1", "modello": "iR-ADV C5535i",
-                "contratto": "K-9", "fornitore": "BASE", "profilo": ""}
-        dati.update(kw)
-        return self.post("avanti", **dati)
-
-    def _fino_alla_mappatura(self, sistema=_ok, **kw):
-        self._anagrafica(**kw)
-        self.post("avanti", host="192.0.2.90", porta="161", versione="v2c")
-        self.post("avanti", community="syn-mfc")
-        with mock.patch(LEGGI_OIDS, side_effect=sistema):
-            self.post("test")
-        return self.post("avanti")
-
-    def test_canon_noto_senza_profilo_crea_mfc_verificata(self):
-        # sysObjectID che nessun preset riconosce: si usa la tabella Canon standard
-        self._fino_alla_mappatura(sistema=lambda *a, **k: ({SYS_DESCR: b"x", SYS_OBJECT_ID: "1.3.6.1.4.1.99998"}, {}))
-        with mock.patch(LEGGI_MFC, return_value={"a4_bn": 123456, "a3_bn": 2, "a4_col": 30, "a3_col": 4}), \
-                mock.patch(LEGGI_SPEC, side_effect=AssertionError("nessuna lettura di profilo attesa")):
-            r = self.post("leggi")
-        self.assertContains(r, "123456")
-        self.post("avanti")
-        self.post("avanti", attiva="on")
-        r = self.post("conferma")
-        m = Macchina.objects.get(matricola="SYN-MFC-1")
-        self.assertRedirects(r, reverse("contatori:macchina", args=[m.pk]), fetch_redirect_response=False)
-        self.assertEqual(m.host, "192.0.2.90")
-        self.assertEqual(m.snmp_community, "")
-        self.assertIsNotNone(m.community_salvata)
-        self.assertNotIn("syn-mfc", m.community_salvata.segreto_cifrato)
-
-    def test_modello_sconosciuto_senza_profilo_bloccato(self):
-        # Apparato che nessun profilo riconosce
-        self._fino_alla_mappatura(modello="Syn Generica 9",
-                                  sistema=lambda *a, **k: ({SYS_DESCR: b"syn", SYS_OBJECT_ID: "1.3.6.1.4.1.99998"}, {}))
-        r = self.post("avanti")
-        self.assertEqual(self.stato()["passo"], 4)
-        self.assertContains(r, "Nessun profilo con i contatori")
-
-    def test_profilo_senza_quattro_contatori_bloccato(self):
-        p = ProfiloSNMP.objects.create(slug="mfc-mezzo", nome="MFC parziale", produttore="Syn",
-                                       categoria=ProfiloSNMP.Categoria.STAMPANTE)
-        ColonnaProfiloSNMP.objects.create(profilo=p, nome="A4", oid=OID, contatore_mfc="a4_bn")
-        self._fino_alla_mappatura(modello="Syn 2", profilo=p.pk)
-        r = self.post("avanti")
-        self.assertContains(r, "non mappa i contatori a3_bn, a4_col, a3_col")
-
-    def test_lettura_contatori_obbligatoria(self):
-        self._fino_alla_mappatura(sistema=lambda *a, **k: ({SYS_DESCR: b"x", SYS_OBJECT_ID: "1.3.6.1.4.1.99998"}, {}))
-        r = self.post("avanti")
-        self.assertEqual(self.stato()["passo"], 4)
-        self.assertContains(r, "Leggi i contatori")
-
-    def test_canon_con_profilo_generico_rilevato_usa_la_tabella_canon(self):
-        generico = ProfiloSNMP.objects.create(slug="stampante-gen", nome="Stampante generica", produttore="Syn",
-                                              categoria=ProfiloSNMP.Categoria.STAMPANTE,
-                                              sys_object_id_prefix="1.3.6.1.4.1.99997")
-        self._fino_alla_mappatura(sistema=lambda *a, **k: ({SYS_DESCR: b"x", SYS_OBJECT_ID: "1.3.6.1.4.1.99997.1"}, {}))
-        self.assertEqual(self.stato()["extra"]["test"]["profilo_id"], generico.pk)
-        with mock.patch(LEGGI_MFC, return_value={"a4_bn": 5, "a3_bn": 6, "a4_col": 7, "a3_col": 8}):
-            self.post("leggi")
-        self.post("avanti")
-        self.assertEqual(self.stato()["passo"], 5)
-        self.post("avanti", attiva="on")
-        self.post("conferma")
-        self.assertIsNone(Macchina.objects.get(matricola="SYN-MFC-1").profilo_snmp)
-
-    def test_ip_gia_usato_da_un_dispositivo(self):
-        DispositivoSNMP.objects.create(nome="Occupa IP", host="192.0.2.90")
-        self._anagrafica()
-        r = self.post("avanti", host="192.0.2.90", porta="161", versione="v2c")
-        self.assertContains(r, "già usato dal dispositivo «Occupa IP»")
-
-    def test_matricola_duplicata(self):
-        Macchina.objects.create(reparto="Altro", matricola="SYN-MFC-1")
-        r = self._anagrafica()
-        self.assertEqual(self.stato()["passo"], 0)
-        self.assertContains(r, "già")
-
-    def test_contatore_non_numerico_evidenziato(self):
-        p = ProfiloSNMP.objects.create(slug="mfc-ok", nome="MFC completa", produttore="Syn",
-                                       categoria=ProfiloSNMP.Categoria.STAMPANTE)
-        for i, campo in enumerate(("a4_bn", "a3_bn", "a4_col", "a3_col")):
-            ColonnaProfiloSNMP.objects.create(profilo=p, nome=campo, oid=f"1.3.6.1.4.1.99999.4.{i}.0",
-                                              contatore_mfc=campo)
-        self._fino_alla_mappatura(modello="Syn 3", profilo=p.pk)
-        valori = {f"1.3.6.1.4.1.99999.4.{i}.0": 10 for i in range(4)}
-        valori["1.3.6.1.4.1.99999.4.1.0"] = b"n/d"
-        with mock.patch(LEGGI_SPEC, return_value=(valori, {})):
-            r = self.post("leggi")
-        self.assertContains(r, "SNMP-006")
-        r = self.post("avanti")  # un contatore non numerico blocca la MFC
-        self.assertEqual(self.stato()["passo"], 4)
-        self.assertContains(r, "non leggibile")
 
 
 class WizardProfiloTests(_Base):

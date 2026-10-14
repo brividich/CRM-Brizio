@@ -85,8 +85,8 @@ SEZIONI: list[dict] = [
         "titolo": "Barra del modulo e Centrale",
         "blocchi": [
             ("p", "La barra in alto raggruppa le pagine in Operatività, Economico e Configurazione. Le "
-                  "procedure guidate «+ MFC», «+ Dispositivo SNMP» e «+ Profilo SNMP» sono nel menu «+ Nuovo» "
-                  "(solo con il permesso di gestione)."),
+                  "procedure guidate «+ Apparato» (stampanti MFC e dispositivi SNMP) e «+ Profilo SNMP» sono "
+                  "nel menu «+ Nuovo» (solo con il permesso di gestione)."),
             ("p", "La Centrale sta in una schermata: in alto gli indicatori (letture del trimestre, copie, "
                   "riconciliazione del trimestre precedente, stato flotta SNMP, consumabili sotto soglia, "
                   "letture da confermare, fatture da riconciliare, licenze degli apparati), sotto tre colonne che scorrono ognuna per "
@@ -98,7 +98,7 @@ SEZIONI: list[dict] = [
         "id": "tvcc",
         "titolo": "Videosorveglianza (NVR e telecamere TVT)",
         "blocchi": [
-            ("p", "NVR e telecamere IP si aggiungono come dispositivi SNMP («+ Nuovo» → «+ Dispositivo SNMP») "
+            ("p", "NVR e telecamere IP si aggiungono con «+ Nuovo» → «+ Apparato» "
                   "con tipo «TVCC - Videoregistratore (NVR)» o «TVCC - Telecamera IP», e si collegano "
                   "all'asset di videosorveglianza già censito. Il portale legge solo dati tecnici via SNMP: "
                   "nessuna immagine e nessun flusso video."),
@@ -177,15 +177,43 @@ SEZIONI: list[dict] = [
         ],
     },
     {
-        "id": "snmpv3",
-        "titolo": "SNMPv3 e test di connessione",
+        "id": "nuovo-apparato",
+        "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
         "blocchi": [
-            ("p", "Con «SNMPv3 (utente e chiavi)» al passo «Rete» del wizard, il passo «Credenziali» chiede solo "
+            ("p", "Un solo percorso guidato per stampanti MFC e dispositivi SNMP: «+ Nuovo» → «+ Apparato» "
+                  "(anche «+ Nuova MFC» in Stampanti MFC, «+ Apparato» nel Monitor SNMP e «Aggiungi» nei "
+                  "risultati del Discovery, che precompilano i dati). Quattro passi:"),
+            ("def", [
+                ("1 · Apparato", "«Asset collegato (registro HUB)»: se l'apparato è già nel registro sceglilo, "
+                                 "i campi lasciati vuoti prendono nome, matricola, modello, reparto e IP "
+                                 "dall'asset. «Tipo di apparato»: «Stampante MFC a contratto (contatori e "
+                                 "fattura)» chiede anche contratto e fornitore e la matricola è obbligatoria; "
+                                 "gli altri tipi (rete, UPS, TVCC…) vanno nel Monitor SNMP."),
+                ("2 · Connessione", "indirizzo, porta, «Versione SNMP» e credenziali nella stessa pagina. "
+                                    "Con v1/v2c: una credenziale del catalogo o una nuova community. Con SNMPv3 "
+                                    "la community sparisce e compare il riquadro «Credenziali SNMPv3»."),
+                ("3 · Verifica", "un solo pulsante «Verifica»: legge identità, riconosce il modello e legge "
+                                 "i valori (per le MFC i quattro contatori). «Modello (profilo SNMP)» si può "
+                                 "scegliere qui; vuoto = riconosciuto dalla verifica. Una MFC prosegue solo "
+                                 "con i quattro contatori letti e numerici."),
+                ("4 · Riepilogo", "controlla e «Conferma e crea». Se non hai scelto un asset e il registro "
+                                  "ne ha uno con la stessa matricola o lo stesso IP, il portale lo propone: "
+                                  "«Collega questo asset»."),
+            ]),
+            ("p", "Un dispositivo (non una MFC) si può salvare come bozza «non verificata» dal passo "
+                  "«Connessione» in poi: viene verificato alla prima lettura SNMP riuscita."),
+        ],
+    },
+    {
+        "id": "snmpv3",
+        "titolo": "SNMPv3 e verifica",
+        "blocchi": [
+            ("p", "Con «SNMPv3 (utente e chiavi)» al passo «Connessione» si compilano solo "
                   "«SNMPv3 - utente», «SNMPv3 - autenticazione» (SHA o MD5) con la sua chiave e «SNMPv3 - "
                   "cifratura» (AES o DES) con la sua chiave, oppure una credenziale v3 del catalogo. "
                   "La community non serve. Il portale supporta AES-128 e DES, SHA-1 e MD5: "
                   "AES-192/256 e SHA-224/256/384/512 non sono supportati."),
-            ("p", "Se il test va in timeout con SNMPv3, il portale invia all'apparato una richiesta di "
+            ("p", "Se la verifica va in timeout con SNMPv3, il portale invia all'apparato una richiesta di "
                   "identificazione senza credenziali e mostra il codice giusto:"),
             ("def", [
                 ("SNMP-009 · apparato raggiungibile, credenziali scartate", "la rete funziona: l'apparato "

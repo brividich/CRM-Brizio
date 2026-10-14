@@ -40,6 +40,9 @@
 .contatori-module .form-sezioni.compatta{max-width:none}
 .contatori-module .form-sezioni.compatta .form-section{border:0;box-shadow:none;background:transparent;padding:0;margin:0 0 16px}
 .contatori-module .form-sezioni.compatta .form-section-head{display:none}
+.contatori-module .form-sezioni.wiz .form-section-head{display:flex;margin:0 0 12px;padding-bottom:8px}
+.contatori-module .form-sezioni.wiz .form-section-num{display:none}
+.contatori-module .form-sezioni.wiz .form-section-head h2{font-size:14px}
 .contatori-module .form-sezioni>.banner{margin-top:4px}
 body.theme-dark .contatori-module .btn.ghost,body.theme-dark .contatori-module .cnav a:hover,body.theme-dark .contatori-module .cnav a.active{color:var(--cm-text)}
 /* Fatture e riconciliazione */

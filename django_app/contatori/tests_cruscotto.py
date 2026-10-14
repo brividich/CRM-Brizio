@@ -93,9 +93,11 @@ class NavigazioneTests(_AuthedClientMixin, TestCase):
         html = self.client.get(reverse("contatori:dashboard")).content.decode()
         inizio = html.index('<span class="cnav-label">Configurazione</span>')
         config = html[inizio:html.index("</nav>", inizio)]
-        for tipo in ("dispositivo", "macchina", "profilo"):
+        for tipo in ("apparato", "profilo"):
             self.assertIn(reverse("contatori:wizard_avvia", args=[tipo]), config)
-        for tipo, voce in (("dispositivo", "+ Dispositivo SNMP"), ("macchina", "+ MFC"), ("profilo", "+ Profilo SNMP")):
+        # Un solo wizard per MFC e dispositivi: anche gli slug storici accendono «+ Apparato».
+        for tipo, voce in (("apparato", "+ Apparato"), ("dispositivo", "+ Apparato"), ("macchina", "+ Apparato"),
+                           ("profilo", "+ Profilo SNMP")):
             wizard = self.client.get(reverse("contatori:wizard_avvia", args=[tipo]))["Location"]
             self.assertEqual(self._attive(wizard), [voce])
 
@@ -200,7 +202,7 @@ class MenuRaggruppatoTests(_AuthedClientMixin, TestCase):
             r = self.client.get(reverse("contatori:dashboard"))
         self.assertNotContains(r, '<span class="cnav-label">Configurazione</span>', html=False)
         self.assertNotContains(r, ">Profili SNMP<")
-        self.assertNotContains(r, reverse("contatori:wizard_avvia", args=["dispositivo"]))
+        self.assertNotContains(r, reverse("contatori:wizard_avvia", args=["apparato"]))
         # Le letture proposte sono solo gestione: in consultazione il riquadro non e' un link
         self.assertNotContains(r, reverse("contatori:letture_proposte"))
 
