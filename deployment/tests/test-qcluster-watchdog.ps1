@@ -6,7 +6,7 @@ $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $target = Join-Path $repo 'deployment\watch_qcluster.ps1'
 $testRoot = Join-Path $repo ('.tmp_tests\qwatch-' + [Guid]::NewGuid().ToString('N'))
 $global:QWatchTest = @{}
-function Get-ScheduledTask { param($TaskName, $TaskPath); [pscustomobject]@{State=$global:QWatchTest.State} }
+function Get-ScheduledTask { param($TaskName, $TaskPath); [pscustomobject]@{State=$global:QWatchTest.State; Principal=[pscustomobject]@{LogonType=$global:QWatchTest.Logon}} }
 function Get-ScheduledTaskInfo { param($TaskName, $TaskPath); [pscustomobject]@{LastRunTime=$global:QWatchTest.LastRun} }
 function Start-ScheduledTask { param($TaskName, $TaskPath); $global:QWatchTest.Starts++ }
 function Get-CimInstance { param($ClassName, $Filter, $OperationTimeoutSec); $global:QWatchTest.Processes }
@@ -25,7 +25,7 @@ function Start-Process {
 }
 function Reset-Case {
     $global:QWatchTest = @{
-        State='Running'; LastRun=(Get-Date).AddHours(-1); Starts=0; Probes=0; Arguments=@(); Processes=@();
+        State='Running'; Logon='Password'; LastRun=(Get-Date).AddHours(-1); Starts=0; Probes=0; Arguments=@(); Processes=@();
         Events=@(); ExitCode=2; Timeout=$false; Killed=$false;
         Health=@{ worker_alive=$false; unhealthy=$true; queued=0; reason='worker_unavailable'; notification='sent' }
     }
@@ -106,9 +106,29 @@ Assert-True ($code -eq 3 -and $global:QWatchTest.Starts -eq 0) 'Restart storm is
 Assert-True (@(Get-ChildItem (Join-Path $testRoot 'prod\logs') -Filter '*.tmp').Count -eq 0) 'Probe output cleaned'
 
 Reset-Case
+$global:QWatchTest.State='Ready'
+# Shape written by the old PS 5.1 code: nested {value,Count} objects plus a bare string.
+'[{"value":[{"value":" 2020-01-01T00:00:00+00:00","Count":2}],"Count":2},"' + [DateTimeOffset]::UtcNow.ToString('o') + '"]' | Set-Content -LiteralPath $restartFile
+$code=Invoke-Case
+$saved = @(Get-Content -LiteralPath $restartFile -Raw | ConvertFrom-Json | ForEach-Object { $_ })
+Assert-True ($code -eq 2 -and $global:QWatchTest.Starts -eq 1) 'Corrupted restart history does not block restart'
+Assert-True ($saved.Count -eq 2 -and @($saved | Where-Object { $_ -isnot [string] }).Count -eq 0) 'Restart history rewritten as flat strings'
+$code=Invoke-Case
+Assert-True ($code -eq 2 -and $global:QWatchTest.Starts -eq 2) 'Third restart in window allowed'
+$code=Invoke-Case
+Assert-True ($code -eq 3 -and $global:QWatchTest.Starts -eq 2) 'Cap reached after rewritten history'
+
+Reset-Case
+$global:QWatchTest.State='Ready'
+$global:QWatchTest.Logon='Interactive'
+Remove-Item -LiteralPath $restartFile -ErrorAction SilentlyContinue
+$code=Invoke-Case
+Assert-True ($global:QWatchTest.Starts -eq 1 -and $global:QWatchTest.Events -contains 4104) 'Interactive worker task is flagged'
+
+Reset-Case
 $logFile = Join-Path $testRoot 'prod\logs\qcluster-watchdog.log'
 Move-Item -LiteralPath $logFile -Destination "$logFile.synthetic-backup"
 New-Item -ItemType Directory -Path $logFile | Out-Null
 $code=Invoke-Case
 Assert-True ($code -eq 2 -and $global:QWatchTest.Events -contains 4104) 'Unwritable log does not suppress Windows event'
-Write-Output 'PASS: 13 synthetic watchdog scenarios and cleanup.'
+Write-Output 'PASS: 18 synthetic watchdog scenarios and cleanup.'

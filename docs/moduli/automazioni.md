@@ -47,6 +47,13 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 
 ## Note di rilascio
 
+#### Qcluster: ripartenza dopo riavvio del server (14/10/2026)
+
+- Il task `QCluster_<ENV>` deve girare con account **non interattivo** (Password, S4U o ServiceAccount). «Installa task» del Setup Wizard non tocca più un task già non interattivo; se lo crea o lo trova interattivo lo registra con l'account corrente in **S4U**. Un task interattivo dopo riavvio o logoff non parte: il watchdog ora lo segnala nel registro eventi (ID 4104).
+- Il limite di 3 riavvii in 30 minuti del watchdog funziona di nuovo: lo storico `qcluster-watchdog-restarts.json` si salvava corrotto in PowerShell 5.1 e il limite non scattava mai. Il file vecchio viene riletto senza errori e riscritto pulito.
+- Il launcher imposta `DB_QUERY_TIMEOUT=300` (secondi, sovrascrivibile da ambiente): una connessione SQL caduta fa fallire la query invece di bloccare il cluster per sempre. Per il web resta illimitato (default `0`).
+- Verifica sul server: `(Get-ScheduledTask -TaskPath '\PortaleNovicrom\' -TaskName QCluster_PROD).Principal | fl UserId,LogonType`.
+
 #### Flussi dei moduli nel designer Automazioni
 
 Pianificazioni e notifiche applicative censite si gestiscono come flussi nel designer esistente: attivazione, condizioni, azioni, calendario e storico. Il collegamento «Apri flusso» è disponibile nelle pianificazioni e negli eventi. L'azione di modulo conserva la logica operativa; disattivare una notifica non annulla l'operazione aziendale.
