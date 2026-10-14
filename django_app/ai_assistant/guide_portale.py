@@ -74,6 +74,8 @@ def _blocchi_in_testo(blocchi) -> str:
             righe.append(f"Attenzione: {valore}")
         elif tipo == "ul":
             righe.extend(f"- {voce}" for voce in valore or [])
+        elif tipo == "passi":
+            righe.extend(f"{i}. {voce}" for i, voce in enumerate(valore or [], 1))
         elif tipo == "def":
             for coppia in valore or []:
                 try:
@@ -298,7 +300,38 @@ def _registro() -> list[Guida]:
     guide.append(Guida("assistente-ai", "Assistente AI", _reverse("ai_assistant:guida"), _testo_assistente,
                        _file_modulo("ai_assistant.guida"), parole="assistente chatbot chat conversazione conversazioni"))
     guide.extend(_guida_soc(nome) for nome in _SOC_DOCS)
+    guide.extend(_guide_centro())
     return guide
+
+
+def _guide_centro() -> list[Guida]:
+    """Centro guide (``core/guide_moduli``): solo la parte «Come si usa».
+
+    Le parti per amministratori restano fuori dall'indice: l'assistente risponde a
+    tutti, e la configurazione non deve finire nelle risposte a chi usa i moduli.
+    Restano fuori anche i moduli con una guida di dettaglio già registrata qui sopra
+    (timbri, anomalie, asset…): la sintesi del Centro guide le ripeterebbe in breve e
+    toglierebbe posto nel top-k al testo completo.
+    """
+    from core import guide_moduli
+
+    elenco = []
+    for guida in guide_moduli.tutte():
+        if guida["solo_admin"] or guida["dettaglio"]:
+            continue
+
+        def _testo(guida=guida) -> str:
+            return sezioni_in_markdown(guide_moduli.capitoli_uso(guida))
+
+        elenco.append(Guida(
+            "centro-" + guida["slug"].replace("_", "-"),
+            guida["titolo"],
+            _reverse("guida_modulo", slug=guida["slug"]),
+            _testo,
+            _file_modulo(f"core.guide_moduli.contenuti.{guida['slug']}"),
+            parole=guida.get("parole", ""),
+        ))
+    return elenco
 
 
 def guide() -> list[Guida]:

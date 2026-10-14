@@ -1,0 +1,283 @@
+"""Schema DB generato dai modelli Django: tabelle, campi, collegamenti e sistemi esterni.
+
+Prima la pagina «Schema DB» era un HTML scritto a mano (fermo a maggio 2026, 182
+modelli): ogni migrazione la rendeva vecchia. Qui lo schema si legge dal registro
+delle app a ogni avvio del processo, quindi segue sempre il codice in esecuzione.
+
+``CONNESSIONI_ESTERNE`` è invece scritto a mano: dice con quali sistemi fuori dal
+database parla il portale, dove si configura (solo i NOMI delle chiavi del .env,
+mai i valori) e cosa controllare quando non funziona. Se si aggiunge
+un'integrazione, va aggiunta qui.
+"""
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+from functools import lru_cache
+
+from django.apps import apps
+
+# Area, colore e descrizione per ogni app del progetto, nell'ordine della pagina.
+APP_INFO: dict[str, tuple[str, str, str]] = {
+    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione"),
+    "admin_portale": ("Piattaforma", "#1d4ed8", "Pannello di amministrazione"),
+    "hub_tools": ("Piattaforma", "#3b82f6", "Strumenti hub: moduli, database, guide"),
+    "dashboard": ("Piattaforma", "#60a5fa", "Home e cruscotti"),
+    "monitoring": ("Piattaforma", "#fb923c", "Salute del portale, segnalazioni, schedule"),
+    "setup_wizard": ("Piattaforma", "#94a3b8", "Configurazione iniziale"),
+    "twofa": ("Piattaforma", "#64748b", "Verifica in due passaggi"),
+    "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
+    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, formazione, visite, skill matrix, fornitori"),
+    "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint"),
+    "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
+    "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
+    "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
+    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software"),
+    "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
+    "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
+    "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione"),
+    "anomalie": ("Operations", "#eab308", "Anomalie per OP e seriali"),
+    "gestione_carichi_macchina": ("Operations", "#0891b2", "Pianificazione carichi macchina"),
+    "checklist_operativa": ("Operations", "#0d9488", "Checklist di chiusura aziendale"),
+    "contatori": ("Operations", "#7c3aed", "Contatori MFC e monitor SNMP"),
+    "planimetria": ("Operations", "#a3a3a3", "Ponte verso le planimetrie di assets"),
+    "diario_preposto": ("Sicurezza sul lavoro", "#ef4444", "Diario del preposto e ispezioni"),
+    "rilevazione_incidenti": ("Sicurezza sul lavoro", "#f43f5e", "Incidenti, near miss, situazioni pericolose"),
+    "dpi": ("Sicurezza sul lavoro", "#8b5cf6", "DPI: catalogo, richieste, consegne, magazzino"),
+    "schede_sicurezza": ("Sicurezza sul lavoro", "#dc2626", "Schede di sicurezza dei prodotti chimici"),
+    "rentri": ("Sicurezza sul lavoro", "#84cc16", "Registro rifiuti RENTRI"),
+    "procedure_refresh": ("Qualità", "#22c55e", "Presa visione procedure, sync SGI"),
+    "sistema_gestione": ("Qualità", "#15803d", "Audit interni, SoA, threat intelligence"),
+    "gestione_specifiche": ("Qualità", "#4d7c0f", "Specifiche cliente, MOD.133, registro OFI"),
+    "suggestion_corner": ("Qualità", "#65a30d", "Segnalazioni di miglioramento PDCA"),
+    "report_conformita": ("Qualità", "#a16207", "Report per audit (rettifiche)"),
+    "glossario_tecnico": ("Qualità", "#ca8a04", "Glossario tecnico"),
+    "security": ("Sicurezza informatica", "#b91c1c", "Security Center: alert, eventi, vulnerabilità, incidenti, backup"),
+    "automazioni": ("Automazioni", "#a78bfa", "Regole, coda eventi, approvazioni, run log"),
+}
+# App di Django e librerie: le loro tabelle esistono nel database, mostrate a parte.
+FRAMEWORK_INFO: dict[str, str] = {
+    "auth": "Utenti e gruppi Django",
+    "admin": "Registro del Django admin",
+    "contenttypes": "Tipi di contenuto (usato da permessi e relazioni generiche)",
+    "sessions": "Sessioni di accesso",
+    "axes": "Tentativi di accesso falliti e blocchi (django-axes)",
+    "django_q": "Coda e pianificazione dei lavori in background (qcluster)",
+}
+AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qualità",
+        "Sicurezza informatica", "Automazioni", "Altri moduli", "Framework e librerie")
+
+CONNESSIONI_ESTERNE: list[dict] = [
+    {
+        "nome": "SQL Server",
+        "cosa": "Il database del portale: tutte le tabelle di questa pagina, comprese le tabelle storiche (utenti, ruoli, permessi, pulsanti, assenze, anagrafica_dipendenti).",
+        "chi": "Tutto il portale.",
+        "config": "DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_DRIVER, DB_TRUST_CERT, DB_ENCRYPT, DB_QUERY_TIMEOUT",
+        "controllo": "Servizio Windows MSSQL… avviato; errori «ODBC»/«10061» in logs\\app.log; Centrale di comando.",
+    },
+    {
+        "nome": "Trigger SQL e coda eventi",
+        "cosa": "Trigger sul database che scrivono gli eventi in automation_event_queue: da lì partono le regole delle Automazioni.",
+        "chi": "Automazioni (assenze, ticket, anomalie e altre sorgenti).",
+        "config": "Comando apply_sql_triggers; pagina Automazioni → Trigger generator",
+        "controllo": "Coda delle automazioni: eventi «pending» che non scendono = qcluster fermo.",
+    },
+    {
+        "nome": "django-q (qcluster)",
+        "cosa": "Il servizio che esegue i lavori in background e quelli pianificati. Usa le tabelle django_q_* del database.",
+        "chi": "Mail, promemoria, sincronizzazioni, letture SNMP, Security Center, indicizzazione AI.",
+        "config": "Attività pianificata QCluster_PROD + watchdog; schedule registrati da setup_q_schedules",
+        "controllo": "Monitoring → Centrale di comando e «Salute degli schedule»; logs\\qcluster.log.",
+    },
+    {
+        "nome": "Active Directory (LDAP)",
+        "cosa": "Login con utente e password del PC, import degli utenti, gruppi.",
+        "chi": "Accesso al portale, Amministrazione → Utenti.",
+        "config": "LDAP_SERVER, LDAP_DOMAIN, LDAP_BASE_DN, LDAP_SERVICE_USER, LDAP_SERVICE_PASSWORD (Setup Wizard → LDAP)",
+        "controllo": "Amministrazione → LDAP (diagnostica): test di connessione.",
+    },
+    {
+        "nome": "Microsoft Graph (Microsoft 365)",
+        "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
+        "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report), "
+               "Automazioni (lettura risposte di approvazione).",
+        "config": "GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET e gli ID delle liste (Setup Wizard → Microsoft Graph / SharePoint)",
+        "controllo": "Errori 401/403/invalid_client = segreto dell'app scaduto: rinnovarlo su Entra ID.",
+    },
+    {
+        "nome": "Posta in uscita (SMTP)",
+        "cosa": "Tutte le mail del portale.",
+        "chi": "Notifiche, approvazioni, promemoria, minute degli incontri.",
+        "config": "EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, DEFAULT_FROM_EMAIL (Setup Wizard → SMTP)",
+        "controllo": "Mail di prova dall'Amministrazione; Log notifiche; run log automazioni.",
+    },
+    {
+        "nome": "Entra Application Proxy",
+        "cosa": "Pubblica su internet solo i collegamenti di approvazione (/approval-actions/), per approvare dal telefono fuori rete.",
+        "chi": "Automazioni → approvazioni via mail.",
+        "config": "SITE_URL; app aziendale «Approvazioni» su Entra ID",
+        "controllo": "Un link di approvazione aperto da fuori rete deve mostrare la pagina di conferma.",
+    },
+    {
+        "nome": "Cartella SGI (file server)",
+        "cosa": "La cartella condivisa con le procedure del sistema di gestione.",
+        "chi": "Presa visione procedure (sync notturna), Bacheca, Assistente AI (indice delle procedure).",
+        "config": "Percorso della share nelle impostazioni del modulo procedure; l'utente del servizio deve poterla leggere",
+        "controllo": "Presa visione procedure → «Log sync».",
+    },
+    {
+        "nome": "Apparati di rete (SNMP)",
+        "cosa": "Lettura di contatori e stato da stampanti MFC, switch, UPS, NVR e altri apparati.",
+        "chi": "Contatori MFC e SNMP; asset collegati; Security Center (firmware e vulnerabilità).",
+        "config": "Community o utenti SNMPv3 nel catalogo cifrato del modulo Contatori",
+        "controllo": "Codici di errore SNMP-001…008 nella scheda dell'apparato.",
+    },
+    {
+        "nome": "Server AI (Ollama e indice)",
+        "cosa": "Il modello di linguaggio dell'Assistente AI e il servizio che calcola l'indice dei documenti, su un server interno.",
+        "chi": "Assistente AI, copiloti dei moduli (DPI, Suggestion Corner, Specifiche, Security Center).",
+        "config": "OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL, RAG_EMBED_BACKEND, RAG_EMBED_OPENAI_BASE_URL",
+        "controllo": "Setup Wizard → Server Dashboard → Assistente AI (verifica); Centrale di comando.",
+    },
+    {
+        "nome": "Archivio file privato",
+        "cosa": "Cartelle sul server con gli allegati riservati (cifrati), scaricabili solo dal portale dopo il login.",
+        "chi": "Ticket, Notizie, Diario preposto, RENTRI, Suggestion Corner, Specifiche, Schede di sicurezza, Anagrafica.",
+        "config": "PRIVATE_ATTACHMENTS_ROOT, DIARIO_PREPOSTO_PRIVATE_ROOT, DOCUMENT_ENCRYPTION_KEY (senza la chiave i file cifrati non si aprono più: va conservata)",
+        "controllo": "«File non trovato» = cartella spostata o non leggibile dall'utente del sito IIS.",
+    },
+]
+
+
+def _tipo(field) -> str:
+    return field.get_internal_type() if hasattr(field, "get_internal_type") else type(field).__name__
+
+
+def _campo(field) -> dict:
+    nota = []
+    relazione = ""
+    destinazione = ""
+    if field.is_relation and field.related_model is not None:
+        destinazione = f"{field.related_model._meta.app_label}.{field.related_model.__name__}"
+        relazione = "M:M" if field.many_to_many else ("1:1" if field.one_to_one else "FK")
+    if getattr(field, "null", False):
+        nota.append("null")
+    if getattr(field, "unique", False) and not getattr(field, "primary_key", False):
+        nota.append("unique")
+    max_length = getattr(field, "max_length", None)
+    if max_length and not field.is_relation:
+        nota.append(f"max {max_length}")
+    colonna = getattr(field, "column", None) or ""
+    return {
+        "nome": field.name,
+        # La colonna si mostra solo quando non è quella ovvia (nome, o nome_id per le FK).
+        "colonna": colonna if colonna and colonna not in (field.name, f"{field.name}_id") else "",
+        "tipo": _tipo(field),
+        "pk": bool(getattr(field, "primary_key", False)),
+        "relazione": relazione,
+        "destinazione": destinazione,
+        "note": " · ".join(nota),
+    }
+
+
+@lru_cache(maxsize=1)
+def schema() -> dict:
+    progetto = []
+    framework = []
+    for config in apps.get_app_configs():
+        label = config.label
+        modelli = [m for m in config.get_models() if not m._meta.proxy and not m._meta.auto_created]
+        if not modelli and label not in APP_INFO:
+            continue
+        if label in APP_INFO:
+            area, colore, descrizione = APP_INFO[label]
+        elif label in FRAMEWORK_INFO:
+            area, colore, descrizione = "Framework e librerie", "#94a3b8", FRAMEWORK_INFO[label]
+        else:
+            # App nuova non ancora censita: compare comunque, da aggiungere ad APP_INFO.
+            area, colore, descrizione = "Altri moduli", "#a8a29e", "Modulo non ancora descritto in hub_tools/schema_db.py"
+        elenco = []
+        for modello in sorted(modelli, key=lambda m: m.__name__.lower()):
+            meta = modello._meta
+            campi = [_campo(f) for f in meta.get_fields() if getattr(f, "concrete", False) or f.many_to_many and not f.auto_created]
+            usata_da = sorted({
+                f"{rel.related_model._meta.app_label}.{rel.related_model.__name__}"
+                for rel in meta.related_objects
+                if rel.related_model is not None and not rel.related_model._meta.auto_created
+            })
+            elenco.append({
+                "nome": modello.__name__,
+                "tabella": meta.db_table,
+                "descrizione": str(meta.verbose_name_plural or ""),
+                "gestita": meta.managed,
+                "campi": campi,
+                "usata_da": usata_da,
+            })
+        voce = {
+            "label": label,
+            "nome": str(config.verbose_name or label),
+            "area": area,
+            "colore": colore,
+            "descrizione": descrizione,
+            "modelli": elenco,
+        }
+        (framework if label in FRAMEWORK_INFO else progetto).append(voce)
+
+    ordine = list(APP_INFO)
+    progetto.sort(key=lambda a: ordine.index(a["label"]) if a["label"] in APP_INFO else len(ordine))
+    app_tutte = progetto + framework
+
+    # Collegamenti fra moduli: quante relazioni partono da un'app verso un'altra.
+    tra_app: dict[str, Counter] = defaultdict(Counter)
+    totali = Counter()
+    for app in app_tutte:
+        totali["modelli"] += len(app["modelli"])
+        for modello in app["modelli"]:
+            totali["campi"] += len(modello["campi"])
+            for campo in modello["campi"]:
+                if not campo["relazione"]:
+                    continue
+                totali[campo["relazione"]] += 1
+                destinazione_app = campo["destinazione"].split(".", 1)[0]
+                if destinazione_app != app["label"]:
+                    tra_app[app["label"]][destinazione_app] += 1
+    collegamenti = []
+    for app in app_tutte:
+        uscita = tra_app.get(app["label"], Counter())
+        entrata = Counter({sorgente: c[app["label"]] for sorgente, c in tra_app.items() if c.get(app["label"])})
+        app["verso"] = uscita.most_common()
+        app["da"] = entrata.most_common()
+        if uscita:
+            collegamenti.append((app["label"], uscita.most_common()))
+
+    gruppi = []
+    for area in AREE:
+        membri = [a for a in app_tutte if a["area"] == area]
+        if membri:
+            gruppi.append((area, membri))
+    return {
+        "app": app_tutte,
+        "gruppi": gruppi,
+        "collegamenti": collegamenti,
+        "totali": {
+            "app": len(app_tutte),
+            "modelli": totali["modelli"],
+            "campi": totali["campi"],
+            "fk": totali["FK"],
+            "uno_a_uno": totali["1:1"],
+            "molti_a_molti": totali["M:M"],
+        },
+    }
+
+
+def indice_ricerca() -> list[dict]:
+    """Voci leggere per la ricerca in pagina: app, modello, tabella, nomi dei campi."""
+    voci = []
+    for app in schema()["app"]:
+        for modello in app["modelli"]:
+            voci.append({
+                "a": app["label"],
+                "m": modello["nome"],
+                "t": modello["tabella"],
+                "c": " ".join(c["nome"] for c in modello["campi"]),
+            })
+    return voci

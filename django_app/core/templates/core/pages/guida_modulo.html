@@ -1,0 +1,74 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida · {{ guida.titolo }}{% endblock %}
+
+{% block extra_head %}{% include "core/components/_guida_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="gm">
+  <div class="gm-head">
+    <div>
+      <div class="gm-crumb"><a href="{% url 'guide_indice' %}">Centro guide</a> / {{ guida.area }}</div>
+      <h1>Guida · {{ guida.titolo }}</h1>
+      <p>{{ guida.sintesi }}</p>
+    </div>
+    <div class="gm-actions">
+      {% if url_modulo %}<a class="gm-btn gm-btn-primary" href="{{ url_modulo }}">Apri il modulo</a>{% endif %}
+      <a class="gm-btn" href="?vista={{ vista }}&amp;pdf=1" target="_blank" rel="noopener">Scarica PDF</a>
+      <a class="gm-btn" href="{% url 'guide_indice' %}">Tutte le guide</a>
+    </div>
+  </div>
+
+  {% if viste|length > 1 %}
+  <nav class="gm-tabs" aria-label="Parti della guida">
+    {% for chiave, etichetta in viste %}
+      <a class="gm-tab{% if chiave == vista %} is-active{% endif %}" href="?vista={{ chiave }}"{% if chiave == vista %} aria-current="page"{% endif %}>
+        {{ etichetta }}
+        <small>{% if chiave == "uso" %}per chi lavora con il modulo{% elif chiave == "admin" %}impostazioni e permessi{% else %}sintomo → cosa fare{% endif %}</small>
+      </a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  {% if vista == "admin" %}
+    <div class="gm-chi">Questa parte è per chi configura il modulo. Non serve per il lavoro di tutti i giorni: per quello c'è «Come si usa».</div>
+  {% elif vista == "problemi" %}
+    <div class="gm-chi">Per ogni problema: cosa vedi, perché succede e i passi per risolverlo, nell'ordine. Se dopo l'ultimo passo il problema resta, apri il «Manuale di emergenza» dal Centro guide.</div>
+  {% endif %}
+
+  {% if dettaglio and vista == "uso" %}
+    <div class="gm-chi">Guida di dettaglio del modulo:
+      {% for etichetta, url in dettaglio %}<a href="{{ url }}"><strong>{{ etichetta }}</strong></a>{% if not forloop.last %} · {% endif %}{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="gm-grid">
+    <nav class="gm-toc" aria-label="Indice della guida">
+      <div class="gm-toc-t">{{ etichetta_vista }}</div>
+      <ol>{% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}</ol>
+    </nav>
+    <div class="gm-body">
+      {% for sez in sezioni %}
+        <section class="gm-sec" id="{{ sez.id }}">
+          <h2><span class="gm-n">{{ forloop.counter }}</span>{{ sez.titolo }}</h2>
+          {% for kind, contenuto in sez.blocchi %}
+            {% if kind == "p" %}
+              <p{% if vista == "problemi" and forloop.first %} class="gm-perche"{% endif %}>{{ contenuto }}</p>
+            {% elif kind == "passi" %}
+              <ol class="gm-passi">{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ol>
+            {% elif kind == "ul" %}
+              <ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
+            {% elif kind == "def" %}
+              <dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+            {% elif kind == "nota" %}
+              <div class="gm-nota" role="note">{{ contenuto }}</div>
+            {% endif %}
+          {% endfor %}
+        </section>
+      {% empty %}
+        <section class="gm-sec"><p>Questa parte della guida non ha ancora capitoli.</p></section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

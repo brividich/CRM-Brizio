@@ -1,4 +1,4 @@
-{% load ui_icons %}
+{% load ui_icons guide_tags %}
 <aside class="sidebar" id="sidebar" aria-label="Navigazione principale">
   <div class="sb-header">
     <div class="sb-header-top">
@@ -78,6 +78,11 @@
       <a class="sb-item" href="{% url 'ai_assistant:chat' %}" title="Assistente AI">
         <span class="sb-icon" aria-hidden="true">AI</span>
         <span class="sb-label">Assistente AI</span>
+      </a>
+      {% guida_corrente as guida_nav %}
+      <a class="sb-item" href="{{ guida_nav.url }}" title="{{ guida_nav.titolo }}">
+        <span class="sb-icon" aria-hidden="true">?</span>
+        <span class="sb-label">Guida</span>
       </a>
     {% endif %}
   </nav>
