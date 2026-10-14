@@ -104,6 +104,30 @@ def seriali_ripetuti(controllo, voci: list[str], *, escludi_blocco_id=None) -> d
     return out
 
 
+def seriali_senza_anomalia(voci_blocco, coperture) -> list[str]:
+    """S/N del blocco su cui non c'è nessuna anomalia, nell'ordine del blocco.
+
+    ``coperture``: per ogni anomalia l'elenco dei S/N su cui è presente, oppure
+    ``None`` se vale per tutti i seriali del blocco. Senza anomalie non c'è niente
+    da segnalare (quel caso ha già il suo errore).
+    """
+    from .seriali import espandi_voce
+
+    coperture = list(coperture or [])
+    if not coperture or any(c is None for c in coperture):
+        return []
+    coperti = {t.lower() for c in coperture for v in c or [] for t in espandi_voce(v)}
+    out: list[str] = []
+    visti: set[str] = set()
+    for voce in voci_blocco or []:
+        for t in espandi_voce(voce):
+            k = t.lower()
+            if k not in coperti and k not in visti:
+                visti.add(k)
+                out.append(t)
+    return out
+
+
 def carica_righe(ids: list[int]) -> dict[int, dict]:
     """Righe legacy per id, con i campi che servono al controllo."""
     ids = [int(i) for i in ids if i is not None]
@@ -169,6 +193,8 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         anomalie = per_blocco.get(blocco.pk, [])
         for a in anomalie:
             a.update(seriali_anomalia(a.pop("_seriale", ""), blocco))
+        voci_blocco = blocco.seriali if isinstance(blocco.seriali, list) else []
+        scoperti = seriali_senza_anomalia(voci_blocco, [None if a["tutti"] else a["seriali"] for a in anomalie])
         blocchi.append({
             "id": blocco.pk,
             "ordine": blocco.ordine,
@@ -177,6 +203,8 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "seriale_label": blocco.seriale_label,
             "stato_superficie": blocco.stato_superficie if isinstance(blocco.stato_superficie, list) else [],
             "anomalie": anomalie,
+            # S/N del blocco senza nessuna anomalia (salvati con conferma dell'operatore).
+            "seriali_scoperti": scoperti,
             "bloccato": any(a["gestita"] for a in anomalie),
         })
     return {

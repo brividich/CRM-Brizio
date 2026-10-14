@@ -196,6 +196,7 @@ def api_controllo_blocco(request, pk: int):
     token_blocco = list(chiavi_blocco.values())
     for n, a in enumerate(anomalie, start=1):
         a["sn"] = label
+        a["copertura"] = None
         if a["tutti"]:
             continue
         scelti_lower = {t.lower() for v in normalizza_voci(a["seriali"]) for t in espandi_voce(v)}
@@ -204,6 +205,7 @@ def api_controllo_blocco(request, pk: int):
             return _err(f"Anomalia {n}: scegli su quali seriali è presente (o riattiva «Su tutti i seriali del blocco»)")
         if len(subset) < len(chiavi_blocco):
             a["sn"] = etichetta_blocco(comprimi_seriali(subset))
+            a["copertura"] = subset
 
     blocco = None
     esistenti: dict[int, dict] = {}
@@ -248,6 +250,17 @@ def api_controllo_blocco(request, pk: int):
             "code": "seriali_ripetuti",
             "error": "Alcuni seriali sono già in un altro blocco di questo controllo.",
             "seriali_ripetuti": [{"seriale": t, "blocco": n} for t, n in ripetuti.items()],
+        }, status=409)
+
+    # Ogni S/N del blocco dovrebbe avere almeno un'anomalia: se no, avviso da confermare
+    # (di solito è un seriale da togliere dal blocco o una selezione dimenticata).
+    scoperti = cs.seriali_senza_anomalia(voci, [a["copertura"] for a in anomalie])
+    if scoperti and not data.get("conferma_seriali_scoperti"):
+        return JsonResponse({
+            "success": False,
+            "code": "seriali_scoperti",
+            "error": "Alcuni seriali del blocco non hanno nessuna anomalia.",
+            "seriali_scoperti": scoperti,
         }, status=409)
 
     with transaction.atomic():
@@ -321,6 +334,7 @@ def api_controllo_blocco(request, pk: int):
         "controllo_id": controllo.pk, "blocco_id": blocco.pk, "op_id": controllo.op_id,
         "seriali": label, "anomalie": [r.get("local_id") for r in risultati], "errori": len(errori),
         "stato_superficie": stati, "seriali_ripetuti": sorted(ripetuti),
+        "seriali_scoperti": scoperti,
     })
     controllo.refresh_from_db()
     return JsonResponse({
