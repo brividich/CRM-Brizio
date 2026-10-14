@@ -52,6 +52,7 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - Il deploy del Setup Wizard, dopo l'attivazione della release, copia `start_qcluster.ps1` e `watch_qcluster.ps1` in `shared\scripts` (solo se già installati e diversi, con backup `.<data>.bak`) e riavvia `QCluster_<ENV>`. Non serve più ricopiarli a mano né riavviare il qcluster dopo `migrate`. Un task disabilitato (manutenzione dalla console qcluster) non viene riavviato.
 - Il launcher lega a sé i processi python (job object kill-on-close): fermando o uccidendo il task non restano python orfani. All'avvio chiude comunque ogni `qcluster` residuo dello stesso venv, così non partono due cluster sulla stessa coda.
 - Test: `deployment\tests\test-qcluster-orphans.ps1 -VenvPath <venv>` (processi sintetici).
+- Watchdog: un worker in esecuzione ma non sano (niente heartbeat o coda ferma) per 5 minuti di fila (`-HungMinutes`) viene fermato e riavviato, con lo stesso limite di 3 riavvii in 30 minuti. Prima veniva solo segnalato.
 
 #### Qcluster: ripartenza dopo riavvio del server (14/10/2026)
 
