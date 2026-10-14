@@ -63,8 +63,10 @@ class VerificheUxTests(TestCase):
         todo = self._list().context["todo"]
         kinds = {(row["kind"], row["title"]) for row in todo}
         self.assertIn(("Scaduta", "Estintori"), kinds)
-        self.assertIn(("Rilievi senza OdL", "Terra"), kinds)
+        # I rilievi si segnalano sulla riga, non sono una cosa da fare (niente OdL da aprire).
+        self.assertNotIn("Terra", {row["title"] for row in todo})
         self.assertEqual(todo[0]["tone"], "danger")
+        self.assertContains(self._list(), "1 rilievo</span>")
 
     def test_singola_verifica_ha_le_schede_e_la_testata_sotto_la_barra(self):
         session = PeriodicCheckSession.objects.create(check_type=self.plain, performed_on=timezone.localdate())
@@ -74,7 +76,7 @@ class VerificheUxTests(TestCase):
         html = page.content.decode()
         self.assertContains(page, "Sezioni della verifica")
         self.assertLess(html.index('class="as-section-nav"'), html.index('class="as-page-head"'))
-        self.assertEqual([p["state"] for p in page.context["progress"]], ["done", "done", "done"])
+        self.assertEqual([p["state"] for p in page.context["progress"]], ["done", "done"])
 
     def test_elenco_tiene_la_testata_sopra_la_barra(self):
         html = self._list().content.decode()

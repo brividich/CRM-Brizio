@@ -47,7 +47,7 @@ class PeriodicCheckSystemForm(forms.ModelForm):
         labels = {
             "name": "Impianto",
             "description": "Descrizione",
-            "asset": "Asset per gli ordini di lavoro",
+            "asset": "Asset di riferimento",
             "sort_order": "Ordine",
             "is_active": "Attivo",
         }
@@ -212,7 +212,7 @@ class PeriodicCheckRegisterForm(forms.Form):
         label="Rilievi / prescrizioni",
         required=False,
         widget=forms.Textarea(attrs={"rows": 4}),
-        help_text="Uno per riga. Ogni rilievo potra' diventare un ordine di lavoro.",
+        help_text="Uno per riga: ogni rilievo resta segnalato sulla verifica.",
     )
     notes = forms.CharField(label="Note", required=False, widget=forms.Textarea(attrs={"rows": 3}))
     next_due_date = forms.DateField(
@@ -279,15 +279,6 @@ class PeriodicCheckSessionEditForm(forms.Form):
         if performed_on and next_due and next_due <= performed_on:
             self.add_error("next_due_date", "La prossima scadenza deve essere dopo la data della verifica.")
         return cleaned
-
-
-class WorkOrderFromResultForm(forms.Form):
-    asset = forms.ModelChoiceField(label="Asset", queryset=Asset.objects.none())
-    title = forms.CharField(label="Titolo", max_length=255)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["asset"].queryset = Asset.objects.order_by("asset_tag", "name")
 
 
 class PeriodicCheckIntakeConfigForm(forms.ModelForm):

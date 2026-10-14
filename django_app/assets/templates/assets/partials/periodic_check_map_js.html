@@ -110,12 +110,9 @@
     if (d.woLabel) row(dl, "Ordine di lavoro", d.woLabel);
     card.appendChild(dl);
     var actions = el("div", "", "pc-map-actions");
-    var open = !d.woUrl && (state === "cat0" || state === "cat1");
-    if (d.woUrl) actions.appendChild(link(d.woUrl, "Apri l'OdL", "btn btn-primary btn-sm"));
-    if (d.sessionUrl) {
-      actions.appendChild(link(d.sessionUrl, open ? "Crea OdL dalla verifica" : "Apri la verifica",
-        open ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"));
-    }
+    // Il rilievo resta segnalato: nessun OdL da creare (il link compare solo per gli OdL dello storico).
+    if (d.woUrl) actions.appendChild(link(d.woUrl, "Apri l'OdL", "btn btn-secondary btn-sm"));
+    if (d.sessionUrl) actions.appendChild(link(d.sessionUrl, "Apri la verifica", "btn btn-secondary btn-sm"));
     if (actions.children.length) card.appendChild(actions);
     card.hidden = false;
     if (center) {

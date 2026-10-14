@@ -32,9 +32,9 @@
       <span class="md-kpi-sub">verifiche fatte, ne sono attese {{ stats.expected_12m }}</span>
     </div>
     <a class="md-kpi {% if stats.open_findings %}is-danger{% endif %}" href="?tab=storico">
-      <span class="md-kpi-label">Rilievi senza OdL</span>
+      <span class="md-kpi-label">Rilievi</span>
       <span class="md-kpi-value">{{ stats.open_findings }}</span>
-      <span class="md-kpi-sub">nell'ultima verifica · {{ stats.open_work_orders }} OdL apert{% if stats.open_work_orders == 1 %}o{% else %}i{% endif %}</span>
+      <span class="md-kpi-sub">segnalati nell'ultima verifica</span>
     </a>
   </div>
 
@@ -75,7 +75,7 @@
                 {% if m.p.state == "unknown" %}
                   <span class="pc-pt is-unknown" style="left:{{ m.left }}%;top:{{ m.top }}%" title="Punto {{ m.p.code }}"></span>
                 {% else %}
-                  <button type="button" class="pc-pt is-{{ m.p.state }}{% if m.p.state == 'cat0' or m.p.state == 'cat1' %}{% if not m.p.work_order %} is-open{% endif %}{% endif %}"
+                  <button type="button" class="pc-pt is-{{ m.p.state }}{% if m.p.state == 'cat0' or m.p.state == 'cat1' %} is-open{% endif %}"
                           style="left:{{ m.left }}%;top:{{ m.top }}%" data-pc-point="{{ m.p.code }}"
                           data-state="{{ m.p.state }}" data-category="{{ m.p.category }}"
                           data-since="{{ m.p.since|date:'d/m/Y' }}" data-streak="{{ m.p.streak }}" data-recent="{{ m.p.recent_count }}"
@@ -96,7 +96,7 @@
               {% if stats.defective %}
                 <ul>
                   {% for p in stats.defective %}
-                    <li><button type="button" data-pc-focus="{{ p.code }}"><span class="pc-key is-{{ p.state }}"></span><strong>{{ p.code }}</strong> <span class="pc-muted">{{ p.category }}</span>{% if p.work_order %}<span class="pc-map-wo">OdL #{{ p.work_order.id }}</span>{% else %}<span class="pc-map-wo is-none">senza OdL</span>{% endif %}</button></li>
+                    <li><button type="button" data-pc-focus="{{ p.code }}"><span class="pc-key is-{{ p.state }}"></span><strong>{{ p.code }}</strong> <span class="pc-muted">{{ p.category }}</span></button></li>
                   {% endfor %}
                 </ul>
               {% elif stats.layout_session %}
@@ -112,7 +112,7 @@
       {% if stats.defective %}
         <div class="md-scroll">
           <table class="md-table pc-table-auto" data-fm-table-skip="1">
-            <thead><tr><th>Punto</th><th>Stato</th><th>Da</th><th>Nelle ultime verifiche</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+            <thead><tr><th>Punto</th><th>Stato</th><th>Da</th><th>Nelle ultime verifiche</th><th class="md-right">Verifica</th></tr></thead>
             <tbody>
               {% for p in stats.defective %}
                 <tr id="punto-{{ p.code }}">
@@ -120,7 +120,7 @@
                   <td><span class="pc-key is-{{ p.state }}"></span> {{ p.category }}</td>
                   <td>{{ p.since|date:"d/m/Y" }}{% if p.streak > 1 %} <span class="md-sub">{{ p.streak }} verifiche di fila</span>{% endif %}</td>
                   <td>{{ p.recent_count }} volt{% if p.recent_count == 1 %}a{% else %}e{% endif %}</td>
-                  <td class="md-right">{% if p.work_order %}<a href="{% url 'assets:wo_view' p.work_order.id %}">OdL #{{ p.work_order.id }}</a> <span class="md-sub">{{ p.work_order.get_status_display }}</span>{% else %}<a href="{% url 'assets:periodic_check_session_detail' p.session_id %}">Crea OdL dalla verifica</a>{% endif %}</td>
+                  <td class="md-right"><a href="{% url 'assets:periodic_check_session_detail' p.session_id %}">Apri la verifica</a></td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -158,11 +158,10 @@
       {% if stats.measure_ko %}
         <div class="md-scroll">
           <table class="md-table pc-table-auto" data-fm-table-skip="1">
-            <thead><tr><th>Punto</th><th>Perche'</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+            <thead><tr><th>Punto</th><th>Perche'</th></tr></thead>
             <tbody>
               {% for r in stats.measure_ko %}
-                <tr><td><strong>{{ r.label }}</strong></td><td>{{ r.note|default:r.category }}</td>
-                  <td class="md-right">{% if r.work_order %}<a href="{% url 'assets:wo_view' r.work_order.id %}">OdL #{{ r.work_order.id }}</a> <span class="md-sub">{{ r.work_order.get_status_display }}</span>{% else %}<a href="{% url 'assets:periodic_check_session_detail' stats.measure_session.id %}">Crea OdL dalla verifica</a>{% endif %}</td></tr>
+                <tr><td><strong>{{ r.label }}</strong></td><td>{{ r.note|default:r.category }}</td></tr>
               {% endfor %}
             </tbody>
           </table>

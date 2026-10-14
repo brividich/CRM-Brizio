@@ -64,9 +64,10 @@ class StatistichePlanimetriaTests(TestCase):
         self._session(date(2026, 1, 10), {"5": NF})
         last = self._session(date(2026, 5, 20), {"5": NF, "11": BA})
         result_11 = last.results.get(point__code="11")
-        work_order = checks.create_work_order(result_11, asset=self.asset)
-        work_order.status = WorkOrder.STATUS_DONE
-        work_order.save(update_fields=["status"])
+        # OdL collegato dallo storico (prima che i rilievi smettessero di aprirne): chiuso = riparato.
+        result_11.work_order = WorkOrder.objects.create(
+            asset=self.asset, title="Storico", kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_DONE)
+        result_11.save(update_fields=["work_order"])
 
         stats = periodic_stats.type_stats(self.check_type, today=date(2026, 6, 1))
         by_code = {p.code: p for p in stats.points}
@@ -94,7 +95,6 @@ class StatistichePlanimetriaTests(TestCase):
         for tab, expected in (
             ("panoramica", "Stato attuale"),
             ("storico", "Storico verifiche"),
-            ("odl", "Ordini di lavoro dai rilievi"),
             ("documenti", "Documenti"),
             ("impostazioni", "Planimetria e foglio per il tecnico"),
         ):

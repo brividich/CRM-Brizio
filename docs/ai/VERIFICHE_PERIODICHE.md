@@ -17,19 +17,21 @@ cartelle `\\novisrv\privman\...` come fonte di verita'.
 - **Separata dalla pagina legacy** `periodic_verifications` («Manutenzioni periodiche»,
   modello `PeriodicVerification`, in dismissione): nomi, modelli e URL diversi.
   I nuovi modelli usano il prefisso `PeriodicCheck*` proprio per non confondersi.
-- Esito non conforme -> **OdL** (`WorkOrder`). `WorkOrder.asset` e' obbligatorio: ogni
-  impianto ha un *asset di riferimento* proposto come default, modificabile.
+- Esito non conforme -> **rilievo segnalato** sulla verifica, **mai un OdL** (decisione utente
+  14/10/2026: «basta che sia segnalato il rilievo, niente OdL»). Nessuna azione, pulsante o
+  indicatore propone o conta OdL. `PeriodicCheckResult.work_order` resta solo per gli OdL dello
+  storico (link in sola lettura su singola verifica, storico e mappa; colonna mostrata solo se c'e').
 - Chi registra puo' anche confermare (nessuna separazione dei ruoli).
 
 ## Modello
 
 | Modello | Cosa | Note |
 |---|---|---|
-| `PeriodicCheckSystem` | Impianto (elettrico, antincendio, primo soccorso…) | `asset` di riferimento per gli OdL (opzionale) |
+| `PeriodicCheckSystem` | Impianto (elettrico, antincendio, primo soccorso…) | `asset` di riferimento (opzionale) |
 | `PeriodicCheckType` | Tipo di verifica («Verifica quadri elettrici», semestrale) | metodo, frequenza in mesi, preavviso, fornitore, riferimento normativo, codice (es. «005» Bruschi), `next_due_date` |
 | `PeriodicCheckItem` | Voce di checklist del tipo | solo metodo checklist |
 | `PeriodicCheckSession` | Una verifica eseguita | data, tecnico, fornitore, esito, stato (bozza/confermata), origine (manuale/import/parser), `import_key` univoca |
-| `PeriodicCheckResult` | Esito per voce / prescrizione | OK/KO/NA, nota, `work_order` generato |
+| `PeriodicCheckResult` | Esito per voce / prescrizione | OK/KO/NA, nota, `work_order` solo storico (non se ne creano piu') |
 | `PeriodicCheckAttachment` | Rapportino/verbale | storage privato cifrato (`ASSETS_PRIVATE_ROOT`), download con audit |
 
 Alla conferma di una sessione la prossima scadenza del tipo diventa
@@ -83,22 +85,22 @@ la cartella di pescaggio arriva dopo con una pagina di configurazione.
 
 La pagina di un tipo di verifica (`/assets/manutenzione/verifiche-impianti/tipo/<id>/`) e' la
 **scheda** della verifica, con schede `?tab=`: **Panoramica** (statistiche), **Storico verifiche**,
-**Ordini di lavoro** (OdL nati dai rilievi), **Documenti** (tutti gli allegati, senza le immagini
+**Documenti** (tutti gli allegati, senza le immagini
 di lettura), **Impostazioni** (dati del tipo, planimetria, voci di checklist).
 
 Panoramica (`services/periodic_stats.py`, sola lettura):
 - indicatori: prossima e ultima verifica, **punti in ordine** (%), **nei tempi** (verifiche fatte
   entro la scadenza fissata dalla precedente, ultimi 24 mesi), verifiche negli ultimi 12 mesi
-  rispetto alle attese, rilievi dell'ultima verifica senza OdL e OdL aperti;
+  rispetto alle attese, **rilievi** segnalati nell'ultima verifica;
 - metodo planimetria: **mappa dello stato attuale** (planimetria come immagine
   `periodic_check_layout_image`, in cache 30 giorni, con i punti in percentuale: difettoso per
-  categoria, riparato = OdL chiuso, in ordine), elenco dei difettosi con «da quando» e verifiche
+  categoria, riparato = OdL dello storico chiuso, in ordine), elenco dei difettosi con «da quando» e verifiche
   di fila, **punti ricorrenti** (almeno 2 volte nelle ultime 6 verifiche con esiti);
   la mappa tiene le proporzioni della pagina PDF con `aspect-ratio` (MAI `padding-top` in %:
   si calcola sulla larghezza del contenitore e stirava la planimetria) e sta in `78vh`;
   e' interattiva (`partials/periodic_check_map_js.html`, JS in pagina senza librerie): filtri
-  per stato, zoom/trascinamento, punti con segnalazione senza OdL che pulsano, scheda del punto
-  con OdL o «Crea OdL dalla verifica», elenco «Segnalazioni attive» che centra il punto;
+  per stato, zoom/trascinamento, punti segnalati che pulsano, scheda del punto
+  con «Apri la verifica», elenco «Segnalazioni attive» che centra il punto;
 - metodo checklist: **voci piu' spesso non OK**;
 - **andamento dei rilievi**: barre impilate per categoria delle ultime 12 verifiche con esiti (SVG).
 - Le verifiche importate dallo storico hanno solo il documento: contano per date e puntualita',
@@ -113,11 +115,11 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
   `views_verifiche.py`, partial `periodic_check_guide.html`). Passi diversi per metodo, ognuno
   con stato (fatto / da fare / pronto / in attesa / bloccato) e il pulsante per farlo; il primo
   passo da fare e' evidenziato. Planimetria: carica planimetria → stampa foglio → carica
-  scansione → conferma → rilievi in OdL. Checklist: voci → registra → OdL. Verbale/misure:
-  registra → OdL (per le misure la pagina dice che la lettura automatica arrivera').
+  scansione → conferma → rilievi segnalati. Checklist: voci → registra → rilievi. Verbale/misure:
+  registra → rilievi. L'ultimo passo «Rilievi segnalati» e' informativo (porta alla verifica).
 - Elenco: la riga intera apre la scheda (`tr[data-href]`, JS in `periodic_check_form_js.html`);
   «Stampa foglio» per le planimetrie con planimetria caricata, «Carica planimetria» se manca,
-  «Registra» per gli altri metodi. Il flag dei rilievi senza OdL conta solo l'ultima verifica
+  «Registra» per gli altri metodi. Il flag «N rilievi» conta solo l'ultima verifica
   con esiti, come la scheda.
 
 ## Navigazione, categorie, «Cosa fare adesso»
@@ -127,14 +129,14 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
   per crearle e assegnarle in blocco. Elenco: `?categoria=<id>|nessuna` e
   `?raggruppa=impianto|categoria`. Non confondere con `point_categories` («Tipi di segnalazione
   sui punti»: cosa puo' avere un punto della planimetria).
-- **«Cosa fare adesso»** (`_todo_queue`): rilievi senza OdL e scadute, poi da confermare, fogli in
-  giro, in scadenza; max 8 righe. Una verifica con un foglio gia' in giro non compare come scaduta.
+- **«Cosa fare adesso»** (`_todo_queue`): scadute, poi da confermare, fogli in
+  giro, in scadenza; max 8 righe. I rilievi non sono una cosa da fare: stanno sulla riga. Una verifica con un foglio gia' in giro non compare come scaduta.
 - **Pagine di una verifica** (scheda, singola verifica, registrazione, modifica): `_object_page`
   mette `assets_head_below_nav` (la barra del modulo sopra, la testata della verifica sotto;
   `base_shell.html` include `components/section_nav.html` in una delle due posizioni) e le
   schede della verifica (`partials/periodic_check_type_tabs.html`, con briciola della sottopagina).
 - Singola verifica: percorso a passi (`_session_progress`): foglio stampato → scansione →
-  conferma → rilievi con OdL (senza foglio: registrata → confermata → rilievi).
+  conferma (senza foglio: registrata → confermata).
 - `extract_points` riconosce **due disegni** e sceglie quello che trova piu' punti:
   riquadro rosso con la X + numero rosso (luci, 71 punti) e **quadratino pieno colorato con
   l'etichetta accanto** (differenziali: «D12», «D3/A», numeri per le macchine; anche
@@ -173,14 +175,14 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
   riga `nome | unita' | min | max`. Migrazione 0117 (`PeriodicCheckResult.values` JSON
   {id grandezza: valore}, kind `MEASURE`).
 - Esito per riga (`checks.measure_input`): fuori soglia o «da sostituire» -> KO con nota;
-  diventa rilievo/OdL come gli altri.
+  diventa un rilievo come gli altri.
 - Registrazione: griglia punti × grandezze (+ 4 righe libere per punti non previsti, es. un
   interruttore nuovo), fuori soglia colorati mentre si scrive, righe vuote non registrate.
 - Foglio con QR (`periodic_layout.build_measure_sheet`, stessa intestazione del foglio
   planimetria via `_draw_frame`): griglia vuota da compilare a mano, piu' pagine se serve.
   La scansione (pagina o cartella) si **allega** e la verifica passa «da confermare»: i valori
   li riporta una persona accanto alla scansione (nessuna lettura della scrittura a mano).
-- Scheda: «Da sistemare adesso» (righe KO dell'ultima verifica con OdL) e «Punti ricorrenti».
+- Scheda: «Da sistemare adesso» (righe KO dell'ultima verifica) e «Punti ricorrenti».
 - Catalogo: UPS 2 pacchi × 20 batterie con le 5 letture del rapportino Bruschi; differenziali
   con strumento (mA, ms; righe libere); antintrusione (tensione batteria modulo). **Soglie da
   impostare** dal portale: non erano note. `seed_periodic_checks --apply` completa i tipi a

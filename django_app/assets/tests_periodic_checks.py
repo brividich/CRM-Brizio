@@ -191,7 +191,7 @@ class PagineTests(TestCase):
         self.assertEqual(self.check_type.next_due_date, self.check_type.next_due_from(performed))
 
         detail = self.client.get(reverse("assets:periodic_check_session_detail", args=[session.id]))
-        self.assertContains(detail, "Crea OdL")
+        self.assertNotContains(detail, "Crea OdL")
         self.assertContains(detail, "Morsetto caldo")
 
         attachment = session.attachments.get()
@@ -199,7 +199,8 @@ class PagineTests(TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertEqual(b"".join(download.streaming_content), PDF_BYTES)
 
-    def test_odl_dal_rilievo_con_asset_dell_impianto(self):
+    def test_rilievo_resta_segnalato_senza_odl(self):
+        """Un rilievo si segnala e basta: nessun OdL proposto, la vecchia azione non ne apre."""
         session = checks.register_session(checks.SessionInput(
             self.check_type, timezone.localdate(), PeriodicCheckSession.OUTCOME_KO,
             results=[checks.ResultInput("Quadro Q3 senza targhetta", kind=PeriodicCheckResult.KIND_REMARK,
@@ -207,15 +208,22 @@ class PagineTests(TestCase):
         ))
         result = session.results.get()
         url = reverse("assets:periodic_check_session_detail", args=[session.id])
+        detail = self.client.get(url)
+        self.assertContains(detail, "Quadro Q3 senza targhetta")
+        for testo in ("Crea OdL", "senza OdL", "Ordine di lavoro", 'value="work_order"'):
+            self.assertNotContains(detail, testo)
         self.client.post(url, {"action": "work_order", "result_id": result.id, "asset": self.asset.id, "title": "Targhetta Q3"})
         result.refresh_from_db()
-        self.assertIsNotNone(result.work_order_id)
-        work_order = result.work_order
-        self.assertEqual((work_order.asset_id, work_order.title, work_order.kind),
-                         (self.asset.id, "Targhetta Q3", WorkOrder.KIND_CORRECTIVE))
-        # Un secondo invio non apre un altro OdL.
-        self.client.post(url, {"action": "work_order", "result_id": result.id, "asset": self.asset.id, "title": "X"})
-        self.assertEqual(WorkOrder.objects.filter(periodic_check_results=result).count(), 1)
+        self.assertIsNone(result.work_order_id)
+        self.assertFalse(WorkOrder.objects.exists())
+        scheda = self.client.get(reverse("assets:periodic_check_type_detail", args=[self.check_type.id]))
+        self.assertNotContains(scheda, "Crea gli OdL")
+        self.assertNotContains(scheda, "senza OdL")
+        self.assertContains(scheda, "Rilievi segnalati")
+        elenco = self.client.get(reverse("assets:periodic_check_list"))
+        self.assertNotContains(elenco, "senza OdL")
+        self.assertNotContains(elenco, "Crea gli OdL")
+        self.assertContains(elenco, "1 rilievo")
 
     def test_senza_permessi_non_registra_ne_scarica(self):
         session = checks.register_session(checks.SessionInput(self.check_type, timezone.localdate(), "OK"))

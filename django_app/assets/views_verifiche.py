@@ -31,10 +31,8 @@ from .forms_verifiche import (
     PeriodicCheckSessionEditForm,
     PeriodicCheckSystemForm,
     PeriodicCheckTypeForm,
-    WorkOrderFromResultForm,
 )
 from .models import (
-    Asset,
     PeriodicCheckAttachment,
     PeriodicCheckCategory,
     PeriodicCheckIntakeConfig,
@@ -44,7 +42,6 @@ from .models import (
     PeriodicCheckSession,
     PeriodicCheckSystem,
     PeriodicCheckType,
-    WorkOrder,
 )
 from .services import periodic_checks as checks
 from .services import periodic_intake, periodic_stats
@@ -141,16 +138,7 @@ def _todo_queue(types, today) -> list[dict]:
         })
     for check_type in types:
         state = checks.type_state(check_type, today)
-        if check_type.open_ko:
-            todo.append({
-                "tone": "danger", "rank": 0, "kind": "Rilievi senza OdL",
-                "title": check_type.name,
-                "detail": ("1 rilievo dell'ultima verifica non ha" if check_type.open_ko == 1
-                           else f"{check_type.open_ko} rilievi dell'ultima verifica non hanno")
-                + " ancora un ordine di lavoro.",
-                "url": reverse("assets:periodic_check_session_detail", args=[check_type.latest_id]),
-                "action": "Crea gli OdL",
-            })
+        # I rilievi si segnalano sulla riga della verifica: non chiedono un ordine di lavoro.
         if state == checks.STATE_OVERDUE and not check_type.issued:
             todo.append({
                 "tone": "danger", "rank": 0, "kind": "Scaduta",
@@ -197,8 +185,7 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
     ):
         latest_ids.setdefault(session.check_type_id, session.id)
     open_by_session = dict(
-        PeriodicCheckResult.objects.filter(session_id__in=latest_ids.values(), result=PeriodicCheckResult.RESULT_KO,
-                                           work_order__isnull=True)
+        PeriodicCheckResult.objects.filter(session_id__in=latest_ids.values(), result=PeriodicCheckResult.RESULT_KO)
         .values("session_id").annotate(n=Count("id")).values_list("session_id", "n")
     )
     for check_type in types:
@@ -317,11 +304,6 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
         context["trend_bars"] = _trend_bars(stats)
     elif tab == "storico":
         context["sessions"] = sessions
-    elif tab == "odl":
-        context["work_orders"] = (
-            WorkOrder.objects.filter(periodic_check_results__session__check_type=check_type)
-            .select_related("asset").distinct().order_by("-opened_at", "-id")
-        )
     elif tab == "documenti":
         context["documents"] = (
             PeriodicCheckAttachment.objects.filter(session__check_type=check_type)
@@ -343,8 +325,7 @@ def _guide(request: HttpRequest, check_type: PeriodicCheckType, layout) -> dict:
     drafts = sessions.filter(status=PeriodicCheckSession.STATUS_DRAFT).order_by("-id")
     latest = sessions.filter(status=PeriodicCheckSession.STATUS_CONFIRMED).exclude(
         outcome=PeriodicCheckSession.OUTCOME_ARCHIVE).order_by("-performed_on", "-id").first()
-    open_ko = (latest.results.filter(result=PeriodicCheckResult.RESULT_KO, work_order__isnull=True).count()
-               if latest else 0)
+    open_ko = latest.results.filter(result=PeriodicCheckResult.RESULT_KO).count() if latest else 0
     steps: list[dict] = []
 
     def step(title, detail, state, action=None):
@@ -425,14 +406,16 @@ def _guide(request: HttpRequest, check_type: PeriodicCheckType, layout) -> dict:
     else:
         detail = "Data, esito, rilievi o prescrizioni (uno per riga) e il verbale allegato."
         step("Registra la verifica", detail, "ready", {"label": "Registra", "url": register_url} if can_register else None)
+    # I rilievi restano segnalati sulla verifica: nessun ordine di lavoro da aprire.
     if latest:
-        step("Rilievi → ordini di lavoro",
-             f"{open_ko} rilievi dell'ultima verifica ({latest.performed_on:%d/%m/%Y}) senza ordine di lavoro." if open_ko
-             else "Nessun rilievo aperto nell'ultima verifica.",
-             "todo" if open_ko else "done",
-             {"label": "Crea gli OdL", "url": reverse("assets:periodic_check_session_detail", args=[latest.id])} if open_ko else None)
+        step("Rilievi segnalati",
+             (f"{'1 rilievo' if open_ko == 1 else f'{open_ko} rilievi'} nell'ultima verifica "
+              f"({latest.performed_on:%d/%m/%Y}).") if open_ko
+             else "Nessun rilievo nell'ultima verifica.",
+             "done",
+             {"label": "Vedi i rilievi", "url": reverse("assets:periodic_check_session_detail", args=[latest.id])} if open_ko else None)
     else:
-        step("Rilievi → ordini di lavoro", "Ogni rilievo non conforme diventa un ordine di lavoro dalla pagina della verifica.", "waiting")
+        step("Rilievi segnalati", "I rilievi non conformi restano segnalati sulla pagina della verifica.", "waiting")
     next_step = next((s for s in steps if s["state"] in ("todo", "ready") and s["action"]), None)
     if next_step:
         next_step["is_next"] = True
@@ -442,7 +425,6 @@ def _guide(request: HttpRequest, check_type: PeriodicCheckType, layout) -> dict:
 _TYPE_TABS = (
     ("panoramica", "Panoramica"),
     ("storico", "Storico verifiche"),
-    ("odl", "Ordini di lavoro"),
     ("documenti", "Documenti"),
     ("impostazioni", "Impostazioni"),
 )
@@ -852,7 +834,6 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
         pk=session_id,
     )
     check_type = session.check_type
-    default_asset = check_type.system.asset
     if request.method == "POST":
         if not can_execute_maintenance(request):
             return _deny(request, "Non hai il permesso di modificare le verifiche.",
@@ -863,21 +844,6 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
             log_action(request, "periodic_check_confirm", "assets", {"session_id": session.id},
                        oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
             messages.success(request, "Verifica confermata.")
-        elif action == "work_order":
-            result = get_object_or_404(PeriodicCheckResult, pk=request.POST.get("result_id"), session=session)
-            wo_form = WorkOrderFromResultForm(request.POST)
-            if result.work_order_id:
-                messages.info(request, f"Esiste gia' l'ordine di lavoro #{result.work_order_id}.")
-            elif wo_form.is_valid():
-                work_order = checks.create_work_order(
-                    result, asset=wo_form.cleaned_data["asset"], user=request.user, title=wo_form.cleaned_data["title"]
-                )
-                log_action(request, "periodic_check_work_order", "assets",
-                           {"session_id": session.id, "result_id": result.id, "work_order_id": work_order.id},
-                           oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
-                messages.success(request, f"Ordine di lavoro #{work_order.id} aperto.")
-            else:
-                messages.error(request, "Scegli l'asset e il titolo dell'ordine di lavoro.")
         elif action == "scan":
             return _scan_upload(request, session)
         elif action == "confirm_points" and not session.is_confirmed:
@@ -925,12 +891,8 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
         "remarks": [r for r in results if r.kind == PeriodicCheckResult.KIND_REMARK],
         "measures": [r for r in results if r.kind == PeriodicCheckResult.KIND_MEASURE],
         "attachments": [a for a in attachments if a is not overlay],
-        "default_asset": default_asset,
-        "asset_choices": (
-            list(Asset.objects.order_by("asset_tag", "name").only("id", "asset_tag", "name"))
-            if can_execute_maintenance(request) and any(r.result == PeriodicCheckResult.RESULT_KO and not r.work_order_id for r in results)
-            else []
-        ),
+        # Solo storico: OdL aperti dai rilievi prima che la funzione fosse tolta.
+        "has_work_orders": any(r.work_order_id for r in results),
     })
 
 
@@ -1131,9 +1093,8 @@ _METHOD_HELP = {
 
 
 def _session_progress(session: PeriodicCheckSession, results) -> list[dict]:
-    """Dove si trova questa verifica: i passi del suo percorso, fatto / adesso / dopo."""
-    ko_open = sum(1 for r in results if r.result == PeriodicCheckResult.RESULT_KO and not r.work_order_id)
-    ko_total = sum(1 for r in results if r.result == PeriodicCheckResult.RESULT_KO)
+    """Dove si trova questa verifica: i passi del suo percorso, fatto / adesso / dopo.
+    I rilievi chiudono con la conferma: restano segnalati, senza ordine di lavoro."""
     if session.sheet_token:
         steps = [
             ("Foglio stampato", True),
@@ -1143,11 +1104,6 @@ def _session_progress(session: PeriodicCheckSession, results) -> list[dict]:
         ]
     else:
         steps = [("Verifica registrata", True), ("Confermata", session.is_confirmed)]
-    if not session.is_confirmed:
-        last = "Rilievi in ordini di lavoro"
-    else:
-        last = "Rilievi con OdL" if ko_total else "Nessun rilievo aperto"
-    steps.append((last, session.is_confirmed and not ko_open))
     out, current_set = [], False
     for label, done in steps:
         state = "done" if done else ("current" if not current_set else "todo")
