@@ -1,12 +1,14 @@
 #Requires -Version 5.1
 <# Independent minute watchdog. Run under the worker service account.
    Exit: 0 healthy/maintenance/grace; 2 unhealthy; 3 probe/task/notification failure.
-   No queue replay and no forced termination of a running worker.
+   No queue replay. A running worker is stopped only when it stays unhealthy
+   (no heartbeat or stalled queue) for HungMinutes; same 3-in-30-minutes cap.
 #>
 param(
     [ValidateSet('test', 'prod')][string]$Environment = 'prod',
     [string]$PortaleRoot = 'C:\PortaleNovicrom',
     [ValidateRange(1, 90)][int]$ProbeTimeoutSec = 45,
+    [ValidateRange(3, 120)][int]$HungMinutes = 5,
     [ValidateRange(0, 1440)][int]$MaintenanceMinutes = 0,
     [switch]$Resume
 )
@@ -98,55 +100,86 @@ try {
         Remove-Item -LiteralPath $stdout, $stderr -ErrorAction SilentlyContinue
     }
     if ($grace) { Write-WatchEvent 'Avvio worker: tolleranza iniziale di tre minuti.'; exit 0 }
+    $hungFile = Join-Path $logs 'qcluster-watchdog-hung.txt'
     if ($health.unhealthy) {
         Write-WatchEvent "Allarme qcluster: $($health.reason); coda=$($health.queued)." 4101 Error
-        if ($worker.State -eq 'Ready' -and -not $health.worker_alive) {
-            # Re-read after the probe: another operator may have disabled/started it.
-            $current = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath
-            if ($current.State -eq 'Ready') {
-                if (Test-Path -LiteralPath $maintenance) {
-                    $until = [DateTimeOffset]::Parse((Get-Content -LiteralPath $maintenance -Raw).Trim())
-                    if ($until -gt [DateTimeOffset]::UtcNow) { Write-WatchEvent 'Manutenzione richiesta durante il controllo: riavvio sospeso.'; exit 0 }
-                }
-                $processes = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'python.exe'" -OperationTimeoutSec 10)
-                $uncertain = @($processes | Where-Object { -not $_.ExecutablePath -or -not $_.CommandLine })
-                $orphans = @($processes | Where-Object { $_.ExecutablePath -eq $python -and $_.CommandLine -match '\bqcluster\b' })
-                if ($uncertain.Count -or $orphans.Count) {
-                    Write-WatchEvent 'Riavvio sospeso: processi Python non verificabili o qcluster residuo presente.' 4104 Error
-                    exit 3
-                }
-                $restartFile = Join-Path $logs 'qcluster-watchdog-restarts.json'
-                # PS 5.1 ConvertFrom-Json emits the whole array as ONE pipeline object and
-                # ConvertTo-Json nests it as {value,Count}: the cap never triggered.
-                # Read entry by entry, drop anything unparsable, write a flat string[].
-                $recent = New-Object 'System.Collections.Generic.List[string]'
-                if (Test-Path -LiteralPath $restartFile) {
-                    $raw = $null
-                    try { $raw = Get-Content -LiteralPath $restartFile -Raw | ConvertFrom-Json } catch { $raw = $null }
-                    foreach ($entry in @($raw)) {
-                        $parsed = [DateTimeOffset]::MinValue
-                        if ($entry -is [string] -and [DateTimeOffset]::TryParse($entry.Trim(), [ref]$parsed) -and
-                            $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(-30)) {
-                            $recent.Add($parsed.ToString('o'))
-                        }
-                    }
-                }
-                if ($recent.Count -ge 3) {
-                    Write-WatchEvent 'Limite di tre riavvii in 30 minuti raggiunto: intervento richiesto.' 4104 Error
-                    exit 3
-                }
-                $recent.Add([DateTimeOffset]::UtcNow.ToString('o'))
-                ConvertTo-Json -InputObject ([string[]]$recent.ToArray()) | Set-Content -LiteralPath $restartFile -Encoding ASCII
-                if ([string]$current.Principal.LogonType -notin @('Password', 'S4U', 'ServiceAccount')) {
-                    # An Interactive task only runs while its user is logged on: after a
-                    # reboot or logoff Start-ScheduledTask is accepted but nothing starts.
-                    Write-WatchEvent 'Task worker registrato come interattivo: dopo riavvio/logoff non parte. Registrarlo con account non interattivo (console qcluster).' 4104 Error
-                }
-                Start-ScheduledTask -TaskName $taskName -TaskPath $taskPath
-                Write-WatchEvent 'Richiesto avvio del task worker fermo; verifica al prossimo ciclo.' 4102 Warning
+        # Re-read after the probe: another operator may have disabled/started it.
+        $current = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath
+        $hungRestart = $false
+        if ($worker.State -eq 'Running' -and $current.State -eq 'Running') {
+            # Task Running but no heartbeat / queue not moving: the cluster is hung.
+            # Restart only after HungMinutes of continuous failure, never on one probe.
+            $since = $null
+            if (Test-Path -LiteralPath $hungFile) {
+                $parsed = [DateTimeOffset]::MinValue
+                if ([DateTimeOffset]::TryParse((Get-Content -LiteralPath $hungFile -Raw).Trim(), [ref]$parsed)) { $since = $parsed }
+            }
+            if (-not $since) {
+                $since = [DateTimeOffset]::UtcNow
+                $since.ToString('o') | Set-Content -LiteralPath $hungFile -Encoding ASCII
+            }
+            if ($since -gt [DateTimeOffset]::UtcNow.AddMinutes(-$HungMinutes)) {
+                Write-WatchEvent "Worker in esecuzione ma non sano dal $($since.ToString('o')): riavvio dopo $HungMinutes minuti."
+            } else {
+                $hungRestart = $true
             }
         }
+        if (($worker.State -eq 'Ready' -and $current.State -eq 'Ready' -and -not $health.worker_alive) -or $hungRestart) {
+            if (Test-Path -LiteralPath $maintenance) {
+                $until = [DateTimeOffset]::Parse((Get-Content -LiteralPath $maintenance -Raw).Trim())
+                if ($until -gt [DateTimeOffset]::UtcNow) { Write-WatchEvent 'Manutenzione richiesta durante il controllo: riavvio sospeso.'; exit 0 }
+            }
+            $restartFile = Join-Path $logs 'qcluster-watchdog-restarts.json'
+            # PS 5.1 ConvertFrom-Json emits the whole array as ONE pipeline object and
+            # ConvertTo-Json nests it as {value,Count}: the cap never triggered.
+            # Read entry by entry, drop anything unparsable, write a flat string[].
+            $recent = New-Object 'System.Collections.Generic.List[string]'
+            if (Test-Path -LiteralPath $restartFile) {
+                $raw = $null
+                try { $raw = Get-Content -LiteralPath $restartFile -Raw | ConvertFrom-Json } catch { $raw = $null }
+                foreach ($entry in @($raw)) {
+                    $parsed = [DateTimeOffset]::MinValue
+                    if ($entry -is [string] -and [DateTimeOffset]::TryParse($entry.Trim(), [ref]$parsed) -and
+                        $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(-30)) {
+                        $recent.Add($parsed.ToString('o'))
+                    }
+                }
+            }
+            if ($recent.Count -ge 3) {
+                Write-WatchEvent 'Limite di tre riavvii in 30 minuti raggiunto: intervento richiesto.' 4104 Error
+                exit 3
+            }
+            if ($hungRestart) {
+                Write-WatchEvent 'Worker bloccato: arresto del task e dei processi qcluster per riavviarlo.' 4102 Warning
+                Stop-ScheduledTask -TaskName $taskName -TaskPath $taskPath
+                for ($i = 0; $i -lt 20 -and (Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath).State -eq 'Running'; $i++) { Start-Sleep -Seconds 1 }
+                # A launcher without job object leaves its python children alive.
+                foreach ($old in @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'python.exe'" -OperationTimeoutSec 10 |
+                        Where-Object { $_.ExecutablePath -eq $python -and $_.CommandLine -match '\bqcluster\b' })) {
+                    & "$env:SystemRoot\System32\taskkill.exe" /PID $old.ProcessId /T /F 2>&1 | Out-Null
+                }
+                Start-Sleep -Seconds 2
+                Remove-Item -LiteralPath $hungFile -ErrorAction SilentlyContinue
+            }
+            $processes = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'python.exe'" -OperationTimeoutSec 10)
+            $uncertain = @($processes | Where-Object { -not $_.ExecutablePath -or -not $_.CommandLine })
+            $orphans = @($processes | Where-Object { $_.ExecutablePath -eq $python -and $_.CommandLine -match '\bqcluster\b' })
+            if ($uncertain.Count -or $orphans.Count) {
+                Write-WatchEvent 'Riavvio sospeso: processi Python non verificabili o qcluster residuo presente.' 4104 Error
+                exit 3
+            }
+            $recent.Add([DateTimeOffset]::UtcNow.ToString('o'))
+            ConvertTo-Json -InputObject ([string[]]$recent.ToArray()) | Set-Content -LiteralPath $restartFile -Encoding ASCII
+            if ([string]$current.Principal.LogonType -notin @('Password', 'S4U', 'ServiceAccount')) {
+                # An Interactive task only runs while its user is logged on: after a
+                # reboot or logoff Start-ScheduledTask is accepted but nothing starts.
+                Write-WatchEvent 'Task worker registrato come interattivo: dopo riavvio/logoff non parte. Registrarlo con account non interattivo (console qcluster).' 4104 Error
+            }
+            Start-ScheduledTask -TaskName $taskName -TaskPath $taskPath
+            Write-WatchEvent 'Richiesto avvio del task worker fermo; verifica al prossimo ciclo.' 4102 Warning
+        }
     } else {
+        Remove-Item -LiteralPath $hungFile -ErrorAction SilentlyContinue
         Write-WatchEvent "OK; coda=$($health.queued)."
         if ($health.notification -eq 'sent') {
             Write-WatchEvent 'Qcluster ripristinato; email di ripristino inviata.' 4105 Information
