@@ -62,6 +62,7 @@ from ..services.asset_conflicts import (
     _check_machine_work_overlaps,
     _parse_iso_date,
 )
+from ..services.meeting_tasks import notify_task_assignment
 from ..services.notify import (
     notify_user,
     _task_notify_users_queryset,
@@ -685,6 +686,7 @@ def task_create(request):
 
             task.save()
             form.save_m2m()
+            notify_task_assignment(task, actor=request.user)
             _persist_task_extra_data(task, request.POST)
             for mw_warn in _check_machine_work_overlaps(task, exclude_task_id=None):
                 messages.warning(request, mw_warn)
@@ -852,6 +854,8 @@ def task_edit(request, task_id: int):
 
             updated_task.save()
             form.save_m2m()
+            if before.get("assigned_to_id") != updated_task.assigned_to_id:
+                notify_task_assignment(updated_task, actor=request.user)
             _persist_task_extra_data(updated_task, request.POST)
             for mw_warn in _check_machine_work_overlaps(updated_task, exclude_task_id=updated_task.pk):
                 messages.warning(request, mw_warn)
@@ -981,7 +985,12 @@ def change_status(request, task_id: int):
     old_status = task.status
     form = TaskStatusForm(request.POST, instance=task)
     if form.is_valid():
-        task = form.save()
+        task = form.save(commit=False)
+        # Completata = avanzamento al 100%: prima restava fermo all'ultimo valore
+        # e la barra diceva «60%» su un'attivita' chiusa.
+        if task.status == TaskStatus.DONE and (task.progress or 0) < 100:
+            task.progress = 100
+        task.save()
         if old_status != task.status:
             _log_event(
                 task,

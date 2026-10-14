@@ -165,7 +165,8 @@ class ActionRegisterTests(TestCase):
             created_by=self.owner,
         )
 
-        with self.assertNumQueries(3):
+        # Una query per sorgente: problemi, azioni d'incontro, attivita', sotto-attivita'.
+        with self.assertNumQueries(4):
             rows = build_project_actions(self.project)
 
         self.assertEqual(len(rows), 2)
@@ -313,7 +314,8 @@ class ProjectActionsViewTests(TasksBaseTestCase):
 
         with patch("tasks.views.overview.render", side_effect=render_without_template_queries):
             # 4 + il prefetch del team (ProjectMember con utenti) sul progetto.
-            with self.assertNumQueries(5):
+            # +1: le azioni d'incontro sono una sorgente del registro.
+            with self.assertNumQueries(6):
                 response = project_actions(request, project_id=self.project.pk)
 
         self.assertEqual(response.status_code, 200)

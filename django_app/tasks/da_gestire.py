@@ -5,7 +5,7 @@ il resto). Riusa tasks/readiness.py.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db.models import Count, Q
 from django.urls import reverse
@@ -146,9 +146,47 @@ def _sec_meetings_open_issues(request, scope):
     }
 
 
+def _sec_meeting_items(request, scope):
+    """Azioni e problemi d'incontro aperti: a me («i miei») o di tutto il portfolio."""
+    from .models import MeetingActionItem, MeetingActionStatus, MeetingIssue, MeetingIssueStatus
+
+    today = timezone.localdate()
+    project_ids = _projects_qs(request, "portfolio").values("id")
+    filters = {"project_id__in": project_ids}
+    if scope == "mine":
+        filters["assigned_to"] = request.user
+    rows = []
+    for model, status, kind in (
+        (MeetingActionItem, MeetingActionStatus.OPEN, "Azione"),
+        (MeetingIssue, MeetingIssueStatus.OPEN, "Problema"),
+    ):
+        for item in model.objects.filter(status=status, **filters).select_related("project", "assigned_to"):
+            owner = item.assigned_to.get_full_name() or item.assigned_to.username if item.assigned_to_id else "senza responsabile"
+            if item.due_date and item.due_date < today:
+                meta = f"{kind} scaduta il {item.due_date:%d/%m/%Y} · {owner}"
+            elif item.due_date:
+                meta = f"{kind} entro il {item.due_date:%d/%m/%Y} · {owner}"
+            else:
+                meta = f"{kind} senza scadenza · {owner}"
+            rows.append((item.due_date or date.max, {
+                "label": f"{item.title} [{item.project.name}]",
+                "url": _url("tasks:project_actions", item.project_id),
+                "meta": meta,
+            }))
+    rows.sort(key=lambda pair: pair[0])
+    return {
+        "key": "meeting_items",
+        "label": "Azioni e problemi assegnati a me" if scope == "mine" else "Azioni e problemi aperti",
+        "tone": "warning", "icon": "✅",
+        "items": [row for _due, row in rows[:_TOP]],
+        "all_url": _url("tasks:mie_azioni") if scope == "mine" else None,
+        "empty": "Nessuna azione o problema aperto.",
+    }
+
+
 def build_kickoff_da_gestire(request, scope: str) -> dict:
     scope = "mine" if scope == "mine" else "portfolio"
-    builders = (_sec_vrf_pending, _sec_not_ready, _sec_critical_tasks, _sec_meetings_open_issues)
+    builders = (_sec_meeting_items, _sec_vrf_pending, _sec_not_ready, _sec_critical_tasks, _sec_meetings_open_issues)
     sections = []
     for b in builders:
         try:

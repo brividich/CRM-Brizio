@@ -14,6 +14,9 @@
     <div class="ts-hero-left">
       <div class="ts-hero-eyebrow-row">
         {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Workflow operativo</span>{% endblock %}
+        {% if tasks_shell_active != "guida" %}
+          <a class="ts-guide-link" href="{% url 'tasks:guida' %}{% block tasks_shell_guide_anchor %}{% endblock %}" title="Come funziona il modulo KICK-OFF">? Guida</a>
+        {% endif %}
       </div>
       <h1>{% block tasks_shell_title %}{{ page_title|default:"KICK-OFF" }}{% endblock %}</h1>
       <div class="ts-hero-text">{% block tasks_shell_subtitle %}{% endblock %}</div>

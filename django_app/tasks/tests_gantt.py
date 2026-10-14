@@ -97,10 +97,9 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         self.assertEqual(str(self.task.next_step_due), "2026-03-10")
         self.assertEqual(str(self.task.due_date), "2026-03-15")
 
-    def test_project_gantt_update_rejects_equal_start_end(self):
+    def test_project_gantt_update_accepts_one_day_task(self):
+        # Inizio e fine nello stesso giorno sono un'attivita' di una giornata, non un errore.
         self.client.force_login(self.assignee)
-        old_next = self.task.next_step_due
-        old_due = self.task.due_date
         response = self.client.post(
             reverse("tasks:project_gantt_update_task", args=[self.project.id, self.task.id]),
             {
@@ -111,9 +110,8 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.task.refresh_from_db()
-        self.assertEqual(self.task.next_step_due, old_next)
-        self.assertEqual(self.task.due_date, old_due)
-        self.assertEqual(self.task.status, TaskStatus.TODO)
+        self.assertEqual(self.task.next_step_due, self.task.due_date)
+        self.assertEqual(str(self.task.due_date), "2026-03-10")
 
     def test_project_gantt_update_denied_for_non_assignee(self):
         self.client.force_login(self.viewer)
