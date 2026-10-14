@@ -633,6 +633,21 @@ body.theme-dark .af-kpi2--warn .af-kpi2-value { color:#fde68a; }
 body.theme-dark .af-kpi2--bad { border-left-color:#ef4444; }
 body.theme-dark .af-kpi2--bad .af-kpi2-value { color:#fca5a5; }
 body.theme-dark .af-tabs { background:rgba(15,23,42,.92); border-color:var(--border); }
+.af-costi { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; padding:12px 16px; }
+.af-costi > div { display:flex; flex-direction:column; gap:2px; padding:10px 12px; border:1px solid #dbe3f0; border-radius:12px; min-width:0; }
+.af-costi span { font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#64748b; }
+.af-costi strong { font-size:20px; font-variant-numeric:tabular-nums; color:#0f172a; }
+.af-costi small { color:#64748b; font-size:12px; }
+.af-costi-tot { background:#0f172a; border-color:#0f172a !important; }
+.af-costi-tot span, .af-costi-tot small { color:#cbd5e1; } .af-costi-tot strong { color:#fff; font-size:24px; }
+.af-costi-voce.is-vuota strong { color:#94a3b8; }
+.af-costi-voce.is-info { border-style:dashed; }
+.af-costi-note { margin:0; padding:0 16px 12px; color:#64748b; font-size:var(--fs-sm); }
+body.theme-dark .af-costi > div { border-color:var(--border); }
+body.theme-dark .af-costi strong { color:var(--text); }
+body.theme-dark .af-costi span, body.theme-dark .af-costi small, body.theme-dark .af-costi-note { color:var(--text-light); }
+body.theme-dark .af-costi-tot { background:rgba(59,130,246,.14); border-color:rgba(59,130,246,.4) !important; }
+body.theme-dark .af-costi-tot strong { color:#fff; }
 .af-mon-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
 .af-mon-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px; border:1px solid #dbe3f0; border-radius:12px; background:linear-gradient(90deg,#f5f8ff 0%,#fff 70%); }
 .af-mon-ico { flex:0 0 auto; display:inline-grid; place-items:center; width:44px; height:36px; border-radius:10px; background:#0f172a; color:#fff; font-size:11px; font-weight:800; letter-spacing:.04em; }
@@ -845,6 +860,19 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   {% endif %}
   {% endwith %}
 
+  {% endif %}
+  {% if asset_costi and not asset_costi.vuoto or asset_costi.pagine_fatturate %}
+  <section class="af-sections" aria-label="Costi dell'asset" data-af-tab="Panoramica">
+    <article class="af-card af-span-full" id="asset-costi">
+      <div class="af-card-head"><div><div class="af-card-kicker">ULTIMI 12 MESI · DAL {{ asset_costi.dal|date:"d/m/Y" }}</div><h2 class="af-card-title">Costi registrati</h2></div></div>
+      <div class="af-costi">
+        <div class="af-costi-tot"><span>Totale</span><strong>€ {{ asset_costi.totale|floatformat:"2g" }}</strong><small>Somma degli importi inseriti nel portale, senza stime.</small></div>
+        {% for v in asset_costi.voci %}<div class="af-costi-voce{% if not v.n %} is-vuota{% endif %}"><span>{{ v.label }}</span><strong>€ {{ v.importo|floatformat:"2g" }}</strong><small>{% if v.n %}{{ v.n }} registrazion{{ v.n|pluralize:"e,i" }} con importo{% else %}nessun importo{% endif %}</small></div>{% endfor %}
+        {% if asset_costi.pagine_fatturate %}<div class="af-costi-voce is-info"><span>Pagine fatturate (Copylab)</span><strong>{{ asset_costi.pagine_fatturate.totale }}</strong><small>Contratt{{ asset_costi.pagine_fatturate.contratti|length|pluralize:"o,i" }} {{ asset_costi.pagine_fatturate.contratti|join:", " }}: le fatture non registrano importi.</small></div>{% endif %}
+      </div>
+      {% if asset_costi.contratti %}<p class="af-costi-note">Canone dei contratti attivi, non sommato (periodo non indicato): {% for c in asset_costi.contratti %}{{ c }} € {{ c.periodic_cost_eur|floatformat:"2g" }}{% if not forloop.last %}; {% endif %}{% endfor %}.</p>{% endif %}
+    </article>
+  </section>
   {% endif %}
   <section class="af-sections">
     {% for card in detail_section_cards %}

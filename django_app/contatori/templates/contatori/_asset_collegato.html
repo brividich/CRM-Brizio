@@ -12,6 +12,7 @@
   <div class="asset-coll-stat">
     <span><b>{{ licenze_asset|length }}</b> licenz{{ licenze_asset|length|pluralize:"a,e" }}</span>
     {% if software_asset and software_asset.rows %}<span><b>{{ software_asset.present }}</b> software rilevati{% if software_asset.inventory_date %} · inventario del {{ software_asset.inventory_date|date:"d/m/Y" }}{% endif %}</span>{% else %}<span class="muted">Nessun software dall'inventario</span>{% endif %}
+    {% if costi_asset and not costi_asset.vuoto %}<span><b>€ {{ costi_asset.totale|floatformat:"2g" }}</b> costi registrati negli ultimi 12 mesi · <a class="plain" href="{% url 'assets:asset_view' asset.pk %}#asset-costi">dettaglio</a></span>{% endif %}
   </div>
   {% if licenze_asset %}
   <ul class="lic-list">{% for r in licenze_asset %}
@@ -22,6 +23,13 @@
   </ul>
   {% else %}<p class="asset-coll-vuoto">Nessuna licenza registrata su questo asset. <a class="plain" href="{% url 'assets:software_license_list' %}?asset={{ asset.pk }}">Aggiungila da «Licenze software»</a>.</p>{% endif %}
   {% else %}
-  <div class="asset-coll-vuoto asset-coll-nessuno"><div><strong>Apparato non collegato a un asset</strong><span class="muted">Collegalo per vedere qui licenze, software installato e la scheda dell'inventario.</span></div>{% if g %}<a class="btn small" href="{{ edit_url }}">Collega un asset</a>{% endif %}</div>
+  <div class="asset-coll-vuoto asset-coll-nessuno"><div><strong>Apparato non collegato a un asset</strong><span class="muted">Collegalo per vedere qui licenze, software installato e la scheda dell'inventario.</span></div>{% if g and not asset_proposto %}<a class="btn small" href="{{ edit_url }}">Collega un asset</a>{% endif %}</div>
+  {% if asset_proposto %}{% with p=asset_proposto.asset %}
+  <div class="asset-coll-proposta">
+    <span class="asset-coll-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span>
+    <div class="asset-coll-nome"><span class="muted">Asset trovato per {{ asset_proposto.motivo }}</span><a class="plain" href="{% url 'assets:asset_view' p.pk %}">{{ p.name }}</a><span class="muted"><span class="mono">{{ p.asset_tag }}</span>{% if p.serial_number %} · S/N <span class="mono">{{ p.serial_number }}</span>{% endif %}</span></div>
+    {% if g %}<form method="post" action="{% url 'contatori:apparato_collega_asset' asset_proposto.tipo asset_proposto.apparato_pk %}">{% csrf_token %}<input type="hidden" name="asset" value="{{ p.pk }}"><button class="btn small" type="submit">Collega</button></form>
+    <a class="btn ghost small" href="{{ edit_url }}">Scegli un altro</a>{% endif %}
+  </div>{% endwith %}{% endif %}
   {% endif %}
 </section>

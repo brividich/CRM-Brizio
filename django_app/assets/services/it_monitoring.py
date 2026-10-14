@@ -75,7 +75,7 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
     latest = RilevazioneSNMP.objects.filter(dispositivo_id=OuterRef("pk")).order_by("-rilevata_il", "-pk")
     devices = list(DispositivoSNMP.objects.filter(asset=asset).order_by("nome", "pk").annotate(
         snapshot_id=Subquery(latest.values("pk")[:1]),
-    ).values("id", "nome", "host", "attivo", "snmp_stato", "snmp_ultimo_controllo", "snapshot_id")[:LINK_LIMIT])
+    ).values("id", "nome", "host", "attivo", "snmp_stato", "snmp_ultimo_controllo", "firmware", "snapshot_id")[:LINK_LIMIT])
     permitted = []
     for device in devices:
         device["url"] = reverse("contatori:snmp_dispositivo", args=[device["id"]])

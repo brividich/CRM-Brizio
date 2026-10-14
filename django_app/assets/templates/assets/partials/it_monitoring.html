@@ -11,8 +11,8 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
     <p class="af-note">Un esito riuscito riguarda la data indicata, non la disponibilità attuale. Le letture salvate sono mostrate qui; il pulsante consumabili esegue una nuova lettura su richiesta.</p>
     {% if it_monitoring.identity_diffs %}
       <div class="af-it-diff" role="group" aria-label="Differenze con l'anagrafica">
-        <p><strong>Il monitoraggio legge dati diversi dall'anagrafica.</strong> Nulla viene sovrascritto da solo: applica solo quello che è corretto.</p>
-        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Dato</th><th>In anagrafica</th><th>Letto via SNMP</th><th></th></tr></thead><tbody>
+        <p><strong>Il monitoraggio ha dati diversi dall'anagrafica.</strong> Nulla viene sovrascritto da solo: applica solo quello che è corretto.</p>
+        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Dato</th><th>In anagrafica</th><th>Nel monitoraggio</th><th></th></tr></thead><tbody>
           {% for diff in it_monitoring.identity_diffs %}<tr>
             <td>{{ diff.label }}</td>
             <td>{{ diff.asset_value|default:"— vuoto —" }}</td>
@@ -26,7 +26,7 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
       <div class="af-it-dev">
         <span class="af-it-dev-ico" aria-hidden="true">SNMP</span>
         <div class="af-it-dev-main"><a class="af-it-dev-name" href="{{ device.url }}">{{ device.nome }}</a>
-          <span class="af-it-dev-meta"><span class="af-it-mono">{{ device.host }}</span> · {% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
+          <span class="af-it-dev-meta"><span class="af-it-mono">{{ device.host }}</span> · {% if device.firmware %}Firmware <span class="af-it-mono">{{ device.firmware }}</span> · {% endif %}{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
         {% if device.snmp_ultimo_controllo %}<span class="as-badge as-badge--{% if device.snmp_stato == 'OK' %}ok{% elif device.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}">{{ device.state_label }}</span>{% endif %}
         <a class="af-btn af-btn-ghost" href="{{ device.url }}">Apri in Contatori</a>
       </div>

@@ -924,6 +924,12 @@ def interroga_dispositivo(dispositivo):
     if seriale and not dispositivo.matricola:
         dispositivo.matricola = seriale
         update_fields.append("matricola")
+    from . import firmware
+
+    versione_fw, fonte_fw = firmware.estrai(sys_description, esiti)
+    update_fields += firmware.registra(dispositivo, versione_fw, fonte_fw, adesso)
+    if versione_fw:
+        transaction.on_commit(lambda: firmware.invia_al_soc(dispositivo))
     if not dispositivo.verificato:
         # Prima lettura riuscita di una bozza o di un dispositivo creato senza test.
         dispositivo.verificato = True

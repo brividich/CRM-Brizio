@@ -7,6 +7,8 @@ mostrato, mai un testo arbitrario arrivato dalla POST.
 """
 from __future__ import annotations
 
+import re
+
 FIELD_LABELS = {
     "serial_number": "Numero di serie",
     "manufacturer": "Produttore",
@@ -14,8 +16,12 @@ FIELD_LABELS = {
 }
 
 
-def _norm(value) -> str:
-    return " ".join(str(value or "").split()).casefold()
+def _norm(value, field="") -> str:
+    text = " ".join(str(value or "").split()).casefold()
+    if field == "serial_number":
+        # «SN-1234 5» e «sn12345» sono lo stesso seriale: contano solo lettere e cifre.
+        return re.sub(r"[^0-9a-z]", "", text)
+    return text
 
 
 def snmp_identity_diffs(asset) -> list[dict]:
@@ -28,16 +34,16 @@ def snmp_identity_diffs(asset) -> list[dict]:
             "serial_number": device.matricola, "manufacturer": device.produttore, "model": device.modello,
         }))
     for machine in Macchina.objects.filter(asset=asset).only("reparto", "matricola", "modello"):
-        sources.append((f"MFC «{machine.reparto}»", {"serial_number": machine.matricola, "model": machine.modello}))
+        sources.append((f"MFC «{machine.reparto}» (anagrafica Contatori)", {"serial_number": machine.matricola, "model": machine.modello}))
 
     diffs, seen = [], set()
     for origin, values in sources:
         for field, value in values.items():
             value = " ".join(str(value or "").split())
             current = getattr(asset, field) or ""
-            if not value or _norm(value) == _norm(current) or (field, _norm(value)) in seen:
+            if not value or _norm(value, field) == _norm(current, field) or (field, _norm(value, field)) in seen:
                 continue
-            seen.add((field, _norm(value)))
+            seen.add((field, _norm(value, field)))
             diffs.append({
                 "field": field,
                 "label": FIELD_LABELS[field],

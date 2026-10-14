@@ -412,6 +412,10 @@ class DispositivoSNMP(models.Model):
     sys_description = models.TextField(blank=True)
     sys_object_id = models.CharField(max_length=255, blank=True)
     sys_uptime_seconds = models.PositiveBigIntegerField(null=True, blank=True)
+    firmware = models.CharField(max_length=80, blank=True,
+                                help_text="Versione firmware dell'ultima lettura riuscita (sonda «Firmware» o sysDescr).")
+    firmware_fonte = models.CharField(max_length=120, blank=True)
+    firmware_rilevato_il = models.DateTimeField(null=True, blank=True)
     creato_il = models.DateTimeField(auto_now_add=True)
     aggiornato_il = models.DateTimeField(auto_now=True)
 
@@ -529,6 +533,26 @@ class RilevazioneSNMP(models.Model):
         ordering = ["-rilevata_il", "-pk"]
         verbose_name = "Rilevazione SNMP"
         verbose_name_plural = "Rilevazioni SNMP"
+
+
+class FirmwareSNMP(models.Model):
+    """Storico delle versioni firmware viste su un dispositivo: una riga per versione."""
+
+    dispositivo = models.ForeignKey(
+        DispositivoSNMP, on_delete=models.CASCADE, related_name="firmware_storico",
+    )
+    versione = models.CharField(max_length=80)
+    fonte = models.CharField(max_length=120, blank=True)
+    primo_rilevamento = models.DateTimeField(default=timezone.now)
+    ultimo_rilevamento = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-primo_rilevamento", "-pk"]
+        verbose_name = "Firmware rilevato"
+        verbose_name_plural = "Firmware rilevati"
+
+    def __str__(self):
+        return f"{self.dispositivo} {self.versione}"
 
 
 class ValoreSNMP(models.Model):

@@ -126,6 +126,8 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 
 ## Note di rilascio
 
+Scheda asset: riquadro «Costi registrati» (tab Panoramica, ultimi 12 mesi) da `services/costi_asset.py`: rinnovi licenze con importo, interventi chiusi (`resolved_total_cost_eur`), adempimenti completati con importo; canone dei contratti di assistenza attivi mostrato a parte; per le MFC pagine fatturate Copylab (le fatture non hanno importi). Differenze anagrafica/monitoraggio (`services/it_identity_diff.py`): il seriale si confronta solo su lettere e cifre, l'origine MFC dice «anagrafica Contatori», colonna «Nel monitoraggio». Firmware del dispositivo SNMP nella testata del tab Monitoraggio.
+
 Scheda asset: «Anagrafica e assegnazione» su due colonne; ogni riquadro è richiudibile (stato in `localStorage`, chiave `af-card-collapsed:<codice>`).
 
 Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](../../docs/ai/CHECKLIST_ASSET_IT.md).
