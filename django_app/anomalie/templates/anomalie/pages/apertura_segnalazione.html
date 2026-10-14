@@ -219,11 +219,14 @@
     .anom-sn__toggle { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); font-weight: 700; color: var(--text); cursor: pointer; user-select: none; }
     .anom-sn__toggle input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
     .anom-sn__toggle.is-disabled { cursor: default; opacity: .75; }
-    .anom-sn__chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 168px; overflow-y: auto; }
+    .anom-sn__chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 168px; overflow-y: auto; user-select: none; }
     .anom-sn__chip { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: var(--fs-sm); font-weight: 700; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); border-radius: 999px; padding: 4px 11px; cursor: pointer; min-height: 0; }
     .anom-sn__chip:hover:not(:disabled) { border-color: var(--accent); }
     .anom-sn__chip.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
     .anom-sn__chip:disabled { cursor: default; }
+    /* La spunta occupa sempre il suo posto: accendere un chip non sposta gli altri mentre si trascina. */
+    .anom-sn__ck { display: inline-block; width: 1.1em; text-align: left; visibility: hidden; }
+    .anom-sn__chip.is-on .anom-sn__ck { visibility: visible; }
     .anom-sn__foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-mid); }
     .anom-sn.is-missing .anom-sn__chip:not(.is-on) { border-color: var(--danger); }
     .pill-parz { background: #fffbeb; color: #92400e; border-color: #fcd34d; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
@@ -1125,6 +1128,23 @@
     const [serialiAperti, setSerialiAperti] = useState({ seriali: [], dettagli: {} });
     const [copilot, setCopilot] = useState({ key: '', loading: false, sug: null, err: '' });
     const snRef = useRef(null);
+    // Selezione dei S/N di un'anomalia trascinando sui chip: { anomalia, mode, last }.
+    const snDragRef = useRef(null);
+    useEffect(() => {
+      const fine = () => { snDragRef.current = null; };
+      window.addEventListener('pointerup', fine);
+      window.addEventListener('pointercancel', fine);
+      return () => { window.removeEventListener('pointerup', fine); window.removeEventListener('pointercancel', fine); };
+    }, []);
+    const impostaSeriali = (i, lista, accendi) => setEditor(prev => ({
+      ...prev,
+      anomalie: prev.anomalie.map((x, idx) => {
+        if (idx !== i) return x;
+        const chiavi = new Set(lista.map(t => t.toLowerCase()));
+        const resto = x.sel.filter(s => !chiavi.has(s.toLowerCase()));
+        return { ...x, sel: accendi ? [...resto, ...lista] : resto };
+      }),
+    }));
     const isBenestare = String(op.stato || '').toLowerCase().includes('benestare');
 
     const loadSerialiAperti = () => {
@@ -1643,19 +1663,46 @@
                         </label>
                         {!a.tutti && (
                           <>
-                            <div className="anom-sn__chips" role="group" aria-label={`Seriali con l’anomalia ${i + 1}`}>
-                              {tokens.map(t => {
+                            <div className="anom-sn__chips" role="group" aria-label={`Seriali con l’anomalia ${i + 1}`}
+                              onPointerMove={e => {
+                                const d = snDragRef.current;
+                                if (!d || d.anomalia !== i) return;
+                                const el = document.elementFromPoint(e.clientX, e.clientY);
+                                const chip = el && el.closest ? el.closest('[data-sn-idx]') : null;
+                                if (!chip || !e.currentTarget.contains(chip)) return;
+                                const idx = Number(chip.getAttribute('data-sn-idx'));
+                                if (idx === d.last) return;
+                                // Anche i chip saltati con un movimento veloce: tutto il tratto fra l'ultimo e questo.
+                                const [da, a2] = idx > d.last ? [d.last, idx] : [idx, d.last];
+                                impostaSeriali(i, tokens.slice(da, a2 + 1), d.mode);
+                                d.last = idx;
+                              }}>
+                              {tokens.map((t, ti) => {
                                 const on = selSet.has(t.toLowerCase());
                                 return (
                                   <button key={t} type="button" className={`anom-sn__chip${on ? ' is-on' : ''}`} aria-pressed={on} disabled={a.gestita}
-                                    onClick={() => { if (error.startsWith(MSG_SN_ANOM)) setError(''); updAnomalia(i, { sel: on ? a.sel.filter(x => x.toLowerCase() !== t.toLowerCase()) : [...a.sel, t] }); }}>
-                                    {on ? '✓ ' : ''}{t}
+                                    data-sn-idx={ti}
+                                    onPointerDown={e => {
+                                      if (e.button !== 0 || a.gestita) return;
+                                      e.preventDefault();
+                                      // Il primo chip decide: spento → si accende tutto il tratto, acceso → si spegne.
+                                      snDragRef.current = { anomalia: i, mode: !on, last: ti };
+                                      if (error.startsWith(MSG_SN_ANOM)) setError('');
+                                      impostaSeriali(i, [t], !on);
+                                    }}
+                                    onClick={e => {
+                                      // Mouse e tocco passano da onPointerDown; qui solo la tastiera (Invio/Spazio).
+                                      if (e.detail !== 0) return;
+                                      if (error.startsWith(MSG_SN_ANOM)) setError('');
+                                      impostaSeriali(i, [t], !on);
+                                    }}>
+                                    <span className="anom-sn__ck" aria-hidden="true">✓</span>{t}
                                   </button>
                                 );
                               })}
                             </div>
                             <div className="anom-sn__foot">
-                              <span>{nSel ? <>Selezionati <strong>{nSel}</strong> di {tokens.length}</> : 'Tocca i seriali su cui hai trovato questa anomalia.'}</span>
+                              <span>{nSel ? <>Selezionati <strong>{nSel}</strong> di {tokens.length}</> : 'Tocca i seriali su cui hai trovato questa anomalia, oppure trascina per sceglierne più di fila.'}</span>
                               {!a.gestita && nSel < tokens.length && <button type="button" className="link-btn" onClick={() => updAnomalia(i, { sel: [...tokens] })}>Seleziona tutti</button>}
                               {!a.gestita && nSel > 0 && <button type="button" className="link-btn" onClick={() => updAnomalia(i, { sel: [] })}>Nessuno</button>}
                             </div>

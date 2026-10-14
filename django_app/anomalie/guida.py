@@ -115,8 +115,9 @@ SEZIONI: list[dict] = [
                 "Se richiesto, scegli lo «Stato superficie del blocco»: vale per tutti i pezzi del blocco.",
                 "Descrivi l'anomalia: cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza.",
                 "Con più pezzi nel blocco, sotto la descrizione c'è la casella «Presente su tutti i N seriali del blocco», "
-                "già spuntata. Se l'anomalia è solo su alcuni pezzi toglila e tocca i seriali interessati (ci sono anche "
-                "«Seleziona tutti» e «Nessuno»).",
+                "già spuntata. Se l'anomalia è solo su alcuni pezzi toglila e tocca i seriali interessati: un range "
+                "compare pezzo per pezzo. Per sceglierne più di fila tieni premuto su un seriale e trascina sugli altri "
+                "(se il primo era spento li accende, se era acceso li spegne). Ci sono anche «Seleziona tutti» e «Nessuno».",
                 "Aggiungi foto e documenti: trascinali nel riquadro, sfogliali, oppure clicca nel riquadro e premi Ctrl+V "
                 "per incollare uno screenshot o una foto copiata.",
                 "Altre anomalie sugli stessi seriali: «+ Nuova anomalia su questi seriali». Le precedenti si comprimono.",
