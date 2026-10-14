@@ -162,10 +162,13 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "note_capocommessa": str(row.get("note_capocommessa") or ""),
             "gestita": riga_gestita(row),
             "allegati": _allegati(meta.anomalia_id) if con_allegati else [],
+            "_seriale": str(row.get("seriale") or ""),
         })
     blocchi = []
     for blocco in controllo.blocchi.all().order_by("ordine", "id"):
         anomalie = per_blocco.get(blocco.pk, [])
+        for a in anomalie:
+            a.update(seriali_anomalia(a.pop("_seriale", ""), blocco))
         blocchi.append({
             "id": blocco.pk,
             "ordine": blocco.ordine,
@@ -190,6 +193,28 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         "mail_errore": controllo.mail_errore,
         "blocchi": blocchi,
     }
+
+
+def seriali_anomalia(seriale_riga: str, blocco) -> dict:
+    """Seriali di una riga rispetto al suo blocco: tutti, oppure solo una parte.
+
+    Il flag non ha una colonna sua: la colonna legacy ``seriale`` della riga è la
+    fonte. Uguale all'etichetta del blocco (o non leggibile) = tutti i seriali.
+    """
+    from .seriali import comprimi_seriali, espandi_seriale_composito, espandi_voce
+
+    seriale_riga = str(seriale_riga or "").strip()
+    label = str(getattr(blocco, "seriale_label", "") or "")
+    voci_blocco = blocco.seriali if isinstance(getattr(blocco, "seriali", None), list) else []
+    tutti = {"tutti": True, "seriali": list(voci_blocco), "seriale_label": label}
+    if not seriale_riga or seriale_riga == label:
+        return tutti
+    blocco_tokens = [t for v in voci_blocco for t in espandi_voce(v)]
+    riga_lower = {t.lower() for t in espandi_seriale_composito(seriale_riga)}
+    subset = [t for t in blocco_tokens if t.lower() in riga_lower]
+    if not subset or len({t.lower() for t in subset}) >= len({t.lower() for t in blocco_tokens}):
+        return tutti
+    return {"tutti": False, "seriali": comprimi_seriali(subset), "seriale_label": seriale_riga}
 
 
 def accoda_notifica(controllo, ids: list[int]) -> None:
@@ -245,6 +270,12 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
             titolo = row.get("seriale") or ""
             sottotitolo = f"Fase {row['fase']}" if row.get("fase") else ""
         row["blocco_id"] = meta.blocco_id if meta else None
+        # Anomalia presente solo su una parte dei seriali del blocco.
+        row["seriali_parziali"] = ""
+        if meta and meta.blocco_id:
+            info = seriali_anomalia(row.get("seriale"), meta.blocco)
+            if not info["tutti"]:
+                row["seriali_parziali"] = info["seriale_label"]
         gruppo = per_chiave.get(chiave)
         if gruppo is None:
             gruppo = {"chiave": chiave, "titolo": titolo, "sottotitolo": sottotitolo, "righe": []}
