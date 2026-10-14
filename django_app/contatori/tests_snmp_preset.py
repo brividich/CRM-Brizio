@@ -237,12 +237,39 @@ class PrinterPresetTests(TestCase):
 
         agent = FixtureAgent(FIXTURES / "kyocera_taskalfa_5054ci.snmprec")
         macchina = Macchina.objects.create(
-            reparto="Test", matricola="KY-SINT-1", modello="TASKalfa 5054ci", host="192.0.2.217",
+            reparto="Test", matricola="SN-SINT-1", modello="TASKalfa 5054ci", host="192.0.2.217",
             profilo_snmp=ProfiloSNMP.objects.get(slug="kyocera"),
         )
         with mock.patch("contatori.snmp.leggi_specifiche", side_effect=agent.leggi_specifiche):
             valori = interroga_macchina(macchina)
         self.assertEqual(valori, {"a4_bn": 243847, "a3_bn": 11098, "a4_col": 96928, "a3_col": 8972})
+        # Coerenza con il Printer-MIB: la somma non supera le pagine totali.
+        self.assertLessEqual(sum(valori.values()), int(agent.values["1.3.6.1.2.1.43.10.2.1.4.1.1"]))
+
+    def test_mfc_matricola_diversa_scarta_la_lettura(self):
+        from contatori.models import Macchina
+        from contatori.services import interroga_macchina
+        from contatori.snmp import SNMPError
+
+        agent = FixtureAgent(FIXTURES / "kyocera_taskalfa_5054ci.snmprec")
+        macchina = Macchina.objects.create(
+            reparto="Test", matricola="ALTRA-123", modello="TASKalfa 5054ci", host="192.0.2.218",
+            profilo_snmp=ProfiloSNMP.objects.get(slug="kyocera"),
+        )
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=agent.leggi_specifiche),                 self.assertRaisesMessage(SNMPError, "matricola SN-SINT-1, non ALTRA-123"):
+            interroga_macchina(macchina)
+        macchina.refresh_from_db()
+        self.assertEqual(macchina.snmp_stato, "ERROR")
+
+    def test_canon_somma_contatori_uguale_pagine_totali(self):
+        """Fixture Canon: i 4 contatori di contratto coprono tutte le pagine (Small/Large)."""
+        from contatori.snmp import COUNTER_MAP
+        for nome in ("canon_ir_adv_c3822.snmprec", "canon_ir_adv_c5535_iii.snmprec",
+                     "canon_ir_adv_c5840.snmprec"):
+            agent = FixtureAgent(FIXTURES / nome)
+            numeri = COUNTER_MAP["iR-ADV DX C5840i"].values()
+            somma = sum(int(agent.values[f"1.3.6.1.4.1.1602.1.11.1.3.1.4.{n}"]) for n in numeri)
+            self.assertEqual(somma, int(agent.values["1.3.6.1.2.1.43.10.2.1.4.1.1"]), nome)
 
     def test_hp_designjet_detected_with_specific_prefix(self):
         dispositivo, _r, valori = self._poll("hp_designjet_t730.snmprec", "192.0.2.46")

@@ -47,7 +47,7 @@ class LetturaFormTests(_AuthedClientMixin, TestCase):
 
     def test_correggi_ed_elimina(self):
         lettura = LetturaContatori.objects.get()
-        r = self._post(url=reverse("contatori:lettura_edit", args=[lettura.pk]), trimestre="2026-Q1", a4_bn=1001)
+        r = self._post(url=reverse("contatori:lettura_edit", args=[lettura.pk]), trimestre="2026-Q1", data="2026-04-02", a4_bn=1001)
         self.assertEqual(r.status_code, 302)
         lettura.refresh_from_db()
         self.assertEqual(lettura.a4_bn, 1001)

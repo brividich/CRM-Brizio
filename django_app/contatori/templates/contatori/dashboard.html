@@ -23,7 +23,7 @@
   <a class="kpi" href="{% url 'contatori:analisi' %}">
     <span class="k">Copie{% if c.consumo_ultimo %} {{ c.consumo_ultimo.trimestre }}{% endif %}</span>
     <span class="v">{% if c.consumo_ultimo %}{{ c.consumo_ultimo.totale }}{% else %}—{% endif %}</span>
-    <span class="meta">{% if c.variazione is not None %}<span class="{% if c.variazione > 0 %}trend-up{% elif c.variazione < 0 %}trend-down{% endif %}">{% if c.variazione > 0 %}+{% endif %}{{ c.variazione }}%</span> vs {{ c.consumo_precedente.trimestre }}{% else %}Servono due trimestri{% endif %}</span>
+    <span class="meta">{% if c.variazione is not None %}<span class="{% if c.variazione > 0 %}trend-up{% elif c.variazione < 0 %}trend-down{% endif %}">{% if c.variazione > 0 %}+{% endif %}{{ c.variazione }}%</span> vs {{ c.consumo_precedente.trimestre }}{% elif c.consumo_ultimo.parziale %}Parziale: {{ c.consumo_ultimo.macchine }}/{{ c.consumo_ultimo.attese }} MFC{% elif c.consumo_precedente.parziale %}{{ c.consumo_precedente.trimestre }} parziale: nessun confronto{% else %}Servono due trimestri{% endif %}</span>
   </a>
   <a class="kpi" href="{% url 'contatori:riconciliazione_trim' c.trimestre_prec %}">
     <span class="k">Riconciliazione {{ c.trimestre_prec }}</span>

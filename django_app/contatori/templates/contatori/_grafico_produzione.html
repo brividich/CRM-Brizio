@@ -1,11 +1,12 @@
 {% comment %}Copie prodotte per trimestre, B/N + colore impilati. Richiede `produzione`.{% endcomment %}
 {% if produzione %}
 <div class="prod-legend" aria-hidden="true"><span><i class="sw bn"></i>B/N</span><span><i class="sw col"></i>Colore</span></div>
-<div class="prod-chart" role="img" aria-label="Copie prodotte per trimestre: {% for p in produzione %}{{ p.trimestre }} {% if p.calo %}non calcolabile{% else %}{{ p.totale }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}">
+<div class="prod-chart" role="img" aria-label="Copie prodotte per trimestre: {% for p in produzione %}{{ p.trimestre }} {% if p.calo or p.manca %}non calcolabile{% else %}{{ p.totale }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}">
   {% for p in produzione %}
   <div class="prod-col" tabindex="0">
     <div class="prod-plot">
       {% if p.calo %}<span class="prod-calo">contatore sceso</span>
+      {% elif p.manca %}<span class="prod-calo">manca {{ p.manca }}</span>
       {% else %}
       <span class="prod-total">{{ p.totale }}</span>
       <div class="prod-stack" style="height:{{ p.altezza }}%">
@@ -15,13 +16,13 @@
       {% endif %}
     </div>
     <div class="prod-x">{{ p.trimestre }}</div>
-    <div class="prod-tip" role="tooltip"><strong>{{ p.trimestre }}</strong>{% if p.calo %}<span>Un contatore è sceso: valore non calcolabile</span>{% else %}<span><i class="sw bn"></i>B/N {{ p.bn }}</span><span><i class="sw col"></i>Colore {{ p.col }}</span><span>Totale {{ p.totale }}</span>{% endif %}</div>
+    <div class="prod-tip" role="tooltip"><strong>{{ p.trimestre }}</strong>{% if p.calo %}<span>Un contatore è sceso: valore non calcolabile</span>{% elif p.manca %}<span>Manca la lettura {{ p.manca }}: le copie coprono due trimestri</span>{% else %}<span><i class="sw bn"></i>B/N {{ p.bn }}</span><span><i class="sw col"></i>Colore {{ p.col }}</span><span>Totale {{ p.totale }}</span>{% endif %}</div>
   </div>
   {% endfor %}
 </div>
 <details class="prod-table"><summary>Mostra i valori in tabella</summary>
   <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Trimestre</th><th class="num">B/N</th><th class="num">Colore</th><th class="num">Totale</th></tr></thead><tbody>
-  {% for p in produzione %}<tr><td>{{ p.trimestre }}</td>{% if p.calo %}<td colspan="3" class="muted">contatore sceso: non calcolabile</td>{% else %}<td class="num">{{ p.bn }}</td><td class="num">{{ p.col }}</td><td class="num"><strong>{{ p.totale }}</strong></td>{% endif %}</tr>{% endfor %}
+  {% for p in produzione %}<tr><td>{{ p.trimestre }}</td>{% if p.calo %}<td colspan="3" class="muted">contatore sceso: non calcolabile</td>{% elif p.manca %}<td colspan="3" class="muted">manca la lettura {{ p.manca }}: non calcolabile</td>{% else %}<td class="num">{{ p.bn }}</td><td class="num">{{ p.col }}</td><td class="num"><strong>{{ p.totale }}</strong></td>{% endif %}</tr>{% endfor %}
   </tbody></table></div>
 </details>
 {% else %}

@@ -65,8 +65,14 @@ def _somma(lettura, campi):
     return sum(getattr(lettura, c) for c in campi)
 
 
-def _macchine_per_contratto(contratto):
-    return list(Macchina.objects.filter(contratto=contratto))
+def _macchine_per_contratto(contratto, trimestre):
+    """MFC del contratto: le attive e le dismesse che hanno una lettura nel trimestre.
+
+    Una macchina dismessa senza lettura non e' «lettura mancante»: non e' piu' in pool.
+    """
+    from django.db.models import Q
+    return list(Macchina.objects.filter(contratto=contratto).filter(
+        Q(attiva=True) | Q(letture__trimestre=trimestre)).distinct())
 
 
 # --- Trimestri ----------------------------------------------------------------
@@ -135,7 +141,7 @@ def riconcilia(trimestre):
         totali = fattura.dettaglio == Fattura.Dettaglio.TOTALI
         confronto = _CONFRONTO_TOTALI if totali else _CONFRONTO_FORMATO
         for rf in fattura.righe.all():
-            macchine = _macchine_per_contratto(rf.contratto)
+            macchine = _macchine_per_contratto(rf.contratto, trimestre)
             # letture interne del trimestre per le macchine di questo contratto
             letture = {l.macchina_id: l for l in LetturaContatori.objects.filter(
                 trimestre=trimestre, macchina__in=macchine)}
@@ -304,10 +310,19 @@ def andamento_trimestri():
     bn, col, a4, a3, totale}].
     """
     agg = defaultdict(lambda: defaultdict(int))
-    for l in LetturaContatori.objects.filter(macchina__attiva=True):
-        row = agg[l.trimestre]
-        for c in CAMPI:
-            row[c] += getattr(l, c)
+    presenti, attese = defaultdict(set), defaultdict(set)
+    flotta = _letture_ordinate_per_macchina()
+    ultimo = max((letture[-1].trimestre for letture in flotta.values()), default="")
+    for m, letture in flotta.items():
+        for l in letture:
+            row = agg[l.trimestre]
+            for c in CAMPI:
+                row[c] += getattr(l, c)
+            presenti[l.trimestre].add(m.pk)
+        t = letture[0].trimestre
+        while t <= ultimo:
+            attese[t].add(m.pk)
+            t = trimestre_successivo(t)
     out = []
     for trim in sorted(agg):
         r = agg[trim]
@@ -315,37 +330,67 @@ def andamento_trimestri():
         col = r["a4_col"] + r["a3_col"]
         a4 = r["a4_bn"] + r["a4_col"]
         a3 = r["a3_bn"] + r["a3_col"]
+        # Una MFC senza lettura nel trimestre abbassa il totale: va segnalato.
         out.append({"trimestre": trim, **r, "bn": bn, "col": col,
-                    "a4": a4, "a3": a3, "totale": bn + col})
+                    "a4": a4, "a3": a3, "totale": bn + col,
+                    "macchine": len(presenti[trim]), "attese": len(attese[trim]),
+                    "parziale": len(presenti[trim]) < len(attese[trim])})
     return out
+
+
+def trimestre_successivo(trimestre):
+    anno, q = map(int, _TRIMESTRE_RE.match(trimestre).groups())
+    return f"{anno + 1}-Q1" if q == 4 else f"{anno}-Q{q + 1}"
 
 
 def consumo_per_trimestre():
     """
-    Copie effettivamente prodotte per trimestre = differenza tra letture
-    consecutive di ogni macchina, sommata sulla flotta. I cali (refusi di
-    monotonìa) vengono azzerati e conteggiati a parte.
-    Ritorna (per_trimestre, anomalie) dove per_trimestre =
-    [{trimestre, bn, col, totale}] etichettato col trimestre di arrivo.
+    Copie effettivamente prodotte per trimestre = differenza tra le letture di due
+    trimestri CONSECUTIVI di ogni macchina, sommata sulla flotta.
+
+    - Coppia con un trimestre mancante in mezzo: le copie coprono piu' trimestri e
+      non si attribuiscono a nessuno (la macchina manca in entrambi).
+    - Contatore sceso (refuso o azzeramento): quel contatore conta 0 nel trimestre
+      e finisce in `anomalie`; gli altri della stessa macchina restano.
+    Ogni riga dice quante MFC hanno contribuito (`macchine`) su quante ne erano
+    attese (`attese`): `parziale` se ne manca qualcuna, `in_corso` per il trimestre
+    corrente. Ritorna (per_trimestre, anomalie).
     """
     delta_trim = defaultdict(lambda: defaultdict(int))
+    contributi, attese = defaultdict(set), defaultdict(set)
     anomalie = 0
-    for _m, letture in _letture_ordinate_per_macchina().items():
-        for prec, curr in zip(letture, letture[1:]):
+    flotta = _letture_ordinate_per_macchina()
+    ultimo = max((letture[-1].trimestre for letture in flotta.values()), default="")
+    for m, letture in flotta.items():
+        per_trim = {l.trimestre: l for l in letture}
+        # Una MFC attiva e' attesa in ogni trimestre dopo la sua prima lettura.
+        t = trimestre_successivo(letture[0].trimestre)
+        while t <= ultimo:
+            attese[t].add(m.pk)
+            t = trimestre_successivo(t)
+        for curr in letture[1:]:
+            prec = per_trim.get(trimestre_precedente(curr.trimestre))
+            if prec is None:
+                continue
+            contributi[curr.trimestre].add(m.pk)
             for c in CAMPI:
                 d = getattr(curr, c) - getattr(prec, c)
-                if d < 0:
+                if d < 0:  # calo di un contatore: conta 0, gli altri restano validi
                     anomalie += 1
                     d = 0
                 delta_trim[curr.trimestre][c] += d
+    corrente = trimestre_corrente()
     out = []
-    for trim in sorted(delta_trim):
+    for trim in sorted(set(attese) | set(delta_trim)):
         r = delta_trim[trim]
         bn = r["a4_bn"] + r["a3_bn"]
         col = r["a4_col"] + r["a3_col"]
         out.append({"trimestre": trim, "bn": bn, "col": col,
                     "totale": bn + col, "a4_bn": r["a4_bn"], "a3_bn": r["a3_bn"],
-                    "a4_col": r["a4_col"], "a3_col": r["a3_col"]})
+                    "a4_col": r["a4_col"], "a3_col": r["a3_col"],
+                    "macchine": len(contributi[trim]), "attese": len(attese[trim]),
+                    "parziale": len(contributi[trim]) < len(attese[trim]),
+                    "in_corso": trim >= corrente})
     return out, anomalie
 
 
@@ -373,21 +418,24 @@ def classifica_reparti():
 
 def ripartizione():
     """
-    Ripartizione BN/Colore e A4/A3 sui totali cumulati dell'ultimo trimestre
-    disponibile. Ritorna percentuali intere che sommano ~100.
+    Ripartizione BN/Colore e A4/A3 sui totali cumulati della flotta: per ogni MFC
+    attiva l'ultima lettura disponibile (un trimestre con poche letture non deve
+    falsare il mix). Ritorna percentuali intere che sommano ~100.
     """
-    and_ = andamento_trimestri()
-    if not and_:
+    ultime = [letture[-1] for letture in _letture_ordinate_per_macchina().values()]
+    if not ultime:
         return {"bn": 0, "col": 0, "a4": 0, "a3": 0, "totale": 0}
-    u = and_[-1]
-    tot = u["totale"] or 1
+    r = {c: sum(getattr(l, c) for l in ultime) for c in CAMPI}
+    totale = sum(r.values())
+    tot = totale or 1
     return {
-        "trimestre": u["trimestre"],
-        "totale": u["totale"],
-        "bn_pct": round(100 * u["bn"] / tot),
-        "col_pct": round(100 * u["col"] / tot),
-        "a4_pct": round(100 * u["a4"] / tot),
-        "a3_pct": round(100 * u["a3"] / tot),
+        "trimestre": max(l.trimestre for l in ultime),
+        "totale": totale,
+        "macchine": len(ultime),
+        "bn_pct": round(100 * (r["a4_bn"] + r["a3_bn"]) / tot),
+        "col_pct": round(100 * (r["a4_col"] + r["a3_col"]) / tot),
+        "a4_pct": round(100 * (r["a4_bn"] + r["a4_col"]) / tot),
+        "a3_pct": round(100 * (r["a3_bn"] + r["a3_col"]) / tot),
     }
 
 
@@ -635,7 +683,8 @@ def _community_snmp(oggetto, cfg):
 
 
 def _leggi_contatori_profilo(macchina, cfg):
-    from .snmp import SNMPError, leggi_specifiche
+    from .snmp import OID_CONTROLLO_MFC, PRT_LIFECOUNT, PRT_SERIAL, SNMPError, leggi_specifiche, \
+        verifica_lettura_mfc
 
     colonne = list(macchina.profilo_snmp.colonne.filter(
         attiva=True,
@@ -651,6 +700,9 @@ def _leggi_contatori_profilo(macchina, cfg):
     specifiche = [{
         "oid": c.oid, "modalita": c.modalita, "aggregazione": c.aggregazione,
     } for c in colonne]
+    # In coda: matricola e pagine totali si leggono dopo i contatori.
+    specifiche += [{"oid": oid, "modalita": "GET", "aggregazione": "PRIMO"}
+                   for oid in OID_CONTROLLO_MFC]
     valori, errori = leggi_specifiche(
         macchina.host, specifiche, community=_community_snmp(macchina, cfg), port=porta,
         timeout=timeout, version=versione,
@@ -663,7 +715,60 @@ def _leggi_contatori_profilo(macchina, cfg):
         if numero is None or numero < 0:
             raise SNMPError(f"contatore {chiave} non numerico o negativo")
         out[chiave] = int(Decimal(numero) * colonna.fattore)
+    verifica_lettura_mfc(macchina, out, seriale=valori.get(PRT_SERIAL),
+                         pagine_totali=_intero_grezzo(valori.get(PRT_LIFECOUNT)))
     return out
+
+
+def _lettura_piu_recente(macchina):
+    """(descrizione, lettura) dell'ultima lettura salvata, trimestrale o mensile."""
+    trimestrale = macchina.letture.order_by("-data", "-trimestre").first()
+    mensile = macchina.letture_mensili.order_by("-rilevata_il").first()
+    candidati = []
+    if trimestrale is not None:
+        candidati.append((trimestrale.data, 0, f"lettura {trimestrale.trimestre} del "
+                          f"{trimestrale.data:%d/%m/%Y} ({trimestrale.get_fonte_display().lower()})",
+                          trimestrale))
+    if mensile is not None:
+        quando = timezone.localtime(mensile.rilevata_il)
+        candidati.append((quando.date(), 1, f"lettura mensile del {quando:%d/%m/%Y %H:%M}", mensile))
+    if not candidati:
+        return None, None
+    _, _, descrizione, lettura = max(candidati, key=lambda c: (c[0], c[1]))
+    return descrizione, lettura
+
+
+def incoerenze_lettura(macchina, valori):
+    """Contatori piu' bassi dell'ultima lettura salvata: [testo]. Un contatore non scende.
+
+    Si confronta solo con l'ultima lettura (non con il massimo storico): dopo un
+    azzeramento confermato a mano le letture ripartono da quella.
+    """
+    descrizione, ultima = _lettura_piu_recente(macchina)
+    if ultima is None:
+        return []
+    return [f"{etichetta} {valori[campo]} più basso della {descrizione}: {getattr(ultima, campo)}"
+            for campo, etichetta in CONTATORI
+            if campo in valori and valori[campo] < getattr(ultima, campo)]
+
+
+def _segna_errore_snmp(macchina, testo):
+    macchina.snmp_stato = StatoSNMP.ERROR
+    macchina.snmp_ultimo_errore = testo[:500]
+    macchina.save(update_fields=["snmp_stato", "snmp_ultimo_errore"])
+
+
+def verifica_progressione(macchina, valori):
+    """Solleva SNMPError (e lo segna sulla MFC) se la lettura scende sotto l'ultima salvata."""
+    from .snmp import SNMPError
+
+    incoerenze = incoerenze_lettura(macchina, valori)
+    if incoerenze:
+        testo = ("Lettura scartata, contatori più bassi dell'ultima lettura salvata ("
+                 + "; ".join(incoerenze) + "). Correggi la lettura sbagliata oppure "
+                 "verifica IP e profilo della MFC.")
+        _segna_errore_snmp(macchina, testo)
+        raise SNMPError(testo)
 
 
 def interroga_macchina(macchina):
@@ -968,6 +1073,7 @@ def leggi_mensile_macchina(macchina, *, mese=None):
     if mese != mese_corrente:
         raise ValueError("Non è possibile ricostruire via SNMP una lettura di un mese passato o futuro.")
     valori = interroga_macchina(macchina)
+    verifica_progressione(macchina, valori)
     rilevata_il = timezone.now()
     if timezone.localdate(rilevata_il).replace(day=1) != mese:
         raise ValueError("Il mese è cambiato durante la lettura: ripetere nel mese corrente.")
@@ -975,6 +1081,41 @@ def leggi_mensile_macchina(macchina, *, mese=None):
         macchina=macchina, mese=mese,
         defaults={**valori, "rilevata_il": rilevata_il},
     )
+
+
+def salva_letture_trimestrali_snmp(oggi=None):
+    """Lettura SNMP del trimestre corrente di tutte le MFC attive con IP.
+
+    Unico punto usato da «Leggi MFC ora» e da ``manage.py leggi_contatori``. Non
+    sovrascrive letture manuali o da fattura; scarta matricola diversa, somma oltre
+    le pagine totali (``interroga_macchina``) e contatori sotto l'ultima lettura.
+    """
+    from .snmp import SNMPError
+
+    oggi = oggi or timezone.localdate()
+    trimestre = trimestre_di(oggi)
+    presenti = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
+    esito = {"trimestre": trimestre, "lette": 0, "manuali": [], "incoerenti": [], "errori": []}
+    for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True).order_by("reparto"):
+        esistente = presenti.get(m.id)
+        if esistente and esistente.fonte != LetturaContatori.Fonte.SNMP:
+            esito["manuali"].append(m.reparto)
+            continue
+        try:
+            valori = interroga_macchina(m)
+        except SNMPError as e:
+            esito["errori"].append(f"{m.reparto} ({e})")
+            continue
+        try:
+            verifica_progressione(m, valori)
+        except SNMPError:
+            esito["incoerenti"].append(m.reparto)
+            continue
+        LetturaContatori.objects.update_or_create(
+            macchina=m, trimestre=trimestre,
+            defaults={**valori, "data": oggi, "fonte": LetturaContatori.Fonte.SNMP})
+        esito["lette"] += 1
+    return esito
 
 
 def centrale_snmp_riepilogo():
@@ -1129,10 +1270,13 @@ def cruscotto_operativo(oggi=None):
     mensili_mancanti = [m for m in attive if m.host and m.id not in lette]
 
     consumo, _ = consumo_per_trimestre()
-    ultimo = consumo[-1] if consumo else None
-    precedente = consumo[-2] if len(consumo) > 1 else None
+    # Solo trimestri chiusi: il corrente ha poche letture e falserebbe il confronto.
+    chiusi = [r for r in consumo if not r["in_corso"]]
+    ultimo = chiusi[-1] if chiusi else None
+    precedente = chiusi[-2] if len(chiusi) > 1 else None
     variazione = None
-    if ultimo and precedente and precedente["totale"]:
+    if (ultimo and precedente and precedente["totale"]
+            and not ultimo["parziale"] and not precedente["parziale"]):
         variazione = round((ultimo["totale"] - precedente["totale"]) * 100 / precedente["totale"])
     cali = controllo_monotonia()
 
@@ -1172,7 +1316,7 @@ def cruscotto_operativo(oggi=None):
     if proposte:
         dettaglio = "Ricavate dalle letture SNMP mensili: controlla e conferma."
         if len(pronte) < len(proposte):
-            dettaglio += f" {len(proposte) - len(pronte)} più basse del trimestre precedente vanno inserite a mano."
+            dettaglio += f" {len(proposte) - len(pronte)} incoerenti con i trimestri vicini vanno inserite a mano."
         da_fare.append({"livello": "warn",
                         "titolo": ((f"1 lettura {prec} pronta dalle mensili" if len(pronte) == 1
                                     else f"{len(pronte)} letture {prec} pronte dalle mensili") if pronte
@@ -1225,19 +1369,24 @@ def cruscotto_operativo(oggi=None):
 def produzione_macchina(macchina, ultimi=8):
     """Copie prodotte per trimestre (differenza tra letture consecutive) di una MFC.
 
-    [{trimestre, bn, col, totale, calo, altezza}] sugli ultimi `ultimi`
-    trimestri; `calo` = un contatore e' sceso (refuso o azzeramento): il
-    trimestre non ha un valore affidabile. `altezza` = % della barra piu' alta.
+    [{trimestre, bn, col, totale, calo, manca, altezza}] sugli ultimi `ultimi`
+    trimestri; `calo` = un contatore e' sceso (refuso o azzeramento), `manca` = il
+    trimestre precedente non ha lettura: in entrambi i casi il valore non e'
+    calcolabile. `altezza` = % della barra piu' alta.
     """
     letture = list(macchina.letture.order_by("trimestre"))
     righe = []
     for prec, curr in zip(letture, letture[1:]):
         delta = {c: getattr(curr, c) - getattr(prec, c) for c in CAMPI}
         calo = any(v < 0 for v in delta.values())
-        bn = 0 if calo else delta["a4_bn"] + delta["a3_bn"]
-        col = 0 if calo else delta["a4_col"] + delta["a3_col"]
+        # Trimestri non consecutivi: le copie coprono anche quello mancante.
+        manca = "" if prec.trimestre == trimestre_precedente(curr.trimestre) \
+            else trimestre_precedente(curr.trimestre)
+        vuota = calo or bool(manca)
+        bn = 0 if vuota else delta["a4_bn"] + delta["a3_bn"]
+        col = 0 if vuota else delta["a4_col"] + delta["a3_col"]
         righe.append({"trimestre": curr.trimestre, "bn": bn, "col": col,
-                      "totale": bn + col, "calo": calo})
+                      "totale": bn + col, "calo": calo, "manca": manca})
     righe = righe[-ultimi:]
     massimo = max((r["totale"] for r in righe), default=0) or 1
     for r in righe:
@@ -1346,30 +1495,36 @@ def limiti_trimestre(trimestre):
 
 def proposte_letture_trimestrali(trimestre):
     """Per le MFC attive senza lettura del trimestre propone la lettura mensile SNMP
-    piu' vicina alla chiusura (idealmente quella del giorno 1 del mese successivo).
+    di chiusura: quella del mese successivo, presa entro il giorno
+    ``GIORNI_RECUPERO_MENSILE``. Una lettura di un altro mese non e' la chiusura del
+    trimestre (mancherebbero o avanzerebbero copie): niente proposta, si inserisce a mano.
 
-    Finestra: dall'inizio del trimestre a un mese dopo la chiusura. Una proposta piu'
-    bassa della lettura del trimestre precedente e' marcata `incoerente` e non si
-    conferma in blocco. Nessuna scrittura: le proposte vanno confermate.
+    Una proposta piu' bassa della lettura del trimestre precedente o piu' alta di
+    quella del successivo e' marcata `incoerente` e non si conferma. Nessuna
+    scrittura: le proposte vanno confermate.
     """
     from datetime import datetime, time, timedelta
-    inizio, chiusura = limiti_trimestre(trimestre)
-    riferimento = timezone.make_aware(datetime.combine(chiusura, time(0, 0)))
+    _, chiusura = limiti_trimestre(trimestre)
+    limite = timezone.make_aware(datetime.combine(chiusura + timedelta(days=GIORNI_RECUPERO_MENSILE), time(0, 0)))
     attive = list(Macchina.objects.filter(attiva=True).order_by("reparto"))
     gia_lette = set(LetturaContatori.objects.filter(trimestre=trimestre).values_list("macchina_id", flat=True))
     mancanti = [m for m in attive if m.id not in gia_lette]
-    candidate = defaultdict(list)
-    for mensile in LetturaMensileContatori.objects.filter(
-            macchina__in=mancanti, mese__gte=inizio, mese__lte=chiusura + timedelta(days=31)):
-        candidate[mensile.macchina_id].append(mensile)
+    chiusure = {l.macchina_id: l for l in LetturaMensileContatori.objects.filter(
+        macchina__in=mancanti, mese=chiusura, rilevata_il__lt=limite)}
     proposte = []
     for m in mancanti:
-        if not candidate[m.id]:
+        scelta = chiusure.get(m.id)
+        if scelta is None:
             continue
-        scelta = min(candidate[m.id], key=lambda x: abs((x.rilevata_il - riferimento).total_seconds()))
         prima = m.letture.filter(trimestre__lt=trimestre).order_by("-trimestre").first()
-        incoerente = bool(prima and any(getattr(scelta, c) < getattr(prima, c) for c in CAMPI))
-        proposte.append({"macchina": m, "mensile": scelta, "incoerente": incoerente, "precedente": prima,
+        dopo = m.letture.filter(trimestre__gt=trimestre).order_by("trimestre").first()
+        motivo = ""
+        if prima and any(getattr(scelta, c) < getattr(prima, c) for c in CAMPI):
+            motivo = f"Più bassa del {prima.trimestre}"
+        elif dopo and any(getattr(scelta, c) > getattr(dopo, c) for c in CAMPI):
+            motivo = f"Più alta del {dopo.trimestre}"
+        proposte.append({"macchina": m, "mensile": scelta, "incoerente": bool(motivo), "motivo": motivo,
+                         "precedente": prima,
                          "delta": scelta.totale - prima.totale if prima else None})
     return proposte
 
