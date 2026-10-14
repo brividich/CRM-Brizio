@@ -197,7 +197,7 @@
                       <option value="no"{% if c.valore == "no" %} selected{% endif %}>No</option>
                     </select>
                     {% if c.pagine %}
-                      <a class="rp-pag rp-pag-{{ c.pagine.stato }}{% if c.pagine.eccezione %} rp-pag-ecc{% endif %}" href="?tab=modulo&modulo={{ r.spec.chiave }}" title="{{ c.pagine.dettaglio }}">pagine {{ c.pagine.concesse|length }}/{{ c.pagine.totale }}{% if c.pagine.eccezione %} · a mano{% endif %}</a>
+                      <a class="rp-pag rp-pag-{{ c.pagine.stato }}{% if c.pagine.eccezione %} rp-pag-ecc{% endif %}" data-modulo="{{ r.spec.chiave }}" data-azione="{{ c.azione }}" data-n="{{ c.pagine.concesse|length }}" data-tot="{{ c.pagine.totale }}" href="?tab=modulo&modulo={{ r.spec.chiave }}" title="{{ c.pagine.dettaglio }}">pagine {{ c.pagine.concesse|length }}/{{ c.pagine.totale }}{% if c.pagine.eccezione %} · a mano{% endif %}</a>
                     {% endif %}
                   </td>
                 {% endfor %}
@@ -223,22 +223,82 @@
         </div>
         <div class="rp-sticky-actions">
           <span class="acl-muted">Al salvataggio si aggiornano anche i permessi delle pagine del ruolo. Ogni cella cambiata va nel registro.</span>
+          <span id="rp-da-salvare" class="rp-pag rp-pag-dasalvare" hidden>Modifiche non salvate: i badge «→» mostrano come sarà dopo il salvataggio</span>
           <button class="btn" type="submit">Salva matrice</button>
         </div>
       </form>
+      {{ anteprima_pagine|json_script:"rp-anteprima" }}
       <script>
-        document.querySelectorAll("select.rp-riga-tutta").forEach(function (sel) {
-          sel.addEventListener("change", function () {
-            var valore = sel.value === "__vuoto" ? "" : sel.value;
-            if (sel.value) {
-              sel.closest("tr").querySelectorAll("td.rp-cell select").forEach(function (cella) {
-                cella.value = valore;
-                cella.dataset.v = valore;
-              });
+        (function () {
+          // Anteprima dei badge «pagine N/M»: ripete lato pagina il calcolo della
+          // sincronizzazione (core/permessi/sync.py) sulle celle non ancora salvate.
+          // Non salva nulla: i permessi cambiano solo con «Salva matrice».
+          var dati = null;
+          try { dati = JSON.parse(document.getElementById("rp-anteprima").textContent); } catch (e) { dati = null; }
+          var CONSENTITI = { propri: 1, team: 1, tutti: 1 };
+
+          function valoreIniziale(sel) {
+            for (var i = 0; i < sel.options.length; i++) {
+              if (sel.options[i].defaultSelected) return sel.options[i].value;
             }
-            sel.value = "";
+            return "";
+          }
+          function cella(modulo, azione) {
+            return document.querySelector('select[name="c__' + modulo + "__" + azione + '"]');
+          }
+
+          function aggiornaRiga(modulo) {
+            if (!dati || !dati.moduli[modulo]) return;
+            var info = dati.moduli[modulo];
+            var cambiata = false;
+            var voluti = {};  // capacita' accese dalla riga dopo il salvataggio
+            Object.keys(dati.azioni).forEach(function (azione) {
+              var sel = cella(modulo, azione);
+              if (!sel) return;
+              if (sel.value !== valoreIniziale(sel)) cambiata = true;
+              if (CONSENTITI[sel.value]) dati.azioni[azione].forEach(function (cap) { voluti[cap] = 1; });
+            });
+            document.querySelectorAll('.rp-pag[data-modulo="' + modulo + '"]').forEach(function (badge) {
+              var caps = dati.azioni[badge.dataset.azione] || [];
+              var dopo = 0;
+              info.pagine.forEach(function (p) {
+                var code = p[0], cap = p[1], aMano = p[2], negata = p[3];
+                if (caps.indexOf(cap) < 0) return;
+                var lettura = dati.vede_tutto && !info.solo_admin && cap === dati.lettura;
+                if (aMano || (!negata && (voluti[cap] || lettura))) dopo += 1;
+              });
+              if (!badge.dataset.testo) badge.dataset.testo = badge.textContent;
+              var ora = parseInt(badge.dataset.n, 10);
+              if (cambiata && dopo !== ora) {
+                badge.textContent = "pagine " + ora + "/" + badge.dataset.tot + " → " + dopo + "/" + badge.dataset.tot + " · da salvare";
+                badge.classList.add("rp-pag-dasalvare");
+              } else {
+                badge.textContent = badge.dataset.testo;
+                badge.classList.remove("rp-pag-dasalvare");
+              }
+            });
+            var avviso = document.getElementById("rp-da-salvare");
+            if (avviso) avviso.hidden = !document.querySelector(".rp-pag-dasalvare");
+          }
+
+          document.querySelectorAll("select.rp-riga-tutta").forEach(function (sel) {
+            sel.addEventListener("change", function () {
+              var valore = sel.value === "__vuoto" ? "" : sel.value;
+              if (sel.value) {
+                sel.closest("tr").querySelectorAll("td.rp-cell select").forEach(function (cella) {
+                  cella.value = valore;
+                  cella.dataset.v = valore;
+                });
+                var nome = (sel.closest("tr").querySelector("td.rp-cell select") || {}).name || "";
+                aggiornaRiga(nome.split("__")[1]);
+              }
+              sel.value = "";
+            });
           });
-        });
+          document.querySelectorAll("td.rp-cell select").forEach(function (sel) {
+            sel.addEventListener("change", function () { aggiornaRiga(sel.name.split("__")[1]); });
+          });
+        })();
       </script>
     {% endif %}
 

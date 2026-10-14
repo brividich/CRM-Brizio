@@ -26,7 +26,14 @@ from core.permessi.motore import (
 )
 from core.permessi.preset import PRESETS_PER_CHIAVE, applica_preset
 from core.permessi.registro import AMBITI, AMBITI_LABEL, AZIONI_LABEL, AZIONI_STANDARD, moduli_registrati
-from core.permessi.sync import sincronizza_ruolo, sincronizza_tutti, stato_pagine_ruolo
+from core.permessi.sync import (
+    capacita_permessi,
+    codici_per_modulo,
+    dati_anteprima_ruolo,
+    sincronizza_ruolo,
+    sincronizza_tutti,
+    stato_pagine_ruolo,
+)
 
 from .decorators import legacy_admin_required
 
@@ -176,6 +183,7 @@ def _ctx_matrice(request) -> dict:
         ruolo = ruoli[0]
     celle = {}
     pagine = {}
+    anteprima = None
     if ruolo is not None:
         celle = {
             (c.modulo, c.azione): (c.ambito if c.consentito else VALORE_NO)
@@ -184,7 +192,10 @@ def _ctx_matrice(request) -> dict:
         if not ruolo.amministratore:
             # Stato reale dei permessi di pagina: riflette anche le modifiche
             # fatte a mano dalla pagina Accessi. Solo lettura, non scrive nulla.
-            pagine = stato_pagine_ruolo(ruolo)
+            capacita, per_modulo = capacita_permessi(), codici_per_modulo()
+            pagine = stato_pagine_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
+            # Anteprima lato pagina: come saranno i badge dopo «Salva matrice».
+            anteprima = dati_anteprima_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
     righe = []
     for spec in moduli_registrati().values():
         righe.append(
@@ -213,6 +224,7 @@ def _ctx_matrice(request) -> dict:
     return {
         "ruolo": ruolo,
         "righe": righe,
+        "anteprima_pagine": anteprima,
         "azioni_header": [AZIONI_LABEL[a] for a in AZIONI_STANDARD],
         "ambiti": AMBITI,
         "preset_ruolo": PRESETS_PER_CHIAVE.get(getattr(ruolo, "preset", "")),

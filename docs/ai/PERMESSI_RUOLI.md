@@ -113,6 +113,10 @@ Il verso inverso e' **in sola lettura**: `stato_pagine_ruolo(ruolo)` dice, per o
 Accessi segna «da matrice» i grant con `NOTA_MATRICE`. Una modifica fatta in Accessi non
 riscrive la cella: al prossimo salvataggio della matrice le pagine tolte a mano tornano,
 quelle aggiunte a mano restano.
+`dati_anteprima_ruolo(ruolo)` passa alla pagina pagine, capacita' e grant non governati
+dalla matrice: il JS della matrice ripete lo stesso calcolo per mostrare i badge «→ X/M · da
+salvare» prima del salvataggio. Se cambia la logica di `codici_desiderati`/`sincronizza_ruolo`,
+aggiornare anche lo script in `ruoli_portale.html` (test `test_anteprima_prevede_il_risultato_del_salvataggio`).
 
 ## Comandi
 
