@@ -78,6 +78,16 @@ class GuideTestoTests(SimpleTestCase):
         self.assertTrue(all(s.url == "/timbri/?guida=1" for s in timbri))
         self.assertTrue(any("Nuovo record" in s.testo for s in timbri))
 
+    def test_le_guide_dei_permessi_sono_indicizzate(self):
+        sezioni = guide_portale.sezioni()
+        accessi = [s for s in sezioni if s.slug == "accessi"]
+        ruoli = [s for s in sezioni if s.slug == "ruoli-permessi"]
+        self.assertTrue(accessi and ruoli)
+        self.assertTrue(all(s.url == "/admin-portale/accessi/?guida=1" for s in accessi))
+        self.assertTrue(all(s.url == "/admin-portale/ruoli-portale/?tab=guida" for s in ruoli))
+        self.assertTrue(any("da matrice" in s.testo for s in accessi))
+        self.assertTrue(any("pagine N/M" in s.testo for s in ruoli))
+
 
 @override_settings(**_RAG_ONLY_GUIDES)
 class GuideRetrievalTests(TestCase):

@@ -66,6 +66,13 @@
   padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer;
 }
 .acl-console__pick button:hover { background: rgba(255, 255, 255, .12); }
+.acl-console__pick .acl-console__guide {
+  color: #fff; text-decoration: none;
+  border: 1px solid var(--acl-rail);
+  border-radius: var(--hub-radius-sm, 6px);
+  padding: 7px 14px; font-size: 13px;
+}
+.acl-console__pick .acl-console__guide:hover { background: rgba(255, 255, 255, .12); }
 
 /* Il conteggio e' il dato che comanda la pagina: e' l'unico elemento grande. */
 .acl-meter { text-align: right; }
@@ -409,6 +416,7 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
           </optgroup>
         </select>
         <button type="submit">Cambia</button>
+        <a class="acl-console__guide" href="?guida=1&amp;subject={{ subject_value|urlencode }}">? Guida</a>
       </form>
     </div>
 

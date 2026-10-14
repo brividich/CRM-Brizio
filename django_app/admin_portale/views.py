@@ -12311,7 +12311,14 @@ def accessi_unificati(request):
     spunta poteva quindi funzionare o non funzionare a seconda della pagina.
     Qui si scrivono solo grant canonici, per singolo permesso.
     """
-    groups = list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
+    if request.method == "GET" and request.GET.get("guida") == "1":
+        # Stessa rotta (stesso permesso) della pagina: la guida non apre un varco.
+        return render(
+            request,
+            "admin_portale/pages/accessi_guida.html",
+            {"page_title": "Guida Accessi", "subject": str(request.GET.get("subject") or "")[:40]},
+        )
+    groups =list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
     try:
         roles = list(Ruolo.objects.all().order_by("nome"))
     except DatabaseError:

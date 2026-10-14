@@ -68,6 +68,16 @@ class AccessiUnificatiTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Crea un gruppo")
 
+    def test_la_pagina_ha_la_guida(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, "? Guida")
+        guida = self.client.get(self.url + "?guida=1")
+        self.assertEqual(guida.status_code, 200)
+        self.assertTemplateUsed(guida, "admin_portale/pages/accessi_guida.html")
+        # Etichette reali della pagina, non parafrasi.
+        for etichetta in ("Salva i permessi", "Salva come preset…", "da matrice", "Operativo completo"):
+            self.assertContains(guida, etichetta)
+
     def test_la_pagina_offre_i_livelli_preimpostati(self):
         """I livelli sono una scorciatoia di selezione, non un secondo stato."""
         response = self.client.get(self.url)
