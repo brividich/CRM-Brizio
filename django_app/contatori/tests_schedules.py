@@ -88,7 +88,7 @@ class SchedulerIntegrationTests(TestCase):
             self.assertEqual(Schedule.objects.filter(name=name).count(), 1)
         mensile = Schedule.objects.get(name="contatori_letture_mensili")
         self.assertEqual(mensile.cron, "0 0 1 * *")
-        self.assertEqual(Schedule.objects.get(name="contatori_letture_mensili_recupero").cron, "0 8 1 * *")
+        self.assertEqual(Schedule.objects.get(name="contatori_letture_mensili_recupero").cron, "*/15 * 1-7 * *")
         self.assertGreater(mensile.next_run, timezone.now())
 
     @patch("contatori.tasks.async_task")

@@ -95,6 +95,25 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "mensili",
+        "titolo": "Letture mensili automatiche",
+        "blocchi": [
+            ("p", "Il giorno 1 alle 00:00 il portale legge i contatori di ogni MFC attiva con IP, allineati "
+                  "alla chiusura del fornitore. Le MFC spente o in sospensione vengono riprovate ogni 15 minuti "
+                  "fino al giorno 7: la lettura arriva entro un quarto d'ora da quando la macchina si riaccende."),
+            ("ul", [
+                "Nella scheda MFC, «Letture mensili automatiche», il badge giallo (es. «+31 h» o «+3 gg») indica "
+                "che la lettura è arrivata dopo la chiusura: i contatori includono le copie fatte nel frattempo.",
+                "Dal giorno 2 al 7 la Centrale mostra «N letture mensili in attesa»; dal giorno 8 diventa "
+                "«N letture mensili saltate»: la MFC non ha mai risposto, controlla che sia accesa e in rete.",
+                "La prima lettura riuscita del mese non viene più sovrascritta.",
+            ]),
+            ("p", "MFC Kyocera (TASKalfa): ogni contatore è la somma di stampe e copie dello stesso colore e "
+                  "formato. In un profilo SNMP una colonna può sommare più OID scrivendoli uniti da + "
+                  "(solo modalità GET)."),
+        ],
+    },
+    {
         "id": "tvcc",
         "titolo": "Videosorveglianza (NVR e telecamere TVT)",
         "blocchi": [

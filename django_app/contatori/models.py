@@ -1,7 +1,7 @@
 """Modelli per la centrale MFC e il monitoraggio SNMP read-only."""
 from decimal import Decimal
 import uuid
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.conf import settings
 from django.core.validators import MinValueValidator, RegexValidator
@@ -15,6 +15,12 @@ CONTATORI = (("a4_bn", "A4 BN"), ("a3_bn", "A3 BN"),
 _oid_validator = RegexValidator(
     regex=r"^\d+(?:\.\d+)+$",
     message="Inserisci un OID numerico puntato, ad esempio 1.3.6.1.2.1.1.3.0.",
+)
+# Colonne e sonde: anche "A+B" (solo GET), letti e sommati da snmp.leggi_specifiche.
+_oid_colonna_validator = RegexValidator(
+    regex=r"^\d+(?:\.\d+)+(?:\+\d+(?:\.\d+)+)*$",
+    message="Inserisci un OID numerico puntato (es. 1.3.6.1.2.1.1.3.0) "
+            "oppure piu' OID uniti da + da sommare (solo modalita GET).",
 )
 
 
@@ -216,7 +222,7 @@ class ColonnaProfiloSNMP(models.Model):
         ProfiloSNMP, on_delete=models.CASCADE, related_name="colonne",
     )
     nome = models.CharField(max_length=100)
-    oid = models.CharField(max_length=255, validators=[_oid_validator])
+    oid = models.CharField(max_length=255, validators=[_oid_colonna_validator])
     tipo_valore = models.CharField(
         max_length=10, choices=TipoValore.choices, default=TipoValore.NUMERO,
     )
@@ -472,7 +478,7 @@ class SondaSNMP(models.Model):
         help_text="Colonna del catalogo che ha generato questa sonda; vuoto se manuale.",
     )
     nome = models.CharField(max_length=100)
-    oid = models.CharField(max_length=255, validators=[_oid_validator])
+    oid = models.CharField(max_length=255, validators=[_oid_colonna_validator])
     tipo_valore = models.CharField(
         max_length=10, choices=TipoValore.choices, default=TipoValore.NUMERO,
     )
@@ -684,6 +690,20 @@ class LetturaMensileContatori(models.Model):
     @property
     def totale(self):
         return self.a4_bn + self.a3_bn + self.a4_col + self.a3_col
+
+    @property
+    def ritardo(self):
+        """Distanza dalla chiusura del fornitore (giorno 1 alle 00:00, ora locale)."""
+        chiusura = timezone.make_aware(datetime.combine(self.mese, time.min))
+        return max(self.rilevata_il - chiusura, timedelta(0))
+
+    @property
+    def ritardo_testo(self):
+        """"" se letta entro un'ora dalla chiusura, altrimenti "+31 h" / "+3 gg"."""
+        ore = int(self.ritardo.total_seconds() // 3600)
+        if ore < 1:
+            return ""
+        return f"+{ore} h" if ore < 48 else f"+{ore // 24} gg"
 
     def __str__(self):
         return f"{self.macchina} {self.mese:%Y-%m}"
