@@ -87,6 +87,8 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "ai_assistant:api_conversazione_elimina",
     "ai_assistant:api_conversazioni_elimina_tutte",
     "ai_assistant:guida",
+    # Guida della home: aperta a chiunque vede la home, nessun dato personale.
+    "home_portale:guida",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

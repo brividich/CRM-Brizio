@@ -1066,13 +1066,28 @@ class ActionItem(models.Model):
 
 
 class HubLinkCategory(models.Model):
-    """Categoria della bacheca 'Documenti & Collegamenti' (gestita da admin)."""
+    """Categoria della bacheca 'Documenti & Collegamenti' (gestita da admin).
+
+    ``sezione`` decide dove la categoria compare nella home: tra i documenti
+    aziendali o nello scaffale «Risorse self-help» (guide, manuali, video),
+    dove ogni voce ha una copertina col ``colore`` della categoria.
+    """
+
+    SEZIONE_DOCUMENTI = "documenti"
+    SEZIONE_SELF_HELP = "self_help"
+    SEZIONE_CHOICES = [
+        (SEZIONE_DOCUMENTI, "Documenti & collegamenti"),
+        (SEZIONE_SELF_HELP, "Risorse self-help"),
+    ]
 
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=140, unique=True)
     icon = models.CharField(max_length=500, blank=True, default="",
                             help_text="Emoji, alias SVG o URL immagine.")
     description = models.CharField(max_length=255, blank=True, default="")
+    sezione = models.CharField(max_length=16, choices=SEZIONE_CHOICES, default=SEZIONE_DOCUMENTI)
+    colore = models.CharField(max_length=7, blank=True, default="",
+                              help_text="Colore delle copertine self-help, es. #1f4f86.")
     order = models.IntegerField(default=100)
     is_visible = models.BooleanField(default=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -1106,6 +1121,8 @@ class HubLink(models.Model):
     title = models.CharField(max_length=160)
     description = models.CharField(max_length=300, blank=True, default="")
     icon = models.CharField(max_length=500, blank=True, default="")
+    sigla = models.CharField(max_length=8, blank=True, default="",
+                             help_text="Testo grande della copertina self-help (es. VPN, 2FA). Vuoto = dal titolo.")
     # target per kind:
     url = models.CharField(max_length=500, blank=True, default="")            # kind=url
     route_name = models.CharField(max_length=160, blank=True, default="")     # kind=internal
@@ -1143,6 +1160,18 @@ class HubLink(models.Model):
                 raise ValidationError({"file": "File obbligatorio per un documento."})
         else:
             raise ValidationError({"kind": "Tipo non valido."})
+
+    @property
+    def sigla_copertina(self) -> str:
+        """Sigla scritta sulla copertina: quella impostata, altrimenti le iniziali del titolo."""
+        if (self.sigla or "").strip():
+            return self.sigla.strip()[:8]
+        parole = [p for p in (self.title or "").replace("-", " ").split() if p[:1].isalnum()]
+        if not parole:
+            return "?"
+        if len(parole) == 1:
+            return parole[0][:4].upper()
+        return "".join(p[0] for p in parole[:3]).upper()
 
     def resolve_href(self) -> str:
         if self.kind == self.KIND_URL:

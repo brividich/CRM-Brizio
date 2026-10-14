@@ -6,13 +6,23 @@ Area **Core** · URL `/` · codice [`django_app/dashboard/`](../../django_app/da
 
 ## Sintesi
 
-Home "Bacheca" info-hub: News + **Documenti & Collegamenti** (gestibili da admin), KPI, "Cose da fare", launcher moduli
+Home a stanze: colonna fissa con priorità ed emergenza, stanze Oggi, Sapere (self-help e documenti), Persone & sicurezza, Moduli
 
 ## Dettaglio
 
 Workspace personale dell'utente autenticato. Widget multi-modulo con layout salvato per utente.
 
-- **Home "Bacheca" (info-hub)** — redesign 2026-07: saluto + 4 KPI prioritari, poi la **Bacheca a 2 colonne** (News aziendali · **Documenti & Collegamenti**), "Cose da fare", Brief AI e un launcher moduli piatto. La sezione **Documenti & Collegamenti** (pagina `/dashboard/bacheca/`, gestione admin in `/admin-portale/bacheca/`) raccoglie **documenti caricati** (storage privato cifrato fuori webroot, download con ACL + audit), **collegamenti esterni** e **scorciatoie interne**, organizzati per **categoria** e con **visibilità per ruolo** (nessun ruolo assegnato = visibile a tutti). Modelli `HubLinkCategory`/`HubLink`/`HubLinkRoleAccess` in `core`
+- **Home a «stanze»** (ottobre 2026, `/hub/home/`, template `dashboard/pages/home_portale.html`, CSS `core/css/home_stanze.css`). Sostituisce la pila di riquadri del redesign «Bacheca».
+  - **Colonna fissa** («il polso»): saluto, ruolo e reparto; ora e riepilogo; «Priorità» (Anomalie aperte, Ticket attivi, Task in corso, Approvazioni); «Azioni rapide»; riquadro «Emergenza · 112» con i coordinatori delle emergenze.
+  - **Oggi**: «Le mie attività» (`build_cose_da_gestire`), brief AI, news.
+  - **Sapere**: scaffale «Risorse self-help» (categorie bacheca con `sezione=self_help`; copertina col `colore` della categoria e la `sigla` della voce, iniziali del titolo se vuota; «NUOVA» per `SELF_HELP_NUOVA_GIORNI` = 14 giorni; filtro per categoria) e «Documenti & Collegamenti» (categorie con `sezione=documenti`, più il gruppo «Procedure SGI»).
+  - **Persone & sicurezza** (`dashboard/home_sicurezza.py::build_sicurezza`): ruoli attivi dell'ambito «Sicurezza ISO 45001» (primo `AmbitoRuolo` attivo con «45001» o «sicurezza» nel nome, esclusa la sicurezza delle informazioni) e titolari da `DipendenteRuoloOperativo`, senza ex dipendenti né anagrafiche non attive. Ordine: datore, dirigenti, RSPP, ASPP, medico, RLS, preposti, emergenze. Il preposto dell'utente è quello con lo stesso reparto in anagrafica (`anagrafica_dipendenti.reparto`, via `utente_id`) o il cui ruolo contiene il nome del reparto. Si mostrano solo nome, ruolo, reparto ed email aziendale; avatar con le iniziali (le foto stanno dietro l'ACL dell'anagrafica). Tessere «Responsabilità» = descrizione del ruolo + persone; «Posizione scoperta» se nessuno.
+  - **Moduli**: tessere `_home_module_tile.html` per area.
+  - Stanza attiva da `#oggi|#sapere|#persone|#moduli`, altrimenti l'ultima aperta (`localStorage`, chiave `hs-room`).
+  - **Guida in-app** «? Guida»: `/hub/home/guida/` (`home_portale:guida`, route ACL-shared), testo in `dashboard/guida.py`, indicizzata dall'assistente come `guida:home`.
+  - Bacheca, gestione admin (`/admin-portale/bacheca/`): per categoria «Sezione della home» e «Colore copertine», per voce «Sigla copertina» (max 8). Migrazione `core` 0080.
+
+- **Home "Bacheca" (info-hub)** — *storico, sostituita dalla home a stanze* — redesign 2026-07: saluto + 4 KPI prioritari, poi la **Bacheca a 2 colonne** (News aziendali · **Documenti & Collegamenti**), "Cose da fare", Brief AI e un launcher moduli piatto. La sezione **Documenti & Collegamenti** (pagina `/dashboard/bacheca/`, gestione admin in `/admin-portale/bacheca/`) raccoglie **documenti caricati** (storage privato cifrato fuori webroot, download con ACL + audit), **collegamenti esterni** e **scorciatoie interne**, organizzati per **categoria** e con **visibilità per ruolo** (nessun ruolo assegnato = visibile a tutti). Modelli `HubLinkCategory`/`HubLink`/`HubLinkRoleAccess` in `core`
 - **Widget KPI cross-modulo** (assenze in attesa, ticket aperti, scadenze asset, anomalie…)
 - **Cockpit "Le mie attività"** — blocco principale **in cima alla home, sopra i pulsanti dei moduli**: aggregato cross-modulo di tutto ciò che richiede un'azione dall'utente loggato (approvazioni assenze, ticket aperti correlati, anomalie dei propri OP, procedure da leggere, richieste DPI in corso), con conteggio e link al modulo. Sostituisce i vecchi pannelli d'azione separati (ticket/anomalie/approvazioni); con il redesign "Bacheca" le news vivono nella sezione Documenti & Collegamenti e i pannelli *presenze* / *KPI sicurezza* / *stato sistema* sono stati rimossi dalla home. Logica condivisa `build_cose_da_gestire()` (riusata anche dalla pagina dedicata `/mie-attivita`). Versione attuale: solo elenco + link (no azioni bulk dalla home)
 - **Moduli del portale**: la griglia della home mostra solo i moduli disponibili per il ruolo/utente corrente; i moduli non accessibili non vengono renderizzati nella pagina.
