@@ -671,6 +671,40 @@
       </label>
     );
 
+    // Chip dei seriali: un range «LCN00060-LCN00065» diventa «LCN00060 → LCN00065».
+    const RANGE_SN_RE = /^([A-Za-z]*\d+)-([A-Za-z]*\d+)$/;
+    const SnChip = ({ voce, muted }) => {
+      const m = RANGE_SN_RE.exec(String(voce || "").trim());
+      return (
+        <span className={`ga-snchip${muted ? " is-muted" : ""}${m ? " is-range" : ""}`}
+          title={muted ? "Nello stesso controllo, ma non interessato da questa anomalia" : ""}>
+          {m ? <>{m[1]}<span className="ga-snchip__arrow">→</span>{m[2]}</> : voce}
+        </span>
+      );
+    };
+
+    const PezziInteressati = ({ sn, compact }) => {
+      const coinvolti = Array.isArray(sn.seriali_coinvolti) && sn.seriali_coinvolti.length
+        ? sn.seriali_coinvolti : [sn.blocco_label || sn.sn].filter(Boolean);
+      const esclusi = Array.isArray(sn.seriali_esclusi) ? sn.seriali_esclusi : [];
+      const pezzi = sn.pezzi_coinvolti || coinvolti.length;
+      if (!coinvolti.length) return null;
+      return (
+        <div className={`ga-sn${compact ? " ga-sn--compact" : ""}`}>
+          {!compact && (
+            <span className="ga-sn__label">
+              Pezzi interessati <b className="ga-sn__count">{pezzi} pezz{pezzi === 1 ? "o" : "i"}</b>
+              {esclusi.length > 0 && <span className="ga-sn__of">su {sn.pezzi_blocco} del controllo</span>}
+            </span>
+          )}
+          <div className="ga-sn__chips">
+            {coinvolti.map((v) => <SnChip key={`c-${v}`} voce={v} />)}
+            {!compact && esclusi.map((v) => <SnChip key={`e-${v}`} voce={v} muted />)}
+          </div>
+        </div>
+      );
+    };
+
     function GestioneAnomalie() {
       // ── Dati ──
       const [ordini, setOrdini] = useState([]);
@@ -1286,8 +1320,6 @@
                   <div className="ga-det__head">
                     <div className="ga-det__crumb">
                       <span>{op.id}</span>
-                      <span className="ga-det__sep">›</span>
-                      <span className="ga-mono">S/N {sn.seriali_parziali || sn.blocco_label || sn.sn || "—"}</span>
                       {sn.fase && <><span className="ga-det__sep">›</span><span>Fase {sn.fase}</span></>}
                       <span className={`ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`}>{isBenestare ? "Collaudo di benestare" : "Altro controllo"}</span>
                     </div>
@@ -1300,6 +1332,7 @@
                         <button type="button" className="ga-iconbtn ga-iconbtn--light" disabled={posizione < 0 || posizione >= ordineVisibile.length - 1} onClick={() => vaiA(1)} title="Anomalia successiva (Alt+↓)">{Ico.next}</button>
                       </div>
                     </div>
+                    <PezziInteressati sn={sn} />
                     <div className="ga-det__people">
                       <span><b>Capocommessa</b> {op.capo || "—"}</span>
                       <span><b>CAR</b> {op.car || "—"}</span>
@@ -1427,7 +1460,10 @@
                       {canEditSelected && fratelliBlocco.length > 0 && (
                         <label className="ga-apply">
                           <input type="checkbox" checked={applicaBlocco} onChange={(e) => setApplicaBlocco(e.target.checked)} />
-                          <span>Applica la stessa decisione anche alle altre <b>{fratelliBlocco.length}</b> anomali{fratelliBlocco.length === 1 ? "a" : "e"} aperte di questi seriali</span>
+                          <span>
+                            Applica la stessa decisione anche alle altre <b>{fratelliBlocco.length}</b> anomali{fratelliBlocco.length === 1 ? "a" : "e"} aperte di questi seriali
+                            <PezziInteressati sn={sn} compact />
+                          </span>
                         </label>
                       )}
                     </div>
