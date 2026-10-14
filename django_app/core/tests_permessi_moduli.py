@@ -406,6 +406,10 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         GroupPermissionGrant.objects.filter(group=ruolo, permission_id="tasks.elenco.view").delete()
         risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab=matrice&ruolo={ruolo.id}")
         self.assertContains(risposta, "pagine 0/1 · a mano")
+        # Dati per l'anteprima lato pagina dei badge prima del salvataggio.
+        self.assertContains(risposta, 'id="rp-anteprima"')
+        self.assertContains(risposta, 'data-azione="vedere"')
+        self.assertIn("kickoff", risposta.context["anteprima_pagine"]["moduli"])
 
     def test_non_amministratore_respinto(self):
         user, _ = self.persona("Curioso")
