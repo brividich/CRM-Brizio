@@ -189,6 +189,14 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-cust-grid { margin-top: 10px; display: grid; gap: 6px; }
 .af-cust-row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid #f1f5f9; padding-top: 6px; font-size: var(--fs-base); }
 .af-cust-row span:first-child { color: #64748b; }
+.af-cust-grid--2col { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; row-gap: 6px; }
+@media (max-width: 720px) { .af-cust-grid--2col { grid-template-columns: 1fr; } }
+.af-card-toggle { margin-left:auto; flex:0 0 auto; border:1px solid #dbe1ea; background:#fff; color:#64748b; border-radius:6px; width:26px; height:26px; line-height:1; cursor:pointer; padding:0; }
+.af-card-toggle::before { content:"BE"; display:inline-block; transition:transform .15s; }
+.af-card.is-collapsed .af-card-toggle::before { transform:rotate(-90deg); }
+.af-card.is-collapsed > :not(.af-card-head) { display:none !important; }
+.af-card.is-collapsed > .af-card-head { border-bottom:none; }
+body.theme-dark .af-card-toggle { background:var(--surface); border-color:var(--border); color:var(--text-light); }
 .af-doc-tabs { display: flex; gap: 8px; border-bottom: 1px solid #e5e7eb; padding: 0 14px; flex-wrap: wrap; }
 .af-doc-tab {
   border: none; background: none; font-size: var(--fs-sm); font-weight: 600; color: #64748b; padding: 10px 4px; border-bottom: 2px solid transparent; cursor: pointer;
@@ -1372,7 +1380,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           <div class="af-card-body">
             <div class="af-profile-group">
               <div class="af-profile-group-title">Anagrafica</div>
-              <div class="af-cust-grid">
+              <div class="af-cust-grid af-cust-grid--2col">
                 {% for row in profile_rows %}
                   <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
                 {% endfor %}
@@ -1401,7 +1409,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
                   Dipendente non collegato
                 {% endif %}
               </p>
-              <div class="af-cust-grid">
+              <div class="af-cust-grid af-cust-grid--2col">
                 {% for row in assignment_rows %}
                   <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
                 {% endfor %}
@@ -2088,6 +2096,30 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   overlay.addEventListener('click', closeLightbox);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !overlay.hidden) { closeLightbox(); }
+  });
+})();
+</script>
+<script>
+(function () {
+  function key(card) { return "af-card-collapsed:" + (card.getAttribute("data-card-code") || ""); }
+  function load(k) { try { return window.localStorage.getItem(k) === "1"; } catch (e) { return false; } }
+  function save(k, v) { try { window.localStorage.setItem(k, v ? "1" : "0"); } catch (e) {} }
+  document.querySelectorAll(".af-sections > article.af-card").forEach(function (card) {
+    var head = card.querySelector(":scope > .af-card-head");
+    if (!head || !card.getAttribute("data-card-code")) { return; }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "af-card-toggle";
+    btn.setAttribute("aria-label", "Riduci o espandi la scheda");
+    btn.title = "Riduci / espandi";
+    var k = key(card);
+    function apply(c) { card.classList.toggle("is-collapsed", c); btn.setAttribute("aria-expanded", c ? "false" : "true"); }
+    apply(load(k));
+    btn.addEventListener("click", function () {
+      var c = !card.classList.contains("is-collapsed");
+      apply(c); save(k, c);
+    });
+    head.appendChild(btn);
   });
 })();
 </script>
