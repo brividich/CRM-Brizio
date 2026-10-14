@@ -1,5 +1,6 @@
 """Authorized snapshots only: opening an asset must never poll a device."""
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.db import DatabaseError
 from django.db.models import OuterRef, Subquery
@@ -146,7 +147,21 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
             "can_link": can_view_monitoring(request, probe),
         }
     return {"devices": permitted, "machines": permitted_machines, "central_url": central_url,
-            "mfc_unlinked": unlinked}
+            "mfc_unlinked": unlinked, "add_url": _wizard_url(request, asset) if not devices and not machines else ""}
+
+
+def _wizard_url(request, asset):
+    """«Monitora via SNMP»: wizard «Nuovo apparato» con l'asset gia' scelto (solo chi gestisce Contatori)."""
+    from contatori.forms_wizard import TIPO_DA_ASSET
+    from contatori.permessi import puo_gestire
+
+    url = reverse("contatori:wizard_avvia", args=["apparato"])
+    if not puo_gestire(request) or not can_view_monitoring(request, url):
+        return ""
+    query = {"asset": asset.pk}
+    if TIPO_DA_ASSET.get(asset.asset_type):
+        query["tipo_apparato"] = TIPO_DA_ASSET[asset.asset_type]
+    return f"{url}?{urlencode(query)}"
 
 
 # Gravita' per il pallino della lista: per piu' dispositivi sullo stesso asset vince il peggiore.

@@ -7,7 +7,7 @@ from core.permessi.registro import ModuloPermessi, registra_modulo
 
 registra_modulo(ModuloPermessi(
     chiave='contatori',
-    nome='Contatori MFC e SNMP',
+    nome='Contatori IT',
     descrizione='Letture e consumabili delle stampanti, fatture, monitor SNMP.',
     area='IT',
     app='contatori',

@@ -212,6 +212,47 @@ def costruisci_credenziali(segreto, version):
     return V3(utente, auth=auth, priv=priv)
 
 
+def _ber(tag, valore):
+    """TLV BER con lunghezza in forma corta (i campi della sonda restano < 128 byte)."""
+    return bytes((tag, len(valore))) + valore
+
+
+def _ber_int(numero):
+    """INTEGER BER non negativo in forma minima (come lo codificano gli agenti)."""
+    return _ber(0x02, numero.to_bytes(numero.bit_length() // 8 + 1, "big"))
+
+
+def sonda_engine_v3(host, port=161, timeout=2):
+    """Engine ID (hex) se l'apparato risponde alla discovery SNMPv3, altrimenti "".
+
+    Richiesta senza utente ne' chiavi (RFC 3414 §4): ogni agente v3 risponde con un
+    Report che contiene il proprio engine ID. Serve a distinguere «apparato
+    irraggiungibile» da «apparato raggiungibile che scarta le nostre credenziali».
+    """
+    import socket
+    seq = lambda *parti: _ber(0x30, b"".join(parti))  # noqa: E731
+    globale = seq(_ber_int(0x4E4F5643), _ber_int(1500), _ber(0x04, b"\x04"), _ber_int(3))
+    usm = _ber(0x04, seq(_ber(0x04, b""), _ber_int(0), _ber_int(0),
+                         _ber(0x04, b""), _ber(0x04, b""), _ber(0x04, b"")))
+    pdu = _ber(0xA0, _ber_int(0x4E4F5643) + _ber_int(0) + _ber_int(0) + seq())
+    messaggio = seq(_ber_int(3), globale, usm, seq(_ber(0x04, b""), _ber(0x04, b""), pdu))
+    try:
+        with socket.socket(socket.AF_INET6 if ":" in str(host) else socket.AF_INET,
+                           socket.SOCK_DGRAM) as s:
+            s.settimeout(timeout)
+            s.sendto(messaggio, (str(host), int(port)))
+            risposta, _ = s.recvfrom(4096)
+    except OSError:
+        return ""
+    # msgSecurityParameters: OCTET STRING che incapsula una SEQUENCE il cui primo
+    # campo e' msgAuthoritativeEngineID. Parsing minimo, tollerante.
+    trovato = re.search(rb"\x04.\x30.\x04([\x05-\x20])", risposta, re.DOTALL)
+    if not trovato:
+        return "?"  # ha risposto, ma il formato non e' quello atteso
+    inizio, lunghezza = trovato.end(), trovato.group(1)[0]
+    return risposta[inizio:inizio + lunghezza].hex()
+
+
 def _testo(valore):
     if isinstance(valore, bytes):
         return valore.decode("latin-1", "replace").strip()

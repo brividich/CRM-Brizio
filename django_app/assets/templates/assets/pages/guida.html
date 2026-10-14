@@ -71,10 +71,10 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="mfc">
       <h2>Stampanti multifunzione (MFC) <span class="ag-perm {% if puo_leggere_ora %}si">Puoi usare «Leggi adesso»{% else %}no">«Leggi adesso»: non abilitato per te{% endif %}</span></h2>
-      <p>Nella scheda di una stampante collegata a una MFC del modulo Contatori trovi il riquadro <strong>Stampante, consumabili e contatori</strong>. Aprire la scheda <strong>non interroga la stampante</strong>: mostra le ultime letture salvate dai job automatici.</p>
+      <p>Nella scheda di una stampante collegata a una MFC del modulo Contatori IT trovi il riquadro <strong>Stampante, consumabili e contatori</strong>. Aprire la scheda <strong>non interroga la stampante</strong>: mostra le ultime letture salvate dai job automatici.</p>
       <h3>Cosa vedi</h3>
       <ul>
-        <li>In testa, per ogni MFC o dispositivo SNMP collegato, un riquadro con nome, matricola o indirizzo, ultimo controllo, esito (badge verde, arancione o rosso) e il pulsante <strong>Apri in Contatori</strong>.</li>
+        <li>In testa, per ogni MFC o dispositivo SNMP collegato, un riquadro con nome, matricola o indirizzo, ultimo controllo, esito (badge verde, arancione o rosso) e il pulsante <strong>Apri in Contatori IT</strong>.</li>
         <li><strong>Consumabili MFC</strong>: livello di ogni toner all'ultima lettura (job giornaliero) e stima di esaurimento in base al ritmo di consumo dall'ultima sostituzione. Barra verde da 50% in su, arancione tra 20% e 49%, rossa sotto il 20% o se il consumabile è critico (riquadro rosato).</li>
         <li><strong>Pagine stampate per mese</strong>: B/N e colore degli ultimi {{ mesi_trend }} mesi, ricavate dalle letture mensili. La media degli ultimi 3 mesi è confrontata con i 3 precedenti (in aumento, in calo, stabile oltre ±10%). Un mese in cui il contatore scende (sostituzione scheda, azzeramento) resta vuoto invece di dare un numero sbagliato.</li>
         <li><strong>Contatori mensili MFC</strong>: valori cumulativi, non il consumo del mese; bordo blu per il B/N, arancione per il colore, più il totale.</li>
@@ -87,13 +87,14 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Se i consumabili non vengono letti da più di {{ soglia_consumabili }} giorni, o i contatori da più di {{ soglia_contatori }}, compare un avviso arancione: i numeri sotto non sono quelli attuali. Di solito la stampante è spenta, senza IP o con il monitoraggio disattivato; il motivo è scritto nell'avviso o nell'ultimo errore SNMP.</p>
       <h3>Leggi adesso</h3>
       <ol>
-        <li>Premi <span class="ag-btn">Leggi adesso</span> (nella scheda asset; nel modulo Contatori è <span class="ag-btn">Leggi ora</span>).</li>
+        <li>Premi <span class="ag-btn">Leggi adesso</span> (nella scheda asset; nel modulo Contatori IT è <span class="ag-btn">Leggi ora</span>).</li>
         <li>La lettura va in coda: il riquadro mostra «Lettura in coda» e si aggiorna da solo appena i livelli sono salvati.</li>
         <li>Se dopo 3 minuti la lettura non è arrivata compare «Lettura non completata in tempo»: restano i livelli dell'ultima lettura salvata.</li>
       </ol>
-      <p>Serve il permesso di gestione del modulo Contatori; con la sola consultazione il pulsante non compare.</p>
+      <p>Serve il permesso di gestione del modulo Contatori IT; con la sola consultazione il pulsante non compare.</p>
       <h3>Stampante non collegata</h3>
       <p>Se la scheda di una stampante dice che non è collegata a nessuna MFC, sotto trovi le MFC che corrispondono per matricola o IP con il pulsante <span class="ag-btn">Collega</span>: il collegamento passa dalla riconciliazione IT, che verifica che l'abbinamento sia univoco.</p>
+      <p>Se l'apparato non è ancora in Contatori IT (o un asset IT non ha alcun monitoraggio), il pulsante <span class="ag-btn">Monitora via SNMP</span> apre il wizard «Nuovo apparato» con l'asset già scelto: i dati vuoti (nome, matricola, modello, reparto, IP) vengono presi dall'asset. Compare solo a chi gestisce il modulo Contatori IT.</p>
     </section>
 
     <section class="ag-sec" id="tvcc">
@@ -108,7 +109,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li><strong>Telecamere TVT</strong>: solo se rispondono o no. Non espongono via SNMP né MAC né altri dati; il «da quanti giorni è acceso» non si mostra perché riguarda il servizio SNMP, non la telecamera.</li>
       </ul>
       <p>Quando un apparato espone il MAC, accanto al valore letto compare <strong>= dichiarato</strong>, <strong>diverso dal dichiarato</strong> o <strong>non dichiarato</strong> rispetto al campo MAC dell'asset. Il monitoraggio non cambia mai i dati dell'asset.</p>
-      <p class="ag-note">Ogni quanto si leggono NVR e telecamere e quanti giorni di storico si tengono si imposta nel modulo Contatori (Configurazione SNMP globale). Il portale non mostra né salva immagini o video.</p>
+      <p class="ag-note">Ogni quanto si leggono NVR e telecamere e quanti giorni di storico si tengono si imposta nel modulo Contatori IT (Configurazione SNMP globale). Il portale non mostra né salva immagini o video.</p>
     </section>
 
     <section class="ag-sec" id="storico">
@@ -157,7 +158,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li><strong>Licenza valida ma software non più rilevato</strong>: possibile licenza da non rinnovare;</li>
         <li><strong>Licenze non collegate all'inventario</strong>: se il nome corrisponde a un solo prodotto dell'inventario, chi gestisce le licenze vede il pulsante <em>Collega a «…»</em>; altrimenti si collega da <em>Modifica</em>.</li>
       </ul>
-      <p>Le stesse licenze si vedono nel modulo Contatori, nella scheda di ogni MFC o dispositivo SNMP collegato all'asset.</p>
+      <p>Le stesse licenze si vedono nel modulo Contatori IT, nella scheda di ogni MFC o dispositivo SNMP collegato all'asset.</p>
       <p class="ag-note">I numeri valgono quanto l'ultimo inventario importato: caricane uno nuovo per aggiornarli. Il campo <em>Posti utilizzati</em> resta manuale.</p>
       <h3>Rinnovi e storico</h3>
       <p>Quando una licenza viene rinnovata, registra il rinnovo invece di cambiare solo la data: così resta la traccia di tutti i rinnovi e di quanto sono costati.</p>
@@ -205,7 +206,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ol>
       <h3>Invio email pianificato</h3>
       <p>Salvando il report puoi scegliere frequenza (ogni giorno, settimana o mese), formato e destinatari. Il report arriva <strong>solo a chi ha accesso a quel report</strong>: chi non ce l'ha viene escluso al salvataggio e di nuovo a ogni invio. Se tu perdi il permesso di invio, la pianificazione si sospende. Nella colonna <strong>Ultimo esito</strong> del catalogo vedi com'è andato l'ultimo invio.</p>
-      <p class="ag-note">Il report sulle MFC richiede anche l'accesso alla pagina Consumabili del modulo Contatori.</p>
+      <p class="ag-note">Il report sulle MFC richiede anche l'accesso alla pagina Consumabili del modulo Contatori IT.</p>
     </section>
 
     <section class="ag-sec" id="kpi">
@@ -221,7 +222,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <tbody>
           <tr><td>Vedere il QR, stampare le etichette, leggere lo storico, aprire questa guida</td><td>Chi vede gli asset</td><td><span class="ag-perm si">Sì</span></td></tr>
           <tr><td>Abilitare, disattivare o rigenerare il link pubblico</td><td>Amministratori Asset o azione «Gestisci link pubblico QR»</td><td><span class="ag-perm {% if puo_link_pubblico %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
-          <tr><td>«Leggi adesso» / «Leggi ora» dei consumabili</td><td>Gestione del modulo Contatori</td><td><span class="ag-perm {% if puo_leggere_ora %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
+          <tr><td>«Leggi adesso» / «Leggi ora» dei consumabili</td><td>Gestione del modulo Contatori IT</td><td><span class="ag-perm {% if puo_leggere_ora %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
           <tr><td>Pianificare l'invio email dei report</td><td>Amministratori Asset o azione «Invio report via email»</td><td><span class="ag-perm {% if puo_pianificare %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
         </tbody>
       </table></div>

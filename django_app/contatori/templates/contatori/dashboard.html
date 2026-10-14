@@ -1,11 +1,11 @@
 {% extends "contatori/_base_modulo.html" %}
 {% load dictget %}
-{% block title %}Centrale MFC e SNMP{% endblock %}
+{% block title %}Contatori IT{% endblock %}
 {% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
 <header class="centrale-head">
   <div>
     <div class="eyebrow">Trimestre in corso · {{ c.trimestre }}</div>
-    <h1>Centrale MFC &amp; SNMP</h1>
+    <h1>Contatori IT</h1>
   </div>
   <div class="spacer"></div>
   <div class="actions">
@@ -112,7 +112,7 @@
       {% else %}
       <div class="banner clean">Nessun apparato in errore all'ultimo controllo.</div>
       {% endif %}
-      <h3 class="centrale-sub">Dispositivi{% if g %} · <a class="plain" href="{% url 'contatori:wizard_avvia' 'dispositivo' %}">+ Dispositivo</a>{% endif %}</h3>
+      <h3 class="centrale-sub">Dispositivi{% if g %} · <a class="plain" href="{% url 'contatori:wizard_avvia' 'apparato' %}">+ Apparato</a>{% endif %}</h3>
       <ul class="disp-list">
         {% for d in dispositivi_snmp %}<li><div><a class="plain" href="{% url 'contatori:snmp_dispositivo' d.pk %}">{{ d.nome }}</a>{% if not d.verificato %} <span class="pill warn">non verificato</span>{% endif %}<div class="muted">{{ d.get_categoria_display }} · <span class="mono">{{ d.host }}</span> · {% if d.snmp_ultimo_controllo %}{{ d.snmp_ultimo_controllo|timesince }} fa{% else %}mai interrogato{% endif %}</div></div><span class="pill {% if d.snmp_stato == 'OK' %}ok{% elif d.snmp_stato == 'WARNING' or d.snmp_stato == 'MAI' %}warn{% else %}danger{% endif %}"><span class="status-dot"></span>{{ d.get_snmp_stato_display }}</span></li>{% empty %}<li class="muted">Nessun dispositivo. Aggiungi lettori, UPS, switch o sensori.</li>{% endfor %}
       </ul>

@@ -283,7 +283,7 @@ class ViewsTest(_AuthedClientMixin, TestCase):
     def test_dashboard_ok(self):
         r = self.client.get(reverse("contatori:dashboard"))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Centrale MFC")
+        self.assertContains(r, "<h1>Contatori IT</h1>", html=False)
         self.assertContains(r, "Da fare")
 
     def test_riconciliazione_ok(self):
