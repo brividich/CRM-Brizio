@@ -112,6 +112,9 @@ while ($true) {
         $env:PORTAL_SKIP_RUNTIME_BOOTSTRAP = "0"
         $env:DJANGO_SETTINGS_MODULE = $Settings
         $env:PYTHONUNBUFFERED = "1"
+        # Query SQL con timeout: una connessione morta (riavvio SQL) diventa un errore
+        # invece di appendere il cluster per sempre. Sovrascrivibile da ambiente.
+        if (-not $env:DB_QUERY_TIMEOUT) { $env:DB_QUERY_TIMEOUT = "300" }
         $proc = Start-Process -FilePath $VenvPython `
             -ArgumentList @("manage.py", "qcluster", "--settings=$Settings") `
             -WorkingDirectory $CurrentDir -WindowStyle Hidden -PassThru `

@@ -116,18 +116,32 @@ try {
                     exit 3
                 }
                 $restartFile = Join-Path $logs 'qcluster-watchdog-restarts.json'
-                $recent = @()
+                # PS 5.1 ConvertFrom-Json emits the whole array as ONE pipeline object and
+                # ConvertTo-Json nests it as {value,Count}: the cap never triggered.
+                # Read entry by entry, drop anything unparsable, write a flat string[].
+                $recent = New-Object 'System.Collections.Generic.List[string]'
                 if (Test-Path -LiteralPath $restartFile) {
-                    $recent = @(Get-Content -LiteralPath $restartFile -Raw | ConvertFrom-Json | Where-Object {
-                        [DateTimeOffset]::Parse($_) -gt [DateTimeOffset]::UtcNow.AddMinutes(-30)
-                    })
+                    $raw = $null
+                    try { $raw = Get-Content -LiteralPath $restartFile -Raw | ConvertFrom-Json } catch { $raw = $null }
+                    foreach ($entry in @($raw)) {
+                        $parsed = [DateTimeOffset]::MinValue
+                        if ($entry -is [string] -and [DateTimeOffset]::TryParse($entry.Trim(), [ref]$parsed) -and
+                            $parsed -gt [DateTimeOffset]::UtcNow.AddMinutes(-30)) {
+                            $recent.Add($parsed.ToString('o'))
+                        }
+                    }
                 }
                 if ($recent.Count -ge 3) {
                     Write-WatchEvent 'Limite di tre riavvii in 30 minuti raggiunto: intervento richiesto.' 4104 Error
                     exit 3
                 }
-                $recent += [DateTimeOffset]::UtcNow.ToString('o')
-                ConvertTo-Json -InputObject @($recent) | Set-Content -LiteralPath $restartFile -Encoding ASCII
+                $recent.Add([DateTimeOffset]::UtcNow.ToString('o'))
+                ConvertTo-Json -InputObject ([string[]]$recent.ToArray()) | Set-Content -LiteralPath $restartFile -Encoding ASCII
+                if ([string]$current.Principal.LogonType -notin @('Password', 'S4U', 'ServiceAccount')) {
+                    # An Interactive task only runs while its user is logged on: after a
+                    # reboot or logoff Start-ScheduledTask is accepted but nothing starts.
+                    Write-WatchEvent 'Task worker registrato come interattivo: dopo riavvio/logoff non parte. Registrarlo con account non interattivo (console qcluster).' 4104 Error
+                }
                 Start-ScheduledTask -TaskName $taskName -TaskPath $taskPath
                 Write-WatchEvent 'Richiesto avvio del task worker fermo; verifica al prossimo ciclo.' 4102 Warning
             }
