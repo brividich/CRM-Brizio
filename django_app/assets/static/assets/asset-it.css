@@ -49,3 +49,69 @@ body.theme-dark .af-it-supply progress::-webkit-progress-value { background: #3b
 body.theme-dark .af-it-supply progress::-moz-progress-bar { background: #3b82f6; }
 body.theme-dark .af-it-supply progress.af-it-low::-webkit-progress-value { background: #ef4444; }
 body.theme-dark .af-it-supply progress.af-it-low::-moz-progress-bar { background: #ef4444; }
+/* Tab Monitoraggio e Tecnica e rete: apparati, contatori, consumabili, interfacce */
+.af-it-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .95em; }
+.af-it-body h3.af-it-sub { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #64748b; }
+.af-it-body h3.af-it-sub::after { content: ""; flex: 1; height: 1px; background: #e5e7eb; }
+.af-it-help { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: #1d4ed8; }
+.af-it-dev { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0 8px; padding: 12px 14px; border: 1px solid #dbe3f0; border-radius: 12px; background: linear-gradient(90deg, #f5f8ff 0%, #fff 70%); }
+.af-it-dev-ico { flex: 0 0 auto; display: inline-grid; place-items: center; width: 44px; height: 38px; border-radius: 10px; background: #0f172a; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+.af-it-dev-main { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.af-it-dev-name { font-size: 16px; font-weight: 800; color: #0f172a; text-decoration: none; }
+.af-it-dev-name:hover { color: #1d4ed8; text-decoration: underline; }
+.af-it-dev-meta { color: #64748b; font-size: 13px; }
+.af-it-counters { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.af-it-counters > div { border-left: 4px solid #cbd5e1; padding: 9px 12px; }
+.af-it-counters > div.is-bn { border-left-color: #1f6fb8; }
+.af-it-counters > div.is-col { border-left-color: #d95f0e; }
+.af-it-counters > div.is-tot { border-left-color: #0f172a; background: #f8fafc; }
+.af-it-counters span { text-transform: uppercase; font-size: 11px; letter-spacing: .06em; font-weight: 700; }
+.af-it-supply { padding: 10px 12px; }
+.af-it-supply > span:first-child { font-weight: 700; }
+.af-it-supply.is-critico { border-color: #fecaca; background: #fff5f5; }
+.af-it-meter { grid-column: 1 / -1; display: block; height: 8px; margin: 4px 0 2px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+.af-it-meter > span { display: block; height: 100%; min-width: 3px; border-radius: 999px; background: #16a34a; }
+.af-it-meter.is-mid > span { background: #d97706; }
+.af-it-meter.is-low > span { background: #dc2626; }
+.af-mfc-legend { display: flex; gap: 14px; margin: 4px 0 6px; font-size: 12px; color: #64748b; }
+.af-mfc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.af-mfc-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.af-mfc-legend .sw.bn, .af-mfc-bar .bn { background: #1f6fb8; }
+.af-mfc-legend .sw.col, .af-mfc-bar .col { background: #d95f0e; }
+.af-mfc-bar { display: flex; gap: 1px; height: 10px; min-width: 3px; border-radius: 4px; overflow: hidden; }
+.af-mfc-pages td.num, .af-mfc-pages th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.af-it-foot { margin-top: 8px; }
+.af-it-tabhead { display: none; }
+.af-page.af-tabbed .af-it-tabhead { display: flex; }
+.af-it-tiles { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.af-it-tiles .af-spec-item { padding: 9px 12px; border: 1px solid #dbe1ea; border-radius: 10px; }
+.af-it-tiles .af-spec-k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.af-net-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 10px; }
+.af-net-card { border: 1px solid #dbe1ea; border-radius: 12px; overflow: hidden; }
+.af-net-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+.af-net-ico { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #e0ecff; color: #1d4ed8; }
+.af-net-id { display: flex; flex-direction: column; min-width: 0; }
+.af-net-id strong { font-size: 15px; overflow-wrap: anywhere; }
+.af-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: #94a3b8; }
+.af-net-vlan { margin-left: auto; padding: 3px 9px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 12px; font-weight: 700; }
+.af-net-path { list-style: none; margin: 0; padding: 10px 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.af-net-path li { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-left: 14px; }
+.af-net-path li::before { content: ""; position: absolute; left: 0; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: #1d4ed8; }
+.af-net-path li + li::after { content: "→"; position: absolute; left: -12px; top: 12px; color: #94a3b8; font-size: 12px; }
+.af-net-path strong { overflow-wrap: anywhere; }
+.af-it-empty { padding: 12px 14px; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; }
+body.theme-dark .af-it-body h3.af-it-sub, body.theme-dark .af-it-dev-meta, body.theme-dark .af-mfc-legend, body.theme-dark .af-it-empty { color: var(--text-light); }
+body.theme-dark .af-it-body h3.af-it-sub::after { background: var(--border); }
+body.theme-dark .af-it-dev { border-color: var(--border); background: linear-gradient(90deg, rgba(59,130,246,.10) 0%, transparent 70%); }
+body.theme-dark .af-it-dev-ico { background: #1e293b; }
+body.theme-dark .af-it-dev-name { color: var(--text); }
+body.theme-dark .af-it-help, body.theme-dark .af-it-dev-name:hover { color: #93c5fd; }
+body.theme-dark .af-it-counters > div.is-tot { background: rgba(255,255,255,.04); border-left-color: #94a3b8; }
+body.theme-dark .af-it-supply.is-critico { border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
+body.theme-dark .af-it-meter { background: var(--border); }
+body.theme-dark .af-it-tiles .af-spec-item, body.theme-dark .af-net-card, body.theme-dark .af-it-empty { border-color: var(--border); }
+body.theme-dark .af-net-head { background: rgba(255,255,255,.03); border-color: var(--border); }
+body.theme-dark .af-net-ico { background: rgba(59,130,246,.18); color: #93c5fd; }
+body.theme-dark .af-net-vlan { background: rgba(99,102,241,.2); color: #c7d2fe; }
+body.theme-dark .af-net-path li::before { background: #93c5fd; }
+@media (max-width: 600px) { .af-net-list { grid-template-columns: 1fr; } .af-net-path { grid-template-columns: 1fr; } .af-net-path li + li::after { content: none; } .af-it-dev .af-btn { width: 100%; } }
