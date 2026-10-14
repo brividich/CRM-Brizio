@@ -636,13 +636,17 @@ BACHECA_PREVIEW_PER_CATEGORY = 4
 _KIND_LABEL = {HubLink.KIND_FILE: "File", HubLink.KIND_URL: "Link", HubLink.KIND_INTERNAL: "Interna"}
 
 
-def _documenti_collegamenti(request, preview: bool = True) -> list[dict]:
-    """Sezione Documenti & Collegamenti per la home / pagina bacheca."""
+def _documenti_collegamenti(request, preview: bool = True, sezione: str | None = None) -> list[dict]:
+    """Sezione Documenti & Collegamenti per la home / pagina bacheca.
+
+    ``sezione`` restringe alle categorie di quella sezione (la home passa
+    «documenti»: le categorie self-help hanno il loro scaffale).
+    """
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
     role_id = getattr(legacy_user, "ruolo_id", None)
     limit = BACHECA_PREVIEW_PER_CATEGORY if preview else None
-    groups = visible_bacheca(role_id, is_admin=is_admin, preview_limit=limit)
+    groups = visible_bacheca(role_id, is_admin=is_admin, preview_limit=limit, sezione=sezione)
     out: list[dict] = []
     for g in groups:
         cat = g["category"]
@@ -679,6 +683,53 @@ def _documenti_collegamenti(request, preview: bool = True) -> list[dict]:
     except Exception:
         logger.exception("Home: gruppo bacheca Procedure SGI non disponibile")
     return out
+
+
+SELF_HELP_NUOVA_GIORNI = 14
+SELF_HELP_COLORE_DEFAULT = "#1f4f86"
+
+
+def _risorse_self_help(request) -> list[dict]:
+    """Scaffale «Risorse self-help»: categorie della sezione self-help, voci complete.
+
+    Ogni voce porta la sigla e il colore della copertina; «nuova» se caricata
+    negli ultimi ``SELF_HELP_NUOVA_GIORNI`` giorni.
+    """
+    from core.models import HubLinkCategory
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    role_id = getattr(legacy_user, "ruolo_id", None)
+    soglia = timezone.now() - timedelta(days=SELF_HELP_NUOVA_GIORNI)
+    out: list[dict] = []
+    for g in visible_bacheca(role_id, is_admin=is_admin, sezione=HubLinkCategory.SEZIONE_SELF_HELP):
+        cat = g["category"]
+        out.append({
+            "name": cat.name,
+            "slug": cat.slug,
+            "colore": cat.colore or SELF_HELP_COLORE_DEFAULT,
+            "items": [{
+                "title": l.title,
+                "description": l.description,
+                "sigla": l.sigla_copertina,
+                "kind": l.kind,
+                "kind_label": _KIND_LABEL.get(l.kind, ""),
+                "href": l.resolve_href(),
+                "open_in_new_tab": bool(l.open_in_new_tab or l.kind == HubLink.KIND_URL),
+                "is_new": bool(l.created_at and l.created_at >= soglia),
+            } for l in g["items"]],
+        })
+    return out
+
+
+def _sicurezza(legacy_user) -> dict:
+    from dashboard.home_sicurezza import build_sicurezza
+
+    try:
+        return build_sicurezza(legacy_user)
+    except Exception:
+        logger.exception("Home: organizzazione della sicurezza non calcolata")
+        return {"ambito": None, "figure": [], "persone": [], "mie": [], "emergenza": [], "reparto": ""}
 
 
 def _module_launcher(groups: list[dict]) -> list[dict]:
@@ -727,6 +778,12 @@ def home_portale(request: HttpRequest) -> HttpResponse:
     from dashboard.views_mie_attivita import build_cose_da_gestire
     cose_da_gestire = build_cose_da_gestire(request)
 
+    from core.models import HubLinkCategory
+
+    bacheca_groups = _documenti_collegamenti(request, sezione=HubLinkCategory.SEZIONE_DOCUMENTI)
+    self_help = _risorse_self_help(request)
+    sicurezza = _sicurezza(legacy_user)
+
     context: dict[str, Any] = {
         "greeting":           _greeting(now),
         "greeting_name":      display_name,
@@ -745,7 +802,10 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "pending_approvals":  pending,
         "cose_da_gestire":        cose_da_gestire["sections"],
         "cose_da_gestire_total":  cose_da_gestire["total"],
-        "bacheca_groups":     _documenti_collegamenti(request),
+        "bacheca_groups":     bacheca_groups,
+        "self_help_groups":   self_help,
+        "self_help_total":    sum(len(g["items"]) for g in self_help),
+        "sicurezza":          sicurezza,
         "module_launcher":    _module_launcher(groups),
         "news_items":         _news_items(request),
         "activity_items":     _activity_items(request),
@@ -756,6 +816,15 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         ),
     }
     return render(request, "dashboard/pages/home_portale.html", context)
+
+
+@login_required
+@require_GET
+def home_guida(request: HttpRequest) -> HttpResponse:
+    """Guida d'uso della home (pulsante «? Guida»)."""
+    from dashboard.guida import DOC_TITOLO, SEZIONI
+
+    return render(request, "dashboard/pages/home_guida.html", {"doc_titolo": DOC_TITOLO, "sezioni": SEZIONI})
 
 
 # ── HTMX endpoints ────────────────────────────────────────────────────────────

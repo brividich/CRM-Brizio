@@ -43,6 +43,26 @@ def _unique_slug(name: str) -> str:
     return slug
 
 
+_SEZIONI_VALIDE = {s for s, _ in HubLinkCategory.SEZIONE_CHOICES}
+
+
+def _clean_sezione(value) -> str:
+    value = (value or "").strip()
+    return value if value in _SEZIONI_VALIDE else HubLinkCategory.SEZIONE_DOCUMENTI
+
+
+def _clean_colore(value) -> str:
+    """Colore esadecimale #rrggbb, altrimenti vuoto (copertina col colore predefinito)."""
+    value = (value or "").strip()
+    if len(value) == 7 and value.startswith("#"):
+        try:
+            int(value[1:], 16)
+            return value.lower()
+        except ValueError:
+            pass
+    return ""
+
+
 def _set_roles(link, role_ids):
     HubLinkRoleAccess.objects.filter(link=link).delete()
     for rid in {int(r) for r in (role_ids or []) if str(r).strip().lstrip("-").isdigit()}:
@@ -63,6 +83,7 @@ def bacheca(request):
         "categories": categories,
         "ruoli": ruoli,
         "kinds": HubLink.KIND_CHOICES,
+        "sezioni": HubLinkCategory.SEZIONE_CHOICES,
     })
 
 
@@ -77,6 +98,7 @@ def api_hub_category_create(request):
     cat = HubLinkCategory.objects.create(
         name=name, slug=_unique_slug(name), icon=(data.get("icon") or "").strip(),
         description=(data.get("description") or "").strip(),
+        sezione=_clean_sezione(data.get("sezione")), colore=_clean_colore(data.get("colore")),
         order=int(data.get("order") or 100), created_by=request.user, updated_by=request.user,
     )
     log_action(request, "create", "bacheca", {"category_id": cat.id, "name": name})
@@ -97,6 +119,10 @@ def api_hub_category_update(request):
             setattr(cat, field, (data.get(field) or "").strip())
     if "is_visible" in data:
         cat.is_visible = bool(data.get("is_visible"))
+    if "sezione" in data:
+        cat.sezione = _clean_sezione(data.get("sezione"))
+    if "colore" in data:
+        cat.colore = _clean_colore(data.get("colore"))
     if "order" in data:
         cat.order = int(data.get("order") or 100)
     cat.updated_by = request.user
@@ -141,6 +167,7 @@ def api_hub_link_create(request):
         category=cat, kind=kind, title=title,
         description=(data.get("description") or "").strip(),
         icon=(data.get("icon") or "").strip(),
+        sigla=(data.get("sigla") or "").strip()[:8],
         open_in_new_tab=bool(data.get("open_in_new_tab")) or kind == HubLink.KIND_URL,
         order=int(data.get("order") or 100),
         created_by=request.user, updated_by=request.user,

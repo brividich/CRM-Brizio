@@ -2,24 +2,11 @@
 {% load static %}
 
 {% comment %}
-home_portale.html — Home portale interattiva di NOVICROM HUB.
-Context atteso (vedi dashboard/views_home_portale.py):
-  greeting_name        str
-  date_label           str
-  time_label           str
-  active_role          dict  {code, label}
-  active_unit          str|None
-  header_actions       list[dict]
-  priority_kpis        list[dict]
-  module_groups        list[dict]
-  my_tasks             list[dict]
-  pending_approvals    list[dict]
-  anomalie_aperte      list[dict]
-  calendar_week        list[dict]
-  news_items           list[dict]
-  activity_items       list[dict]
-  safety_kpis          list[dict]
-  system_status        list[dict]
+home_portale.html — Home di NOVICROM HUB a «stanze».
+Colonna fissa a sinistra (il polso: chi sei, ora, priorità, azioni rapide,
+emergenza) e quattro stanze a schede: Oggi, Sapere, Persone & sicurezza, Moduli.
+Context: vedi dashboard/views_home_portale.py::home_portale.
+Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 {% endcomment %}
 
 {% block title %}Home portale · NOVICROM HUB{% endblock %}
@@ -28,197 +15,294 @@ Context atteso (vedi dashboard/views_home_portale.py):
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=1">
 {% endblock %}
 
 {% block content %}
-<div class="hp-wrap" data-screen-label="Home portale">
+<div class="hp-wrap hs" data-screen-label="Home portale">
 
-  <section class="hp-hero" aria-label="Saluto e azioni rapide">
-    <div class="hp-hero-bg" aria-hidden="true"></div>
-    <div class="hp-hero-inner">
-      <div class="hp-hero-left">
-        <div class="hp-eyebrow">
-          <span class="hp-eyebrow-dot"></span>
-          {{ date_label }} · <span data-live-clock>{{ time_label }}</span>
-        </div>
-        <h1 class="hp-title">
-          {{ greeting }}, {{ greeting_name }}.<br>
-          <span class="hp-title-sub">{{ greeting_summary }}</span>
-        </h1>
-        <div class="hp-meta">
-          <span class="hp-pill">
-            <span class="hp-pill-code">{{ active_role.code }}</span>
-            <span>{{ active_role.label }}</span>
-          </span>
-          <span class="hp-pill ghost">
-            <span class="hp-pill-dot"></span>Sessione attiva
-          </span>
-          {% if active_unit %}
-          <span class="hp-pill ghost">{{ active_unit }}</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="hp-hero-right">
-        {% for cta in header_actions %}
-          <a class="hp-cta {% if cta.variant == 'ghost' %}ghost{% endif %}"
-             href="{{ cta.href }}">{{ cta.label }}</a>
-        {% endfor %}
+  {# ── IL POLSO ───────────────────────────────────────────────────────── #}
+  <aside class="hs-pulse" aria-label="Il tuo riepilogo">
+    <div class="hs-who">
+      <span class="hs-who-av" aria-hidden="true">{{ greeting_name|slice:":1"|upper }}</span>
+      <div class="hs-who-bd">
+        <div class="hs-who-n">{{ greeting }}, {{ greeting_name }}</div>
+        <div class="hs-who-r"><span class="hs-code">{{ active_role.code }}</span> {{ active_role.label }}{% if active_unit %} · {{ active_unit }}{% endif %}</div>
       </div>
     </div>
-  </section>
 
-  <section class="hp-prio" aria-label="Priorità cross-modulo">
-    {% for k in priority_kpis %}
-      <a class="hp-prio-card hp-tone-{{ k.tone }}" href="{{ k.url }}">
-        <span class="hp-prio-ic">
-          <span class="hp-prio-ic-char">{{ k.icon_char }}</span>
-        </span>
-        <span class="hp-prio-num">{{ k.value }}</span>
-        <span class="hp-prio-lbl">{{ k.label }}</span>
-        <span class="hp-prio-sub">{{ k.sub }}</span>
-        <span class="hp-prio-arr" aria-hidden="true">›</span>
-      </a>
-    {% endfor %}
-  </section>
-
-  <section class="hp-bacheca" aria-label="Bacheca: news e documenti">
-    <div class="hp-card hp-news-card">
-      <header class="hp-card-h">
-        <div>
-          <h3 class="hp-card-t">News aziendali</h3>
-          <p class="hp-card-s">Comunicazioni interne</p>
-        </div>
-        <a href="{% url 'notizie_lista' %}" class="hp-card-link">Vedi tutte →</a>
-      </header>
-      <ul class="hp-news">
-        {% for n in news_items %}
-          <li>
-            <a href="{{ n.url }}">
-              <span class="hp-news-mark"></span>
-              <span class="hp-news-body">
-                <span class="hp-news-t">{{ n.title }}</span>
-                <span class="hp-news-m">{{ n.source }}</span>
-              </span>
-              <span class="hp-news-time">{{ n.ago }}</span>
-            </a>
-          </li>
-        {% empty %}
-          <li class="hp-empty">Nessuna notizia recente.</li>
-        {% endfor %}
-      </ul>
+    <div class="hs-clock">
+      <div class="hs-clock-t" data-live-clock>{{ time_label }}</div>
+      <div class="hs-clock-d">{{ date_label }}</div>
+      <p class="hs-clock-s">{{ greeting_summary }}</p>
     </div>
 
-    <div class="hp-card hp-docs-card">
-      <header class="hp-card-h">
-        <div>
-          <h3 class="hp-card-t">Documenti &amp; Collegamenti</h3>
-          <p class="hp-card-s">Risorse utili, gestite dall'amministrazione</p>
-        </div>
-        <a href="{% url 'bacheca' %}" class="hp-card-link">Apri tutti →</a>
-      </header>
-      <div class="hp-docs">
-        {% for cat in bacheca_groups %}
-          <div class="hp-docs-cat">
-            <div class="hp-docs-cat-h">
-              <span class="hp-docs-cat-nm">{{ cat.name }}</span>
-              <span class="hp-docs-cat-ct">{{ cat.items|length }}</span>
-            </div>
-            {% for it in cat.items %}
-              <a class="hp-doc k-{{ it.kind }}" href="{{ it.href }}"
-                 {% if it.open_in_new_tab %}target="_blank" rel="noopener"{% endif %}>
-                <span class="hp-doc-ic" aria-hidden="true">{{ it.kind_label|slice:":1" }}</span>
-                <span class="hp-doc-bd">
-                  <span class="hp-doc-t">{{ it.title }}</span>
-                  <span class="hp-doc-d">{{ it.description }}</span>
-                </span>
-                <span class="hp-doc-kind">{{ it.kind_label }}</span>
-              </a>
-            {% endfor %}
-            {% if cat.more %}<a class="hp-doc-more" href="{% url 'bacheca' %}#{{ cat.slug }}">+{{ cat.more }} altri →</a>{% endif %}
-          </div>
-        {% empty %}
-          <p class="hp-empty hp-docs-empty">Nessun documento o collegamento pubblicato.<br><span class="hp-docs-empty-hint">L'amministrazione può aggiungerne dalla gestione bacheca.</span></p>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
-
-  {% if ai_daily_brief_enabled %}
-  <section class="hp-aibrief" aria-label="Brief AI del giorno">
-    {% include "ai_assistant/partials/daily_brief_widget.html" %}
-  </section>
-  {% endif %}
-
-  <section class="hp-cockpit" aria-label="Le mie attività">
-    <div class="hp-card" data-hp-section="card-cose-da-gestire">
-      <header class="hp-card-h hp-collapsible-hdr">
-        <div>
-          <h3 class="hp-card-t">Le mie attività</h3>
-          <p class="hp-card-s">Tutto ciò che richiede una tua azione, dai vari moduli</p>
-        </div>
-        <span class="hp-card-h-r">
-          {% if cose_da_gestire_total %}<span class="hp-counter">{{ cose_da_gestire_total }}</span>{% endif %}
-          <a href="{% url 'mie_attivita' %}" class="hp-card-link">Vedi tutte →</a>
-          <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-        </span>
-      </header>
-      <div class="hp-collapse-body">
-        {% if cose_da_gestire_total %}
-          <div class="hp-cdg-grid">
-          {% for s in cose_da_gestire %}
-            {% if s.items %}
-              <div class="hp-cdg-group">
-                <div class="hp-cdg-group-h">
-                  <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({{ s.items|length }})</span>
-                  <a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>
-                </div>
-                <ul class="hp-list">
-                  {% for it in s.items|slice:":5" %}
-                    <li>
-                      <a href="{{ it.url }}">
-                        {% if it.code %}<span class="hp-list-code">{{ it.code }}</span>{% endif %}
-                        <span class="hp-list-body">
-                          <span class="hp-list-t">{{ it.title }}</span>
-                          <span class="hp-list-m">{{ it.meta }}</span>
-                        </span>
-                        {% if it.status %}<span class="hp-badge hp-tone-{{ s.tone }}">{{ it.status }}</span>{% endif %}
-                      </a>
-                    </li>
-                  {% endfor %}
-                </ul>
-              </div>
-            {% endif %}
-          {% endfor %}
-          </div>
-        {% else %}
-          <ul class="hp-list"><li class="hp-empty">Nessuna azione in sospeso. Tutto in ordine. ✓</li></ul>
-        {% endif %}
-      </div>
-    </div>
-  </section>
-
-  <section class="hp-modules" aria-label="Moduli del portale">
-    <div class="hp-modules-head">
-      <div>
-        <h2 class="hp-h2">Moduli del portale</h2>
-        <p class="hp-h2-sub">Le funzioni disponibili per il tuo profilo.</p>
-      </div>
-    </div>
-    <div class="hp-grid">
-      {% for mod in module_launcher %}
-        {% include "core/components/_home_module_tile.html" with mod=mod %}
+    <div class="hs-pk-wrap">
+      <div class="hs-lbl">Priorità</div>
+      {% for k in priority_kpis %}
+        <a class="hs-pk hs-pk-{{ k.tone }}" href="{{ k.url }}">
+          <span class="hs-pk-v">{{ k.value }}</span>
+          <span class="hs-pk-l">{{ k.label }}<small>{{ k.sub }}</small></span>
+        </a>
       {% endfor %}
     </div>
-  </section>
 
-  {% comment %} Sezioni "Presenze settimana", "Comunicazioni/Attività" (news ora nella Bacheca)
-     e "KPI sicurezza / Stato sistema" rimosse nel redesign Bacheca. {% endcomment %}
+    {% if header_actions %}
+    <div class="hs-qa">
+      <div class="hs-lbl">Azioni rapide</div>
+      {% for cta in header_actions %}
+        <a class="hs-qa-a{% if cta.variant != 'ghost' %} pri{% endif %}" href="{{ cta.href }}">{{ cta.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
 
-  <footer class="hp-foot">
-    <span>NOVICROM HUB · v {{ app_version }} · {{ module_total }} moduli disponibili</span>
-    <span class="hp-foot-r">ACL v2 attivo</span>
-  </footer>
+    <div class="hs-sos" role="note" aria-label="Emergenza">
+      <div class="hs-sos-h">Emergenza · <span class="hs-mono">112</span></div>
+      {% for p in sicurezza.emergenza %}
+        <div class="hs-sos-p">{{ p.ruolo }}: <b>{{ p.nome }}</b></div>
+      {% empty %}
+        <div class="hs-sos-p">Segui il piano di emergenza del tuo reparto.</div>
+      {% endfor %}
+    </div>
+  </aside>
 
+  {# ── LE STANZE ──────────────────────────────────────────────────────── #}
+  <div class="hs-main">
+    <div class="hs-rooms-bar">
+      <nav class="hs-rooms" role="tablist" aria-label="Stanze della home">
+        <button type="button" role="tab" id="hs-tab-oggi" data-room="oggi" aria-controls="hs-room-oggi" aria-selected="true">Oggi{% if cose_da_gestire_total %}<sup>{{ cose_da_gestire_total }}</sup>{% endif %}</button>
+        <button type="button" role="tab" id="hs-tab-sapere" data-room="sapere" aria-controls="hs-room-sapere" aria-selected="false" tabindex="-1">Sapere{% if self_help_total %}<sup>{{ self_help_total }}</sup>{% endif %}</button>
+        <button type="button" role="tab" id="hs-tab-persone" data-room="persone" aria-controls="hs-room-persone" aria-selected="false" tabindex="-1">Persone &amp; sicurezza</button>
+        <button type="button" role="tab" id="hs-tab-moduli" data-room="moduli" aria-controls="hs-room-moduli" aria-selected="false" tabindex="-1">Moduli<sup>{{ module_total }}</sup></button>
+      </nav>
+      <a class="hs-guide" href="{% url 'home_portale:guida' %}" title="Guida della home">? Guida</a>
+    </div>
+
+    {# ── OGGI ── #}
+    <section class="hs-room" id="hs-room-oggi" role="tabpanel" aria-labelledby="hs-tab-oggi">
+      <div class="hs-oggi">
+        <div class="hp-card" data-hp-section="card-cose-da-gestire">
+          <header class="hp-card-h">
+            <div>
+              <h3 class="hp-card-t">Le mie attività</h3>
+              <p class="hp-card-s">Tutto ciò che richiede una tua azione, dai vari moduli</p>
+            </div>
+            <span class="hp-card-h-r">
+              {% if cose_da_gestire_total %}<span class="hp-counter">{{ cose_da_gestire_total }}</span>{% endif %}
+              <a href="{% url 'mie_attivita' %}" class="hp-card-link">Vedi tutte →</a>
+            </span>
+          </header>
+          {% if cose_da_gestire_total %}
+            <div class="hp-cdg-grid hs-pad">
+            {% for s in cose_da_gestire %}
+              {% if s.items %}
+                <div class="hp-cdg-group">
+                  <div class="hp-cdg-group-h">
+                    <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({{ s.items|length }})</span>
+                    <a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>
+                  </div>
+                  <ul class="hp-list">
+                    {% for it in s.items|slice:":5" %}
+                      <li>
+                        <a href="{{ it.url }}">
+                          {% if it.code %}<span class="hp-list-code">{{ it.code }}</span>{% endif %}
+                          <span class="hp-list-body">
+                            <span class="hp-list-t">{{ it.title }}</span>
+                            <span class="hp-list-m">{{ it.meta }}</span>
+                          </span>
+                          {% if it.status %}<span class="hp-badge hp-tone-{{ s.tone }}">{{ it.status }}</span>{% endif %}
+                        </a>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+            {% endfor %}
+            </div>
+          {% else %}
+            <ul class="hp-list"><li class="hp-empty">Nessuna azione in sospeso. Tutto in ordine. ✓</li></ul>
+          {% endif %}
+        </div>
+
+        <div class="hs-col">
+          {% if ai_daily_brief_enabled %}
+            {% include "ai_assistant/partials/daily_brief_widget.html" %}
+          {% endif %}
+          <div class="hp-card hp-news-card">
+            <header class="hp-card-h">
+              <div>
+                <h3 class="hp-card-t">News aziendali</h3>
+                <p class="hp-card-s">Comunicazioni interne</p>
+              </div>
+              <a href="{% url 'notizie_lista' %}" class="hp-card-link">Vedi tutte →</a>
+            </header>
+            <ul class="hp-news hs-pad">
+              {% for n in news_items %}
+                <li>
+                  <a href="{{ n.url }}">
+                    <span class="hp-news-mark"></span>
+                    <span class="hp-news-body">
+                      <span class="hp-news-t">{{ n.title }}</span>
+                      <span class="hp-news-m">{{ n.source }}</span>
+                    </span>
+                    <span class="hp-news-time">{{ n.ago }}</span>
+                  </a>
+                </li>
+              {% empty %}
+                <li class="hp-empty">Nessuna notizia recente.</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ── SAPERE ── #}
+    <section class="hs-room" id="hs-room-sapere" role="tabpanel" aria-labelledby="hs-tab-sapere" hidden>
+      <div class="hp-card">
+        <header class="hp-card-h">
+          <div>
+            <h3 class="hp-card-t">Risorse self-help</h3>
+            <p class="hp-card-s">Guide, manuali e video per fare da sé</p>
+          </div>
+          {% if self_help_groups|length > 1 %}
+          <div class="hs-chips" role="group" aria-label="Filtra per categoria">
+            <button type="button" class="hs-chip on" data-shelf="">Tutte</button>
+            {% for g in self_help_groups %}<button type="button" class="hs-chip" data-shelf="{{ g.slug }}">{{ g.name }}</button>{% endfor %}
+          </div>
+          {% endif %}
+        </header>
+        {% if self_help_groups %}
+          <div class="hs-lib hs-pad">
+            {% for g in self_help_groups %}
+              {% for it in g.items %}
+                <a class="hs-book" data-shelf="{{ g.slug }}" href="{{ it.href }}"{% if it.open_in_new_tab %} target="_blank" rel="noopener"{% endif %}{% if it.description %} title="{{ it.description }}"{% endif %}>
+                  <span class="hs-cover" style="--cover:{{ g.colore }}">
+                    <span class="hs-cover-k">{{ g.name }}</span>
+                    <span class="hs-cover-g">{{ it.sigla }}</span>
+                    <span class="hs-cover-k">{{ it.kind_label }}</span>
+                  </span>
+                  <span class="hs-book-t">{{ it.title }}{% if it.is_new %} <span class="hs-new">NUOVA</span>{% endif %}</span>
+                  {% if it.description %}<span class="hs-book-d">{{ it.description }}</span>{% endif %}
+                </a>
+              {% endfor %}
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="hp-empty">Nessuna risorsa self-help pubblicata.<br><span class="hp-docs-empty-hint">L'amministrazione può aggiungerne da Admin portale → Documenti &amp; Collegamenti, con una categoria di tipo «Risorse self-help».</span></p>
+        {% endif %}
+      </div>
+
+      <div class="hp-card hp-docs-card">
+        <header class="hp-card-h">
+          <div>
+            <h3 class="hp-card-t">Documenti &amp; Collegamenti</h3>
+            <p class="hp-card-s">Risorse utili, gestite dall'amministrazione</p>
+          </div>
+          <a href="{% url 'bacheca' %}" class="hp-card-link">Apri tutti →</a>
+        </header>
+        <div class="hp-docs hs-docs">
+          {% for cat in bacheca_groups %}
+            <div class="hp-docs-cat">
+              <div class="hp-docs-cat-h">
+                <span class="hp-docs-cat-nm">{{ cat.name }}</span>
+                <span class="hp-docs-cat-ct">{{ cat.items|length }}</span>
+              </div>
+              {% for it in cat.items %}
+                <a class="hp-doc k-{{ it.kind }}" href="{{ it.href }}"
+                   {% if it.open_in_new_tab %}target="_blank" rel="noopener"{% endif %}>
+                  <span class="hp-doc-ic" aria-hidden="true">{{ it.kind_label|slice:":1" }}</span>
+                  <span class="hp-doc-bd">
+                    <span class="hp-doc-t">{{ it.title }}</span>
+                    <span class="hp-doc-d">{{ it.description }}</span>
+                  </span>
+                  <span class="hp-doc-kind">{{ it.kind_label }}</span>
+                </a>
+              {% endfor %}
+              {% if cat.more %}<a class="hp-doc-more" href="{% url 'bacheca' %}#{{ cat.slug }}">+{{ cat.more }} altri →</a>{% endif %}
+            </div>
+          {% empty %}
+            <p class="hp-empty hp-docs-empty">Nessun documento o collegamento pubblicato.<br><span class="hp-docs-empty-hint">L'amministrazione può aggiungerne dalla gestione bacheca.</span></p>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {# ── PERSONE & SICUREZZA ── #}
+    <section class="hs-room" id="hs-room-persone" role="tabpanel" aria-labelledby="hs-tab-persone" hidden>
+      {% if not sicurezza.ambito %}
+        <div class="hp-card"><p class="hp-empty">L'organizzazione della sicurezza non è ancora configurata.<br><span class="hp-docs-empty-hint">In Anagrafica → Ruoli serve un ambito «Sicurezza ISO 45001» con i ruoli (RSPP, RLS, preposti…) assegnati alle persone.</span></p></div>
+      {% else %}
+        {% if sicurezza.mie %}
+        <div class="hs-sec-h"><h3>Le tue persone di riferimento</h3>{% if sicurezza.reparto %}<span>Reparto {{ sicurezza.reparto }}</span>{% endif %}</div>
+        <div class="hs-mine">
+          {% for p in sicurezza.mie %}
+            <div class="hs-mine-p{% if p.mio %} mio{% endif %}">
+              <span class="hs-av" style="--av:{{ p.colore }}" aria-hidden="true">{{ p.iniziali }}</span>
+              <span class="hs-mine-bd">
+                <span class="hs-mine-r">{% if p.mio %}Il tuo preposto{% else %}{{ p.ruolo }}{% endif %}</span>
+                <span class="hs-mine-n">{{ p.nome }}</span>
+                {% if p.email %}<a class="hs-mail" href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="hs-sec-h"><h3>{{ sicurezza.ambito.nome }}</h3><span>{{ sicurezza.persone|length }} incarichi</span></div>
+        {% if sicurezza.persone %}
+        <div class="hs-org">
+          {% for p in sicurezza.persone %}
+            <div class="hs-oc{% if p.mio %} mio{% endif %}">
+              <div class="hs-oc-top">
+                <span class="hs-av" style="--av:{{ p.colore }}" aria-hidden="true">{{ p.iniziali }}</span>
+                <span class="hs-oc-bd"><span class="hs-oc-n">{{ p.nome }}</span>{% if p.reparto %}<span class="hs-oc-x">{{ p.reparto }}</span>{% endif %}</span>
+              </div>
+              <span class="hs-oc-role" style="--av:{{ p.colore }}">{{ p.ruolo }}</span>
+              {% if p.email %}<a class="hs-mail" href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        {% else %}
+          <div class="hp-card"><p class="hp-empty">Nessuna persona assegnata ai ruoli di questo ambito.</p></div>
+        {% endif %}
+
+        <div class="hs-sec-h"><h3>Responsabilità</h3><span>compiti di ogni figura</span></div>
+        <div class="hs-resp">
+          {% for f in sicurezza.figure %}
+            <details class="hs-rt" style="--av:{{ f.colore }}">
+              <summary><span class="hs-rt-n">{{ f.nome }}</span><small>{{ f.persone|length }} {% if f.persone|length == 1 %}persona{% else %}persone{% endif %}</small></summary>
+              <div class="hs-rt-bd">
+                {% if f.descrizione %}<p>{{ f.descrizione|linebreaksbr }}</p>{% else %}<p class="hs-muted">Compiti non ancora descritti nel catalogo ruoli.</p>{% endif %}
+                {% if f.persone %}<p class="hs-rt-p">{% for p in f.persone %}{{ p.nome }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% else %}<p class="hs-muted">Posizione scoperta.</p>{% endif %}
+              </div>
+            </details>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+
+    {# ── MODULI ── #}
+    <section class="hs-room" id="hs-room-moduli" role="tabpanel" aria-labelledby="hs-tab-moduli" hidden>
+      {% for grp in module_groups %}
+        <div class="hp-grp">
+          <div class="hp-grp-h"><span class="hp-grp-l">{{ grp.label }}</span><span class="hp-grp-c">{{ grp.total }}</span><span class="hp-grp-hint">{{ grp.hint }}</span><span class="hp-grp-rule"></span></div>
+          <div class="hp-grid">
+            {% for mod in grp.modules %}
+              {% include "core/components/_home_module_tile.html" with mod=mod %}
+            {% endfor %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="hp-card"><p class="hp-empty">Nessun modulo disponibile per il tuo profilo.</p></div>
+      {% endfor %}
+    </section>
+
+    <footer class="hp-foot">
+      <span>NOVICROM HUB · v {{ app_version }} · {{ module_total }} moduli disponibili</span>
+      <span class="hp-foot-r">ACL v2 attivo</span>
+    </footer>
+  </div>
 </div>
 
 <script>
@@ -232,56 +316,70 @@ Context atteso (vedi dashboard/views_home_portale.py):
   setInterval(tick, 30000);
 })();
 
+/* Stanze: scheda attiva da #ancora, poi dall'ultima aperta (solo comodità). */
 (function(){
-  var STORE = 'hp-sections';
-
-  function load() {
-    try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch(e) { return {}; }
+  var KEY = 'hs-room';
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.hs-rooms [role="tab"]'));
+  if (!tabs.length) return;
+  function show(name, remember){
+    var found = false;
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-room') === name;
+      if (on) found = true;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      var panel = document.getElementById(t.getAttribute('aria-controls'));
+      if (panel) panel.hidden = !on;
+    });
+    if (!found) return false;
+    if (remember) { try { localStorage.setItem(KEY, name); } catch(e) {} }
+    return true;
   }
-  function save(state) {
-    try { localStorage.setItem(STORE, JSON.stringify(state)); } catch(e) {}
-  }
-  function apply(el, collapsed) {
-    el.classList.toggle('hp-collapsed', collapsed);
-    var chev = el.querySelector(':scope > .hp-collapsible-hdr .hp-chev');
-    if (chev) chev.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-  }
-
-  var state = load();
-  document.querySelectorAll('[data-hp-section]').forEach(function(el){
-    var id = el.getAttribute('data-hp-section');
-    if (state[id]) apply(el, true);
+  tabs.forEach(function(t, i){
+    t.addEventListener('click', function(){
+      var name = t.getAttribute('data-room');
+      show(name, true);
+      if (history.replaceState) history.replaceState(null, '', '#' + name);
+    });
+    t.addEventListener('keydown', function(e){
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return;
+      var next = tabs[(i + d + tabs.length) % tabs.length];
+      next.click(); next.focus();
+    });
   });
+  var start = (location.hash || '').replace('#', '');
+  if (!start || !show(start, false)) {
+    var last = null;
+    try { last = localStorage.getItem(KEY); } catch(e) {}
+    if (last) show(last, false);
+  }
+})();
 
-  document.addEventListener('click', function(e){
-    var hdr = e.target.closest('.hp-collapsible-hdr');
-    if (!hdr) return;
-    if (e.target.closest('a, button:not(.hp-chev), input, label')) return;
-    var section = hdr.closest('[data-hp-section]');
-    if (!section) return;
-    var id = section.getAttribute('data-hp-section');
-    var next = !section.classList.contains('hp-collapsed');
-    apply(section, next);
-    state[id] = next;
-    save(state);
+/* Scaffale self-help: filtro per categoria. */
+(function(){
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.hs-chip[data-shelf]'));
+  var books = Array.prototype.slice.call(document.querySelectorAll('.hs-book[data-shelf]'));
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      var k = c.getAttribute('data-shelf');
+      chips.forEach(function(x){ x.classList.toggle('on', x === c); });
+      books.forEach(function(b){ b.hidden = !!k && b.getAttribute('data-shelf') !== k; });
+    });
   });
 })();
 
+/* Moduli: pannello della tessera. */
 (function(){
   document.addEventListener('click', function(e){
-    // Clicks inside the panel (link "Vai al modulo", etc.) propagate normally
     if (e.target.closest('.hp-tile-panel')) return;
-
     var btn = e.target.closest('.hp-tile[aria-expanded]');
     if (!btn) return;
     var wrap = btn.closest('.hp-tile-wrap');
     if (!wrap) return;
-
     var panelId = btn.getAttribute('aria-controls');
     var panel = panelId ? document.getElementById(panelId) : null;
     var isOpen = btn.getAttribute('aria-expanded') === 'true';
-
-    // Close every other open panel
     document.querySelectorAll('.hp-tile[aria-expanded="true"]').forEach(function(b){
       if (b === btn) return;
       b.setAttribute('aria-expanded', 'false');
@@ -291,8 +389,6 @@ Context atteso (vedi dashboard/views_home_portale.py):
       var w = b.closest('.hp-tile-wrap');
       if (w) w.classList.remove('hp-tile-active');
     });
-
-    // Toggle this panel
     var next = !isOpen;
     btn.setAttribute('aria-expanded', String(next));
     if (panel) panel.hidden = !next;

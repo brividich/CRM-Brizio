@@ -1,0 +1,79 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida · {{ doc_titolo }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.hg{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:18px }
+.hg-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap }
+.hg-crumb{ font-size:12px; color:var(--text-light) }
+.hg-crumb a{ color:var(--primary-mid); text-decoration:none }
+.hg-head h1{ margin:4px 0 2px; font-size:24px; font-weight:800; color:var(--text) }
+.hg-head p{ margin:0; color:var(--text-mid); font-size:14px }
+.hg-back{ padding:8px 14px; border-radius:8px; background:var(--accent); color:#fff !important; font-weight:700; font-size:13px; text-decoration:none }
+.hg-grid{ display:grid; grid-template-columns:230px minmax(0,1fr); gap:22px; align-items:start }
+.hg-toc{ position:sticky; top:16px; padding:16px 18px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius) }
+.hg-toc-t{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-light); margin-bottom:8px }
+.hg-toc ol{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:13px }
+.hg-toc a{ color:var(--text); text-decoration:none }
+.hg-toc a:hover{ color:var(--accent); text-decoration:underline }
+.hg-body{ display:flex; flex-direction:column; gap:14px; min-width:0 }
+.hg-sec{ padding:20px 24px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); scroll-margin-top:16px }
+.hg-sec h2{ margin:0 0 10px; font-size:17px; font-weight:800; color:var(--text); display:flex; gap:10px; align-items:baseline }
+.hg-n{ font-family:ui-monospace,Menlo,monospace; font-size:12px; font-weight:800; color:var(--accent) }
+.hg-sec p{ margin:0 0 10px; line-height:1.6; color:var(--text); font-size:14px; max-width:78ch }
+.hg-sec ul{ margin:0 0 10px; padding-left:20px; display:flex; flex-direction:column; gap:6px; line-height:1.55; font-size:14px; color:var(--text); max-width:80ch }
+.hg-sec dl{ margin:0 0 10px; display:grid; grid-template-columns:minmax(150px,230px) minmax(0,1fr); gap:8px 18px; font-size:14px; line-height:1.55 }
+.hg-sec dt{ font-weight:700; color:var(--text) }
+.hg-sec dd{ margin:0; color:var(--text-mid) }
+.hg-nota{ padding:11px 14px; border:1px solid #fdba74; background:#fff7ed; border-radius:10px; color:#7c2d12; font-size:13.5px; line-height:1.55 }
+body.theme-dark .hg-nota{ background:rgba(251,146,60,.12); border-color:rgba(251,146,60,.45); color:#fed7aa }
+@media (max-width:900px){
+  .hg-grid{ grid-template-columns:1fr }
+  .hg-toc{ position:static }
+  .hg-sec{ padding:16px }
+  .hg-sec dl{ grid-template-columns:1fr; gap:2px }
+  .hg-sec dd{ margin-bottom:8px }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hg">
+  <div class="hg-head">
+    <div>
+      <div class="hg-crumb"><a href="{% url 'home_portale:index' %}">Home</a> / Guida</div>
+      <h1>Guida · {{ doc_titolo }}</h1>
+      <p>Come leggere la home e dove trovare attività, risorse, persone della sicurezza e moduli.</p>
+    </div>
+    <a class="hg-back" href="{% url 'home_portale:index' %}">← Torna alla home</a>
+  </div>
+
+  <div class="hg-grid">
+    <nav class="hg-toc" aria-label="Indice della guida">
+      <div class="hg-toc-t">Indice</div>
+      <ol>
+        {% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}
+      </ol>
+    </nav>
+    <div class="hg-body">
+      {% for sez in sezioni %}
+        <section class="hg-sec" id="{{ sez.id }}">
+          <h2><span class="hg-n">{{ forloop.counter }}</span>{{ sez.titolo }}</h2>
+          {% for kind, contenuto in sez.blocchi %}
+            {% if kind == "p" %}
+              <p>{{ contenuto }}</p>
+            {% elif kind == "ul" %}
+              <ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
+            {% elif kind == "def" %}
+              <dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+            {% elif kind == "nota" %}
+              <div class="hg-nota" role="note">{{ contenuto }}</div>
+            {% endif %}
+          {% endfor %}
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
