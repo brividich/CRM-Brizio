@@ -71,6 +71,14 @@ class SerialiTests(SimpleTestCase):
         self.assertTrue(cs.riga_gestita({"avanzamento": "In attesa", "aprire_rdc": 1}))
         self.assertTrue(cs.riga_gestita({"avanzamento": "", "note_capocommessa": "rilavorare"}))
 
+    def test_seriali_senza_anomalia(self):
+        voci = ["LCN00001-LCN00004", "SN-X"]
+        self.assertEqual(cs.seriali_senza_anomalia(voci, [["LCN00001"], ["lcn00003", "SN-X"]]), ["LCN00002", "LCN00004"])
+        # Un'anomalia su tutti i seriali copre il blocco intero.
+        self.assertEqual(cs.seriali_senza_anomalia(voci, [["LCN00001"], None]), [])
+        self.assertEqual(cs.seriali_senza_anomalia(voci, [["LCN00001-LCN00004", "SN-X"]]), [])
+        self.assertEqual(cs.seriali_senza_anomalia(voci, []), [])
+
 
 class InsertIdTests(SimpleTestCase):
     """Su SQL Server l'id si legge nello stesso batch; i trigger possono anteporre result set."""
@@ -260,6 +268,35 @@ class ControlloApiTests(LegacyTableMixin, TestCase):
         }, cid)
         self.assertEqual(r.status_code, 200, r.content)
         self.assertTrue(all(x.get("invariata") for x in r.json()["risultati"]))
+
+    def test_seriali_senza_anomalia_richiedono_conferma(self):
+        cid = self.apri()
+        body = {
+            "seriali": ["LCN00001-LCN00005"],
+            "anomalie": [
+                {"testo": "Foro fuori quota", "tutti": False, "seriali": ["LCN00002"]},
+                {"testo": "Bava", "tutti": False, "seriali": ["LCN00004"]},
+            ],
+        }
+        r = self.post("api_anomalie_controllo_blocco", body, cid)
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.json()["code"], "seriali_scoperti")
+        self.assertEqual(r.json()["seriali_scoperti"], ["LCN00001", "LCN00003", "LCN00005"])
+        self.assertEqual(AnomaliaBlocco.objects.filter(controllo_id=cid).count(), 0)
+        r = self.post("api_anomalie_controllo_blocco", dict(body, conferma_seriali_scoperti=True), cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        blocco = r.json()["controllo"]["blocchi"][0]
+        self.assertEqual(blocco["seriali_scoperti"], ["LCN00001", "LCN00003", "LCN00005"])
+        # Coperti tutti (anche con più anomalie parziali): nessun avviso.
+        r = self.post("api_anomalie_controllo_blocco", {
+            "seriali": ["LCN00010-LCN00011"],
+            "anomalie": [
+                {"testo": "Graffio", "tutti": False, "seriali": ["LCN00010"]},
+                {"testo": "Bava", "tutti": False, "seriali": ["LCN00011"]},
+            ],
+        }, cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()["controllo"]["blocchi"][1]["seriali_scoperti"], [])
 
     def test_anomalia_parziale_senza_seriali_rifiutata(self):
         cid = self.apri()
