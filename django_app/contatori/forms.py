@@ -402,10 +402,17 @@ class DispositivoSNMPForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.Mode
         return porta
 
 
+def _verifica_somma_oid(form, cleaned):
+    """Un OID "A+B" si somma solo in GET: in WALK non avrebbe senso."""
+    if "+" in (cleaned.get("oid") or "") and cleaned.get("modalita") == "WALK":
+        form.add_error("oid", "Piu' OID uniti da + si possono sommare solo in modalità GET.")
+
+
 class SondaSNMPForm(SezioniFormMixin, forms.ModelForm):
     campi_full = frozenset({"oid", "etichette"})
     sezioni_def = (
-        ("Valore da leggere", "Solo OID numerici puntati, letti con SNMP GET.",
+        ("Valore da leggere", "Solo OID numerici puntati, letti con SNMP GET. "
+         "Più OID uniti da + vengono sommati (es. stampa + copia).",
          ("nome", "oid", "tipo_valore", "modalita", "aggregazione", "unita", "fattore")),
         ("Soglie", "Lascia vuoto per non segnalare. La massima deve essere maggiore o uguale alla minima.",
          ("soglia_warning_min", "soglia_warning_max", "soglia_critica_min", "soglia_critica_max")),
@@ -430,6 +437,7 @@ class SondaSNMPForm(SezioniFormMixin, forms.ModelForm):
         cleaned["aggregazione"] = (
             cleaned.get("aggregazione") or SondaSNMP.Aggregazione.PRIMO
         )
+        _verifica_somma_oid(self, cleaned)
         oid = cleaned.get("oid")
         if oid and self.instance.dispositivo_id:
             duplicati = SondaSNMP.objects.filter(
@@ -497,6 +505,11 @@ class ColonnaProfiloSNMPForm(SezioniFormMixin, forms.ModelForm):
             "unita", "fattore", "contatore_mfc", "soglia_warning_min", "soglia_warning_max",
             "soglia_critica_min", "soglia_critica_max", "etichette", "verificata", "fonte", "ordine", "attiva",
         ]
+
+    def clean(self):
+        cleaned = super().clean()
+        _verifica_somma_oid(self, cleaned)
+        return cleaned
 
 
 _DATA = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")

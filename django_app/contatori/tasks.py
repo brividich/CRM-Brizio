@@ -9,6 +9,7 @@ from .models import (
     DispositivoSNMP, ImpostazioniSNMP, LetturaMensileContatori, Macchina, RilevazioneSNMP, StatoSNMP,
 )
 from .services import interroga_dispositivo, leggi_mensile_macchina
+from .snmp import SNMPError
 
 
 # Audit S9: poco oltre il timeout del task (110 s) e un'attesa in coda ragionevole.
@@ -119,7 +120,12 @@ def leggi_mensile(pk, mese):
         macchina = Macchina.objects.filter(pk=pk, attiva=True).first()
         if macchina is None or not macchina.host:
             return {"saltato": True}
-        lettura, creata = leggi_mensile_macchina(macchina, mese=date.fromisoformat(mese))
+        try:
+            lettura, creata = leggi_mensile_macchina(macchina, mese=date.fromisoformat(mese))
+        except SNMPError as exc:
+            # Spenta o in sospensione: stato ed errore restano sulla macchina,
+            # il recupero (ogni 15 minuti fino al giorno 7) la rilegge appena risponde.
+            return {"macchina_id": pk, "non_raggiungibile": True, "errore": str(exc)[:200]}
         return {"lettura_id": lettura.pk, "creata": creata}
     finally:
         cache.delete(key)

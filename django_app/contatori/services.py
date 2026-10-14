@@ -39,6 +39,9 @@ from .models import (
 
 CAMPI = [c[0] for c in CONTATORI]
 
+# Allineato al cron di contatori_letture_mensili_recupero (automazioni/schedules.py).
+GIORNI_RECUPERO_MENSILE = 7
+
 # Raggruppamenti usati nelle analisi
 BN = ("a4_bn", "a3_bn")
 
@@ -1118,11 +1121,10 @@ def cruscotto_operativo(oggi=None):
     riconc = riconcilia(prec)[1] if fattura_prec else None
     letture_prec = LetturaContatori.objects.filter(trimestre=prec).exists()
 
-    mensili_mancanti = []
-    if oggi.day >= 2:  # raccolta automatica il giorno 1 alle 00:00, recupero alle 08:00
-        mese = oggi.replace(day=1)
-        lette = set(LetturaMensileContatori.objects.filter(mese=mese).values_list("macchina_id", flat=True))
-        mensili_mancanti = [m for m in attive if m.host and m.id not in lette]
+    # Raccolta il giorno 1 alle 00:00, poi recupero ogni 15 minuti fino al giorno 7.
+    mese = oggi.replace(day=1)
+    lette = set(LetturaMensileContatori.objects.filter(mese=mese).values_list("macchina_id", flat=True))
+    mensili_mancanti = [m for m in attive if m.host and m.id not in lette]
 
     consumo, _ = consumo_per_trimestre()
     ultimo = consumo[-1] if consumo else None
@@ -1186,9 +1188,15 @@ def cruscotto_operativo(oggi=None):
         da_fare.append({"livello": "warn", "titolo": f"{len(da_ordinare)} MFC con consumabili da ordinare",
                         "dettaglio": ", ".join(dettagli) + (f" e altre {len(da_ordinare) - 4}" if len(da_ordinare) > 4 else ""),
                         "azione": "Vedi consumabili", "url": reverse("contatori:consumabili")})
-    if mensili_mancanti:
-        da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili non registrate",
-                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Controlla il task pianificato.",
+    if mensili_mancanti and oggi.day > GIORNI_RECUPERO_MENSILE:
+        da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili saltate",
+                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Nessuna risposta dal giorno 1 al "
+                                     f"{GIORNI_RECUPERO_MENSILE}: controlla che siano accese e in rete.",
+                        "azione": "Verifica stampanti", "url": reverse("contatori:macchine")})
+    elif mensili_mancanti and oggi.day >= 2:  # il giorno 1 la raccolta e' in corso
+        da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili in attesa",
+                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Spente o non raggiungibili: "
+                                     f"il portale riprova ogni 15 minuti fino al giorno {GIORNI_RECUPERO_MENSILE}.",
                         "azione": "Verifica stampanti", "url": reverse("contatori:macchine")})
     if disp_errore or disp_attenzione:
         da_fare.append({"livello": "danger" if disp_errore else "warn",

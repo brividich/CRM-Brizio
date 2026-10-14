@@ -12,7 +12,7 @@ from django.test import TestCase
 from contatori import snmp_capture as cap
 from contatori.models import ColonnaProfiloSNMP, DispositivoSNMP, ProfiloSNMP, StatoSNMP
 from contatori.services import interroga_dispositivo, trova_profilo_snmp
-from contatori.snmp import SNMPError, aggrega_colonna
+from contatori.snmp import SNMPError, aggrega_colonna, parti_oid
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "snmp"
 SYNOLOGY = FIXTURES / "synology_rs2423rp_dsm74.snmprec"
@@ -43,8 +43,10 @@ class FixtureAgent:
                     valori[oid] = aggrega_colonna(colonna, spec.get("aggregazione", "PRIMO"))
                 except SNMPError as exc:
                     errori[oid] = str(exc)
-            elif oid in self.values:
-                valori[oid] = self.values[oid]
+            elif all(p in self.values for p in parti_oid(oid)):
+                parti = parti_oid(oid)
+                valori[oid] = (self.values[oid] if len(parti) == 1
+                               else sum(int(self.values[p]) for p in parti))
             else:
                 errori[oid] = "No such object"
         if not valori:
@@ -205,21 +207,29 @@ class PrinterPresetTests(TestCase):
         self.assertEqual(valori["Modello"].valore_testo, "TASKalfa 5054ci")
         self.assertEqual(valori["Errori rilevati"].valore_testo, "nessun errore")
         self.assertEqual(valori["Messaggio display"].valore_testo, "a riposo...")
-        attesi = {"A4 BN Kyocera": 329067, "A3 BN Kyocera": 18214,
-                  "A4 colore Kyocera": 11708, "A3 colore Kyocera": 1856,
-                  "Totale B/N": 347299, "Totale colore": 13564}
+        # B/N e colore = stampa + copia (0037), confrontati col registro Copylab 09/2026.
+        attesi = {"A4 BN Kyocera (stampa+copia)": 243847, "A3 BN Kyocera (stampa+copia)": 11098,
+                  "A4 colore Kyocera (stampa+copia)": 96928, "A3 colore Kyocera (stampa+copia)": 8972,
+                  "Totale stampe": 347299, "Totale copie": 13564}
         for nome, valore in attesi.items():
             self.assertEqual(valori[nome].valore_numero, Decimal(valore), nome)
         self.assertEqual(rilevazione.stato, StatoSNMP.OK)
 
-    def test_kyocera_formats_add_up_to_totals(self):
+    def test_kyocera_tabella_colore_funzione_formato(self):
+        """1347.42.3.1.6.1.<colore>.<funzione>.<formato>: 1 = tutti = 2 (B/N) + 3 (colore)."""
         agent = FixtureAgent(FIXTURES / "kyocera_taskalfa_5054ci.snmprec")
-        base = "1.3.6.1.4.1.1347.42.3.1.6.1.1"
+        base = "1.3.6.1.4.1.1347.42.3.1.6.1"
         self.assertEqual(agent.values["1.3.6.1.4.1.1347.42.2.1.1.1.2.1.1"], "A3")
         self.assertEqual(agent.values["1.3.6.1.4.1.1347.42.2.1.1.1.2.1.3"], "A4")
-        for colore, totale in ((1, "1.3.6.1.4.1.1347.42.3.1.1.1.1.1"), (2, "1.3.6.1.4.1.1347.42.3.1.1.1.1.2")):
-            somma = sum(v for k, v in agent.values.items() if k.startswith(f"{base}.{colore}."))
-            self.assertEqual(somma, agent.values[totale])
+        for funzione in (1, 2):
+            for formato in range(1, 15):
+                tutti = agent.values[f"{base}.1.{funzione}.{formato}"]
+                self.assertEqual(tutti, agent.values[f"{base}.2.{funzione}.{formato}"]
+                                 + agent.values[f"{base}.3.{funzione}.{formato}"])
+        # Totali 1347.42.3.1.1.1.1.<funzione>: stampe e copie, non B/N e colore.
+        for funzione in (1, 2):
+            somma = sum(v for k, v in agent.values.items() if k.startswith(f"{base}.1.{funzione}."))
+            self.assertEqual(somma, agent.values[f"1.3.6.1.4.1.1347.42.3.1.1.1.1.{funzione}"])
 
     def test_kyocera_mfc_reads_four_contract_counters(self):
         from contatori.models import Macchina
@@ -232,7 +242,7 @@ class PrinterPresetTests(TestCase):
         )
         with mock.patch("contatori.snmp.leggi_specifiche", side_effect=agent.leggi_specifiche):
             valori = interroga_macchina(macchina)
-        self.assertEqual(valori, {"a4_bn": 329067, "a3_bn": 18214, "a4_col": 11708, "a3_col": 1856})
+        self.assertEqual(valori, {"a4_bn": 243847, "a3_bn": 11098, "a4_col": 96928, "a3_col": 8972})
 
     def test_hp_designjet_detected_with_specific_prefix(self):
         dispositivo, _r, valori = self._poll("hp_designjet_t730.snmprec", "192.0.2.46")

@@ -338,12 +338,35 @@ def aggrega_colonna(valori, aggregazione="PRIMO"):
     raise SNMPError(f"aggregazione non supportata: {aggregazione}")
 
 
+def parti_oid(oid):
+    """OID di una colonna/sonda: "A+B" -> ["A", "B"], OID semplice -> [oid]."""
+    return [p.strip() for p in str(oid).split("+") if p.strip()]
+
+
+def _intero_somma(valori, errori, oid):
+    if oid not in valori:
+        raise SNMPError(errori.get(oid) or f"OID {oid} senza risposta")
+    valore = valori[oid]
+    for conversione in (int, lambda v: int(str(v).strip())):
+        try:
+            return conversione(valore)
+        except (TypeError, ValueError):
+            continue
+    raise SNMPError(f"OID {oid} non numerico: non sommabile")
+
+
 def leggi_specifiche(host, specifiche, community="", port=161,
                      timeout=3, version="v1"):
     """Legge specifiche GET/WALK e ritorna ``(valori, errori)`` per OID."""
     specifiche = list(specifiche)
     deadline = monotonic() + SPECIFICATION_BUDGET
-    get_oids = [s["oid"] for s in specifiche if s.get("modalita", "GET") == "GET"]
+    # "A+B" (solo GET) = somma di piu' OID: es. Kyocera, stampa + copia per formato.
+    somme = {s["oid"]: parti_oid(s["oid"]) for s in specifiche
+             if s.get("modalita", "GET") == "GET" and "+" in s["oid"]}
+    get_oids = list(dict.fromkeys(
+        oid for s in specifiche if s.get("modalita", "GET") == "GET"
+        for oid in somme.get(s["oid"], [s["oid"]])
+    ))
     valori, errori = ({}, {})
     if get_oids:
         try:
@@ -354,6 +377,15 @@ def leggi_specifiche(host, specifiche, community="", port=161,
             )
         except SNMPError as exc:
             errori.update({oid: str(exc) for oid in get_oids})
+    for oid, parti in somme.items():
+        try:
+            valori[oid] = sum(_intero_somma(valori, errori, parte) for parte in parti)
+        except SNMPError as exc:
+            errori[oid] = str(exc)
+    for parte in {p for parti in somme.values() for p in parti} - {
+            s["oid"] for s in specifiche}:
+        valori.pop(parte, None)
+        errori.pop(parte, None)
     for spec in specifiche:
         if spec.get("modalita", "GET") != "WALK":
             continue
