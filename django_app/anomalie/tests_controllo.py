@@ -491,6 +491,23 @@ class ControlloMailTests(LegacyTableMixin, TestCase):
         gruppi = cs.gruppi_per_blocco(rows)
         self.assertEqual(gruppi[0]["righe"][0]["seriali_parziali"], "LCN00002")
 
+    def test_dettaglio_pezzi_interessati(self):
+        from anomalie.views import _arricchisci_con_blocchi
+
+        rows = [
+            {"local_id": self.ids[0], "sn": "LCN00001-LCN00002 (2 pezzi)", "desc": "Graffio"},
+            {"local_id": self.ids[1], "sn": "LCN00002", "desc": "Bava"},
+            {"local_id": 999, "sn": "SN-LIBERO", "desc": "Riga senza controllo"},
+        ]
+        _arricchisci_con_blocchi(rows)
+        tutti, parziale, libero = rows
+        self.assertEqual(tutti["seriali_coinvolti"], ["LCN00001-LCN00002"])
+        self.assertEqual((tutti["seriali_esclusi"], tutti["pezzi_coinvolti"], tutti["pezzi_blocco"]), ([], 2, 2))
+        self.assertEqual(parziale["seriali_coinvolti"], ["LCN00002"])
+        self.assertEqual(parziale["seriali_esclusi"], ["LCN00001"])
+        self.assertEqual((parziale["pezzi_coinvolti"], parziale["pezzi_blocco"]), (1, 2))
+        self.assertEqual((libero["seriali_coinvolti"], libero["pezzi_coinvolti"]), (["SN-LIBERO"], 1))
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
 class MailActionDecisioneTests(LegacyTableMixin, TestCase):

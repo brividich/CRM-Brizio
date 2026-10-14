@@ -1227,6 +1227,48 @@ const FlagToggle = ({
 }), /*#__PURE__*/React.createElement("span", {
   className: "ga-flag__box"
 }, checked ? Ico.check : null), /*#__PURE__*/React.createElement("span", null, label));
+
+// Chip dei seriali: un range «LCN00060-LCN00065» diventa «LCN00060 → LCN00065».
+const RANGE_SN_RE = /^([A-Za-z]*\d+)-([A-Za-z]*\d+)$/;
+const SnChip = ({
+  voce,
+  muted
+}) => {
+  const m = RANGE_SN_RE.exec(String(voce || "").trim());
+  return /*#__PURE__*/React.createElement("span", {
+    className: `ga-snchip${muted ? " is-muted" : ""}${m ? " is-range" : ""}`,
+    title: muted ? "Nello stesso controllo, ma non interessato da questa anomalia" : ""
+  }, m ? /*#__PURE__*/React.createElement(React.Fragment, null, m[1], /*#__PURE__*/React.createElement("span", {
+    className: "ga-snchip__arrow"
+  }, "\u2192"), m[2]) : voce);
+};
+const PezziInteressati = ({
+  sn,
+  compact
+}) => {
+  const coinvolti = Array.isArray(sn.seriali_coinvolti) && sn.seriali_coinvolti.length ? sn.seriali_coinvolti : [sn.blocco_label || sn.sn].filter(Boolean);
+  const esclusi = Array.isArray(sn.seriali_esclusi) ? sn.seriali_esclusi : [];
+  const pezzi = sn.pezzi_coinvolti || coinvolti.length;
+  if (!coinvolti.length) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: `ga-sn${compact ? " ga-sn--compact" : ""}`
+  }, !compact && /*#__PURE__*/React.createElement("span", {
+    className: "ga-sn__label"
+  }, "Pezzi interessati ", /*#__PURE__*/React.createElement("b", {
+    className: "ga-sn__count"
+  }, pezzi, " pezz", pezzi === 1 ? "o" : "i"), esclusi.length > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "ga-sn__of"
+  }, "su ", sn.pezzi_blocco, " del controllo")), /*#__PURE__*/React.createElement("div", {
+    className: "ga-sn__chips"
+  }, coinvolti.map(v => /*#__PURE__*/React.createElement(SnChip, {
+    key: `c-${v}`,
+    voce: v
+  })), !compact && esclusi.map(v => /*#__PURE__*/React.createElement(SnChip, {
+    key: `e-${v}`,
+    voce: v,
+    muted: true
+  }))));
+};
 function GestioneAnomalie() {
   // ── Dati ──
   const [ordini, setOrdini] = useState([]);
@@ -2032,11 +2074,7 @@ function GestioneAnomalie() {
     className: "ga-det__head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-det__crumb"
-  }, /*#__PURE__*/React.createElement("span", null, op.id), /*#__PURE__*/React.createElement("span", {
-    className: "ga-det__sep"
-  }, "\u203A"), /*#__PURE__*/React.createElement("span", {
-    className: "ga-mono"
-  }, "S/N ", sn.seriali_parziali || sn.blocco_label || sn.sn || "—"), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, op.id), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "ga-det__sep"
   }, "\u203A"), /*#__PURE__*/React.createElement("span", null, "Fase ", sn.fase)), /*#__PURE__*/React.createElement("span", {
     className: `ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`
@@ -2060,7 +2098,9 @@ function GestioneAnomalie() {
     disabled: posizione < 0 || posizione >= ordineVisibile.length - 1,
     onClick: () => vaiA(1),
     title: "Anomalia successiva (Alt+\u2193)"
-  }, Ico.next))), /*#__PURE__*/React.createElement("div", {
+  }, Ico.next))), /*#__PURE__*/React.createElement(PezziInteressati, {
+    sn: sn
+  }), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__people"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Capocommessa"), " ", op.capo || "—"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "CAR"), " ", op.car || "—"), sn.controllo_operatore && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata da"), " ", sn.controllo_operatore, sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""))), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__body"
@@ -2246,7 +2286,10 @@ function GestioneAnomalie() {
     type: "checkbox",
     checked: applicaBlocco,
     onChange: e => setApplicaBlocco(e.target.checked)
-  }), /*#__PURE__*/React.createElement("span", null, "Applica la stessa decisione anche alle altre ", /*#__PURE__*/React.createElement("b", null, fratelliBlocco.length), " anomali", fratelliBlocco.length === 1 ? "a" : "e", " aperte di questi seriali"))), op.id && op.id !== "—" && /*#__PURE__*/React.createElement(TimelineOp, {
+  }), /*#__PURE__*/React.createElement("span", null, "Applica la stessa decisione anche alle altre ", /*#__PURE__*/React.createElement("b", null, fratelliBlocco.length), " anomali", fratelliBlocco.length === 1 ? "a" : "e", " aperte di questi seriali", /*#__PURE__*/React.createElement(PezziInteressati, {
+    sn: sn,
+    compact: true
+  })))), op.id && op.id !== "—" && /*#__PURE__*/React.createElement(TimelineOp, {
     opId: op.id,
     opItemId: op.item_id
   })), canEditSelected && /*#__PURE__*/React.createElement("div", {

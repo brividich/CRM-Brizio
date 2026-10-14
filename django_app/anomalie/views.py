@@ -1225,12 +1225,27 @@ def _arricchisci_con_blocchi(payload_rows: list[dict]) -> None:
         row["blocco_label"] = (meta.blocco.seriale_label if meta and meta.blocco_id else "") or row.get("sn") or ""
         # Anomalia presente solo su una parte dei seriali del blocco.
         row["seriali_parziali"] = ""
+        # Voci (singoli/range) per i chip «Pezzi interessati» del dettaglio.
+        # Gli altri seriali del blocco (non coinvolti) vanno in ``seriali_esclusi``.
+        from .seriali import comprimi_seriali, conta_pezzi, espandi_seriale_composito, espandi_voce
+
+        row["seriali_coinvolti"] = comprimi_seriali(espandi_seriale_composito(row.get("sn")))
+        row["seriali_esclusi"] = []
         if meta and meta.blocco_id:
             from .controllo_service import seriali_anomalia
 
             info = seriali_anomalia(row.get("sn"), meta.blocco)
+            if info["seriali"]:
+                row["seriali_coinvolti"] = info["seriali"]
             if not info["tutti"]:
                 row["seriali_parziali"] = info["seriale_label"]
+                coinvolti = {t.lower() for v in info["seriali"] for t in espandi_voce(v)}
+                voci_blocco = meta.blocco.seriali if isinstance(meta.blocco.seriali, list) else []
+                row["seriali_esclusi"] = comprimi_seriali(
+                    [t for v in voci_blocco for t in espandi_voce(v) if t.lower() not in coinvolti]
+                )
+        row["pezzi_coinvolti"] = conta_pezzi(row["seriali_coinvolti"])
+        row["pezzi_blocco"] = row["pezzi_coinvolti"] + conta_pezzi(row["seriali_esclusi"])
         controllo = meta.controllo if meta and meta.controllo_id else None
         row["controllo_id"] = controllo.pk if controllo else None
         row["controllo_operatore"] = controllo.operatore_display if controllo else ""
