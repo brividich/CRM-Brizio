@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 {% include "core/components/_hub_formkit.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=4">
 {% endblock %}
@@ -45,71 +45,18 @@
       {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-shield" valore=kpi.dati_personali label="Con dati personali" sub="da trattare come riservati" %}
     </section>
 
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Chiedi un report</div>
-        <span class="fmd-block-aside">a parole, senza scegliere un modello</span>
-      </div>
-      <form method="post" action="{% url 'anagrafica:reportistica_chat' %}" class="rp-chiedi">{% csrf_token %}
-        <input type="hidden" name="azione" value="messaggio"><input type="hidden" name="nuova" value="1">
-        <label for="rp-chiedi" class="rp-sr">Che report ti serve?</label>
-        <textarea id="rp-chiedi" name="messaggio" rows="2" maxlength="1500" required
-                  placeholder="Es. matrice della formazione sicurezza del reparto Produzione, solo i corsi scaduti, in Excel"></textarea>
-        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Prepara</button>
-      </form>
-    </section>
+    {# ── Stile C: una scheda per modello ───────────────────────────────── #}
+    {% include "anagrafica/components/_fmd_cc_grid.html" with cc=griglia_modelli %}
+    {% if can_manage %}
+    <form method="post" action="{% url 'anagrafica:reportistica_predefiniti' %}" style="margin:-4px 0 4px;">{% csrf_token %}
+      <button type="submit" class="fmd-btn fmd-btn-ghost" title="Ricrea solo i modelli predefiniti eliminati; non tocca quelli esistenti">
+        <svg class="fmd-ico"><use href="#i-refresh"/></svg>Ripristina modelli predefiniti
+      </button>
+    </form>
+    {% endif %}
 
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Modelli</div>
-        <span class="fmd-block-aside">{{ modelli|length }} modell{{ modelli|length|pluralize:"o,i" }}</span>
-      </div>
-      {% if modelli %}
-      <div class="rp-grid">
-        {% for m in modelli %}
-        <article class="rp-card">
-          <div class="rp-card-head">
-            <div class="rp-card-title">{{ m.nome }}</div>
-            {% if m.codice_sistema %}<span class="rp-sistema" title="Modello predefinito, modificabile">Pronto</span>{% endif %}
-          </div>
-          {% if m.descrizione %}<div class="rp-card-desc">{{ m.descrizione }}</div>{% endif %}
-          <div class="rp-card-meta">
-            {% for n in m.norme %}<span class="rp-norma{% if 'PdR' in n %} rp-norma-pdr{% endif %}">{{ n }}</span>{% endfor %}
-          </div>
-          <div class="rp-card-meta">
-            <span>{{ m.n_blocchi }} blocchi</span>
-            <span>·</span><span>{{ m.get_periodo_tipo_display }}</span>
-            {% if m.destinatario %}<span>·</span><span>Per: {{ m.destinatario }}</span>{% endif %}
-            <span>·</span><span>{% if m.ultima_generazione %}ultimo invio {{ m.ultima_generazione|date:"d/m/Y" }}{% else %}mai generato{% endif %}</span>
-          </div>
-          <div class="rp-card-actions">
-            <a href="{% url 'anagrafica:reportistica_genera' m.pk %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-download"/></svg>Genera</a>
-            {% if can_manage %}
-            <a href="{% url 'anagrafica:reportistica_modello_edit' m.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>
-            <form method="post" action="{% url 'anagrafica:reportistica_modello_duplica' m.pk %}">{% csrf_token %}
-              <button type="submit" class="fmd-btn fmd-btn-ghost">Duplica</button>
-            </form>
-            {% endif %}
-          </div>
-        </article>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="fmd-empty">
-        <span class="fmd-et">Nessun modello</span>
-        <span class="fmd-em">Ripristina i modelli predefiniti o creane uno nuovo.</span>
-      </div>
-      {% endif %}
-      {% if can_manage %}
-      <form method="post" action="{% url 'anagrafica:reportistica_predefiniti' %}" style="margin-top:12px;">{% csrf_token %}
-        <button type="submit" class="fmd-btn fmd-btn-ghost" title="Ricrea solo i modelli predefiniti eliminati; non tocca quelli esistenti">
-          <svg class="fmd-ico"><use href="#i-refresh"/></svg>Ripristina modelli predefiniti
-        </button>
-      </form>
-      {% endif %}
-    </section>
-
-    <section class="fmd-panel fmd-block">
+    <div class="fmd-low">
+    <section class="fmd-panel fmd-block fmd-low-main">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Archivio dei documenti generati</div>
         <span class="fmd-block-aside">ultimi 60 · chi, quando, per chi</span>
@@ -160,6 +107,24 @@
       <div class="fmd-empty"><span class="fmd-et">{% if q %}Nessun documento trovato{% else %}Nessun documento generato{% endif %}</span></div>
       {% endif %}
     </section>
+
+    <div class="fmd-low-side">
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Chiedi un report</div>
+          <span class="fmd-block-aside">a parole, senza scegliere un modello</span>
+        </div>
+        <form method="post" action="{% url 'anagrafica:reportistica_chat' %}" class="rp-chiedi">{% csrf_token %}
+          <input type="hidden" name="azione" value="messaggio"><input type="hidden" name="nuova" value="1">
+          <label for="rp-chiedi" class="rp-sr">Che report ti serve?</label>
+          <textarea id="rp-chiedi" name="messaggio" rows="3" maxlength="1500" required
+                    placeholder="Es. matrice della formazione sicurezza del reparto Produzione, solo i corsi scaduti, in Excel"></textarea>
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Prepara</button>
+        </form>
+      </section>
+      {% include "anagrafica/components/_fmd_arealist.html" with aree=aree %}
+    </div>
+    </div>{# .fmd-low #}
 
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">

@@ -1,0 +1,19 @@
+{% comment %}
+Colonna «Aree» delle pagine d'ingresso (stile C). Parametri: aree (services.sezioni_c.aree_visibili),
+titolo (opzionale). Mostra solo le pagine che l'utente può aprire: il controllo vero resta sulle pagine.
+{% endcomment %}
+{% if aree %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>{{ titolo|default:"Aree" }}</div>
+  </div>
+  <div class="fmd-arealist">
+    {% for a in aree %}
+    <a class="fmd-arealist-i" href="{{ a.url }}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#{{ a.icona }}"/></svg></span>
+      <span class="fmd-area-body"><span class="fmd-area-title">{{ a.titolo }}</span><span class="fmd-area-desc">{{ a.descrizione }}</span></span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

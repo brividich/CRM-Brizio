@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -78,106 +78,22 @@
         <div class="fmd-mtr-lbl">Da verificare (HR){% info_hint "qualifica_verifica" %}</div>
         <div class="fmd-mtr-sub">{{ n_con_evidenza }} con evidenza caricata</div>
       </a>
+      {% if mpq and mpq.n %}
+      <a class="fmd-mtr fmd-t-{% if mpq.scaduti %}amber{% else %}navy{% endif %}" href="{% url 'anagrafica:mpq_cruscotto' %}" style="text-decoration:none;" title="Apri i processi qualificati (MOD.128)">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ mpq.n }}</span></div>
+        <div class="fmd-mtr-lbl">Processi MOD.128</div>
+        <div class="fmd-mtr-sub">{{ mpq.attivi }} attivi · {{ mpq.scaduti }} scaduti · {{ mpq.in_scadenza }} ≤60gg</div>
+      </a>
+      {% endif %}
     </section>
 
-    {# ── Aree del modulo ────────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Aree del modulo</div>
-        <div class="fmd-block-aside">Le pagine sono già esistenti: il cruscotto le mette insieme</div>
-      </div>
-      <div class="fmd-areas">
-        <a class="fmd-area" href="{% url 'anagrafica:qualifiche_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Catalogo qualifiche</span><span class="fmd-area-desc">Tipi · categorie · validità</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:qualifiche_scadenzario' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario qualifiche</span><span class="fmd-area-desc">Scadute · ≤30gg · ≤60gg · export</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:matrice_competenze' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Matrice qualifiche</span><span class="fmd-area-desc">Dipendenti × abilitazioni (ISO 45001)</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:qualifica_sessioni_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Sessioni di rinnovo</span><span class="fmd-area-desc">Rilascio/rinnovo collettivo</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:mpq_cruscotto' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Processi qualificati (MOD.128)</span><span class="fmd-area-desc">Processi speciali · abilitati per ruolo · doppia scadenza</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:conformita_report' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Conformità / idoneità</span><span class="fmd-area-desc">Gap qualifiche obbligatorie per mansione</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'automazioni:automazioni_settings' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-gear"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Promemoria scadenze</span><span class="fmd-area-desc">Report email settimanale (modulo automazioni)</span></span>
-        </a>
-      </div>
-    </section>
+    {# ── Stile C: una scheda per tipo di qualifica ──────────────────────── #}
+    {% include "anagrafica/components/_fmd_cc_grid.html" with cc=copertura_qualifiche %}
 
-    {# ── Processi qualificati (MOD.128) — riepilogo ─────────────────────── #}
-    {% if mpq and mpq.n %}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Processi qualificati (MOD.128)</div>
-        <div class="fmd-block-aside"><a href="{% url 'anagrafica:mpq_cruscotto' %}" class="fmd-data-link">Apri il modulo →</a></div>
-      </div>
-      <div style="display:flex;gap:26px;flex-wrap:wrap;padding:8px 2px;align-items:baseline;">
-        <div><span class="fmd-num" style="font-size:26px;font-weight:800;color:#1f87cd;">{{ mpq.n }}</span> <span class="fmd-muted">processi a registro ({{ mpq.attivi }} attivi)</span></div>
-        <div><span class="fmd-num" style="font-size:26px;font-weight:800;color:#f59e0b;">{{ mpq.in_scadenza }}</span> <span class="fmd-muted">in scadenza ≤60gg</span></div>
-        <div><span class="fmd-num" style="font-size:26px;font-weight:800;color:#c53030;">{{ mpq.scaduti }}</span> <span class="fmd-muted">scaduti</span></div>
-      </div>
-    </section>
-    {% endif %}
-
-    <div class="fmd-grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
-
-      {# ── Distribuzione per categoria ──────────────────────────────────── #}
-      <section class="fmd-panel fmd-block">
-        <div class="fmd-block-head">
-          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Distribuzione per categoria</div>
-        </div>
-        {% if distribuzione %}
-        <div style="display:flex;flex-direction:column;gap:12px;padding:4px 2px;">
-          {% for d in distribuzione %}
-          <div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:#475569;margin-bottom:4px;">
-              <span>{{ d.label }}</span><span class="fmd-num">{{ d.n }}</span>
-            </div>
-            <div style="height:10px;background:#eef3f8;border-radius:6px;overflow:hidden;">
-              <div style="height:100%;width:{% widthratio d.n tot_assegnazioni 100 %}%;background:#1f87cd;border-radius:6px;"></div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="fmd-empty">Nessuna qualifica registrata.</div>
-        {% endif %}
-      </section>
-
-      {# ── Timeline scadenze 12 mesi ────────────────────────────────────── #}
-      <section class="fmd-panel fmd-block">
-        <div class="fmd-block-head">
-          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Scadenze prossimi 12 mesi</div>
-        </div>
-        <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding:8px 2px 0;">
-          {% for t in timeline %}
-          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;" title="{{ t.label }}: {{ t.n }}">
-            <span class="fmd-num" style="font-size:11px;color:#64748b;">{{ t.n }}</span>
-            <div style="width:100%;background:{% if t.n %}#f59e0b{% else %}#eef3f8{% endif %};border-radius:5px 5px 0 0;height:{% if t.pct %}{{ t.pct }}{% else %}3{% endif %}%;min-height:3px;"></div>
-            <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">{{ t.label }}</span>
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-
-    </div>
-
+    <div class="fmd-low">
     {# ── Scadenze urgenti ───────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block fmd-low-main">
       <div class="fmd-block-head">
         <div class="fmd-block-title">
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze urgenti
@@ -187,7 +103,7 @@
       </div>
 
       {% if scadenze_urgenti %}
-      <div class="fmd-tablewrap" style="margin:0 -22px;">
+      <div class="fmd-tablewrap">
         <table class="fmd-table">
           <thead>
             <tr>
@@ -247,34 +163,46 @@
       {% endif %}
     </section>
 
-    {# ── Prossime sessioni di rinnovo ───────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Prossime sessioni di rinnovo</div>
-        <div class="fmd-block-aside"><a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-data-link">Tutte le sessioni</a></div>
-      </div>
-      {% if prossime_sessioni %}
-      <div class="fmd-tablewrap" style="margin:0 -22px;">
-        <table class="fmd-table">
-          <thead>
-            <tr><th>Qualifica</th><th>Data</th><th>Ente</th><th class="fmd-r">Partecipanti</th></tr>
-          </thead>
-          <tbody>
-            {% for s in prossime_sessioni %}
-            <tr>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:qualifica_sessione_detail' s.pk %}">{{ s.tipo.nome }}</a></td>
-              <td class="fmd-nowrap fmd-muted">{{ s.data_conseguimento|date:"d-m-Y" }}</td>
-              <td class="fmd-muted">{{ s.ente|default:"—" }}</td>
-              <td class="fmd-r fmd-num">{{ s.qualifiche.count }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="fmd-empty">Nessuna sessione di rinnovo pianificata.</div>
-      {% endif %}
-    </section>
+    <div class="fmd-low-side">
+      {# ── Prossime sessioni di rinnovo ─────────────────────────────────── #}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Prossime sessioni di rinnovo</div>
+          <div class="fmd-block-aside"><a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-data-link">Tutte</a></div>
+        </div>
+        {% if prossime_sessioni %}
+        <div class="fmd-sidelist">
+          {% for s in prossime_sessioni %}
+          <a class="fmd-sidelist-i" href="{% url 'anagrafica:qualifica_sessione_detail' s.pk %}">
+            <span><b>{{ s.tipo.nome }}</b><span class="fmd-sub2">{{ s.data_conseguimento|date:"d-m-Y" }}{% if s.ente %} · {{ s.ente }}{% endif %}</span></span>
+            <span class="fmd-num">{{ s.qualifiche.count }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="fmd-empty">Nessuna sessione di rinnovo pianificata.</div>
+        {% endif %}
+      </section>
+
+      {# ── Timeline scadenze 12 mesi ────────────────────────────────────── #}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Scadenze prossimi 12 mesi</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding:8px 2px 0;">
+          {% for t in timeline %}
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;" title="{{ t.label }}: {{ t.n }}">
+            <span class="fmd-num" style="font-size:11px;color:#64748b;">{{ t.n }}</span>
+            <div style="width:100%;background:{% if t.n %}#f59e0b{% else %}#eef3f8{% endif %};border-radius:4px 4px 0 0;height:{% if t.pct %}{{ t.pct }}{% else %}3{% endif %}%;min-height:3px;"></div>
+            <span style="font-size:9.5px;color:#94a3b8;white-space:nowrap;">{{ t.label|slice:":3" }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% include "anagrafica/components/_fmd_arealist.html" with aree=aree titolo="Aree del modulo" %}
+    </div>
+    </div>{# .fmd-low #}
 
   </div>
 </div>

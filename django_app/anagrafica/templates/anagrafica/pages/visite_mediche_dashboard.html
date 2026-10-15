@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 <style>
 /* ── Chips filtro scadenze ───────────────────────────────── */
 .vm-chip { padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none;
@@ -129,15 +129,21 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
   </section>
 
   {# ── KPI ──────────────────────────────────────────────────────────────── #}
-  <section class="fmd-kpi fmd-k4">
-    <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da pianificare con priorità</div></div>
-    <div class="fmd-mtr fmd-t-yellow"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scad }}</span></div><div class="fmd-mtr-lbl">In scadenza ≤60g</div><div class="fmd-mtr-sub">Visite in avvicinamento</div></div>
+  <section class="fmd-kpi">
+    <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:scadenzario' %}?tipo=visita&amp;stato=scaduta" title="Apri lo scadenzario: visite scadute"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da pianificare con priorità</div></a>
+    <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:scadenzario' %}?tipo=visita&amp;stato=60" title="Apri lo scadenzario: visite entro 60 giorni"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scad }}</span></div><div class="fmd-mtr-lbl">In scadenza ≤60g</div><div class="fmd-mtr-sub">Visite in avvicinamento</div></a>
     <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ kpi_totali }}</span></div><div class="fmd-mtr-lbl">Visite registrate</div><div class="fmd-mtr-sub">Totale a sistema</div></div>
     <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-pill"/></svg></span><span class="fmd-mtr-val">{{ kpi_tipi_attivi }}</span></div><div class="fmd-mtr-lbl">Tipologie attive</div><div class="fmd-mtr-sub">Catalogo visite</div></div>
+    <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:referti_coda' %}" title="Apri i referti da rivedere"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ kpi_referti }}</span></div><div class="fmd-mtr-lbl">Referti da rivedere</div><div class="fmd-mtr-sub">Lettura da confermare</div></a>
+    <div class="fmd-mtr fmd-t-navy" title="Persone con un ruolo operativo che chiede il tipo di visita e nessuna visita di quel tipo registrata"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi_senza_visita }}</span></div><div class="fmd-mtr-lbl">Senza visita</div><div class="fmd-mtr-sub">Richiesta dal ruolo, mai registrata</div></div>
   </section>
 
+  {# ── Stile C: una scheda per tipo di visita ─────────────────────────────── #}
+  {% include "anagrafica/components/_fmd_cc_grid.html" with cc=copertura_visite %}
+
+  <div class="fmd-low">
   {# ── Scadute / in scadenza ─────────────────────────────────────────────── #}
-  <div class="hr-card" id="card-scad">
+  <div class="hr-card fmd-low-main" id="card-scad" style="min-width:0;">
     <div class="hr-card-head">
       <div class="hr-card-title">🩺 Visite scadute o in scadenza</div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -195,11 +201,34 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
     </div>
   </div>
 
+  <div class="fmd-low-side">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Ultime sessioni di visita</div>
+        <div class="fmd-block-aside"><a href="{% url 'anagrafica:visite_mediche_sessioni' %}" class="fmd-data-link">Tutte</a></div>
+      </div>
+      {% if ultime_sessioni %}
+      <div class="fmd-sidelist">
+        {% for s in ultime_sessioni %}
+        <a class="fmd-sidelist-i" href="{% url 'anagrafica:visite_mediche_sessione_detail' s.pk %}">
+          <span><b>{{ s.data_svolgimento|date:"d-m-Y" }}</b><span class="fmd-sub2">{{ s.n_visite }} visit{{ s.n_visite|pluralize:"a,e" }} registrat{{ s.n_visite|pluralize:"a,e" }}</span></span>
+          <span class="fmd-cc-go">Apri →</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessuna sessione registrata.</div>
+      {% endif %}
+    </section>
+    {% include "anagrafica/components/_fmd_arealist.html" with aree=aree %}
+  </div>
+  </div>{# .fmd-low #}
+
   {# ── Copertura per tipologia ───────────────────────────────────────────── #}
-  <div class="hr-card" id="card-copertura">
+  <div class="hr-card" id="card-copertura" style="margin-top:16px;">
     <div class="hr-card-head">
       <div>
-        <div class="hr-card-title">📊 Copertura per tipologia</div>
+        <div class="hr-card-title">📊 Dettaglio per tipologia</div>
         <div class="hr-card-desc">Valide/Scadute = conteggio reale dal DB. Richiesti/Mancanti = attivi solo se ruoli operativi configurati. Clicca su una riga per il dettaglio dipendenti.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
@@ -401,6 +430,17 @@ function vmToggleCard(bodyId, btn) {
     btn.title = isHidden ? 'Comprimi' : 'Espandi';
   }
 }
+
+/* Scheda «per tipo di visita» → apre la riga di dettaglio corrispondente */
+document.addEventListener('click', function(e) {
+  var a = e.target.closest('a.fmd-cc[href^="#tipo-row-"]');
+  if (!a) return;
+  var row = document.getElementById(a.getAttribute('href').slice(1));
+  if (!row) return;
+  e.preventDefault();
+  if (!row.classList.contains('tipo-active')) vmToggleTipo(row, row.id.replace('tipo-row-', ''));
+  else row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 /* Tipologia row toggle */
 function vmToggleTipo(row, tipoId) {

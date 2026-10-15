@@ -49,13 +49,14 @@ def reportistica_index(request):
     if not can_view(request):
         return _nega(request)
     q = (request.GET.get("q") or "").strip()
+    trenta_giorni_fa = timezone.now() - timedelta(days=30)
     modelli = list(
         ReportModello.objects.filter(is_active=True)
-        .annotate(n_blocchi=Count("blocchi", distinct=True), ultima_generazione=Max("generati__generato_il"))
+        .annotate(n_blocchi=Count("blocchi", distinct=True), ultima_generazione=Max("generati__generato_il"),
+                  n_30=Count("generati", filter=Q(generati__generato_il__gte=trenta_giorni_fa), distinct=True))
         .order_by("nome")
     )
     archivio = ReportGenerato.objects.defer("contenuto").select_related("generato_da")
-    trenta_giorni_fa = timezone.now() - timedelta(days=30)
     kpi = {
         "modelli": len(modelli),
         "archivio": ReportGenerato.objects.count(),
@@ -64,8 +65,29 @@ def reportistica_index(request):
     }
     if q:
         archivio = archivio.filter(Q(titolo__icontains=q) | Q(destinatario__icontains=q) | Q(modello_nome__icontains=q))
+
+    # Stile C: una scheda per modello, filtrabile per norma.
+    from .services import sezioni_c
+    norme = sorted({str(n) for m in modelli for n in (m.norme or []) if n}, key=str.casefold)
+    griglia_modelli = sezioni_c.griglia(
+        id="fmd-modelli", titolo="Modelli", icona="i-grid",
+        aside=f"{len(modelli)} modell{'o' if len(modelli) == 1 else 'i'} · generazioni negli ultimi 30 giorni",
+        schede=sezioni_c.schede_modelli(modelli, can_manage=can_manage(request)),
+        filtri=[("", "Tutte le norme")] + [(n, n) for n in norme],
+        etichetta_filtri="Filtra per norma",
+        ordini=[("uso", "Più usati"), ("az", "A–Z")],
+        vuoto_titolo="Nessun modello",
+        vuoto_testo="Ripristina i modelli predefiniti o creane uno nuovo.",
+    )
+    aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:reportistica_chat", "Chiedi un report", "Pagina completa della richiesta a parole", icona="i-doc"),
+        sezioni_c.Area("anagrafica:dipendenti_report", "Report dipendenti", "Elenco filtrabile con export", icona="i-users"),
+        sezioni_c.Area("report_conformita:index", "Report conformità", "Conformità ai requisiti delle norme", icona="i-shield"),
+    ])
     return render(request, "anagrafica/pages/reportistica_index.html", {
         "page_title": "Reportistica",
+        "griglia_modelli": griglia_modelli,
+        "aree": aree,
         "modelli": modelli,
         "archivio": list(archivio[:60]),
         "kpi": kpi,
