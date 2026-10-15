@@ -1983,15 +1983,14 @@ def _selected_occurrences(request: HttpRequest) -> list[MaintenanceOccurrence]:
 @login_required
 @require_POST
 def occurrence_reschedule(request: HttpRequest, occurrence_id: int) -> JsonResponse:
-    """Sposta la scadenza di una manutenzione aperta (trascinamento nel Calendario).
+    """Rinvia una manutenzione aperta (trascinamento nel Calendario).
 
-    Solo chi pianifica, solo occorrenze aperte, nel proprio perimetro di reparto.
-    Lo scheduler salta le coppie piano/asset con un'occorrenza gia' aperta, quindi
-    spostare la data non genera doppioni. Ogni spostamento va in audit sul record.
+    Il trascinamento e' un rinvio: la scadenza originale resta registrata e alla
+    chiusura il conteggio riparte dalla data di esecuzione. Solo chi pianifica,
+    solo occorrenze aperte, nel proprio perimetro di reparto. Ogni rinvio va
+    nello storico dell'occorrenza e in audit.
     """
     from django.utils.dateparse import parse_date
-
-    from core.audit import log_action
 
     if not can_plan_maintenance(request):
         return JsonResponse({"ok": False, "error": "Non hai i permessi per pianificare."}, status=403)
@@ -1999,7 +1998,7 @@ def occurrence_reschedule(request: HttpRequest, occurrence_id: int) -> JsonRespo
         MaintenanceOccurrence.objects.select_related("plan", "asset"), pk=occurrence_id
     )
     if occurrence.status != MaintenanceOccurrence.STATUS_OPEN:
-        return JsonResponse({"ok": False, "error": "Si possono spostare solo le manutenzioni aperte."}, status=400)
+        return JsonResponse({"ok": False, "error": "Si possono rinviare solo le manutenzioni aperte."}, status=400)
     try:
         _nega_fuori_reparto(request, [occurrence])
     except PermissionDenied:
@@ -2007,28 +2006,88 @@ def occurrence_reschedule(request: HttpRequest, occurrence_id: int) -> JsonRespo
     new_date = parse_date(_clean_string(request.POST.get("due_date"))[:10] or "")
     if new_date is None:
         return JsonResponse({"ok": False, "error": "Data non valida."}, status=400)
-    old_date = occurrence.due_date
-    if new_date == old_date:
-        return JsonResponse({"ok": True, "due_date": new_date.isoformat(), "old_date": old_date.isoformat()})
-    clash = MaintenanceOccurrence.objects.filter(
-        plan_id=occurrence.plan_id, asset_id=occurrence.asset_id, due_date=new_date
-    ).exclude(pk=occurrence.pk).exists()
-    if clash:
-        return JsonResponse(
-            {"ok": False, "error": "Esiste gia' una manutenzione dello stesso piano su questo asset in quella data."},
-            status=409,
-        )
-    occurrence.due_date = new_date
-    occurrence.save(update_fields=["due_date", "updated_at"])
+    reason = _clean_string(request.POST.get("reason")) or "Rinviata dal calendario"
+    try:
+        result = domain.postpone_occurrence(occurrence, new_date=new_date, reason=reason, user=request.user)
+    except domain.OccurrencePostponeError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=409)
+    if result.changed:
+        _log_postpone(request, occurrence, result, reason)
+    return JsonResponse({
+        "ok": True,
+        "due_date": result.new_date.isoformat(),
+        "old_date": result.old_date.isoformat(),
+        "original_date": occurrence.original_due_date.isoformat() if occurrence.original_due_date else "",
+    })
+
+
+def _log_postpone(request: HttpRequest, occurrence: MaintenanceOccurrence, result, reason: str) -> None:
+    from core.audit import log_action
+
     log_action(
         request,
-        "ASSET_OCCORRENZA_SPOSTATA",
+        "ASSET_OCCORRENZA_RINVIATA",
         "assets",
-        {"da": old_date.isoformat(), "a": new_date.isoformat(), "piano": occurrence.plan.label,
-         "asset": occurrence.asset.asset_tag},
+        {"da": result.old_date.isoformat(), "a": result.new_date.isoformat(),
+         "scadenza_originale": occurrence.original_due_date.isoformat() if occurrence.original_due_date else "",
+         "motivo": reason, "piano": occurrence.plan.label, "asset": occurrence.asset.asset_tag},
         oggetto=occurrence,
     )
-    return JsonResponse({"ok": True, "due_date": new_date.isoformat(), "old_date": old_date.isoformat()})
+
+
+@login_required
+def occurrence_postpone(request: HttpRequest, occurrence_id: int) -> HttpResponse:
+    """Pagina «Rinvia»: nuova data + motivo, con lo storico dei rinvii precedenti."""
+    from .forms_maintenance import OccurrencePostponeForm
+
+    occurrence = get_object_or_404(
+        MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment"), pk=occurrence_id
+    )
+    if not can_plan_maintenance(request):
+        return _deny(request, "Non hai i permessi per rinviare le manutenzioni.")
+    _nega_fuori_reparto(request, [occurrence])
+    back_url = _safe_back_url(request, reverse("assets:maintenance_da_fare"))
+    if occurrence.status != MaintenanceOccurrence.STATUS_OPEN:
+        messages.info(request, "Questa manutenzione risulta gia' chiusa.")
+        return redirect(back_url)
+
+    if request.method == "POST":
+        form = OccurrencePostponeForm(request.POST)
+        if form.is_valid():
+            reason = form.cleaned_data["reason"]
+            try:
+                result = domain.postpone_occurrence(
+                    occurrence, new_date=form.cleaned_data["new_date"], reason=reason, user=request.user
+                )
+            except domain.OccurrencePostponeError as exc:
+                form.add_error("new_date", str(exc))
+            else:
+                if result.changed:
+                    _log_postpone(request, occurrence, result, reason)
+                    if occurrence.original_due_date:
+                        messages.success(
+                            request,
+                            f"Manutenzione rinviata al {result.new_date:%d/%m/%Y} "
+                            f"(scadenza originale {occurrence.original_due_date:%d/%m/%Y}).",
+                        )
+                    else:
+                        messages.success(request, "Rinvio annullato: torna alla scadenza originale.")
+                return redirect(back_url)
+    else:
+        form = OccurrencePostponeForm(initial={"new_date": occurrence.due_date})
+
+    return render(
+        request,
+        "assets/pages/occurrence_postpone.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": f"Rinvia — {occurrence.plan.label}",
+            "back_url": back_url,
+            "form": form,
+            "occurrence": occurrence,
+            "postponements": list(occurrence.postponements.select_related("created_by")[:50]),
+        },
+    )
 
 
 @login_required

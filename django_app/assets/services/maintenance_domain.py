@@ -33,6 +33,7 @@ from ..models import (
 )
 from .recurrence import (
     ANCHOR_FIXED_CALENDAR,
+    ANCHOR_FROM_COMPLETION,
     add_recurrence,
     compute_next_due,
     describe_recurrence,
@@ -269,7 +270,7 @@ def compute_due_date_for(
     if last_completed is not None:
         return compute_next_due(
             assignment,
-            anchor=assignment.effective_schedule_anchor,
+            anchor=next_anchor_after(last_completed, assignment),
             previous_due=last_completed.due_date,
             completion_date=last_completed.completed_on,
         )
@@ -323,7 +324,7 @@ def generate_occurrences(
             asset_id__in=asset_id_set,
         )
         .order_by("plan_id", "asset_id", "completed_on", "due_date", "id")
-        .only("id", "plan_id", "asset_id", "due_date", "completed_on")
+        .only("id", "plan_id", "asset_id", "due_date", "completed_on", "original_due_date")
     ):
         completed_map[(occurrence.plan_id, occurrence.asset_id)] = occurrence
 
@@ -455,9 +456,10 @@ def complete_occurrence(
     if assignment is None or not assignment.is_active or assignment.is_excluded or not assignment.auto_generate:
         return None
 
+    anchor = next_anchor_after(occurrence, assignment)
     next_due = compute_next_due(
         assignment,
-        anchor=occurrence.schedule_anchor or assignment.effective_schedule_anchor,
+        anchor=anchor,
         previous_due=occurrence.due_date,
         completion_date=occurrence.completed_on,
     )
@@ -467,7 +469,7 @@ def complete_occurrence(
     # Un'amministrativa chiusa con molto ritardo puo' avere la "prossima" gia'
     # passata: si avanza fino alla prima scadenza non ancora superata, senza
     # inventare occorrenze intermedie che nessuno eseguira'.
-    if occurrence.schedule_anchor == ANCHOR_FIXED_CALENDAR:
+    if anchor == ANCHOR_FIXED_CALENDAR:
         guard = 0
         while next_due < occurrence.completed_on and guard < 500:
             next_due = add_recurrence(assignment, next_due)
@@ -489,6 +491,75 @@ def complete_occurrence(
         return MaintenanceOccurrence.objects.filter(
             plan=occurrence.plan, asset=occurrence.asset, due_date=next_due
         ).first()
+
+
+def next_anchor_after(occurrence: MaintenanceOccurrence, assignment: MaintenancePlanAssignment) -> str:
+    """Ancoraggio per calcolare la scadenza successiva a un'occorrenza eseguita.
+
+    Un'occorrenza rinviata riparte sempre dalla data di esecuzione effettiva:
+    il rinvio non deve trascinarsi (ne' accorciarsi) sul ciclo successivo.
+    """
+    if getattr(occurrence, "original_due_date", None):
+        return ANCHOR_FROM_COMPLETION
+    return getattr(occurrence, "schedule_anchor", "") or assignment.effective_schedule_anchor
+
+
+class OccurrencePostponeError(Exception):
+    """Rinvio rifiutato (occorrenza chiusa, data non valida, data gia' occupata)."""
+
+
+@transaction.atomic
+def postpone_occurrence(
+    occurrence: MaintenanceOccurrence,
+    *,
+    new_date: date,
+    reason: str = "",
+    user=None,
+) -> MaintenancePostponeResult:
+    """Rinvia una manutenzione aperta a ``new_date``.
+
+    La scadenza originale resta salvata in ``original_due_date`` (al primo rinvio)
+    e ogni rinvio va nello storico. Riportare la data alla scadenza originale
+    annulla il rinvio. Ritorna l'esito con la data di partenza.
+    """
+    from ..models import MaintenanceOccurrencePostponement
+
+    if occurrence.status != MaintenanceOccurrence.STATUS_OPEN:
+        raise OccurrencePostponeError("Si possono rinviare solo le manutenzioni aperte.")
+    if new_date is None:
+        raise OccurrencePostponeError("Data non valida.")
+    old_date = occurrence.due_date
+    if new_date == old_date:
+        return MaintenancePostponeResult(old_date=old_date, new_date=new_date, changed=False)
+    clash = (
+        MaintenanceOccurrence.objects.filter(plan_id=occurrence.plan_id, asset_id=occurrence.asset_id, due_date=new_date)
+        .exclude(pk=occurrence.pk)
+        .exists()
+    )
+    if clash:
+        raise OccurrencePostponeError(
+            "Esiste gia' una manutenzione dello stesso piano su questo asset in quella data."
+        )
+    original = occurrence.original_due_date or old_date
+    occurrence.due_date = new_date
+    # Tornare alla scadenza originale equivale ad annullare il rinvio.
+    occurrence.original_due_date = None if new_date == original else original
+    occurrence.save(update_fields=["due_date", "original_due_date", "updated_at"])
+    MaintenanceOccurrencePostponement.objects.create(
+        occurrence=occurrence,
+        from_date=old_date,
+        to_date=new_date,
+        reason=(reason or "").strip()[:255],
+        created_by=user if getattr(user, "is_authenticated", False) else None,
+    )
+    return MaintenancePostponeResult(old_date=old_date, new_date=new_date, changed=True)
+
+
+@dataclass(frozen=True)
+class MaintenancePostponeResult:
+    old_date: date
+    new_date: date
+    changed: bool
 
 
 def cancel_occurrence(occurrence: MaintenanceOccurrence, *, reason: str = "", user=None) -> None:

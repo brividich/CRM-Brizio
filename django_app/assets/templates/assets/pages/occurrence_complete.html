@@ -6,10 +6,11 @@
 
 {% block assets_shell_title %}Registra l'esecuzione{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ occurrence.plan.label }} su <strong>{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</strong> — scadenza {{ occurrence.due_date|date:"d/m/Y" }}</p>
+  <p>{{ occurrence.plan.label }} su <strong>{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</strong> — {% if occurrence.is_postponed %}rinviata al {{ occurrence.due_date|date:"d/m/Y" }} (scadenza originale {{ occurrence.original_due_date|date:"d/m/Y" }}){% else %}scadenza {{ occurrence.due_date|date:"d/m/Y" }}{% endif %}</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:occurrence_postpone' occurrence.pk %}?next={{ back_url|urlencode }}">&#9200; Rinvia</a>
   {% if occurrence.work_order_id %}<a class="btn btn-secondary" href="{% url 'assets:wo_view' occurrence.work_order_id %}">Ordine di lavoro #{{ occurrence.work_order_id }}</a>{% endif %}
   <a class="btn btn-secondary" href="{% url 'assets:occurrence_worksheet' occurrence.pk %}" target="_blank" rel="noopener">&#128424; Scheda di lavoro</a>
   <a class="btn btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}">Apri follow-up</a>
@@ -22,7 +23,9 @@
 
   <div class="md-preview">
     Stato attuale: <span class="md-badge {{ state.badge_class }}">{{ state.label }}</span>.
-    {% if occurrence.schedule_anchor == "FIXED_CALENDAR" %}
+    {% if occurrence.original_due_date %}
+      Manutenzione <strong>rinviata</strong>: la prossima scadenza ripartira' dalla <strong>data di esecuzione</strong> che indichi qui sotto.
+    {% elif occurrence.schedule_anchor == "FIXED_CALENDAR" %}
       La prossima scadenza sara' calcolata dalla <strong>scadenza teorica</strong> ({{ occurrence.due_date|date:"d/m/Y" }}): eseguirla in ritardo non sposta il calendario.
     {% else %}
       La prossima scadenza sara' calcolata dalla <strong>data di esecuzione</strong> che indichi qui sotto.

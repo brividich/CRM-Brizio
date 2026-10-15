@@ -35,6 +35,9 @@ GUIDA = {
                 ("ul", [
                     "«Manutenzione» mostra lo scadenzario unico, dal più urgente.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
+                    "Una manutenzione che non si riesce a fare in tempo si rinvia («Rinvia» nella pagina «Registra», "
+                    "o trascinandola nel Calendario): la scadenza originale resta e, eseguita, la successiva riparte "
+                    "dalla data di esecuzione.",
                     "Dalle verifiche periodiche i rilievi si segnalano senza creare ordini di lavoro.",
                 ]),
             ],
@@ -50,6 +53,9 @@ GUIDA = {
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (assicurazioni, contratti) sono separate dai piani di manutenzione.",
+                    "Un piano va applicato ai singoli asset che lo fanno davvero, non a un'intera categoria. Per allineare "
+                    "i piani allo scadenziario X-MINE c'è il comando riallinea_manutenzioni_xmine (prima in prova, "
+                    "poi con --applica).",
                 ]),
                 ("p", "Tutti i dettagli sono nella guida completa (collegamento in cima)."),
             ],
@@ -59,6 +65,14 @@ GUIDA = {
         {
             "sintomo": "Una categoria nuova non compare nel menu a sinistra",
             "fare": ["Lancia sync_sidebar_categories dal terminale del Setup Wizard.", "Ricarica la pagina."],
+        },
+        {
+            "sintomo": "Una macchina ha manutenzioni che non le spettano",
+            "fare": [
+                "Il piano è applicato a tutta la categoria: in «Piani» applicalo ai singoli asset, oppure escludi l'asset.",
+                "Per le macchine presenti in X-MINE chiedi all'amministratore il riallineamento "
+                "(riallinea_manutenzioni_xmine), che annulla anche le scadenze aperte non dovute.",
+            ],
         },
         {
             "sintomo": "Il QR della macchina apre una pagina di errore",
