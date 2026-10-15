@@ -69,10 +69,27 @@ def _ids(request, nome) -> list[int]:
 # Catalogo
 # ═══════════════════════════════════════════════════════════════════════════
 
+# Decisione 15/10/2026 (spec Mansionario): il catalogo delle mansioni di rischio
+# è ``Mansione``. Le pagine del modello ``MansioneRischio`` (vuoto in
+# produzione) rimandano lì; modello e codice si eliminano nella fase di pulizia.
+_AVVISO_CATALOGO = ("Le mansioni di rischio sono il catalogo «Mansioni di rischio»: "
+                    "DPI, visite e schede di sicurezza si gestiscono dai requisiti di ogni voce.")
+
+
+def _al_catalogo(request):
+    messages.info(request, _AVVISO_CATALOGO)
+    return redirect("anagrafica:mansioni_list")
+
+
 @login_required
 def mansioni_rischio_list(request):
     if not _puo_vedere(request):
         return _nega(request)
+    return _al_catalogo(request)
+
+
+def _mansioni_rischio_list_legacy(request):
+    """Vecchio catalogo MansioneRischio: non più raggiungibile, resta fino alla pulizia."""
     q = (request.GET.get("q") or "").strip()
     qs = MansioneRischio.objects.prefetch_related("fattori", "link_mansioni__mansione").order_by("-is_active", "codice")
     if q:
@@ -92,6 +109,10 @@ def mansioni_rischio_list(request):
 def mansione_rischio_dettaglio(request, mr_id: int):
     if not _puo_vedere(request):
         return _nega(request)
+    return _al_catalogo(request)
+
+
+def _mansione_rischio_dettaglio_legacy(request, mr_id: int):
     from .services import mansionario
     from .services.mansioni_rischio_admin import esposti
     from .views import _can_view_visite_mediche
@@ -160,6 +181,10 @@ def mansione_rischio_form(request, mr_id: int | None = None):
     """Crea/modifica. ``azione=anteprima`` calcola l'effetto senza salvare."""
     if not _puo_gestire(request):
         return _nega(request, "Non hai i permessi per modificare le mansioni di rischio.")
+    return _al_catalogo(request)
+
+
+def _mansione_rischio_form_legacy(request, mr_id: int | None = None):
     from .services import mansioni_rischio_admin as admin_svc
 
     mr = get_object_or_404(MansioneRischio, pk=mr_id) if mr_id else MansioneRischio()
@@ -218,12 +243,19 @@ def sicurezza_operativa_config(request):
         "modalita": config.modalita_visita_mancante, "deroga_max_giorni": config.deroga_max_giorni,
     }, oggetto=config)
     messages.success(request, f"Visita del cambio mansione mancante: «{config.get_modalita_visita_mancante_display()}».")
-    return redirect("anagrafica:mansioni_rischio_list")
+    return redirect("anagrafica:mansioni_list")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Organigramma a doppio livello
+# Organigramma per mansione di rischio
 # ═══════════════════════════════════════════════════════════════════════════
+
+def _senza_mansione() -> int:
+    """Dipendenti attivi senza mansione di rischio in anagrafica (non compaiono nei gruppi)."""
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+    return sum(1 for r in fetch_anagrafica_rows(deduplicate=True)
+               if r.get("attivo", True) and not str(r.get("mansione") or "").strip())
+
 
 @login_required
 def organigramma_mansioni_rischio(request):
@@ -233,18 +265,11 @@ def organigramma_mansioni_rischio(request):
     from .views import _can_view_visite_mediche
 
     fattore_id = int(request.GET["fattore"]) if (request.GET.get("fattore") or "").isdigit() else None
-    vista = "lavorativa" if request.GET.get("vista") == "lavorativa" else "rischio"
     gruppi = costruisci(fattore_id=fattore_id, can_view_visite=_can_view_visite_mediche(request))
-    per_mansione: dict[int, dict] = {}
-    for g in gruppi:
-        for m in g.mansioni:
-            voce = per_mansione.setdefault(m["mansione"].pk, {"mansione": m["mansione"], "rischi": [], "persone": m["persone"]})
-            voce["rischi"].append(g.mansione_rischio)
     return render(request, "anagrafica/pages/organigramma_mansioni_rischio.html", {
         "page_title": "Organigramma per mansione di rischio",
         "gruppi": gruppi,
-        "per_mansione": sorted(per_mansione.values(), key=lambda v: v["mansione"].nome.casefold()),
-        "vista": vista,
+        "senza_mansione": _senza_mansione(),
         "fattori_opts": list(FattoreRischio.objects.filter(is_active=True).order_by("nome")),
         "fattore_id": fattore_id,
         "can_view_visite": _can_view_visite_mediche(request),
@@ -279,9 +304,12 @@ def dipendente_sicurezza_panel(request, legacy_id: int):
     override = list(DipendenteMansioneRischioOverride.objects.filter(legacy_anagrafica_id=legacy_id)
                     .select_related("mansione_rischio", "created_by", "revocato_da")
                     .order_by("-attivo", "-created_at")[:30])
+    nome_mansione = (det.get("mansione_nome") or "").strip()
+    mansione_catalogo = Mansione.objects.filter(nome__iexact=nome_mansione).first() if nome_mansione else None
     return render(request, "anagrafica/partials/sicurezza_panel.html", {
         "legacy_id": legacy_id,
         "det": det,
+        "mansione_catalogo": mansione_catalogo,
         "stato": stato,
         "motivi": stato.motivi_visibili(can_view_visite),
         "can_view_visite": can_view_visite,

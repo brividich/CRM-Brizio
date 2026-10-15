@@ -35,7 +35,7 @@
         </div>
         <div class="fmd-hero-side">
           <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni_rischio }}</span><span class="fmd-lbl">Mansioni di rischio</span></div>
-          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni }}</span><span class="fmd-lbl">Mansioni a catalogo</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni }}</span><span class="fmd-lbl">Senza DPI né visite</span></div>
         </div>
       </div>
     </section>
@@ -69,11 +69,11 @@
 
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi">
-      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansioni_rischio_list' %}" title="Vai alle mansioni di rischio">
+      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansioni_list' %}" title="Vai alle mansioni di rischio">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_mansioni_rischio }}</span></div>
         <div class="fmd-mtr-lbl">Mansioni di rischio</div>
-        <div class="fmd-mtr-sub">su {{ n_mansioni }} mansioni a catalogo</div>
+        <div class="fmd-mtr-sub">{% if n_mansioni %}{{ n_mansioni }} senza DPI né visite{% else %}tutte con un profilo{% endif %}</div>
       </a>
       {% if conformita_kpi %}
       <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:conformita_report' %}" title="Report conformità completo">

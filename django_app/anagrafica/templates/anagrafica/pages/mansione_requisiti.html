@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Requisiti mansione · {{ mansione.nome }} | Anagrafica HR{% endblock %}
+{% block title %}Mansione di rischio · {{ mansione.nome }} | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -24,34 +24,16 @@
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:mansioni_list' %}">Mansioni di rischio</a><span class="fmd-sep"> / </span><span class="fmd-cur">Requisiti</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>{{ mansione.nome }}</h1>
-        <p class="fmd-ph-sub">DPI, visite mediche e formazione necessari per l'idoneità a questa mansione (D.Lgs. 81/08). Da qui parte il controllo di conformità/idoneità dei dipendenti che la ricoprono.</p>
+        <p class="fmd-ph-sub">Mansione di rischio: DPI, visite mediche e formazione necessari per l'idoneità (D.Lgs. 81/08).{% if mansione.dvr_revisione or mansione.dvr_data %} DVR{% if mansione.dvr_revisione %} {{ mansione.dvr_revisione }}{% endif %}{% if mansione.dvr_data %} del {{ mansione.dvr_data|date:"d/m/Y" }}{% endif %}.{% endif %} Da qui parte il controllo di conformità e idoneità di chi la ricopre.</p>
       </div>
       <div class="fmd-pagehead-actions">
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità / Idoneità</a>
       </div>
     </div>
 
-    {# ── Mansioni di rischio collegate (fonte dei requisiti) ───────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
-        <div class="fmd-block-title" style="white-space:normal;"><svg class="fmd-ico"><use href="#i-shield"/></svg>Mansioni di rischio collegate <span class="fmd-count">{{ collegamenti_rischio|length }}</span></div>
-        <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'anagrafica:mansioni_rischio_list' %}">Gestisci mansioni di rischio</a>
-      </div>
-      {% if collegamenti_rischio %}
-      <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        {% for link in collegamenti_rischio %}
-        <a class="fmd-badge {% if link.mansione_rischio.is_active %}fmd-b-cyan{% else %}fmd-b-grey{% endif %}" style="text-decoration:none;"
-           href="{% url 'anagrafica:mansione_rischio_dettaglio' link.mansione_rischio.pk %}">{{ link.mansione_rischio.codice }} · {{ link.mansione_rischio.nome }}{% if not link.mansione_rischio.is_active %} (disattivata){% endif %}</a>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="fmd-muted">Nessuna mansione di rischio collegata: i requisiti vengono ancora dal profilo diretto qui sotto (deprecato).</div>
-      {% endif %}
-    </section>
-
     {# ── Riepilogo requisiti effettivi ─────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti della mansione</div></div>
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti effettivi</div></div>
       <div class="fmd-split" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
         <div>
           <div class="fmd-block-aside" style="margin-bottom:8px;">DPI</div>
@@ -98,10 +80,10 @@
 
     {# ── Requisiti diretti (modificabili) — form invariato ─────────────── #}
     <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Requisiti diretti della mansione</div></div>
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Profilo della mansione di rischio</div></div>
       {% if usa_mansioni_rischio %}
       <div class="fmd-muted" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--fmd-amber-soft,#fef3c7);color:#92400e;">
-        Questa mansione legge i requisiti dalle <strong>mansioni di rischio collegate</strong>: DPI e visite indicati qui sotto sono <strong>ignorati</strong> (campi deprecati, restano solo per la migrazione). Il livello ASR resta valido.
+        Questa voce ha ancora collegamenti al vecchio modello «mansioni di rischio» (in dismissione): finché restano, DPI e visite indicati qui sotto sono <strong>ignorati</strong>. Il livello ASR resta valido.
       </div>
       {% endif %}
       {% if is_editor %}
@@ -117,6 +99,12 @@
           </select>
           <div class="fm-help">Determina le ore del corso lavoratori (8/12/16h) e il rinnovo quinquennale.</div>
         </div>
+        <div class="fm-form-grid-2" style="max-width:520px;">
+          <div class="fm-form-field"><label for="mr-dvr-rev">Revisione DVR</label>
+            <input id="mr-dvr-rev" type="text" name="dvr_revisione" maxlength="30" value="{{ mansione.dvr_revisione }}" class="fm-input" placeholder="es. Rev. 7"></div>
+          <div class="fm-form-field"><label for="mr-dvr-data">Data revisione DVR</label>
+            <input id="mr-dvr-data" type="date" name="dvr_data" value="{{ mansione.dvr_data|date:'Y-m-d' }}" class="fm-input"></div>
+        </div>
         <div class="fm-form-grid-2">
           <div class="fm-form-field">
             <label>DPI richiesti</label>
@@ -128,7 +116,10 @@
           </div>
           <div class="fm-form-field">
             <label>Visite mediche richieste</label>
-            {% if visite_opts %}
+            {% if not puo_protocollo %}
+            <div class="fmd-muted">Il protocollo sanitario si modifica solo con il permesso visite mediche. Attuale:
+              {% for v in visite_opts %}{% if v.pk in sel_visite_ids %}<span class="fmd-badge fmd-b-violet" style="margin:0 4px 4px 0;">{{ v.nome }}</span>{% endif %}{% endfor %}</div>
+            {% elif visite_opts %}
             {% regroup visite_opts by categoria as visite_per_categoria %}
             {% for gruppo in visite_per_categoria %}
               {% if gruppo.grouper %}

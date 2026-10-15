@@ -828,7 +828,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       <div class="dp-info-grid">
         <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Mansione</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Mansione di rischio</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Caporeparto</div><div class="dp-info-value">{% if caporeparto_label %}{{ caporeparto_label }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{{ aziendale.area_aziendale.nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Assunto il</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
@@ -972,7 +972,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           <div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale and aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div>
         </div>
         <div class="dp-info-item">
-          <div class="dp-info-label">Mansione</div>
+          <div class="dp-info-label">Mansione di rischio</div>
           <div class="dp-info-value">{{ dip.mansione|default:"—" }}</div>
         </div>
         <div class="dp-info-item">
@@ -1040,7 +1040,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             </div>
             {% endfor %}
             <div class="dp-form-field">
-              <label class="dp-form-label">Reparto · Area · Mansione · Ruolo</label>
+              <label class="dp-form-label">Reparto · Area · Mansione di rischio · Ruolo</label>
               <input type="text" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;"
                      value="{{ dip.reparto|default:'—' }}{% if aziendale.area_aziendale %} · {{ aziendale.area_aziendale.nome }}{% endif %} · {{ dip.mansione|default:'—' }} · {{ aziendale.ruolo_aziendale|default:'—' }}">
               <span style="font-size:11px;color:#94a3b8;">
@@ -1578,7 +1578,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               </select>
             </div>
             <div class="dp-form-field">
-              <label class="dp-form-label" for="sp-mansione">Mansione</label>
+              <label class="dp-form-label" for="sp-mansione">Mansione di rischio</label>
               <select name="mansione" id="sp-mansione" class="dp-input">
                 <option value="">— Nessuna mansione —</option>
                 {% for m in mansioni_catalogo %}
@@ -1667,7 +1667,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             </div>
           </div>
           <div class="sp-card-body">
-            <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ assetto_attuale.mansione|default:"—" }}</span></div>
+            <div class="sp-riga"><span class="sp-k">Mansione di rischio:</span> <span class="sp-v">{{ assetto_attuale.mansione|default:"—" }}</span></div>
             <div class="sp-riga"><span class="sp-k">Ruolo aziendale:</span> <span class="sp-v">{{ assetto_attuale.ruolo_aziendale|default:"—" }}</span></div>
             <div class="sp-riga"><span class="sp-k">Responsabile:</span> <span class="sp-v">{{ assetto_attuale.responsabile_label|default:"—" }}</span></div>
           </div>
@@ -1693,7 +1693,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             </div>
           </div>
           <div class="sp-card-body">
-            <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ a.mansione_display|default:a.mansione|default:"—" }}</span>{% if a.mansione_ereditata %} <span class="sp-eredit">invariata</span>{% endif %}</div>
+            <div class="sp-riga"><span class="sp-k">Mansione di rischio:</span> <span class="sp-v">{{ a.mansione_display|default:a.mansione|default:"—" }}</span>{% if a.mansione_ereditata %} <span class="sp-eredit">invariata</span>{% endif %}</div>
             <div class="sp-riga"><span class="sp-k">{% if a.ruolo_parallelo %}Ruolo aggiunto:{% else %}Ruolo aziendale:{% endif %}</span> <span class="sp-v">{{ a.ruolo_display|default:a.ruolo_aziendale|default:"—" }}</span>{% if a.ruolo_ereditato and not a.ruolo_parallelo %} <span class="sp-eredit">invariato</span>{% endif %}</div>
             <div class="sp-riga"><span class="sp-k">Responsabile:</span> <span class="sp-v">{{ a.responsabile_label|default:"—" }}</span></div>
             {% if a.note %}<div class="sp-riga"><span class="sp-k">Note:</span> <span class="sp-v">{{ a.note }}</span></div>{% endif %}
@@ -1791,7 +1791,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                   </select>
                 </div>
                 <div class="dp-form-field">
-                  <label class="dp-form-label" for="sp-edit-mansione-{{ a.pk }}">Mansione</label>
+                  <label class="dp-form-label" for="sp-edit-mansione-{{ a.pk }}">Mansione di rischio</label>
                   <select name="mansione" id="sp-edit-mansione-{{ a.pk }}" class="dp-input">
                     <option value="">— Nessuna mansione —</option>
                     {% for m in mansioni_catalogo %}
@@ -1855,14 +1855,14 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   <div class="dp-card" data-tab="contratto">
     <div class="dp-card-head">
       <div class="dp-card-title">📋 Storico cambiamenti organizzativi</div>
-      <span style="font-size:11px;color:#94a3b8;">Mansione · Reparto · Area aziendale · Ruolo aziendale</span>
+      <span style="font-size:11px;color:#94a3b8;">Mansione di rischio · Reparto · Area aziendale · Ruolo aziendale</span>
     </div>
     <div class="dp-card-body">
       {% if storico_cambiamenti %}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:12px;">
         <span style="color:#64748b;font-weight:600;">Filtra:</span>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn sc-filter-active" data-tipo="ALL">Tutti</button>
-        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="MANSIONE">Mansione</button>
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="MANSIONE">Mansione di rischio</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="REPARTO">Reparto (legacy)</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="AREA">Reparto</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="AREA_AZIENDALE">Area aziendale</button>

@@ -6661,18 +6661,14 @@ def mansioni_list(request):
         altro_label = cat_labels.get(Mansione.CAT_ALTRO, "Altro")
         grouped.append((Mansione.CAT_ALTRO, altro_label, senza_cat))
 
-    mansioni_suggerite = [
-        "Operaio generico", "Operaio specializzato", "Operaio qualificato",
-        "Impiegato", "Impiegato tecnico", "Impiegato amministrativo",
-        "Quadro", "Dirigente",
-    ]
+    from .models_mansioni_rischio import ConfigSicurezzaOperativa
 
     return render(request, "anagrafica/pages/mansioni_list.html", {
         "mansioni": mansioni,
         "mansioni_grouped": grouped,
         "is_admin": is_admin,
         "can_view_requisiti": can_view_requisiti,
-        "mansioni_suggerite": mansioni_suggerite,
+        "config_sicurezza": ConfigSicurezzaOperativa.load(),
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
         "LIVELLO_RISCHIO_CHOICES": Mansione.LIVELLO_RISCHIO_CHOICES,
         "filtro_rischio": filtro_rischio,
@@ -6777,11 +6773,21 @@ def mansione_requisiti(request, mansione_id: int):
             return redirect("anagrafica:mansione_requisiti", mansione_id=mansione.pk)
         _lr = (request.POST.get("livello_rischio") or "").strip().upper()
         mansione.livello_rischio = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
-        mansione.save(update_fields=["livello_rischio"])
-        visite_ids = [int(v) for v in request.POST.getlist("visite_richieste") if str(v).isdigit()]
-        mansione.visite_richieste.set(
-            TipoVisitaMedica.objects.filter(pk__in=visite_ids, is_active=True)
-        )
+        mansione.dvr_revisione = (request.POST.get("dvr_revisione") or "").strip()[:30]
+        try:
+            _dvr = (request.POST.get("dvr_data") or "").strip()
+            mansione.dvr_data = date.fromisoformat(_dvr) if _dvr else None
+        except ValueError:
+            messages.warning(request, "Data revisione DVR non valida: non salvata.")
+        mansione.save(update_fields=["livello_rischio", "dvr_revisione", "dvr_data"])
+        # Protocollo sanitario: si modifica solo con il permesso visite (decisione
+        # 10/10/2026, prima applicata al vecchio catalogo MansioneRischio). Senza
+        # il permesso il form non lo invia e il server lo conserva.
+        if _can_view_visite_mediche(request):
+            visite_ids = [int(v) for v in request.POST.getlist("visite_richieste") if str(v).isdigit()]
+            mansione.visite_richieste.set(
+                TipoVisitaMedica.objects.filter(pk__in=visite_ids, is_active=True)
+            )
         try:
             from dpi.models import CategoriaDPI
             dpi_ids = [int(v) for v in request.POST.getlist("dpi_richiesti") if str(v).isdigit()]
@@ -6831,6 +6837,7 @@ def mansione_requisiti(request, mansione_id: int):
         "collegamenti_rischio": collegamenti,
         "usa_mansioni_rischio": bool(collegamenti),
         "is_editor": is_editor,
+        "puo_protocollo": _can_view_visite_mediche(request),
         "requisiti": requisiti,
         "sds_righe": sds_righe,
         "n_sds_senza_scheda": sum(1 for riga in sds_righe if riga["stato"] == "bad"),
@@ -18284,11 +18291,12 @@ def sicurezza_hub(request):
         return redirect("anagrafica:index")
     can_hr = _check_hr_permission(request)
 
-    n_mansioni = Mansione.objects.filter(is_active=True).count()
-    n_mansioni_rischio = (
-        Mansione.objects.filter(is_active=True)
-        .filter(Q(dpi_richiesti__isnull=False) | Q(visite_richieste__isnull=False)
-                | ~Q(livello_rischio=""))
+    # Il catalogo Mansione è il catalogo delle mansioni di rischio (spec
+    # Mansionario 15/10/2026): si contano le voci attive e quelle ancora senza
+    # profilo (né DPI né visite), da completare.
+    n_mansioni_rischio = Mansione.objects.filter(is_active=True).count()
+    n_mansioni = (
+        Mansione.objects.filter(is_active=True, dpi_richiesti__isnull=True, visite_richieste__isnull=True)
         .distinct().count()
     )
 
@@ -18324,20 +18332,19 @@ def sicurezza_hub(request):
 
     # Stile C: una scheda per mansione di rischio (gruppo omogeneo del DVR).
     from .services import organigramma_rischio, sezioni_c
-    from .models_mansioni_rischio import MansioneRischio
     try:
         gruppi = organigramma_rischio.costruisci(can_view_visite=_can_view_visite_mediche(request))
     except Exception:
         logger.warning("Cruscotto sicurezza: mansioni di rischio non disponibili", exc_info=True)
         gruppi = []
-    livelli = dict(MansioneRischio.LIVELLO_CHOICES)
-    presenti = {g.mansione_rischio.livello_rischio_dvr for g in gruppi}
+    livelli_scelte = [(k, v.split(" (")[0]) for k, v in Mansione.LIVELLO_RISCHIO_CHOICES]
+    presenti = {g.mansione_rischio.livello_rischio for g in gruppi}
     copertura_mansioni = sezioni_c.griglia(
         id="fmd-mansioni-rischio", titolo="Conformità per mansione di rischio", icona="i-alert-tri",
         aside=("Persone del gruppo in regola con tutti gli obblighi · clic per i requisiti" if can_hr
                else "Persone e protocollo di ogni gruppo omogeneo · clic per i requisiti"),
         schede=sezioni_c.schede_mansioni_rischio(gruppi, stati),
-        filtri=[("", "Tutte")] + [(k, f"Rischio {v.lower()}") for k, v in MansioneRischio.LIVELLO_CHOICES[::-1] if k in presenti]
+        filtri=[("", "Tutte")] + [(k, f"Rischio {v.lower()}") for k, v in livelli_scelte[::-1] if k in presenti]
         + ([("nd", "Senza livello")] if "" in presenti else []),
         etichetta_filtri="Filtra per livello di rischio",
         ordini=[("gap", "Prima le meno conformi" if can_hr else "Ordine DVR"), ("az", "A–Z")],
@@ -18345,7 +18352,6 @@ def sicurezza_hub(request):
         vuoto_titolo="Nessuna mansione di rischio attiva",
         vuoto_testo="Si definiscono in Mansioni di rischio, dai gruppi omogenei del DVR.",
     )
-    n_mansioni_rischio = sum(1 for _ in gruppi) or n_mansioni_rischio
 
     cambi_aperti = []
     if can_hr or _is_anagrafica_admin(request):
@@ -18370,7 +18376,7 @@ def sicurezza_hub(request):
         cambi_aperti = sorted(per_persona.values(), key=lambda v: (-v["ritardo"], v["entro"] or oggi, v["nome"]))
 
     aree = sezioni_c.aree_visibili(request, [
-        sezioni_c.Area("anagrafica:mansioni_rischio_list", "Mansioni di rischio", "Gruppi omogenei del DVR e requisiti", icona="i-alert-tri"),
+        sezioni_c.Area("anagrafica:mansioni_list", "Mansioni di rischio", "Gruppi omogenei del DVR e requisiti", icona="i-alert-tri"),
         sezioni_c.Area("anagrafica:organigramma_mansioni_rischio", "Organigramma rischi", "Chi è esposto, per gruppo", icona="i-users"),
         sezioni_c.Area("anagrafica:conformita_report", "Conformità / Idoneità", "Semaforo e idoneità per dipendente", icona="i-check"),
         sezioni_c.Area("anagrafica:cambi_mansione", "Cambi mansione", "Adempimenti del piano di adeguamento", icona="i-refresh"),

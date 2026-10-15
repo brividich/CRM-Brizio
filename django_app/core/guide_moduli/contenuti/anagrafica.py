@@ -21,7 +21,7 @@ GUIDA = {
                     ("Competenze", "formazione (corsi, sessioni, e-learning, copertura) e skill matrix."),
                     ("Salute e sicurezza", "visite mediche, idoneità, mansioni di rischio."),
                     ("Report", "reportistica componibile ed export."),
-                    ("Impostazioni", "cataloghi (ruoli, mansioni, aree, reparti) e permessi HR."),
+                    ("Impostazioni", "cataloghi (ruoli, mansioni di rischio, aree, reparti) e permessi HR."),
                 ]),
                 ("p", "Vedi solo le voci per cui hai il permesso."),
             ],
@@ -91,8 +91,29 @@ GUIDA = {
             "id": "cataloghi",
             "titolo": "Cataloghi e impostazioni",
             "blocchi": [
-                ("p", "Anagrafica → «Impostazioni» raccoglie in un'unica pagina: ruoli (catalogo unico, con «riporta a»), mansioni e "
+                ("p", "Anagrafica → «Impostazioni» raccoglie in un'unica pagina: ruoli (catalogo unico, con «riporta a»), "
                       "mansioni di rischio, aree, reparti, tipi documento, campi di ingresso e uscita, permessi HR."),
+            ],
+        },
+        {
+            "id": "mansioni-rischio",
+            "titolo": "Mansioni di rischio",
+            "blocchi": [
+                ("p", "Il catalogo «Mansioni di rischio» (Salute e sicurezza → Rischi e mansioni) contiene i gruppi omogenei del "
+                      "DVR, con gli stessi nomi usati dal medico competente nell'elenco idoneità (es. «ADDETTO MACCHINE UTENSILI»)."),
+                ("def", [
+                    ("Requisiti", "per ogni mansione di rischio: DPI, visite del protocollo sanitario, livello di rischio ASR "
+                                  "(8, 12 o 16 ore di formazione), revisione e data del DVR. Le schede di sicurezza si collegano "
+                                  "dalla scheda del prodotto chimico."),
+                    ("Persone", "la mansione di rischio della persona è il campo «Mansione di rischio» della sua scheda. "
+                                "Chi l'ha vuota non compare nell'organigramma rischi e non riceve DPI, visite e SDS dovute."),
+                    ("Organigramma rischi", "persone raggruppate per mansione di rischio, per RSPP e medico; in testa il numero "
+                                            "di dipendenti ancora senza mansione."),
+                    ("Visita mancante", "in fondo al catalogo si sceglie cosa succede se alla decorrenza di uno spostamento "
+                                        "manca la visita del cambio mansione."),
+                ]),
+                ("nota", "La mansione lavorativa (la macchina o il processo su cui si lavora, con le sue competenze) è una "
+                         "cosa diversa e arriverà con il Mansionario."),
             ],
         },
         {
@@ -114,6 +135,9 @@ GUIDA = {
                     ("normalizza_nomi_dipendenti", "riscrive i nomi nel formato COGNOME NOME maiuscolo."),
                     ("pulisci_scadenze_hr", "ricalcola le scadenze di formazione e visite."),
                     ("report_ruoli_disallineati", "elenca i ruoli diversi tra anagrafica e account."),
+                    ("importa_mansioni_idoneita", "assegna la mansione di rischio ai dipendenti che non l'hanno, dall'elenco "
+                                                  "idoneità del medico (codice fiscale e «MANSIONE DI RISCHIO»). In prova di "
+                                                  "default, --commit per scrivere."),
                 ]),
                 ("p", "Prima di ogni comando che scrive, lancialo in prova (--dry-run) se l'opzione esiste."),
             ],
@@ -137,9 +161,17 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Una persona non riceve le schede di sicurezza o non compare nell'organigramma rischi",
+            "perche": "la sua scheda non ha la mansione di rischio, o il nome non coincide con una voce del catalogo.",
+            "fare": [
+                "Apri la scheda: il campo «Mansione di rischio» deve avere un valore del catalogo «Mansioni di rischio».",
+                "Per molti dipendenti insieme usa il comando importa_mansioni_idoneita (prima in prova).",
+            ],
+        },
+        {
             "sintomo": "Scadenze di formazione o visite sbagliate",
             "fare": [
-                "Controlla la mansione e i ruoli della persona: le scadenze dovute dipendono da lì.",
+                "Controlla la mansione di rischio e i ruoli della persona: le scadenze dovute dipendono da lì.",
                 "Lancia pulisci_scadenze_hr dal terminale del Setup Wizard.",
             ],
         },
