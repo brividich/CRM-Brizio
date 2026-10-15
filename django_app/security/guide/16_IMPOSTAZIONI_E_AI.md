@@ -56,7 +56,7 @@ Quando un parser legge una mail solo in parte («Da verificare») o nessun parse
 - **Gira da sola** con il flusso **security_ai_lettura** (ogni 30 minuti), visibile nel designer di **Automazioni** tra i processi dei moduli: lì puoi cambiare la cadenza, spegnerlo o aggiungere azioni. L'avviso «letture proposte dall'AI da controllare» è l'evento **security_lettura_ai_pronta**, anch'esso modificabile nel designer.
 - **Si vede** in **Configurazione › Parser**: nel riquadro «Letture da verificare» e accanto agli elementi non elaborati compare la «Proposta AI». In «Prova i parser» il pulsante **Prova e chiedi all'AI** fa la stessa cosa su una mail incollata o su un file caricato, senza salvare nulla.
 - **È solo una proposta**: non crea e non chiude alert, non cambia esiti di backup né conteggi. Ogni valore viene confrontato con il testo: se non compare, il badge rosso **non nel testo** avverte che l'AI potrebbe averlo inventato; «dedotto» indica un valore interpretato (es. l'esito).
-- Il testo del report è trattato come un dato: eventuali istruzioni scritte nella mail («ignora le istruzioni…») non possono cambiare nulla nel SOC.
+- Il testo del report è trattato come un dato: eventuali istruzioni scritte nella mail («ignora le istruzioni…») non possono cambiare nulla nel SOC. Se il testo ne contiene, la proposta porta il badge rosso **Testo sospetto** (la mail va guardata: può essere un tentativo di inganno); se l'esito proposto dall'AI contraddice quello scritto in chiaro nel testo compare **in contrasto con il testo**.
 - Per misurare tempi e precisione sul server: `python manage.py soc_ai_lettura_prova` (campioni sintetici, nessun salvataggio).
 
 ### Come impara

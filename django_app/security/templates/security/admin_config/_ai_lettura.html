@@ -2,9 +2,10 @@
 {% if ai.ok %}
   <div class="sec-small sec-wrap" style="margin-top:4px">
     <span class="sec-badge warning" title="Proposta dell'AI locale: verificala sul documento prima di usarla">Proposta AI</span>
+    {% if ai.testo_sospetto %}<div><span class="sec-badge critical">Testo sospetto</span> il documento contiene istruzioni rivolte all'AI («ignora le istruzioni…»): la proposta non è affidabile e la mail va guardata.</div>{% endif %}
     {% if ai.classificazione_label %}<strong>{{ ai.classificazione_label }}</strong>{% if ai.fornitore %} · {{ ai.fornitore }}{% endif %}{% if ai.serve_parser %} · <em>servirebbe un parser</em>{% endif %}{% endif %}
     {% for field in ai.campi %}
-      <div>{{ field.campo }}: <strong>{{ field.valore }}</strong>{% if field.dedotto %} <small class="sec-muted">(dedotto)</small>{% elif not field.nel_testo %} <span class="sec-badge critical" title="Il valore non compare nel testo: probabilmente inventato">non nel testo</span>{% endif %}</div>
+      <div>{{ field.campo }}: <strong>{{ field.valore }}</strong>{% if field.contrasto %} <span class="sec-badge critical" title="Il testo dice in chiaro un esito diverso">in contrasto con il testo</span>{% elif field.dedotto %} <small class="sec-muted">(dedotto)</small>{% elif not field.nel_testo %} <span class="sec-badge critical" title="Il valore non compare nel testo: probabilmente inventato">non nel testo</span>{% endif %}</div>
     {% endfor %}
     {% if ai.spiegazione %}<div class="sec-muted">{{ ai.spiegazione }}</div>{% endif %}
     <small class="sec-muted">{{ ai.model|default:"AI locale" }} · {{ ai.ms }} ms{% if ai.da_cache %} · già chiesto oggi{% endif %}</small>
