@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=11">
 {% include "core/components/_hub_formkit.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=4">
 {% endblock %}
@@ -37,6 +37,9 @@
         </div>
       </div>
     </section>
+
+    {# ── Ricerca della sezione ── #}
+    {% include "anagrafica/components/_fmd_ricerca.html" with ambito="report" placeholder="Cerca modelli di report e documenti in archivio…" %}
 
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Report in sintesi">
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-clipboard" valore=kpi.modelli label="Modelli" sub="pronti da generare" %}

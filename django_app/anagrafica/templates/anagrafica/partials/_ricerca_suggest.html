@@ -1,0 +1,16 @@
+{% if q and totale %}
+<div class="fmd-suggest">
+  {% for g in gruppi %}
+  <div class="fmd-suggest-cat">{{ g.titolo }}</div>
+  {% for v in g.voci|slice:":4" %}
+  <a class="fmd-suggest-item" href="{{ v.url }}">
+    <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#{{ v.icona|default:g.icona }}"/></svg></span>
+    <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ v.t|truncatechars:60 }}</span>{% if v.m %}<span class="fmd-suggest-m">{{ v.m }}</span>{% endif %}</span>
+  </a>
+  {% endfor %}
+  {% endfor %}
+  <a class="fmd-suggest-all" href="{% url 'anagrafica:ricerca' %}?ambito={{ ambito }}&amp;q={{ q|urlencode }}">Vedi tutti i {{ totale }} risultati →</a>
+</div>
+{% elif q and not troppo_corta %}
+<div class="fmd-suggest"><div class="fmd-suggest-empty">Nessun risultato per «{{ q }}» in {{ ambito_label }}</div></div>
+{% endif %}

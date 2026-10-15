@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=11">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -45,6 +45,9 @@
         </div>
       </div>
     </section>
+
+    {# ── Ricerca della sezione ── #}
+    {% include "anagrafica/components/_fmd_ricerca.html" with ambito="qualifiche" placeholder="Cerca un tipo di qualifica o le qualifiche di una persona…" %}
 
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
     <section class="fmd-kpi">

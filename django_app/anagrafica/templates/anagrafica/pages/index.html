@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=11">
 <style>
 /* Hero: tre numeri affiancati sugli schermi larghi (la griglia base ne prevede due). */
 @media (min-width: 1100px) { .hr-hero-stats { grid-template-columns:repeat(3,minmax(150px,1fr)); } }
@@ -128,6 +129,12 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
       {% endif %}
     </div>
   </section>
+
+  {# ── Ricerca su tutto il modulo (persone, ingressi, corsi, qualifiche, rischi, visite, report) ── #}
+  {% include "anagrafica/components/_fm_icons.html" %}
+  <div class="fmd" style="padding:0;background:none;">
+    {% include "anagrafica/components/_fmd_ricerca.html" with ambito="tutto" placeholder="Cerca in tutta l'anagrafica: persone, posizioni, corsi, qualifiche, mansioni di rischio, visite, report…" %}
+  </div>
 
   {% include "anagrafica/components/flash_messages.html" %}
 
