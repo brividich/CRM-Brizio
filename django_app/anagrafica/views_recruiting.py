@@ -763,14 +763,63 @@ def recruiting_dashboard(request):
     for riga in kpi["per_stato"]:
         riga["label"] = stati.get(riga["stato"], riga["stato"])
 
+    # Stile C: una scheda per posizione aperta o sospesa, candidati per fase.
+    from .services import sezioni_c
+    from .views import _check_hr_permission
+
+    oggi = timezone.localdate()
+    righe = recruiting_service.righe_posizioni(
+        PosizioneAperta.objects.filter(stato__in=PosizioneAperta.STATI_ATTIVI).order_by("entro_il")
+    )
+    per_stato: dict[int, dict[str, int]] = {}
+    for riga in (Candidato.objects.filter(posizione__in=[r["posizione"] for r in righe])
+                 .values("posizione_id", "stato").annotate(n=Count("id")).order_by()):
+        per_stato.setdefault(riga["posizione_id"], {})[riga["stato"]] = riga["n"]
+    schede = sezioni_c.schede_posizioni(righe, per_stato, oggi=oggi)
+    filtri = [("", "Tutte")]
+    if any(r["in_ritardo"] for r in righe):
+        filtri.append(("ritardo", "In ritardo"))
+    if any(r["posizione"].stato == PosizioneAperta.STATO_SOSPESA for r in righe):
+        filtri.append(("sospesa", "Sospese"))
+    posizioni_aperte = sezioni_c.griglia(
+        id="fmd-posizioni", titolo="Posizioni aperte", icona="i-building",
+        aside="Candidati per fase dell'iter · clic per la posizione",
+        schede=schede, filtri=filtri, etichetta_filtri="Filtra le posizioni",
+        ordini=[("ritardo", "Prima le più urgenti"), ("az", "A–Z")],
+        legenda=[(colore, etichetta) for _, colore, etichetta in sezioni_c.FASI_RECRUITING],
+        vuoto_titolo="Nessuna posizione aperta",
+        vuoto_testo="Le richieste di personale compaiono qui finché non sono coperte o annullate.",
+    )
+
+    # Onboarding aperti: dato HR, stesso cancello dell'elenco onboarding.
+    onboarding_aperti = []
+    n_onboarding = None
+    if _check_hr_permission(request):
+        from .models import OnboardingPratica
+        from .services import onboarding as onboarding_service
+
+        n_onboarding = OnboardingPratica.objects.filter(stato__in=OnboardingPratica.STATI_APERTI).count()
+        for pratica in (OnboardingPratica.objects.filter(stato__in=OnboardingPratica.STATI_APERTI)
+                        .prefetch_related("tasks").order_by("data_assunzione", "-created_at")[:12]):
+            pratica.counts = onboarding_service.riepilogo(pratica, list(pratica.tasks.all()))
+            onboarding_aperti.append(pratica)
+
+    aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:recruiting_list", "Candidati", "Elenco, filtri, schede", icona="i-users"),
+        sezioni_c.Area("anagrafica:recruiting_pipeline", "Pipeline", "Candidati per fase", icona="i-grid"),
+        sezioni_c.Area("anagrafica:recruiting_posizioni", "Posizioni aperte", "Richieste di personale", icona="i-building"),
+        sezioni_c.Area("anagrafica:recruiting_criteri", "Criteri", "Punteggi di valutazione", icona="i-award"),
+        sezioni_c.Area("anagrafica:onboarding_list", "Onboarding", "Checklist di ingresso", icona="i-check"),
+    ])
+
     return render(request, "anagrafica/pages/recruiting_dashboard.html", {
         "kpi": kpi,
         "kpi_posizioni": recruiting_service.kpi_posizioni(),
-        "posizioni_ritardo": [
-            r for r in recruiting_service.righe_posizioni(
-                PosizioneAperta.objects.filter(stato__in=PosizioneAperta.STATI_ATTIVI).order_by("entro_il")
-            ) if r["in_ritardo"]
-        ],
+        "posizioni_aperte": posizioni_aperte,
+        "onboarding_aperti": onboarding_aperti,
+        "n_onboarding": n_onboarding,
+        "aree": aree,
+        "posizioni_ritardo": [r for r in righe if r["in_ritardo"]],
         "filtri": _filtri_correnti(request),
         "stato_choices": Candidato.STATO_CHOICES,
         "canale_choices": Candidato.CANALE_CHOICES,

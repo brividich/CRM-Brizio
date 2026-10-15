@@ -39,6 +39,27 @@ GUIDA = {
             ],
         },
         {
+            "id": "pagine-sezione",
+            "titolo": "Le pagine d'ingresso delle sezioni",
+            "blocchi": [
+                ("p", "Ogni sezione si apre con lo stesso schema: in alto i numeri di oggi (quelli cliccabili aprono "
+                      "l'elenco già filtrato), poi una scheda per ogni «oggetto» della sezione con una barra colorata, "
+                      "in basso l'elenco di lavoro e a destra le altre pagine della sezione."),
+                ("def", [
+                    ("Persone", "una scheda per reparto con l'organico per tipo di contratto; il clic filtra l'elenco."),
+                    ("Ingressi (Cruscotto recruiting)", "una scheda per posizione aperta con i candidati per fase dell'iter; sotto, gli onboarding aperti."),
+                    ("Formazione", "una scheda per corso obbligatorio con la copertura e la prossima sessione."),
+                    ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
+                    ("Salute e sicurezza", "una scheda per mansione di rischio; con il permesso HR la barra dice quante persone sono in regola con tutti gli obblighi."),
+                    ("Visite mediche", "una scheda per tipo di visita: in regola, entro 60 giorni, scadute, senza visita. Mai esiti o giudizi."),
+                    ("Amministrazione", "una scheda per flusso (retribuzioni, cedolini, contratti) con righe abbinate e scartate dell'ultimo import."),
+                    ("Report", "una scheda per modello con le generazioni degli ultimi 30 giorni e i pulsanti Genera, Modifica, Duplica."),
+                ]),
+                ("p", "Sopra le schede, i pulsanti filtrano (per categoria, livello di rischio, norma…) e cambiano l'ordine. "
+                      "Le schede contano solo i dati che il tuo profilo può vedere."),
+            ],
+        },
+        {
             "id": "dettaglio",
             "titolo": "Le guide di dettaglio",
             "blocchi": [

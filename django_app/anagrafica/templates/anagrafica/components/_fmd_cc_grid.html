@@ -1,0 +1,87 @@
+{% comment %}
+Griglia «una scheda per oggetto» delle pagine d'ingresso di Anagrafica (stile C).
+Parametro: cc = services.sezioni_c.griglia(...). Filtri e ordinamento lato client,
+nessuna chiamata al server. Le classi fmd-cc / fmd-stk sono in formazione_design.css.
+{% endcomment %}
+<section class="fmd-panel fmd-block fmd-ccbox" id="{{ cc.id }}" data-cc-box>
+  <div class="fmd-block-head">
+    <div class="fmd-block-title">
+      <svg class="fmd-ico"><use href="#{{ cc.icona }}"/></svg>{{ cc.titolo }}
+      {% if cc.schede %}<span class="fmd-count">{{ cc.schede|length }}</span>{% endif %}
+    </div>
+    {% if cc.aside %}<div class="fmd-block-aside">{{ cc.aside }}</div>{% endif %}
+  </div>
+  {% if cc.schede %}
+  {% if cc.filtri|length > 1 or cc.ordini|length > 1 %}
+  <div class="fmd-cov-tools">
+    {% if cc.filtri|length > 1 %}
+    <div class="fmd-chips" role="group" aria-label="{{ cc.etichetta_filtri }}">
+      {% for valore, etichetta in cc.filtri %}<button type="button" class="fmd-chip{% if forloop.first %} fmd-on{% endif %}" data-cc-filtro="{{ valore }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ etichetta }}</button>{% endfor %}
+    </div>
+    {% endif %}
+    {% if cc.ordini|length > 1 %}
+    <div class="fmd-chips fmd-cov-sort" role="group" aria-label="Ordina le schede">
+      {% for chiave, etichetta in cc.ordini %}<button type="button" class="fmd-chip{% if forloop.first %} fmd-on{% endif %}" data-cc-ordine="{{ chiave }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ etichetta }}</button>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="fmd-cgrid" data-cc-grid>
+    {% for s in cc.schede %}
+    {% if s.href %}<a class="fmd-cc{% if s.attiva %} fmd-cc-on{% endif %}" href="{{ s.href }}"{% if s.attiva %} aria-current="true"{% endif %}{% else %}<div class="fmd-cc"{% endif %}
+       data-tags=" {{ s.tags }} " data-alfa="{{ s.alfa }}"{% for k, v in s.ordini.items %} data-o-{{ k }}="{{ v }}"{% endfor %}>
+      <span class="fmd-cc-h"><b>{{ s.titolo }}</b>{% if s.codice %}<span class="fmd-cc-code">{{ s.codice }}</span>{% endif %}</span>
+      {% if s.meta %}<span class="fmd-cc-meta">{{ s.meta }}</span>{% endif %}
+      {% if s.segmenti %}
+      <span class="fmd-stk" role="img" aria-label="{% for seg in s.segmenti %}{{ seg.n }}{% for chiave, etichetta in cc.legenda %}{% if chiave == seg.chiave %} {{ etichetta }}{% endif %}{% endfor %}{% if not forloop.last %}, {% endif %}{% endfor %} su {{ s.totale }}">
+        {% for seg in s.segmenti %}<i class="fmd-k-{{ seg.chiave }}" style="width:{{ seg.perc|stringformat:'s' }}%" title="{{ seg.n }}"></i>{% endfor %}
+      </span>
+      {% endif %}
+      <span class="fmd-stk-l">
+        {% if s.principale %}<span><b>{{ s.principale }}</b> {{ s.principale_label }}{% if s.principale_sub %} <span class="fmd-muted">{{ s.principale_sub }}</span>{% endif %}</span>{% endif %}
+        {% for p in s.pillole %}<span class="{{ p.classe }}">{{ p.testo }}</span>{% endfor %}
+      </span>
+      <span class="fmd-cc-foot">
+        <span{% if s.piede_muted %} class="fmd-muted"{% endif %}>{{ s.piede }}</span>
+        {% if s.azioni %}
+        <span class="fmd-cc-acts">
+          {% for a in s.azioni %}{% if a.post %}<form method="post" action="{{ a.url }}">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">{{ a.label }}</button></form>{% else %}<a class="fmd-btn {% if a.primaria %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %} fmd-btn-mini" href="{{ a.url }}">{{ a.label }}</a>{% endif %}{% endfor %}
+        </span>
+        {% elif s.vai %}<span class="fmd-cc-go">{{ s.vai }}</span>{% endif %}
+      </span>
+    {% if s.href %}</a>{% else %}</div>{% endif %}
+    {% endfor %}
+  </div>
+  {% if cc.legenda %}
+  <div class="fmd-legend" aria-hidden="true">
+    {% for chiave, etichetta in cc.legenda %}<span><i class="fmd-k-{{ chiave }}"></i>{{ etichetta }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="fmd-empty">
+    <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
+    <span class="fmd-et">{{ cc.vuoto_titolo|default:"Niente da mostrare" }}</span>
+    {% if cc.vuoto_testo %}<span class="fmd-em">{{ cc.vuoto_testo }}</span>{% endif %}
+  </div>
+  {% endif %}
+</section>
+<script>
+(function(){
+  if(window.__fmdCcGrid)return;window.__fmdCcGrid=1;
+  function press(box,sel,btn){box.querySelectorAll(sel).forEach(function(b){var on=b===btn;b.classList.toggle('fmd-on',on);b.setAttribute('aria-pressed',String(on));});}
+  function apply(box){
+    var grid=box.querySelector('[data-cc-grid]');if(!grid)return;
+    var f=box.dataset.ccF||'',o=box.dataset.ccO||'';
+    var cards=Array.prototype.slice.call(grid.children);
+    if(o){cards.sort(function(a,b){return o==='az'?a.dataset.alfa.localeCompare(b.dataset.alfa):(+(a.getAttribute('data-o-'+o)||0))-(+(b.getAttribute('data-o-'+o)||0));});}
+    cards.forEach(function(c){c.hidden=!!f&&c.dataset.tags.indexOf(' '+f+' ')<0;grid.appendChild(c);});
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-cc-filtro],[data-cc-ordine]');if(!b)return;
+    var box=b.closest('[data-cc-box]');if(!box)return;
+    if(b.hasAttribute('data-cc-filtro')){box.dataset.ccF=b.dataset.ccFiltro;press(box,'[data-cc-filtro]',b);}
+    else{box.dataset.ccO=b.dataset.ccOrdine;press(box,'[data-cc-ordine]',b);}
+    apply(box);
+  });
+})();
+</script>
