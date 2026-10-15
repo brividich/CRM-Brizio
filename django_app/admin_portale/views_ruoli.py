@@ -59,10 +59,32 @@ def _ruoli():
     return list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
 
 
+def _data(valore):
+    """(data, errata) da un campo data del form: vuoto = (None, False)."""
+    testo = str(valore or "").strip()
+    if not testo:
+        return None, False
+    from datetime import datetime
+
+    for formato in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(testo, formato).date(), False
+        except ValueError:
+            continue
+    return None, True
+
+
 def _ruoli_per_persona(ids) -> dict[int, list]:
+    """Ruoli assegnati a mano; ogni gruppo porta ``scade_il`` e ``scaduto`` dell'appartenenza."""
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
     mappa: dict[int, list] = {}
     for m in AccessGroupMembership.objects.filter(legacy_user_id__in=list(ids)).select_related("group"):
-        mappa.setdefault(int(m.legacy_user_id), []).append(m.group)
+        gruppo = m.group
+        gruppo.scade_il = m.scade_il
+        gruppo.scaduto = bool(m.scade_il and m.scade_il < oggi)
+        mappa.setdefault(int(m.legacy_user_id), []).append(gruppo)
     for gruppi in mappa.values():
         gruppi.sort(key=lambda g: -int(g.priority or 0))
     return mappa
@@ -139,6 +161,8 @@ def _ctx_persone(request) -> dict:
         selezionata = UtenteLegacy.objects.filter(id=persona_id).first()
     organigramma_map = _ruoli_da_organigramma([p.id for p in persone] + ([persona_id] if persona_id else []))
     organigramma_selezionata = organigramma_map.get(persona_id, []) if persona_id else []
+    ruoli_mano_selezionata = _ruoli_per_persona([persona_id]).get(persona_id, []) if persona_id else []
+    scadenze = sorted({g.scade_il for g in ruoli_mano_selezionata if g.scade_il})
     return {
         "q": q,
         "solo_con_ruoli": solo_con_ruoli,
@@ -151,7 +175,8 @@ def _ctx_persone(request) -> dict:
             for p in persone
         ],
         "selezionata": selezionata,
-        "ruoli_selezionata": {g.id for g in _ruoli_per_persona([persona_id]).get(persona_id, [])} if persona_id else set(),
+        "ruoli_selezionata": {g.id for g in ruoli_mano_selezionata},
+        "scadenza_selezionata": scadenze[0] if scadenze else None,
         "organigramma_selezionata": organigramma_selezionata,
         "ids_organigramma_selezionata": {r["gruppo"].id for r in organigramma_selezionata},
     }
@@ -171,11 +196,46 @@ def ruoli_portale_persona(request, legacy_user_id: int):
     )
     aggiunti, tolti = validi - attuali, attuali - validi
     nota = str(request.POST.get("nota") or "").strip()[:255]
+    scade_il, scadenza_errata = _data(request.POST.get("scade_il"))
+    if scadenza_errata:
+        messages.error(request, "Data di scadenza non valida: usa il formato della data (gg/mm/aaaa).")
+        return redirect(_url("persone", persona=persona.id, q=request.POST.get("q", "")))
+    scadenza_prima = set(
+        AccessGroupMembership.objects.filter(legacy_user_id=persona.id).values_list("scade_il", flat=True)
+    )
     with transaction.atomic():
         for gruppo_id in aggiunti:
-            AccessGroupMembership.objects.create(group_id=gruppo_id, legacy_user_id=persona.id, note=nota)
+            AccessGroupMembership.objects.create(
+                group_id=gruppo_id, legacy_user_id=persona.id, note=nota, scade_il=scade_il
+            )
         AccessGroupMembership.objects.filter(legacy_user_id=persona.id, group_id__in=tolti).delete()
-    if aggiunti or tolti:
+        # Una sola scadenza per i ruoli a mano della persona (caso tipico: un esterno).
+        cambiata_scadenza = (
+            AccessGroupMembership.objects.filter(legacy_user_id=persona.id).exclude(scade_il=scade_il).update(
+                scade_il=scade_il
+            )
+            if scade_il
+            else AccessGroupMembership.objects.filter(legacy_user_id=persona.id, scade_il__isnull=False).update(
+                scade_il=None
+            )
+        )
+    if cambiata_scadenza and not (aggiunti or tolti):
+        log_action(
+            request,
+            "permessi_scadenza_persona",
+            MODULO_AUDIT,
+            {
+                "persona": persona.nome,
+                "legacy_user_id": persona.id,
+                "prima": sorted(str(d) for d in scadenza_prima if d),
+                "dopo": str(scade_il) if scade_il else "",
+            },
+            oggetto_tipo="utente",
+            oggetto_id=str(persona.id),
+        )
+        invalida_permessi()
+        messages.success(request, f"Scadenza dei ruoli di {persona.nome} aggiornata.")
+    elif aggiunti or tolti:
         etichette = dict(AccessGroup.objects.filter(id__in=aggiunti | tolti).values_list("id", "label"))
         log_action(
             request,
@@ -187,6 +247,7 @@ def ruoli_portale_persona(request, legacy_user_id: int):
                 "aggiunti": sorted(etichette[i] for i in aggiunti),
                 "tolti": sorted(etichette[i] for i in tolti),
                 "nota": nota,
+                "scade_il": str(scade_il) if scade_il else "",
             },
             oggetto_tipo="utente",
             oggetto_id=str(persona.id),
@@ -532,7 +593,7 @@ def ruoli_portale_ruolo(request, ruolo_id: int | None = None):
             messages.error(request, "Ruolo non trovato.")
             return redirect(_url("matrice"))
         if ruolo.preset == PRESET_BASE and not dati["is_active"]:
-            messages.error(request, "Il ruolo base «Dipendente» non si disattiva: e' il minimo di ogni utente.")
+            messages.error(request, "Il ruolo base «Operatore» non si disattiva: e' il minimo di ogni utente.")
             return redirect(_url("matrice", ruolo=ruolo.id))
         prima = {k: getattr(ruolo, k) for k in dati}
         for chiave, valore in dati.items():

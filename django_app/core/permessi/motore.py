@@ -179,8 +179,9 @@ def ruoli_della_persona(legacy_user_id: int | None, *, includi_base: bool = True
             from django.db.models import Q
 
             from core.permessi.organigramma import profili_da_organigramma
+            from core.permessi.scadenze import q_appartenenze_valide
 
-            filtro = Q(memberships__legacy_user_id=int(legacy_user_id))
+            filtro = Q(memberships__legacy_user_id=int(legacy_user_id)) & q_appartenenze_valide("memberships__")
             da_organigramma = profili_da_organigramma(legacy_user_id)
             if da_organigramma:
                 filtro |= Q(id__in=da_organigramma)

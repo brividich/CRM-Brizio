@@ -29,7 +29,7 @@ class DpiTests(ModuliBase):
         self.capo, self.capo_l = self.persona("Capo squadra", ruoli=("ruolo-preposto",))
         self.op, self.op_l = self.persona("Operaio")
         self.altro, self.altro_l = self.persona("Altro reparto")
-        self.mag, self.mag_l = self.persona("Magazziniere", ruoli=("ruolo-magazzino",))
+        self.mag, self.mag_l = self.persona("Magazziniere", ruoli=("ruolo-amministrazione",))
         self.nell_organigramma(self.capo_l, self.r_capo)
         self.nell_organigramma(self.op_l, self.r_op)
         self.nell_organigramma(self.altro_l, self.r_capo)  # scheda senza team sotto
@@ -222,7 +222,10 @@ class CancelliGestioneTests(ModuliBase):
     def test_azione_extra_dati_riservati_in_matrice(self):
         from core.permessi import decisione
 
+        # Dati riservati solo a Gestione personale, non a tutta l'Amministrazione.
         amm = self.persona("Contabile", ruoli=("ruolo-amministrazione",))[0]
-        self.assertTrue(decisione(amm, "anagrafica", "dati_riservati").consentito)
-        ruolo = AccessGroup.objects.get(code="ruolo-amministrazione")
+        self.assertFalse(decisione(amm, "anagrafica", "dati_riservati").consentito)
+        personale = self.persona("Paghe", ruoli=("ruolo-hr",))[0]
+        self.assertTrue(decisione(personale, "anagrafica", "dati_riservati").consentito)
+        ruolo = AccessGroup.objects.get(code="ruolo-hr")
         self.assertTrue(RuoloPermessoModulo.objects.filter(ruolo=ruolo, azione="dati_riservati").exists())

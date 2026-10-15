@@ -109,13 +109,16 @@ def user_group_ids(legacy_user_id: int | None) -> list[int]:
 
     Comprende i ruoli che arrivano dall'organigramma (``core.permessi.organigramma``).
     Con il sistema dei ruoli attivo (``core.permessi``) ogni utente ha anche
-    il ruolo base «Dipendente», senza bisogno di iscriverlo.
+    il ruolo base «Operatore», senza bisogno di iscriverlo.
     """
     if not legacy_user_id:
         return []
+    from core.permessi.scadenze import q_appartenenze_valide
+
     try:
         ids = list(
             AccessGroupMembership.objects.filter(
+                q_appartenenze_valide(),
                 legacy_user_id=int(legacy_user_id),
                 group__is_active=True,
             ).values_list("group_id", flat=True)
@@ -347,12 +350,13 @@ def describe_user_groups(legacy_user_id: int | None) -> list[dict]:
     from django.db.models import Q
 
     from core.permessi.organigramma import profili_da_organigramma
+    from core.permessi.scadenze import q_appartenenze_valide
 
     try:
         groups = list(
             AccessGroup.objects.filter(is_active=True)
             .filter(
-                Q(memberships__legacy_user_id=int(legacy_user_id))
+                (Q(memberships__legacy_user_id=int(legacy_user_id)) & q_appartenenze_valide("memberships__"))
                 | Q(id__in=profili_da_organigramma(legacy_user_id))
             )
             .distinct()

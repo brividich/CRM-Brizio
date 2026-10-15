@@ -107,7 +107,8 @@ class TicketTests(ModuliBase):
         return set(views.ticket_dashboard(self.req(user, legacy, path="/tickets/")).context_data["tickets"])
 
     def test_dipendente_vede_solo_i_propri(self, _r):
-        self.assertEqual(self.dashboard(self.op, self.op_l), {self.man_op, self.it_op})
+        # L'Operatore vede i propri ticket di manutenzione; i ticket IT non sono nel ruolo base.
+        self.assertEqual(self.dashboard(self.op, self.op_l), {self.man_op})
         self.assertEqual(self.dashboard(self.altro, self.altro_l), {self.man_altro})
 
     def test_preposto_vede_manutenzione_del_team_ma_non_l_it_del_team(self, _r):
@@ -385,7 +386,7 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         from core.models import PermissionDefinition
 
         PermissionDefinition.objects.create(code="tasks.elenco.view", label="Elenco attivita", module="tasks")
-        ruolo = AccessGroup.objects.get(code="ruolo-magazzino")
+        ruolo = AccessGroup.objects.get(code="ruolo-amministrazione")
         self.client.post(f"/admin-portale/ruoli-portale/matrice/{ruolo.id}/", {"c__kickoff__vedere": "tutti"})
         risposta = self.client.get("/admin-portale/ruoli-portale/?tab=modulo&modulo=kickoff")
         pagine = risposta.context["pagine"]
@@ -397,7 +398,7 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         from core.models import GroupPermissionGrant, PermissionDefinition
 
         PermissionDefinition.objects.create(code="tasks.elenco.view", label="Elenco attivita", module="tasks")
-        ruolo = AccessGroup.objects.get(code="ruolo-magazzino")
+        ruolo = AccessGroup.objects.get(code="ruolo-amministrazione")
         self.client.post(f"/admin-portale/ruoli-portale/matrice/{ruolo.id}/", {"c__kickoff__vedere": "tutti"})
         risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab=matrice&ruolo={ruolo.id}")
         self.assertContains(risposta, "rp-pag rp-pag-pieno")
@@ -426,7 +427,7 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         self.assertEqual(voce.dettaglio["aggiunti"], [preposto.label])
 
     def test_modifica_matrice_registrata(self):
-        ruolo = AccessGroup.objects.get(code="ruolo-magazzino")
+        ruolo = AccessGroup.objects.get(code="ruolo-amministrazione")
         self.client.post(f"/admin-portale/ruoli-portale/matrice/{ruolo.id}/", {"c__kickoff__vedere": "tutti"})
         self.assertTrue(RuoloPermessoModulo.objects.filter(ruolo=ruolo, modulo="kickoff", azione="vedere").exists())
         voce = AuditLog.objects.filter(modulo="permessi", azione="permessi_matrice").latest("id")

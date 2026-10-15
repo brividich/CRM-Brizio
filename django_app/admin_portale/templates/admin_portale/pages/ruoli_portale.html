@@ -57,9 +57,9 @@
               </td>
               <td>
                 <div class="rp-chips">
-                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active %} unset{% endif %}">{{ g.label }}</span>{% endfor %}
+                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active or g.scaduto %} unset{% endif %}"{% if g.scade_il %} title="Valido fino al {{ g.scade_il|date:'d/m/Y' }}"{% endif %}>{{ g.label }}{% if g.scaduto %} · scaduto{% elif g.scade_il %} · fino al {{ g.scade_il|date:"d/m/Y" }}{% endif %}</span>{% endfor %}
                   {% for o in row.da_organigramma %}<span class="acl-chip rp-chip-org" title="Dall'organigramma: {{ o.da }}">{{ o.gruppo.label }} · organigramma</span>{% endfor %}
-                  {% if not row.ruoli and not row.da_organigramma %}<span class="acl-muted">Solo Dipendente</span>{% endif %}
+                  {% if not row.ruoli and not row.da_organigramma %}<span class="acl-muted">Solo Operatore</span>{% endif %}
                 </div>
               </td>
             </tr>
@@ -75,7 +75,7 @@
     <div class="card"><div class="card-body">
       {% if selezionata %}
         <div class="card-title">{{ selezionata.nome }}</div>
-        <div class="acl-muted">{{ selezionata.email|default:"" }} · tutti hanno il ruolo base «Dipendente», non serve spuntarlo.</div>
+        <div class="acl-muted">{{ selezionata.email|default:"" }} · tutti hanno il ruolo base «Operatore», non serve spuntarlo.</div>
         <div class="rp-org-box">
           <div class="rp-org-title">Dall'organigramma</div>
           {% if organigramma_selezionata %}
@@ -100,6 +100,9 @@
               </label>
             {% endif %}{% endfor %}
           </div>
+          <label class="acl-muted" for="rp-scade">Ruoli a mano validi fino al (facoltativo: per RSPP, medico, auditor esterni)</label>
+          <input id="rp-scade" class="input" type="date" name="scade_il" value="{{ scadenza_selezionata|date:'Y-m-d' }}">
+          <div class="acl-muted" style="margin-bottom:8px;">Dal giorno dopo i ruoli spuntati qui non contano più. Vuoto = senza scadenza. Non tocca i ruoli dall'organigramma.</div>
           <label class="acl-muted" for="rp-nota">Nota per il registro (facoltativa)</label>
           <input id="rp-nota" class="input" type="text" name="nota" maxlength="255" placeholder="es. nomina a preposto del 12/10">
           <div class="acl-actions" style="margin-top:12px;">
@@ -465,7 +468,7 @@
       <form method="post" action="{% url 'admin_portale:ruoli_portale_sistema' %}">
         {% csrf_token %}
         <input type="hidden" name="azione" value="attiva">
-        <p class="acl-why">Da quel momento <strong>decidono solo i ruoli</strong>: chi non ha ruoli ha solo il ruolo base «Dipendente», le liste di utenti nelle impostazioni dei moduli e il ruolo legacy non concedono più nulla. Prima di attivare: assegna i ruoli alle persone, controlla qualche persona in «Cosa vede questa persona» e verifica che l'organigramma abbia i ruoli collegati (serve al «team»).</p>
+        <p class="acl-why">Da quel momento <strong>decidono solo i ruoli</strong>: chi non ha ruoli ha solo il ruolo base «Operatore», le liste di utenti nelle impostazioni dei moduli e il ruolo legacy non concedono più nulla. Prima di attivare: assegna i ruoli alle persone, controlla qualche persona in «Cosa vede questa persona» e verifica che l'organigramma abbia i ruoli collegati (serve al «team»).</p>
         <label class="rp-check" style="margin-bottom:10px;"><input type="checkbox" name="conferma" value="1"> Ho assegnato i ruoli e controllato l'anteprima</label>
         <button class="btn" type="submit">Attiva il sistema dei ruoli</button>
       </form>

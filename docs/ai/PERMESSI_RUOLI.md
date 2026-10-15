@@ -12,6 +12,19 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   `preset` (da quale preset nasce).
 - **Persona → ruoli**: `AccessGroupMembership` (N ruoli per persona), assegnati **a mano**
   dalla scheda «Persone». Il ruolo base `dipendente` vale per tutti senza iscrizione.
+- **Scadenza**: `AccessGroupMembership.scade_il` (core 0082), vale fino al giorno compreso.
+  Ogni lettura delle appartenenze usa `core.permessi.scadenze.q_appartenenze_valide` (motore,
+  `acl_resolver.user_group_ids` / `describe_user_groups`, `utenti_amministratori_da_ruolo`).
+  Chi legge le appartenenze altrove deve usarlo.
+- **Preset (modello 15/10/2026)**: posizioni Direzione 800, Amministrazione 650, Qualità 600, IT 560,
+  Manutenzione 550, Ingegneria 520, Controllo qualità 480, Caporeparto 400; incarichi Gestione
+  personale (chiave `hr`) 460, Gestione formazione 455, Referente 27001 445, Auditor 440, RLS 435,
+  Addetto emergenze 420, Preposto 300; RSPP esterno (chiave `sicurezza`) 700; Operatore (chiave
+  `dipendente`) 100. Le chiavi storiche restano per non scollegare i ruoli già creati.
+  `riallinea_preset_modello()` (migrazione core 0081) aggiorna solo nomi/celle ancora uguali al preset.
+- **Referti**: azione extra `referti` di `visite_mediche`; `anagrafica.views._can_view_referti`
+  la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
+  scheda e coda referti (`views_sorveglianza._puo`).
 - **Ruoli dall'organigramma**: `anagrafica.RuoloOperativo.profili_permessi` (M2M verso
   `AccessGroup`, migrazione anagrafica 0174). Chi ricopre oggi un ruolo d'organigramma collegato
   (stesse assegnazioni del team: ruolo attivo, `data_fine` vuota o futura) riceve quei ruoli,

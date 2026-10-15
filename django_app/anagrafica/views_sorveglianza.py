@@ -32,18 +32,21 @@ logger = logging.getLogger(__name__)
 
 
 def _puo(request) -> bool:
-    """Chi può registrare una visita medica può lavorare sui referti."""
-    from .views import _can_view_visite_mediche
+    """Chi può registrare una visita medica e aprire i referti lavora sulla coda.
 
-    return _can_view_visite_mediche(request)
+    Con i ruoli attivi serve anche l'azione «referti» (vedi ``_can_view_referti``).
+    """
+    from .views import _can_view_referti
+
+    return _can_view_referti(request)
 
 
 def _puo_modificare(request) -> bool:
     """Caricare, confermare, scartare referti e cambiarne le impostazioni registra
     visite: serve il permesso di modifica (vedi ``_can_edit_visite_mediche``)."""
-    from .views import _can_edit_visite_mediche
+    from .views import _can_edit_visite_mediche, _can_view_referti
 
-    return _can_edit_visite_mediche(request)
+    return _can_edit_visite_mediche(request) and _can_view_referti(request)
 
 
 def _nega(request):

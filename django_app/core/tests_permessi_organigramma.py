@@ -111,6 +111,101 @@ class RuoliDaOrganigrammaTests(OrganigrammaMixin, TestCase):
         self.assertIn(self.hr.id, [g["id"] for g in describe_user_groups(legacy.id)])
 
 
+class ScadenzaRuoliTests(PersoneMixin, TestCase):
+    def setUp(self):
+        cache.clear()
+        applica_preset()
+
+    def test_ruolo_a_mano_scaduto_non_conta(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from core.acl_resolver import user_group_ids
+        from core.models import AccessGroupMembership
+
+        user, legacy = self.persona("RSPP esterno", ruoli=("ruolo-sicurezza",))
+        rspp = AccessGroup.objects.get(code="ruolo-sicurezza")
+        self.assertTrue(decisione(self.ricarica(user), "rilevazione_incidenti", "gestire").consentito)
+        oggi = timezone.localdate()
+        AccessGroupMembership.objects.filter(legacy_user_id=legacy.id).update(scade_il=oggi)
+        self.assertTrue(decisione(self.ricarica(user), "rilevazione_incidenti", "gestire").consentito)  # vale oggi
+        AccessGroupMembership.objects.filter(legacy_user_id=legacy.id).update(scade_il=oggi - timedelta(days=1))
+        self.assertFalse(decisione(self.ricarica(user), "rilevazione_incidenti", "gestire").consentito)
+        self.assertNotIn(rspp.id, user_group_ids(legacy.id))
+
+    def test_amministratore_scaduto_non_e_piu_amministratore(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from core.models import AccessGroupMembership
+        from core.permessi.cache import invalida_permessi, utenti_amministratori_da_ruolo
+
+        _user, legacy = self.persona("Admin a tempo", ruoli=("ruolo-amministratore",))
+        self.assertIn(legacy.id, utenti_amministratori_da_ruolo())
+        AccessGroupMembership.objects.filter(legacy_user_id=legacy.id).update(
+            scade_il=timezone.localdate() - timedelta(days=1)
+        )
+        invalida_permessi()
+        self.assertNotIn(legacy.id, utenti_amministratori_da_ruolo())
+
+
+class ModelloPresetTests(PersoneMixin, TestCase):
+    def setUp(self):
+        cache.clear()
+        applica_preset()
+
+    def test_operatore_ha_solo_il_minimo(self):
+        user, _ = self.persona("Operatore")
+        for modulo, azione in (
+            ("assenze", "creare"), ("notizie", "vedere"), ("schede_sicurezza", "vedere"),
+            ("rilevazione_incidenti", "creare"), ("dpi", "creare"), ("procedure", "vedere"),
+            ("anomalie", "creare"), ("ticket_manutenzione", "creare"),
+        ):
+            self.assertTrue(decisione(user, modulo, azione).consentito, f"{modulo}.{azione}")
+        for modulo, azione in (
+            ("ticket_it", "creare"), ("suggestion_corner", "creare"), ("assistente_ai", "vedere"),
+            ("glossario", "vedere"), ("sistema_gestione", "vedere"), ("formazione", "vedere"),
+        ):
+            self.assertFalse(decisione(user, modulo, azione).consentito, f"{modulo}.{azione}")
+
+    def test_referti_solo_a_gestione_personale(self):
+        personale, _ = self.persona("Paghe", ruoli=("ruolo-hr",))
+        capo, _ = self.persona("Capo", ruoli=("ruolo-responsabile",))
+        self.assertTrue(decisione(personale, "visite_mediche", "referti").consentito)
+        self.assertTrue(decisione(capo, "visite_mediche", "vedere").consentito)
+        self.assertFalse(decisione(capo, "visite_mediche", "referti").consentito)
+
+    def test_registrazioni_sgi_non_si_cancellano_dai_preset(self):
+        from core.permessi.preset import PRESETS
+
+        registrazioni = (
+            "rilevazione_incidenti", "schede_sicurezza", "rentri", "sistema_gestione", "capa", "timbri", "soc",
+        )
+        for preset in PRESETS:
+            for modulo in registrazioni:
+                with self.subTest(preset=preset.chiave, modulo=modulo):
+                    self.assertNotIn("cancellare", preset.celle.get(modulo, {}))
+
+    def test_riallineamento_rispetta_le_modifiche_a_mano(self):
+        from core.models import RuoloPermessoModulo
+        from core.permessi.preset import riallinea_preset_modello
+
+        base = AccessGroup.objects.get(code="ruolo-dipendente")
+        base.label, base.priority = "Dipendente", 100
+        base.save()
+        RuoloPermessoModulo.objects.create(ruolo=base, modulo="ticket_it", azione="creare", ambito="propri",
+                                           note="preset dipendente")
+        RuoloPermessoModulo.objects.create(ruolo=base, modulo="glossario", azione="vedere", ambito="tutti",
+                                           note="modificata a mano")
+        riallinea_preset_modello()
+        base.refresh_from_db()
+        self.assertEqual(base.label, "Operatore")
+        self.assertFalse(RuoloPermessoModulo.objects.filter(ruolo=base, modulo="ticket_it").exists())
+        self.assertTrue(RuoloPermessoModulo.objects.filter(ruolo=base, modulo="glossario").exists())
+
+
 class PaginaCollegamentoOrganigrammaTests(OrganigrammaMixin, TestCase):
     def setUp(self):
         super().setUp()
@@ -137,6 +232,18 @@ class PaginaCollegamentoOrganigrammaTests(OrganigrammaMixin, TestCase):
         self.assertEqual(risposta.status_code, 200)
         self.assertContains(risposta, "Dall'organigramma")
         self.assertContains(risposta, self.r_personale.nome)
+
+    def test_scadenza_dei_ruoli_dalla_scheda_persona(self):
+        from core.models import AccessGroupMembership
+
+        _user, legacy = self.persona("Esterno")
+        rspp = AccessGroup.objects.get(code="ruolo-sicurezza")
+        url = f"/admin-portale/ruoli-portale/persona/{legacy.id}/"
+        self.client.post(url, {"ruoli": [rspp.id], "scade_il": "2030-12-31"})
+        self.assertEqual(str(AccessGroupMembership.objects.get(legacy_user_id=legacy.id).scade_il), "2030-12-31")
+        self.client.post(url, {"ruoli": [rspp.id], "scade_il": ""})
+        self.assertIsNone(AccessGroupMembership.objects.get(legacy_user_id=legacy.id).scade_il)
+        self.assertTrue(AuditLog.objects.filter(azione="permessi_scadenza_persona").exists())
 
     def test_scheda_persona_mostra_da_dove_arriva_il_ruolo(self):
         self.r_personale.profili_permessi.add(self.hr)

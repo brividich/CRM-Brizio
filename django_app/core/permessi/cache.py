@@ -50,12 +50,13 @@ def utenti_amministratori_da_ruolo() -> frozenset[int]:
     from django.db import DatabaseError
 
     from core.models import AccessGroupMembership
+    from core.permessi.scadenze import q_appartenenze_valide
 
     try:
         ids = sorted(
             set(
                 AccessGroupMembership.objects.filter(
-                    group__is_active=True, group__amministratore=True
+                    q_appartenenze_valide(), group__is_active=True, group__amministratore=True
                 ).values_list("legacy_user_id", flat=True)
             )
         )
