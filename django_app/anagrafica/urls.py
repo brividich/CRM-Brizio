@@ -7,6 +7,7 @@ from . import views_reportistica
 from . import views_reportistica_chat
 from . import views_cambio_mansione
 from . import views_mansioni_rischio
+from . import views_mansionario
 from . import views_elearning
 from . import views_sorveglianza
 from . import views_elenco
@@ -347,6 +348,12 @@ urlpatterns = [
     path("skill-matrix/", views.skill_matrix_macchina, name="skill_matrix_macchina"),
     path("skill-matrix/match/", views.skm_match_validazione, name="skm_match_validazione"),
     path("skill-matrix/refresh/", views.skm_refresh, name="skm_refresh"),
+    # Mansionario (fase 2): ruolo → mansione (colonna macchina/processo) → persone
+    path("mansionario/", views_mansionario.mansionario, name="mansionario"),
+    path("mansionario/<int:mansione_id>/", views_mansionario.mansionario_mansione, name="mansionario_mansione"),
+    path("mansionario/<int:mansione_id>/assegna/", views_mansionario.mansionario_assegna, name="mansionario_assegna"),
+    path("mansionario/<int:mansione_id>/togli/<int:abilitazione_id>/", views_mansionario.mansionario_togli,
+         name="mansionario_togli"),
     path("skill-matrix/scadenzario/", views.skm_scadenzario, name="skm_scadenzario"),
     path("skill-matrix/copertura/", views.skm_copertura, name="skm_copertura"),
     path("skill-matrix/impostazioni/", views.skm_impostazioni, name="skm_impostazioni"),
