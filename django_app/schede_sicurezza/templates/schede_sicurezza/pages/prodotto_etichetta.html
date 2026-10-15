@@ -1,0 +1,77 @@
+{% load static %}<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etichetta {{ prodotto.nome }}</title>
+{% comment %}
+Etichetta 100x50 mm per il contenitore: logo, nome, pittogrammi di pericolo e QR.
+Pagina a se' (non estende base.html): in stampa deve uscire solo l'etichetta.
+Stampare al 100% / "dimensioni effettive", senza margini.
+{% endcomment %}
+<style>
+@page { size: 100mm 50mm; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #e2e8f0; font-family: Arial, Helvetica, sans-serif; color: #111; }
+.barra { display: flex; gap: 10px; align-items: center; justify-content: center; padding: 14px; font-size: 13px; color: #475569; flex-wrap: wrap; }
+.barra button, .barra a { padding: 8px 16px; border-radius: 8px; border: 0; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: none; }
+.barra button { background: #1d4ed8; color: #fff; }
+.barra a { background: #f1f5f9; color: #475569; }
+.etichetta {
+  width: 100mm; height: 50mm; margin: 0 auto 20px; background: #fff;
+  display: flex; padding: 2.5mm; gap: 2mm; overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18);
+}
+.sx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.5mm; }
+.logo { height: 8mm; max-width: 40mm; object-fit: contain; object-position: left center; }
+.nome {
+  font-size: 11pt; font-weight: 900; line-height: 1.1; text-transform: uppercase;
+  display: -webkit-box; -webkit-line-clamp: var(--righe-nome); -webkit-box-orient: vertical; overflow: hidden;
+}
+.ghs { margin-top: auto; display: flex; flex-wrap: wrap; gap: .8mm; align-items: center; }
+.ghs svg { display: block; }
+.ghs .fuori { font-size: 7pt; font-weight: 700; border: .3mm solid #111; padding: .5mm 1mm; }
+.nessuno { margin-top: auto; font-size: 7pt; color: #475569; }
+.dx { width: 40mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.dx img { width: 38mm; height: 38mm; image-rendering: pixelated; }
+.dx span { font-size: 6.5pt; font-weight: 700; text-align: center; line-height: 1.1; }
+@media print {
+  html, body { background: #fff; }
+  .barra { display: none; }
+  .etichetta { margin: 0; box-shadow: none; }
+}
+</style>
+</head>
+<body>
+{% include "schede_sicurezza/components/_ghs_icons.html" %}
+<div class="barra">
+  <span>Stampa al 100% (dimensioni effettive), carta 100 × 50 mm, margini nulli.</span>
+  <button type="button" onclick="window.print()">Stampa etichetta</button>
+  <a href="{% url 'schede_sicurezza:prodotto_detail' pk=prodotto.pk %}">Torna al prodotto</a>
+</div>
+
+<div class="etichetta">
+  <div class="sx">
+    <img class="logo" src="{% if portal_branding.brand_logo_full %}{{ portal_branding.brand_logo_full }}{% else %}{% static 'core/img/logo_novicrom.png' %}{% endif %}" alt="Logo">
+    <div class="nome" style="--righe-nome:{% if lato_pittogramma_mm > 11 %}3{% else %}2{% endif %}">{{ prodotto.nome }}</div>
+    {% if pittogrammi %}
+      <div class="ghs">
+        {% for p in pittogrammi %}
+          {% if p.noto %}
+            <svg style="width:{{ lato_pittogramma_mm }}mm;height:{{ lato_pittogramma_mm }}mm" role="img" aria-label="{{ p.codice }} {{ p.nome }}"><use href="#{{ p.codice|lower }}"/></svg>
+          {% else %}
+            <span class="fuori">{{ p.codice }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="nessuno">Nessun pittogramma di pericolo indicato.</div>
+    {% endif %}
+  </div>
+  <div class="dx">
+    <img src="{% url 'schede_sicurezza:prodotto_qr' pk=prodotto.pk %}" alt="QR scheda di sicurezza">
+    <span>Scheda di sicurezza e primo soccorso</span>
+  </div>
+</div>
+</body>
+</html>

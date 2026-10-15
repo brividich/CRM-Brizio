@@ -415,6 +415,25 @@ def prodotto_qr(request, pk: int):
     return HttpResponse(genera_qr_png(url), content_type="image/png")
 
 
+@login_required
+def prodotto_etichetta(request, pk: int):
+    """Etichetta stampabile 100x50 mm da attaccare al contenitore.
+
+    Logo, nome prodotto, pittogrammi di pericolo e QR verso la vista mobile:
+    il resto (frasi H/P, primo soccorso, DPI) e' dietro al QR.
+    """
+    if not _can_view(request):
+        raise Http404()
+    prodotto = get_object_or_404(ProdottoChimico, pk=pk)
+    pittogrammi = ghs.dettaglio(prodotto.pittogrammi_effettivi(prodotto.scheda_corrente()))
+    return render(request, "schede_sicurezza/pages/prodotto_etichetta.html", {
+        "prodotto": prodotto,
+        "pittogrammi": pittogrammi,
+        # Fino a 4 simboli stanno su una riga a 16 mm; oltre si rimpiccioliscono.
+        "lato_pittogramma_mm": 16 if len(pittogrammi) <= 4 else 11,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Vista mobile (QR) + download PDF + presa visione
 # ---------------------------------------------------------------------------

@@ -25,7 +25,8 @@ GUIDA = {
             "titolo": "Il QR sul contenitore",
             "blocchi": [
                 ("p", "Inquadrando il QR attaccato al contenitore si apre una pagina breve con pittogrammi di pericolo, frasi H e P, "
-                      "DPI obbligatori, primo soccorso e incompatibilità. Funziona anche senza fare l'accesso."),
+                      "DPI obbligatori, primo soccorso e incompatibilità. Funziona anche senza fare l'accesso. "
+                      "Sull'etichetta, accanto al QR, ci sono già nome del prodotto e pittogrammi di pericolo."),
             ],
         },
         {
@@ -49,7 +50,8 @@ GUIDA = {
                     "Clicca «Nuovo prodotto» e compila nome, produttore e mansioni di rischio che lo usano.",
                     "Salva, poi nel dettaglio carica il PDF della scheda («Carica SDS»).",
                     "Il portale legge la scheda e compila da solo pittogrammi, frasi H/P, primo soccorso e DPI. Controlla e correggi se serve.",
-                    "Stampa il QR dal dettaglio e attaccalo al contenitore.",
+                    "Nel dettaglio clicca «Stampa etichetta 10×5»: esce un'etichetta con logo, nome, pittogrammi di pericolo e QR. "
+                    "Stampala al 100% (dimensioni effettive) su carta 100 × 50 mm e attaccala al contenitore.",
                 ]),
                 ("nota", "Una nuova versione della scheda chiede di nuovo la conferma di lettura a tutte le persone interessate."),
             ],

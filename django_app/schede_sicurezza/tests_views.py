@@ -118,6 +118,17 @@ class QrCodeTest(TestCase):
         self.assertEqual(resp["Content-Type"], "image/png")
         self.assertTrue(resp.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
+    def test_etichetta_mostra_nome_pittogrammi_e_qr(self):
+        self.prodotto.pittogrammi = ["GHS02", "GHS07"]
+        self.prodotto.save(update_fields=["pittogrammi"])
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_etichetta", args=[self.prodotto.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Sgrassante XY")
+        self.assertContains(resp, 'href="#ghs02"')
+        self.assertContains(resp, 'href="#ghs07"')
+        self.assertContains(resp, reverse("schede_sicurezza:prodotto_qr", args=[self.prodotto.pk]))
+        self.assertContains(resp, "size: 100mm 50mm")
+
     def test_url_scheda_mobile_usa_uuid_non_pk(self):
         url = reverse("schede_sicurezza:scheda_mobile", args=[str(self.prodotto.uuid)])
         self.assertIn(str(self.prodotto.uuid), url)
