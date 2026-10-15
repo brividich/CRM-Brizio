@@ -99,8 +99,8 @@ GUIDA = {
             "titolo": "Permessi",
             "blocchi": [
                 ("ul", [
-                    "Gestire (consegne, magazzino, catalogo, impostazioni): ruoli Sicurezza e Magazzino.",
-                    "Approvare: responsabili e preposti, solo per i loro dipendenti (team dell'organigramma).",
+                    "Gestire (consegne, magazzino, catalogo, impostazioni): ruoli RSPP e Amministrazione.",
+                    "Approvare: caporeparto e preposti, solo per i loro dipendenti (team dell'organigramma).",
                     "Si assegnano in Amministrazione → «Accessi» o in «Ruoli e permessi».",
                 ]),
             ],

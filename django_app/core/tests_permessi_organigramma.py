@@ -170,6 +170,37 @@ class ModelloPresetTests(PersoneMixin, TestCase):
         ):
             self.assertFalse(decisione(user, modulo, azione).consentito, f"{modulo}.{azione}")
 
+    def test_ogni_posizione_apre_ticket_it_e_usa_l_assistente(self):
+        for codice in ("ruolo-direzione", "ruolo-amministrazione", "ruolo-qualita", "ruolo-tecnico-it",
+                       "ruolo-tecnico-manutenzione", "ruolo-ufficio-tecnico", "ruolo-controllo-qualita",
+                       "ruolo-responsabile"):
+            user, _ = self.persona(f"Posizione {codice}", ruoli=(codice,))
+            with self.subTest(ruolo=codice):
+                self.assertTrue(decisione(user, "ticket_it", "creare").consentito)
+                self.assertTrue(decisione(user, "assistente_ai", "vedere").consentito)
+        # La Direzione continua a vedere tutti i ticket IT (la dotazione non la restringe).
+        direttore, _ = self.persona("Direttore", ruoli=("ruolo-direzione",))
+        self.assertEqual(decisione(direttore, "ticket_it", "vedere").ambito, "tutti")
+
+    def test_assistente_spiega_da_dove_arrivano_i_ruoli(self):
+        from core.permessi.organigramma import ruoli_spiegati
+        from core.tests_permessi import ensure_anagrafica_table
+        from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
+
+        ensure_anagrafica_table()
+        ruolo_org = RuoloOperativo.objects.create(nome="Capo reparto TEST AI")
+        ruolo_org.profili_permessi.add(AccessGroup.objects.get(code="ruolo-responsabile"))
+        _user, legacy = self.persona("Spiegato", ruoli=("ruolo-rls",))
+        with connection.cursor() as c:
+            c.execute("INSERT OR IGNORE INTO anagrafica_dipendenti (id, nome, utente_id) VALUES (%s, %s, %s)",
+                      [9500 + legacy.id, legacy.nome, legacy.id])
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=9500 + legacy.id, ruolo=ruolo_org)
+        voci = {v["nome"]: v for v in ruoli_spiegati(legacy.id)}
+        self.assertEqual(voci["RLS"]["fonte"], "a mano")
+        self.assertEqual(voci["Caporeparto"]["fonte"], "organigramma")
+        self.assertEqual(voci["Caporeparto"]["da"], ["Capo reparto TEST AI"])
+        self.assertEqual(voci["Operatore"]["fonte"], "base")
+
     def test_referti_solo_a_gestione_personale(self):
         personale, _ = self.persona("Paghe", ruoli=("ruolo-hr",))
         capo, _ = self.persona("Capo", ruoli=("ruolo-responsabile",))

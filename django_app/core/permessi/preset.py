@@ -34,6 +34,19 @@ def _ve(ambito: str = A) -> dict[str, str]:
     return {"vedere": ambito, "esportare": ambito}
 
 
+# Cio' che ogni posizione dell'organigramma ha in piu' rispetto all'Operatore:
+# aprire i propri ticket IT e usare l'assistente AI.
+_DOTAZIONE_POSIZIONE = {"ticket_it": {"vedere": P, "creare": P}, "assistente_ai": {"vedere": P}}
+
+
+def _posizione(**moduli) -> dict[str, dict[str, str]]:
+    """Celle di una posizione: la dotazione comune, poi le sue (che vincono)."""
+    celle = {modulo: dict(azioni) for modulo, azioni in _DOTAZIONE_POSIZIONE.items()}
+    for modulo, azioni in moduli.items():
+        celle[modulo] = {**celle.get(modulo, {}), **azioni}
+    return celle
+
+
 @dataclass(frozen=True)
 class Preset:
     chiave: str
@@ -68,7 +81,7 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "direzione", "Direzione", 800,
         "Vede ed esporta i dati di tutti i moduli, presenti e futuri. Approva i documenti del riesame.",
-        celle=_celle(sistema_gestione={"approvare": A}),
+        celle=_celle(sistema_gestione={"approvare": A}, ticket_it={"creare": P}),
         vede_tutto=True,
     ),
     Preset(
@@ -98,7 +111,7 @@ PRESETS: tuple[Preset, ...] = (
         "amministrazione", "Amministrazione", 650,
         "Contabilità e contatori, acquisti e fornitori, magazzino DPI, carico SDS, registro rifiuti. "
         "Vede l'elenco del personale, non i dati riservati.",
-        celle=_celle(
+        celle=_posizione(
             assenze=_ve(),
             anagrafica={"vedere": A},
             notizie=_tutte(senza=("approvare",)),
@@ -114,7 +127,7 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "qualita", "Qualità", 600,
         "Sistema di gestione, documenti e procedure, audit, non conformità, CAPA, timbri, qualifica fornitori.",
-        celle=_celle(
+        celle=_posizione(
             specifiche=_tutte(senza=("cancellare",)),
             sistema_gestione=_tutte(senza=("cancellare",)),
             capa=_tutte(senza=("cancellare",)),
@@ -132,8 +145,8 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "tecnico-it", "IT", 560,
         "Ticket IT, asset, contatori, Security Center operativo, Wi-Fi ospiti.",
-        celle=_celle(
-            ticket_it={"vedere": A, "modificare": A, "gestire": A, "esportare": A},
+        celle=_posizione(
+            ticket_it={"vedere": A, "creare": A, "modificare": A, "gestire": A, "esportare": A},
             assets=_tutte(senza=("approvare",)),
             contatori=_tutte(senza=("approvare",)),
             soc=_tutte(senza=("approvare", "cancellare")),
@@ -143,7 +156,7 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "tecnico-manutenzione", "Manutenzione", 550,
         "Ticket di manutenzione, asset e piani di manutenzione, planimetria, attrezzature.",
-        celle=_celle(
+        celle=_posizione(
             ticket_manutenzione={"vedere": A, "modificare": A, "gestire": A, "esportare": A},
             assets=_tutte(senza=("approvare",)),
             planimetria={"vedere": A, "modificare": A},
@@ -154,7 +167,7 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "ufficio-tecnico", "Ingegneria", 520,
         "KICK-OFF, attrezzature, carichi macchina, specifiche; decide sulle anomalie come capocommessa.",
-        celle=_celle(
+        celle=_posizione(
             kickoff=_tutte(senza=("approvare",)),
             attrezzature=_tutte(senza=("approvare",)),
             carichi_macchina=_tutte(senza=("approvare",)),
@@ -167,7 +180,7 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "controllo-qualita", "Controllo qualità", 480,
         "Apre e istruisce le non conformità di tutti i reparti; consulta specifiche, commesse e timbri.",
-        celle=_celle(
+        celle=_posizione(
             anomalie={"vedere": A, "creare": A, "modificare": A, "esportare": A},
             timbri={"vedere": A},
             specifiche={"vedere": A},
@@ -260,7 +273,7 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "responsabile", "Caporeparto", 400,
         "Vede i dati del suo team d'organigramma, approva assenze e DPI del team.",
-        celle=_celle(
+        celle=_posizione(
             assenze={"vedere": T, "approvare": T, "esportare": T},
             diario_preposto={"vedere": T, "esportare": T},
             rilevazione_incidenti={"vedere": T, "creare": T},

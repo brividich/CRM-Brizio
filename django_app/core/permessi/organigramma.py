@@ -83,6 +83,43 @@ def provenienze_per_utenti(utenti_ids) -> dict[int, dict[int, list[str]]]:
     return esito
 
 
+def ruoli_spiegati(legacy_user_id: int | None) -> list[dict]:
+    """Ruoli del portale della persona con la provenienza, dal piu' alto in ordine.
+
+    Ogni voce: ``nome``, ``ordine``, ``fonte`` («a mano», «organigramma», «base»),
+    ``da`` (ruoli d'organigramma che lo danno), ``scade_il``. Per spiegare a una
+    persona da dove arrivano i suoi permessi (assistente AI, anteprima).
+    """
+    from core.models import AccessGroup, AccessGroupMembership
+    from core.permessi.motore import PRESET_BASE
+    from core.permessi.scadenze import q_appartenenze_valide
+
+    if not legacy_user_id:
+        return []
+    voci: dict[int, dict] = {}
+    try:
+        for m in (
+            AccessGroupMembership.objects.filter(q_appartenenze_valide(), legacy_user_id=int(legacy_user_id),
+                                                 group__is_active=True)
+            .select_related("group")
+        ):
+            voci[m.group_id] = {"nome": m.group.label, "ordine": int(m.group.priority or 0), "fonte": "a mano",
+                                "da": [], "scade_il": m.scade_il}
+        da_org = provenienze_per_utenti([legacy_user_id]).get(int(legacy_user_id), {})
+        for gruppo in AccessGroup.objects.filter(id__in=list(da_org)):
+            voce = voci.setdefault(gruppo.id, {"nome": gruppo.label, "ordine": int(gruppo.priority or 0),
+                                                "fonte": "organigramma", "da": [], "scade_il": None})
+            voce["da"] = sorted(da_org[gruppo.id])
+        base = AccessGroup.objects.filter(preset=PRESET_BASE, is_active=True).first()
+        if base is not None and base.id not in voci:
+            voci[base.id] = {"nome": base.label, "ordine": int(base.priority or 0), "fonte": "base",
+                             "da": [], "scade_il": None}
+    except DatabaseError:
+        logger.warning("permessi.organigramma: ruoli non leggibili per %s", legacy_user_id, exc_info=True)
+        return []
+    return sorted(voci.values(), key=lambda v: -v["ordine"])
+
+
 def profili_da_organigramma(legacy_user_id: int | None) -> list[int]:
     """Id degli AccessGroup che la persona riceve oggi dall'organigramma (in cache)."""
     if not legacy_user_id:
