@@ -40,6 +40,10 @@ CACHES = {
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+# Assistente AI: niente thread in background nei test (indice ricostruito in modo
+# sincrono, nessun preriscaldamento verso Ollama all'apertura della pagina).
+OLLAMA_RAG_BACKGROUND_REBUILD = False
+AI_PREWARM_ON_PAGE_OPEN = False
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]

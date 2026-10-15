@@ -5175,10 +5175,9 @@ def _rank_domains(prompt: str) -> list[tuple[str, float]]:
     # Timeout breve: il routing non deve sommare il timeout pieno degli embeddings
     # alla latenza della chat se l'endpoint e' lento/giu' (degrada a keyword-only).
     routing_timeout = int(getattr(settings, "AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS", 6) or 6)
-    query_vectors = services.embed_texts([text], timeout=routing_timeout)
-    if not query_vectors:
+    query_vec = services.embed_query(text, timeout=routing_timeout)
+    if not query_vec:
         return []
-    query_vec = query_vectors[0]
     return sorted(
         (
             (domain, max((services.cosine_similarity(query_vec, vec) for vec in vectors), default=0.0))

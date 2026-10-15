@@ -52,6 +52,13 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 - Le richieste partono dal server Django verso Ollama; il browser non parla direttamente con la workstation
 - Audit trail solo su metadati tecnici (modello, lunghezze, latenza, errori), senza prompt o risposte: i testi stanno solo nello storico personale dell'utente (vedi sopra)
 
+## Prestazioni (15/10/2026)
+
+- **L'indice RAG non si ricostruisce più dentro la chat**: l'indice (~9.400 chunk in prod) vive nella memoria del processo web. Prima scadeva ogni `OLLAMA_RAG_CACHE_SECONDS` (300 s) e la domanda successiva lo ricostruiva rileggendo dalla cache DB testi PDF ed embeddings (20-30 s di attesa). Ora, se l'indice è scaduto o i documenti sono cambiati, la chat risponde con l'indice in memoria e la ricostruzione gira in un thread (`OLLAMA_RAG_BACKGROUND_REBUILD`, default on), riprendendo dall'indice precedente i vettori dei chunk invariati e da una memoria di processo i testi PDF già estratti. Solo il primo build del processo è sincrono e calcola al massimo `OLLAMA_EMBED_INLINE_MAX` (200) embeddings mancanti: oltre, l'indice resta BM25 finché il thread non li completa. `index_sgi_documents` fa sempre la build completa.
+- **Ricerca più veloce**: coseno con numpy su matrice float32 normalizzata (~14 ms a domanda invece di ~1,4 s, ~6 volte meno RAM), BM25 solo sui chunk che contengono una parola della domanda (indice invertito, stesso ordinamento), embedding della domanda calcolato una volta sola per richiesta e riusato da routing e RAG.
+- **Preriscaldamento all'apertura della chat** (`AI_PREWARM_ON_PAGE_OPEN`, default on): aprendo `/assistente-ai/` un thread prepara indice RAG, vettori del routing e modello chat (warmup Ollama al massimo ogni 10 minuti), mentre l'utente scrive.
+- **Titolo del documento nei chunk SGI attivo di default** (`OLLAMA_RAG_SGI_CHUNK_TITLE=True`): misurato SGI recall 27→31/32, MRR 0,623→0,772. Dopo il deploy serve `index_sgi_documents` (embeddings da ricalcolare).
+
 ## Hardening ottobre 2026
 
 - Al massimo `OLLAMA_MAX_CONCURRENT_REQUESTS` (default 3) chiamate al modello contemporanee per processo: oltre il limite l'utente riceve subito «assistente occupato» invece di occupare un thread del server web.

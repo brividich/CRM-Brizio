@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import time
@@ -26,6 +27,8 @@ from .services import (
     clear_knowledge_cache,
     iter_ollama_stream,
     open_ollama_stream,
+    prewarm_async,
+    query_embedding_scope,
     sgi_rag_access,
 )
 from . import conversazioni
@@ -34,6 +37,17 @@ from .permessi_utente import moduli_senza_dati
 from .tools import build_runtime_context
 
 logger = logging.getLogger(__name__)
+
+
+def _con_embedding_condiviso(view):
+    """Routing dei tool e retrieval RAG riusano l'embedding della stessa domanda."""
+
+    @functools.wraps(view)
+    def wrapper(request, *args, **kwargs):
+        with query_embedding_scope():
+            return view(request, *args, **kwargs)
+
+    return wrapper
 
 
 def _json_payload(request) -> dict:
@@ -317,11 +331,15 @@ def chat_page(request):
         "chat_history_enabled": conversazioni.abilitato(),
         "chat_history_days": conversazioni.giorni_conservazione(),
     }
+    # Mentre l'utente scrive la domanda: indice RAG, vettori del routing e modello
+    # chat vengono preparati in background, cosi' la prima risposta non li aspetta.
+    prewarm_async()
     return render(request, "ai_assistant/chat.html", context)
 
 
 @require_POST
 @login_required
+@_con_embedding_condiviso
 def api_chat(request):
     if not bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True)):
         return JsonResponse(
@@ -422,6 +440,7 @@ def _ndjson(payload: dict) -> str:
 
 @require_POST
 @login_required
+@_con_embedding_condiviso
 def api_chat_stream(request):
     """Variante streaming di ``api_chat``: emette NDJSON con eventi incrementali.
 
