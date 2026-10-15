@@ -38,6 +38,18 @@
 
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi">
+      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansionario_lacune' %}?esito=non_abilitato" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.non_abilitati }}</span></div>
+        <div class="fmd-mtr-lbl">Non abilitati</div>
+        <div class="fmd-mtr-sub">Manca un requisito o una competenza bloccante</div>
+      </a>
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:mansionario_lacune' %}?esito=in_addestramento" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span><span class="fmd-mtr-val">{{ kpi.in_addestramento }}</span></div>
+        <div class="fmd-mtr-lbl">In addestramento</div>
+        <div class="fmd-mtr-sub">Manca solo livello</div>
+      </a>
       <div class="fmd-mtr fmd-t-orange">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.scoperte }}</span></div>

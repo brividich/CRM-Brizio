@@ -132,9 +132,26 @@ GUIDA = {
                                             "sicurezza. Una mansione senza mansione di rischio è segnalata."),
                     ("Persone", "dalla pagina della mansione si mette una persona in lista con il suo livello, o la "
                                 "si toglie. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Competenze", "ogni mansione ha le sue competenze (es. set-up, programmazione), ciascuna con un "
+                                   "livello minimo I/L/U/O, il segno «bloccante» e, se serve, un requisito formale: corso "
+                                   "valido, qualifica o patentino valido, abilitazione MOD.128 operativa. Senza il "
+                                   "requisito la persona non supera «I – in formazione» su quella competenza."),
+                    ("Valuta", "per ogni persona si indica il livello su ogni competenza. Il livello sulla mansione è "
+                               "la media delle competenze, arrotondata per difetto, e mai sopra la competenza bloccante "
+                               "più bassa; si aggiorna da solo anche nella skill matrix."),
+                    ("Esito", "Abilitato (livello pari o sopra la soglia, nessuna competenza sotto il minimo, requisiti "
+                              "presenti) · In addestramento (manca solo livello) · Non abilitato (manca un requisito "
+                              "formale o una competenza bloccante è sotto il minimo: il livello sulla mansione resta "
+                              "sotto la soglia, quindi la persona non conta tra gli operativi). Una mansione senza "
+                              "competenze usa il livello assegnato a mano."),
+                    ("Persona", "cliccando il nome si apre la scheda della persona nel Mansionario: mansioni con esito "
+                                "e cosa manca, reparto principale (mansione con il livello più alto, poi la più vecchia) "
+                                "e le mansioni di rischio che ne derivano."),
+                    ("Lacune di competenza", "elenco di chi non è abilitato e cosa manca, filtrabile ed esportabile in "
+                                             "CSV: base per il piano formativo e per il refresh dei caporeparto."),
                 ]),
-                ("nota", "Le competenze richieste da ogni mansione (corsi, qualifiche, livello per competenza) arrivano "
-                         "nella fase successiva."),
+                ("nota", "Le mansioni di rischio ricavate dalle mansioni sono per ora un'indicazione: DPI, visite e schede "
+                         "di sicurezza seguono ancora la mansione di rischio scritta in anagrafica."),
             ],
         },
         {
