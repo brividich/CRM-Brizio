@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 66
+**Totale automazioni disponibili:** 67
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -407,6 +407,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 30 minuti
 - **Task eseguito:** `security.tasks.ai_lettura_assistita_task`
 - **Cosa fa:** SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert. Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, nessuna nuova richiesta dopo 60 s.
+
+### `security_ai_sintesi`
+
+- **Quando gira:** da lun a sab, (0,30 6-19)
+- **Task eseguito:** `security.tasks.ai_sintesi_giorno_task`
+- **Cosa fa:** SECURITY CENTER — sintesi del giorno della Panoramica preparata dall'AI locale, ogni 30 minuti dalle 6 alle 19 (lun-sab), solo se i punti da guardare sono cambiati: la pagina la mostra già scritta.
 
 ### `security_cve_enrichment`
 

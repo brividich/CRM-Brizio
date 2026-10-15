@@ -110,6 +110,10 @@ Una sola voce **Configurazione** nel gruppo Gestione (prima: Caselle mail, Confi
 - Dati illeggibili, mai «0»: Defender `exposed_devices_unparsed` (nessun rientro automatico, CVE critica → alert di revisione manuale); esito backup sconosciuto resta `unknown` con lettura «Da verificare»; backup senza orari deduplicati con data di ricezione + impronta del testo.
 - `rule_engine.evaluate_security_rules`: un savepoint per evento; un errore marca l'evento `decision_trace.decision = "evaluation_error"` (mostrato come «Diagnostica» in Eventi e contato in Stato elaborazione) invece di bloccare il giro. Dispatch per tipo in `rule_engine._HANDLERS`.
 
+## Sintesi del giorno preparata
+
+- `ai_explain.prepare_daily_brief()`: se per i punti attuali di `attention_items()` non c'è una sintesi in cache (chiave = testo dei punti, 12 h), la chiede all'AI una volta; la Panoramica la mostra con `cached_brief(items)` senza chiamare l'AI. Schedule `security_ai_sintesi` (cron `0,30 6-19 * * 1-6`, flusso del designer), setting `ai.sintesi.attivo` (acceso).
+
 ## Lettura assistita dall'AI
 
 - `security/services/ai_lettura.py`: per le letture `da_verificare` e gli scartati `no_parser` chiede all'AI locale (via `ai_explain._ask`, registro `SecurityAiInteractionLog`, azione `parser_assist`) i campi del parser o una classificazione della mail. Estratto di massimo 3000 caratteri con email mascherate, documento racchiuso e dichiarato «dato, non istruzioni». Ogni valore è verificato a parola intera sul testo (`nel_testo`); il risultato va in `raw_payload["ai_lettura"]` e non produce eventi, alert o ticket.

@@ -226,18 +226,53 @@ def review_history(review_text, *, user=None, refresh=False):
     return _cached_ask("review", REVIEW_INSTRUCTIONS, review_text, action="history_review", user=user, object_type="history", refresh=refresh)
 
 
+# La sintesi resta valida finché i punti «da guardare» non cambiano: la chiave è il loro testo.
+BRIEF_CACHE_SECONDS = 12 * 3600
+
+
+def _brief_context(items):
+    return "\n".join(f"- {item['level_label']} · {item['area']}: {item['title']}. {item.get('detail', '')}" for item in items) or "(nessun punto aperto)"
+
+
+def _brief_key(context):
+    return "soc:ai:brief:" + hashlib.sha256(context.encode()).hexdigest()[:32]
+
+
+def cached_brief(items):
+    """La sintesi già pronta per questi punti, o None: la Panoramica la mostra senza aspettare l'AI."""
+    cached = cache.get(_brief_key(_brief_context(items)))
+    return {**cached, "cached": True} if cached else None
+
+
 def daily_brief(items, *, user=None, refresh=False):
     """Sintesi del giorno dai punti «da guardare» della Panoramica."""
-    context = "\n".join(f"- {item['level_label']} · {item['area']}: {item['title']}. {item.get('detail', '')}" for item in items) or "(nessun punto aperto)"
-    key = "soc:ai:brief:" + hashlib.sha256(context.encode()).hexdigest()[:32]
+    context = _brief_context(items)
+    key = _brief_key(context)
     if not refresh:
         cached = cache.get(key)
         if cached:
             return {**cached, "cached": True}
     result = _ask(BRIEF_INSTRUCTIONS, context, action="daily_brief", user=user, object_type="overview")
     if result["ok"]:
-        cache.set(key, result, 3600)
+        result["generated_at"] = localtime().strftime("%H:%M")
+        cache.set(key, result, BRIEF_CACHE_SECONDS)
     return {**result, "cached": False}
+
+
+def prepare_daily_brief():
+    """Prepara la sintesi prima che qualcuno apra la Panoramica (flusso `security_ai_sintesi`).
+
+    Prima la sintesi partiva solo col pulsante e chi la chiedeva aspettava 15-20 secondi:
+    in produzione era stata chiesta due volte in due settimane. Qui si chiede all'AI solo se
+    i punti da guardare sono cambiati dall'ultima sintesi: al massimo una richiesta per giro.
+    """
+    from security.services.overview import attention_items
+
+    items = attention_items()
+    if cached_brief(items):
+        return {"skipped": "sintesi già aggiornata"}
+    result = daily_brief(items, user=None)
+    return {"ok": result["ok"], "punti": len(items), "error": result.get("error", "")}
 
 
 # --- Controlli AI su incidente e PC ---------------------------------------------------------

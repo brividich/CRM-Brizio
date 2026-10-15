@@ -132,6 +132,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — sintesi del giorno della Panoramica preparata dall'AI locale, ogni 30 minuti
+        # dalle 6 alle 19 (lun-sab), solo se i punti da guardare sono cambiati: la pagina la mostra già scritta.
+        "name": "security_ai_sintesi",
+        "func": "security.tasks.ai_sintesi_giorno_task",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "0,30 6-19 * * 1-6",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture
         # «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert.
         # Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, nessuna nuova richiesta dopo 60 s.

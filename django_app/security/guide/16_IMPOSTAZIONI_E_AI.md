@@ -44,6 +44,10 @@ Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato e
 
 L'AI riceve solo quello che serve per la domanda: l'alert o il ticket, lo storico collegato (accessi, backup, precedenti, alert chiusi o scartati), le procedure del SOC. Per spiegare gli alert non riceve mai il testo delle mail originali, che è contenuto di terzi e può contenere dati personali. L'unica eccezione è la **lettura assistita** (sotto), se la accendi: riceve l'oggetto e l'inizio del report (al massimo 3000 caratteri), con gli indirizzi email mascherati.
 
+### Sintesi del giorno già pronta
+
+La «Sintesi del giorno» della Panoramica viene preparata dall'AI ogni 30 minuti, dalle 6 alle 19 da lunedì a sabato, e solo quando i punti «da guardare» cambiano. Chi apre la Panoramica la trova già scritta, con l'ora in cui è stata preparata («preparata alle 08:30»); il pulsante **Rigenera** la riscrive subito. Se i punti sono cambiati dopo l'ultima sintesi compare di nuovo **Chiedi all'AI**. Si spegne in **Impostazioni › Sintesi del giorno già pronta**; il flusso è **security_ai_sintesi** nel designer di Automazioni (cadenza modificabile).
+
 ### Lettura assistita
 
 Quando un parser legge una mail solo in parte («Da verificare») o nessun parser la riconosce, l'AI locale può proporre i dati mancanti o dire che tipo di mail è (report di backup, antivirus, firewall, newsletter…).
