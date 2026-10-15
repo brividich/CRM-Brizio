@@ -46,10 +46,10 @@
     <div class="sec-section-head">
       <h2>Sintesi del giorno</h2>
       <form method="post" action="{% url 'security:overview_brief' %}" hx-post="{% url 'security:overview_brief' %}" hx-target="#ov-brief-body">
-        {% csrf_token %}<button class="sec-button-primary" type="submit" data-busy-label="Sto scrivendo…">Chiedi all'AI</button>
+        {% csrf_token %}{% if brief %}<input type="hidden" name="refresh" value="1">{% endif %}<button class="{% if brief %}sec-button{% else %}sec-button-primary{% endif %}" type="submit" data-busy-label="Sto scrivendo…">{% if brief %}Rigenera{% else %}Chiedi all'AI{% endif %}</button>
       </form>
     </div>
-    <div id="ov-brief-body"><p class="sec-muted">L'AI locale riassume in poche frasi i punti qui a fianco: cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.</p></div>
+    <div id="ov-brief-body">{% if brief %}{% include "security/partials/ai_explanation.html" with ai=brief %}{% else %}<p class="sec-muted">L'AI locale riassume in poche frasi i punti qui a fianco: cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.</p>{% endif %}</div>
   </div>
 </section>
 

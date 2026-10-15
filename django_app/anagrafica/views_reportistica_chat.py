@@ -133,6 +133,17 @@ def _imposta(request, stato: dict) -> None:
     _rinormalizza(request, stato, spec)
 
 
+def _registra_decisione(request, stato: dict, decisione: dict) -> None:
+    """Cosa la persona ha tenuto della proposta dell'AI (scarica o salva come modello)."""
+    try:
+        from ai_assistant.apprendimento import registra_decisione
+
+        registra_decisione(modulo=conversazione.MODULO_AI, azione=conversazione.AZIONE_AI, oggetto_ref=stato["id"],
+                           user=request.user, decisione=decisione)
+    except Exception:  # noqa: BLE001 - l'apprendimento non blocca mai la richiesta
+        logger.debug("reportistica: decisione AI non registrata", exc_info=True)
+
+
 @login_required
 def reportistica_chat(request):
     if not can_view(request):
@@ -196,14 +207,7 @@ def reportistica_chat_scarica(request):
         perimetro=conversazione.perimetro_di(specifica), titolo=modello.titolo_documento,
         destinatario=modello.destinatario,
     )
-    try:
-        from ai_assistant.apprendimento import registra_decisione
-
-        registra_decisione(modulo=conversazione.MODULO_AI, azione=conversazione.AZIONE_AI, oggetto_ref=stato["id"],
-                           user=request.user,
-                           decisione={**conversazione.riassunto_decisione(specifica), "formato": formato})
-    except Exception:  # noqa: BLE001
-        logger.debug("reportistica: decisione AI non registrata", exc_info=True)
+    _registra_decisione(request, stato, {**conversazione.riassunto_decisione(specifica), "formato": formato})
     return _scarica_nuovo(request, modello, documento, parametri, formato,
                           (request.POST.get("note_archivio") or "").strip(),
                           extra={"conversazione": stato["id"], "specifica": specifica})
@@ -218,6 +222,8 @@ def reportistica_chat_salva(request):
     if not stato["specifica"].get("sezioni"):
         messages.error(request, "Il report non ha ancora sezioni da salvare.")
         return redirect("anagrafica:reportistica_chat")
+    # Anche salvare come modello è una decisione sulla proposta dell'AI: prima restava «in attesa» per sempre.
+    _registra_decisione(request, stato, conversazione.riassunto_decisione(stato["specifica"]))
     modello = conversazione.salva_come_modello(stato["specifica"], nome=request.POST.get("nome") or "",
                                                user=request.user)
     log_action(request, "reportistica_modello_salvato", MODULE,

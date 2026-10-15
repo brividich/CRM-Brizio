@@ -44,6 +44,10 @@ Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato e
 
 L'AI riceve solo quello che serve per la domanda: l'alert o il ticket, lo storico collegato (accessi, backup, precedenti, alert chiusi o scartati), le procedure del SOC. Per spiegare gli alert non riceve mai il testo delle mail originali, che è contenuto di terzi e può contenere dati personali. L'unica eccezione è la **lettura assistita** (sotto), se la accendi: riceve l'oggetto e l'inizio del report (al massimo 3000 caratteri), con gli indirizzi email mascherati.
 
+### Sintesi del giorno già pronta
+
+La «Sintesi del giorno» della Panoramica viene preparata dall'AI ogni 30 minuti, dalle 6 alle 19 da lunedì a sabato, e solo quando i punti «da guardare» cambiano. Chi apre la Panoramica la trova già scritta, con l'ora in cui è stata preparata («preparata alle 08:30»); il pulsante **Rigenera** la riscrive subito. Se i punti sono cambiati dopo l'ultima sintesi compare di nuovo **Chiedi all'AI**. Si spegne in **Impostazioni › Sintesi del giorno già pronta**; il flusso è **security_ai_sintesi** nel designer di Automazioni (cadenza modificabile).
+
 ### Lettura assistita
 
 Quando un parser legge una mail solo in parte («Da verificare») o nessun parser la riconosce, l'AI locale può proporre i dati mancanti o dire che tipo di mail è (report di backup, antivirus, firewall, newsletter…).
@@ -52,7 +56,7 @@ Quando un parser legge una mail solo in parte («Da verificare») o nessun parse
 - **Gira da sola** con il flusso **security_ai_lettura** (ogni 30 minuti), visibile nel designer di **Automazioni** tra i processi dei moduli: lì puoi cambiare la cadenza, spegnerlo o aggiungere azioni. L'avviso «letture proposte dall'AI da controllare» è l'evento **security_lettura_ai_pronta**, anch'esso modificabile nel designer.
 - **Si vede** in **Configurazione › Parser**: nel riquadro «Letture da verificare» e accanto agli elementi non elaborati compare la «Proposta AI». In «Prova i parser» il pulsante **Prova e chiedi all'AI** fa la stessa cosa su una mail incollata o su un file caricato, senza salvare nulla.
 - **È solo una proposta**: non crea e non chiude alert, non cambia esiti di backup né conteggi. Ogni valore viene confrontato con il testo: se non compare, il badge rosso **non nel testo** avverte che l'AI potrebbe averlo inventato; «dedotto» indica un valore interpretato (es. l'esito).
-- Il testo del report è trattato come un dato: eventuali istruzioni scritte nella mail («ignora le istruzioni…») non possono cambiare nulla nel SOC.
+- Il testo del report è trattato come un dato: eventuali istruzioni scritte nella mail («ignora le istruzioni…») non possono cambiare nulla nel SOC. Se il testo ne contiene, la proposta porta il badge rosso **Testo sospetto** (la mail va guardata: può essere un tentativo di inganno); se l'esito proposto dall'AI contraddice quello scritto in chiaro nel testo compare **in contrasto con il testo**.
 - Per misurare tempi e precisione sul server: `python manage.py soc_ai_lettura_prova` (campioni sintetici, nessun salvataggio).
 
 ### Come impara
