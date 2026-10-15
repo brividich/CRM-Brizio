@@ -36,6 +36,12 @@ GUIDA = {
                     "Clicca la riga per aprire la scheda.",
                 ]),
                 ("p", "I nomi sono scritti COGNOME NOME in maiuscolo. Sotto il nome vedi i ruoli che la persona ricopre."),
+                ("p", "Ricerca: la casella della dashboard di Anagrafica cerca in tutto il modulo (persone, posizioni e "
+                      "candidati, corsi, tipi di qualifica, mansioni di rischio, tipi di visita, modelli di report). Ogni "
+                      "sezione ha la sua casella, che cerca solo lì: in Qualifiche e Visite, scrivendo un nome, vedi le "
+                      "qualifiche o le scadenze delle visite di quella persona (mai l'esito). Mentre scrivi compare una "
+                      "tendina; Invio apre tutti i risultati, dove puoi cambiare dove cercare. Vedi solo i risultati delle "
+                      "sezioni che puoi aprire. Servono almeno due caratteri."),
             ],
         },
         {

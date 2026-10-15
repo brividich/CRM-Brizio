@@ -13,12 +13,15 @@ from . import views_elenco
 from . import views_account
 from . import views_admin_hub
 from . import views_formazione_integrita
+from . import views_ricerca
 
 app_name = "anagrafica"
 
 urlpatterns = [
     # Dashboard
     path("", views.index, name="index"),
+    # Ricerca del modulo (dashboard: tutto; sezioni: ?ambito=<sezione>)
+    path("ricerca/", views_ricerca.ricerca, name="ricerca"),
 
     # Export tabellari (PDF/Excel) — endpoint unico parametrico
     path("esporta/<str:key>/", views.export_view, name="export"),
