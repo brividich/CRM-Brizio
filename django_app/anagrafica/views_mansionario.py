@@ -100,16 +100,22 @@ def mansionario(request):
         vuoto_testo="Le mansioni sono le colonne macchina e processo della skill matrix MOD.187.",
     )
     aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di competenza", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
         sezioni_c.Area("anagrafica:skill_matrix_macchina", "Skill matrix", "Persone × macchine, livelli I/L/U/O", icona="i-grid"),
         sezioni_c.Area("anagrafica:skm_refresh", "Refresh abilitazioni", "Rivalutazione dei livelli per reparto", icona="i-refresh"),
         sezioni_c.Area("anagrafica:mansioni_list", "Mansioni di rischio", "DPI, visite e schede di sicurezza", icona="i-alert-tri"),
         sezioni_c.Area("anagrafica:ruoli_operativi_list", "Ruoli", "Catalogo dei ruoli e organigramma", icona="i-users"),
         sezioni_c.Area("anagrafica:mpq_cruscotto", "Processi qualificati (MOD.128)", "Abilitazioni ai processi speciali", icona="i-cap"),
     ])
+    from .services import mansionario_competenze as comp_svc
+    lacune = comp_svc.lacune()
+    kpi = svc.kpi(righe)
+    kpi["non_abilitati"] = sum(1 for r in lacune if r["valutazione"].esito == comp_svc.NON_ABILITATO)
+    kpi["in_addestramento"] = sum(1 for r in lacune if r["valutazione"].esito == comp_svc.IN_ADDESTRAMENTO)
     return render(request, "anagrafica/pages/mansionario.html", {
         "page_title": "Mansionario",
         "righe": righe,
-        "kpi": svc.kpi(righe),
+        "kpi": kpi,
         "griglia": griglia,
         "aree": aree,
         "is_admin": _puo_gestire(request),
@@ -143,7 +149,12 @@ def mansionario_mansione(request, mansione_id: int):
     from core.legacy_anagrafica import fetch_anagrafica_rows
     from core import naming
 
+    from .services import mansionario_competenze as comp_svc
+
+    competenze = list(comp_svc.competenze(mansione))
     persone = svc.persone(mansione)
+    for p in persone:
+        p["valutazione"] = comp_svc.valuta(p["abilitazione"], voci=competenze)
     in_lista = {p["legacy_id"] for p in persone}
     candidati = []
     if is_admin:
@@ -156,8 +167,10 @@ def mansionario_mansione(request, mansione_id: int):
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
         "mansione": mansione,
+        "competenze": competenze,
         "persone": persone,
         "candidati": candidati,
+        **(_opzioni_requisiti() if is_admin else {}),
         "livelli": svc.LIVELLI,
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
         "rischi_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
@@ -202,3 +215,148 @@ def mansionario_togli(request, mansione_id: int, abilitazione_id: int):
     }, oggetto=ab)
     messages.success(request, "Persona tolta dalla mansione.")
     return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Fase 3: competenze, valutazione, scheda persona, lacune
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _opzioni_requisiti() -> dict:
+    from .models import TipoQualifica, TrainingCourse
+    from .models_mpq import ProcessoQualificato
+    return {
+        "corsi_opts": list(TrainingCourse.objects.filter(is_active=True).order_by("titolo").only("id", "titolo")),
+        "qualifiche_opts": list(TipoQualifica.objects.filter(is_active=True).order_by("nome")),
+        "processi_opts": list(ProcessoQualificato.objects.order_by("nome").only("id", "nome")),
+    }
+
+
+def _int_o_none(valore):
+    valore = (valore or "").strip()
+    return int(valore) if valore.isdigit() else None
+
+
+@login_required
+@require_POST
+def mansionario_competenza_salva(request, mansione_id: int):
+    if not _puo_gestire(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    from .models import VoceMacchinaCatalogo
+    from .services import mansionario_competenze as comp_svc
+
+    mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id, tipo__in=svc.TIPI_MANSIONE)
+    voce_id = _int_o_none(request.POST.get("voce"))
+    voce = get_object_or_404(VoceMacchinaCatalogo, pk=voce_id, mansione=mansione) if voce_id else None
+    try:
+        voce = comp_svc.salva_competenza(
+            mansione, voce=voce, nome=request.POST.get("nome"),
+            livello_minimo=(request.POST.get("livello_minimo") or "U").strip().upper(),
+            bloccante=request.POST.get("bloccante") == "on",
+            corso_id=_int_o_none(request.POST.get("corso")), qualifica_id=_int_o_none(request.POST.get("qualifica")),
+            processo_id=_int_o_none(request.POST.get("processo_mpq")), ordine=_int_o_none(request.POST.get("ordine")) or 0,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+    log_action(request, "mansionario_competenza", MODULE, {
+        "mansione": mansione.pk, "competenza": voce.pk, "nome": voce.nome, "livello_minimo": voce.livello_minimo,
+        "bloccante": voce.bloccante, "corso": voce.corso_id, "qualifica": voce.qualifica_id, "mod128": voce.processo_mpq_id,
+    }, oggetto=mansione)
+    messages.success(request, f"Competenza «{voce.nome}» salvata.")
+    return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+
+
+@login_required
+@require_POST
+def mansionario_competenza_disattiva(request, mansione_id: int, voce_id: int):
+    if not _puo_gestire(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    from .models import VoceMacchinaCatalogo
+
+    voce = get_object_or_404(VoceMacchinaCatalogo, pk=voce_id, mansione_id=mansione_id)
+    voce.attiva = False
+    voce.save(update_fields=["attiva"])
+    log_action(request, "mansionario_competenza_tolta", MODULE, {"mansione": mansione_id, "competenza": voce.pk}, oggetto=voce)
+    messages.success(request, f"Competenza «{voce.nome}» tolta dalla mansione (i livelli registrati restano).")
+    return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+
+
+@login_required
+def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
+    """Livello della persona su ogni competenza della mansione (solo amministrazione)."""
+    if not _puo_gestire(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    from core import naming
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+    from .services import mansionario_competenze as comp_svc
+
+    ab = get_object_or_404(AbilitazioneMacchina.objects.select_related("competenza__asset"),
+                           pk=abilitazione_id, competenza_id=mansione_id)
+    competenze = list(comp_svc.competenze(ab.competenza))
+    if request.method == "POST":
+        livelli = {v.pk: request.POST.get(f"livello_{v.pk}", "") for v in competenze}
+        val = comp_svc.registra_livelli(ab, livelli, user=request.user)
+        log_action(request, "mansionario_valutazione", MODULE, {
+            "mansione": mansione_id, "legacy_anagrafica_id": ab.legacy_anagrafica_id,
+            "livelli": {str(k): v for k, v in livelli.items()}, "esito": val.esito, "livello": ab.livello,
+        }, oggetto=ab)
+        messages.success(request, f"Valutazione salvata: {val.esito_label}, livello {ab.livello}.")
+        return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+    righe = fetch_anagrafica_rows(ids=[ab.legacy_anagrafica_id])
+    nome = naming.nome_completo(righe[0].get("nome"), righe[0].get("cognome")) if righe else f"#{ab.legacy_anagrafica_id}"
+    return render(request, "anagrafica/pages/mansionario_valuta.html", {
+        "page_title": f"Valutazione · {nome}",
+        "abilitazione": ab, "mansione": ab.competenza, "nome": nome,
+        "valutazione": comp_svc.valuta(ab, voci=competenze),
+        "livelli": svc.LIVELLI,
+    })
+
+
+@login_required
+def mansionario_persona(request, legacy_id: int):
+    if not _puo_vedere(request):
+        return _nega(request)
+    from core import naming
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+    from .services import mansionario_competenze as comp_svc
+
+    righe = fetch_anagrafica_rows(ids=[legacy_id])
+    if not righe:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:mansionario")
+    dip = righe[0]
+    return render(request, "anagrafica/pages/mansionario_persona.html", {
+        "page_title": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
+        "legacy_id": legacy_id,
+        "nome": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
+        "mansione_anagrafica": (dip.get("mansione") or "").strip(),
+        "scheda": comp_svc.scheda_persona(legacy_id),
+    })
+
+
+@login_required
+def mansionario_lacune(request):
+    if not _puo_vedere(request):
+        return _nega(request)
+    from .services import mansionario_competenze as comp_svc
+
+    lacune = comp_svc.lacune()
+    esito = (request.GET.get("esito") or "").strip()
+    if esito in comp_svc.ESITI_LABEL:
+        lacune = [r for r in lacune if r["valutazione"].esito == esito]
+    if request.GET.get("formato") == "csv":
+        from django.http import HttpResponse
+        from core.csv_export import safe_csv_writer
+        resp = HttpResponse(content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = 'attachment; filename="mansionario_lacune.csv"'
+        resp.write("\ufeff")
+        w = safe_csv_writer(resp)
+        w.writerow(["Persona", "Mansione", "Reparto", "Esito", "Livello", "Cosa manca"])
+        for r in lacune:
+            v = r["valutazione"]
+            w.writerow([r["nome"], r["mansione"].nome, r["reparto"], v.esito_label, v.livello, "; ".join(v.mancanze)])
+        return resp
+    return render(request, "anagrafica/pages/mansionario_lacune.html", {
+        "page_title": "Lacune di competenza",
+        "lacune": lacune, "esito": esito, "esiti": comp_svc.ESITI_LABEL,
+    })
