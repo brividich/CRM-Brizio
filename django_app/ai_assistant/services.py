@@ -1629,15 +1629,35 @@ def _semantic_ranking(prompt: str, index: KnowledgeIndex) -> list[int]:
 
 
 def _select_chunk_indices(prompt: str, query_tokens: Counter[str], index: KnowledgeIndex) -> list[int]:
-    """Indici dei chunk da usare: ibrido BM25+semantico (RRF) o BM25-only."""
+    """Indici dei chunk da usare: ibrido BM25+semantico (RRF) o BM25-only.
+
+    Le parti per amministratori del Centro guide restano fuori se la domanda non è da
+    amministratore e non nomina il loro modulo (``guide_admin_pertinenti``): il gate
+    di chi può leggerle è a valle, in ``_guide_chunk_allowed``.
+    """
     bm25_ranked = _bm25_ranking(query_tokens, index)
     semantic_ranked = _semantic_ranking(prompt, index)
     if semantic_ranked:
         max_chunks = int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4)
         pool = max(max_chunks * 5, 20)
         rrf_k = int(getattr(settings, "OLLAMA_RAG_HYBRID_RRF_K", 60) or 60)
-        return _rrf_fuse(bm25_ranked[:pool], semantic_ranked[:pool], rrf_k)
-    return bm25_ranked
+        ranked = _rrf_fuse(bm25_ranked[:pool], semantic_ranked[:pool], rrf_k)
+    else:
+        ranked = bm25_ranked
+    return _senza_guide_admin_fuori_tema(prompt, query_tokens, index, ranked)
+
+
+def _senza_guide_admin_fuori_tema(
+    prompt: str, query_tokens: Counter[str], index: KnowledgeIndex, ranked: list[int]
+) -> list[int]:
+    admin = {g.slug for g in guide_portale.guide() if g.solo_admin}
+    if not admin:
+        return ranked
+    pertinenti = guide_portale.guide_admin_pertinenti(prompt, query_tokens.keys(), _tokenize)
+    escluse = admin - pertinenti
+    if not escluse:
+        return ranked
+    return [i for i in ranked if guide_portale.slug_da_source(index.chunks[i].source) not in escluse]
 
 
 # ── Modalità "panoramica documento" ─────────────────────────────────────────
