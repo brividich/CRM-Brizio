@@ -40,6 +40,7 @@
 
     <nav class="fmd-panel elg-indice" aria-label="Indice della guida">
       <strong>In questa guida</strong>
+      <a class="fmd-data-link" href="#pagina">La pagina Formazione</a>
       <a class="fmd-data-link" href="#ciclo">Il ciclo di un'edizione</a>
       <a class="fmd-data-link" href="#edizione">Calendario e giornate</a>
       <a class="fmd-data-link" href="#iscritti">Iscritti ed esiti</a>
@@ -53,6 +54,17 @@
       <a class="fmd-data-link" href="#permessi">Chi può fare cosa</a>
       <a class="fmd-data-link" href="#sgi">Riferimenti SGI</a>
     </nav>
+
+    <section class="fmd-panel elg-sec" id="pagina">
+      <h2><svg class="fmd-ico"><use href="#i-cap"/></svg>La pagina Formazione</h2>
+      <ol>
+        <li><strong>Numeri in alto</strong>: «Scaduti», «In scadenza ≤30gg» e «Obbligatori mancanti» si cliccano e aprono lo scadenzario formazione già filtrato.</li>
+        <li><strong>Copertura dei corsi obbligatori</strong>: una scheda per ogni corso che una regola di obbligo assegna ad almeno una persona. La barra divide le persone a cui il corso è richiesto in in regola (verde), in scadenza entro 90 giorni (giallo), entro 30 giorni (arancio), scaduti (rosso) e mai frequentati (grigio). «In regola» comprende anche i corsi una tantum completati. Sotto la barra c'è la prossima sessione pianificata del corso, con il numero di iscritti.</li>
+        <li>Le schede partono dal corso <strong>più scoperto</strong> (scaduti + mai frequentati + in scadenza entro 30 giorni); «A–Z» le mette in ordine di titolo e i pulsanti dei piani mostrano un piano solo. Un clic sulla scheda apre lo scadenzario di quel corso.</li>
+        <li><strong>Scadenzario urgente</strong> e <strong>Aree del modulo</strong> sono in fondo: le aree sono le stesse di prima, in elenco.</li>
+      </ol>
+      <p class="elg-nota">Numeri e schede vengono dallo scadenzario formazione, lo stesso dei KPI: si aggiorna quando si registra un completamento; se sembra fermo, un amministratore lo ricalcola con <code>refresh_training_deadlines --all</code>.</p>
+    </section>
 
     <section class="fmd-panel elg-sec" id="ciclo">
       <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Il ciclo di un'edizione</h2>
