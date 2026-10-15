@@ -58,6 +58,8 @@ PRT_LIFECOUNT = "1.3.6.1.2.1.43.10.2.1.4.1.1"  # Printer-MIB: pagine totali (prt
 OID_CONTROLLO_MFC = (PRT_SERIAL, PRT_LIFECOUNT)
 # Margine per le pagine stampate durante la lettura (colonne in WALK lette dopo).
 TOLLERANZA_PAGINE = 50
+# Massimo salvabile nei campi contatore (PositiveIntegerField = int SQL Server).
+MAX_CONTATORE = 2_147_483_647
 
 SYSTEM_OIDS = (
     SYS_DESCR, SYS_OBJECT_ID, SYS_UPTIME, SYS_CONTACT, SYS_NAME, SYS_LOCATION,
@@ -678,7 +680,14 @@ def verifica_lettura_mfc(macchina, contatori, *, seriale=None, pagine_totali=Non
     - somma dei quattro contatori oltre le pagine totali (prtMarkerLifeCount): gli OID
       del profilo contano due volte le stesse pagine.
     Se l'apparato non espone i due OID il controllo relativo non si applica.
+    Un contatore negativo o oltre ``MAX_CONTATORE`` e' sempre scartato: e' un OID
+    sbagliato (byte, ottetti) e non entrerebbe nel database.
     """
+    for chiave, valore in contatori.items():
+        if type(valore) is not int or not 0 <= valore <= MAX_CONTATORE:
+            raise SNMPError(
+                f"contatore {chiave} non valido ({valore}): atteso un numero di pagine "
+                f"tra 0 e {MAX_CONTATORE}. Lettura scartata: verifica il profilo SNMP")
     letta, attesa = _matricola_normalizzata(seriale), _matricola_normalizzata(macchina.matricola)
     if letta and attesa and letta != attesa and not (
             min(len(letta), len(attesa)) >= 6 and (letta in attesa or attesa in letta)):

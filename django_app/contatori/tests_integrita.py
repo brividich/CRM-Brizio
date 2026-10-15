@@ -166,3 +166,47 @@ class RiconciliaDismesseTests(TestCase):
         _righe, riepilogo = services.riconcilia("2026-Q2")
         self.assertEqual(riepilogo["letture_mancanti"], 0)
         self.assertEqual(riepilogo["anomalie"], 0)
+
+
+class RobustezzaTests(TestCase):
+    def setUp(self):
+        self.m = Macchina.objects.create(reparto="QA", matricola="SYN-R1", host="192.0.2.60")
+
+    def test_contatore_fuori_scala_o_negativo_scartato(self):
+        for valore in (-1, 2_147_483_648, "12"):
+            with self.subTest(valore=valore), self.assertRaisesMessage(SNMPError, "non valido"):
+                verifica_lettura_mfc(self.m, {**VALORI, "a4_bn": valore})
+
+    def test_trimestre_lettura_snmp_chiusura_nei_primi_giorni(self):
+        self.assertEqual(services.trimestre_lettura_snmp(date(2026, 10, 3)), "2026-Q3")
+        self.assertEqual(services.trimestre_lettura_snmp(date(2027, 1, 7)), "2026-Q4")
+        self.assertEqual(services.trimestre_lettura_snmp(date(2026, 10, 8)), "2026-Q4")
+        self.assertEqual(services.trimestre_lettura_snmp(date(2026, 11, 2)), "2026-Q4")
+
+    @mock.patch("contatori.services.interroga_macchina")
+    def test_leggi_mfc_ora_inizio_trimestre_salva_la_chiusura(self, interroga):
+        interroga.return_value = dict(VALORI)
+        esito = services.salva_letture_trimestrali_snmp(date(2026, 10, 3))
+        self.assertEqual(esito["trimestre"], "2026-Q3")
+        lettura = LetturaContatori.objects.get()
+        self.assertEqual((lettura.trimestre, lettura.data), ("2026-Q3", date(2026, 10, 3)))
+
+    def test_manuale_salvata_durante_la_lettura_non_sovrascritta(self):
+        def lettura_lenta(macchina):
+            LetturaContatori.objects.create(macchina=macchina, trimestre="2026-Q4", data=date(2026, 11, 2),
+                                            fonte=LetturaContatori.Fonte.MANUALE, **VALORI)
+            return {**VALORI, "a4_bn": 2000}
+
+        with mock.patch("contatori.services.interroga_macchina", side_effect=lettura_lenta):
+            esito = services.salva_letture_trimestrali_snmp(date(2026, 11, 3))
+        self.assertEqual((esito["lette"], esito["manuali"]), (0, ["QA"]))
+        self.assertEqual(LetturaContatori.objects.get().a4_bn, 1000)
+
+
+class SeedDemoTests(TestCase):
+    def test_non_cancella_dati_esistenti_senza_conferma(self):
+        from django.core.management import CommandError, call_command
+        Macchina.objects.create(reparto="QA", matricola="SYN-KEEP")
+        with self.assertRaisesMessage(CommandError, "--sostituisci"):
+            call_command("seed_demo")
+        self.assertTrue(Macchina.objects.filter(matricola="SYN-KEEP").exists())

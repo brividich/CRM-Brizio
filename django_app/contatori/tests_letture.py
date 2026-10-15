@@ -4,6 +4,7 @@ from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from . import services
 from .models import LetturaContatori, Macchina
@@ -63,7 +64,7 @@ class LetturaFormTests(_AuthedClientMixin, TestCase):
 class LeggiSnmpTests(_AuthedClientMixin, TestCase):
     def setUp(self):
         super().setUp()
-        self.trim = services.trimestre_corrente()
+        self.trim = services.trimestre_lettura_snmp(timezone.localdate())
         self.manuale = Macchina.objects.create(reparto="Manuale", matricola="SYN-M", host="192.0.2.31")
         self.calo = Macchina.objects.create(reparto="Calo", matricola="SYN-C", host="192.0.2.32")
         self.ok = Macchina.objects.create(reparto="Ok", matricola="SYN-O", host="192.0.2.33")
