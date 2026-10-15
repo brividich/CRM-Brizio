@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 65
+**Totale automazioni disponibili:** 66
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -386,9 +386,9 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ### `contatori_letture_mensili_recupero`
 
-- **Quando gira:** il giorno 1 del mese, alle 08:00
+- **Quando gira:** il giorno 1-7 del mese, ogni ora al minuto */15
 - **Task eseguito:** `contatori.tasks.run_letture_mensili`
-- **Cosa fa:** CONTATORI — recupero alle 08:00 dello stesso giorno per le MFC spente o in sospensione a mezzanotte: accoda solo quelle ancora senza lettura del mese.
+- **Cosa fa:** CONTATORI — recupero per le MFC spente o in sospensione a mezzanotte: ogni 15 minuti dal giorno 1 al 7 accoda solo quelle ancora senza lettura del mese, cosi' una macchina viene letta entro 15 minuti da quando si riaccende. Stesso nome di prima: setup_q_schedules aggiorna il cron, nessuna schedule orfana.
 
 ### `contatori_poll_snmp`
 
@@ -401,6 +401,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:40
 - **Task eseguito:** `contatori.tasks.pulisci_rilevazioni_tvcc`
 - **Cosa fa:** CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40. Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
+
+### `security_ai_lettura`
+
+- **Quando gira:** ogni 30 minuti
+- **Task eseguito:** `security.tasks.ai_lettura_assistita_task`
+- **Cosa fa:** SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert. Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, entro 90 s.
 
 ### `security_cve_enrichment`
 

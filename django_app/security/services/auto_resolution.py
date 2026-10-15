@@ -253,7 +253,8 @@ def _simulate_backup(since):
 
 def _vulnerability_candidates(event, alerts):
     payload = event.payload or {}
-    if payload.get("cvss_unparsed") or payload.get("exposed_devices") in (None, ""):
+    # Conteggio dispositivi illeggibile: lo 0 nella colonna non è una prova di rientro.
+    if payload.get("cvss_unparsed") or payload.get("exposed_devices_unparsed") or payload.get("exposed_devices") in (None, ""):
         return []
     try:
         exposed = int(payload.get("exposed_devices"))
@@ -426,6 +427,8 @@ def _cve_candidate(alert, cache=None):
     last_import = SoftwareInventoryImport.objects.filter(status=SoftwareInventoryImport.STATUS_IMPORTED).order_by("-imported_at").first()
     if not record.impact_computed_at or (last_import and last_import.imported_at and record.impact_computed_at < last_import.imported_at):
         return None  # impatti calcolati prima dell'ultimo inventario: non sono una prova
+    if payload.get("exposed_devices_unparsed"):
+        return None  # Defender non ha detto quanti dispositivi: non si confronta con l'inventario
     try:
         exposed = int(payload.get("exposed_devices") or 0)
     except (TypeError, ValueError):

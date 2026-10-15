@@ -8,7 +8,7 @@
 
 <div class="sec-grid sec-kpi-grid">
   <div class="sec-kpi-card"><span class="sec-kpi-label">Parser funzionanti</span><strong class="sec-kpi-value">{{ parser_summary.ok }}/{{ parser_summary.total }}</strong><span class="sec-kpi-delta{% if parser_summary.ok == parser_summary.total %} sec-good{% endif %}">Hanno prodotto report</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Con problemi</span><strong class="sec-kpi-value{% if parser_summary.problems %} critical{% endif %}">{{ parser_summary.problems }}</strong><span class="sec-kpi-delta{% if not parser_summary.problems %} sec-good{% endif %}">In errore o inesistenti</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Con problemi</span><strong class="sec-kpi-value{% if parser_summary.problems %} critical{% endif %}">{{ parser_summary.problems }}</strong><span class="sec-kpi-delta{% if not parser_summary.problems %} sec-good{% endif %}">In errore o inesistenti{% if parser_summary.to_check %} · {{ parser_summary.to_check }} con letture da verificare{% endif %}</span></div>
   <div class="sec-kpi-card"><span class="sec-kpi-label">In coda</span><strong class="sec-kpi-value">{{ queue_summary.pending }}</strong><span class="sec-kpi-delta{% if not queue_summary.pending %} sec-good{% endif %}">Da elaborare</span></div>
   <div class="sec-kpi-card"><span class="sec-kpi-label">In errore</span><strong class="sec-kpi-value{% if queue_summary.failed %} critical{% endif %}">{{ queue_summary.failed }}</strong><span class="sec-kpi-delta{% if not queue_summary.failed %} sec-good{% endif %}">Il parser è andato in eccezione</span></div>
   <div class="sec-kpi-card"><span class="sec-kpi-label">Scartati</span><strong class="sec-kpi-value">{{ queue_summary.skipped }}</strong><span class="sec-kpi-delta">Nessun parser li riconosce</span></div>
@@ -47,8 +47,10 @@
               <div>{{ row.reports_total }} report{% if row.last_report_at %} · ultimo {{ row.last_report_at|date:"d/m/Y H:i" }}{% endif %}</div>
               {% if row.failures_count %}
                 <div class="sec-error">{{ row.failures_count }} in errore · ultimo {{ row.last_failure_at|date:"d/m/Y H:i" }}</div>
-                {% if row.last_error %}<div class="sec-muted sec-wrap">{{ row.last_error|truncatechars:160 }}</div>{% endif %}
+                {% if row.last_hint %}<div class="sec-wrap">{{ row.last_hint }}</div>{% endif %}
+                {% if row.last_error %}<div class="sec-muted sec-wrap" title="Dettaglio tecnico">{{ row.last_error|truncatechars:160 }}</div>{% endif %}
               {% endif %}
+              {% if row.to_check %}<div class="sec-wrap"><span class="sec-badge warning">{{ row.to_check }}</span> letture recenti da verificare: mancano dati necessari. Prova un esempio in «Prova i parser».</div>{% endif %}
               {% if row.disabled_skips %}<div class="sec-muted">{{ row.disabled_skips }} elementi scartati perché disattivato</div>{% endif %}
               {% if row.status == "idle" %}<div class="sec-muted">Non ha ancora riconosciuto nessun contenuto.</div>{% endif %}
             </td>
@@ -91,7 +93,10 @@
       <label>Oggetto <input name="subject" value="{{ test_result.input.subject|default:'' }}" placeholder="Oggetto della mail"></label>
       <label>Testo <textarea name="body" rows="5" placeholder="Corpo della mail">{{ test_result.input.body|default:'' }}</textarea></label>
       <label>oppure un file (max {{ max_upload_mb }} MB) <input type="file" name="file" accept=".pdf,.csv,.txt,.log,.eml"></label>
-      <div><button class="sec-button-primary" type="submit">Prova</button></div>
+      <div class="sec-inline" style="gap:8px">
+        <button class="sec-button-primary" type="submit">Prova</button>
+        <button class="sec-button" type="submit" name="with_ai" value="1" title="Chiede anche all'AI locale una lettura: qualche secondo, nessun salvataggio">Prova e chiedi all'AI</button>
+      </div>
     </form>
 
     {% if test_result %}
@@ -106,12 +111,13 @@
           {% endif %}
           {% for warning in test_result.warnings %}<p class="sec-error">{{ warning }}</p>{% endfor %}
           <table class="sec-table sec-table-compact" data-table-enhanced="0" style="margin-top:8px">
-            <thead><tr><th>Parser</th><th>Lo riconosce?</th><th>Stato</th></tr></thead>
+            <thead><tr><th>Parser</th><th>Lo riconosce?</th><th>Perché</th><th>Stato</th></tr></thead>
             <tbody>
               {% for candidate in test_result.candidates %}
                 <tr>
                   <td>{{ candidate.label }}</td>
                   <td>{% if candidate.recognizes %}<span class="sec-badge ok">Sì</span>{% elif candidate.impersonation %}<span class="sec-badge critical">Mittente non attendibile</span>{% else %}<span class="sec-badge disabled">No</span>{% endif %}</td>
+                  <td class="sec-small">{% for reason in candidate.why %}<div>{{ reason }}</div>{% empty %}<span class="sec-muted">—</span>{% endfor %}</td>
                   <td>{{ candidate.enabled|yesno:"Attivo,Disattivato" }}</td>
                 </tr>
               {% endfor %}
@@ -126,8 +132,26 @@
               <dt>Record</dt><dd>{{ test_result.parsed.records_total }}{% for type, count in test_result.parsed.record_types %}{% if forloop.first %} ({% endif %}{{ type }}: {{ count }}{% if forloop.last %}){% else %}, {% endif %}{% endfor %}</dd>
               <dt>Possibili alert</dt><dd>{{ test_result.parsed.alert_candidates }}</dd>
               <dt>Metriche</dt><dd>{% for name, value in test_result.parsed.metrics %}<span class="sec-chip">{{ name }} = {{ value }}</span> {% empty %}<span class="sec-muted">nessuna</span>{% endfor %}</dd>
-              {% if test_result.parsed.parse_warnings %}<dt>Avvisi</dt><dd>{% for warning in test_result.parsed.parse_warnings %}<div class="sec-muted">{{ warning }}</div>{% endfor %}</dd>{% endif %}
+              {% if test_result.parsed.parse_warnings and not test_result.parsed.lettura %}<dt>Avvisi</dt><dd>{% for warning in test_result.parsed.parse_warnings %}<div class="sec-muted">{{ warning }}</div>{% endfor %}</dd>{% endif %}
             </dl>
+            {% with lettura=test_result.parsed.lettura %}{% if lettura %}
+              <div class="sec-lettura" style="margin-top:10px">
+                <div class="sec-section-head"><h3>Cosa ha letto</h3><span class="sec-badge {% if lettura.qualita == 'completa' %}ok{% elif lettura.qualita == 'parziale' %}warning{% else %}critical{% endif %}">{{ lettura.qualita_label }}</span></div>
+                <p class="sec-muted">Formato: {{ lettura.formato }}</p>
+                <ul class="sec-mini-list">
+                  {% for field in lettura.campi_letti %}<li><span class="sec-badge ok">Letto</span> {{ field.campo }}: <strong class="sec-wrap">{{ field.valore }}</strong></li>{% endfor %}
+                  {% for field in lettura.campi_mancanti %}<li><span class="sec-badge {% if field.obbligatorio %}critical{% else %}disabled{% endif %}">{% if field.obbligatorio %}Manca{% else %}Assente{% endif %}</span> {{ field.campo }}{% if field.obbligatorio %} <small class="sec-muted">(necessario: senza questo il dato non è affidabile)</small>{% endif %}</li>{% endfor %}
+                </ul>
+                {% if lettura.avvisi %}<p class="sec-small" style="margin-top:6px"><strong>Avvisi</strong></p>{% for warning in lettura.avvisi %}<div class="sec-muted sec-wrap">{{ warning }}</div>{% endfor %}{% endif %}
+              </div>
+            {% endif %}{% endwith %}
+          {% endif %}
+          {% if test_result.ai %}
+            <div class="sec-lettura" style="margin-top:10px">
+              <div class="sec-section-head"><h3>Cosa propone l'AI</h3></div>
+              <p class="sec-muted sec-small">Solo una proposta da confrontare con il documento: non crea né chiude alert.</p>
+              {% include "security/admin_config/_ai_lettura.html" with ai=test_result.ai %}
+            </div>
           {% endif %}
           {% if test_result.is_file %}
             <details style="margin-top:8px"><summary>Testo estratto da {{ test_result.filename }}</summary><p class="sec-small sec-wrap">{{ test_result.extracted_preview|default:"(vuoto)" }}</p></details>
@@ -149,9 +173,27 @@
           <strong class="sec-wrap">{{ item.title|default:"(senza titolo)"|truncatechars:90 }}</strong>
           <small class="sec-muted">{{ item.kind }}{% if item.sender %} · {{ item.sender }}{% endif %}{% if item.source %} · {{ item.source }}{% endif %} · {{ item.at|date:"d/m/Y H:i" }}</small>
           <small class="{% if item.status == 'failed' %}sec-error{% else %}sec-muted{% endif %} sec-wrap">{{ item.reason|truncatechars:200 }}</small>
+          {% if item.hint %}<small class="sec-wrap">{{ item.hint }}</small>{% endif %}
+          {% include "security/admin_config/_ai_lettura.html" with ai=item.ai %}
         </li>
       {% empty %}<li class="sec-muted">Nessun elemento in errore o scartato.</li>{% endfor %}
     </ul>
   </section>
 </div>
+
+{% if to_check_items %}
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Letture da verificare</h2><a href="{% url 'security:soc_settings' %}#ai_lettura">Lettura assistita dall'AI</a></div>
+  <p class="sec-muted">Elementi letti, ma a cui manca un dato necessario. Se la lettura assistita è accesa, l'AI propone i campi mancanti: confrontali con il documento.</p>
+  <ul class="sec-mini-list sec-stack">
+    {% for item in to_check_items %}
+      <li>
+        <strong class="sec-wrap">{{ item.title|default:"(senza titolo)"|truncatechars:90 }}</strong>
+        <small class="sec-muted">{{ item.kind }} · {{ item.parser }}{% if item.source %} · {{ item.source }}{% endif %} · {{ item.at|date:"d/m/Y H:i" }}</small>
+        {% include "security/admin_config/_ai_lettura.html" with ai=item.ai %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endblock %}

@@ -45,6 +45,28 @@ La **cadenza attesa** abilita l'heartbeat: se il report non arriva in tempo, il 
 | Priorità | Ordine di valutazione | Valore più basso valutato prima |
 | Tipo sorgente | Su quali sorgenti si applica | |
 
+### Cosa ha letto il parser
+
+Ogni parser dice cosa ha capito di ogni mail o file («lettura»): i campi che ha trovato, quelli che cercava e non ha trovato e gli avvisi, con una qualità:
+
+| Qualità | Significato |
+| --- | --- |
+| **Lettura completa** | Tutti i campi trovati |
+| **Lettura parziale** | Manca un campo facoltativo (es. il NAS, i dati trasferiti) o c'è un avviso |
+| **Da verificare** | Manca un campo necessario (es. l'esito del backup, il numero di dispositivi esposti di una CVE): il dato non è affidabile |
+
+In **Configurazione › Parser**:
+
+- **Prova i parser**: incolla una mail o carica un file; per ogni parser la colonna **Perché** dice quali segnali ha visto (mittente attendibile, CVE presenti, titolo del report, «[Success]» nell'oggetto…) e il riquadro **Cosa ha letto** elenca campo per campo cosa ha estratto (badge «Letto», «Manca», «Assente»).
+- Un parser che legge ma lascia campi necessari vuoti è segnato **«Letture da verificare»** con il numero di letture recenti: di solito vuol dire che il fornitore ha cambiato il formato.
+- Se un parser va in errore, sotto il nome compare una **spiegazione** (es. «Il parser si aspettava il campo … e non l'ha trovato») e, più in piccolo, il dettaglio tecnico.
+
+Quando un dato non si legge, non diventa mai «0» o «tutto ok»:
+
+- Defender: se il numero di **dispositivi esposti** non è leggibile, l'alert già aperto per quella CVE **non** si chiude da solo; se la CVE è critica nasce un alert «da revisionare a mano».
+- Synology: l'esito si legge prima dall'**oggetto** della mail; frasi come «senza errori» o «Errori: 0» non fanno più risultare il job fallito.
+- Synology e Veeam: se mancano gli orari del job, i giorni si distinguono con la **data di ricezione** della mail (prima il secondo esito dello stesso job veniva scartato come doppione).
+
 ## Regole alert
 
 | Campo | Significato | Valore d'esempio |

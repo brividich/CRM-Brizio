@@ -1,4 +1,4 @@
-from .base import BaseParser, ParsedRecord, ParsedReport
+from .base import BaseParser, Lettura, ParsedRecord, ParsedReport
 from .registry import parser_registry
 from .watchguard import (
     parse_watchguard_dimension_executive_summary,
@@ -47,6 +47,17 @@ class WatchGuardReportParser(BaseParser):
             return False
         return kind is not None or routing.looks_like_watchguard(_provenance(item))
 
+    def perche_riconosce(self, item):
+        kind = self._kind(item)
+        reasons = []
+        if kind:
+            reasons.append(f"Formato riconosciuto: {KIND_LABELS.get(kind, kind)}")
+        if routing.looks_like_watchguard(_provenance(item)):
+            reasons.append("Mittente, oggetto o nome file citano WatchGuard / Firebox / EPDR / ThreatSync / Dimension")
+        if self._is_covering_mail(item, kind):
+            reasons.append("Mail di accompagnamento corta: si legge l'allegato, non il corpo")
+        return reasons
+
     @staticmethod
     def _is_covering_mail(item, kind):
         if getattr(item, "original_name", ""):
@@ -62,6 +73,7 @@ class WatchGuardReportParser(BaseParser):
         content = getattr(item, "content", "") or getattr(item, "body", "")
         kind = self._kind(item)
         result = _parse_payload(kind, source_name, content, getattr(item, "received_at", None))
+        result["lettura"] = _lettura(kind, result)
         records = [
             ParsedRecord(
                 record_type="watchguard_report_summary",
@@ -100,6 +112,39 @@ class WatchGuardReportParser(BaseParser):
         filename = getattr(item, "original_name", "") or ""
         content = getattr(item, "content", "") or getattr(item, "body", "") or ""
         return routing.detect_report(filename, content, getattr(item, "subject", ""))
+
+
+KIND_LABELS = {
+    routing.AUTH_ALLOWED: "Firebox · autenticazioni riuscite (CSV)",
+    routing.AUTH_DENIED: "Firebox · autenticazioni negate (CSV)",
+    routing.EXECUTIVE_SUMMARY: "Firebox · Executive Summary",
+    routing.EXECUTIVE_DASHBOARD: "Firebox · Executive Dashboard",
+    routing.INTERFACE_SUMMARY: "Firebox · Interface Summary",
+    routing.SDWAN: "Firebox · stato SD-WAN",
+    routing.ZERO_DAY: "Firebox · Zero-Day / APT",
+    routing.EPDR_REPORT: "EPDR · Executive Report",
+    routing.EPDR_THREAT_MAIL: "EPDR · minacce rilevate (mail)",
+    routing.THREATSYNC_LIST: "ThreatSync · elenco incidenti",
+    routing.THREATSYNC_SUMMARY: "ThreatSync · riepilogo",
+    routing.DIMENSION: "Dimension · riepilogo",
+}
+
+
+def _lettura(kind, result):
+    """Resoconto comune a tutti i report WatchGuard (i sotto-parser restano com'erano)."""
+    lettura = Lettura(KIND_LABELS.get(kind, "WatchGuard · formato non riconosciuto dal titolo"))
+    is_csv = kind in (routing.AUTH_ALLOWED, routing.AUTH_DENIED)
+    lettura.campo("Periodo o data", result.get("period_start") or result.get("report_date"), obbligatorio=not is_csv)
+    lettura.campo("Firewall / cliente", result.get("firebox_name") or result.get("customer") or result.get("organization"))
+    numeric = {name: value for name, value in (result.get("metrics") or {}).items() if isinstance(value, (int, float)) and not isinstance(value, bool)}
+    lettura.campo("Cifre lette", f"{len(numeric)} valor{'e' if len(numeric) == 1 else 'i'}" if numeric else "", obbligatorio=True)
+    if is_csv:
+        lettura.campo("Righe", f"{len(result['records'])} rig{'a' if len(result['records']) == 1 else 'he'}" if result.get("records") else "", obbligatorio=is_csv)
+    if numeric and not any(numeric.values()):
+        lettura.avviso("Tutte le cifre lette valgono zero: se il report non è davvero vuoto, il formato potrebbe essere cambiato")
+    for warning in result.get("parse_warnings") or []:
+        lettura.avviso(warning)
+    return lettura.as_dict()
 
 
 def _parse_payload(kind, source_name, content, received_at):

@@ -14,6 +14,8 @@ from security.models import (
     SecurityMailboxSource, SecurityReport, SecuritySourceFile,
 )
 
+from security.services.rule_engine import EVALUATION_ERROR
+
 CYCLE_NAME = "security_cycle"
 CYCLE_MINUTES = 15
 
@@ -49,6 +51,7 @@ def processing_status(now=None, window_days=7):
     last_report = SecurityReport.objects.order_by("-created_at").first()
     events_24h = SecurityEventRecord.objects.filter(created_at__gte=day_ago).count()
     unevaluated = SecurityEventRecord.objects.filter(decision_trace={}).count()
+    evaluation_errors = SecurityEventRecord.objects.filter(created_at__gte=since, decision_trace__decision=EVALUATION_ERROR).count()
     alerts_24h = SecurityAlert.objects.filter(created_at__gte=day_ago).count()
     last_kpi = SecurityKpiSnapshot.objects.order_by("-created_at").first()
 
@@ -76,8 +79,12 @@ def processing_status(now=None, window_days=7):
             "n": 3, "title": "Regole e alert", "what": "Le regole confrontano gli eventi con le soglie: se scattano nasce un alert (deduplicato) ed eventualmente un ticket.",
             "when": None,
             "detail": f"{events_24h} eventi e {alerts_24h} alert nelle ultime 24 ore",
-            "tone": tone(not unevaluated, warn=True),
-            "problem": f"{unevaluated} eventi non ancora valutati: verranno valutati al prossimo ciclo." if unevaluated else "",
+            "tone": tone(not unevaluated and not evaluation_errors, warn=not evaluation_errors),
+            "problem": " ".join(part for part in (
+                f"{unevaluated} eventi non ancora valutati: verranno valutati al prossimo ciclo." if unevaluated else "",
+                (f"{evaluation_errors} eventi negli ultimi {window_days} giorni non sono stati valutati per un errore "
+                 "(gli altri sono proseguiti): sono nella pagina Eventi, con l'errore nella decisione." if evaluation_errors else ""),
+            ) if part),
         },
         {
             "n": 4, "title": "KPI", "what": "Calcola gli indicatori del giorno (backup, VPN, firewall, endpoint) mostrati nella pagina KPI.",
@@ -102,8 +109,10 @@ def _failed_items(since, limit=15):
     rows = []
     for message in SecurityMailboxMessage.objects.filter(parse_status=ParseStatus.FAILED, received_at__gte=since).order_by("-received_at")[:limit]:
         rows.append({"kind": "Mail", "when": message.received_at, "name": message.subject, "parser": (message.raw_payload or {}).get("parser_name", ""),
-                     "error": (message.raw_payload or {}).get("parser_error", "") or "Errore nella pipeline"})
+                     "error": (message.raw_payload or {}).get("parser_error", "") or "Errore nella pipeline",
+                     "hint": (message.raw_payload or {}).get("parser_error_hint", "")})
     for item in SecuritySourceFile.objects.filter(parse_status=ParseStatus.FAILED, uploaded_at__gte=since).order_by("-uploaded_at")[:limit]:
         rows.append({"kind": "Allegato", "when": item.uploaded_at, "name": item.original_name, "parser": (item.raw_payload or {}).get("parser_name", ""),
-                     "error": (item.raw_payload or {}).get("parser_error", "") or "Errore nella pipeline"})
+                     "error": (item.raw_payload or {}).get("parser_error", "") or "Errore nella pipeline",
+                     "hint": (item.raw_payload or {}).get("parser_error_hint", "")})
     return sorted(rows, key=lambda r: r["when"], reverse=True)[:limit]
