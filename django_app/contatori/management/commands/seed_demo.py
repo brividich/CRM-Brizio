@@ -1,6 +1,6 @@
 """Carica i 3 trimestri reali (Q4-2025, Q1-2026, Q2-2026) per una demo completa."""
 import datetime as dt
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from contatori.models import Macchina, LetturaContatori, Fattura, RigaFattura
 
 MACCHINE = [
@@ -39,9 +39,20 @@ DESCR = {"2020/124":"CQF+CQI (pool)","2022/180":"Logistica","2022/181":"Amminist
 
 
 class Command(BaseCommand):
-    help = "Carica dati demo reali dei 3 trimestri"
+    help = ("Carica dati demo dei 3 trimestri. CANCELLA tutte le MFC, le letture e le "
+            "fatture: su un database con dati serve --sostituisci.")
+
+    def add_arguments(self, parser):
+        parser.add_argument("--sostituisci", action="store_true",
+                            help="Conferma la cancellazione di MFC, letture e fatture esistenti")
 
     def handle(self, *args, **opts):
+        presenti = Macchina.objects.count() + Fattura.objects.count()
+        if presenti and not opts["sostituisci"]:
+            raise CommandError(
+                f"Il database contiene già {Macchina.objects.count()} MFC e "
+                f"{Fattura.objects.count()} fatture: seed_demo le cancellerebbe insieme a "
+                "tutte le letture. Usa --sostituisci solo su un database di prova.")
         LetturaContatori.objects.all().delete(); RigaFattura.objects.all().delete()
         Fattura.objects.all().delete(); Macchina.objects.all().delete()
 

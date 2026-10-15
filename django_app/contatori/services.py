@@ -1093,7 +1093,7 @@ def salva_letture_trimestrali_snmp(oggi=None):
     from .snmp import SNMPError
 
     oggi = oggi or timezone.localdate()
-    trimestre = trimestre_di(oggi)
+    trimestre = trimestre_lettura_snmp(oggi)
     presenti = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
     esito = {"trimestre": trimestre, "lette": 0, "manuali": [], "incoerenti": [], "errori": []}
     for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True).order_by("reparto"):
@@ -1111,11 +1111,32 @@ def salva_letture_trimestrali_snmp(oggi=None):
         except SNMPError:
             esito["incoerenti"].append(m.reparto)
             continue
-        LetturaContatori.objects.update_or_create(
-            macchina=m, trimestre=trimestre,
-            defaults={**valori, "data": oggi, "fonte": LetturaContatori.Fonte.SNMP})
+        with transaction.atomic():
+            # La lettura SNMP dura secondi: nel frattempo qualcuno puo' aver salvato a mano.
+            esistente = (LetturaContatori.objects.select_for_update()
+                         .filter(macchina=m, trimestre=trimestre).first())
+            if esistente and esistente.fonte != LetturaContatori.Fonte.SNMP:
+                esito["manuali"].append(m.reparto)
+                continue
+            LetturaContatori.objects.update_or_create(
+                macchina=m, trimestre=trimestre,
+                defaults={**valori, "data": oggi, "fonte": LetturaContatori.Fonte.SNMP})
         esito["lette"] += 1
     return esito
+
+
+def trimestre_lettura_snmp(oggi):
+    """Trimestre a cui va una lettura SNMP fatta il giorno `oggi`.
+
+    Nei primi ``GIORNI_RECUPERO_MENSILE`` giorni di un trimestre i contatori sono la
+    chiusura del precedente (stessa regola delle letture mensili proposte): salvarli
+    nel trimestre appena iniziato darebbe al nuovo trimestre una lettura di inizio
+    periodo e lascerebbe senza chiusura quello appena finito.
+    """
+    trimestre = trimestre_di(oggi)
+    if oggi.month in (1, 4, 7, 10) and oggi.day <= GIORNI_RECUPERO_MENSILE:
+        return trimestre_precedente(trimestre)
+    return trimestre
 
 
 def centrale_snmp_riepilogo():

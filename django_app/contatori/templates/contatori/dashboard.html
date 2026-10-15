@@ -10,7 +10,7 @@
   <div class="spacer"></div>
   <div class="actions">
     {% if g %}<a class="btn ghost small" href="{% url 'contatori:importa_lettura' %}">+ Lettura manuale</a>
-    <form method="post" action="{% url 'contatori:leggi_snmp' %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Lettura in corso…'">{% csrf_token %}<button class="btn small" title="Legge via SNMP le MFC senza lettura manuale nel trimestre">Leggi MFC ora</button></form>{% endif %}
+    <form method="post" action="{% url 'contatori:leggi_snmp' %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Lettura in corso…'">{% csrf_token %}<button class="btn small" title="Legge via SNMP le MFC senza lettura manuale nel trimestre (nei primi 7 giorni del trimestre: chiusura del precedente)">Leggi MFC ora</button></form>{% endif %}
   </div>
 </header>
 
