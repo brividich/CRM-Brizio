@@ -46,6 +46,14 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "La prima risposta è lenta (decine di secondi)",
+            "fare": [
+                "Subito dopo un aggiornamento o un riavvio il portale prepara l'indice dei documenti: le prime risposte possono essere più lente, poi tornano normali.",
+                "Dopo un aggiornamento che cambia l'indice lancia l'indicizzazione dal terminale del Setup Wizard (preset AI/RAG, index_sgi_documents).",
+                "Se resta lenta: Centrale di comando → controllo AI (server AI spento o modello da ricaricare) e verifica che il qcluster giri (tiene caldo il modello).",
+            ],
+        },
+        {
             "sintomo": "Non conosce una procedura nuova",
             "fare": [
                 "Controlla in Presa visione procedure → «Log sync» che il documento sia stato letto.",

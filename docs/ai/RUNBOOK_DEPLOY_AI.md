@@ -138,7 +138,10 @@ Tutti con default che lasciano il comportamento invariato. Si impostano nel `.en
 | `SGI_ESTRAZIONE_PERSISTITA_ENABLED` | `False` | l'assistente legge `SgiTestoEstratto` (se l'hash coincide) e la sync notturna accoda l'estrazione |
 | `OLLAMA_RAG_SGI_CHUNK_CHARS` | = `OLLAMA_RAG_CHUNK_CHARS` | dimensione chunk SGI |
 | `OLLAMA_RAG_SGI_CHUNK_HEADER` | `False` | intestazione «codice Rev.n — § sezione» nel testo del chunk |
-| `OLLAMA_RAG_SGI_CHUNK_TITLE` | `False` | titolo del documento nell'etichetta dei chunk SGI. **Consigliato `True`**: in dev SGI recall 27→31/32, MRR 0,623→0,772, KB invariata. Poi `index_sgi_documents` |
+| `OLLAMA_RAG_SGI_CHUNK_TITLE` | `True` (dal 15/10/2026, prima `False`) | titolo del documento nell'etichetta dei chunk SGI: in dev SGI recall 27→31/32, MRR 0,623→0,772, KB invariata. **Al primo deploy con il nuovo default lanciare `index_sgi_documents`** (embeddings da ricalcolare; fino ad allora la chat usa BM25 e il ricalcolo gira in background) |
+| `OLLAMA_RAG_BACKGROUND_REBUILD` | `True` | indice RAG scaduto o documenti cambiati → la chat risponde con l'indice in memoria, il rebuild gira in un thread |
+| `OLLAMA_EMBED_INLINE_MAX` | `200` | embeddings mancanti calcolati al massimo nel primo build sincrono del processo; oltre: BM25 finché il background non completa |
+| `AI_PREWARM_ON_PAGE_OPEN` | `True` | all'apertura di `/assistente-ai/` prepara indice, vettori del routing e modello chat in background |
 | `OLLAMA_RAG_SGI_MAX_PROCS` | `400` (era 300) | tetto revisioni procedura nel corpus RAG |
 | `OLLAMA_RAG_GLOSSARIO_ENABLED` | `False` | glossario tecnico nella ricerca (token comuni per le varianti, H7/M8/Ra protetti, termini validati come conoscenza). Da accendere solo dopo che la Qualità ha validato i termini |
 | `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE` | `False` | **MAI in prod**: include le bozze, serve solo per misurare in dev |
