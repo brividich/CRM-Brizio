@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "RENTRI · Registro rifiuti",
     "area": "Sicurezza sul lavoro",
     "sintesi": "Registro di carico e scarico dei rifiuti, scadenze e giacenze nel deposito temporaneo.",
-    "parole": "rentri rifiuti cer eer carico scarico formulario fir deposito giacenza",
+    "parole": "rentri rifiuti rifiuto cer eer formulario fir deposito giacenza",
     "url": "rentri_menu",
     "prefissi": ("/rentri/",),
     "uso": [
