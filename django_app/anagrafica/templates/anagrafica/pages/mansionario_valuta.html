@@ -33,6 +33,7 @@
       </div>
       <form method="post">
         {% csrf_token %}
+        {% if da == "refresh" %}<input type="hidden" name="da" value="refresh"><input type="hidden" name="reparto" value="{{ reparto_refresh }}">{% endif %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">
             <thead><tr><th>Competenza</th><th>Minimo</th><th>Livello</th><th>Requisito formale</th></tr></thead>
@@ -54,7 +55,7 @@
           </table>
         </div>
         <div class="fmd-tfoot" style="justify-content:flex-end;">
-          <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">Indietro</a>
+          {% if da == "refresh" %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:skm_refresh' %}?reparto={{ reparto_refresh|urlencode }}">Torna al refresh</a>{% else %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">Indietro</a>{% endif %}
           <button type="submit" class="fmd-btn fmd-btn-primary">Salva valutazione</button>
         </div>
       </form>

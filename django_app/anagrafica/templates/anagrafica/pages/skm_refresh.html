@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Refresh semestrale — Skill Matrix MOD.187{% endblock %}
+{% block title %}Refresh abilitazioni — Skill Matrix MOD.187{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -24,6 +24,24 @@
 .rf-chip.warn { border-color:#fcd34d; background:#fef9c3; color:#854d0e; }
 .rf-add { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
 .rf-add label { font-size:11px; font-weight:700; color:#64748b; display:block; margin-bottom:3px; }
+.rf-lv { display:inline-block; font-weight:800; font-size:12px; border:1px solid #cbd5e1; border-radius:5px; padding:2px 8px; }
+.rf-link { font-size:12px; font-weight:700; }
+.rf-note { width:100%; min-height:70px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:13px; box-sizing:border-box; }
+.rf-storico { white-space:pre-line; font-size:12px; color:#475569; background:#f8fafc; border-radius:6px; padding:8px 10px; margin:0 0 10px; }
+.rf-badge { display:inline-block; font-size:10.5px; font-weight:800; border-radius:5px; padding:2px 7px; }
+.rf-badge.diversa { color:#991b1b; background:#fee2e2; }
+.rf-badge.anagrafica_vuota { color:#854d0e; background:#fef9c3; }
+.rf-badge.senza_rischio { color:#475569; background:#f1f5f9; }
+.rf-close { display:flex; gap:8px; align-items:center; font-size:13px; font-weight:600; color:#0c2545; }
+body.theme-dark .rf-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rf-card h3, body.theme-dark .rf-close, body.theme-dark .rf-chip b { color:var(--text); }
+body.theme-dark .rf-card .sub, body.theme-dark .rf-empty { color:var(--text-light); }
+body.theme-dark .rf-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .rf-table tbody tr:hover { background:var(--tbody-hover); }
+body.theme-dark .rf-sel, body.theme-dark .rf-note, body.theme-dark .rf-toolbar select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .rf-chip { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .rf-storico { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .rf-lv { border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 
@@ -36,24 +54,27 @@
     <div>
       <div class="hr-pagehead-eyebrow">
         <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
-        <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
+        <span class="fm-crumb-sep">›</span> <a href="{% url 'anagrafica:skm_scadenzario' %}" class="fm-crumb">Scadenzario refresh</a>
       </div>
-      <h2 class="hr-pagehead-title">🔁 Refresh semestrale abilitazioni</h2>
-      <p class="hr-pagehead-desc">Rivalutazione periodica delle abilitazioni macchina del reparto (merito del CAR). Conferma, modifica o rimuovi; ogni azione registra uno scatto nello storico.</p>
+      <h2 class="hr-pagehead-title">🔁 Refresh abilitazioni del reparto</h2>
+      <p class="hr-pagehead-desc">Rivalutazione delle persone sulle mansioni del reparto, macchine e processi (merito del caporeparto). Conferma, modifica o togli; ogni azione registra uno scatto nello storico.</p>
     </div>
-    <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" class="hr-btn hr-btn-outline">? Guida</a>
+      <a href="{% url 'anagrafica:skm_scadenzario' %}" class="hr-btn hr-btn-outline">↩ Scadenzario</a>
+    </div>
   </div>
 
   <form method="get" class="rf-toolbar">
-    <label style="font-size:12px;color:#64748b;font-weight:700;">Reparto</label>
-    <select name="reparto" onchange="this.form.submit()">
+    <label for="rf-reparto" style="font-size:12px;color:#64748b;font-weight:700;">Reparto</label>
+    <select id="rf-reparto" name="reparto" onchange="this.form.submit()">
       <option value="">— scegli un reparto —</option>
       {% for r in reparti %}<option value="{{ r }}" {% if r == reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
     </select>
     {% if reparto %}
       <span class="rf-chip">In lista <b>{{ totale }}</b></span>
       <span class="rf-chip {% if arretrati %}warn{% endif %}">Arretrati <b>{{ arretrati }}</b></span>
-      {% if campagna %}<span class="rf-chip">Campagna aperta dal <b>{{ campagna.periodo_inizio }}</b></span>{% endif %}
+      {% if campagna %}<span class="rf-chip">Campagna aperta dal <b>{{ campagna.periodo_inizio|date:"d/m/Y" }}</b>{% if campagna.avviatore_ruolo %} · da {{ campagna.avviatore_ruolo }}{% endif %}</span>{% endif %}
     {% endif %}
   </form>
 
@@ -65,25 +86,30 @@
     <input type="hidden" name="reparto" value="{{ reparto }}">
 
     <div class="rf-card">
-      <h3>① Abilitazioni in lista — rivaluta</h3>
-      <p class="sub">«Conferma» mantiene/aggiorna al livello scelto; «Rimuovi» toglie dalla lista. Tutto registra uno scatto datato.</p>
+      <h3>① Persone in lista: rivaluta</h3>
+      <p class="sub">«Conferma» mantiene o aggiorna il livello scelto; «Togli» toglie la persona dalla mansione. Dove la mansione ha competenze il livello si ricava da «Valuta competenze»: poi qui confermi. Tutto registra uno scatto datato.</p>
       {% if righe %}
       <table class="rf-table">
-        <thead><tr><th>Dipendente</th><th>Macchina</th><th>Livello</th><th>Azione</th></tr></thead>
+        <thead><tr><th>Dipendente</th><th>Mansione</th><th>Livello</th><th>Azione</th></tr></thead>
         <tbody>
           {% for r in righe %}
           <tr>
             <td>{{ r.nome }}{% if r.arretrata %}<span class="rf-arr">arretrata</span>{% endif %}</td>
-            <td>{{ r.ab.asset.name }} <span style="color:#94a3b8;">({{ r.ab.asset.asset_tag }})</span></td>
+            <td>{{ r.mansione }}{% if r.ab.asset_id %}{% if r.ab.asset.name != r.mansione %} · {{ r.ab.asset.name }}{% endif %} <span style="color:#94a3b8;">({{ r.ab.asset.asset_tag }})</span>{% endif %}</td>
             <td>
-              <select class="rf-sel" name="livello_{{ r.ab.id }}">
+              {% if r.per_competenze %}
+                <span class="rf-lv" title="Livello calcolato dalle competenze">{{ r.ab.livello|default:"—" }}</span>
+                <a class="rf-link" href="{% url 'anagrafica:mansionario_valuta' r.ab.competenza_id r.ab.id %}?da=refresh&amp;reparto={{ reparto|urlencode }}">Valuta competenze</a>
+              {% else %}
+              <select class="rf-sel" name="livello_{{ r.ab.id }}" aria-label="Livello di {{ r.nome }}">
                 {% for code, label in livelli %}<option value="{{ code }}" {% if code == r.ab.livello %}selected{% endif %}>{{ code }} — {{ label }}</option>{% endfor %}
               </select>
+              {% endif %}
             </td>
             <td>
-              <select class="rf-sel" name="azione_{{ r.ab.id }}">
+              <select class="rf-sel" name="azione_{{ r.ab.id }}" aria-label="Azione per {{ r.nome }}">
                 <option value="conferma">Conferma / aggiorna</option>
-                <option value="rimuovi">Rimuovi dalla lista</option>
+                <option value="rimuovi">Togli dalla mansione</option>
               </select>
             </td>
           </tr>
@@ -91,23 +117,28 @@
         </tbody>
       </table>
       {% else %}
-        <div class="rf-empty">Nessuna abilitazione in lista per questo reparto (la baseline non è ancora stata importata).</div>
+        <div class="rf-empty">Nessuna persona in lista sulle mansioni di questo reparto.</div>
       {% endif %}
     </div>
 
     <div class="rf-card">
-      <h3>② Aggiunta manuale</h3>
-      <p class="sub">Aggiungi un'abilitazione non presente in lista (legacy id del dipendente, macchina del reparto, livello).</p>
+      <h3>② Aggiungi una persona</h3>
+      <p class="sub">Per chi svolge una mansione del reparto e non è ancora in lista.</p>
       <div class="rf-add">
-        <div><label>Legacy id dipendente</label><input type="number" name="nuovo_legacy" placeholder="es. 1234"></div>
-        <div><label>Macchina</label>
-          <select class="rf-sel" name="nuovo_asset">
+        <div><label for="rf-persona">Persona</label>
+          <select id="rf-persona" class="rf-sel" name="nuovo_legacy">
             <option value="">—</option>
-            {% for m in macchine_reparto %}<option value="{{ m.asset_id }}">{{ m.label }}</option>{% endfor %}
+            {% for p in persone_opts %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
           </select>
         </div>
-        <div><label>Livello</label>
-          <select class="rf-sel" name="nuovo_livello">
+        <div><label for="rf-mansione">Mansione</label>
+          <select id="rf-mansione" class="rf-sel" name="nuova_mansione">
+            <option value="">—</option>
+            {% for m in mansioni_reparto %}<option value="{{ m.id }}">{{ m.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label for="rf-livello">Livello</label>
+          <select id="rf-livello" class="rf-sel" name="nuovo_livello">
             <option value="">—</option>
             {% for code, label in livelli %}<option value="{{ code }}">{{ code }} — {{ label }}</option>{% endfor %}
           </select>
@@ -115,11 +146,49 @@
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;align-items:center;">
+    <div class="rf-card">
+      <h3>③ Note per la qualità e chiusura</h3>
+      <p class="sub">Segnala cosa non si risolve qui (es. chi ha cambiato reparto o lavoro). Chiudi la campagna quando hai finito: la qualità lo vede nello scadenzario.</p>
+      {% if campagna.note %}<div class="rf-storico">{{ campagna.note }}</div>{% endif %}
+      <textarea id="rf-nota" aria-label="Nota per la qualità" class="rf-note" name="nota_car" placeholder="Nota per la qualità (facoltativa)"></textarea>
+      <label class="rf-close" style="margin-top:10px;"><input type="checkbox" name="chiudi_campagna" value="1"> Ho finito: chiudi la campagna di refresh</label>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
       <button type="submit" class="hr-btn hr-btn-primary">💾 Salva refresh</button>
       <span style="color:#94a3b8;font-size:12px;">Le modifiche spostano la prossima revisione in avanti e scrivono lo storico.</span>
     </div>
   </form>
+
+  {% if coerenza.persone or coerenza.mansioni_senza_rischio %}
+  <div class="rf-card">
+    <h3>④ Coerenza con la mansione di rischio (per l'RSPP)</h3>
+    <p class="sub">Confronto tra la mansione di rischio scritta in anagrafica e quelle collegate alle mansioni che la persona svolge. Solo controllo: si corregge dall'anagrafica o dalla scheda della mansione.</p>
+    {% if coerenza.mansioni_senza_rischio %}
+      <p style="font-size:13px;margin:0 0 10px;"><b>Mansioni senza mansione di rischio collegata:</b>
+      {% for m in coerenza.mansioni_senza_rischio %}<a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if coerenza.persone %}
+    <table class="rf-table">
+      <thead><tr><th>Dipendente</th><th>In anagrafica</th><th>Dalle mansioni svolte</th><th>Esito</th></tr></thead>
+      <tbody>
+        {% for p in coerenza.persone %}
+        <tr>
+          <td><a href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a></td>
+          <td>{{ p.in_anagrafica|default:"—" }}</td>
+          <td>{{ p.attese|join:", "|default:"—" }}</td>
+          <td>
+            {% if p.stato == "diversa" %}<span class="rf-badge diversa">diversa</span>
+            {% elif p.stato == "anagrafica_vuota" %}<span class="rf-badge anagrafica_vuota">anagrafica vuota</span>
+            {% else %}<span class="rf-badge senza_rischio">mansioni senza rischio</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
   {% endif %}
 
 </div>

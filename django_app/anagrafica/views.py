@@ -18947,93 +18947,119 @@ def skill_matrix_macchina(request):
 
 @login_required
 def skm_refresh(request):
-    """Schermata CAR di **refresh semestrale** delle abilitazioni macchina.
+    """Schermata CAR di **refresh** delle abilitazioni del reparto (MOD.187).
 
-    ① Rivaluta le abilitazioni in lista del reparto (conferma invariato / modifica
-    livello / rimuovi); ② aggiunge nuove abilitazioni. Ogni azione scrive uno
-    scatto in ``AbilitazioneMacchinaStorico`` (fonte ``refresh``) e sposta in avanti
-    ``prossima_revisione``. Arretrato visibile, non bloccante.
+    ① Rivaluta le persone in lista sulle mansioni del reparto, macchine e processi
+    (conferma / modifica livello / rimuovi); dove la mansione ha competenze il
+    livello si ricava dalla valutazione per competenza (Mansionario fase 3).
+    ② Aggiunge una persona a una mansione del reparto. ③ Note del CAR per la
+    qualità; la campagna si chiude quando il CAR ha finito. Ogni azione scrive uno
+    scatto in ``AbilitazioneMacchinaStorico`` e sposta ``prossima_revisione``.
 
-    Accesso: ``_check_hr_permission`` (lo scoping per CAR sul proprio reparto è una
-    rifinitura successiva). Merito = CAR; la campagna è solo l'innesco.
+    Accesso: ``anagrafica.skillmatrix.manage``. Merito = CAR; la qualità avvia e
+    sollecita (D18). Nessun dato sanitario: solo livelli e nomi di mansione.
     """
     from .acl_bootstrap import PERM_SKM_MANAGE
     if not _check_skm_permission(request, PERM_SKM_MANAGE):
         messages.error(request, "Non hai i permessi per il refresh Skill Matrix.")
         return redirect("anagrafica:index")
 
+    from urllib.parse import urlencode
     from django.utils import timezone
+    from core.audit import log_action
     from .models import CampagnaRefresh, CompetenzaSkm, LivelloSkm
+    from .services import mansionario_struttura as mstruttura
     from .services import skillmatrix_refresh as refresh
+    from .services.mansionario_competenze import competenze as competenze_mansione
 
     reparto = (request.GET.get("reparto") or request.POST.get("reparto") or "").strip()
-
-    comp = list(
-        CompetenzaSkm.objects
-        .filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
-        .select_related("asset")
-    )
-    reparti = sorted({(c.asset.reparto or "").strip() for c in comp if (c.asset.reparto or "").strip()})
-    macchine_reparto = [
-        {"asset_id": c.asset_id, "label": f"{c.competenza_key} — {c.asset.name}"}
-        for c in comp if reparto and (c.asset.reparto or "").strip() == reparto
-    ]
+    reparti = refresh.reparti_con_mansioni()
+    mansioni = refresh.mansioni_reparto(reparto) if reparto else []
 
     if request.method == "POST" and reparto:
+        legacy_user = get_legacy_user(request.user)
+        car_id = int(legacy_user.id) if legacy_user else None
         camp = refresh.apri_campagna(reparto, avviatore_ruolo=(request.POST.get("avviatore_ruolo") or "").strip())
         decisioni = {}
         for k, v in request.POST.items():
             if k.startswith("azione_"):
                 ab_id = k[len("azione_"):]
                 decisioni[ab_id] = {"azione": v, "livello": request.POST.get(f"livello_{ab_id}", "")}
-        stats = refresh.applica_refresh(reparto=reparto, decisioni=decisioni, campagna=camp)
-        # ② aggiunta manuale (facoltativa).
+        stats = refresh.applica_refresh(reparto=reparto, decisioni=decisioni, campagna=camp,
+                                        car_legacy_id=car_id)
+        # ② aggiunta (facoltativa): persona + mansione del reparto + livello.
         nl = (request.POST.get("nuovo_legacy") or "").strip()
-        na = (request.POST.get("nuovo_asset") or "").strip()
+        nm = (request.POST.get("nuova_mansione") or "").strip()
         nlv = (request.POST.get("nuovo_livello") or "").strip()
         agg = 0
-        if nl and na and nlv:
-            try:
-                refresh.aggiungi_abilitazione(
-                    legacy_anagrafica_id=int(nl), asset_id=int(na), livello=nlv)
-                agg = 1
-            except (ValueError, TypeError):
-                messages.warning(request, "Aggiunta manuale non valida (legacy id / asset / livello).")
+        if nl or nm or nlv:
+            mansione = next((m for m in mansioni if str(m.pk) == nm), None)
+            if nl.isdigit() and mansione is not None and nlv:
+                try:
+                    mstruttura.assegna(mansione, legacy_anagrafica_id=int(nl), livello=nlv, user=request.user)
+                    agg = 1
+                except ValueError as exc:
+                    messages.warning(request, f"Aggiunta non riuscita: {exc}")
+            else:
+                messages.warning(request, "Per aggiungere scegli persona, mansione e livello.")
+        # ③ note del CAR per la qualità e chiusura.
+        nota = (request.POST.get("nota_car") or "").strip()
+        if nota:
+            refresh.aggiungi_nota_campagna(camp, nota, autore=request.user.get_full_name() or request.user.get_username())
+        chiusa = request.POST.get("chiudi_campagna") == "1"
+        if chiusa:
+            refresh.chiudi_campagna(camp)
+        log_action(request, "skm_refresh", "anagrafica", {
+            "reparto": reparto, "campagna": camp.pk, **{k: stats[k] for k in ("confermate", "modificate", "rimosse")},
+            "aggiunte": agg, "nota": bool(nota), "chiusa": chiusa,
+        })
         messages.success(
             request,
             f"Refresh salvato: {stats['confermate']} confermate, {stats['modificate']} modificate, "
-            f"{stats['rimosse']} rimosse" + (f", {agg} aggiunta." if agg else "."),
+            f"{stats['rimosse']} rimosse" + (f", {agg} aggiunta" if agg else "")
+            + (". Campagna chiusa." if chiusa else "."),
         )
-        return redirect(f"{reverse('anagrafica:skm_refresh')}?reparto={reparto}")
+        return redirect(f"{reverse('anagrafica:skm_refresh')}?{urlencode({'reparto': reparto})}")
 
     oggi = timezone.localdate()
     abil = list(refresh.abilitazioni_reparto(reparto)) if reparto else []
-    dip_map: dict[int, dict] = {}
-    if abil:
-        try:
-            dip_map = {int(r["id"]): r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("id")}
-        except Exception:
-            logger.warning("Skill Matrix refresh: anagrafica legacy non disponibile", exc_info=True)
+    dip_rows = []
+    try:
+        dip_rows = fetch_anagrafica_rows(deduplicate=True)
+    except Exception:
+        logger.warning("Skill Matrix refresh: anagrafica legacy non disponibile", exc_info=True)
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
 
     def _nome(lid):
         d = dip_map.get(lid, {})
         return naming.nome_completo(d.get("nome"), d.get("cognome")) or f"ID {lid}"
 
+    con_competenze = {m.pk for m in mansioni if competenze_mansione(m).exists()}
     righe = [{
         "ab": a, "nome": _nome(a.legacy_anagrafica_id),
+        "mansione": a.competenza.nome if a.competenza_id else (a.asset.name if a.asset_id else "—"),
+        "per_competenze": a.competenza_id in con_competenze,
         "arretrata": bool(a.prossima_revisione and a.prossima_revisione < oggi),
     } for a in abil]
     campagna = (
         CampagnaRefresh.objects.filter(reparto=reparto, stato=CampagnaRefresh.STATO_APERTA).first()
         if reparto else None
     )
+    persone_opts = sorted(
+        ({"id": int(r["id"]), "nome": naming.nome_completo(r.get("nome"), r.get("cognome"))}
+         for r in dip_rows if r.get("attivo", True) and r.get("id")),
+        key=lambda c: c["nome"].casefold(),
+    ) if reparto else []
 
     return render(request, "anagrafica/pages/skm_refresh.html", {
         "reparto": reparto,
         "reparti": reparti,
         "righe": righe,
-        "macchine_reparto": macchine_reparto,
+        "mansioni_reparto": [{"id": m.pk, "label": m.nome + (" (processo)" if m.tipo == CompetenzaSkm.TIPO_PROCESSO else "")}
+                             for m in mansioni if m.attiva],
+        "persone_opts": persone_opts,
         "campagna": campagna,
+        "coerenza": refresh.coerenza_rischio_reparto(reparto) if reparto else None,
         "arretrati": sum(1 for r in righe if r["arretrata"]),
         "livelli": LivelloSkm.choices,
         "totale": len(righe),
@@ -19045,8 +19071,8 @@ def skm_scadenzario(request):
     """Scadenzario abilitazioni macchina per reparto (MOD.187).
 
     Mostra, per reparto, la prossima revisione, gli arretrati (non bloccanti) e lo
-    stato campagna. HR "dà il via" al refresh (apre la campagna e avvisa il CAR: in-app
-    + email); il merito della rivalutazione resta al CAR (pagina Refresh).
+    stato campagna. La qualità "dà il via" al refresh (apre la campagna e avvisa il CAR:
+    in-app + email) e può sollecitarlo; il merito della rivalutazione resta al CAR.
     Accesso: ``anagrafica.skillmatrix.manage``.
     """
     from .acl_bootstrap import PERM_SKM_MANAGE
@@ -19062,12 +19088,20 @@ def skm_scadenzario(request):
         if reparto:
             legacy_user = get_legacy_user(request.user)
             _, created = refresh.avvia_refresh(
-                reparto=reparto, avviatore_ruolo="HR",
+                reparto=reparto, avviatore_ruolo="Qualità",
                 avviatore_legacy_id=int(legacy_user.id) if legacy_user else None)
             if created:
-                messages.success(request, f"Refresh avviato per «{reparto}»: il CAR è stato avvisato.")
+                messages.success(request, f"Refresh avviato per «{reparto}»: il caporeparto è stato avvisato.")
             else:
                 messages.info(request, f"Il reparto «{reparto}» ha già una campagna di refresh aperta.")
+        return redirect("anagrafica:skm_scadenzario")
+
+    if request.method == "POST" and request.POST.get("azione") == "sollecita":
+        reparto = (request.POST.get("reparto") or "").strip()
+        if refresh.sollecita_car(reparto):
+            messages.success(request, f"Sollecito inviato al caporeparto di «{reparto}».")
+        else:
+            messages.info(request, f"Il reparto «{reparto}» non ha una campagna di refresh aperta.")
         return redirect("anagrafica:skm_scadenzario")
 
     oggi = timezone.localdate()

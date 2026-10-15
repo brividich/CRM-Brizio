@@ -149,6 +149,20 @@ GUIDA = {
                                 "e le mansioni di rischio che ne derivano."),
                     ("Lacune di competenza", "elenco di chi non è abilitato e cosa manca, filtrabile ed esportabile in "
                                              "CSV: base per il piano formativo e per il refresh dei caporeparto."),
+                    ("Refresh caporeparto", "la qualità, da «Refresh caporeparto» (Scadenzario refresh), avvia il "
+                                            "refresh di un reparto con «Avvia refresh»: il caporeparto riceve notifica "
+                                            "ed email. Con la campagna aperta compare «Sollecita», che gli manda un "
+                                            "promemoria. Le note del caporeparto si leggono sotto la data della campagna."),
+                    ("Pagina del refresh", "il caporeparto vede tutte le persone in lista sulle mansioni del reparto, "
+                                           "macchine e processi. Per ognuna conferma o cambia il livello, oppure la "
+                                           "toglie; dove la mansione ha competenze usa «Valuta competenze» e torna al "
+                                           "refresh. Può aggiungere una persona a una mansione del reparto, lasciare una "
+                                           "nota per la qualità e chiudere la campagna con «Ho finito»."),
+                    ("Coerenza con la mansione di rischio", "in fondo alla pagina del refresh: chi ha in anagrafica "
+                                                            "una mansione di rischio diversa da quelle delle mansioni "
+                                                            "che svolge, o non ne ha, e le mansioni del reparto senza "
+                                                            "mansione di rischio. Serve all'RSPP; si corregge "
+                                                            "dall'anagrafica o dalla scheda della mansione."),
                 ]),
                 ("nota", "Le mansioni di rischio ricavate dalle mansioni sono per ora un'indicazione: DPI, visite e schede "
                          "di sicurezza seguono ancora la mansione di rischio scritta in anagrafica."),

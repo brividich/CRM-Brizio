@@ -100,7 +100,7 @@ class RefreshViewTests(TestCase):
     def test_get_render_reparto(self):
         resp = self.client.get(self.url, {"reparto": "Officina"})
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Refresh semestrale")
+        self.assertContains(resp, "Refresh abilitazioni")
         self.assertContains(resp, "Macchina RF2")
 
     def test_post_salva_modifica(self):
