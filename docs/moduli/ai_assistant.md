@@ -52,6 +52,13 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 - Le richieste partono dal server Django verso Ollama; il browser non parla direttamente con la workstation
 - Audit trail solo su metadati tecnici (modello, lunghezze, latenza, errori), senza prompt o risposte: i testi stanno solo nello storico personale dell'utente (vedi sopra)
 
+## Elenchi completi o dichiarati parziali (15/10/2026)
+
+Dalle valutazioni negative in produzione (6 su 9): due erano elenchi parziali presentati come completi.
+- Ratei (`tools._anagrafica_ratei_context`): soglia letta dal testo (`_extract_hours_threshold`: «più di/oltre/almeno/meno di N ore|giorni», giorni × 7,5) e applicata in query; con soglia o «elencami/tutti» il limite passa da 5 a 30; `row_count` è il totale vero (prima, nella classifica, era il numero mostrato); il contesto dice «Righe totali / mostrate» e vieta «tutti» per un elenco parziale.
+- Anagrafica (`_anagrafica_context`): nuovo filtro mansione (`_extract_mansione_filter`); istruzione «ne mostro X su Y».
+- Restano aperti: «quante ferie ho» senza saldo per l'utente corrente, abilitazione skill matrix sbagliata (01/07), documenti SGI citati a sproposito (giugno, prima della revisione SGI A1/A2).
+
 ## Hardening ottobre 2026
 
 - Al massimo `OLLAMA_MAX_CONCURRENT_REQUESTS` (default 3) chiamate al modello contemporanee per processo: oltre il limite l'utente riceve subito «assistente occupato» invece di occupare un thread del server web.

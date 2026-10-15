@@ -732,6 +732,16 @@ def _extract_reparto_filter(prompt: str) -> str:
     return ""
 
 
+def _extract_mansione_filter(prompt: str) -> str:
+    """«con mansione addetto uffici», «la mansione di saldatore» -> testo della mansione."""
+    m = re.search(
+        r"\bmansion[ei]\s+(?:di\s+|da\s+|come\s+|=\s*|:\s*)?([A-Za-zÀ-ÿ0-9 /\-'.]{2,40}?)"
+        r"(?:\s*[?.,;]|$|\s+(?:nel|nella|del|della|in|attiv\w*|cessat\w*|e|con|che)\b)",
+        _norm_text(prompt),
+    )
+    return m.group(1).strip() if m else ""
+
+
 def _extract_part_number_filter(prompt: str) -> str:
     """Estrae un part number dal prompt da usare come filtro anomalie/OP (parziale, case-insensitive)."""
     m = re.search(
@@ -1609,6 +1619,40 @@ def _extract_top_limit(prompt: str, *, default: int = 5, max_limit: int = 30) ->
         return max(1, min(int(match.group(1)), max_limit))
     except (TypeError, ValueError):
         return default
+
+
+_HOURS_THRESHOLD_RE = re.compile(
+    r"\b(pi[uù] di|oltre|sopra|superiore a|superiori a|maggiore di|maggiori di|almeno|meno di|sotto|inferiore a|inferiori a|minore di|minori di)"
+    r"\s+(?:le\s+|i\s+)?(\d+(?:[.,]\d+)?)\s*(ore|ora|h|giorni|giorno|gg)?\b"
+)
+_LIST_ALL_RE = re.compile(r"\b(tutti|tutte|elenco|elencami|elenca|lista)\b")
+
+
+def _extract_hours_threshold(prompt: str) -> tuple[str, Decimal, str] | None:
+    """«più di 100 ore», «almeno 10 giorni», «meno di 8 ore» -> (lookup, ore, etichetta).
+
+    Senza la soglia, «elencami i dipendenti con più di 100 ore di ferie» diventava la classifica
+    dei primi 5 e l'assistente la presentava come elenco completo (feedback negativo 21/07).
+    """
+    match = _HOURS_THRESHOLD_RE.search(_norm_text(prompt))
+    if not match:
+        return None
+    word, number, unit = match.group(1), match.group(2), match.group(3) or "ore"
+    try:
+        value = Decimal(number.replace(",", "."))
+    except InvalidOperation:
+        return None
+    hours = value * Decimal("7.5") if unit.startswith("g") else value
+    if word == "almeno":
+        lookup = "gte"
+    elif word.startswith(("meno", "sotto", "inferior", "minor")):
+        lookup = "lt"
+    else:
+        lookup = "gt"
+    symbol = {"gt": ">", "gte": ">=", "lt": "<"}[lookup]
+    unit_label = "giorni" if unit.startswith("g") else "ore"
+    label = f"{symbol} {number} {unit_label}" + (f" ({_format_hours(hours)} ore)" if unit_label == "giorni" else "")
+    return lookup, hours, label
 
 
 def _ratei_field_from_prompt(prompt: str) -> tuple[str, str]:
@@ -3137,8 +3181,11 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
     field_name, field_label = _ratei_field_from_prompt(prompt)
-    limit = _extract_top_limit(prompt, default=5, max_limit=30)
     text = _norm_text(prompt)
+    threshold = _extract_hours_threshold(prompt)
+    # Con una soglia o un «elencami/tutti» l'utente vuole l'elenco, non la top 5.
+    wants_list = threshold is not None or bool(_LIST_ALL_RE.search(text))
+    limit = _extract_top_limit(prompt, default=30 if wants_list else 5, max_limit=30)
     ascending = bool(re.search(r"\b(minor[ei]|piu bass[ioe]|piÃ¹ bass[ioe])\b", text))
 
     include_days = _wants_days_ratei(prompt)
@@ -3231,9 +3278,12 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
         total_rows = saldi_qs.count()
     else:
         order_field = field_name if ascending else f"-{field_name}"
-        saldi_qs = qs.filter(data_competenza=latest_period).order_by(order_field, "tax_code")
+        saldi_qs = qs.filter(data_competenza=latest_period)
+        if threshold is not None:
+            saldi_qs = saldi_qs.filter(**{f"{field_name}__{threshold[0]}": threshold[1]})
+        saldi_qs = saldi_qs.order_by(order_field, "tax_code")
         saldi = list(saldi_qs[:limit])
-        total_rows = len(saldi)
+        total_rows = saldi_qs.count()
     legacy_ids = [int(getattr(saldo, "legacy_anagrafica_id", 0) or 0) for saldo in saldi]
     legacy_ids = [legacy_id for legacy_id in legacy_ids if legacy_id > 0]
     legacy_rows = target_rows if target_rows else fetch_anagrafica_rows(ids=legacy_ids, deduplicate=True) if legacy_ids else []
@@ -3267,10 +3317,22 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
             f"Ho trovato {len(saldi)} saldi per '{target_label}' al {_short_date(latest_period)}:\n"
             f"{lines}"
         )
+    elif threshold is not None:
+        partial = (
+            f" Ne mostro {len(saldi)}: l'elenco completo è in Anagrafica > Ratei Ferie/Permessi."
+            if total_rows > len(saldi) else ""
+        )
+        direct_answer = (
+            f"{total_rows} dipendenti hanno {field_label.lower()} {threshold[2]} al {_short_date(latest_period)}.{partial}\n"
+            f"{lines}"
+        )
     else:
+        partial = (
+            f"\nSono i primi {len(saldi)} di {total_rows}: non è l'elenco completo." if total_rows > len(saldi) else ""
+        )
         direct_answer = (
             f"Classifica {field_label.lower()} per {direction_label} valore al {_short_date(latest_period)}:\n"
-            f"{lines}"
+            f"{lines}{partial}"
         )
     return RuntimeContext(
         text=(
@@ -3279,9 +3341,13 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
             "Regole risposta: puoi riportare solo dipendente, reparto, periodo e ore residue della metrica richiesta. "
             "Non riportare codice fiscale, dati retributivi, importi, dettagli cedolino, documenti, allegati o path.\n"
             f"Metrica: {field_label}. Ordinamento: {direction_label} valore. Periodo usato: {_short_date(latest_period)}. "
-            f"Filtro nominativo: {target_label or 'nessuno'}. Righe mostrate: {len(saldi)}.\n"
+            f"Filtro nominativo: {target_label or 'nessuno'}. "
+            f"Soglia: {threshold[2] if threshold else 'nessuna'}. "
+            f"Righe totali: {total_rows}; righe mostrate: {len(saldi)}.\n"
             "ISTRUZIONE RISPOSTA: se e' presente una RISPOSTA DIRETTA, riportala all'utente. "
-            "Non rispondere che non hai accesso se questa fonte contiene il dato richiesto.\n"
+            "Non rispondere che non hai accesso se questa fonte contiene il dato richiesto. "
+            "Se le righe totali sono piu' di quelle mostrate, scrivi chiaramente che l'elenco e' parziale "
+            "e quante sono in totale: non dire mai «tutti» o «ecco l'elenco» per un elenco parziale.\n"
             f"RISPOSTA DIRETTA:\n{direct_answer}\nFonte: tool:anagrafica:ratei.\n"
             "Righe live disponibili:\n"
             f"{lines}"
@@ -3293,6 +3359,7 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
             "scope": scope,
             "ratei_metric": field_name,
             "name_filter": target_label,
+            "threshold": threshold[2] if threshold else "",
             "period": latest_period.isoformat(),
             "order": "asc" if ascending else "desc",
             "row_count": total_rows,
@@ -3379,6 +3446,15 @@ def _anagrafica_context(request, prompt: str) -> RuntimeContext:
         filters_for_context.append(f"reparto/area contiene '{reparto_filter}'")
         audit_filters.append("reparto_area")
 
+    mansione_filter = _extract_mansione_filter(prompt)
+    if mansione_filter:
+        # Prima la mansione non filtrava: il modello vedeva i primi 30 dipendenti in ordine
+        # alfabetico e rispondeva «c'è solo lui» (feedback negativo 12/10).
+        mf = mansione_filter.casefold()
+        rows = [row for row in rows if mf in str(row.get("mansione") or "").casefold()]
+        filters_for_context.append(f"mansione contiene '{mansione_filter}'")
+        audit_filters.append("mansione")
+
     if re.search(r"\b(cessat[ioe]|inattiv[ioe]|non attiv[ioe]|disattivat[ioe])\b", text):
         rows = [row for row in rows if not _is_anagrafica_row_active(row, aziendale_by_id.get(int(row.get("id") or 0)))]
         filters_for_context.append("stato=cessato/non attivo")
@@ -3425,7 +3501,9 @@ def _anagrafica_context(request, prompt: str) -> RuntimeContext:
             f"Conteggi filtro: attivi {active_count}, cessati/non attivi {len(rows) - active_count}, "
             f"consenso privacy si {consent_yes}, consenso privacy no {len(rows) - consent_yes}.\n"
             "ISTRUZIONE RISPOSTA: se ci sono righe, elenca i dipendenti uno per uno usando solo i campi sotto; "
-            "non sintetizzare con nomi non presenti e non inventare valori mancanti.\n"
+            "non sintetizzare con nomi non presenti e non inventare valori mancanti. "
+            "Se i dipendenti trovati sono piu' di quelli mostrati, dillo («ne mostro X su Y») e non affermare "
+            "che sono gli unici: chi non e' nelle righe sotto puo' comunque rispettare i filtri.\n"
             f"{lines}"
         ),
         sources=("tool:anagrafica:dipendenti",),

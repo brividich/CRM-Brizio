@@ -2073,6 +2073,53 @@ class AiAssistantTests(TestCase):
         self.assertNotIn("Giuseppe Verdi", context.text)
         self.assertEqual(context.audit["tools"][0]["ratei_metric"], "ferie_residui")
         self.assertEqual(context.audit["tools"][0]["shown_count"], 5)
+        self.assertIn("Sono i primi 5 di 6", context.text)  # la classifica dichiara di essere parziale
+
+    def test_runtime_ratei_threshold_lists_everyone_above_it(self):
+        """Feedback 21/07: «più di 100 ore» restituiva la top 5 presentata come elenco completo."""
+        from anagrafica.models import SaldoCedolino
+
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        period = date(2026, 5, 31)
+        rows = []
+        for i, ore in enumerate(["150", "140", "130", "120", "110", "105", "101", "99", "20"]):
+            SaldoCedolino.objects.create(tax_code=f"TAX{i:013d}", legacy_anagrafica_id=100 + i, data_competenza=period, ferie_residui=ore)
+            rows.append({"id": 100 + i, "nome": f"Nome{i}", "cognome": f"Demo{i}", "reparto": "Produzione"})
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "elencami tutti i dipendenti con più di 100 ore di ferie residue")
+
+        self.assertIn("7 dipendenti hanno ferie residue > 100 ore", context.text)
+        self.assertIn("Demo6", context.text)        # 101 ore: dentro
+        self.assertNotIn("Demo7", context.text)     # 99 ore: fuori
+        self.assertEqual(context.audit["tools"][0]["row_count"], 7)
+        self.assertEqual(context.audit["tools"][0]["shown_count"], 7)
+
+    def test_runtime_ratei_threshold_in_days(self):
+        from decimal import Decimal
+
+        from ai_assistant.tools import _extract_hours_threshold
+
+        self.assertEqual(_extract_hours_threshold("chi ha almeno 10 giorni di ferie")[:2], ("gte", Decimal("75.0")))
+        self.assertEqual(_extract_hours_threshold("meno di 8 ore di rol")[0], "lt")
+        self.assertIsNone(_extract_hours_threshold("primi 5 per ferie residue"))
+
+    def test_runtime_anagrafica_filters_by_mansione(self):
+        """Feedback 12/10: «mansione addetto uffici» mostrava i primi 30 in ordine alfabetico, non il filtro."""
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        rows = [{"id": 200 + i, "nome": f"Nome{i}", "cognome": f"A{i:02d}", "reparto": "Produzione", "mansione": "Operatore", "attivo": True}
+                for i in range(40)]
+        rows += [{"id": 300 + i, "nome": f"Uff{i}", "cognome": f"Z{i}", "reparto": "UT", "mansione": "Addetto Uffici", "attivo": True}
+                 for i in range(3)]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "dimmi i dipendenti che hanno mansione addetto uffici")
+
+        self.assertIn("mansione contiene 'addetto uffici'", context.text)
+        self.assertIn("Dipendenti trovati: 3; mostrati: 3", context.text)
+        for i in range(3):
+            self.assertIn(f"Uff{i} Z{i}", context.text)
+        self.assertNotIn("Operatore", context.text)
 
     def test_runtime_anagrafica_context_lists_named_ferie_residue(self):
         from anagrafica.models import SaldoCedolino
