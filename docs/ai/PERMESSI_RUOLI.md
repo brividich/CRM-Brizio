@@ -12,6 +12,18 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   `preset` (da quale preset nasce).
 - **Persona → ruoli**: `AccessGroupMembership` (N ruoli per persona), assegnati **a mano**
   dalla scheda «Persone». Il ruolo base `dipendente` vale per tutti senza iscrizione.
+- **Ruoli dall'organigramma**: `anagrafica.RuoloOperativo.profili_permessi` (M2M verso
+  `AccessGroup`, migrazione anagrafica 0174). Chi ricopre oggi un ruolo d'organigramma collegato
+  (stesse assegnazioni del team: ruolo attivo, `data_fine` vuota o futura) riceve quei ruoli,
+  sommati a quelli a mano. Fonte unica `core/permessi/organigramma.py`
+  (`profili_da_organigramma`, `provenienze_per_utenti`), letta da `motore.ruoli_della_persona` e da
+  `acl_resolver.user_group_ids` / `describe_user_groups` (pagine e menu). Mai un ruolo con
+  `amministratore=True`: filtrato in lettura anche se collegato. I segnali su `RuoloOperativo`,
+  `DipendenteRuoloOperativo` e sulla M2M chiamano `invalida_permessi()` (che azzera anche il team).
+  Collegamento dalla matrice (riquadro «Dall'organigramma», POST `ruoli_portale_organigramma`).
+  Conseguenza di sicurezza: chi modifica l'organigramma in Anagrafica decide chi riceve i ruoli
+  collegati. Chi conta le persone di un ruolo deve sommare le due fonti
+  (`AccessGroupMembership` + organigramma).
 - **Matrice**: `core.RuoloPermessoModulo` = ruolo × modulo × azione → `consentito` +
   `ambito` (`propri` / `team` / `tutti`). Riga assente = il ruolo **tace**.
 - **Precedenza**: superuser e amministratori → tutto. Poi, fra i ruoli della persona,

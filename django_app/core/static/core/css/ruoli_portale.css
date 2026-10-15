@@ -37,6 +37,22 @@
 .rp-search .input { flex: 1 1 220px; min-width: 0; }
 
 .rp-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* Ruoli che arrivano dall'organigramma: bordo tratteggiato, non si spuntano a mano. */
+.rp-chip-org { border: 1px dashed var(--accent); background: var(--accent-light); color: var(--accent); }
+.rp-org-box {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+.rp-org-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 4px; }
+.rp-org-list { margin: 0 0 6px; padding-left: 18px; }
+.rp-org-ambito { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 10px; margin: 0 0 10px; }
+.rp-org-ambito legend { padding: 0 6px; font-weight: 700; color: var(--text); }
+.rp-org-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; }
 .rp-person-link { color: var(--text); font-weight: 600; text-decoration: none; }
 .rp-person-link:hover { color: var(--accent); }
 .rp-row-active td { background: var(--accent-light); }

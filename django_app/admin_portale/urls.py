@@ -122,6 +122,7 @@ urlpatterns = [
     path("ruoli-portale/", views_ruoli.ruoli_portale, name="ruoli_portale"),
     path("ruoli-portale/persona/<int:legacy_user_id>/", views_ruoli.ruoli_portale_persona, name="ruoli_portale_persona"),
     path("ruoli-portale/matrice/<int:ruolo_id>/", views_ruoli.ruoli_portale_matrice, name="ruoli_portale_matrice"),
+    path("ruoli-portale/organigramma/<int:ruolo_id>/", views_ruoli.ruoli_portale_organigramma, name="ruoli_portale_organigramma"),
     path("ruoli-portale/ruolo/nuovo/", views_ruoli.ruoli_portale_ruolo, name="ruoli_portale_ruolo_nuovo"),
     path("ruoli-portale/ruolo/<int:ruolo_id>/", views_ruoli.ruoli_portale_ruolo, name="ruoli_portale_ruolo"),
     path("ruoli-portale/preset/", views_ruoli.ruoli_portale_preset, name="ruoli_portale_preset"),

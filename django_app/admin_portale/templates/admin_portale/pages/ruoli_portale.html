@@ -57,7 +57,9 @@
               </td>
               <td>
                 <div class="rp-chips">
-                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active %} unset{% endif %}">{{ g.label }}</span>{% empty %}<span class="acl-muted">Solo Dipendente</span>{% endfor %}
+                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active %} unset{% endif %}">{{ g.label }}</span>{% endfor %}
+                  {% for o in row.da_organigramma %}<span class="acl-chip rp-chip-org" title="Dall'organigramma: {{ o.da }}">{{ o.gruppo.label }} · organigramma</span>{% endfor %}
+                  {% if not row.ruoli and not row.da_organigramma %}<span class="acl-muted">Solo Dipendente</span>{% endif %}
                 </div>
               </td>
             </tr>
@@ -74,6 +76,17 @@
       {% if selezionata %}
         <div class="card-title">{{ selezionata.nome }}</div>
         <div class="acl-muted">{{ selezionata.email|default:"" }} · tutti hanno il ruolo base «Dipendente», non serve spuntarlo.</div>
+        <div class="rp-org-box">
+          <div class="rp-org-title">Dall'organigramma</div>
+          {% if organigramma_selezionata %}
+            <ul class="rp-org-list">
+              {% for o in organigramma_selezionata %}<li><strong>{{ o.gruppo.label }}</strong> <span class="acl-muted">perché in organigramma è {{ o.da }}</span></li>{% endfor %}
+            </ul>
+            <div class="acl-muted">Arrivano da soli e spariscono quando la persona lascia quel ruolo in Anagrafica: qui non si tolgono.</div>
+          {% else %}
+            <div class="acl-muted">Nessun ruolo del portale dall'organigramma: i ruoli d'organigramma di questa persona non sono collegati a ruoli del portale (si collegano dalla «Matrice dei ruoli»).</div>
+          {% endif %}
+        </div>
         <form method="post" action="{% url 'admin_portale:ruoli_portale_persona' selezionata.id %}">
           {% csrf_token %}
           <input type="hidden" name="q" value="{{ q }}">
@@ -81,7 +94,7 @@
             {% for r in ruoli %}{% if r.preset != "dipendente" %}
               <label>
                 <input type="checkbox" name="ruoli" value="{{ r.id }}"{% if r.id in ruoli_selezionata %} checked{% endif %}>
-                <span>{{ r.label }}{% if not r.is_active %} <span class="acl-chip unset">disattivo</span>{% endif %}
+                <span>{{ r.label }}{% if not r.is_active %} <span class="acl-chip unset">disattivo</span>{% endif %}{% if r.id in ids_organigramma_selezionata %} <span class="acl-chip rp-chip-org">già dall'organigramma</span>{% endif %}
                   <small>{{ r.description|default:"" }}</small></span>
                 <span class="rp-order">ordine {{ r.priority }}</span>
               </label>
@@ -136,6 +149,39 @@
             <input type="hidden" name="preset" value="{{ preset_ruolo.chiave }}">
             <input type="hidden" name="reset" value="1">
             <button class="btn btn-secondary" type="submit" onclick="return confirm('Riportare «{{ ruolo.label|escapejs }}» al preset? Le modifiche a mano della matrice si perdono.');">Ripristina il preset «{{ preset_ruolo.nome }}»</button>
+          </form>
+        {% endif %}
+      </details>
+
+      <details class="acl-tech" style="margin-bottom:12px;">
+        <summary>Dall'organigramma · {{ organigramma_collegati }} ruoli collegati · {{ persone_organigramma }} persone oggi</summary>
+        {% if ruolo.amministratore %}
+          <div class="acl-flash warning" style="margin-top:10px;">Un ruolo amministratore si assegna solo a mano dalla scheda «Persone»: non arriva mai dall'organigramma.</div>
+        {% elif ruolo.preset == "dipendente" %}
+          <div class="acl-muted" style="margin-top:10px;">Il ruolo base vale per tutti: non serve collegarlo.</div>
+        {% else %}
+          <p class="acl-muted" style="margin-top:10px;">Chi ricopre in Anagrafica uno dei ruoli spuntati riceve «{{ ruolo.label }}» in automatico, finché lo ricopre. Si somma ai ruoli assegnati a mano.</p>
+          <form method="post" action="{% url 'admin_portale:ruoli_portale_organigramma' ruolo.id %}">
+            {% csrf_token %}
+            {% for a in organigramma_ambiti %}
+              <fieldset class="rp-org-ambito">
+                <legend>{{ a.nome }}</legend>
+                <div class="rp-org-grid">
+                  {% for x in a.ruoli %}
+                    <label class="rp-check">
+                      <input type="checkbox" name="ruoli_organigramma" value="{{ x.ruolo.id }}"{% if x.collegato %} checked{% endif %}>
+                      {{ x.ruolo.nome }}{% if not x.ruolo.is_active %} <span class="acl-chip unset">disattivo</span>{% endif %}
+                      <span class="acl-muted">· {{ x.persone }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+              </fieldset>
+            {% empty %}
+              <div class="acl-empty">Nessun ruolo nel catalogo dell'organigramma (Anagrafica → Ruoli).</div>
+            {% endfor %}
+            {% if organigramma_ambiti %}
+              <div class="acl-actions" style="margin-top:10px;"><button class="btn" type="submit">Salva collegamenti</button></div>
+            {% endif %}
           </form>
         {% endif %}
       </details>
