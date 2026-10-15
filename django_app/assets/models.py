@@ -3886,10 +3886,26 @@ class MaintenanceOccurrence(models.Model):
         help_text="Data di arrivo del rapporto del fornitore (puo' essere posteriore all'esecuzione).",
     )
 
+    # --- Rinvio: la data operativa (due_date) si sposta, la scadenza originale resta
+    original_due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Scadenza originale prima del primo rinvio. Vuota = mai rinviata.",
+    )
+
     cancel_reason = models.CharField(max_length=255, blank=True, default="")
     source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default=SOURCE_SCHEDULER, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_postponed(self) -> bool:
+        return bool(self.original_due_date) and self.original_due_date != self.due_date
+
+    @property
+    def scheduled_due_date(self):
+        """Scadenza da piano, indipendente dai rinvii."""
+        return self.original_due_date or self.due_date
 
     class Meta:
         ordering = ["due_date", "asset__name", "id"]
@@ -3939,6 +3955,39 @@ class MaintenanceOccurrence(models.Model):
         if not self.due_date:
             return None
         return (self.due_date - (reference_date or timezone.localdate())).days
+
+
+class MaintenanceOccurrencePostponement(models.Model):
+    """Storico dei rinvii di un'occorrenza: ogni rinvio resta tracciato.
+
+    Il rinvio sposta solo la data operativa: alla chiusura la scadenza successiva
+    riparte dalla data di esecuzione effettiva, qualunque sia il numero di rinvii.
+    """
+
+    occurrence = models.ForeignKey(
+        MaintenanceOccurrence,
+        on_delete=models.CASCADE,
+        related_name="postponements",
+    )
+    from_date = models.DateField()
+    to_date = models.DateField()
+    reason = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_postponements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Rinvio manutenzione"
+        verbose_name_plural = "Rinvii manutenzione"
+
+    def __str__(self) -> str:
+        return f"Rinvio<{self.occurrence_id}: {self.from_date} -> {self.to_date}>"
 
 
 def _occurrence_attachment_upload_to(instance, filename: str) -> str:

@@ -219,11 +219,12 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
     'da_fare': (
         "«Il mio lavoro» mostra le tue manutenzioni e quelle di nessuno; «Tutto» l'intera officina.",
         'Premi «Registra» su una riga per chiudere la manutenzione con esito e documento.',
+        "Non si riesce a farla in tempo? Dalla pagina di registrazione premi «Rinvia»: nuova data e motivo, lo storico dei rinvii resta.",
         "Chi pianifica seleziona piu' righe e le raccoglie in un solo ordine di lavoro.",
     ),
     'calendario': (
         'Clicca una scadenza per il dettaglio e le azioni; clicca un giorno per vedere cosa scade.',
-        'Trascina una manutenzione su un altro giorno per spostarne la data (chi pianifica).',
+        "Trascina una manutenzione su un altro giorno per rinviarla (chi pianifica): la scadenza originale resta registrata e alla chiusura il conteggio riparte dalla data di esecuzione.",
         "«Crea OdL» o «Aggiungi alla selezione» raccolgono una o piu' scadenze in un ordine di lavoro.",
         'Viste Mese, Settimana, Elenco e Per asset; le tipologie si accendono e spengono in alto.',
     ),

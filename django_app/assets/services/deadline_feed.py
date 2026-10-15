@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Iterable
 
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Count, Exists, IntegerField, OuterRef, Q, Subquery
 from django.urls import reverse
 from django.utils import timezone
 
@@ -91,6 +91,9 @@ class Deadline:
     # Solo per le occorrenze aperte senza OdL: si possono raccogliere in un ordine di lavoro.
     occurrence_id: int | None = None
     plannable: bool = False
+    # Rinvio: scadenza originale (vuota se mai rinviata) e numero di rinvii.
+    original_due_date: date | None = None
+    postponements: int = 0
     detail_url: str = ""
     actions: list[dict[str, str]] = field(default_factory=list)
 
@@ -128,6 +131,8 @@ class Deadline:
             "occurrence_id": self.occurrence_id,
             "plannable": self.plannable,
             "movable": bool(self.occurrence_id) and self.state != STATE_DONE,
+            "original_start": self.original_due_date.isoformat() if self.original_due_date else "",
+            "postponements": self.postponements,
             "url": self.detail_url,
             "actions": self.actions,
         }
@@ -177,6 +182,20 @@ def _person(user) -> str:
 # Sorgenti
 # ---------------------------------------------------------------------------
 
+def _postponement_count():
+    """Numero di rinvii per occorrenza, come subquery: i filtri con join non lo gonfiano."""
+    from ..models import MaintenanceOccurrencePostponement
+
+    return Subquery(
+        MaintenanceOccurrencePostponement.objects.filter(occurrence_id=OuterRef("pk"))
+        .order_by()
+        .values("occurrence_id")
+        .annotate(n=Count("id"))
+        .values("n")[:1],
+        output_field=IntegerField(),
+    )
+
+
 def _occurrences(start: date | None, end: date | None, filters: FeedFilters, today: date) -> list[Deadline]:
     wanted = filters.kinds & {KIND_ORDINARY, KIND_ADMINISTRATIVE}
     if not wanted:
@@ -188,6 +207,7 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
         )
         .prefetch_related("attachments")
         .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        .annotate(n_rinvii=_postponement_count())
     )
     if not filters.include_done:
         qs = qs.filter(status=MaintenanceOccurrence.STATUS_OPEN)
@@ -239,6 +259,10 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
                 "label": "Registra esecuzione",
                 "url": reverse("assets:occurrence_complete", args=[occ.id]),
             })
+            actions.append({
+                "label": "Rinvia",
+                "url": reverse("assets:occurrence_postpone", args=[occ.id]),
+            })
         if occ.work_order_id:
             actions.append({"label": "Apri OdL", "url": reverse("assets:wo_view", args=[occ.work_order_id])})
         elif occ.status == MaintenanceOccurrence.STATUS_OPEN:
@@ -260,6 +284,8 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
             work_order_id=occ.work_order_id,
             occurrence_id=occ.id,
             plannable=occ.status == MaintenanceOccurrence.STATUS_OPEN and not occ.work_order_id,
+            original_due_date=occ.original_due_date if occ.is_postponed else None,
+            postponements=int(getattr(occ, "n_rinvii", 0) or 0),
             detail_url=actions[0]["url"],
             actions=actions,
             **_asset_fields(occ.asset),

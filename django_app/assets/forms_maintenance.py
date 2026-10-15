@@ -461,6 +461,23 @@ class AssetGroupForm(forms.ModelForm):
         return group
 
 
+class OccurrencePostponeForm(forms.Form):
+    """Rinvio di UNA manutenzione: sposta la data operativa, non la scadenza originale."""
+
+    new_date = forms.DateField(
+        label="Rinvia al",
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+    )
+    reason = forms.CharField(
+        label="Motivo del rinvio",
+        max_length=255,
+        widget=forms.TextInput(attrs={"placeholder": "Es. macchina in produzione, ricambio non disponibile"}),
+    )
+
+    def clean_reason(self):
+        return (self.cleaned_data.get("reason") or "").strip()
+
+
 class OccurrenceCompletionForm(forms.Form):
     """Chiusura di UNA manutenzione su UN asset: la chiusura non e' mai di lotto."""
 

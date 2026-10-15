@@ -43,7 +43,10 @@ class SpostaScadenzaTests(TestCase):
         self.assertEqual(response.json()["old_date"], (self.today + timedelta(days=3)).isoformat())
         self.occ.refresh_from_db()
         self.assertEqual(self.occ.due_date, nuova)
-        self.assertTrue(AuditLog.objects.filter(azione="ASSET_OCCORRENZA_SPOSTATA", oggetto_id=str(self.occ.id)).exists())
+        # Il trascinamento e' un rinvio: la scadenza originale resta.
+        self.assertEqual(self.occ.original_due_date, self.today + timedelta(days=3))
+        self.assertEqual(self.occ.postponements.count(), 1)
+        self.assertTrue(AuditLog.objects.filter(azione="ASSET_OCCORRENZA_RINVIATA", oggetto_id=str(self.occ.id)).exists())
 
     def test_rifiuti(self):
         self.assertEqual(self._move(self.occ.id, "non-una-data").status_code, 400)
