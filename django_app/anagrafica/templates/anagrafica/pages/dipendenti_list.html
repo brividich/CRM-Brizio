@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -19,18 +19,26 @@
 
     {% include "anagrafica/components/flash_messages.html" %}
 
-    <div class="fmd-pagehead">
-      <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Dipendenti</span></div>
-        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Dipendenti e fascicolo HR <span class="fmd-count">{{ page_obj.paginator.count }}</span></h1>
-        <p class="fmd-ph-sub">Anagrafica centrale per utenti, timbri, assenze e moduli collegati. Clicca la riga per aprire la scheda.</p>
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Persone</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-users"/></svg>Dipendenti e fascicolo HR</h1>
+          <p class="fmd-sub">Anagrafica centrale per utenti, timbri, assenze e moduli collegati: reparti, mansioni e documenti. Clicca la riga per aprire la scheda.</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:dipendente_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo dipendente</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV"><svg class="fmd-ico"><use href="#i-download"/></svg>Report dipendenti</a>
+            {% if n_ex %}<a class="fmd-btn-template" href="{% url 'anagrafica:ex_dipendenti_list' %}" title="Rapporti di lavoro cessati"><svg class="fmd-ico"><use href="#i-clock"/></svg>Ex dipendenti ({{ n_ex }})</a>{% endif %}
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_attivi }}</span><span class="fmd-lbl">Attivi</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_reparti }}</span><span class="fmd-lbl">Reparti</span></div>
+        </div>
       </div>
-      <div class="fmd-pagehead-actions">
-        {% if n_ex %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:ex_dipendenti_list' %}" title="Rapporti di lavoro cessati">Ex dipendenti ({{ n_ex }})</a>{% endif %}
-        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV"><svg class="fmd-ico"><use href="#i-download"/></svg>Report</a>
-        <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:dipendente_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo dipendente</a>
-      </div>
-    </div>
+    </section>
 
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Persone in sintesi">
       {% url 'anagrafica:dipendenti_list' as u_dip %}
@@ -40,9 +48,20 @@
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="con almeno un dipendente" %}
       {% url 'anagrafica:ex_dipendenti_list' as u_ex %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=n_ex label="Ex dipendenti" sub="rapporti cessati" url=u_ex %}
+      {% if contratti_in_scadenza is not None %}
+      {% url 'anagrafica:scadenzario' as u_scad %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=contratti_in_scadenza|yesno:"orange,green" icona="i-alarm" valore=contratti_in_scadenza|length label="Contratti in scadenza" sub="a termine e prove entro 60gg" url=u_scad|add:"?tipo=contratto" %}
+      {% endif %}
     </section>
 
-    <section class="fmd-panel">
+    {# ── Stile C: una scheda per reparto ──────────────────────────────────── #}
+    {% include "anagrafica/components/_fmd_cc_grid.html" with cc=reparti_griglia %}
+
+    <section class="fmd-panel" id="elenco">
+      <div class="fmd-block-head" style="margin-bottom:10px;">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Elenco dipendenti <span class="fmd-count">{{ page_obj.paginator.count }}</span></div>
+        <div class="fmd-block-aside">{% if vista %}Vista «{{ vista.nome }}»{% endif %}</div>
+      </div>
       <form method="get" class="fmd-toolbar">
         <span class="fmd-search">
           <svg class="fmd-ico"><use href="#i-search"/></svg>
@@ -139,6 +158,37 @@
     </section>
 
     <p class="fmd-ph-sub" style="margin-top:14px;">I dipendenti non attivi restano in anagrafica senza account: se un account viene disattivato, il collegamento operativo viene staccato ma il dipendente resta qui.</p>
+
+    <div class="fmd-low">
+      <section class="fmd-panel fmd-block fmd-low-main">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Contratti e periodi di prova in scadenza
+            {% if contratti_in_scadenza %}<span class="fmd-count">{{ contratti_in_scadenza|length }}</span>{% endif %}
+          </div>
+          <div class="fmd-block-aside">Entro 60 giorni</div>
+        </div>
+        {% if contratti_in_scadenza is None %}
+        <div class="fmd-empty"><span class="fmd-em">Le scadenze dei contratti sono visibili a chi ha accesso ai dati HR.</span></div>
+        {% elif contratti_in_scadenza %}
+        <div class="fmd-sidelist">
+          {% for v in contratti_in_scadenza|slice:":8" %}
+          <a class="fmd-sidelist-i" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">
+            <span><b>{% nominativo nome=v.nome cognome=v.cognome %}</b><span class="fmd-sub2">{{ v.tipo_nome }} · {{ v.data_scadenza|date:"d-m-Y" }}{% if v.reparto %} · {{ v.reparto }}{% endif %}</span></span>
+            <span class="fmd-badge {% if v.giorni <= 30 %}fmd-b-orange{% else %}fmd-b-amber{% endif %}">{{ v.giorni }}gg</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% if contratti_in_scadenza|length > 8 %}
+        <div class="fmd-tfoot"><span class="fmd-info">I primi 8 per data.</span><a href="{% url 'anagrafica:scadenzario' %}?tipo=contratto" class="fmd-btn fmd-btn-ghost">Tutti nello scadenzario <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a></div>
+        {% endif %}
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessun contratto in scadenza nei prossimi 60 giorni</span></div>
+        {% endif %}
+      </section>
+      <div class="fmd-low-side">
+        {% include "anagrafica/components/_fmd_arealist.html" with aree=aree_sezione %}
+      </div>
+    </div>
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}

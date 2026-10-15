@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -18,18 +18,27 @@
 
     {% include "anagrafica/partials/_safety_subnav.html" with active="hub" %}
 
-    <div class="fmd-pagehead">
-      <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Safety</span></div>
-        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Sicurezza &amp; Idoneità</h1>
-        <p class="fmd-ph-sub">Punto unico per il flusso: la mansione dichiara i requisiti, il sistema verifica l'idoneità di ogni dipendente.</p>
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Salute e sicurezza</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-shield"/></svg>Sicurezza &amp; Idoneità</h1>
+          <p class="fmd-sub">La mansione di rischio dichiara i requisiti (DPI, formazione, visite), il sistema verifica che ogni persona sia in regola con la sua mansione.</p>
+          <div class="fmd-hero-actions">
+            {% if can_hr %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità e idoneità</a>
+            {% endif %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:sicurezza_wizard' %}"><svg class="fmd-ico"><use href="#i-gear"/></svg>Configurazione guidata</a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni_rischio }}</span><span class="fmd-lbl">Mansioni di rischio</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni }}</span><span class="fmd-lbl">Mansioni a catalogo</span></div>
+        </div>
       </div>
-      <div class="fmd-pagehead-actions">
-        <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:sicurezza_wizard' %}">
-          <svg class="fmd-ico"><use href="#i-gear"/></svg>Configurazione guidata
-        </a>
-      </div>
-    </div>
+    </section>
 
     {# ── Ricerca area sicurezza ─────────────────────────────────────────── #}
     <div class="fmd-panel" style="margin-bottom:16px;">
@@ -58,33 +67,44 @@
       </script>
     </div>
 
-    {# ── Flusso ─────────────────────────────────────────────────────────── #}
-    <section class="fmd-panel" style="padding:16px 18px;margin-bottom:16px;">
-      <div class="fmd-flow">
-        <span class="fmd-flow-chip fmd-risk"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Mansione di rischio</span>
-        <span class="fmd-flow-arrow"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg></span>
-        <span class="fmd-flow-chip"><svg class="fmd-ico"><use href="#i-shield"/></svg>DPI · Formazione · Visite</span>
-        <span class="fmd-flow-arrow"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg></span>
-        <span class="fmd-flow-chip fmd-ok"><svg class="fmd-ico"><use href="#i-check"/></svg>Idoneità alla mansione</span>
-      </div>
-    </section>
-
     {# ── KPI ────────────────────────────────────────────────────────────── #}
-    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
-      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansioni_list' %}" title="Vai alle mansioni di rischio">
+    <section class="fmd-kpi">
+      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansioni_rischio_list' %}" title="Vai alle mansioni di rischio">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_mansioni_rischio }}</span></div>
         <div class="fmd-mtr-lbl">Mansioni di rischio</div>
         <div class="fmd-mtr-sub">su {{ n_mansioni }} mansioni a catalogo</div>
       </a>
+      {% if conformita_kpi %}
+      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:conformita_report' %}" title="Report conformità completo">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ conformita_kpi.perc }}%</span></div>
+        <div class="fmd-mtr-lbl">Persone in regola</div>
+        <div class="fmd-mtr-sub">{{ conformita_kpi.in_regola }} su {{ conformita_kpi.valutati }} con requisiti</div>
+      </a>
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:conformita_report' %}?esito=ko" title="Elenco non conformi">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ conformita_kpi.non_conformi }}</span></div>
+        <div class="fmd-mtr-lbl">Non conformi</div>
+        <div class="fmd-mtr-sub">Almeno un obbligo scaduto</div>
+      </a>
+      {% endif %}
+      {% if cambi_aperti %}
+      <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:cambi_mansione' %}" title="Quadro dei cambi mansione">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ cambi_aperti|length }}</span></div>
+        <div class="fmd-mtr-lbl">Cambi mansione aperti</div>
+        <div class="fmd-mtr-sub">{{ n_cambi_aperti }} adempiment{{ n_cambi_aperti|pluralize:"o,i" }} da chiudere</div>
+      </a>
+      {% endif %}
       {% if idoneita_kpi %}
-      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko" title="Elenco non idonei">
+      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko" title="Elenco non idonei">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ idoneita_kpi.non_idonei }}</span></div>
         <div class="fmd-mtr-lbl">Non idonei</div>
         <div class="fmd-mtr-sub">Requisito mansione scaduto</div>
       </a>
-      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:conformita_report' %}?idoneita=warn" title="Elenco idonei con riserve">
+      <a class="fmd-mtr fmd-t-navy" href="{% url 'anagrafica:conformita_report' %}?idoneita=warn" title="Elenco idonei con riserve">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ idoneita_kpi.riserve }}</span></div>
         <div class="fmd-mtr-lbl">Idonei con riserve</div>
@@ -93,53 +113,53 @@
       {% endif %}
     </section>
 
-    {% if idoneita_kpi %}
-    <section class="fmd-panel" style="padding:13px 18px;margin-bottom:16px;">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--fmd-muted);">
-        <a class="fmd-mtr-link" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko">Vedi i {{ idoneita_kpi.non_idonei }} non idonei <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
-        <span style="color:var(--fmd-line);">·</span>
-        <a class="fmd-mtr-link" href="{% url 'anagrafica:conformita_report' %}">Report conformità completo</a>
-        <span class="fmd-cell-sub" style="margin:0;">({{ idoneita_kpi.valutati }} dipendenti con requisiti valutati)</span>
-      </div>
-    </section>
-    {% endif %}
+    {# ── Stile C: una scheda per mansione di rischio ─────────────────────── #}
+    {% include "anagrafica/components/_fmd_cc_grid.html" with cc=copertura_mansioni %}
 
-    {# ── Sezioni collegate ──────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Sezioni collegate</div>
+    <div class="fmd-low">
+      <section class="fmd-panel fmd-block fmd-low-main">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Cambi mansione e adempimenti
+            {% if cambi_aperti %}<span class="fmd-count">{{ cambi_aperti|length }}</span>{% endif %}
+          </div>
+          <div class="fmd-block-aside">Chi cambia mansione e cosa gli manca</div>
+        </div>
+        {% if cambi_aperti %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Dipendente</th><th>Da fare</th><th class="fmd-r">Aperti</th><th class="fmd-nowrap">Entro il</th><th>Stato</th></tr></thead>
+            <tbody>
+              {% for c in cambi_aperti|slice:":15" %}
+              <tr>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' c.legacy_id %}">{{ c.nome }}</a></td>
+                <td class="fmd-muted">{{ c.tipi|join:", " }}</td>
+                <td class="fmd-r fmd-num">{{ c.aperti }}</td>
+                <td class="fmd-nowrap fmd-muted">{{ c.entro|date:"d-m-Y" }}</td>
+                <td>{% if c.ritardo %}<span class="fmd-badge fmd-b-red">in ritardo</span>{% else %}<span class="fmd-badge fmd-b-cyan">in corso</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="fmd-tfoot">
+          <span class="fmd-info">{% if cambi_aperti|length > 15 %}Le prime 15 persone, in ritardo prima.{% endif %}</span>
+          <a href="{% url 'anagrafica:cambi_mansione' %}" class="fmd-btn fmd-btn-ghost">Tutti i cambi mansione <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
+        </div>
+        {% elif can_hr %}
+        <div class="fmd-empty">
+          <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
+          <span class="fmd-et">Nessun cambio mansione aperto</span>
+          <span class="fmd-em">Gli adempimenti nascono quando si registra uno spostamento di mansione.</span>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-em">Il quadro dei cambi mansione è riservato a chi ha accesso ai dati HR.</span></div>
+        {% endif %}
+      </section>
+
+      <div class="fmd-low-side">
+        {% include "anagrafica/components/_fmd_arealist.html" with aree=aree titolo="Sezioni collegate" %}
       </div>
-      <div class="fmd-areas">
-        <a class="fmd-area" href="{% url 'anagrafica:mansioni_list' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Mansioni di rischio</span><span class="fmd-area-desc">Requisiti DPI / formazione / visite + livello rischio</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:conformita_report' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Conformità / Idoneità</span><span class="fmd-area-desc">Semaforo e idoneità per dipendente</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:matrice_competenze' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Matrice competenze</span><span class="fmd-area-desc">Dipendenti × abilitazioni per audit ISO</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:qualifiche_list' %}?categoria=SICUREZZA">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Qualifiche di sicurezza</span><span class="fmd-area-desc">Catalogo abilitazioni (carrellisti, antincendio, BLSD…)</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:scadenzario' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario HR</span><span class="fmd-area-desc">Qualifiche, visite, formazione, contratti</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'dpi:impostazioni' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Catalogo DPI</span><span class="fmd-area-desc">Categorie, tipi, modelli, taglie</span></span>
-        </a>
-        <a class="fmd-area" href="{% url 'anagrafica:formazione_dashboard' %}">
-          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
-          <span class="fmd-area-body"><span class="fmd-area-title">Formazione</span><span class="fmd-area-desc">Piani, corsi, sessioni, scadenze</span></span>
-        </a>
-      </div>
-    </section>
+    </div>{# .fmd-low #}
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}

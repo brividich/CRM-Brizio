@@ -911,7 +911,43 @@ def dipendenti_list(request):
     tipologie_contratto_list = list(
         TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")
     )
+
+    # Stile C: una scheda per reparto con l'organico per tipo di contratto, sullo
+    # stesso perimetro visibile dell'elenco (senza i filtri della barra).
+    from .services import sezioni_c
+    visibili = build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False)
+    tipologia_per_id = dict(
+        DipendenteAnagraficaAziendale.objects
+        .filter(legacy_anagrafica_id__in=[int(r.get("id") or 0) for r in visibili])
+        .values_list("legacy_anagrafica_id", "tipologia_contratto")
+    )
+    nomi_tipologia = dict(TipologiaContratto.objects.values_list("codice", "nome"))
+    schede_reparti, legenda_reparti = sezioni_c.schede_reparti(
+        visibili, {k: (v or "") for k, v in tipologia_per_id.items()}, nomi_tipologia, reparto_attivo=reparto,
+    )
+    reparti_griglia = sezioni_c.griglia(
+        id="fmd-reparti", titolo="Reparti", icona="i-building",
+        aside="Organico per tipo di contratto · clic per filtrare l'elenco",
+        schede=schede_reparti, legenda=legenda_reparti,
+        ordini=[("n", "Per organico"), ("az", "A–Z")],
+        vuoto_titolo="Nessun dipendente in elenco",
+    )
+    contratti_in_scadenza = [
+        v for v in _build_scadenzario_voci(request, filtro_tipo="contratto") if v["giorni"] >= 0
+    ] if _check_hr_permission(request) else None
+    aree_sezione = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:dipendente_create", "Nuovo dipendente", "Scheda vuota", icona="i-plus"),
+        sezioni_c.Area("anagrafica:ex_dipendenti_list", "Ex dipendenti", "Rapporti cessati", icona="i-clock"),
+        sezioni_c.Area("anagrafica:documenti_list", "Documenti", "Tutti i documenti HR", icona="i-doc"),
+        sezioni_c.Area("anagrafica:organigramma", "Organigramma", "Albero e diagramma", icona="i-users"),
+        sezioni_c.Area("anagrafica:aree_list", "Reparti", "Catalogo e capireparto", icona="i-building"),
+        sezioni_c.Area("anagrafica:mansioni_list", "Mansioni", "Catalogo mansioni", icona="i-clipboard"),
+        sezioni_c.Area("anagrafica:dipendenti_report", "Report dipendenti", "Elenco filtrabile con export", icona="i-download"),
+    ])
     return render(request, "anagrafica/pages/dipendenti_list.html", {
+        "reparti_griglia": reparti_griglia,
+        "contratti_in_scadenza": contratti_in_scadenza,
+        "aree_sezione": aree_sezione,
         "page_obj": page,
         "q": q,
         "reparto": reparto,
@@ -7518,9 +7554,44 @@ def qualifiche_dashboard(request):
     except Exception:
         mpq = None
 
+    # Stile C: una scheda per tipo di qualifica (stessa classificazione dei KPI).
+    from .services import sezioni_c
+    prossime_per_tipo: dict[int, QualificaSessione] = {}
+    for s in sorted(prossime_sessioni, key=lambda s: s.data_conseguimento):
+        prossime_per_tipo.setdefault(s.tipo_id, s)
+    schede = sezioni_c.schede_qualifiche(
+        quals, oggi=oggi, soglia_30=soglia_30, soglia_60=soglia_60, prossime_per_tipo=prossime_per_tipo,
+    )
+    presenti = {s["tags"] for s in schede}
+    copertura_qualifiche = sezioni_c.griglia(
+        id="fmd-qualifiche", titolo="Qualifiche per tipo", icona="i-cap",
+        aside="Persone abilitate per tipo · clic per lo scadenzario del tipo",
+        schede=schede,
+        filtri=[("", f"Tutte · {len(quals)}")] + [
+            (c, f"{cat_labels[c]} · {dist_cat[c]}") for c, _ in TipoQualifica.CATEGORIA_CHOICES
+            if sezioni_c.tag_slug(c) in presenti
+        ],
+        etichetta_filtri="Filtra per categoria",
+        ordini=[("gap", "Prima le più scoperte"), ("az", "A–Z")],
+        legenda=[("ok", "valide"), ("s90", "≤60gg"), ("s30", "≤30gg"), ("ko", "scadute")],
+        vuoto_titolo="Nessuna qualifica registrata",
+        vuoto_testo="Le schede compaiono quando si assegna una qualifica a un dipendente.",
+    )
+    aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:qualifiche_list", "Catalogo qualifiche", "Tipi · categorie · validità", icona="i-cap"),
+        sezioni_c.Area("anagrafica:qualifiche_scadenzario", "Scadenzario qualifiche", "Scadute · ≤30gg · ≤60gg · export", icona="i-alarm"),
+        sezioni_c.Area("anagrafica:matrice_competenze", "Matrice qualifiche", "Dipendenti × abilitazioni (ISO 45001)", icona="i-grid"),
+        sezioni_c.Area("anagrafica:qualifica_sessioni_list", "Sessioni di rinnovo", "Rilascio/rinnovo collettivo", icona="i-calendar"),
+        sezioni_c.Area("anagrafica:mpq_cruscotto", "Processi qualificati (MOD.128)", "Processi speciali · abilitati per ruolo · doppia scadenza", icona="i-clipboard"),
+        sezioni_c.Area("anagrafica:conformita_report", "Conformità / idoneità", "Gap qualifiche obbligatorie per mansione", icona="i-shield"),
+        sezioni_c.Area("automazioni:automazioni_settings", "Promemoria scadenze", "Report email settimanale (modulo automazioni)", icona="i-gear"),
+    ])
+
     return render(request, "anagrafica/pages/qualifiche_dashboard.html", {
         "oggi": oggi,
         "is_admin": is_admin,
+        "copertura_qualifiche": copertura_qualifiche,
+        "aree": aree,
         "mpq": mpq,
         "tipi_attivi": tipi_attivi,
         "tot_assegnazioni": len(quals),
@@ -9746,7 +9817,57 @@ def retribuzioni_globale(request):
     page_obj = paginator.get_page(request.GET.get("page", 1))
     rows = _retribuzioni_globale_rows(ctx, list(page_obj.object_list))
 
+    # Stile C: una scheda per flusso amministrativo (ultimo import, righe abbinate/scartate).
+    from .services import sezioni_c
+    oggi = django_timezone.localdate()
+    cessati = _cessati_legacy_ids()
+    ultimo_contratto: dict[int, StoricoContratto] = {}
+    for c in (StoricoContratto.objects.filter(legacy_anagrafica_id__isnull=False)
+              .order_by("legacy_anagrafica_id", "-data_inizio", "-created_at")):
+        ultimo_contratto.setdefault(c.legacy_anagrafica_id, c)
+    contratti = {"totale": 0, "indeterminato": 0, "termine_oltre": 0, "s60": 0, "s30": 0,
+                 "ultimo": StoricoContratto.objects.aggregate(u=Max("created_at"))["u"]}
+    for lid, c in ultimo_contratto.items():
+        if lid in cessati or (c.data_fine is not None and c.data_fine < oggi):
+            continue
+        contratti["totale"] += 1
+        if c.data_fine is None:
+            contratti["indeterminato"] += 1
+        elif c.data_fine <= oggi + _timedelta(days=30):
+            contratti["s30"] += 1
+        elif c.data_fine <= oggi + _timedelta(days=60):
+            contratti["s60"] += 1
+        else:
+            contratti["termine_oltre"] += 1
+    import_mese = sezioni_c.griglia(
+        id="fmd-import", titolo="Import del mese", icona="i-download",
+        aside="Ultimo caricamento di ogni flusso · righe abbinate e scartate",
+        schede=sezioni_c.schede_import(
+            ultima_retribuzioni=ImportazioneRetributiva.objects.filter(origine=ImportazioneRetributiva.ORIGINE_CSV)
+            .order_by("-data_importazione").first(),
+            ultimo_cedolini=ImportazioneCedolini.objects.order_by("-data_importazione").first(),
+            contratti=contratti,
+        ),
+        legenda=[("ok", "abbinate / a tempo indeterminato"), ("cy", "a termine oltre 60gg"), ("s90", "≤60gg"),
+                 ("s30", "≤30gg"), ("mai", "non abbinate"), ("ko", "scartate")],
+        vuoto_titolo="Nessun import ancora caricato",
+        vuoto_testo="Le schede compaiono dopo il primo import di retribuzioni, cedolini o contratti.",
+    )
+    contratti_in_scadenza = [
+        v for v in _build_scadenzario_voci(request, filtro_tipo="contratto") if v["giorni"] >= 0
+    ]
+    aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:retribuzioni_import", "Import retribuzioni", "CSV mensile dello studio paghe", icona="i-download"),
+        sezioni_c.Area("anagrafica:cedolini_import", "Cedolini", "Saldi ferie, ROL, ex festività", icona="i-doc"),
+        sezioni_c.Area("anagrafica:ratei_list", "Ratei ferie / ROL", "Per persona, con filtri ed Excel", icona="i-cal-clock"),
+        sezioni_c.Area("anagrafica:contratti_import", "Contratti", "Import e storico contrattuale", icona="i-clipboard"),
+    ] + ([sezioni_c.Area("anagrafica:amministrazione_hub", "Storico import", "Scarti e scarico", "scheda=import", icona="i-refresh")]
+         if is_admin else []))
+
     return render(request, "anagrafica/pages/retribuzioni_globale.html", {
+        "import_mese": import_mese,
+        "contratti_in_scadenza": contratti_in_scadenza,
+        "aree": aree,
         "page_obj": page_obj,
         "rows": rows,
         "colonne": ctx["colonne"],
@@ -12489,12 +12610,17 @@ def visite_mediche_dashboard(request):
             .values_list("legacy_anagrafica_id", flat=True)
         )
         mancanti = legacy_ids_richiesti - legacy_ids_coperti
+        # Richiesti che non hanno nessuna visita di questo tipo (né valida né scaduta).
+        senza_visita = legacy_ids_richiesti - set(
+            correnti_qs.filter(tipo=t).values_list("legacy_anagrafica_id", flat=True)
+        ) if legacy_ids_richiesti else set()
         tipologie_stats.append({
             "tipo": t,
             "ha_ruoli": bool(ruoli_ids),
             "richiesti": len(legacy_ids_richiesti),
             "coperti": len(legacy_ids_richiesti & legacy_ids_coperti),
             "mancanti": len(mancanti),
+            "senza_visita": len(senza_visita),
             "valide_db": _valide_per_tipo.get(t.pk, 0),
             "scadute_db": _scadute_per_tipo.get(t.pk, 0),
         })
@@ -12540,8 +12666,41 @@ def visite_mediche_dashboard(request):
             row["n_in_scadenza"] = 0
             row["n_valide"] = 0
 
+    # Stile C: una scheda per tipo di visita (solo conteggi, nessun esito).
+    from .models import VisitaSessione
+    from .models_sorveglianza import RefertoIntakeRiga
+    from .services import sezioni_c
+    copertura_visite = sezioni_c.griglia(
+        id="fmd-visite", titolo="Copertura per tipologia", icona="i-pill",
+        aside="Persone con l'ultima visita del tipo · clic per il dettaglio",
+        schede=sezioni_c.schede_visite(tipologie_stats),
+        filtri=[("", "Tutti"), ("obbligatoria", "Obbligatorie"), ("facoltativa", "Facoltative")]
+        if any(not row["tipo"].obbligatoria for row in tipologie_stats) else [],
+        ordini=[("gap", "Prima le meno coperte"), ("az", "A–Z")],
+        legenda=[("ok", "in regola"), ("s90", "≤60g"), ("ko", "scaduta"), ("mai", "senza visita (ruolo operativo)")],
+        vuoto_titolo="Nessuna visita da mostrare",
+        vuoto_testo="Le schede compaiono quando ci sono visite registrate o ruoli operativi collegati ai tipi.",
+    )
+    kpi_referti = RefertoIntakeRiga.objects.filter(esito=RefertoIntakeRiga.ESITO_DA_RIVEDERE).count()
+    kpi_senza_visita = sum(row.get("senza_visita", 0) for row in tipologie_stats)
+    ultime_sessioni = list(
+        VisitaSessione.objects.annotate(n_visite=Count("visite")).order_by("-data_svolgimento", "-id")[:5]
+    )
+    aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:visite_mediche_sessioni", "Sessioni di visita", "Proposte di rinnovo e giornate", icona="i-calendar"),
+        sezioni_c.Area("anagrafica:referti_coda", "Referti da rivedere", "Letture da confermare", icona="i-doc"),
+        sezioni_c.Area("anagrafica:referti_registro", "Registro referti", "Tutti i referti acquisiti", icona="i-clipboard"),
+        sezioni_c.Area("anagrafica:libretto_sanitario_generale", "Libretto sanitario", "Per persona", icona="i-book"),
+        sezioni_c.Area("anagrafica:impostazioni", "Tipi di visita", "Catalogo e periodicità", "tab=visite-mediche", icona="i-gear"),
+    ])
+
     return render(request, "anagrafica/pages/visite_mediche_dashboard.html", {
         "oggi": oggi,
+        "copertura_visite": copertura_visite,
+        "kpi_referti": kpi_referti,
+        "kpi_senza_visita": kpi_senza_visita,
+        "ultime_sessioni": ultime_sessioni,
+        "aree": aree,
         "soglia_avviso": oggi + _timedelta(days=60),
         "kpi_scadute": kpi_scadute,
         "kpi_in_scad": kpi_in_scad,
@@ -18134,6 +18293,8 @@ def sicurezza_hub(request):
     )
 
     idoneita_kpi = None
+    conformita_kpi = None
+    stati = None
     if can_hr:
         dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
         dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
@@ -18145,19 +18306,94 @@ def sicurezza_hub(request):
             list(dip_map), mansioni_per_legacy=mansioni_per_legacy
         )
         c = {"ok": 0, "warn": 0, "ko": 0, "na": 0}
+        conf = {"ok": 0, "warn": 0, "ko": 0, "na": 0}
         for s in stati.values():
             e = s.get("idoneita", {}).get("esito", "na")
             c[e] = c.get(e, 0) + 1
+            k = s.get("complessivo", "na")
+            conf[k] = conf.get(k, 0) + 1
         idoneita_kpi = {
             "idonei": c["ok"], "riserve": c["warn"], "non_idonei": c["ko"],
             "valutati": c["ok"] + c["warn"] + c["ko"],
         }
+        valutati = conf["ok"] + conf["warn"] + conf["ko"]
+        conformita_kpi = {
+            "in_regola": conf["ok"], "in_scadenza": conf["warn"], "non_conformi": conf["ko"],
+            "valutati": valutati, "perc": round(conf["ok"] * 100 / valutati) if valutati else 0,
+        }
+
+    # Stile C: una scheda per mansione di rischio (gruppo omogeneo del DVR).
+    from .services import organigramma_rischio, sezioni_c
+    from .models_mansioni_rischio import MansioneRischio
+    try:
+        gruppi = organigramma_rischio.costruisci(can_view_visite=_can_view_visite_mediche(request))
+    except Exception:
+        logger.warning("Cruscotto sicurezza: mansioni di rischio non disponibili", exc_info=True)
+        gruppi = []
+    livelli = dict(MansioneRischio.LIVELLO_CHOICES)
+    presenti = {g.mansione_rischio.livello_rischio_dvr for g in gruppi}
+    copertura_mansioni = sezioni_c.griglia(
+        id="fmd-mansioni-rischio", titolo="Conformità per mansione di rischio", icona="i-alert-tri",
+        aside=("Persone del gruppo in regola con tutti gli obblighi · clic per i requisiti" if can_hr
+               else "Persone e protocollo di ogni gruppo omogeneo · clic per i requisiti"),
+        schede=sezioni_c.schede_mansioni_rischio(gruppi, stati),
+        filtri=[("", "Tutte")] + [(k, f"Rischio {v.lower()}") for k, v in MansioneRischio.LIVELLO_CHOICES[::-1] if k in presenti]
+        + ([("nd", "Senza livello")] if "" in presenti else []),
+        etichetta_filtri="Filtra per livello di rischio",
+        ordini=[("gap", "Prima le meno conformi" if can_hr else "Ordine DVR"), ("az", "A–Z")],
+        legenda=[("ok", "in regola"), ("s30", "obblighi in scadenza"), ("ko", "non conforme"), ("mai", "da completare")] if can_hr else [],
+        vuoto_titolo="Nessuna mansione di rischio attiva",
+        vuoto_testo="Si definiscono in Mansioni di rischio, dai gruppi omogenei del DVR.",
+    )
+    n_mansioni_rischio = sum(1 for _ in gruppi) or n_mansioni_rischio
+
+    cambi_aperti = []
+    if can_hr or _is_anagrafica_admin(request):
+        from .models import AdempimentoCambioMansione
+        aperti = list(
+            AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True)
+            .order_by("entro_il", "legacy_anagrafica_id")
+        )
+        per_persona: dict[int, dict] = {}
+        oggi = django_timezone.localdate()
+        for a in aperti:
+            v = per_persona.setdefault(a.legacy_anagrafica_id, {"legacy_id": a.legacy_anagrafica_id, "aperti": 0,
+                                                                "ritardo": 0, "entro": a.entro_il, "tipi": []})
+            v["aperti"] += 1
+            v["ritardo"] += 1 if (a.entro_il and a.entro_il < oggi) else 0
+            if a.get_tipo_display() not in v["tipi"]:
+                v["tipi"].append(a.get_tipo_display())
+        if per_persona:
+            nomi = _build_nomi_map()
+            for v in per_persona.values():
+                v["nome"] = nomi.get(v["legacy_id"], f"#{v['legacy_id']}")
+        cambi_aperti = sorted(per_persona.values(), key=lambda v: (-v["ritardo"], v["entro"] or oggi, v["nome"]))
+
+    aree = sezioni_c.aree_visibili(request, [
+        sezioni_c.Area("anagrafica:mansioni_rischio_list", "Mansioni di rischio", "Gruppi omogenei del DVR e requisiti", icona="i-alert-tri"),
+        sezioni_c.Area("anagrafica:organigramma_mansioni_rischio", "Organigramma rischi", "Chi è esposto, per gruppo", icona="i-users"),
+        sezioni_c.Area("anagrafica:conformita_report", "Conformità / Idoneità", "Semaforo e idoneità per dipendente", icona="i-check"),
+        sezioni_c.Area("anagrafica:cambi_mansione", "Cambi mansione", "Adempimenti del piano di adeguamento", icona="i-refresh"),
+        sezioni_c.Area("anagrafica:scadenzario", "Scadenzario HR", "Qualifiche, visite, formazione, contratti", icona="i-calendar"),
+        sezioni_c.Area("anagrafica:visite_mediche_dashboard", "Visite mediche", "Sorveglianza sanitaria", icona="i-pill"),
+        sezioni_c.Area("anagrafica:fattori_rischio_list", "Fattori di rischio", "Catalogo", icona="i-clipboard"),
+        sezioni_c.Area("anagrafica:esposizioni_rischio_list", "Esposizioni", "Chi è esposto a cosa", icona="i-clipboard"),
+        sezioni_c.Area("anagrafica:matrice_competenze", "Matrice competenze", "Dipendenti × abilitazioni per audit ISO", icona="i-grid"),
+        sezioni_c.Area("anagrafica:qualifiche_list", "Qualifiche di sicurezza", "Carrellisti, antincendio, BLSD…", "categoria=SICUREZZA", icona="i-cap"),
+        sezioni_c.Area("dpi:impostazioni", "Catalogo DPI", "Categorie, tipi, modelli, taglie", icona="i-shield"),
+        sezioni_c.Area("anagrafica:formazione_dashboard", "Formazione", "Piani, corsi, sessioni, scadenze", icona="i-book"),
+    ])
 
     return render(request, "anagrafica/pages/sicurezza_hub.html", {
         "can_hr": can_hr,
         "n_mansioni": n_mansioni,
         "n_mansioni_rischio": n_mansioni_rischio,
         "idoneita_kpi": idoneita_kpi,
+        "conformita_kpi": conformita_kpi,
+        "copertura_mansioni": copertura_mansioni,
+        "cambi_aperti": cambi_aperti,
+        "n_cambi_aperti": sum(v["aperti"] for v in cambi_aperti),
+        "aree": aree,
     })
 
 
