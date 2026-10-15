@@ -28,6 +28,8 @@ def ingest_security_mailboxes_task():
     Ritorna il numero di sorgenti processate senza errore. Le credenziali vanno
     configurate come SecurityCenterSetting (Configuration Studio).
     """
+    import logging
+
     from security.models import SecurityMailboxSource
     from security.services.mailbox_ingestion import run_mailbox_ingestion
 
@@ -36,7 +38,8 @@ def ingest_security_mailboxes_task():
         try:
             run_mailbox_ingestion(src)
             ok += 1
-        except Exception:
+        except Exception:  # noqa: BLE001 - una casella guasta non ferma le altre, ma si vede nel log
+            logging.getLogger(__name__).exception("Lettura della casella %s fallita", src.code)
             continue
     return ok
 

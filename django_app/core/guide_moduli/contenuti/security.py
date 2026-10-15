@@ -50,5 +50,14 @@ GUIDA = {
                 "Altri casi: capitolo «Risoluzione problemi» della guida completa.",
             ],
         },
+        {
+            "sintomo": "Un parser è segnato «Letture da verificare» o un report ha cifre a zero",
+            "perche": "Il parser riconosce il report ma non trova più un dato necessario: di solito il fornitore ha cambiato il formato della mail o del PDF.",
+            "fare": [
+                "Configurazione › Parser › «Prova i parser»: incolla la mail o carica il file recente.",
+                "Nel riquadro «Cosa ha letto» i campi con «Manca» sono quelli che non trova più: segnalali con un esempio (dati anonimizzati).",
+                "Finché non è corretto, un dato illeggibile non chiude da solo nessun alert e non conta come «tutto ok».",
+            ],
+        },
     ],
 }

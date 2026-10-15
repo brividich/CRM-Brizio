@@ -102,7 +102,17 @@ Fonte aggiuntiva dell'inventario: **Firmware da monitoraggio SNMP** (`SoftwareSo
 
 Una sola voce **Configurazione** nel gruppo Gestione (prima: Caselle mail, Config, Autoconfig, Impostazioni). Ogni pagina di configurazione mostra la barra di schede `security/admin_config/_tabs.html` (definita in `templatetags/security_config_nav.py`, `CONFIG_TABS`): Panoramica, Avvisi e automatismi (`/soc/impostazioni/`), Caselle mail, Sorgenti e parser, Regole alert, Notifiche, Automatismi di rientro, Inventario software, Autoconfigurazione, Audit. Chi non ha il permesso di configurazione vede solo Avvisi e automatismi, in lettura. Nuova pagina di configurazione → aggiungerla a `CONFIG_TABS`.
 
+## Lettura dei parser e robustezza
+
+- Ogni parser restituisce `payload["lettura"]` (`security/parsers/base.py`, classe `Lettura`): `formato`, `campi_letti`, `campi_mancanti` (con `obbligatorio`), `avvisi`, `qualita` (`completa` / `parziale` / `da_verificare`). `parser_engine` la riporta sull'elemento come `raw_payload.lettura_qualita`; `parser_catalog` conta le letture recenti «da verificare» per parser (stato «Letture da verificare»).
+- `BaseParser.perche_riconosce(item)`: segnali che fanno riconoscere il contenuto, solo spiegazione (la decisione resta a `can_parse`), mostrati in «Prova i parser».
+- Errori dei parser: `raw_payload.parser_error` (tecnico) + `parser_error_hint` (spiegazione, `parser_engine.spiega_errore`).
+- Dati illeggibili, mai «0»: Defender `exposed_devices_unparsed` (nessun rientro automatico, CVE critica → alert di revisione manuale); esito backup sconosciuto resta `unknown` con lettura «Da verificare»; backup senza orari deduplicati con data di ricezione + impronta del testo.
+- `rule_engine.evaluate_security_rules`: un savepoint per evento; un errore marca l'evento `decision_trace.decision = "evaluation_error"` (mostrato come «Diagnostica» in Eventi e contato in Stato elaborazione) invece di bloccare il giro. Dispatch per tipo in `rule_engine._HANDLERS`.
+
 ## Note di rilascio
+
+- **Parser che spiegano cosa leggono, regole isolate per evento** — nessuna migrazione, nessuna nuova rotta. Dopo il deploy riavviare il qcluster (il ciclo `security_cycle` carica il nuovo motore regole). Gli elementi già elaborati non hanno `lettura_qualita`: il conteggio «da verificare» si popola con le mail nuove.
 
 - **Registro incidenti, report periodico, parser transazionali** — deploy: `migrate security` (0019). Nuove rotte sotto `/soc/` (stesso binding ACL). Il motore parser salva ogni elemento in una transazione: un errore a metà non lascia più report parziali che bloccavano la rielaborazione; nel `raw_payload` restano parser, tempo (`parse_ms`) ed esito (`parse_outcome`). Pagine alert, ticket, KPI ed Elaborazione controllano il permesso di lettura SOC anche nella view (`soc_view_required`).
 - **Sezione Backup** — nessuna migrazione: legge i job di backup già importati.

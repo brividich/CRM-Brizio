@@ -7,6 +7,18 @@ Problemi comuni e come diagnosticarli. Il punto di partenza è quasi sempre la p
 - Controlla che il **pattern mittente/oggetto** della sorgente combaci con il report reale.
 - Verifica che il **nome parser** sulla sorgente esista e sia **attivo** nella sezione Parser.
 - Usa la Diagnostica per simulare mittente/oggetto e vedere se la sorgente li accetta.
+- In **Configurazione › Parser › Prova i parser** la colonna **Perché** mostra quali segnali ogni parser ha visto (o non ha visto).
+
+## Parser «Letture da verificare» o cifre a zero
+
+- Il parser riconosce il report ma non trova un dato necessario: quasi sempre il fornitore ha cambiato il formato.
+- Prova una mail o un file recente in **Prova i parser** e guarda **Cosa ha letto**: i campi con badge «Manca» sono quelli che non trova più.
+- Per i report WatchGuard l'avviso «Tutte le cifre lette valgono zero» indica lo stesso problema, se il report non è davvero vuoto.
+
+## Eventi «Errore di valutazione»
+
+- Un evento la cui regola è andata in errore viene marcato **Errore di valutazione (da controllare)** in Eventi (filtro «Diagnostica»), con l'errore nella decisione; gli altri eventi proseguono normalmente.
+- In **Stato elaborazione**, passo «Regole e alert», compare quanti eventi sono in questa situazione negli ultimi giorni. Il dettaglio tecnico è nel registro del server.
 
 ## Nessun alert creato
 

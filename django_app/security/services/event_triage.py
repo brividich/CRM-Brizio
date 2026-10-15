@@ -60,6 +60,11 @@ _DEFAULT_SIGNATURE = {"type", "computer", "device_name", "job_name", "cve", "use
 _SUMMARY_KEYS = ("title", "reason", "job_name", "computer", "device_name", "user", "username", "cve", "affected_product", "detail")
 
 
+# «Diagnostica»: eventi che nessuna regola ha potuto decidere (esito backup illeggibile, oppure la
+# valutazione è andata in errore: vedi ``rule_engine.EVALUATION_ERROR``). Da guardare, non «tutto ok».
+_DIAGNOSTIC_DECISIONS = ("diagnostic_event", "evaluation_error")
+
+
 def decision_of(event):
     trace = event.decision_trace or {}
     decision = trace.get("decision", "")
@@ -67,7 +72,7 @@ def decision_of(event):
         return "alert"
     if event.suppressed or decision == "suppressed_kpi_only":
         return "suppressed"
-    if decision == "diagnostic_event":
+    if decision in _DIAGNOSTIC_DECISIONS:
         return "diagnostic"
     if not trace:
         return "pending"
@@ -149,12 +154,12 @@ def _filter_decision(qs, decision):
     if decision == "suppressed":
         return qs.filter(Q(suppressed=True) | Q(decision_trace__decision="suppressed_kpi_only"))
     if decision == "diagnostic":
-        return qs.filter(decision_trace__decision="diagnostic_event")
+        return qs.filter(decision_trace__decision__in=_DIAGNOSTIC_DECISIONS)
     if decision == "pending":
         return qs.filter(decision_trace={})
     if decision == "ok":
         return qs.filter(suppressed=False).exclude(decision_trace={}).exclude(
-            decision_trace__decision__in=["alert", "suppressed_kpi_only", "diagnostic_event"])
+            decision_trace__decision__in=["alert", "suppressed_kpi_only", *_DIAGNOSTIC_DECISIONS])
     return qs
 
 
@@ -174,7 +179,7 @@ def decision_counts(qs):
         total=Count("id"),
         alert=Count("id", filter=_ALERT_Q),
         suppressed=Count("id", filter=Q(suppressed=True) | Q(decision_trace__decision="suppressed_kpi_only")),
-        diagnostic=Count("id", filter=Q(decision_trace__decision="diagnostic_event")),
+        diagnostic=Count("id", filter=Q(decision_trace__decision__in=_DIAGNOSTIC_DECISIONS)),
         pending=Count("id", filter=Q(decision_trace={})),
     )
     counts = {code: agg.get(code) or 0 for code, _ in DECISIONS if code != "ok"}
