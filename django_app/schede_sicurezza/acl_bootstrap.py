@@ -17,7 +17,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "schede_sicurezza"
-_BOOTSTRAP_CACHE_KEY = "schede_sicurezza_acl_bootstrap_v3"
+_BOOTSTRAP_CACHE_KEY = "schede_sicurezza_acl_bootstrap_v4"
 
 PERM_VIEW = "schede_sicurezza.prodotto.view"
 PERM_GESTISCI = "schede_sicurezza.prodotto.gestisci"
@@ -38,6 +38,7 @@ _ROUTE_BINDINGS = {
     "schede_sicurezza:sds_da_leggere": PERM_VIEW,
     "schede_sicurezza:prodotto_detail": PERM_VIEW,
     "schede_sicurezza:prodotto_qr": PERM_VIEW,
+    "schede_sicurezza:prodotto_etichetta": PERM_VIEW,
     "schede_sicurezza:scheda_mobile": PERM_VIEW,
     "schede_sicurezza:scheda_download": PERM_VIEW,
     "schede_sicurezza:presa_visione_conferma": PERM_VIEW,
@@ -45,6 +46,8 @@ _ROUTE_BINDINGS = {
     "schede_sicurezza:prodotto_modifica": PERM_GESTISCI,
     "schede_sicurezza:presa_visione_list": PERM_GESTISCI,
     "schede_sicurezza:report_compliance": PERM_GESTISCI,
+    "schede_sicurezza:etichetta_impostazioni": PERM_GESTISCI,
+    "schede_sicurezza:etichetta_anteprima": PERM_GESTISCI,
 }
 
 # Ruoli legacy reali (portale): admin, amministrazione, caporeparto, HR, qualita, utente.

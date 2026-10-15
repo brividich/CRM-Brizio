@@ -100,6 +100,7 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
       {% endif %}
       {% if can_gestire %}
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'schede_sicurezza:report_compliance' %}">Report compliance</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'schede_sicurezza:etichetta_impostazioni' %}">Personalizza etichetta</a>
         <a class="fmd-btn fmd-btn-primary" href="{% url 'schede_sicurezza:prodotto_nuovo' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo prodotto</a>
       {% endif %}
       <span class="fmd-spacer"></span>

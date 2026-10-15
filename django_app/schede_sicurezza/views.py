@@ -21,10 +21,18 @@ from core.public_headers import blinda_risposta_pubblica
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from . import pittogrammi as ghs
-from .forms import ProdottoChimicoForm
-from .models import SCADENZA_SDS_GIORNI, EstrazioneStato, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
+from .forms import ImpostazioniEtichettaForm, ProdottoChimicoForm
+from .models import (
+    SCADENZA_SDS_GIORNI,
+    EstrazioneStato,
+    ImpostazioniEtichetta,
+    PresaVisioneScheda,
+    ProdottoChimico,
+    SchedaSicurezza,
+)
 from .reports import matrice_presa_visione, prodotti_senza_mansioni, prodotti_senza_scheda_corrente
 from .services.assegnazioni import notifica_nuova_versione, profilo_sds_utente
+from .services.etichetta import impagina, logo_url
 from .services.ingestion import estrai_sds, pittogrammi_proposti
 from .services.qr import genera_qr_png
 from core.upload_limits import DOCUMENT_MAX_BYTES
@@ -413,6 +421,104 @@ def prodotto_qr(request, pk: int):
         reverse("schede_sicurezza:scheda_mobile", args=[str(prodotto.uuid)])
     )
     return HttpResponse(genera_qr_png(url), content_type="image/png")
+
+
+@login_required
+def prodotto_etichetta(request, pk: int):
+    """Etichetta stampabile da attaccare al contenitore (formato da «Personalizza etichetta»).
+
+    Logo, nome prodotto, pittogrammi di pericolo e QR verso la vista mobile:
+    il resto (frasi H/P, primo soccorso, DPI) e' dietro al QR.
+    """
+    if not _can_view(request):
+        raise Http404()
+    prodotto = get_object_or_404(ProdottoChimico, pk=pk)
+    return _render_etichetta(
+        request, prodotto, ImpostazioniEtichetta.correnti(),
+        anteprima=request.GET.get("anteprima") == "1",
+    )
+
+
+def _render_etichetta(request, prodotto, impostazioni, *, anteprima: bool):
+    return render(request, "schede_sicurezza/pages/prodotto_etichetta.html", {
+        "prodotto": prodotto,
+        "imp": impostazioni,
+        "layout": impagina(impostazioni, prodotto),
+        "logo_url": logo_url(impostazioni),
+        "anteprima": anteprima,
+        "can_gestire": _can_gestire(request),
+    })
+
+
+def _prodotto_per_anteprima(request):
+    pk = request.POST.get("prodotto") or request.GET.get("prodotto")
+    qs = ProdottoChimico.objects.filter(attivo=True)
+    if pk and str(pk).isdigit():
+        trovato = qs.filter(pk=int(pk)).first()
+        if trovato:
+            return trovato
+    # Di default un prodotto con pittogrammi: l'anteprima deve mostrare il caso pieno.
+    # Filtro in Python: i lookup sui JSONField non sono affidabili su SQL Server.
+    for candidato in qs.order_by("nome").only("pk", "nome", "pittogrammi")[:200]:
+        if candidato.pittogrammi:
+            return qs.get(pk=candidato.pk)
+    return qs.order_by("nome").first()
+
+
+@login_required
+def etichetta_impostazioni(request):
+    if not _can_gestire(request):
+        raise Http404()
+    impostazioni = ImpostazioniEtichetta.correnti()
+    logo_precedente = impostazioni.logo.name if impostazioni.logo else ""
+    if request.method == "POST":
+        form = ImpostazioniEtichettaForm(request.POST, request.FILES, instance=impostazioni)
+        if form.is_valid():
+            impostazioni = form.save(commit=False)
+            impostazioni.aggiornato_da = request.user
+            impostazioni.save()
+            logo_nuovo = impostazioni.logo.name if impostazioni.logo else ""
+            if logo_precedente and logo_precedente != logo_nuovo:
+                try:
+                    impostazioni.logo.storage.delete(logo_precedente)
+                except Exception:
+                    logger.warning("Logo etichetta precedente non eliminato: %s", logo_precedente)
+            log_action(request, "schede_sicurezza_etichetta_impostazioni", "schede_sicurezza", {
+                "campi": sorted(form.changed_data),
+            })
+            messages.success(request, "Impostazioni dell'etichetta salvate.")
+            return redirect("schede_sicurezza:etichetta_impostazioni")
+    else:
+        form = ImpostazioniEtichettaForm(instance=impostazioni)
+    prodotto = _prodotto_per_anteprima(request)
+    return render(request, "schede_sicurezza/pages/etichetta_impostazioni.html", {
+        "form": form,
+        "imp": impostazioni,
+        "prodotto_anteprima": prodotto,
+        "prodotti": ProdottoChimico.objects.filter(attivo=True).only("pk", "nome").order_by("nome"),
+        "logo_url": logo_url(impostazioni),
+    })
+
+
+@login_required
+@require_POST
+def etichetta_anteprima(request):
+    """Anteprima con le impostazioni del form *non ancora salvate* (nell'iframe)."""
+    if not _can_gestire(request):
+        raise Http404()
+    prodotto = _prodotto_per_anteprima(request)
+    if prodotto is None:
+        return HttpResponse("Nessun prodotto attivo da mostrare in anteprima.", content_type="text/plain; charset=utf-8")
+    salvate = ImpostazioniEtichetta.correnti()
+    # Copia in memoria: il form valida i valori sull'istanza, che non va salvata.
+    bozza = ImpostazioniEtichetta.objects.get(pk=salvate.pk)
+    form = ImpostazioniEtichettaForm(request.POST, instance=bozza)
+    if not form.is_valid():
+        # Valori fuori limite mentre si digita: si mostra l'ultima anteprima valida (quella salvata).
+        bozza = salvate
+    elif form.cleaned_data.get("rimuovi_logo"):
+        bozza.logo = ""
+    return _render_etichetta(request, prodotto, bozza, anteprima=True)
 
 
 # ---------------------------------------------------------------------------
