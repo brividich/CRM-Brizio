@@ -6,7 +6,7 @@
 <p class="sub">Riporta le letture stampate in fattura per ogni contratto. La riconciliazione le confronta con le letture interne dello stesso trimestre.</p>
 {% if not fattura %}
 <section class="panel import-fattura">
-  <div class="panel-head"><div><h2>Importa dal file della fattura</h2><p>Carica la fattura elettronica (XML, consigliato) o la sua stampa PDF: la pagina si compila da sola e la controlli prima di salvare. Il file non viene conservato.</p></div></div>
+  <div class="panel-head"><div><h2>Importa dal file della fattura</h2><p>Carica la fattura elettronica (XML, consigliato) o la sua stampa PDF: la pagina si compila da sola e la controlli prima di salvare. Il file non viene conservato.</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:fatture_importa' %}">Più fatture insieme</a></div>
   <form method="post" enctype="multipart/form-data" class="row" style="gap:10px;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="azione" value="importa">
     <input type="file" name="file_fattura" accept=".xml,.pdf,application/pdf,text/xml,application/xml" required style="max-width:420px">
     <button class="btn ghost" type="submit">Leggi la fattura</button>

@@ -1,0 +1,50 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Importa più fatture{% endblock %}
+{% block modulo %}
+<div class="row"><div class="eyebrow">Riconciliazione</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#fatture-multiple">? Guida</a></div>
+<h1>Importa più fatture</h1>
+<p class="sub">Carica insieme le fatture dei trimestri passati (XML FatturaPA o stampa PDF, fino a {{ max_file }} file da 5 MB). Il portale le legge, ti mostra cosa ha trovato e salva solo quelle che selezioni. I file non vengono conservati.</p>
+
+<section class="panel">
+  <form method="post" enctype="multipart/form-data" class="row" style="gap:10px;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="azione" value="leggi">
+    <input type="file" name="file_fatture" multiple accept=".xml,.pdf,application/pdf,text/xml,application/xml" required style="max-width:460px" aria-label="File delle fatture">
+    <button class="btn" type="submit">Leggi le fatture</button>
+    {% if voci %}<span class="muted">Una nuova lettura sostituisce l'elenco qui sotto.</span>{% endif %}
+  </form>
+</section>
+
+{% if voci %}
+<form method="post" class="panel">{% csrf_token %}<input type="hidden" name="azione" value="salva">
+  <div class="panel-head"><div><h2>Anteprima</h2><p>{{ voci|length }} file letti. Sono già selezionate le fatture senza avvisi ({{ pronte }}). Quelle «da verificare» si possono selezionare dopo averle controllate, oppure aprire e salvare una alla volta.</p></div></div>
+  <div class="table-wrap"><table class="import-multiplo" data-fm-table-skip="1">
+    <thead><tr><th><input type="checkbox" id="tutte-fatture" aria-label="Seleziona tutte le fatture salvabili"></th><th>File</th><th>Fattura</th><th>Trimestre</th><th>Periodo</th><th class="num">Contratti</th><th>Esito</th></tr></thead>
+    <tbody>{% for v in voci %}<tr class="stato-{{ v.stato }}">
+      <td>{% if v.salvata %}<span class="pill ok">salvata</span>{% elif v.stato == 'pronta' or v.stato == 'da_verificare' %}<input type="checkbox" name="voce" value="{{ v.indice }}" class="sel-fattura"{% if v.stato == 'pronta' %} checked{% endif %} aria-label="Salva {{ v.file }}">{% endif %}</td>
+      <td class="mono">{{ v.file }}</td>
+      <td>{% if v.testata.numero %}<strong>{{ v.testata.numero }}</strong>{% else %}<span class="muted">numero non trovato</span>{% endif %}{% if v.date.data %}<div class="muted">del {{ v.date.data }} · {{ v.testata.fornitore }}</div>{% endif %}</td>
+      <td>{{ v.testata.trimestre|default:"—" }}</td>
+      <td>{% if v.date.periodo_al %}{% if v.date.periodo_dal %}{{ v.date.periodo_dal }} → {% endif %}{{ v.date.periodo_al }}{% else %}—{% endif %}</td>
+      <td class="num">{% if not v.errore %}{{ v.contratti }}{% endif %}</td>
+      <td>
+        {% if v.salvata %}<a class="plain" href="{% url 'contatori:fattura_edit' v.salvata %}">Apri la fattura salvata</a>
+        {% elif v.stato == 'non_leggibile' %}<span class="pill danger">non leggibile</span><div class="muted">{{ v.errore }}</div>
+        {% elif v.stato == 'gia_presente' %}<span class="pill">già caricata</span><div class="muted">Numero {{ v.testata.numero }} già presente nel {{ v.testata.trimestre }} (o ripetuto in questo import).</div>
+        {% elif v.stato == 'da_verificare' %}<span class="pill warn">da verificare</span>{% if v.avvisi %}<ul class="avvisi-import">{% for a in v.avvisi %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}<a class="plain" href="{% url 'contatori:fattura_nuova' %}?da_import={{ v.indice }}">Apri per controllare e salvare</a>
+        {% else %}<span class="pill ok">pronta</span> <a class="plain muted" href="{% url 'contatori:fattura_nuova' %}?da_import={{ v.indice }}">apri</a>{% endif %}
+      </td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="form-actions row"><button class="btn" type="submit">Salva le fatture selezionate</button><div class="spacer"></div><button class="btn ghost small" type="submit" name="azione" value="svuota" formnovalidate>Svuota l'elenco</button></div>
+</form>
+<script>
+(function () {
+  var tutte = document.getElementById("tutte-fatture");
+  if (!tutte) return;
+  tutte.addEventListener("change", function () {
+    document.querySelectorAll(".sel-fattura").forEach(function (c) { c.checked = tutte.checked; });
+  });
+})();
+</script>
+{% endif %}
+<a class="btn ghost" href="{% url 'contatori:fatture' %}">← Archivio fatture</a>
+{% endblock %}

@@ -4,6 +4,7 @@ Le celle passano da `core.excel_export.append_row` (sede unica della
 sanificazione anti formula injection): `ws.append` scriverebbe come formula
 viva qualunque stringa che inizia con "=" (descrizioni/reparti dal DB).
 """
+from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
@@ -92,4 +93,45 @@ def analisi_xlsx():
     append_row(ws, ["% A3", rip.get("a3_pct", 0)])
     _autolarghezza(ws)
 
+    return wb
+
+
+def storico_macchina_xlsx(macchina):
+    """Workbook con lo storico di una MFC: letture trimestrali (con copie e lacune) e mensili."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Trimestrali"
+    _intesta(ws, ["Trimestre", "Data", "Fonte", "A4 BN", "A3 BN", "A4 COL", "A3 COL",
+                  "Totale", "Copie nel trimestre", "Note"])
+    for r in services.righe_letture_macchina(macchina):
+        l = r["lettura"]
+        if l is None:
+            append_row(ws, [r["trimestre"], "", "", "", "", "", "", "", "",
+                            "Lettura mancante: copie del trimestre successivo non calcolabili"])
+            continue
+        nota = ("Calo: " + ", ".join(r["cali"])) if r["cali"] else l.note
+        append_row(ws, [l.trimestre, l.data, l.get_fonte_display(), l.a4_bn, l.a3_bn, l.a4_col,
+                        l.a3_col, l.totale, r["copie"], nota])
+        if r["cali"]:
+            for cell in ws[ws.max_row]:
+                cell.font = _DANGER
+    _autolarghezza(ws)
+
+    ws = wb.create_sheet("Mensili")
+    _intesta(ws, ["Mese", "Rilevata il", "A4 BN", "A3 BN", "A4 COL", "A3 COL", "Totale",
+                  "Copie nel mese"])
+    for r in services.righe_mensili_macchina(macchina, ultimi=120):
+        l = r["lettura"]
+        append_row(ws, [l.mese.strftime("%m/%Y"), timezone.localtime(l.rilevata_il).strftime("%d/%m/%Y %H:%M"),
+                        l.a4_bn, l.a3_bn, l.a4_col, l.a3_col, l.totale, r["copie"]])
+    _autolarghezza(ws)
+
+    ws = wb.create_sheet("Anagrafica")
+    for etichetta, valore in (("Reparto", macchina.reparto), ("Matricola", macchina.matricola),
+                              ("Modello", macchina.modello), ("Contratto", macchina.contratto),
+                              ("Fornitore", macchina.get_fornitore_display()),
+                              ("Indirizzo IP", macchina.host or ""),
+                              ("Attiva", "sì" if macchina.attiva else "no")):
+        append_row(ws, [etichetta, valore])
+    _autolarghezza(ws)
     return wb

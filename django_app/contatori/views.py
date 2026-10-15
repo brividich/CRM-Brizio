@@ -278,6 +278,20 @@ def fattura_edit(request, pk=None):
                                                    "righe": fattura.righe.count()})
             messages.success(request, f"Fattura {fattura.numero} salvata.")
             return redirect("contatori:riconciliazione_trim", trimestre=fattura.trimestre)
+    elif pk is None and request.GET.get("da_import", "").isdigit():
+        # Fattura letta nell'import multiplo: si apre qui per controllarla e salvarla.
+        from .fatture_multiple import CHIAVE_SESSIONE, dati_form
+        voci = request.session.get(CHIAVE_SESSIONE) or []
+        i = int(request.GET["da_import"])
+        if i >= len(voci) or voci[i].get("errore"):
+            messages.error(request, "Fattura dell'import non più disponibile: ricarica i file.")
+            return redirect("contatori:fatture_importa")
+        testata, righe_iniziali = dati_form(voci[i])
+        return render(request, "contatori/fattura_form.html", {
+            "form": FatturaForm(instance=fattura, initial=testata),
+            "righe": _righe_formset(fattura, initial=righe_iniziali), "fattura": None,
+            "avvisi_import": voci[i]["avvisi"], "file_letto": voci[i]["file"],
+        })
     else:
         initial = {}
         if pk is None:
@@ -288,6 +302,70 @@ def fattura_edit(request, pk=None):
         righe = _righe_formset(fattura)
     return render(request, "contatori/fattura_form.html", {
         "form": form, "righe": righe, "fattura": fattura if pk else None,
+    })
+
+
+def fatture_elenco(request):
+    """Archivio fatture per trimestre con esito della riconciliazione e trimestri scoperti."""
+    archivio = services.archivio_fatture()
+    return render(request, "contatori/fatture.html", {
+        "archivio": archivio,
+        "scoperti": [a for a in archivio if not a["fatture"] and not a["in_corso"]],
+        "totale_fatture": sum(len(a["fatture"]) for a in archivio),
+    })
+
+
+@richiede_gestione
+def fatture_importa(request):
+    """Import di piu' fatture: si caricano i file, si controlla l'anteprima, si salvano le scelte."""
+    from .fatture_multiple import CHIAVE_SESSIONE, MAX_FILE, PRONTA, classifica, leggi_file, salva
+
+    azione = request.POST.get("azione") if request.method == "POST" else ""
+    if azione == "leggi":
+        files = request.FILES.getlist("file_fatture")
+        if not files:
+            messages.error(request, "Scegli uno o più file XML o PDF.")
+            return redirect("contatori:fatture_importa")
+        if len(files) > MAX_FILE:
+            messages.warning(request, f"Lette solo le prime {MAX_FILE} fatture: carica le altre dopo.")
+        voci = leggi_file(files)
+        request.session[CHIAVE_SESSIONE] = voci
+        log_action(request, "fatture_lette_da_file", "contatori",
+                   dettaglio={"file": len(voci), "non_leggibili": sum(1 for v in voci if v["errore"])})
+        return redirect("contatori:fatture_importa")
+    voci = request.session.get(CHIAVE_SESSIONE) or []
+    if azione == "salva":
+        scelte = {int(i) for i in request.POST.getlist("voce") if i.isdigit()}
+        salvate, scartate = [], []
+        for voce in classifica(voci):
+            if voce["indice"] not in scelte or voce["errore"] or voce.get("salvata"):
+                continue
+            fattura, errori = salva(voce)
+            if fattura is None:
+                scartate.append(f"{voce['file']}: {'; '.join(errori[:3])}")
+                continue
+            salvate.append(fattura)
+            voce["salvata"] = fattura.pk
+            log_action(request, "fattura_creata", "contatori", oggetto=fattura,
+                       dettaglio={"trimestre": fattura.trimestre, "righe": fattura.righe.count(),
+                                  "da_import_multiplo": True})
+        request.session[CHIAVE_SESSIONE] = voci
+        if salvate:
+            messages.success(request, f"{len(salvate)} fatture salvate: "
+                             + ", ".join(f"{f.numero} ({f.trimestre})" for f in salvate) + ".")
+        if scartate:
+            messages.error(request, "Non salvate, aprile per correggerle: " + " · ".join(scartate[:8])
+                           + (f" e altre {len(scartate) - 8}." if len(scartate) > 8 else ""))
+        if not (salvate or scartate):
+            messages.info(request, "Nessuna fattura selezionata.")
+        return redirect("contatori:fatture_importa")
+    if azione == "svuota":
+        request.session.pop(CHIAVE_SESSIONE, None)
+        return redirect("contatori:fatture_importa")
+    voci = classifica(voci)
+    return render(request, "contatori/fatture_importa.html", {
+        "voci": voci, "max_file": MAX_FILE,
+        "pronte": sum(1 for v in voci if v["stato"] == PRONTA and not v.get("salvata")),
     })
 
 
@@ -312,7 +390,12 @@ def macchina_detail(request, pk):
         "ultima_mensile": macchina.letture_mensili.order_by("-rilevata_il").first(),
         "produzione": services.produzione_macchina(macchina),
         "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
-        "letture_mensili": macchina.letture_mensili.all()[:24],
+        "righe_letture": services.righe_letture_macchina(macchina),
+        "righe_mensili": services.righe_mensili_macchina(macchina),
+        "fatture_contratto": services.fatture_macchina(macchina),
+        "colleghi_pool": (list(Macchina.objects.filter(contratto=macchina.contratto)
+                               .exclude(pk=macchina.pk).order_by("reparto"))
+                          if macchina.contratto else []),
         **_licenze_software_asset(macchina.asset, macchina, "mfc"),
     })
 
@@ -425,8 +508,31 @@ def macchine_list(request):
             return redirect("contatori:macchine")
     else:
         form = ImpostazioniSNMPForm(instance=cfg)
+    from django.db.models import Q
+    trimestre = services.trimestre_corrente()
+    filtri = {k: request.GET.get(k, "").strip() for k in ("q", "stato", "lettura", "dismesse")}
+    qs = Macchina.objects.select_related("asset", "profilo_snmp")
+    dismesse_nascoste = 0 if filtri["dismesse"] == "1" else qs.filter(attiva=False).count()
+    if filtri["dismesse"] != "1":
+        qs = qs.filter(attiva=True)
+    if filtri["q"]:
+        q = filtri["q"]
+        qs = qs.filter(Q(reparto__icontains=q) | Q(matricola__icontains=q) | Q(contratto__icontains=q)
+                       | Q(modello__icontains=q) | Q(host__icontains=q) | Q(asset__asset_tag__icontains=q))
+    if filtri["stato"] in StatoSNMP.values:
+        qs = qs.filter(snmp_stato=filtri["stato"])
+    con_lettura = set(LetturaContatori.objects.filter(trimestre=trimestre)
+                      .values_list("macchina_id", flat=True))
+    macchine = list(qs.order_by("-attiva", "reparto"))
+    if filtri["lettura"] == "mancante":
+        macchine = [m for m in macchine if m.pk not in con_lettura]
+    elif filtri["lettura"] == "presente":
+        macchine = [m for m in macchine if m.pk in con_lettura]
     return render(request, "contatori/macchine.html", {
-        "macchine": Macchina.objects.select_related("asset").all(),
+        "macchine": macchine, "filtri": filtri, "trimestre": trimestre, "con_lettura": con_lettura,
+        "dismesse_nascoste": dismesse_nascoste, "stati": StatoSNMP.choices,
+        "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")),
+        "consumabili": services.stato_consumabili(macchine),
         "snmp_form": form,
         "profili_mfc": [
             profilo for profilo in ProfiloSNMP.objects.filter(
@@ -466,6 +572,25 @@ def export_riconciliazione(request, trimestre):
     from . import export
     wb = export.riconciliazione_xlsx(trimestre)
     return _xlsx_response(wb, f"riconciliazione_{trimestre}.xlsx")
+
+
+def export_macchina(request, pk):
+    from . import export
+    macchina = get_object_or_404(Macchina, pk=pk)
+    wb = export.storico_macchina_xlsx(macchina)
+    return _xlsx_response(wb, f"contatori_{macchina.matricola}.xlsx")
+
+
+def letture_registro(request):
+    """Registro letture: MFC x trimestri, con mancanti, cali e copie del trimestre."""
+    try:
+        n = min(max(int(request.GET.get("trimestri", 8)), 4), 16)
+    except ValueError:
+        n = 8
+    dismesse = request.GET.get("dismesse") == "1"
+    return render(request, "contatori/letture_registro.html", {
+        "registro": services.registro_letture(n, dismesse=dismesse), "n": n, "dismesse": dismesse,
+    })
 
 
 def export_analisi(request):
@@ -693,6 +818,8 @@ def dispositivo_snmp_detail(request, pk):
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
         **_licenze_software_asset(dispositivo.asset, dispositivo, "snmp"),
         "firmware_storico": list(dispositivo.firmware_storico.all()[:20]),
+        "disponibilita": services.disponibilita_dispositivo(dispositivo),
+        "periodi_disponibilita": (("24h", "ultime 24 ore"), ("7g", "ultimi 7 giorni")),
     })
 
 
