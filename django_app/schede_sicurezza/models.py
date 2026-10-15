@@ -231,3 +231,80 @@ class PresaVisioneScheda(models.Model):
 
     def __str__(self) -> str:
         return f"{self.operatore} — {self.scheda} ({self.data_presa_visione:%Y-%m-%d})"
+
+
+# ---------------------------------------------------------------------------
+# Personalizzazione dell'etichetta da contenitore
+# ---------------------------------------------------------------------------
+
+def upload_to_logo_etichetta(instance, filename: str) -> str:
+    from pathlib import Path
+
+    suffix = Path(filename or "").suffix.lower()[:10]
+    return f"schede_sicurezza/etichetta/logo_{uuid.uuid4().hex[:12]}{suffix}"
+
+
+class ImpostazioniEtichetta(models.Model):
+    """Impostazioni uniche (riga pk=1) dell'etichetta stampabile per i contenitori.
+
+    Una sola etichetta per tutti i prodotti: deve essere riconoscibile a colpo
+    d'occhio in reparto, quindi niente varianti per prodotto.
+    """
+
+    class PosizioneQr(models.TextChoices):
+        DESTRA = "destra", "QR a destra"
+        SINISTRA = "sinistra", "QR a sinistra"
+
+    class RigaExtra(models.TextChoices):
+        NESSUNA = "", "Nessuna"
+        NUMERO_INTERNO = "numero_interno", "Numero interno"
+        CODICE_PRODOTTO = "codice_prodotto", "Codice prodotto"
+        FORNITORE = "fornitore", "Fornitore"
+        PRODUTTORE = "produttore", "Produttore"
+        UBICAZIONE = "ubicazione", "Ubicazione"
+
+    TESTO_QR_DEFAULT = "Scheda di sicurezza e primo soccorso"
+
+    larghezza_mm = models.PositiveSmallIntegerField(default=100, verbose_name="Larghezza (mm)")
+    altezza_mm = models.PositiveSmallIntegerField(default=50, verbose_name="Altezza (mm)")
+    posizione_qr = models.CharField(max_length=10, choices=PosizioneQr.choices, default=PosizioneQr.DESTRA,
+                                    verbose_name="Posizione QR")
+    testo_qr = models.CharField(max_length=80, blank=True, default=TESTO_QR_DEFAULT,
+                                verbose_name="Testo sotto il QR")
+    mostra_logo = models.BooleanField(default=True, verbose_name="Mostra il logo")
+    logo = models.FileField(upload_to=upload_to_logo_etichetta, blank=True, default="",
+                            verbose_name="Logo dell'etichetta")
+    logo_altezza_mm = models.PositiveSmallIntegerField(default=8, verbose_name="Altezza logo (mm)")
+    nome_dimensione_pt = models.PositiveSmallIntegerField(default=11, verbose_name="Dimensione nome (pt)")
+    nome_maiuscolo = models.BooleanField(default=True, verbose_name="Nome in maiuscolo")
+    riga_extra = models.CharField(max_length=20, choices=RigaExtra.choices, blank=True, default="",
+                                  verbose_name="Riga sotto il nome")
+    mostra_pittogrammi = models.BooleanField(default=True, verbose_name="Mostra i pittogrammi di pericolo")
+    testo_emergenza = models.CharField(max_length=80, blank=True, default="",
+                                       verbose_name="Riga emergenza",
+                                       help_text="Es. «Emergenza 112 – Centro Antiveleni 02 66101029». Vuota = non stampata.")
+    colore_fascia = models.CharField(max_length=7, blank=True, default="",
+                                     verbose_name="Colore fascia emergenza",
+                                     help_text="Esadecimale, es. #B91C1C. Vuoto = testo nero senza fascia.")
+    mostra_bordo = models.BooleanField(default=False, verbose_name="Bordo di taglio",
+                                       help_text="Utile se stampi su foglio e ritagli.")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+    aggiornato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                      null=True, blank=True, related_name="+")
+
+    class Meta:
+        verbose_name = "Impostazioni etichetta SDS"
+        verbose_name_plural = "Impostazioni etichetta SDS"
+
+    def __str__(self) -> str:
+        return f"Etichetta SDS {self.larghezza_mm}×{self.altezza_mm} mm"
+
+    @classmethod
+    def correnti(cls) -> "ImpostazioniEtichetta":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def valore_riga_extra(self, prodotto: ProdottoChimico) -> str:
+        if not self.riga_extra:
+            return ""
+        return str(getattr(prodotto, self.riga_extra, "") or "")

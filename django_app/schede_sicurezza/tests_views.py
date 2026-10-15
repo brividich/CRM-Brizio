@@ -127,7 +127,7 @@ class QrCodeTest(TestCase):
         self.assertContains(resp, 'href="#ghs02"')
         self.assertContains(resp, 'href="#ghs07"')
         self.assertContains(resp, reverse("schede_sicurezza:prodotto_qr", args=[self.prodotto.pk]))
-        self.assertContains(resp, "size: 100mm 50mm")
+        self.assertContains(resp, "size: 100.0mm 50.0mm")
 
     def test_url_scheda_mobile_usa_uuid_non_pk(self):
         url = reverse("schede_sicurezza:scheda_mobile", args=[str(self.prodotto.uuid)])

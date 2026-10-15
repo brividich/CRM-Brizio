@@ -46,6 +46,8 @@ _ROUTE_BINDINGS = {
     "schede_sicurezza:prodotto_modifica": PERM_GESTISCI,
     "schede_sicurezza:presa_visione_list": PERM_GESTISCI,
     "schede_sicurezza:report_compliance": PERM_GESTISCI,
+    "schede_sicurezza:etichetta_impostazioni": PERM_GESTISCI,
+    "schede_sicurezza:etichetta_anteprima": PERM_GESTISCI,
 }
 
 # Ruoli legacy reali (portale): admin, amministrazione, caporeparto, HR, qualita, utente.

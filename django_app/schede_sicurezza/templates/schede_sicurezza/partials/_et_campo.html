@@ -1,0 +1,8 @@
+{% comment %}Un campo del form «Personalizza etichetta»: label, widget, aiuto, errori.
+Contesto: `campo` (BoundField).{% endcomment %}
+<div class="et-campo{% if campo.errors %} et-campo--errore{% endif %}">
+  <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+  {{ campo }}
+  {% if campo.help_text %}<div class="et-help">{{ campo.help_text }}</div>{% endif %}
+  {% for errore in campo.errors %}<div class="et-errore">{{ errore }}</div>{% endfor %}
+</div>

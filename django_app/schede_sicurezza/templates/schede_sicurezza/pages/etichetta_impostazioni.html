@@ -1,0 +1,183 @@
+{% extends "core/base.html" %}
+
+{% block title %}Personalizza etichetta | Schede Sicurezza{% endblock %}
+
+{% block extra_head %}
+<style>
+.et-wrap { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:20px; align-items:start; max-width:1200px; }
+@media (max-width: 980px) { .et-wrap { grid-template-columns:1fr; } }
+.et-sez { border:1px solid #e2e8f0; border-radius:14px; background:#fff; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px; }
+.et-sez-tit { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+.et-griglia { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; }
+.et-campo { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.et-campo > label { font-size:12px; font-weight:700; color:#475569; }
+.et-campo input[type="text"], .et-campo input[type="number"], .et-campo select { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:inherit; font:inherit; }
+.et-campo--errore input, .et-campo--errore select { border-color:#dc2626; }
+.et-help { font-size:11.5px; color:#94a3b8; }
+.et-errore { font-size:12px; font-weight:600; color:#dc2626; }
+.et-flag { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#475569; }
+.et-logo { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.et-logo img { height:36px; max-width:160px; object-fit:contain; border:1px solid #e2e8f0; border-radius:6px; padding:3px; background:#fff; }
+.et-colori { display:flex; gap:6px; flex-wrap:wrap; }
+.et-colori button { width:26px; height:26px; border-radius:6px; border:2px solid #fff; box-shadow:0 0 0 1px #cbd5e1; cursor:pointer; }
+.et-anteprima { position:sticky; top:16px; }
+.et-anteprima iframe { width:100%; height:340px; border:1px solid #e2e8f0; border-radius:14px; background:#e2e8f0; }
+.et-azioni { display:flex; gap:10px; flex-wrap:wrap; }
+.et-btn { padding:9px 18px; border-radius:10px; font-weight:700; font-size:13px; text-decoration:none; border:none; cursor:pointer; }
+.et-btn-primario { background:#1d4ed8; color:#fff; }
+.et-btn-secondario { background:#f1f5f9; color:#475569; }
+body.theme-dark .et-sez { background:var(--surface); border-color:var(--border); }
+body.theme-dark .et-campo input, body.theme-dark .et-campo select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .et-campo > label, body.theme-dark .et-flag { color:var(--text-mid); }
+body.theme-dark .et-anteprima iframe { border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;max-width:1200px;">
+    <div>
+      <div style="font-size:20px;font-weight:900;">Personalizza etichetta</div>
+      <div style="font-size:13px;color:#64748b;">Vale per le etichette di tutti i prodotti chimici. L'anteprima si aggiorna mentre modifichi; le modifiche valgono solo dopo «Salva».</div>
+    </div>
+    <a class="et-btn et-btn-secondario" href="{% url 'schede_sicurezza:prodotto_list' %}">Torna ai prodotti</a>
+  </div>
+
+  {% if form.non_field_errors %}<div class="et-errore">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="et-wrap">
+    <form id="et-form" method="post" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:12px;">
+      {% csrf_token %}
+      <input type="hidden" name="prodotto" id="et-prodotto-hidden" value="{{ prodotto_anteprima.pk|default:'' }}">
+
+      <section class="et-sez">
+        <div class="et-sez-tit">Formato</div>
+        <div class="et-griglia">
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.larghezza_mm %}
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.altezza_mm %}
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.posizione_qr %}
+        </div>
+        <div class="et-help">Formati comuni:
+          <a href="#" data-formato="100x50">100×50</a> ·
+          <a href="#" data-formato="100x62">100×62</a> ·
+          <a href="#" data-formato="70x40">70×40</a> ·
+          <a href="#" data-formato="148x105">A6 (148×105)</a>
+        </div>
+        <label class="et-flag">{{ form.mostra_bordo }} {{ form.mostra_bordo.label }}</label>
+        <div class="et-help">{{ form.mostra_bordo.help_text }}</div>
+      </section>
+
+      <section class="et-sez">
+        <div class="et-sez-tit">Logo</div>
+        <label class="et-flag">{{ form.mostra_logo }} {{ form.mostra_logo.label }}</label>
+        <div class="et-logo">
+          <img src="{{ logo_url }}" alt="Logo attuale">
+          <span class="et-help">{% if imp.logo %}Logo caricato per l'etichetta.{% else %}Logo del portale (nessun logo caricato qui).{% endif %}</span>
+        </div>
+        <div class="et-griglia">
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.logo %}
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.logo_altezza_mm %}
+        </div>
+        {% if imp.logo %}<label class="et-flag">{{ form.rimuovi_logo }} {{ form.rimuovi_logo.label }}</label>{% endif %}
+      </section>
+
+      <section class="et-sez">
+        <div class="et-sez-tit">Contenuti</div>
+        <div class="et-griglia">
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.nome_dimensione_pt %}
+          {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.riga_extra %}
+        </div>
+        <label class="et-flag">{{ form.nome_maiuscolo }} {{ form.nome_maiuscolo.label }}</label>
+        <label class="et-flag">{{ form.mostra_pittogrammi }} {{ form.mostra_pittogrammi.label }}</label>
+        {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.testo_qr %}
+      </section>
+
+      <section class="et-sez">
+        <div class="et-sez-tit">Riga emergenza</div>
+        {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.testo_emergenza %}
+        {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.colore_fascia %}
+        <div class="et-colori" aria-label="Colori rapidi">
+          <button type="button" data-colore="#B91C1C" style="background:#B91C1C" title="Rosso"></button>
+          <button type="button" data-colore="#C2410C" style="background:#C2410C" title="Arancio"></button>
+          <button type="button" data-colore="#15803D" style="background:#15803D" title="Verde"></button>
+          <button type="button" data-colore="#1D4ED8" style="background:#1D4ED8" title="Blu"></button>
+          <button type="button" data-colore="#111827" style="background:#111827" title="Nero"></button>
+          <button type="button" data-colore="" style="background:#fff" title="Senza fascia"></button>
+        </div>
+      </section>
+
+      <div class="et-azioni">
+        <button type="submit" class="et-btn et-btn-primario">Salva</button>
+        <a class="et-btn et-btn-secondario" href="{% url 'schede_sicurezza:etichetta_impostazioni' %}">Annulla modifiche</a>
+      </div>
+      {% if imp.aggiornato_da %}<div class="et-help">Ultima modifica: {{ imp.aggiornato_il|date:"d/m/Y H:i" }} — {{ imp.aggiornato_da.get_full_name|default:imp.aggiornato_da.username }}</div>{% endif %}
+    </form>
+
+    <div class="et-anteprima et-sez">
+      <div class="et-sez-tit">Anteprima</div>
+      {% if prodotto_anteprima %}
+        <div class="et-campo">
+          <label for="et-prodotto">Prodotto di esempio</label>
+          <select id="et-prodotto">
+            {% for p in prodotti %}<option value="{{ p.pk }}"{% if p.pk == prodotto_anteprima.pk %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <iframe name="et-anteprima" id="et-iframe" title="Anteprima etichetta"
+                src="{% url 'schede_sicurezza:prodotto_etichetta' pk=prodotto_anteprima.pk %}?anteprima=1"></iframe>
+        <div class="et-help">Dimensioni reali a schermo al 100% di zoom. Un logo appena scelto compare dopo «Salva».</div>
+        <a id="et-stampa" class="et-btn et-btn-secondario" style="align-self:flex-start;" target="_blank" rel="noopener"
+           href="{% url 'schede_sicurezza:prodotto_etichetta' pk=prodotto_anteprima.pk %}">Apri l'etichetta da stampare</a>
+      {% else %}
+        <div class="et-help">Nessun prodotto chimico attivo: aggiungine uno per vedere l'anteprima.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('et-form');
+  var iframe = document.getElementById('et-iframe');
+  if (!form || !iframe) return;
+  var urlAnteprima = "{% url 'schede_sicurezza:etichetta_anteprima' %}";
+  var urlEtichetta = "{% url 'schede_sicurezza:prodotto_etichetta' pk=0 %}";
+  var hidden = document.getElementById('et-prodotto-hidden');
+  var timer = null;
+
+  // L'anteprima e' lo stesso form inviato all'iframe, senza file e senza salvare.
+  function aggiorna() {
+    var dati = new FormData(form);
+    dati.delete('logo');
+    fetch(urlAnteprima, { method: 'POST', body: dati, credentials: 'same-origin' })
+      .then(function (r) { return r.text(); })
+      .then(function (html) { iframe.srcdoc = html; });
+  }
+  function programma() { clearTimeout(timer); timer = setTimeout(aggiorna, 300); }
+
+  form.addEventListener('input', programma);
+  form.addEventListener('change', programma);
+
+  document.getElementById('et-prodotto').addEventListener('change', function () {
+    hidden.value = this.value;
+    document.getElementById('et-stampa').href = urlEtichetta.replace('/0/', '/' + this.value + '/');
+    aggiorna();
+  });
+
+  document.querySelectorAll('[data-formato]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = this.dataset.formato.split('x');
+      form.elements['larghezza_mm'].value = m[0];
+      form.elements['altezza_mm'].value = m[1];
+      aggiorna();
+    });
+  });
+  document.querySelectorAll('[data-colore]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      form.elements['colore_fascia'].value = this.dataset.colore;
+      aggiorna();
+    });
+  });
+})();
+</script>
+{% endblock %}
