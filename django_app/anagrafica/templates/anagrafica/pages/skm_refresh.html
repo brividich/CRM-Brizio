@@ -163,7 +163,7 @@ body.theme-dark .rf-lv { border-color:var(--border); color:var(--text); }
   {% if coerenza.persone or coerenza.mansioni_senza_rischio %}
   <div class="rf-card">
     <h3>④ Coerenza con la mansione di rischio (per l'RSPP)</h3>
-    <p class="sub">Confronto tra la mansione di rischio scritta in anagrafica e quelle collegate alle mansioni che la persona svolge. Solo controllo: si corregge dall'anagrafica o dalla scheda della mansione.</p>
+    <p class="sub">Le mansioni di rischio della persona sono quella scritta in anagrafica più quelle delle mansioni che svolge: contano tutte per DPI, visite, formazione e schede di sicurezza. Qui compare chi ha in anagrafica una mansione di rischio diversa o vuota, da allineare con il medico competente, e le mansioni senza mansione di rischio.</p>
     {% if coerenza.mansioni_senza_rischio %}
       <p style="font-size:13px;margin:0 0 10px;"><b>Mansioni senza mansione di rischio collegata:</b>
       {% for m in coerenza.mansioni_senza_rischio %}<a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>

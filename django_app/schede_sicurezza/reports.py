@@ -64,29 +64,15 @@ def _user_ids_attivi_per_mansione(mansione_nome: str) -> set[int]:
     Un eventuale record aziendale con data di cessazione esclude la persona
     anche se il flag legacy non e' ancora stato riallineato.
     """
-    from anagrafica.models import DipendenteAnagraficaAziendale
-    from core.legacy_models import AnagraficaDipendente
-    from core.legacy_utils import legacy_table_has_column
     from core.models import Profile
 
-    if not legacy_table_has_column("anagrafica_dipendenti", "utente_id"):
-        # Senza la colonna ponte non esiste un modo corretto di collegare
-        # anagrafica e account: meglio un denominatore vuoto (la matrice mostra
-        # "n/d") che una percentuale calcolata su persone sbagliate.
-        return set()
+    from .services.assegnazioni import dipendenti_per_mansioni_rischio
 
-    cessati_ids = set(
-        DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=False)
-        .values_list("legacy_anagrafica_id", flat=True)
-    )
-    utente_ids = list(
-        AnagraficaDipendente.objects.filter(
-            mansione__iexact=mansione_nome,
-            utente_id__isnull=False,
-        )
-        .exclude(id__in=cessati_ids)
-        .values_list("utente_id", flat=True)
-    )
+    # Senza la colonna ponte non esiste un modo corretto di collegare anagrafica
+    # e account: il servizio torna vuoto (la matrice mostra "n/d") invece di una
+    # percentuale calcolata su persone sbagliate. La mansione di rischio conta
+    # sia scritta in anagrafica sia ricavata dalle mansioni svolte (Mansionario).
+    utente_ids = [uid for uid, _nome in dipendenti_per_mansioni_rischio([mansione_nome]).values()]
     if not utente_ids:
         return set()
     return set(

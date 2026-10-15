@@ -306,8 +306,11 @@ def _idoneita_batch(
     corsi = _voci_formazione(ctx, richiesti)
     visite = _voci_visite(ctx, richiesti)
 
-    # DPI: mansione + processi qualificati (stesso resolver di prima).
-    req_dpi_nome = mansionario.requisiti_per_nome({p.mansione for p in richiesti.values() if p.mansione})
+    # DPI: mansioni di rischio della persona (anagrafica + mansioni svolte +
+    # aggiunte − esclusioni) + processi qualificati.
+    nomi_rischio = mansionario.nomi_mansioni_rischio(
+        list(richiesti), mansioni_per_legacy={lid: p.mansione or "" for lid, p in richiesti.items()})
+    req_dpi_nome = mansionario.requisiti_per_nome({n for nomi in nomi_rischio.values() for n in nomi})
     try:
         from .mpq_idoneita import requisiti_processo_per_legacy
         proc_req = requisiti_processo_per_legacy(legacy_ids)
@@ -315,7 +318,8 @@ def _idoneita_batch(
         proc_req = {}
     dpi_req: dict[int, list] = {}
     for legacy_id, persona in richiesti.items():
-        voci_dpi = list((req_dpi_nome.get(persona.mansione.casefold()) or {}).get("dpi") or [])
+        voci_dpi = [c for nome in nomi_rischio.get(legacy_id, [])
+                    for c in (req_dpi_nome.get(nome.casefold()) or {}).get("dpi") or []]
         voci_dpi += list((proc_req.get(legacy_id) or {}).get("dpi") or [])
         visti, unici = set(), []
         for categoria in voci_dpi:

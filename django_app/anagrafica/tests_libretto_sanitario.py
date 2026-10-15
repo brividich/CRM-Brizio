@@ -99,7 +99,7 @@ class LibrettoSanitarioTests(TestCase):
         EsposizioneRischio.objects.create(fattore=fattore, mansione=self.mansione)
         dati = libretto_service.libretto(self.legacy_id, mansione_nome="Cromatore-LS")
         riga = [r for r in dati["righe"] if r.nome == "Guanti cromo LS"][0]
-        self.assertEqual(riga.origini, ["Mansione «Cromatore-LS»"])
+        self.assertEqual(riga.origini, ["Mansione di rischio «Cromatore-LS» (anagrafica)"])
         self.assertIn(fattore, dati["fattori"])
 
     def test_origine_esposizione_diretta(self):

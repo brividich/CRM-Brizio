@@ -17,7 +17,8 @@ GUIDA = {
                     "Leggi la scheda, poi clicca «Confermo di aver letto la scheda».",
                     "Ripeti per le altre. Quelle già confermate sono in «SDS correnti gia' confermate».",
                 ]),
-                ("p", "Le schede da leggere dipendono dalla tua mansione. Se cambi mansione o esce una nuova versione, ti arriva una notifica."),
+                ("p", "Le schede da leggere dipendono dalle tue mansioni di rischio: quella scritta in Anagrafica più quelle "
+                      "delle mansioni che svolgi (Mansionario). Se cambi mansione o esce una nuova versione, ti arriva una notifica."),
             ],
         },
         {
@@ -75,8 +76,8 @@ GUIDA = {
             "id": "report",
             "titolo": "Controllare chi ha letto",
             "blocchi": [
-                ("p", "«Report compliance»: prodotti senza scheda, prodotti senza mansioni e per ogni mansione la percentuale di persone "
-                      "che hanno confermato. «Assegna mansioni» e «Carica SDS» portano dove sistemare; «Export CSV» scarica tutto."),
+                ("p", "«Report compliance»: prodotti senza scheda, prodotti senza mansioni e per ogni mansione di rischio la percentuale di persone "
+                      "che hanno confermato (contano anche le persone che la ricavano dalle mansioni che svolgono). «Assegna mansioni» e «Carica SDS» portano dove sistemare; «Export CSV» scarica tutto."),
             ],
         },
         {
@@ -91,9 +92,10 @@ GUIDA = {
     "problemi": [
         {
             "sintomo": "Un dipendente non vede schede da leggere",
-            "perche": "le schede dovute si calcolano dalla mansione attuale in Anagrafica.",
+            "perche": "le schede dovute si calcolano dalle mansioni di rischio della persona: quella in Anagrafica e quelle "
+                      "delle mansioni che svolge.",
             "fare": [
-                "In Anagrafica controlla la mansione del dipendente.",
+                "In Anagrafica controlla la mansione di rischio del dipendente e, nel Mansionario, le mansioni che svolge.",
                 "Nel dettaglio del prodotto controlla che quella mansione sia tra le mansioni di rischio.",
                 "Controlla che l'account del dipendente sia collegato alla sua anagrafica.",
             ],

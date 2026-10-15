@@ -81,11 +81,6 @@
     {# ── Requisiti diretti (modificabili) — form invariato ─────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Profilo della mansione di rischio</div></div>
-      {% if usa_mansioni_rischio %}
-      <div class="fmd-muted" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--fmd-amber-soft,#fef3c7);color:#92400e;">
-        Questa voce ha ancora collegamenti al vecchio modello «mansioni di rischio» (in dismissione): finché restano, DPI e visite indicati qui sotto sono <strong>ignorati</strong>. Il livello ASR resta valido.
-      </div>
-      {% endif %}
       {% if is_editor %}
       <form method="post" action="{% url 'anagrafica:mansione_requisiti' mansione.pk %}">
         {% csrf_token %}

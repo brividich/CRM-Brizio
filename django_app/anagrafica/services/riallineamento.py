@@ -241,16 +241,20 @@ def _serializza(req: dict) -> dict[str, list[int]]:
 
 
 def dipendenti_della_mansione(mansione_ids: Iterable[int]) -> list[int]:
-    """Dipendenti attivi la cui mansione (per nome) è fra quelle indicate."""
+    """Dipendenti attivi che hanno una delle mansioni di rischio indicate.
+
+    Conta la mansione scritta in anagrafica, quelle ricavate dalle mansioni
+    svolte (Mansionario) e le aggiunte individuali, meno le esclusioni.
+    """
     from ..models import Mansione
     nomi = {n.strip().casefold() for n in Mansione.objects.filter(pk__in=list(mansione_ids)).values_list("nome", flat=True)}
     if not nomi:
         return []
     from core.legacy_anagrafica import fetch_anagrafica_rows
-    return sorted(
-        int(r["id"]) for r in fetch_anagrafica_rows(deduplicate=True)
-        if str(r.get("mansione") or "").strip().casefold() in nomi and r.get("attivo", True)
-    )
+    righe = {int(r["id"]): str(r.get("mansione") or "") for r in fetch_anagrafica_rows(deduplicate=True)
+             if r.get("id") and r.get("attivo", True)}
+    effettive = mansionario.nomi_mansioni_rischio(list(righe), mansioni_per_legacy=righe)
+    return sorted(lid for lid, elenco in effettive.items() if any(n.casefold() in nomi for n in elenco))
 
 
 def fotografa_mansioni(mansione_ids: Iterable[int]) -> dict[int, dict[str, list[int]]]:
@@ -299,6 +303,7 @@ def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None, p
               "gia_soddisfatti": 0, "senza_assegnazione": 0, "errori": 0}
     ctx = requisiti.ambito()
     tutti = {d.id: d for d in ctx._tutti()}
+    gia_allineati: set[tuple[int, int]] = set()
     for mansione_id, req_prima in prima.items():
         mansione = Mansione.objects.filter(pk=int(mansione_id)).first()
         if mansione is None:
@@ -307,9 +312,10 @@ def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None, p
         # La fotografia contiene solo id: ``_ids`` accetta interi così come sono.
         req_dopo = mansionario.requisiti_mansione(mansione)
         for legacy_id in dipendenti_della_mansione([mansione.pk]):
+            gia_allineati.add((mansione.pk, legacy_id))
             report["dipendenti"] += 1
             try:
-                attuali = mansionario.requisiti_dipendente(legacy_id, mansione_nome=mansione.nome)
+                attuali = mansionario.requisiti_dipendente(legacy_id)
                 esito = applica_delta(
                     legacy_id, req_prima, req_dopo, causa=f"{causa} (mansione «{mansione.nome}»)",
                     ancora_dovuti=attuali, user=user, ctx=ctx, persona=tutti.get(ctx.canonico(legacy_id)),
@@ -328,6 +334,8 @@ def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None, p
         titolari = sorted(set(O.objects.filter(mansione_rischio_id=int(mr_id), attivo=True, azione=O.AZIONE_AGGIUNGI)
                               .values_list("legacy_anagrafica_id", flat=True)))
         for legacy_id in titolari:
+            if (int(mr_id), legacy_id) in gia_allineati:
+                continue
             report["dipendenti"] += 1
             try:
                 esito = applica_delta(
@@ -344,7 +352,7 @@ def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None, p
     try:
         from core.audit import log_action
         log_action(None, "riallineamento_mansioni_rischio", "anagrafica", report,
-                   oggetto_tipo="anagrafica.mansionerischio", oggetto_id="job")
+                   oggetto_tipo="anagrafica.mansione", oggetto_id="job")
     except Exception:
         logger.warning("report riallineamento non scritto in audit", exc_info=True)
     return report
