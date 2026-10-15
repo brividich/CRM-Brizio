@@ -126,9 +126,14 @@ SEZIONI: list[dict] = [
                 "Contatore più basso dell'ultima lettura salvata (trimestrale o mensile): o la lettura salvata "
                 "è sbagliata, e va corretta, o la macchina è stata azzerata/sostituita. In quel caso inserisci "
                 "la lettura a mano con «Confermo i valori».",
+                "Contatore negativo o oltre 2.147.483.647: l'OID del profilo non è un contatore di pagine. "
+                "Verifica il profilo.",
             ]),
             ("p", "Il «Test» mostra comunque i valori letti e avvisa con «Non verrebbe salvata» se sono più "
                   "bassi dell'ultima lettura. «Leggi MFC ora» e la raccolta mensile applicano gli stessi controlli."),
+            ("p", "«Leggi MFC ora» nei primi 7 giorni di gennaio, aprile, luglio e ottobre salva la lettura di "
+                  "chiusura del trimestre appena finito; dal giorno 8 salva quella del trimestre in corso. Una "
+                  "lettura manuale salvata mentre la lettura SNMP è in corso non viene sovrascritta."),
             ("p", "Letture da confermare: per un trimestre viene proposta solo la lettura mensile di chiusura, "
                   "cioè quella del mese successivo presa entro il giorno 7. Una lettura più bassa del trimestre "
                   "precedente o più alta del successivo non si conferma: va inserita a mano."),
