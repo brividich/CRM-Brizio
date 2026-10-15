@@ -234,7 +234,7 @@ def schede_mansioni_rischio(gruppi, stati: dict | None) -> list[dict]:
     out = []
     for g in gruppi:
         mr = g.mansione_rischio  # voce del catalogo Mansione = mansione di rischio
-        ids = {p["legacy_id"] for m in g.mansioni for p in m["persone"]} | {p["legacy_id"] for p in g.aggiunte}
+        ids = {p["legacy_id"] for m in g.mansioni for p in m["persone"]} | {p["legacy_id"] for p in g.aggiunte} | {p["legacy_id"] for p in g.da_mansioni}
         n = len(ids)
         conteggi = {"ok": 0, "s30": 0, "ko": 0, "mai": 0}
         if stati is not None:

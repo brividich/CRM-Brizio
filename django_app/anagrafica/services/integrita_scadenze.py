@@ -370,15 +370,14 @@ class _Verifica:
         if self.id_filtro is None:
             senza_profilo = (
                 Mansione.objects.filter(is_active=True)
-                .annotate(n_link=Count("link_rischio", filter=Q(link_rischio__mansione_rischio__is_active=True)),
-                          n_dpi=Count("dpi_richiesti", distinct=True), n_vis=Count("visite_richieste", distinct=True),
+                .annotate(n_dpi=Count("dpi_richiesti", distinct=True), n_vis=Count("visite_richieste", distinct=True),
                           n_esp=Count("esposizioni_rischio", filter=Q(esposizioni_rischio__is_active=True), distinct=True))
-                .filter(n_link=0, n_dpi=0, n_vis=0, n_esp=0)
+                .filter(n_dpi=0, n_vis=0, n_esp=0)
                 .order_by("nome")
             )
-            self.add(a, "Mansioni senza mansione di rischio collegata", "info",
+            self.add(a, "Mansioni di rischio senza DPI, visite né fattori", "info",
                      [f"«{m.nome}» — /anagrafica/mansioni/{m.pk}/requisiti" for m in senza_profilo],
-                     "Se la mansione espone a rischi, collegarla a una mansione di rischio del DVR.")
+                     "Se la mansione di rischio espone a rischi, indicarne DPI, protocollo sanitario o fattori dal DVR.")
 
     def _riferimenti_esistenti(self) -> dict[str, set[int]]:
         from anagrafica.models import TipoVisitaMedica

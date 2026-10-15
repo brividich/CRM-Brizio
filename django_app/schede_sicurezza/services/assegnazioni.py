@@ -61,6 +61,60 @@ def _riga_anagrafica_per_legacy_user_id(legacy_user_id: int | None):
         return None
 
 
+def _mansioni_rischio_dipendente(legacy_anagrafica_id: int, mansione_nome: str) -> list:
+    """Voci del catalogo mansioni di rischio effettive della persona, in ordine.
+
+    La mansione scritta in anagrafica resta la prima; seguono quelle ricavate
+    dalle mansioni svolte e le aggiunte individuali (meno le esclusioni).
+    """
+    from anagrafica.services.mansionario import nomi_mansioni_rischio
+
+    nomi = nomi_mansioni_rischio(
+        [legacy_anagrafica_id], mansioni_per_legacy={legacy_anagrafica_id: mansione_nome},
+    ).get(legacy_anagrafica_id, [])
+    out = []
+    for nome in nomi:
+        mansione = _mansione_per_nome(nome)
+        if mansione is not None and all(m.pk != mansione.pk for m in out):
+            out.append(mansione)
+    return out
+
+
+def dipendenti_per_mansioni_rischio(nomi_mansioni) -> dict[int, tuple[int, str]]:
+    """Dipendenti in forza con account che hanno una delle mansioni di rischio date.
+
+    ``{legacy_anagrafica_id: (legacy_user_id, mansione di rischio trovata)}``.
+    Conta la mansione scritta in anagrafica e quelle ricavate dalle mansioni
+    svolte (Mansionario), con aggiunte ed esclusioni individuali.
+    """
+    voluti = {(nome or "").strip().casefold() for nome in nomi_mansioni if (nome or "").strip()}
+    if not voluti:
+        return {}
+    from anagrafica.models import DipendenteAnagraficaAziendale
+    from anagrafica.services.mansionario import nomi_mansioni_rischio
+    from core.legacy_models import AnagraficaDipendente
+    from core.legacy_utils import legacy_table_has_column
+
+    if not legacy_table_has_column("anagrafica_dipendenti", "utente_id"):
+        return {}
+    cessati_ids = DipendenteAnagraficaAziendale.objects.filter(
+        data_cessazione__isnull=False
+    ).values_list("legacy_anagrafica_id", flat=True)
+    righe = list(
+        AnagraficaDipendente.objects.filter(utente_id__isnull=False)
+        .exclude(id__in=cessati_ids).values_list("id", "utente_id", "mansione")
+    )
+    nomi_per = nomi_mansioni_rischio(
+        [lid for lid, _uid, _m in righe], mansioni_per_legacy={lid: m or "" for lid, _uid, m in righe},
+    )
+    out: dict[int, tuple[int, str]] = {}
+    for lid, uid, _mansione in righe:
+        trovata = next((n for n in nomi_per.get(lid, []) if n.casefold() in voluti), None)
+        if trovata and uid:
+            out[int(lid)] = (int(uid), trovata)
+    return out
+
+
 def profilo_sds_utente(user) -> ProfiloSDSUtente:
     """SDS correnti dovute all'utente in base alla mansione viva in anagrafica."""
     vuoto = ProfiloSDSUtente(False, "", None, [], set())
@@ -78,16 +132,19 @@ def profilo_sds_utente(user) -> ProfiloSDSUtente:
         if not dipendente:
             return vuoto
         mansione_nome = (dipendente.get("mansione") or "").strip()
-        mansione = _mansione_per_nome(mansione_nome)
-        if mansione is None:
+        # Mansioni di rischio della persona: anagrafica + mansioni svolte
+        # (Mansionario) + aggiunte individuali − esclusioni.
+        mansioni = _mansioni_rischio_dipendente(int(dipendente["id"]), mansione_nome)
+        if not mansioni:
             return ProfiloSDSUtente(True, mansione_nome, None, [], set())
 
         schede = list(
             SchedaSicurezza.objects.filter(
                 is_corrente=True,
                 prodotto__attivo=True,
-                prodotto__mansioni=mansione,
+                prodotto__mansioni__in=mansioni,
             )
+            .distinct()
             .select_related("prodotto")
             .prefetch_related("prodotto__mansioni", "prodotto__dpi_obbligatori")
             .order_by("prodotto__nome")
@@ -97,7 +154,7 @@ def profilo_sds_utente(user) -> ProfiloSDSUtente:
                 operatore=user, scheda_id__in=[scheda.pk for scheda in schede]
             ).values_list("scheda_id", flat=True)
         )
-        return ProfiloSDSUtente(True, mansione.nome, mansione.pk, schede, lette)
+        return ProfiloSDSUtente(True, ", ".join(m.nome for m in mansioni), mansioni[0].pk, schede, lette)
     except Exception:
         logger.warning(
             "Calcolo SDS dovute all'utente %s fallito",
@@ -108,30 +165,9 @@ def profilo_sds_utente(user) -> ProfiloSDSUtente:
 
 
 def _utenti_legacy_per_mansioni(nomi_mansioni: list[str]) -> dict[int, str]:
-    """Mappa legacy_user_id -> mansione per dipendenti attivi delle mansioni date."""
-    nomi = [nome.strip() for nome in nomi_mansioni if (nome or "").strip()]
-    if not nomi:
-        return {}
+    """Mappa legacy_user_id -> mansione di rischio per dipendenti attivi delle mansioni date."""
     try:
-        from django.db.models import Q
-        from anagrafica.models import DipendenteAnagraficaAziendale
-        from core.legacy_models import AnagraficaDipendente
-        from core.legacy_utils import legacy_table_has_column
-
-        if not legacy_table_has_column("anagrafica_dipendenti", "utente_id"):
-            return {}
-        filtro = Q()
-        for nome in nomi:
-            filtro |= Q(mansione__iexact=nome)
-        cessati_ids = DipendenteAnagraficaAziendale.objects.filter(
-            data_cessazione__isnull=False
-        ).values_list("legacy_anagrafica_id", flat=True)
-        rows = (
-            AnagraficaDipendente.objects.filter(
-                filtro, utente_id__isnull=False
-            ).exclude(id__in=cessati_ids).values_list("utente_id", "mansione")
-        )
-        return {int(uid): (mansione or "") for uid, mansione in rows if uid}
+        return {uid: nome for uid, nome in dipendenti_per_mansioni_rischio(nomi_mansioni).values()}
     except Exception:
         logger.warning("Risoluzione destinatari SDS per mansione fallita", exc_info=True)
         return {}

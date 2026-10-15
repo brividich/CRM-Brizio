@@ -613,9 +613,8 @@ class Mansione(models.Model):
     # mansionario-...). DPI e visite qui sotto sono il profilo; si uniscono a
     # quelli ereditati dai FattoreRischio (EsposizioneRischio). La formazione
     # obbligatoria resta su TrainingRequirementRule(mansione=...). Vedi
-    # services/mansionario.py. Il modello ``MansioneRischio`` (vuoto in
-    # produzione) è in dismissione: se una mansione ha collegamenti a esso, il
-    # motore legge ancora quelli.
+    # services/mansionario.py. Il vecchio catalogo separato ``MansioneRischio``
+    # è stato assorbito qui (Mansionario fase 6).
     dpi_richiesti = models.ManyToManyField(
         "dpi.CategoriaDPI", blank=True, related_name="mansioni_richiedenti",
         help_text="DPI richiesti a chi ha questa mansione di rischio.",
@@ -623,10 +622,6 @@ class Mansione(models.Model):
     visite_richieste = models.ManyToManyField(
         "anagrafica.TipoVisitaMedica", blank=True, related_name="mansioni_richiedenti",
         help_text="Protocollo sanitario: tipi di visita dovuti. La periodicità la decide il medico competente.",
-    )
-    mansioni_rischio = models.ManyToManyField(
-        "anagrafica.MansioneRischio", through="anagrafica.MansioneLavorativaRischio",
-        blank=True, related_name="mansioni_lavorative",
     )
 
     class Meta:
@@ -2281,7 +2276,7 @@ class AdempimentoCambioMansione(models.Model):
     attivo = models.BooleanField(default=True)
     origine_tipo = models.CharField(max_length=20, choices=ORIGINE_CHOICES, blank=True, default="")
     origine_mansione_rischio = models.ForeignKey(
-        "anagrafica.MansioneRischio", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        "anagrafica.Mansione", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
     origine_override = models.ForeignKey(
         "anagrafica.DipendenteMansioneRischioOverride", null=True, blank=True,

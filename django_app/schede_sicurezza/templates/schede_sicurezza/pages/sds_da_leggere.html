@@ -30,7 +30,7 @@ body.theme-dark .ss-mie-card { border-color:var(--border); }
     <div>
       <div class="ss-mie-title">Le mie schede di sicurezza</div>
       {% if profilo.collegato %}
-        <div class="ss-mie-sub">Mansione corrente: <strong>{{ profilo.mansione_nome|default:"Non indicata" }}</strong>. L'elenco si aggiorna automaticamente quando cambia la mansione.</div>
+        <div class="ss-mie-sub">Mansioni di rischio: <strong>{{ profilo.mansione_nome|default:"Non indicata" }}</strong>. L'elenco si aggiorna da solo quando cambia la mansione o le mansioni che svolgi.</div>
       {% else %}
         <div class="ss-mie-sub">Il tuo account non e' ancora collegato a un dipendente dell'anagrafica.</div>
       {% endif %}
