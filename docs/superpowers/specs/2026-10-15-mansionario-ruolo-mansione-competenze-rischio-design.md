@@ -178,11 +178,11 @@ Ogni fase: worktree dedicato, test del modulo, CHANGELOG, scheda modulo, guida i
 
 Decisi: D8 (qualifica solo se usata), D11 (più ruoli), D12 (livello sulla competenza), D13 (reparto principale), D14 (refresh al caporeparto), D15 (stile Anagrafica).
 
-Aperti:
+Decisi in seguito (15/10):
 
-1. Regola di calcolo del livello sulla mansione: confermare «media con tetto sulla voce bloccante» (§3.3) o scegliere una delle tre regole già esistenti.
-2. Le competenze di macchine uguali (es. tutti i torni CNC): si definiscono una volta per tipo e si copiano, o ogni mansione ha le sue?
-3. Periodicità del refresh al caporeparto: resta 6 mesi?
+- D16 — Livello sulla mansione: **media delle competenze con tetto sulla competenza bloccante più bassa** (nuova regola, §3.3).
+- D17 — Competenze: **ogni mansione ha le sue**, anche tra macchine uguali (nessun catalogo per tipo).
+- D18 — Refresh al caporeparto: **a richiesta della qualità**, non a scadenza fissa (la campagna si apre da un pulsante; nessuna schedulazione automatica).
 
 ## 9. Valutazione dell'implementazione
 
