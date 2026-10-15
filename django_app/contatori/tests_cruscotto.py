@@ -86,8 +86,11 @@ class NavigazioneTests(_AuthedClientMixin, TestCase):
     def test_una_sola_voce_attiva(self):
         self.assertEqual(self._attive(reverse("contatori:snmp_profili")), ["Profili SNMP"])
         self.assertEqual(self._attive(reverse("contatori:snmp_centrale")), ["Monitor SNMP"])
-        self.assertEqual(self._attive(reverse("contatori:importa_lettura")), ["Stampanti MFC"])
-        self.assertEqual(self._attive(reverse("contatori:fattura_nuova")), ["Riconciliazione"])
+        self.assertEqual(self._attive(reverse("contatori:importa_lettura")), ["Letture"])
+        self.assertEqual(self._attive(reverse("contatori:letture_registro")), ["Letture"])
+        self.assertEqual(self._attive(reverse("contatori:macchine")), ["Stampanti MFC"])
+        self.assertEqual(self._attive(reverse("contatori:fattura_nuova")), ["Fatture"])
+        self.assertEqual(self._attive(reverse("contatori:fatture_importa")), ["Fatture"])
 
     def test_wizard_sotto_configurazione_con_voce_attiva(self):
         html = self.client.get(reverse("contatori:dashboard")).content.decode()

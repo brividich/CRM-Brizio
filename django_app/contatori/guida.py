@@ -49,6 +49,28 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "fatture-multiple",
+        "titolo": "Caricare più fatture insieme (trimestri passati)",
+        "blocchi": [
+            ("ul", [
+                "Fatture → «Importa più fatture» (o dalla Riconciliazione / da «+ Nuova fattura» → «Più fatture insieme»).",
+                "Scegli tutti i file insieme (XML o PDF, fino a 30 file da 5 MB) e premi «Leggi le fatture».",
+                "Nell'anteprima ogni fattura ha un esito: «pronta» (già selezionata), «da verificare» (ci sono "
+                "avvisi: leggili, poi selezionala o aprila con «Apri per controllare e salvare»), «già caricata» "
+                "(stesso numero nello stesso trimestre, anche ripetuto nell'import) o «non leggibile».",
+                "Premi «Salva le fatture selezionate». Ogni fattura passa gli stessi controlli della pagina "
+                "singola: se uno non torna (contratto non in anagrafica, chiusura fuori dal trimestre) non viene "
+                "salvata e il messaggio dice il motivo.",
+            ]),
+            ("p", "Il trimestre di ogni fattura è quello della data di chiusura letture del fornitore. Si possono "
+                  "caricare fatture di qualunque trimestre passato."),
+            ("p", "Fatture → l'archivio elenca tutte le fatture per trimestre con l'esito della riconciliazione "
+                  "e segna «fattura mancante» i trimestri con letture interne ma senza fattura."),
+            ("nota", "I file non vengono conservati: l'anteprima resta disponibile finché non premi «Svuota "
+                     "l'elenco» o carichi altri file."),
+        ],
+    },
+    {
         "id": "pool",
         "titolo": "Più MFC sullo stesso contratto (pool)",
         "blocchi": [
@@ -82,10 +104,34 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "registro-letture",
+        "titolo": "Registro letture, elenco MFC e scheda MFC",
+        "blocchi": [
+            ("p", "Letture → «Registro letture»: una riga per MFC e una colonna per trimestre (4, 8, 12 o 16). "
+                  "Ogni cella mostra il totale letto, le copie rispetto al trimestre prima e la fonte. «+ manca» "
+                  "(in giallo) è un trimestre chiuso senza lettura, dalla prima lettura della MFC in poi: un clic "
+                  "apre l'inserimento già compilato. In rosso i contatori scesi rispetto alla lettura prima. "
+                  "«Anche le MFC dismesse» mostra le macchine non più attive."),
+            ("p", "Stampanti MFC: si cerca per reparto, matricola, contratto, IP, modello o asset e si filtra per "
+                  "salute SNMP e per lettura del trimestre in corso («Mancante» / «Presente»). Le MFC dismesse "
+                  "sono nascoste salvo «Anche le dismesse». Ogni riga mostra anche il consumabile più basso."),
+            ("ul", [
+                "Scheda MFC → letture trimestrali dalla più recente con la colonna «Copie»; un trimestre saltato "
+                "compare come «Lettura mancante» con «Inserisci».",
+                "Letture mensili con le copie del mese.",
+                "«Fatture del contratto»: esito della riconciliazione negli ultimi trimestri fatturati e giorni "
+                "tra la chiusura del fornitore e la lettura interna. Nelle MFC in pool l'Info elenca le altre "
+                "macchine dello stesso contratto.",
+                "«Esporta storico»: Excel con letture trimestrali (copie, mancanze, cali), mensili e anagrafica.",
+            ]),
+        ],
+    },
+    {
         "id": "centrale",
         "titolo": "Barra del modulo e Centrale",
         "blocchi": [
-            ("p", "La barra in alto raggruppa le pagine in Operatività, Economico e Configurazione. Le "
+            ("p", "La barra in alto raggruppa le pagine in Operatività (Centrale, Stampanti MFC, Letture, "
+                  "Consumabili, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione. Le "
                   "procedure guidate «+ Apparato» (stampanti MFC e dispositivi SNMP) e «+ Profilo SNMP» sono "
                   "nel menu «+ Nuovo» (solo con il permesso di gestione)."),
             ("p", "La Centrale sta in una schermata: in alto gli indicatori (letture del trimestre, copie, "

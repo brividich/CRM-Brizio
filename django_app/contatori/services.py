@@ -16,6 +16,7 @@ import re
 from time import perf_counter
 
 from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 
 from . import errori_snmp
@@ -277,8 +278,12 @@ def ultime_rilevazioni(oggi=None):
     """
     oggi = oggi or timezone.now().date()
     out = {}
+    # Una query sola: l'ultima per trimestre (poi data) di ogni macchina vince.
+    ultime = {}
+    for l in LetturaContatori.objects.filter(macchina__attiva=True).order_by("trimestre", "data"):
+        ultime[l.macchina_id] = l
     for m in Macchina.objects.filter(attiva=True):
-        ultima = m.letture.order_by("-trimestre", "-data").first()
+        ultima = ultime.get(m.pk)
         if ultima is None:
             out[m.id] = {"lettura": None, "giorni_fa": None,
                          "stato": "mai", "livello": "warn"}
@@ -1585,3 +1590,159 @@ def licenze_asset_apparati():
         "in_scadenza": sum(i for _, i in conteggi.values()),
         "da_collegare": da_collegare,
     }
+
+
+# --- Gestione dati: registro letture, storico MFC, archivio fatture ------------
+
+def ultimi_trimestri(n, fino_a=None):
+    """Gli ultimi `n` trimestri fino a `fino_a` (compreso, default il corrente), crescenti."""
+    t = fino_a or trimestre_corrente()
+    out = []
+    for _ in range(max(1, n)):
+        out.append(t)
+        t = trimestre_precedente(t)
+    return out[::-1]
+
+
+def _cali(lettura, precedente):
+    """Etichette dei contatori scesi rispetto alla lettura precedente."""
+    if precedente is None:
+        return []
+    return [etichetta for campo, etichetta in CONTATORI
+            if getattr(lettura, campo) < getattr(precedente, campo)]
+
+
+def registro_letture(trimestri=8, *, dismesse=False, oggi=None):
+    """Matrice MFC x trimestri per vedere e completare le letture.
+
+    Ogni cella: la lettura (con le copie rispetto al trimestre precedente, se c'e')
+    oppure lo stato della mancanza: `mancante` dal primo trimestre letto in poi,
+    `in_corso` per il trimestre corrente. I cali sono confrontati con la lettura
+    precedente qualunque sia il trimestre.
+    """
+    oggi = oggi or timezone.localdate()
+    corrente = trimestre_di(oggi)
+    colonne = ultimi_trimestri(trimestri, corrente)
+    macchine = Macchina.objects.all() if dismesse else Macchina.objects.filter(attiva=True)
+    macchine = list(macchine.order_by("-attiva", "reparto", "matricola"))
+    per_macchina = defaultdict(list)
+    for l in LetturaContatori.objects.filter(macchina__in=macchine).order_by("trimestre"):
+        per_macchina[l.macchina_id].append(l)
+    righe, mancanti, cali = [], 0, 0
+    for m in macchine:
+        letture = per_macchina.get(m.pk, [])
+        per_trim = {l.trimestre: l for l in letture}
+        prima = letture[0].trimestre if letture else corrente
+        celle = []
+        for t in colonne:
+            l = per_trim.get(t)
+            if l is not None:
+                precedente = next((x for x in reversed(letture) if x.trimestre < t), None)
+                consecutiva = per_trim.get(trimestre_precedente(t))
+                scesi = _cali(l, precedente)
+                cali += bool(scesi)
+                celle.append({"trimestre": t, "lettura": l, "cali": scesi,
+                              "copie": (l.totale - consecutiva.totale
+                                        if consecutiva is not None and not scesi else None)})
+            elif t == corrente:
+                celle.append({"trimestre": t, "stato": "in_corso"})
+            elif m.attiva and t >= prima:
+                mancanti += 1
+                celle.append({"trimestre": t, "stato": "mancante"})
+            else:
+                celle.append({"trimestre": t, "stato": "vuota"})
+        righe.append({"macchina": m, "celle": celle, "letture": len(letture)})
+    return {"trimestri": colonne, "righe": righe, "mancanti": mancanti, "cali": cali,
+            "corrente": corrente}
+
+
+def righe_letture_macchina(macchina):
+    """Letture trimestrali della MFC dalla piu' recente, con copie, cali e lacune.
+
+    Tra due letture non consecutive compare una riga `manca` per ogni trimestre
+    senza lettura: le copie della lettura successiva non sono calcolabili.
+    """
+    letture = list(macchina.letture.order_by("trimestre"))
+    righe = []
+    for i, l in enumerate(letture):
+        prec = letture[i - 1] if i else None
+        if prec is not None:
+            t = trimestre_successivo(prec.trimestre)
+            while t < l.trimestre:
+                righe.append({"trimestre": t, "lettura": None})
+                t = trimestre_successivo(t)
+        scesi = _cali(l, prec)
+        consecutiva = prec is not None and prec.trimestre == trimestre_precedente(l.trimestre)
+        righe.append({"trimestre": l.trimestre, "lettura": l, "cali": scesi,
+                      "copie": l.totale - prec.totale if consecutiva and not scesi else None})
+    return righe[::-1]
+
+
+def righe_mensili_macchina(macchina, ultimi=24):
+    """Ultime letture mensili con le copie del mese (rispetto al mese precedente letto)."""
+    mensili = list(macchina.letture_mensili.order_by("-mese")[:ultimi + 1])[::-1]
+    righe = []
+    for i, l in enumerate(mensili):
+        prec = mensili[i - 1] if i else None
+        consecutivo = prec is not None and (
+            (prec.mese.year * 12 + prec.mese.month) + 1 == l.mese.year * 12 + l.mese.month)
+        scesi = _cali(l, prec)
+        righe.append({"lettura": l, "cali": scesi,
+                      "copie": l.totale - prec.totale if consecutivo and not scesi else None})
+    return righe[::-1][:ultimi]
+
+
+def fatture_macchina(macchina, ultimi=6):
+    """Esito della riconciliazione del contratto della MFC negli ultimi trimestri fatturati."""
+    if not macchina.contratto:
+        return []
+    trimestri = list(RigaFattura.objects.filter(contratto=macchina.contratto)
+                     .values_list("fattura__trimestre", flat=True).distinct()
+                     .order_by("-fattura__trimestre")[:ultimi])
+    out = []
+    for t in trimestri:
+        for gruppo in riconcilia(t)[1]["gruppi"]:
+            if gruppo["contratto"] == macchina.contratto:
+                out.append({"trimestre": t, **gruppo})
+    return out
+
+
+def archivio_fatture():
+    """Fatture per trimestre, con l'esito della riconciliazione e i trimestri scoperti.
+
+    [{trimestre, fatture: [Fattura], righe, riepilogo, letture}] dal piu' recente.
+    Un trimestre con letture interne ma senza fattura compare con `fatture` vuoto
+    (dal primo trimestre fatturato in poi: prima non c'era il confronto).
+    """
+    fatture = defaultdict(list)
+    for f in Fattura.objects.prefetch_related("righe").order_by("-trimestre", "-periodo_al", "numero"):
+        fatture[f.trimestre].append(f)
+    # .order_by() vuoto: con l'ordering del Meta SQL Server rifiuta il GROUP BY (errore 8127).
+    letture = dict(LetturaContatori.objects.order_by().values("trimestre").annotate(n=Count("id"))
+                   .values_list("trimestre", "n"))
+    primo = min(fatture, default=None)
+    trimestri = set(fatture) | {t for t in letture if primo and t >= primo}
+    corrente = trimestre_corrente()
+    out = []
+    for t in sorted(trimestri, reverse=True):
+        riepilogo = riconcilia(t)[1] if fatture.get(t) else None
+        out.append({"trimestre": t, "fatture": fatture.get(t, []), "letture": letture.get(t, 0),
+                    "riepilogo": riepilogo, "in_corso": t >= corrente})
+    return out
+
+
+def disponibilita_dispositivo(dispositivo, ora=None):
+    """Quota di interrogazioni riuscite nelle ultime 24 ore e 7 giorni (dallo storico salvato).
+
+    {"24h": {"totale", "ok", "errori", "pct"}, "7g": {...}}; `pct` None senza rilevazioni.
+    Lo stato «attenzione» (soglia superata) conta come riuscito: l'apparato ha risposto.
+    """
+    ora = ora or timezone.now()
+    out = {}
+    for chiave, giorni in (("24h", 1), ("7g", 7)):
+        stati = list(dispositivo.rilevazioni.filter(rilevata_il__gte=ora - timedelta(days=giorni))
+                     .values_list("stato", flat=True))
+        errori = sum(1 for s in stati if s == StatoSNMP.ERROR)
+        out[chiave] = {"totale": len(stati), "errori": errori, "ok": len(stati) - errori,
+                       "pct": round(100 * (len(stati) - errori) / len(stati), 1) if stati else None}
+    return out

@@ -14,7 +14,9 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Il cruscotto mostra le multifunzione (MFC) con le ultime letture, i toner e lo stato degli apparati monitorati.",
-                    "Clicca una MFC per la scheda: letture mensili, consumabili, asset collegato.",
+                    "Clicca una MFC per la scheda: letture trimestrali con le copie e i trimestri mancanti, letture mensili, fatture del contratto, consumabili, asset collegato; «Esporta storico» scarica tutto in Excel.",
+                    "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza.",
+                    "Scheda di un dispositivo SNMP: uptime e «Risposte ultime 24 ore / 7 giorni», cioè quante interrogazioni hanno avuto risposta (sotto il 95% in rosso).",
                     "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte, con un secondo tentativo alle 08:00 per le macchine spente.",
                 ]),
             ],
@@ -53,6 +55,11 @@ GUIDA = {
             "blocchi": [
                 ("p", "«Fatture» → nuova fattura: si può caricare la fattura elettronica (XML o PDF di stampa) e il portale compila le righe. "
                       "La «Riconciliazione» confronta per trimestre le letture fatturate con quelle interne. I dettagli sono nella guida della riconciliazione."),
+                ("passi", [
+                    "Più fatture insieme (es. i trimestri passati): «Fatture» → «Importa più fatture», scegli tutti i file e premi «Leggi le fatture».",
+                    "Controlla l'anteprima: le «pronte» sono già selezionate, le «da verificare» si aprono una alla volta.",
+                    "«Salva le fatture selezionate»: ognuna passa gli stessi controlli della pagina singola.",
+                ]),
             ],
         },
     ],

@@ -1,0 +1,24 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Registro letture{% endblock %}
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
+<div class="row"><div><div class="eyebrow">Letture trimestrali</div><h1>Registro letture</h1><p class="sub">Una riga per MFC, una colonna per trimestre: totale letto, fonte e copie rispetto al trimestre prima. In evidenza le letture mancanti e i contatori scesi.{% if g %} Clic su una cella vuota per inserire la lettura, su una lettura per correggerla.{% endif %}</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:letture_proposte' %}">Letture dalle mensili</a>{% if g %}<a class="btn" href="{% url 'contatori:importa_lettura' %}">+ Nuova lettura</a>{% endif %}</div></div>
+
+<div class="cards"><div class="card"><div class="k">MFC</div><div class="v">{{ registro.righe|length }}</div></div><div class="card"><div class="k">Letture mancanti</div><div class="v{% if registro.mancanti %} health-warning{% endif %}">{{ registro.mancanti }}</div><div class="meta">trimestri chiusi, dalla prima lettura</div></div><div class="card"><div class="k">Cali</div><div class="v{% if registro.cali %} health-error{% endif %}">{{ registro.cali }}</div><div class="meta">contatore più basso della lettura prima</div></div></div>
+
+<section class="panel"><form method="get" class="row" style="gap:14px;align-items:flex-end">
+  <div class="form-field"><label for="trimestri">Trimestri</label><select id="trimestri" name="trimestri"><option value="4"{% if n == 4 %} selected{% endif %}>ultimi 4</option><option value="8"{% if n == 8 %} selected{% endif %}>ultimi 8</option><option value="12"{% if n == 12 %} selected{% endif %}>ultimi 12</option><option value="16"{% if n == 16 %} selected{% endif %}>ultimi 16</option></select></div>
+  <label class="row" style="gap:6px"><input type="checkbox" name="dismesse" value="1"{% if dismesse %} checked{% endif %}> Anche le MFC dismesse</label>
+  <button class="btn ghost" type="submit">Aggiorna</button>
+</form></section>
+
+<section class="panel"><div class="table-wrap"><table class="registro-letture" data-fm-table-skip="1">
+  <thead><tr><th>MFC</th>{% for t in registro.trimestri %}<th class="num">{{ t }}{% if t == registro.corrente %}<div class="muted">in corso</div>{% endif %}</th>{% endfor %}</tr></thead>
+  <tbody>{% for r in registro.righe %}<tr{% if not r.macchina.attiva %} class="dismessa"{% endif %}>
+    <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>{% if not r.macchina.attiva %} <span class="pill">dismessa</span>{% endif %}<div class="muted">{{ r.macchina.matricola }}</div></td>
+    {% for c in r.celle %}{% if c.lettura %}<td class="num cella{% if c.cali %} calo{% endif %}" title="{{ c.lettura.trimestre }} · {{ c.lettura.data|date:'d/m/Y' }} · {{ c.lettura.get_fonte_display }} · A4 BN {{ c.lettura.a4_bn }} · A3 BN {{ c.lettura.a3_bn }} · A4 COL {{ c.lettura.a4_col }} · A3 COL {{ c.lettura.a3_col }}{% if c.cali %} · sceso: {{ c.cali|join:', ' }}{% endif %}">{% if g %}<a class="plain" href="{% url 'contatori:lettura_edit' c.lettura.pk %}">{{ c.lettura.totale }}</a>{% else %}{{ c.lettura.totale }}{% endif %}<div class="muted">{% if c.cali %}calo {{ c.cali|join:", " }} · {% elif c.copie is not None %}+{{ c.copie }} · {% endif %}{{ c.lettura.get_fonte_display|lower }}</div></td>
+    {% elif c.stato == 'mancante' %}<td class="num cella mancante">{% if g %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ r.macchina.pk }}&amp;trimestre={{ c.trimestre }}" title="Inserisci la lettura {{ c.trimestre }}">+ manca</a>{% else %}manca{% endif %}</td>
+    {% elif c.stato == 'in_corso' %}<td class="num cella">{% if g and r.macchina.attiva %}<a class="plain muted" href="{% url 'contatori:importa_lettura' %}?macchina={{ r.macchina.pk }}&amp;trimestre={{ c.trimestre }}" title="Inserisci la lettura {{ c.trimestre }}">+</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+    {% else %}<td class="num cella"><span class="muted">·</span></td>{% endif %}{% endfor %}
+  </tr>{% empty %}<tr><td colspan="{{ registro.trimestri|length|add:1 }}" class="empty">Nessuna MFC.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}
