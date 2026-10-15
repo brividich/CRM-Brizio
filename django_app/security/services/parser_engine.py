@@ -45,13 +45,16 @@ def run_pending_parsers():
                 outcome = _store_parsed(item, parsed)
             elapsed_ms = int((time.monotonic() - started) * 1000)
             item.parse_status = ParseStatus.PARSED
+            lettura = (parsed.payload or {}).get("lettura") or {}
             item.raw_payload = {
                 **(item.raw_payload or {}),
                 "parser_name": getattr(parser, "name", ""),
                 "parse_ms": elapsed_ms,
                 "parse_outcome": outcome,
+                "lettura_qualita": lettura.get("qualita", ""),
             }
             item.raw_payload.pop("parser_error", None)
+            item.raw_payload.pop("parser_error_hint", None)
             item.save(update_fields=["parse_status", "raw_payload"])
             parsed_count += 1
         except Exception as exc:
@@ -64,12 +67,36 @@ def run_pending_parsers():
             )
             item.parse_status = ParseStatus.FAILED
             item.raw_payload = {
-                **item.raw_payload,
+                **(item.raw_payload or {}),
                 "parser_error": str(exc)[:500],
+                "parser_error_hint": spiega_errore(exc),
                 "parser_name": getattr(parser, "name", ""),
             }
             item.save(update_fields=["parse_status", "raw_payload"])
     return parsed_count
+
+
+def spiega_errore(exc):
+    """L'errore tecnico di un parser detto in modo che chi gestisce il SOC sappia cosa fare.
+
+    «KeyError: 'cve'» non dice nulla a chi legge la pagina Parser; «il documento non ha il
+    campo che il parser si aspettava» dice che il fornitore ha cambiato formato.
+    """
+    from django.db import DatabaseError
+
+    if isinstance(exc, KeyError):
+        campo = str(exc.args[0]) if exc.args else "?"
+        return (f"Il parser si aspettava il campo «{campo}» e non l'ha trovato: probabilmente il fornitore "
+                "ha cambiato il formato del documento. Provalo in «Prova i parser» per vedere cosa legge.")
+    if isinstance(exc, UnicodeError):
+        return "Il testo contiene caratteri non leggibili (codifica): riesportare il report o caricarlo come PDF/CSV."
+    if isinstance(exc, DatabaseError):
+        return ("Errore nel salvataggio sul database: non è rimasto nessun dato parziale (tutto annullato). "
+                "«Rielabora» lo riprova; se si ripete, è un problema del server.")
+    if isinstance(exc, (ValueError, TypeError, ArithmeticError)):
+        return ("Un valore del documento non ha il formato atteso (numero, data, orario): probabilmente il formato "
+                "è cambiato. Provalo in «Prova i parser».")
+    return "Errore inatteso del parser: il dettaglio tecnico è sotto, nel registro del server c'è la traccia completa."
 
 
 def _store_parsed(item, parsed):

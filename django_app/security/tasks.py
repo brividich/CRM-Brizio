@@ -28,6 +28,8 @@ def ingest_security_mailboxes_task():
     Ritorna il numero di sorgenti processate senza errore. Le credenziali vanno
     configurate come SecurityCenterSetting (Configuration Studio).
     """
+    import logging
+
     from security.models import SecurityMailboxSource
     from security.services.mailbox_ingestion import run_mailbox_ingestion
 
@@ -36,7 +38,8 @@ def ingest_security_mailboxes_task():
         try:
             run_mailbox_ingestion(src)
             ok += 1
-        except Exception:
+        except Exception:  # noqa: BLE001 - una casella guasta non ferma le altre, ma si vede nel log
+            logging.getLogger(__name__).exception("Lettura della casella %s fallita", src.code)
             continue
     return ok
 
@@ -75,6 +78,28 @@ def enrich_cve_task():
     if not enrichment_enabled():
         return {"skipped": "arricchimento CVE spento"}
     return run_enrichment(time_budget_seconds=90)
+
+
+def ai_lettura_assistita_task():
+    """Lettura assistita dall'AI (schedule `security_ai_lettura`, flusso del designer Automazioni).
+
+    Fa leggere all'AI locale le letture «da verificare» e le mail che nessun parser riconosce:
+    proposte da controllare, mai alert. Spenta finché non si accende in /soc/impostazioni/;
+    al massimo «Massimo per giro» elementi ed entro 90 s (timeout worker 120 s).
+    """
+    from security.services import soc_settings
+    from security.services.ai_lettura import leggi_candidati, notifica_letture_ai
+
+    if not soc_settings.value("ai.lettura.attivo"):
+        return {"skipped": "lettura assistita spenta"}
+    done = leggi_candidati(limit=soc_settings.value("ai.lettura.max_per_giro"))
+    notified = notifica_letture_ai(done) if done else 0
+    return {
+        "lette": len(done),
+        "proposte_ok": sum(1 for row in done if row["result"]["ok"]),
+        "ms_medi": int(sum(row["result"]["ms"] for row in done) / len(done)) if done else 0,
+        "avvisi_inviati": notified or 0,
+    }
 
 
 def suggest_cpe_task(vendor, product):

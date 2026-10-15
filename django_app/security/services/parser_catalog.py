@@ -17,6 +17,7 @@ from security.models import (
     SourceType,
 )
 from security.parsers import parser_registry
+from security.parsers.base import QUALITA_COMPLETA, QUALITA_DA_VERIFICARE, QUALITA_PARZIALE
 from security.services.configuration import audit_config_change
 from security.services.parser_engine import (
     SKIP_PARSER_DISABLED,
@@ -66,8 +67,9 @@ STATUS_LABELS = {
     "idle": "Mai usato",
     "disabled": "Disattivato",
     "orphan": "Non esiste nel codice",
+    "to_check": "Letture da verificare",
 }
-STATUS_BADGES = {"ok": "ok", "error": "critical", "idle": "warning", "disabled": "disabled", "orphan": "critical"}
+STATUS_BADGES = {"ok": "ok", "error": "critical", "idle": "warning", "disabled": "disabled", "orphan": "critical", "to_check": "warning"}
 
 
 def _effective_order():
@@ -88,15 +90,37 @@ def _recent_outcomes():
             when = getattr(item, date_field)
             if item.parse_status == ParseStatus.FAILED:
                 name = payload.get("parser_name") or ""
-                row = failures.setdefault(name, {"count": 0, "last_at": None, "last_error": ""})
+                row = failures.setdefault(name, {"count": 0, "last_at": None, "last_error": "", "last_hint": ""})
                 row["count"] += 1
                 if row["last_at"] is None or (when and when > row["last_at"]):
                     row["last_at"] = when
                     row["last_error"] = payload.get("parser_error", "")
+                    row["last_hint"] = payload.get("parser_error_hint", "")
             elif payload.get("skip_reason") == SKIP_PARSER_DISABLED:
                 name = str(payload.get("skip_detail", "")).rsplit(":", 1)[-1].strip()
                 disabled_skips[name] = disabled_skips.get(name, 0) + 1
     return failures, disabled_skips
+
+
+def _recent_quality():
+    """Per parser: letture recenti «da verificare» o «parziali» (campi obbligatori mancanti, avvisi).
+
+    Un parser che non va in errore ma legge a metà sembrava «Funziona»: le cifre arrivavano
+    a zero o vuote e nessuno se ne accorgeva. ``lettura_qualita`` è scritta da ``parser_engine``.
+    """
+    quality = {}
+    for model, date_field in ((SecurityMailboxMessage, "received_at"), (SecuritySourceFile, "uploaded_at")):
+        rows = model.objects.filter(parse_status=ParseStatus.PARSED).order_by(f"-{date_field}").values_list("raw_payload", flat=True)
+        for payload in rows[:RECENT_ITEMS_WINDOW]:
+            payload = payload or {}
+            name = payload.get("parser_name") or ""
+            level = payload.get("lettura_qualita") or ""
+            if not name or not level:
+                continue
+            row = quality.setdefault(name, {QUALITA_DA_VERIFICARE: 0, QUALITA_PARZIALE: 0, QUALITA_COMPLETA: 0})
+            if level in row:
+                row[level] += 1
+    return quality
 
 
 def parser_overview():
@@ -106,6 +130,7 @@ def parser_overview():
         for row in SecurityReport.objects.values("parser_name").annotate(total=Count("id"), last_at=Max("created_at")).order_by()
     }
     failures, disabled_skips = _recent_outcomes()
+    quality = _recent_quality()
 
     rows = []
     for position, parser in enumerate(parsers, start=1):
@@ -122,7 +147,12 @@ def parser_overview():
             status = "ok"
         else:
             status = "idle"
-        rows.append(_row(parser.name, config, status, position=position, enabled=enabled, reports=reports, failure=failure, disabled_skips=disabled_skips.get(parser.name, 0)))
+        row = _row(parser.name, config, status, position=position, enabled=enabled, reports=reports, failure=failure, disabled_skips=disabled_skips.get(parser.name, 0))
+        row["quality"] = quality.get(parser.name, {})
+        row["to_check"] = row["quality"].get(QUALITA_DA_VERIFICARE, 0)
+        if status == "ok" and row["to_check"]:
+            row["status"], row["status_label"], row["status_badge"] = "to_check", STATUS_LABELS["to_check"], STATUS_BADGES["to_check"]
+        rows.append(row)
 
     registered = {parser.name for parser in parsers}
     for name, config in sorted(configs.items()):
@@ -133,13 +163,38 @@ def parser_overview():
         "parser_rows": rows,
         "parser_summary": {
             "total": len(rows),
-            "ok": sum(1 for row in rows if row["status"] == "ok"),
+            "ok": sum(1 for row in rows if row["status"] in {"ok", "to_check"}),
             "problems": sum(1 for row in rows if row["status"] in {"error", "orphan"}),
+            "to_check": sum(1 for row in rows if row["status"] == "to_check"),
             "missing_config": sum(1 for row in rows if row["registered"] and row["config"] is None),
         },
         "queue_summary": _queue_summary(),
         "unprocessed_items": _unprocessed_items(),
+        "to_check_items": _to_check_items(),
     }
+
+
+def _to_check_items(limit=10):
+    """Ultimi elementi letti ma «da verificare», con l'eventuale proposta dell'AI."""
+    items = []
+    for model, date_field, kind in ((SecurityMailboxMessage, "received_at", "Mail"), (SecuritySourceFile, "uploaded_at", "File")):
+        rows = model.objects.filter(parse_status=ParseStatus.PARSED).select_related("source").order_by(f"-{date_field}")[:RECENT_ITEMS_WINDOW]
+        for item in rows:
+            payload = item.raw_payload or {}
+            if payload.get("lettura_qualita") != QUALITA_DA_VERIFICARE:
+                continue
+            items.append({
+                "kind": kind,
+                "title": getattr(item, "subject", "") or getattr(item, "original_name", ""),
+                "parser": PARSER_INFO.get(payload.get("parser_name"), {}).get("label", payload.get("parser_name", "")),
+                "source": getattr(item.source, "name", ""),
+                "at": getattr(item, date_field),
+                "ai": payload.get("ai_lettura") or None,
+            })
+            if len(items) >= limit * 2:
+                break
+    items.sort(key=lambda row: row["at"].timestamp() if row["at"] else 0, reverse=True)
+    return items[:limit]
 
 
 def _row(name, config, status, *, position=None, enabled, reports, failure, disabled_skips=0):
@@ -163,6 +218,7 @@ def _row(name, config, status, *, position=None, enabled, reports, failure, disa
         "failures_count": failure.get("count", 0),
         "last_failure_at": failure.get("last_at"),
         "last_error": failure.get("last_error", ""),
+        "last_hint": failure.get("last_hint", ""),
         "disabled_skips": disabled_skips,
     }
 
@@ -185,8 +241,10 @@ def _unprocessed_items(limit=10):
             payload = item.raw_payload or {}
             if item.parse_status == ParseStatus.FAILED:
                 reason = f"Errore del parser {payload.get('parser_name') or '?'}: {payload.get('parser_error') or 'nessun dettaglio'}"
+                hint = payload.get("parser_error_hint", "")
             else:
                 reason = payload.get("skip_detail") or SKIP_REASON_LABELS.get(payload.get("skip_reason"), "Scartato (motivo non registrato)")
+                hint = ""
             items.append(
                 {
                     "kind": kind,
@@ -196,6 +254,8 @@ def _unprocessed_items(limit=10):
                     "at": getattr(item, date_field),
                     "status": item.parse_status,
                     "reason": reason,
+                    "hint": hint,
+                    "ai": payload.get("ai_lettura") or None,
                 }
             )
     items.sort(key=lambda row: row["at"].timestamp() if row["at"] else 0, reverse=True)
@@ -218,7 +278,7 @@ def reprocess_items():
             payload = dict(item.raw_payload or {})
             if payload.get("skip_reason") == SKIP_UNTRUSTED_SENDER:
                 continue
-            for key in ("skip_reason", "skip_detail", "parser_error", "parser_name"):
+            for key in ("skip_reason", "skip_detail", "parser_error", "parser_error_hint", "parser_name"):
                 payload.pop(key, None)
             item.raw_payload = payload
             item.parse_status = ParseStatus.PENDING
@@ -238,7 +298,7 @@ def delete_orphan_config(config, *, actor=None, request=None):
     return True
 
 
-def test_parsers(*, sender="", subject="", body="", filename="", data=None):
+def test_parsers(*, sender="", subject="", body="", filename="", data=None, with_ai=False, user=None):
     """Prova a secco: quale parser prenderebbe questo contenuto e cosa ne estrarrebbe.
 
     Nessun salvataggio: gli oggetti restano in memoria e l'eventuale scrittura di un
@@ -268,6 +328,7 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
                 "enabled": config.enabled if config else True,
                 "recognizes": recognizes,
                 "impersonation": bool(parser.impersonation_suspect(item)),
+                "why": _why(parser, item),
             }
         )
 
@@ -276,7 +337,7 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
     if not chosen:
         code, detail = skip_reason(item)
         result.update({"chosen": None, "skip_code": code, "skip_detail": detail})
-        return result
+        return _with_ai(result, with_ai, item, None, user)
 
     result["chosen"] = PARSER_INFO.get(chosen.name, {}).get("label", chosen.name)
     result["chosen_name"] = chosen.name
@@ -286,7 +347,7 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
             transaction.set_rollback(True)
     except Exception as exc:  # noqa: BLE001 - è proprio l'errore che l'operatore deve vedere
         result["error"] = f"{type(exc).__name__}: {str(exc)[:400]}"
-        return result
+        return _with_ai(result, with_ai, item, chosen.name, user)
     record_types = {}
     for record in parsed.records:
         record_types[record.record_type] = record_types.get(record.record_type, 0) + 1
@@ -298,5 +359,29 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
         "records_total": len(parsed.records),
         "parse_warnings": list((parsed.payload or {}).get("parse_warnings") or [])[:10],
         "alert_candidates": len((parsed.payload or {}).get("alerts_candidates") or (parsed.payload or {}).get("alert_candidates") or []),
+        "lettura": (parsed.payload or {}).get("lettura") or {},
     }
+    return _with_ai(result, with_ai, item, chosen.name, user)
+
+
+def _with_ai(result, with_ai, item, parser_name, user):
+    """«Chiedi all'AI»: proposta della lettura assistita sullo stesso contenuto (nessun salvataggio)."""
+    if not with_ai:
+        return result
+    from security.services.ai_lettura import proponi_a_secco
+
+    is_file = isinstance(item, SecuritySourceFile)
+    result["ai"] = proponi_a_secco(
+        subject=item.original_name if is_file else item.subject,
+        text=(item.content if is_file else item.body) or "",
+        parser_name=parser_name, user=user,
+    )
     return result
+
+
+def _why(parser, item):
+    """Perché il parser riconosce (o no) il contenuto: solo spiegazione, mai una decisione."""
+    try:
+        return list(parser.perche_riconosce(item) or [])[:5]
+    except Exception:  # noqa: BLE001 - la spiegazione non deve mai rompere la prova
+        return []

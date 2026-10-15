@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from security.services.dedup import make_hash
-from .base import BaseParser, ParsedRecord, ParsedReport
+from .base import BaseParser, Lettura, ParsedRecord, ParsedReport
 from .registry import parser_registry
 
 # Ordine = precedenza: «non è stata completata» contiene «completata» e «completata con avvisi»
@@ -13,6 +13,16 @@ STATUS_PATTERNS = (
     ("failed", ("non riuscita", "non è stata completata", "non e' stata completata", "non completata", "fallita", "failed", "errore", "error")),
     ("warning", ("parzialmente", "avviso", "avvisi", "warning", "partial")),
     ("completed", ("completata", "completed", "success", "riuscita")),
+)
+STATUS_LABELS = {"failed": "Non riuscito", "warning": "Con avvisi", "completed": "Riuscito"}
+
+# «senza errori», «nessun errore», «0 errori», «errori: 0», «no errors»: dicono che è andato
+# BENE, ma contengono «errore»/«error» e facevano classificare il job come fallito.
+_NEGATED_ERRORS = re.compile(
+    r"(?:senza|nessun[oa]?|zero|0)\s+(?:error[ei]|avvis[oi]|warnings?|errors?)"
+    r"|(?:error[ei]|avvis[oi]|warnings?|errors?)\s*[:=]\s*0\b"
+    r"|\bno\s+(?:errors?|warnings?)\b",
+    re.I,
 )
 
 _DT = r"(\d{1,2}[/.]\d{1,2}[/.]\d{4}\s+\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2})"
@@ -31,7 +41,11 @@ def parse_synology_active_backup_email(subject, body, sender=None, received_at=N
     subject = _normalize(subject)
     body = _normalize(body)
     text = f"{subject}\n{body}"
-    status = _parse_status(text)
+    # L'oggetto è il riassunto che Synology scrive apposta («... completata», «... non
+    # riuscita»): vale più del corpo, dove compaiono righe come «Errori: 0».
+    status, status_from = _parse_status(subject), "nell'oggetto"
+    if status == "unknown":
+        status, status_from = _parse_status(body), "nel testo"
     job_name, nas_name = _parse_job_and_nas(text)
     start_time = _parse_datetime(_first_group(_START, body))
     end_time = _parse_datetime(_first_group(_END, body))
@@ -41,8 +55,26 @@ def parse_synology_active_backup_email(subject, body, sender=None, received_at=N
     devices = _parse_devices(body)
     device_name = ", ".join(devices)
 
-    normalized_hash = make_hash("synology", job_name, device_name, _iso(start_time), _iso(end_time), status)
     raw_body_hash = make_hash(subject, body)
+    if start_time or end_time:
+        normalized_hash = make_hash("synology", job_name, device_name, _iso(start_time), _iso(end_time), status)
+    else:
+        # Senza orari, job+stato non distinguono un giorno dall'altro: il secondo «completata»
+        # dello stesso job veniva scartato come duplicato e il backup sembrava fermo al primo.
+        normalized_hash = make_hash("synology", job_name, device_name, status, _iso(received_at), raw_body_hash)
+
+    lettura = Lettura("Esito job Synology Active Backup for Business")
+    lettura.campo("Esito", f"{STATUS_LABELS[status]} (letto {status_from})" if status in STATUS_LABELS else "", obbligatorio=True)
+    lettura.campo("Nome del job", job_name, obbligatorio=True)
+    lettura.campo("NAS", nas_name)
+    lettura.campo("Inizio", _iso(start_time))
+    lettura.campo("Fine", _iso(end_time))
+    lettura.campo("Dispositivi", devices)
+    lettura.campo("Dati trasferiti (GB)", round(transferred_size_gb, 3) if transferred_size_gb is not None else None)
+    if not (start_time or end_time):
+        lettura.avviso("Orari di inizio e fine non trovati: per distinguere i giorni si usa la data di ricezione della mail")
+    if status == "unknown":
+        lettura.avviso("Esito non riconosciuto né nell'oggetto né nel testo: il job non conta come riuscito")
     return {
         "source": "synology",
         "vendor": "synology",
@@ -60,6 +92,8 @@ def parse_synology_active_backup_email(subject, body, sender=None, received_at=N
         "received_at": _iso(received_at),
         "dedup_hash": normalized_hash,
         "raw_body_hash": raw_body_hash,
+        "parse_warnings": list(lettura.avvisi),
+        "lettura": lettura.as_dict(),
     }
 
 
@@ -75,6 +109,17 @@ class SynologyActiveBackupEmailParser(BaseParser):
             or ("attività" in text and "backup" in text and ("ora d'inizio" in text or "ora inizio" in text or "ora di inizio" in text))
             or ("synology" in text and "backup" in text)
         )
+
+    def perche_riconosce(self, item):
+        text = _normalize(f"{getattr(item, 'subject', '') or ''}\n{getattr(item, 'body', '') or ''}").lower()
+        reasons = []
+        if "active backup for business" in text:
+            reasons.append("Cita «Active Backup for Business»")
+        if "synology" in text and "backup" in text:
+            reasons.append("Cita Synology e backup")
+        if any(label in text for label in ("ora d'inizio", "ora inizio", "ora di inizio")):
+            reasons.append("Ha il campo «Ora d'inizio» delle mail Synology in italiano")
+        return reasons
 
     def parse(self, item) -> ParsedReport:
         payload = parse_synology_active_backup_email(
@@ -100,7 +145,7 @@ class SynologyActiveBackupEmailParser(BaseParser):
 
 
 def _parse_status(text):
-    normalized = (text or "").lower()
+    normalized = _NEGATED_ERRORS.sub(" ", (text or "").lower())
     for status, tokens in STATUS_PATTERNS:
         if any(token in normalized for token in tokens):
             return status

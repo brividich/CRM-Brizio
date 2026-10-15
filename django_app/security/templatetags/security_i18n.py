@@ -21,6 +21,7 @@ LABELS = {
     "alert": "Alert",
     "suppressed_kpi_only": "Soppresso (solo KPI)",
     "diagnostic_event": "Diagnostica",
+    "evaluation_error": "Errore di valutazione (da controllare)",
     "completed": "Completato",
     "in_progress": "In lavorazione",
     "low": "Basso",

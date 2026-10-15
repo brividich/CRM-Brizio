@@ -132,6 +132,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture
+        # «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert.
+        # Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, entro 90 s.
+        "name": "security_ai_lettura",
+        "func": "security.tasks.ai_lettura_assistita_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 30,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)

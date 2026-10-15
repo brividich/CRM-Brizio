@@ -106,6 +106,18 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "invia_reminder_ofi",
     },
     {
+        "code": "security_lettura_ai_pronta",
+        "label": "Security Center — letture proposte dall’AI da controllare",
+        "module": "Security Center",
+        "trigger": (
+            "Il flusso security_ai_lettura ha fatto leggere all'AI locale mail o file che i parser "
+            "leggono solo in parte o non riconoscono. Solo proposte: nessun alert creato o chiuso."
+        ),
+        "destinatari": "Canali scelti in /soc/impostazioni/ › Lettura assistita dall'AI (facoltativi)",
+        "source": "security/services/ai_lettura.py",
+        "func": "notifica_letture_ai",
+    },
+    {
         "code": "suggestion_corner_nuova_segnalazione",
         "label": "Suggestion Corner — nuova segnalazione",
         "module": "Suggestion Corner",

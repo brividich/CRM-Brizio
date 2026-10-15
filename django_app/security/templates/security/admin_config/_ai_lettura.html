@@ -1,0 +1,14 @@
+{# Proposta della lettura assistita dall'AI (security/services/ai_lettura.py): solo da controllare, mai applicata. #}
+{% if ai.ok %}
+  <div class="sec-small sec-wrap" style="margin-top:4px">
+    <span class="sec-badge warning" title="Proposta dell'AI locale: verificala sul documento prima di usarla">Proposta AI</span>
+    {% if ai.classificazione_label %}<strong>{{ ai.classificazione_label }}</strong>{% if ai.fornitore %} · {{ ai.fornitore }}{% endif %}{% if ai.serve_parser %} · <em>servirebbe un parser</em>{% endif %}{% endif %}
+    {% for field in ai.campi %}
+      <div>{{ field.campo }}: <strong>{{ field.valore }}</strong>{% if field.dedotto %} <small class="sec-muted">(dedotto)</small>{% elif not field.nel_testo %} <span class="sec-badge critical" title="Il valore non compare nel testo: probabilmente inventato">non nel testo</span>{% endif %}</div>
+    {% endfor %}
+    {% if ai.spiegazione %}<div class="sec-muted">{{ ai.spiegazione }}</div>{% endif %}
+    <small class="sec-muted">{{ ai.model|default:"AI locale" }} · {{ ai.ms }} ms{% if ai.da_cache %} · già chiesto oggi{% endif %}</small>
+  </div>
+{% elif ai %}
+  <div class="sec-small sec-muted" style="margin-top:4px"><span class="sec-badge disabled">AI</span> Nessuna proposta: {{ ai.error|default:"risposta non utilizzabile" }}</div>
+{% endif %}

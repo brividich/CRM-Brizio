@@ -10,12 +10,13 @@ from datetime import timedelta
 from django.utils import timezone
 
 from security.services.dedup import make_hash
-from .base import BaseParser, ParsedRecord, ParsedReport
+from .base import BaseParser, Lettura, ParsedRecord, ParsedReport
 from .registry import parser_registry
 from .synology_active_backup_email_parser import _parse_size_gb
 
 _SUBJECT_STATUS = re.compile(r"^\s*\[(success|warning|failed|error)\]", re.I)
 _STATUS_MAP = {"success": "completed", "warning": "warning", "failed": "failed", "error": "failed"}
+_STATUS_LABELS = {"completed": "Riuscito", "warning": "Con avvisi", "failed": "Non riuscito"}
 _MONTHS = {
     "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4, "maggio": 5, "giugno": 6, "luglio": 7, "agosto": 8,
     "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
@@ -37,6 +38,19 @@ class VeeamBackupEmailParser(BaseParser):
         if "veeam backup" in low:
             return True
         return bool(_SUBJECT_STATUS.match(subject)) and "backup job:" in low
+
+    def perche_riconosce(self, item):
+        subject = str(getattr(item, "subject", "") or "")
+        low = str(getattr(item, "body", "") or "").lower()
+        reasons = []
+        if "veeam backup" in low:
+            reasons.append("Il testo cita «Veeam Backup»")
+        tag = _SUBJECT_STATUS.match(subject)
+        if tag:
+            reasons.append(f"Oggetto con l'esito tra parentesi quadre («[{tag.group(1)}]»)")
+        if "backup job:" in low:
+            reasons.append("Ha la riga «Backup job:»")
+        return reasons
 
     def parse(self, item) -> ParsedReport:
         payload = parse_veeam_email(item.subject, item.body, getattr(item, "sender", None), getattr(item, "received_at", None))
@@ -63,6 +77,10 @@ def parse_veeam_email(subject, body, sender=None, received_at=None):
     status = _STATUS_MAP[tag.group(1).lower()] if tag else _status_from_body(body)
     processed = re.search(r"(\d+)\s+of\s+(\d+)\s+(?:VMs?|objects?|machines?|computers?)\s+processed", body, re.I)
     day = _long_date(body)
+    day_from_mail = False
+    if day is None and received_at is not None:
+        # Senza la data in testo gli orari andavano persi: si usa il giorno di ricezione.
+        day, day_from_mail = timezone.localtime(received_at).date() if timezone.is_aware(received_at) else received_at.date(), True
     start_time = _at(day, _search(r"Start time\s+" + _TIME, body))
     end_time = _at(day, _search(r"End time\s+" + _TIME, body))
     if start_time and end_time and end_time < start_time:
@@ -71,7 +89,29 @@ def parse_veeam_email(subject, body, sender=None, received_at=None):
     counts = {label.lower(): int(value) for label, value in re.findall(r"^\s*(Success|Warning|Error)\s+(\d+)\b", body, re.M | re.I)}
     objects = _objects(body)
     transferred = _size(r"Transferred", body)
-    dedup = make_hash("veeam", job, _iso(start_time), _iso(end_time), status)
+    raw_body_hash = make_hash(subject, body)
+    if start_time or end_time:
+        dedup = make_hash("veeam", job, _iso(start_time), _iso(end_time), status)
+    else:
+        # Job+stato da soli sono uguali ogni giorno: il secondo «[Success]» veniva scartato
+        # come duplicato e il job sembrava fermo al primo esito.
+        dedup = make_hash("veeam", job, status, _iso(received_at), raw_body_hash)
+
+    lettura = Lettura("Esito job Veeam Backup & Replication")
+    lettura.campo("Esito", _STATUS_LABELS.get(status, ""), obbligatorio=True)
+    lettura.campo("Nome del job", job, obbligatorio=True)
+    lettura.campo("Inizio", _iso(start_time))
+    lettura.campo("Fine", _iso(end_time))
+    lettura.campo("Macchine", [row["name"] for row in objects])
+    lettura.campo("Dati trasferiti (GB)", round(transferred, 3) if transferred is not None else None)
+    if day_from_mail and (start_time or end_time):
+        lettura.avviso("Data del job non trovata nel testo: usata la data di ricezione della mail")
+    if not (start_time or end_time):
+        lettura.avviso("Orari di inizio e fine non trovati: per distinguere i giorni si usa la data di ricezione della mail")
+    if status == "unknown":
+        lettura.avviso("Esito non riconosciuto (né «[Success]/[Warning]/[Failed]» nell'oggetto né nel testo): il job non conta come riuscito")
+    if processed and objects and int(processed.group(2)) != len(objects):
+        lettura.avviso(f"La mail dichiara {processed.group(2)} macchine ma la tabella ne elenca {len(objects)}")
     return {
         "source": "veeam",
         "vendor": "veeam",
@@ -96,7 +136,9 @@ def parse_veeam_email(subject, body, sender=None, received_at=None):
         "sender": sender or "",
         "received_at": _iso(received_at),
         "dedup_hash": dedup,
-        "raw_body_hash": make_hash(subject, body),
+        "raw_body_hash": raw_body_hash,
+        "parse_warnings": list(lettura.avvisi),
+        "lettura": lettura.as_dict(),
     }
 
 

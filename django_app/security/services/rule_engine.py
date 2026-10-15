@@ -14,36 +14,57 @@ from security.services.ticketing import create_backup_ticket, create_or_update_r
 logger = logging.getLogger(__name__)
 
 
+EVALUATION_ERROR = "evaluation_error"
+
+
 def evaluate_security_rules():
+    """Valuta gli eventi non ancora decisi.
+
+    Ogni evento è isolato in un savepoint: prima un solo evento malformato (un payload
+    inatteso, un ticket che non si salvava) interrompeva il giro e, restando senza
+    decisione, era il primo ripreso al ciclo successivo — dove falliva di nuovo. Nessun
+    altro evento veniva più valutato e il SOC sembrava tranquillo. Ora l'evento difettoso
+    riceve la decisione ``evaluation_error`` (con l'errore, visibile in «Stato
+    elaborazione») e gli altri proseguono.
+    """
     evaluated = 0
     for event in SecurityEventRecord.objects.filter(decision_trace={}).order_by("occurred_at"):
         evaluated += 1
-        suppression = _matching_suppression(event)
-        if suppression:
-            _mark_suppressed(event, suppression)
-            continue
-        if event.event_type == "vulnerability_finding":
-            _evaluate_vulnerability(event)
-        elif event.event_type == "backup_job":
-            _evaluate_backup(event)
-        elif event.event_type in {"vpn_auth_denied", "vpn_auth_allowed"}:
-            _evaluate_vpn(event)
-        elif event.event_type == "watchguard_alert_candidate":
-            _evaluate_watchguard_alert_candidate(event)
-        elif event.event_type == "source_silent":
-            _evaluate_source_silent(event)
-        elif event.event_type == "possible_sender_spoofing":
-            _evaluate_sender_spoofing(event)
-        elif event.event_type == "cve_impact_confirmed":
-            _evaluate_cve_impact(event)
-        elif event.event_type == "software_policy":
-            _evaluate_software_policy(event)
-        else:
-            event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
-            event.save(update_fields=["decision_trace"])
-        if (event.decision_trace or {}).get("decision") != "alert":
-            _apply_learned_escalation(event)
+        try:
+            with transaction.atomic():
+                _evaluate_event(event)
+        except Exception as exc:  # noqa: BLE001 - un evento difettoso non ferma gli altri
+            logger.exception("Valutazione regole fallita sull'evento %s (%s)", event.pk, event.event_type)
+            _mark_evaluation_error(event, exc)
     return evaluated
+
+
+def _mark_evaluation_error(event, exc):
+    trace = {
+        "decision": EVALUATION_ERROR,
+        "reason": "La valutazione delle regole è andata in errore: l'evento va controllato a mano.",
+        "error": f"{type(exc).__name__}: {exc}"[:300],
+        "at": timezone.now().isoformat(),
+    }
+    try:
+        SecurityEventRecord.objects.filter(pk=event.pk).update(decision_trace=trace)
+    except Exception:  # noqa: BLE001 - se neanche questo riesce, il log sopra resta l'unica traccia
+        logger.exception("Impossibile registrare l'errore di valutazione sull'evento %s", event.pk)
+
+
+def _evaluate_event(event):
+    suppression = _matching_suppression(event)
+    if suppression:
+        _mark_suppressed(event, suppression)
+        return
+    handler = _HANDLERS.get(event.event_type)
+    if handler:
+        handler(event)
+    else:
+        event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
+        event.save(update_fields=["decision_trace"])
+    if (event.decision_trace or {}).get("decision") != "alert":
+        _apply_learned_escalation(event)
 
 
 def _apply_learned_escalation(event):
@@ -51,7 +72,10 @@ def _apply_learned_escalation(event):
     from security.services.event_triage import apply_learned_escalation
 
     try:
-        apply_learned_escalation(event)
+        # Savepoint proprio: un errore di database qui non deve invalidare la valutazione
+        # standard già fatta sull'evento (che sta nel savepoint esterno).
+        with transaction.atomic():
+            apply_learned_escalation(event)
     except Exception:  # noqa: BLE001 - una regola appresa difettosa non ferma la valutazione degli altri eventi
         logger.exception("Regola appresa non applicata all'evento %s", event.pk)
 
@@ -76,11 +100,11 @@ def _mark_suppressed(event, rule):
 
 def _evaluate_vulnerability(event):
     payload = event.payload
-    cvss = float(payload.get("cvss") or 0)
+    cvss = _as_number(payload.get("cvss"), float)
     critical_rule = _get_rule("defender_critical_cve_cvss_gte_9")
     exposed_rule = _get_rule("defender_critical_cve_exposed_devices_gt_0")
     is_critical = _rule_matches(critical_rule, cvss, payload) if critical_rule else (payload.get("severity") == Severity.CRITICAL or cvss >= 9)
-    exposed_count = int(payload.get("exposed_devices", 0))
+    exposed_count = _as_number(payload.get("exposed_devices"), int)
     exposed = _rule_matches(exposed_rule, exposed_count, payload) if exposed_rule else exposed_count > 0
 
     # Fail-closed: devices are exposed but neither the score nor the severity could be
@@ -88,6 +112,11 @@ def _evaluate_vulnerability(event):
     # would silently drop a possibly critical CVE. Raise it for manual review instead.
     if not is_critical and exposed and payload.get("cvss_unparsed") and payload.get("severity_unrecognized"):
         _alert_unreadable_vulnerability(event, payload)
+        return
+    # Stesso principio sul conteggio: CVE critica ma numero di dispositivi illeggibile.
+    # Lo 0 della colonna non dice «nessuno esposto», dice «non lo so».
+    if is_critical and payload.get("exposed_devices_unparsed"):
+        _alert_unreadable_vulnerability(event, payload, exposed_unknown=True)
         return
 
     if is_critical and exposed:
@@ -334,17 +363,27 @@ def _evaluate_sender_spoofing(event):
         notify_alert_created(alert)
 
 
-def _alert_unreadable_vulnerability(event, payload):
+def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     """Alert on a vulnerability we could not read, rather than scoring it 0 and moving on."""
-    trace = {
-        "decision": "alert",
-        "rule": "Vulnerability data unreadable while devices are exposed => fail-closed manual review",
-        "reason": "Neither CVSS nor severity could be parsed; the score is NOT assumed to be 0",
-        "cve": payload.get("cve"),
-        "exposed_devices": payload.get("exposed_devices"),
-        "cvss_unparsed": True,
-        "severity_unrecognized": True,
-    }
+    if exposed_unknown:
+        trace = {
+            "decision": "alert",
+            "rule": "Critical vulnerability with unreadable exposed devices count => fail-closed manual review",
+            "reason": "La CVE è critica ma il numero di dispositivi esposti non è leggibile: NON viene considerato 0",
+            "cve": payload.get("cve"),
+            "cvss": payload.get("cvss"),
+            "exposed_devices_unparsed": True,
+        }
+    else:
+        trace = {
+            "decision": "alert",
+            "rule": "Vulnerability data unreadable while devices are exposed => fail-closed manual review",
+            "reason": "Neither CVSS nor severity could be parsed; the score is NOT assumed to be 0",
+            "cve": payload.get("cve"),
+            "exposed_devices": payload.get("exposed_devices"),
+            "cvss_unparsed": True,
+            "severity_unrecognized": True,
+        }
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
@@ -587,3 +626,28 @@ def _store_alert_decision_trace(alert, trace, alert_created):
     else:
         alert.decision_trace = {**alert.decision_trace, "latest_decision": trace}
     alert.save(update_fields=["decision_trace", "updated_at"])
+
+def _as_number(value, kind):
+    """Numero dal payload, 0 se assente o illeggibile («n/d», None, testo).
+
+    Prima ``int(payload["exposed_devices"])`` su un valore None o testuale sollevava e
+    interrompeva la valutazione. I flag ``*_unparsed`` del parser dicono quando lo 0 non è
+    un dato vero: le regole leggono quelli.
+    """
+    try:
+        return kind(float(value or 0))
+    except (TypeError, ValueError):
+        return kind(0)
+
+
+_HANDLERS = {
+    "vulnerability_finding": _evaluate_vulnerability,
+    "backup_job": _evaluate_backup,
+    "vpn_auth_denied": _evaluate_vpn,
+    "vpn_auth_allowed": _evaluate_vpn,
+    "watchguard_alert_candidate": _evaluate_watchguard_alert_candidate,
+    "source_silent": _evaluate_source_silent,
+    "possible_sender_spoofing": _evaluate_sender_spoofing,
+    "cve_impact_confirmed": _evaluate_cve_impact,
+    "software_policy": _evaluate_software_policy,
+}
