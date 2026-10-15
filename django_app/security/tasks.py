@@ -85,7 +85,7 @@ def ai_lettura_assistita_task():
 
     Fa leggere all'AI locale le letture «da verificare» e le mail che nessun parser riconosce:
     proposte da controllare, mai alert. Spenta finché non si accende in /soc/impostazioni/;
-    al massimo «Massimo per giro» elementi ed entro 90 s (timeout worker 120 s).
+    al massimo «Massimo per giro» elementi, nessuna nuova richiesta dopo 60 s (timeout worker 120 s).
     """
     from security.services import soc_settings
     from security.services.ai_lettura import leggi_candidati, notifica_letture_ai

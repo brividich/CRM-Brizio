@@ -406,7 +406,7 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 - **Quando gira:** ogni 30 minuti
 - **Task eseguito:** `security.tasks.ai_lettura_assistita_task`
-- **Cosa fa:** SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert. Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, entro 90 s.
+- **Cosa fa:** SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert. Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, nessuna nuova richiesta dopo 60 s.
 
 ### `security_cve_enrichment`
 

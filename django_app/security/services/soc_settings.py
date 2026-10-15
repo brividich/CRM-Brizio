@@ -125,7 +125,7 @@ SECTIONS = [
         "channels_optional": True,
         "options": [
             Option("ai.lettura.attivo", False, "Fai leggere all'AI le letture da verificare"),
-            Option("ai.lettura.max_per_giro", 5, "Massimo per giro", "Elementi letti a ogni esecuzione: ogni lettura impegna l'AI per qualche secondo.",
+            Option("ai.lettura.max_per_giro", 3, "Massimo per giro", "Elementi letti a ogni esecuzione: in produzione ogni lettura impegna l'AI per 15-40 secondi.",
                    "int", min_value=1, max_value=20, unit="elementi"),
             Option("ai.lettura.canali", [], "Canali", "Dove avvisare quando ci sono nuove proposte da controllare (facoltativo).", "channels"),
         ],
