@@ -207,3 +207,60 @@ class DispositivoDisponibilitaTests(_AuthedClientMixin, TestCase):
         r = self.client.get(reverse("contatori:snmp_dispositivo", args=[d.pk]))
         self.assertContains(r, "3 g 2 h")
         self.assertContains(r, "Risposte ultime 24 ore")
+
+
+class LetturePerTrimestreTests(_AuthedClientMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.a = Macchina.objects.create(reparto="Alfa", matricola="SYN-M1")
+        self.b = Macchina.objects.create(reparto="Beta", matricola="SYN-M2")
+        self.c = Macchina.objects.create(reparto="Gamma", matricola="SYN-M3")
+        LetturaContatori.objects.create(macchina=self.b, trimestre="2023-Q4", data=date(2024, 1, 3), **V)
+        LetturaContatori.objects.create(macchina=self.c, trimestre="2024-Q1", data=date(2024, 4, 2), **V)
+        self.url = reverse("contatori:letture_trimestre") + "?trimestre=2024-Q1"
+
+    def _riga(self, m, data="2024-04-03", **valori):
+        return {f"m{m.pk}-data": data, f"m{m.pk}-fonte": "MANUALE",
+                **{f"m{m.pk}-{c}": v for c, v in {**V, **valori}.items()}}
+
+    def test_pagina_con_campi_vuoti_e_lettura_esistente(self):
+        r = self.client.get(self.url)
+        self.assertEqual(r.context["da_inserire"], 2)
+        self.assertContains(r, f'name="m{self.a.pk}-a4_bn"')
+        self.assertNotContains(r, f'name="m{self.a.pk}-a4_bn" value="0"')
+        self.assertContains(r, "prima: 2023-Q4")
+
+    def test_salva_le_valide_e_tiene_quelle_con_errori(self):
+        dati = {"trimestre": "2024-Q1", **self._riga(self.a), **self._riga(self.b, a4_bn=10)}
+        r = self.client.post(reverse("contatori:letture_trimestre"), dati)
+        self.assertEqual(r.status_code, 200)  # resta in pagina: Beta ha un calo
+        self.assertTrue(LetturaContatori.objects.filter(macchina=self.a, trimestre="2024-Q1").exists())
+        self.assertFalse(LetturaContatori.objects.filter(macchina=self.b, trimestre="2024-Q1").exists())
+        self.assertContains(r, "Più basso del 2023-Q4")
+        # Con la conferma esplicita la riga passa.
+        dati = {"trimestre": "2024-Q1", **self._riga(self.b, a4_bn=10), f"m{self.b.pk}-conferma_calo": "on"}
+        r = self.client.post(reverse("contatori:letture_trimestre"), dati)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(LetturaContatori.objects.get(macchina=self.b, trimestre="2024-Q1").a4_bn, 10)
+
+    def test_righe_vuote_saltate_e_data_fuori_trimestre_bloccata(self):
+        r = self.client.post(reverse("contatori:letture_trimestre"),
+                             {"trimestre": "2024-Q1", **self._riga(self.a, data="2023-12-01")})
+        self.assertContains(r, "La data non è del 2024-Q1")
+        self.assertFalse(LetturaContatori.objects.filter(trimestre="2024-Q1", macchina=self.a).exists())
+        r = self.client.post(reverse("contatori:letture_trimestre"), {"trimestre": "2024-Q1"}, follow=True)
+        self.assertContains(r, "Nessuna lettura inserita")
+
+
+class MonitorSnmpTests(_AuthedClientMixin, TestCase):
+    def test_ricerca_e_disponibilita_24h(self):
+        from .models import DispositivoSNMP, RilevazioneSNMP
+        a = DispositivoSNMP.objects.create(nome="Switch piano terra", host="192.0.2.90")
+        b = DispositivoSNMP.objects.create(nome="UPS sala server", host="192.0.2.91")
+        for stato in ("OK", "OK", "ERROR", "OK"):
+            RilevazioneSNMP.objects.create(dispositivo=a, stato=stato)
+        self.assertEqual(services.disponibilita_flotta([a.pk, b.pk]), {a.pk: 75.0})
+        r = self.client.get(reverse("contatori:snmp_centrale"), {"q": "ups"})
+        self.assertEqual([d.nome for d in r.context["dispositivi"]], ["UPS sala server"])
+        r = self.client.get(reverse("contatori:snmp_centrale"))
+        self.assertEqual(r.context["disponibilita"], {a.pk: 75.0})

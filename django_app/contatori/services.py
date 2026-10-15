@@ -1656,13 +1656,14 @@ def registro_letture(trimestri=8, *, dismesse=False, oggi=None):
             "corrente": corrente}
 
 
-def righe_letture_macchina(macchina):
+def righe_letture_macchina(macchina, letture=None):
     """Letture trimestrali della MFC dalla piu' recente, con copie, cali e lacune.
 
     Tra due letture non consecutive compare una riga `manca` per ogni trimestre
     senza lettura: le copie della lettura successiva non sono calcolabili.
+    `letture` (gia' ordinate per trimestre) evita la query quando si mostrano piu' MFC.
     """
-    letture = list(macchina.letture.order_by("trimestre"))
+    letture = list(macchina.letture.order_by("trimestre")) if letture is None else letture
     righe = []
     for i, l in enumerate(letture):
         prec = letture[i - 1] if i else None
@@ -1746,3 +1747,21 @@ def disponibilita_dispositivo(dispositivo, ora=None):
         out[chiave] = {"totale": len(stati), "errori": errori, "ok": len(stati) - errori,
                        "pct": round(100 * (len(stati) - errori) / len(stati), 1) if stati else None}
     return out
+
+
+def disponibilita_flotta(dispositivi_ids, ora=None, ore=24):
+    """{dispositivo_id: % di interrogazioni con risposta nelle ultime `ore`} con una query sola.
+
+    Dispositivi senza interrogazioni nel periodo assenti dal risultato.
+    """
+    ora = ora or timezone.now()
+    conteggi = defaultdict(lambda: [0, 0])  # [totale, errori]
+    # .order_by() vuoto: il GROUP BY con l'ordering del Meta fallisce su SQL Server (8127).
+    for pk, stato, n in (RilevazioneSNMP.objects.order_by()
+                         .filter(dispositivo_id__in=list(dispositivi_ids), rilevata_il__gte=ora - timedelta(hours=ore))
+                         .values("dispositivo_id", "stato").annotate(n=Count("id"))
+                         .values_list("dispositivo_id", "stato", "n")):
+        conteggi[pk][0] += n
+        if stato == StatoSNMP.ERROR:
+            conteggi[pk][1] += n
+    return {pk: round(100 * (tot - err) / tot, 1) for pk, (tot, err) in conteggi.items() if tot}
