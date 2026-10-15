@@ -144,6 +144,18 @@ body.theme-dark .ts-shell {
   border-color: var(--hub-color-steel-2);
 }
 
+/* Tema scuro: fondo e bordo espliciti. Le --hub-color-* restavano al chiaro
+   nella testata e il testo chiaro finiva su fondo chiaro. */
+body.theme-dark .ts-hero-action:not(.primary) {
+  background: var(--surface-alt, #1e293b);
+  border-color: var(--border, #334155);
+  color: var(--text, #e2e8f0);
+}
+body.theme-dark .ts-hero-action:not(.primary):hover {
+  background: var(--surface, #0f172a);
+  border-color: #64748b;
+}
+
 .ts-hero-action.primary {
   border-color: var(--hub-color-orange);
   background: var(--hub-color-orange);
@@ -2198,6 +2210,7 @@ body.theme-dark .ctm-step-preview { color: #86efac; }
 .md-nav a { font-size: .875rem; color: var(--primary-mid); text-decoration: none; }
 .md-nav a:hover { text-decoration: underline; }
 .md-nav .sep { color: var(--border); }
+body.theme-dark .md-nav a { color: #93c5fd; }
 
 body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); }
 
@@ -2208,7 +2221,18 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
 }
 .md-stato.pianificato { background: var(--warning-bg, #fff7ed); color: var(--warning, #b45309); }
 .md-stato.svolto      { background: var(--success-bg, #ecfdf5); color: var(--success, #059669); }
-.md-stato.annullato   { background: var(--surface-alt, #f1f5f9); color: var(--text-light); }
+.md-stato.annullato   { background: #e2e8f0; color: #334155; }
+body.theme-dark .md-stato.annullato { background: rgba(148,163,184,.22); color: #e2e8f0; }
+
+/* Tema scuro: nella testata blu i pulsanti chiari restano chiari con testo scuro
+   (prima --surface/--primary scuri davano blu su blu), e la barra documenti
+   non usa piu' il blu primario su fondo scuro. */
+body.theme-dark .md-btn.white,
+body.theme-dark .md-hero button.md-btn:not(.ghost):not(.danger-ghost) { background: #f1f5f9; color: #1e3a5f; }
+body.theme-dark .md-btn.white:hover,
+body.theme-dark .md-hero button.md-btn:not(.ghost):not(.danger-ghost):hover { background: #fff; }
+body.theme-dark .md-docbar .md-btn.white { background: transparent; color: #93c5fd; }
+body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.12); }
 .md-docbar {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
   background: var(--surface);

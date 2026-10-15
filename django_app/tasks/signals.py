@@ -6,7 +6,7 @@ import logging
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Task, TaskStatus
+from .models import MeetingActionItem, MeetingIssue, Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -42,3 +42,17 @@ def chiudi_voci_incontro_su_completamento(sender, instance: Task, created: bool,
         chiudi_voci_collegate(instance)
     except Exception:
         logger.exception("Chiusura voci incontro collegate fallita (task=%s)", instance.pk)
+
+
+@receiver(post_save, sender=MeetingActionItem, dispatch_uid="tasks_azione_su_attivita_completata")
+@receiver(post_save, sender=MeetingIssue, dispatch_uid="tasks_problema_su_attivita_completata")
+def voce_nuova_su_attivita_completata(sender, instance, created: bool, **kwargs):
+    """Azione o problema creati gia' collegati a un'attivita' completata: nascono chiusi."""
+    if not created or not instance.linked_task_id:
+        return
+    from .services.meeting_tasks import chiudi_voce_se_attivita_completata
+
+    try:
+        chiudi_voce_se_attivita_completata(instance)
+    except Exception:
+        logger.exception("Chiusura voce su attivita' completata fallita (%s=%s)", sender.__name__, instance.pk)

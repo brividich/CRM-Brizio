@@ -36,7 +36,8 @@ SEZIONI: list[dict] = [
                 "Chi riceve un'attività, alla creazione o quando cambia il responsabile, riceve una notifica nel portale. "
                 "Chi si assegna un'attività da solo non viene avvisato.",
                 "Portando un'attività a «Completata» l'avanzamento passa al 100%.",
-                "Un'attività completata chiude da sola le azioni e i problemi d'incontro collegati a lei.",
+                "Un'attività completata chiude da sola le azioni e i problemi d'incontro collegati a lei; "
+                "un'azione o un problema collegati a un'attività già completata nascono chiusi.",
                 "Su una commessa bloccata per VRF mancante non si creano attività, nemmeno dalle scorciatoie degli incontri.",
             ]),
         ],

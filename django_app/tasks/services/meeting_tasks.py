@@ -183,3 +183,32 @@ def chiudi_voci_collegate(task: Task) -> int:
             issue.save(update_fields=["status", "resolved_at", "resolved_by", "resolution_note", "updated_at"])
             closed += 1
     return closed
+
+
+def chiudi_voce_se_attivita_completata(item) -> bool:
+    """Voce nuova collegata a un'attivita' gia' completata: nasce chiusa.
+
+    Il segnale sull'attivita' chiude le voci solo nel passaggio a «Completata»;
+    una voce agganciata dopo restava aperta per sempre e tornava in agenda.
+    """
+    task = getattr(item, "linked_task", None)
+    if task is None or task.status != TaskStatus.DONE:
+        return False
+    if isinstance(item, MeetingActionItem):
+        if item.status != MeetingActionStatus.OPEN:
+            return False
+        item.status = MeetingActionStatus.DONE
+        item.done_at = timezone.now()
+        item.done_by = task.assigned_to
+        item.save(update_fields=["status", "done_at", "done_by", "updated_at"])
+        return True
+    if isinstance(item, MeetingIssue):
+        if item.status != MeetingIssueStatus.OPEN:
+            return False
+        item.status = MeetingIssueStatus.RESOLVED
+        item.resolved_at = timezone.now()
+        item.resolved_by = task.assigned_to
+        item.resolution_note = f"Risolto: l'attività collegata «{task.title}» era già completata."
+        item.save(update_fields=["status", "resolved_at", "resolved_by", "resolution_note", "updated_at"])
+        return True
+    return False
