@@ -249,7 +249,7 @@
 
   <div class="cm-layout">
     <section class="cm-card cm-main">
-      <div id="cm-calendar" data-tour-step="3" data-tour-title="Il calendario" data-tour-text="Clicca una scadenza per il dettaglio, un giorno per vedere cosa scade. Chi pianifica trascina una manutenzione per spostarla."></div>
+      <div id="cm-calendar" data-tour-step="3" data-tour-title="Il calendario" data-tour-text="Clicca una scadenza per il dettaglio, un giorno per vedere cosa scade. Chi pianifica trascina una manutenzione per rinviarla."></div>
       <div class="cm-byasset" id="cm-byasset" hidden></div>
       <p class="cm-status" id="cm-status" role="status" aria-live="polite"></p>
     </section>
@@ -441,7 +441,8 @@
     row("Asset", assetLabel || ev.target);
     row("Famiglia", ev.category);
     row("Reparto", ev.reparto);
-    row("Scadenza", whenLabel(ev), ev.state === "overdue" ? "is-late" : "");
+    row(ev.original_start ? "Rinviata al" : "Scadenza", whenLabel(ev), ev.state === "overdue" ? "is-late" : "");
+    if (ev.original_start) { row("Scadenza originale", fmtDate(ev.original_start) + (ev.postponements ? " · rinvii: " + ev.postponements : "")); }
     row("Stato", ev.state_label);
     row("Esecuzione", ev.kind === "ordinary" || ev.kind === "administrative" ? (ev.external ? "Esterna (ditta terza)" : "Interna") : "");
     row("Fornitore", ev.supplier);
@@ -462,7 +463,7 @@
       drawer.appendChild(plan);
     }
     if (canPlan && ev.movable) {
-      drawer.appendChild(el("p", { "class": "cm-drawer-empty" }, "Per spostarla, trascinala su un altro giorno del calendario."));
+      drawer.appendChild(el("p", { "class": "cm-drawer-empty" }, "Per rinviarla, trascinala su un altro giorno del calendario: la scadenza originale resta registrata."));
     }
     markSelected();
     openDrawer();
@@ -645,18 +646,19 @@
       var ev = info.event.extendedProps.raw;
       var from = ev.start;
       var to = info.event.startStr.slice(0, 10);
-      say("Sposto «" + ev.title + "» al " + fmtDate(to) + "…");
-      moveOccurrence(ev.occurrence_id, to).then(function () {
-        say("«" + ev.title + "» spostata dal " + fmtDate(from) + " al " + fmtDate(to) + ".", "ok", function () {
+      say("Rinvio «" + ev.title + "» al " + fmtDate(to) + "…");
+      moveOccurrence(ev.occurrence_id, to).then(function (data) {
+        var orig = data.original_date ? " (scadenza originale " + fmtDate(data.original_date) + ")" : "";
+        say("«" + ev.title + "» rinviata dal " + fmtDate(from) + " al " + fmtDate(to) + orig + ".", "ok", function () {
           moveOccurrence(ev.occurrence_id, from).then(function () {
-            say("Spostamento annullato.", "ok");
+            say("Rinvio annullato.", "ok");
             calendar.refetchEvents();
           }).catch(function (err) { say("Non riesco ad annullare: " + err.message, "err"); });
         });
         calendar.refetchEvents();
       }).catch(function (err) {
         info.revert();
-        say("Non spostata: " + err.message, "err");
+        say("Non rinviata: " + err.message, "err");
       });
     }
   });

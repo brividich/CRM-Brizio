@@ -1,0 +1,56 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Rinvia — {{ occurrence.plan.label }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Rinvia la manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>{{ occurrence.plan.label }} su <strong>{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</strong> — {% if occurrence.is_postponed %}oggi rinviata al {{ occurrence.due_date|date:"d/m/Y" }}{% else %}scadenza {{ occurrence.due_date|date:"d/m/Y" }}{% endif %}</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:occurrence_complete' occurrence.pk %}?next={{ back_url|urlencode }}">Registra esecuzione</a>
+  <a class="btn btn-secondary" href="{% url 'assets:guida' %}#rinvio">? Guida</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" novalidate>
+  {% csrf_token %}<input type="hidden" name="next" value="{{ back_url }}">
+  {{ form.non_field_errors }}
+
+  <div class="md-preview">
+    Il rinvio sposta solo la data in cui la manutenzione va fatta. La scadenza originale
+    (<strong>{{ occurrence.scheduled_due_date|date:"d/m/Y" }}</strong>) resta registrata e, quando
+    registri l'esecuzione, la scadenza successiva riparte dalla <strong>data di esecuzione effettiva</strong>,
+    anche dopo piu' rinvii.
+    {% if occurrence.original_due_date %}Per annullare il rinvio, riporta la data al {{ occurrence.original_due_date|date:"d/m/Y" }}.{% endif %}
+  </div>
+
+  <fieldset class="md-fieldset">
+    <h2>Rinvio</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.new_date %}
+      {% include "assets/components/_md_field.html" with field=form.reason %}
+    </div>
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Rinvia</button>
+    <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
+  </div>
+</form>
+
+<section class="md-fieldset" aria-label="Storico rinvii">
+  <h2>Storico rinvii ({{ postponements|length }})</h2>
+  {% if postponements %}
+    <ul style="margin:0;padding-left:18px;font-size:var(--fs-sm)">
+      {% for p in postponements %}
+        <li>{{ p.created_at|date:"d/m/Y H:i" }} — dal {{ p.from_date|date:"d/m/Y" }} al <strong>{{ p.to_date|date:"d/m/Y" }}</strong>{% if p.created_by %} · {{ p.created_by.get_full_name|default:p.created_by.get_username }}{% endif %}{% if p.reason %} — «{{ p.reason }}»{% endif %}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="md-hint">Nessun rinvio finora.</p>
+  {% endif %}
+</section>
+{% endblock %}
