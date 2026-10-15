@@ -3331,6 +3331,9 @@ class SgiRagLoaderTests(TestCase):
             OLLAMA_RAG_SOURCE_PATHS=[],
             OLLAMA_RAG_CACHE_SECONDS=0,
             OLLAMA_RAG_STEMMING_ENABLED=True,
+            # Misura lo stemming sul fixture a documento singolo, tarato senza il
+            # titolo nei chunk (il titolo e' misurato sul corpus reale con ai_eval).
+            OLLAMA_RAG_SGI_CHUNK_TITLE=False,
         ), patch("ai_assistant.services._sgi_extract_specifica_text", return_value=pdf_text):
             clear_knowledge_cache()
             call_command("ai_eval", "--rag-sgi", "--json", stdout=out)

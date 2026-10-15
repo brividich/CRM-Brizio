@@ -304,7 +304,18 @@ OLLAMA_RAG_SOURCE_PATHS = env_list(
 )
 OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "6") or "6")
 OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "7000") or "7000")
+# Eta' massima dell'indice RAG in memoria prima di un refresh. Con
+# OLLAMA_RAG_BACKGROUND_REBUILD (default) il refresh, e anche il rebuild dopo un
+# cambio documenti, gira in un thread: la chat risponde subito con l'indice corrente.
+# Solo il primo build del processo e' sincrono, e calcola al piu' OLLAMA_EMBED_INLINE_MAX
+# embeddings mancanti (oltre: BM25-only finche' il background non li completa).
+# 0 = nessuna cache, rebuild sincrono a ogni domanda (solo test/diagnosi).
 OLLAMA_RAG_CACHE_SECONDS = int(env("OLLAMA_RAG_CACHE_SECONDS", "300") or "300")
+OLLAMA_RAG_BACKGROUND_REBUILD = env_bool("OLLAMA_RAG_BACKGROUND_REBUILD", True)
+OLLAMA_EMBED_INLINE_MAX = int(env("OLLAMA_EMBED_INLINE_MAX", "200") or "200")
+# All'apertura di /assistente-ai/ prepara in background indice RAG, vettori del
+# routing e modello chat (warmup al piu' ogni 10 minuti).
+AI_PREWARM_ON_PAGE_OPEN = env_bool("AI_PREWARM_ON_PAGE_OPEN", True)
 OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
 OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")
 OLLAMA_RAG_MAX_FILE_CHARS = int(env("OLLAMA_RAG_MAX_FILE_CHARS", "300000") or "300000")
@@ -386,9 +397,10 @@ SGI_ESTRAZIONE_PERSISTITA_ENABLED = env_bool("SGI_ESTRAZIONE_PERSISTITA_ENABLED"
 OLLAMA_RAG_SGI_CHUNK_CHARS = int(env("OLLAMA_RAG_SGI_CHUNK_CHARS", str(OLLAMA_RAG_CHUNK_CHARS)) or OLLAMA_RAG_CHUNK_CHARS)
 OLLAMA_RAG_SGI_CHUNK_HEADER = env_bool("OLLAMA_RAG_SGI_CHUNK_HEADER", False)
 # Titolo del documento nell'etichetta dei chunk SGI ("MT CN 06 Rev.21 Risorse
-# Umane — §4.2 ..."): misurato in dev: SGI recall 27->31/32, MRR 0,623 -> 0,772; KB invariata. Invalida la cache
-# embeddings: dopo averlo acceso rilanciare index_sgi_documents.
-OLLAMA_RAG_SGI_CHUNK_TITLE = env_bool("OLLAMA_RAG_SGI_CHUNK_TITLE", False)
+# Umane — §4.2 ..."): misurato in dev: SGI recall 27->31/32, MRR 0,623 -> 0,772; KB invariata.
+# ATTIVO di default dal 15/10/2026. Invalida la cache embeddings: dopo il deploy
+# rilanciare index_sgi_documents (fino ad allora l'indice resta BM25 + ricalcolo in background).
+OLLAMA_RAG_SGI_CHUNK_TITLE = env_bool("OLLAMA_RAG_SGI_CHUNK_TITLE", True)
 # Glossario tecnico nel retrieval (fase B2): token canonici gl_<id> per varianti e
 # simboli, pattern protetti (H7, M8x1.25, Ra 0,8) su query e indice, termini validati
 # come conoscenza curata. Il testo dei chunk non cambia: niente ricalcolo embeddings.

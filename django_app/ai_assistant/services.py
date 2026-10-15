@@ -68,9 +68,17 @@ class KnowledgeIndex:
     chunks: tuple[KnowledgeChunk, ...]
     idf: dict[str, float]
     avgdl: float
-    embeddings: tuple[tuple[float, ...], ...] | None = None
-    embed_norms: tuple[float, ...] = ()
+    # Matrice numpy float32 (una riga per chunk, gia' normalizzata L2): il coseno
+    # con la query e' un solo prodotto matrice-vettore (~ms invece di ~1,5 s in
+    # Python puro su ~9.000 chunk) e occupa ~6 volte meno RAM delle tuple di float.
+    embeddings: Any = field(default=None, compare=False, repr=False)
     embed_model: str = ""
+    # Chiavi cache degli embeddings, allineate ai chunk: al rebuild successivo i
+    # vettori dei chunk invariati si riprendono da qui senza rileggere la cache DB.
+    embed_keys: tuple[str, ...] = field(default=(), compare=False, repr=False)
+    # Indice invertito token -> chunk: BM25 valuta solo i chunk che contengono
+    # almeno un token della domanda (nel testo o nel titolo), non tutto il corpus.
+    postings: dict[str, tuple[int, ...]] | None = field(default=None, compare=False, repr=False)
 
 
 _RAG_ALLOWED_EXTENSIONS = {".md", ".txt", ".rst"}
@@ -89,11 +97,19 @@ _RAG_STOPWORDS = {
     "su", "sue", "sugli", "sui", "sul", "sulla", "sulle", "sullo", "suo",
     "ti", "tra", "tu", "tua", "tue", "tuo", "un", "una", "uno", "vi", "voi",
 }
-_KNOWLEDGE_CACHE: dict[str, Any] = {"loaded_at": 0.0, "signature": (), "index": None}
+_KNOWLEDGE_CACHE: dict[str, Any] = {
+    "loaded_at": 0.0, "signature": (), "index": None, "complete": True, "rebuilding": False,
+}
+_KNOWLEDGE_BUILD_LOCK = threading.Lock()
+# Testo PDF SGI gia' estratto, per content-hash (stesso hash = stesso testo): evita di
+# rileggere ~250 documenti dalla cache DB a ogni rebuild dell'indice.
+_SGI_TEXT_MEMO: dict[str, str] = {}
+_SGI_TEXT_MEMO_MAX = 2000
 
 
 def clear_knowledge_cache() -> None:
-    _KNOWLEDGE_CACHE.update({"loaded_at": 0.0, "signature": (), "index": None})
+    _KNOWLEDGE_CACHE.update({"loaded_at": 0.0, "signature": (), "index": None, "complete": True})
+    _SGI_TEXT_MEMO.clear()
 
 
 def _ollama_endpoint_hint(base_url: str, *, http_status: int | None = None) -> str:
@@ -623,17 +639,30 @@ def _sgi_cached_text(file_hash: str) -> str | None:
     """Testo PDF estratto in cache (DatabaseCache) per content-hash. None = miss."""
     if not file_hash:
         return None
+    memo = _SGI_TEXT_MEMO.get(file_hash)
+    if memo is not None:
+        return memo
     try:
         value = cache.get(_sgi_text_cache_key(file_hash))
     except Exception:
         return None
-    return value if isinstance(value, str) else None
+    if not isinstance(value, str):
+        return None
+    _sgi_memo_text(file_hash, value)
+    return value
+
+
+def _sgi_memo_text(file_hash: str, text: str) -> None:
+    if len(_SGI_TEXT_MEMO) >= _SGI_TEXT_MEMO_MAX:
+        _SGI_TEXT_MEMO.clear()
+    _SGI_TEXT_MEMO[file_hash] = text
 
 
 def _sgi_store_text(file_hash: str, text: str) -> None:
     if not file_hash:
         return
     ttl = int(getattr(settings, "OLLAMA_RAG_SGI_TEXT_CACHE_TTL", 2592000) or 2592000)
+    _sgi_memo_text(file_hash, text)
     try:
         cache.set(_sgi_text_cache_key(file_hash), text, timeout=ttl)
     except Exception:
@@ -1100,16 +1129,24 @@ def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:
         for chunk in chunks
     ]
     document_frequency: Counter[str] = Counter()
+    postings: dict[str, list[int]] = {}
     total_length = 0
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks):
         total_length += sum(chunk.tokens.values())
         document_frequency.update(chunk.tokens.keys())
+        for token in set(chunk.tokens) | set(chunk.title_tokens or ()):
+            postings.setdefault(token, []).append(i)
     avgdl = total_length / n if n else 0.0
     idf = {
         token: math.log(1.0 + (n - freq + 0.5) / (freq + 0.5))
         for token, freq in document_frequency.items()
     }
-    return KnowledgeIndex(chunks=tuple(chunks), idf=idf, avgdl=avgdl)
+    return KnowledgeIndex(
+        chunks=tuple(chunks),
+        idf=idf,
+        avgdl=avgdl,
+        postings={token: tuple(ids) for token, ids in postings.items()},
+    )
 
 
 # ── Retrieval semantico (embeddings via Ollama nativo) ──────────────────────
@@ -1190,43 +1227,64 @@ def _chunk_embed_text(chunk: KnowledgeChunk) -> str:
     return f"{chunk.title}\n{chunk.content}"
 
 
-def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[list[float]] | None:
+def _embed_cache_key(model: str, chunk: KnowledgeChunk) -> str:
+    return "ai_embed:" + hashlib.sha256(f"{model}\n{_chunk_embed_text(chunk)}".encode("utf-8")).hexdigest()
+
+
+def _embeddings_for_chunks(
+    chunks: list[KnowledgeChunk],
+    model: str,
+    *,
+    reuse: dict[str, Any] | None = None,
+    max_compute: int | None = None,
+) -> list[Any] | None:
     """Embeddings allineati ai chunk, con cache per content-hash (DatabaseCache).
 
     Solo i chunk non in cache vengono inviati a Ollama (a batch). Ritorna
     ``None`` se l'embedding non e' disponibile -> retrieval BM25-only.
+
+    ``reuse``: vettori gia' in memoria (indice precedente) per chiave cache: i chunk
+    invariati non rileggono la cache DB. ``max_compute``: se i vettori da calcolare
+    sono di piu', ritorna ``None`` senza chiamare il backend (la richiesta di chat non
+    deve aspettare minuti di embedding: li completa la ricostruzione in background).
     """
     if not chunks:
         return []
     persist = bool(getattr(settings, "OLLAMA_EMBED_PERSIST", True))
-    cache_keys = [
-        "ai_embed:" + hashlib.sha256(f"{model}\n{_chunk_embed_text(c)}".encode("utf-8")).hexdigest()
-        for c in chunks
-    ]
+    cache_keys = [_embed_cache_key(model, c) for c in chunks]
     cached_map: dict[str, Any] = {}
-    if persist:
+    if reuse:
+        cached_map.update({key: reuse[key] for key in cache_keys if key in reuse})
+    to_read = [key for key in cache_keys if key not in cached_map]
+    if persist and to_read:
         # get_many A BATCH: una IN(...) con migliaia di chiavi sfonda il limite di
         # parametri del backend (SQL Server ~2100, SQLite 999) -> la lettura intera
         # fallirebbe e ricalcoleremmo TUTTI gli embedding ad ogni rebuild (~140s di
         # TTFT). Batch piccolo e tollerante: un batch fallito = quei chunk risultano
         # "missing" e vengono ricalcolati, senza buttare via gli altri letti.
         get_batch = max(1, int(getattr(settings, "OLLAMA_EMBED_CACHE_GET_BATCH", 500) or 500))
-        for start in range(0, len(cache_keys), get_batch):
-            keys = cache_keys[start:start + get_batch]
+        for start in range(0, len(to_read), get_batch):
+            keys = to_read[start:start + get_batch]
             try:
                 cached_map.update(cache.get_many(keys) or {})
             except Exception:
                 continue
 
-    embeddings: list[list[float] | None] = [None] * len(chunks)
+    embeddings: list[Any] = [None] * len(chunks)
     missing: list[int] = []
     for i, key in enumerate(cache_keys):
         vec = cached_map.get(key)
-        if isinstance(vec, list) and vec:
-            embeddings[i] = [float(x) for x in vec]
+        if vec is not None and len(vec):
+            embeddings[i] = vec
         else:
             missing.append(i)
 
+    if missing and max_compute is not None and len(missing) > max_compute:
+        logger.info(
+            "ai_assistant: %d embeddings da calcolare (> %d): indice BM25-only finche' "
+            "la ricostruzione in background non li completa.", len(missing), max_compute,
+        )
+        return None
     if missing:
         batch_size = max(1, int(getattr(settings, "OLLAMA_EMBED_BATCH", 16) or 16))
         ttl = int(getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 2592000) or 2592000)
@@ -1270,11 +1328,53 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
     return [vec for vec in embeddings]  # type: ignore[misc]
 
 
-def _query_embedding(prompt: str) -> list[float] | None:
-    vectors = _compute_embeddings([prompt])
-    if not vectors:
+def _embedding_matrix(vectors: list[Any]):
+    """Matrice float32 con righe normalizzate L2 (None se le dimensioni non tornano)."""
+    import numpy as np
+
+    try:
+        matrix = np.asarray(vectors, dtype=np.float32)
+    except (TypeError, ValueError):
         return None
-    return vectors[0]
+    if matrix.ndim != 2 or not matrix.shape[0] or not matrix.shape[1]:
+        return None
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0  # riga nulla -> resta nulla, similarita' 0
+    return matrix / norms
+
+
+# Embedding della domanda condiviso nella stessa richiesta: il routing dei tool e il
+# retrieval RAG embeddano spesso lo stesso testo; con lo scope attivo il backend viene
+# chiamato una sola volta. Fuori dallo scope nessuna memoria (test e comandi invariati).
+_QUERY_EMBED_MEMO: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "ai_query_embed_memo", default=None
+)
+
+
+@contextlib.contextmanager
+def query_embedding_scope():
+    token = _QUERY_EMBED_MEMO.set({})
+    try:
+        yield
+    finally:
+        _QUERY_EMBED_MEMO.reset(token)
+
+
+def embed_query(text: str, *, timeout: int | None = None) -> list[float] | None:
+    """Embedding di un singolo testo, riusato dentro ``query_embedding_scope``."""
+    memo = _QUERY_EMBED_MEMO.get()
+    key = (_embed_backend(), _effective_embed_model(), text)
+    if memo is not None and key in memo:
+        return memo[key]
+    vectors = embed_texts([text], timeout=timeout)
+    vector = vectors[0] if vectors else None
+    if memo is not None and vector is not None:
+        memo[key] = vector
+    return vector
+
+
+def _query_embedding(prompt: str) -> list[float] | None:
+    return embed_query(prompt)
 
 
 def embeddings_enabled() -> bool:
@@ -1523,25 +1623,91 @@ def _load_knowledge_index() -> KnowledgeIndex:
         return KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
 
     files = _iter_knowledge_files()
-    signature = (
+    signature = _knowledge_signature(files)
+    ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
+    now = time.monotonic()
+    cached = _KNOWLEDGE_CACHE.get("index")
+    if ttl > 0 and isinstance(cached, KnowledgeIndex):
+        if (
+            _KNOWLEDGE_CACHE.get("signature") == signature
+            and now - float(_KNOWLEDGE_CACHE.get("loaded_at") or 0) < ttl
+            and _KNOWLEDGE_CACHE.get("complete", True)
+        ):
+            return cached
+        # Indice scaduto o documenti cambiati: la chat risponde subito con l'indice
+        # in memoria e la ricostruzione avviene in background (prima la pagava
+        # l'utente: 20-30 s di attesa ogni OLLAMA_RAG_CACHE_SECONDS).
+        if _background_rebuild_enabled():
+            _start_background_rebuild()
+            return cached
+
+    with _KNOWLEDGE_BUILD_LOCK:
+        cached = _KNOWLEDGE_CACHE.get("index")
+        if (
+            ttl > 0
+            and isinstance(cached, KnowledgeIndex)
+            and _KNOWLEDGE_CACHE.get("signature") == signature
+            and _KNOWLEDGE_CACHE.get("complete", True)
+        ):
+            return cached  # costruito da un'altra richiesta mentre aspettavamo
+        inline_max = None
+        if ttl > 0 and _background_rebuild_enabled():
+            inline_max = max(0, int(getattr(settings, "OLLAMA_EMBED_INLINE_MAX", 200) or 0))
+        index = _build_knowledge_index(files, signature, max_compute=inline_max)
+    if not _KNOWLEDGE_CACHE.get("complete", True):
+        _start_background_rebuild()
+    return index
+
+
+def _knowledge_signature(files: list[Path]) -> tuple:
+    return (
         tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files),
         _curated_knowledge_signature(),
         _sgi_documents_signature(),
         glossario_rag.firma(),
         guide_portale.firma() if _guide_enabled() else (),
     )
-    ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
-    now = time.monotonic()
-    cached = _KNOWLEDGE_CACHE.get("index")
-    if (
-        ttl > 0
-        and isinstance(cached, KnowledgeIndex)
-        and _KNOWLEDGE_CACHE.get("signature") == signature
-        and now - float(_KNOWLEDGE_CACHE.get("loaded_at") or 0) < ttl
-    ):
-        return cached
 
-    build_start = time.monotonic()
+
+def _background_rebuild_enabled() -> bool:
+    return bool(getattr(settings, "OLLAMA_RAG_BACKGROUND_REBUILD", True))
+
+
+def _start_background_rebuild() -> bool:
+    """Avvia (una sola alla volta) la ricostruzione dell'indice in un thread."""
+    with _KNOWLEDGE_BUILD_LOCK:
+        if _KNOWLEDGE_CACHE.get("rebuilding"):
+            return False
+        _KNOWLEDGE_CACHE["rebuilding"] = True
+    threading.Thread(target=_background_rebuild, name="ai-rag-rebuild", daemon=True).start()
+    return True
+
+
+def _background_rebuild() -> None:
+    from django.db import connection
+
+    try:
+        files = _iter_knowledge_files()
+        signature = _knowledge_signature(files)
+        with _KNOWLEDGE_BUILD_LOCK:
+            _build_knowledge_index(files, signature, max_compute=None)
+    except Exception:
+        logger.exception("ai_assistant: ricostruzione in background dell'indice RAG fallita")
+    finally:
+        _KNOWLEDGE_CACHE["rebuilding"] = False
+        connection.close()
+
+
+def _build_knowledge_index(files: list[Path], signature: tuple, *, max_compute: int | None) -> KnowledgeIndex:
+    """Costruisce l'indice e lo mette in cache di processo.
+
+    ``max_compute`` limita gli embeddings calcolati qui (vedi ``_embeddings_for_chunks``):
+    se ne mancano di piu' l'indice resta BM25-only e viene marcato incompleto.
+    """
+    now = time.monotonic()
+    build_start = now
+    previous = _KNOWLEDGE_CACHE.get("index")
+    complete = True
     max_file_chars = int(getattr(settings, "OLLAMA_RAG_MAX_FILE_CHARS", 300000) or 300000)
     chunks: list[KnowledgeChunk] = []
     for path in files:
@@ -1566,17 +1732,28 @@ def _load_knowledge_index() -> KnowledgeIndex:
         _warn_if_embed_cache_too_small(len(chunks))
         embed_model = _effective_embed_model()
         if embed_model:
-            vectors = _embeddings_for_chunks(chunks, embed_model)
-            if vectors:
+            reuse = None
+            if (
+                isinstance(previous, KnowledgeIndex)
+                and previous.embed_model == embed_model
+                and previous.embeddings is not None
+                and len(previous.embed_keys) == len(previous.embeddings)
+            ):
+                reuse = dict(zip(previous.embed_keys, previous.embeddings))
+            vectors = _embeddings_for_chunks(chunks, embed_model, reuse=reuse, max_compute=max_compute)
+            matrix = _embedding_matrix(vectors) if vectors else None
+            if matrix is not None:
                 index = replace(
                     index,
-                    embeddings=tuple(tuple(vec) for vec in vectors),
-                    embed_norms=tuple(_l2_norm(vec) for vec in vectors),
+                    embeddings=matrix,
                     embed_model=embed_model,
+                    embed_keys=tuple(_embed_cache_key(embed_model, c) for c in chunks),
                 )
+            elif max_compute is not None:
+                complete = False  # mancano embeddings: li completa il rebuild in background
 
     _record_rag_index_status(index, chunks, (time.monotonic() - build_start) * 1000.0)
-    _KNOWLEDGE_CACHE.update({"loaded_at": now, "signature": signature, "index": index})
+    _KNOWLEDGE_CACHE.update({"loaded_at": now, "signature": signature, "index": index, "complete": complete})
     return index
 
 
@@ -1605,9 +1782,18 @@ def _bm25_score(
 def _bm25_ranking(query_tokens: Counter[str], index: KnowledgeIndex) -> list[int]:
     if not query_tokens:
         return []
+    if index.postings is None:
+        candidates = range(len(index.chunks))
+    else:
+        # Un chunk senza alcun token della domanda (testo o titolo) ha punteggio 0:
+        # si valutano solo i candidati dell'indice invertito, in ordine di corpus.
+        ids: set[int] = set()
+        for token in query_tokens:
+            ids.update(index.postings.get(token, ()))
+        candidates = sorted(ids)
     scored = [
         (i, _bm25_score(query_tokens, index.chunks[i], index.idf, index.avgdl))
-        for i in range(len(index.chunks))
+        for i in candidates
     ]
     return [i for i, score in sorted(scored, key=lambda kv: kv[1], reverse=True) if score > 0]
 
@@ -1618,14 +1804,15 @@ def _semantic_ranking(prompt: str, index: KnowledgeIndex) -> list[int]:
     query_vector = _query_embedding(prompt)
     if not query_vector:
         return []
-    query_norm = _l2_norm(query_vector)
-    if not query_norm:
-        return []
-    sims = [
-        (i, _cosine_sim(query_vector, index.embeddings[i], query_norm, index.embed_norms[i]))
-        for i in range(len(index.chunks))
-    ]
-    return [i for i, sim in sorted(sims, key=lambda kv: kv[1], reverse=True) if sim > 0]
+    import numpy as np
+
+    query = np.asarray(query_vector, dtype=np.float32)
+    query_norm = float(np.linalg.norm(query))
+    if not query_norm or query.shape[0] != index.embeddings.shape[1]:
+        return []  # modello cambiato (dimensioni diverse): resta BM25
+    sims = index.embeddings @ (query / query_norm)
+    order = np.argsort(-sims, kind="stable")
+    return [int(i) for i in order if sims[i] > 0]
 
 
 def _select_chunk_indices(prompt: str, query_tokens: Counter[str], index: KnowledgeIndex) -> list[int]:
@@ -2464,8 +2651,11 @@ def index_sgi_documents() -> dict[str, Any]:
         result.update(skipped=True, message="RAG disabilitato (OLLAMA_RAG_ENABLED=False): indicizzazione saltata.")
         return result
     try:
-        clear_knowledge_cache()
-        index = _load_knowledge_index()
+        # Build completa e sincrona (embeddings mancanti calcolati qui, senza il tetto
+        # della chat): il comando/task deve finire con l'indice pronto.
+        files = _iter_knowledge_files()
+        with _KNOWLEDGE_BUILD_LOCK:
+            index = _build_knowledge_index(files, _knowledge_signature(files), max_compute=None)
         total = len(index.chunks)
         spec = sum(1 for c in index.chunks if c.source.startswith("spec:"))
         proc = sum(1 for c in index.chunks if c.source.startswith("proc:"))
@@ -2773,3 +2963,44 @@ def warmup_ollama(*, timeout: int | None = None) -> dict[str, Any]:
     keep_note = f", keep_alive={keep_alive}" if keep_alive else ""
     result["message"] = f"Modello '{model}' pre-caricato in {result['elapsed_ms']} ms{detail}{keep_note}."
     return result
+
+
+# ── Preriscaldamento all'apertura della chat ───────────────────────────────────
+# L'indice RAG vive nella memoria del processo web: il warm notturno e il warmup del
+# modello girano nel cluster django-q (altro processo) e non lo scaldano. All'apertura
+# della pagina si prepara tutto in un thread, mentre l'utente scrive la domanda.
+_PREWARM_LOCK = threading.Lock()
+_PREWARM_STATE: dict[str, bool] = {"running": False}
+_PREWARM_OLLAMA_KEY = "ai_assistant:prewarm_ollama"
+
+
+def prewarm_async() -> bool:
+    """Avvia il preriscaldamento (uno alla volta). False se spento o gia' in corso."""
+    if not bool(getattr(settings, "AI_PREWARM_ON_PAGE_OPEN", True)):
+        return False
+    if not bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True)):
+        return False
+    with _PREWARM_LOCK:
+        if _PREWARM_STATE["running"]:
+            return False
+        _PREWARM_STATE["running"] = True
+    threading.Thread(target=_prewarm, name="ai-prewarm", daemon=True).start()
+    return True
+
+
+def _prewarm() -> None:
+    from django.db import connection
+
+    try:
+        _load_knowledge_index()
+        from . import tools
+
+        tools._domain_seed_vectors()
+        # Il modello chat: al piu' un warmup ogni 10 minuti per processo/cache.
+        if cache.add(_PREWARM_OLLAMA_KEY, 1, timeout=600):
+            warmup_ollama(timeout=180)
+    except Exception:
+        logger.exception("ai_assistant: preriscaldamento assistente fallito")
+    finally:
+        _PREWARM_STATE["running"] = False
+        connection.close()
