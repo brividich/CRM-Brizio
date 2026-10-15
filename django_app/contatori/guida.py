@@ -115,6 +115,12 @@ SEZIONI: list[dict] = [
             ("p", "Stampanti MFC: si cerca per reparto, matricola, contratto, IP, modello o asset e si filtra per "
                   "salute SNMP e per lettura del trimestre in corso («Mancante» / «Presente»). Le MFC dismesse "
                   "sono nascoste salvo «Anche le dismesse». Ogni riga mostra anche il consumabile più basso."),
+            ("p", "Letture → «Tutte le MFC di un trimestre»: una riga per MFC attiva con l'ultima lettura "
+                  "precedente come riferimento. Compila solo le righe che hai e premi «Salva le letture "
+                  "compilate»: le righe vuote si saltano, quelle valide si salvano e quelle con un errore "
+                  "(data fuori trimestre, contatore più basso) restano in pagina evidenziate. Per un contatore "
+                  "azzerato o una macchina sostituita spunta «Confermo: azzerato o sostituito». Utile per "
+                  "caricare lo storico dei trimestri passati."),
             ("ul", [
                 "Scheda MFC → letture trimestrali dalla più recente con la colonna «Copie»; un trimestre saltato "
                 "compare come «Lettura mancante» con «Inserisci».",
@@ -123,6 +129,10 @@ SEZIONI: list[dict] = [
                 "tra la chiusura del fornitore e la lettura interna. Nelle MFC in pool l'Info elenca le altre "
                 "macchine dello stesso contratto.",
                 "«Esporta storico»: Excel con letture trimestrali (copie, mancanze, cali), mensili e anagrafica.",
+                "Scheda asset di una stampante (modulo Asset) → «Letture trimestrali (confronto con la fattura)»: "
+                "le ultime 4 con le copie del trimestre e le letture mancanti.",
+                "Monitor SNMP: «Cerca» per nome, IP, posizione o asset; la colonna «Risposte 24 h» dice quante "
+                "interrogazioni hanno avuto risposta (verde 100%, giallo dal 95%, rosso sotto).",
             ]),
         ],
     },

@@ -131,10 +131,23 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
     from .mfc_stats import candidati_collegamento, statistiche_mfc
 
     stats = statistiche_mfc(permitted_machines)
+    from contatori.models import LetturaContatori
+    from contatori.services import righe_letture_macchina
+
+    # Una query per tutte le MFC del riquadro (limite di query della scheda).
+    trimestrali = {}
+    if permitted_machines:
+        for lettura in LetturaContatori.objects.filter(
+                macchina_id__in=[m["id"] for m in permitted_machines]).order_by("trimestre"):
+            trimestrali.setdefault(lettura.macchina_id, []).append(lettura)
     for machine in permitted_machines:
         machine["state_label"] = STATE_LABELS.get(machine["snmp_stato"], "Esito non noto")
         machine["reading"] = readings.get(machine["reading_id"])
         machine["stats"] = stats.get(machine["id"])
+        # Letture di riconciliazione: le ultime 4 righe, lacune comprese (mai copie inventate).
+        machine["trimestrali"] = righe_letture_macchina(
+            None, letture=trimestrali.get(machine["id"], []))[:4]
+        machine["registro_url"] = reverse("contatori:letture_registro")
     # Stampante senza MFC collegata: lo si dice, con le MFC candidate da collegare.
     unlinked = None
     if printer and not machines:

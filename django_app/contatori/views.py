@@ -581,6 +581,77 @@ def export_macchina(request, pk):
     return _xlsx_response(wb, f"contatori_{macchina.matricola}.xlsx")
 
 
+CONTATORI_FORM = ("a4_bn", "a3_bn", "a4_col", "a3_col")
+
+
+def _riga_vuota(form):
+    return not any((form.data.get(form.add_prefix(c)) or "").strip() for c in CONTATORI_FORM)
+
+
+@richiede_gestione
+def letture_trimestre(request):
+    """Inserimento delle letture di un trimestre per tutte le MFC attive in una pagina.
+
+    Ogni riga e' un LetturaForm (stessi controlli della pagina singola: data nel
+    trimestre, contatori che non scendono salvo conferma, niente doppioni). Le righe
+    lasciate vuote si saltano; si salvano le righe valide e quelle con errori restano
+    in pagina da correggere.
+    """
+    from .forms import LetturaForm
+    oggi = timezone.localdate()
+    trimestre = request.POST.get("trimestre") or request.GET.get("trimestre") or ""
+    if not services.trimestre_valido(trimestre):
+        trimestre = services.trimestre_precedente(services.trimestre_corrente())
+    inizio, fine = services.limiti_trimestre(trimestre)
+    # Trimestre chiuso: la lettura di chiusura e' quella dei giorni dopo la fine.
+    data_default = fine if fine <= oggi else oggi
+    presenti = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
+    precedenti = {}
+    for l in LetturaContatori.objects.filter(trimestre__lt=trimestre).order_by("trimestre"):
+        precedenti[l.macchina_id] = l
+    righe, salvate = [], []
+    for m in Macchina.objects.filter(attiva=True).order_by("reparto", "matricola"):
+        riga = {"macchina": m, "esistente": presenti.get(m.pk), "precedente": precedenti.get(m.pk)}
+        if riga["esistente"] is None:
+            prefix = f"m{m.pk}"
+            if request.method == "POST":
+                dati = request.POST.copy()
+                dati[f"{prefix}-macchina"] = str(m.pk)
+                dati[f"{prefix}-trimestre"] = trimestre
+                form = LetturaForm(dati, prefix=prefix)
+                if not _riga_vuota(form) and form.is_valid():
+                    lettura = form.save()
+                    salvate.append(lettura)
+                    log_action(request, "lettura_creata", "contatori", oggetto=lettura,
+                               dettaglio={"trimestre": trimestre, "fonte": lettura.fonte, "massivo": True,
+                                          "calo_confermato": form.cleaned_data.get("conferma_calo", False)})
+                    riga["esistente"] = lettura
+                    form = None
+            else:
+                form = LetturaForm(prefix=prefix, initial={
+                    "macchina": m.pk, "trimestre": trimestre, "data": data_default,
+                    "fonte": LetturaContatori.Fonte.MANUALE,
+                    # Campi vuoti, non 0: una riga non compilata non deve sembrare una lettura.
+                    **{c: "" for c in CONTATORI_FORM}})
+            riga["form"] = form
+        righe.append(riga)
+    if request.method == "POST":
+        errate = [r for r in righe if r.get("form") is not None and not _riga_vuota(r["form"])]
+        if salvate:
+            messages.success(request, f"{len(salvate)} letture {trimestre} salvate.")
+        if errate:
+            messages.error(request, f"{len(errate)} righe non salvate: correggi i valori evidenziati.")
+        elif not salvate:
+            messages.info(request, "Nessuna lettura inserita: compila almeno una riga.")
+        if not errate:
+            return redirect(f"{reverse('contatori:letture_trimestre')}?trimestre={trimestre}")
+    return render(request, "contatori/letture_trimestre.html", {
+        "trimestre": trimestre, "righe": righe, "inizio": inizio, "fine": fine,
+        "trimestri": services.opzioni_trimestri(indietro=16, extra=[trimestre]),
+        "da_inserire": sum(1 for r in righe if r.get("form") is not None),
+    })
+
+
 def letture_registro(request):
     """Registro letture: MFC x trimestri, con mancanti, cali e copie del trimestre."""
     try:
@@ -773,8 +844,18 @@ def snmp_centrale(request):
         dispositivi = dispositivi.filter(categoria=categoria)
     if stato in StatoSNMP.values:
         dispositivi = dispositivi.filter(snmp_stato=stato)
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        from django.db.models import Q
+        dispositivi = dispositivi.filter(
+            Q(nome__icontains=q) | Q(host__icontains=q) | Q(posizione__icontains=q)
+            | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q))
+        macchine = macchine.filter(Q(reparto__icontains=q) | Q(matricola__icontains=q)
+                                   | Q(host__icontains=q) | Q(modello__icontains=q))
+    dispositivi = list(dispositivi)
     return render(request, "contatori/snmp_centrale.html", {
-        "dispositivi": dispositivi,
+        "dispositivi": dispositivi, "q": q,
+        "disponibilita": services.disponibilita_flotta(d.pk for d in dispositivi),
         "macchine": macchine,
         "flotta": flotta, "flotta_etichetta": services.FLOTTA.get(flotta, ""),
         "riepilogo": services.centrale_snmp_riepilogo(),

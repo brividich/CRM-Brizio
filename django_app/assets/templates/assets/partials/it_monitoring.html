@@ -70,6 +70,15 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         <div class="af-it-facts af-it-counters"><div class="is-bn"><span>A4 B/N</span><strong>{{ reading.a4_bn }}</strong></div><div class="is-bn"><span>A3 B/N</span><strong>{{ reading.a3_bn }}</strong></div><div class="is-col"><span>A4 colore</span><strong>{{ reading.a4_col }}</strong></div><div class="is-col"><span>A3 colore</span><strong>{{ reading.a3_col }}</strong></div><div class="is-tot"><span>Totale</span><strong>{{ reading.totale }}</strong></div></div>
       {% else %}<p>Nessuna lettura mensile disponibile.</p>{% endif %}{% endwith %}
       </details>
+      <details class="af-it-disclosure"><summary>Letture trimestrali (confronto con la fattura)</summary>
+        {% if machine.trimestrali %}
+        <div class="af-table-wrap"><table class="af-table" data-fm-table-skip="1"><thead><tr><th>Trimestre</th><th>Data</th><th class="num">Totale</th><th class="num">Copie nel trimestre</th><th>Fonte</th></tr></thead><tbody>
+          {% for r in machine.trimestrali %}{% if r.lettura %}<tr><td>{{ r.trimestre }}</td><td>{{ r.lettura.data|date:"d/m/Y" }}</td><td class="num">{{ r.lettura.totale }}</td><td class="num">{% if r.cali %}<strong>Contatore sceso ({{ r.cali|join:", " }})</strong>{% elif r.copie is not None %}{{ r.copie }}{% else %}<small>Non calcolabile</small>{% endif %}</td><td>{{ r.lettura.get_fonte_display }}</td></tr>
+          {% else %}<tr><td>{{ r.trimestre }}</td><td colspan="4"><small>Lettura mancante: le copie del trimestre dopo non sono calcolabili.</small></td></tr>{% endif %}{% endfor %}
+        </tbody></table></div>
+        <p class="af-note"><a href="{{ machine.url }}">Storico completo e fatture del contratto</a> · <a href="{{ machine.registro_url }}">Registro letture di tutte le MFC</a></p>
+        {% else %}<p class="af-note">Nessuna lettura trimestrale registrata.</p>{% endif %}
+      </details>
       {% with s=machine.stats %}
       <div class="af-it-live af-mfc-stats" id="mfc-stats-{{ machine.id }}">
         <h3 class="af-it-sub">Consumabili MFC</h3>
