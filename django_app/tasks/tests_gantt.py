@@ -243,7 +243,7 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
             project=self.project,
             status=TaskStatus.IN_PROGRESS,
             next_step_due=invalid_day,
-            due_date=invalid_day,
+            due_date=invalid_day - timedelta(days=1),
         )
         response = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
