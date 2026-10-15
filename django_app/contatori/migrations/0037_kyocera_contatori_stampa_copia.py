@@ -54,7 +54,17 @@ def _applica(apps, mappa, totali_idx, fonte):
         if colonna is None:
             continue
         Column.objects.filter(pk=colonna.pk).update(nome=nome, oid=oid, modalita="GET", fonte=fonte)
-        Probe.objects.filter(profilo_colonna=colonna).update(nome=nome, oid=oid, modalita="GET")
+        for sonda in Probe.objects.filter(profilo_colonna=colonna).exclude(oid=oid):
+            # Il dispositivo ha gia' una sonda con l'OID nuovo (aggiunta a mano):
+            # vincolo dispositivo+oid. Si tiene quella, collegata alla colonna, e
+            # si spegne la vecchia senza cancellarla (conserva i valori letti).
+            gia = Probe.objects.filter(dispositivo_id=sonda.dispositivo_id, oid=oid).first()
+            if gia is not None:
+                Probe.objects.filter(pk=gia.pk).update(nome=nome, modalita="GET", profilo_colonna=colonna)
+                Probe.objects.filter(pk=sonda.pk).update(attiva=False, profilo_colonna=None)
+            else:
+                Probe.objects.filter(pk=sonda.pk).update(nome=nome, oid=oid, modalita="GET")
+        Probe.objects.filter(profilo_colonna=colonna, oid=oid).update(nome=nome, modalita="GET")
     for oid, nomi in TOTALI.items():
         nome = nomi[totali_idx]
         Column.objects.filter(profilo=kyocera, oid=oid).update(nome=nome)
