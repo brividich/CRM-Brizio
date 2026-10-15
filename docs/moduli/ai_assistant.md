@@ -57,6 +57,7 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 Dalle valutazioni negative in produzione (6 su 9): due erano elenchi parziali presentati come completi.
 - Ratei (`tools._anagrafica_ratei_context`): soglia letta dal testo (`_extract_hours_threshold`: «più di/oltre/almeno/meno di N ore|giorni», giorni × 7,5) e applicata in query; con soglia o «elencami/tutti» il limite passa da 5 a 30; `row_count` è il totale vero (prima, nella classifica, era il numero mostrato); il contesto dice «Righe totali / mostrate» e vieta «tutti» per un elenco parziale.
 - Anagrafica (`_anagrafica_context`): nuovo filtro mansione (`_extract_mansione_filter`); istruzione «ne mostro X su Y».
+- Proposte dei copiloti (`AiProposta`): «in attesa» non è un lavoro da fare, l'esito si registra quando la persona salva. KICK-OFF: all'approvazione della minuta (`ai_kickoff.registra_esito`). Reportistica: su «Scarica» e, dal 15/10, anche su «Salva come modello».
 - Restano aperti: «quante ferie ho» senza saldo per l'utente corrente, abilitazione skill matrix sbagliata (01/07), documenti SGI citati a sproposito (giugno, prima della revisione SGI A1/A2).
 
 ## Hardening ottobre 2026
