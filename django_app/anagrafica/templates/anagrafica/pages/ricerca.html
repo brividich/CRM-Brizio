@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Ricerca | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=11">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Ricerca</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-search"/></svg>Ricerca in {{ ambito_label }}</h1>
+        <p class="fmd-ph-sub">Vedi solo i risultati delle sezioni che il tuo profilo può aprire.</p>
+      </div>
+    </div>
+
+    <section class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" class="fmd-toolbar" role="search">
+        <span class="fmd-search" style="flex:1;min-width:200px;">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
+          <input type="search" name="q" value="{{ q }}" placeholder="Cerca…" autocomplete="off" aria-label="Testo da cercare" autofocus>
+        </span>
+        <select class="fmd-select" name="ambito" aria-label="Dove cercare">
+          {% for codice, etichetta in ambiti.items %}<option value="{{ codice }}"{% if codice == ambito %} selected{% endif %}>{% if codice == "tutto" %}Tutto il modulo{% else %}{{ etichetta }}{% endif %}</option>{% endfor %}
+        </select>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Cerca</button>
+      </form>
+    </section>
+
+    {% if troppo_corta %}
+    <div class="fmd-empty"><span class="fmd-et">Scrivi almeno due caratteri</span></div>
+    {% elif q and not gruppi %}
+    <div class="fmd-empty">
+      <span class="fmd-et">Nessun risultato per «{{ q }}»</span>
+      {% if ambito != "tutto" %}<span class="fmd-em"><a class="fmd-data-link" href="?ambito=tutto&amp;q={{ q|urlencode }}">Cerca in tutto il modulo</a></span>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="fmd-ricerca-grid">
+      {% for g in gruppi %}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#{{ g.icona }}"/></svg>{{ g.titolo }} <span class="fmd-count">{{ g.voci|length }}</span></div>
+          {% if g.altro_url %}<div class="fmd-block-aside"><a class="fmd-data-link" href="{{ g.altro_url }}{{ q|urlencode }}">Ricerca dedicata →</a></div>{% endif %}
+        </div>
+        <div class="fmd-sidelist">
+          {% for v in g.voci %}
+          <a class="fmd-sidelist-i" href="{{ v.url }}">
+            <span><b>{{ v.t }}</b>{% if v.m %}<span class="fmd-sub2">{{ v.m }}</span>{% endif %}</span>
+            <span class="fmd-cc-go">Apri →</span>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

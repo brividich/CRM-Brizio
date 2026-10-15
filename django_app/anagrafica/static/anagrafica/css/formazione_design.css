@@ -638,6 +638,10 @@ body.theme-dark .fmd .fmd-cc-acts .fmd-btn-mini.fmd-btn-primary{ background:#1f8
 .fmd-sidelist-i b{ color:var(--fmd-navy); font-weight:700; }
 .fmd-sidelist-i .fmd-sub2{ display:block; font-size:11.5px; color:var(--fmd-muted); }
 a.fmd-sidelist-i:hover b{ color:var(--fmd-cyan); }
+.fmd-ricerca-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:16px; align-items:start; }
+.fmd-ricerca-grid > .fmd-block{ margin:0; min-width:0; }
+.fmd-ricerca .fmd-toolbar{ flex-wrap:wrap; }
+@media (max-width:640px){ .fmd-ricerca-grid{ grid-template-columns:1fr; } }
 @media (max-width:640px){ .fmd .fmd-block-head{ flex-wrap:wrap; } .fmd .fmd-block-aside{ width:100%; overflow-wrap:anywhere; } }
 body.theme-dark .fmd .fmd-k-nv{ background:#6f93c9; }
 body.theme-dark .fmd .fmd-c-ok{ color:#68d391; }

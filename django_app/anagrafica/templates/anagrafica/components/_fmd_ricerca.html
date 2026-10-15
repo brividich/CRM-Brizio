@@ -1,0 +1,31 @@
+{% comment %}
+Casella di ricerca delle pagine di Anagrafica (stile C). Parametri: ambito (tutto | persone |
+ingressi | qualifiche | visite | amministrazione | report), placeholder. La tendina arriva
+mentre si scrive (HTMX); Invio apre la pagina con tutti i risultati. Classi in formazione_design.css.
+{% endcomment %}
+<div class="fmd-panel fmd-ricerca" style="margin-bottom:16px;">
+  <form method="get" action="{% url 'anagrafica:ricerca' %}" class="fmd-toolbar" role="search">
+    <input type="hidden" name="ambito" value="{{ ambito }}">
+    <span class="fmd-search-wrap">
+      <span class="fmd-search">
+        <svg class="fmd-ico"><use href="#i-search"/></svg>
+        <input type="search" name="q" placeholder="{{ placeholder }}" autocomplete="off" minlength="2"
+               aria-label="{{ placeholder }}"
+               hx-get="{% url 'anagrafica:ricerca' %}?suggest=1&amp;ambito={{ ambito }}"
+               hx-trigger="keyup changed delay:250ms, search"
+               hx-target="#ric-pop-{{ ambito }}" hx-swap="innerHTML" hx-indicator="#ric-spin-{{ ambito }}">
+      </span>
+      <div id="ric-pop-{{ ambito }}" class="fmd-search-pop"></div>
+    </span>
+    <span id="ric-spin-{{ ambito }}" class="htmx-indicator fmd-block-aside">Ricerca…</span>
+    <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Cerca</button>
+  </form>
+  <script>
+  (function(){
+    if(window.__fmdRicercaPop)return;window.__fmdRicercaPop=1;
+    function clearPops(t){document.querySelectorAll('.fmd-search-pop').forEach(function(p){var w=p.closest('.fmd-search-wrap');if(!t||!w||!w.contains(t))p.innerHTML='';});}
+    document.addEventListener('click',function(e){clearPops(e.target);});
+    document.addEventListener('keydown',function(e){if(e.key==='Escape')clearPops(null);});
+  })();
+  </script>
+</div>
