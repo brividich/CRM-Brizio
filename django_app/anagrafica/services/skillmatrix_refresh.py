@@ -40,15 +40,45 @@ def _asset_ids_reparto(reparto: str) -> list[int]:
     )
 
 
+def mansioni_reparto(reparto: str) -> list[CompetenzaSkm]:
+    """Mansioni del reparto (Mansionario fase 4): macchine con l'asset nel reparto e
+    processi senza asset con il reparto scelto nella mansione."""
+    from django.db.models import Q
+    reparto = (reparto or "").strip()
+    if not reparto:
+        return []
+    return list(
+        CompetenzaSkm.objects
+        .filter(Q(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False, asset__reparto=reparto)
+                | Q(tipo=CompetenzaSkm.TIPO_PROCESSO, asset__isnull=True, reparto__nome__iexact=reparto))
+        .select_related("asset", "reparto").order_by("tipo", "display", "competenza_key")
+    )
+
+
+def reparti_con_mansioni() -> list[str]:
+    """Reparti che hanno almeno una mansione: dal reparto dell'asset o della mansione di processo."""
+    nomi = set()
+    for c in (CompetenzaSkm.objects.filter(tipo__in=(CompetenzaSkm.TIPO_MACCHINA, CompetenzaSkm.TIPO_PROCESSO))
+              .select_related("asset", "reparto")):
+        rep = c.reparto_effettivo
+        if rep:
+            nomi.add(rep)
+    return sorted(nomi, key=str.casefold)
+
+
 def abilitazioni_reparto(reparto: str):
-    """Abilitazioni in lista sulle macchine del reparto (gruppo ① da rivalutare)."""
-    ids = _asset_ids_reparto(reparto)
-    if not ids:
+    """Abilitazioni in lista sulle mansioni del reparto (gruppo ① da rivalutare):
+    macchine (anche righe storiche ancora senza colonna) e processi senza asset."""
+    from django.db.models import Q
+    comps = mansioni_reparto(reparto)
+    asset_ids = [c.asset_id for c in comps if c.asset_id]
+    comp_ids = [c.pk for c in comps]
+    if not comps:
         return AbilitazioneMacchina.objects.none()
     return (
         AbilitazioneMacchina.objects
-        .filter(asset_id__in=ids, in_lista=True)
-        .select_related("asset").order_by("legacy_anagrafica_id", "asset__name")
+        .filter(Q(asset_id__in=asset_ids) | Q(competenza_id__in=comp_ids), in_lista=True)
+        .select_related("asset", "competenza__asset").order_by("legacy_anagrafica_id", "competenza__display", "asset__name")
     )
 
 
@@ -72,7 +102,7 @@ def apri_campagna(reparto: str, *, periodo_inizio=None, avviatore_ruolo: str = "
 
 def _scatto(ab: AbilitazioneMacchina, data, car_legacy_id, note: str) -> None:
     AbilitazioneMacchinaStorico.objects.create(
-        legacy_anagrafica_id=ab.legacy_anagrafica_id, asset_id=ab.asset_id,
+        legacy_anagrafica_id=ab.legacy_anagrafica_id, asset_id=ab.asset_id, competenza_id=ab.competenza_id,
         livello=ab.livello, data_rilevazione=data,
         fonte=AbilitazioneMacchinaStorico.FONTE_REFRESH,
         car_legacy_id=car_legacy_id, note=note,
@@ -171,20 +201,25 @@ def scadenzario_reparti(oggi=None, config: SkillMatrixConfig | None = None) -> l
     config = config or SkillMatrixConfig.get_instance()
     soglia = oggi + timedelta(days=int(config.preavviso_refresh_giorni))
 
-    reparto_per_asset = {}
+    # Reparto per asset (macchine) e per colonna (anche i processi senza asset).
+    reparto_per_asset, reparto_per_comp = {}, {}
     for c in (CompetenzaSkm.objects
-              .filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
-              .select_related("asset")):
-        rep = (c.asset.reparto or "").strip()
+              .filter(tipo__in=(CompetenzaSkm.TIPO_MACCHINA, CompetenzaSkm.TIPO_PROCESSO))
+              .select_related("asset", "reparto")):
+        rep = c.reparto_effettivo
         if rep:
-            reparto_per_asset[c.asset_id] = rep
-    if not reparto_per_asset:
+            reparto_per_comp[c.pk] = rep
+            if c.asset_id:
+                reparto_per_asset[c.asset_id] = rep
+    if not reparto_per_comp:
         return []
 
+    from django.db.models import Q
     agg: dict[str, dict] = {}
     for a in (AbilitazioneMacchina.objects
-              .filter(in_lista=True, asset_id__in=list(reparto_per_asset.keys()))):
-        rep = reparto_per_asset.get(a.asset_id)
+              .filter(Q(asset_id__in=list(reparto_per_asset)) | Q(competenza_id__in=list(reparto_per_comp)),
+                      in_lista=True)):
+        rep = reparto_per_comp.get(a.competenza_id) or reparto_per_asset.get(a.asset_id)
         if not rep:
             continue
         d = agg.setdefault(rep, {"n_totali": 0, "n_scadute": 0, "n_in_arrivo": 0,
@@ -215,6 +250,7 @@ def scadenzario_reparti(oggi=None, config: SkillMatrixConfig | None = None) -> l
             "campagna_aperta": camp is not None,
             "campagna_id": camp.id if camp else None,
             "campagna_periodo_inizio": camp.periodo_inizio if camp else None,
+            "campagna_note": camp.note if camp else "",
         })
 
     rank = {"scaduto": 0, "in_arrivo": 1, "ok": 2}
@@ -244,32 +280,92 @@ from automazioni.managed_flows import event_flow
 
 
 @event_flow("skillmatrix_refresh_car", skipped_result=None)
-def _notifica_car(reparto: str) -> None:
-    """In-app + email best-effort al CAR. Nessun errore propagato."""
+def _notifica_car(reparto: str, sollecito: bool = False) -> None:
+    """In-app + email best-effort al CAR. Nessun errore propagato.
+
+    Con ``sollecito`` il testo ricorda una campagna già aperta (Mansionario fase 4:
+    il refresh parte e si sollecita a richiesta della qualità, D18)."""
     car_id, car_email = _risolvi_car(reparto)
     n_da = abilitazioni_reparto(reparto).count()
     url = reverse("anagrafica:skm_refresh") + "?" + urlencode({"reparto": reparto})
+    prefisso = "Sollecito: " if sollecito else ""
+    testo = (f"{prefisso}refresh delle abilitazioni del reparto «{reparto}»"
+             f"{' ancora aperto' if sollecito else ' avviato dalla qualità'}: {n_da} abilitazioni da rivalutare.")
     if car_id:
         try:
             from core.notifiche import invia_notifica
-            invia_notifica(
-                car_id, "skm_refresh",
-                f"Refresh abilitazioni macchina avviato per il reparto «{reparto}»: "
-                f"{n_da} abilitazioni da rivalutare.", url)
+            invia_notifica(car_id, "skm_refresh", testo, url)
         except Exception:
             logger.warning("Notifica in-app CAR fallita reparto=%s", reparto, exc_info=True)
     if car_email:
         try:
             from core.email_utils import send_hub_mail
             send_hub_mail(
-                f"Refresh abilitazioni macchina — reparto {reparto}",
-                f"È stato avviato il refresh semestrale delle abilitazioni macchina del "
-                f"reparto «{reparto}».\n\nAbilitazioni da rivalutare: {n_da}.\n\n"
+                f"{prefisso}Refresh abilitazioni — reparto {reparto}",
+                f"{testo}\n\nPer ogni persona del reparto: conferma o aggiorna il livello sulle sue "
+                f"mansioni (o valuta le competenze), togli chi non le svolge più, aggiungi chi manca.\n\n"
                 f"Apri la pagina di rivalutazione dal portale NOVICROM HUB.",
                 [car_email], email_type="Anagrafica HR",
-                section_label="Refresh abilitazioni macchina", fail_silently=True)
+                section_label="Refresh abilitazioni", fail_silently=True)
         except Exception:
             logger.warning("Email CAR fallita reparto=%s", reparto, exc_info=True)
+
+
+def sollecita_car(reparto: str) -> bool:
+    """Ricorda al CAR una campagna ancora aperta. False se non c'è campagna aperta."""
+    reparto = (reparto or "").strip()
+    if not CampagnaRefresh.objects.filter(reparto=reparto, stato=CampagnaRefresh.STATO_APERTA).exists():
+        return False
+    _notifica_car(reparto, sollecito=True)
+    return True
+
+
+def aggiungi_nota_campagna(campagna: CampagnaRefresh, testo: str, autore: str = "") -> None:
+    """Segnalazione del CAR alla qualità (es. chi ha cambiato lavoro), accodata alle note."""
+    testo = (testo or "").strip()
+    if not testo:
+        return
+    riga = f"[{timezone.localdate():%d/%m/%Y}{' · ' + autore if autore else ''}] {testo}"
+    campagna.note = f"{campagna.note}\n{riga}".strip() if campagna.note else riga
+    campagna.save(update_fields=["note", "updated_at"])
+
+
+def coerenza_rischio_reparto(reparto: str) -> dict:
+    """Per l'RSPP: mansioni del reparto senza mansione di rischio e persone la cui
+    mansione di rischio in anagrafica non è tra quelle ricavate dalle loro mansioni.
+
+    Solo nomi di mansione, nessun dato sanitario."""
+    from core import naming
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    comps = mansioni_reparto(reparto)
+    senza_rischio = [c for c in comps if not c.mansioni_rischio.exists()]
+    persone = sorted({a.legacy_anagrafica_id for a in abilitazioni_reparto(reparto)})
+    if not persone:
+        return {"mansioni_senza_rischio": senza_rischio, "persone": []}
+    righe = {int(r["id"]): r for r in fetch_anagrafica_rows(ids=persone)}
+    ricavate: dict[int, set[str]] = {}
+    for a in (AbilitazioneMacchina.objects.filter(legacy_anagrafica_id__in=persone, in_lista=True,
+                                                  competenza__isnull=False)
+              .prefetch_related("competenza__mansioni_rischio")):
+        ricavate.setdefault(a.legacy_anagrafica_id, set()).update(m.nome for m in a.competenza.mansioni_rischio.all())
+    out = []
+    for lid in persone:
+        r = righe.get(lid, {})
+        in_anagrafica = (r.get("mansione") or "").strip()
+        attese = sorted(ricavate.get(lid, set()), key=str.casefold)
+        if not attese:
+            stato = "senza_rischio"
+        elif not in_anagrafica:
+            stato = "anagrafica_vuota"
+        elif in_anagrafica.casefold() not in {x.casefold() for x in attese}:
+            stato = "diversa"
+        else:
+            continue
+        out.append({"legacy_id": lid, "nome": naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{lid}",
+                    "in_anagrafica": in_anagrafica, "attese": attese, "stato": stato})
+    out.sort(key=lambda x: x["nome"].casefold())
+    return {"mansioni_senza_rischio": senza_rischio, "persone": out}
 
 
 def avvia_refresh(*, reparto: str, avviatore_ruolo: str = "", avviatore_legacy_id=None,
@@ -284,6 +380,13 @@ def avvia_refresh(*, reparto: str, avviatore_ruolo: str = "", avviatore_legacy_i
     if created:
         _notifica_car(reparto)
     return camp, created
+
+
+def chiudi_campagna(campagna: CampagnaRefresh, oggi=None) -> None:
+    oggi = oggi or timezone.localdate()
+    campagna.stato = CampagnaRefresh.STATO_CHIUSA
+    campagna.periodo_fine = oggi
+    campagna.save(update_fields=["stato", "periodo_fine", "updated_at"])
 
 
 def campagne_da_gestire(car_legacy_id) -> list[dict]:

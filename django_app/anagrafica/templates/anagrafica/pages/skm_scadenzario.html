@@ -22,6 +22,8 @@
 .sc-badge.scaduto { color:#991b1b; background:#fee2e2; }
 .sc-badge.in_arrivo { color:#854d0e; background:#fef9c3; }
 .sc-badge.ok { color:#166534; background:#dcfce7; }
+.sc-note { margin-top:4px; font-size:11.5px; color:#475569; max-width:320px; }
+body.theme-dark .sc-note { color:var(--text-light); }
 .sc-empty { text-align:center; padding:40px 16px; color:#475569; }
 </style>
 {% endblock %}
@@ -37,10 +39,13 @@
         <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
         <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
       </div>
-      <h2 class="hr-pagehead-title">📅 Scadenzario abilitazioni macchina</h2>
-      <p class="hr-pagehead-desc">Prossime revisioni per reparto. HR avvia il refresh (il CAR viene avvisato); la rivalutazione resta al CAR.</p>
+      <h2 class="hr-pagehead-title">📅 Scadenzario refresh abilitazioni</h2>
+      <p class="hr-pagehead-desc">Prossime revisioni per reparto, macchine e processi. La qualità avvia il refresh e può sollecitarlo (il caporeparto viene avvisato in-app e via email); la rivalutazione resta al caporeparto.</p>
     </div>
-    <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" class="hr-btn hr-btn-outline">? Guida</a>
+      <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+    </div>
   </div>
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Scadenzario in sintesi">
@@ -74,7 +79,7 @@
         <td>{{ r.n_scadute }}</td>
         <td>{{ r.n_in_arrivo }}</td>
         <td><span class="sc-badge {{ r.stato }}">{{ r.stato }}</span></td>
-        <td>{% if r.campagna_aperta %}aperta dal {{ r.campagna_periodo_inizio|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+        <td>{% if r.campagna_aperta %}aperta dal {{ r.campagna_periodo_inizio|date:"d/m/Y" }}{% if r.campagna_note %}<div class="sc-note" title="Note del caporeparto">📝 {{ r.campagna_note|linebreaksbr }}</div>{% endif %}{% else %}—{% endif %}</td>
         <td>
           {% if not r.campagna_aperta %}
           <form method="post" style="margin:0;">
@@ -84,7 +89,15 @@
             <button type="submit" class="hr-btn hr-btn-primary" style="padding:4px 10px;font-size:12px;">▶ Avvia refresh</button>
           </form>
           {% else %}
-          <a class="hr-btn hr-btn-outline" style="padding:4px 10px;font-size:12px;" href="{% url 'anagrafica:skm_refresh' %}?reparto={{ r.reparto|urlencode }}">Rivaluta</a>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <a class="hr-btn hr-btn-outline" style="padding:4px 10px;font-size:12px;" href="{% url 'anagrafica:skm_refresh' %}?reparto={{ r.reparto|urlencode }}">Rivaluta</a>
+            <form method="post" style="margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="azione" value="sollecita">
+              <input type="hidden" name="reparto" value="{{ r.reparto }}">
+              <button type="submit" class="hr-btn hr-btn-outline" style="padding:4px 10px;font-size:12px;">🔔 Sollecita</button>
+            </form>
+          </div>
           {% endif %}
         </td>
       </tr>

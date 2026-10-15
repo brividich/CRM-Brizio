@@ -33,6 +33,26 @@ def _puo_gestire(request) -> bool:
     return _is_anagrafica_admin(request)
 
 
+def _puo_valutare(request) -> bool:
+    """Valutare e mettere/togliere persone: amministrazione anagrafica o chi gestisce
+    la skill matrix (il caporeparto durante il refresh, fase 4)."""
+    if _puo_gestire(request):
+        return True
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    from .views import _check_skm_permission
+    return _check_skm_permission(request, PERM_SKM_MANAGE)
+
+
+def _ritorno_refresh(request):
+    """Redirect alla pagina del refresh quando la valutazione parte da lì."""
+    da = request.POST.get("da") or request.GET.get("da")
+    reparto = (request.POST.get("reparto") or request.GET.get("reparto") or "").strip()
+    if da != "refresh" or not reparto:
+        return None
+    from urllib.parse import urlencode
+    return redirect(f"{reverse('anagrafica:skm_refresh')}?{urlencode({'reparto': reparto})}")
+
+
 def _nega(request, testo="Non hai i permessi per il Mansionario."):
     messages.error(request, testo)
     return redirect("anagrafica:index")
@@ -184,7 +204,7 @@ def mansionario_mansione(request, mansione_id: int):
 @login_required
 @require_POST
 def mansionario_assegna(request, mansione_id: int):
-    if not _puo_gestire(request):
+    if not _puo_valutare(request):
         return _nega(request, "Non hai i permessi per modificare il Mansionario.")
     mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id, tipo__in=svc.TIPI_MANSIONE)
     lid = request.POST.get("persona") or ""
@@ -206,7 +226,7 @@ def mansionario_assegna(request, mansione_id: int):
 @login_required
 @require_POST
 def mansionario_togli(request, mansione_id: int, abilitazione_id: int):
-    if not _puo_gestire(request):
+    if not _puo_valutare(request):
         return _nega(request, "Non hai i permessi per modificare il Mansionario.")
     ab = get_object_or_404(AbilitazioneMacchina, pk=abilitazione_id, competenza_id=mansione_id)
     svc.togli(ab)
@@ -283,8 +303,9 @@ def mansionario_competenza_disattiva(request, mansione_id: int, voce_id: int):
 
 @login_required
 def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
-    """Livello della persona su ogni competenza della mansione (solo amministrazione)."""
-    if not _puo_gestire(request):
+    """Livello della persona su ogni competenza della mansione (amministrazione o
+    gestione skill matrix, es. il caporeparto dal refresh)."""
+    if not _puo_valutare(request):
         return _nega(request, "Non hai i permessi per modificare il Mansionario.")
     from core import naming
     from core.legacy_anagrafica import fetch_anagrafica_rows
@@ -301,7 +322,7 @@ def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
             "livelli": {str(k): v for k, v in livelli.items()}, "esito": val.esito, "livello": ab.livello,
         }, oggetto=ab)
         messages.success(request, f"Valutazione salvata: {val.esito_label}, livello {ab.livello}.")
-        return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+        return _ritorno_refresh(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
     righe = fetch_anagrafica_rows(ids=[ab.legacy_anagrafica_id])
     nome = naming.nome_completo(righe[0].get("nome"), righe[0].get("cognome")) if righe else f"#{ab.legacy_anagrafica_id}"
     return render(request, "anagrafica/pages/mansionario_valuta.html", {
@@ -309,6 +330,8 @@ def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
         "abilitazione": ab, "mansione": ab.competenza, "nome": nome,
         "valutazione": comp_svc.valuta(ab, voci=competenze),
         "livelli": svc.LIVELLI,
+        "da": "refresh" if request.GET.get("da") == "refresh" else "",
+        "reparto_refresh": (request.GET.get("reparto") or "").strip(),
     })
 
 
