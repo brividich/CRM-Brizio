@@ -1,3 +1,4 @@
+from datetime import timedelta
 import re
 import uuid
 
@@ -266,7 +267,7 @@ class LetturaForm(SezioniFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["trimestre"] = campo_trimestre(self.instance.trimestre)
+        self.fields["trimestre"] = campo_trimestre(*_trimestri_del_form(self))
         macchine = Macchina.objects.filter(attiva=True)
         if self.instance.macchina_id:
             macchine = Macchina.objects.filter(
@@ -531,10 +532,26 @@ class ColonnaProfiloSNMPForm(SezioniFormMixin, forms.ModelForm):
 _DATA = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 
 
-def campo_trimestre(valore_attuale=""):
+def campo_trimestre(valore_attuale="", *altri):
     from .services import opzioni_trimestri
+    extra = [v for v in (valore_attuale, *altri) if v]
     return forms.ChoiceField(label="Trimestre", choices=[
-        (t, t) for t in opzioni_trimestri(extra=[valore_attuale] if valore_attuale else ())])
+        (t, t) for t in opzioni_trimestri(extra=extra)])
+
+
+def _trimestri_del_form(form):
+    """Trimestre dell'istanza, dei dati inviati e dei valori iniziali.
+
+    Le scelte coprono gli ultimi 2 anni e i trimestri gia' a DB: senza questi valori
+    una fattura o una lettura di un trimestre piu' vecchio non si potrebbe salvare.
+    `opzioni_trimestri` scarta i valori non validi.
+    """
+    inviato = form.data.get(form.add_prefix("trimestre")) if form.is_bound else ""
+    return (form.instance.trimestre, inviato or "", form.initial.get("trimestre") or "")
+
+
+# Chiusura letture del fornitore: nel trimestre o al massimo pochi giorni dopo.
+GIORNI_CHIUSURA_FATTURA_DOPO = 15
 
 
 class FatturaForm(SezioniFormMixin, forms.ModelForm):
@@ -554,7 +571,7 @@ class FatturaForm(SezioniFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["trimestre"] = campo_trimestre(self.instance.trimestre)
+        self.fields["trimestre"] = campo_trimestre(*_trimestri_del_form(self))
         self.fields["fornitore"] = forms.ChoiceField(label="Fornitore",
                                                      choices=Macchina.Fornitore.choices)
         self.fields["dettaglio"].required = False
@@ -567,6 +584,14 @@ class FatturaForm(SezioniFormMixin, forms.ModelForm):
         dal, al = data.get("periodo_dal"), data.get("periodo_al")
         if dal and al and dal > al:
             self.add_error("periodo_al", "La chiusura deve essere successiva all'inizio del periodo.")
+        trimestre = data.get("trimestre")
+        if al and trimestre and {"trimestre", "periodo_al"} & set(self.changed_data):
+            from .services import limiti_trimestre
+            inizio, fine = limiti_trimestre(trimestre)
+            # Chiusura del fornitore nel trimestre (qualche giorno di tolleranza dopo la fine).
+            if not inizio <= al < fine + timedelta(days=GIORNI_CHIUSURA_FATTURA_DOPO):
+                self.add_error("periodo_al", f"La chiusura del {al:%d/%m/%Y} non è nel {trimestre}: "
+                                             "controlla il trimestre o la data.")
         return data
 
 

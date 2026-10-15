@@ -1,0 +1,18 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Archivio fatture{% endblock %}
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
+<div class="row"><div><div class="eyebrow">Riconciliazione</div><h1>Archivio fatture</h1><p class="sub">Tutte le fatture del fornitore per trimestre, con l'esito del confronto con le letture interne. I trimestri con letture ma senza fattura sono segnalati.</p></div><div class="spacer"></div>{% if g %}<div class="actions"><a class="btn" href="{% url 'contatori:fatture_importa' %}">Importa più fatture</a><a class="btn ghost" href="{% url 'contatori:fattura_nuova' %}">+ Nuova fattura</a></div>{% endif %}</div>
+
+<div class="cards"><div class="card"><div class="k">Fatture</div><div class="v">{{ totale_fatture }}</div></div><div class="card"><div class="k">Trimestri senza fattura</div><div class="v{% if scoperti %} health-warning{% endif %}">{{ scoperti|length }}</div>{% if scoperti %}<div class="meta">{% for a in scoperti|slice:":4" %}{{ a.trimestre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if scoperti|length > 4 %}…{% endif %}</div>{% endif %}</div></div>
+
+<section class="panel"><div class="table-wrap"><table data-fm-table-skip="1">
+  <thead><tr><th>Trimestre</th><th>Fatture</th><th class="num">Contratti</th><th>Esito riconciliazione</th><th></th></tr></thead>
+  <tbody>{% for a in archivio %}<tr>
+    <td><strong>{{ a.trimestre }}</strong>{% if a.in_corso %} <span class="pill">in corso</span>{% endif %}<div class="muted">{{ a.letture }} letture interne</div></td>
+    <td>{% for f in a.fatture %}<div>{% if g %}<a class="plain" href="{% url 'contatori:fattura_edit' f.pk %}">{{ f.numero }}</a>{% else %}{{ f.numero }}{% endif %} <span class="muted">del {{ f.data|date:"d/m/Y" }} · {{ f.fornitore }}{% if f.dettaglio == 'TOTALI' %} · solo totali{% endif %} · chiusura {{ f.periodo_al|date:"d/m/Y" }}</span></div>{% empty %}{% if a.in_corso %}<span class="muted">—</span>{% else %}<span class="pill warn">fattura mancante</span>{% endif %}{% endfor %}</td>
+    <td class="num">{% if a.riepilogo %}{{ a.riepilogo.contratti }}{% endif %}</td>
+    <td>{% if a.riepilogo %}{% if a.riepilogo.contratti_danger %}<span class="pill danger">{{ a.riepilogo.contratti_danger }} da controllare</span>{% elif a.riepilogo.letture_mancanti %}<span class="pill warn">{{ a.riepilogo.letture_mancanti }} letture interne mancanti</span>{% else %}<span class="pill ok">{{ a.riepilogo.contratti_ok }}/{{ a.riepilogo.contratti }} ok</span>{% endif %}{% endif %}</td>
+    <td>{% if a.fatture %}<a class="btn ghost small" href="{% url 'contatori:riconciliazione_trim' a.trimestre %}">Riconciliazione</a>{% elif g and not a.in_corso %}<a class="btn ghost small" href="{% url 'contatori:fattura_nuova' %}?trimestre={{ a.trimestre }}">Inserisci</a>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="5" class="empty">Nessuna fattura caricata.{% if g %} <a class="plain" href="{% url 'contatori:fatture_importa' %}">Importa le fatture</a>.{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

@@ -277,3 +277,12 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .fw-versione{font-weight:700;padding:2px 7px;border-radius:7px;background:color-mix(in srgb,var(--cm-accent) 10%,var(--cm-surface))}
 .contatori-module .fw-storico{margin-top:6px;font-size:13px}.contatori-module .fw-storico summary{cursor:pointer;color:var(--cm-primary-mid);font-weight:650}
 .contatori-module .fw-storico ol{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
+/* Registro letture, scheda MFC e import multiplo fatture */
+.contatori-module .registro-letture td.cella{white-space:nowrap;font-variant-numeric:tabular-nums}
+.contatori-module .registro-letture td.cella .muted{font-size:11px}
+.contatori-module .registro-letture td.mancante{background:color-mix(in srgb,var(--cm-warn) 10%,transparent)}
+.contatori-module .registro-letture td.calo,.contatori-module tr.riga-calo td{background:color-mix(in srgb,var(--cm-danger) 9%,transparent)}
+.contatori-module .registro-letture tr.dismessa td,.contatori-module tr.riga-mancante td{opacity:.75}
+.contatori-module .registro-letture th:first-child,.contatori-module .registro-letture td:first-child{position:sticky;left:0;background:var(--cm-surface);z-index:1}
+.contatori-module .import-multiplo tr.stato-non_leggibile td,.contatori-module .import-multiplo tr.stato-gia_presente td{opacity:.7}
+.contatori-module .import-multiplo .avvisi-import{margin:6px 0;padding-left:18px;font-size:12px;color:var(--cm-muted)}
