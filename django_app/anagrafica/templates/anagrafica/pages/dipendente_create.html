@@ -232,7 +232,7 @@ body.theme-dark .dc-acc-alert.is-info { background:rgba(14,165,233,.15); color:#
               <span style="font-size:11px;color:#94a3b8;">Sotto-articolazione del reparto (deve appartenere al reparto scelto).</span>
             </div>
             <div class="dc-field">
-              <label class="dc-label" for="{{ legacy_form.mansione.id_for_label }}">Mansione</label>
+              <label class="dc-label" for="{{ legacy_form.mansione.id_for_label }}">Mansione di rischio</label>
               <select id="{{ legacy_form.mansione.id_for_label }}" name="mansione" class="dc-input {% if legacy_form.mansione.errors %}has-error{% endif %}">
                 <option value="">— Nessuna —</option>
                 {% for m in mansioni_catalogo %}

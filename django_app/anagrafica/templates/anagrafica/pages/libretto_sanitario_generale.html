@@ -173,7 +173,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
         {% endif %}
         {% if mansioni %}
         <div class="lsg-field">
-          <label for="lsg-mansione">Mansione</label>
+          <label for="lsg-mansione">Mansione di rischio</label>
           <select id="lsg-mansione" name="mansione" class="lsg-select" onchange="this.form.submit()">
             <option value="">Tutte</option>
             {% for m in mansioni %}<option value="{{ m }}" {% if m == filtro_mansione %}selected{% endif %}>{{ m }}</option>{% endfor %}
@@ -285,7 +285,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
           <tr>
             <th>Dipendente</th>
             <th>Reparto</th>
-            <th>Mansione</th>
+            <th>Mansione di rischio</th>
             <th>Esito</th>
             <th>Requisiti</th>
             <th>Da sistemare</th>

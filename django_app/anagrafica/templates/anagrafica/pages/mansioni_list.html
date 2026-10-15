@@ -2,7 +2,7 @@
 {% load static %}
 {% load anagrafica_extras %}
 
-{% block title %}Mansioni | Anagrafica{% endblock %}
+{% block title %}Mansioni di rischio | Anagrafica{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -49,12 +49,12 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
     <div class="fmd-hero-inner">
       <div>
         <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Safety</div>
-        <h1><svg class="fmd-ico fmd-cap"><use href="#i-id"/></svg>Mansioni</h1>
-        <p class="fmd-sub">Catalogo job title aziendali — requisiti DPI / formazione / visite e livello di rischio per ogni mansione.</p>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-alert-tri"/></svg>Mansioni di rischio</h1>
+        <p class="fmd-sub">Gruppi omogenei del DVR e del medico competente: DPI, protocollo sanitario, schede di sicurezza e livello ASR di ogni mansione di rischio. La mansione lavorativa (macchina o processo) arriverà con il Mansionario.</p>
       </div>
       <div class="fmd-hero-side">
-        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_visibili }}</span><span class="fmd-lbl">Mansioni</span></div>
-        <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_rischio_tot }}</span><span class="fmd-lbl">Di rischio</span></div>
+        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_visibili }}</span><span class="fmd-lbl">Mansioni di rischio</span></div>
+        <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_rischio_tot }}</span><span class="fmd-lbl">Con DPI o visite</span></div>
       </div>
     </div>
   </section>
@@ -64,20 +64,20 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
     <form method="get" class="fmd-toolbar">
       <span class="fmd-search">
         <svg class="fmd-ico"><use href="#i-search"/></svg>
-        <input type="text" name="q" value="{{ q_text }}" placeholder="Cerca mansione… (es. addetto verniciatura)" autocomplete="off">
+        <input type="text" name="q" value="{{ q_text }}" placeholder="Cerca mansione di rischio… (es. addetto verniciatura)" autocomplete="off">
       </span>
       <select class="fmd-select" name="rischio" aria-label="Filtra per livello di rischio">
         <option value="">Tutti i rischi</option>
         {% for val, label in LIVELLO_RISCHIO_CHOICES %}<option value="{{ val }}" {% if filtro_rischio == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
       <label class="fmd-chip{% if solo_rischio %} fmd-on{% endif %}" style="cursor:pointer;">
-        <input type="checkbox" name="solo_rischio" value="1" {% if solo_rischio %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Solo mansioni di rischio
+        <input type="checkbox" name="solo_rischio" value="1" {% if solo_rischio %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Solo con DPI, visite o SDS
       </label>
       <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
       {% if q_text or filtro_rischio or solo_rischio %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansioni_list' %}">Azzera</a>{% endif %}
       {% include "anagrafica/components/_export_menu.html" with export_key="mansioni" %}
       <span class="fmd-spacer"></span>
-      <span class="fmd-block-aside">{{ n_visibili }} mostrate · {{ n_rischio_tot }} di rischio</span>
+      <span class="fmd-block-aside">{{ n_visibili }} mostrate · {{ n_rischio_tot }} con un profilo</span>
     </form>
   </section>
 
@@ -138,7 +138,7 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
   <section class="fmd-panel fmd-block">
     <div class="fmd-empty">
       <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-id"/></svg></span>
-      <span class="fmd-et">Nessuna mansione</span>
+      <span class="fmd-et">Nessuna mansione di rischio</span>
       <span class="fmd-em">Il catalogo è vuoto. Creane una qui sotto.</span>
     </div>
   </section>
@@ -147,15 +147,15 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
   {# ── Form nuova mansione (logica invariata) ─────────────────────────── #}
   {% if is_admin %}
   <section class="fmd-panel fmd-block">
-    <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</div></div>
+    <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione di rischio</div></div>
     <form method="post" action="{% url 'anagrafica:mansione_create' %}">
       {% csrf_token %}
       <div class="hub-form-stack">
         <div class="hub-fsec">
           <div class="hub-fsec-h">Identità</div>
-          <div class="hub-fsec-d">Come si chiama la mansione e una breve descrizione facoltativa.</div>
-          <div class="hub-field"><label>Nome mansione <span class="hub-req">*</span></label>
-            <input type="text" name="nome" required placeholder="es. Operaio specializzato, Impiegato tecnico…" maxlength="100"></div>
+          <div class="hub-fsec-d">Il nome usato dal medico competente nell'elenco idoneità, e una breve descrizione facoltativa.</div>
+          <div class="hub-field"><label>Nome mansione di rischio <span class="hub-req">*</span></label>
+            <input type="text" name="nome" required placeholder="es. ADDETTO VERNICIATURA" maxlength="100"></div>
           <div class="hub-field"><label>Descrizione (opzionale)</label>
             <input type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255"></div>
         </div>
@@ -171,28 +171,33 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
         </div>
       </div>
       <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <button type="submit" class="fmd-btn fmd-btn-primary">Crea mansione</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Crea mansione di rischio</button>
         <span class="fmd-muted" style="font-size:12px;">DPI e visite mediche richieste si associano dal pulsante <strong>Requisiti</strong> della mansione.</span>
       </div>
     </form>
   </section>
 
-  {% if not mansioni %}
-  <section class="fmd-panel fmd-block">
-    <div class="fmd-block-head"><div class="fmd-block-title">Mansioni suggerite — crea con un click</div></div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;">
-      {% for sugg in mansioni_suggerite %}
-      <form method="post" action="{% url 'anagrafica:mansione_create' %}" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="nome" value="{{ sugg }}">
-        <input type="hidden" name="colore" value="#1f87cd">
-        <button type="submit" class="fmd-btn fmd-btn-ghost">+ {{ sugg }}</button>
-      </form>
-      {% endfor %}
-    </div>
+  {% endif %}
+
+  {# ── Visita del cambio mansione mancante (spostata dal vecchio catalogo MansioneRischio) ── #}
+  <section class="fmd-panel fmd-block" aria-label="Visita del cambio mansione mancante">
+    <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Visita del cambio mansione mancante alla decorrenza</div></div>
+    <p class="fmd-muted" style="margin:0 0 10px;">D.Lgs. 81/2008 art. 41 c. 2 lett. d. Cosa succede quando la data dello spostamento arriva senza la visita: la scelta va condivisa con RSPP e medico competente.</p>
+    {% if is_admin %}
+    <form method="post" action="{% url 'anagrafica:sicurezza_operativa_config' %}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      {% csrf_token %}
+      <div class="hub-field" style="margin:0;min-width:260px;"><label for="cfg-modalita">Comportamento</label>
+        <select id="cfg-modalita" name="modalita_visita_mancante">
+          {% for code, label in config_sicurezza.MODALITA_CHOICES %}<option value="{{ code }}"{% if config_sicurezza.modalita_visita_mancante == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></div>
+      <div class="hub-field" style="margin:0;max-width:200px;"><label for="cfg-giorni">Durata massima deroga (giorni)</label>
+        <input id="cfg-giorni" type="number" min="1" max="365" name="deroga_max_giorni" value="{{ config_sicurezza.deroga_max_giorni }}"></div>
+      <button class="fmd-btn fmd-btn-primary" type="submit">Salva</button>
+    </form>
+    {% else %}
+    <div><strong>{{ config_sicurezza.get_modalita_visita_mancante_display }}</strong></div>
+    {% endif %}
   </section>
-  {% endif %}
-  {% endif %}
 
 </div>{# .fmd .mn-page #}
 

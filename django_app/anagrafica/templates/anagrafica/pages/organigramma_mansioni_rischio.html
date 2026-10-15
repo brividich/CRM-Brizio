@@ -35,7 +35,7 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Mansioni di rischio</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Organigramma per mansione di rischio</h1>
-        <p class="fmd-ph-sub">Gruppi omogenei del DVR con le persone esposte, per RSPP e medico competente. In rosso chi non è idoneo a operare, in giallo chi ha un avviso o è in deroga.</p>
+        <p class="fmd-ph-sub">Gruppi omogenei del DVR con le persone esposte, per RSPP e medico competente. In rosso chi non è idoneo a operare, in giallo chi ha un avviso o è in deroga.{% if senza_mansione %} Dipendenti attivi senza mansione di rischio in anagrafica, che non compaiono qui: <strong>{{ senza_mansione }}</strong>.{% endif %}</p>
       </div>
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/components/_export_menu.html" with export_key="organigramma_mansioni_rischio" %}
@@ -43,35 +43,26 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
     </div>
 
     <form method="get" class="fmd-filterbar fmd-panel fmd-block" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-      <input type="hidden" name="vista" value="{{ vista }}">
       <div class="fm-form-field" style="min-width:260px;margin:0;"><label for="orgr-fattore">Fattore di rischio</label>
         <select id="orgr-fattore" name="fattore" class="fm-input fm-select" onchange="this.form.submit()">
           <option value="">Tutti</option>
           {% for f in fattori_opts %}<option value="{{ f.pk }}"{% if f.pk == fattore_id %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}
         </select></div>
       <noscript><button class="fmd-btn fmd-btn-ghost" type="submit">Filtra</button></noscript>
-      <div class="orgr-tabs" role="group" aria-label="Vista">
-        <a class="fmd-btn {% if vista == 'rischio' %}fmd-btn-navy{% else %}fmd-btn-ghost{% endif %}" href="?vista=rischio{% if fattore_id %}&amp;fattore={{ fattore_id }}{% endif %}">Per mansione di rischio</a>
-        <a class="fmd-btn {% if vista == 'lavorativa' %}fmd-btn-navy{% else %}fmd-btn-ghost{% endif %}" href="?vista=lavorativa{% if fattore_id %}&amp;fattore={{ fattore_id }}{% endif %}">Per mansione lavorativa</a>
-      </div>
     </form>
 
-    {% if vista == 'rischio' %}
       {% for g in gruppi %}
       <section class="fmd-panel fmd-block orgr-gruppo">
         <div class="fmd-block-head">
-          <div class="fmd-block-title"><a class="fmd-data-link" href="{% url 'anagrafica:mansione_rischio_dettaglio' g.mansione_rischio.pk %}">{{ g.mansione_rischio.codice }} · {{ g.mansione_rischio.nome }}</a> <span class="fmd-count">{{ g.n_persone }}</span></div>
+          <div class="fmd-block-title"><a class="fmd-data-link" href="{% url 'anagrafica:mansione_requisiti' g.mansione_rischio.pk %}">{{ g.mansione_rischio.nome }}</a>{% if g.mansione_rischio.livello_rischio %} <span class="fmd-badge fmd-b-{% if g.mansione_rischio.livello_rischio == 'A' %}red{% elif g.mansione_rischio.livello_rischio == 'M' %}orange{% else %}green{% endif %}">{{ g.mansione_rischio.get_livello_rischio_display }}</span>{% endif %} <span class="fmd-count">{{ g.n_persone }}</span></div>
           <div>{% for f in g.fattori %}<span class="fmd-badge fmd-b-orange" style="margin-left:4px;">{{ f.nome }}</span>{% endfor %}</div>
         </div>
         {% if can_view_visite and g.visite %}<div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Protocollo: {% for v in g.visite %}{{ v.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
-        {% for m in g.mansioni %}
         <div class="orgr-mansione">
-          <div class="orgr-mansione-head">{{ m.mansione.nome }} <span class="fmd-muted" style="font-weight:400;">{{ m.persone|length }} persone</span></div>
           <div class="orgr-persone">
-            {% for p in m.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}" title="{{ p.reparto }}{% if p.stato %} · {{ p.stato }}{% endif %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">Nessuno</span>{% endfor %}
+            {% for p in g.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}" title="{{ p.reparto }}{% if p.stato %} · {{ p.stato }}{% endif %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">Nessuno</span>{% endfor %}
           </div>
         </div>
-        {% endfor %}
         {% if g.aggiunte %}
         <div class="orgr-mansione">
           <div class="orgr-mansione-head">Aggiunte individuali</div>
@@ -83,18 +74,6 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
       {% empty %}
       <div class="fmd-panel fmd-block fmd-muted">Nessuna mansione di rischio{% if fattore_id %} con questo fattore{% endif %}.</div>
       {% endfor %}
-    {% else %}
-      <section class="fmd-panel fmd-block">
-        <div class="fmd-tablewrap"><table class="fmd-table">
-          <thead><tr><th>Mansione lavorativa</th><th>Mansioni di rischio</th><th>Persone</th></tr></thead>
-          <tbody>{% for v in per_mansione %}<tr>
-            <td><a class="fmd-data-link" href="{% url 'anagrafica:mansione_requisiti' v.mansione.pk %}">{{ v.mansione.nome }}</a></td>
-            <td>{% for mr in v.rischi %}<a class="fmd-badge fmd-b-cyan" style="margin:0 4px 4px 0;text-decoration:none;" href="{% url 'anagrafica:mansione_rischio_dettaglio' mr.pk %}">{{ mr.codice }}</a>{% endfor %}</td>
-            <td><div class="orgr-persone" style="margin:0;">{% for p in v.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></td>
-          </tr>{% empty %}<tr><td colspan="3" class="fmd-muted">Nessuna mansione lavorativa collegata.</td></tr>{% endfor %}</tbody>
-        </table></div>
-      </section>
-    {% endif %}
   </div>
 </div>
 {% endblock %}

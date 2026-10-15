@@ -54,7 +54,7 @@
           <tr>
             <th data-col="fattore" data-col-label="Fattore" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Fattore</th>
             <th data-col="categoria" data-col-label="Categoria fattore" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Categoria</th>
-            <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
+            <th data-col="mansione" data-col-label="Mansione di rischio" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione di rischio</th>
             <th data-col="area" data-col-label="Area" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Area</th>
             <th data-col="note" data-col-label="Note" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Note</th>
             <th data-col="attivo" data-col-label="Attivo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Attivo</th>
@@ -151,7 +151,7 @@ function openEspEdit(pk, fattoreId, mansioneId, areaId, note, isActive) {
   document.getElementById('edit-esp-fields').innerHTML = `
     <div class="fm-form-field"><label>Fattore di rischio *</label><select name="fattore" class="fm-input fm-select" required>${fOpt}</select></div>
     <div class="fm-form-grid-2">
-      <div class="fm-form-field"><label>Mansione</label><select name="mansione" class="fm-input fm-select">${mOpt}</select></div>
+      <div class="fm-form-field"><label>Mansione di rischio</label><select name="mansione" class="fm-input fm-select">${mOpt}</select></div>
       <div class="fm-form-field"><label>Area</label><select name="area" class="fm-input fm-select">${aOpt}</select></div>
     </div>
     <div class="fm-form-field"><label>Note</label><textarea name="note" class="fm-input" rows="2">${note}</textarea></div>
