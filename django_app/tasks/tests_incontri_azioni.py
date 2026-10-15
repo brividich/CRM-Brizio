@@ -108,6 +108,18 @@ class IncontriAzioniTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Task.objects.filter(title="Sopralluogo").exists())
 
+    def test_voce_collegata_a_attivita_gia_completata_nasce_chiusa(self):
+        task = Task.objects.create(title="Fatta", project=self.project, created_by=self.user, status=TaskStatus.DONE)
+        action = MeetingActionItem.objects.create(project=self.project, title="Già fatta", linked_task=task)
+        issue = MeetingIssue.objects.create(project=self.project, title="Già risolto", linked_task=task)
+        aperta = MeetingActionItem.objects.create(project=self.project, title="Senza attività")
+        action.refresh_from_db()
+        issue.refresh_from_db()
+        aperta.refresh_from_db()
+        self.assertEqual(action.status, MeetingActionStatus.DONE)
+        self.assertEqual(issue.status, MeetingIssueStatus.RESOLVED)
+        self.assertEqual(aperta.status, MeetingActionStatus.OPEN)
+
     def test_cambio_stato_a_completata_porta_avanzamento_al_cento(self):
         task = Task.objects.create(title="Avanzamento", project=self.project, created_by=self.user, progress=40)
         self.client.post(reverse("tasks:change_status", args=[task.id]), {"status": TaskStatus.DONE})
