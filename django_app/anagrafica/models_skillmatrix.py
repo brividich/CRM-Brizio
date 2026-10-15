@@ -58,7 +58,11 @@ class SkillMatrixConfig(models.Model):
     REGOLA_MIN = "MIN"
     REGOLA_MEDIA = "MEDIA"
     REGOLA_BLOCCANTI = "BLOCCANTI"
+    # Decisione 15/10/2026 (Mansionario D16): le competenze si «sommano» (media),
+    # ma una competenza bloccante insufficiente fa da tetto.
+    REGOLA_MEDIA_TETTO = "MEDIA_TETTO"
     REGOLA_MULTIVOCE_CHOICES = [
+        (REGOLA_MEDIA_TETTO, "Media delle voci, mai sopra la voce bloccante più bassa"),
         (REGOLA_MIN, "Minimo delle voci (più rigoroso)"),
         (REGOLA_MEDIA, "Media delle voci"),
         (REGOLA_BLOCCANTI, "Minimo sulle sole voci bloccanti"),
@@ -69,9 +73,8 @@ class SkillMatrixConfig(models.Model):
         help_text="Livello minimo (≥) per contare come operativo nel pool capacità.",
     )
     regola_multivoce = models.CharField(
-        max_length=12, choices=REGOLA_MULTIVOCE_CHOICES, default=REGOLA_MIN,
-        help_text="Come calcolare il livello complessivo di una macchina multivoce "
-                  "(da confermare in sessione CAR).",
+        max_length=12, choices=REGOLA_MULTIVOCE_CHOICES, default=REGOLA_MEDIA_TETTO,
+        help_text="Come calcolare il livello della persona su una mansione con più competenze.",
     )
     finestra_continuita_mesi = models.PositiveSmallIntegerField(default=12)
     preavviso_continuita_mesi = models.PositiveSmallIntegerField(default=9)
@@ -340,10 +343,12 @@ class AbilitazioneMacchina(models.Model):
 # Macchine "più voci" (catalogo voci per tipo macchina) — popolamento CAR
 # ---------------------------------------------------------------------------
 class VoceMacchinaCatalogo(models.Model):
-    """Voce valutabile di una macchina multivoce (es. set-up, programmazione BM).
+    """Competenza valutabile: una voce di una mansione (es. set-up, programmazione BM).
 
-    Valutata per *tipo* di macchina, non per singolo asset. Catalogo predisposto
-    vuoto: il popolamento è una sessione CAR (non bloccante per il resto).
+    Nata per *tipo* di macchina (``asset_type``); dal Mansionario fase 3 (D17) la
+    voce appartiene a **una mansione** (``mansione``), con il suo livello minimo e
+    gli eventuali requisiti formali (corso, qualifica, abilitazione MOD.128): senza
+    il requisito la persona non supera «I – in formazione» su quella voce.
     """
 
     codice = models.CharField(max_length=60, unique=True)
@@ -353,8 +358,28 @@ class VoceMacchinaCatalogo(models.Model):
         max_length=20, blank=True, default="",
         help_text="Tipo macchina a cui si applica (vuoto = generica).",
     )
+    mansione = models.ForeignKey(
+        CompetenzaSkm, on_delete=models.CASCADE, null=True, blank=True, related_name="competenze",
+        help_text="Mansione (colonna skill matrix) a cui appartiene la competenza.",
+    )
+    livello_minimo = models.CharField(
+        max_length=1, choices=LivelloSkm.choices, default=LivelloSkm.AUTONOMO,
+        help_text="Livello richiesto su questa competenza.",
+    )
     bloccante = models.BooleanField(
-        default=False, help_text="Conta per la regola multivoce BLOCCANTI.",
+        default=False, help_text="Sotto il minimo blocca l'abilitazione e fa da tetto al livello.",
+    )
+    corso = models.ForeignKey(
+        "anagrafica.TrainingCourse", on_delete=models.SET_NULL, null=True, blank=True, related_name="competenze_mansione",
+        help_text="Corso da avere completato e valido.",
+    )
+    qualifica = models.ForeignKey(
+        "anagrafica.TipoQualifica", on_delete=models.SET_NULL, null=True, blank=True, related_name="competenze_mansione",
+        help_text="Qualifica o patentino da avere valido.",
+    )
+    processo_mpq = models.ForeignKey(
+        "anagrafica.ProcessoQualificato", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="competenze_mansione", help_text="Abilitazione MOD.128 da avere operativa.",
     )
     ordine = models.PositiveSmallIntegerField(default=0)
     attiva = models.BooleanField(default=True)
