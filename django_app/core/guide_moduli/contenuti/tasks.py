@@ -40,12 +40,16 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "«+ Nuovo incontro»: data, ora, sala, partecipanti e ordine del giorno. L'ordine del giorno si precompila con i problemi aperti.",
-                    "Clicca «Invia convocazione»: parte la mail con l'invito da aggiungere al calendario.",
-                    "Durante la riunione puoi usare «Conduci incontro»: un punto alla volta, con il tempo e le note.",
+                    "Clicca «Invia convocazione» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
+                    "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare».",
+                    "Durante la riunione puoi usare «Conduci incontro»: appello dei convocati, un punto alla volta, con il tempo e le note.",
                     "Dopo la riunione registra l'esito: presenti, note per ogni punto, decisioni e azioni (chi fa cosa entro quando).",
                     "Clicca «Invia minuta» (o «Scarica minuta PDF»).",
                     "Quando è tutto giusto: «Approva e chiudi minuta». Riaprirla richiede un motivo.",
+                    "«Pianifica prossimo incontro» crea il successivo con gli stessi convocati, persone in copia, luogo e ora.",
                 ]),
+                ("nota", "Un incontro che non si tiene si annulla con «Annulla incontro»: serve il motivo, l'evento Outlook viene tolto e i convocati avvisati. "
+                         "Si eliminano solo gli incontri mai svolti e senza decisioni."),
             ],
         },
         {
@@ -55,7 +59,9 @@ GUIDA = {
                 ("def", [
                     ("Portfolio", "le commesse in card, board per fase (Bozza, VRF, In esecuzione, Completata) o timeline."),
                     ("Da gestire", "VRF mancanti, commesse non pronte, attività critiche, incontri con problemi aperti. «Le mie» filtra su di te."),
-                    ("Calendario / Incontri", "tutti gli incontri del mese o in elenco."),
+                    ("Calendario / Incontri", "tutti gli incontri del mese o in elenco, con i filtri per commessa, esito/minuta e prossimi 7 giorni."),
+                    ("Le mie azioni", "le azioni e i problemi degli incontri assegnati a te: li chiudi da qui. Quando completi l'attività collegata si chiudono da soli."),
+                    ("Registro azioni", "dalla commessa: problemi, azioni d'incontro, attività e sotto-attività in un solo elenco, filtrabile per tipo, responsabile e scadenza."),
                     ("Gantt", "le attività come barre: trascina il centro per spostarle, i bordi per allungarle."),
                 ]),
             ],
@@ -99,6 +105,13 @@ GUIDA = {
             "fare": [
                 "Carica il VRF dalla scheda VRF della commessa.",
                 "Se il VRF non serve, segnalo come «non richiesto».",
+            ],
+        },
+        {
+            "sintomo": "«Elimina» non compare su un incontro",
+            "fare": [
+                "Un incontro svolto, o con decisioni registrate, non si elimina: verbale e decisioni sparirebbero.",
+                "Se non si è tenuto davvero, riapri la minuta e correggi l'esito; se non si terrà, usa «Annulla incontro».",
             ],
         },
         {
