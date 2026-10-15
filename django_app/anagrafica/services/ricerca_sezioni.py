@@ -211,17 +211,18 @@ def _g_formazione(request, q, ql) -> list[Gruppo]:
 
 
 def _g_sicurezza(request, q, ql) -> list[Gruppo]:
-    from ..models_mansioni_rischio import MansioneRischio
+    # Il catalogo delle mansioni di rischio è ``Mansione`` (spec Mansionario 15/10/2026).
+    from ..models import Mansione
     from ..views import _can_view_formazione
 
     if not _can_view_formazione(request):  # stesso cancello del cruscotto sicurezza
         return []
     g = Gruppo("mansioni_rischio", "Mansioni di rischio", "i-alert-tri",
                altro_url=reverse("anagrafica:sicurezza_ricerca") + "?q=")
-    for mr in MansioneRischio.objects.filter(Q(nome__icontains=q) | Q(codice__icontains=q)).order_by("nome")[:LIMITE]:
-        g.voci.append(_voce(mr.nome, reverse("anagrafica:mansione_rischio_dettaglio", args=[mr.pk]),
-                            mr.codice + (f" · rischio {mr.get_livello_rischio_dvr_display().lower()}"
-                                         if mr.livello_rischio_dvr else ""), "i-alert-tri"))
+    for m in Mansione.objects.filter(is_active=True, nome__icontains=q).order_by("nome")[:LIMITE]:
+        g.voci.append(_voce(m.nome, reverse("anagrafica:mansione_requisiti", args=[m.pk]),
+                            f"rischio {m.get_livello_rischio_display().lower()}" if m.livello_rischio else "",
+                            "i-alert-tri"))
     return [g]
 
 

@@ -112,8 +112,29 @@ GUIDA = {
                     ("Visita mancante", "in fondo al catalogo si sceglie cosa succede se alla decorrenza di uno spostamento "
                                         "manca la visita del cambio mansione."),
                 ]),
-                ("nota", "La mansione lavorativa (la macchina o il processo su cui si lavora, con le sue competenze) è una "
-                         "cosa diversa e arriverà con il Mansionario."),
+                ("nota", "La mansione lavorativa (la macchina o il processo su cui si lavora) è un'altra cosa: "
+                         "si gestisce nel Mansionario."),
+            ],
+        },
+        {
+            "id": "mansionario",
+            "titolo": "Mansionario",
+            "blocchi": [
+                ("p", "Competenze → Skill Matrix → «Mansionario». La struttura è ruolo → mansione → persone. Una mansione "
+                      "è una macchina o un processo: sono le colonne della skill matrix MOD.187."),
+                ("def", [
+                    ("Scheda della mansione", "la barra conta le persone in lista per livello: verde autonomo o esperto, "
+                                              "giallo intermedio, grigio in formazione. Il numero grande sono gli operativi "
+                                              "(livello pari o sopra la soglia della skill matrix)."),
+                    ("Ruoli", "ruoli sotto cui sta la mansione: di norma uno."),
+                    ("Reparto", "per una macchina è quello dell'asset; per un processo si sceglie nella mansione."),
+                    ("Mansioni di rischio", "quelle che comporta chi la svolge: da lì vengono DPI, visite e schede di "
+                                            "sicurezza. Una mansione senza mansione di rischio è segnalata."),
+                    ("Persone", "dalla pagina della mansione si mette una persona in lista con il suo livello, o la "
+                                "si toglie. Ogni modifica resta nello storico delle abilitazioni."),
+                ]),
+                ("nota", "Le competenze richieste da ogni mansione (corsi, qualifiche, livello per competenza) arrivano "
+                         "nella fase successiva."),
             ],
         },
         {
