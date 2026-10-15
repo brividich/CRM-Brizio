@@ -59,3 +59,4 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) ogni tool di dati gira solo se la persona può «vedere» almeno uno dei moduli che legge (`ai_assistant/tools.py::TOOL_MODULI`, `tool_consentito`). Sempre: il tool «Carichi macchina» richiede il permesso di consultazione del piano carichi, e il tool ticket riconosce i ticket propri solo da identificativi stabili (mai dal nome).
+- **Centro guide nell'assistente**: «Come si usa» dei moduli per tutti; «Amministratore e configurazione», «Se qualcosa non va» e Manuale di emergenza solo per gli amministratori del portale (guide `solo_admin`, filtrate in `guide_consentite`).

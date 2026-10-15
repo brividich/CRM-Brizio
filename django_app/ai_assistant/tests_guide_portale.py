@@ -180,13 +180,24 @@ class GuideConsentiteTests(TestCase):
         request = SimpleNamespace(user=self.user, legacy_user=object())
 
         def _decisione(*, path, **kwargs):
-            return {"allowed": path.startswith("/timbri/")}
+            return {"allowed": path.rstrip("/") == "/timbri"}
 
         with patch("core.legacy_utils.legacy_auth_enabled", return_value=True), patch(
-            "core.acl_v2.resolve_acl_access", side_effect=_decisione
-        ):
+            "core.middleware.legacy_auth_enabled", return_value=True
+        ), patch("core.middleware.resolve_acl_access", side_effect=_decisione):
             consentite = guide_portale.guide_consentite(request)
-        self.assertEqual(consentite, frozenset({"timbri"}))
+        from core.middleware import is_acl_shared_path
+
+        # Le pagine condivise (Centro guide, guida della home e dell'assistente) sono
+        # aperte a chi ha fatto l'accesso, come nel middleware; le parti per
+        # amministratori restano fuori per un utente normale.
+        condivise = {
+            g.slug for g in guide_portale.guide()
+            if not g.solo_admin and is_acl_shared_path(g.url().split("?", 1)[0])
+        }
+        self.assertIn("centro-assenze", condivise)
+        self.assertEqual(consentite, frozenset({"timbri"} | condivise))
+        self.assertFalse(any(slug.endswith("-admin") or slug == "centro-emergenza" for slug in consentite))
 
 
 class TicketPeriodoTests(TestCase):

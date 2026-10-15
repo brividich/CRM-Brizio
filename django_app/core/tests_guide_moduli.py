@@ -94,13 +94,31 @@ class GuideViewTests(TestCase):
         resp = self.client.get(reverse("guide_indice"))
         self.assertContains(resp, "nav-icon-guida")
 
-    def test_assistente_ai_indicizza_solo_la_parte_uso(self):
+    def test_assistente_ai_parte_uso_per_tutti_parte_admin_solo_amministratori(self):
+        from django.test import RequestFactory
+
         from ai_assistant import guide_portale
 
         centro = {g.slug: g for g in guide_portale.guide() if g.slug.startswith("centro-")}
-        self.assertIn("centro-assenze", centro)
-        self.assertNotIn("centro-emergenza", centro)
         self.assertNotIn("centro-timbri", centro)  # ha già la sua guida di dettaglio nel registro
-        testo = centro["centro-assenze"].testo()
-        self.assertIn("Chiedere ferie o un permesso", testo)
-        self.assertNotIn("Convivenza con SharePoint", testo)
+        uso = centro["centro-assenze"].testo()
+        self.assertIn("Chiedere ferie o un permesso", uso)
+        self.assertNotIn("Convivenza con SharePoint", uso)
+        admin = centro["centro-assenze-admin"]
+        self.assertTrue(admin.solo_admin)
+        self.assertIn("Convivenza con SharePoint", admin.testo())
+        self.assertIn("La richiesta va al capo sbagliato", admin.testo())
+        self.assertIn("centro-timbri-admin", centro)
+        self.assertTrue(centro["centro-emergenza"].solo_admin)
+
+        factory = RequestFactory()
+        richiesta = factory.get("/assistente-ai/")
+        richiesta.user = self.utente
+        per_utente = guide_portale.guide_consentite(richiesta)
+        self.assertIn("centro-assenze", per_utente)
+        self.assertNotIn("centro-assenze-admin", per_utente)
+        self.assertNotIn("centro-emergenza", per_utente)
+        richiesta.user = self.admin
+        per_admin = guide_portale.guide_consentite(richiesta)
+        self.assertIn("centro-assenze-admin", per_admin)
+        self.assertIn("centro-emergenza", per_admin)

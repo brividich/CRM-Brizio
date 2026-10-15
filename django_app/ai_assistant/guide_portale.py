@@ -46,6 +46,10 @@ class Guida:
     # Parole con cui gli utenti nominano il modulo: titolo dei chunk per il BM25 e
     # riconoscimento del modulo citato nella domanda (vedi ``guide_menzionate``).
     parole: str = ""
+    # Parte riservata agli amministratori del portale (configurazione, problemi,
+    # manuale di emergenza): la rotta è aperta a tutti, quindi il gate ACL non basta
+    # e ``guide_consentite`` la dà solo a chi passa ``puo_vedere_admin``.
+    solo_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -305,32 +309,48 @@ def _registro() -> list[Guida]:
 
 
 def _guide_centro() -> list[Guida]:
-    """Centro guide (``core/guide_moduli``): solo la parte «Come si usa».
+    """Centro guide (``core/guide_moduli``).
 
-    Le parti per amministratori restano fuori dall'indice: l'assistente risponde a
-    tutti, e la configurazione non deve finire nelle risposte a chi usa i moduli.
-    Restano fuori anche i moduli con una guida di dettaglio già registrata qui sopra
-    (timbri, anomalie, asset…): la sintesi del Centro guide le ripeterebbe in breve e
-    toglierebbe posto nel top-k al testo completo.
+    - «Come si usa» (``centro-<modulo>``) per tutti, tranne i moduli con una guida di
+      dettaglio già registrata qui sopra (timbri, anomalie, asset…): la sintesi la
+      ripeterebbe in breve e toglierebbe posto nel top-k al testo completo.
+    - «Amministratore e configurazione» + «Se qualcosa non va» (``centro-<modulo>-admin``)
+      e il Manuale di emergenza (``centro-emergenza``): ``solo_admin``, quindi solo per
+      chi vede le stesse parti nella pagina guida.
     """
     from core import guide_moduli
 
     elenco = []
     for guida in guide_moduli.tutte():
-        if guida["solo_admin"] or guida["dettaglio"]:
+        base = "centro-" + guida["slug"].replace("_", "-")
+        file = _file_modulo(f"core.guide_moduli.contenuti.{guida['slug']}")
+        parole = guida.get("parole", "")
+        if guida["solo_admin"]:
+            def _testo_tutto(guida=guida) -> str:
+                return sezioni_in_markdown(guide_moduli.capitoli_uso(guida))
+
+            elenco.append(Guida(base, guida["titolo"], _reverse("guida_modulo", slug=guida["slug"]),
+                                _testo_tutto, file, parole=parole, solo_admin=True))
             continue
+        if not guida["dettaglio"]:
+            def _testo_uso(guida=guida) -> str:
+                return sezioni_in_markdown(guide_moduli.capitoli_uso(guida))
 
-        def _testo(guida=guida) -> str:
-            return sezioni_in_markdown(guide_moduli.capitoli_uso(guida))
+            elenco.append(Guida(base, guida["titolo"], _reverse("guida_modulo", slug=guida["slug"]),
+                                _testo_uso, file, parole=parole))
+        if guida["admin"] or guida["problemi"]:
+            def _testo_admin(guida=guida) -> str:
+                return sezioni_in_markdown(
+                    guide_moduli.capitoli(guida, "admin") + guide_moduli.capitoli(guida, "problemi")
+                )
 
-        elenco.append(Guida(
-            "centro-" + guida["slug"].replace("_", "-"),
-            guida["titolo"],
-            _reverse("guida_modulo", slug=guida["slug"]),
-            _testo,
-            _file_modulo(f"core.guide_moduli.contenuti.{guida['slug']}"),
-            parole=guida.get("parole", ""),
-        ))
+            elenco.append(Guida(
+                base + "-admin", f"{guida['titolo']} · amministratore",
+                _reverse("guida_modulo", "?vista=admin", slug=guida["slug"]),
+                _testo_admin, file,
+                parole=parole,
+                solo_admin=True,
+            ))
     return elenco
 
 
@@ -416,6 +436,27 @@ def guide_menzionate(tokens, tokenize: Callable[[str], list[str]] = str.split) -
     return frozenset(trovate)
 
 
+# Domande da amministratore: configurazione, permessi, errori, servizi del server.
+_INTENTO_ADMIN_RE = re.compile(
+    r"configur|impostazion|amministr|permess|\berror|non\s+(funzion|parte|partono|arriva|arrivano|va\b|si\s+apre)|"
+    r"bloccat|problem|risolv|sincronizz|riavvi|\bserver\b|\blog\b|qcluster|backup|ripristin|emergenz|\.env\b",
+    re.IGNORECASE,
+)
+
+
+def guide_admin_pertinenti(prompt: str, tokens, tokenize: Callable[[str], list[str]] = str.split) -> frozenset[str]:
+    """Guide ``solo_admin`` utili per la domanda.
+
+    Tutte se la domanda è da amministratore («la sincronizzazione non parte»);
+    altrimenti solo quelle del modulo nominato. Così configurazione e problemi non
+    tolgono posto alle risposte d'uso («a chi è in carico un'anomalia?»).
+    """
+    admin = {g.slug for g in guide() if g.solo_admin}
+    if _INTENTO_ADMIN_RE.search(prompt or ""):
+        return frozenset(admin)
+    return frozenset(admin & guide_menzionate(tokens, tokenize))
+
+
 def slug_da_source(source: str) -> str | None:
     if not source.startswith(SOURCE_PREFIX):
         return None
@@ -429,7 +470,8 @@ def guide_consentite(request) -> frozenset[str]:
     """Slug delle guide che l'utente potrebbe aprire nel portale (ACL v2 della rotta).
 
     Fail-closed: request assente → nessuna guida. Superuser o legacy-auth spenta
-    (dev/test, il middleware non applica gate) → tutte.
+    (dev/test, il middleware non applica gate) → tutte. Le guide ``solo_admin``
+    (parti per amministratori del Centro guide) solo a chi le vede nella pagina.
     """
     if request is None:
         return frozenset()
@@ -438,27 +480,31 @@ def guide_consentite(request) -> frozenset[str]:
     if not getattr(user, "is_authenticated", False):
         return frozenset()
     try:
-        from core.acl_v2 import resolve_acl_access
         from core.legacy_utils import get_legacy_user, legacy_auth_enabled
     except Exception:
         return frozenset()
+    try:
+        from core.guide_moduli import puo_vedere_admin
+
+        admin = puo_vedere_admin(request)
+    except Exception:
+        admin = False
+    if not admin:
+        elenco = [g for g in elenco if not g.solo_admin]
     if getattr(user, "is_superuser", False) or not legacy_auth_enabled():
         return frozenset(g.slug for g in elenco)
+
+    # Stessa politica dell'ACLMiddleware (pagine condivise comprese: /guide/, guida
+    # della home e dell'assistente), così una guida arriva a chi la può aprire.
+    from core.middleware import acl_allows_path
 
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
     consentite: set[str] = set()
     for guida in elenco:
         try:
             path = guida.url().split("?", 1)[0]
-            decision = resolve_acl_access(
-                path=path,
-                legacy_user=legacy_user,
-                django_user=user,
-                request=request,
-                include_legacy_diagnostic=False,
-            )
+            if acl_allows_path(path, django_user=user, legacy_user=legacy_user, request=request):
+                consentite.add(guida.slug)
         except Exception:
             continue
-        if decision.get("allowed"):
-            consentite.add(guida.slug)
     return frozenset(consentite)
