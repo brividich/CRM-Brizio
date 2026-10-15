@@ -57,6 +57,8 @@ GUIDA = {
                 "Configurazione › Parser › «Prova i parser»: incolla la mail o carica il file recente.",
                 "Nel riquadro «Cosa ha letto» i campi con «Manca» sono quelli che non trova più: segnalali con un esempio (dati anonimizzati).",
                 "Finché non è corretto, un dato illeggibile non chiude da solo nessun alert e non conta come «tutto ok».",
+                "Con la «Lettura assistita dall'AI» accesa (Impostazioni del Security Center) accanto a queste letture compare "
+                "la proposta dell'AI: utile per capire cosa è cambiato, ma va confrontata con il documento.",
             ],
         },
     ],

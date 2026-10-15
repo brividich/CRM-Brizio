@@ -170,7 +170,31 @@ def parser_overview():
         },
         "queue_summary": _queue_summary(),
         "unprocessed_items": _unprocessed_items(),
+        "to_check_items": _to_check_items(),
     }
+
+
+def _to_check_items(limit=10):
+    """Ultimi elementi letti ma «da verificare», con l'eventuale proposta dell'AI."""
+    items = []
+    for model, date_field, kind in ((SecurityMailboxMessage, "received_at", "Mail"), (SecuritySourceFile, "uploaded_at", "File")):
+        rows = model.objects.filter(parse_status=ParseStatus.PARSED).select_related("source").order_by(f"-{date_field}")[:RECENT_ITEMS_WINDOW]
+        for item in rows:
+            payload = item.raw_payload or {}
+            if payload.get("lettura_qualita") != QUALITA_DA_VERIFICARE:
+                continue
+            items.append({
+                "kind": kind,
+                "title": getattr(item, "subject", "") or getattr(item, "original_name", ""),
+                "parser": PARSER_INFO.get(payload.get("parser_name"), {}).get("label", payload.get("parser_name", "")),
+                "source": getattr(item.source, "name", ""),
+                "at": getattr(item, date_field),
+                "ai": payload.get("ai_lettura") or None,
+            })
+            if len(items) >= limit * 2:
+                break
+    items.sort(key=lambda row: row["at"].timestamp() if row["at"] else 0, reverse=True)
+    return items[:limit]
 
 
 def _row(name, config, status, *, position=None, enabled, reports, failure, disabled_skips=0):
@@ -231,6 +255,7 @@ def _unprocessed_items(limit=10):
                     "status": item.parse_status,
                     "reason": reason,
                     "hint": hint,
+                    "ai": payload.get("ai_lettura") or None,
                 }
             )
     items.sort(key=lambda row: row["at"].timestamp() if row["at"] else 0, reverse=True)
@@ -273,7 +298,7 @@ def delete_orphan_config(config, *, actor=None, request=None):
     return True
 
 
-def test_parsers(*, sender="", subject="", body="", filename="", data=None):
+def test_parsers(*, sender="", subject="", body="", filename="", data=None, with_ai=False, user=None):
     """Prova a secco: quale parser prenderebbe questo contenuto e cosa ne estrarrebbe.
 
     Nessun salvataggio: gli oggetti restano in memoria e l'eventuale scrittura di un
@@ -312,7 +337,7 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
     if not chosen:
         code, detail = skip_reason(item)
         result.update({"chosen": None, "skip_code": code, "skip_detail": detail})
-        return result
+        return _with_ai(result, with_ai, item, None, user)
 
     result["chosen"] = PARSER_INFO.get(chosen.name, {}).get("label", chosen.name)
     result["chosen_name"] = chosen.name
@@ -322,7 +347,7 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
             transaction.set_rollback(True)
     except Exception as exc:  # noqa: BLE001 - è proprio l'errore che l'operatore deve vedere
         result["error"] = f"{type(exc).__name__}: {str(exc)[:400]}"
-        return result
+        return _with_ai(result, with_ai, item, chosen.name, user)
     record_types = {}
     for record in parsed.records:
         record_types[record.record_type] = record_types.get(record.record_type, 0) + 1
@@ -336,6 +361,21 @@ def test_parsers(*, sender="", subject="", body="", filename="", data=None):
         "alert_candidates": len((parsed.payload or {}).get("alerts_candidates") or (parsed.payload or {}).get("alert_candidates") or []),
         "lettura": (parsed.payload or {}).get("lettura") or {},
     }
+    return _with_ai(result, with_ai, item, chosen.name, user)
+
+
+def _with_ai(result, with_ai, item, parser_name, user):
+    """«Chiedi all'AI»: proposta della lettura assistita sullo stesso contenuto (nessun salvataggio)."""
+    if not with_ai:
+        return result
+    from security.services.ai_lettura import proponi_a_secco
+
+    is_file = isinstance(item, SecuritySourceFile)
+    result["ai"] = proponi_a_secco(
+        subject=item.original_name if is_file else item.subject,
+        text=(item.content if is_file else item.body) or "",
+        parser_name=parser_name, user=user,
+    )
     return result
 
 

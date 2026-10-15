@@ -80,6 +80,28 @@ def enrich_cve_task():
     return run_enrichment(time_budget_seconds=90)
 
 
+def ai_lettura_assistita_task():
+    """Lettura assistita dall'AI (schedule `security_ai_lettura`, flusso del designer Automazioni).
+
+    Fa leggere all'AI locale le letture «da verificare» e le mail che nessun parser riconosce:
+    proposte da controllare, mai alert. Spenta finché non si accende in /soc/impostazioni/;
+    al massimo «Massimo per giro» elementi ed entro 90 s (timeout worker 120 s).
+    """
+    from security.services import soc_settings
+    from security.services.ai_lettura import leggi_candidati, notifica_letture_ai
+
+    if not soc_settings.value("ai.lettura.attivo"):
+        return {"skipped": "lettura assistita spenta"}
+    done = leggi_candidati(limit=soc_settings.value("ai.lettura.max_per_giro"))
+    notified = notifica_letture_ai(done) if done else 0
+    return {
+        "lette": len(done),
+        "proposte_ok": sum(1 for row in done if row["result"]["ok"]),
+        "ms_medi": int(sum(row["result"]["ms"] for row in done) / len(done)) if done else 0,
+        "avvisi_inviati": notified or 0,
+    }
+
+
 def suggest_cpe_task(vendor, product):
     """Suggerimenti CPE dal dizionario NVD per un prodotto dell'inventario (accodato dalla pagina Software)."""
     from security.models import SoftwareCpeMapping

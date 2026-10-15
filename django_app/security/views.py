@@ -533,15 +533,16 @@ def admin_config_parsers(request):
 
 
 def _parser_test_from_request(request):
+    with_ai = request.POST.get("with_ai") == "1"
     uploaded = request.FILES.get("file")
     if uploaded:
         if uploaded.size > INBOX_MAX_UPLOAD_BYTES:
             return {"error_input": f"File troppo grande: massimo {INBOX_MAX_UPLOAD_BYTES // (1024 * 1024)} MB."}
-        return test_parsers(filename=Path(uploaded.name or "file").name, data=uploaded.read())
+        return test_parsers(filename=Path(uploaded.name or "file").name, data=uploaded.read(), with_ai=with_ai, user=request.user)
     sender, subject, body = (request.POST.get(key, "").strip() for key in ("sender", "subject", "body"))
     if not (subject or body):
         return {"error_input": "Indica almeno oggetto o testo, oppure carica un file."}
-    result = test_parsers(sender=sender, subject=subject, body=body)
+    result = test_parsers(sender=sender, subject=subject, body=body, with_ai=with_ai, user=request.user)
     result["input"] = {"sender": sender, "subject": subject, "body": body}
     return result
 

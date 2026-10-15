@@ -115,6 +115,21 @@ SECTIONS = [
                    "Solo per i software «Consentiti» con una versione minima; le versioni non confrontabili non vengono mai segnalate."),
         ],
     },
+    {
+        "code": "ai_lettura",
+        "title": "Lettura assistita dall'AI",
+        "intro": "Le mail e i file che un parser legge solo in parte («Da verificare») o che nessun parser riconosce vengono fatti "
+                 "leggere all'AI locale, che propone i campi mancanti o dice che tipo di mail è. È solo una proposta: non crea "
+                 "né chiude alert. Gira dal flusso «security_ai_lettura» (Automazioni › designer), dove si cambia la cadenza "
+                 "e si aggiungono altre azioni.",
+        "channels_optional": True,
+        "options": [
+            Option("ai.lettura.attivo", False, "Fai leggere all'AI le letture da verificare"),
+            Option("ai.lettura.max_per_giro", 5, "Massimo per giro", "Elementi letti a ogni esecuzione: ogni lettura impegna l'AI per qualche secondo.",
+                   "int", min_value=1, max_value=20, unit="elementi"),
+            Option("ai.lettura.canali", [], "Canali", "Dove avvisare quando ci sono nuove proposte da controllare (facoltativo).", "channels"),
+        ],
+    },
 ]
 
 OPTIONS = {option.key: option for section in SECTIONS for option in section["options"]}

@@ -93,7 +93,10 @@
       <label>Oggetto <input name="subject" value="{{ test_result.input.subject|default:'' }}" placeholder="Oggetto della mail"></label>
       <label>Testo <textarea name="body" rows="5" placeholder="Corpo della mail">{{ test_result.input.body|default:'' }}</textarea></label>
       <label>oppure un file (max {{ max_upload_mb }} MB) <input type="file" name="file" accept=".pdf,.csv,.txt,.log,.eml"></label>
-      <div><button class="sec-button-primary" type="submit">Prova</button></div>
+      <div class="sec-inline" style="gap:8px">
+        <button class="sec-button-primary" type="submit">Prova</button>
+        <button class="sec-button" type="submit" name="with_ai" value="1" title="Chiede anche all'AI locale una lettura: qualche secondo, nessun salvataggio">Prova e chiedi all'AI</button>
+      </div>
     </form>
 
     {% if test_result %}
@@ -143,6 +146,13 @@
               </div>
             {% endif %}{% endwith %}
           {% endif %}
+          {% if test_result.ai %}
+            <div class="sec-lettura" style="margin-top:10px">
+              <div class="sec-section-head"><h3>Cosa propone l'AI</h3></div>
+              <p class="sec-muted sec-small">Solo una proposta da confrontare con il documento: non crea né chiude alert.</p>
+              {% include "security/admin_config/_ai_lettura.html" with ai=test_result.ai %}
+            </div>
+          {% endif %}
           {% if test_result.is_file %}
             <details style="margin-top:8px"><summary>Testo estratto da {{ test_result.filename }}</summary><p class="sec-small sec-wrap">{{ test_result.extracted_preview|default:"(vuoto)" }}</p></details>
           {% endif %}
@@ -164,9 +174,26 @@
           <small class="sec-muted">{{ item.kind }}{% if item.sender %} · {{ item.sender }}{% endif %}{% if item.source %} · {{ item.source }}{% endif %} · {{ item.at|date:"d/m/Y H:i" }}</small>
           <small class="{% if item.status == 'failed' %}sec-error{% else %}sec-muted{% endif %} sec-wrap">{{ item.reason|truncatechars:200 }}</small>
           {% if item.hint %}<small class="sec-wrap">{{ item.hint }}</small>{% endif %}
+          {% include "security/admin_config/_ai_lettura.html" with ai=item.ai %}
         </li>
       {% empty %}<li class="sec-muted">Nessun elemento in errore o scartato.</li>{% endfor %}
     </ul>
   </section>
 </div>
+
+{% if to_check_items %}
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Letture da verificare</h2><a href="{% url 'security:soc_settings' %}#ai_lettura">Lettura assistita dall'AI</a></div>
+  <p class="sec-muted">Elementi letti, ma a cui manca un dato necessario. Se la lettura assistita è accesa, l'AI propone i campi mancanti: confrontali con il documento.</p>
+  <ul class="sec-mini-list sec-stack">
+    {% for item in to_check_items %}
+      <li>
+        <strong class="sec-wrap">{{ item.title|default:"(senza titolo)"|truncatechars:90 }}</strong>
+        <small class="sec-muted">{{ item.kind }} · {{ item.parser }}{% if item.source %} · {{ item.source }}{% endif %} · {{ item.at|date:"d/m/Y H:i" }}</small>
+        {% include "security/admin_config/_ai_lettura.html" with ai=item.ai %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endblock %}
