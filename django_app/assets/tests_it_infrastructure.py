@@ -206,7 +206,8 @@ class ITMonitoringTests(TestCase):
         # 8 query fisse (non crescono con il numero di MFC, max LINK_LIMIT): dispositivi,
         # rilevazioni, valori sonde, macchine, profilo per il permesso «Leggi adesso»,
         # ultima lettura mensile, consumabili salvati, storico mensile per il trend.
-        with patch("assets.services.it_monitoring.can_view_monitoring", return_value=True), self.assertNumQueries(8):
+        # 9: +1 fissa per le letture trimestrali di tutte le MFC del riquadro (non una per MFC).
+        with patch("assets.services.it_monitoring.can_view_monitoring", return_value=True), self.assertNumQueries(9):
             data = monitoring_for_asset(self.request, self.asset)
         self.assertEqual(data["devices"][0]["counters"][0]["valore"], 100)
         self.assertEqual(data["machines"][0]["reading"]["id"], reading.pk)

@@ -18,6 +18,7 @@ urlpatterns = [
          name="apparato_collega_asset"),
     path("lettura/nuova/", views.importa_lettura, name="importa_lettura"),
     path("letture/", views.letture_registro, name="letture_registro"),
+    path("letture/trimestre/", views.letture_trimestre, name="letture_trimestre"),
     path("letture/proposte/", views.letture_proposte, name="letture_proposte"),
     path("letture/<int:pk>/", views.importa_lettura, name="lettura_edit"),
     path("letture/<int:pk>/elimina/", views.lettura_elimina, name="lettura_elimina"),

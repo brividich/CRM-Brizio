@@ -1,0 +1,37 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Letture {{ trimestre }} di tutte le MFC{% endblock %}
+{% block modulo %}
+<div class="row"><div class="eyebrow">Letture trimestrali</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#registro-letture">? Guida</a></div>
+<h1>Letture {{ trimestre }} di tutte le MFC</h1>
+<p class="sub">Una riga per MFC attiva: compila solo quelle che hai, le righe vuote non vengono salvate. La data va dal {{ inizio|date:"d/m/Y" }} ai 45 giorni dopo la fine del trimestre. Sotto ogni MFC trovi l'ultima lettura prima del trimestre: un contatore più basso viene fermato e chiede conferma (azzeramento o macchina sostituita).</p>
+
+<section class="panel"><form method="get" class="row" style="gap:14px;align-items:flex-end">
+  <div class="form-field" style="min-width:180px"><label for="sel-trim">Trimestre</label>
+    <select id="sel-trim" name="trimestre" onchange="this.form.submit()">{% for t in trimestri %}<option value="{{ t }}"{% if t == trimestre %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  <noscript><button class="btn ghost" type="submit">Apri</button></noscript>
+  <span class="muted">{{ da_inserire }} MFC senza lettura del {{ trimestre }} · <a class="plain" href="{% url 'contatori:letture_registro' %}">Registro letture</a></span>
+</form></section>
+
+<form method="post" class="panel">{% csrf_token %}<input type="hidden" name="trimestre" value="{{ trimestre }}">
+  <div class="table-wrap"><table class="letture-massive" data-fm-table-skip="1">
+    <thead><tr><th>MFC</th><th>Data</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 colore</th><th class="num">A3 colore</th><th>Fonte</th></tr></thead>
+    <tbody>{% for r in righe %}{% with f=r.form p=r.precedente %}
+      <tr{% if f and f.errors %} class="riga-calo"{% endif %}>
+        <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.matricola }}{% if r.macchina.contratto %} · {{ r.macchina.contratto }}{% endif %}</div>
+          {% if p %}<div class="muted" title="Ultima lettura prima del {{ trimestre }}">prima: {{ p.trimestre }} · {{ p.a4_bn }} / {{ p.a3_bn }} / {{ p.a4_col }} / {{ p.a3_col }}</div>{% else %}<div class="muted">nessuna lettura precedente</div>{% endif %}</td>
+        {% if f %}
+          <td>{{ f.data }}{{ f.data.errors }}{{ f.trimestre.errors }}{{ f.non_field_errors }}</td>
+          <td class="num">{{ f.a4_bn }}{{ f.a4_bn.errors }}</td><td class="num">{{ f.a3_bn }}{{ f.a3_bn.errors }}</td>
+          <td class="num">{{ f.a4_col }}{{ f.a4_col.errors }}</td><td class="num">{{ f.a3_col }}{{ f.a3_col.errors }}</td>
+          <td>{{ f.fonte }}{% if not f.conferma_calo.is_hidden %}<label class="check-field">{{ f.conferma_calo }}<span>Confermo: azzerato o sostituito</span></label>{% else %}{{ f.conferma_calo }}{% endif %}</td>
+        {% else %}{% with l=r.esistente %}
+          <td>{{ l.data|date:"d/m/Y" }}</td>
+          <td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
+          <td><span class="pill ok">{{ l.get_fonte_display }}</span> <a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a></td>
+        {% endwith %}{% endif %}
+      </tr>
+    {% endwith %}{% empty %}<tr><td colspan="7" class="empty">Nessuna MFC attiva.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if da_inserire %}<div class="form-actions"><button class="btn" type="submit">Salva le letture compilate</button></div>{% endif %}
+</form>
+{% endblock %}
