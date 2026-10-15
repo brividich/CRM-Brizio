@@ -177,6 +177,26 @@ class CompetenzaSkm(models.Model):
     alias_storici = models.TextField(blank=True, default="")
     note = models.TextField(blank=True, default="")
 
+    # ── Mansionario (fase 2, spec 2026-10-15) ────────────────────────────
+    # La colonna macchina/processo È la mansione lavorativa: sta sotto uno o
+    # più ruoli, porta le sue mansioni di rischio (catalogo ``Mansione``) e,
+    # se è un processo senza asset, dichiara il reparto (per le macchine il
+    # reparto viene dall'asset).
+    ruoli = models.ManyToManyField(
+        "anagrafica.RuoloOperativo", blank=True, related_name="mansioni_skm",
+        help_text="Ruoli sotto cui sta la mansione (di norma uno).",
+    )
+    mansioni_rischio = models.ManyToManyField(
+        "anagrafica.Mansione", blank=True, related_name="mansioni_lavorative_skm",
+        help_text="Mansioni di rischio che comporta chi la svolge.",
+    )
+    reparto = models.ForeignKey(
+        "anagrafica.Reparto", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="mansioni_skm",
+        help_text="Solo per i processi senza asset: per le macchine vale il reparto dell'asset.",
+    )
+    attiva = models.BooleanField(default=True, help_text="Mansione in uso nel Mansionario.")
+
     # Esito del match asset (F2a). Mai usato come baseline finché non confermato.
     match_confidenza = models.CharField(
         max_length=10, choices=CONFIDENZA_CHOICES, default=CONF_NA, blank=True,
@@ -195,12 +215,28 @@ class CompetenzaSkm(models.Model):
     def __str__(self) -> str:
         return self.display or self.competenza_key
 
+    @property
+    def nome(self) -> str:
+        return self.display or self.competenza_key
+
+    @property
+    def reparto_effettivo(self) -> str:
+        """Reparto della mansione: dall'asset per le macchine, scelto per i processi."""
+        if self.asset_id and (getattr(self.asset, "reparto", "") or "").strip():
+            return self.asset.reparto.strip()
+        return self.reparto.nome if self.reparto_id else ""
+
 
 # ---------------------------------------------------------------------------
 # Abilitazione macchina (lo strato nuovo)
 # ---------------------------------------------------------------------------
 class AbilitazioneMacchina(models.Model):
-    """Abilitazione I/L/U/O di un dipendente su un asset/macchina."""
+    """Abilitazione I/L/U/O di un dipendente su una mansione (macchina o processo).
+
+    Nata per le macchine (``asset``); dal Mansionario fase 2 si lega anche alla
+    colonna della skill matrix (``competenza``), così vale pure per i processi
+    senza asset. Per una macchina valgono entrambi i riferimenti.
+    """
 
     STATO_ATTIVA = "attiva"
     STATO_SOSPESA = "sospesa"
@@ -212,6 +248,13 @@ class AbilitazioneMacchina(models.Model):
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     asset = models.ForeignKey(
         "assets.Asset", on_delete=models.PROTECT, related_name="abilitazioni_skm",
+        null=True, blank=True,
+        help_text="Vuoto per i processi senza asset.",
+    )
+    competenza = models.ForeignKey(
+        CompetenzaSkm, on_delete=models.PROTECT, related_name="abilitazioni",
+        null=True, blank=True,
+        help_text="La mansione (colonna della skill matrix) a cui si riferisce l'abilitazione.",
     )
     livello = models.CharField(max_length=1, choices=LivelloSkm.choices)
     in_lista = models.BooleanField(
@@ -237,15 +280,35 @@ class AbilitazioneMacchina(models.Model):
         ordering = ["asset__name", "legacy_anagrafica_id"]
         verbose_name = "Abilitazione macchina"
         verbose_name_plural = "Abilitazioni macchina"
+        # Indici unique filtrati con condizione POSITIVA (IS NOT NULL): SQL Server
+        # tratta i NULL come uguali in un unique normale, e non accetta NOT nel filtro.
         constraints = [
             models.UniqueConstraint(
                 fields=["legacy_anagrafica_id", "asset"],
+                condition=models.Q(asset__isnull=False),
                 name="skm_uniq_abilitazione_persona_asset",
+            ),
+            models.UniqueConstraint(
+                fields=["legacy_anagrafica_id", "competenza"],
+                condition=models.Q(competenza__isnull=False),
+                name="skm_uniq_abilitazione_persona_mansione",
             ),
         ]
 
     def __str__(self) -> str:
-        return f"[{self.legacy_anagrafica_id}] {self.asset_id} = {self.livello}"
+        return f"[{self.legacy_anagrafica_id}] {self.asset_id or self.competenza_id} = {self.livello}"
+
+    def save(self, *args, **kwargs):
+        # Un'abilitazione su macchina si aggancia da sola alla sua colonna: import,
+        # refresh e aggiunte manuali esistenti lavorano per asset e restano validi.
+        if self.asset_id and not self.competenza_id:
+            self.competenza_id = (
+                CompetenzaSkm.objects.filter(asset_id=self.asset_id, tipo=CompetenzaSkm.TIPO_MACCHINA)
+                .order_by("pk").values_list("pk", flat=True).first()
+            )
+            if self.competenza_id and kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = list(kwargs["update_fields"]) + ["competenza"]
+        super().save(*args, **kwargs)
 
     @property
     def ordinale(self) -> int:
@@ -345,6 +408,11 @@ class AbilitazioneMacchinaStorico(models.Model):
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     asset = models.ForeignKey(
         "assets.Asset", on_delete=models.PROTECT, related_name="abilitazioni_skm_storico",
+        null=True, blank=True,
+    )
+    competenza = models.ForeignKey(
+        CompetenzaSkm, on_delete=models.PROTECT, related_name="storico_abilitazioni",
+        null=True, blank=True, help_text="Mansione (colonna skill matrix); per i processi senza asset.",
     )
     livello = models.CharField(max_length=1, choices=LivelloSkm.choices, blank=True, default="")
     data_rilevazione = models.DateField()

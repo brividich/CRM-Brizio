@@ -1,0 +1,147 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ mansione.nome }} · Mansionario | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+{% include "anagrafica/components/_multiselect_picker.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ mansione.get_tipo_display }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>{{ mansione.nome }}{% if not mansione.attiva %} <span class="fmd-badge fmd-b-grey">non attiva</span>{% endif %}</h1>
+        <p class="fmd-ph-sub">
+          {{ mansione.get_tipo_display }}{% if mansione.asset %} · asset {{ mansione.asset.asset_tag|default:mansione.asset.name }}{% endif %}
+          · reparto {{ mansione.reparto_effettivo|default:"da indicare" }}{% if mansione.asset_id %} (dall'asset){% endif %}
+        </p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    {# ── Ruolo → mansione → mansioni di rischio ─────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli e mansioni di rischio</div></div>
+      <div class="fmd-split" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
+        <div>
+          <div class="fmd-block-aside" style="margin-bottom:8px;">Ruoli</div>
+          {% for r in mansione.ruoli.all %}<span class="fmd-badge fmd-b-cyan" style="margin:0 5px 6px 0;">{{ r.nome }}</span>{% empty %}<span class="fmd-muted">— nessun ruolo</span>{% endfor %}
+        </div>
+        <div>
+          <div class="fmd-block-aside" style="margin-bottom:8px;">Mansioni di rischio che comporta</div>
+          {% for m in mansione.mansioni_rischio.all %}<a class="fmd-badge fmd-b-violet" style="margin:0 5px 6px 0;text-decoration:none;" href="{% url 'anagrafica:mansione_requisiti' m.pk %}">{{ m.nome }}</a>{% empty %}<span class="fmd-muted">— da indicare: senza, DPI, visite e schede di sicurezza non si ricavano</span>{% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {# ── Persone ────────────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Persone in lista <span class="fmd-count">{{ persone|length }}</span></div>
+        <div class="fmd-block-aside">Livelli: I in formazione · L intermedio · U autonomo · O esperto</div>
+      </div>
+      {% if persone %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Persona</th><th>Livello</th><th>Stato</th><th class="fmd-nowrap">Assegnata dal</th><th class="fmd-nowrap">Prossima revisione</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
+          <tbody>
+            {% for p in persone %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a></td>
+              <td><span class="fmd-badge {% if p.livello == 'O' or p.livello == 'U' %}fmd-b-green{% elif p.livello == 'L' %}fmd-b-orange{% else %}fmd-b-grey{% endif %}">{{ p.livello }}</span></td>
+              <td>{% if p.sospesa %}<span class="fmd-badge fmd-b-red">sospesa</span>{% elif p.operativa %}<span class="fmd-badge fmd-b-green">operativa</span>{% else %}<span class="fmd-muted">sotto soglia</span>{% endif %}</td>
+              <td class="fmd-nowrap fmd-muted">{{ p.data_assegnazione|date:"d-m-Y"|default:"—" }}</td>
+              <td class="fmd-nowrap fmd-muted">{{ p.prossima_revisione|date:"d-m-Y"|default:"—" }}</td>
+              {% if is_admin %}
+              <td class="fmd-r">
+                <form method="post" action="{% url 'anagrafica:mansionario_togli' mansione.pk p.abilitazione.pk %}" style="display:inline;">
+                  {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Togli</button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-muted">Nessuna persona in lista su questa mansione.</div>
+      {% endif %}
+
+      {% if is_admin %}
+      <form method="post" action="{% url 'anagrafica:mansionario_assegna' mansione.pk %}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px;">
+        {% csrf_token %}
+        <div class="fm-form-field" style="min-width:260px;margin:0;"><label for="mm-persona">Persona</label>
+          <select id="mm-persona" name="persona" class="fm-input fm-select" required>
+            <option value="">— scegli —</option>
+            {% for c in candidati %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+          </select></div>
+        <div class="fm-form-field" style="min-width:160px;margin:0;"><label for="mm-livello">Livello</label>
+          <select id="mm-livello" name="livello" class="fm-input fm-select">
+            <option value="I">I · in formazione</option><option value="L">L · intermedio</option>
+            <option value="U">U · autonomo</option><option value="O">O · esperto</option>
+          </select></div>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Assegna</button>
+      </form>
+      {% endif %}
+    </section>
+
+    {# ── Configurazione ─────────────────────────────────────────────────── #}
+    {% if is_admin %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Configurazione della mansione</div></div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="fm-form-grid-2">
+          <div class="fm-form-field"><label for="mm-ruoli">Ruoli</label>
+            <select id="mm-ruoli" name="ruoli" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca ruolo…">
+              {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in sel_ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
+            </select>
+            <div class="fm-help">Di norma un ruolo; più ruoli solo se la mansione serve davvero a entrambi.</div></div>
+          <div class="fm-form-field"><label for="mm-rischi">Mansioni di rischio</label>
+            <select id="mm-rischi" name="mansioni_rischio" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione di rischio…">
+              {% for m in rischi_opts %}<option value="{{ m.pk }}"{% if m.pk in sel_rischi %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+            </select>
+            <div class="fm-help">Chi svolge questa mansione eredita DPI, visite e schede di sicurezza di queste mansioni di rischio.</div></div>
+        </div>
+        <div class="fm-form-grid-2" style="margin-top:8px;">
+          <div class="fm-form-field"><label for="mm-reparto">Reparto</label>
+            {% if mansione.asset_id %}
+            <div class="fmd-muted">{{ mansione.reparto_effettivo|default:"non indicato sull'asset" }} — viene dall'asset: si cambia dalla scheda della macchina.</div>
+            {% else %}
+            <select id="mm-reparto" name="reparto" class="fm-input fm-select">
+              <option value="">— nessuno —</option>
+              {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == mansione.reparto_id %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+            </select>
+            {% endif %}
+          </div>
+          <div class="fm-form-field"><label for="mm-attiva">Stato</label>
+            <div style="display:flex;gap:8px;align-items:center;"><input id="mm-attiva" type="checkbox" name="attiva"{% if mansione.attiva %} checked{% endif %}><span>Mansione attiva</span></div>
+            <div class="fm-help">Una mansione non attiva sparisce dal Mansionario; le abilitazioni restano.</div></div>
+        </div>
+        <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;">
+          <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario' %}">Indietro</a>
+          <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
