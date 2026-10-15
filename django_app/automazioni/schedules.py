@@ -134,7 +134,7 @@ SCHEDULES: list[dict] = [
     {
         # SECURITY CENTER — lettura assistita dall'AI locale: propone i campi delle letture
         # «da verificare» e classifica le mail che nessun parser riconosce. Solo proposte, mai alert.
-        # Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, entro 90 s.
+        # Spenta finché non accesa da /soc/impostazioni/; massimo N elementi per giro, nessuna nuova richiesta dopo 60 s.
         "name": "security_ai_lettura",
         "func": "security.tasks.ai_lettura_assistita_task",
         "schedule_type": "I",   # Schedule.MINUTES

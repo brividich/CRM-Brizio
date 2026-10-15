@@ -182,8 +182,12 @@ def candidati(now=None, days=CANDIDATE_DAYS):
     return found
 
 
-def leggi_candidati(*, limit, time_budget_seconds=90):
-    """Un giro: al massimo ``limit`` elementi ed entro il tempo (il worker django-q ha 120 s)."""
+def leggi_candidati(*, limit, time_budget_seconds=60):
+    """Un giro: al massimo ``limit`` elementi ed entro il tempo (il worker django-q ha 120 s).
+
+    Nessuna nuova richiesta dopo 60 s: in produzione una risposta richiede 15-40 s (registro AI
+    del SOC, ottobre 2026), così l'ultima iniziata finisce comunque entro i 120 s del worker.
+    """
     started = time.monotonic()
     done = []
     for item in candidati():
