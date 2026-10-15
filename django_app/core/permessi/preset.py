@@ -387,6 +387,14 @@ def riallinea_preset_modello(gruppi=None, celle=None) -> dict:
                     ruolo_id=ruolo.id, modulo=modulo, azione=azione, ambito=ambito, consentito=True, note=nota
                 )
                 esito["celle_aggiunte"] += 1
+    # Preset ritirati: il ruolo si spegne solo se nessuno lo ha (a mano o dall'organigramma).
+    esito["disattivati"] = 0
+    for chiave in PRESET_RITIRATI:
+        for ruolo in gruppi.objects.filter(preset=chiave, is_active=True):
+            if not ruolo.memberships.exists() and not ruolo.ruoli_organigramma.exists():
+                ruolo.is_active = False
+                ruolo.save(update_fields=["is_active"])
+                esito["disattivati"] += 1
     return esito
 
 

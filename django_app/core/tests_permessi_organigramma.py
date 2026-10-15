@@ -199,7 +199,17 @@ class ModelloPresetTests(PersoneMixin, TestCase):
                                            note="preset dipendente")
         RuoloPermessoModulo.objects.create(ruolo=base, modulo="glossario", azione="vedere", ambito="tutti",
                                            note="modificata a mano")
+        AccessGroup.objects.filter(preset="magazzino").update(is_active=False)
+        vuoto = AccessGroup.objects.create(code="ruolo-mag-prova-1", label="Magazzino prova", preset="magazzino")
+        usato = AccessGroup.objects.create(code="ruolo-mag-prova-2", label="Magazzino prova 2", preset="magazzino")
+        from anagrafica.models import RuoloOperativo
+
+        usato.ruoli_organigramma.add(RuoloOperativo.objects.create(nome="Mag TEST"))
         riallinea_preset_modello()
+        vuoto.refresh_from_db()
+        usato.refresh_from_db()
+        self.assertFalse(vuoto.is_active)  # ritirato e senza persone: spento
+        self.assertTrue(usato.is_active)  # ritirato ma ancora collegato: resta
         base.refresh_from_db()
         self.assertEqual(base.label, "Operatore")
         self.assertFalse(RuoloPermessoModulo.objects.filter(ruolo=base, modulo="ticket_it").exists())

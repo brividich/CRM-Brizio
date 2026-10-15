@@ -129,7 +129,7 @@
 
     {% if ruolo %}
       <details class="acl-tech" style="margin-bottom:12px;">
-        <summary>Proprietà del ruolo «{{ ruolo.label }}» · {{ persone_ruolo }} persone</summary>
+        <summary>Proprietà del ruolo «{{ ruolo.label }}» · assegnato a mano a {{ persone_ruolo }} {{ persone_ruolo|pluralize:"persona,persone" }}</summary>
         <form method="post" action="{% url 'admin_portale:ruoli_portale_ruolo' ruolo.id %}" style="margin-top:10px;">
           {% csrf_token %}
           <div class="rp-form-grid">
@@ -157,7 +157,7 @@
       </details>
 
       <details class="acl-tech" style="margin-bottom:12px;">
-        <summary>Dall'organigramma · {{ organigramma_collegati }} ruoli collegati · {{ persone_organigramma }} persone oggi</summary>
+        <summary>Dall'organigramma · ruoli collegati: {{ organigramma_collegati }} · persone che lo ricevono oggi: {{ persone_organigramma }}</summary>
         {% if ruolo.amministratore %}
           <div class="acl-flash warning" style="margin-top:10px;">Un ruolo amministratore si assegna solo a mano dalla scheda «Persone»: non arriva mai dall'organigramma.</div>
         {% elif ruolo.preset == "dipendente" %}
