@@ -25,7 +25,8 @@ GUIDA = {
             "titolo": "Il QR sul contenitore",
             "blocchi": [
                 ("p", "Inquadrando il QR attaccato al contenitore si apre una pagina breve con pittogrammi di pericolo, frasi H e P, "
-                      "DPI obbligatori, primo soccorso e incompatibilità. Funziona anche senza fare l'accesso."),
+                      "DPI obbligatori, primo soccorso e incompatibilità. Funziona anche senza fare l'accesso. "
+                      "Sull'etichetta, accanto al QR, ci sono già nome del prodotto e pittogrammi di pericolo."),
             ],
         },
         {
@@ -49,9 +50,25 @@ GUIDA = {
                     "Clicca «Nuovo prodotto» e compila nome, produttore e mansioni di rischio che lo usano.",
                     "Salva, poi nel dettaglio carica il PDF della scheda («Carica SDS»).",
                     "Il portale legge la scheda e compila da solo pittogrammi, frasi H/P, primo soccorso e DPI. Controlla e correggi se serve.",
-                    "Stampa il QR dal dettaglio e attaccalo al contenitore.",
+                    "Nel dettaglio clicca «Stampa etichetta»: esce un'etichetta con logo, nome, pittogrammi di pericolo e QR. "
+                    "Stampala al 100% (dimensioni effettive), sul formato indicato in alto nella pagina, e attaccala al contenitore.",
                 ]),
                 ("nota", "Una nuova versione della scheda chiede di nuovo la conferma di lettura a tutte le persone interessate."),
+            ],
+        },
+        {
+            "id": "etichetta",
+            "titolo": "Personalizzare l'etichetta",
+            "blocchi": [
+                ("passi", [
+                    "Nell'elenco prodotti clicca «Personalizza etichetta» (c'è anche nel dettaglio di un prodotto).",
+                    "Scegli il formato: larghezza da 40 a 150 mm, altezza da 25 a 150 mm, oppure un formato comune (100×50, 100×62, 70×40, A6).",
+                    "Scegli cosa stampare: logo (puoi caricarne uno solo per l'etichetta, PNG/JPG/WEBP fino a 2 MB), nome in maiuscolo, "
+                    "una riga sotto il nome (numero interno, codice prodotto, fornitore, produttore o ubicazione), pittogrammi, testo sotto il QR.",
+                    "Se vuoi, scrivi una riga emergenza (es. numero di emergenza e Centro Antiveleni) e scegli il colore della fascia.",
+                    "Controlla l'anteprima a destra (puoi cambiare il prodotto di esempio) e clicca «Salva».",
+                ]),
+                ("nota", "Le impostazioni valgono per le etichette di tutti i prodotti. Il logo appena scelto compare in anteprima solo dopo «Salva»."),
             ],
         },
         {

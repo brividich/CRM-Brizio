@@ -8,10 +8,13 @@ prima chiedevano due sottoinsiemi diversi degli stessi dati.
 from __future__ import annotations
 
 from django import forms
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db.models import Q
 
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+
 from . import pittogrammi as ghs
-from .models import ProdottoChimico
+from .models import ImpostazioniEtichetta, ProdottoChimico
 
 _TESTO_ATTRS = {"class": "pc-input"}
 
@@ -121,3 +124,81 @@ class ProdottoChimicoForm(forms.ModelForm):
         if scheda is not None and list(scheda.pittogrammi or []) != list(codici):
             scheda.pittogrammi = list(codici)
             scheda.save(update_fields=["pittogrammi"])
+
+
+LOGO_ESTENSIONI = {".png", ".jpg", ".jpeg", ".webp"}
+LOGO_MIME = {"image/png", "image/jpeg", "image/webp"}
+LOGO_MAX_BYTES = 2 * 1024 * 1024
+
+# Limiti dei campi numerici: (minimo, massimo). Fuori da qui l'etichetta non sta
+# in piedi (QR illeggibile, testo che esce dal bordo).
+LIMITI_ETICHETTA = {
+    "larghezza_mm": (40, 150),
+    "altezza_mm": (25, 150),
+    "logo_altezza_mm": (4, 20),
+    "nome_dimensione_pt": (7, 24),
+}
+
+
+class ImpostazioniEtichettaForm(forms.ModelForm):
+    rimuovi_logo = forms.BooleanField(required=False, label="Togli il logo caricato (torna al logo del portale)")
+
+    class Meta:
+        model = ImpostazioniEtichetta
+        fields = [
+            "larghezza_mm", "altezza_mm", "posizione_qr", "testo_qr",
+            "mostra_logo", "logo", "logo_altezza_mm",
+            "nome_dimensione_pt", "nome_maiuscolo", "riga_extra", "mostra_pittogrammi",
+            "testo_emergenza", "colore_fascia", "mostra_bordo",
+        ]
+        widgets = {
+            "larghezza_mm": forms.NumberInput(attrs=_TESTO_ATTRS),
+            "altezza_mm": forms.NumberInput(attrs=_TESTO_ATTRS),
+            "logo_altezza_mm": forms.NumberInput(attrs=_TESTO_ATTRS),
+            "nome_dimensione_pt": forms.NumberInput(attrs=_TESTO_ATTRS),
+            "testo_qr": forms.TextInput(attrs=_TESTO_ATTRS),
+            "testo_emergenza": forms.TextInput(attrs=_TESTO_ATTRS),
+            "colore_fascia": forms.TextInput(attrs={**_TESTO_ATTRS, "placeholder": "#B91C1C"}),
+            "logo": forms.ClearableFileInput(attrs={"accept": ".png,.jpg,.jpeg,.webp"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for nome, (minimo, massimo) in LIMITI_ETICHETTA.items():
+            campo = self.fields[nome]
+            campo.validators += [MinValueValidator(minimo), MaxValueValidator(massimo)]
+            campo.widget.attrs.update({"min": minimo, "max": massimo})
+            campo.help_text = f"Da {minimo} a {massimo}."
+        self.fields["colore_fascia"].validators.append(
+            RegexValidator(r"^#[0-9A-Fa-f]{6}$", "Usa un colore esadecimale, es. #B91C1C.")
+        )
+        # Il logo si toglie con la spunta dedicata, non con quella del widget.
+        self.fields["logo"].widget = forms.FileInput(attrs={"accept": ".png,.jpg,.jpeg,.webp"})
+        self.fields["logo"].help_text = "PNG, JPG o WEBP, massimo 2 MB. Senza logo caricato si usa quello del portale."
+
+    def clean_logo(self):
+        logo = self.cleaned_data.get("logo")
+        if logo and logo is not getattr(self.instance, "logo", None) and hasattr(logo, "content_type"):
+            try:
+                validate_extension_and_mime(
+                    logo,
+                    allowed_extensions=LOGO_ESTENSIONI,
+                    allowed_mimes=LOGO_MIME,
+                    max_bytes=LOGO_MAX_BYTES,
+                    label="Logo",
+                    allow_empty=False,
+                )
+            except UploadMimeValidationError as exc:
+                raise forms.ValidationError(str(exc))
+        return logo
+
+    def clean_colore_fascia(self):
+        return (self.cleaned_data.get("colore_fascia") or "").upper()
+
+    def save(self, commit=True):
+        impostazioni = super().save(commit=False)
+        if self.cleaned_data.get("rimuovi_logo") and not self.files.get("logo"):
+            impostazioni.logo = ""
+        if commit:
+            impostazioni.save()
+        return impostazioni
