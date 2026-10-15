@@ -5105,6 +5105,9 @@ def api_admin_bulk_consenso(request):
         if not _can_manage_record(request, current, require_delete=False):
             scartate.append({"id": item_id, "motivo": "fuori dal tuo ambito"})
             continue
+        if _e_propria_assenza(request, current):
+            scartate.append({"id": item_id, "motivo": "è una tua richiesta"})
+            continue
         if _sharepoint_managed_error(item_id) is not None:
             scartate.append({"id": item_id, "motivo": "gestita su SharePoint"})
             continue
@@ -5130,6 +5133,27 @@ def api_admin_bulk_consenso(request):
     })
 
 
+def _e_propria_assenza(request, current: dict) -> bool:
+    """La richiesta e' di chi sta moderando? Stesso riconoscimento di «modifica la tua richiesta».
+
+    Con il sistema dei ruoli acceso nessuno approva o rifiuta la propria assenza
+    (separazione dei compiti, come nei DPI): decide un altro responsabile.
+    """
+    from core.permessi import sistema_ruoli_attivo
+
+    if not sistema_ruoli_attivo():
+        return False
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if legacy_user is not None and _as_int(current.get("utente_id")) == int(legacy_user.id):
+        return True
+    name, email, _ = _legacy_identity(request)
+    rec_nome = str(current.get("copia_nome") or "").strip().upper()
+    rec_email = str(current.get("email_esterna") or "").strip().upper()
+    user_nome = str(name or "").strip().upper()
+    user_email = str(email or "").strip().upper()
+    return bool((user_email and rec_email == user_email) or (user_nome and rec_nome == user_nome))
+
+
 def api_car_aggiorna_consenso(request, item_id: int):
     """API per CAR: approva o rifiuta una singola assenza del proprio reparto."""
     perms = _assenze_permissions(request)
@@ -5141,6 +5165,8 @@ def api_car_aggiorna_consenso(request, item_id: int):
         return _json_error("Record non trovato.", status=404)
     if not _can_manage_record(request, current, require_delete=False):
         return _json_error("Permessi insufficienti: puoi gestire solo record assegnati al tuo reparto.", status=403)
+    if _e_propria_assenza(request, current):
+        return _json_error("Non puoi approvare o rifiutare una tua richiesta: decide un altro responsabile.", status=403)
 
     managed_error = _sharepoint_managed_error(item_id)
     if managed_error:
@@ -5327,6 +5353,8 @@ def api_evento_update(request, item_id: int | None = None):
     if perms.get("can_update_any"):
         consenso = _norm_consenso((payload.get("consenso") if payload else None) or request.POST.get("consenso") or current.get("consenso"))
         moderation_status = _CONSENSO_TO_MOD.get(consenso, 2)
+        if consenso != _norm_consenso(current.get("consenso")) and _e_propria_assenza(request, current):
+            return _json_error("Non puoi approvare o rifiutare una tua richiesta: decide un altro responsabile.", status=403)
     else:
         consenso = _norm_consenso(current.get("consenso"))
         moderation_status = _as_int(current.get("moderation_status"))

@@ -54,3 +54,5 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) il livello globale viene dalla matrice: «modificare» su tutti = modifica tutto, «vedere» su tutti = vede tutto. La lista «autorizzati alla modifica» per nome non vale più (omonimi); restano le regole per ruolo sull'OP (capocommessa, CAR).
+
+- **Chi rileva non decide** (con il sistema dei ruoli acceso): `anomalie.views._decisione_su_propria_anomalia` impedisce all'autore (`created_by_user_id`) di cambiare note del capocommessa, segnalazione al cliente, RDC e chiusura.

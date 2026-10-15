@@ -185,3 +185,7 @@ permessi di pagina: il permesso di gestione si accende con «gestire».
 ## Checklist manuale prima di rilasciare un modulo
 
 Vedi [CHECKLIST_PERMESSI_RILASCIO_MODULO.md](CHECKLIST_PERMESSI_RILASCIO_MODULO.md).
+
+## Separazione dei compiti (16/10/2026)
+
+Con il sistema acceso: DPI (`dpi.views._can_approve`) e assenze (`assenze.views._e_propria_assenza`) non si approvano da soli; anomalie: l'autore non decide (`anomalie.views._decisione_su_propria_anomalia`); CAPA: la verifica di efficacia non la fanno chi ha chiuso ne' il responsabile (sempre, non solo a sistema acceso); audit: conflitto di imparzialita' gia' nel form (`sistema_gestione/audit_forms.py`). Riesame accessi: `admin_portale/riesame_accessi.py`.

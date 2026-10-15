@@ -455,7 +455,9 @@
         {% csrf_token %}
         <button class="btn btn-secondary" type="submit">Applica i preset mancanti</button>
       </form>
+      <a class="btn btn-secondary" href="{% url 'admin_portale:ruoli_portale_riesame' %}">Scarica il riesame degli accessi (Excel)</a>
     </div>
+    <p class="acl-muted">Riesame degli accessi (ISO/IEC 27001 A.5.18, ogni tre mesi): chi ha quali ruoli e da dove arrivano, cosa concede ogni ruolo, i collegamenti con l'organigramma e un foglio da firmare. Lo prepara il referente 27001, lo approva la Direzione; il file firmato si archivia nel Sistema di gestione.</p>
 
     {% if sistema_attivo %}
       <form method="post" action="{% url 'admin_portale:ruoli_portale_sistema' %}">

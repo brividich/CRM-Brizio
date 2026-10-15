@@ -372,6 +372,26 @@ def _ctx_collegamento_organigramma(ruolo) -> dict:
 
 
 @legacy_admin_required
+def ruoli_portale_riesame(request):
+    """Excel per il riesame degli accessi (27001 A.5.18): persone, matrice, organigramma, foglio da firmare."""
+    from django.http import HttpResponse
+
+    from .riesame_accessi import genera_riesame_xlsx
+
+    preparato_da = request.user.get_full_name() or request.user.get_username()
+    contenuto = genera_riesame_xlsx(preparato_da=preparato_da, sistema_attivo=sistema_ruoli_attivo())
+    log_action(request, "permessi_riesame_esportato", MODULO_AUDIT, {"preparato_da": preparato_da})
+    from django.utils import timezone
+
+    nome = f"riesame_accessi_{timezone.localdate():%Y%m%d}.xlsx"
+    risposta = HttpResponse(
+        contenuto, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    risposta["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return risposta
+
+
+@legacy_admin_required
 @require_POST
 def ruoli_portale_organigramma(request, ruolo_id: int):
     """Collega il ruolo del portale ai ruoli d'organigramma che lo concedono in automatico."""
