@@ -68,7 +68,8 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "«Annulla incontro» (solo per incontri pianificati) chiede il motivo, toglie l'evento dal calendario Outlook "
                 "e, se la casella «Avvisa i convocati via email» resta spuntata, manda ai convocati l'avviso di annullamento con il motivo.",
-                "Un incontro annullato si riprogramma da «Convocazione», riportando lo stato a «Pianificato».",
+                "Un incontro annullato si riprogramma da «Convocazione», riportando lo stato a «Pianificato»: "
+                "la convocazione torna «da inviare», perché i convocati hanno ricevuto l'annullamento.",
                 "«Elimina» compare solo per gli incontri mai svolti e senza decisioni. Un incontro svolto non si elimina: "
                 "con lui sparirebbero verbale e decisioni.",
             ]),

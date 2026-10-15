@@ -87,6 +87,27 @@ class IncontriAzioniTests(TasksBaseTestCase):
         self.assertEqual(issue.status, MeetingIssueStatus.RESOLVED)
         self.assertIn("Collaudo", issue.resolution_note)
 
+    def test_voce_riaperta_non_si_richiude_salvando_l_attivita_completata(self):
+        task = Task.objects.create(title="Verifica", project=self.project, created_by=self.user)
+        action = MeetingActionItem.objects.create(project=self.project, title="Verificare", linked_task=task)
+        task.status = TaskStatus.DONE
+        task.save()
+        action.refresh_from_db()
+        action.reopen()
+        action.save()
+        task.title = "Verifica finale"
+        task.save()
+        action.refresh_from_db()
+        self.assertEqual(action.status, MeetingActionStatus.OPEN)
+
+    def test_attivita_di_un_giorno_dall_incontro(self):
+        oggi = timezone.localdate().isoformat()
+        response = self.client.post(self._url("tasks:project_meeting_task_from_step"), {
+            "title": "Sopralluogo", "next_step_due": oggi, "due_date": oggi,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Task.objects.filter(title="Sopralluogo").exists())
+
     def test_cambio_stato_a_completata_porta_avanzamento_al_cento(self):
         task = Task.objects.create(title="Avanzamento", project=self.project, created_by=self.user, progress=40)
         self.client.post(reverse("tasks:change_status", args=[task.id]), {"status": TaskStatus.DONE})
@@ -183,6 +204,22 @@ class IncontriAzioniTests(TasksBaseTestCase):
         self.assertTrue(ics)
         contenuto = ics[0].decode() if isinstance(ics[0], bytes) else str(ics[0])
         self.assertIn("METHOD:CANCEL", contenuto)
+
+    def test_ripristino_dopo_annullamento_riparte_da_convocazione_nuova(self):
+        self.client.post(self._url("tasks:project_meeting_send_invite"))
+        self.client.post(self._url("tasks:project_meeting_cancel"), {"motivo": "Rinvio", "avvisa": "0"})
+        self.client.post(self._url("tasks:project_meeting_edit"), {
+            "titolo": "Avvio", "data": self.meeting.data.isoformat(), "stato": MeetingStatus.PIANIFICATO,
+            "partecipanti_utenti": [self.user.pk], "partecipanti_email_extra": "mario@example.com",
+            "agenda_items_raw": "[]",
+        })
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.stato, MeetingStatus.PIANIFICATO)
+        self.assertEqual(self.meeting.annullato_motivo, "")
+        self.assertIsNone(self.meeting.convocazione_inviata_at)
+        mail.outbox.clear()
+        self.client.post(self._url("tasks:project_meeting_send_invite"))
+        self.assertTrue(mail.outbox[0].subject.startswith("Convocazione incontro"))
 
     def test_incontro_svolto_non_si_elimina(self):
         KickoffMeeting.objects.filter(pk=self.meeting.pk).update(stato=MeetingStatus.SVOLTO)

@@ -114,7 +114,7 @@ def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31) -> dict
         end = task.due_date or task.next_step_due or start
         active_start = min(start, end)
         active_end = max(start, end)
-        invalid_range = bool(task.next_step_due and task.due_date and task.due_date <= task.next_step_due)
+        invalid_range = bool(task.next_step_due and task.due_date and task.due_date < task.next_step_due)
 
         timeline_points.extend([active_start, active_end])
         base_rows.append(

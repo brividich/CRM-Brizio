@@ -671,10 +671,15 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
                 if meeting.data != old_data:
                     meeting.reminder_sent_at = None
                 # Incontro annullato ripristinato: via i dati dell'annullamento.
+                # Anche la convocazione torna «da inviare»: i convocati hanno
+                # ricevuto l'annullamento, non devono leggere un «aggiornamento».
                 if old_stato == MeetingStatus.ANNULLATO and meeting.stato == MeetingStatus.PIANIFICATO:
                     meeting.annullato_at = None
                     meeting.annullato_da = None
                     meeting.annullato_motivo = ""
+                    meeting.convocazione_inviata_at = None
+                    meeting.convocazione_firma = ""
+                    meeting.reminder_sent_at = None
                 meeting.save()
                 form.save_m2m()
             if meeting.stato != MeetingStatus.ANNULLATO:
@@ -1588,14 +1593,14 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
 
     start_date = _parse_optional_date(request.POST.get("next_step_due") or "")
     due_date = _parse_optional_date(request.POST.get("due_date") or "")
-    # Stessa regola di `Task.clean()`: la data fine resta successiva alla data
-    # inizio. Qui si verifica sul risultato finale, non solo su cio' che arriva
-    # nel POST, perche' in aggiornamento una sola delle due puo' cambiare.
+    # Stessa regola di `Task.clean()`: la data fine non precede la data inizio
+    # (stesso giorno ammesso). Qui si verifica sul risultato finale, non solo su
+    # cio' che arriva nel POST, perche' in aggiornamento una sola delle due puo' cambiare.
     effective_start = start_date or (existing_task.next_step_due if existing_task else None)
     effective_due = due_date or (existing_task.due_date if existing_task else None)
-    if effective_start and effective_due and effective_due <= effective_start:
+    if effective_start and effective_due and effective_due < effective_start:
         return JsonResponse(
-            {"ok": False, "reason": "La data fine deve essere successiva alla data inizio."},
+            {"ok": False, "reason": "La data fine non può precedere la data inizio."},
             status=400,
         )
 
