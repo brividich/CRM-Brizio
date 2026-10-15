@@ -13370,6 +13370,57 @@ def visite_mediche_export_copertura(request):
 # FORMAZIONE HR — Dashboard (PATCH-02)
 # ============================================================================
 
+# Stato della scadenza → segmento della barra di copertura. VALIDO e UNA_TANTUM
+# (completato una volta, senza rinnovo) sono entrambi «in regola».
+_COPERTURA_SEGMENTI = {
+    "VALIDO": "ok", "UNA_TANTUM": "ok", "IN_SCADENZA_90": "s90",
+    "IN_SCADENZA_30": "s30", "SCADUTO": "ko", "MAI_FREQUENTATO": "mai",
+}
+
+
+def _copertura_corsi_obbligatori(oggi) -> list[dict]:
+    """Una riga per corso con scadenze obbligatorie: quante persone sono in regola,
+    in scadenza, scadute o mai formate (dalla cache TrainingDeadline, come i KPI)
+    e la prossima sessione pianificata. Ordinata dal corso più scoperto."""
+    conteggi: dict[int, dict[str, int]] = {}
+    righe = (
+        TrainingDeadline.objects.filter(is_required=True)
+        .values("corso_id", "stato_scadenza").annotate(n=Count("id")).order_by()
+    )
+    for r in righe:
+        segmento = _COPERTURA_SEGMENTI.get(r["stato_scadenza"])
+        if segmento:
+            c = conteggi.setdefault(r["corso_id"], dict.fromkeys(("ok", "s90", "s30", "ko", "mai"), 0))
+            c[segmento] += r["n"]
+    if not conteggi:
+        return []
+
+    prossime: dict[int, TrainingSession] = {}
+    for s in (
+        TrainingSession.objects.filter(corso_id__in=conteggi, stato="PIANIFICATA", data_inizio__gte=oggi)
+        .annotate(n_iscritti=Count("iscrizioni")).order_by("data_inizio", "pk")
+    ):
+        prossime.setdefault(s.corso_id, s)
+
+    out = []
+    for corso in TrainingCourse.objects.filter(pk__in=conteggi, is_active=True).select_related("piano"):
+        c = conteggi[corso.pk]
+        totale = sum(c.values())
+        if not totale:
+            continue
+        segmenti = [
+            {"chiave": k, "n": c[k], "perc": round(c[k] * 100 / totale, 2)}
+            for k in ("ok", "s90", "s30", "ko", "mai") if c[k]
+        ]
+        out.append({
+            "corso": corso, "piano": corso.piano.nome if corso.piano_id else "",
+            "totale": totale, "perc_ok": round(c["ok"] * 100 / totale), "segmenti": segmenti,
+            "scoperti": c["ko"] + c["mai"] + c["s30"], **c,
+            "prossima": prossime.get(corso.pk),
+        })
+    out.sort(key=lambda r: (-r["scoperti"], r["perc_ok"], r["corso"].titolo.casefold()))
+    return out
+
 @login_required
 def formazione_dashboard(request):
     """Dashboard globale formazione HR.
@@ -13417,8 +13468,11 @@ def formazione_dashboard(request):
         d.giorni = (d.data_scadenza - oggi).days if d.data_scadenza else None
 
     deadline_cache_empty = not TrainingDeadline.objects.exists()
+    copertura_corsi = _copertura_corsi_obbligatori(oggi)
 
     return render(request, "anagrafica/pages/formazione_dashboard.html", {
+        "copertura_corsi": copertura_corsi,
+        "copertura_piani": sorted({c["piano"] for c in copertura_corsi if c["piano"]}),
         "oggi": oggi,
         "can_edit_formazione": _can_edit_formazione(request),
         "kpi_dipendenti_formazione": kpi_dipendenti_formazione,
