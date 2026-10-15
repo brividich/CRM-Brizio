@@ -128,10 +128,13 @@ def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int]
             .values_list("legacy_anagrafica_id", flat=True)
         )
 
-    # 4) regole per mansione + ereditarietà da fattori di rischio.
-    #    Inverte mansionario: per ogni mansione presente in organico, se i suoi
-    #    requisiti includono questo corso, la mansione è "tenuta" al corso.
-    mansioni_presenti = {e["mansione"] for e in dipendenti.values() if e["mansione"]}
+    # 4) regole per mansione di rischio + ereditarietà da fattori di rischio.
+    #    Inverte mansionario: per ogni mansione di rischio presente in organico
+    #    (anagrafica + mansioni svolte + aggiunte − esclusioni), se i suoi
+    #    requisiti includono questo corso, chi la ha è "tenuto" al corso.
+    nomi_per_persona = mansionario.nomi_mansioni_rischio(
+        list(dipendenti), mansioni_per_legacy={lid: e["mansione"] for lid, e in dipendenti.items()})
+    mansioni_presenti = {n for nomi in nomi_per_persona.values() for n in nomi}
     if mansioni_presenti:
         req_per_nome = mansionario.requisiti_per_nome(mansioni_presenti)
         mansioni_obbligate = {
@@ -140,8 +143,8 @@ def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int]
         }
         if mansioni_obbligate:
             has_rules = True
-            for lid, e in dipendenti.items():
-                if e["mansione"].strip().casefold() in mansioni_obbligate:
+            for lid, nomi in nomi_per_persona.items():
+                if any(n.casefold() in mansioni_obbligate for n in nomi):
                     ids.add(lid)
 
     # 5) requisiti MOD.128: abilitati (ATTIVA) a processi che richiedono il corso.

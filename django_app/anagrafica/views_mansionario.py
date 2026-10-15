@@ -335,6 +335,13 @@ def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
     })
 
 
+def _rischi_persona(legacy_id: int, mansione_nome: str) -> dict:
+    """Mansioni di rischio effettive della persona (solo nomi e provenienza)."""
+    from .services import mansionario
+    det = mansionario.requisiti_dipendente_dettaglio(legacy_id, mansione_nome=mansione_nome)
+    return {"rischi_effettivi": det["mansioni_rischio"], "rischi_esclusi": det["mansioni_rischio_escluse"]}
+
+
 @login_required
 def mansionario_persona(request, legacy_id: int):
     if not _puo_vedere(request):
@@ -354,6 +361,7 @@ def mansionario_persona(request, legacy_id: int):
         "nome": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
         "mansione_anagrafica": (dip.get("mansione") or "").strip(),
         "scheda": comp_svc.scheda_persona(legacy_id),
+        **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
 
 

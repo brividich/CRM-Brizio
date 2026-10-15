@@ -6829,13 +6829,8 @@ def mansione_requisiti(request, mansione_id: int):
     except Exception:
         logger.warning("Elenco SDS della mansione non disponibile", exc_info=True)
 
-    collegamenti = list(
-        mansione.link_rischio.select_related("mansione_rischio").order_by("ordine", "pk")
-    )
     return render(request, "anagrafica/pages/mansione_requisiti.html", {
         "mansione": mansione,
-        "collegamenti_rischio": collegamenti,
-        "usa_mansioni_rischio": bool(collegamenti),
         "is_editor": is_editor,
         "puo_protocollo": _can_view_visite_mediche(request),
         "requisiti": requisiti,
