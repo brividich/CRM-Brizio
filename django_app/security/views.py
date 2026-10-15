@@ -125,10 +125,12 @@ def dashboard(request):
         "source_rows": source_status_rows(),
         "vpn_week": vpn_recent_stats(),
     }
+    from security.services.ai_explain import cached_brief
     from security.services.overview import area_cards, attention_items, overall
 
     items = attention_items()
-    context.update({"items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime()})
+    context.update({"items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime(),
+                    "brief": cached_brief(items)})
     return render(request, "security/dashboard.html", context)
 
 

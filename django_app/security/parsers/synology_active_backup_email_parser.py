@@ -10,9 +10,10 @@ from .registry import parser_registry
 # Ordine = precedenza: «non è stata completata» contiene «completata» e «completata con avvisi»
 # e' un avviso, non un successo. Prima il peggiore.
 STATUS_PATTERNS = (
-    ("failed", ("non riuscita", "non è stata completata", "non e' stata completata", "non completata", "fallita", "failed", "errore", "error")),
+    ("failed", ("non riuscita", "non riuscito", "non è riuscit", "non e' riuscit", "non è stata completata", "non e' stata completata",
+                "non è stato completato", "non completata", "non completato", "fallita", "fallito", "failed", "errore", "error")),
     ("warning", ("parzialmente", "avviso", "avvisi", "warning", "partial")),
-    ("completed", ("completata", "completed", "success", "riuscita")),
+    ("completed", ("completata", "completato", "completed", "success", "riuscita", "riuscito")),
 )
 STATUS_LABELS = {"failed": "Non riuscito", "warning": "Con avvisi", "completed": "Riuscito"}
 

@@ -256,6 +256,10 @@ class VisteChatTest(_Base):
         blocco = modello.blocchi.get()
         self.assertEqual(blocco.sezione, "matrice_formazione")
         self.assertTrue(blocco.opzioni["valori"]["solo_sicurezza"])
+        # Salvare come modello è una decisione sulla proposta: non resta «in attesa» per sempre.
+        from ai_assistant.models import AiProposta
+
+        self.assertEqual(AiProposta.objects.get().esito, AiProposta.ACCETTATA)
 
     def test_richiesta_dalla_pagina_reportistica_riparte_da_zero(self):
         self._chiedi("elenco", {"sezioni": [{"sezione": "personale_elenco"}]})

@@ -80,6 +80,19 @@ def enrich_cve_task():
     return run_enrichment(time_budget_seconds=90)
 
 
+def ai_sintesi_giorno_task():
+    """Sintesi del giorno della Panoramica preparata in anticipo (schedule `security_ai_sintesi`).
+
+    Una richiesta all'AI solo se i punti «da guardare» sono cambiati; spegnibile da /soc/impostazioni/.
+    """
+    from security.services import soc_settings
+    from security.services.ai_explain import prepare_daily_brief
+
+    if not soc_settings.value("ai.sintesi.attivo"):
+        return {"skipped": "sintesi automatica spenta"}
+    return prepare_daily_brief()
+
+
 def ai_lettura_assistita_task():
     """Lettura assistita dall'AI (schedule `security_ai_lettura`, flusso del designer Automazioni).
 

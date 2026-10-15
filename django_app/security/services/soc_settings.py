@@ -116,6 +116,17 @@ SECTIONS = [
         ],
     },
     {
+        "code": "ai_sintesi",
+        "title": "Sintesi del giorno già pronta",
+        "intro": "L'AI locale prepara la «Sintesi del giorno» della Panoramica ogni 30 minuti nelle ore di lavoro, solo quando "
+                 "i punti da guardare cambiano: chi apre la Panoramica la trova già scritta invece di aspettare. "
+                 "Gira dal flusso «security_ai_sintesi» (Automazioni › designer).",
+        "channels_optional": True,
+        "options": [
+            Option("ai.sintesi.attivo", True, "Prepara la sintesi in anticipo"),
+        ],
+    },
+    {
         "code": "ai_lettura",
         "title": "Lettura assistita dall'AI",
         "intro": "Le mail e i file che un parser legge solo in parte («Da verificare») o che nessun parser riconosce vengono fatti "

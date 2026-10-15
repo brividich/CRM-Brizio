@@ -98,6 +98,11 @@ class Command(BaseCommand):
                 riga = f"[{giro + 1}] {campione['nome']}: {ms} ms · " + ", ".join(esiti)
                 if inventati:
                     riga += f" · non nel testo: {', '.join(inventati)}"
+                contrasti = [campo["campo"] for campo in result["campi"] if campo.get("contrasto")]
+                if contrasti:
+                    riga += f" · IN CONTRASTO col testo (segnalato a video): {', '.join(contrasti)}"
+                if result.get("testo_sospetto"):
+                    riga += " · testo sospetto (segnalato)"
                 self.stdout.write(riga)
         if tempi:
             ordinati = sorted(tempi)
