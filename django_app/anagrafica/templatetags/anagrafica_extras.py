@@ -452,13 +452,13 @@ _SAFETY_GRUPPI = (
         ("libretto", "Libretto sanitario", "anagrafica:libretto_sanitario_generale", (), None),
     )),
     ("Rischi e mansioni", (
-        ("mansioni_rischio", "Mansioni di rischio", "anagrafica:mansioni_rischio_list",
-         ("anagrafica:mansione_rischio_dettaglio", "anagrafica:mansione_rischio_modifica", "anagrafica:mansione_rischio_nuova"), None),
+        # Il catalogo Mansione è quello delle mansioni di rischio (spec Mansionario
+        # 15/10/2026); le pagine del vecchio modello MansioneRischio rimandano qui.
+        ("mansioni", "Mansioni di rischio", "anagrafica:mansioni_list", ("anagrafica:mansione_requisiti",), None),
         ("organigramma_rischio", "Organigramma rischi", "anagrafica:organigramma_mansioni_rischio", (), None),
         ("fattori", "Fattori di rischio", "anagrafica:fattori_rischio_list", (), None),
         ("esposizioni", "Esposizioni", "anagrafica:esposizioni_rischio_list", (), None),
         ("categorie", "Categorie di rischio", "anagrafica:categorie_corso_list", (), None),
-        ("mansioni", "Mansioni lavorative", "anagrafica:mansioni_list", ("anagrafica:mansione_requisiti",), None),
     )),
     ("Formazione e DPI", (
         ("matrice", "Matrice competenze", "anagrafica:matrice_competenze", (), None),

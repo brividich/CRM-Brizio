@@ -602,22 +602,27 @@ class Mansione(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # ── Profilo "mansione di rischio" (requisiti diretti) ─────────────────
-    # Requisiti DPI / visite richiesti esplicitamente da questa mansione. Si
-    # uniscono a quelli ereditati dai FattoreRischio collegati via
-    # EsposizioneRischio. La formazione obbligatoria resta su
-    # TrainingRequirementRule(mansione=...). Vedi services/mansionario.py.
-    # DEPRECATI (1.6.x): il profilo di rischio vive in ``MansioneRischio``
-    # (models_mansioni_rischio). Restano letti solo come ripiego per le
-    # mansioni senza alcun collegamento a una mansione di rischio; rimozione
-    # in un rilascio successivo, dopo ``migra_mansioni_rischio --apply``.
+    # Riferimento al DVR che definisce questa mansione di rischio (Mansionario,
+    # decisione 15/10/2026: questo catalogo È quello delle mansioni di rischio).
+    dvr_revisione = models.CharField(max_length=30, blank=True, default="", verbose_name="Revisione DVR")
+    dvr_data = models.DateField(null=True, blank=True, verbose_name="Data revisione DVR")
+
+    # ── Profilo della mansione di rischio ─────────────────────────────────
+    # Questo catalogo è quello delle mansioni di rischio del DVR e del medico
+    # competente (decisione 15/10/2026, docs/superpowers/specs/2026-10-15-
+    # mansionario-...). DPI e visite qui sotto sono il profilo; si uniscono a
+    # quelli ereditati dai FattoreRischio (EsposizioneRischio). La formazione
+    # obbligatoria resta su TrainingRequirementRule(mansione=...). Vedi
+    # services/mansionario.py. Il modello ``MansioneRischio`` (vuoto in
+    # produzione) è in dismissione: se una mansione ha collegamenti a esso, il
+    # motore legge ancora quelli.
     dpi_richiesti = models.ManyToManyField(
         "dpi.CategoriaDPI", blank=True, related_name="mansioni_richiedenti",
-        help_text="DEPRECATO: usare le mansioni di rischio collegate.",
+        help_text="DPI richiesti a chi ha questa mansione di rischio.",
     )
     visite_richieste = models.ManyToManyField(
         "anagrafica.TipoVisitaMedica", blank=True, related_name="mansioni_richiedenti",
-        help_text="DEPRECATO: usare le mansioni di rischio collegate.",
+        help_text="Protocollo sanitario: tipi di visita dovuti. La periodicità la decide il medico competente.",
     )
     mansioni_rischio = models.ManyToManyField(
         "anagrafica.MansioneRischio", through="anagrafica.MansioneLavorativaRischio",
@@ -626,8 +631,8 @@ class Mansione(models.Model):
 
     class Meta:
         ordering = ["nome"]
-        verbose_name = "Mansione"
-        verbose_name_plural = "Mansioni"
+        verbose_name = "Mansione di rischio"
+        verbose_name_plural = "Mansioni di rischio"
 
     def __str__(self) -> str:
         return self.nome

@@ -20,12 +20,12 @@ from .models import (
     DipendenteAnagraficaAziendale,
     DipendenteQualifica,
     ImportazioneRetributiva,
+    Mansione,
     TipologiaContratto,
     TipoQualifica,
     TipoVisitaMedica,
     VisitaMedica,
 )
-from .models_mansioni_rischio import MansioneRischio
 from .models_recruiting import Candidato, PosizioneAperta
 from .models_reportistica import ReportModello
 from .services import sezioni_c
@@ -126,11 +126,12 @@ class PagineSezioniTests(TestCase):
         self.assertContains(r, "Referti da rivedere")
 
     def test_sicurezza_una_scheda_per_mansione_di_rischio(self):
-        mr = MansioneRischio.objects.create(codice="MR-01", nome="Saldatura a filo", livello_rischio_dvr="A")
+        # Spec Mansionario 15/10/2026: le schede sono le voci del catalogo Mansione.
+        m = Mansione.objects.create(nome="ADDETTO SALDATURA SINTETICO", livello_rischio="A")
         r = self.client.get(reverse("anagrafica:sicurezza_hub"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'id="fmd-mansioni-rischio"')
-        self.assertContains(r, reverse("anagrafica:mansione_rischio_dettaglio", args=[mr.pk]))
+        self.assertContains(r, reverse("anagrafica:mansione_requisiti", args=[m.pk]))
         self.assertContains(r, "Rischio alto")
 
     def test_ingressi_una_scheda_per_posizione_con_i_candidati_per_fase(self):

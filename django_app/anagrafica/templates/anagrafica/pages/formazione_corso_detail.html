@@ -351,7 +351,7 @@
             {% for r in regole %}
             <tr>
               <td>
-                {% if r.mansione %}<span class="muted">Mansione:</span> {{ r.mansione.nome }}{% endif %}
+                {% if r.mansione %}<span class="muted">Mansione di rischio:</span> {{ r.mansione.nome }}{% endif %}
                 {% if r.area %}<span class="muted">Area:</span> {{ r.area.nome }}{% endif %}
                 {% if r.ruolo_operativo %}<span class="muted">Ruolo:</span> {{ r.ruolo_operativo.nome }}{% endif %}
                 {% if r.legacy_anagrafica_id %}

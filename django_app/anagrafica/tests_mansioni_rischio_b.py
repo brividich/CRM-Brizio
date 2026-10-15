@@ -474,19 +474,30 @@ class PagineMansioniRischioTests(_Base):
 
     def test_pagine_admin(self):
         self.client.force_login(self.admin)
-        for nome, args in (("mansioni_rischio_list", []), ("mansione_rischio_nuova", []),
-                           ("mansione_rischio_dettaglio", [self.mr_fumi.pk]),
-                           ("mansione_rischio_modifica", [self.mr_fumi.pk]),
-                           ("organigramma_mansioni_rischio", []), ("dipendente_sicurezza_panel", [self.lid]),
+        for nome, args in (("mansioni_list", []), ("organigramma_mansioni_rischio", []),
+                           ("dipendente_sicurezza_panel", [self.lid]),
                            ("mansione_requisiti", [self.operaio.pk]), ("cambi_mansione", [])):
             r = self.client.get(reverse(f"anagrafica:{nome}", args=args))
             self.assertEqual(r.status_code, 200, nome)
-        r = self.client.get(reverse("anagrafica:organigramma_mansioni_rischio") + "?vista=lavorativa")
-        self.assertContains(r, "Operaio T")
+        # Organigramma raggruppato per voce del catalogo (= mansione di rischio).
+        r = self.client.get(reverse("anagrafica:organigramma_mansioni_rischio"))
+        self.assertContains(r, reverse("anagrafica:mansione_requisiti", args=[self.operaio.pk]))
+
+    def test_vecchie_pagine_mansione_rischio_rimandano_al_catalogo(self):
+        # Spec Mansionario 15/10/2026: il catalogo delle mansioni di rischio è Mansione.
+        self.client.force_login(self.admin)
+        for nome, args in (("mansioni_rischio_list", []), ("mansione_rischio_nuova", []),
+                           ("mansione_rischio_dettaglio", [self.mr_fumi.pk]),
+                           ("mansione_rischio_modifica", [self.mr_fumi.pk])):
+            r = self.client.get(reverse(f"anagrafica:{nome}", args=args))
+            self.assertRedirects(r, reverse("anagrafica:mansioni_list"), msg_prefix=nome)
+        n = MansioneRischio.objects.count()
+        self.client.post(reverse("anagrafica:mansione_rischio_nuova"), {"codice": "MR-NEW", "nome": "Nuova", "azione": "salva"})
+        self.assertEqual(MansioneRischio.objects.count(), n)
 
     def test_subnav_raggruppata_con_voce_accesa(self):
         self.client.force_login(self.admin)
-        r = self.client.get(reverse("anagrafica:mansione_rischio_dettaglio", args=[self.mr_fumi.pk]))
+        r = self.client.get(reverse("anagrafica:mansioni_list"))
         self.assertContains(r, "Sorveglianza sanitaria")
         self.assertContains(r, 'class="active" aria-current="page">Mansioni di rischio')
 
@@ -515,26 +526,25 @@ class PagineMansioniRischioTests(_Base):
         r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
         self.assertContains(r, "Giudizio di non idoneità")
 
-    def test_form_anteprima_non_salva_e_salvataggio_accoda(self):
+    def test_requisiti_salvano_revisione_e_data_del_dvr(self):
         self.client.force_login(self.admin)
-        self._card(self.lid, "Operaio T")
-        dati = {"codice": "MR-NEW", "nome": "Nuova", "is_active": "on", "fattori": [self.fumi.pk],
-                "mansioni": [self.operaio.pk]}
-        r = self.client.post(reverse("anagrafica:mansione_rischio_nuova"), {**dati, "azione": "anteprima"})
-        self.assertContains(r, "genera 1 nuove visite")
-        self.assertFalse(MansioneRischio.objects.filter(codice="MR-NEW").exists())
-        from unittest import mock
-        from django.utils.module_loading import import_string
+        url = reverse("anagrafica:mansione_requisiti", args=[self.saldatore.pk])
+        self.client.post(url, {"livello_rischio": "A", "dvr_revisione": "Rev. 7", "dvr_data": "2026-03-31"})
+        self.saldatore.refresh_from_db()
+        self.assertEqual((self.saldatore.livello_rischio, self.saldatore.dvr_revisione), ("A", "Rev. 7"))
+        self.assertEqual(self.saldatore.dvr_data.isoformat(), "2026-03-31")
+        self.assertContains(self.client.get(url), "DVR Rev. 7 del 31/03/2026.")
 
-        def _in_linea(func, *args, **kwargs):  # il cluster django-q non gira nei test
-            kwargs.pop("q_options", None)
-            return import_string(func)(*args, **kwargs)
+    def test_pannello_mostra_la_mansione_di_rischio_della_persona(self):
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
+        self.assertContains(r, reverse("anagrafica:mansione_requisiti", args=[self.operaio.pk]))
 
-        with mock.patch("django_q.tasks.async_task", side_effect=_in_linea),                 self.captureOnCommitCallbacks(execute=True):
-            r = self.client.post(reverse("anagrafica:mansione_rischio_nuova"), {**dati, "azione": "salva"})
-        mr = MansioneRischio.objects.get(codice="MR-NEW")
-        self.assertRedirects(r, reverse("anagrafica:mansione_rischio_dettaglio", args=[mr.pk]))
-        self.assertTrue(A.objects.filter(legacy_anagrafica_id=self.lid, chiave=f"VISITA:{self.annuale.pk}").exists())
+    def test_organigramma_conta_chi_non_ha_la_mansione(self):
+        self._dipendente("Senza", "Mansione", "")
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("anagrafica:organigramma_mansioni_rischio"))
+        self.assertContains(r, "senza mansione di rischio in anagrafica, che non compaiono qui: <strong>1</strong>.")
 
     def test_export_organigramma(self):
         self.client.force_login(self.admin)
@@ -669,18 +679,16 @@ class DecisioniDerogaEProtocolloTests(_Base):
                                            user=self.admin)
 
     def test_protocollo_visite_solo_con_permesso_visite(self):
+        # Stessa regola del 10/10, ora sul catalogo delle mansioni di rischio (Mansione).
         from unittest import mock
-        self.mr_fumi.visite.add(self.oculistica)
+        self.saldatore.visite_richieste.add(self.oculistica)
         self.client.force_login(self.admin)
-        url = reverse("anagrafica:mansione_rischio_modifica", args=[self.mr_fumi.pk])
-        dati = {"codice": "MR-FUM", "nome": "Esposti fumi", "is_active": "on", "fattori": [self.fumi.pk],
-                "visite": [self.audiometria.pk], "mansioni": [self.saldatore.pk], "azione": "salva"}
-        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False), \
-                mock.patch("django_q.tasks.async_task"):
+        url = reverse("anagrafica:mansione_requisiti", args=[self.saldatore.pk])
+        dati = {"livello_rischio": "M", "visite_richieste": [self.audiometria.pk]}
+        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
             r = self.client.get(url)
-            self.assertNotContains(r, 'name="visite"')
+            self.assertNotContains(r, 'name="visite_richieste"')
             self.client.post(url, dati)
-        self.assertEqual(list(self.mr_fumi.visite.values_list("pk", flat=True)), [self.oculistica.pk])
-        with mock.patch("django_q.tasks.async_task"):
-            self.client.post(url, dati)
-        self.assertEqual(list(self.mr_fumi.visite.values_list("pk", flat=True)), [self.audiometria.pk])
+        self.assertEqual(list(self.saldatore.visite_richieste.values_list("pk", flat=True)), [self.oculistica.pk])
+        self.client.post(url, dati)
+        self.assertEqual(list(self.saldatore.visite_richieste.values_list("pk", flat=True)), [self.audiometria.pk])

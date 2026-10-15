@@ -233,7 +233,7 @@ def schede_mansioni_rischio(gruppi, stati: dict | None) -> list[dict]:
     """
     out = []
     for g in gruppi:
-        mr = g.mansione_rischio
+        mr = g.mansione_rischio  # voce del catalogo Mansione = mansione di rischio
         ids = {p["legacy_id"] for m in g.mansioni for p in m["persone"]} | {p["legacy_id"] for p in g.aggiunte}
         n = len(ids)
         conteggi = {"ok": 0, "s30": 0, "ko": 0, "mai": 0}
@@ -242,9 +242,9 @@ def schede_mansioni_rischio(gruppi, stati: dict | None) -> list[dict]:
             for lid in ids:
                 esito = (stati.get(lid) or {}).get("complessivo", "na")
                 conteggi[mappa.get(esito, "mai")] += 1
-        livello = mr.get_livello_rischio_dvr_display() if mr.livello_rischio_dvr else ""
+        livello = mr.get_livello_rischio_display() if mr.livello_rischio else ""
         fattori = ", ".join(f.nome for f in g.fattori[:3]) + ("…" if len(g.fattori) > 3 else "")
-        mansioni = len(g.mansioni)
+        dvr = " ".join(x for x in (mr.dvr_revisione, mr.dvr_data.strftime("%d/%m/%Y") if mr.dvr_data else "") if x)
         kw = {}
         if stati is not None and n:
             kw = {
@@ -260,11 +260,11 @@ def schede_mansioni_rischio(gruppi, stati: dict | None) -> list[dict]:
             kw = {"principale": str(n), "principale_label": "person" + ("a" if n == 1 else "e")}
         out.append(scheda(
             titolo=mr.nome,
-            href=reverse("anagrafica:mansione_rischio_dettaglio", args=[mr.pk]),
-            codice=mr.codice,
-            meta=" · ".join(x for x in (f"rischio {livello.lower()}" if livello else "", fattori) if x) or "nessun fattore collegato",
-            tags=(mr.livello_rischio_dvr or "nd",),
-            piede=f"{n} person{'a' if n == 1 else 'e'} · {mansioni} mansion{'e' if mansioni == 1 else 'i'} · {len(g.visite)} visit{'a' if len(g.visite) == 1 else 'e'} nel protocollo",
+            href=reverse("anagrafica:mansione_requisiti", args=[mr.pk]),
+            codice=f"DVR {dvr}" if dvr else "",
+            meta=" · ".join(x for x in (f"rischio {livello.lower()}" if livello else "", fattori) if x) or "livello di rischio non indicato",
+            tags=(mr.livello_rischio or "nd",),
+            piede=f"{n} person{'a' if n == 1 else 'e'} · {len(g.visite)} visit{'a' if len(g.visite) == 1 else 'e'} nel protocollo",
             vai="Requisiti →",
             ordini={"gap": (perc(conteggi["ok"], n) if stati is not None and n else 101, -conteggi["ko"], -n)},
             **kw,

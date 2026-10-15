@@ -65,7 +65,7 @@ body.theme-dark .elc-bar { background:var(--surface-alt); }
         {% empty %}<tr><td colspan="3" class="fmd-muted">Nessun obbligo su corsi online.</td></tr>{% endfor %}</tbody></table></div>
       </section>
       <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Copertura per mansione</div>
-        <div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Mansione</th><th>In regola</th><th></th></tr></thead><tbody>
+        <div class="fmd-tablewrap"><table class="fmd-table"><thead><tr><th>Mansione di rischio</th><th>In regola</th><th></th></tr></thead><tbody>
         {% for r in copertura.per_mansione %}<tr><td>{{ r.nome }}</td><td class="fmd-num">{{ r.in_regola }}/{{ r.obblighi }}</td>
           <td><div class="elc-bar {% if r.pct < 50 %}ko{% elif r.pct < 90 %}warn{% endif %}" title="{{ r.pct }}%"><span style="width:{{ r.pct }}%"></span></div></td></tr>
         {% empty %}<tr><td colspan="3" class="fmd-muted">—</td></tr>{% endfor %}</tbody></table></div>

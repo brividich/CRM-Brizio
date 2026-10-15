@@ -73,11 +73,18 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 </div>
 {% endif %}
 
-{# ── Mansioni di rischio effettive ───────────────────────────────────── #}
-<div class="sp-sez">Mansioni di rischio effettive</div>
+{# ── Mansione di rischio (catalogo Mansione, spec Mansionario 15/10/2026) ── #}
+<div class="sp-sez">Mansione di rischio</div>
 <div class="sp-mr">
+  {% if mansione_catalogo %}
+  <a class="sp-chip" href="{% url 'anagrafica:mansione_requisiti' mansione_catalogo.pk %}" style="text-decoration:none;color:inherit;">
+    {{ mansione_catalogo.nome }}{% if mansione_catalogo.livello_rischio %} <small>rischio {{ mansione_catalogo.get_livello_rischio_display|lower }}</small>{% endif %}
+  </a>
+  {% elif det.mansione_nome %}
+  <span class="sp-chip">{{ det.mansione_nome }} <small>non presente nel catalogo</small></span>
+  {% endif %}
   {% for e in det.mansioni_rischio %}
-  <a class="sp-chip" href="{% url 'anagrafica:mansione_rischio_dettaglio' e.mansione_rischio.pk %}" style="text-decoration:none;color:inherit;">
+  <a class="sp-chip" href="{% url 'anagrafica:mansioni_list' %}" style="text-decoration:none;color:inherit;">
     {{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}
     <small>{% if e.origine == 'OVERRIDE' %}aggiunta individuale{% else %}da mansione «{{ det.mansione_nome }}»{% endif %}</small>
   </a>
@@ -85,12 +92,13 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
   {% for e in det.mansioni_rischio_escluse %}
   <span class="sp-chip"{% if can_view_visite %} title="Esclusa: {{ e.override.motivo }}"{% endif %}><span class="sp-chip-escl">{{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}</span><small>esclusa</small></span>
   {% endfor %}
-  {% if not det.mansioni_rischio and not det.mansioni_rischio_escluse %}
-  <span style="color:#94a3b8;">Nessuna{% if det.mansione_nome %}: la mansione «{{ det.mansione_nome }}» non è collegata a mansioni di rischio (vale il profilo diretto deprecato){% endif %}.</span>
+  {% if not det.mansione_nome and not det.mansioni_rischio %}
+  <span style="color:#94a3b8;">Nessuna mansione di rischio in anagrafica.</span>
   {% endif %}
 </div>
 
-{# ── Override individuali ────────────────────────────────────────────── #}
+{# ── Override individuali (vecchio modello, mostrati solo se ce ne sono) ── #}
+{% if override or mansioni_rischio_opts %}
 <div class="sp-sez">Aggiunte ed esclusioni individuali</div>
 {% if override %}
 <table class="sp-tab">
@@ -132,6 +140,7 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
   <div style="grid-column:span 2;"><label for="ov-motivo">Motivo *</label><input id="ov-motivo" name="motivo" class="dp-input" required maxlength="500" placeholder="Es. nomina addetto antincendio del …"></div>
   <div><button class="dp-btn dp-btn-primary dp-btn-sm" type="submit">Registra</button></div>
 </form>
+{% endif %}
 {% endif %}
 
 {# ── Timeline sicurezza ──────────────────────────────────────────────── #}
