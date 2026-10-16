@@ -413,7 +413,10 @@ class ControlloApiTests(LegacyTableMixin, TestCase):
             return_value=({"email": "cc@example.local", "display": "Capo Commessa"}, {"email": "car@example.local"}),
         ):
             r = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[cid]))
-        self.assertEqual(r.json()["destinatari"], {"to": "Capo Commessa", "cc": "car@example.local"})
+        self.assertEqual(r.json()["destinatari"], {
+            "to": "Capo Commessa", "cc": "car@example.local",
+            "to_email": "cc@example.local", "cc_email": "car@example.local", "extra": [],
+        })
         self.assertEqual(cs.controllo_di_anomalia(None), None)
 
     def test_elenco_controlli_riprendibili(self):
@@ -490,6 +493,8 @@ class ControlloMailTests(LegacyTableMixin, TestCase):
         self.assertTrue(self.controllo.mail_errore)
 
     def test_flush_rispetta_modalita(self):
+        # «subito» resta solo per i controlli aperti prima del 16/10/2026.
+        AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(mail_mode="subito")
         cs.accoda_notifica(self.controllo, self.ids)
         with patch.object(cs, "invia_mail_controllo", return_value={"sent": True}) as invio:
             AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(

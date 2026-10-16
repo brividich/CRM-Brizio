@@ -17,6 +17,8 @@ GUIDA = {
                     "Crea un blocco di seriali da controllare (singoli, elenco o intervallo).",
                     "Per ogni problema trovato aggiungi un'anomalia: descrizione e foto (trascina il file o incollalo con Ctrl+V).",
                     "Indica se l'anomalia riguarda tutti i seriali del blocco o solo alcuni.",
+                    "All'avvio del controllo vedi a chi andrà la mail; con «+ Aggiungi altro capocommessa» o «+ Aggiungi "
+                    "persona» metti in copia altri colleghi presenti in anagrafica.",
                     "Invia: il capocommessa riceve la mail e decide dal portale o dal collegamento nella mail.",
                     "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
                     "di questi seriali» copia la decisione su tutto il blocco.",
@@ -32,8 +34,11 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
-                    "L'invio delle mail può essere a ogni blocco o unico a fine controllo.",
-                    "La mail del controllo la spedisce il modulo stesso: al capocommessa dell'OP, con il CAR in copia. "
+                    "La mail al capocommessa parte una sola volta, a fine controllo; dopo 15 minuti dall'ultimo "
+                    "salvataggio senza invio il controllore riceve un promemoria (notifica + mail con riepilogo), dopo 4 "
+                    "ore parte da sola.",
+                    "La mail del controllo la spedisce il modulo stesso: al capocommessa dell'OP, con il CAR in copia "
+                    "più le persone che l'operatore aggiunge (solo dall'anagrafica, con email di notifica, max 10). "
                     "Tutte le mail del modulo stanno in Configurazione → Notifiche: quando partono, chi le riceve, "
                     "interruttori, orari, liste di destinatari fissi e indirizzo della mail «nuova anomalia fuori da "
                     "un controllo». La stessa vista è in Automazioni → Notifiche di sistema: un dato solo, due pagine.",

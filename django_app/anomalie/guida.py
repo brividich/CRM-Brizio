@@ -94,17 +94,27 @@ SEZIONI: list[dict] = [
                 "«Crea OP e continua».",
                 "Scrivi la «Fase del controllo», per esempio accettazione materiale, lavorazione o collaudo finale. "
                 "Vale per tutti i blocchi e si può cambiare durante il controllo con «Cambia».",
-                "Scegli come avvisare il capocommessa: «A ogni blocco salvato» oppure «Una sola mail a fine controllo».",
+                "Sotto «Mail al capocommessa: una sola, a fine controllo» vedi a chi andrà la mail: «A» il capocommessa "
+                "(il CAR per i collaudi di benestare), «In copia» l'altro.",
+                "Per mettere in copia un altro capocommessa premi «+ Aggiungi altro capocommessa» e sceglilo dall'elenco; "
+                "per qualunque altro collega «+ Aggiungi persona» e cercalo per nome, cognome o email. La × lo toglie.",
                 "Premi «Inizia controllo».",
             ]),
+            ("p", "Si possono aggiungere solo persone dell'anagrafica con un'email di notifica (al massimo 10): ricevono la "
+                  "stessa mail con il link di decisione, quindi non si accettano indirizzi esterni. I destinatari si "
+                  "cambiano anche durante il controllo, dalla barra in alto, e valgono per le mail successive."),
             ("p", "Se sull'OP hai già un controllo lasciato aperto, compare «Hai un controllo ancora aperto su questo OP»: "
                   "con «Riprendi» continui da dove eri rimasto."),
             ("def", [
-                ("A ogni blocco salvato", "la mail parte qualche minuto dopo l'ultimo salvataggio; più blocchi salvati "
-                 "di seguito arrivano in un'unica mail."),
-                ("Una sola mail a fine controllo", "la mail parte con «Termina controllo», oppure da sola dopo 4 ore senza "
-                 "salvataggi."),
+                ("Quando parte la mail", "una sola volta, quando premi «Termina controllo»."),
+                ("Promemoria dopo 15 minuti", "se 15 minuti dopo l'ultimo blocco salvato la mail non è ancora partita, "
+                 "ricevi una notifica nel portale e una mail con il riepilogo salvato e il collegamento per riprendere il "
+                 "controllo e inviarla. Un nuovo salvataggio fa ripartire il conteggio."),
+                ("Dopo 4 ore", "se non termini il controllo, la mail al capocommessa parte da sola: nessuna anomalia resta "
+                 "senza comunicazione."),
             ]),
+            ("p", "I blocchi salvati restano nel portale anche se chiudi la pagina: dal promemoria, o rientrando nell'OP, "
+                  "«Riprendi» li ritrova tutti. Va salvato con «Salva blocco» solo il blocco che stai scrivendo."),
         ],
     },
     {

@@ -164,6 +164,22 @@
     .resume-box { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-light); }
     .resume-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
     .mail-mode { border: 0; display: grid; gap: 8px; }
+    .dest-mail { display: grid; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); border-radius: 10px; background: var(--surface); font-size: var(--fs-sm); color: var(--text); }
+    .dest-mail--compact { padding: 8px 12px; flex: 1 1 100%; }
+    .dest-mail__row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    .dest-mail__lbl { font-size: var(--fs-xs); font-weight: 800; color: var(--text-mid); text-transform: uppercase; letter-spacing: .04em; min-width: 62px; }
+    .dest-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; background: var(--bg); font-weight: 600; }
+    .dest-chip small { color: var(--text-mid); font-weight: 500; }
+    .dest-chip.is-extra { border-color: var(--primary-mid); }
+    .dest-chip button { border: 0; background: none; color: var(--text-mid); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 0 0 2px; min-height: 0; }
+    .dest-chip button:hover { color: var(--danger); }
+    .dest-add { position: relative; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .dest-add .text-input { width: 300px; max-width: 100%; padding: 6px 10px; }
+    .dest-sug { position: absolute; top: 100%; left: 0; z-index: 40; margin-top: 4px; width: 360px; max-width: 90vw; max-height: 260px; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+    .dest-sug li button { display: grid; width: 100%; text-align: left; gap: 1px; border: 0; background: none; padding: 8px 12px; cursor: pointer; font: inherit; color: var(--text); min-height: 0; }
+    .dest-sug li button:hover, .dest-sug li button.is-hi { background: var(--accent-light); }
+    .dest-sug li button small { color: var(--text-mid); }
+    body.theme-dark .dest-sug li button:hover, body.theme-dark .dest-sug li button.is-hi { background: rgba(249,115,22,.14); }
     .mail-mode__opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--surface); }
     .mail-mode__opt.is-on { border-color: var(--accent); background: var(--accent-light); }
     .mail-mode__opt input { margin-top: 4px; accent-color: var(--accent); min-height: 0; }
@@ -357,6 +373,8 @@
       controllo_impostazioni: "{% url 'api_anomalie_controllo_impostazioni' 0 %}",
       controllo_blocco: "{% url 'api_anomalie_controllo_blocco' 0 %}",
       controllo_termina: "{% url 'api_anomalie_controllo_termina' 0 %}",
+      controllo_destinatari: "{% url 'api_anomalie_controllo_destinatari' %}",
+      controllo_persone: "{% url 'api_anomalie_controllo_persone' %}",
     };
   </script>
 
@@ -376,6 +394,8 @@
     controllo_impostazioni: '/api/anomalie/controlli/0/impostazioni',
     controllo_blocco: '/api/anomalie/controlli/0/blocco',
     controllo_termina: '/api/anomalie/controlli/0/termina',
+    controllo_destinatari: '/api/anomalie/controlli/destinatari',
+    controllo_persone: '/api/anomalie/controlli/persone',
   };
 
   const cfgLists = window._AP_CONFIG_LISTS || {};
@@ -774,10 +794,9 @@
   const MSG_SN_ANOM = 'Scegli su quali seriali è presente l’anomalia';
   const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
   const MAX_RANGE = 1000;
-  const MAIL_MODES = [
-    { value: 'subito', label: 'A ogni blocco salvato', hint: 'La mail parte qualche minuto dopo l’ultimo salvataggio: più blocchi salvati di seguito arrivano in un’unica mail.' },
-    { value: 'fine', label: 'Una sola mail a fine controllo', hint: 'La mail parte quando premi «Termina controllo» (o da sola dopo 4 ore senza salvataggi).' },
-  ];
+  // La mail al capocommessa parte solo con «Termina controllo»; dopo 15 minuti dall'ultimo
+  // salvataggio senza invio arriva un promemoria al controllore, dopo 4 ore parte da sola.
+  const MAIL_FINE_HINT = 'La mail parte quando premi «Termina controllo». Se 15 minuti dopo l’ultimo salvataggio non è ancora partita ricevi un promemoria per inviarla; dopo 4 ore parte da sola.';
 
   const urlFor = (tpl, id) => String(tpl).replace('/controlli/0', `/controlli/${id}`);
 
@@ -1087,6 +1106,115 @@
   };
 
   /* Riepilogo del controllo: prima di terminare (da confermare) e dopo (da stampare). */
+  /* Destinatari della mail: capocommessa/CAR risolti dall'OP + persone aggiunte in copia.
+     Si aggiungono solo persone dell'anagrafica (ricerca per nome o email): il server
+     rifiuta gli indirizzi non collegati a nessuno, perché la mail porta il link di decisione. */
+  const DestinatariMail = ({ destinatari, extra, onChange, disabled, compact }) => {
+    const [aperto, setAperto] = useState(false);  // false | 'persona' | 'capo'
+    const [capi, setCapi] = useState(null);
+    const [q, setQ] = useState('');
+    const [sug, setSug] = useState([]);
+    const [hi, setHi] = useState(0);
+    const [msg, setMsg] = useState('');
+    const lista = extra || [];
+    const gia = new Set([destinatari && destinatari.to_email, destinatari && destinatari.cc_email, ...lista.map(d => d.email)]
+      .filter(Boolean).map(e => e.toLowerCase()));
+    useEffect(() => {
+      if (aperto !== 'capo' || capi) return undefined;
+      let alive = true;
+      getJson(`${API.controllo_persone}?ruolo=capocommessa`, 'Capicommessa')
+        .then(j => alive && setCapi(j.results || []))
+        .catch(e => { if (alive) { setCapi([]); setMsg(e.message); } });
+      return () => { alive = false; };
+    }, [aperto]);
+    useEffect(() => {
+      if (aperto !== 'capo') return;
+      const t = q.trim().toLowerCase();
+      setSug((capi || []).filter(p => !gia.has(p.email.toLowerCase())
+        && (!t || p.nome.toLowerCase().includes(t) || p.email.toLowerCase().includes(t))));
+      setHi(0);
+    }, [aperto, capi, q, extra]);
+    useEffect(() => {
+      if (aperto !== 'persona') return undefined;
+      const testo = q.trim();
+      if (testo.length < 2) { setSug([]); return undefined; }
+      let alive = true;
+      const t = setTimeout(() => {
+        getJson(`${API.controllo_persone}?q=${encodeURIComponent(testo)}`, 'Ricerca persone')
+          .then(j => { if (!alive) return; setSug((j.results || []).filter(p => !gia.has(p.email.toLowerCase()))); setHi(0); setMsg(''); })
+          .catch(e => alive && setMsg(e.message));
+      }, 220);
+      return () => { alive = false; clearTimeout(t); };
+    }, [q, aperto]);
+    const chiudi = () => { setAperto(false); setQ(''); setSug([]); setMsg(''); };
+    const aggiungi = (p) => {
+      if (!p || gia.has(p.email.toLowerCase())) return;
+      onChange([...lista, { email: p.email, nome: p.nome }]);
+      chiudi();
+    };
+    const onKey = (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => Math.min(h + 1, sug.length - 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(h - 1, 0)); }
+      else if (e.key === 'Escape') chiudi();
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (sug[hi]) aggiungi(sug[hi]);
+        else if (aperto === 'persona' && q.includes('@')) setMsg('Nessuna persona in anagrafica con questo indirizzo: si possono aggiungere solo persone collegate a un utente.');
+      }
+    };
+    const chip = (nome, email) => <span className="dest-chip" title={email}>{nome}</span>;
+    return (
+      <div className={`dest-mail${compact ? ' dest-mail--compact' : ''}`} aria-label="Destinatari della mail">
+        <div className="dest-mail__row">
+          <span className="dest-mail__lbl">A</span>
+          {destinatari && destinatari.to
+            ? chip(destinatari.to, destinatari.to_email)
+            : <span className="copilot-err">{destinatari ? 'Capocommessa e CAR dell’OP senza indirizzo email: la mail non potrà partire, avvisa l’ufficio.' : 'Lettura destinatari…'}</span>}
+        </div>
+        <div className="dest-mail__row">
+          <span className="dest-mail__lbl">In copia</span>
+          {destinatari && destinatari.cc && chip(destinatari.cc, destinatari.cc_email)}
+          {lista.map(d => (
+            <span key={d.email} className="dest-chip is-extra" title={d.email}>
+              {d.nome || d.email}<small>{d.email}</small>
+              {!disabled && <button type="button" aria-label={`Togli ${d.nome || d.email}`} onClick={() => onChange(lista.filter(x => x.email !== d.email))}>×</button>}
+            </span>
+          ))}
+          {!(destinatari && destinatari.cc) && !lista.length && <span className="field-hint">nessuno</span>}
+          {!disabled && !aperto && lista.length < 10 && (
+            <>
+              <button type="button" className="link-btn" onClick={() => setAperto('capo')}>+ Aggiungi altro capocommessa</button>
+              <button type="button" className="link-btn" onClick={() => setAperto('persona')}>+ Aggiungi persona</button>
+            </>
+          )}
+        </div>
+        {aperto && !disabled && (
+          <div className="dest-add">
+            <input className="text-input" type="text" autoFocus value={q}
+              placeholder={aperto === 'capo' ? 'Filtra i capicommessa…' : 'Nome, cognome o email…'}
+              onFocus={() => aperto === 'capo' && setHi(0)}
+              onChange={e => setQ(e.target.value)} onKeyDown={onKey}
+              aria-label={aperto === 'capo' ? 'Scegli il capocommessa da aggiungere in copia' : 'Cerca persona da aggiungere in copia'} />
+            <button type="button" className="btn-secondary btn-sm" onClick={chiudi}>Chiudi</button>
+            {sug.length > 0 && (
+              <ul className="dest-sug" role="listbox">
+                {sug.map((p, i) => (
+                  <li key={p.email}><button type="button" className={i === hi ? 'is-hi' : ''} onMouseDown={e => { e.preventDefault(); aggiungi(p); }}>
+                    <strong>{p.nome}</strong><small>{p.email}</small>
+                  </button></li>
+                ))}
+              </ul>
+            )}
+            {aperto === 'capo' && capi === null && <span className="field-hint">Carico i capicommessa…</span>}
+            {aperto === 'capo' && capi !== null && !sug.length && !msg && <span className="field-hint">Nessun altro capocommessa con email disponibile.</span>}
+            {aperto === 'persona' && q.trim().length >= 2 && !sug.length && !msg && <span className="field-hint">Nessuna persona trovata.</span>}
+          </div>
+        )}
+        {msg && <div className="copilot-err">{msg}</div>}
+      </div>
+    );
+  };
+
   const RiepilogoControllo = ({ op, controllo, destinatari }) => {
     const blocchi = controllo.blocchi || [];
     const pezzi = new Set();
@@ -1107,7 +1235,10 @@
         <div className="riep-mail">
           <div><strong>OP {op.id}</strong> · fase <strong>{controllo.fase}</strong>{controllo.operatore ? <> · operatore {controllo.operatore}</> : null}</div>
           {destinatari && destinatari.to
-            ? <div>Mail con il link di decisione a <strong>{destinatari.to}</strong>{destinatari.cc ? <> · in copia {destinatari.cc}</> : null}</div>
+            ? <div>Mail con il link di decisione a <strong>{destinatari.to}</strong>{(() => {
+                const copia = [destinatari.cc, ...(controllo.destinatari_extra || []).map(d => d.nome || d.email)].filter(Boolean);
+                return copia.length ? <> · in copia {copia.join(', ')}</> : null;
+              })()}</div>
             : <div className="copilot-err">Capocommessa e CAR dell’OP senza indirizzo email: la mail non potrà partire, avvisa l’ufficio.</div>}
         </div>
         {ripetuti.length > 0 && (
@@ -1151,7 +1282,6 @@
     const [riprendibili, setRiprendibili] = useState([]);
     const [fasiNote, setFasiNote] = useState([]);
     const [fase, setFase] = useState('');
-    const [mailMode, setMailMode] = useState('subito');
     const [editingFase, setEditingFase] = useState(false);
     const [editor, setEditor] = useState(newEditor());
     const [saving, setSaving] = useState(false);
@@ -1162,6 +1292,7 @@
     const [esito, setEsito] = useState(null);
     const [riepilogo, setRiepilogo] = useState(false);
     const [destinatari, setDestinatari] = useState(null);
+    const [extraAvvio, setExtraAvvio] = useState([]);
     const [confirmRipetuti, setConfirmRipetuti] = useState(null);
     const [serialiAperti, setSerialiAperti] = useState({ seriali: [], dettagli: {} });
     const [copilot, setCopilot] = useState({ key: '', loading: false, sug: null, err: '' });
@@ -1203,6 +1334,9 @@
         })
         .catch(e => alive && setError(e.message))
         .finally(() => alive && setLoading(false));
+      getJson(`${API.controllo_destinatari}?op_id=${encodeURIComponent(op.id)}`, 'Destinatari mail')
+        .then(j => alive && setDestinatari(j.destinatari || { to: '', cc: '' }))
+        .catch(() => alive && setDestinatari({ to: '', cc: '' }));
       loadSerialiAperti();
       return () => { alive = false; };
     }, [op.id]);
@@ -1264,7 +1398,7 @@
       if (!fase.trim()) { setError('Indica la fase del controllo.'); return; }
       setError(''); setSaving(true);
       try {
-        const j = await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: mailMode }, 'Avvio controllo');
+        const j = await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
         setControllo(j.controllo);
         setEditor(newEditor());
         setTimeout(() => snRef.current && snRef.current.focus(), 50);
@@ -1279,7 +1413,6 @@
         setControllo(j.controllo);
         setDestinatari(j.destinatari || null);
         setFase(j.controllo.fase);
-        setMailMode(j.controllo.mail_mode);
         setEditor(newEditor());
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
@@ -1289,9 +1422,8 @@
       setError('');
       try {
         const j = await postJson(urlFor(API.controllo_impostazioni, controllo.id), patch, 'Impostazioni controllo');
-        setControllo(prev => ({ ...prev, fase: j.controllo.fase, mail_mode: j.controllo.mail_mode }));
+        setControllo(prev => ({ ...prev, fase: j.controllo.fase, mail_mode: j.controllo.mail_mode, destinatari_extra: j.controllo.destinatari_extra || [] }));
         if (patch.fase) setEditingFase(false);
-        if (patch.mail_mode) setMailMode(patch.mail_mode);
       } catch (e) { setError(e.message); }
     };
 
@@ -1529,7 +1661,7 @@
               <div className="esito-card__icon">✓</div>
               <h2>Controllo terminato</h2>
               <p>{blocchi.length} blocch{blocchi.length === 1 ? 'o' : 'i'} di seriali, {blocchi.reduce((n, b) => n + b.anomalie.length, 0)} anomalie registrate sull’OP {op.id}.</p>
-              {esito.sent && <p className="esito-ok">Mail con il link di decisione inviata a <strong>{esito.to}</strong>{esito.cc ? <> (in copia {esito.cc})</> : null}.</p>}
+              {esito.sent && <p className="esito-ok">Mail con il link di decisione inviata a <strong>{esito.to}</strong>{[esito.cc, ...(esito.extra || [])].filter(Boolean).length ? <> (in copia {[esito.cc, ...(esito.extra || [])].filter(Boolean).join(', ')})</> : null}.</p>}
               {!esito.sent && esito.reason === 'nessuna_anomalia' && <p className="esito-muted">Nessuna mail da inviare ora: le anomalie erano già state comunicate al capocommessa.</p>}
               {!esito.sent && esito.reason === 'errore' && <p className="error-msg">Mail al capocommessa non inviata: {esito.error}. Il sistema riproverà in automatico.</p>}
             </div>
@@ -1603,15 +1735,11 @@
               <datalist id="fasi-op">{fasiNote.map(f => <option key={f} value={f} />)}</datalist>
               <div className="field-hint">Vale per tutti i blocchi che salverai; la puoi cambiare durante il controllo.</div>
             </div>
-            <fieldset className="mail-mode">
-              <legend className="field-label">Mail al capocommessa</legend>
-              {MAIL_MODES.map(m => (
-                <label key={m.value} className={`mail-mode__opt${mailMode === m.value ? ' is-on' : ''}`}>
-                  <input type="radio" name="mail-mode" value={m.value} checked={mailMode === m.value} onChange={() => setMailMode(m.value)} />
-                  <span><strong>{m.label}</strong><span className="field-hint">{m.hint}</span></span>
-                </label>
-              ))}
-            </fieldset>
+            <div className="field-group">
+              <span className="field-label">Mail al capocommessa: una sola, a fine controllo</span>
+              <DestinatariMail destinatari={destinatari} extra={extraAvvio} onChange={setExtraAvvio} disabled={saving} />
+              <div className="field-hint">{MAIL_FINE_HINT} Capocommessa e CAR arrivano dall’OP; con «Aggiungi altro capocommessa» o «Aggiungi persona» metti in copia altri colleghi, che ricevono la stessa mail con il link di decisione.</div>
+            </div>
             {error && <div className="error-msg">{error}</div>}
             <div className="action-bar">
               <button className="btn-secondary" onClick={() => onDone('menu')} disabled={saving}>Esci</button>
@@ -1872,18 +2000,12 @@
               <span className="ctl-stat"><strong>{nAnomalie}</strong> anomali{nAnomalie === 1 ? 'a' : 'e'}</span>
             </div>
           )}
-          <div className="ctl-head__mail" role="radiogroup" aria-label="Mail al capocommessa">
+          <div className="ctl-head__mail">
             <span className="field-label">Mail al capocommessa</span>
-            <div className="seg-toggle">
-              {MAIL_MODES.map(m => (
-                <button key={m.value} type="button" role="radio" aria-checked={controllo.mail_mode === m.value}
-                  className={controllo.mail_mode === m.value ? 'is-on' : ''} title={m.hint}
-                  onClick={() => controllo.mail_mode !== m.value && salvaImpostazioni({ mail_mode: m.value })}>
-                  {m.value === 'subito' ? 'A ogni blocco' : 'A fine controllo'}
-                </button>
-              ))}
-            </div>
+            <span className="ctl-head__val" title={MAIL_FINE_HINT}>{controllo.mail_mode === 'subito' ? 'a ogni blocco' : 'a fine controllo'}</span>
           </div>
+          <DestinatariMail compact destinatari={destinatari} extra={controllo.destinatari_extra || []} disabled={saving}
+            onChange={lista => salvaImpostazioni({ destinatari_extra: lista })} />
         </div>
 
         <div className="form-body">
@@ -1912,7 +2034,7 @@
           <div className="ctl-footer">
             <div className="field-hint">
               {controllo.mail_mode === 'fine'
-                ? (controllo.da_notificare ? `${controllo.da_notificare} anomalie in attesa: partiranno in un’unica mail con «Termina controllo».` : 'La mail partirà con «Termina controllo».')
+                ? (controllo.da_notificare ? `${controllo.da_notificare} anomalie in attesa: partiranno in un’unica mail con «Termina controllo». Se ti fermi, fra 15 minuti ricevi un promemoria.` : 'La mail partirà con «Termina controllo».')
                 : (controllo.da_notificare ? `${controllo.da_notificare} anomalie in coda: la mail parte pochi minuti dopo l’ultimo salvataggio.` : 'Ogni blocco salvato viene comunicato al capocommessa.')}
               {controllo.mail_errore && <div className="copilot-err">Ultimo invio non riuscito: {controllo.mail_errore}</div>}
             </div>
