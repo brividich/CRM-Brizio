@@ -281,6 +281,8 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
           </div>
         </section>
 
+        <div hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento ricambi…</p></div>
+
         <section class="woc-card">
           <div class="woc-card-body">
             <div class="woc-section-head"><div><h3>Allegati finali</h3><p>Rapportini, foto o verbali.</p></div></div>

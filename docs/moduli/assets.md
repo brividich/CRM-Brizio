@@ -173,7 +173,19 @@ Il cambio di stato del ticket passa da un unico service (`tickets/services/stato
 
 **Panoramica → Dettaglio indicatori → «Guasti più frequenti — ultimi 90 giorni»**: i dieci problemi più ricorrenti negli interventi chiusi, filtrabili per categoria (con le sotto-categorie), con il fermo dove è stato indicato e la copertura dichiarata («fermo indicato in 8 interventi su 15»).
 
+## Ricambi
+
+**Ricambi** (Manutenzione → «Ricambi», `/assets/manutenzione/ricambi/`): anagrafica minima (codice, descrizione, unità, giacenza, scorta minima, scaffale, costo unitario, fornitore, asset e categorie compatibili), filtro «Sotto scorta» (giacenza alla scorta minima o sotto), esportazione XLSX, scheda con lo storico dei movimenti. Una sola scorta, nessun ordine d'acquisto.
+
+**Movimenti** (`assets/services/spare_parts.py`, `register_movement`): carico, scarico, rettifica inventario (porta la giacenza al valore contato, con nota obbligatoria); lock sulla riga del ricambio, uno scarico che porterebbe sotto zero è rifiutato. Anagrafica, carichi e rettifiche: `admin_assets`; scarico su un intervento: `maintenance_execute` (nessuna azione ACL nuova).
+
+**Intervento → «Ricambi usati»** (scheda dell'intervento e pagina di chiusura): cerca il ricambio (prima quelli compatibili con l'asset o la sua categoria), quantità, «Aggiungi». Se in chiusura il costo materiali non è indicato a mano, è la somma quantità × costo al momento dello scarico; se è indicato a mano prevale, e il riquadro mostra la differenza.
+
+**Avvisi**: tessera «Ricambi sotto scorta» nella Panoramica («Dettaglio indicatori») e sezione «RICAMBI SOTTO SCORTA» nel promemoria giornaliero (`send_maintenance_reminders`), solo se ce ne sono.
+
 ## Note di rilascio
+
+Ricambi (ottobre 2026): dopo il deploy `migrate assets` (0140 tabelle `assets_sparepart` e `assets_sparepartmovement`; 0141 binding ACL di `/assets/manutenzione/ricambi/` con lo stesso permesso di «Da fare» e voce «Ricambi» in fondo al menu Manutenzione).
 
 Codici guasto (ottobre 2026): dopo il deploy `migrate assets` (0138 tabella `assets_failurecode` e campi sull'intervento; 0139 crea le sei cause storiche e collega gli interventi esistenti, il numero è stampato dalla migrazione).
 

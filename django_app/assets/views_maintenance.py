@@ -1263,6 +1263,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "report_missing": len(report_missing),
         "follow_ups": follow_ups.count(),
         "conflicts": len(conflicts),
+        "spare_below_min": _spare_below_min_count(),
     }
 
     # Una pagina sola: le liste dicono cosa fare, la sintesi come sta andando.
@@ -1322,6 +1323,12 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
             "can_bulk_workorders": can_execute_maintenance(request),
         },
     )
+
+
+def _spare_below_min_count() -> int:
+    from .services.spare_parts import below_min_queryset
+
+    return below_min_queryset().count()
 
 
 PARETO_DAYS = 90

@@ -279,6 +279,10 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       <span class="md-kpi-label">Interventi di verifica aperti</span><span class="md-kpi-value">{{ kpi.follow_ups }}</span>
       <span class="md-kpi-sub">da verificare</span>
     </a>
+    <a class="md-kpi {% if kpi.spare_below_min %}is-warn{% endif %}" href="{% url 'assets:spare_part_list' %}?sotto_scorta=1">
+      <span class="md-kpi-label">Ricambi sotto scorta</span><span class="md-kpi-value">{{ kpi.spare_below_min }}</span>
+      <span class="md-kpi-sub">giacenza alla scorta minima o sotto</span>
+    </a>
     <a class="md-kpi {% if kpi.conflicts %}is-warn{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
       <span class="md-kpi-label">Conflitti</span><span class="md-kpi-value">{{ kpi.conflicts }}</span>
       <span class="md-kpi-sub">periodicita in contrasto</span>

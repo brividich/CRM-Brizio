@@ -210,6 +210,8 @@
 
       {% include "assets/components/workorder_checklist.html" %}
 
+      <div hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento ricambi…</p></div>
+
       <article class="ux-card">
         <header class="ux-card-head"><div><h3>Note operative</h3><p>Ogni nota resta associata a data, ora e autore.</p></div></header>
         <div class="ux-card-body">

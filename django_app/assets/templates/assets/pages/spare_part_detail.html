@@ -1,0 +1,58 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ part.code }} — Ricambi{% endblock %}
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+{% block assets_shell_title %}{{ part.code }} · {{ part.description }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Giacenza <strong>{{ part.stock_qty|floatformat:"-2" }} {{ part.unit }}</strong> · scorta minima {{ part.min_qty|floatformat:"-2" }} {{ part.unit }}
+    {% if part.is_below_min %}<span class="md-badge badge-danger">sotto scorta</span>{% endif %}
+    {% if part.location %} · {{ part.location }}{% endif %}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:spare_part_list' %}">&larr; Ricambi</a>
+  {% if can_manage %}<a class="btn btn-secondary" href="{% url 'assets:spare_part_edit' part.pk %}">Modifica</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  {% if can_manage %}
+  <form method="post" class="md-filters" style="align-items:end">
+    {% csrf_token %}
+    <div class="md-field"><label for="sp-kind">Movimento</label>
+      <select id="sp-kind" name="kind" class="input">
+        <option value="IN">Carico (arrivo merce)</option>
+        <option value="ADJUST">Rettifica inventario (giacenza contata)</option>
+      </select></div>
+    <div class="md-field"><label for="sp-qty">Quantità</label><input id="sp-qty" class="input" type="number" name="qty" min="0" step="0.01" required inputmode="decimal"></div>
+    <div class="md-field"><label for="sp-cost">Costo unitario (EUR)</label><input id="sp-cost" class="input" type="number" name="unit_cost_eur" min="0" step="0.01"></div>
+    <div class="md-field"><label for="sp-note">Nota</label><input id="sp-note" class="input" name="note" maxlength="255" placeholder="Obbligatoria per la rettifica"></div>
+    <button class="btn btn-primary" type="submit">Registra</button>
+  </form>
+  <p class="md-hint">Gli scarichi si registrano dall'intervento («Ricambi usati»), così il costo finisce sull'intervento giusto.</p>
+  {% endif %}
+
+  <details class="md-section" open>
+    <summary class="md-section-head"><h2>Movimenti</h2><span class="md-badge badge-muted">{{ movements|length }}</span></summary>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>Data</th><th>Movimento</th><th class="md-right">Quantità</th><th class="md-right">Giacenza dopo</th><th>Intervento</th><th>Nota</th><th>Da</th></tr></thead>
+        <tbody>
+          {% for m in movements %}
+            <tr>
+              <td class="md-nowrap">{{ m.created_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ m.get_kind_display }}</td>
+              <td class="md-right">{% if m.kind == "OUT" %}−{% elif m.kind == "IN" %}+{% else %}={% endif %}{{ m.qty|floatformat:"-2" }} {{ part.unit }}</td>
+              <td class="md-right">{{ m.stock_after|floatformat:"-2"|default:"—" }}</td>
+              <td>{% if m.work_order_id %}<a href="{% url 'assets:wo_view' m.work_order_id %}">Intervento</a> <span class="md-sub" style="display:inline">OdL n. {{ m.work_order_id }}</span>{% else %}—{% endif %}</td>
+              <td>{{ m.note|default:"—" }}</td>
+              <td>{{ m.user.get_full_name|default:m.user.username|default:"—" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="md-empty">Nessun movimento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+{% endblock %}

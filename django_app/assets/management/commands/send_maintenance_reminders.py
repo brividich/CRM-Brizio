@@ -353,6 +353,11 @@ class Command(BaseCommand):
             + len(renewal_overdue)
         )
 
+        # 6. Ricambi sotto scorta (solo se ce ne sono).
+        from assets.services.spare_parts import below_min_queryset
+
+        spare_below = list(below_min_queryset().order_by("code")[:50])
+
         if not (
             overdue_total
             or admin_deadlines
@@ -363,6 +368,7 @@ class Command(BaseCommand):
             or occ_due
             or occ_report_missing
             or renewal_due
+            or spare_below
         ):
             self.stdout.write("Nessun promemoria da inviare.")
             return
@@ -442,6 +448,15 @@ class Command(BaseCommand):
             for row in renewal_due:
                 days_left = (row.due_date - today).days
                 lines.append(f"  [{days_left}gg] {row.kind_label} — {_renewal_line(row)} — scadenza {row.due_date:%d-%m-%Y}")
+            lines.append("")
+
+        if spare_below:
+            lines.append(f"RICAMBI SOTTO SCORTA ({len(spare_below)}):")
+            for part in spare_below:
+                where = f" — {part.location}" if part.location else ""
+                lines.append(
+                    f"  {part.code} — {part.description}: {part.stock_qty} {part.unit} (minimo {part.min_qty}){where}"
+                )
             lines.append("")
 
         if periodic:

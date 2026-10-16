@@ -30,6 +30,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
     <a href="#contatori">Contatori e piani a contatore</a>
     <a href="#codici-guasto">Codici guasto e guasti più frequenti</a>
+    <a href="#ricambi">Ricambi</a>
     <a href="#ticket">Interventi nati da una segnalazione</a>
     <a href="#stato">Stato dell'asset</a>
     <a href="#documenti">Documenti, cartelle e video</a>
@@ -101,6 +102,16 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Chiudendo un intervento correttivo puoi indicare, se li conosci, <strong>Problema</strong>, <strong>Causa</strong> e <strong>Rimedio</strong> scegliendoli da un elenco: l'elenco mostra i codici validi per la categoria della macchina. Sono facoltativi.</p>
       <p>Nella <strong>Panoramica</strong>, sotto «Dettaglio indicatori», <strong>«Guasti più frequenti — ultimi 90 giorni»</strong> mostra i problemi che si ripetono di più, filtrabili per categoria, con le ore di fermo dove sono state indicate.</p>
       <p class="ag-note">I codici si gestiscono in Impostazioni → «Codici guasto» (amministratori del modulo). Un codice già usato non si elimina: si disattiva.</p>
+    </section>
+
+    <section class="ag-sec" id="ricambi">
+      <h2>Ricambi</h2>
+      <p><strong>Manutenzione → Ricambi</strong> elenca cosa c'è a magazzino con giacenza, scorta minima e scaffale; la casella <strong>«Sotto scorta»</strong> mostra solo quelli finiti o quasi.</p>
+      <ol>
+        <li>Nell'intervento, riquadro <strong>«Ricambi usati»</strong>: cerca il ricambio (in cima ci sono quelli adatti alla macchina), indica la quantità e premi <span class="ag-btn">Aggiungi</span>. La giacenza scende subito.</li>
+        <li>In chiusura, se non scrivi il costo dei materiali, il portale lo calcola dai ricambi usati.</li>
+      </ol>
+      <p class="ag-note">Carichi (arrivo merce) e rettifiche di inventario si registrano dalla scheda del ricambio e sono riservati agli amministratori del modulo. Non si può scaricare più di quanto c'è a magazzino: se il conteggio reale è diverso, va fatta una rettifica.</p>
     </section>
 
     <section class="ag-sec" id="ticket">

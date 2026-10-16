@@ -42,6 +42,8 @@ GUIDA = {
                     "obbligatorio): hai 5 secondi per annullare. Con più righe selezionate: «Segna come fatte oggi».",
                     "«Il mio turno» è la scheda «Il mio lavoro» di Da fare; i KPI sono nella Panoramica, sotto "
                     "«Dettaglio indicatori».",
+                    "Ricambi: in un intervento, riquadro «Ricambi usati» → cerca, quantità, «Aggiungi» (la giacenza "
+                    "scende subito). «Manutenzione → Ricambi» con il filtro «Sotto scorta» mostra cosa sta finendo.",
                     "Contatori (ore, km, cicli): si aggiornano dalla scheda asset o dal QR; l'etichetta dice quanto è "
                     "fresca la lettura. Un valore non può scendere: per un azzeramento serve la nota. I piani «a "
                     "contatore» chiedono il valore letto quando si registra la manutenzione.",
@@ -125,6 +127,13 @@ GUIDA = {
             "fare": [
                 "Admin Django → «Collector letture contatori»: il collector deve essere attivo e avere un «ultimo contatto» recente.",
                 "L'IP della macchina del collector deve essere in ASSETS_METER_INGEST_ALLOWED_IPS; il contatore deve esistere sull'asset.",
+            ],
+        },
+        {
+            "sintomo": "«Giacenza insufficiente» scaricando un ricambio",
+            "fare": [
+                "A magazzino ce n'è meno della quantità indicata: controlla il numero.",
+                "Se il magazzino reale è diverso, chiedi a un amministratore una rettifica di inventario dalla scheda del ricambio.",
             ],
         },
         {

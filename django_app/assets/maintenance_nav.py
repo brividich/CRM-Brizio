@@ -119,6 +119,14 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
             # Segnalazione rapida di un guasto (ticket MAN): il punto d'ingresso del
             # lavoro correttivo, prima fuori dal menu.
             NavItem("segnala", "Segnala guasto", "asset_quick_report", sidebar_code="maintenance_segnala"),
+            # Ricambi minimi: anagrafica, giacenza, sotto scorta, scarico sugli interventi.
+            NavItem(
+                "ricambi",
+                "Ricambi",
+                "spare_part_list",
+                sidebar_code="maintenance_ricambi",
+                routes=frozenset({"spare_part_create", "spare_part_detail", "spare_part_edit", "workorder_spare_parts"}),
+            ),
         ),
     ),
     NavGroup(
@@ -261,6 +269,11 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
     'storico': (
         "Ordini di lavoro conclusi e ticket di manutenzione, in un'unica cronologia.",
         'Filtra per asset, periodo o testo per ritrovare un intervento passato.',
+    ),
+    'ricambi': (
+        "Cosa c'e' a magazzino: giacenza, scorta minima, scaffale. «Sotto scorta» mostra cosa sta finendo.",
+        "Gli scarichi si fanno dall'intervento («Ricambi usati»): il costo materiali si calcola da solo.",
+        'Carichi e rettifiche di inventario si registrano dalla scheda del ricambio (amministratori).',
     ),
     'imposta': (
         "Segui i passi dall'alto: ognuno dice cosa manca e porta alla pagina dove si sistema.",

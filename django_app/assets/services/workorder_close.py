@@ -188,12 +188,19 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
     # chiuso e riaperto avanzerebbe la scadenza su una manutenzione che non ha
     # risolto nulla. Si registrano i dati e l'OdL resta aperto.
     reopened_as_unresolved = data.status == WorkOrder.STATUS_DONE and esito == WorkOrder.OUTCOME_NOT_RESOLVED
+    # Costo materiali: se non indicato a mano lo danno i ricambi scaricati
+    # sull'intervento (quantita' x costo al momento dello scarico).
+    materials_cost = data.materials_cost
+    if materials_cost is None:
+        from .spare_parts import workorder_parts_cost
+
+        materials_cost = workorder_parts_cost(workorder)
     closure_kwargs = dict(
         resolution=data.resolution or "",
         intervention_duration=data.intervention_duration,
         downtime=data.downtime,
         labor_cost=data.labor_cost,
-        materials_cost=data.materials_cost,
+        materials_cost=materials_cost,
         cost=data.cost,
         covered_by_contract=data.covered_by_contract,
         assistance_contract=data.assistance_contract,

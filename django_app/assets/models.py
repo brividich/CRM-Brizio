@@ -3472,6 +3472,109 @@ class MeterIngestClient(models.Model):
         return self.allowed_assets.filter(pk=asset_id).exists()
 
 
+class SparePart(models.Model):
+    """Ricambio a magazzino: cosa c'e', cosa si consuma, cosa sta finendo.
+
+    Volutamente minimo (una sola scorta, nessun ordine d'acquisto): la giacenza
+    cambia solo con un movimento (``assets.services.spare_parts.register_movement``).
+    """
+
+    UNIT_PIECES = "pz"
+    UNIT_METERS = "m"
+    UNIT_LITERS = "l"
+    UNIT_KG = "kg"
+    UNIT_CHOICES = [
+        (UNIT_PIECES, "pz"),
+        (UNIT_METERS, "m"),
+        (UNIT_LITERS, "l"),
+        (UNIT_KG, "kg"),
+    ]
+
+    code = models.CharField(max_length=60, unique=True)
+    description = models.CharField(max_length=255)
+    unit = models.CharField(max_length=4, choices=UNIT_CHOICES, default=UNIT_PIECES)
+    stock_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    min_qty = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Scorta minima: a questo valore (o sotto) il ricambio risulta «sotto scorta».",
+    )
+    location = models.CharField(max_length=120, blank=True, default="", help_text="Scaffale / posizione.")
+    unit_cost_eur = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_spare_parts",
+    )
+    compatible_assets = models.ManyToManyField(Asset, blank=True, related_name="spare_parts")
+    compatible_categories = models.ManyToManyField(AssetCategory, blank=True, related_name="spare_parts")
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["code", "id"]
+        verbose_name = "Ricambio"
+        verbose_name_plural = "Ricambi"
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.description}"
+
+    @property
+    def is_below_min(self) -> bool:
+        return self.stock_qty <= self.min_qty
+
+
+class SparePartMovement(models.Model):
+    """Movimento di magazzino: carico, scarico (anche su un intervento), rettifica.
+
+    ``qty`` e' sempre positiva: il verso lo dice ``kind``. Una rettifica porta la
+    giacenza al valore contato (``qty``) ed e' l'unico modo di correggere un errore.
+    """
+
+    KIND_IN = "IN"
+    KIND_OUT = "OUT"
+    KIND_ADJUST = "ADJUST"
+    KIND_CHOICES = [
+        (KIND_IN, "Carico"),
+        (KIND_OUT, "Scarico"),
+        (KIND_ADJUST, "Rettifica inventario"),
+    ]
+
+    part = models.ForeignKey(SparePart, on_delete=models.PROTECT, related_name="movements")
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES, db_index=True)
+    qty = models.DecimalField(max_digits=12, decimal_places=2)
+    stock_after = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    work_order = models.ForeignKey(
+        "WorkOrder", on_delete=models.SET_NULL, null=True, blank=True, related_name="spare_part_movements"
+    )
+    unit_cost_eur = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Costo unitario al momento del movimento (resta anche se poi il prezzo cambia).",
+    )
+    note = models.CharField(max_length=255, blank=True, default="")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="spare_part_movements"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Movimento ricambio"
+        verbose_name_plural = "Movimenti ricambi"
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.qty} {self.part.unit} — {self.part.code}"
+
+    @property
+    def line_cost(self):
+        if self.unit_cost_eur is None or self.kind != self.KIND_OUT:
+            return None
+        return (self.qty * self.unit_cost_eur).quantize(Decimal("0.01"))
+
+
 class AssetCalendarEvent(models.Model):
     KIND_MAINTENANCE = "MAINTENANCE"
     KIND_ADMINISTRATIVE_DEADLINE = "ADMIN_DEADLINE"

@@ -1,0 +1,38 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ page_title }} — Ricambi{% endblock %}
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+{% block assets_shell_title %}{{ page_title }}{% endblock %}
+{% block assets_shell_subtitle %}<p>La giacenza non si scrive qui: cambia con carichi, scarichi sugli interventi e rettifiche, dalla scheda del ricambio.</p>{% endblock %}
+
+{% block assets_shell_content %}
+<form method="post" class="md-page md-form">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <fieldset class="md-fieldset">
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.code %}
+      {% include "assets/components/_md_field.html" with field=form.description %}
+      {% include "assets/components/_md_field.html" with field=form.unit %}
+      {% include "assets/components/_md_field.html" with field=form.min_qty %}
+      {% include "assets/components/_md_field.html" with field=form.location %}
+      {% include "assets/components/_md_field.html" with field=form.unit_cost_eur %}
+      {% include "assets/components/_md_field.html" with field=form.supplier %}
+      {% include "assets/components/_md_field.html" with field=form.is_active %}
+    </div>
+  </fieldset>
+  <fieldset class="md-fieldset">
+    <h2>Compatibile con</h2>
+    <p class="md-hint">Nell'intervento questi ricambi compaiono per primi.</p>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.compatible_categories %}
+      {% include "assets/components/_md_field.html" with field=form.compatible_assets %}
+    </div>
+    {% include "assets/components/_md_field.html" with field=form.notes %}
+  </fieldset>
+  <div class="md-actions">
+    <a class="btn btn-secondary" href="{% if part %}{% url 'assets:spare_part_detail' part.pk %}{% else %}{% url 'assets:spare_part_list' %}{% endif %}">Annulla</a>
+    <button class="btn btn-primary" type="submit">Salva</button>
+  </div>
+</form>
+{% endblock %}
