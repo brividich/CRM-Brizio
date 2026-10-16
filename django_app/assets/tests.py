@@ -5403,7 +5403,7 @@ class WorkOrderFlowTests(TestCase):
 
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset.id]),
                     {
@@ -5430,7 +5430,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
         upload = SimpleUploadedFile("report.pdf", b"MZ...", content_type="application/pdf")
         with patch(
-            "assets.views._monolith.validate_extension_and_mime",
+            "assets.views._helpers_c.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("report.pdf: tipo MIME non consentito (application/x-msdownload)."),
         ):
             response = self.client.post(
@@ -5454,7 +5454,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with patch(
-            "assets.views._monolith.validate_extension_and_mime",
+            "assets.views._helpers_c.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("Validazione MIME non disponibile sul server. Upload bloccato."),
         ):
             response = self.client.post(
@@ -5838,7 +5838,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
 
         with _workspace_temporary_directory("assets-wo-close-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_close", args=[workorder.id]),
                     {
@@ -7299,7 +7299,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
             b"%PDF-1.4 fake",
             content_type="application/pdf",
         )
-        with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+        with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
             response = self.client.post(
                 reverse("assets:periodic_verifications"),
                 {
@@ -7420,7 +7420,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
             _workspace_temporary_directory("assets-media-") as media_root,
             _workspace_temporary_directory("assets-private-") as private_root,
             override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
-            patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"),
+            patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"),
         ):
             response = self.client.post(
                 reverse("assets:asset_administrative_deadline_list"),
@@ -8085,7 +8085,7 @@ class AssetMaintenanceRegisterUnifiedTests(TestCase):
 
         self.client.force_login(self.user)
         with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset1.id]),
                     {
@@ -10350,7 +10350,7 @@ class WorkOrderChecklistTypedStepsTests(TestCase):
         upload = SimpleUploadedFile("step-photo.jpg", b"binarydata", content_type="image/jpeg")
 
         with _workspace_temporary_directory("assets-checklist-photo-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views._monolith.validate_extension_and_mime", return_value="image/jpeg"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="image/jpeg"):
                 response = self.client.post(
                     reverse("assets:wo_checklist_photo", args=[self.workorder.id, item.id]),
                     {"photo": upload},

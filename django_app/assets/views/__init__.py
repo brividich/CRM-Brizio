@@ -41,7 +41,7 @@ from ._helpers_b import (  # noqa: F401
     _sidebar_input_suggestions,
     _sidebar_target_label,
 )
-from ._monolith import (  # noqa: F401
+from ._helpers_c import (  # noqa: F401
     _assets_section_nav,
     _assets_shell_context,
     _build_sidebar_groups,
@@ -53,6 +53,8 @@ from ._monolith import (  # noqa: F401
     _validate_asset_image,
     _validate_workorder_attachment_uploads,
     _xl_write_sheet,
+)
+from ._monolith import (  # noqa: F401
     admin_deadline_attachment_download,
     api_asset_dashboard_save_config,
     asset_administrative_deadline_create,
