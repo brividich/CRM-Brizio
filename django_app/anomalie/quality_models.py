@@ -199,7 +199,8 @@ class AnomaliaControllo(models.Model):
     op_id = models.CharField(max_length=100, db_index=True)
     op_item_id = models.CharField(max_length=100, blank=True, default="")
     fase = models.CharField(max_length=100)
-    mail_mode = models.CharField(max_length=10, choices=MailMode.choices, default=MailMode.SUBITO)
+    # Dal 16/10/2026 i nuovi controlli sono sempre «fine»: «subito» resta per quelli già aperti.
+    mail_mode = models.CharField(max_length=10, choices=MailMode.choices, default=MailMode.FINE)
     operatore = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
@@ -211,6 +212,12 @@ class AnomaliaControllo(models.Model):
     ultima_mail_at = models.DateTimeField(null=True, blank=True)
     mail_tentativi = models.PositiveSmallIntegerField(default=0)
     mail_errore = models.TextField(blank=True, default="")
+    # Persone aggiunte dall'operatore in copia alla mail ([{"email", "nome"}]),
+    # oltre a capocommessa e CAR risolti dall'OP. Solo indirizzi di persone in anagrafica.
+    destinatari_extra = models.JSONField(default=list, blank=True)
+    # Promemoria al controllore quando la mail «a fine controllo» non è ancora partita;
+    # torna vuoto a ogni nuovo salvataggio, così il promemoria riparte dopo la pausa successiva.
+    promemoria_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

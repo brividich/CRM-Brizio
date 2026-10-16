@@ -698,7 +698,7 @@
                     {% endfor %}
                   </select>
                   {% if assenze_can_choose_capo %}
-                    <div class="abs-field-hint">Proposto dall'area aziendale del dipendente: puoi sceglierne un altro a cui inviare la richiesta. Se lasci quello proposto ed è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+                    <div class="abs-field-hint">Proposto dall'organigramma (capo del dipendente): puoi sceglierne un altro. In quel caso la richiesta la vede e la approva solo il capo scelto. Se lasci quello proposto ed è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
                   {% else %}
                     <div class="abs-field-hint">Assegnato automaticamente dall'area aziendale del dipendente. Se il caporeparto è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
                   {% endif %}

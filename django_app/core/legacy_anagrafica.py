@@ -200,6 +200,36 @@ def _identity_keys_con_guardia(rows: list[dict]) -> list[str]:
     return chiavi
 
 
+def nomi_sicuri_per_abbinamento() -> dict[str, int]:
+    """«COGNOME NOME» → id, per abbinare un import quando il codice fiscale non c'è.
+
+    Solo nomi **unici** in anagrafica e persone **senza** codice fiscale registrato:
+    se la persona ha già un CF, quello del file (non trovato) è di un'altra persona,
+    cioè di un omonimo, e i suoi dati (voci paga, contratti) finirebbero sulla
+    scheda sbagliata. Meglio una riga non abbinata che una abbinata male.
+    """
+    from collections import Counter
+
+    try:
+        from anagrafica.models import DipendenteAnagraficaCivile
+
+        con_cf = set(
+            DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="")
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+    except Exception:
+        logger.warning("Codici fiscali non leggibili: nessun abbinamento per nome", exc_info=True)
+        return {}
+    candidati: list[tuple[str, int]] = []
+    for row in fetch_anagrafica_rows(deduplicate=True):
+        full = f"{_row_text(row, 'cognome').upper()} {_row_text(row, 'nome').upper()}".strip()
+        lid = int(row.get("id") or 0)
+        if full and lid:
+            candidati.append((full, lid))
+    quanti = Counter(full for full, _lid in candidati)
+    return {full: lid for full, lid in candidati if quanti[full] == 1 and lid not in con_cf}
+
+
 def merge_duplicate_anagrafica_rows(rows: list[dict]) -> list[dict]:
     merged_by_key: dict[str, dict] = {}
     ordered: list[dict] = []
@@ -437,6 +467,8 @@ def _find_existing_row(
     aliasusername: str = "",
     nome: str = "",
     cognome: str = "",
+    codice_fiscale: str = "",
+    matricola: str = "",
 ) -> dict | None:
     cols = ensure_anagrafica_schema()
     if not cols:
@@ -505,7 +537,15 @@ def _find_existing_row(
             rows = cur.fetchall()
             if len(rows) == 1:
                 headers = [str(col[0]).lower() for col in cur.description]
-                return dict(zip(headers, rows[0]))
+                trovata = dict(zip(headers, rows[0]))
+                # Stesso nome ma codice fiscale o matricola diversi = un omonimo,
+                # non la stessa persona: si crea una scheda nuova.
+                nuova = {"id": 0, "matricola": matricola}
+                cf_map = _codici_fiscali_per_id([trovata.get("id")])
+                if codice_fiscale:
+                    cf_map[0] = _normalized_key(codice_fiscale)
+                if _codici_compatibili(_codici_identita(trovata, cf_map), _codici_identita(nuova, cf_map)):
+                    return trovata
     return None
 
 
@@ -524,6 +564,7 @@ def upsert_anagrafica_dipendente(
     attivo: bool | None = True,
     utente_id: int | None = None,
     detach_account: bool = False,
+    codice_fiscale: str = "",
 ) -> dict:
     cols = ensure_anagrafica_schema()
     if not cols:
@@ -554,6 +595,8 @@ def upsert_anagrafica_dipendente(
         aliasusername=cleaned["aliasusername"],
         nome=cleaned["nome"],
         cognome=cleaned["cognome"],
+        codice_fiscale=codice_fiscale,
+        matricola=cleaned["matricola"],
     )
 
     payload: dict[str, object] = {}

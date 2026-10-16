@@ -206,6 +206,11 @@ GUIDA = {
                 ("p", "Due righe con lo stesso nome e cognome vengono considerate la stessa persona (in elenchi, report e "
                       "scadenze) solo se codice fiscale e matricola non dicono il contrario: con CF o matricola diversi "
                       "restano due persone. Una riga senza CF né matricola si unisce alla prima compatibile."),
+                ("p", "Negli import vale la stessa regola. L'import dipendenti crea una scheda nuova per un omonimo con "
+                      "un codice fiscale diverso (prima aggiornava la scheda del collega). Gli import di retribuzioni e "
+                      "contratti abbinano per codice fiscale; per nome solo se il nome è unico in anagrafica e quella "
+                      "persona non ha già un codice fiscale: altrimenti la riga resta «non abbinata» negli scarti, da "
+                      "sistemare inserendo il codice fiscale nella scheda giusta."),
             ],
         },
         {

@@ -64,11 +64,13 @@ class HelperTests(SimpleTestCase):
 class RotteAtokenTests(TestCase):
     """Le rotte col token nell'URL: il token non deve uscire nel Referer."""
 
-    def _asserisci_blindata(self, url: str):
+    def _asserisci_blindata(self, url: str, referrer: str = "no-referrer"):
         risposta = self.client.get(url)
         # Token inesistente: la view risponde comunque (errore/404/redirect),
         # e qualunque sia l'esito gli header devono esserci.
-        self.assertEqual(risposta["Referrer-Policy"], "no-referrer")
+        # Le pagine con un form POST usano same-origin: con no-referrer Chromium
+        # manda Origin: null e il salvataggio finisce in 403 «Origin checking failed».
+        self.assertEqual(risposta["Referrer-Policy"], referrer)
         self.assertEqual(risposta["X-Robots-Tag"], "noindex, nofollow, noarchive")
         self.assertEqual(risposta["X-Content-Type-Options"], "nosniff")
         self.assertIn("no-store", risposta["Cache-Control"])
@@ -79,15 +81,24 @@ class RotteAtokenTests(TestCase):
             reverse("automazioni:automazioni_approval_status", kwargs={"token": token})
         )
 
+    def test_decisione_approvazione_con_form(self):
+        token = "00000000-0000-4000-8000-000000000000"
+        self._asserisci_blindata(
+            reverse("automazioni:automazioni_approval_decision", kwargs={"token": token, "decision": "approva"}),
+            referrer="same-origin",
+        )
+
     def test_proxy_entra_approvazione(self):
         token = "00000000-0000-4000-8000-000000000000"
         self._asserisci_blindata(
-            reverse("approval_proxy:approval_proxy_approve", kwargs={"token": token})
+            reverse("approval_proxy:approval_proxy_approve", kwargs={"token": token}),
+            referrer="same-origin",
         )
 
     def test_azione_via_mail_anomalie(self):
         self._asserisci_blindata(
-            reverse("anomalie_mail_action", kwargs={"token": "token-inesistente"})
+            reverse("anomalie_mail_action", kwargs={"token": "token-inesistente"}),
+            referrer="same-origin",
         )
 
     def test_landing_qr_asset(self):

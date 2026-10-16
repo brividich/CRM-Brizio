@@ -144,16 +144,12 @@ class Command(BaseCommand):
             .exclude(codice_fiscale="")
             .values_list("codice_fiscale", "legacy_anagrafica_id")
         )
+        # Ripiego per nome solo se sicuro (nome unico, persona senza CF registrato).
         nome_to_id: dict[str, int] = {}
         try:
-            from core.legacy_anagrafica import fetch_anagrafica_rows
-            for lr in fetch_anagrafica_rows(deduplicate=True):
-                cog = str(lr.get("cognome") or "").strip().upper()
-                nom = str(lr.get("nome") or "").strip().upper()
-                full = f"{cog} {nom}".strip()
-                lid = int(lr.get("id") or 0)
-                if full and lid:
-                    nome_to_id[full] = lid
+            from core.legacy_anagrafica import nomi_sicuri_per_abbinamento
+
+            nome_to_id = nomi_sicuri_per_abbinamento()
         except Exception:
             self.stderr.write("Fallback nome-based non disponibile (legacy DB non raggiungibile).")
 

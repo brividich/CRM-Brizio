@@ -21,7 +21,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from admin_portale.decorators import legacy_admin_or_acl_required
 from core.audit import log_action
-from core.public_headers import risposta_pubblica
+from core.public_headers import risposta_pubblica, risposta_pubblica_con_form
 from monitoring.models import AutomationJob, AutomationExecution
 from monitoring.services import detect_missed_jobs, detect_stuck_jobs
 
@@ -6073,7 +6073,7 @@ def _decide_as_session_user(request, token: str, normalized: str, *, via: str):
     return result, validation
 
 
-@risposta_pubblica
+@risposta_pubblica_con_form
 @require_http_methods(["GET", "POST"])
 def approval_decision_page(request, token: str, decision: str):
     """Link della richiesta (uuid): GET conferma, POST decide solo con login da approvatore."""
@@ -6151,14 +6151,14 @@ def approval_status_page(request, token: str):
     return _render_decision(request, {"approval": approval, "token": token, "status_only": True})
 
 
-@risposta_pubblica
+@risposta_pubblica_con_form
 @require_http_methods(["GET", "POST"])
 def approval_proxy_approve(request, token):
     """Compat: vecchio link /approval-actions/approve/<uuid>/ — richiede login da approvatore."""
     return _handle_approval_proxy(request, token, "approved")
 
 
-@risposta_pubblica
+@risposta_pubblica_con_form
 @require_http_methods(["GET", "POST"])
 def approval_proxy_reject(request, token):
     """Compat: vecchio link /approval-actions/reject/<uuid>/ — richiede login da approvatore."""
