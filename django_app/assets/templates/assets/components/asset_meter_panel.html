@@ -100,7 +100,8 @@
                 <td>{{ h.meter.get_meter_type_display }}</td>
                 <td>{{ h.old_value|floatformat:0 }}</td>
                 <td>{{ h.new_value|floatformat:0 }}</td>
-                <td>{{ h.recorded_by.get_full_name|default:h.recorded_by.username|default:"—" }}</td>
+                {# Le letture dei collector non hanno utente: un argomento None nel filtro default darebbe 500. #}
+                <td>{% if h.recorded_by %}{{ h.recorded_by.get_full_name|default:h.recorded_by.username }}{% else %}{{ h.get_source_display }}{% endif %}</td>
               </tr>
             {% endfor %}
           </tbody>

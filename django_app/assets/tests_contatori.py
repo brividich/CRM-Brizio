@@ -410,3 +410,16 @@ class MeterPlanTests(_MeterFixture, TestCase):
         created = MaintenancePlanAssignment.objects.get(plan=self.plan, asset=other)
         self.assertEqual(created.trigger_type, MaintenancePlanAssignment.TRIGGER_METER)
         self.assertEqual(created.meter_interval, Decimal("250.00"))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeterPanelCollectorHistoryTests(_MeterFixture, TestCase):
+    def test_pannello_con_letture_senza_utente(self):
+        """Le letture del collector non hanno utente: il pannello non deve rispondere 500."""
+        asset, meter = self._asset_with_meter(tag="C1-PAN-1")
+        record_meter_reading(meter, "1100", read_at=timezone.now(), source=AssetMeter.SOURCE_OPCUA, user=None)
+        admin = User.objects.create_superuser(username="c1-pan", password="x", email="c1pan@example.com")
+        self.client.force_login(admin)
+        response = self.client.get(reverse("assets:asset_meter_update", args=[asset.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "OPC UA")
