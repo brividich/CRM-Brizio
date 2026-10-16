@@ -20,6 +20,10 @@ GUIDA = {
                     ("Persone", "elenco dipendenti, nuovo dipendente, ex dipendenti, documenti, organigramma, reparti."),
                     ("Competenze", "formazione (corsi, sessioni, e-learning, copertura) e skill matrix."),
                     ("Salute e sicurezza", "visite mediche, idoneità, mansioni di rischio."),
+                    ("Amministrazione", "due pagine: «Cedolini» (voci retributive del mese, con l'importazione del CSV "
+                                        "dello studio paghe in fondo) e «Ferie e permessi» (saldi ferie, ROL ed ex festività, "
+                                        "con l'importazione del file cedolini, anche da SharePoint, in fondo). L'import dei "
+                                        "contratti è in Impostazioni → Amministrazione e import."),
                     ("Report", "reportistica componibile ed export."),
                     ("Impostazioni", "cataloghi (ruoli, mansioni di rischio, aree, reparti) e permessi HR."),
                 ]),
@@ -58,7 +62,7 @@ GUIDA = {
                     ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
                     ("Salute e sicurezza", "una scheda per mansione di rischio; con il permesso HR la barra dice quante persone sono in regola con tutti gli obblighi."),
                     ("Visite mediche", "una scheda per tipo di visita: in regola, entro 60 giorni, scadute, senza visita. Mai esiti o giudizi."),
-                    ("Amministrazione", "una scheda per flusso (retribuzioni, cedolini, contratti) con righe abbinate e scartate dell'ultimo import."),
+                    ("Amministrazione", "una scheda per flusso (retribuzioni, ferie e permessi dal file cedolini, contratti) con righe abbinate e scartate dell'ultimo import; il clic porta alla sezione «Importazione» della pagina."),
                     ("Report", "una scheda per modello con le generazioni degli ultimi 30 giorni e i pulsanti Genera, Modifica, Duplica."),
                 ]),
                 ("p", "Sopra le schede, i pulsanti filtrano (per categoria, livello di rischio, norma…) e cambiano l'ordine. "

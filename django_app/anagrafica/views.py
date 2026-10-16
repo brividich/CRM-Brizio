@@ -5587,6 +5587,19 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
     return importazione
 
 
+def _ritorno_import(request, pagina: str, fallback: str):
+    """Dove torna un import di Amministrazione: la pagina che lo incorpora.
+
+    Da ottobre 2026 gli import non hanno più una pagina propria: vivono nella
+    sezione «Importazione» di Cedolini (retribuzioni) e di Ferie e permessi
+    (cedolini). Quelle pagine chiedono il permesso HR; un amministratore senza
+    HR resta sulla pagina di import di prima, che continua a funzionare.
+    """
+    if _check_hr_permission(request):
+        return redirect(f"{reverse(pagina)}#importazione")
+    return redirect(fallback)
+
+
 @login_required
 def retribuzioni_import(request):
     """Pagina importazione CSV retributivo (solo admin)."""
@@ -5608,10 +5621,12 @@ def retribuzioni_import(request):
                     f"Importazione completata: {imp.righe_ok} voci caricate"
                     f"{f', {imp.righe_errore} errori' if imp.righe_errore else ''}."
                 )
-                return redirect("anagrafica:retribuzioni_import")
             except Exception as exc:
                 logger.exception("Errore importazione CSV retribuzioni")
                 messages.error(request, f"Errore durante l'importazione: {exc}")
+        return _ritorno_import(request, "anagrafica:retribuzioni_globale", "anagrafica:retribuzioni_import")
+    if _check_hr_permission(request):
+        return redirect(f"{reverse('anagrafica:retribuzioni_globale')}#importazione")
 
     importazioni = list(
         ImportazioneRetributiva.objects
@@ -9157,7 +9172,7 @@ def cedolini_import(request):
         else:
             cedolini_sharepoint.set_share_url(url)
             messages.success(request, "Link SharePoint salvato." if url else "Link SharePoint rimosso.")
-        return redirect("anagrafica:cedolini_import")
+        return _ritorno_import(request, "anagrafica:ratei_list", "anagrafica:cedolini_import")
     if azione == "sharepoint_import":
         try:
             imp = cedolini_sharepoint.importa_da_sharepoint(user=request.user)
@@ -9170,7 +9185,7 @@ def cedolini_import(request):
         except Exception as exc:
             logger.exception("Errore importazione cedolini da SharePoint")
             messages.error(request, f"Errore durante l'importazione da SharePoint: {exc}")
-        return redirect("anagrafica:cedolini_import")
+        return _ritorno_import(request, "anagrafica:ratei_list", "anagrafica:cedolini_import")
 
     if request.method == "POST":
         file_obj = request.FILES.get("file_xlsx")
@@ -9186,10 +9201,12 @@ def cedolini_import(request):
                     f"{f', {imp.righe_errore} errori' if imp.righe_errore else ''}"
                     f"{f', {imp.righe_non_trovate} CF non in anagrafica' if imp.righe_non_trovate else ''}.",
                 )
-                return redirect("anagrafica:cedolini_import")
             except Exception as exc:
                 logger.exception("Errore importazione XLSX cedolini")
                 messages.error(request, f"Errore durante l'importazione: {exc}")
+        return _ritorno_import(request, "anagrafica:ratei_list", "anagrafica:cedolini_import")
+    if _check_hr_permission(request):
+        return redirect(f"{reverse('anagrafica:ratei_list')}#importazione")
 
     importazioni = list(
         ImportazioneCedolini.objects
@@ -9347,7 +9364,19 @@ def ratei_list(request):
         s.nome_display = cf_to_nome.get(s.tax_code.upper(), s.tax_code)
         s.semaforo = valuta_residuo_ferie(s.ferie_residui, soglie)
 
+    # Sezione «Importazione» (ex pagina cedolini_import): solo per gli admin.
+    importazioni_cedolini, sharepoint_url = [], ""
+    if is_admin:
+        from .services import cedolini_sharepoint
+
+        importazioni_cedolini = list(
+            ImportazioneCedolini.objects.select_related("importato_da")
+            .order_by("-data_competenza", "-data_importazione")[:50]
+        )
+        sharepoint_url = cedolini_sharepoint.get_share_url()
     return render(request, "anagrafica/pages/ratei_list.html", {
+        "importazioni_cedolini": importazioni_cedolini,
+        "sharepoint_url": sharepoint_url,
         "page_obj": page_obj,
         "periodi": periodi,
         "filtro_periodo": filtro_periodo,
@@ -9888,14 +9917,19 @@ def retribuzioni_globale(request):
         v for v in _build_scadenzario_voci(request, filtro_tipo="contratto") if v["giorni"] >= 0
     ]
     aree = sezioni_c.aree_visibili(request, [
-        sezioni_c.Area("anagrafica:retribuzioni_import", "Import retribuzioni", "CSV mensile dello studio paghe", icona="i-download"),
-        sezioni_c.Area("anagrafica:cedolini_import", "Cedolini", "Saldi ferie, ROL, ex festività", icona="i-doc"),
-        sezioni_c.Area("anagrafica:ratei_list", "Ratei ferie / ROL", "Per persona, con filtri ed Excel", icona="i-cal-clock"),
+        sezioni_c.Area("anagrafica:ratei_list", "Ferie e permessi", "Saldi ferie, ROL ed ex festività, con il loro import", icona="i-cal-clock"),
         sezioni_c.Area("anagrafica:contratti_import", "Contratti", "Import e storico contrattuale", icona="i-clipboard"),
     ] + ([sezioni_c.Area("anagrafica:amministrazione_hub", "Storico import", "Scarti e scarico", "scheda=import", icona="i-refresh")]
          if is_admin else []))
 
+    # Sezione «Importazione» (ex pagina retribuzioni_import): solo per gli admin.
+    importazioni_retribuzioni = list(
+        ImportazioneRetributiva.objects
+        .filter(origine=ImportazioneRetributiva.ORIGINE_CSV)
+        .select_related("importato_da")[:30]
+    ) if is_admin else []
     return render(request, "anagrafica/pages/retribuzioni_globale.html", {
+        "importazioni_retribuzioni": importazioni_retribuzioni,
         "import_mese": import_mese,
         "contratti_in_scadenza": contratti_in_scadenza,
         "aree": aree,
