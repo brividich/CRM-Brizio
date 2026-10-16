@@ -224,6 +224,11 @@ GUIDA = {
                     ("importa_mansioni_idoneita", "assegna la mansione di rischio ai dipendenti che non l'hanno, dall'elenco "
                                                   "idoneità del medico (codice fiscale e «MANSIONE DI RISCHIO»). In prova di "
                                                   "default, --commit per scrivere."),
+                    ("proponi_mansioni_rischio", "collega a ogni mansione del Mansionario ancora senza mansione di "
+                                                 "rischio quella più frequente tra le persone in lista (almeno metà di "
+                                                 "loro, a pari merito niente). Da lanciare dopo importa_mansioni_idoneita. "
+                                                 "In prova di default, --commit per scrivere, --report file.csv per "
+                                                 "l'elenco completo; le mansioni rimaste senza si collegano a mano."),
                 ]),
                 ("p", "Prima di ogni comando che scrive, lancialo in prova (--dry-run) se l'opzione esiste."),
             ],
