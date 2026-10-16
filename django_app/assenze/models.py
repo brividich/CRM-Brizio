@@ -132,6 +132,28 @@ class AssenzaOrigineSharePoint(models.Model):
         return f"assenza {self.assenza_id} nata su {luogo}"
 
 
+class AssenzaCapoScelto(models.Model):
+    """Capo scelto a mano dal dipendente nella richiesta, diverso da quello proposto.
+
+    La tabella ``assenze`` è legacy: la scelta vive qui, per ``assenza_id``. Se
+    c'è una riga, la richiesta la vede in coda e la approva **solo** questo capo,
+    non il capo dell'organigramma.
+    """
+
+    assenza_id = models.IntegerField(unique=True)
+    capo_legacy_user_id = models.IntegerField(db_index=True)
+    capo_nominativo = models.CharField(max_length=200, blank=True, default="")
+    scelto_da = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Capo scelto per l'assenza"
+        verbose_name_plural = "Capi scelti per le assenze"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id} → capo {self.capo_legacy_user_id}"
+
+
 class FlessibilitaImpostazioni(models.Model):
     """Orari ammessi per le richieste di Flessibilita' (riga unica, pk=1).
 

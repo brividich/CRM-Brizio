@@ -701,7 +701,100 @@ def _local_manager_assignment_where_clause(
     return f"{prefix}capo_reparto_id = %s", [int(legacy_user_id)]
 
 
+def _capo_scelto_legacy_user_id(assenza_id) -> int | None:
+    """Capo scelto a mano per la richiesta (utenti.id), se ce n'e' uno."""
+    item_id = _as_int(assenza_id)
+    if item_id is None:
+        return None
+    try:
+        from .models import AssenzaCapoScelto
+
+        return _as_int(
+            AssenzaCapoScelto.objects.filter(assenza_id=item_id).values_list("capo_legacy_user_id", flat=True).first()
+        )
+    except Exception:
+        return None
+
+
+def _registra_capo_scelto(assenza_id, capo: dict | None, *, scelto_da: str = "") -> None:
+    """Salva (o toglie) il capo scelto a mano per la richiesta."""
+    item_id = _as_int(assenza_id)
+    if item_id is None:
+        return
+    from .models import AssenzaCapoScelto
+
+    capo_id = _as_int((capo or {}).get("LegacyUserId"))
+    if capo_id is None:
+        AssenzaCapoScelto.objects.filter(assenza_id=item_id).delete()
+        return
+    AssenzaCapoScelto.objects.update_or_create(
+        assenza_id=item_id,
+        defaults={
+            "capo_legacy_user_id": capo_id,
+            "capo_nominativo": str((capo or {}).get("Value") or "")[:200],
+            "scelto_da": str(scelto_da or "")[:200],
+        },
+    )
+
+
+def _con_capo_scelto(
+    where: str, params: list, *, legacy_user_id: int | None, alias: str, per_approvazione: bool
+) -> tuple[str, list]:
+    """Aggiunge al perimetro le richieste con capo scelto a mano.
+
+    Le richieste che hanno scelto questo capo entrano sempre. Per la coda e
+    l'approvazione (``per_approvazione``) escono invece quelle che hanno scelto
+    un altro capo: le approva solo il capo scelto. La consultazione (calendario,
+    elenchi del reparto) le lascia al capo dell'organigramma.
+    """
+    if legacy_user_id is None:
+        return where, params
+    try:
+        from .models import AssenzaCapoScelto
+
+        tabella = AssenzaCapoScelto._meta.db_table
+        if not _table_exists(tabella):
+            return where, params
+    except Exception:
+        return where, params
+    prefix = f"{alias}." if alias else ""
+    scelta = f"SELECT 1 FROM {tabella} cs WHERE cs.assenza_id = {prefix}id AND cs.capo_legacy_user_id"
+    mia = f"EXISTS ({scelta} = %s)"
+    if not where:
+        return mia, [int(legacy_user_id)]
+    if per_approvazione:
+        return (
+            f"((({where}) AND NOT EXISTS ({scelta} <> %s)) OR {mia})",
+            [*params, int(legacy_user_id), int(legacy_user_id)],
+        )
+    return f"(({where}) OR {mia})", [*params, int(legacy_user_id)]
+
+
 def _combined_manager_assignment_where_clause(
+    *,
+    legacy_user_id: int | None,
+    manager_name: str = "",
+    manager_email: str = "",
+    assenze_alias: str = "a",
+    capi_alias: str = "cr",
+    per_approvazione: bool = False,
+) -> tuple[str, list, bool]:
+    where, params, use_legacy_join = _manager_assignment_where_clause_base(
+        legacy_user_id=legacy_user_id,
+        manager_name=manager_name,
+        manager_email=manager_email,
+        assenze_alias=assenze_alias,
+        capi_alias=capi_alias,
+    )
+    if not _has_assenze_column("id"):
+        return where, params, use_legacy_join
+    where, params = _con_capo_scelto(
+        where, params, legacy_user_id=legacy_user_id, alias=assenze_alias, per_approvazione=per_approvazione
+    )
+    return where, params, use_legacy_join
+
+
+def _manager_assignment_where_clause_base(
     *,
     legacy_user_id: int | None,
     manager_name: str = "",
@@ -896,11 +989,10 @@ def _assenze_permissions(request) -> dict:
     can_view_calendar = view_scope in {"all", "reparto"}
     can_delete_any = group == "AMMINISTRAZIONE"
     can_skip_approval = group in {"CAR", "AMMINISTRAZIONE"}
-    # Scelta del caporeparto a cui inviare la richiesta: a tutti tranne a chi ha
-    # il solo ruolo UTENTE (o nessun ruolo), che resta sul caporeparto assegnato.
-    can_choose_capo = bool(getattr(request.user, "is_superuser", False)) or any(
-        k not in {"utente", "utenti"} for k in role_keys
-    )
+    # Scelta del capo a cui inviare la richiesta: tutti possono cambiarlo. Il
+    # capo proposto resta quello dell'organigramma; se ne sceglie un altro, solo
+    # quello vede e approva la richiesta (``AssenzaCapoScelto``).
+    can_choose_capo = True
     manager_name = ""
     manager_email = ""
     if legacy_user:
@@ -1123,6 +1215,12 @@ def _can_manage_record(request, row: dict, *, require_delete: bool = False) -> b
         return True
     if not perms.get("can_update_owned"):
         return False
+
+    # Capo scelto a mano nella richiesta: approva solo lui, non il capo
+    # dell'organigramma.
+    capo_scelto_id = _capo_scelto_legacy_user_id(row.get("id"))
+    if capo_scelto_id is not None:
+        return capo_scelto_id == _as_int(perms.get("legacy_user_id"))
 
     if perms.get("view_scope_source") == "ruoli":
         # Ruoli del portale: si approva chi sta nel proprio team d'organigramma.
@@ -3105,6 +3203,7 @@ def _load_pending_for_manager(
     if not _table_exists("assenze"):
         return []
     manager_where_sql, manager_where_params, use_legacy_join = _combined_manager_assignment_where_clause(
+        per_approvazione=True,
         legacy_user_id=legacy_user_id,
         manager_name=manager_name,
         manager_email=manager_email,
@@ -3181,6 +3280,7 @@ def count_pending_for_manager(
     if not _table_exists("assenze"):
         return 0
     manager_where_sql, manager_where_params, use_legacy_join = _combined_manager_assignment_where_clause(
+        per_approvazione=True,
         legacy_user_id=legacy_user_id,
         manager_name=manager_name,
         manager_email=manager_email,
@@ -3226,6 +3326,7 @@ def _load_gestite_for_manager(
     if not _table_exists("assenze"):
         return []
     manager_where_sql, manager_where_params, use_legacy_join = _combined_manager_assignment_where_clause(
+        per_approvazione=True,
         legacy_user_id=legacy_user_id,
         manager_name=manager_name,
         manager_email=manager_email,
@@ -3593,6 +3694,19 @@ def _anagrafica_hr_capo_ids() -> set[int]:
                 ids.add(capo_id)
     except Exception:
         return set()
+    # Con la regola unica capo/team accesa il capo proposto puo' venire anche
+    # dalla gerarchia dei ruoli o da un'eccezione sulla persona: il menu deve
+    # contenerlo, altrimenti la proposta ricade in silenzio su un altro nome.
+    try:
+        from anagrafica.services import capo_team
+
+        if capo_team.regola_unica_attiva():
+            for value in capo_team.mappa_capi_in_cache().values():
+                capo_id = _as_int(value)
+                if capo_id is not None and capo_id > 0:
+                    ids.add(capo_id)
+    except Exception:
+        pass
     return ids
 
 
@@ -3767,6 +3881,7 @@ def _count_pending_for_car(
     if not _table_exists("assenze"):
         return 0
     manager_where_sql, manager_where_params, use_legacy_join = _combined_manager_assignment_where_clause(
+        per_approvazione=True,
         legacy_user_id=legacy_user_id,
         manager_name=manager_name,
         manager_email=manager_email,
@@ -5782,6 +5897,14 @@ def invio_placeholder(request):
         )
 
     if capo_scelto:
+        try:
+            _registra_capo_scelto(
+                local_id,
+                _find_capo_dict_for_option(capo_final, capi_options),
+                scelto_da=request.user.get_username(),
+            )
+        except Exception:
+            pass
         log_action(
             request,
             "assenza_caporeparto_scelto",

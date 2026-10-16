@@ -166,9 +166,11 @@ class LoadEventsScopeSqlTests(SimpleTestCase):
                 "manager_email": "",
             },
         )
+        # Il secondo 7 e' il capo scelto a mano (AssenzaCapoScelto), sempre
+        # nel perimetro del capo che e' stato scelto.
         self.assertEqual(
             catturato["params"],
-            [7, datetime(2026, 1, 1), datetime(2026, 1, 31)],
+            [7, 7, datetime(2026, 1, 1), datetime(2026, 1, 31)],
         )
 
     def test_scope_senza_criteri_e_fail_closed(self):
