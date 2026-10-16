@@ -34,7 +34,7 @@
   <div class="fm-slide-body">
     {% if slide.tipo == "VIDEO" and slide.video %}
       <video class="fm-slide-video" controls preload="metadata" playsinline controlslist="nodownload"
-             src="{% url 'anagrafica:formazione_slide_video' slide.pk %}" style="width:100%;max-height:70vh;border-radius:10px;background:#000;"></video>
+             src="{% url 'anagrafica:formazione_slide_video' slide.pk %}" style="width:100%;max-height:calc(70 * var(--vh, 1vh));border-radius:10px;background:#000;"></video>
     {% elif slide.is_immagine %}
       <img class="fm-slide-img" src="{% url 'anagrafica:formazione_slide_image' slide.pk %}" alt="{{ slide.titolo }}" loading="lazy">
     {% else %}

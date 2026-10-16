@@ -69,7 +69,7 @@ django-q2==1.9.0
     # via -r requirements.in
 django-stubs-ext==6.0.6
     # via django-fsm-2
-djangorestframework==3.17.2
+djangorestframework==3.18.3
     # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
@@ -154,7 +154,7 @@ pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
-pyspnego==0.12.1
+pyspnego==0.12.4
     # via -r requirements.in
 pytest==9.0.3
     # via
@@ -212,7 +212,7 @@ wheel==0.47.0
     # via pip-tools
 x690==1.0.0.post1
     # via puresnmp
-xlrd==2.0.1
+xlrd==2.0.2
     # via -r requirements.in
 zxing-cpp==3.1.1
     # via -r requirements.in

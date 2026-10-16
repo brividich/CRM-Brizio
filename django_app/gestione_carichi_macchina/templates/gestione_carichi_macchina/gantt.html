@@ -32,7 +32,7 @@
     display: flex; flex-direction: column;
     /* A tutta pagina di default: riempie l'altezza utile sotto la nav.
        Il fallback CSS evita il "salto" prima che gcmFit() calcoli l'altezza precisa. */
-    height: calc(100vh - 150px);
+    height: calc(calc(100 * var(--vh, 1vh)) - 150px);
     border: 1px solid var(--g-border); border-radius: 16px; overflow: hidden;
     background: #fff; box-shadow: 0 16px 34px rgba(12,37,69,.06);
   }
@@ -252,7 +252,7 @@
   .gd-ro-note { font-size: .72rem; color: var(--g-light); margin-top: 8px; }
 
   /* ── Modali (+ Aggiungi / AI) ── */
-  .gcm-ov { position: fixed; inset: 0; background: rgba(12,37,69,.45); display: none; align-items: flex-start; justify-content: center; z-index: 1300; padding-top: 6vh; }
+  .gcm-ov { position: fixed; inset: 0; background: rgba(12,37,69,.45); display: none; align-items: flex-start; justify-content: center; z-index: 1300; padding-top: calc(6 * var(--vh, 1vh)); }
   .gcm-ov.open { display: flex; }
   .gcm-modal { width: min(520px, 94vw); background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(12,37,69,.35); overflow: hidden; }
   .gcm-modal h3 { margin: 0; padding: 14px 18px; background: var(--g-navy); color: #fff; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; }
@@ -708,7 +708,7 @@
     <h3>Conferma spostamento <button type="button" data-close aria-label="Chiudi">&times;</button></h3>
     <div class="body">
       <p id="gcm-slit-intro" style="margin:0;font-size:.9rem;"></p>
-      <div id="gcm-slit-list" style="display:grid;gap:6px;max-height:46vh;overflow:auto;"></div>
+      <div id="gcm-slit-list" style="display:grid;gap:6px;max-height:calc(46 * var(--vh, 1vh));overflow:auto;"></div>
       <div class="actions">
         <button type="button" data-close>Annulla</button>
         <button type="button" class="primary" id="gcm-slit-ok">Conferma spostamento</button>

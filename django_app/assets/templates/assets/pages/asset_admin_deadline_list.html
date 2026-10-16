@@ -49,7 +49,7 @@
 .ad-detail form .btn{justify-self:start}
 .ad-table thead th:last-child{text-align:right}
 /* Il reset globale azzera il margin:auto dei <dialog>: senza, la finestra finisce in alto a sinistra. */
-.ad-dialog{position:fixed;inset:0;margin:auto;height:fit-content;max-height:92vh;overflow:auto;border:1px solid var(--border,#dbe1ea);border-radius:14px;padding:0;width:min(560px,94vw);background:var(--surface,#fff);color:var(--text,#0f172a)}
+.ad-dialog{position:fixed;inset:0;margin:auto;height:fit-content;max-height:calc(92 * var(--vh, 1vh));overflow:auto;border:1px solid var(--border,#dbe1ea);border-radius:14px;padding:0;width:min(560px,94vw);background:var(--surface,#fff);color:var(--text,#0f172a)}
 .ad-dialog::backdrop{background:rgba(15,23,42,.45)}
 .ad-dialog form{display:grid;gap:12px;padding:18px 20px}
 .ad-dialog h2{margin:0;font-size:var(--fs-md);font-weight:800}

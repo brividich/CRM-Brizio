@@ -223,11 +223,11 @@ body.theme-dark .li-nav-toggle:hover { background: rgba(255,255,255,.07); color:
 }
 .admin-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 1400; display: none; align-items: center; justify-content: center; padding: 20px; }
 .admin-modal-backdrop.show { display: flex; }
-.admin-modal { width: min(860px, 96vw); max-height: 86vh; overflow: auto; border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .35); }
+.admin-modal { width: min(860px, 96vw); max-height: calc(86 * var(--vh, 1vh)); overflow: auto; border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .35); }
 .admin-modal-head { position: sticky; top: 0; background: #f8fbff; border-bottom: 1px solid #dbe3f0; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
 .admin-modal-body { padding: 12px; display: grid; gap: 10px; color: #304a6c; font-size: var(--fs-base); }
 .admin-close { border: 1px solid #d8e2f2; background: #fff; color: #4c6281; border-radius: 8px; padding: 5px 8px; cursor: pointer; }
-.admin-studio-modal { width: min(1580px, 98vw); max-height: 90vh; }
+.admin-studio-modal { width: min(1580px, 98vw); max-height: calc(90 * var(--vh, 1vh)); }
 .admin-studio-modal .admin-modal-body { padding: 12px; }
 #adminTutorialModal { z-index: 1500; }
 body.admin-studio-open { overflow: hidden; }
