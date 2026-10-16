@@ -103,41 +103,10 @@
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-cal-clock" valore=periodi|length label="Mensilità" sub="in archivio" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-users" valore=dipendenti_options|length label="Dipendenti" sub="con voci retributive" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=totale label="Righe" sub="dipendente × mese con i filtri attivi" %}
-      {% url 'anagrafica:scadenzario' as u_scad %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono=contratti_in_scadenza|yesno:"orange,green" icona="i-alarm" valore=contratti_in_scadenza|length label="Contratti in scadenza" sub="contratti a termine e prove entro 60gg" url=u_scad|add:"?tipo=contratto" %}
+      {% if ultima_importazione %}
+        {% include "anagrafica/components/_kpi_tile.html" with tono=ultima_importazione.righe_errore|yesno:"orange,green" icona="i-download" valore=ultima_importazione.righe_ok label="Righe dell'ultimo import" sub=ultima_importazione.data_importazione|date:"d-m-Y" url=u_imp title="Importazione retribuzioni" %}
+      {% endif %}
     </section>
-
-    {# ── Stile C: una scheda per flusso amministrativo ──────────────────── #}
-    {% include "anagrafica/components/_fmd_cc_grid.html" with cc=import_mese %}
-
-    <div class="fmd-low" style="margin-bottom:6px;">
-      <section class="fmd-panel fmd-block fmd-low-main">
-        <div class="fmd-block-head">
-          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Contratti e periodi di prova in scadenza
-            {% if contratti_in_scadenza %}<span class="fmd-count">{{ contratti_in_scadenza|length }}</span>{% endif %}
-          </div>
-          <div class="fmd-block-aside">Entro 60 giorni</div>
-        </div>
-        {% if contratti_in_scadenza %}
-        <div class="fmd-sidelist">
-          {% for v in contratti_in_scadenza|slice:":8" %}
-          <a class="fmd-sidelist-i" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">
-            <span><b>{% nominativo nome=v.nome cognome=v.cognome %}</b><span class="fmd-sub2">{{ v.tipo_nome }} · {{ v.data_scadenza|date:"d-m-Y" }}{% if v.reparto %} · {{ v.reparto }}{% endif %}</span></span>
-            <span class="fmd-badge {% if v.giorni <= 30 %}fmd-b-orange{% else %}fmd-b-amber{% endif %}">{{ v.giorni }}gg</span>
-          </a>
-          {% endfor %}
-        </div>
-        {% if contratti_in_scadenza|length > 8 %}
-        <div class="fmd-tfoot"><span class="fmd-info">I primi 8 per data.</span><a href="{% url 'anagrafica:scadenzario' %}?tipo=contratto" class="fmd-btn fmd-btn-ghost">Tutti nello scadenzario <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a></div>
-        {% endif %}
-        {% else %}
-        <div class="fmd-empty"><span class="fmd-et">Nessun contratto in scadenza nei prossimi 60 giorni</span></div>
-        {% endif %}
-      </section>
-      <div class="fmd-low-side">
-        {% include "anagrafica/components/_fmd_arealist.html" with aree=aree %}
-      </div>
-    </div>
   </div>{# .fmd #}
 
   <div class="fmd-block-title" style="margin-top:4px;flex-wrap:wrap;white-space:normal;"><svg class="fmd-ico"><use href="#i-coins"/></svg>Retribuzioni · vista globale <span class="fmd-muted" style="font-weight:500;font-size:12.5px;">una riga per dipendente e mese · {{ totale }} record</span></div>

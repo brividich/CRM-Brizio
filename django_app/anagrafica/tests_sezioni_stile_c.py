@@ -148,14 +148,17 @@ class PagineSezioniTests(TestCase):
         self.assertContains(r, 'data-cc-filtro="ritardo"')
         self.assertContains(r, "<b>2</b> candidati")  # lo scartato è uscito dall'iter
 
-    def test_amministrazione_una_scheda_per_import(self):
+    def test_cedolini_solo_cedolini(self):
         ImportazioneRetributiva.objects.create(data_competenza=self.oggi.replace(day=1), righe_ok=12, righe_errore=2,
                                                file_nome="sintetico.csv")
         r = self.client.get(reverse("anagrafica:retribuzioni_globale"))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'id="fmd-import"')
-        self.assertContains(r, "2 scartate")
-        self.assertContains(r, reverse("anagrafica:retribuzioni_import"))
+        self.assertContains(r, "Righe dell'ultimo import")
+        self.assertContains(r, 'id="importazione"')
+        # Contratti, ferie e scadenze stanno nelle loro pagine.
+        self.assertNotContains(r, 'id="fmd-import"')
+        self.assertNotContains(r, "Contratti e periodi di prova in scadenza")
+        self.assertNotContains(r, "Contratti in scadenza")
 
     def test_report_una_scheda_per_modello_con_le_azioni(self):
         m = ReportModello.objects.create(nome="Organico sintetico", titolo_documento="Organico", norme=["ISO 9001"])
