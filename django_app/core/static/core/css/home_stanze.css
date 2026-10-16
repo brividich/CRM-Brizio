@@ -7,20 +7,20 @@
 
 .home-portale-page .hp-wrap.hs{
   display:grid; grid-template-columns:260px minmax(0,1fr); gap:0;
-  padding:0; min-height:calc(100vh - var(--nav-h, 60px));
+  padding:0; min-height:calc(calc(100 * var(--vh, 1vh)) - var(--nav-h, 60px));
   color:var(--text);
 }
 
 /* ── Il polso ─────────────────────────────────────────────────────── */
 .hs-pulse{
   position:sticky; top:0; align-self:start;
-  max-height:calc(100vh - var(--nav-h, 60px)); overflow-y:auto;
+  max-height:calc(calc(100 * var(--vh, 1vh)) - var(--nav-h, 60px)); overflow-y:auto;
   display:flex; flex-direction:column; gap:18px;
   padding:20px 16px 18px; color:#fff;
   background:
     radial-gradient(circle at 100% 0%, rgba(255,107,0,.22), transparent 42%),
     linear-gradient(180deg,#00264f 0%,#001a3a 100%);
-  min-height:calc(100vh - var(--nav-h, 60px));
+  min-height:calc(calc(100 * var(--vh, 1vh)) - var(--nav-h, 60px));
 }
 .hs-who{ display:flex; gap:10px; align-items:center }
 .hs-who-av{ width:40px; height:40px; border-radius:50%; flex:none; display:grid; place-items:center;

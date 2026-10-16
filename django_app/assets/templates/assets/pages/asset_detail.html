@@ -2227,7 +2227,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   .af-lightbox[hidden] { display: none; }
   .af-lightbox-img {
     max-width: min(92vw, 1100px);
-    max-height: 90vh;
+    max-height: calc(90 * var(--vh, 1vh));
     border-radius: 12px;
     background: #fff;
     box-shadow: 0 24px 60px rgba(0, 0, 0, .5);

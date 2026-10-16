@@ -20,7 +20,7 @@
 /* La tela ha un'altezza propria: l'albero non allunga la pagina, si naviga
    dentro il riquadro trascinando. */
 .ogd-panel {
-  position:relative; height:calc(100vh - 300px); min-height:420px; overflow:auto;
+  position:relative; height:calc(calc(100 * var(--vh, 1vh)) - 300px); min-height:420px; overflow:auto;
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
   box-shadow:var(--shadow); padding:26px 22px;
   background-image:radial-gradient(var(--border) 1px, transparent 1px);
@@ -176,7 +176,7 @@
 .ogd-modal[hidden] { display:none; }
 .ogd-modal-back { position:absolute; inset:0; background:rgba(8,20,45,.5); }
 .ogd-modal-box {
-  position:relative; width:min(420px,100%); max-height:86vh; overflow:auto;
+  position:relative; width:min(420px,100%); max-height:calc(86 * var(--vh, 1vh)); overflow:auto;
   background:var(--surface); border:1px solid var(--border); border-radius:16px;
   box-shadow:0 30px 60px -24px rgba(8,20,45,.7); padding:22px;
 }
@@ -206,7 +206,7 @@
 .ogp-vuoto { font-size:var(--fs-sm); color:var(--text-light); font-style:italic; margin:0; }
 
 @media (max-width:640px) {
-  .ogd-panel { padding:20px 12px; height:calc(100vh - 260px); }
+  .ogd-panel { padding:20px 12px; height:calc(calc(100 * var(--vh, 1vh)) - 260px); }
   .ogd-node { padding:18px 6px 0; }
   .ogd-node::after { height:18px; }
   .ogd-node > .ogd-level { padding-top:18px; }

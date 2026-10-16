@@ -230,7 +230,7 @@ details.ad-analysis:not([open]) > summary:after { transform:rotate(-90deg); }
 /* ── Modale personalizza ───────────────────────────────────────────── */
 .ad-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:2000; align-items:center; justify-content:center; }
 .ad-overlay.open { display:flex; }
-.ad-modal { background:var(--surface); border-radius:14px; width:min(520px,94vw); max-height:88vh; display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,.3); }
+.ad-modal { background:var(--surface); border-radius:14px; width:min(520px,94vw); max-height:calc(88 * var(--vh, 1vh)); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,.3); }
 .ad-modal-head { padding:16px 18px 12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
 .ad-modal-title { font-size:var(--fs-lg); font-weight:800; color:var(--text); margin:0; }
 .ad-modal-close { border:none; background:none; cursor:pointer; color:var(--text-light); padding:4px; border-radius:6px; }

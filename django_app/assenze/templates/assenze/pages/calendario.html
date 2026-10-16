@@ -22,12 +22,12 @@
       gap: 12px;
       position: sticky;
       top: 74px;
-      max-height: calc(100vh - 86px);
+      max-height: calc(calc(100 * var(--vh, 1vh)) - 86px);
       overflow: auto;
       padding-bottom: 4px;
     }
     .day-agenda .abs-panel-body {
-      max-height: 45vh;
+      max-height: calc(45 * var(--vh, 1vh));
       overflow: auto;
       padding-top: 12px;
       padding-bottom: 12px;
@@ -87,7 +87,7 @@
     .event-modal-backdrop[hidden] { display: none !important; }
     .event-modal {
       width: min(620px, 96vw);
-      max-height: 92vh;
+      max-height: calc(92 * var(--vh, 1vh));
       overflow: auto;
       background: #fff;
       border-radius: 16px;

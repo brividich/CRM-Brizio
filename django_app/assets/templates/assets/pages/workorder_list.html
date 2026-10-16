@@ -12,7 +12,7 @@ body.theme-dark .wo-table tr.is-selected > td { background:rgba(96,165,250,.14);
 .wo-table tr.wo-group-row label { display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
 .wo-create-dialog {
   width: min(720px, calc(100vw - 32px));
-  max-height: min(760px, calc(100vh - 32px));
+  max-height: min(760px, calc(calc(100 * var(--vh, 1vh)) - 32px));
   margin: auto;
   padding: 0;
   border: 1px solid rgba(148, 163, 184, .42);
@@ -71,7 +71,7 @@ body.theme-dark .wo-table tr.is-selected > td { background:rgba(96,165,250,.14);
 }
 .wo-asset-list {
   min-height: 220px;
-  max-height: min(420px, 46vh);
+  max-height: min(420px, calc(46 * var(--vh, 1vh)));
   overflow: auto;
   padding: 8px 18px 16px;
   display: grid;

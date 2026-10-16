@@ -70,7 +70,7 @@ body.theme-dark .dpi-cat-item-emoji { background:rgba(21,128,61,.18); border-col
 /* Modale categoria */
 .dpi-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; align-items:center; justify-content:center; }
 .dpi-modal-overlay.open { display:flex; }
-.dpi-modal { background:#fff; border-radius:16px; padding:28px 32px; width:min(520px, 95vw); max-height:90vh; overflow-y:auto; position:relative; }
+.dpi-modal { background:#fff; border-radius:16px; padding:28px 32px; width:min(520px, 95vw); max-height:calc(90 * var(--vh, 1vh)); overflow-y:auto; position:relative; }
 .dpi-modal-title { font-size:18px; font-weight:800; color:#0f172a; margin-bottom:20px; }
 .dpi-modal-close { position:absolute; top:14px; right:16px; font-size:20px; cursor:pointer; color:#64748b; background:none; border:none; }
 
