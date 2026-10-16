@@ -112,6 +112,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # «Il mio team»: ogni capo vede solo le persone di cui è responsabile effettivo
     # (filtro in-view, nessun dato sanitario); chi non è capo vede lo stato vuoto.
     "/anagrafica/il-mio-team/",
+    # «La mia scheda»: solo i dati del dipendente collegato all'utente (nessun id
+    # nell'URL sceglie la persona; l'attestato di un altro risponde 404).
+    "/anagrafica/la-mia-scheda/",
     # Centro guide: aperto a chi ha fatto l'accesso, nessun dato personale; le
     # parti per amministratori sono verificate nella view (403).
     "/guide/",

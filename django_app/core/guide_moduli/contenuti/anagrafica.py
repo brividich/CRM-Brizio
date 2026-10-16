@@ -48,6 +48,18 @@ GUIDA = {
             ],
         },
         {
+            "id": "la-mia-scheda",
+            "titolo": "La mia scheda (per ogni dipendente)",
+            "blocchi": [
+                ("p", "Dal menu utente in alto (o da «Il mio profilo») «La mia scheda» mostra solo i tuoi dati: ferie, ROL, "
+                      "ex festività e permessi dall'ultimo cedolino; le tue visite mediche con scadenza e giudizio di "
+                      "idoneità (il referto e le prescrizioni restano all'ufficio HR); i corsi completati con il PDF "
+                      "dell'«Attestato»; le voci del cedolino (ultimi sei mesi importati); le ultime richieste DPI, con "
+                      "«Tutti i miei DPI»."),
+                ("nota", "Se dice «Account non collegato», chiedi all'ufficio HR di collegare il tuo utente alla tua scheda."),
+            ],
+        },
+        {
             "id": "il-mio-team",
             "titolo": "Il mio team (capo reparto)",
             "blocchi": [
@@ -204,8 +216,12 @@ GUIDA = {
                       "oltre gli anni di conservazione e i candidati chiusi (non idonei, rinunce, annullati) fermi da "
                       "oltre 24 mesi. Se ce ne sono apre in Monitoraggio la segnalazione «Retention HR» con i soli "
                       "numeri; quando non ce ne sono più la chiude."),
-                ("p", "La cancellazione dei documenti resta un comando a mano: cleanup_expired_documents (prova), poi "
-                      "con --apply. Un dipendente in forza non perde mai documenti."),
+                ("p", "Per cancellare: Impostazioni → «Conservazione dei dati» (solo amministratori dell'anagrafica). "
+                      "La pagina elenca i documenti dei cessati oltre la conservazione e i candidati chiusi da oltre 24 "
+                      "mesi; scegli le righe, scrivi ELIMINA e conferma. I documenti vengono eliminati (file compreso); i "
+                      "candidati resi anonimi: spariscono nome, contatti, note e storico delle modifiche, restano stato, "
+                      "date ed esiti per le statistiche del recruiting. Ogni riga è ricontrollata al momento e va nel "
+                      "registro attività. Un dipendente in forza non perde mai documenti."),
             ],
         },
         {
@@ -345,6 +361,10 @@ GUIDA = {
                 ("def", [
                     ("normalizza_nomi_dipendenti", "riscrive i nomi nel formato COGNOME NOME maiuscolo."),
                     ("pulisci_scadenze_hr", "ricalcola le scadenze di formazione e visite."),
+                    ("report_mansioni_catalogo", "sola lettura: per ogni mansione scritta nelle schede dice se "
+                                                 "corrisponde al catalogo (esatta, per nome, simile, assente). "
+                                                 "--report file.csv per l'elenco. Da guardare prima di collegare "
+                                                 "le mansioni al catalogo."),
                     ("cleanup_expired_documents", "documenti dei cessati oltre la conservazione: in prova di default, "
                                                   "--apply per cancellare. Il report settimanale in Monitoraggio dice "
                                                   "quanti sono."),
