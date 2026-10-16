@@ -59,7 +59,7 @@ GUIDA = {
             "fare": ["Il capocommessa può decidere dal portale, aprendo l'OP in Gestione anomalie."],
         },
         {
-            "sintomo": "Dopo un aggiornamento del portale capi reparto, capi commessa, liste o logo sono tornati vuoti",
+            "sintomo": "Dopo un aggiornamento del portale capi reparto, capi commessa, liste, logo o modello del Report OP sono tornati vuoti",
             "perche": "fino a ottobre 2026 la configurazione stava in un file dentro la cartella del programma, "
                       "che ogni aggiornamento sostituisce. Ora è salvata nel database e resta.",
             "fare": [
