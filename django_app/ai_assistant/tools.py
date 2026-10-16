@@ -1875,6 +1875,32 @@ def _module_catalog_context(request, prompt: str) -> RuntimeContext:
     )
 
 
+def _ruoli_utente_testo(request) -> str:
+    """I ruoli del portale dell'utente e da dove arrivano, solo col sistema dei ruoli acceso."""
+    try:
+        from core.permessi import sistema_ruoli_attivo
+        from core.permessi.motore import contesto_per
+        from core.permessi.organigramma import ruoli_spiegati
+
+        if not sistema_ruoli_attivo():
+            return ""
+        voci = ruoli_spiegati(contesto_per(request).legacy_user_id)
+    except Exception:
+        return ""  # senza ruoli il contesto resta quello dei permessi: nessun dato in piu'
+    if not voci:
+        return ""
+    righe = ["Ruoli del portale dell'utente (dal piu' alto in ordine):"]
+    for v in voci:
+        if v["fonte"] == "organigramma":
+            origine = "dall'organigramma: " + ", ".join(v["da"])
+        elif v["fonte"] == "base":
+            origine = "ruolo base di tutti"
+        else:
+            origine = "assegnato a mano" + (f", valido fino al {v['scade_il']:%d/%m/%Y}" if v["scade_il"] else "")
+        righe.append(f"- {v['nome']} ({origine})")
+    return "\n".join(righe)
+
+
 def _permessi_context(request, prompt: str) -> RuntimeContext:
     """Permessi reali dell'utente sul modulo nominato («posso inserire un timbro?»)."""
     from . import permessi_utente
@@ -1904,14 +1930,19 @@ def _permessi_context(request, prompt: str) -> RuntimeContext:
         blocchi.append("\n".join(righe))
         audit_moduli.append({"modulo": modulo.slug, "accesso": accesso, "azioni": len(azioni)})
 
+    ruoli_testo = _ruoli_utente_testo(request)
     return RuntimeContext(
         text=(
             "DATI LIVE PORTALE - PERMESSI DELL'UTENTE CORRENTE\n"
             + "\n\n".join(blocchi)
+            + (f"\n\n{ruoli_testo}" if ruoli_testo else "")
             + "\nISTRUZIONE RISPOSTA: sono i permessi reali dell'utente che sta scrivendo. A «posso…?» rispondi "
             "SI o NO usando questo elenco. Se un'azione e' NO, spiega che il pulsante non gli compare e che il "
             "permesso si chiede a un amministratore del portale. Se l'accesso al modulo e' NO, non descrivere "
-            "dati del modulo. Non citare permessi che non sono in elenco."
+            "dati del modulo. Non citare permessi che non sono in elenco. Se l'utente chiede perche' ha o non ha "
+            "un permesso, usa i suoi ruoli: quelli «dall'organigramma» arrivano dal ruolo che ricopre in "
+            "Anagrafica e cambiano se cambia quel ruolo; quelli «a mano» li assegna un amministratore del "
+            "portale (con la data di scadenza, se c'e')."
         ),
         sources=("tool:portale:permessi",),
         audit={"tool": "permessi_utente", "allowed": True, "moduli": audit_moduli},

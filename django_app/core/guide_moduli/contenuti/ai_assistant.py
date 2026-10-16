@@ -32,6 +32,10 @@ GUIDA = {
                     "Le procedure SGI vengono indicizzate di notte: le risposte sulle procedure dipendono da questo indice.",
                     "Le FAQ suggerite dai 👎 si approvano in Amministrazione → «FAQ & Knowledge AI».",
                     "Il Setup Wizard (Server Dashboard → Assistente AI) ha la verifica completa e la modifica della configurazione AI.",
+                    "Chi lo usa: con il sistema «Ruoli e permessi» acceso servono il permesso «vedere» su Assistente AI, che hanno "
+                    "le posizioni dell'organigramma, la Direzione e l'Amministratore; il ruolo base Operatore non lo ha. "
+                    "L'assistente risponde solo con i dati dei moduli che la persona vede, e alle domande «posso…?» dice "
+                    "anche da quali ruoli arrivano i suoi permessi.",
                 ]),
             ],
         },

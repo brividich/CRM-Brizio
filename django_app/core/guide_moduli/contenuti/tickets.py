@@ -79,6 +79,9 @@ GUIDA = {
                 ("ul", [
                     "Ticket IT e Ticket manutenzione sono due permessi separati: chi gestisce l'IT non gestisce la manutenzione.",
                     "Tutti vedono i propri ticket; i responsabili anche quelli del loro team; la Direzione tutti.",
+                    "Con il sistema «Ruoli e permessi» acceso il ruolo base Operatore apre solo ticket di manutenzione; "
+                    "i ticket IT li aprono le posizioni dell'organigramma (Direzione, Qualità, IT, Manutenzione, Ingegneria, "
+                    "Amministrazione, Caporeparto, Controllo qualità).",
                     "I permessi si danno in Amministrazione → «Accessi» o «Ruoli e permessi».",
                 ]),
             ],

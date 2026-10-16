@@ -372,6 +372,13 @@ def capa_verify(request: HttpRequest, pk: int) -> HttpResponse:
             "La verifica di efficacia deve essere fatta da una persona diversa da chi ha chiuso l'azione.",
         )
         return redirect("capa_detail", pk=action.pk)
+    if action.responsabile_id == request.user.id and not request.user.is_superuser:
+        # Il responsabile non verifica la propria azione, anche se l'ha chiusa un altro.
+        messages.error(
+            request,
+            "La verifica di efficacia deve essere fatta da una persona diversa dal responsabile dell'azione.",
+        )
+        return redirect("capa_detail", pk=action.pk)
     capa_service.verifica_azione(action, utente=request.user, note=request.POST.get("note_verifica", ""))
     messages.success(request, "Azione verificata e chiusa definitivamente.")
     return redirect("capa_detail", pk=action.pk)

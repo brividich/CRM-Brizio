@@ -99,7 +99,7 @@ Context (vedi core/views_capa.py::capa_detail): a, can_manage, can_close, giorni
       <form method="post" action="{% url 'capa_verify' a.pk %}" class="cd-form">{% csrf_token %}
         <textarea name="note_verifica" rows="2" placeholder="Note di verifica (facoltative)…"></textarea>
         <div class="cd-actions"><button type="submit" class="cd-btn success">Verifica e chiudi definitivamente</button></div>
-        <p style="color:#94a3b8;font-size:.82rem;margin:6px 0 0;">La verifica deve essere fatta da una persona diversa da chi ha chiuso l'azione.</p>
+        <p style="color:#94a3b8;font-size:.82rem;margin:6px 0 0;">La verifica deve essere fatta da una persona diversa da chi ha chiuso l'azione e dal suo responsabile.</p>
       </form>
     {% endif %}
 

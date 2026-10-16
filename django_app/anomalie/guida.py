@@ -38,7 +38,9 @@ SEZIONI: list[dict] = [
                 "L'operatore apre un controllo sull'OP, indica la fase e registra le anomalie a blocchi di seriali, "
                 "con foto e documenti.",
                 "Il capocommessa riceve una mail con il link e decide anomalia per anomalia: avanzamento, RDC, "
-                "segnalazione al cliente, note. Il CAR è in copia.",
+                "segnalazione al cliente, note. Il CAR è in copia. Con il sistema «Ruoli e permessi» acceso chi ha "
+                "aperto l'anomalia non ne decide note, segnalazione al cliente, RDC e chiusura: la decisione la "
+                "prende un'altra persona (chi rileva non decide, EN 9100 §8.7).",
                 "L'operatore che ha segnalato riceve una mail con la decisione e una notifica nel portale.",
                 "Le anomalie chiuse restano consultabili; statistiche, estrazioni e non conformità raccolgono lo storico.",
             ]),

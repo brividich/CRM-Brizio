@@ -10,6 +10,9 @@ anagrafica intero: entrambi si convertono in ``utenti.id``.
 from core.permessi.registro import ModuloPermessi, registra_modulo
 
 AZIONE_DATI_RISERVATI = "dati_riservati"
+# Il referto clinico (file e testo) e' separato dal giudizio di idoneita':
+# capi e preposti vedono idoneita', limitazioni e scadenze, non il referto.
+AZIONE_REFERTI = "referti"
 
 
 def proprietario_scheda(scheda):
@@ -43,6 +46,7 @@ registra_modulo(ModuloPermessi(
     area="Persone",
     app="anagrafica",
     codici_acl=("anagrafica.visite.view", "anagrafica.visite.edit", "anagrafica.visite.delete"),
+    azioni_extra=((AZIONE_REFERTI, "Referti clinici (file e contenuto del referto)"),),
     proprietario=proprietario_scheda,
 ))
 

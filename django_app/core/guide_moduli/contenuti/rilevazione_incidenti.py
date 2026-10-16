@@ -69,7 +69,7 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "«Permessi ACL» nelle impostazioni porta alla pagina Accessi del modulo.",
-                    "La Sicurezza (RSPP) vede e chiude tutte le rilevazioni; le liste «preposti / RSPP» delle impostazioni valgono solo se il sistema «Ruoli e permessi» è spento.",
+                    "L'RSPP vede e chiude tutte le rilevazioni, l'RLS le legge tutte; le liste «preposti / RSPP» delle impostazioni valgono solo se il sistema «Ruoli e permessi» è spento.",
                     "Le rilevazioni storiche lette da SharePoint non hanno un autore sicuro: le vede solo chi ha visibilità su tutto.",
                 ]),
             ],

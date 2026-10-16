@@ -44,3 +44,5 @@ Card di consultazione per chi vede reparto/azienda, assegnazione corrente da ana
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) visibilità e approvazione si leggono dalla matrice: «vedere» propri / team / tutti diventa la visibilità own / reparto / all, «approvare» team o tutti dà l'approvazione del team o di tutti, «cancellare» tutti la cancellazione. Il perimetro del capo (coda, conteggi, storico, calendario) è il suo **team d'organigramma**, non più l'assegnazione `capi_reparto`. L'export richiede «esportare» con ambito team o tutti.
+
+- **Nessuno approva la propria assenza** (con il sistema dei ruoli acceso): `assenze.views._e_propria_assenza` su approvazione singola, in blocco e cambio di stato dalla modifica evento.

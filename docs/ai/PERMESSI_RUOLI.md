@@ -12,6 +12,31 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   `preset` (da quale preset nasce).
 - **Persona → ruoli**: `AccessGroupMembership` (N ruoli per persona), assegnati **a mano**
   dalla scheda «Persone». Il ruolo base `dipendente` vale per tutti senza iscrizione.
+- **Scadenza**: `AccessGroupMembership.scade_il` (core 0082), vale fino al giorno compreso.
+  Ogni lettura delle appartenenze usa `core.permessi.scadenze.q_appartenenze_valide` (motore,
+  `acl_resolver.user_group_ids` / `describe_user_groups`, `utenti_amministratori_da_ruolo`).
+  Chi legge le appartenenze altrove deve usarlo.
+- **Preset (modello 15/10/2026)**: posizioni Direzione 800, Amministrazione 650, Qualità 600, IT 560,
+  Manutenzione 550, Ingegneria 520, Controllo qualità 480, Caporeparto 400; incarichi Gestione
+  personale (chiave `hr`) 460, Gestione formazione 455, Referente 27001 445, Auditor 440, RLS 435,
+  Addetto emergenze 420, Preposto 300; RSPP esterno (chiave `sicurezza`) 700; Operatore (chiave
+  `dipendente`) 100. Le chiavi storiche restano per non scollegare i ruoli già creati.
+  `riallinea_preset_modello()` (migrazione core 0081) aggiorna solo nomi/celle ancora uguali al preset.
+- **Referti**: azione extra `referti` di `visite_mediche`; `anagrafica.views._can_view_referti`
+  la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
+  scheda e coda referti (`views_sorveglianza._puo`).
+- **Ruoli dall'organigramma**: `anagrafica.RuoloOperativo.profili_permessi` (M2M verso
+  `AccessGroup`, migrazione anagrafica 0177). Chi ricopre oggi un ruolo d'organigramma collegato
+  (stesse assegnazioni del team: ruolo attivo, `data_fine` vuota o futura) riceve quei ruoli,
+  sommati a quelli a mano. Fonte unica `core/permessi/organigramma.py`
+  (`profili_da_organigramma`, `provenienze_per_utenti`), letta da `motore.ruoli_della_persona` e da
+  `acl_resolver.user_group_ids` / `describe_user_groups` (pagine e menu). Mai un ruolo con
+  `amministratore=True`: filtrato in lettura anche se collegato. I segnali su `RuoloOperativo`,
+  `DipendenteRuoloOperativo` e sulla M2M chiamano `invalida_permessi()` (che azzera anche il team).
+  Collegamento dalla matrice (riquadro «Dall'organigramma», POST `ruoli_portale_organigramma`).
+  Conseguenza di sicurezza: chi modifica l'organigramma in Anagrafica decide chi riceve i ruoli
+  collegati. Chi conta le persone di un ruolo deve sommare le due fonti
+  (`AccessGroupMembership` + organigramma).
 - **Matrice**: `core.RuoloPermessoModulo` = ruolo × modulo × azione → `consentito` +
   `ambito` (`propri` / `team` / `tutti`). Riga assente = il ruolo **tace**.
 - **Precedenza**: superuser e amministratori → tutto. Poi, fra i ruoli della persona,
@@ -160,3 +185,7 @@ permessi di pagina: il permesso di gestione si accende con «gestire».
 ## Checklist manuale prima di rilasciare un modulo
 
 Vedi [CHECKLIST_PERMESSI_RILASCIO_MODULO.md](CHECKLIST_PERMESSI_RILASCIO_MODULO.md).
+
+## Separazione dei compiti (16/10/2026)
+
+Con il sistema acceso: DPI (`dpi.views._can_approve`) e assenze (`assenze.views._e_propria_assenza`) non si approvano da soli; anomalie: l'autore non decide (`anomalie.views._decisione_su_propria_anomalia`); CAPA: la verifica di efficacia non la fanno chi ha chiuso ne' il responsabile (sempre, non solo a sistema acceso); audit: conflitto di imparzialita' gia' nel form (`sistema_gestione/audit_forms.py`). Riesame accessi: `admin_portale/riesame_accessi.py`.

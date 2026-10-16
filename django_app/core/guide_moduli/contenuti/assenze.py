@@ -57,6 +57,9 @@ GUIDA = {
                 ]),
                 ("p", "Il dipendente riceve subito l'esito. Le richieste già decise restano in «Le mie richieste» → "
                       "«Richieste dei miei dipendenti», nel blocco «Già decise»."),
+                ("p", "Con il sistema «Ruoli e permessi» acceso nessuno approva o rifiuta una propria richiesta, nemmeno "
+                      "in blocco o modificando l'evento: compare «Non puoi approvare o rifiutare una tua richiesta» e "
+                      "decide un altro responsabile."),
             ],
         },
         {
