@@ -6954,7 +6954,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(calendar_event.target_email, "g.verdi@example.local")
         self.assertEqual(calendar_event.graph_event_id, "evt-deadline")
 
-        with patch.object(asset_views._monolith, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views.deadlines, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(
                 reverse("assets:asset_administrative_deadline_list") + f"?asset={self.asset.id}"
             )
@@ -7086,7 +7086,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(calendar_event.due_date), "2026-12-31")
         self.assertEqual(calendar_event.graph_event_id, "evt-contract")
 
-        with patch.object(asset_views._monolith, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views.deadlines, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
