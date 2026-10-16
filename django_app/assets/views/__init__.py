@@ -120,13 +120,20 @@ from .maintenance_legacy import (  # noqa: F401
 from .it import (  # noqa: F401
     device_list,
 )
+from .machines import (  # noqa: F401
+    asset_meter_update,
+    work_machine_create,
+    work_machine_dashboard,
+    work_machine_edit,
+    work_machine_list,
+    work_machine_maintenance_month_pdf,
+)
 from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_calendar_json,
     asset_dashboard,
     asset_detail_export_xlsx,
     asset_list_export,
-    asset_meter_update,
     asset_part_145_export_excel,
     asset_part_145_export_pdf,
     asset_quick_report,
@@ -139,13 +146,8 @@ from ._monolith import (  # noqa: F401
     plant_layout_map,
     report_template_admin,
     reports_dashboard,
-    work_machine_create,
-    work_machine_dashboard,
-    work_machine_edit,
     work_machine_export_excel,
     work_machine_export_pdf,
-    work_machine_list,
-    work_machine_maintenance_month_pdf,
     workorder_campaign_create,
     workorder_checklist_add,
     workorder_checklist_delete,
