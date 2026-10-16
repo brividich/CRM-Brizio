@@ -512,7 +512,7 @@ def _testo_cambio(tipo_fatto, tipo_richiesto, richiesti_persona: dict, cambio_et
 
 def visite(ctx, persone: dict) -> list[VoceVisita]:
     """Visita corrente per persona e famiglia, piu' le visite dovute mai registrate."""
-    from anagrafica.models import VisitaMedica
+    from anagrafica.models import NOTA_SCADENZA_MEDICO, VisitaMedica
     from anagrafica.services.visite import ultime_visite_correnti_ids
 
     richieste, cambi_eta, decorrenze = _requisiti_visite_dettaglio(ctx, persone)
@@ -547,6 +547,10 @@ def visite(ctx, persone: dict) -> list[VoceVisita]:
         propria = scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, None)
         effettiva = scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, mesi, dal=dal)
         nota = ""
+        if v.scadenza_medico:
+            # Il richiamo scritto dal medico competente prevale su tipo e periodicita'.
+            propria = effettiva = v.scadenza_medico
+            nota = NOTA_SCADENZA_MEDICO
         anticipata = bool(effettiva and (propria is None or effettiva < propria))
         if anticipata:
             # L'obbligo puo' venire da mansione, ruolo, protocollo o processo: si dice da dove.

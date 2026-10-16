@@ -1,0 +1,4 @@
+{% comment %}
+Semaforo conformità nell'intestazione della scheda dipendente (HTMX, ?vista=badge).
+Stesse etichette del pannello «Conformità alla mansione»; il clic apre il Riepilogo.
+{% endcomment %}{% if esito == "ok" %}{% include "anagrafica/components/hr_pill.html" with tone="ok" dot=1 label="In regola con la mansione" url="#conformita" %}{% elif esito == "warn" %}{% include "anagrafica/components/hr_pill.html" with tone="warning" dot=1 label="Adempimenti in scadenza" url="#conformita" %}{% elif esito == "ko" %}{% include "anagrafica/components/hr_pill.html" with tone="danger" dot=1 label="Non conforme — verificare" url="#conformita" %}{% else %}{% include "anagrafica/components/hr_pill.html" with tone="neutral" dot=1 label="Nessun requisito applicabile" %}{% endif %}

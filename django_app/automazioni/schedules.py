@@ -537,6 +537,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ANAGRAFICA HR — retention GDPR in SOLA LETTURA: conta documenti e candidati
+        # oltre la conservazione e apre/risolve una Issue in monitoring. Non cancella:
+        # la cancellazione resta il comando cleanup_expired_documents --apply.
+        "name": "anagrafica_report_retention",
+        "func": "anagrafica.tasks.run_report_retention",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 6 * * 1",       # ogni lunedi alle 06:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai
         # responsabili (card+badge nel frame HUB) + notifica in-app al dipendente.
         # Destinatari visite_reminder_emails con fallback amministrativo da verificare.

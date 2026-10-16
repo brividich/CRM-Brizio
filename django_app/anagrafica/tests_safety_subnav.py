@@ -83,4 +83,5 @@ class SafetySubnavTests(TestCase):
                 with self.subTest(pagina=nome):
                     r = self.client.get(reverse(nome))
                     self.assertEqual(r.status_code, 200)
-                    self.assertContains(r, 'class="safnav"')
+                    # Seconda riga della subnav dal DB (prima: barra «safnav» scritta nella pagina).
+                    self.assertContains(r, 'class="hrnav-sub"')

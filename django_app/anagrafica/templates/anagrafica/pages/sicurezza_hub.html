@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Sicurezza & Idoneità | Anagrafica HR{% endblock %}
+{% block title %}Cruscotto sicurezza | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -16,7 +16,6 @@
 <div class="fmd">
   <div class="fmd-wrap">
 
-    {% include "anagrafica/partials/_safety_subnav.html" with active="hub" %}
 
     {# ── Hero ───────────────────────────────────────────────────────────── #}
     <section class="fmd-hero">
@@ -24,7 +23,7 @@
       <div class="fmd-hero-inner">
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Salute e sicurezza</div>
-          <h1><svg class="fmd-ico fmd-cap"><use href="#i-shield"/></svg>Sicurezza &amp; Idoneità</h1>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-shield"/></svg>Cruscotto sicurezza</h1>
           <p class="fmd-sub">La mansione di rischio dichiara i requisiti (DPI, formazione, visite), il sistema verifica che ogni persona sia in regola con la sua mansione.</p>
           <div class="fmd-hero-actions">
             {% if can_hr %}

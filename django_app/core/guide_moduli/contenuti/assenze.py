@@ -60,6 +60,8 @@ GUIDA = {
                 ("p", "Con il sistema «Ruoli e permessi» acceso nessuno approva o rifiuta una propria richiesta, nemmeno "
                       "in blocco o modificando l'evento: compare «Non puoi approvare o rifiutare una tua richiesta» e "
                       "decide un altro responsabile."),
+                ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "
+                      "responsabile con il semaforo di conformità alla mansione (nessun dato sanitario)."),
             ],
         },
         {

@@ -18,7 +18,6 @@
   <div class="fmd-wrap">
 
     {% include "anagrafica/components/flash_messages.html" %}
-    {% include "anagrafica/partials/_safety_subnav.html" with active="scadenzario" %}
     {% load anagrafica_extras %}{% stati_operativi_da_segnalare as stati_operativi %}
     {% if stati_operativi %}
     <section class="fmd-panel fmd-block" role="status" aria-label="Stato operativo" style="border-left:4px solid #ef4444;">
@@ -72,6 +71,16 @@
           <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
           <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
         </select>
+        <select name="periodo" class="fmd-select" aria-label="Periodo di scadenza" onchange="document.getElementById('scad-intervallo').hidden = this.value !== 'intervallo'; if (this.value !== 'intervallo') this.form.submit();" title="Un periodo sostituisce il filtro di stato">
+          <option value="" {% if not filtro_periodo %}selected{% endif %}>Qualsiasi periodo</option>
+          <option value="mese" {% if filtro_periodo == "mese" %}selected{% endif %}>Questo mese</option>
+          <option value="prossimo" {% if filtro_periodo == "prossimo" %}selected{% endif %}>Prossimo mese</option>
+          <option value="intervallo" {% if filtro_periodo == "intervallo" %}selected{% endif %}>Intervallo…</option>
+        </select>
+        <span id="scad-intervallo" class="scad-intervallo"{% if filtro_periodo != "intervallo" %} hidden{% endif %}>
+          <label>dal <input type="date" name="dal" class="fmd-select" value="{{ periodo_dal|date:'Y-m-d' }}"></label>
+          <label>al <input type="date" name="al" class="fmd-select" value="{{ periodo_al|date:'Y-m-d' }}"></label>
+        </span>
         {% if reparti %}
         <select name="reparto" class="fmd-select" aria-label="Filtra per reparto" onchange="this.form.submit()">
           <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti i reparti</option>

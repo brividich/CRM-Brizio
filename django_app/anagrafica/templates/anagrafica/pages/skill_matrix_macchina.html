@@ -5,6 +5,7 @@
 {% block title %}Skill Matrix — Abilitazioni macchina (MOD.187){% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
@@ -63,7 +64,7 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
         <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
       </div>
       <h2 class="hr-pagehead-title">🛠️ Skill Matrix — Abilitazioni macchina</h2>
-      <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
+      <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O {% info_hint "livelli_ilou" %}. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
     </div>
     <div style="display:flex;gap:8px;">
       {% if can_manage %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}

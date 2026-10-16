@@ -439,6 +439,7 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
         _can_view_formazione,
         _can_view_visite_mediche,
         _check_hr_permission,
+        _scadenzario_periodo,
     )
 
     oggi = timezone.localdate()
@@ -453,8 +454,11 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
     filtro_tipo = (request.GET.get("tipo") or "") if filtered else ""
     filtro_stato = (request.GET.get("stato") or "") if filtered else ""
     filtro_reparto = (request.GET.get("reparto") or "").strip() if filtered else ""
+    periodo = _scadenzario_periodo(request, oggi)[3] if filtered else None
 
     def _finestra(qs):
+        if periodo:
+            return qs.filter(data_scadenza__range=periodo)
         if filtro_stato == "scaduta":
             return qs.filter(data_scadenza__lt=oggi)
         if filtro_stato == "30":
@@ -548,7 +552,10 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
             scadenze.append((legacy_id, fine_prova, "Fine periodo di prova"))
 
         for legacy_id, data_fine, descrizione in scadenze:
-            if filtro_stato == "scaduta":
+            if periodo:
+                if not (periodo[0] <= data_fine <= periodo[1]):
+                    continue
+            elif filtro_stato == "scaduta":
                 if data_fine >= oggi:
                     continue
             elif filtro_stato == "30":
@@ -584,7 +591,15 @@ def _scadenzario_filters(request: HttpRequest) -> str:
         "60": "Entro 60 giorni",
     }
     filtro_stato = (request.GET.get("stato") or "").strip()
-    if filtro_stato in stati:
+    from django.utils import timezone
+
+    from anagrafica.views import _scadenzario_periodo
+
+    chiave, dal, al, periodo = _scadenzario_periodo(request, timezone.localdate())
+    if periodo:
+        estremi = " ".join(x for x in (f"dal {dal:%d/%m/%Y}" if dal else "", f"al {al:%d/%m/%Y}" if al else "") if x)
+        parts.append(f"Periodo: {estremi}")
+    elif filtro_stato in stati:
         parts.append(f"Stato: {stati[filtro_stato]}")
     else:
         parts.append("Scadute + entro 60gg")

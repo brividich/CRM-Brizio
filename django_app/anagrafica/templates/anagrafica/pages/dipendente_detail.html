@@ -7,6 +7,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_info_styles.html" %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 /* ── Anagrafica HR — scheda dipendente · restyle design-system (Fase A) ──────
    Palette/forma derivate dal prototipo `anagrafica_hr_dashboard_novicrom.jsx`.
@@ -218,7 +219,34 @@ body.theme-dark .dp-ruoli-gruppo-h { color:var(--text-light); }
 .dp-edit-section { display:none; margin-top:14px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }
 .dp-edit-section.open { display:block; }
 
+/* Intestazione: stato in evidenza, azioni distruttive nel menu «Azioni ▾» */
+.dp-hero-status { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+.dp-actions-menu { position:relative; }
+.dp-actions-menu > summary { list-style:none; cursor:pointer; }
+.dp-actions-menu > summary::-webkit-details-marker { display:none; }
+.dp-actions-pop { position:absolute; right:0; top:calc(100% + 6px); z-index:40; min-width:230px; display:flex; flex-direction:column; padding:6px; background:var(--hr-surface); border:1px solid var(--hr-border); border-radius:var(--hr-radius-sm); box-shadow:0 18px 40px -24px rgba(15,23,42,.45); }
+.dp-actions-pop form { margin:0; }
+.dp-actions-item { display:block; width:100%; text-align:left; padding:8px 10px; border:0; border-radius:8px; background:none; font:inherit; font-size:13px; font-weight:600; color:var(--hr-text-mid); text-decoration:none; cursor:pointer; }
+.dp-actions-item:hover, .dp-actions-item:focus-visible { background:var(--hr-surface-alt); }
+.dp-actions-danger { color:var(--hr-ko-fg); }
+.dp-modal { position:fixed; inset:0; margin:auto; height:fit-content; max-height:calc(100% - 32px); overflow:auto; border:1px solid var(--hr-border); border-radius:var(--hr-radius); padding:0; width:min(560px, calc(100vw - 32px)); background:var(--hr-surface); color:var(--hr-text); box-shadow:0 30px 60px -30px rgba(15,23,42,.6); }
+.dp-modal::backdrop { background:rgba(8,20,45,.45); }
+.dp-modal-body { padding:18px 20px; display:flex; flex-direction:column; gap:8px; }
+.dp-modal-title { margin:0; font-size:18px; font-weight:800; color:var(--hr-title); }
+.dp-modal-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:6px; }
+.dp-modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
+.dp-modal .dp-offboarding-return-grid label { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--hr-text-mid); }
+.dp-tab-count { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--hr-na-bg); color:var(--hr-na-fg); font-size:11px; font-weight:800; }
+.dp-tab.active .dp-tab-count { background:rgba(255,255,255,.22); color:#fff; }
+
+@media (max-width:900px) {
+  .dp-tabs { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin; }
+  .dp-hero-actions { width:100%; justify-content:flex-start; }
+}
 @media (max-width:600px) {
+  .dp-actions-pop { left:0; right:auto; }
+  .dp-modal-footer { flex-direction:column-reverse; }
+  .dp-modal-footer .dp-btn { width:100%; justify-content:center; }
   .dp-qual-form-grid { grid-template-columns:1fr; }
   .dp-widget-grid { grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); }
   .dp-hero { flex-direction:column; align-items:flex-start; }
@@ -601,8 +629,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   <!-- TOPBAR -->
   <div class="dp-topbar">
     <div>
-      <div class="dp-title">{% nominativo dip %}</div>
-      <div class="dp-sub">Scheda dipendente · ID {{ legacy_id }}</div>
+      <div class="dp-title">Scheda dipendente</div>
+      <div class="dp-sub">ID {{ legacy_id }}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       {% if legacy_id %}
@@ -624,76 +652,94 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         {% if dip.reparto %} &middot; <span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}
         {% if dip.matricola %} &middot; Matricola: <strong>{{ dip.matricola|matricola_fmt }}</strong>{% endif %}
       </div>
-      <div style="margin-top:6px;">
-        {% if dip.attivo %}
-          <span class="dp-pill dp-pill-green">Attivo</span>
+      <div class="dp-hero-status">
+        {% if aziendale.data_cessazione %}
+          <span class="dp-pill dp-pill-gray">Cessato il {{ aziendale.data_cessazione|date:"d-m-Y" }}</span>
+        {% elif offboarding_pratica_attiva %}
+          <a class="dp-pill dp-pill-amber" href="#offboarding-pratica">Uscita in corso</a>
+        {% elif dip.attivo %}
+          <span class="dp-pill dp-pill-green">In forza</span>
         {% else %}
           <span class="dp-pill dp-pill-gray">Non attivo</span>
         {% endif %}
-        {% if dip.aliasusername %}<span class="dp-pill dp-pill-gray" style="margin-left:4px;">{{ dip.aliasusername }}</span>{% endif %}
+        {% if legacy_id %}
+          <span hx-get="{% url 'anagrafica:dipendente_conformita_panel' legacy_id %}?vista=badge" hx-trigger="load" hx-swap="outerHTML"></span>
+        {% endif %}
+        {% if dip.aliasusername %}<span class="dp-pill dp-pill-gray">{{ dip.aliasusername }}</span>{% endif %}
       </div>
     </div>
     <div class="dp-hero-actions">
-      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
       {% if dip.email_notifica %}
-        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="mailto:{{ dip.email_notifica }}">✉ {{ dip.email_notifica }}</a>
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="mailto:{{ dip.email_notifica }}" title="{{ dip.email_notifica }}">✉ Scrivi</a>
+      {% endif %}
+      {% if is_admin and not aziendale.data_cessazione %}
+        <button type="button" class="dp-btn dp-btn-primary dp-btn-sm" id="dp-cambia-mansione">🔀 Cambia mansione</button>
       {% endif %}
       {% if is_admin %}
-        {% if aziendale.data_cessazione %}
-          <form method="post" action="{% url 'anagrafica:dipendente_rimetti_in_forza' legacy_id %}" style="display:inline;" onsubmit="return confirm('Rimettere in forza questo dipendente? La data cessazione verra rimossa e lo stato legacy tornera attivo.');">
-            {% csrf_token %}
-            <button type="submit" class="dp-btn dp-btn-ghost dp-btn-sm" style="color:#16a34a;border-color:#bbf7d0;">Rimetti in forza</button>
-          </form>
-        {% endif %}
-        {% if not aziendale.data_cessazione %}
-          {% if offboarding_pratica_attiva %}
-            <a class="dp-btn dp-btn-danger dp-btn-sm" href="#offboarding-pratica">Pratica offboarding in corso</a>
+      <details class="dp-actions-menu">
+        <summary class="dp-btn dp-btn-ghost dp-btn-sm" aria-haspopup="menu">Azioni ▾</summary>
+        <div class="dp-actions-pop" role="menu">
+          {% if aziendale.data_cessazione %}
+            <form method="post" action="{% url 'anagrafica:dipendente_rimetti_in_forza' legacy_id %}" onsubmit="return confirm('Rimettere in forza questo dipendente? La data cessazione verra rimossa e lo stato legacy tornera attivo.');">
+              {% csrf_token %}
+              <button type="submit" class="dp-actions-item" role="menuitem">↩ Rimetti in forza</button>
+            </form>
           {% else %}
-          <form method="post" action="{% url 'anagrafica:dipendente_offboarding_licenziamento' legacy_id %}" class="dp-offboarding-form" onsubmit="return confirm('Avviare la pratica offboarding? Il dipendente restera in forza finche la pratica non viene chiusa.');">
-            {% csrf_token %}
-            <select name="motivo" class="dp-offboarding-select" aria-label="Motivo uscita">
-              {% for value,label in offboarding_motivo_choices %}
-                <option value="{{ value }}"{% if value == 'licenziamento' %} selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            <label class="dp-offboarding-date-field">
-              <span>Data uscita</span>
-              <input type="date" name="data_cessazione" class="dp-offboarding-date" value="{{ oggi|date:'Y-m-d' }}" aria-label="Data uscita">
-            </label>
-            <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm">Avvia uscita dipendente</button>
-            <details class="dp-offboarding-return">
-              <summary>Restituzioni</summary>
-              <div class="dp-offboarding-popover">
-                <div class="dp-offboarding-return-grid">
-                  <label><input type="checkbox" name="restituzioni" value="badge_chiavi"> Badge, chiavi, tessere</label>
-                  <label><input type="checkbox" name="restituzioni" value="device_it"> PC, telefono, SIM, token</label>
-                  <label><input type="checkbox" name="restituzioni" value="dpi_divise"> DPI, divise, attrezzature</label>
-                  <label><input type="checkbox" name="restituzioni" value="mezzi_carte"> Mezzi, carte, carburante</label>
-                  <label><input type="checkbox" name="restituzioni" value="documenti_archivi"> Documenti e archivi</label>
-                  <label><input type="checkbox" name="restituzioni" value="accessi_account"> Accessi e account da revocare</label>
-                </div>
-                <textarea name="restituzioni_note" class="dp-offboarding-note" maxlength="1000" placeholder="Note su altro materiale da recuperare o passaggi da fare"></textarea>
-              </div>
-            </details>
-          </form>
+            {% if offboarding_pratica_attiva %}
+              <a class="dp-actions-item" role="menuitem" href="#offboarding-pratica">Vai alla pratica di uscita</a>
+            {% else %}
+              <button type="button" class="dp-actions-item dp-actions-danger" role="menuitem" data-dp-dialog="dp-offboarding-dialog">Avvia uscita dipendente…</button>
+            {% endif %}
+            <form method="post" action="{% url 'anagrafica:dipendente_toggle_active' legacy_id %}" onsubmit="return confirm({% if dip.attivo %}'Disattivare questo dipendente? L'account portale verrà scollegato. L'operazione è reversibile.'{% else %}'Riattivare questo dipendente?'{% endif %});">
+              {% csrf_token %}
+              {% if dip.attivo %}
+                <button type="submit" class="dp-actions-item dp-actions-danger" role="menuitem">Disattiva account</button>
+              {% else %}
+                <button type="submit" class="dp-actions-item" role="menuitem">Riattiva</button>
+              {% endif %}
+            </form>
           {% endif %}
-        {% endif %}
-        {% if not aziendale.data_cessazione %}
-        {% if dip.attivo %}
-          <form method="post" action="{% url 'anagrafica:dipendente_toggle_active' legacy_id %}" style="display:inline;" onsubmit="return confirm('Disattivare questo dipendente? L\'account portale verrà scollegato. L\'operazione è reversibile.');">
-            {% csrf_token %}
-            <button type="submit" class="dp-btn dp-btn-ghost dp-btn-sm" style="color:#b91c1c;border-color:#fecaca;">Disattiva</button>
-          </form>
-        {% else %}
-          <form method="post" action="{% url 'anagrafica:dipendente_toggle_active' legacy_id %}" style="display:inline;" onsubmit="return confirm('Riattivare questo dipendente?');">
-            {% csrf_token %}
-            <button type="submit" class="dp-btn dp-btn-ghost dp-btn-sm" style="color:#16a34a;border-color:#bbf7d0;">Riattiva</button>
-          </form>
-        {% endif %}
-        {% endif %}
+        </div>
+      </details>
       {% endif %}
     </div>
   </div>
+
+  {% if is_admin and not aziendale.data_cessazione and not offboarding_pratica_attiva %}
+  <dialog id="dp-offboarding-dialog" class="dp-modal" aria-labelledby="dp-offboarding-title">
+    <form method="post" action="{% url 'anagrafica:dipendente_offboarding_licenziamento' legacy_id %}" class="dp-modal-body" onsubmit="return confirm('Avviare la pratica offboarding? Il dipendente restera in forza finche la pratica non viene chiusa.');">
+      {% csrf_token %}
+      <h2 class="dp-modal-title" id="dp-offboarding-title">Avvia uscita di {% nominativo dip %}</h2>
+      <p class="dp-sub">Il dipendente resta in forza finché la pratica non viene chiusa.</p>
+      <div class="dp-modal-grid">
+        <label class="dp-form-field"><span class="dp-form-label">Motivo uscita</span>
+          <select name="motivo" class="dp-input">
+            {% for value,label in offboarding_motivo_choices %}
+              <option value="{{ value }}"{% if value == 'licenziamento' %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="dp-form-field"><span class="dp-form-label">Data uscita</span>
+          <input type="date" name="data_cessazione" class="dp-input" value="{{ oggi|date:'Y-m-d' }}">
+        </label>
+      </div>
+      <div class="dp-form-label" style="margin-top:12px;">Restituzioni da gestire</div>
+      <div class="dp-offboarding-return-grid">
+        <label><input type="checkbox" name="restituzioni" value="badge_chiavi"> Badge, chiavi, tessere</label>
+        <label><input type="checkbox" name="restituzioni" value="device_it"> PC, telefono, SIM, token</label>
+        <label><input type="checkbox" name="restituzioni" value="dpi_divise"> DPI, divise, attrezzature</label>
+        <label><input type="checkbox" name="restituzioni" value="mezzi_carte"> Mezzi, carte, carburante</label>
+        <label><input type="checkbox" name="restituzioni" value="documenti_archivi"> Documenti e archivi</label>
+        <label><input type="checkbox" name="restituzioni" value="accessi_account"> Accessi e account da revocare</label>
+      </div>
+      <textarea name="restituzioni_note" class="dp-offboarding-note" maxlength="1000" placeholder="Note su altro materiale da recuperare o passaggi da fare"></textarea>
+      <div class="dp-modal-footer">
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" data-dp-dialog-close>Annulla</button>
+        <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm">Avvia uscita dipendente</button>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
 
   {% if offboarding_pratica_attiva %}
   <div class="dp-card dp-offboarding-panel" id="offboarding-pratica">
@@ -800,10 +846,10 @@ body.theme-dark .dp-link-ok { color:#86efac; }
     <button type="button" class="dp-tab" data-tab-target="ferie">📅 Ferie</button>
     <button type="button" class="dp-tab" data-tab-target="assenze">🗓 Assenze</button>
     <button type="button" class="dp-tab" data-tab-target="formazione">🎓 Formazione</button>
-    <button type="button" class="dp-tab" data-tab-target="dpi">🦺 DPI</button>
-    <button type="button" class="dp-tab" data-tab-target="visite">🏥 Visite mediche</button>
-    <button type="button" class="dp-tab" data-tab-target="documenti">📄 Documenti</button>
-    <button type="button" class="dp-tab" data-tab-target="asset">💻 Asset</button>
+    <button type="button" class="dp-tab" data-tab-target="dpi">🦺 DPI{% if dpi_consegnati %}<span class="dp-tab-count">{{ dpi_consegnati|length }}</span>{% endif %}</button>
+    <button type="button" class="dp-tab" data-tab-target="visite">🏥 Visite mediche{% if visite_stato_list %}<span class="dp-tab-count">{{ visite_stato_list|length }}</span>{% endif %}</button>
+    <button type="button" class="dp-tab" data-tab-target="documenti">📄 Documenti{% if documenti_dipendente %}<span class="dp-tab-count">{{ documenti_dipendente|length }}</span>{% endif %}</button>
+    <button type="button" class="dp-tab" data-tab-target="asset">💻 Asset{% if assets_assegnati %}<span class="dp-tab-count">{{ assets_assegnati|length }}</span>{% endif %}</button>
     {% if legacy_id %}
       <button type="button" class="dp-tab" data-tab-target="timbri"
               hx-get="{% url 'timbri:operatore_embed' legacy_id %}"
@@ -830,8 +876,6 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         {% else %}
           <span class="dp-pill dp-pill-green">In forza</span>
         {% endif %}
-        {% if dip.reparto %}<span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}
-        {% if dip.mansione %}<span class="dp-pill dp-pill-gray">{{ dip.mansione }}</span>{% endif %}
       </div>
 
       <div class="dp-info-grid">
@@ -893,7 +937,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   </div>
 
   <!-- CONFORMITÀ (semaforo idoneità alla mansione) -->
-  <div class="dp-card" data-tab="riepilogo">
+  <div class="dp-card" data-tab="riepilogo" id="conformita">
     <div class="dp-card-head">
       <div class="dp-card-title">✅ Conformità alla mansione</div>
       <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendente_libretto_sanitario' legacy_id %}" target="_blank" rel="noopener" title="Libretto sanitario aziendale: tutti i requisiti della mansione con origine, scadenza e stato (stampabile)">🩺 Libretto sanitario</a>
@@ -2621,6 +2665,10 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <input type="text" name="medico_competente" class="dp-select" maxlength="200" style="width:100%;">
             </div>
             <div class="dp-qual-field">
+              <label class="dp-qual-label">Richiamo indicato dal medico</label>
+              <input type="date" name="scadenza_medico" class="dp-select" style="width:100%;" title="Vuoto = scadenza calcolata dal tipo di visita">
+            </div>
+            <div class="dp-qual-field">
               <label class="dp-qual-label">Referto (PDF/immagine)</label>
               <input type="file" name="referto_file" class="dp-select" accept=".pdf,image/*" style="width:100%;">
             </div>
@@ -3241,6 +3289,36 @@ function toggleSection(id) {
   if (el) el.classList.toggle('open');
 }
 
+/* ── Intestazione: menu «Azioni ▾», modale uscita, «Cambia mansione» ───────── */
+(function () {
+  document.querySelectorAll('[data-dp-dialog]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var dlg = document.getElementById(btn.getAttribute('data-dp-dialog'));
+      var menu = btn.closest('details');
+      if (menu) menu.open = false;
+      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+    });
+  });
+  document.querySelectorAll('[data-dp-dialog-close]').forEach(function (btn) {
+    btn.addEventListener('click', function () { var d = btn.closest('dialog'); if (d) d.close(); });
+  });
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.dp-actions-menu[open]').forEach(function (m) {
+      if (!m.contains(e.target)) m.open = false;
+    });
+  });
+  var cambia = document.getElementById('dp-cambia-mansione');
+  if (cambia) cambia.addEventListener('click', function () {
+    if (window.dpShowTab) window.dpShowTab('anagrafica');
+    var form = document.getElementById('spostamento-form');
+    if (!form) return;
+    form.classList.add('open');
+    form.scrollIntoView({block: 'start', behavior: 'smooth'});
+    var sel = document.getElementById('sp-mansione');
+    if (sel) setTimeout(function () { sel.focus(); }, 300);
+  });
+})();
+
 /* ── Figli a carico: aggiunta righe e abilitazione legata al flag ───────────── */
 function addFiglioRow() {
   const formset = document.getElementById('dp-figli-formset');
@@ -3313,6 +3391,8 @@ function toggleContrattoEdit(id) {
       b.classList.toggle('active', b.getAttribute('data-tab-target') === tab);
     });
   }
+
+  window.dpShowTab = function (tab) { if (present[tab]) show(tab); };
 
   var firstAvailable = null;
   buttons.forEach(function (b) {

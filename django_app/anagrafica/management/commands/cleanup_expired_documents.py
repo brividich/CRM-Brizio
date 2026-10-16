@@ -24,7 +24,7 @@ import logging
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from anagrafica.models import DipendenteAnagraficaAziendale, DocumentoDipendente, _add_months
+from anagrafica.models import DocumentoDipendente, _add_months
 
 logger = logging.getLogger(__name__)
 
@@ -98,39 +98,12 @@ class Command(BaseCommand):
         mode = "APPLY" if apply else "DRY-RUN"
         self.stdout.write(f"cleanup_expired_documents | modalità: {mode} | data: {oggi}")
 
-        qs = DocumentoDipendente.objects.filter(
-            retention_until__isnull=False,
-            retention_until__lt=oggi,
-        ).order_by("retention_until", "id")
+        from anagrafica.services.retention import documenti_scaduti
 
-        if tipo_filter:
-            qs = qs.filter(tipo=tipo_filter)
-
-        # Carica cessazioni in blocco per evitare N+1.
-        legacy_ids = list(qs.values_list("legacy_anagrafica_id", flat=True).distinct())
-        cessazioni = {
-            row["legacy_anagrafica_id"]: row["data_cessazione"]
-            for row in DipendenteAnagraficaAziendale.objects.filter(
-                legacy_anagrafica_id__in=legacy_ids
-            ).values("legacy_anagrafica_id", "data_cessazione")
-        }
-
-        totali = {"esaminati": 0, "saltati_attivi": 0, "saltati_retention": 0, "eliminati": 0, "errori": 0}
-        for doc in qs[:limit]:
-            totali["esaminati"] += 1
-            cessazione = cessazioni.get(doc.legacy_anagrafica_id)
-
-            # Dipendente ancora attivo → non eliminare mai.
-            if cessazione is None:
-                totali["saltati_attivi"] += 1
-                continue
-
-            # Verifica che siano trascorsi gli anni di retention anche dalla cessazione.
-            anni = DocumentoDipendente._RETENTION_ANNI.get(doc.tipo, 10)
-            if _add_months(cessazione, anni * 12) >= oggi:
-                totali["saltati_retention"] += 1
-                continue
-
+        esito = documenti_scaduti(oggi=oggi, tipo=tipo_filter, limit=limit)
+        totali = {"esaminati": esito.esaminati, "saltati_attivi": esito.saltati_attivi,
+                  "saltati_retention": esito.saltati_retention, "eliminati": 0, "errori": 0}
+        for doc, cessazione in esito.da_eliminare:
             label = (
                 f"doc#{doc.pk} [{doc.legacy_anagrafica_id}] {doc.tipo} "
                 f"cessato={cessazione} retention_until={doc.retention_until}"

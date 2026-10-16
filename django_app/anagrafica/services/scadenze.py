@@ -111,7 +111,7 @@ def ricalcola_formazione(legacy_ids=None, *, oggi: date | None = None) -> dict[s
 
 def ricalcola_visite(legacy_ids=None, *, oggi: date | None = None) -> dict[str, int]:
     """Scrive la scadenza effettiva sulle visite correnti (e la ripristina dove non serve piu')."""
-    from anagrafica.models import VisitaMedica, _add_months
+    from anagrafica.models import NOTA_SCADENZA_MEDICO, VisitaMedica
 
     ctx = requisiti.ambito(oggi)
     persone = _persone(ctx, legacy_ids)
@@ -120,12 +120,13 @@ def ricalcola_visite(legacy_ids=None, *, oggi: date | None = None) -> dict[str, 
     # Le visite non piu' correnti (superate da una piu' recente) tornano alla scadenza
     # del proprio tipo: non devono tenere un anticipo o una durata ormai cambiati.
     visite = filtra_in(VisitaMedica.objects.select_related("tipo")
-                       .only("pk", "data_scadenza", "scadenza_nota", "data_svolgimento", "tipo__durata_mesi"),
+                       .only("pk", "data_scadenza", "scadenza_nota", "scadenza_medico", "data_svolgimento",
+                             "tipo__durata_mesi"),
                        "legacy_anagrafica_id", ctx.id_estesi(persone)) if persone else []
     for visita in visite:
         if visita.pk not in attese:
-            durata = visita.tipo.durata_mesi or 0
-            attese[visita.pk] = (_add_months(visita.data_svolgimento, durata) if durata > 0 else None, "")
+            attese[visita.pk] = (visita.scadenza_naturale(),
+                                 NOTA_SCADENZA_MEDICO if visita.scadenza_medico else "")
     aggiornate = 0
     with transaction.atomic():
         for visita in visite:
