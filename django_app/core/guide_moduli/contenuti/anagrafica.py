@@ -126,8 +126,13 @@ GUIDA = {
                       "persona nel team dei permessi. Filtri: «Il capo cambia», «Senza capo», «Più candidati», «Eccezioni»."),
                 ("p", "«Indica un'eccezione» fissa il capo di una persona (distacco, interim…): serve il motivo, la modifica "
                       "va nel registro attività. «Nessuna eccezione» torna alla regola."),
-                ("nota", "Per ora la pagina confronta e basta: assenze, DPI, anomalie, digest e permessi continuano con le "
-                         "regole di prima finché non si fa il passaggio."),
+                ("p", "Il pannello «Regola unica» in cima alla pagina la accende o la spegne per tutto il portale (serve "
+                      "spuntare «Ho controllato i capi che cambiano»). Accesa: il team dei permessi, l'approvatore e il "
+                      "team del capo nelle assenze, l'approvatore delle richieste DPI, i solleciti dei corsi online e il "
+                      "«Caporeparto» della scheda (e del riepilogo mattutino) seguono la colonna «Capo con la regola unica». "
+                      "Spenta: ogni modulo torna alla regola di prima (area → reparto; per i permessi, la gerarchia dei ruoli)."),
+                ("nota", "Prima di accenderla guarda i filtri «Il capo cambia» e «Senza capo»: chi resta senza capo non ha "
+                         "nessuno che gli approvi le assenze."),
             ],
         },
         {

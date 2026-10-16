@@ -5,6 +5,8 @@ Fresatura (aree IN1, IN2), Saldatura (area SA1).
 """
 from __future__ import annotations
 
+from unittest import mock
+
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import TestCase, override_settings
@@ -18,7 +20,7 @@ User = get_user_model()
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class CapoTeamTests(TestCase):
+class _Scenario(TestCase):
     @classmethod
     def setUpTestData(cls):
         _ensure_anagrafica_table()
@@ -57,6 +59,10 @@ class CapoTeamTests(TestCase):
     def _capo(self, legacy_id):
         return capo_team.capo_di(legacy_id)
 
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CapoTeamTests(_Scenario):
     # ── Organigramma: ruolo sopra + stesso perimetro ──────────────────────
     def test_organigramma_stesso_reparto(self):
         capo = self._capo(self.rossi)
@@ -159,3 +165,73 @@ class CapoTeamTests(TestCase):
         )
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.rossi)
         self.assertIsNone(az.capo_eccezione_legacy_id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RegolaUnicaPassaggioTests(_Scenario):
+    """Fase 2b: con l'interruttore acceso i moduli usano la regola unica."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+        # Regola di prima per Rossi: il caporeparto indicato a mano è Neri.
+        self.fresatura.caporeparto_legacy_id = self.neri
+        self.fresatura.save()
+        DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=self.rossi).update(
+            capo_eccezione_legacy_id=self.bianchi, capo_eccezione_motivo="prova"
+        )
+
+    def test_spenta_i_moduli_restano_sulla_regola_di_prima(self):
+        from dpi.flusso import approvatori_di
+
+        self.assertFalse(capo_team.regola_unica_attiva())
+        self.assertIn(self.neri, approvatori_di(self.rossi))
+        self.assertNotIn(self.bianchi, approvatori_di(self.rossi))
+
+    def test_accesa_dpi_assenze_e_mappa_usano_la_regola_unica(self):
+        from assenze.views import _capo_regola_unica
+        from dpi.flusso import approvatori_di, dipendenti_di_approvatore
+        from anagrafica.services.reparto_canonico import build_responsabile_effettivo_map
+
+        capo_team.imposta_regola_unica(True)
+        self.assertEqual(capo_team.capo_effettivo(self.rossi), self.bianchi)
+        self.assertIn(self.bianchi, approvatori_di(self.rossi))
+        self.assertNotIn(self.neri, approvatori_di(self.rossi))
+        self.assertIn(self.rossi, dipendenti_di_approvatore(self.bianchi))
+        self.assertEqual(_capo_regola_unica(self.rossi), self.bianchi)
+        self.assertEqual(build_responsabile_effettivo_map([self.rossi]), {self.rossi: self.bianchi})
+
+    def test_accesa_team_dei_permessi(self):
+        from core.permessi import team
+
+        capo_team.imposta_regola_unica(True)
+        with mock.patch.object(team, "_anagrafica_ids_di", return_value=[self.gialli]):
+            # Gialli: Bianchi e Neri diretti; Rossi (eccezione → Bianchi) e Verdi (→ Neri) a cascata.
+            self.assertEqual(team._team_regola_unica(999), {self.bianchi, self.neri, self.rossi, self.verdi})
+
+    def test_interruttore_dalla_pagina_con_conferma_e_schede_riallineate(self):
+        admin = User.objects.create_superuser(username="cc_switch", email="sw@x.local", password="x")
+        self.client.force_login(admin)
+        url = reverse("anagrafica:coerenza_capi")
+        self.client.post(url, {"azione": "regola", "attiva": "1"})
+        self.assertFalse(capo_team.regola_unica_attiva())  # senza conferma no
+        self.client.post(url, {"azione": "regola", "attiva": "1", "conferma": "1"})
+        self.assertTrue(capo_team.regola_unica_attiva())
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.rossi)
+        self.assertEqual(az.caporeparto_legacy_id, self.bianchi)
+        self.client.post(url, {"azione": "regola", "attiva": "0"})
+        self.assertFalse(capo_team.regola_unica_attiva())
+        az.refresh_from_db()
+        self.assertEqual(az.caporeparto_legacy_id, self.neri)
+
+    def test_accesa_una_modifica_riallinea_le_schede_dopo_il_commit(self):
+        capo_team.imposta_regola_unica(True)
+        capo_team.riallinea_tutte_le_schede()
+        with self.captureOnCommitCallbacks(execute=True):
+            az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.rossi)
+            az.capo_eccezione_legacy_id = self.gialli
+            az.save()
+        az.refresh_from_db()
+        self.assertEqual(az.caporeparto_legacy_id, self.gialli)

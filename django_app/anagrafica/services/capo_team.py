@@ -213,3 +213,132 @@ def team_di(legacy_id: int, *, mappa: dict[int, Capo] | None = None, solo_dirett
         team.add(corrente)
         da_visitare.extend(figli.get(corrente, ()))
     return team
+
+
+# ── Passaggio (fase 2b): interruttore, cache e funzioni per i moduli ──────────
+
+CONFIG_ATTIVA = "capi.regola_unica_attiva"
+_CACHE_VERSIONE = "capi:mappa:versione"
+_CACHE_TTL = 120
+
+
+def regola_unica_attiva() -> bool:
+    """Interruttore del passaggio: spento, ogni modulo usa la regola di prima."""
+    try:
+        from core.models import SiteConfig
+
+        return str(SiteConfig.get(CONFIG_ATTIVA, "") or "").strip().lower() in {"1", "true", "on", "si", "sì"}
+    except Exception:
+        return False
+
+
+def imposta_regola_unica(attiva: bool) -> None:
+    from core.models import SiteConfig
+
+    SiteConfig.objects.update_or_create(
+        chiave=CONFIG_ATTIVA,
+        defaults={"valore": "1" if attiva else "0",
+                  "descrizione": "Capo e team dalla regola unica (anagrafica.services.capo_team)"},
+    )
+    invalida_cache()
+
+
+def _versione() -> int:
+    from django.core.cache import cache
+
+    try:
+        v = cache.get(_CACHE_VERSIONE)
+        if v is None:
+            v = 1
+            cache.set(_CACHE_VERSIONE, v, None)
+        return int(v)
+    except Exception:
+        return 1
+
+
+def invalida_cache() -> None:
+    """Dopo una modifica a schede, reparti, aree, ruoli o assegnazioni."""
+    from django.core.cache import cache
+
+    try:
+        cache.set(_CACHE_VERSIONE, _versione() + 1, None)
+    except Exception:
+        pass
+    try:
+        from core.permessi.team import invalida_cache_team
+
+        invalida_cache_team()
+    except Exception:
+        pass
+
+
+def mappa_capi_in_cache() -> dict[int, int | None]:
+    """``legacy_anagrafica_id`` → id del capo, letta dalla cache (120 s)."""
+    from django.core.cache import cache
+
+    chiave = f"capi:mappa:v{_versione()}"
+    try:
+        cached = cache.get(chiave)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return {int(k): v for k, v in cached.items()}
+    mappa = {pid: c.legacy_id for pid, c in mappa_capi().items()}
+    try:
+        cache.set(chiave, mappa, _CACHE_TTL)
+    except Exception:
+        pass
+    return mappa
+
+
+def capo_effettivo(legacy_id) -> int | None:
+    """Capo della persona con la regola unica (None se non trovato)."""
+    try:
+        return mappa_capi_in_cache().get(int(legacy_id))
+    except (TypeError, ValueError):
+        return None
+
+
+def team_anagrafica(legacy_id, *, solo_diretti: bool = False) -> set[int]:
+    """Team della persona con la regola unica, come ``legacy_anagrafica_id``."""
+    try:
+        capo = int(legacy_id)
+    except (TypeError, ValueError):
+        return set()
+    mappa = mappa_capi_in_cache()
+    figli: dict[int, set[int]] = {}
+    for persona, c in mappa.items():
+        if c:
+            figli.setdefault(int(c), set()).add(persona)
+    diretti = figli.get(capo, set())
+    if solo_diretti:
+        return set(diretti)
+    team: set[int] = set()
+    da_visitare = list(diretti)
+    while da_visitare:
+        corrente = da_visitare.pop()
+        if corrente in team or corrente == capo:
+            continue
+        team.add(corrente)
+        da_visitare.extend(figli.get(corrente, ()))
+    return team
+
+
+def riallinea_tutte_le_schede() -> int:
+    """Scrive il capo della regola unica nel «Caporeparto» di ogni scheda.
+
+    Scheda dipendente e digest mattutino leggono quella copia. Si usa quando la
+    regola è accesa (all'accensione e dopo ogni modifica che la cambia).
+    """
+    from ..models import DipendenteAnagraficaAziendale
+
+    mappa = {pid: c.legacy_id for pid, c in mappa_capi().items()}
+    cambiate = 0
+    for pk, legacy_id, attuale in DipendenteAnagraficaAziendale.objects.filter(
+        legacy_anagrafica_id__in=list(mappa)
+    ).values_list("pk", "legacy_anagrafica_id", "caporeparto_legacy_id"):
+        nuovo = mappa.get(int(legacy_id))
+        if attuale != nuovo:
+            DipendenteAnagraficaAziendale.objects.filter(pk=pk).update(caporeparto_legacy_id=nuovo)
+            cambiate += 1
+    return cambiate

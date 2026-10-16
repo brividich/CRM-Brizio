@@ -31,12 +31,35 @@
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Coerenza capi</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Coerenza capi</h1>
-        <p class="fmd-ph-sub">Per ogni persona: il capo che oggi approva assenze e DPI (area → reparto) e quello della regola unica, che aggiunge le eccezioni sulla persona e l'organigramma dei ruoli. Questa pagina non cambia nulla nei moduli: serve a vedere l'effetto prima del passaggio.</p>
+        <p class="fmd-ph-sub">Per ogni persona: il capo che oggi approva assenze e DPI (area → reparto) e quello della regola unica, che aggiunge le eccezioni sulla persona e l'organigramma dei ruoli. Finché la regola unica è spenta la pagina confronta e basta; accesa, i moduli usano i capi della regola unica.</p>
       </div>
       <div class="fmd-pagehead-actions">
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#capo-team" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
+
+    <section class="fmd-panel fmd-block" aria-label="Regola unica">
+      <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Regola unica:
+          {% if regola_attiva %}<span class="cc-badge cc-uguale">accesa</span>{% else %}<span class="cc-badge cc-cambia">spenta</span>{% endif %}</div>
+      </div>
+      <p class="cc-sub" style="margin:0 0 10px;">
+        {% if regola_attiva %}Permessi (team), assenze (approvatore e team del capo), approvazione DPI, solleciti e-learning e il «Caporeparto» delle schede usano i capi della colonna «Capo con la regola unica». Spegnendola ogni modulo torna alla regola di prima.
+        {% else %}Accendendola, permessi (team), assenze (approvatore e team del capo), approvazione DPI, solleciti e-learning e il «Caporeparto» delle schede useranno i capi della colonna «Capo con la regola unica». Controlla prima «Il capo cambia» e «Senza capo».{% endif %}
+      </p>
+      <form method="post" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="regola">
+        {% if regola_attiva %}
+          <input type="hidden" name="attiva" value="0">
+          <button type="submit" class="fmd-btn fmd-btn-ghost">Spegni la regola unica</button>
+        {% else %}
+          <input type="hidden" name="attiva" value="1">
+          <label class="cc-sub" style="display:flex;gap:6px;align-items:center;"><input type="checkbox" name="conferma" value="1" required> Ho controllato i capi che cambiano</label>
+          <button type="submit" class="fmd-btn fmd-btn-navy">Accendi la regola unica</button>
+        {% endif %}
+      </form>
+    </section>
 
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
@@ -52,9 +75,9 @@
         <table class="fmd-table">
           <thead><tr>
             <th>Persona</th><th>Reparto · area</th><th>Ruoli</th>
-            <th>Capo oggi<div class="cc-sub">assenze, DPI</div></th>
+            <th>{% if regola_attiva %}Capo con la regola di prima<div class="cc-sub">area → reparto</div>{% else %}Capo oggi<div class="cc-sub">assenze, DPI</div>{% endif %}</th>
             <th>Capo con la regola unica</th>
-            <th>Nel team permessi di (oggi)</th>
+            <th>Nel team permessi di{% if regola_attiva %} (regola di prima){% else %} (oggi){% endif %}</th>
           </tr></thead>
           <tbody>
           {% for r in righe %}

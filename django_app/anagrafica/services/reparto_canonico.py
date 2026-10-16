@@ -137,7 +137,17 @@ def riallinea_capo_schede(*, reparto: Reparto | None = None, area: AreaAziendale
 
 
 def build_responsabile_effettivo_map(legacy_ids: list[int] | None = None) -> dict[int, int]:
-    """``legacy_anagrafica_id`` → id legacy del responsabile effettivo."""
+    """``legacy_anagrafica_id`` → id legacy del responsabile effettivo.
+
+    Con la regola unica capo/team accesa il responsabile è il capo di quella
+    regola (``capo_team``), così anche i solleciti vanno alla stessa persona.
+    """
+    from . import capo_team
+
+    if capo_team.regola_unica_attiva():
+        mappa = capo_team.mappa_capi_in_cache()
+        ids = mappa.keys() if legacy_ids is None else [int(i) for i in legacy_ids]
+        return {int(i): int(mappa[int(i)]) for i in ids if mappa.get(int(i))}
     result: dict[int, int] = {}
     for legacy_id, area in build_area_canonica_map(legacy_ids).items():
         rep = area.reparto if area.reparto_id else None

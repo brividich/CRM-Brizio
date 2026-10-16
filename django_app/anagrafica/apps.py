@@ -11,6 +11,10 @@ class AnagraficaConfig(AppConfig):
         from .segnali_scadenze import collega
 
         collega()
+        # Capo e team (regola unica): cache e copia nelle schede sempre allineate.
+        from .segnali_capi import collega as collega_capi
+
+        collega_capi()
         try:
             from .acl_bootstrap import bootstrap_anagrafica_acl_endpoints
 
