@@ -24,13 +24,15 @@ class GuidaPersoneTests(TestCase):
             r = self.client.get(reverse(URL))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'id="elenco"')
+        self.assertContains(r, 'id="capo"')
+        self.assertNotContains(r, 'id="coerenza-capi"')
         self.assertNotContains(r, 'id="avviso-it"')
         self.assertNotContains(r, "Per amministratori del portale e IT")
 
     def test_admin_vede_anche_gestione_e_it(self):
         self.client.force_login(User.objects.create_superuser("guida.admin", "guida.admin@example.invalid", "x"))
         r = self.client.get(reverse(URL))
-        for ancora in ("viste", "nuovo-dipendente", "account-portale", "amministrazione", "ad", "avviso-it", "dopo-il-deploy"):
+        for ancora in ("capo", "coerenza-capi", "viste", "nuovo-dipendente", "account-portale", "amministrazione", "ad", "avviso-it", "dopo-il-deploy"):
             self.assertContains(r, f'id="{ancora}"')
 
     def test_ogni_pulsante_guida_punta_a_un_paragrafo_esistente(self):
@@ -48,6 +50,7 @@ class GuidaPersoneTests(TestCase):
         guida = reverse(URL)
         self.assertContains(self.client.get(reverse("anagrafica:amministrazione_hub")), guida + "#amministrazione")
         self.assertContains(self.client.get(reverse("anagrafica:dipendente_create")), guida + "#nuovo-dipendente")
+        self.assertContains(self.client.get(reverse("anagrafica:coerenza_capi")), guida + "#coerenza-capi")
 
     def test_anonimo_va_al_login(self):
         self.assertEqual(self.client.get(reverse(URL)).status_code, 302)

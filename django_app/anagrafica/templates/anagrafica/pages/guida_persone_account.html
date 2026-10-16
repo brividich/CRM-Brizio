@@ -45,8 +45,10 @@
     <nav class="fmd-panel gpa-indice" aria-label="Indice della guida">
       <strong>In questa guida</strong>
       <a class="fmd-data-link" href="#elenco">L'elenco e le viste</a>
+      <a class="fmd-data-link" href="#capo">Chi è il tuo capo</a>
       {% if parte_admin %}
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
+      <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
       <a class="fmd-data-link" href="#nuovo-dipendente">Nuovo dipendente</a>
       <a class="fmd-data-link" href="#account-portale">Account portale nella scheda</a>
       <a class="fmd-data-link" href="#amministrazione">Amministrazione e import</a>
@@ -73,6 +75,17 @@
       <div class="gpa-nota">Se una colonna della vista non compare, è un dato riservato (dati personali, sanitari o HR) e il tuo profilo non ha il permesso di vederlo. Lo stesso vale per l'export: la colonna non arriva nemmeno nel file.</div>
     </section>
 
+    <section class="fmd-panel gpa-sec" id="capo">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Chi è il tuo capo</h2>
+      <p>Il capo è chi approva le tue ferie, i permessi e le richieste DPI. Nella scheda del dipendente compare come <strong>Caporeparto</strong>.</p>
+      <ul>
+        <li>Di norma è il <strong>responsabile della tua area aziendale</strong>; se l'area non ce l'ha, il <strong>caporeparto del tuo reparto</strong>. Nessuno è capo di sé stesso.</li>
+        <li>Per casi particolari (distacco, interim) l'HR può indicare un capo diverso solo per te.</li>
+        <li>Quando cambi reparto, area o ruolo, il capo si aggiorna da solo.</li>
+      </ul>
+      <div class="gpa-nota">Se il capo indicato non è quello giusto, avvisa l'HR: lo correggono dall'organigramma.</div>
+    </section>
+
     {% if parte_admin %}
     <div class="gpa-parte">Per HR e amministratori dell'anagrafica</div>
 
@@ -88,6 +101,31 @@
       </ol>
       <p>In <strong>Altre azioni</strong>: <strong>Duplica</strong>, <strong>Ripristina le colonne di partenza</strong> (per le viste di sistema) ed <strong>Elimina la vista</strong>, che chiede di scrivere il codice della vista. Chi la usava torna alla predefinita.</p>
       <div class="gpa-nota">Le colonne con il badge <strong>sensibile</strong> si possono mettere in una vista condivisa: chi non ha il permesso indicato semplicemente non le vede.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="coerenza-capi">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Capi, team e spostamenti</h2>
+      <p>Il capo di una persona si cerca in quest'ordine:</p>
+      <ol>
+        <li>l'<strong>eccezione</strong> indicata a mano sulla persona;</li>
+        <li>il <strong>responsabile dell'area aziendale</strong>;</li>
+        <li>il <strong>caporeparto del reparto</strong>;</li>
+        <li>l'<strong>organigramma</strong>: chi ha un ruolo sopra quello della persona («riporta a») nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo trasversale). Se non c'è nessuno si sale di livello, ma chi guida un altro reparto non diventa mai il capo.</li>
+      </ol>
+      <p>Il team è l'inverso: le persone di cui sei il capo, e i loro team.</p>
+      <h3>La pagina «Coerenza capi»</h3>
+      <p><strong>Organigramma → ⚖ Coerenza capi</strong> mostra per ogni persona il <strong>Capo oggi</strong> (quello che approva assenze e DPI), il <strong>Capo con la regola unica</strong> e chi ha oggi la persona nel team dei permessi. I filtri sono <strong>Il capo cambia</strong>, <strong>Senza capo</strong>, <strong>Più candidati</strong> ed <strong>Eccezioni</strong>.</p>
+      <ul>
+        <li><strong>Eccezione</strong>: scegli il capo dalla tendina, scrivi il motivo e premi <strong>Salva</strong>. «— nessuna eccezione (vale la regola) —» torna alla regola. Ogni modifica va nel registro attività.</li>
+        <li><strong>Regola unica</strong>: il pannello in cima la accende per tutto il portale (serve spuntare <strong>Ho controllato i capi che cambiano</strong>). Accesa, il team dei permessi, le assenze, l'approvatore DPI, i solleciti dei corsi online e il «Caporeparto» della scheda seguono la colonna «Capo con la regola unica». <strong>Spegni la regola unica</strong> riporta ogni modulo alla regola di prima (area → reparto; per i permessi, la gerarchia dei ruoli). Dopo l'aggiornamento del portale è spenta.</li>
+      </ul>
+      <div class="gpa-nota">Prima di accenderla guarda i filtri «Il capo cambia» e «Senza capo»: chi resta senza capo non ha nessuno che gli approvi le assenze.</div>
+      <h3>Dopo uno spostamento</h3>
+      <ul>
+        <li>Uno spostamento che cambia il ruolo (senza «Ruolo in parallelo») chiude il ruolo di prima il giorno prima della decorrenza: resta nello storico, ma non dà più permessi né posto nel team.</li>
+        <li>Il «Caporeparto» della scheda si aggiorna quando si salva il reparto o l'area: il responsabile dell'area vince sul caporeparto.</li>
+        <li>Nella card <strong>Spostamenti organizzativi</strong> il riquadro <strong>Mansioni lavorative da rivedere</strong> elenca le mansioni del Mansionario dove la persona è ancora in lista ma che sono di un altro reparto o previste per ruoli che non ricopre più. <strong>Togli dalla lista</strong> la toglie (lo storico resta). Finché resta in lista, restano attive anche le mansioni di rischio che ne derivano: il portale non toglie niente da solo.</li>
+      </ul>
     </section>
 
     <section class="fmd-panel gpa-sec" id="nuovo-dipendente">
@@ -127,6 +165,12 @@
     <section class="fmd-panel gpa-sec" id="amministrazione">
       <h2><svg class="fmd-ico"><use href="#i-gear"/></svg>Amministrazione anagrafica e storico import</h2>
       <p><strong>Impostazioni → Amministrazione e import</strong> apre una pagina a schede: <strong>Configurazione, Viste elenco, Cataloghi, Import e storico, Manutenzione</strong>. Mostra solo le pagine che puoi aprire.</p>
+      <p>Nel menu <strong>Amministrazione</strong> ci sono due pagine, solo per chi ha il permesso HR:</p>
+      <ul>
+        <li><strong>Cedolini</strong>: le voci retributive del mese. In fondo, nella sezione di importazione, si carica il CSV dello studio paghe.</li>
+        <li><strong>Ferie e permessi</strong>: i saldi di ferie, ROL ed ex festività. In fondo si importa il file cedolini, anche da SharePoint.</li>
+      </ul>
+      <p>L'import dei contratti è in <strong>Impostazioni → Amministrazione e import</strong>.</p>
       <ul>
         <li><strong>Import e storico</strong>: gli import di retribuzioni, cedolini e slide e-learning con chi, quando, file e righe ok/scartate. Per retribuzioni e cedolini <strong>Scarica</strong> dà l'elenco delle righe scartate con il motivo (riga del file, codice fiscale). Retribuzioni e cedolini li vede solo chi ha il permesso HR.</li>
         <li><strong>Manutenzione</strong>: i comandi di riallineamento dei dati, da far eseguire all'IT sul server (prima in prova).</li>
