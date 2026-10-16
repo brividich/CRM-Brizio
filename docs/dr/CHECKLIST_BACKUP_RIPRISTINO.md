@@ -23,7 +23,8 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] R0.5 Osservabilità: check `audit_growth` (monitoring), previsione saturazione, top modelli con classe (pagina R2 la riuserà)
 - [x] R0.6 Test: 49 nuovi in `django_app.core` verdi; regressione su core, monitoring, tickets, automazioni, security, contatori: 2657 test, 3 falliti **preesistenti** (falliscono identici su `origin/main` nello stesso ambiente: `core.test_acl_cleanup_command…test_sync_legacy_riallinea…`, `core.test_security_audit_residui…test_denied_when_workorder_page_denied`, `security.tests.test_asset_overview…test_projection_query_count…`)
 - [x] R0.7 Documentazione (`05_SECURITY_BOUNDARIES.md`, `docs/dr/AUDIT_POLICY.md`, `docs/moduli/core.md`, `monitoring.md`), CHANGELOG, guida admin Centro guide. Bump: non fatto (pratica attuale: `[Unreleased]` + bump al rilascio; funzione solo admin/terminale). `schema_db.py`: descrizione di `core` già generica, invariata
-- [~] Commit, push, PR verso `main` (stop alla PR)
+- [x] Commit e push su `fix/audit-policy-crescita` (`68ebe571`, `5bc24a14`, `8aa653cb`)
+- [ ] PR verso `main`: da aprire a mano (`gh` non autenticato) — https://github.com/brividich/CRM-Brizio/compare/main...fix/audit-policy-crescita?expand=1 ; testo pronto nello scratchpad `pr_r0.md`
 - [B] Deploy R0.2 in produzione
 - [B] `audit_archive --plan` in prod → revisione → `audit_archive --run`
 
