@@ -162,6 +162,9 @@ from .reports import (  # noqa: F401
     report_template_admin,
     reports_dashboard,
 )
+from .settings_admin import (  # noqa: F401
+    gestione_admin,
+)
 from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_calendar_json,
@@ -169,6 +172,5 @@ from ._monolith import (  # noqa: F401
     asset_quick_report,
     calendario_asset,
     calendario_asset_json,
-    gestione_admin,
 )
 from ..models import WorkOrder  # noqa: F401  (i test lo usano come assets.views.WorkOrder)
