@@ -50,6 +50,7 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
 - Correzione 10/10: la copia di riepilogo al segnalante non partiva mai (la query cercava `utenti.cognome`, colonna inesistente, e avrebbe usato `utenti.email`, che è il login). Ora l'indirizzo è l'`email_notifica` della scheda anagrafica.
 
+- Link mail-action: il salvataggio della pagina dava **403 «Origin checking failed - null»** (pagina «Token di sessione non valido»): la pagina pubblica usava `Referrer-Policy: no-referrer` e Chromium invia `Origin: null` sul POST. Ora usa `same-origin` (decoratore `core.public_headers.risposta_pubblica_con_form`); il token non esce comunque dal dominio.
 - Link mail-action: foto e allegati della pagina a token si aprono **senza login** da `/gestione-anomalie/mail-action/<token>/allegato/`, solo con token valido e solo per le anomalie che la pagina mostra (salvate nel token o dello stesso OP); immagini e PDF inline, il resto scaricato come allegato.
 - Link mail-action: il token si prende in modo atomico prima di aggiornare le anomalie, quindi un doppio invio non applica due volte le modifiche né manda due conferme; se l'aggiornamento fallisce il token torna utilizzabile.
 - Correzione 07/10: «Nuova segnalazione» (`/gestione-anomalie/nuova-segnalazione`) era a pagina bianca perché il limite allegati da `.env` finiva come testo letterale dentro lo script React (`{% verbatim %}`). Ora il limite arriva da una variabile JS valorizzata fuori dal blocco verbatim.
