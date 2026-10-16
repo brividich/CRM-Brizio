@@ -6591,6 +6591,16 @@ def export_view(request, key: str):
 # Mansioni — gestione catalogo
 # ---------------------------------------------------------------------------
 
+def _conta_mansioni_lavorative() -> int:
+    """Mansioni lavorative attive del Mansionario (colonne macchina/processo della skill matrix)."""
+    try:
+        from .services.mansionario_struttura import mansioni as mansioni_lavorative
+
+        return mansioni_lavorative().count()
+    except Exception:
+        return 0
+
+
 @login_required
 def mansioni_list(request):
     legacy_user = get_legacy_user(request.user)
@@ -10355,6 +10365,7 @@ def impostazioni(request):
         "mansioni": mansioni,
         "mansioni_grouped": mansioni_grouped,
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
+        "n_mansioni_lavorative": _conta_mansioni_lavorative(),
         # Reparti
         "aree": aree,
         "aree_aziendali": aree_aziendali,
