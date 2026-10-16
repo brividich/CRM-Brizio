@@ -54,8 +54,13 @@ from ._helpers_c import (  # noqa: F401
     _validate_workorder_attachment_uploads,
     _xl_write_sheet,
 )
-from ._monolith import (  # noqa: F401
+from .documents import (  # noqa: F401
     admin_deadline_attachment_download,
+    asset_document_download,
+    asset_document_qr_download,
+    workorder_attachment_download,
+)
+from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_administrative_deadline_create,
     asset_administrative_deadline_edit,
@@ -70,8 +75,6 @@ from ._monolith import (  # noqa: F401
     asset_detail,
     asset_detail_export_xlsx,
     asset_detail_layout_admin,
-    asset_document_download,
-    asset_document_qr_download,
     asset_edit,
     asset_image_upload,
     asset_internal_number_next,
@@ -131,7 +134,6 @@ from ._monolith import (  # noqa: F401
     work_machine_export_pdf,
     work_machine_list,
     work_machine_maintenance_month_pdf,
-    workorder_attachment_download,
     workorder_campaign_create,
     workorder_checklist_add,
     workorder_checklist_delete,
