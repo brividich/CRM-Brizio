@@ -1007,8 +1007,8 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:asset_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-li-nav-group', html=False)
-        self.assertContains(response, 'class="li-nav-children"', html=False)
+        self.assertContains(response, 'data-as-nav-group', html=False)
+        self.assertContains(response, 'class="as-nav-children"', html=False)
         self.assertContains(response, 'aria-expanded="false"', html=False)
         self.assertContains(response, "localStorage.removeItem(storageKey)", html=False)
         self.assertContains(response, "closeOtherGroups", html=False)
@@ -3998,7 +3998,8 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_scadenze")}">Scadenzario</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_history")}">Storico</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_kpi")}">KPI</a>', html=False)
+        # KPI e' confluita nella Panoramica: niente piu' voce propria nella barra.
+        self.assertNotContains(hub_response, '>KPI</a>', html=False)
         self.assertNotContains(hub_response, f'class="as-section-tab" href="{reverse("assets:maintenance_plan_list")}"', html=False)
 
         plans_response = self.client.get(reverse("assets:maintenance_plan_list"))
@@ -4023,7 +4024,8 @@ class AssetsRoutingTests(TestCase):
         self.assertNotContains(hub_response, 'data-as-section-action="export-workorders"', html=False)
         self.assertNotContains(hub_response, 'data-as-section-action="new-plan"', html=False)
         kpi_response = self.client.get(reverse("assets:maintenance_kpi"))
-        self.assertNotContains(kpi_response, 'data-as-section-action="new-workorder"', html=False)
+        self.assertEqual(kpi_response.status_code, 302)
+        self.assertTrue(kpi_response["Location"].endswith("#dettaglio"), kpi_response["Location"])
 
         # Le pagine del vecchio motore sono state ritirate: restano raggiungibili
         # per URL ma rimandano alla superficie nuova equivalente, cosi' chi arriva
@@ -4055,7 +4057,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(report_templates_response.status_code, 200)
         self.assertContains(
             report_templates_response,
-            f'class="as-section-tab active" href="{reverse("assets:maintenance_kpi")}" aria-current="page">KPI</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_responsabile")}" aria-current="page">Panoramica</a>',
             html=False,
         )
 
@@ -10139,68 +10141,19 @@ class IlMioTurnoTests(TestCase):
         defaults.update(kwargs)
         return WorkOrder.objects.create(**defaults)
 
-    def test_sections_are_mutually_exclusive_and_populated(self):
-        # Orario fisso a metà giornata: il bucket "oggi" dipende dal confronto tra
-        # due_at e "adesso"/"oggi" calcolati dalla view nello stesso istante in cui
-        # il test li prepara — usare il vero timezone.now() rende il test fragile
-        # a cavallo di mezzanotte (due_at scivola sul giorno dopo).
-        frozen_now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
-        with patch("django.utils.timezone.now", return_value=frozen_now):
-            bloccato = self._wo(title="Bloccato", assigned_to=self.user)
-            bloccato.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO)
-            urgente = self._wo(title="Urgente", assigned_to=self.user, priority=WorkOrder.PRIORITY_URGENT)
-            scaduto = self._wo(
-                title="Scaduto", assigned_to=self.user, due_at=frozen_now - timedelta(hours=2)
-            )
-            oggi = self._wo(
-                title="Oggi",
-                assigned_to=self.user,
-                due_at=frozen_now + timedelta(minutes=5),
-            )
-            in_corso = self._wo(title="In corso", assigned_to=self.user)
-            in_corso.start()
-            altro = self._wo(title="Altro assegnato", assigned_to=self.user)
-            non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
-            di_nessuno = self._wo(title="Di nessuno")
-            chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=frozen_now)
-
-            self.client.force_login(self.user)
-            response = self.client.get(reverse("assets:il_mio_turno"))
-
-        self.assertEqual(response.status_code, 200)
-        sections = {section["key"]: section["rows"] for section in response.context["sections"]}
-        self.assertEqual([wo.id for wo in sections["bloccati"]], [bloccato.id])
-        self.assertEqual([wo.id for wo in sections["emergenze"]], [urgente.id])
-        self.assertEqual([wo.id for wo in sections["scaduti"]], [scaduto.id])
-        self.assertEqual([wo.id for wo in sections["oggi"]], [oggi.id])
-        self.assertEqual([wo.id for wo in sections["in_corso"]], [in_corso.id])
-        # Coda condivisa: l'OdL di nessuno sta nella coda insieme ai miei, non in una
-        # sezione a parte da rivendicare.
-        self.assertEqual(
-            sorted(wo.id for wo in sections["altri"]), sorted([altro.id, di_nessuno.id])
-        )
-        self.assertNotIn("da_prendere", sections)
-        all_shown_ids = {wo.id for rows in sections.values() for wo in rows}
-        self.assertNotIn(non_mio.id, all_shown_ids)
-        self.assertNotIn(chiuso.id, all_shown_ids)
-
-    def test_sezioni_vuote_non_vengono_stampate(self):
-        """Le sezioni senza righe non arrivano al template: quattro riquadri vuoti in
-        cima spingevano sotto la piega il lavoro vero."""
-        mio = self._wo(title="Solo questo", assigned_to=self.user)
+    def test_il_mio_turno_porta_a_il_mio_lavoro_di_da_fare(self):
+        """«Il mio turno» non e' piu' una pagina: e' «Da fare» con «Il mio lavoro».
+        Il vecchio URL resta per i segnalibri e conserva la query string."""
         self.client.force_login(self.user)
-
-        response = self.client.get(reverse("assets:il_mio_turno"))
-
-        keys = [section["key"] for section in response.context["sections"]]
-        self.assertEqual(keys, ["altri"])
-        self.assertEqual([wo.id for wo in response.context["sections"][0]["rows"]], [mio.id])
-        # Quello che manca si riassume in una riga sola.
-        self.assertIn("nessuna emergenza", response.context["quiet_labels"])
-        self.assertIn("niente di scaduto", response.context["quiet_labels"])
-        self.assertEqual(response.context["total_open"], 1)
-        self.assertEqual(response.context["total_urgent"], 0)
-        self.assertNotContains(response, "Prendi in carico")
+        response = self.client.get(reverse("assets:il_mio_turno"), {"window": "7"})
+        self.assertEqual(response.status_code, 302)
+        target = response["Location"]
+        self.assertTrue(target.startswith(reverse("assets:maintenance_da_fare")), target)
+        self.assertIn("mio=1", target)
+        self.assertIn("window=7", target)
+        page = self.client.get(target)
+        self.assertEqual(page.status_code, 200)
+        self.assertTrue(page.context["only_mine"])
 
     def test_chiusura_intesta_a_chi_chiude_se_di_nessuno(self):
         """Coda condivisa: chiudendo un intervento di nessuno, diventa di chi lo chiude.
@@ -10242,16 +10195,16 @@ class IlMioTurnoTests(TestCase):
         di_nessuno.refresh_from_db()
         self.assertIsNone(di_nessuno.assigned_to_id)
 
-    def test_claim_from_il_mio_turno_redirects_back(self):
+    def test_claim_from_il_mio_lavoro_redirects_back(self):
         da_prendere = self._wo(title="Da prendere via claim")
         self.client.force_login(self.user)
 
         response = self.client.post(
             reverse("assets:wo_claim", args=[da_prendere.id]),
-            {"next": reverse("assets:il_mio_turno")},
+            {"next": reverse("assets:maintenance_da_fare") + "?mio=1"},
         )
 
-        self.assertRedirects(response, reverse("assets:il_mio_turno"))
+        self.assertRedirects(response, reverse("assets:maintenance_da_fare") + "?mio=1")
         da_prendere.refresh_from_db()
         self.assertEqual(da_prendere.assigned_to_id, self.user.id)
 

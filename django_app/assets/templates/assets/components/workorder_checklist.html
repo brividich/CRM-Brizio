@@ -135,15 +135,15 @@
             {% if item.is_out_of_range or item.is_skipped %}
               <div class="wod-cl-meta wod-cl-followup">
                 {% if item.existing_follow_up %}
-                  Follow-up aperto:
+                  Intervento di verifica aperto:
                   <a href="{% url 'assets:wo_view' item.existing_follow_up.id %}">#{{ item.existing_follow_up.id }} {{ item.existing_follow_up.title|truncatechars:60 }}</a>
                 {% elif checklist_followup_occurrences|length == 1 %}
                   {% for occurrence in checklist_followup_occurrences %}
-                    <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">Apri follow-up</a>
+                    <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">Apri intervento di verifica</a>
                   {% endfor %}
                 {% elif checklist_followup_occurrences %}
                   <details>
-                    <summary>Apri follow-up — su quale macchina?</summary>
+                    <summary>Apri intervento di verifica — su quale macchina?</summary>
                     <div class="wod-cl-followup-list">
                       {% for occurrence in checklist_followup_occurrences %}
                         <a href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</a>

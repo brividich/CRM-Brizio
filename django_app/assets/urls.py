@@ -280,6 +280,19 @@ urlpatterns = [
         views_maintenance.occurrence_complete,
         name="occurrence_complete",
     ),
+    # Sotto /scadenze/ come le altre azioni sulla singola manutenzione: il binding
+    # ACL «Scadenze manutenzione» copre il prefisso (con ACL strict una route fuori
+    # prefisso sarebbe negata ai non superuser).
+    path(
+        "assets/manutenzione/scadenze/<int:occurrence_id>/fatta-oggi/",
+        views_maintenance.occurrence_quick_complete,
+        name="occurrence_quick_complete",
+    ),
+    path(
+        "assets/manutenzione/scadenze/fatte-oggi/",
+        views_maintenance.occurrence_quick_complete_bulk,
+        name="occurrence_quick_complete_bulk",
+    ),
     path(
         "assets/manutenzione/scadenze/<int:occurrence_id>/rinvia/",
         views_maintenance.occurrence_postpone,

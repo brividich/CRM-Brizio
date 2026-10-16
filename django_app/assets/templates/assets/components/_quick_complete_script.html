@@ -1,0 +1,78 @@
+{% comment %}«✓ Fatta oggi» delle righe manutenzione (_occurrence_rows, pulsanti .md-quick).
+   Al tap il pulsante diventa «Annulla (5)»: la registrazione parte solo allo scadere,
+   cosi' un tap sbagliato si annulla senza toccare il server. La risposta (HTMX)
+   sostituisce la riga e l'header HX-Trigger «occurrenceCompleted» ricarica i numeri
+   in testa alla pagina.{% endcomment %}
+<style>
+.md-quick.is-counting { background:#fef3c7; border-color:#f59e0b; color:#92400e; }
+.md-quick-error { display:block; color:#b91c1c; font-size:var(--fs-xs); margin-top:4px; }
+@media (pointer:coarse) { .md-quick { min-height:44px; min-width:44px; } }
+body.theme-dark .md-quick.is-counting { background:rgba(146,64,14,.25); color:#fde68a; }
+</style>
+<script>
+(function () {
+  if (window.__mdQuickBound) { return; }
+  window.__mdQuickBound = true;
+  var SECONDS = 5;
+  function csrf() {
+    var el = document.querySelector("[name=csrfmiddlewaretoken]");
+    if (el) { return el.value; }
+    var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+  function send(btn) {
+    var row = btn.closest("tr");
+    var body = new URLSearchParams();
+    body.set("cols", btn.getAttribute("data-md-quick-cols") || "5");
+    btn.disabled = true;
+    btn.textContent = "Registro…";
+    fetch(btn.getAttribute("data-md-quick"), {
+      method: "POST",
+      headers: { "HX-Request": "true", "X-CSRFToken": csrf(), "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      credentials: "same-origin"
+    }).then(function (resp) {
+      return resp.text().then(function (text) { return { ok: resp.ok, text: text, trigger: resp.headers.get("HX-Trigger") }; });
+    }).then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.textContent = "✓ Fatta oggi";
+        var err = document.createElement("span");
+        err.className = "md-quick-error";
+        err.textContent = res.text || "Registrazione non riuscita.";
+        btn.insertAdjacentElement("afterend", err);
+        return;
+      }
+      if (row) { row.outerHTML = res.text; }
+      if (res.trigger) { document.body.dispatchEvent(new CustomEvent(res.trigger, { bubbles: true })); }
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = "✓ Fatta oggi";
+    });
+  }
+  document.addEventListener("click", function (event) {
+    var btn = event.target.closest(".md-quick");
+    if (!btn || btn.disabled) { return; }
+    event.preventDefault();
+    if (btn._mdTimer) {
+      // Secondo tap durante il conto alla rovescia = annulla.
+      clearInterval(btn._mdTimer);
+      btn._mdTimer = null;
+      btn.classList.remove("is-counting");
+      btn.textContent = "✓ Fatta oggi";
+      return;
+    }
+    var left = SECONDS;
+    btn.classList.add("is-counting");
+    btn.textContent = "Annulla (" + left + ")";
+    btn._mdTimer = setInterval(function () {
+      left -= 1;
+      if (left > 0) { btn.textContent = "Annulla (" + left + ")"; return; }
+      clearInterval(btn._mdTimer);
+      btn._mdTimer = null;
+      btn.classList.remove("is-counting");
+      send(btn);
+    }, 1000);
+  });
+})();
+</script>

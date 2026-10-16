@@ -468,7 +468,7 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
         <div class="as-search-pop" id="as-search-pop" role="listbox" hidden></div>
       </form>
       <a class="as-tool" href="{% url 'assets:wo_list' %}" title="Avvisi">&#128276;</a>
-      <a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>
+      {% if not assets_shell_hide_new %}<a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>{% endif %}
     </header>
 
     {% comment %}Pagine con una testata "di oggetto" (es. la singola verifica periodica): la barra del modulo sta sopra, la testata sotto.{% endcomment %}

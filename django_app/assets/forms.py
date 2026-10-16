@@ -3148,7 +3148,7 @@ class WorkOrderCloseForm(forms.Form):
     )
     follow_up_date = forms.DateField(
         required=False,
-        label="Data verifica follow-up",
+        label="Data dell'intervento di verifica",
         widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
     )
     execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
@@ -3292,9 +3292,9 @@ class WorkOrderCloseForm(forms.Form):
             elif esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
                 follow_up_date = cleaned_data.get("follow_up_date")
                 if not follow_up_date:
-                    self.add_error("follow_up_date", "Indica una data di verifica per il follow-up.")
+                    self.add_error("follow_up_date", "Indica la data dell'intervento di verifica.")
                 elif follow_up_date < timezone.localtime(closed_at).date():
-                    self.add_error("follow_up_date", "La data di follow-up non puo essere precedente alla chiusura.")
+                    self.add_error("follow_up_date", "La data dell'intervento di verifica non puo essere precedente alla chiusura.")
 
         raw_days = str(cleaned_data.get("execution_days") or "")
         execution_days = []

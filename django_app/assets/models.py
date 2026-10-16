@@ -1032,14 +1032,14 @@ class MaintenanceInterventionTemplate(models.Model):
         null=True,
         blank=True,
         related_name="maintenance_intervention_templates",
-        help_text="Categoria di riferimento (facoltativa). Il perimetro reale lo danno le applicazioni.",
+        help_text="Categoria di riferimento (facoltativa). Il perimetro reale lo danno le assegnazioni.",
     )
     execution_mode = models.CharField(
         max_length=20,
         choices=EXECUTION_MODE_CHOICES,
         default=MODE_INTERNAL,
         db_index=True,
-        help_text="Modalita' predefinita di esecuzione; ogni applicazione puo' sovrascriverla.",
+        help_text="Modalita' predefinita di esecuzione; ogni assegnazione puo' sovrascriverla.",
     )
     default_supplier = models.ForeignKey(
         "anagrafica.Fornitore",
@@ -1060,7 +1060,7 @@ class MaintenanceInterventionTemplate(models.Model):
     attachment_required = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Se attivo, l'occorrenza non si puo' chiudere senza allegato (obbligatorio per le amministrative).",
+        help_text="Se attivo, la manutenzione non si puo' chiudere senza allegato (obbligatorio per le amministrative).",
     )
     schedule_anchor = models.CharField(
         max_length=20,
@@ -3666,7 +3666,7 @@ class MaintenancePlanAssignment(models.Model):
 
     warning_days = models.PositiveIntegerField(
         default=30,
-        help_text="Giorni di preavviso: da quando l'occorrenza diventa visibile e pianificabile.",
+        help_text="Giorni di preavviso: da quando la scadenza diventa visibile e pianificabile.",
     )
     schedule_anchor = models.CharField(
         max_length=20,
@@ -3708,12 +3708,12 @@ class MaintenancePlanAssignment(models.Model):
     is_excluded = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Solo per applicazioni su asset singolo: esclude l'asset dal Piano ereditato dal gruppo.",
+        help_text="Solo per assegnazioni su asset singolo: esclude l'asset dal Piano ereditato dal gruppo.",
     )
     auto_generate = models.BooleanField(
         default=True,
         db_index=True,
-        help_text="Genera automaticamente le occorrenze quando si entra nella finestra di preavviso.",
+        help_text="Genera automaticamente le scadenze quando si entra nella finestra di preavviso.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
     notes = models.TextField(blank=True, default="")
@@ -3805,12 +3805,12 @@ class MaintenancePlanAssignment(models.Model):
                 self.TARGET_GROUP: "asset_group",
                 self.TARGET_CATEGORY: "asset_category",
             }[self.target_type]
-            raise ValidationError({field: "Seleziona il bersaglio dell'applicazione."})
+            raise ValidationError({field: "Seleziona il bersaglio dell'assegnazione."})
         # Un'applicazione ha un solo bersaglio: gli altri restano vuoti.
         for target_type, value in targets.items():
             if target_type != self.target_type and value:
                 raise ValidationError(
-                    {"target_type": "L'applicazione puo' avere un solo bersaglio (asset, gruppo o categoria)."}
+                    {"target_type": "L'assegnazione puo' avere un solo bersaglio (asset, gruppo o categoria)."}
                 )
 
         if self.is_excluded and self.target_type != self.TARGET_ASSET:
@@ -4004,6 +4004,25 @@ class MaintenanceOccurrence(models.Model):
     @property
     def has_attachment(self) -> bool:
         return occurrence_has_attachments(self)
+
+    @property
+    def quick_complete_block_reason(self) -> str:
+        """Perche' questa manutenzione NON si puo' registrare con «Fatta oggi» ("" = si puo').
+
+        Un tap registra oggi, senza note e senza documento: vale solo per le
+        manutenzioni aperte, interne e senza rapporto obbligatorio.
+        """
+        if self.status != self.STATUS_OPEN:
+            return "non e' piu' aperta"
+        if self.attachment_required:
+            return "richiede il documento allegato"
+        if self.is_external:
+            return "e' affidata a un fornitore esterno"
+        return ""
+
+    @property
+    def quick_complete_allowed(self) -> bool:
+        return not self.quick_complete_block_reason
 
     def days_until_due(self, reference_date=None) -> int | None:
         if not self.due_date:

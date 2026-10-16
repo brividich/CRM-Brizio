@@ -54,7 +54,15 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
         label="Manutenzione",
         sidebar_code="maintenance_hub",
         items=(
-            NavItem("panoramica", "Panoramica", "maintenance_responsabile", sidebar_code="maintenance_quadro"),
+            # La pagina KPI e' confluita nella Panoramica («Dettaglio indicatori»): il suo
+            # URL e i report storici (raggiungibili da «Report e budget») restano qui sotto.
+            NavItem(
+                "panoramica",
+                "Panoramica",
+                "maintenance_responsabile",
+                sidebar_code="maintenance_quadro",
+                routes=frozenset({"maintenance_kpi", "reports", "report_template_admin"}),
+            ),
             NavItem(
                 "da_fare",
                 "Da fare",
@@ -108,15 +116,6 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
             # Dashboard officina: stato macchine e reparti, prima raggiungibile solo dall'elenco asset.
             NavItem("officina", "Officina", "work_machine_dashboard", sidebar_code="maintenance_officina"),
             NavItem("storico", "Storico", "maintenance_history", sidebar_code="maintenance_storico"),
-            # KPI sostituisce "Report": i report storici (budget, export, PDF) sono
-            # raggiungibili dalla pagina KPI e restano accesi sotto questa voce.
-            NavItem(
-                "kpi",
-                "KPI",
-                "maintenance_kpi",
-                sidebar_code="report_asset",
-                routes=frozenset({"reports", "report_template_admin"}),
-            ),
             # Segnalazione rapida di un guasto (ticket MAN): il punto d'ingresso del
             # lavoro correttivo, prima fuori dal menu.
             NavItem("segnala", "Segnala guasto", "asset_quick_report", sidebar_code="maintenance_segnala"),
@@ -215,6 +214,7 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "Vedi in un colpo d'occhio scadute, prossime 30 giorni e prossima scadenza per ordinarie, amministrative, licenze e contratti.",
         'Filtra per famiglia e reparto: i link a Calendario e Scadenzario si portano dietro i filtri.',
         'Sotto trovi il lavoro: manutenzioni dovute ma senza ordine di lavoro, OdL aperti, rapporti mancanti, carico dei manutentori.',
+        "«Dettaglio indicatori» raccoglie puntualita', arretrato, copertura dei piani, adempimenti e rinnovi; «Report e budget» apre i report storici.",
     ),
     'da_fare': (
         "«Il mio lavoro» mostra le tue manutenzioni e quelle di nessuno; «Tutto» l'intera officina.",
@@ -262,17 +262,12 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "Ordini di lavoro conclusi e ticket di manutenzione, in un'unica cronologia.",
         'Filtra per asset, periodo o testo per ritrovare un intervento passato.',
     ),
-    'kpi': (
-        "Puntualita', arretrato, copertura dei piani, adempimenti in regola, rinnovi in arrivo.",
-        'Gli indicatori compaiono solo se i dati che li reggono sono compilati: altrimenti la pagina lo dice.',
-        '«Report e budget» apre i report storici, i costi e il piano del mese.',
-    ),
     'imposta': (
         "Segui i passi dall'alto: ognuno dice cosa manca e porta alla pagina dove si sistema.",
         'Quando tutti i passi obbligatori sono verdi, le scadenze nascono da sole e sono complete.',
     ),
     'piani': (
-        'Un piano dice cosa fare; le sue applicazioni dicono su quali asset e ogni quanto.',
+        'Un piano dice cosa fare; le sue assegnazioni dicono su quali asset e ogni quanto.',
         'Apri un piano per applicarlo a un asset, un gruppo o una categoria e per modificarne checklist e istruzioni.',
         "«+ Nuovo piano» per un'attivita' nuova; «Importa storico» per partire dall'ultima esecuzione nota.",
     ),

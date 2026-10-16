@@ -104,7 +104,7 @@ class MaintenancePlanForm(forms.ModelForm):
             Q(is_active=True) | Q(pk=getattr(self.instance, "asset_category_id", None))
         ).order_by("sort_order", "label", "id")
         self.fields["asset_category"].help_text = (
-            "Facoltativa. Il perimetro reale lo decidono le applicazioni del piano."
+            "Facoltativa. Il perimetro reale lo decidono le assegnazioni del piano."
         )
         self.fields["default_supplier"].required = False
         self.fields["default_supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")

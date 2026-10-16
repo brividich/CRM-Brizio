@@ -38,28 +38,7 @@
     <span class="md-sub">{% if only_mine %}Le tue e quelle non ancora assegnate.{% else %}Tutte le manutenzioni aperte.{% endif %}</span>
   </div>
 
-  <div class="md-kpis" data-tour-step="2" data-tour-title="Cosa urge" data-tour-text="Scadute, di oggi, della settimana e assegnate a te: clicca un numero per filtrare la lista.">
-    <a class="md-kpi is-danger" href="?window=overdue">
-      <span class="md-kpi-label">Scadute</span>
-      <span class="md-kpi-value">{{ summary.overdue }}</span>
-      <span class="md-kpi-sub">da recuperare</span>
-    </a>
-    <a class="md-kpi is-warn" href="?window=0">
-      <span class="md-kpi-label">Da fare oggi</span>
-      <span class="md-kpi-value">{{ summary.today }}</span>
-      <span class="md-kpi-sub">entro fine giornata</span>
-    </a>
-    <a class="md-kpi" href="?window=7">
-      <span class="md-kpi-label">Prossimi 7 giorni</span>
-      <span class="md-kpi-value">{{ summary.week }}</span>
-      <span class="md-kpi-sub">questa settimana</span>
-    </a>
-    <a class="md-kpi" href="?assignee={{ request.user.id }}">
-      <span class="md-kpi-label">Assegnate a me</span>
-      <span class="md-kpi-value">{{ summary.mine }}</span>
-      <span class="md-kpi-sub">in totale</span>
-    </a>
-  </div>
+  {% include "assets/components/_da_fare_kpis.html" %}
 
   {% comment %}
     Cinque filtri a vista (con la famiglia asset), il resto sotto "Filtri avanzati": nessun filtro e'
@@ -123,7 +102,7 @@
               <tr class="tone-{{ row.tone }}">
                 <td>
                   <a class="md-op-title" href="{% url 'assets:wo_view' wo.id %}">{{ wo.title|default:"Intervento" }}</a>
-                  <span class="md-sub">OdL #{{ wo.display_number }} · {{ wo.get_kind_display }}</span>
+                  <span class="md-sub">OdL n. {{ wo.display_number }} · {{ wo.get_kind_display }}</span>
                 </td>
                 <td>
                   <a class="md-op-title" href="{% url 'assets:asset_view' wo.asset_id %}">{{ wo.asset.asset_tag|default:wo.asset.name }}</a>
@@ -222,10 +201,13 @@
         <div class="md-field"><label for="{{ workorder_form.completed_on.id_for_label }}">Eseguite il</label>{{ workorder_form.completed_on }}</div>
         <button type="submit" class="btn btn-primary" name="action" value="create_and_complete"
                 title="Crea l'ordine di lavoro e registra subito le manutenzioni selezionate come eseguite: l'intervento si chiude.">Crea OdL e chiudi intervento</button>
+        <button type="submit" class="btn btn-secondary" formaction="{% url 'assets:occurrence_quick_complete_bulk' %}"
+                title="Registra oggi le selezionate, senza note. Quelle che richiedono il documento o sono esterne restano escluse.">&#10003; Segna come fatte oggi</button>
       {% endif %}
     </form>
   {% endif %}
 </div>
+{% if can_execute %}{% include "assets/components/_quick_complete_script.html" %}{% endif %}
 {% endblock %}
 
 {% block assets_shell_scripts %}

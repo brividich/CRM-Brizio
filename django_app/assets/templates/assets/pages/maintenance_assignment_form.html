@@ -1,10 +1,10 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Applicazione — {{ plan.label }}{% endblock %}
+{% block title %}Assegnazione — {{ plan.label }}{% endblock %}
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}{% if assignment %}Modifica applicazione{% else %}Applica «{{ plan.label }}»{% endif %}{% endblock %}
+{% block assets_shell_title %}{% if assignment %}Modifica assegnazione{% else %}Assegna «{{ plan.label }}»{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
   <p>Dove si applica il piano e con che tempi. Lo stesso piano puo' valere su gruppi diversi con periodicita' diverse.</p>
 {% endblock %}
@@ -21,7 +21,7 @@
   <fieldset class="md-fieldset">
     <h2>1 · Dove</h2>
     <p class="md-hint">
-      Un'applicazione sul singolo asset ha la precedenza sul gruppo, e il gruppo sulla categoria.
+      Un'assegnazione sul singolo asset ha la precedenza sul gruppo, e il gruppo sulla categoria.
       Se due gruppi diversi impongono tempi diversi allo stesso asset il sistema segnala un conflitto invece di sceglierne uno.
     </p>
     {% include "assets/components/_md_field.html" with field=form.target_type %}
@@ -89,7 +89,7 @@
   </fieldset>
 
   <div class="md-form-actions">
-    <button type="submit" class="btn btn-primary">Salva applicazione</button>
+    <button type="submit" class="btn btn-primary">Salva assegnazione</button>
     <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
   </div>
 </form>
@@ -164,7 +164,7 @@
         .then(function (response) { return response.ok ? response.json() : null; })
         .then(function (data) {
           if (!data) { return; }
-          var parts = ['Questa applicazione interesserà ' + data.assets + ' asset.'];
+          var parts = ['Questa assegnazione interesserà ' + data.assets + ' asset.'];
           if (data.already) { parts.push(data.already + ' hanno già una scadenza aperta per questo piano (non verrà duplicata).'); }
           if (data.conflicts) { parts.push(data.conflicts + ' presentano conflitti da risolvere personalizzando l\'asset.'); }
           if (data.first_due && data.first_due.length) {

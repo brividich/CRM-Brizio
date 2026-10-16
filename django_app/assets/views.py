@@ -5429,7 +5429,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     maintenance_quadro = reverse("assets:maintenance_responsabile")
     maintenance_plans = reverse("assets:maintenance_plan_list")
     asset_groups = reverse("assets:asset_group_list")
-    il_mio_turno_url = reverse("assets:il_mio_turno")
+    il_mio_turno_url = f"{maintenance_da_fare}?mio=1"
     current_type = _clean_string(request.GET.get("asset_type"))
     current_group = _clean_string(request.GET.get("group")).lower()
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
@@ -5445,10 +5445,10 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Il mio turno",
+            "label": "Il mio lavoro",
             "url": il_mio_turno_url,
             "is_subitem": False,
-            "active": current_route == "il_mio_turno",
+            "active": current_route == "maintenance_da_fare" and request.GET.get("mio") == "1",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -8938,6 +8938,111 @@ def asset_part_145_export_excel(request: HttpRequest) -> HttpResponse:
     return resp
 
 
+def _inventory_studio_context(request: HttpRequest) -> dict[str, object]:
+    """Dati dello «Studio inventario» (Impostazioni → tab «Studio inventario»).
+
+    Prima vivevano nella lista asset, in un riquadro modale che duplicava le
+    Impostazioni: ora li usa solo la tab dedicata. Le azioni restano sullo stesso
+    endpoint di ``asset_list`` (vedi ``_studio_redirect``).
+    """
+    can_manage_custom_fields = _is_assets_admin(request)
+    all_custom_fields = list(AssetCustomField.objects.order_by("sort_order", "id"))
+    list_options = list(AssetListOption.objects.order_by("field_key", "sort_order", "value", "id"))
+    action_buttons = list(AssetActionButton.objects.order_by("zone", "sort_order", "label", "id"))
+    detail_fields = list(AssetDetailField.objects.order_by("section", "asset_scope", "sort_order", "label", "id"))
+    asset_categories = list(AssetCategory.objects.order_by("sort_order", "label", "id"))
+    asset_category_fields = list(
+        AssetCategoryField.objects.select_related("category").order_by(
+            "category__sort_order",
+            "category__label",
+            "sort_order",
+            "label",
+            "id",
+        )
+    )
+    sidebar_buttons = list(AssetSidebarButton.objects.select_related("parent").order_by("section", "sort_order", "label", "id"))
+    sidebar_parent_choices = _sidebar_parent_choices()
+    sidebar_target_suggestions, sidebar_active_match_suggestions = _sidebar_input_suggestions()
+    sidebar_target_labels = {row["value"]: row["label"] for row in sidebar_target_suggestions}
+    for sidebar_item in sidebar_buttons:
+        sidebar_item.target_label = _sidebar_target_label(sidebar_item.target_url, sidebar_target_labels)
+    for button in action_buttons:
+        button.label = _ui_label(button.label)
+    for detail_item in detail_fields:
+        detail_item.label = _ui_label(detail_item.label)
+    for sidebar_item in sidebar_buttons:
+        sidebar_item.label = _ui_label(sidebar_item.label)
+    for parent_item in sidebar_parent_choices:
+        parent_item.label = _ui_label(parent_item.label)
+    admin_metrics = {
+        "custom_fields_total": len(all_custom_fields),
+        "custom_fields_active": sum(1 for row in all_custom_fields if row.is_active),
+        "list_options_total": len(list_options),
+        "list_options_active": sum(1 for row in list_options if row.is_active),
+        "action_buttons_total": len(action_buttons),
+        "action_buttons_active": sum(1 for row in action_buttons if row.is_active),
+        "detail_fields_total": len(detail_fields),
+        "detail_fields_active": sum(1 for row in detail_fields if row.is_active),
+        "asset_categories_total": len(asset_categories),
+        "asset_categories_active": sum(1 for row in asset_categories if row.is_active),
+        "asset_category_fields_total": len(asset_category_fields),
+        "asset_category_fields_active": sum(1 for row in asset_category_fields if row.is_active),
+        "sidebar_total": len(sidebar_buttons),
+        "sidebar_visible": sum(1 for row in sidebar_buttons if row.is_visible),
+        "sidebar_hidden": sum(1 for row in sidebar_buttons if not row.is_visible),
+    }
+    admin_checks = []
+    if can_manage_custom_fields:
+        if admin_metrics["sidebar_total"] == 0:
+            admin_checks.append("Menu laterale personalizzato non configurato: usa il caricamento iniziale.")
+        if admin_metrics["action_buttons_active"] == 0:
+            admin_checks.append("Nessun pulsante azione attivo sul dettaglio asset.")
+        if admin_metrics["detail_fields_active"] == 0:
+            admin_checks.append("Nessun campo dettaglio attivo: la scheda asset usera il fallback predefinito.")
+        if admin_metrics["asset_categories_active"] == 0:
+            admin_checks.append("Nessuna categoria asset attiva: il modulo usa solo le tipologie tecniche standard.")
+        if admin_metrics["custom_fields_active"] == 0:
+            admin_checks.append("Nessun campo personalizzato attivo: verifica se e voluto.")
+        if not admin_checks:
+            admin_checks.append("Configurazione amministratore completa e coerente.")
+    return {
+        "all_custom_fields": all_custom_fields,
+        "custom_type_choices": _ui_choices(AssetCustomField.TYPE_CHOICES),
+        "list_options": list_options,
+        "list_option_choices": _ui_choices(AssetListOption.FIELD_CHOICES),
+        "action_buttons": action_buttons,
+        "button_zone_choices": _ui_choices(AssetActionButton.ZONE_CHOICES),
+        "button_action_choices": _ui_choices(AssetActionButton.ACTION_CHOICES),
+        "button_style_choices": _ui_choices(AssetActionButton.STYLE_CHOICES),
+        "detail_fields": detail_fields,
+        "detail_section_choices": _ui_choices(AssetDetailField.SECTION_CHOICES),
+        "detail_scope_choices": _ui_choices(AssetDetailField.SCOPE_CHOICES),
+        "detail_format_choices": _ui_choices(AssetDetailField.FORMAT_CHOICES),
+        "detail_source_choices": _asset_detail_source_choices(),
+        "header_tools": list(AssetHeaderTool.objects.order_by("sort_order", "code")),
+        "admin_metrics": admin_metrics,
+        "admin_checks": admin_checks,
+        "studio_next_url": f"{reverse('assets:gestione_admin')}?tab=studio",
+        "studio_can_manage": can_manage_custom_fields,
+    }
+
+
+def _studio_redirect(request: HttpRequest) -> HttpResponse:
+    """Dopo un'azione dello «Studio inventario» si torna da dove si e' partiti.
+
+    Lo Studio vive in Impostazioni (tab «Studio inventario») ma le sue azioni
+    restano su questo endpoint: i form mandano ``next``. Solo URL interni.
+    """
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    candidate = _clean_string(request.POST.get("next"))
+    if candidate and url_has_allowed_host_and_scheme(
+        candidate, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(candidate)
+    return redirect("assets:asset_list")
+
+
 # Soglie del sottotitolo «Salute asset» nella lista (percentuale di asset non in
 # riparazione): >= 90 Buona, 70-89 Da monitorare, < 70 Critica.
 ASSET_HEALTH_GOOD_MIN = 90
@@ -8995,73 +9100,73 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         if action in {"create_custom_field", "update_custom_field", "delete_custom_field"}:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare i campi personalizzati.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_custom_field_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action in LIST_ACTIONS:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare le liste.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_list_option_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action in BUTTON_ACTIONS:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare i pulsanti.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_action_button_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action in DETAIL_FIELD_ACTIONS:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare il dettaglio asset.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_detail_field_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action in CATEGORY_ACTIONS:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare categorie e campi asset.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_asset_category_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action in SIDEBAR_ACTIONS:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare il menu sidebar.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_sidebar_button_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action in HEADER_TOOL_ACTIONS:
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo modificare gli strumenti header.")
-                return redirect("assets:asset_list")
+                return _studio_redirect(request)
             ok, text = _handle_header_tool_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return redirect("assets:asset_list")
+            return _studio_redirect(request)
         if action == "export_admin_snapshot":
             if not can_manage_custom_fields:
                 messages.error(request, "Solo admin puo esportare la configurazione.")
@@ -9215,64 +9320,9 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             fallback=asset_list_default_visible_columns,
         )
     asset_list_layout_revision = _asset_list_layout_revision(current_list_layout)
-    list_options = list(AssetListOption.objects.order_by("field_key", "sort_order", "value", "id"))
-    action_buttons = list(AssetActionButton.objects.order_by("zone", "sort_order", "label", "id"))
-    detail_fields = list(AssetDetailField.objects.order_by("section", "asset_scope", "sort_order", "label", "id"))
-    asset_categories = list(AssetCategory.objects.order_by("sort_order", "label", "id"))
-    asset_category_fields = list(
-        AssetCategoryField.objects.select_related("category").order_by(
-            "category__sort_order",
-            "category__label",
-            "sort_order",
-            "label",
-            "id",
-        )
-    )
-    sidebar_buttons = list(AssetSidebarButton.objects.select_related("parent").order_by("section", "sort_order", "label", "id"))
-    sidebar_parent_choices = _sidebar_parent_choices()
-    sidebar_target_suggestions, sidebar_active_match_suggestions = _sidebar_input_suggestions()
-    sidebar_target_labels = {row["value"]: row["label"] for row in sidebar_target_suggestions}
-    for sidebar_item in sidebar_buttons:
-        sidebar_item.target_label = _sidebar_target_label(sidebar_item.target_url, sidebar_target_labels)
-    for button in action_buttons:
-        button.label = _ui_label(button.label)
-    for detail_item in detail_fields:
-        detail_item.label = _ui_label(detail_item.label)
-    for sidebar_item in sidebar_buttons:
-        sidebar_item.label = _ui_label(sidebar_item.label)
-    for parent_item in sidebar_parent_choices:
-        parent_item.label = _ui_label(parent_item.label)
-    admin_metrics = {
-        "custom_fields_total": len(all_custom_fields),
-        "custom_fields_active": sum(1 for row in all_custom_fields if row.is_active),
-        "list_options_total": len(list_options),
-        "list_options_active": sum(1 for row in list_options if row.is_active),
-        "action_buttons_total": len(action_buttons),
-        "action_buttons_active": sum(1 for row in action_buttons if row.is_active),
-        "detail_fields_total": len(detail_fields),
-        "detail_fields_active": sum(1 for row in detail_fields if row.is_active),
-        "asset_categories_total": len(asset_categories),
-        "asset_categories_active": sum(1 for row in asset_categories if row.is_active),
-        "asset_category_fields_total": len(asset_category_fields),
-        "asset_category_fields_active": sum(1 for row in asset_category_fields if row.is_active),
-        "sidebar_total": len(sidebar_buttons),
-        "sidebar_visible": sum(1 for row in sidebar_buttons if row.is_visible),
-        "sidebar_hidden": sum(1 for row in sidebar_buttons if not row.is_visible),
-    }
-    admin_checks = []
-    if can_manage_custom_fields:
-        if admin_metrics["sidebar_total"] == 0:
-            admin_checks.append("Menu laterale personalizzato non configurato: usa il caricamento iniziale.")
-        if admin_metrics["action_buttons_active"] == 0:
-            admin_checks.append("Nessun pulsante azione attivo sul dettaglio asset.")
-        if admin_metrics["detail_fields_active"] == 0:
-            admin_checks.append("Nessun campo dettaglio attivo: la scheda asset usera il fallback predefinito.")
-        if admin_metrics["asset_categories_active"] == 0:
-            admin_checks.append("Nessuna categoria asset attiva: il modulo usa solo le tipologie tecniche standard.")
-        if admin_metrics["custom_fields_active"] == 0:
-            admin_checks.append("Nessun campo personalizzato attivo: verifica se e voluto.")
-        if not admin_checks:
-            admin_checks.append("Configurazione amministratore completa e coerente.")
+    # Valori lista e categorie servono solo alla modale «Modifica in blocco».
+    list_options = list(AssetListOption.objects.filter(is_active=True).order_by("field_key", "sort_order", "value", "id"))
+    asset_categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"))
     # KPI: scope by structural filters (category + type) to reflect the current view
     kpi_qs = Asset.objects.all()
     if form.is_valid():
@@ -9418,33 +9468,15 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "asset_list_layout_revision": asset_list_layout_revision,
             "asset_list_layout_manage_url": _asset_list_layout_manage_url(request, asset_list_context_key),
             "asset_list_layout_is_customized": bool(current_list_layout and current_list_layout.is_customized),
-            "custom_type_choices": _ui_choices(AssetCustomField.TYPE_CHOICES),
             "list_options": list_options,
-            "list_option_choices": _ui_choices(AssetListOption.FIELD_CHOICES),
-            "action_buttons": action_buttons,
-            "button_zone_choices": _ui_choices(AssetActionButton.ZONE_CHOICES),
-            "button_action_choices": _ui_choices(AssetActionButton.ACTION_CHOICES),
-            "button_style_choices": _ui_choices(AssetActionButton.STYLE_CHOICES),
-            "detail_fields": detail_fields,
             "asset_categories": asset_categories,
-            "asset_category_fields": asset_category_fields,
             "asset_category_type_choices": _ui_choices(Asset.TYPE_CHOICES),
-            "asset_category_field_type_choices": _ui_choices(AssetCategoryField.TYPE_CHOICES),
-            "detail_section_choices": _ui_choices(AssetDetailField.SECTION_CHOICES),
-            "detail_scope_choices": _ui_choices(AssetDetailField.SCOPE_CHOICES),
-            "detail_format_choices": _ui_choices(AssetDetailField.FORMAT_CHOICES),
-            "detail_source_choices": _asset_detail_source_choices(),
-            "sidebar_buttons": sidebar_buttons,
-            "sidebar_parent_choices": sidebar_parent_choices,
-            "sidebar_section_choices": _ui_choices(AssetSidebarButton.SECTION_CHOICES),
-            "sidebar_target_suggestions": sidebar_target_suggestions,
-            "sidebar_active_match_suggestions": sidebar_active_match_suggestions,
             "can_manage_custom_fields": can_manage_custom_fields,
             "can_gestione_admin": user_can_modulo_action(request, "assets", "admin_assets"),
-            "header_tools": list(AssetHeaderTool.objects.order_by("sort_order", "code")),
             **_header_tool_visibility(can_manage_custom_fields),
-            "admin_metrics": admin_metrics,
-            "admin_checks": admin_checks,
+            # Lo Studio inventario e' in Impostazioni: la shell non mostra il suo
+            # «+ Nuovo asset», la pagina ne ha uno con il menu (asset, macchina, chimico).
+            "assets_shell_hide_new": True,
             "table_colspan": 7 + len(custom_fields),
             "health_percent": health_percent,
             "health_label": health_label,
@@ -11402,7 +11434,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
 
     # URL azioni
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
-    report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
+    report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}&from=qr"
     wo_list_url = f"{reverse('assets:wo_list')}?asset={asset.id}"
     schedule_url = _maintenance_schedule_page_url(asset_id=asset.id)
 
@@ -16183,91 +16215,15 @@ def workorder_campaign_create(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def il_mio_turno(request: HttpRequest) -> HttpResponse:
-    """Home del manutentore: cosa fare adesso, non l'archivio di chi pianifica.
+    """«Il mio turno» non e' piu' una pagina: e' la scheda «Il mio lavoro» di «Da fare».
 
-    La coda e' **condivisa**: un intervento senza assegnatario riguarda tutti, non e'
-    di nessuno. Non si "prende in carico" — lo si apre e lo si fa; l'intestazione
-    avviene alla chiusura, a chi l'ha chiuso (``workorder_close``). Cosi' la pagina
-    funziona con un manutentore solo e continua a funzionare quando saranno di piu':
-    chi ha interventi propri vede quelli, il resto della squadra vede il non assegnato.
-
-    Ogni OdL compare in una sola sezione (la prima che gli si applica, nell'ordine
-    Bloccati > Emergenze > Scaduti > Oggi > In corso), cosi' non si duplica la coda."""
-    user = request.user
-    now = timezone.now()
-    today = timezone.localdate()
-    priority_order = _workorder_priority_order_case()
-
-    # Coda condivisa: i miei + quelli di nessuno. Un intervento assegnato a un altro
-    # manutentore resta fuori, altrimenti la pagina smette di essere "il mio turno".
-    mine_open = (
-        WorkOrder.objects.select_related("asset", "asset__asset_category", "maintenance_rule__intervention_template")
-        .filter(status=WorkOrder.STATUS_OPEN)
-        .filter(Q(assigned_to=user) | Q(assigned_to__isnull=True))
-    )
-
-    bloccati = list(mine_open.filter(is_waiting=True).order_by("waiting_since"))
-    bloccati_ids = {wo.id for wo in bloccati}
-    emergenze = list(
-        mine_open.filter(priority=WorkOrder.PRIORITY_URGENT)
-        .exclude(id__in=bloccati_ids)
-        .order_by("opened_at", "id")
-    )
-    emergenze_ids = bloccati_ids | {wo.id for wo in emergenze}
-    scaduti = list(
-        mine_open.filter(due_at__lt=now)
-        .exclude(id__in=emergenze_ids)
-        .order_by("due_at", "id")
-    )
-    scaduti_ids = emergenze_ids | {wo.id for wo in scaduti}
-    oggi = list(
-        mine_open.filter(due_at__date=today)
-        .exclude(id__in=scaduti_ids)
-        .order_by("due_at", "id")
-    )
-    oggi_ids = scaduti_ids | {wo.id for wo in oggi}
-    in_corso = list(
-        mine_open.filter(started_at__isnull=False)
-        .exclude(id__in=oggi_ids)
-        .order_by("started_at")
-    )
-    in_corso_ids = oggi_ids | {wo.id for wo in in_corso}
-    altri = list(
-        mine_open.exclude(id__in=in_corso_ids).order_by(priority_order, "opened_at", "id")
-    )
-
-    sections = [
-        {"key": "bloccati", "title": "Bloccati / in attesa", "tone": "wait",
-         "rows": bloccati, "quiet": "nessuno bloccato"},
-        {"key": "emergenze", "title": "Emergenze", "tone": "urgent",
-         "rows": emergenze, "quiet": "nessuna emergenza"},
-        {"key": "scaduti", "title": "Scaduti", "tone": "urgent",
-         "rows": scaduti, "quiet": "niente di scaduto"},
-        {"key": "oggi", "title": "Oggi", "tone": "today",
-         "rows": oggi, "quiet": "niente per oggi"},
-        {"key": "in_corso", "title": "In corso", "tone": "",
-         "rows": in_corso, "quiet": "niente di iniziato"},
-        {"key": "altri", "title": "Il resto della coda", "tone": "",
-         "rows": altri, "quiet": "coda vuota"},
-    ]
-    # Le sezioni vuote non si stampano: quattro riquadri "Nessun intervento..." in cima
-    # spingevano il lavoro vero sotto la piega, su una pagina che deve dire cosa fare
-    # adesso. Quello che manca si riassume in una riga sola.
-    sections_with_rows = [s for s in sections if s["rows"]]
-    quiet_labels = [s["quiet"] for s in sections if not s["rows"]]
-    return render(
-        request,
-        "assets/pages/il_mio_turno.html",
-        {
-            "page_title": "Il mio turno",
-            "sections": sections_with_rows,
-            "quiet_labels": quiet_labels,
-            "total_open": len(bloccati) + len(emergenze) + len(scaduti) + len(oggi) + len(in_corso) + len(altri),
-            "total_urgent": len(bloccati) + len(emergenze) + len(scaduti),
-            **_assets_shell_context(request, rows=25),
-            "assets_section_nav": None,
-        },
-    )
+    Una home in meno: «Da fare» con ?mio=1 mostra gia' le manutenzioni e gli
+    interventi propri e di nessuno. L'URL resta per link e preferiti salvati
+    (redirect temporaneo, query string conservata).
+    """
+    query = request.GET.copy()
+    query["mio"] = "1"
+    return redirect(f"{reverse('assets:maintenance_da_fare')}?{query.urlencode()}")
 
 
 @login_required
@@ -17352,59 +17308,96 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
     return render(request, "assets/components/asset_meter_panel.html", ctx)
 
 
+def _default_man_category(categorie: list[tuple[str, str]]) -> str:
+    """Categoria usata quando chi segnala non ne sceglie una.
+
+    Nessuna impostazione nuova: «Generica» se e' fra le categorie MAN attive, poi
+    «Altro Manutenzione», altrimenti la prima attiva (``get_categorie`` ripiega
+    comunque sull'elenco predefinito, quindi un valore c'e' sempre).
+    """
+    codes = [code for code, _label in categorie]
+    for preferred in ("GENERICA", "ALTRO_MAN"):
+        if preferred in codes:
+            return preferred
+    return codes[0] if codes else "GENERICA"
+
+
+# Priorita' proposte a chi segnala dal campo: tre scelte grandi, non quattro.
+# «Urgente» resta accettata dal POST (link o form vecchi) ma non si propone: chi
+# segnala da telefono dice quanto e' grave, l'urgenza la decide la manutenzione.
+QUICK_REPORT_PRIORITIES = (("BASSA", "Bassa"), ("MEDIA", "Media"), ("ALTA", "Alta"))
+QUICK_REPORT_MAX_PHOTOS = 3
+QUICK_REPORT_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+QUICK_REPORT_PHOTO_MIMES = {"image/jpeg", "image/png"}
+
+
 @login_required
 def asset_quick_report(request: HttpRequest) -> HttpResponse:
-    """P3.2 — Form segnalazione rapida per operatori non-admin.
-    Crea un Ticket MAN precompilato con asset, descrizione e priorità.
+    """P3.2 — Segnalazione guasto per operatori non-admin (anche da telefono, dal QR).
+
+    Crea un Ticket MAN con asset, descrizione, priorita' e fino a tre foto. Con
+    ``?asset=<id>`` l'asset e' fissato (intestazione, niente elenco); con
+    ``?from=qr`` la pagina e' quella minimale della landing QR, senza la shell del
+    modulo. Il login resta obbligatorio anche arrivando dal QR pubblico.
     """
-    from tickets.models import TipoTicket, StatoTicket, PrioritaTicket, Ticket, get_categorie
+    from tickets.allegati import AllegatoError, carica_allegato, qr_rate_limited, registra_caricamento
+    from tickets.models import TipoTicket, PrioritaTicket, Ticket, get_categorie
 
-    # Pre-selezione asset da querystring (es. da landing QR)
-    preselected_asset_id = _as_int(request.GET.get("asset"), default=0)
-    preselected_asset = None
-    if preselected_asset_id:
-        preselected_asset = Asset.objects.filter(pk=preselected_asset_id).only("id", "asset_tag", "name", "reparto", "asset_type").first()
+    from_qr = _clean_string(request.GET.get("from") or request.POST.get("from")).lower() == "qr"
+    raw_asset = request.GET.get("asset") or request.POST.get("fixed_asset")
+    fixed_asset = None
+    if raw_asset:
+        # Stessa regola della landing QR: un asset inesistente non si segnala.
+        fixed_asset = get_object_or_404(Asset.objects.select_related("asset_category"), pk=_as_int(raw_asset, default=0))
 
-    # Asset selezionabili: macchine e asset di produzione (no IT puro)
-    asset_choices = list(
-        Asset.objects
-        .filter(status=Asset.STATUS_IN_USE)
-        .exclude(asset_type__in=IT_DEVICE_TYPES)
-        .order_by("reparto", "name", "asset_tag")
-        .values("id", "asset_tag", "name", "reparto")
-    )
+    asset_choices = []
+    if fixed_asset is None:
+        # Asset selezionabili: macchine e asset di produzione (no IT puro)
+        asset_choices = list(
+            Asset.objects
+            .filter(status=Asset.STATUS_IN_USE)
+            .exclude(asset_type__in=IT_DEVICE_TYPES)
+            .order_by("reparto", "name", "asset_tag")
+            .values("id", "asset_tag", "name", "reparto")
+        )
 
     categorie_man = get_categorie(TipoTicket.MAN)
-    priorita_choices = list(PrioritaTicket.choices)
+    default_categoria = _default_man_category(categorie_man)
+    valid_priorities = dict(PrioritaTicket.choices)
 
     error: str = ""
-    success_ticket_id: int | None = None
+    success_ticket = None
+    photo_notes: list[str] = []
 
     if request.method == "POST":
-        asset_id = _as_int(request.POST.get("asset_id"), default=0)
-        asset_libera = _clean_string(request.POST.get("asset_descrizione_libera"))
+        asset_id = fixed_asset.id if fixed_asset is not None else _as_int(request.POST.get("asset_id"), default=0)
+        asset_libera = "" if fixed_asset is not None else _clean_string(request.POST.get("asset_descrizione_libera"))
         categoria = _clean_string(request.POST.get("categoria"))
         titolo = _clean_string(request.POST.get("titolo"))
         descrizione = _clean_string(request.POST.get("descrizione"))
         priorita = _clean_string(request.POST.get("priorita")) or PrioritaTicket.MEDIA
         incide_sicurezza = request.POST.get("incide_sicurezza") == "1"
+        photos = request.FILES.getlist("foto")
 
         if not titolo or not descrizione:
             error = "Titolo e descrizione sono obbligatori."
-        elif not categoria:
-            error = "Seleziona una categoria."
         elif not asset_id and not asset_libera:
             error = "Seleziona un asset o descrivi il punto di intervento."
+        elif len(photos) > QUICK_REPORT_MAX_PHOTOS:
+            error = f"Puoi allegare al massimo {QUICK_REPORT_MAX_PHOTOS} foto."
         else:
-            if priorita not in dict(priorita_choices):
+            if priorita not in valid_priorities:
                 priorita = PrioritaTicket.MEDIA
+            if categoria not in {code for code, _label in categorie_man}:
+                categoria = default_categoria
 
-            asset_obj = None
-            if asset_id:
+            asset_obj = fixed_asset
+            if asset_obj is None and asset_id:
                 asset_obj = Asset.objects.filter(pk=asset_id).only("id").first()
 
-            # Identità richiedente dal legacy user o dall'utente Django
-            from anagrafica.models import UserExtraInfo
+            # Identità richiedente dal legacy user o dall'utente Django. UserExtraInfo e'
+            # in core.models (importato in testa): l'import da anagrafica.models falliva
+            # e ogni invio rispondeva 500.
             legacy_user = getattr(request, "legacy_user", None)
             if legacy_user is None:
                 try:
@@ -17438,6 +17431,32 @@ def asset_quick_report(request: HttpRequest) -> HttpResponse:
             )
             try:
                 ticket.save()
+            except Exception as exc:
+                error = f"Errore nella creazione del ticket: {exc}"
+            else:
+                # Foto: il ticket esiste gia'. Una foto rifiutata (formato, peso) si
+                # scarta e si dice quale, senza perdere la segnalazione.
+                saved_photos = []
+                if photos and asset_obj is not None and qr_rate_limited(request, asset_obj.id):
+                    photo_notes.append("Troppi invii ravvicinati: le foto non sono state salvate, la segnalazione si'.")
+                    photos = []
+                for photo in photos:
+                    try:
+                        saved_photos.append(
+                            carica_allegato(
+                                ticket,
+                                photo,
+                                caricato_da_nome=req_name,
+                                caricato_da_email=req_email,
+                                descrizione="Foto della segnalazione",
+                                allowed_extensions=QUICK_REPORT_PHOTO_EXTENSIONS,
+                                allowed_mimes=QUICK_REPORT_PHOTO_MIMES,
+                            )
+                        )
+                    except AllegatoError as exc:
+                        photo_notes.append(f"Foto «{getattr(photo, 'name', 'senza nome')}» scartata: {exc}")
+                if saved_photos:
+                    registra_caricamento(ticket, saved_photos)
                 log_action(
                     request,
                     "asset_quick_report_create",
@@ -17448,30 +17467,42 @@ def asset_quick_report(request: HttpRequest) -> HttpResponse:
                         "asset_id": asset_id,
                         "categoria": categoria,
                         "priorita": priorita,
+                        "foto": len(saved_photos),
+                        "da_qr": from_qr,
                     },
                 )
-                success_ticket_id = ticket.id
-                # Reset form su successo
-                preselected_asset = None
-                asset_id = 0
-            except Exception as exc:
-                error = f"Errore nella creazione del ticket: {exc}"
+                success_ticket = ticket
 
+    landing_url = (
+        reverse("assets:asset_qr_landing", kwargs={"asset_tag": fixed_asset.asset_tag}) if fixed_asset is not None else ""
+    )
+    again_url = reverse("assets:asset_quick_report")
+    if fixed_asset is not None:
+        again_url += f"?asset={fixed_asset.id}" + ("&from=qr" if from_qr else "")
+    context = {
+        "page_title": "Segnala un problema",
+        "fixed_asset": fixed_asset,
+        "asset_choices": asset_choices,
+        "categorie_man": categorie_man,
+        "default_categoria": default_categoria,
+        "priorita_choices": QUICK_REPORT_PRIORITIES,
+        "max_photos": QUICK_REPORT_MAX_PHOTOS,
+        "error": error,
+        "success_ticket": success_ticket,
+        "success_ticket_id": success_ticket.id if success_ticket is not None else None,
+        "photo_notes": photo_notes,
+        "from_qr": from_qr,
+        "landing_url": landing_url,
+        "again_url": again_url,
+    }
+    if from_qr:
+        # Come la landing QR: pagina minimale, niente sidebar/shell del modulo.
+        return render(request, "assets/pages/asset_quick_report_qr.html", context)
     return render(
         request,
         "assets/pages/asset_quick_report.html",
-        {
-            "page_title": "Segnala un problema",
-            "asset_choices": asset_choices,
-            "preselected_asset": preselected_asset,
-            "categorie_man": categorie_man,
-            "priorita_choices": priorita_choices,
-            "error": error,
-            "success_ticket_id": success_ticket_id,
-            **_assets_shell_context(request, rows=25),
-        },
+        {**context, **_assets_shell_context(request, rows=25)},
     )
-
 
 
 def _due_state(due_date, today):
@@ -18929,6 +18960,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
 
     # --- Log ---
     audit_entries = AuditLog.objects.filter(modulo="assets").order_by("-created_at")[:100]
+    studio_context = _inventory_studio_context(request) if tab == "studio" else {}
 
     return render(
         request,
@@ -18991,6 +19023,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 len(row["extra_folders"]) for row in document_folder_rows
             ),
             "document_folder_focus_id": _as_int(request.GET.get("cat"), default=0),
+            **studio_context,
             **_assets_shell_context(request),
         },
     )
@@ -19339,7 +19372,7 @@ def _dashboard_launcher(request: HttpRequest, counters: dict) -> list[dict]:
         ("hub", "Centro manutenzione", "Punto di partenza del manutentore", reverse("assets:maintenance_hub"), None, ""),
         ("todo", "Da fare", "Manutenzioni programmate aperte", reverse("assets:maintenance_da_fare"), counters.get("maintenance_overdue"), "red"),
         ("workorders", "Ordini di lavoro", "Interventi aperti e chiusi", reverse("assets:wo_list"), counters.get("wo_open"), "amber"),
-        ("shift", "Il mio turno", "Gli interventi assegnati a te", reverse("assets:il_mio_turno"), counters.get("wo_mine"), "blue"),
+        ("shift", "Il mio lavoro", "Le manutenzioni e gli interventi tuoi e di nessuno", f"{reverse('assets:maintenance_da_fare')}?mio=1", counters.get("wo_mine"), "blue"),
         ("deadlines", "Scadenzario", "Scadenze di piani, adempimenti e contratti", reverse("assets:maintenance_scadenze"), counters.get("deadlines_overdue"), "red"),
         ("plans", "Piani di manutenzione", "Cicli e frequenze per asset", reverse("assets:maintenance_plan_list"), None, ""),
         ("checks", "Verifiche impianti", "Luci di emergenza, estintori, impianti", reverse("assets:periodic_check_list"), None, ""),

@@ -169,7 +169,7 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
             <div class="woc-field woc-field--full" id="wocFollowUpField" hidden>
               <label for="{{ form.follow_up_date.id_for_label }}">{{ form.follow_up_date.label }} <span class="woc-required">*</span></label>
               {{ form.follow_up_date }}
-              <div class="woc-note">Verrà creato automaticamente un nuovo intervento di follow-up collegato a questa scadenza.</div>
+              <div class="woc-note">Verrà creato automaticamente un nuovo intervento di verifica collegato a questa scadenza.</div>
               {% if form.follow_up_date.errors %}<div class="woc-error">{{ form.follow_up_date.errors }}</div>{% endif %}
             </div>
             {% if form.resolve_ticket %}

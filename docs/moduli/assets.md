@@ -143,7 +143,23 @@ Il cambio di stato del ticket passa da un unico service (`tickets/services/stato
 
 **KPI della lista asset**: «Salute asset» = percentuale di asset non in riparazione, con giudizio Buona (≥ 90%), Da monitorare (70-89%), Critica (< 70%); la barra «Manutenzioni in scadenza» è la quota reale di interventi aperti da oltre la soglia sul totale degli aperti (il denominatore è nel tooltip, es. «1 su 4 interventi aperti»). «Rischio conformità» somma asset in riparazione e interventi aperti, unità diverse: mostra il numero e il dettaglio, senza barra.
 
+## UX operativa
+
+**Lista asset** (`/assets/lista/`): sta dentro la shell del modulo come le altre pagine (menu laterale e ricerca globale Ctrl+K comuni). Restano filtri avanzati, scelta e ridimensionamento delle colonne, selezione e modifica in blocco, etichette QR, esportazione XLSX/PDF, widget KPI. Un solo pulsante «+ Nuovo asset» apre il menu Asset generico / Macchina / Prodotto chimico.
+
+**Studio inventario** (Impostazioni → tab «Studio inventario», solo amministratori del modulo): campi personalizzati, valori delle liste, pulsanti azione della scheda, dati mostrati nel dettaglio asset, strumenti header. Categorie asset e menu laterale restano nelle loro tab. Le azioni sono le stesse di prima (stesso endpoint della lista).
+
+**«✓ Fatta oggi»** (in «Da fare», accanto a «Registra»): registra con un tap una manutenzione aperta, interna e senza documento obbligatorio, con la data di oggi e la nota «Registrata con «Fatta oggi»». Il pulsante diventa «Annulla (5)»: la registrazione parte dopo 5 secondi, un secondo tap la annulla. Per le manutenzioni con documento obbligatorio o affidate a un fornitore resta solo «Registra». Selezionando più righe, «✓ Segna come fatte oggi» registra le ammissibili e dice quante sono state escluse.
+
+**Segnala un guasto dal QR**: «Segnala guasto ora» della pagina del QR apre una pagina pensata per il telefono, senza menu: la macchina è già indicata in testa, si scrive cosa non va, si sceglie quanto è urgente (Bassa / Media / Alta) e si possono scattare fino a 3 foto (JPG o PNG). La categoria è facoltativa: se manca la segnalazione va in «Generica». Il login resta obbligatorio.
+
+**Panoramica** (`/assets/manutenzione/quadro/`): sei numeri in testa — Scadute, In scadenza 7 giorni, Non pianificate, Interventi aperti, Puntualità ultimi 90 giorni (solo con almeno 10 manutenzioni concluse dal portale), Arretrato (giorni della più vecchia scaduta). Tutti gli altri indicatori, compresi quelli della vecchia pagina KPI, sono in «Dettaglio indicatori». `/assets/manutenzione/quadro/kpi/` e `?vista=sintesi` portano lì. «Il mio turno» (`/assets/manutenzione/il-mio-turno/`) porta a «Da fare» → «Il mio lavoro».
+
+**Parole dell'interfaccia**: assegnazione (di un piano), scadenza / manutenzione, intervento (con «OdL n.» come dettaglio), intervento di verifica, vista a colonne, Panoramica, Scadenzario.
+
 ## Note di rilascio
+
+UX operativa (ottobre 2026): dopo il deploy `migrate assets` (0135 nasconde la voce «KPI» dal menu Manutenzione; 0136 solo testi, nessun SQL). Nessuna nuova tabella; nuovi URL `/assets/manutenzione/scadenze/<id>/fatta-oggi/` e `/assets/manutenzione/scadenze/fatte-oggi/` sotto il binding ACL «Scadenze manutenzione».
 
 Ticket ↔ intervento e chiusura atomica (ottobre 2026): dopo il deploy `migrate assets` (0134, backfill dell'origine «Da ticket» degli OdL già collegati a un ticket; il numero corretto viene stampato dalla migrazione). Nessuna nuova tabella.
 

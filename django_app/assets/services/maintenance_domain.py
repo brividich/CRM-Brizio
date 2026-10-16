@@ -427,7 +427,7 @@ def complete_occurrence(
     stanno nello stesso OdL.
     """
     if occurrence.status == MaintenanceOccurrence.STATUS_DONE:
-        raise OccurrenceCompletionError("L'occorrenza risulta gia' eseguita.")
+        raise OccurrenceCompletionError("La manutenzione risulta gia' eseguita.")
     if occurrence.attachment_required and not occurrence.attachments.exists():
         raise OccurrenceCompletionError(
             "Per completare questa scadenza e' obbligatorio allegare il documento aggiornato."

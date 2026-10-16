@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}{% if kpi_page %}KPI{% else %}Panoramica{% endif %} — Manutenzione{% endblock %}
+{% block title %}Panoramica — Manutenzione{% endblock %}
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}
 <style>
@@ -90,29 +90,200 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}{% if kpi_page %}KPI manutenzione{% else %}Panoramica{% endif %}{% endblock %}
+{% block assets_shell_title %}Panoramica{% endblock %}
 {% block assets_shell_subtitle %}
-  {% if kpi_page %}
-  <p>Come sta andando: puntualita', arretrato, conformita' degli adempimenti e copertura dei piani. Solo indicatori che poggiano su dati davvero compilati.</p>
-  {% else %}
-  <p>Ordinarie, amministrative, licenze e contratti in un colpo d'occhio; sotto, cosa e' scaduto e cosa e' <em>dovuto ma non ancora pianificato</em>.</p>
-  {% endif %}
+  <p>Cosa e' scaduto, cosa scade, cosa e' <em>dovuto ma non ancora pianificato</em> e come sta andando. Sotto i sei numeri principali, «Dettaglio indicatori» raccoglie tutti gli altri.</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  {% comment %}
-    In testata solo cio' che la barra di sezione non ha gia': dalla pagina KPI
-    si arriva ai report storici (budget, export, PDF).
-  {% endcomment %}
-  {% if kpi_page %}
-    <a class="btn btn-secondary" href="{% url 'assets:reports' %}?scope=production">Report e budget</a>
-  {% endif %}
+  {% comment %}In testata solo cio' che la barra di sezione non ha gia': i report storici (budget, export, PDF).{% endcomment %}
+  <a class="btn btn-secondary" href="{% url 'assets:reports' %}?scope=production">Report e budget</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">
 
-{% if vista == "sintesi" %}
+  {% comment %}Sei numeri, la risposta a «come siamo messi?»: ognuno porta alla sua lista.
+    Tutti gli altri indicatori (anche quelli della vecchia pagina KPI) sono in
+    «Dettaglio indicatori» piu' sotto.{% endcomment %}
+  <div class="md-kpis md-kpis--lead md-kpis--headline" data-panoramica-headline>
+    <a class="md-kpi {% if headline.scadute %}is-danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
+      <span class="md-kpi-label">Scadute</span><span class="md-kpi-value">{{ headline.scadute }}</span>
+      <span class="md-kpi-sub">manutenzioni oltre la scadenza</span>
+    </a>
+    <a class="md-kpi {% if headline.in_scadenza_7 %}is-warn{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=7">
+      <span class="md-kpi-label">In scadenza 7 giorni</span><span class="md-kpi-value">{{ headline.in_scadenza_7 }}</span>
+      <span class="md-kpi-sub">da oggi a una settimana</span>
+    </a>
+    <a class="md-kpi {% if headline.non_pianificate %}is-warn{% endif %}" href="#non-pianificate">
+      <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ headline.non_pianificate }}</span>
+      <span class="md-kpi-sub">dovute, senza intervento</span>
+    </a>
+    <a class="md-kpi" href="#odl-attivi">
+      <span class="md-kpi-label">Interventi aperti</span><span class="md-kpi-value">{{ headline.interventi_aperti }}</span>
+      <span class="md-kpi-sub">correttivi compresi</span>
+    </a>
+    <div class="md-kpi {% if headline.puntualita_90_pct != None and headline.puntualita_90_pct < 80 %}is-warn{% endif %}">
+      <span class="md-kpi-label">Puntualità ultimi 90 giorni</span>
+      <span class="md-kpi-value">{% if headline.puntualita_90_misurabile %}{{ headline.puntualita_90_pct }}%{% else %}n.d.{% endif %}</span>
+      <span class="md-kpi-sub">{% if headline.puntualita_90_misurabile %}{{ headline.nei_tempi_90 }} su {{ headline.concluse_90 }} nei tempi{% else %}base insufficiente: {{ headline.concluse_90 }} concluse dal portale{% endif %}</span>
+    </div>
+    <div class="md-kpi {% if headline.arretrato_giorni %}is-danger{% endif %}">
+      <span class="md-kpi-label">Arretrato</span>
+      <span class="md-kpi-value">{% if headline.arretrato_giorni %}{{ headline.arretrato_giorni }} gg{% else %}0{% endif %}</span>
+      <span class="md-kpi-sub">{% if headline.arretrato_giorni %}da tanto e' scaduta la piu' vecchia{% else %}nessun arretrato{% endif %}</span>
+    </div>
+  </div>
+
+  {% if panoramica %}
+  {% comment %}
+    Colpo d'occhio su TUTTE le scadenze (ordinarie, amministrative, licenze,
+    contratti), dalla stessa fonte di Calendario e Scadenzario. Sotto restano
+    le liste operative di sempre.
+  {% endcomment %}
+  <div class="pn-wrap">
+    <form class="pn-filters" data-tour-step="1" data-tour-title="Filtra la panoramica" data-tour-text="Scegli famiglia e reparto: riquadri, calendario e liste si restringono a quegli asset." method="get">
+      <input type="hidden" name="vista" value="operativo">
+      <label for="pn-category">Famiglia
+        <select id="pn-category" name="category" onchange="this.form.submit()">
+          <option value="">Tutte le famiglie</option>
+          {% for value, label in panoramica.category_choices %}<option value="{{ value }}"{% if value == panoramica.category_id %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label for="pn-reparto">Reparto
+        <select id="pn-reparto" name="reparto" onchange="this.form.submit()">
+          <option value="">Tutti i reparti</option>
+          {% for r in panoramica.reparti %}<option value="{{ r }}"{% if r == panoramica.reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </label>
+      <noscript><button type="submit" class="btn btn-secondary">Applica</button></noscript>
+      <div class="pn-links">
+        <a class="btn btn-secondary" href="{{ panoramica.calendario_url }}">Calendario</a>
+        <a class="btn btn-secondary" href="{{ panoramica.scadenzario_url }}">Scadenzario</a>
+      </div>
+    </form>
+
+
+    <div class="pn-grid" data-tour-step="3" data-tour-title="Le prossime settimane" data-tour-text="Quanto scade ogni giorno, le prossime scadenze in ordine e dove si concentrano per categoria.">
+      <section class="pn-panel" data-pn-heat>
+        <h2>Prossime quattro settimane <a href="{{ panoramica.calendario_url }}">apri il Calendario</a></h2>
+        <span class="pn-hint">Clicca un giorno per vedere cosa scade.</span>
+        <div class="pn-heat">
+          <span class="pn-dow">L</span><span class="pn-dow">M</span><span class="pn-dow">M</span><span class="pn-dow">G</span><span class="pn-dow">V</span><span class="pn-dow">S</span><span class="pn-dow">D</span>
+          {% for cell in panoramica.heat %}
+            <button type="button" class="pn-day l{{ cell.level }}{% if cell.past %} is-past{% endif %}{% if cell.is_today %} is-today{% endif %}"
+                    data-pn-day="{{ cell.day|date:'Y-m-d' }}" aria-pressed="false" aria-controls="pn-day-{{ cell.day|date:'Y-m-d' }}"
+                    title="{{ cell.day|date:'d/m' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}"
+                    aria-label="{{ cell.day|date:'l j F' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}">{{ cell.day|date:"j" }}</button>
+          {% endfor %}
+        </div>
+        {% for cell in panoramica.heat %}
+          <div class="pn-dayview" id="pn-day-{{ cell.day|date:'Y-m-d' }}" data-pn-dayview="{{ cell.day|date:'Y-m-d' }}" data-md-scope hidden>
+            <h3>{{ cell.day|date:"l j F"|capfirst }} <a href="{{ cell.calendar_url }}">nel Calendario</a></h3>
+            {% if can_plan and cell.selectable > 1 %}
+              <div class="pn-selectbar"><label><input type="checkbox" data-md-check-all> Seleziona tutte ({{ cell.selectable }})</label></div>
+            {% endif %}
+            {% if cell.rows %}
+              <div class="pn-list pn-list--scroll">
+                {% for row in cell.rows %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
+              </div>
+              {% if cell.more %}<span class="pn-hint">e altre {{ cell.more }}: aprile nel Calendario.</span>{% endif %}
+            {% else %}
+              <p class="pn-empty">Nessuna scadenza aperta in questo giorno.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </section>
+
+      <section class="pn-panel" data-md-scope>
+        <h2>Prossime scadenze <small>scadute e prossimi 30 giorni &middot; {{ panoramica.prossime|length }}</small></h2>
+        {% if can_plan and panoramica.prossime_selectable %}
+          <div class="pn-selectbar">
+            <label><input type="checkbox" data-md-check-all> Seleziona tutte ({{ panoramica.prossime_selectable }})</label>
+            <span class="pn-hint">Si selezionano le manutenzioni senza OdL; anche con Ctrl+clic sulla riga.</span>
+          </div>
+        {% endif %}
+        {% if panoramica.prossime %}
+          <div class="pn-list pn-list--scroll">
+            {% for row in panoramica.prossime %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
+          </div>
+          {% if panoramica.prossime_more %}<span class="pn-hint">e altre {{ panoramica.prossime_more }}:</span>{% endif %}
+          <a class="pn-hint" href="{{ panoramica.scadenzario_url }}">Tutte nello Scadenzario &rarr;</a>
+        {% else %}
+          <p class="pn-empty">Nessuna scadenza aperta nei prossimi 30 giorni.</p>
+        {% endif %}
+      </section>
+
+      <section class="pn-panel">
+        <h2>Per categoria asset <small>aperte entro 30 giorni</small></h2>
+        {% if panoramica.categories %}
+          <div class="pn-bars">
+            {% for c in panoramica.categories %}
+              <div class="pn-bar"><span>{{ c.label }}</span><span class="pn-track"><span style="width:{{ c.pct }}%"></span></span><b>{{ c.count }}</b></div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="pn-empty">Nessuna scadenza nel periodo.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+  {% endif %}
+
+  <details class="md-section" id="dettaglio" data-panoramica-dettaglio>
+    <summary class="md-section-head"><h2>Dettaglio indicatori</h2><span class="md-sub" style="display:inline">tipologie, organizzazione del lavoro, puntualità, conformità e copertura dei dati</span></summary>
+    <div class="md-dettaglio-body" style="padding:12px;display:grid;gap:12px">
+
+  {% if panoramica %}
+    <div class="pn-types" data-tour-step="2" data-tour-title="Le quattro tipologie" data-tour-text="Ordinarie, amministrative, licenze e contratti: scadute, prossimi 30 giorni e prossima. Clicca un riquadro per l&#x27;elenco.">
+      {% for t in panoramica.types %}
+        <a class="pn-type pn-k-{{ t.kind }}" href="{{ t.url }}">
+          <h3>{{ t.label }}</h3>
+          <span class="pn-row"><span>Scadute</span><b class="{% if t.overdue %}is-late{% endif %}">{{ t.overdue }}</b></span>
+          <span class="pn-row"><span>Entro 30 giorni</span><b>{{ t.due_30 }}</b></span>
+          <span class="pn-row"><span>Prossima</span><b>{% if t.next %}{{ t.next.due_date|date:"d/m" }} · {{ t.next.asset_tag|default:t.next.title|truncatechars:22 }}{% else %}&mdash;{% endif %}</b></span>
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% comment %}
+    Scadute e in scadenza sono gia' nei riquadri per tipologia qui sopra: qui
+    restano solo i numeri del lavoro (pianificazione, OdL, documenti). Ogni
+    riquadro porta alla sezione che lo spiega.
+  {% endcomment %}
+  <div class="md-kpis md-kpis--lead" data-tour-step="4" data-tour-title="Il lavoro da organizzare" data-tour-text="Manutenzioni senza ordine di lavoro, OdL aperti, rapporti mancanti: ogni numero porta alla sua lista qui sotto.">
+    <a class="md-kpi is-warn" href="#non-pianificate">
+      <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>
+      <span class="md-kpi-sub">dovute, senza OdL</span>
+    </a>
+    <a class="md-kpi" href="#odl-attivi">
+      <span class="md-kpi-label">Interventi aperti</span><span class="md-kpi-value">{{ kpi.workorders_open }}</span>
+      <span class="md-kpi-sub">{{ kpi.workorders_running }} in corso</span>
+    </a>
+    <a class="md-kpi is-warn" href="#rapporti-mancanti">
+      <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
+      <span class="md-kpi-sub">eseguite ma non documentate</span>
+    </a>
+    <div class="md-kpi">
+      <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
+      <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
+    </div>
+  </div>
+
+  <div class="md-kpis md-kpis--sub">
+    <a class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}" href="#odl-anziani">
+      <span class="md-kpi-label">Aperti da oltre {{ wo_overdue_days }} giorni</span><span class="md-kpi-value">{{ kpi.workorders_overdue }}</span>
+      <span class="md-kpi-sub">anzianita', non una scadenza</span>
+    </a>
+    <a class="md-kpi" href="#follow-up">
+      <span class="md-kpi-label">Interventi di verifica aperti</span><span class="md-kpi-value">{{ kpi.follow_ups }}</span>
+      <span class="md-kpi-sub">da verificare</span>
+    </a>
+    <a class="md-kpi {% if kpi.conflicts %}is-warn{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
+      <span class="md-kpi-label">Conflitti</span><span class="md-kpi-value">{{ kpi.conflicts }}</span>
+      <span class="md-kpi-sub">periodicita in contrasto</span>
+    </a>
+  </div>
 
   {% if conformita %}
   <div class="md-kpis">
@@ -256,157 +427,9 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       mostrato qui sarebbe inventato al ribasso.</span>
     </div>
   </section>
-
-  <div class="ms-note">
-    Questa e' la lettura di andamento. Le liste operative &mdash; cosa e' scaduto, quali ordini di lavoro
-    sono aperti, chi ha troppo carico &mdash; sono nella <a href="{% url 'assets:maintenance_responsabile' %}">Panoramica</a>.
-  </div>
-
-{% else %}
-
-  {% if panoramica %}
-  {% comment %}
-    Colpo d'occhio su TUTTE le scadenze (ordinarie, amministrative, licenze,
-    contratti), dalla stessa fonte di Calendario e Scadenzario. Sotto restano
-    le liste operative di sempre.
-  {% endcomment %}
-  <div class="pn-wrap">
-    <form class="pn-filters" data-tour-step="1" data-tour-title="Filtra la panoramica" data-tour-text="Scegli famiglia e reparto: riquadri, calendario e liste si restringono a quegli asset." method="get">
-      <input type="hidden" name="vista" value="operativo">
-      <label for="pn-category">Famiglia
-        <select id="pn-category" name="category" onchange="this.form.submit()">
-          <option value="">Tutte le famiglie</option>
-          {% for value, label in panoramica.category_choices %}<option value="{{ value }}"{% if value == panoramica.category_id %} selected{% endif %}>{{ label }}</option>{% endfor %}
-        </select>
-      </label>
-      <label for="pn-reparto">Reparto
-        <select id="pn-reparto" name="reparto" onchange="this.form.submit()">
-          <option value="">Tutti i reparti</option>
-          {% for r in panoramica.reparti %}<option value="{{ r }}"{% if r == panoramica.reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
-        </select>
-      </label>
-      <noscript><button type="submit" class="btn btn-secondary">Applica</button></noscript>
-      <div class="pn-links">
-        <a class="btn btn-secondary" href="{{ panoramica.calendario_url }}">Calendario</a>
-        <a class="btn btn-secondary" href="{{ panoramica.scadenzario_url }}">Scadenzario</a>
-      </div>
-    </form>
-
-    <div class="pn-types" data-tour-step="2" data-tour-title="Le quattro tipologie" data-tour-text="Ordinarie, amministrative, licenze e contratti: scadute, prossimi 30 giorni e prossima. Clicca un riquadro per l&#x27;elenco.">
-      {% for t in panoramica.types %}
-        <a class="pn-type pn-k-{{ t.kind }}" href="{{ t.url }}">
-          <h3>{{ t.label }}</h3>
-          <span class="pn-row"><span>Scadute</span><b class="{% if t.overdue %}is-late{% endif %}">{{ t.overdue }}</b></span>
-          <span class="pn-row"><span>Entro 30 giorni</span><b>{{ t.due_30 }}</b></span>
-          <span class="pn-row"><span>Prossima</span><b>{% if t.next %}{{ t.next.due_date|date:"d/m" }} · {{ t.next.asset_tag|default:t.next.title|truncatechars:22 }}{% else %}&mdash;{% endif %}</b></span>
-        </a>
-      {% endfor %}
     </div>
+  </details>
 
-    <div class="pn-grid" data-tour-step="3" data-tour-title="Le prossime settimane" data-tour-text="Quanto scade ogni giorno, le prossime scadenze in ordine e dove si concentrano per categoria.">
-      <section class="pn-panel" data-pn-heat>
-        <h2>Prossime quattro settimane <a href="{{ panoramica.calendario_url }}">apri il Calendario</a></h2>
-        <span class="pn-hint">Clicca un giorno per vedere cosa scade.</span>
-        <div class="pn-heat">
-          <span class="pn-dow">L</span><span class="pn-dow">M</span><span class="pn-dow">M</span><span class="pn-dow">G</span><span class="pn-dow">V</span><span class="pn-dow">S</span><span class="pn-dow">D</span>
-          {% for cell in panoramica.heat %}
-            <button type="button" class="pn-day l{{ cell.level }}{% if cell.past %} is-past{% endif %}{% if cell.is_today %} is-today{% endif %}"
-                    data-pn-day="{{ cell.day|date:'Y-m-d' }}" aria-pressed="false" aria-controls="pn-day-{{ cell.day|date:'Y-m-d' }}"
-                    title="{{ cell.day|date:'d/m' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}"
-                    aria-label="{{ cell.day|date:'l j F' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}">{{ cell.day|date:"j" }}</button>
-          {% endfor %}
-        </div>
-        {% for cell in panoramica.heat %}
-          <div class="pn-dayview" id="pn-day-{{ cell.day|date:'Y-m-d' }}" data-pn-dayview="{{ cell.day|date:'Y-m-d' }}" data-md-scope hidden>
-            <h3>{{ cell.day|date:"l j F"|capfirst }} <a href="{{ cell.calendar_url }}">nel Calendario</a></h3>
-            {% if can_plan and cell.selectable > 1 %}
-              <div class="pn-selectbar"><label><input type="checkbox" data-md-check-all> Seleziona tutte ({{ cell.selectable }})</label></div>
-            {% endif %}
-            {% if cell.rows %}
-              <div class="pn-list pn-list--scroll">
-                {% for row in cell.rows %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
-              </div>
-              {% if cell.more %}<span class="pn-hint">e altre {{ cell.more }}: aprile nel Calendario.</span>{% endif %}
-            {% else %}
-              <p class="pn-empty">Nessuna scadenza aperta in questo giorno.</p>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </section>
-
-      <section class="pn-panel" data-md-scope>
-        <h2>Prossime scadenze <small>scadute e prossimi 30 giorni &middot; {{ panoramica.prossime|length }}</small></h2>
-        {% if can_plan and panoramica.prossime_selectable %}
-          <div class="pn-selectbar">
-            <label><input type="checkbox" data-md-check-all> Seleziona tutte ({{ panoramica.prossime_selectable }})</label>
-            <span class="pn-hint">Si selezionano le manutenzioni senza OdL; anche con Ctrl+clic sulla riga.</span>
-          </div>
-        {% endif %}
-        {% if panoramica.prossime %}
-          <div class="pn-list pn-list--scroll">
-            {% for row in panoramica.prossime %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
-          </div>
-          {% if panoramica.prossime_more %}<span class="pn-hint">e altre {{ panoramica.prossime_more }}:</span>{% endif %}
-          <a class="pn-hint" href="{{ panoramica.scadenzario_url }}">Tutte nello Scadenzario &rarr;</a>
-        {% else %}
-          <p class="pn-empty">Nessuna scadenza aperta nei prossimi 30 giorni.</p>
-        {% endif %}
-      </section>
-
-      <section class="pn-panel">
-        <h2>Per categoria asset <small>aperte entro 30 giorni</small></h2>
-        {% if panoramica.categories %}
-          <div class="pn-bars">
-            {% for c in panoramica.categories %}
-              <div class="pn-bar"><span>{{ c.label }}</span><span class="pn-track"><span style="width:{{ c.pct }}%"></span></span><b>{{ c.count }}</b></div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="pn-empty">Nessuna scadenza nel periodo.</p>
-        {% endif %}
-      </section>
-    </div>
-  </div>
-  {% endif %}
-
-  {% comment %}
-    Scadute e in scadenza sono gia' nei riquadri per tipologia qui sopra: qui
-    restano solo i numeri del lavoro (pianificazione, OdL, documenti). Ogni
-    riquadro porta alla sezione che lo spiega.
-  {% endcomment %}
-  <div class="md-kpis md-kpis--lead" data-tour-step="4" data-tour-title="Il lavoro da organizzare" data-tour-text="Manutenzioni senza ordine di lavoro, OdL aperti, rapporti mancanti: ogni numero porta alla sua lista qui sotto.">
-    <a class="md-kpi is-warn" href="#non-pianificate">
-      <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>
-      <span class="md-kpi-sub">dovute, senza OdL</span>
-    </a>
-    <a class="md-kpi" href="#odl-attivi">
-      <span class="md-kpi-label">OdL aperti</span><span class="md-kpi-value">{{ kpi.workorders_open }}</span>
-      <span class="md-kpi-sub">{{ kpi.workorders_running }} in corso</span>
-    </a>
-    <a class="md-kpi is-warn" href="#rapporti-mancanti">
-      <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
-      <span class="md-kpi-sub">eseguite ma non documentate</span>
-    </a>
-    <div class="md-kpi">
-      <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
-      <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
-    </div>
-  </div>
-
-  <div class="md-kpis md-kpis--sub">
-    <a class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}" href="#odl-anziani">
-      <span class="md-kpi-label">Aperti da oltre {{ wo_overdue_days }} giorni</span><span class="md-kpi-value">{{ kpi.workorders_overdue }}</span>
-      <span class="md-kpi-sub">anzianita', non una scadenza</span>
-    </a>
-    <a class="md-kpi" href="#follow-up">
-      <span class="md-kpi-label">Follow-up aperti</span><span class="md-kpi-value">{{ kpi.follow_ups }}</span>
-      <span class="md-kpi-sub">da verificare</span>
-    </a>
-    <a class="md-kpi {% if kpi.conflicts %}is-warn{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
-      <span class="md-kpi-label">Conflitti</span><span class="md-kpi-value">{{ kpi.conflicts }}</span>
-      <span class="md-kpi-sub">periodicita in contrasto</span>
-    </a>
-  </div>
 
   {% comment %}
     Una sezione vuota non deve occupare mezza schermata con una tabella che ha
@@ -533,7 +556,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
   </details>
 
   <details class="md-section{% if not follow_ups %} is-empty{% endif %}" id="follow-up" open data-md-collapsible>
-    <summary class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></summary>
+    <summary class="md-section-head"><h2>Interventi di verifica aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></summary>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
         <thead><tr>{% if can_bulk_workorders %}<th style="width:34px"><input type="checkbox" data-wo-check-all aria-label="Seleziona tutti"></th>{% endif %}<th>OdL</th><th>Asset</th><th>Anomalia</th><th>Emersa durante</th><th>Aperto il</th></tr></thead>
@@ -548,7 +571,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
               <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="{% if can_bulk_workorders %}6{% else %}5{% endif %}" class="md-empty">Nessun follow-up aperto.</td></tr>
+            <tr><td colspan="{% if can_bulk_workorders %}6{% else %}5{% endif %}" class="md-empty">Nessun intervento di verifica aperto.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -572,13 +595,22 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     </details>
   {% endif %}
 
-{% endif %}
 <div class="md-bulk-dock">
   {% include "assets/components/_occurrence_bulk_bar.html" %}
-  {% if vista != "sintesi" %}{% include "assets/components/_workorder_bulk_bar.html" %}{% endif %}
+  {% include "assets/components/_workorder_bulk_bar.html" %}
 </div>
 </div>
 <script>
+(function () {
+  /* #dettaglio (anche dai vecchi link alla pagina KPI) apre «Dettaglio indicatori». */
+  function openDettaglio() {
+    if (window.location.hash !== "#dettaglio") { return; }
+    var box = document.getElementById("dettaglio");
+    if (box) { box.open = true; box.scrollIntoView({ block: "start" }); }
+  }
+  openDettaglio();
+  window.addEventListener("hashchange", openDettaglio);
+})();
 (function () {
   /* Giorni della griglia: un clic apre l'elenco del giorno, un secondo clic lo chiude. */
   var heat = document.querySelector("[data-pn-heat]");

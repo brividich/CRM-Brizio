@@ -68,7 +68,7 @@
                   {% else %}
                     Nessun assegnatario
                   {% endif %}
-                  · <a href="{% url 'assets:wo_view' occ.work_order_id %}">OdL #{{ occ.work_order_id }}</a>
+                  · <a href="{% url 'assets:wo_view' occ.work_order_id %}">Intervento</a> <span class="md-sub" style="display:inline">OdL n. {{ occ.work_order_id }}</span>
                   {% if occ.execution_day_id %} · {{ occ.execution_day.execution_date|date:"d/m" }}{% endif %}
                 </span>
               {% else %}
@@ -80,6 +80,9 @@
           <td class="md-right md-nowrap">
             {% if occ.status == "OPEN" %}
               <a class="btn btn-sm btn-primary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+              {% if can_execute and occ.quick_complete_allowed %}
+                <button type="button" class="btn btn-sm btn-secondary md-quick" data-md-quick="{% url 'assets:occurrence_quick_complete' occ.pk %}" data-md-quick-cols="{% if selectable %}5{% else %}4{% endif %}" title="Registra oggi, senza note: hai 5 secondi per annullare">&#10003; Fatta oggi</button>
+              {% endif %}
             {% elif not occ.attachments.all %}
               <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
             {% else %}
@@ -104,7 +107,7 @@
         {% if show_plan %}<th>Piano</th>{% endif %}
         <th>Asset</th>
         <th>Stato</th>
-        <th>Ordine di lavoro</th>
+        <th>Intervento</th>
         <th class="md-right">Azioni</th>
       </tr>
     </thead>
@@ -146,7 +149,7 @@
           </td>
           <td class="md-nowrap">
             {% if occ.work_order_id %}
-              <a href="{% url 'assets:wo_view' occ.work_order_id %}">OdL #{{ occ.work_order_id }}</a>
+              <a href="{% url 'assets:wo_view' occ.work_order_id %}">Intervento</a><span class="md-sub">OdL n. {{ occ.work_order_id }}</span>
               {% if occ.execution_day_id %}<span class="md-sub">{{ occ.execution_day.execution_date|date:"d/m" }}</span>{% endif %}
             {% else %}
               <span class="md-sub">Da pianificare</span>
@@ -155,6 +158,9 @@
           <td class="md-right md-nowrap">
             {% if occ.status == "OPEN" %}
               <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+              {% if can_execute and occ.quick_complete_allowed %}
+                <button type="button" class="btn btn-sm btn-secondary md-quick" data-md-quick="{% url 'assets:occurrence_quick_complete' occ.pk %}" data-md-quick-cols="{% if selectable %}{% if show_plan %}7{% else %}6{% endif %}{% else %}{% if show_plan %}6{% else %}5{% endif %}{% endif %}" title="Registra oggi, senza note: hai 5 secondi per annullare">&#10003; Fatta oggi</button>
+              {% endif %}
             {% elif not occ.attachments.all %}
               <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
             {% else %}

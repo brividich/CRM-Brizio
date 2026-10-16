@@ -434,6 +434,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     <a href="?tab=config" class="ga-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
     <a href="?tab=sidebar" class="ga-tab {% if tab == 'sidebar' %}active{% endif %}">Sidebar</a>
     <a href="?tab=categorie" class="ga-tab {% if tab == 'categorie' %}active{% endif %}">Categorie asset</a>
+    <a href="?tab=studio" class="ga-tab {% if tab == 'studio' %}active{% endif %}">Studio inventario</a>
     <a href="?tab=cartelle" class="ga-tab {% if tab == 'cartelle' %}active{% endif %}">Cartelle documento</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
     <a href="?tab=ticket" class="ga-tab {% if tab == 'ticket' %}active{% endif %}">Categorie Ticket</a>
@@ -1441,6 +1442,17 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 
 
   {# ========== TAB CARTELLE DOCUMENTO ========== #}
+  {% if tab == 'studio' %}
+  {% comment %}Ex «Studio amministratore» della lista asset: campi, liste, pulsanti azione,
+    dettaglio e strumenti header. Categorie e menu laterale restano nelle loro tab.{% endcomment %}
+  {% if studio_can_manage %}
+    {% include "assets/partials/inventory_studio.html" %}
+  {% else %}
+    <div class="card"><div class="card-head"><h3 class="card-title">Studio inventario</h3></div>
+      <p class="muted-note" style="padding:0 16px 16px">Le modifiche a campi, liste, pulsanti e dettaglio asset sono riservate agli amministratori del modulo Asset.</p></div>
+  {% endif %}
+  {% endif %}
+
   {% if tab == 'cartelle' %}
   <div class="card" style="margin-bottom:14px;">
     <div class="card-body">

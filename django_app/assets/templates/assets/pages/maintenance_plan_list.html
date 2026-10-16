@@ -6,7 +6,7 @@
 
 {% block assets_shell_title %}Piani di manutenzione{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>Un piano dice <em>cosa</em> va fatto. Dove e con che tempi lo dicono le sue applicazioni: lo stesso piano puo' valere su gruppi diversi con periodicita' diverse.</p>
+  <p>Un piano dice <em>cosa</em> va fatto. Dove e con che tempi lo dicono le sue assegnazioni: lo stesso piano puo' valere su gruppi diversi con periodicita' diverse.</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
@@ -41,7 +41,7 @@
             <tr>
               <td>
                 <a class="md-asset" href="{% url 'assets:maintenance_plan_detail' row.plan.pk %}">{{ row.plan.label }}</a>
-                <span class="md-sub">{{ row.plan.assignment_count }} applicazion{{ row.plan.assignment_count|pluralize:"e,i" }}</span>
+                <span class="md-sub">{{ row.plan.assignment_count }} assegnazion{{ row.plan.assignment_count|pluralize:"e,i" }}</span>
               </td>
               <td>
                 {{ row.plan.get_maintenance_type_display }}
@@ -65,7 +65,7 @@
                 {% for recurrence in row.recurrences %}
                   <span class="md-badge badge-muted">{{ recurrence }}</span>
                 {% empty %}
-                  <span class="md-sub">nessuna applicazione attiva</span>
+                  <span class="md-sub">nessuna assegnazione attiva</span>
                 {% endfor %}
               </td>
               <td>

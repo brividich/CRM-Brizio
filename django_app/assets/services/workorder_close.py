@@ -231,16 +231,16 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
                 kind=workorder.kind,
                 origin=WorkOrder.ORIGIN_MANUAL,
                 assigned_to=workorder.assigned_to,
-                title=f"Follow-up: {workorder.title}",
+                title=f"Verifica: {workorder.title}",
                 description=(
-                    f"Verifica di follow-up dell'intervento #{workorder.id}, "
+                    f"Intervento di verifica dell'intervento #{workorder.id}, "
                     f"risolto temporaneamente il {timezone.localtime(workorder.closed_at):%d/%m/%Y}."
                 ),
                 follow_up_of=workorder,
             )
             WorkOrderLog.objects.create(
                 work_order=follow_up,
-                note=f"Creato come follow-up dell'intervento #{workorder.id}.",
+                note=f"Creato come intervento di verifica dell'intervento #{workorder.id}.",
                 author=author,
             )
 
@@ -279,7 +279,7 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
         closure_note = f"Intervento non risolto, resta aperto · esito: {workorder.get_outcome_display()}."
     if follow_up is not None:
         closure_note = (
-            f"{closure_note} Follow-up #{follow_up.id} creato "
+            f"{closure_note} Intervento di verifica #{follow_up.id} creato "
             f"(verifica entro il {workorder.follow_up_date:%d/%m/%Y})."
         )
     if assignee_changed:
@@ -319,7 +319,7 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
     else:
         success = "Intervento registrato come non risolto: resta aperto."
     if follow_up is not None:
-        success = f"{success} Creato il follow-up #{follow_up.id}."
+        success = f"{success} Creato l'intervento di verifica #{follow_up.id}."
     if ticket_resolved:
         success = f"{success} La segnalazione {workorder.ticket.numero_ticket} e' ora Risolta."
     messages = [success]

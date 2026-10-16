@@ -1,66 +1,16 @@
-{% extends "core/base.html" %}
+{% extends "assets/base_shell.html" %}
 {% load safe_json %}
 {% load assets_extras %}
 {% load static %}
 
-{% block title %}Cruscotto inventario asset{% endblock %}
+{% block title %}{{ page_title|default:'Inventario asset' }}{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="{% static 'assets/css/status_badge.css' %}">
+{% block assets_shell_head %}
 <style>
-.content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
-.dash { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
-.side { align-self: stretch; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; }
-.brand { display: flex; align-items: center; gap: 10px; }
-.logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
-.logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
-.brand-link { text-decoration: none; display: flex; align-items: center; gap: 10px; }
-.name { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; }
-.name span { color: #1f64d8; }
-.menu { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
-.menu-filter { position: relative; display: flex; align-items: center; }
-.menu-filter input {
-  width: 100%; height: 30px; border: 1px solid #dbe3f0; border-radius: 8px; background: #fff;
-  padding: 0 26px; font-family: inherit; font-size: var(--fs-xs); color: #24395e; outline: none;
-}
-.menu-filter input:focus { border-color: #93b4e8; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
-.menu-filter input::-webkit-search-cancel-button { display: none; }
-.menu-filter-icon { position: absolute; left: 8px; font-size: var(--fs-2xs); color: #8ea2bf; pointer-events: none; }
-.menu-filter-clear {
-  position: absolute; right: 4px; width: 20px; height: 20px; border: 0; border-radius: 6px;
-  background: transparent; color: #8ea2bf; cursor: pointer; line-height: 1; font-size: var(--fs-sm);
-}
-.menu-filter-clear:hover { background: #edf3fc; color: #1f64d8; }
-.menu-empty { margin: 8px 4px; font-size: var(--fs-xs); color: #8ea2bf; }
-.menu [hidden] { display: none !important; }
-body.theme-dark .menu-filter input { background: var(--surface); border-color: var(--border); color: var(--text); }
-body.theme-dark .menu-filter-icon, body.theme-dark .menu-empty, body.theme-dark .menu-filter-clear { color: var(--text-light); }
-body.theme-dark .menu-filter-clear:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
-.mh { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
-.ma, .ms { display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 5px 8px; font-weight: 600; line-height: 1.1; font-size: var(--fs-sm); }
-.ma:hover, .ms:hover { background: #edf3fc; }
-.ma.active, .ms.active { background: #dce8fb; color: #1f64d8; }
-.ms { font-size: var(--fs-xs); color: #5f7698; padding-left: 18px; }
-/* Gruppi sidebar espandibili (allineati a base_shell.html) */
-.li-nav-group { display: flex; flex-direction: column; }
-.li-nav-parent { display: flex; align-items: center; gap: 2px; }
-.li-nav-parent .ma { flex: 1; min-width: 0; }
-.li-nav-toggle { background: none; border: 0; cursor: pointer; padding: 4px 6px; color: #8ea2bf; display: inline-flex; align-items: center; border-radius: 6px; }
-.li-nav-toggle:hover { background: #edf3fc; color: #1f64d8; }
-.li-nav-arrow { display: inline-block; transition: transform .15s; font-weight: 700; line-height: 1; }
-.li-nav-group.open .li-nav-arrow { transform: rotate(90deg); }
-.li-nav-children { display: none; padding-left: 8px; flex-direction: column; gap: 2px; }
-.li-nav-group.open .li-nav-children { display: flex; }
-body.theme-dark .li-nav-toggle { color: var(--text-mid); }
-body.theme-dark .li-nav-toggle:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
-.user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
-.av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 700; }
-.main { min-width: 0; padding: 12px; display: grid; gap: 10px; align-content: start; }
-.top { display: flex; gap: 8px; align-items: center; }
-.search { flex: 1; display: flex; gap: 8px; align-items: center; height: 46px; border: 1px solid #dbe3f0; border-radius: 11px; background: #edf2f9; padding: 0 11px; }
-.search input { border: none; background: transparent; outline: none; width: 100%; font-size: var(--fs-title-sm); color: #1f3559; font-family: 'Outfit', sans-serif; }
-.ib, .tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #f8fbff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
-.ib:hover, .tool:hover { background: #edf3fc; }
+.ib,
+.tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #f8fbff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
+.ib:hover,
+.tool:hover { background: #edf3fc; }
 .tool.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
 .tool-wide { width: auto; padding: 0 12px; gap: 8px; font-weight: 700; color: #1f4fa3; }
 .nb { background: #1f64d8; color: #fff; border: 1px solid #1f64d8; border-radius: 10px; padding: 10px 14px; text-decoration: none; font-weight: 700; }
@@ -89,7 +39,8 @@ body.theme-dark .li-nav-toggle:hover { background: rgba(255,255,255,.07); color:
 .col-admin .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .tw { overflow: auto; }
 .tbl { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; min-width: 1180px; }
-.tbl th, .tbl td { padding: 9px 10px; border-bottom: 1px solid #e7edf6; text-align: left; vertical-align: middle; }
+.tbl th,
+.tbl td { padding: 9px 10px; border-bottom: 1px solid #e7edf6; text-align: left; vertical-align: middle; }
 .tbl td { font-size: var(--fs-base); line-height: 1.25; color:#24395e; }
 .tbl th { font-size: var(--fs-2xs); text-transform: uppercase; color: #6f84a3; background: #f8fbff; position: sticky; top: 0; z-index: 2; letter-spacing: .04em; }
 .tbl th[data-col] { cursor: grab; }
@@ -153,122 +104,37 @@ body.theme-dark .li-nav-toggle:hover { background: rgba(255,255,255,.07); color:
 .dot.critical { background: #ef4444; }
 .dot.mai { background: #94a3b8; }
 .snmp-dot { display:inline-block; vertical-align:middle; margin:0 6px 2px 0; }
-/* Pallino SNMP: i temi scuri ridefiniscono .ok come pill trasparente, qui serve il colore pieno. */
-.dot.snmp-dot.ok, body.theme-dark .dot.snmp-dot.ok { background:#22c55e; }
-.dot.snmp-dot.warning, body.theme-dark .dot.snmp-dot.warning { background:#f59e0b; }
-.dot.snmp-dot.critical, body.theme-dark .dot.snmp-dot.critical { background:#ef4444; }
-.dot.snmp-dot.mai, body.theme-dark .dot.snmp-dot.mai { background:#94a3b8; }
+.dot.snmp-dot.ok,
+body.theme-dark .dot.snmp-dot.ok { background:#22c55e; }
+.dot.snmp-dot.warning,
+body.theme-dark .dot.snmp-dot.warning { background:#f59e0b; }
+.dot.snmp-dot.critical,
+body.theme-dark .dot.snmp-dot.critical { background:#ef4444; }
+.dot.snmp-dot.mai,
+body.theme-dark .dot.snmp-dot.mai { background:#94a3b8; }
 .ad { margin: 4px 0 0 14px; color: #7088a8; font-size: var(--fs-sm); }
 .tm { margin: 4px 0 0 14px; color: #90a3bd; font-size: var(--fs-xs); }
-.admin { padding: 10px 12px; color: #56739d; font-size: var(--fs-base); }
-.assets-messages { display: grid; gap: 8px; }
-.assets-message { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; font-size: var(--fs-base); }
-.assets-message-success { border-color: #86efac; background: #f0fdf4; color: #166534; }
-.assets-message-error, .assets-message-danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
-.assets-message-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
-.admin-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
-.admin-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid #dbe3f0; display: grid; gap: 10px; }
-.admin-form { display: grid; gap: 8px; border: 1px solid #dbe3f0; border-radius: 10px; padding: 10px; background: #f8fbff; }
-.admin-row { display: grid; grid-template-columns: 1fr 150px 110px 110px 120px; gap: 8px; align-items: end; }
-.admin-row .checkline { font-size: var(--fs-sm); color: #4f6688; }
-.admin-list { display: grid; gap: 8px; max-height: 320px; overflow: auto; }
-.admin-item { border: 1px solid #e1e8f3; border-radius: 10px; padding: 8px; background: #fff; display: grid; gap: 8px; }
-.admin-item-row { display: grid; grid-template-columns: 1fr 140px 95px 90px 105px auto auto; gap: 8px; align-items: end; }
-.admin-tab-btn { border: 1px solid #d8e2f2; background: #fff; color: #27466f; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
-.admin-tab-btn:hover { background: #edf3fc; }
-.admin-help-btn { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
-.admin-section { scroll-margin-top: 80px; }
-.admin-hint { font-size: var(--fs-sm); color: #64748b; }
-.admin-metrics { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; margin-top:10px; }
-.admin-metric { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; }
-.admin-metric .n { font-size: var(--fs-title-lg); font-weight:800; color:#0f172a; line-height:1; }
-.admin-metric .l { margin-top:4px; font-size: var(--fs-xs); color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
-.admin-checks { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; margin-top:8px; display:grid; gap:6px; }
-.admin-checks .ok { color:#15803d; font-size: var(--fs-sm); font-weight:700; }
-.admin-checks .warn { color:#92400e; font-size: var(--fs-sm); }
-.admin-ops { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
-#admin-asset-categories > .admin-form:not(:first-of-type),
-#admin-asset-categories > .admin-list {
-  display: none;
+@media (max-width: 1200px) {
+  .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stack { grid-template-columns: 1fr; }
 }
-#admin-sidebar-buttons .admin-form { gap: 6px; }
-#admin-sidebar-buttons .admin-row,
-#admin-sidebar-buttons .admin-item-row {
-  grid-template-columns: minmax(200px, 1.3fr) minmax(170px, 1fr) minmax(220px, 1.2fr) 100px;
-  gap: 8px;
+@media (max-width: 760px) {
+  .kpi { grid-template-columns: 1fr; }
+  .fg { grid-template-columns: 1fr; }
+  .tbl { min-width: 760px; }
 }
-#admin-sidebar-buttons .admin-list { gap: 10px; max-height: none; }
-#admin-sidebar-buttons .admin-item { padding: 10px; gap: 6px; }
-#admin-sidebar-buttons .admin-row > .field:nth-of-type(7),
-#admin-sidebar-buttons .admin-row > .field:nth-of-type(8),
-#admin-sidebar-buttons .admin-item-row > .field:nth-of-type(7),
-#admin-sidebar-buttons .admin-item-row > .field:nth-of-type(8) {
-  grid-column: span 2;
+@media (max-width: 980px) {
+  .widget-manager-row { grid-template-columns: 1fr; }
 }
-#admin-sidebar-buttons .admin-row > div:last-child,
-#admin-sidebar-buttons .admin-item-row > div:last-child {
-  display: flex;
-  justify-content: flex-end;
-}
-#admin-sidebar-buttons .admin-row .checkline,
-#admin-sidebar-buttons .admin-item-row .checkline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-sm);
-  color: #4f6688;
-}
-#admin-sidebar-buttons .admin-item + form {
-  margin-top: -2px !important;
-  display: flex;
-  justify-content: flex-end;
-}
-.admin-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 1400; display: none; align-items: center; justify-content: center; padding: 20px; }
-.admin-modal-backdrop.show { display: flex; }
-.admin-modal { width: min(860px, 96vw); max-height: calc(86 * var(--vh, 1vh)); overflow: auto; border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .35); }
-.admin-modal-head { position: sticky; top: 0; background: #f8fbff; border-bottom: 1px solid #dbe3f0; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
-.admin-modal-body { padding: 12px; display: grid; gap: 10px; color: #304a6c; font-size: var(--fs-base); }
-.admin-close { border: 1px solid #d8e2f2; background: #fff; color: #4c6281; border-radius: 8px; padding: 5px 8px; cursor: pointer; }
-.admin-studio-modal { width: min(1580px, 98vw); max-height: calc(90 * var(--vh, 1vh)); }
-.admin-studio-modal .admin-modal-body { padding: 12px; }
-#adminTutorialModal { z-index: 1500; }
-body.admin-studio-open { overflow: hidden; }
-@media (max-width: 1400px) {
-  .admin-row, .admin-item-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 1100px) {
-  #admin-sidebar-buttons .admin-row,
-  #admin-sidebar-buttons .admin-item-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #admin-sidebar-buttons .admin-row > .field:nth-of-type(7),
-  #admin-sidebar-buttons .admin-row > .field:nth-of-type(8),
-  #admin-sidebar-buttons .admin-item-row > .field:nth-of-type(7),
-  #admin-sidebar-buttons .admin-item-row > .field:nth-of-type(8) { grid-column: auto; }
-  #admin-sidebar-buttons .admin-row > div:last-child,
-  #admin-sidebar-buttons .admin-item-row > div:last-child { grid-column: 2; }
-}
-@media (max-width: 1200px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stack { grid-template-columns: 1fr; } }
-@media (max-width: 980px) { .dash { grid-template-columns: 1fr; } .side { border-right: none; border-bottom: 1px solid #dbe3f0; } .user { display: none; } }
-@media (max-width: 760px) { .top { flex-direction: column; align-items: stretch; } .kpi { grid-template-columns: 1fr; } .fg { grid-template-columns: 1fr; } .tbl { min-width: 760px; } }
-@media (max-width: 680px) {
-  #admin-sidebar-buttons .admin-row,
-  #admin-sidebar-buttons .admin-item-row { grid-template-columns: 1fr; }
-  #admin-sidebar-buttons .admin-row > div:last-child,
-  #admin-sidebar-buttons .admin-item-row > div:last-child { grid-column: auto; justify-content: flex-start; }
-}
-@media (max-width: 680px) { .admin-metrics { grid-template-columns: 1fr; } }
-@media (max-width: 980px) { .widget-manager-row { grid-template-columns: 1fr; } }
-/* Header action group & floating panels */
 .hdr-acts { display: flex; gap: 6px; align-items: center; position: relative; }
 .hdr-panel { position: absolute; right: 0; top: calc(100% + 8px); width: 590px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 8px 28px rgba(15,23,42,.16); z-index: 300; padding: 12px; }
 .hdr-panel-sm { width: 340px; }
-.tool svg, .ib svg { pointer-events: none; width: 18px; height: 18px; }
-/* Bulk selection */
+.tool svg,
+.ib svg { pointer-events: none; width: 18px; height: 18px; }
 .r.row-selected { background: #eff6ff !important; }
 .r.row-selected:hover { background: #dbeafe !important; }
 .bulk-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; font-size: var(--fs-base); flex-wrap: wrap; }
 .bulk-count { font-weight: 700; color: #1e40af; }
-/* Bulk edit modal */
 .bulk-modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 1600; display: none; align-items: center; justify-content: center; padding: 20px; }
 .bulk-modal-backdrop.show { display: flex; }
 .bulk-modal { width: min(480px, 96vw); border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15,23,42,.35); overflow: hidden; }
@@ -277,7 +143,6 @@ body.admin-studio-open { overflow: hidden; }
 .bulk-field-row { display: grid; grid-template-columns: 20px 130px 1fr; gap: 8px; align-items: center; font-size: var(--fs-base); }
 .bulk-field-row label { font-weight: 600; color: #334e77; }
 .bulk-modal-foot { padding: 10px 14px; border-top: 1px solid #dbe3f0; display: flex; justify-content: flex-end; gap: 8px; }
-/* Custom KPI card in widget manager */
 .wm-custom-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid #f0f4fa; margin-top: 2px; }
 .wm-remove-btn { border: none; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; flex-shrink: 0; }
 .wm-remove-btn:hover { background: #fecaca; }
@@ -286,22 +151,10 @@ body.admin-studio-open { overflow: hidden; }
 .wm-add-form { border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px; background: #f8fbff; display: grid; gap: 6px; margin-top: 4px; }
 .wm-add-form label { font-size: var(--fs-xs); font-weight: 600; color: #334e77; }
 .wm-add-form .input { min-height: 28px; font-size: var(--fs-sm); }
-
-/* ── Dark mode ──────────────────────────────────────────────────────────── */
-body.theme-dark .dash { background:var(--bg); border-color:var(--border); }
-body.theme-dark .side { background:var(--surface); border-color:var(--border); }
-body.theme-dark .name { color:var(--text); }
-body.theme-dark .name span { color:#60a5fa; }
-body.theme-dark .mh { color:var(--text-light); }
-body.theme-dark .ma,body.theme-dark .ms { color:var(--text-mid); }
-body.theme-dark .ma:hover,body.theme-dark .ms:hover { background:rgba(255,255,255,.07); color:var(--text); }
-body.theme-dark .ma.active,body.theme-dark .ms.active { background:rgba(31,100,216,.22); color:#60a5fa; }
-body.theme-dark .user { border-color:var(--border); }
-body.theme-dark .av { background:rgba(255,255,255,.1); color:var(--text-mid); }
-body.theme-dark .search { background:var(--surface); border-color:var(--border); }
-body.theme-dark .search input { color:var(--text); }
-body.theme-dark .ib,body.theme-dark .tool { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .ib:hover,body.theme-dark .tool:hover { background:rgba(255,255,255,.07); }
+body.theme-dark .ib,
+body.theme-dark .tool { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .ib:hover,
+body.theme-dark .tool:hover { background:rgba(255,255,255,.07); }
 body.theme-dark .tool-wide { color:#60a5fa; }
 body.theme-dark .k { background:var(--surface); border-color:var(--border); box-shadow:none; }
 body.theme-dark .kh { color:var(--text-light); }
@@ -315,7 +168,8 @@ body.theme-dark .chip { background:rgba(255,255,255,.06); color:var(--text-mid);
 body.theme-dark .chip.a { background:rgba(31,100,216,.2); color:#60a5fa; }
 body.theme-dark .f { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .col-panel { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .tbl th,body.theme-dark .tbl td { border-color:var(--border); }
+body.theme-dark .tbl th,
+body.theme-dark .tbl td { border-color:var(--border); }
 body.theme-dark .tbl th { background:var(--thead-bg); color:var(--text-light); }
 body.theme-dark .r:hover { background:var(--tbody-hover); }
 body.theme-dark .r.row-selected { background:rgba(29,78,216,.15) !important; }
@@ -333,7 +187,6 @@ body.theme-dark .alerts li { border-color:var(--border); }
 body.theme-dark .at { color:var(--text); }
 body.theme-dark .ad { color:var(--text-mid); }
 body.theme-dark .tm { color:var(--text-light); }
-body.theme-dark .admin { color:var(--text-mid); }
 body.theme-dark .ac .ai { background:rgba(255,255,255,.08); color:var(--text-mid); }
 body.theme-dark .am { color:var(--text); }
 body.theme-dark .as { color:var(--text-light); }
@@ -344,25 +197,9 @@ body.theme-dark .widget-manager-row label { color:var(--text-mid); }
 body.theme-dark .hdr-panel { background:var(--surface); border-color:var(--border); }
 body.theme-dark .bulk-toolbar { background:rgba(29,78,216,.15); border-color:rgba(59,130,246,.3); }
 body.theme-dark .bulk-count { color:#93c5fd; }
-body.theme-dark .bulk-modal,body.theme-dark .admin-modal { background:var(--surface); border-color:var(--border); }
-body.theme-dark .bulk-modal-head,body.theme-dark .admin-modal-head { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .bulk-modal { background:var(--surface); border-color:var(--border); }
+body.theme-dark .bulk-modal-head { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .bulk-modal-foot { border-color:var(--border); }
-body.theme-dark .admin-modal-body { color:var(--text-mid); }
-body.theme-dark .admin-close { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .admin-form { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .admin-row .checkline { color:var(--text-mid); }
-body.theme-dark .admin-item { background:var(--surface); border-color:var(--border); }
-body.theme-dark .admin-tab-btn { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .admin-tab-btn:hover { background:rgba(255,255,255,.07); }
-body.theme-dark .admin-help-btn { background:rgba(29,78,216,.18); color:#93c5fd; border-color:rgba(59,130,246,.3); }
-body.theme-dark .admin-hint { color:var(--text-light); }
-body.theme-dark .admin-panel { border-color:var(--border); }
-body.theme-dark .admin-metric { background:var(--surface); border-color:var(--border); }
-body.theme-dark .admin-metric .n { color:var(--text); }
-body.theme-dark .admin-metric .l { color:var(--text-light); }
-body.theme-dark .admin-checks { background:var(--surface); border-color:var(--border); }
-body.theme-dark .admin-checks .ok { color:#86efac; }
-body.theme-dark .admin-checks .warn { color:#fde68a; }
 body.theme-dark .bulk-field-row label { color:var(--text-mid); }
 body.theme-dark .wm-add-toggle { background:rgba(3,105,161,.15); color:#7dd3fc; border-color:rgba(59,130,246,.3); }
 body.theme-dark .wm-add-toggle:hover { background:rgba(3,105,161,.25); }
@@ -371,101 +208,27 @@ body.theme-dark .wm-add-form label { color:var(--text-mid); }
 body.theme-dark .wm-remove-btn { background:rgba(185,28,28,.2); color:#fca5a5; }
 body.theme-dark .wm-remove-btn:hover { background:rgba(185,28,28,.3); }
 body.theme-dark .wm-custom-row { border-color:var(--border); }
-body.theme-dark .assets-message { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .assets-message-success { background:rgba(21,128,61,.15); border-color:rgba(134,239,172,.3); color:#86efac; }
-body.theme-dark .assets-message-error,body.theme-dark .assets-message-danger { background:rgba(185,28,28,.15); border-color:rgba(252,165,165,.3); color:#fca5a5; }
-body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
-
-/* Cockpit refresh */
-.dash {
-  border:none;
-  background:linear-gradient(180deg,#f8fbff 0%,#f4f7fc 100%);
-}
-.side {
-  background:linear-gradient(180deg,#ffffff 0%,#f3f8ff 100%);
-}
-.logo {
-  width:36px;
-  height:36px;
-  border-radius:10px;
-  background:#0f172a;
-  box-shadow:0 12px 24px rgba(15,23,42,.16);
-}
-.brand-link {
-  padding:4px;
-  border-radius:12px;
-}
-.brand-link:hover { background:#eef6ff; }
-.name {
-  font-size:var(--fs-display-lg);
-  font-weight:900;
-}
-.ma,
-.ms {
-  position:relative;
-  padding:6px 9px;
-  font-weight:700;
-}
-.ma.active,
-.ms.active {
-  background:#fff;
-  color:#1f64d8;
-  box-shadow:0 8px 18px rgba(15,23,42,.06);
-}
-.ma.active:before,
-.ms.active:before {
-  content:"";
-  position:absolute;
-  left:0;
-  top:7px;
-  bottom:7px;
-  width:3px;
-  border-radius:999px;
-  background:#14b8a6;
-}
-.main {
-  padding:14px;
-  gap:12px;
-  background:linear-gradient(180deg,#f8fbff 0%,#f4f7fc 100%);
-}
-.search {
-  background:#fff;
-  border-radius:10px;
-  box-shadow:0 8px 20px rgba(15,23,42,.04);
-}
 .tool,
-.ib {
-  background:#fff;
-  box-shadow:0 8px 18px rgba(15,23,42,.04);
-}
-.nb {
-  background:#2563eb;
+.ib { background:#fff;
+  box-shadow:0 8px 18px rgba(15,23,42,.04); }
+.nb { background:#2563eb;
   border-color:#2563eb;
   font-weight:800;
-  box-shadow:0 10px 22px rgba(37,99,235,.18);
-}
+  box-shadow:0 10px 22px rgba(37,99,235,.18); }
 .k,
 .card,
-.admin-form,
-.admin-item,
-.widget-manager-group {
-  border-radius:10px;
-  box-shadow:0 10px 24px rgba(15,23,42,.045);
-}
-.k {
-  position:relative;
+.widget-manager-group { border-radius:10px;
+  box-shadow:0 10px 24px rgba(15,23,42,.045); }
+.k { position:relative;
   overflow:hidden;
-  padding-left:14px;
-}
-.k:before {
-  content:"";
+  padding-left:14px; }
+.k:before { content:"";
   position:absolute;
   left:0;
   top:0;
   bottom:0;
   width:4px;
-  background:#2563eb;
-}
+  background:#2563eb; }
 .k:nth-child(2):before { background:#14b8a6; }
 .k:nth-child(3):before { background:#f59e0b; }
 .k:nth-child(4):before { background:#dc2626; }
@@ -475,36 +238,15 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
 .rows-btn,
 .pg-btn,
 .chip { border-radius:8px; }
-body.theme-dark .dash { background:transparent; }
-body.theme-dark .side {
-  background:linear-gradient(180deg,var(--surface) 0%,rgba(20,184,166,.07) 100%);
-}
-body.theme-dark .main { background:transparent; }
-body.theme-dark .brand-link:hover { background:rgba(255,255,255,.05); }
-body.theme-dark .ma.active,
-body.theme-dark .ms.active {
-  background:rgba(255,255,255,.08);
-  box-shadow:none;
-}
 body.theme-dark .k,
 body.theme-dark .card,
-body.theme-dark .admin-form,
-body.theme-dark .admin-item,
-body.theme-dark .widget-manager-group {
-  box-shadow:none;
-}
-body.theme-dark .ch {
-  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
-}
-
-/* ── DARK MODE — leggibilità: testi navy hardcoded → token, superfici chiare → scure ── */
+body.theme-dark .widget-manager-group { box-shadow:none; }
+body.theme-dark .ch { background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%); }
 body.theme-dark .cell-title,
 body.theme-dark .am,
-body.theme-dark .name,
 body.theme-dark .kv,
 body.theme-dark .t,
 body.theme-dark .widget-manager-title { color: var(--text); }
-body.theme-dark .name span { color: #60a5fa; }
 body.theme-dark .tbl td,
 body.theme-dark .widget-manager-row label { color: var(--text-mid); }
 body.theme-dark .cell-sub,
@@ -526,73 +268,31 @@ body.theme-dark .pg-btn:hover { background: rgba(255,255,255,.07); border-color:
 body.theme-dark .chip { background: var(--surface-alt, #17222f); border-color: var(--border); color: var(--text-mid); }
 body.theme-dark .chip.a { background: rgba(96,165,250,.15); border-color: transparent; color: #93c5fd; }
 body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid); }
+
+/* Lista dentro la shell del modulo: niente sidebar/ricerca propria. */
+.al-page { display: grid; gap: 10px; min-width: 0; }
+.al-new { position: relative; }
+.al-new > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.al-new > summary::-webkit-details-marker { display: none; }
+.al-new-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 320; min-width: 200px; background: #fff; border: 1px solid #dbe3f0; border-radius: 10px; box-shadow: 0 10px 28px rgba(15,23,42,.16); padding: 6px; display: grid; }
+.al-new-menu a { padding: 9px 10px; border-radius: 8px; color: #1e3a5f; font-weight: 700; text-decoration: none; }
+.al-new-menu a:hover { background: #eff6ff; color: #1d4ed8; }
+body.theme-dark .al-new-menu { background: var(--surface); border-color: var(--border); }
+body.theme-dark .al-new-menu a { color: var(--text); }
+@media (pointer: coarse) { .al-new-menu a { min-height: 44px; display: flex; align-items: center; } }
+
 </style>
 {% endblock %}
 
-{% block content %}
-<section class="dash">
-  <aside class="side">
-    <a class="brand-link" href="{% url 'assets:asset_dashboard' %}">
-      <span class="logo">{% if assets_logo_url %}<img src="{{ assets_logo_url }}" alt="Logo">{% else %}A{% endif %}</span>
-      <div class="name">Inven<span>tario</span></div>
-    </a>
-    <div class="menu-filter">
-      <span class="menu-filter-icon" aria-hidden="true">&#128269;</span>
-      <input type="search" placeholder="Filtra il menu" autocomplete="off" aria-label="Filtra le voci del menu" data-li-nav-filter>
-      <button type="button" class="menu-filter-clear" aria-label="Azzera filtro" data-li-nav-filter-clear hidden>&times;</button>
-    </div>
-    <nav class="menu">
-      {% for group in assets_sidebar_groups %}
-        <div class="mh">{{ group.label }}</div>
-        {% for item in group.items %}
-          {% if item.has_children %}
-            <div class="li-nav-group{% if item.expanded %} open{% endif %}" data-li-nav-group>
-              <div class="li-nav-parent">
-                <a class="ma{% if item.active %} active{% endif %}" href="{% if item.is_container %}#{% else %}{{ item.url }}{% endif %}"{% if item.is_container %} data-li-nav-container role="button"{% endif %}>{{ item.label }}</a>
-                <button class="li-nav-toggle" type="button" aria-label="Apri sottovoci {{ item.label }}" aria-expanded="{% if item.expanded %}true{% else %}false{% endif %}" data-li-nav-toggle>
-                  <span class="li-nav-arrow" aria-hidden="true">&#8250;</span>
-                </button>
-              </div>
-              <div class="li-nav-children">
-                {% for child in item.children %}
-                  <a class="ms{% if child.active %} active{% endif %}" href="{{ child.url }}">{{ child.label }}</a>
-                {% endfor %}
-              </div>
-            </div>
-          {% else %}
-            <a class="{% if item.is_subitem %}ms{% else %}ma{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
-          {% endif %}
-        {% endfor %}
-      {% endfor %}
-      <p class="menu-empty" data-li-nav-empty hidden>Nessuna voce corrisponde.</p>
-    </nav>
-    {% if can_gestione_admin %}
-    <a class="ma" href="{% url 'assets:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;">&#9881; Impostazioni</a>
-    {% endif %}
-    <div class="user"><span class="av">{{ request.user.username|slice:":1"|upper }}</span><div><div class="text-base font-bold" style="color:#1e2f4f;">{{ request.user.get_full_name|default:request.user.username }}</div><div class="text-xs" style="color:#7f92af;">Amministratore sistema</div></div></div>
-  </aside>
+{% block assets_shell_title %}{{ page_title|default:'Inventario asset' }}{% endblock %}
 
-  <main class="main">
-    <header class="top">
-      <form method="get" id="quickSearchForm" style="flex:1;">
-        <input type="hidden" name="asset_type" value="{{ request.GET.asset_type|default:'' }}">
-        <input type="hidden" name="asset_category" value="{{ request.GET.asset_category|default:'' }}">
-        <input type="hidden" name="reparto" value="{{ request.GET.reparto|default:'' }}">
-        {% if production_group %}<input type="hidden" name="group" value="production">{% endif %}
-        <input type="hidden" name="rows" value="{{ rows }}">
-        <input type="hidden" name="page" value="1">
-        <div class="search"><span style="color:#8da0bc;">&#128269;</span><input id="id_q" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Ricerca rapida per asset, seriali o utenti (Ctrl + K)"></div>
-      </form>
+{% block assets_shell_toolbar %}
       <div class="hdr-acts">
-        {% if can_hdr_avvisi %}
-        <a class="ib" href="{% url 'assets:wo_list' %}" title="Avvisi">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zm0 16a2 2 0 002-2H8a2 2 0 002 2z"/></svg>
-        </a>
-        {% endif %}
+        {% comment %}La campanella «Avvisi» e' gia' nella testata della shell.{% endcomment %}
         {% if can_manage_custom_fields %}
-          <button class="tool" id="openAdminStudio" type="button" title="Apri studio amministratore">
+          <a class="tool" href="{% url 'assets:gestione_admin' %}?tab=studio" title="Studio inventario (Impostazioni)">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
-          </button>
+          </a>
         {% endif %}
         {% if can_hdr_widget %}
         <button class="tool" id="toggleWidgetPanel" type="button" title="Gestione widget dashboard">
@@ -600,9 +300,14 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         </button>
         {% endif %}
         <button type="button" onclick="document.getElementById('assetListExportDlg').showModal()" style="background:#fff;color:#1f64d8;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;font-family:inherit;font-size:var(--fs-base);">&#8595; Esporta</button>
-        <a class="nb" href="{% url 'assets:work_machine_create' %}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">+ Nuova macchina</a>
-        <a class="nb" href="{% url 'assets:chemical_create' %}" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;">+ Nuovo prodotto chimico</a>
-        <a class="nb" href="{% url 'assets:asset_create' %}">+ Nuovo asset</a>
+        <details class="al-new">
+          <summary class="nb">+ Nuovo asset <span aria-hidden="true">&#9662;</span></summary>
+          <div class="al-new-menu" role="menu">
+            <a role="menuitem" href="{% url 'assets:asset_create' %}">Asset generico</a>
+            <a role="menuitem" href="{% url 'assets:work_machine_create' %}">Macchina</a>
+            <a role="menuitem" href="{% url 'assets:chemical_create' %}">Prodotto chimico</a>
+          </div>
+        </details>
         <dialog id="assetListExportDlg" style="border:1px solid #dbe1ea;border-radius:14px;padding:20px;min-width:280px;box-shadow:0 8px 32px rgba(15,23,42,.15);">
           <div style="font-weight:700;font-size:var(--fs-title-sm);margin-bottom:12px;color:#1e3a5f;">Esporta inventario asset</div>
           <div style="font-size:var(--fs-sm);font-weight:600;margin-bottom:6px;color:#64748b;">Ambito</div>
@@ -626,8 +331,10 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         </div>
 
       </div>
-    </header>
+{% endblock %}
 
+{% block assets_shell_content %}
+<div class="al-page">
     <section class="kpi widget-zone" data-zone="kpi" data-zone-label="KPI principali" data-axis="x">
       <article class="k widget-item" data-widget-id="kpi_total_assets" data-widget-title="Totale asset">
         <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
@@ -647,12 +354,11 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
       </article>
     </section>
 
-    {% include "assets/components/messages.html" %}
 
     <section class="grid">
       <article class="card">
         <div class="ch">
-          <div><h3 class="t">Inventario asset</h3><div class="c"><span class="chip a">{% if selected_asset_category %}{{ selected_asset_category.label }}{% else %}{{ asset_list_context_label }}{% endif %} ({{ visible_count }})</span><a class="chip" href="{% url 'assets:work_machine_list' %}" style="text-decoration:none;">Macchine di lavoro ({{ work_machine_total }})</a><span class="chip">Critici ({{ in_repair_count }})</span><span class="chip">In assegnazione ({{ assigned_count }})</span></div></div>
+          <div><h3 class="t">Elenco</h3><div class="c"><span class="chip a">{% if selected_asset_category %}{{ selected_asset_category.label }}{% else %}{{ asset_list_context_label }}{% endif %} ({{ visible_count }})</span><a class="chip" href="{% url 'assets:work_machine_list' %}" style="text-decoration:none;">Macchine di lavoro ({{ work_machine_total }})</a><span class="chip">Critici ({{ in_repair_count }})</span><span class="chip">In assegnazione ({{ assigned_count }})</span></div></div>
           <div class="tools">
             <a class="tool" href="{% url 'assets:reports' %}" title="Report dashboard">
               <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
@@ -809,980 +515,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         </article>
       </aside>
     </section>
-
-    {% if can_manage_custom_fields %}
-      <div class="admin-modal-backdrop" id="adminStudioModal" aria-hidden="true">
-        <div class="admin-modal admin-studio-modal" role="dialog" aria-modal="true" aria-labelledby="adminStudioTitle">
-          <div class="admin-modal-head">
-            <strong id="adminStudioTitle">Studio amministratore inventario</strong>
-            <button type="button" class="admin-close" id="closeAdminStudio">Chiudi</button>
-          </div>
-          <div class="admin-modal-body">
-            <article class="card">
-              <div class="admin">
-          Studio amministratore: gestione completa direttamente da questa pagina.
-          <div class="admin-toolbar">
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-custom-fields">Campi</button>
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-list-options">Liste</button>
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-action-buttons">Pulsanti Azione</button>
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-asset-categories">Categorie asset</button>
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-detail-fields">Dettaglio asset</button>
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-sidebar-buttons">Menu laterale</button>
-            <button type="button" class="admin-tab-btn" data-admin-target="admin-header-tools">Strumenti header</button>
-            <button type="button" class="admin-help-btn" id="openAdminTutorial">Tutorial utilizzo</button>
-          </div>
-          <div class="admin-metrics">
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.custom_fields_active }}/{{ admin_metrics.custom_fields_total }}</div>
-              <div class="l">Campi personalizzati attivi</div>
-            </article>
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.list_options_active }}/{{ admin_metrics.list_options_total }}</div>
-              <div class="l">Valori lista attivi</div>
-            </article>
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.action_buttons_active }}/{{ admin_metrics.action_buttons_total }}</div>
-              <div class="l">Pulsanti azione attivi</div>
-            </article>
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.detail_fields_active }}/{{ admin_metrics.detail_fields_total }}</div>
-              <div class="l">Campi dettaglio attivi</div>
-            </article>
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.asset_categories_active }}/{{ admin_metrics.asset_categories_total }}</div>
-              <div class="l">Categorie asset attive</div>
-            </article>
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.asset_category_fields_active }}/{{ admin_metrics.asset_category_fields_total }}</div>
-              <div class="l">Campi categoria attivi</div>
-            </article>
-            <article class="admin-metric">
-              <div class="n">{{ admin_metrics.sidebar_visible }}/{{ admin_metrics.sidebar_total }}</div>
-              <div class="l">Voci menu laterale visibili</div>
-            </article>
-          </div>
-          <div class="admin-checks">
-            {% for row in admin_checks %}
-              <div class="{% if 'completa' in row %}ok{% else %}warn{% endif %}">{{ row }}</div>
-            {% endfor %}
-          </div>
-          <div class="admin-ops">
-            <form method="post" style="display:inline;">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="export_admin_snapshot">
-              <button class="btn btn-secondary btn-sm" type="submit">Export configurazione (JSON)</button>
-            </form>
-            <form method="post" style="display:inline;">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="seed_sidebar_buttons">
-              <button class="btn btn-secondary btn-sm" type="submit">Riallinea menu laterale predefinito</button>
-            </form>
-          </div>
-          <div class="admin-panel">
-            <datalist id="asset-detail-source-options">
-              {% for source_code, source_label in detail_source_choices %}
-                <option value="{{ source_code }}">{{ source_label }}</option>
-              {% endfor %}
-            </datalist>
-
-            <details id="admin-custom-fields" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Gestione campi personalizzati (aggiungi/modifica/rimuovi)</summary>
-              <div class="admin-form">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_custom_field">
-                  <div class="field">
-                    <label>Nome campo</label>
-                    <input class="input" type="text" name="label" placeholder="Es. Centro di costo" required>
-                  </div>
-                  <div class="field">
-                    <label>Tipo</label>
-                    <select class="input" name="field_type">
-                      {% for type_code, type_label in custom_type_choices %}
-                        <option value="{{ type_code }}">{{ type_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field">
-                    <label>Attivo</label>
-                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi campo</button>
-                  </div>
-                </form>
-              </div>
-              <div class="admin-list">
-                {% for field_item in all_custom_fields %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_custom_field">
-                    <input type="hidden" name="field_id" value="{{ field_item.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Nome campo</label>
-                        <input class="input" type="text" name="label" value="{{ field_item.label }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Tipo</label>
-                        <select class="input" name="field_type">
-                          {% for type_code, type_label in custom_type_choices %}
-                            <option value="{{ type_code }}" {% if field_item.field_type == type_code %}selected{% endif %}>{{ type_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ field_item.sort_order }}">
-                      </div>
-                      <div class="field">
-                        <label>Attivo</label>
-                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if field_item.is_active %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_custom_field">
-                    <input type="hidden" name="field_id" value="{{ field_item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ field_item.label }}">Elimina</button>
-                  </form>
-                {% empty %}
-                  <div class="admin-hint">Nessun campo personalizzato configurato.</div>
-                {% endfor %}
-              </div>
-            </details>
-
-            <details id="admin-list-options" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Gestione liste (aggiungi/modifica/rimuovi)</summary>
-              <div class="admin-form">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_list_option">
-                  <div class="field">
-                    <label>Valore lista</label>
-                    <input class="input" type="text" name="value" placeholder="Es. IT" required>
-                  </div>
-                  <div class="field">
-                    <label>Campo</label>
-                    <select class="input" name="field_key">
-                      {% for field_code, field_label in list_option_choices %}
-                        <option value="{{ field_code }}">{{ field_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field">
-                    <label>Attivo</label>
-                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi valore</button>
-                  </div>
-                </form>
-              </div>
-              <div class="admin-list">
-                {% for option in list_options %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_list_option">
-                    <input type="hidden" name="option_id" value="{{ option.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Valore lista</label>
-                        <input class="input" type="text" name="value" value="{{ option.value }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Campo</label>
-                        <select class="input" name="field_key">
-                          {% for field_code, field_label in list_option_choices %}
-                            <option value="{{ field_code }}" {% if option.field_key == field_code %}selected{% endif %}>{{ field_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ option.sort_order }}">
-                      </div>
-                      <div class="field">
-                        <label>Attivo</label>
-                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if option.is_active %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_list_option">
-                    <input type="hidden" name="option_id" value="{{ option.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ option.value }}">Elimina</button>
-                  </form>
-                {% empty %}
-                  <div class="admin-hint">Nessun valore lista configurato.</div>
-                {% endfor %}
-              </div>
-            </details>
-
-            <details id="admin-action-buttons" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Gestione pulsanti Azione dettaglio asset</summary>
-              <div class="admin-form">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_action_button">
-                  <div class="field">
-                    <label>Etichetta</label>
-                    <input class="input" type="text" name="label" placeholder="Es. Apri cartella" required>
-                  </div>
-                  <div class="field">
-                    <label>Zona</label>
-                    <select class="input" name="zone">
-                      {% for zone_code, zone_label in button_zone_choices %}
-                        <option value="{{ zone_code }}">{{ zone_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Azione</label>
-                    <select class="input" name="action_type">
-                      {% for action_code, action_label in button_action_choices %}
-                        <option value="{{ action_code }}">{{ action_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Stile</label>
-                    <select class="input" name="style">
-                      {% for style_code, style_label in button_style_choices %}
-                        <option value="{{ style_code }}">{{ style_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>Destinazione (per azione collegamento)</label>
-                    <input class="input" type="text" name="target" placeholder="/cartella/{asset_tag} oppure django:assets:asset_edit?id={asset_id}">
-                  </div>
-                  <div class="field">
-                    <label>Nuova scheda</label>
-                    <label class="checkline"><input type="checkbox" name="open_in_new_tab" value="1"> Sì</label>
-                  </div>
-                  <div class="field">
-                    <label>Attivo</label>
-                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi pulsante</button>
-                  </div>
-                </form>
-              </div>
-              <div class="admin-list">
-                {% for btn_item in action_buttons %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_action_button">
-                    <input type="hidden" name="button_id" value="{{ btn_item.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Etichetta</label>
-                        <input class="input" type="text" name="label" value="{{ btn_item.label }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Zona</label>
-                        <select class="input" name="zone">
-                          {% for zone_code, zone_label in button_zone_choices %}
-                            <option value="{{ zone_code }}" {% if btn_item.zone == zone_code %}selected{% endif %}>{{ zone_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Azione</label>
-                        <select class="input" name="action_type">
-                          {% for action_code, action_label in button_action_choices %}
-                            <option value="{{ action_code }}" {% if btn_item.action_type == action_code %}selected{% endif %}>{{ action_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Stile</label>
-                        <select class="input" name="style">
-                          {% for style_code, style_label in button_style_choices %}
-                            <option value="{{ style_code }}" {% if btn_item.style == style_code %}selected{% endif %}>{{ style_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ btn_item.sort_order }}">
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>Destinazione</label>
-                        <input class="input" type="text" name="target" value="{{ btn_item.target }}">
-                      </div>
-                      <div class="field">
-                        <label>Nuova scheda</label>
-                        <label class="checkline"><input type="checkbox" name="open_in_new_tab" value="1" {% if btn_item.open_in_new_tab %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Attivo</label>
-                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if btn_item.is_active %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_action_button">
-                    <input type="hidden" name="button_id" value="{{ btn_item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ btn_item.label }}">Elimina</button>
-                  </form>
-                {% empty %}
-                  <div class="admin-hint">Nessun pulsante azione personalizzato. Restano attivi i predefiniti.</div>
-                {% endfor %}
-              </div>
-            </details>
-
-            <details id="admin-asset-categories" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Gestione categorie asset e campi dinamici</summary>
-              <div class="admin-form" style="margin-top:10px;">
-                <div class="admin-hint">
-                  La gestione canonica di categorie asset e campi dinamici e ora disponibile anche in
-                  <strong>Impostazioni &rarr; Categorie asset</strong>, cosi resta insieme alle altre configurazioni del modulo.
-                </div>
-                <div class="inline-actions">
-                  <a class="btn btn-primary btn-sm" href="{% url 'assets:gestione_admin' %}?tab=categorie">Apri tab categorie</a>
-                  <a class="btn btn-secondary btn-sm" href="{% url 'assets:gestione_admin' %}?tab=categorie#asset-category-fields">Apri campi categoria</a>
-                </div>
-              </div>
-              <div class="admin-form">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_asset_category">
-                  <div class="field">
-                    <label>Nome categoria</label>
-                    <input class="input" type="text" name="label" placeholder="Es. Sistema allarme" required>
-                  </div>
-                  <div class="field">
-                    <label>Famiglia tecnica</label>
-                    <select class="input" name="base_asset_type">
-                      {% for type_code, type_label in asset_category_type_choices %}
-                        <option value="{{ type_code }}">{{ type_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field">
-                    <label>Attiva</label>
-                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>Descrizione</label>
-                    <textarea class="input" name="description" rows="2" placeholder="Nota interna per l'uso della categoria."></textarea>
-                  </div>
-                  <div class="field">
-                    <label>Titolo specifiche</label>
-                    <input class="input" type="text" name="detail_specs_title" placeholder="Es. Dati impianto">
-                  </div>
-                  <div class="field">
-                    <label>Titolo profilo</label>
-                    <input class="input" type="text" name="detail_profile_title" placeholder="Es. Profilo impianto">
-                  </div>
-                  <div class="field">
-                    <label>Titolo responsabile</label>
-                    <input class="input" type="text" name="detail_assignment_title" placeholder="Es. Referente interno">
-                  </div>
-                  <div class="field">
-                    <label>Titolo timeline</label>
-                    <input class="input" type="text" name="detail_timeline_title" placeholder="Es. Storico impianto">
-                  </div>
-                  <div class="field">
-                    <label>Titolo manutenzione</label>
-                    <input class="input" type="text" name="detail_maintenance_title" placeholder="Es. Registro interventi">
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi categoria</button>
-                  </div>
-                </form>
-              </div>
-
-              <div class="admin-list">
-                {% for category_item in asset_categories %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_asset_category">
-                    <input type="hidden" name="category_id" value="{{ category_item.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Nome categoria</label>
-                        <input class="input" type="text" name="label" value="{{ category_item.label }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Famiglia tecnica</label>
-                        <select class="input" name="base_asset_type">
-                          {% for type_code, type_label in asset_category_type_choices %}
-                            <option value="{{ type_code }}" {% if category_item.base_asset_type == type_code %}selected{% endif %}>{{ type_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ category_item.sort_order }}">
-                      </div>
-                      <div class="field">
-                        <label>Attiva</label>
-                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_item.is_active %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>Descrizione</label>
-                        <textarea class="input" name="description" rows="2">{{ category_item.description }}</textarea>
-                      </div>
-                      <div class="field">
-                        <label>Titolo specifiche</label>
-                        <input class="input" type="text" name="detail_specs_title" value="{{ category_item.detail_specs_title }}">
-                      </div>
-                      <div class="field">
-                        <label>Titolo profilo</label>
-                        <input class="input" type="text" name="detail_profile_title" value="{{ category_item.detail_profile_title }}">
-                      </div>
-                      <div class="field">
-                        <label>Titolo responsabile</label>
-                        <input class="input" type="text" name="detail_assignment_title" value="{{ category_item.detail_assignment_title }}">
-                      </div>
-                      <div class="field">
-                        <label>Titolo timeline</label>
-                        <input class="input" type="text" name="detail_timeline_title" value="{{ category_item.detail_timeline_title }}">
-                      </div>
-                      <div class="field">
-                        <label>Titolo manutenzione</label>
-                        <input class="input" type="text" name="detail_maintenance_title" value="{{ category_item.detail_maintenance_title }}">
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_asset_category">
-                    <input type="hidden" name="category_id" value="{{ category_item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ category_item.label }}">Elimina categoria</button>
-                  </form>
-                {% empty %}
-                  <div class="admin-hint">Nessuna categoria asset configurata.</div>
-                {% endfor %}
-              </div>
-
-              <div class="admin-form" style="margin-top:14px;">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_asset_category_field">
-                  <div class="field">
-                    <label>Categoria</label>
-                    <select class="input" name="category_id">
-                      {% for category_item in asset_categories %}
-                        <option value="{{ category_item.id }}">{{ category_item.label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Nome campo</label>
-                    <input class="input" type="text" name="label" placeholder="Es. Matricola centrale" required>
-                  </div>
-                  <div class="field">
-                    <label>Tipo input</label>
-                    <select class="input" name="field_type">
-                      {% for type_code, type_label in asset_category_field_type_choices %}
-                        <option value="{{ type_code }}">{{ type_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Sezione dettaglio</label>
-                    <select class="input" name="detail_section">
-                      {% for section_code, section_label in detail_section_choices %}
-                        <option value="{{ section_code }}">{{ section_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Formato dettaglio</label>
-                    <select class="input" name="detail_value_format">
-                      {% for format_code, format_label in detail_format_choices %}
-                        <option value="{{ format_code }}">{{ format_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>Placeholder</label>
-                    <input class="input" type="text" name="placeholder" placeholder="Testo guida nel form">
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>Help text</label>
-                    <input class="input" type="text" name="help_text" placeholder="Nota visibile sotto al campo">
-                  </div>
-                  <div class="field">
-                    <label>Obbligatorio</label>
-                    <label class="checkline"><input type="checkbox" name="is_required" value="1"> Sì</label>
-                  </div>
-                  <div class="field">
-                    <label>Mostra nel form</label>
-                    <label class="checkline"><input type="checkbox" name="show_in_form" value="1" checked> Sì</label>
-                  </div>
-                  <div class="field">
-                    <label>Mostra nel dettaglio</label>
-                    <label class="checkline"><input type="checkbox" name="show_in_detail" value="1" checked> Sì</label>
-                  </div>
-                  <div class="field">
-                    <label>Mostra se vuoto</label>
-                    <label class="checkline"><input type="checkbox" name="show_if_empty" value="1"> Sì</label>
-                  </div>
-                  <div class="field">
-                    <label>Attivo</label>
-                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi campo categoria</button>
-                  </div>
-                </form>
-              </div>
-
-              <div class="admin-list">
-                {% for category_field in asset_category_fields %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_asset_category_field">
-                    <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Categoria</label>
-                        <select class="input" name="category_id">
-                          {% for category_item in asset_categories %}
-                            <option value="{{ category_item.id }}" {% if category_field.category_id == category_item.id %}selected{% endif %}>{{ category_item.label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Nome campo</label>
-                        <input class="input" type="text" name="label" value="{{ category_field.label }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Tipo input</label>
-                        <select class="input" name="field_type">
-                          {% for type_code, type_label in asset_category_field_type_choices %}
-                            <option value="{{ type_code }}" {% if category_field.field_type == type_code %}selected{% endif %}>{{ type_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Sezione dettaglio</label>
-                        <select class="input" name="detail_section">
-                          {% for section_code, section_label in detail_section_choices %}
-                            <option value="{{ section_code }}" {% if category_field.detail_section == section_code %}selected{% endif %}>{{ section_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Formato dettaglio</label>
-                        <select class="input" name="detail_value_format">
-                          {% for format_code, format_label in detail_format_choices %}
-                            <option value="{{ format_code }}" {% if category_field.detail_value_format == format_code %}selected{% endif %}>{{ format_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ category_field.sort_order }}">
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>Placeholder</label>
-                        <input class="input" type="text" name="placeholder" value="{{ category_field.placeholder }}">
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>Help text</label>
-                        <input class="input" type="text" name="help_text" value="{{ category_field.help_text }}">
-                      </div>
-                      <div class="field">
-                        <label>Obbligatorio</label>
-                        <label class="checkline"><input type="checkbox" name="is_required" value="1" {% if category_field.is_required %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Mostra nel form</label>
-                        <label class="checkline"><input type="checkbox" name="show_in_form" value="1" {% if category_field.show_in_form %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Mostra nel dettaglio</label>
-                        <label class="checkline"><input type="checkbox" name="show_in_detail" value="1" {% if category_field.show_in_detail %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Mostra se vuoto</label>
-                        <label class="checkline"><input type="checkbox" name="show_if_empty" value="1" {% if category_field.show_if_empty %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Attivo</label>
-                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_field.is_active %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_asset_category_field">
-                    <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ category_field.label }}">Elimina campo</button>
-                  </form>
-                {% empty %}
-                  <div class="admin-hint">Nessun campo categoria configurato.</div>
-                {% endfor %}
-              </div>
-            </details>
-
-            <details id="admin-detail-fields" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Gestione dati mostrati nel dettaglio asset</summary>
-              <div class="admin-form">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_detail_field">
-                  <div class="field">
-                    <label>Etichetta</label>
-                    <input class="input" type="text" name="label" placeholder="Es. Centro di costo" required>
-                  </div>
-                  <div class="field">
-                    <label>Sezione</label>
-                    <select class="input" name="section">
-                      {% for section_code, section_label in detail_section_choices %}
-                        <option value="{{ section_code }}">{{ section_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ambito</label>
-                    <select class="input" name="asset_scope">
-                      {% for scope_code, scope_label in detail_scope_choices %}
-                        <option value="{{ scope_code }}">{{ scope_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Formato</label>
-                    <select class="input" name="value_format">
-                      {% for format_code, format_label in detail_format_choices %}
-                        <option value="{{ format_code }}">{{ format_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>Sorgente dato</label>
-                    <input class="input" type="text" name="source_ref" list="asset-detail-source-options" placeholder="Seleziona o digita es. asset:manufacturer" required>
-                    <div class="muted text-sm">Puoi usare asset, it, work_machine, extra, custom, computed. Esempi: `asset:manufacturer`, `work_machine:x_mm`, `custom:centro_costo`, `computed:travel_xyz`.</div>
-                  </div>
-                  <div class="field">
-                    <label>Mostra anche se vuoto</label>
-                    <label class="checkline"><input type="checkbox" name="show_if_empty" value="1"> Sì</label>
-                  </div>
-                  <div class="field">
-                    <label>Attivo</label>
-                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi campo</button>
-                  </div>
-                </form>
-              </div>
-              <div class="admin-ops">
-                <form method="post" style="display:inline;">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="seed_detail_fields">
-                  <button class="btn btn-secondary btn-sm" type="submit">Carica schema predefinito</button>
-                </form>
-              </div>
-              <div class="admin-list">
-                {% for detail_item in detail_fields %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_detail_field">
-                    <input type="hidden" name="detail_field_id" value="{{ detail_item.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Etichetta</label>
-                        <input class="input" type="text" name="label" value="{{ detail_item.label }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Sezione</label>
-                        <select class="input" name="section">
-                          {% for section_code, section_label in detail_section_choices %}
-                            <option value="{{ section_code }}" {% if detail_item.section == section_code %}selected{% endif %}>{{ section_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ambito</label>
-                        <select class="input" name="asset_scope">
-                          {% for scope_code, scope_label in detail_scope_choices %}
-                            <option value="{{ scope_code }}" {% if detail_item.asset_scope == scope_code %}selected{% endif %}>{{ scope_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Formato</label>
-                        <select class="input" name="value_format">
-                          {% for format_code, format_label in detail_format_choices %}
-                            <option value="{{ format_code }}" {% if detail_item.value_format == format_code %}selected{% endif %}>{{ format_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ detail_item.sort_order }}">
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>Sorgente dato</label>
-                        <input class="input" type="text" name="source_ref" value="{{ detail_item.source_ref }}" list="asset-detail-source-options" required>
-                      </div>
-                      <div class="field">
-                        <label>Mostra se vuoto</label>
-                        <label class="checkline"><input type="checkbox" name="show_if_empty" value="1" {% if detail_item.show_if_empty %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Attivo</label>
-                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if detail_item.is_active %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_detail_field">
-                    <input type="hidden" name="detail_field_id" value="{{ detail_item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ detail_item.label }}">Elimina</button>
-                  </form>
-                {% empty %}
-                  <div class="admin-hint">Nessun campo dettaglio configurato. Puoi caricare lo schema predefinito e poi personalizzarlo.</div>
-                {% endfor %}
-              </div>
-            </details>
-
-            <details id="admin-sidebar-buttons" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Gestione pulsanti menu laterale (aggiungi/rimuovi/visibile)</summary>
-              <datalist id="assets-sidebar-target-options">
-                {% for option in sidebar_target_suggestions %}
-                  <option value="{{ option.value }}">{{ option.label }}</option>
-                {% endfor %}
-              </datalist>
-              <datalist id="assets-sidebar-active-match-options">
-                {% for option in sidebar_active_match_suggestions %}
-                  <option value="{{ option.value }}">{{ option.label }}</option>
-                {% endfor %}
-              </datalist>
-              <div class="admin-form">
-                <form method="post" class="admin-row">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="create_sidebar_button">
-                  <div class="field">
-                    <label>Etichetta</label>
-                    <input class="input" type="text" name="label" placeholder="Es. Nuova sezione" required>
-                  </div>
-                  <div class="field">
-                    <label>Sezione</label>
-                    <select class="input" name="section">
-                      {% for section_code, section_label in sidebar_section_choices %}
-                        <option value="{{ section_code }}">{{ section_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Voce padre</label>
-                    <select class="input" name="parent_sidebar_button_id">
-                      <option value="">Nessuna (primo livello)</option>
-                      {% for parent_item in sidebar_parent_choices %}
-                        <option value="{{ parent_item.id }}">{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Ordine</label>
-                    <input class="input" type="number" name="sort_order" value="100">
-                  </div>
-                  <div class="field">
-                    <label>Tipo voce</label>
-                    <label class="checkline"><input type="checkbox" name="is_subitem" value="1"> Sottovoce</label>
-                  </div>
-                  <div class="field">
-                    <label>Visibile</label>
-                    <label class="checkline"><input type="checkbox" name="is_visible" value="1" checked> Sì</label>
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>URL destinazione</label>
-                    <input class="input" type="text" name="target_url" list="assets-sidebar-target-options" placeholder="/assets/?asset_type=SERVER&rows={rows}">
-                    <div class="muted text-sm">Puoi usare anche `django:assets:wo_list` oppure `{rows}`.</div>
-                  </div>
-                  <div class="field" style="grid-column:1/-1;">
-                    <label>Criterio attivo (opzionale)</label>
-                    <input class="input" type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="asset_type=SERVER">
-                  </div>
-                  <div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi voce</button>
-                  </div>
-                </form>
-              </div>
-              <div class="admin-list">
-                {% for item in sidebar_buttons %}
-                  <form method="post" class="admin-item">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_sidebar_button">
-                    <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
-                    <div class="admin-item-row">
-                      <div class="field">
-                        <label>Etichetta</label>
-                        <input class="input" type="text" name="label" value="{{ item.label }}" required>
-                      </div>
-                      <div class="field">
-                        <label>Sezione</label>
-                        <select class="input" name="section">
-                          {% for section_code, section_label in sidebar_section_choices %}
-                            <option value="{{ section_code }}" {% if item.section == section_code %}selected{% endif %}>{{ section_label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Voce padre</label>
-                        <select class="input" name="parent_sidebar_button_id">
-                          <option value="">Nessuna (primo livello)</option>
-                          {% for parent_item in sidebar_parent_choices %}
-                            <option value="{{ parent_item.id }}" {% if item.parent_id == parent_item.id %}selected{% endif %}>{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="field">
-                        <label>Ordine</label>
-                        <input class="input" type="number" name="sort_order" value="{{ item.sort_order }}">
-                      </div>
-                      <div class="field">
-                        <label>Sottovoce</label>
-                        <label class="checkline"><input type="checkbox" name="is_subitem" value="1" {% if item.is_subitem %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field">
-                        <label>Visibile</label>
-                        <label class="checkline"><input type="checkbox" name="is_visible" value="1" {% if item.is_visible %}checked{% endif %}> Sì</label>
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>URL destinazione</label>
-                        <input class="input" type="text" name="target_url" list="assets-sidebar-target-options" value="{{ item.target_url }}">
-                      </div>
-                      <div class="field" style="grid-column:1/-1;">
-                        <label>Criterio attivo</label>
-                        <input class="input" type="text" name="active_match" list="assets-sidebar-active-match-options" value="{{ item.active_match }}">
-                      </div>
-                      <div>
-                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                      </div>
-                    </div>
-                  </form>
-                  <form method="post" style="margin-top:-6px;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_sidebar_button">
-                    <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ item.label }}">Elimina</button>
-                  </form>
-                {% empty %}
-                  <div class="muted text-sm">Nessuna voce personalizzata: sono attive quelle predefinite.</div>
-                  <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="seed_sidebar_buttons">
-                    <button class="btn btn-primary btn-sm" type="submit">Crea menu predefinito modificabile</button>
-                  </form>
-                {% endfor %}
-              </div>
-            </details>
-
-            <details id="admin-header-tools" class="admin-section">
-              <summary style="cursor:pointer;font-weight:700;">Strumenti header — visibilità pulsanti barra superiore</summary>
-              <div class="admin-hint" style="margin:8px 0;">Controlla quali pulsanti appaiono nella barra in alto (campana, widget, nuvola). Puoi renderli visibili a tutti o solo agli amministratori asset.</div>
-              <div class="admin-list" style="max-height:none;">
-                {% for tool in header_tools %}
-                  <div class="admin-item">
-                    <form method="post">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="update_header_tool">
-                      <input type="hidden" name="tool_id" value="{{ tool.id }}">
-                      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;">
-                        <div>
-                          <div class="text-base font-bold">{{ tool.label }}</div>
-                          <div class="admin-hint">{{ tool.description }}</div>
-                          <div class="admin-hint" style="font-family:monospace;">codice: {{ tool.code }}</div>
-                        </div>
-                        <div style="display:grid;gap:6px;min-width:160px;">
-                          <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if tool.is_active %}checked{% endif %}> Attivo (visibile)</label>
-                          <label class="checkline"><input type="checkbox" name="admin_only" value="1" {% if tool.admin_only %}checked{% endif %}> Solo amministratori</label>
-                          <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
-                {% empty %}
-                  <div class="muted text-sm">Nessuno strumento header trovato. Applica le migrazioni per popolare i dati.</div>
-                {% endfor %}
-              </div>
-            </details>
-
-          </div>
-
-          <div class="admin-modal-backdrop" id="adminTutorialModal" aria-hidden="true">
-            <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminTutorialTitle">
-              <div class="admin-modal-head">
-                <strong id="adminTutorialTitle">Tutorial rapido - Studio amministratore inventario</strong>
-                <button type="button" class="admin-close" id="closeAdminTutorial">Chiudi</button>
-              </div>
-              <div class="admin-modal-body">
-                <div><strong>1) Campi</strong>: crea colonne extra per asset (tipo testo/numero/data/si-no). Puoi modificare o disattivare quelle esistenti.</div>
-                <div><strong>2) Liste</strong>: imposta i valori suggeriti per i campi standard (reparto, produttore, assegnazione...).</div>
-                <div><strong>3) Pulsanti Azione</strong>: controlla i bottoni nella pagina dettaglio asset (intestazione + azioni rapide), con ordine, stile e URL dinamico.</div>
-                <div><strong>4) Categorie asset</strong>: la gestione canonica vive ora in <strong>Impostazioni &rarr; Categorie asset</strong>; da li crei categorie business come allarme, TVCC o pompe di calore e aggiungi i campi dedicati senza toccare il codice.</div>
-                <div><strong>5) Dettaglio asset</strong>: scegli quali dati mostrare nelle metriche, specifiche, profilo e responsabile attuale, con ordine e ambito per tipo asset.</div>
-                <div><strong>5) Menu laterale</strong>: aggiungi/rimuovi voci, mettile come sottovoce e decidi se visibili o nascoste.</div>
-                <div><strong>Segnaposto utili</strong>: `{rows}` nel menu laterale; `{asset_id}`, `{asset_tag}`, `{asset_name}` nei pulsanti azione.</div>
-                <div><strong>Attenzione</strong>: ogni eliminazione è immediata. Se stai partendo dalle voci predefinite del menu laterale, prima crea la versione modificabile.</div>
-              </div>
-            </div>
-          </div>
-              </div>
-            </article>
-          </div>
-        </div>
-      </div>
-    {% endif %}
-  </main>
-</section>
+</div>
 
 {# ── Modale modifica in blocco ───────────────────────────────────────────── #}
 <div class="bulk-modal-backdrop" id="bulkEditModal">
@@ -1864,131 +597,9 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
   </div>
 </div>
 {% include "assets/partials/qr_dialog.html" %}
-
 {% endblock %}
 
-{% block extra_scripts %}
-<script>
-/* Toggle sottomenu sidebar inventario (allineato a base_shell.html) */
-(function () {
-  var storageKey = "assets_sidebar_open_groups_v1";
-  document.addEventListener("DOMContentLoaded", function () {
-    try { localStorage.removeItem(storageKey); } catch (e) {}
-    var groups = Array.prototype.slice.call(document.querySelectorAll("[data-li-nav-group]"));
-
-    function setGroupOpen(group, isOpen) {
-      var btn = group.querySelector("[data-li-nav-toggle]");
-      group.classList.toggle("open", isOpen);
-      if (btn) {
-        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
-      }
-    }
-
-    function closeOtherGroups(activeGroup) {
-      groups.forEach(function (group) {
-        if (group !== activeGroup) {
-          setGroupOpen(group, false);
-        }
-      });
-    }
-
-    groups.forEach(function (group) {
-      var btn = group.querySelector("[data-li-nav-toggle]");
-      if (btn) {
-        btn.setAttribute("aria-expanded", group.classList.contains("open") ? "true" : "false");
-      }
-      if (!btn) return;
-      btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        var shouldOpen = !group.classList.contains("open");
-        if (shouldOpen) {
-          closeOtherGroups(group);
-        }
-        setGroupOpen(group, shouldOpen);
-      });
-      // Voce contenitore (senza pagina propria): il nome apre/chiude il gruppo.
-      var container = group.querySelector("[data-li-nav-container]");
-      if (container) {
-        container.addEventListener("click", function (e) { e.preventDefault(); btn.click(); });
-      }
-    });
-
-    // Filtro voci: con oltre venti voci di primo livello, scorrere costa piu'
-    // che scrivere. Nasconde e basta, non riordina.
-    var nav = document.querySelector(".menu");
-    var input = document.querySelector("[data-li-nav-filter]");
-    var clear = document.querySelector("[data-li-nav-filter-clear]");
-    var empty = document.querySelector("[data-li-nav-empty]");
-    if (!nav || !input) return;
-    var openBeforeFilter = null;
-
-    function normalize(text) {
-      return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
-    }
-
-    function applyFilter(raw) {
-      var query = normalize(raw);
-      var pendingHead = null;
-      var headHasVisible = false;
-      var anyVisible = false;
-
-      Array.prototype.slice.call(nav.children).forEach(function (node) {
-        if (node === empty) return;
-        if (node.classList.contains("mh")) {
-          if (pendingHead) { pendingHead.hidden = !headHasVisible; }
-          pendingHead = node;
-          headHasVisible = false;
-          return;
-        }
-        var visible;
-        if (node.classList.contains("li-nav-group")) {
-          var parentLink = node.querySelector(".li-nav-parent .ma");
-          var parentMatch = !query || normalize(parentLink && parentLink.textContent).indexOf(query) !== -1;
-          var childMatches = 0;
-          Array.prototype.slice.call(node.querySelectorAll(".li-nav-children .ms")).forEach(function (child) {
-            var hit = !query || parentMatch || normalize(child.textContent).indexOf(query) !== -1;
-            child.hidden = !hit;
-            if (hit && query && !parentMatch) { childMatches += 1; }
-          });
-          visible = parentMatch || childMatches > 0;
-          if (query && visible) { setGroupOpen(node, true); }
-        } else {
-          visible = !query || normalize(node.textContent).indexOf(query) !== -1;
-        }
-        node.hidden = !visible;
-        if (visible) { headHasVisible = true; anyVisible = true; }
-      });
-
-      if (pendingHead) { pendingHead.hidden = !headHasVisible; }
-      if (empty) { empty.hidden = anyVisible; }
-      if (clear) { clear.hidden = !query; }
-    }
-
-    function resetFilter() {
-      input.value = "";
-      applyFilter("");
-      groups.forEach(function (group) { setGroupOpen(group, group === openBeforeFilter); });
-      openBeforeFilter = null;
-    }
-
-    input.addEventListener("input", function () {
-      if (openBeforeFilter === null) {
-        openBeforeFilter = groups.filter(function (g) { return g.classList.contains("open"); })[0] || false;
-      }
-      if (!input.value) { resetFilter(); return; }
-      applyFilter(input.value);
-    });
-
-    input.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") { resetFilter(); input.blur(); }
-    });
-
-    if (clear) {
-      clear.addEventListener("click", function () { resetFilter(); input.focus(); });
-    }
-  });
-})();
-</script>
+{% block assets_shell_scripts %}
 <script>
 (function () {
   function debounce(fn, wait) {
@@ -2712,16 +1323,6 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
     });
   });
 
-  const qf = document.getElementById("quickSearchForm");
-  const qi = document.getElementById("id_q");
-  if (qf && qi) {
-    const go = debounce(function () {
-      const v = qi.value.trim();
-      if (v.length >= 2 || v.length === 0) qf.submit();
-    }, 450);
-    qi.addEventListener("input", go);
-  }
-
   const ac = document.getElementById("advancedFiltersCard");
   const tb = document.getElementById("toggleAdvancedFilters");
   if (ac && tb) {
@@ -2769,68 +1370,6 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
     input.addEventListener("change", applyColumnVisibility);
   });
 
-
-  document.querySelectorAll("button[data-delete-field]").forEach(function (btn) {
-    btn.addEventListener("click", function (event) {
-      const name = btn.getAttribute("data-delete-field") || "questo elemento";
-      if (!window.confirm('Eliminare "' + name + '"?')) event.preventDefault();
-    });
-  });
-
-  document.querySelectorAll("[data-admin-target]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      const id = btn.getAttribute("data-admin-target");
-      const el = id ? document.getElementById(id) : null;
-      if (!el) return;
-      el.open = true;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  const adminStudioModal = document.getElementById("adminStudioModal");
-  const openAdminStudio = document.getElementById("openAdminStudio");
-  const closeAdminStudio = document.getElementById("closeAdminStudio");
-  function setAdminStudio(open) {
-    if (!adminStudioModal) return;
-    const isOpen = !!open;
-    adminStudioModal.classList.toggle("show", isOpen);
-    adminStudioModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
-    document.body.classList.toggle("admin-studio-open", isOpen);
-    if (!isOpen) setTutorial(false);
-  }
-  if (openAdminStudio && adminStudioModal) {
-    openAdminStudio.addEventListener("click", function () { setAdminStudio(true); });
-    adminStudioModal.addEventListener("click", function (ev) {
-      if (ev.target === adminStudioModal) setAdminStudio(false);
-    });
-  }
-  if (closeAdminStudio) {
-    closeAdminStudio.addEventListener("click", function () { setAdminStudio(false); });
-  }
-
-  const tutModal = document.getElementById("adminTutorialModal");
-  const openTut = document.getElementById("openAdminTutorial");
-  const closeTut = document.getElementById("closeAdminTutorial");
-  function setTutorial(open) {
-    if (!tutModal) return;
-    const isOpen = !!open;
-    tutModal.classList.toggle("show", isOpen);
-    tutModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
-  }
-  if (openTut && tutModal) {
-    openTut.addEventListener("click", function () { setTutorial(true); });
-    tutModal.addEventListener("click", function (ev) {
-      if (ev.target === tutModal) setTutorial(false);
-    });
-  }
-  if (closeTut) {
-    closeTut.addEventListener("click", function () { setTutorial(false); });
-  }
-  document.addEventListener("keydown", function (ev) {
-    if (ev.key !== "Escape") return;
-    setTutorial(false);
-    setAdminStudio(false);
-  });
 
   const resetTableLayoutBtn = document.getElementById("resetTableLayout");
   if (resetTableLayoutBtn) {

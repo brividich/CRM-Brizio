@@ -231,7 +231,7 @@
         <div class="ux-card-body ux-stat-list">
           <div class="ux-stat-row"><span>Stato</span><strong>{{ workorder_status.label }}</strong></div>
           {% if workorder.outcome %}<div class="ux-stat-row"><span>Esito</span><strong>{{ workorder.get_outcome_display }}</strong></div>{% endif %}
-          {% if workorder.follow_up_date %}<div class="ux-stat-row"><span>Verifica follow-up entro</span><strong>{{ workorder.follow_up_date|date:"d/m/Y" }}</strong></div>{% endif %}
+          {% if workorder.follow_up_date %}<div class="ux-stat-row"><span>Intervento di verifica entro</span><strong>{{ workorder.follow_up_date|date:"d/m/Y" }}</strong></div>{% endif %}
           <div class="ux-stat-row"><span>Copertura</span><strong>{{ workorder_coverage.label }}</strong></div>
           <div class="ux-stat-row"><span>Durata intervento</span><strong>{% if duration_hours %}{{ duration_hours }} h{% if duration_remainder %} {{ duration_remainder }} min{% endif %}{% elif duration_remainder %}{{ duration_remainder }} min{% else %}—{% endif %}</strong></div>
           <div class="ux-stat-row"><span>Fermo impianto</span><strong>{% if downtime_hours %}{{ downtime_hours }} h{% if downtime_remainder %} {{ downtime_remainder }} min{% endif %}{% elif downtime_remainder %}{{ downtime_remainder }} min{% else %}0 min{% endif %}</strong></div>
@@ -254,7 +254,7 @@
           {% if workorder_rule_url %}<a class="ux-btn" href="{{ workorder_rule_url }}">Regola manutenzione</a>{% endif %}
           {% if workorder_contract_url %}<a class="ux-btn" href="{{ workorder_contract_url }}">Contratto assistenza</a>{% endif %}
           {% if workorder.follow_up_of %}<a class="ux-btn" href="{% url 'assets:wo_view' workorder.follow_up_of_id %}">&larr; Intervento originale #{{ workorder.follow_up_of_id }}</a>{% endif %}
-          {% for child in workorder.follow_ups.all %}<a class="ux-btn" href="{% url 'assets:wo_view' child.id %}">Follow-up #{{ child.id }} · {{ child.get_status_display }}</a>{% endfor %}
+          {% for child in workorder.follow_ups.all %}<a class="ux-btn" href="{% url 'assets:wo_view' child.id %}">Intervento di verifica #{{ child.id }} · {{ child.get_status_display }}</a>{% endfor %}
         </div>
       </article>
     </aside>

@@ -26,6 +26,8 @@ GUIDA = {
             "blocchi": [
                 ("p", "Per un guasto apri un ticket di manutenzione (modulo Ticket, «+ Ticket MAN») scegliendo la macchina, "
                       "oppure dal QR della macchina."),
+                ("p", "Dal QR, «Segnala guasto ora» apre una pagina per il telefono: la macchina è già indicata, "
+                      "scegli quanto è urgente e allega fino a 3 foto. La categoria è facoltativa."),
                 ("p", "Quando il manutentore crea l'intervento la segnalazione passa a «In carico»; chiudendo l'intervento "
                       "con esito «Risolto» può segnarla anche come «Risolto»."),
             ],
@@ -36,6 +38,10 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "«Manutenzione» mostra lo scadenzario unico, dal più urgente.",
+                    "In «Da fare», «✓ Fatta oggi» registra con un tap le manutenzioni semplici (interne, senza documento "
+                    "obbligatorio): hai 5 secondi per annullare. Con più righe selezionate: «Segna come fatte oggi».",
+                    "«Il mio turno» è la scheda «Il mio lavoro» di Da fare; i KPI sono nella Panoramica, sotto "
+                    "«Dettaglio indicatori».",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
                     "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
                     "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
@@ -60,6 +66,8 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Asset → «Impostazioni»: categorie, menu laterale, piani di manutenzione.",
+                    "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "
+                    "dati del dettaglio asset e strumenti della lista (prima nello «Studio amministratore» della lista).",
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (assicurazioni, contratti) sono separate dai piani di manutenzione.",
@@ -98,6 +106,13 @@ GUIDA = {
             "fare": [
                 "Leggi l'elenco sotto il riquadro: formato non ammesso, file oltre il limite o vuoto.",
                 "Converti i file (es. video in .avi o documenti in PDF) e caricali di nuovo.",
+            ],
+        },
+        {
+            "sintomo": "In «Da fare» una manutenzione non ha «✓ Fatta oggi»",
+            "fare": [
+                "Richiede il documento allegato oppure è affidata a un fornitore: usa «Registra».",
+                "Il pulsante compare solo a chi può registrare le manutenzioni.",
             ],
         },
         {
