@@ -1693,6 +1693,44 @@ def righe_mensili_macchina(macchina, ultimi=24):
     return righe[::-1][:ultimi]
 
 
+def elenco_letture_gestione(tipo="trimestrali", *, macchina_id=None, anno=None, solo_cali=False):
+    """Letture in elenco piatto (dalla piu' recente) per la pagina «Gestisci letture».
+
+    `tipo`: "trimestrali" o "mensili". Ogni riga: macchina, lettura, periodo
+    ("2026-Q3" / "10/2026"), cali rispetto alla lettura precedente della stessa MFC.
+    """
+    mensili = tipo == "mensili"
+    qs = (LetturaMensileContatori if mensili else LetturaContatori).objects.select_related("macchina")
+    if macchina_id:
+        qs = qs.filter(macchina_id=macchina_id)
+    ordine = "mese" if mensili else "trimestre"
+    per_macchina = {}
+    for l in qs.order_by("macchina_id", ordine):
+        per_macchina.setdefault(l.macchina_id, []).append(l)
+    righe = []
+    for letture in per_macchina.values():
+        for i, l in enumerate(letture):
+            anno_l = l.mese.year if mensili else int(l.trimestre[:4])
+            if anno and anno_l != anno:
+                continue
+            cali = _cali(l, letture[i - 1] if i else None)
+            if solo_cali and not cali:
+                continue
+            righe.append({"macchina": l.macchina, "lettura": l, "cali": cali,
+                          "periodo": f"{l.mese:%m/%Y}" if mensili else l.trimestre,
+                          "chiave": l.mese.isoformat() if mensili else l.trimestre})
+    righe.sort(key=lambda r: (r["chiave"], r["macchina"].reparto), reverse=True)
+    return righe
+
+
+def anni_letture():
+    """Anni con almeno una lettura trimestrale o mensile, dal piu' recente."""
+    anni = {int(t[:4]) for t in LetturaContatori.objects.values_list("trimestre", flat=True).distinct()
+            if t[:4].isdigit()}
+    anni.update(d.year for d in LetturaMensileContatori.objects.dates("mese", "year"))
+    return sorted(anni, reverse=True)
+
+
 def fatture_macchina(macchina, ultimi=6):
     """Esito della riconciliazione del contratto della MFC negli ultimi trimestri fatturati."""
     if not macchina.contratto:

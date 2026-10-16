@@ -12,6 +12,7 @@ from .models import (
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
+    LetturaMensileContatori,
     Macchina,
     ProfiloSNMP,
     RigaFattura,
@@ -316,6 +317,44 @@ class LetturaForm(SezioniFormMixin, forms.ModelForm):
             elif dopo and valore > getattr(dopo, campo):
                 incoerenze[campo] = f"Più alto del {dopo.trimestre} ({getattr(dopo, campo)})."
         # Un contatore non scende: si blocca, salvo conferma esplicita (reset/sostituzione).
+        if incoerenze and not data.get("conferma_calo"):
+            self.fields["conferma_calo"].widget = forms.CheckboxInput()
+            for campo, messaggio in incoerenze.items():
+                self.add_error(campo, messaggio)
+        return data
+
+
+class LetturaMensileForm(SezioniFormMixin, forms.ModelForm):
+    """Correzione di una lettura mensile: solo i 4 contatori, stesso controllo dei cali."""
+    sezioni_def = (
+        ("Contatori", "Valori cumulativi della MFC alla data della lettura.",
+         ("a4_bn", "a3_bn", "a4_col", "a3_col", "conferma_calo")),
+    )
+    campi_full = frozenset({"conferma_calo"})
+    conferma_calo = forms.BooleanField(
+        required=False, widget=forms.HiddenInput,
+        label="Confermo i valori: il contatore è stato azzerato o la macchina sostituita")
+
+    class Meta:
+        model = LetturaMensileContatori
+        fields = ["a4_bn", "a3_bn", "a4_col", "a3_col"]
+
+    def clean(self):
+        from .models import CONTATORI
+        data = super().clean()
+        l = self.instance
+        altre = type(l).objects.filter(macchina_id=l.macchina_id).exclude(pk=l.pk)
+        prima = altre.filter(mese__lt=l.mese).order_by("-mese").first()
+        dopo = altre.filter(mese__gt=l.mese).order_by("mese").first()
+        incoerenze = {}
+        for campo, _ in CONTATORI:
+            valore = data.get(campo)
+            if valore is None:
+                continue
+            if prima and valore < getattr(prima, campo):
+                incoerenze[campo] = f"Più basso di {prima.mese:%m/%Y} ({getattr(prima, campo)})."
+            elif dopo and valore > getattr(dopo, campo):
+                incoerenze[campo] = f"Più alto di {dopo.mese:%m/%Y} ({getattr(dopo, campo)})."
         if incoerenze and not data.get("conferma_calo"):
             self.fields["conferma_calo"].widget = forms.CheckboxInput()
             for campo, messaggio in incoerenze.items():

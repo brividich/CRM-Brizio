@@ -1,0 +1,17 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Lettura mensile {{ lettura.mese|date:"m/Y" }}{% endblock %}
+{% block modulo %}
+<div class="row"><div class="eyebrow">{{ lettura.macchina.reparto }} · {{ lettura.macchina.matricola }}</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#gestisci-letture">? Guida</a></div>
+<h1>Correggi lettura mensile {{ lettura.mese|date:"m/Y" }}</h1>
+<p class="sub">Rilevata il {{ lettura.rilevata_il|date:"d/m/Y H:i" }}. I contatori sono cumulativi: non possono scendere rispetto al mese prima. Il portale lo controlla e chiede conferma solo in caso di azzeramento o sostituzione della macchina.</p>
+<form method="post" class="form-sezioni">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
+  {% include "contatori/_form_sezioni.html" %}
+  <div class="form-actions">
+    <a class="btn ghost" href="{% if ritorno %}{{ ritorno }}{% else %}{% url 'contatori:macchina' lettura.macchina_id %}{% endif %}">Annulla</a>
+    <button class="btn" type="submit">Salva lettura</button>
+  </div>
+</form>
+<form method="post" action="{% url 'contatori:lettura_mensile_elimina' lettura.pk %}" onsubmit="return confirm('Eliminare la lettura {{ lettura.mese|date:"m/Y" }} di {{ lettura.macchina.reparto|escapejs }}?')">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
+  <button class="btn ghost danger" type="submit">Elimina lettura</button>
+</form>
+{% endblock %}
