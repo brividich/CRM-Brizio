@@ -71,8 +71,8 @@ body.theme-dark .et-anteprima iframe { border-color:var(--border); }
         <div class="et-sez-tit">Logo</div>
         <label class="et-flag">{{ form.mostra_logo }} {{ form.mostra_logo.label }}</label>
         <div class="et-logo">
-          <img src="{{ logo_url }}" alt="Logo attuale">
-          <span class="et-help">{% if imp.logo %}Logo caricato per l'etichetta.{% else %}Logo del portale (nessun logo caricato qui).{% endif %}</span>
+          {% if logo_url %}<img src="{{ logo_url }}" alt="Logo attuale">{% endif %}
+          <span class="et-help">{% if imp.logo %}Logo caricato per l'etichetta.{% elif logo_url %}Logo del portale (nessun logo caricato qui).{% else %}Nessun logo: caricane uno qui sotto, altrimenti l'etichetta esce senza logo.{% endif %}</span>
         </div>
         <div class="et-griglia">
           {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.logo %}

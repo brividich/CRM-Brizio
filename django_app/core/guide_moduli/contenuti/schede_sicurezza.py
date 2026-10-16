@@ -70,7 +70,9 @@ GUIDA = {
                     "Controlla l'anteprima a destra (puoi cambiare il prodotto di esempio) e clicca «Salva».",
                 ]),
                 ("nota", "Le impostazioni valgono per le etichette di tutti i prodotti. Il logo appena scelto compare in anteprima solo dopo «Salva». "
-                         "L'icona di un DPI è quella della sua categoria nel modulo DPI (o l'immagine caricata lì): pittogrammi e DPI si rimpiccioliscono insieme se sono tanti."),
+                         "Se non carichi un logo qui e il portale non ne ha uno, l'etichetta esce senza logo e il nome ha più spazio. "
+                         "L'icona di un DPI è quella della sua categoria nel modulo DPI (o l'immagine caricata lì): pittogrammi e DPI si rimpiccioliscono insieme se sono tanti, "
+                         "e restano sempre tutti dentro l'etichetta."),
             ],
         },
         {
