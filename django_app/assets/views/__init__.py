@@ -148,23 +148,25 @@ from .workorders import (  # noqa: F401
     workorder_list,
     workorder_set_state,
 )
-from ._monolith import (  # noqa: F401
-    api_asset_dashboard_save_config,
-    asset_calendar_json,
-    asset_dashboard,
+from .exports import (  # noqa: F401
     asset_detail_export_xlsx,
     asset_list_export,
     asset_part_145_export_excel,
     asset_part_145_export_pdf,
-    asset_quick_report,
     asset_report_pdf,
+    work_machine_export_excel,
+    work_machine_export_pdf,
+    workorder_list_export,
+)
+from ._monolith import (  # noqa: F401
+    api_asset_dashboard_save_config,
+    asset_calendar_json,
+    asset_dashboard,
+    asset_quick_report,
     calendario_asset,
     calendario_asset_json,
     gestione_admin,
     report_template_admin,
     reports_dashboard,
-    work_machine_export_excel,
-    work_machine_export_pdf,
-    workorder_list_export,
 )
 from ..models import WorkOrder  # noqa: F401  (i test lo usano come assets.views.WorkOrder)

@@ -2657,7 +2657,7 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(self.user)
 
         with patch(
-            "assets.views._monolith._model_table_exists",
+            "assets.views.exports._model_table_exists",
             side_effect=lambda model: False if model is AssetReportTemplate else True,
         ):
             with patch.object(
