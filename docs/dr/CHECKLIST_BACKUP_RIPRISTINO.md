@@ -17,8 +17,9 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] R0.2.6 Verifica viste audit per modulo: tutte filtrano moduli di business (`notizie`, `tasks`, `assets`, `assenze`, `anomalie`, `timbri`, `anagrafica`, `permessi`) o sono generiche; nessuna dipende da righe `auto_*` di B/C; `storico_oggetto` usa `oggetto_tipo/id`, mai valorizzati dall'audit automatico
 - [ ] R0.2.7 `hub_db_tuning --query-store-max-mb 100 [--apply]` (dry-run di default)
 - [ ] R0.2.8 Diagnostica `django_cache` nel doctor
-- [ ] R0.3 `audit_archive --plan / --run / --restore` (lotti per id, ≤1000 parametri, ripresa, archivio jsonl.gz + manifest)
-- [ ] R0.4 Conservazione: classe A 60 mesi, archivi 120 mesi (comando + test)
+- [x] R0.2 committato (`68ebe571`), 21 test verdi
+- [~] R0.3 `audit_archive --plan / --run / --restore` (lotti per id, ≤1000 parametri, ripresa, archivio jsonl.gz + manifest) — codice scritto, test in corso
+- [~] R0.4 Conservazione: classe A 60 mesi (`--category business`, soglia minima imposta), archivi 120 mesi (`--prune-archives`, mai senza manifest verificato) — task mensile/settimanale arriva con `register-backup-tasks.ps1` (R1), esito in `BackupRun` (R1)
 - [ ] R0.5 Osservabilità: `check_audit_growth`, previsione saturazione
 - [ ] R0.6 Test in `django_app.core`
 - [ ] R0.7 Documentazione (`05_SECURITY_BOUNDARIES.md`, `docs/dr/AUDIT_POLICY.md`), CHANGELOG, guida admin, bump patch
