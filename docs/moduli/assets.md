@@ -183,7 +183,15 @@ Il cambio di stato del ticket passa da un unico service (`tickets/services/stato
 
 **Avvisi**: tessera «Ricambi sotto scorta» nella Panoramica («Dettaglio indicatori») e sezione «RICAMBI SOTTO SCORTA» nel promemoria giornaliero (`send_maintenance_reminders`), solo se ce ne sono.
 
+## Struttura del codice delle viste
+
+`assets/views.py` (circa 20.000 righe) è diventato il package `assets/views/` (refactor C4, ottobre 2026), spezzato per area: `documents`, `asset_crud`, `asset_detail`, `qr_labels`, `deadlines`, `maintenance_legacy`, `it`, `machines`, `layout`, `workorders`, `exports`, `reports`, `settings_admin`, `dashboard`, `calendar`, più gli helper condivisi `_helpers`, `_helpers_b`, `_helpers_c`, `asset_detail_helpers`. Ogni file sta sotto le 2.000 righe. `assets/views/__init__.py` riesporta esplicitamente i nomi usati da `urls.py`, dalle altre app e dai test, quindi `from assets import views` e `views.<nome>` funzionano come prima. Lo spostamento è meccanico: nessun cambio di logica, URL, ACL o template.
+
+Per i test: un `mock.patch` deve puntare al modulo dove il nome è **usato** (es. `assets.views.documents.validate_extension_and_mime`), non al package. Patchare `assets.views.<nome>` cambia solo l'attributo del package, e la funzione nel sottomodulo continua a vedere l'originale.
+
 ## Note di rilascio
+
+Viste divise in package (ottobre 2026): nessuna migrazione e nessuna azione al deploy.
 
 Ricambi (ottobre 2026): dopo il deploy `migrate assets` (0140 tabelle `assets_sparepart` e `assets_sparepartmovement`; 0141 binding ACL di `/assets/manutenzione/ricambi/` con lo stesso permesso di «Da fare» e voce «Ricambi» in fondo al menu Manutenzione).
 
