@@ -72,7 +72,7 @@ html, body { margin: 0; padding: 0; background: #e2e8f0; font-family: Arial, Hel
 <div class="etichetta">
   <div class="corpo">
     <div class="sx">
-      {% if imp.mostra_logo %}<img class="logo" src="{{ logo_url }}" alt="Logo">{% endif %}
+      {% if layout.logo_url %}<img class="logo" src="{{ layout.logo_url }}" alt="Logo">{% endif %}
       <div class="nome">{{ prodotto.nome }}</div>
       {% if layout.riga_extra %}<div class="extra">{{ imp.get_riga_extra_display }}: {{ layout.riga_extra }}</div>{% endif %}
       {% if layout.pittogrammi or layout.dpi %}

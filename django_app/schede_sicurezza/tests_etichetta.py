@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -70,7 +72,9 @@ class ImpaginazioneTest(TestCase):
         spenta = CategoriaDPI.objects.create(nome="Vecchia", is_active=False)
         self.prodotto.dpi_obbligatori.add(guanti, occhiali, spenta)
         imp = ImpostazioniEtichetta.correnti()
-        layout = impagina(imp, self.prodotto)
+        # Con il logo configurato (senza logo lo spazio in piu' li fa piu' grandi su due righe).
+        with patch("schede_sicurezza.services.etichetta.logo_url", return_value="/media/logo.png"):
+            layout = impagina(imp, self.prodotto)
         self.assertEqual([d["icona"] for d in layout["dpi"]], ["gloves", "glasses"])
         # 2 GHS + 2 DPI stanno in fila, nella colonna accanto al QR.
         self.assertFalse(layout["segnali_separati"])
@@ -96,6 +100,39 @@ class ImpaginazioneTest(TestCase):
         self.assertLessEqual(float(layout["mm"]["segnali_w"]), colonna + 0.05)
         self.assertGreaterEqual(lato, 6.0)
         self.assertGreaterEqual(layout["righe_nome"], 1)
+
+    def test_fila_contiene_sempre_i_segnali_previsti(self):
+        """Regressione: con 3 GHS + 2 DPI su 10×5 il lato (12,08 mm) usciva «12.1» e la
+        fila (37,84 mm) «37.8»: il terzo simbolo andava a capo e l'ultima riga
+        usciva dall'etichetta."""
+        icone = ["gloves", "glasses", "mask", "boots"]
+        dpi = [CategoriaDPI.objects.create(nome=f"D{i}", icona_emoji=icona) for i, icona in enumerate(icone)]
+        ghs = ["GHS02", "GHS05", "GHS06", "GHS07", "GHS08"]
+        imp = ImpostazioniEtichetta.correnti()
+        for formato in ((100, 50), (70, 40), (60, 30)):
+            imp.larghezza_mm, imp.altezza_mm = formato
+            for n_ghs in range(len(ghs) + 1):
+                for n_dpi in range(len(dpi) + 1):
+                    if not n_ghs + n_dpi:
+                        continue
+                    with self.subTest(formato=formato, ghs=n_ghs, dpi=n_dpi):
+                        self.prodotto.pittogrammi = ghs[:n_ghs]
+                        self.prodotto.dpi_obbligatori.set(dpi[:n_dpi])
+                        layout = impagina(imp, self.prodotto)
+                        lato_txt = layout["mm"]["pittogramma"]
+                        lato, per_riga = float(lato_txt), layout["segnali_per_riga"]
+                        # Quello che arriva al CSS: il lato scritto e la fila che lo contiene.
+                        self.assertGreater(float(layout["mm"]["segnali_w"]),
+                                           per_riga * lato + (per_riga - 1) * 0.8)
+                        self.assertLess(float(layout["mm"]["segnali_w"]),
+                                        (per_riga + 1) * lato + per_riga * 0.8)
+
+    def test_senza_logo_configurato_non_stampa_il_segnaposto(self):
+        imp = ImpostazioniEtichetta.correnti()
+        self.assertTrue(imp.mostra_logo)
+        layout = impagina(imp, self.prodotto)
+        self.assertEqual(layout["logo_url"], "")
+        self.assertNotIn("logo_novicrom", str(layout))
 
 
 class ImpostazioniEtichettaFormTest(TestCase):

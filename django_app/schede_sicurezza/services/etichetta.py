@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import math
 
-from django.templatetags.static import static
-
 from .. import pittogrammi as ghs
 from ..models import ImpostazioniEtichetta, ProdottoChimico
 
@@ -27,8 +25,23 @@ def _mm(valore: float) -> str:
     return f"{max(valore, 0):.1f}"
 
 
+def _decimo_giu(valore: float) -> float:
+    """Arrotonda per difetto al decimo di mm, il passo con cui le misure arrivano al CSS.
+
+    Il lato dei segnali va arrotondato prima di calcolarci sopra la larghezza
+    della fila: con 12,08 mm scritto «12.1» e la fila (37,84 mm) scritta «37.8»,
+    tre segnali non stavano piu' in fila, il terzo andava a capo e l'ultima riga
+    usciva dall'etichetta (tagliata in stampa).
+    """
+    return math.floor(max(valore, 0) * 10 + 1e-9) / 10
+
+
 def logo_url(impostazioni: ImpostazioniEtichetta) -> str:
-    """Logo dell'etichetta: quello caricato qui, poi il logo del portale, poi il predefinito."""
+    """Logo dell'etichetta: quello caricato qui, poi il logo del portale; altrimenti nessuno.
+
+    Niente immagine di ripiego: ``core/img/logo_novicrom.png`` e' un segnaposto
+    generico, e stampato su un contenitore sembra il logo aziendale.
+    """
     if impostazioni.logo:
         try:
             return impostazioni.logo.url
@@ -38,10 +51,9 @@ def logo_url(impostazioni: ImpostazioniEtichetta) -> str:
         from core.branding import get_portal_branding
 
         branding = get_portal_branding()
-        portale = getattr(branding, "brand_logo_full", "") or getattr(branding, "brand_logo_compact", "")
+        return getattr(branding, "brand_logo_full", "") or getattr(branding, "brand_logo_compact", "") or ""
     except Exception:
-        portale = ""
-    return portale or static("core/img/logo_novicrom.png")
+        return ""
 
 
 def _dpi(prodotto: ProdottoChimico) -> list[dict]:
@@ -88,8 +100,8 @@ def _disponi_segnali(n_ghs: int, n_dpi: int, larghezza: float, altezza: float) -
                 per_riga = math.ceil(n / righe)
                 candidati.append((lato_per(per_riga, righe), righe, per_riga, False))
     # A parita' di lato (al decimo di mm) vince la disposizione con meno righe.
-    lato, righe, per_riga, separati = max(candidati, key=lambda c: (round(c[0], 1), -c[1]))
-    return lato, righe, per_riga, separati
+    lato, righe, per_riga, separati = max(candidati, key=lambda c: (_decimo_giu(c[0]), -c[1]))
+    return _decimo_giu(lato), righe, per_riga, separati
 
 
 def impagina(impostazioni: ImpostazioniEtichetta, prodotto: ProdottoChimico) -> dict:
@@ -109,7 +121,8 @@ def impagina(impostazioni: ImpostazioniEtichetta, prodotto: ProdottoChimico) -> 
     colonna_w = larghezza - 2 * PADDING_MM - qr - GAP_MM
 
     riga_nome_h = impostazioni.nome_dimensione_pt * PT_IN_MM * 1.1
-    logo_h = float(impostazioni.logo_altezza_mm) + GAP_MM * 0.75 if impostazioni.mostra_logo else 0.0
+    logo = logo_url(impostazioni) if impostazioni.mostra_logo else ""
+    logo_h = float(impostazioni.logo_altezza_mm) + GAP_MM * 0.75 if logo else 0.0
     extra_h = 3.5 if riga_extra else 0.0
     # Spazio per i pittogrammi: quello che resta garantendo due righe di nome
     # (il nome e' l'informazione principale: meglio pittogrammi piu' piccoli).
@@ -125,9 +138,11 @@ def impagina(impostazioni: ImpostazioniEtichetta, prodotto: ProdottoChimico) -> 
     righe_nome = max(1, min(4, int(resto_nome // riga_nome_h)))
 
     return {
+        "logo_url": logo,
         "pittogrammi": pittogrammi,
         "dpi": dpi,
         "segnali_separati": separati,
+        "segnali_per_riga": per_riga,
         "riga_extra": riga_extra,
         "righe_nome": righe_nome,
         "mm": {
@@ -138,7 +153,10 @@ def impagina(impostazioni: ImpostazioniEtichetta, prodotto: ProdottoChimico) -> 
             "qr": _mm(qr),
             "logo": _mm(impostazioni.logo_altezza_mm),
             "pittogramma": _mm(lato),
-            "segnali_w": _mm(per_riga * lato + max(per_riga - 1, 0) * GAP_PITTOGRAMMI_MM),
+            # Dal lato gia' arrotondato, per eccesso e con 0,05 mm di respiro (il
+            # browser converte i mm in pixel frazionari): la fila deve contenere
+            # esattamente ``per_riga`` segnali, mai uno di meno.
+            "segnali_w": f"{math.ceil((per_riga * lato + max(per_riga - 1, 0) * GAP_PITTOGRAMMI_MM) * 10 - 1e-9) / 10 + 0.05:.2f}",
             "fascia": _mm(fascia_h),
         },
     }
