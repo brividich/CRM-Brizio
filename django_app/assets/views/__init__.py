@@ -79,6 +79,13 @@ from .asset_detail import (  # noqa: F401
     asset_detail,
     asset_detail_layout_admin,
 )
+from .qr_labels import (  # noqa: F401
+    asset_label_designer,
+    asset_qr_label,
+    asset_qr_landing,
+    asset_qr_public_landing,
+    asset_qr_ticket_upload,
+)
 from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_administrative_deadline_create,
@@ -87,7 +94,6 @@ from ._monolith import (  # noqa: F401
     asset_calendar_json,
     asset_dashboard,
     asset_detail_export_xlsx,
-    asset_label_designer,
     asset_list_export,
     asset_maintenance_rule_list,
     asset_maintenance_rule_override_create,
@@ -96,10 +102,6 @@ from ._monolith import (  # noqa: F401
     asset_meter_update,
     asset_part_145_export_excel,
     asset_part_145_export_pdf,
-    asset_qr_label,
-    asset_qr_landing,
-    asset_qr_public_landing,
-    asset_qr_ticket_upload,
     asset_quick_report,
     asset_report_pdf,
     assistance_contract_list,

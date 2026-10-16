@@ -65,7 +65,7 @@ class QrDestinationTests(TestCase):
         from unittest.mock import patch
 
         self.client.force_login(self.user)
-        with patch("assets.views._monolith._draw_asset_label_pdf") as draw:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": self.asset.id}))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(draw.call_args.kwargs["target_url"].endswith(f"/assets/qr/{self.asset.asset_tag}/"))
@@ -83,7 +83,7 @@ class QrDestinationTests(TestCase):
         self.asset.refresh_from_db()
         self.assertTrue(self.asset.public_qr_enabled)
         self.assertTrue(self.asset.public_qr_token)
-        with patch("assets.views._monolith._draw_asset_label_pdf") as draw:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw:
             self.client.get(reverse("assets:asset_qr_label", kwargs={"id": self.asset.id}))
         self.assertIn(f"/assets/qr/pub/{self.asset.public_qr_token}/", draw.call_args.kwargs["target_url"])
         log = AuditLog.objects.filter(azione="asset_qr_pubblico_abilita").first()

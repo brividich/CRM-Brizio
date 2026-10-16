@@ -2722,7 +2722,7 @@ class AssetsRoutingTests(TestCase):
         abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
-        with patch("assets.views._monolith._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
@@ -2742,7 +2742,7 @@ class AssetsRoutingTests(TestCase):
         abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
-        with patch("assets.views._monolith._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
@@ -2819,7 +2819,7 @@ class AssetsRoutingTests(TestCase):
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-detail")
         self.client.force_login(self.user)
 
-        with patch("assets.views._monolith._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw_label:
             response = self.client.get(f"{reverse('assets:asset_qr_label', kwargs={'id': asset.id})}?target=detail")
 
         self.assertEqual(response.status_code, 200)
