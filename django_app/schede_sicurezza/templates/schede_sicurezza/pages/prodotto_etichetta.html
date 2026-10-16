@@ -26,16 +26,21 @@ html, body { margin: 0; padding: 0; background: #e2e8f0; font-family: Arial, Hel
 }
 .corpo { flex: 1; min-height: 0; display: flex; gap: {{ layout.mm.gap }}mm;{% if imp.posizione_qr == "sinistra" %} flex-direction: row-reverse;{% endif %} }
 .sx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.2mm; }
-.logo { height: {{ layout.mm.logo }}mm; max-width: 100%; object-fit: contain; object-position: left center; align-self: flex-start; }
+.logo { flex: none; height: {{ layout.mm.logo }}mm; max-width: 100%; object-fit: contain; object-position: left center; align-self: flex-start; }
 .nome {
-  font-size: {{ imp.nome_dimensione_pt }}pt; font-weight: 900; line-height: 1.1;{% if imp.nome_maiuscolo %} text-transform: uppercase;{% endif %}
+  flex: none; font-size: {{ imp.nome_dimensione_pt }}pt; font-weight: 900; line-height: 1.1;{% if imp.nome_maiuscolo %} text-transform: uppercase;{% endif %}
   display: -webkit-box; -webkit-line-clamp: {{ layout.righe_nome }}; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
-.extra { font-size: 7.5pt; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ghs { margin-top: auto; display: flex; flex-wrap: wrap; gap: .8mm; align-items: center; }
+.extra { flex: none; font-size: 7.5pt; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segnali { margin-top: auto; flex: none; display: flex; flex-direction: column; gap: .8mm; }
+.ghs { display: flex; flex-wrap: wrap; gap: .8mm; align-items: center; max-width: {{ layout.mm.segnali_w }}mm; }
 .ghs svg { display: block; width: {{ layout.mm.pittogramma }}mm; height: {{ layout.mm.pittogramma }}mm; }
+.ghs .dpi { display: block; width: {{ layout.mm.pittogramma }}mm; height: {{ layout.mm.pittogramma }}mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.ghs .dpi circle { fill: #005387; }
+.ghs .dpi use { stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ghs img.dpi { object-fit: contain; }
 .ghs .fuori { font-size: 7pt; font-weight: 700; border: .3mm solid #111; padding: .5mm 1mm; }
-.nessuno { margin-top: auto; font-size: 7pt; color: #475569; }
+.nessuno { margin-top: auto; flex: none; font-size: 7pt; color: #475569; }
 .dx { width: {{ layout.mm.qr }}mm; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5mm; }
 .dx img { width: {{ layout.mm.qr }}mm; height: {{ layout.mm.qr }}mm; image-rendering: pixelated; }
 .dx span { font-size: 6.5pt; font-weight: 700; text-align: center; line-height: 1.1; }
@@ -54,6 +59,7 @@ html, body { margin: 0; padding: 0; background: #e2e8f0; font-family: Arial, Hel
 </head>
 <body>
 {% include "schede_sicurezza/components/_ghs_icons.html" %}
+{% if layout.dpi %}{% include "dpi/components/_dpi_icons.html" %}{% endif %}
 {% if not anteprima %}
 <div class="barra">
   <span>Stampa al 100% (dimensioni effettive), carta {{ imp.larghezza_mm }} × {{ imp.altezza_mm }} mm, margini nulli.</span>
@@ -69,15 +75,25 @@ html, body { margin: 0; padding: 0; background: #e2e8f0; font-family: Arial, Hel
       {% if imp.mostra_logo %}<img class="logo" src="{{ logo_url }}" alt="Logo">{% endif %}
       <div class="nome">{{ prodotto.nome }}</div>
       {% if layout.riga_extra %}<div class="extra">{{ imp.get_riga_extra_display }}: {{ layout.riga_extra }}</div>{% endif %}
-      {% if layout.pittogrammi %}
-        <div class="ghs">
-          {% for p in layout.pittogrammi %}
-            {% if p.noto %}
-              <svg role="img" aria-label="{{ p.codice }} {{ p.nome }}"><use href="#{{ p.codice|lower }}"/></svg>
-            {% else %}
-              <span class="fuori">{{ p.codice }}</span>
-            {% endif %}
-          {% endfor %}
+      {% if layout.pittogrammi or layout.dpi %}
+        <div class="segnali">
+          <div class="ghs">
+            {% for p in layout.pittogrammi %}
+              {% if p.noto %}
+                <svg role="img" aria-label="{{ p.codice }} {{ p.nome }}"><use href="#{{ p.codice|lower }}"/></svg>
+              {% else %}
+                <span class="fuori">{{ p.codice }}</span>
+              {% endif %}
+            {% endfor %}
+          {% if layout.segnali_separati %}</div><div class="ghs">{% endif %}
+            {% for d in layout.dpi %}
+              {% if d.immagine %}
+                <img class="dpi" src="{{ d.immagine }}" alt="Obbligo: {{ d.nome }}">
+              {% else %}
+                <svg class="dpi" viewBox="0 0 24 24" role="img" aria-label="Obbligo: {{ d.nome }}"><circle cx="12" cy="12" r="12"/><use href="#i-dpi-{{ d.icona }}" x="4.6" y="4.6" width="14.8" height="14.8"/></svg>
+              {% endif %}
+            {% endfor %}
+          </div>
         </div>
       {% elif imp.mostra_pittogrammi %}
         <div class="nessuno">Nessun pittogramma di pericolo indicato.</div>

@@ -280,6 +280,11 @@ class ImpostazioniEtichetta(models.Model):
     riga_extra = models.CharField(max_length=20, choices=RigaExtra.choices, blank=True, default="",
                                   verbose_name="Riga sotto il nome")
     mostra_pittogrammi = models.BooleanField(default=True, verbose_name="Mostra i pittogrammi di pericolo")
+    mostra_dpi = models.BooleanField(
+        default=True,
+        verbose_name="Mostra i DPI obbligatori",
+        help_text="Segnali di obbligo blu accanto ai pittogrammi, dai «DPI obbligatori» del prodotto.",
+    )
     testo_emergenza = models.CharField(max_length=80, blank=True, default="",
                                        verbose_name="Riga emergenza",
                                        help_text="Es. «Emergenza 112 – Centro Antiveleni 02 66101029». Vuota = non stampata.")
