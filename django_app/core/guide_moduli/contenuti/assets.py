@@ -21,6 +21,19 @@ GUIDA = {
             ],
         },
         {
+            "id": "rete",
+            "titolo": "Correggere IP, switch e porta di un PC; vedere chi è collegato a uno switch",
+            "blocchi": [
+                ("passi", [
+                    "Apri la scheda dell'asset, tab «Tecnica e rete».",
+                    "Premi «Modifica rete» (o «+ Aggiungi interfaccia» se non ce n'è nessuna).",
+                    "Compila IP, MAC, VLAN, Switch (matricola dello switch), Porta SW e Porta patch panel; premi «Salva rete».",
+                ]),
+                ("p", "Nella scheda dello switch, «Mappa porte dello switch» mostra le porte occupate colorate per VLAN. "
+                      "Le porte importate senza switch si collegano in blocco scegliendo il prefisso (es. A0) e premendo «Collega a …»."),
+            ],
+        },
+        {
             "id": "guasto",
             "titolo": "Segnalare un guasto",
             "blocchi": [
@@ -68,6 +81,13 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "La mappa porte dello switch è vuota",
+            "fare": [
+                "I dispositivi devono indicare lo switch: in «Modifica rete» scrivi la matricola dello switch nel campo Switch.",
+                "Per le porte importate senza switch usa «Collega le porte censite senza switch» in fondo alla mappa.",
+            ],
+        },
         {
             "sintomo": "Una categoria nuova non compare nel menu a sinistra",
             "fare": ["Lancia sync_sidebar_categories dal terminale del Setup Wizard.", "Ricarica la pagina."],

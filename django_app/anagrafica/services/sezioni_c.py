@@ -393,7 +393,7 @@ def schede_import(*, ultima_retribuzioni, ultimo_cedolini, contratti: dict, rate
         imp = ultima_retribuzioni
         out.append(scheda(
             titolo="Retribuzioni",
-            href=reverse("anagrafica:retribuzioni_import"),
+            href=reverse("anagrafica:retribuzioni_globale") + "#importazione",
             codice=f"{imp.data_competenza:%m/%Y}",
             meta=f"Ultimo import: {imp.data_importazione:%d-%m-%Y}" + (f" · {imp.file_nome}" if imp.file_nome else ""),
             seg=[("ok", imp.righe_ok), ("ko", imp.righe_errore)],
@@ -406,8 +406,8 @@ def schede_import(*, ultima_retribuzioni, ultimo_cedolini, contratti: dict, rate
         imp = ultimo_cedolini
         scarti = imp.righe_errore + imp.righe_non_trovate
         out.append(scheda(
-            titolo="Cedolini e ratei",
-            href=reverse("anagrafica:cedolini_import"),
+            titolo="Ferie e permessi",
+            href=reverse("anagrafica:ratei_list") + "#importazione",
             codice=f"{imp.data_competenza:%m/%Y}",
             meta=f"Ultimo import: {imp.data_importazione:%d-%m-%Y}" + (f" · {imp.file_nome}" if imp.file_nome else ""),
             seg=[("ok", imp.righe_ok), ("mai", imp.righe_non_trovate), ("ko", imp.righe_errore)],
@@ -417,7 +417,7 @@ def schede_import(*, ultima_retribuzioni, ultimo_cedolini, contratti: dict, rate
                 pillola("fmd-c-ko", f"{imp.righe_errore} in errore") if imp.righe_errore else None,
                 None if scarti else pillola("fmd-c-ok", "pulito"),
             ],
-            piede="Saldi ferie, ROL ed ex festività", vai="Import →",
+            piede="Saldi ferie, ROL ed ex festività dal file cedolini", vai="Import →",
         ))
     if contratti.get("totale"):
         out.append(scheda(
