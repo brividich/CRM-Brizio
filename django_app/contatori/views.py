@@ -28,6 +28,7 @@ from .models import (
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
+    LetturaMensileContatori,
     Macchina,
     ProfiloSNMP,
     RigaFattura,
@@ -400,10 +401,17 @@ def macchina_detail(request, pk):
     })
 
 
+def _ritorno_gestione(request):
+    """URL di «Gestisci letture» (con i suoi filtri) da cui si e' arrivati, altrimenti ""."""
+    dest = request.POST.get("next") or request.GET.get("next") or ""
+    return dest if dest.startswith(reverse("contatori:letture_gestisci")) else ""
+
+
 @richiede_gestione
 def importa_lettura(request, pk=None):
     """Inserimento (pk assente) o correzione di una lettura trimestrale."""
     lettura = get_object_or_404(LetturaContatori.objects.select_related("macchina"), pk=pk) if pk else None
+    ritorno = _ritorno_gestione(request)
     if request.method == "POST":
         form = LetturaForm(request.POST, instance=lettura)
         if form.is_valid():
@@ -412,7 +420,7 @@ def importa_lettura(request, pk=None):
                        oggetto=lettura, dettaglio={"trimestre": lettura.trimestre, "fonte": lettura.fonte,
                                                    "calo_confermato": form.cleaned_data.get("conferma_calo", False)})
             messages.success(request, f"Lettura {lettura.trimestre} di {lettura.macchina.reparto} salvata.")
-            return redirect("contatori:macchina", pk=lettura.macchina_id)
+            return redirect(ritorno or reverse("contatori:macchina", args=[lettura.macchina_id]))
     else:
         initial = {}
         if lettura is None:
@@ -422,7 +430,8 @@ def importa_lettura(request, pk=None):
             if services.trimestre_valido(request.GET.get("trimestre")):
                 initial["trimestre"] = request.GET["trimestre"]
         form = LetturaForm(instance=lettura, initial=initial)
-    return render(request, "contatori/importa_lettura.html", {"form": form, "lettura": lettura})
+    return render(request, "contatori/importa_lettura.html",
+                  {"form": form, "lettura": lettura, "ritorno": ritorno})
 
 
 @richiede_gestione
@@ -459,7 +468,77 @@ def lettura_elimina(request, pk):
                dettaglio={"trimestre": lettura.trimestre, "totale": lettura.totale})
     lettura.delete()
     messages.success(request, "Lettura eliminata.")
-    return redirect("contatori:macchina", pk=macchina_id)
+    return redirect(_ritorno_gestione(request) or reverse("contatori:macchina", args=[macchina_id]))
+
+
+@richiede_gestione
+def lettura_mensile_edit(request, pk):
+    """Correzione di una lettura mensile (i 4 contatori)."""
+    from .forms import LetturaMensileForm
+    lettura = get_object_or_404(LetturaMensileContatori.objects.select_related("macchina"), pk=pk)
+    ritorno = _ritorno_gestione(request)
+    if request.method == "POST":
+        form = LetturaMensileForm(request.POST, instance=lettura)
+        if form.is_valid():
+            lettura = form.save()
+            log_action(request, "lettura_mensile_modificata", "contatori", oggetto=lettura,
+                       dettaglio={"mese": f"{lettura.mese:%Y-%m}", "totale": lettura.totale,
+                                  "calo_confermato": form.cleaned_data.get("conferma_calo", False)})
+            messages.success(request, f"Lettura {lettura.mese:%m/%Y} di {lettura.macchina.reparto} salvata.")
+            return redirect(ritorno or reverse("contatori:macchina", args=[lettura.macchina_id]))
+    else:
+        form = LetturaMensileForm(instance=lettura)
+    return render(request, "contatori/lettura_mensile_form.html",
+                  {"form": form, "lettura": lettura, "ritorno": ritorno})
+
+
+@richiede_gestione
+@require_POST
+def lettura_mensile_elimina(request, pk):
+    lettura = get_object_or_404(LetturaMensileContatori.objects.select_related("macchina"), pk=pk)
+    macchina_id = lettura.macchina_id
+    log_action(request, "lettura_mensile_eliminata", "contatori", oggetto=lettura,
+               dettaglio={"mese": f"{lettura.mese:%Y-%m}", "totale": lettura.totale})
+    lettura.delete()
+    messages.success(request, "Lettura mensile eliminata.")
+    return redirect(_ritorno_gestione(request) or reverse("contatori:macchina", args=[macchina_id]))
+
+
+_TIPI_GESTIONE = {"trimestrali": LetturaContatori, "mensili": LetturaMensileContatori}
+
+
+@richiede_gestione
+def letture_gestisci(request):
+    """Elenco unico delle letture (trimestrali o mensili) da correggere o eliminare, anche in blocco."""
+    tipo = request.POST.get("tipo") or request.GET.get("tipo") or "trimestrali"
+    if tipo not in _TIPI_GESTIONE:
+        tipo = "trimestrali"
+    if request.method == "POST":
+        ids = [int(i) for i in request.POST.getlist("lettura") if i.isdigit()]
+        letture = list(_TIPI_GESTIONE[tipo].objects.filter(pk__in=ids).select_related("macchina"))
+        if letture:
+            log_action(request, "letture_eliminate", "contatori", dettaglio={
+                "tipo": tipo, "eliminate": len(letture),
+                "letture": [f"{l.macchina.matricola} {l.mese:%Y-%m}" if tipo == "mensili"
+                            else f"{l.macchina.matricola} {l.trimestre}" for l in letture][:200]})
+            _TIPI_GESTIONE[tipo].objects.filter(pk__in=[l.pk for l in letture]).delete()
+            messages.success(request, f"{len(letture)} letture eliminate.")
+        else:
+            messages.info(request, "Nessuna lettura selezionata.")
+        return redirect(_ritorno_gestione(request) or f"{reverse('contatori:letture_gestisci')}?tipo={tipo}")
+    macchina_id = request.GET.get("macchina", "")
+    macchina_id = int(macchina_id) if macchina_id.isdigit() else None
+    anno = request.GET.get("anno", "")
+    anno = int(anno) if anno.isdigit() else None
+    solo_cali = request.GET.get("cali") == "1"
+    righe = services.elenco_letture_gestione(tipo, macchina_id=macchina_id, anno=anno, solo_cali=solo_cali)
+    return render(request, "contatori/letture_gestisci.html", {
+        "tipo": tipo, "righe": righe, "macchina_id": macchina_id, "anno": anno, "solo_cali": solo_cali,
+        "macchine": Macchina.objects.order_by("-attiva", "reparto", "matricola"),
+        "anni": services.anni_letture(),
+        "qui": request.get_full_path(),
+        "con_cali": sum(1 for r in righe if r["cali"]),
+    })
 
 
 @richiede_gestione

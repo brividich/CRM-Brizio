@@ -4,7 +4,7 @@
     <span class="cnav-label">Operatività</span>
     <a href="{% url 'contatori:dashboard' %}" class="{% if n == 'dashboard' %}active{% endif %}">Centrale</a>
     <a href="{% url 'contatori:macchine' %}" class="{% if n in 'macchine macchina_nuova macchina_edit macchina' %}active{% endif %}">Stampanti MFC</a>
-    <a href="{% url 'contatori:letture_registro' %}" class="{% if n in 'letture_registro letture_trimestre importa_lettura lettura_edit letture_proposte' %}active{% endif %}">Letture</a>
+    <a href="{% url 'contatori:letture_registro' %}" class="{% if n in 'letture_registro letture_trimestre importa_lettura lettura_edit letture_proposte letture_gestisci lettura_mensile_edit' %}active{% endif %}">Letture</a>
     <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' %}active{% endif %}">Consumabili</a>
     <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit snmp_dispositivo_verifica_oid' or t == 'sonda' %}active{% endif %}">Monitor SNMP</a>
   </div>

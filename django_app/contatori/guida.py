@@ -137,6 +137,26 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "gestisci-letture",
+        "titolo": "Gestisci letture: correggere ed eliminare",
+        "blocchi": [
+            ("p", "Letture → «Gestisci letture» (serve «Contatori - Gestione»): tutte le letture in un elenco, "
+                  "dalla più recente. In alto si sceglie «Trimestrali» (Q1–Q4, quelle della riconciliazione) "
+                  "oppure «Mensili» (le letture automatiche SNMP del giorno 1)."),
+            ("ul", [
+                "Filtri: «MFC», «Anno» e «Solo letture con un calo». In rosso, con «calo A4 BN…», le letture "
+                "con un contatore più basso della lettura prima della stessa MFC: di solito sono quelle sbagliate.",
+                "«Modifica» apre la correzione; dopo il salvataggio si torna all'elenco con gli stessi filtri. "
+                "Se un valore resta più basso della lettura prima (o più alto della dopo) il portale chiede "
+                "«Confermo i valori: il contatore è stato azzerato o la macchina sostituita».",
+                "Per eliminare: spunta le righe (la casella in testata le seleziona tutte) e premi «Elimina "
+                "selezionate»; il portale chiede conferma. L'operazione non si annulla e resta nel log.",
+                "Una lettura mensile eliminata non si ricrea: solo quella del mese in corso viene riletta "
+                "in automatico, se siamo entro il giorno 7.",
+            ]),
+        ],
+    },
+    {
         "id": "centrale",
         "titolo": "Barra del modulo e Centrale",
         "blocchi": [
