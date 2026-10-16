@@ -212,6 +212,9 @@ body.theme-dark .af-card-toggle { background:var(--surface); border-color:var(--
 .af-file-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
 .af-doc-upload-actions { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap; }
 .af-doc-file-status { color:#64748b; font-size:var(--fs-sm); }
+.af-doc-upload-errors { margin:8px 0 0; padding:10px 12px 10px 28px; border:1px solid #fecaca; border-radius:8px; background:#fef2f2; color:#991b1b; font-size:var(--fs-sm); max-height:220px; overflow:auto; }
+.af-doc-upload-errors .af-btn { margin-top:8px; }
+body.theme-dark .af-doc-upload-errors { background:rgba(185,28,28,.15); border-color:rgba(248,113,113,.4); color:#fca5a5; }
 .af-doc-item-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; justify-content:flex-end; }
 .af-doc-delete { display:inline; margin:0; }
 .af-doc-name { font-weight: 600; color: #0f172a; font-size: var(--fs-md); }
@@ -360,6 +363,8 @@ body.theme-dark .af-card-toggle { background:var(--surface); border-color:var(--
 .af-profile-group + .af-profile-group { margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9; }
 .af-profile-group-title { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
 .af-export-menu { position:relative; }
+/* Menu «Altro» aperto: la testata sale sopra la barra delle schede (sticky, z-index 5). */
+.af-header:has(details.af-export-menu[open]) { z-index:6; }
 .af-export-menu > summary { list-style:none; cursor:pointer; }
 .af-export-menu > summary::-webkit-details-marker { display:none; }
 .af-export-pop {
@@ -373,6 +378,8 @@ body.theme-dark .af-card-toggle { background:var(--surface); border-color:var(--
 .af-pop-item:hover { background:#eff6ff; }
 .af-pop-item.is-danger { color:#b91c1c; }
 .af-pop-item.is-danger:hover { background:#fee2e2; }
+.af-pop-item:disabled { color:#94a3b8; cursor:not-allowed; background:none; }
+.af-pop-form { margin:0; }
 /* Testata compatta: la fascia del modulo con il solo "Torna indietro" non serve, il ritorno sta nel titolo. */
 .as-page-head { display:none; }
 .af-back { color:inherit; text-decoration:none; }
@@ -838,10 +845,26 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             <a href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; Scarica XLSX</a>
             {% if layout_manage_url %}<a href="{{ layout_manage_url }}">Configura layout</a>{% endif %}
             {% if can_retire_asset %}
-              {% if asset_is_retired %}
-                <button type="button" class="af-pop-item" id="af-retire-btn" data-target-status="IN_USE" data-confirm="Riportare «{{ asset.name }}» in uso?">Riattiva</button>
+              <form method="post" class="af-pop-form" data-af-confirm="{% if asset_is_retired %}Riportare «{{ asset.name }}» in uso?{% else %}Dismettere «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).{% endif %}">
+                {% csrf_token %}
+                {% if asset_is_retired %}
+                  <input type="hidden" name="action" value="reactivate_asset">
+                  <button type="submit" class="af-pop-item">Riattiva</button>
+                {% else %}
+                  <input type="hidden" name="action" value="retire_asset">
+                  <button type="submit" class="af-pop-item is-danger">Dismetti</button>
+                {% endif %}
+              </form>
+            {% endif %}
+            {% if can_delete_asset %}
+              {% if asset_delete_blocks %}
+                <button type="button" class="af-pop-item" disabled title="Ha già uno storico ({{ asset_delete_blocks|join:', ' }}): usa «Dismetti».">Elimina (non disponibile: ha storico)</button>
               {% else %}
-                <button type="button" class="af-pop-item is-danger" id="af-retire-btn" data-target-status="RETIRED" data-confirm="Mettere fuori uso «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).">Metti fuori uso</button>
+                <form method="post" class="af-pop-form" data-af-confirm="Eliminare definitivamente «{{ asset.name }}»? L'operazione non si annulla.">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_asset">
+                  <button type="submit" class="af-pop-item is-danger">Elimina</button>
+                </form>
               {% endif %}
             {% endif %}
           </div>
@@ -1825,10 +1848,10 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
                     type="file"
                     name="{{ document_upload_field_map|dict_get:key }}"
                     multiple
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp,.msg"
+                    accept="{{ document_upload_accept }}"
                     data-doc-file
                   >
-                  <span data-doc-drop-text>Clicca per caricare o trascina i file (massimo {{ upload_max_mb }} MB per file)</span>
+                  <span data-doc-drop-text>Clicca per caricare o trascina file e cartelle (anche con sottocartelle; massimo {{ upload_max_mb }} MB per file; PDF, Office, immagini, Outlook .msg, video .avi)</span>
                 </label>
                 <input
                   class="af-file-input"
@@ -2291,44 +2314,67 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
     const drop = form.querySelector("[data-doc-drop]");
     const status = form.querySelector("[data-doc-file-status]");
     if (!input || !drop || !status) return;
-    const relativePathName = input.name + "_relative_path";
+    const fieldName = input.name;
+    const relativePathName = fieldName + "_relative_path";
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+    // Stesse regole del server (estensioni e limite per file); IIS rifiuta le
+    // richieste oltre ~100 MB, quindi una cartella grande parte a lotti.
+    const allowedExt = (input.getAttribute("accept") || "").toLowerCase().split(",").map(function (e) { return e.trim(); }).filter(Boolean);
+    const maxBytes = {{ document_upload_max_bytes|default:0 }};
+    const batchBytes = 80 * 1024 * 1024;
+    const batchFiles = 200;
+    const ignored = ["thumbs.db", "desktop.ini", ".ds_store"];
+    let dropped = [];
 
-    function clearRelativePathInputs() {
-      form.querySelectorAll('input[data-doc-relative-path]').forEach(function (node) {
-        node.remove();
-      });
-    }
-
-    function appendRelativePath(value) {
-      const hidden = document.createElement("input");
-      hidden.type = "hidden";
-      hidden.name = relativePathName;
-      hidden.value = value || "";
-      hidden.setAttribute("data-doc-relative-path", "1");
-      form.appendChild(hidden);
-    }
-
-    function totalFiles() {
-      let count = input.files ? input.files.length : 0;
-      if (folderInput && folderInput.files) count += folderInput.files.length;
-      return count;
+    // Elenco unico {file, path}: file singoli (path vuoto), cartella scelta o trascinata.
+    function selection() {
+      const items = [];
+      Array.from(input.files || []).forEach(function (file) { items.push({ file: file, path: "" }); });
+      if (folderInput) {
+        Array.from(folderInput.files || []).forEach(function (file) {
+          items.push({ file: file, path: file.webkitRelativePath || "" });
+        });
+      }
+      return items.concat(dropped);
     }
 
     function updateStatus() {
-      const count = totalFiles();
-      if (count === 0) { status.textContent = "Nessun file selezionato."; return; }
-      if (count === 1) {
-        const single = (input.files && input.files.length) ? input.files[0] : folderInput.files[0];
-        status.textContent = single.name;
-        return;
-      }
-      status.textContent = count + " file selezionati.";
+      const items = selection();
+      if (items.length === 0) { status.textContent = "Nessun file selezionato."; return; }
+      if (items.length === 1) { status.textContent = items[0].path || items[0].file.name; return; }
+      const folders = new Set(items.map(function (it) { return it.path.split("/").slice(0, -1).join("/"); }).filter(Boolean));
+      status.textContent = items.length + " file selezionati" + (folders.size ? " in " + folders.size + " cartelle" : "") + ".";
     }
 
-    input.addEventListener("change", updateStatus);
-    if (folderInput) folderInput.addEventListener("change", updateStatus);
+    input.addEventListener("change", function () { dropped = []; updateStatus(); });
+    if (folderInput) folderInput.addEventListener("change", function () { dropped = []; updateStatus(); });
     if (folderTrigger && folderInput) {
       folderTrigger.addEventListener("click", function () { folderInput.click(); });
+    }
+
+    // Cartelle trascinate: si visita l'albero (anche le sottocartelle) e si tiene il percorso.
+    function readEntry(entry, prefix) {
+      return new Promise(function (resolve) {
+        if (entry.isFile) {
+          entry.file(function (file) { resolve([{ file: file, path: prefix ? prefix + file.name : "" }]); }, function () { resolve([]); });
+          return;
+        }
+        if (!entry.isDirectory) { resolve([]); return; }
+        const reader = entry.createReader();
+        const children = [];
+        (function readBatch() {
+          reader.readEntries(function (entries) {
+            if (!entries.length) {
+              Promise.all(children.map(function (child) { return readEntry(child, prefix + entry.name + "/"); }))
+                .then(function (lists) { resolve([].concat.apply([], lists)); });
+              return;
+            }
+            children.push.apply(children, entries);
+            readBatch();
+          }, function () { resolve([]); });
+        })();
+      });
     }
     ["dragenter", "dragover"].forEach(function (eventName) {
       drop.addEventListener(eventName, function (event) {
@@ -2343,26 +2389,114 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
     });
     drop.addEventListener("drop", function (event) {
       event.preventDefault();
-      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
-        input.files = event.dataTransfer.files;
+      const dt = event.dataTransfer;
+      if (!dt) return;
+      const entries = Array.from(dt.items || [])
+        .map(function (item) { return item.webkitGetAsEntry ? item.webkitGetAsEntry() : null; })
+        .filter(Boolean);
+      input.value = "";
+      if (folderInput) folderInput.value = "";
+      if (!entries.length) {
+        dropped = Array.from(dt.files || []).map(function (file) { return { file: file, path: "" }; });
         updateStatus();
-      }
-    });
-    form.addEventListener("submit", function (event) {
-      if (totalFiles() === 0) {
-        event.preventDefault();
-        status.textContent = "Seleziona almeno un file.";
         return;
       }
-      clearRelativePathInputs();
-      Array.from(input.files || []).forEach(function () {
-        appendRelativePath("");
+      status.textContent = "Lettura della cartella in corso...";
+      Promise.all(entries.map(function (entry) { return readEntry(entry, ""); })).then(function (lists) {
+        dropped = [].concat.apply([], lists);
+        updateStatus();
       });
-      if (folderInput) {
-        Array.from(folderInput.files || []).forEach(function (file) {
-          appendRelativePath(file.webkitRelativePath || file.name || "");
-        });
+    });
+
+    function extOf(name) {
+      const dot = name.lastIndexOf(".");
+      return dot >= 0 ? name.slice(dot).toLowerCase() : "";
+    }
+
+    function send(batch) {
+      const data = new FormData();
+      if (csrfInput) data.append("csrfmiddlewaretoken", csrfInput.value);
+      data.append("action", "upload_asset_documents");
+      batch.forEach(function (it) {
+        data.append(fieldName, it.file, it.file.name);
+        data.append(relativePathName, it.path || "");
+      });
+      return fetch(window.location.pathname, {
+        method: "POST",
+        body: data,
+        headers: { "Accept": "application/json" },
+        credentials: "same-origin",
+      }).then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      });
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const items = selection().filter(function (it) { return ignored.indexOf(it.file.name.toLowerCase()) < 0; });
+      if (items.length === 0) { status.textContent = "Seleziona almeno un file."; return; }
+      const skipped = [];
+      const valid = items.filter(function (it) {
+        const label = it.path || it.file.name;
+        if (allowedExt.length && allowedExt.indexOf(extOf(it.file.name)) < 0) { skipped.push(label + ": formato non consentito"); return false; }
+        if (maxBytes && it.file.size > maxBytes) { skipped.push(label + ": supera il limite per file"); return false; }
+        if (!it.file.size) { skipped.push(label + ": file vuoto"); return false; }
+        return true;
+      });
+      const batches = [];
+      let current = [];
+      let currentBytes = 0;
+      valid.forEach(function (it) {
+        if (current.length && (currentBytes + it.file.size > batchBytes || current.length >= batchFiles)) {
+          batches.push(current); current = []; currentBytes = 0;
+        }
+        current.push(it); currentBytes += it.file.size;
+      });
+      if (current.length) batches.push(current);
+
+      let saved = 0;
+      const errors = skipped.slice();
+      if (submitBtn) submitBtn.disabled = true;
+      if (folderTrigger) folderTrigger.disabled = true;
+
+      function finish() {
+        const parts = [saved + " file caricati"];
+        if (errors.length) parts.push(errors.length + " non caricati");
+        status.textContent = parts.join(", ") + ".";
+        if (errors.length) {
+          const list = document.createElement("ul");
+          list.className = "af-doc-upload-errors";
+          errors.slice(0, 50).forEach(function (msg) {
+            const li = document.createElement("li"); li.textContent = msg; list.appendChild(li);
+          });
+          if (errors.length > 50) {
+            const li = document.createElement("li"); li.textContent = "e altri " + (errors.length - 50) + "..."; list.appendChild(li);
+          }
+          const old = form.querySelector(".af-doc-upload-errors");
+          if (old) old.remove();
+          form.appendChild(list);
+          const reload = document.createElement("button");
+          reload.type = "button"; reload.className = "af-btn af-btn-secondary"; reload.textContent = "Aggiorna l'elenco";
+          reload.addEventListener("click", function () { window.location.reload(); });
+          list.appendChild(reload);
+        } else {
+          window.location.reload();
+        }
       }
+
+      (function next(index) {
+        if (index >= batches.length) { finish(); return; }
+        status.textContent = "Caricamento " + (index + 1) + " di " + batches.length + "... (" + saved + " file salvati)";
+        send(batches[index]).then(function (result) {
+          saved += (result && result.saved) || 0;
+          (result && result.errors || []).forEach(function (msg) { errors.push(msg); });
+          next(index + 1);
+        }).catch(function (error) {
+          batches[index].forEach(function (it) { errors.push((it.path || it.file.name) + ": invio non riuscito (" + error.message + ")"); });
+          next(index + 1);
+        });
+      })(0);
     });
   });
 
@@ -2403,29 +2537,12 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
     });
   });
 
-  // "Metti fuori uso" / "Riattiva": cambia lo stato via l'endpoint bulk (admin).
-  var retireBtn = document.getElementById("af-retire-btn");
-  if (retireBtn) {
-    retireBtn.addEventListener("click", function () {
-      var msg = retireBtn.getAttribute("data-confirm") || "Confermare l'operazione?";
-      if (!window.confirm(msg)) return;
-      var targetStatus = retireBtn.getAttribute("data-target-status");
-      var csrf = (document.cookie.split(";").map(function (c) { return c.trim(); })
-        .filter(function (c) { return c.indexOf("csrftoken=") === 0; })[0] || "").split("=")[1] || "";
-      retireBtn.disabled = true;
-      fetch("{{ asset_bulk_update_url }}", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
-        body: JSON.stringify({ ids: [{{ asset.id }}], fields: { status: targetStatus } })
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (data && data.ok) { window.location.reload(); }
-          else { window.alert("Operazione non riuscita: " + ((data && data.error) || "errore")); retireBtn.disabled = false; }
-        })
-        .catch(function () { window.alert("Errore di rete. Riprova."); retireBtn.disabled = false; });
+  // «Dismetti» / «Riattiva» / «Elimina»: conferma prima dell'invio.
+  document.querySelectorAll("form[data-af-confirm]").forEach(function (form) {
+    form.addEventListener("submit", function (event) {
+      if (!window.confirm(form.getAttribute("data-af-confirm") || "Confermare l'operazione?")) event.preventDefault();
     });
-  }
+  });
 })();
 </script>
 

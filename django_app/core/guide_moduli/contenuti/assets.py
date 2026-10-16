@@ -39,6 +39,10 @@ GUIDA = {
                     "o trascinandola nel Calendario): la scadenza originale resta e, eseguita, la successiva riparte "
                     "dalla data di esecuzione.",
                     "Dalle verifiche periodiche i rilievi si segnalano senza creare ordini di lavoro.",
+                    "Dalla scheda asset, menu «Altro»: «Dismetti» toglie la macchina dagli elenchi senza perdere lo "
+                    "storico (si annulla con «Riattiva»); «Elimina» cancella solo un asset creato per errore, senza storico.",
+                    "Nei Documenti della scheda si caricano anche intere cartelle con sottocartelle e video .avi: "
+                    "i file non ammessi vengono scartati ed elencati, gli altri entrano.",
                 ]),
             ],
         },
@@ -53,6 +57,8 @@ GUIDA = {
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (assicurazioni, contratti) sono separate dai piani di manutenzione.",
+                    "«Dismetti / riattiva asset» ed «Elimina asset (senza storico)» sono già concessi ai ruoli della "
+                    "manutenzione; ad altri ruoli si danno da Amministrazione → Accessi.",
                     "Un piano va applicato ai singoli asset che lo fanno davvero, non a un'intera categoria. Per allineare "
                     "i piani allo scadenziario X-MINE c'è il comando riallinea_manutenzioni_xmine (prima in prova, "
                     "poi con --applica).",
@@ -72,6 +78,20 @@ GUIDA = {
                 "Il piano è applicato a tutta la categoria: in «Piani» applicalo ai singoli asset, oppure escludi l'asset.",
                 "Per le macchine presenti in X-MINE chiedi all'amministratore il riallineamento "
                 "(riallinea_manutenzioni_xmine), che annulla anche le scadenze aperte non dovute.",
+            ],
+        },
+        {
+            "sintomo": "«Elimina» è grigio: «non disponibile: ha storico»",
+            "fare": [
+                "L'asset ha già ordini di lavoro, scadenze, documenti o altri collegamenti: il suggerimento li elenca.",
+                "Usa «Dismetti»: l'asset esce dagli elenchi e lo storico resta.",
+            ],
+        },
+        {
+            "sintomo": "Caricando una cartella alcuni file non entrano",
+            "fare": [
+                "Leggi l'elenco sotto il riquadro: formato non ammesso, file oltre il limite o vuoto.",
+                "Converti i file (es. video in .avi o documenti in PDF) e caricali di nuovo.",
             ],
         },
         {
