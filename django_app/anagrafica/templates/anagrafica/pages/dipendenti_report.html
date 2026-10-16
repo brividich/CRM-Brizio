@@ -32,13 +32,13 @@
 .ana-table tr:last-child td { border-bottom:none; }
 .ana-table tr:hover td { background:#f8fafc; }
 .ana-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
-.ana-pill-blue { background:#dbeafe; color:#1e40af; }
-.ana-pill-gray { background:#f1f5f9; color:#475569; }
-.ana-pill-green { background:#dcfce7; color:#166534; }
+.ana-pill-blue { background:var(--hr-info-bg,#dbeafe); color:var(--hr-info-fg,#1e40af); }
+.ana-pill-gray { background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); }
+.ana-pill-green { background:var(--hr-ok-bg,#dcfce7); color:var(--hr-ok-fg,#166534); }
 .ana-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
 .ana-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
 .ana-pag span { font-size:13px; color:#64748b; }
-.ana-badge-count { display:inline-block; background:#f1f5f9; color:#475569; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; margin-left:8px; }
+.ana-badge-count { display:inline-block; background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; margin-left:8px; }
 /* Dark mode */
 body.theme-dark .ana-title { color:var(--text); }
 body.theme-dark .ana-sub { color:var(--text-light); }
@@ -52,12 +52,8 @@ body.theme-dark .ana-card-title { color:var(--text); }
 body.theme-dark .ana-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
 body.theme-dark .ana-table td { border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .ana-table tr:hover td { background:var(--tbody-hover); }
-body.theme-dark .ana-pill-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .ana-pill-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
-body.theme-dark .ana-pill-green { background:rgba(21,128,61,.2); color:#86efac; }
 body.theme-dark .ana-empty { color:var(--text-light); }
 body.theme-dark .ana-pag span { color:var(--text-light); }
-body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--text-mid); }
 </style>
 {% endblock %}
 

@@ -151,14 +151,15 @@
 
 /* ── Badges ── */
 .fmd-badge{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; line-height:1.4; white-space:nowrap; }
+/* Toni di stato dai token --hr-* (anagrafica/components/_hr_tokens.html); violet = categoria, non stato. */
 .fmd-badge::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
-.fmd-b-green{ background:#ecfdf3; color:#15803d; }
-.fmd-b-amber{ background:#fff8e6; color:#b45309; }
-.fmd-b-orange{ background:#ffe7d6; color:#c2410c; }
-.fmd-b-red{ background:#fff5f5; color:#c53030; }
-.fmd-b-cyan{ background:#e8f3fb; color:#1565a8; }
+.fmd-b-green{ background:var(--hr-ok-bg,#ecfdf3); color:var(--hr-ok-fg,#15803d); }
+.fmd-b-amber{ background:var(--hr-warn-bg,#fff8e6); color:var(--hr-warn-fg,#b45309); }
+.fmd-b-orange{ background:var(--hr-alert-bg,#ffe7d6); color:var(--hr-alert-fg,#c2410c); }
+.fmd-b-red{ background:var(--hr-ko-bg,#fff5f5); color:var(--hr-ko-fg,#c53030); }
+.fmd-b-cyan{ background:var(--hr-info-bg,#e8f3fb); color:var(--hr-info-fg,#1565a8); }
 .fmd-b-violet{ background:#efeafc; color:#6d5cd6; }
-.fmd-b-grey{ background:#eef2f7; color:#5a6580; }
+.fmd-b-grey{ background:var(--hr-na-bg,#eef2f7); color:var(--hr-na-fg,#5a6580); }
 
 /* ── Table footer ── */
 .fmd-tfoot{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 16px 0; border-top:1px solid var(--fmd-line-soft); margin-top:2px; }
@@ -260,10 +261,10 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 /* ── Pill conteggio (riepiloghi) ── */
 .fmd-pill{ display:inline-flex; align-items:center; gap:7px; padding:5px 13px; border-radius:999px; font-size:12px; font-weight:700; }
 .fmd-pill .fmd-pn{ font-family:var(--fmd-mono); font-weight:800; }
-.fmd-pill-red{ background:#fff5f5; color:#c53030; }
-.fmd-pill-orange{ background:#ffe7d6; color:#c2410c; }
-.fmd-pill-amber{ background:#fff8e6; color:#b45309; }
-.fmd-pill-grey{ background:#eef2f7; color:#5a6580; }
+.fmd-pill-red{ background:var(--hr-ko-bg,#fff5f5); color:var(--hr-ko-fg,#c53030); }
+.fmd-pill-orange{ background:var(--hr-alert-bg,#ffe7d6); color:var(--hr-alert-fg,#c2410c); }
+.fmd-pill-amber{ background:var(--hr-warn-bg,#fff8e6); color:var(--hr-warn-fg,#b45309); }
+.fmd-pill-grey{ background:var(--hr-na-bg,#eef2f7); color:var(--hr-na-fg,#5a6580); }
 
 /* ── Typeahead / popover ricerca (caselle dashboard) ── */
 .fmd-search-wrap{ position:relative; flex:1; min-width:220px; }
