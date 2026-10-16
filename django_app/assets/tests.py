@@ -3702,11 +3702,13 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Numero seriale")
+        # Ancora al markup reale: se la classe cambia di nuovo, i NotContains sotto non passano a vuoto.
+        self.assertContains(response, '<span class="af-kv-k">Numero seriale</span>', html=False)
         self.assertContains(response, "SN-SPECS-001")
-        self.assertNotContains(response, '<span class="af-spec-k">Processore</span>', html=False)
-        self.assertNotContains(response, '<span class="af-spec-k">Memoria</span>', html=False)
-        self.assertNotContains(response, '<span class="af-spec-k">Sistema operativo</span>', html=False)
-        self.assertNotContains(response, '<span class="af-spec-k">Grafica</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Processore</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Memoria</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Sistema operativo</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Grafica</span>', html=False)
 
     def test_asset_detail_specs_hide_empty_category_fields_even_when_show_if_empty(self):
         category = AssetCategory.objects.create(
@@ -3782,7 +3784,7 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Presidio attivo")
-        self.assertContains(response, '<span class="af-spec-v">No</span>', html=False)
+        self.assertContains(response, '<span class="af-kv-v">No</span>', html=False)
 
     def test_asset_detail_specs_card_not_rendered_when_configured_specs_are_empty(self):
         AssetDetailField.objects.all().delete()
