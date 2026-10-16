@@ -34,8 +34,11 @@ GUIDA = {
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
                     "L'invio delle mail può essere a ogni blocco o unico a fine controllo.",
                     "La mail del controllo la spedisce il modulo stesso: al capocommessa dell'OP, con il CAR in copia. "
-                    "Gli altri destinatari fissi (conferma aggiornamenti, RDC / segnalazione cliente, supervisori) "
-                    "si impostano in Configurazione → Liste, non in Automazioni.",
+                    "Tutte le mail del modulo stanno in Configurazione → Notifiche: quando partono, chi le riceve, "
+                    "interruttori, orari, liste di destinatari fissi e indirizzo della mail «nuova anomalia fuori da "
+                    "un controllo». La stessa vista è in Automazioni → Notifiche di sistema: un dato solo, due pagine.",
+                    "La vecchia regola Automazioni «AU-MAIL-ANOMALIE anomalia modificata» è spenta: il riepilogo "
+                    "delle modifiche lo manda il modulo, 5 minuti dopo l'ultima modifica sull'OP.",
                 ]),
             ],
         },
@@ -44,8 +47,8 @@ GUIDA = {
         {
             "sintomo": "Il capocommessa non riceve la mail",
             "fare": [
-                "Automazioni → «Regole»: controlla che la regola AU51 sia attiva.",
-                "Automazioni → run log: cerca l'esecuzione e leggi l'errore.",
+                "Configurazione → Notifiche: guarda «Ultimo invio» della mail e se il processo risulta spento.",
+                "Configurazione → Log attività: cerca la mail, leggi l'errore e usa «Reinvia».",
                 "Controlla l'email di notifica del capocommessa in Anagrafica.",
                 "Se nessuna mail del portale parte, Manuale di emergenza → «Le mail non partono».",
             ],

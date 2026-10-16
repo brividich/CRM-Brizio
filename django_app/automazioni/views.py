@@ -4352,6 +4352,18 @@ def event_notifications_page(request):
         "rows": rows,
         "totale": len(rows),
     }
+    # Mail del modulo anomalie: stesso pannello di Configurazione → Notifiche,
+    # stessi dati (nessuna copia). Un errore qui non deve rompere la pagina.
+    try:
+        from anomalie.notifiche import stato_pannello
+        from anomalie.views import _can_manage_anomalie_config
+
+        context["notifiche"] = stato_pannello()
+        context["notifiche_modificabile"] = _can_manage_anomalie_config(request)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("Pannello notifiche anomalie non disponibile", exc_info=True)
     return render(request, "automazioni/pages/notifiche_sistema.html", context)
 
 
