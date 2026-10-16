@@ -7,6 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=1">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -20,187 +21,219 @@
 
     {% include "anagrafica/components/flash_messages.html" %}
 
-    <div class="fmd-pagehead">
+    {# ── Testata: chi è la mansione ─────────────────────────────────────── #}
+    <div class="fmd-pagehead mns-head">
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ mansione.get_tipo_display }}</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>{{ mansione.nome }}{% if not mansione.attiva %} <span class="fmd-badge fmd-b-grey">non attiva</span>{% endif %}</h1>
-        <p class="fmd-ph-sub">
-          {{ mansione.get_tipo_display }}{% if mansione.asset %} · asset {{ mansione.asset.asset_tag|default:mansione.asset.name }}{% endif %}
-          · reparto {{ mansione.reparto_effettivo|default:"da indicare" }}{% if mansione.asset_id %} (dall'asset){% endif %}
-        </p>
+        <div class="mns-facts">
+          <div class="mns-fact"><span class="mns-fact-l">Tipo</span><span class="mns-fact-v">{{ mansione.get_tipo_display }}{% if mansione.asset %} · <span class="fmd-muted">asset {{ mansione.asset.asset_tag|default:mansione.asset.name }}</span>{% endif %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Reparto</span><span class="mns-fact-v">{% if mansione.reparto_effettivo %}{{ mansione.reparto_effettivo }}{% if mansione.asset_id %} <span class="fmd-muted">(dall'asset)</span>{% endif %}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Ruoli</span><span class="mns-fact-v">{% for r in mansione.ruoli.all %}<span class="fmd-badge fmd-b-cyan">{{ r.nome }}</span>{% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Mansioni di rischio</span><span class="mns-fact-v">{% for m in mansione.mansioni_rischio.all %}<a class="fmd-badge fmd-b-violet" href="{% url 'anagrafica:mansione_requisiti' m.pk %}" title="DPI, visite e schede di sicurezza">{{ m.nome }}</a>{% empty %}<span class="mns-warn-txt">da indicare: senza, DPI, visite e SDS non si ricavano</span>{% endfor %}</span></div>
+        </div>
       </div>
       <div class="fmd-pagehead-actions">
+        {% if is_admin %}<a class="fmd-btn fmd-btn-ghost" href="#impostazioni" data-mns-vai="impostazioni"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>{% endif %}
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
 
-    {# ── Ruolo → mansione → mansioni di rischio ─────────────────────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli e mansioni di rischio</div></div>
-      <div class="fmd-split" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
-        <div>
-          <div class="fmd-block-aside" style="margin-bottom:8px;">Ruoli</div>
-          {% for r in mansione.ruoli.all %}<span class="fmd-badge fmd-b-cyan" style="margin:0 5px 6px 0;">{{ r.nome }}</span>{% empty %}<span class="fmd-muted">— nessun ruolo</span>{% endfor %}
-        </div>
-        <div>
-          <div class="fmd-block-aside" style="margin-bottom:8px;">Mansioni di rischio che comporta</div>
-          {% for m in mansione.mansioni_rischio.all %}<a class="fmd-badge fmd-b-violet" style="margin:0 5px 6px 0;text-decoration:none;" href="{% url 'anagrafica:mansione_requisiti' m.pk %}">{{ m.nome }}</a>{% empty %}<span class="fmd-muted">— da indicare: senza, DPI, visite e schede di sicurezza non si ricavano</span>{% endfor %}
-        </div>
-      </div>
-    </section>
+    {# ── Situazione in breve ────────────────────────────────────────────── #}
+    <div class="mns-stats" aria-label="Situazione delle persone">
+      <div class="mns-stat mns-ok"><b>{{ stato.operativi }}</b><span>abilitat{{ stato.operativi|pluralize:"o,i" }}</span></div>
+      <div class="mns-stat mns-mid"><b>{{ stato.addestramento }}</b><span>in addestramento</span></div>
+      <div class="mns-stat mns-ko"><b>{{ stato.non_abilitati }}</b><span>non abilitat{{ stato.non_abilitati|pluralize:"o,i" }}</span></div>
+      {% if stato.da_valutare %}<div class="mns-stat"><b>{{ stato.da_valutare }}</b><span>da valutare sulle competenze</span></div>{% endif %}
+      {% if stato.sospese %}<div class="mns-stat"><b>{{ stato.sospese }}</b><span>sospes{{ stato.sospese|pluralize:"a,e" }}</span></div>{% endif %}
+    </div>
 
-    {# ── Competenze (fase 3) ────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Competenze richieste <span class="fmd-count">{{ competenze|length }}</span></div>
-        <div class="fmd-block-aside">Il livello sulla mansione è la media delle competenze, mai sopra la bloccante più bassa</div>
+    <section class="fmd-panel fmd-block" data-mns-tabs>
+      <div class="mns-tabs" role="tablist" aria-label="Sezioni della mansione">
+        <a class="mns-tab" role="tab" id="tab-persone" href="#persone" aria-controls="persone" aria-selected="true"><svg class="fmd-ico"><use href="#i-users"/></svg>Persone <span class="fmd-count">{{ persone|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-competenze" href="#competenze" aria-controls="competenze" aria-selected="false"><svg class="fmd-ico"><use href="#i-cap"/></svg>Competenze richieste <span class="fmd-count">{{ competenze|length }}</span></a>
+        {% if is_admin %}<a class="mns-tab" role="tab" id="tab-impostazioni" href="#impostazioni" aria-controls="impostazioni" aria-selected="false"><svg class="fmd-ico"><use href="#i-gear"/></svg>Impostazioni</a>{% endif %}
       </div>
-      {% if competenze %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Competenza</th><th>Minimo</th><th>Bloccante</th><th>Requisito formale</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
-          <tbody>
-            {% for v in competenze %}
-            <tr>
-              <td>{{ v.nome }}</td>
-              <td><span class="fmd-badge fmd-b-cyan">{{ v.livello_minimo }}</span></td>
-              <td>{% if v.bloccante %}<span class="fmd-badge fmd-b-red">sì</span>{% else %}<span class="fmd-muted">no</span>{% endif %}</td>
-              <td>{% if v.corso %}Corso «{{ v.corso.titolo }}»{% endif %}{% if v.qualifica %}{% if v.corso %} · {% endif %}Qualifica «{{ v.qualifica.nome }}»{% endif %}{% if v.processo_mpq %}{% if v.corso or v.qualifica %} · {% endif %}MOD.128 «{{ v.processo_mpq.nome }}»{% endif %}{% if not v.corso and not v.qualifica and not v.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
+
+      {# ── Persone ──────────────────────────────────────────────────────── #}
+      <div class="mns-pane mns-pane-on" id="persone" role="tabpanel" aria-labelledby="tab-persone">
+        {% if is_admin %}
+        <form method="post" action="{% url 'anagrafica:mansionario_assegna' mansione.pk %}" class="mns-add">
+          {% csrf_token %}
+          <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi una persona alla mansione</div>
+          <div class="fm-form-field" style="flex:0 1 220px;"><label for="mm-persona-q">Cerca</label>
+            <input id="mm-persona-q" type="search" class="fm-input" placeholder="Cognome o nome…" autocomplete="off" data-mns-filtra="mm-persona"></div>
+          <div class="fm-form-field" style="flex:1 1 260px;max-width:360px;"><label for="mm-persona">Persona</label>
+            <select id="mm-persona" name="persona" class="fm-input fm-select" required>
+              <option value="">— scegli ({{ candidati|length }} disponibili) —</option>
+              {% for c in candidati %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+            </select></div>
+          <div class="fm-form-field" style="min-width:180px;"><label for="mm-livello">Livello di partenza</label>
+            <select id="mm-livello" name="livello" class="fm-input fm-select">
+              {% for k, v in livelli_label %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}
+            </select></div>
+          <button type="submit" class="fmd-btn fmd-btn-primary">Assegna</button>
+        </form>
+        {% endif %}
+
+        {% if persone %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Persona</th><th>Livello</th><th>Esito</th><th>Cosa manca</th><th class="fmd-nowrap">In lista dal</th>{% if is_admin %}<th class="fmd-r">Azioni</th>{% endif %}</tr></thead>
+            <tbody>
+              {% for p in persone %}
+              <tr>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a></td>
+                <td><span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b>{{ p.livello_label }}</span></td>
+                <td>{% if p.sospesa %}<span class="fmd-badge fmd-b-red">sospesa</span>{% elif p.da_valutare %}<span class="fmd-badge fmd-b-grey" title="Esito calcolato: {{ p.valutazione.esito_label|lower }}">da valutare</span>{% elif p.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif p.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
+                <td class="mns-manca">
+                  {% if p.da_valutare %}<span class="fmd-muted">Competenze non ancora valutate</span>
+                  {% elif p.valutazione.mancanze %}
+                  <ul>{% for m in p.valutazione.mancanze|slice:":2" %}<li>{{ m }}</li>{% endfor %}</ul>
+                  {% if p.valutazione.mancanze|length > 2 %}<span class="fmd-muted" title="{{ p.valutazione.mancanze|join:' · ' }}">e altre {{ p.valutazione.mancanze|length|add:"-2" }}</span>{% endif %}
+                  {% else %}<span class="fmd-muted">—</span>{% endif %}
+                </td>
+                <td class="fmd-nowrap fmd-muted">{{ p.data_assegnazione|date:"d-m-Y"|default:"—" }}</td>
+                {% if is_admin %}
+                <td class="fmd-r fmd-nowrap">
+                  <span class="mns-actions">
+                    {% if competenze %}<a class="fmd-btn {% if p.da_valutare %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %} fmd-btn-mini" href="{% url 'anagrafica:mansionario_valuta' mansione.pk p.abilitazione.pk %}">Valuta</a>{% endif %}
+                    <form method="post" action="{% url 'anagrafica:mansionario_togli' mansione.pk p.abilitazione.pk %}" onsubmit="return confirm('Togliere {{ p.nome|escapejs }} dalla mansione? Lo storico dei livelli resta.');">
+                      {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Togli</button>
+                    </form>
+                  </span>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="fmd-legend"><span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto. Con le competenze definite il livello si ricalcola da «Valuta».</span></div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna persona in lista</span><span class="fmd-em">{% if is_admin %}Aggiungila dal riquadro qui sopra.{% else %}Nessuno è ancora assegnato a questa mansione.{% endif %}</span></div>
+        {% endif %}
+      </div>
+
+      {# ── Competenze ───────────────────────────────────────────────────── #}
+      <div class="mns-pane" id="competenze" role="tabpanel" aria-labelledby="tab-competenze">
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Il livello sulla mansione è la media delle competenze, mai sopra la bloccante più bassa. Senza il requisito formale (corso, qualifica, MOD.128) la persona non supera «I – in formazione» su quella competenza.</p>
+        {% if competenze %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Competenza</th><th>Minimo</th><th>Bloccante</th><th>Requisito formale</th>{% if is_admin %}<th class="fmd-r">Azioni</th>{% endif %}</tr></thead>
+            <tbody>
+              {% for v in competenze %}
+              <tr>
+                <td><b>{{ v.nome }}</b></td>
+                <td><span class="mns-lv mns-lv-{{ v.livello_minimo }}"><b>{{ v.livello_minimo }}</b></span></td>
+                <td>{% if v.bloccante %}<span class="fmd-badge fmd-b-red">bloccante</span>{% else %}<span class="fmd-muted">no</span>{% endif %}</td>
+                <td>{% if v.corso %}Corso «{{ v.corso.titolo }}»{% endif %}{% if v.qualifica %}{% if v.corso %} · {% endif %}Qualifica «{{ v.qualifica.nome }}»{% endif %}{% if v.processo_mpq %}{% if v.corso or v.qualifica %} · {% endif %}MOD.128 «{{ v.processo_mpq.nome }}»{% endif %}{% if not v.corso and not v.qualifica and not v.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
+                {% if is_admin %}
+                <td class="fmd-r fmd-nowrap">
+                  <span class="mns-actions">
+                    <button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mns-edit="edit-{{ v.pk }}" aria-expanded="false" aria-controls="edit-{{ v.pk }}">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:mansionario_competenza_disattiva' mansione.pk v.pk %}" onsubmit="return confirm('Togliere la competenza «{{ v.nome|escapejs }}»? I livelli già registrati restano.');">
+                      {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Togli</button>
+                    </form>
+                  </span>
+                </td>
+                {% endif %}
+              </tr>
               {% if is_admin %}
-              <td class="fmd-r">
-                <form method="post" action="{% url 'anagrafica:mansionario_competenza_disattiva' mansione.pk v.pk %}" style="display:inline;">
-                  {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Togli</button>
-                </form>
-              </td>
+              <tr class="mns-edit-row" id="edit-{{ v.pk }}" hidden>
+                <td colspan="5">
+                  {% include "anagrafica/components/_mansionario_competenza_form.html" with voce=v %}
+                </td>
+              </tr>
               {% endif %}
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna competenza definita</span><span class="fmd-em">Vale il livello assegnato a mano alla persona. Definisci le competenze per valutare in modo uniforme.</span></div>
+        {% endif %}
+        {% if is_admin %}
+        <details class="mns-add" style="display:block;margin-top:14px;"{% if not competenze %} open{% endif %}>
+          <summary class="mns-add-title" style="cursor:pointer;"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi competenza</summary>
+          <div style="margin-top:10px;">{% include "anagrafica/components/_mansionario_competenza_form.html" with voce=None %}</div>
+        </details>
+        {% endif %}
       </div>
-      {% else %}
-      <div class="fmd-muted">Nessuna competenza definita: vale il livello assegnato a mano alla persona.</div>
-      {% endif %}
+
+      {# ── Impostazioni ─────────────────────────────────────────────────── #}
       {% if is_admin %}
-      <details style="margin-top:12px;">
-        <summary class="fmd-btn fmd-btn-ghost" style="display:inline-flex;">+ Aggiungi competenza</summary>
-        <form method="post" action="{% url 'anagrafica:mansionario_competenza_salva' mansione.pk %}" style="margin-top:10px;">
+      <div class="mns-pane" id="impostazioni" role="tabpanel" aria-labelledby="tab-impostazioni">
+        <form method="post">
           {% csrf_token %}
           <div class="fm-form-grid-2">
-            <div class="fm-form-field"><label for="mc-nome">Competenza</label><input id="mc-nome" name="nome" class="fm-input" maxlength="150" required placeholder="es. Set-up macchina"></div>
-            <div class="fm-form-field" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-              <div style="min-width:140px;"><label for="mc-min">Livello minimo</label>
-                <select id="mc-min" name="livello_minimo" class="fm-input fm-select"><option value="I">I</option><option value="L">L</option><option value="U" selected>U</option><option value="O">O</option></select></div>
-              <div style="display:flex;gap:8px;align-items:center;padding-bottom:10px;"><input id="mc-blocc" type="checkbox" name="bloccante"><label for="mc-blocc" style="margin:0;">Bloccante</label></div>
-            </div>
-            <div class="fm-form-field"><label for="mc-corso">Corso richiesto (facoltativo)</label>
-              <select id="mc-corso" name="corso" class="fm-input fm-select" data-picker data-picker-placeholder="Cerca corso…"><option value="">— nessuno —</option>{% for c in corsi_opts %}<option value="{{ c.pk }}">{{ c.titolo }}</option>{% endfor %}</select></div>
-            <div class="fm-form-field"><label for="mc-qual">Qualifica o patentino (facoltativo)</label>
-              <select id="mc-qual" name="qualifica" class="fm-input fm-select"><option value="">— nessuna —</option>{% for q in qualifiche_opts %}<option value="{{ q.pk }}">{{ q.nome }}</option>{% endfor %}</select></div>
-            <div class="fm-form-field"><label for="mc-mpq">Abilitazione MOD.128 (facoltativa)</label>
-              <select id="mc-mpq" name="processo_mpq" class="fm-input fm-select"><option value="">— nessuna —</option>{% for p in processi_opts %}<option value="{{ p.pk }}">{{ p.nome }}</option>{% endfor %}</select></div>
+            <div class="fm-form-field"><label for="mm-ruoli">Ruoli</label>
+              <select id="mm-ruoli" name="ruoli" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca ruolo…">
+                {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in sel_ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
+              </select>
+              <div class="fm-help">Di norma un ruolo; più ruoli solo se la mansione serve davvero a entrambi.</div></div>
+            <div class="fm-form-field"><label for="mm-rischi">Mansioni di rischio</label>
+              <select id="mm-rischi" name="mansioni_rischio" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione di rischio…">
+                {% for m in rischi_opts %}<option value="{{ m.pk }}"{% if m.pk in sel_rischi %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+              </select>
+              <div class="fm-help">Chi svolge questa mansione eredita DPI, visite e schede di sicurezza di queste mansioni di rischio.</div></div>
           </div>
-          <div class="fm-help">Senza il requisito formale la persona non supera «I – in formazione» su quella competenza.</div>
-          <button type="submit" class="fmd-btn fmd-btn-primary" style="margin-top:10px;">Salva competenza</button>
-        </form>
-      </details>
-      {% endif %}
-    </section>
-
-    {# ── Persone ────────────────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Persone in lista <span class="fmd-count">{{ persone|length }}</span></div>
-        <div class="fmd-block-aside">Livelli: I in formazione · L intermedio · U autonomo · O esperto</div>
-      </div>
-      {% if persone %}
-      <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Persona</th><th>Livello</th><th>Esito</th><th>Cosa manca</th><th class="fmd-nowrap">Assegnata dal</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
-          <tbody>
-            {% for p in persone %}
-            <tr>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a></td>
-              <td><span class="fmd-badge {% if p.livello == 'O' or p.livello == 'U' %}fmd-b-green{% elif p.livello == 'L' %}fmd-b-orange{% else %}fmd-b-grey{% endif %}">{{ p.livello }}</span></td>
-              <td>{% if p.sospesa %}<span class="fmd-badge fmd-b-red">sospesa</span>{% elif p.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif p.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
-              <td class="fmd-muted" style="font-size:12.5px;">{{ p.valutazione.mancanze|join:" · "|default:"—" }}</td>
-              <td class="fmd-nowrap fmd-muted">{{ p.data_assegnazione|date:"d-m-Y"|default:"—" }}</td>
-              {% if is_admin %}
-              <td class="fmd-r fmd-nowrap">
-                {% if competenze %}<a class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;" href="{% url 'anagrafica:mansionario_valuta' mansione.pk p.abilitazione.pk %}">Valuta</a>{% endif %}
-                <form method="post" action="{% url 'anagrafica:mansionario_togli' mansione.pk p.abilitazione.pk %}" style="display:inline;">
-                  {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Togli</button>
-                </form>
-              </td>
+          <div class="fm-form-grid-2" style="margin-top:8px;">
+            <div class="fm-form-field"><label for="mm-reparto">Reparto</label>
+              {% if mansione.asset_id %}
+              <div class="fmd-muted">{{ mansione.reparto_effettivo|default:"non indicato sull'asset" }} — viene dall'asset: si cambia dalla scheda della macchina.</div>
+              {% else %}
+              <select id="mm-reparto" name="reparto" class="fm-input fm-select">
+                <option value="">— nessuno —</option>
+                {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == mansione.reparto_id %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+              </select>
               {% endif %}
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="fmd-muted">Nessuna persona in lista su questa mansione.</div>
-      {% endif %}
-
-      {% if is_admin %}
-      <form method="post" action="{% url 'anagrafica:mansionario_assegna' mansione.pk %}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px;">
-        {% csrf_token %}
-        <div class="fm-form-field" style="min-width:260px;margin:0;"><label for="mm-persona">Persona</label>
-          <select id="mm-persona" name="persona" class="fm-input fm-select" required>
-            <option value="">— scegli —</option>
-            {% for c in candidati %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
-          </select></div>
-        <div class="fm-form-field" style="min-width:160px;margin:0;"><label for="mm-livello">Livello</label>
-          <select id="mm-livello" name="livello" class="fm-input fm-select">
-            <option value="I">I · in formazione</option><option value="L">L · intermedio</option>
-            <option value="U">U · autonomo</option><option value="O">O · esperto</option>
-          </select></div>
-        <button type="submit" class="fmd-btn fmd-btn-primary">Assegna</button>
-      </form>
-      {% endif %}
-    </section>
-
-    {# ── Configurazione ─────────────────────────────────────────────────── #}
-    {% if is_admin %}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Configurazione della mansione</div></div>
-      <form method="post">
-        {% csrf_token %}
-        <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label for="mm-ruoli">Ruoli</label>
-            <select id="mm-ruoli" name="ruoli" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca ruolo…">
-              {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in sel_ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
-            </select>
-            <div class="fm-help">Di norma un ruolo; più ruoli solo se la mansione serve davvero a entrambi.</div></div>
-          <div class="fm-form-field"><label for="mm-rischi">Mansioni di rischio</label>
-            <select id="mm-rischi" name="mansioni_rischio" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione di rischio…">
-              {% for m in rischi_opts %}<option value="{{ m.pk }}"{% if m.pk in sel_rischi %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
-            </select>
-            <div class="fm-help">Chi svolge questa mansione eredita DPI, visite e schede di sicurezza di queste mansioni di rischio.</div></div>
-        </div>
-        <div class="fm-form-grid-2" style="margin-top:8px;">
-          <div class="fm-form-field"><label for="mm-reparto">Reparto</label>
-            {% if mansione.asset_id %}
-            <div class="fmd-muted">{{ mansione.reparto_effettivo|default:"non indicato sull'asset" }} — viene dall'asset: si cambia dalla scheda della macchina.</div>
-            {% else %}
-            <select id="mm-reparto" name="reparto" class="fm-input fm-select">
-              <option value="">— nessuno —</option>
-              {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == mansione.reparto_id %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
-            </select>
-            {% endif %}
+            </div>
+            <div class="fm-form-field"><label for="mm-attiva">Stato</label>
+              <div style="display:flex;gap:8px;align-items:center;"><input id="mm-attiva" type="checkbox" name="attiva"{% if mansione.attiva %} checked{% endif %}><span>Mansione attiva</span></div>
+              <div class="fm-help">Una mansione non attiva sparisce dal Mansionario; le abilitazioni restano.</div></div>
           </div>
-          <div class="fm-form-field"><label for="mm-attiva">Stato</label>
-            <div style="display:flex;gap:8px;align-items:center;"><input id="mm-attiva" type="checkbox" name="attiva"{% if mansione.attiva %} checked{% endif %}><span>Mansione attiva</span></div>
-            <div class="fm-help">Una mansione non attiva sparisce dal Mansionario; le abilitazioni restano.</div></div>
-        </div>
-        <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;">
-          <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario' %}">Indietro</a>
-          <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
-        </div>
-      </form>
+          <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;">
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario' %}">Torna al Mansionario</a>
+            <button type="submit" class="fmd-btn fmd-btn-primary">Salva impostazioni</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
     </section>
-    {% endif %}
 
   </div>
 </div>
+
+<script>
+(function(){
+  var box=document.querySelector('[data-mns-tabs]');if(!box)return;
+  box.classList.add('mns-js');
+  var tabs=box.querySelectorAll('[role=tab]');
+  function mostra(id,aggiornaUrl){
+    var pane=document.getElementById(id);if(!pane||!pane.classList.contains('mns-pane'))id='persone';
+    tabs.forEach(function(t){var on=t.getAttribute('aria-controls')===id;t.setAttribute('aria-selected',String(on));});
+    box.querySelectorAll('.mns-pane').forEach(function(p){p.classList.toggle('mns-pane-on',p.id===id);});
+    if(aggiornaUrl&&history.replaceState)history.replaceState(null,'','#'+id);
+  }
+  mostra((location.hash||'').slice(1),false);
+  window.addEventListener('hashchange',function(){mostra((location.hash||'').slice(1),false);});
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[role=tab],[data-mns-vai]');
+    if(t){e.preventDefault();var id=t.getAttribute('aria-controls')||t.dataset.mnsVai;mostra(id,true);if(t.dataset.mnsVai)box.scrollIntoView({behavior:'smooth',block:'start'});return;}
+    var ed=e.target.closest('[data-mns-edit]');
+    if(ed){var r=document.getElementById(ed.dataset.mnsEdit);r.hidden=!r.hidden;ed.setAttribute('aria-expanded',String(!r.hidden));if(!r.hidden){var i=r.querySelector('input[name=nome]');if(i)i.focus();}}
+  });
+  // Ricerca nella tendina delle persone: filtra le voci mentre si scrive.
+  document.querySelectorAll('[data-mns-filtra]').forEach(function(inp){
+    var sel=document.getElementById(inp.dataset.mnsFiltra);if(!sel)return;
+    inp.addEventListener('input',function(){
+      var q=inp.value.trim().toLowerCase(),primo=null;
+      Array.prototype.forEach.call(sel.options,function(o,i){if(!i)return;var ok=!q||o.text.toLowerCase().indexOf(q)>=0;o.hidden=!ok;if(ok&&!primo)primo=o;});
+      if(q&&primo)sel.value=primo.value;else if(!q)sel.value='';
+    });
+  });
+})();
+</script>
 {% endblock %}

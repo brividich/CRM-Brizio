@@ -1,0 +1,27 @@
+{% comment %}
+Form di una competenza della mansione (Mansionario). Parametri: mansione, voce (None = nuova),
+livelli_label, corsi_opts, qualifiche_opts, processi_opts. Gli id dei campi hanno il suffisso
+della voce, così più form nella stessa pagina non collidono.
+{% endcomment %}
+{% with sfx=voce.pk|default:"new" %}
+<form method="post" action="{% url 'anagrafica:mansionario_competenza_salva' mansione.pk %}">
+  {% csrf_token %}
+  {% if voce %}<input type="hidden" name="voce" value="{{ voce.pk }}"><input type="hidden" name="ordine" value="{{ voce.ordine }}">{% endif %}
+  <div class="mns-form-inline">
+    <div class="fm-form-field"><label for="mc-nome-{{ sfx }}">Competenza</label><input id="mc-nome-{{ sfx }}" name="nome" class="fm-input" maxlength="150" required placeholder="es. Set-up macchina" value="{{ voce.nome|default:'' }}"></div>
+    <div class="fm-form-field"><label for="mc-min-{{ sfx }}">Livello minimo</label>
+      <select id="mc-min-{{ sfx }}" name="livello_minimo" class="fm-input fm-select">{% for k, v in livelli_label %}<option value="{{ k }}" title="{{ v }}"{% if voce and voce.livello_minimo == k or not voce and k == "U" %} selected{% endif %}>{{ k }} · {{ v }}</option>{% endfor %}</select></div>
+    <label class="mns-check" for="mc-blocc-{{ sfx }}"><input id="mc-blocc-{{ sfx }}" type="checkbox" name="bloccante"{% if voce.bloccante %} checked{% endif %}>Bloccante</label>
+    <div class="fm-form-field"><label for="mc-corso-{{ sfx }}">Corso richiesto</label>
+      <select id="mc-corso-{{ sfx }}" name="corso" class="fm-input fm-select"><option value="">— nessuno —</option>{% for c in corsi_opts %}<option value="{{ c.pk }}"{% if voce and voce.corso_id == c.pk %} selected{% endif %}>{{ c.titolo }}</option>{% endfor %}</select></div>
+    <div class="fm-form-field"><label for="mc-qual-{{ sfx }}">Qualifica o patentino</label>
+      <select id="mc-qual-{{ sfx }}" name="qualifica" class="fm-input fm-select"><option value="">— nessuna —</option>{% for q in qualifiche_opts %}<option value="{{ q.pk }}"{% if voce and voce.qualifica_id == q.pk %} selected{% endif %}>{{ q.nome }}</option>{% endfor %}</select></div>
+    <div class="fm-form-field"><label for="mc-mpq-{{ sfx }}">Abilitazione MOD.128</label>
+      <select id="mc-mpq-{{ sfx }}" name="processo_mpq" class="fm-input fm-select"><option value="">— nessuna —</option>{% for p in processi_opts %}<option value="{{ p.pk }}"{% if voce and voce.processo_mpq_id == p.pk %} selected{% endif %}>{{ p.nome }}</option>{% endfor %}</select></div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+    {% if voce %}<button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mns-edit="edit-{{ voce.pk }}">Annulla</button>{% endif %}
+    <button type="submit" class="fmd-btn fmd-btn-primary fmd-btn-mini">{% if voce %}Salva modifiche{% else %}Aggiungi competenza{% endif %}</button>
+  </div>
+</form>
+{% endwith %}

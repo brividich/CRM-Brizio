@@ -135,19 +135,39 @@ GUIDA = {
                 ("p", "Competenze → Skill Matrix → «Mansionario». La struttura è ruolo → mansione → persone. Una mansione "
                       "è una macchina o un processo: sono le colonne della skill matrix MOD.187."),
                 ("def", [
+                    ("Elenco per ruolo", "la pagina mostra un blocco per ruolo con le sue mansioni; si apre e si chiude "
+                                         "cliccando il nome del ruolo («Apri tutti» / «Chiudi tutti» per tutti insieme). "
+                                         "Una mansione che serve a più ruoli compare sotto ciascuno. In fondo, in "
+                                         "arancione, «Da collegare a un ruolo» raccoglie le mansioni senza ruolo."),
+                    ("Cerca e filtri", "la casella «Cerca» trova per nome della mansione, reparto, ruolo o mansione di "
+                                       "rischio; «Macchine» e «Processi» filtrano per tipo. I riquadri «Senza operativi», "
+                                       "«Senza ruolo» e «Senza mansione di rischio» filtrano le schede (clic di nuovo o "
+                                       "«Mostra tutto» per togliere il filtro); «Persone non abilitate» e «In "
+                                       "addestramento» aprono le Lacune di competenza."),
                     ("Scheda della mansione", "la barra conta le persone in lista per livello: verde autonomo o esperto, "
                                               "giallo intermedio, grigio in formazione. Il numero grande sono gli operativi "
-                                              "(livello pari o sopra la soglia della skill matrix)."),
-                    ("Ruoli", "ruoli sotto cui sta la mansione: di norma uno."),
-                    ("Reparto", "per una macchina è quello dell'asset; per un processo si sceglie nella mansione."),
+                                              "(livello pari o sopra la soglia della skill matrix). Dentro un ruolo, prima "
+                                              "le mansioni meno coperte."),
+                    ("Pagina della mansione", "in testa tipo, reparto, ruoli e mansioni di rischio, poi i contatori "
+                                              "abilitati · in addestramento · non abilitati · da valutare. Sotto, tre "
+                                              "schede: «Persone», «Competenze richieste» e «Impostazioni» (il pulsante "
+                                              "«Modifica» porta a quest'ultima)."),
+                    ("Ruoli", "ruoli sotto cui sta la mansione: di norma uno. Si scelgono in «Impostazioni»."),
+                    ("Reparto", "per una macchina è quello dell'asset; per un processo si sceglie in «Impostazioni»."),
                     ("Mansioni di rischio", "quelle che comporta chi la svolge: da lì vengono DPI, visite e schede di "
                                             "sicurezza. Una mansione senza mansione di rischio è segnalata."),
-                    ("Persone", "dalla pagina della mansione si mette una persona in lista con il suo livello, o la "
-                                "si toglie. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Persone", "nella scheda «Persone», riquadro «Aggiungi una persona alla mansione»: si scrive in "
+                                "«Cerca» per restringere l'elenco, si sceglie la persona e il «Livello di partenza», poi "
+                                "«Assegna». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Da valutare", "chi è in lista su una mansione con competenze ma non ha ancora un livello su "
+                                    "nessuna di esse: il pulsante «Valuta» è evidenziato. Finché non è valutato non "
+                                    "risulta abilitato."),
                     ("Competenze", "ogni mansione ha le sue competenze (es. set-up, programmazione), ciascuna con un "
                                    "livello minimo I/L/U/O, il segno «bloccante» e, se serve, un requisito formale: corso "
                                    "valido, qualifica o patentino valido, abilitazione MOD.128 operativa. Senza il "
-                                   "requisito la persona non supera «I – in formazione» su quella competenza."),
+                                   "requisito la persona non supera «I – in formazione» su quella competenza. Nella "
+                                   "scheda «Competenze richieste»: «Aggiungi competenza», «Modifica» (si corregge sulla "
+                                   "riga, poi «Salva modifiche») e «Togli» (i livelli già registrati restano)."),
                     ("Valuta", "per ogni persona si indica il livello su ogni competenza. Il livello sulla mansione è "
                                "la media delle competenze, arrotondata per difetto, e mai sopra la competenza bloccante "
                                "più bassa; si aggiorna da solo anche nella skill matrix."),

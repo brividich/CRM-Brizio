@@ -108,13 +108,30 @@ class PagineTests(_Base):
         svc.assegna(self.tornio, legacy_anagrafica_id=self.p1.pk, livello="U")
         r = self.client.get(reverse("anagrafica:mansionario"))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, 'id="fmd-mansionario"')
+        self.assertContains(r, 'id="mns-elenco"')
         self.assertContains(r, reverse("anagrafica:mansionario_mansione", args=[self.tornio.pk]))
         self.assertNotContains(r, reverse("anagrafica:mansionario_mansione", args=[self.contatore.pk]))
         r = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.tornio.pk]))
         self.assertContains(r, "ESEMPIO UNO")
         self.assertContains(r, "(dall'asset)")
         self.assertEqual(self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.contatore.pk])).status_code, 404)
+
+    def test_elenco_raggruppato_per_ruolo_con_quelle_da_collegare_in_fondo(self):
+        self.client.force_login(self.admin)
+        self.tornio.ruoli.set([self.ruolo])
+        r = self.client.get(reverse("anagrafica:mansionario"))
+        gruppi = r.context["gruppi"]
+        self.assertEqual([g["nome"] for g in gruppi], ["Operatore MU sintetico", "Da collegare a un ruolo"])
+        self.assertEqual([s["titolo"] for s in gruppi[0]["schede"]], ["Tornio CNC TC-02"])
+        self.assertIn("senza-ruolo", gruppi[1]["schede"][0]["tags"])
+        self.assertIn("lavaggio pezzi", gruppi[1]["schede"][0]["q"])
+        self.assertEqual(r.context["kpi"]["ruoli"], 1)
+
+    def test_configurazione_torna_sulla_tab_impostazioni(self):
+        self.client.force_login(self.admin)
+        url = reverse("anagrafica:mansionario_mansione", args=[self.processo.pk])
+        r = self.client.post(url, {"attiva": "on"})
+        self.assertEqual(r["Location"], url + "#impostazioni")
 
     def test_configurazione_salva_ruoli_rischi_e_reparto_del_processo(self):
         self.client.force_login(self.admin)
