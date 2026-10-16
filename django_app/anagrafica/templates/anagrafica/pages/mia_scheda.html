@@ -1,0 +1,128 @@
+{% extends "core/base.html" %}
+{% load anagrafica_extras %}
+
+{% block title %}La mia scheda | Portale{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.ms-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; }
+.ms-wide { grid-column:1 / -1; }
+.ms-kpi { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; padding:14px 16px; }
+.ms-kpi-val { font-size:22px; font-weight:800; color:var(--hr-title); }
+.ms-kpi-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--hr-muted); }
+.ms-muted { color:var(--hr-muted); font-size:12px; }
+.ms-table-wrap { overflow-x:auto; }
+.ms-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.ms-mesi { display:flex; gap:6px; flex-wrap:wrap; padding:10px 16px 0; }
+@media (max-width:900px) { .ms-grid { grid-template-columns:1fr; } .ms-kpi { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% url 'guida_modulo' 'anagrafica' as guida_url %}
+  {% if not collegato %}
+    {% include "anagrafica/components/hr_pagehead.html" with eyebrow="I miei dati" title="La mia scheda" guida_url=guida_url|add:"#la-mia-scheda" %}
+    <section class="hr-card">
+      {% include "anagrafica/components/hr_empty.html" with icon="🔗" title="Account non collegato a un dipendente" text="Il tuo utente del portale non è collegato a una scheda in anagrafica: chiedi all'ufficio HR di collegarlo." %}
+    </section>
+  {% else %}
+    {% include "anagrafica/components/hr_pagehead.html" with eyebrow="I miei dati" title=nome desc="Solo i tuoi dati: ferie, visite, formazione, cedolino e DPI. Se qualcosa non torna, scrivi all'ufficio HR." guida_url=guida_url|add:"#la-mia-scheda" %}
+
+    <div class="ms-grid">
+      <section class="hr-card ms-wide" aria-labelledby="ms-ferie">
+        <div class="hr-card-head"><div>
+          <div class="hr-card-title" id="ms-ferie">Ferie e permessi</div>
+          <div class="hr-card-desc">{% if saldo %}Saldi in ore dal cedolino di {{ saldo.data_competenza|date:"F Y" }}.{% else %}Nessun saldo importato.{% endif %} {% info_hint "ratei" %}</div>
+        </div></div>
+        {% if saldo %}
+        <div class="ms-kpi">
+          <div><div class="ms-kpi-val">{{ saldo.ferie_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Ferie residue</div></div>
+          <div><div class="ms-kpi-val">{{ saldo.rol_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">ROL residui</div></div>
+          <div><div class="ms-kpi-val">{{ saldo.ex_fest_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Ex festività</div></div>
+          <div><div class="ms-kpi-val">{{ saldo.permessi_residui|floatformat:"-2" }}</div><div class="ms-kpi-lbl">Permessi</div></div>
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="hr-card" aria-labelledby="ms-visite">
+        <div class="hr-card-head"><div>
+          <div class="hr-card-title" id="ms-visite">Visite mediche</div>
+          <div class="hr-card-desc">Scadenza e giudizio di idoneità. Il referto lo conserva l'ufficio HR.</div>
+        </div></div>
+        {% if visite %}
+        <div class="ms-table-wrap"><table class="hr-table">
+          <thead><tr><th>Visita</th><th>Fatta il</th><th>Scade il</th><th>Giudizio</th></tr></thead>
+          <tbody>{% for v in visite %}
+            <tr>
+              <td>{{ v.tipo.nome }}</td>
+              <td>{{ v.data_svolgimento|date:"d/m/Y" }}</td>
+              <td>{% if v.is_scaduta %}{% include "anagrafica/components/hr_pill.html" with tone="danger" label=v.data_scadenza|date:"d/m/Y" title="Scaduta" %}{% elif v.in_scadenza %}{% include "anagrafica/components/hr_pill.html" with tone="warning" label=v.data_scadenza|date:"d/m/Y" title="In scadenza" %}{% else %}{{ v.data_scadenza|date:"d/m/Y"|default:"—" }}{% endif %}</td>
+              <td>{{ v.get_esito_display }}</td>
+            </tr>
+          {% endfor %}</tbody>
+        </table></div>
+        {% else %}{% include "anagrafica/components/hr_empty.html" with title="Nessuna visita registrata" %}{% endif %}
+      </section>
+
+      <section class="hr-card" aria-labelledby="ms-dpi">
+        <div class="hr-card-head"><div>
+          <div class="hr-card-title" id="ms-dpi">DPI</div>
+          <div class="hr-card-desc">Le tue ultime richieste e consegne.</div>
+        </div>
+        <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'dpi:storico' %}">Tutti i miei DPI</a></div>
+        {% if dpi %}
+        <div class="ms-table-wrap"><table class="hr-table">
+          <thead><tr><th>DPI</th><th>Data</th><th>Stato</th></tr></thead>
+          <tbody>{% for r in dpi %}
+            <tr><td>{{ r.tipo_dpi|default:r.categoria }}{% if r.taglia_dpi %} <span class="ms-muted">· {{ r.taglia_dpi }}</span>{% endif %}</td><td>{{ r.created_at|date:"d/m/Y" }}</td><td>{{ r.get_stato_display }}</td></tr>
+          {% endfor %}</tbody>
+        </table></div>
+        {% else %}{% include "anagrafica/components/hr_empty.html" with title="Nessun DPI registrato" %}{% endif %}
+      </section>
+
+      <section class="hr-card ms-wide" aria-labelledby="ms-formazione">
+        <div class="hr-card-head"><div>
+          <div class="hr-card-title" id="ms-formazione">Formazione e attestati</div>
+          <div class="hr-card-desc">Corsi completati; «Attestato» apre il PDF.</div>
+        </div></div>
+        {% if formazione %}
+        <div class="ms-table-wrap"><table class="hr-table">
+          <thead><tr><th>Corso</th><th>Completato il</th><th>Valido fino al</th><th></th></tr></thead>
+          <tbody>{% for r in formazione %}
+            <tr>
+              <td>{{ r.corso.titolo|default:r.corso }}</td>
+              <td>{{ r.data_completamento|date:"d/m/Y" }}</td>
+              <td>{{ r.data_scadenza|date:"d/m/Y"|default:"senza scadenza" }}</td>
+              <td><a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:mio_attestato' r.pk %}" target="_blank" rel="noopener">Attestato</a></td>
+            </tr>
+          {% endfor %}</tbody>
+        </table></div>
+        {% else %}{% include "anagrafica/components/hr_empty.html" with title="Nessun corso registrato" %}{% endif %}
+      </section>
+
+      <section class="hr-card ms-wide" aria-labelledby="ms-cedolino">
+        <div class="hr-card-head"><div>
+          <div class="hr-card-title" id="ms-cedolino">Cedolino</div>
+          <div class="hr-card-desc">{% if cedolino_competenza %}Voci del cedolino di {{ cedolino_competenza|date:"F Y" }} come importate dallo studio paghe.{% else %}Nessun cedolino importato.{% endif %}</div>
+        </div></div>
+        {% if cedolino_mesi|length > 1 %}
+        <nav class="ms-mesi" aria-label="Mese del cedolino">{% for m in cedolino_mesi %}
+          {% if m == cedolino_competenza %}{% include "anagrafica/components/hr_pill.html" with tone="blue" label=m|date:"M Y" %}{% else %}{% include "anagrafica/components/hr_pill.html" with tone="neutral" label=m|date:"M Y" url="?cedolino="|add:m.isoformat %}{% endif %}
+        {% endfor %}</nav>
+        {% endif %}
+        {% if cedolino_voci %}
+        <div class="ms-table-wrap"><table class="hr-table">
+          <thead><tr><th>Voce</th><th>Tipo</th><th class="ms-num">Importo €</th></tr></thead>
+          <tbody>{% for v in cedolino_voci %}
+            <tr><td>{{ v.pay_item }}</td><td>{{ v.get_categoria_display }}</td><td class="ms-num">{{ v.importo|floatformat:2 }}</td></tr>
+          {% endfor %}</tbody>
+        </table></div>
+        {% endif %}
+      </section>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

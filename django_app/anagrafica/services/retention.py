@@ -1,9 +1,10 @@
-"""Retention GDPR dei dati HR: cosa sarebbe da cancellare, senza cancellare.
+"""Retention GDPR dei dati HR.
 
-Un solo punto di calcolo per il comando ``cleanup_expired_documents`` (che con
-``--apply`` cancella) e per il report settimanale in monitoring, che e' solo
-in lettura: dice quanti documenti e candidati hanno superato la conservazione,
-mai chi sono ne' cosa contengono.
+Un solo punto di calcolo per il comando ``cleanup_expired_documents``, per il
+report settimanale in monitoring (solo conteggi, nessuna cancellazione) e per la
+pagina «Conservazione dei dati», dove un amministratore dell'anagrafica conferma
+l'eliminazione dei documenti e l'anonimizzazione dei candidati. Ogni azione
+ricontrolla che il dato sia ancora oltre la conservazione e va nel registro.
 """
 from __future__ import annotations
 
@@ -64,7 +65,21 @@ def documenti_scaduti(*, oggi: date | None = None, tipo: str = "", limit: int | 
     return esito
 
 
-def candidati_da_rivalutare(*, oggi: date | None = None) -> int:
+# Cognome scritto sui candidati resi anonimi: escono dal report e dalle ricerche.
+COGNOME_ANONIMO = "[anonimizzato]"
+# Dati personali del candidato svuotati dall'anonimizzazione. Restano stato, date,
+# posizione, canale, mansione cercata, esiti e punteggi: servono alle statistiche
+# del recruiting e non identificano la persona.
+CAMPI_PERSONALI_CANDIDATO = (
+    "nome", "cellulare", "email", "localita", "provincia", "azienda_attuale", "mansione_attuale",
+    "livello_contratto_attuale", "eta", "titolo_studio", "cittadinanza", "lingua_inglese_livello",
+    "disponibilita", "motivo_cambio_lavoro", "note", "note_secondo_colloquio", "offerta_note",
+    "canale_dettaglio", "occupato_attualmente", "idoneita_tirocinio", "idoneita_apprendistato",
+    "rischio_abbandono",
+)
+
+
+def candidati_scaduti(*, oggi: date | None = None):
     """Candidati chiusi (non idonei, rinunce, annullati) fermi da oltre la conservazione."""
     from anagrafica.models_recruiting import Candidato
     from anagrafica.models import _add_months
@@ -74,7 +89,66 @@ def candidati_da_rivalutare(*, oggi: date | None = None) -> int:
     return Candidato.objects.filter(
         stato__in=(Candidato.STATO_SCARTATO, Candidato.STATO_RINUNCIA, Candidato.STATO_ANNULLATO),
         updated_at__date__lt=soglia,
-    ).count()
+    ).exclude(cognome=COGNOME_ANONIMO).order_by("updated_at", "id")
+
+
+def candidati_da_rivalutare(*, oggi: date | None = None) -> int:
+    return candidati_scaduti(oggi=oggi).count()
+
+
+def elimina_documenti(request, ids, *, oggi: date | None = None) -> dict:
+    """Elimina (file compreso) i documenti indicati, ma solo quelli che oggi risultano
+    ancora oltre la conservazione: un id che non lo è più viene saltato (fail-closed).
+    Una riga di registro attività per documento, senza contenuto del file."""
+    from core.audit import log_action
+
+    ammessi = {doc.pk: (doc, cessazione) for doc, cessazione in documenti_scaduti(oggi=oggi).da_eliminare}
+    esito = {"eliminati": 0, "saltati": 0, "errori": 0}
+    for doc_id in {int(i) for i in ids}:
+        coppia = ammessi.get(doc_id)
+        if coppia is None:
+            esito["saltati"] += 1
+            continue
+        doc, cessazione = coppia
+        dettaglio = {"oggetto": "retention_documento", "documento_id": doc.pk, "tipo": doc.tipo,
+                     "legacy_anagrafica_id": doc.legacy_anagrafica_id, "cessazione": str(cessazione),
+                     "retention_until": str(doc.retention_until)}
+        try:
+            doc.delete()
+        except Exception:
+            logger.exception("Retention: eliminazione documento %s fallita", doc_id)
+            esito["errori"] += 1
+            continue
+        log_action(request, "delete", "anagrafica", dettaglio)
+        esito["eliminati"] += 1
+    return esito
+
+
+def anonimizza_candidati(request, ids, *, oggi: date | None = None) -> dict:
+    """Rende anonimi i candidati indicati ancora oltre la conservazione: svuota i dati
+    personali e toglie lo storico delle modifiche (che li conteneva). Il record resta
+    per le statistiche del recruiting. Registro attività senza nominativi."""
+    from django.db import transaction
+
+    from anagrafica.models_recruiting import Candidato
+    from core.audit import log_action
+
+    ammessi = set(candidati_scaduti(oggi=oggi).filter(pk__in={int(i) for i in ids}).values_list("pk", flat=True))
+    esito = {"anonimizzati": 0, "saltati": len({int(i) for i in ids}) - len(ammessi)}
+    for candidato in Candidato.objects.filter(pk__in=ammessi):
+        with transaction.atomic():
+            for nome in CAMPI_PERSONALI_CANDIDATO:
+                campo = Candidato._meta.get_field(nome)
+                setattr(candidato, nome, None if campo.null else campo.get_default())
+            candidato.cognome = COGNOME_ANONIMO
+            candidato.save()
+            candidato.log_modifiche.all().delete()
+        log_action(request, "update", "anagrafica", {
+            "oggetto": "retention_candidato", "candidato_id": candidato.pk,
+            "codice_riferimento": candidato.codice_riferimento, "stato": candidato.stato,
+        })
+        esito["anonimizzati"] += 1
+    return esito
 
 
 def report_retention(*, oggi: date | None = None) -> dict:
@@ -109,8 +183,8 @@ def pubblica_in_monitoring(report: dict) -> dict:
     righe = [f"Documenti dipendente oltre la conservazione: {documenti}"]
     righe += [f"  {tipo}: {n}" for tipo, n in report["documenti_per_tipo"].items()]
     righe.append(f"Candidati chiusi fermi da oltre {MESI_CONSERVAZIONE_CANDIDATI} mesi: {candidati}")
-    righe.append("Report in sola lettura: nulla e' stato cancellato. Verifica con "
-                 "«manage.py cleanup_expired_documents» (dry-run) prima di qualsiasi --apply.")
+    righe.append("Report in sola lettura: nulla e' stato cancellato. Per eliminare dopo una verifica: "
+                 "Anagrafica → Impostazioni → «Conservazione dei dati» (/anagrafica/impostazioni/retention/).")
     open_or_update_issue_from_health_check(
         check_name=CHECK_NAME,
         title=f"Retention HR: {documenti} documenti, {candidati} candidati oltre la conservazione",

@@ -304,6 +304,9 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
       <a class="imp-tab" href="{% url 'anagrafica:amministrazione_hub' %}">
         <span class="imp-tab-icon">🧭</span> Amministrazione e import
       </a>
+      {% if is_admin %}<a class="imp-tab" href="{% url 'anagrafica:retention' %}">
+        <span class="imp-tab-icon">🗄️</span> Conservazione dei dati
+      </a>{% endif %}
     </nav>
 
     <!-- Content -->

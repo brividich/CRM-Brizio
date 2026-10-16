@@ -10,6 +10,8 @@ from . import views_mansioni_rischio
 from . import views_mansionario
 from . import views_coerenza_capi
 from . import views_mio_team
+from . import views_mia_scheda
+from . import views_retention
 from . import views_elearning
 from . import views_sorveglianza
 from . import views_elenco
@@ -334,6 +336,8 @@ urlpatterns = [
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),
+    path("la-mia-scheda/", views_mia_scheda.mia_scheda, name="mia_scheda"),
+    path("la-mia-scheda/attestato/<int:record_id>/", views_mia_scheda.mio_attestato, name="mio_attestato"),
     path("organigramma/", views.organigramma, name="organigramma"),
     path("organigramma/coerenza-capi/", views_coerenza_capi.coerenza_capi, name="coerenza_capi"),
     path("organigramma/coerenza-capi/<int:legacy_id>/eccezione", views_coerenza_capi.coerenza_capi_eccezione,
@@ -624,6 +628,7 @@ urlpatterns = [
     path("amministrazione/", views_admin_hub.amministrazione_hub, name="amministrazione_hub"),
     path("amministrazione/import/<str:tipo>/<int:pk>/scarti.xlsx", views_admin_hub.import_scarti_export, name="import_scarti_export"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
+    path("impostazioni/retention/", views_retention.retention, name="retention"),
     path("impostazioni/viste-elenco/", views_elenco.viste_elenco, name="viste_elenco"),
     path("impostazioni/viste-elenco/nuova/", views_elenco.vista_elenco_modifica, name="vista_elenco_nuova"),
     path("impostazioni/viste-elenco/<int:pk>/", views_elenco.vista_elenco_modifica, name="vista_elenco_modifica"),

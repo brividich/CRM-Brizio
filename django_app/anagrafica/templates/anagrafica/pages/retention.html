@@ -1,0 +1,112 @@
+{% extends "core/base.html" %}
+{% load anagrafica_extras %}
+
+{% block title %}Conservazione dei dati | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.rt-form { display:flex; flex-direction:column; gap:0; }
+.rt-table-wrap { overflow-x:auto; }
+.rt-confirm { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:14px 16px; border-top:1px solid var(--hr-border-soft); }
+.rt-confirm input[type=text] { height:34px; width:140px; border:1px solid var(--hr-border); border-radius:9px; padding:0 10px; font:inherit; background:var(--hr-surface); color:var(--hr-text); }
+.rt-confirm label { font-size:13px; color:var(--hr-muted); }
+.rt-check { width:16px; height:16px; }
+.rt-muted { color:var(--hr-muted); font-size:12px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  {% url 'guida_modulo' 'anagrafica' as guida_url %}
+  {% url 'anagrafica:impostazioni' as back_url %}
+  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Impostazioni" title="Conservazione dei dati" desc="Dati oltre il periodo di conservazione (GDPR). Niente sparisce da solo: scegli le righe, scrivi ELIMINA e conferma. Ogni azione è ricontrollata e va nel registro attività." guida_url=guida_url|add:"#retention" back_url=back_url %}
+
+  <section class="hr-card">
+    <div class="hr-card-head">
+      <div>
+        <div class="hr-card-title">Documenti dei dipendenti cessati ({{ righe_doc|length }})</div>
+        <div class="hr-card-desc">Conservazione scaduta e passati gli anni di legge dalla cessazione. Un dipendente in forza non compare mai qui. {% info_hint "retention" %}</div>
+      </div>
+    </div>
+    {% if righe_doc %}
+    <form method="post" class="rt-form" onsubmit="return confirm('Eliminare definitivamente i documenti selezionati, file compresi?');">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="documenti">
+      <div class="rt-table-wrap">
+        <table class="hr-table">
+          <thead><tr><th><input type="checkbox" class="rt-check" data-rt-tutti checked aria-label="Seleziona tutti"></th><th>Persona</th><th>Documento</th><th>Cessazione</th><th>Conservare fino al</th></tr></thead>
+          <tbody>
+            {% for r in righe_doc %}
+            <tr>
+              <td><input type="checkbox" class="rt-check" name="ids" value="{{ r.id }}" checked aria-label="Seleziona {{ r.file }}"></td>
+              <td>{{ r.persona }}</td>
+              <td>{{ r.tipo }}<div class="rt-muted">{{ r.file }} · caricato il {{ r.caricato|date:"d/m/Y" }}</div></td>
+              <td>{{ r.cessazione|date:"d/m/Y" }}</td>
+              <td>{{ r.retention|date:"d/m/Y" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="rt-confirm">
+        <label for="rt-conf-doc">Scrivi {{ parola }} per confermare</label>
+        <input type="text" id="rt-conf-doc" name="conferma" autocomplete="off" required>
+        <button type="submit" class="hr-btn hr-btn-danger hr-btn-sm">Elimina i documenti selezionati</button>
+      </div>
+    </form>
+    {% else %}
+      {% include "anagrafica/components/hr_empty.html" with icon="✅" title="Nessun documento oltre la conservazione" %}
+    {% endif %}
+  </section>
+
+  <section class="hr-card">
+    <div class="hr-card-head">
+      <div>
+        <div class="hr-card-title">Candidati chiusi da oltre {{ mesi_candidati }} mesi ({{ candidati|length }})</div>
+        <div class="hr-card-desc">Non idonei, rinunce e annullati senza modifiche da oltre {{ mesi_candidati }} mesi. «Rendi anonimi» cancella i dati personali e lo storico delle modifiche; restano stato, date ed esiti per le statistiche del recruiting.</div>
+      </div>
+    </div>
+    {% if candidati %}
+    <form method="post" class="rt-form" onsubmit="return confirm('Rendere anonimi i candidati selezionati? I dati personali non si recuperano.');">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="candidati">
+      <div class="rt-table-wrap">
+        <table class="hr-table">
+          <thead><tr><th><input type="checkbox" class="rt-check" data-rt-tutti checked aria-label="Seleziona tutti"></th><th>Candidato</th><th>Posizione</th><th>Stato</th><th>Ultima modifica</th></tr></thead>
+          <tbody>
+            {% for c in candidati %}
+            <tr>
+              <td><input type="checkbox" class="rt-check" name="ids" value="{{ c.pk }}" checked aria-label="Seleziona {{ c.codice_riferimento|default:c.pk }}"></td>
+              <td>{{ c.cognome|upper }} {{ c.nome|upper }}{% if c.codice_riferimento %}<div class="rt-muted">{{ c.codice_riferimento }}</div>{% endif %}</td>
+              <td>{{ c.posizione|default:c.mansione_cercata|default:"—" }}</td>
+              <td>{{ c.get_stato_display }}</td>
+              <td>{{ c.updated_at|date:"d/m/Y" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="rt-confirm">
+        <label for="rt-conf-cand">Scrivi {{ parola }} per confermare</label>
+        <input type="text" id="rt-conf-cand" name="conferma" autocomplete="off" required>
+        <button type="submit" class="hr-btn hr-btn-danger hr-btn-sm">Rendi anonimi i candidati selezionati</button>
+      </div>
+    </form>
+    {% else %}
+      {% include "anagrafica/components/hr_empty.html" with icon="✅" title="Nessun candidato oltre la conservazione" %}
+    {% endif %}
+  </section>
+</div>
+<script>
+document.querySelectorAll('[data-rt-tutti]').forEach(function (tutti) {
+  tutti.addEventListener('change', function () {
+    tutti.closest('form').querySelectorAll('input[name="ids"]').forEach(function (c) { c.checked = tutti.checked; });
+  });
+});
+</script>
+{% endblock %}
