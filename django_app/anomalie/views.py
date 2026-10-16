@@ -150,7 +150,7 @@ ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
 ALLEGATI_SYNC_PENDING = "pending"
 ALLEGATI_SYNC_SYNCED = "synced"
 ALLEGATI_SYNC_ERROR = "error"
-ANOMALIE_SETTINGS_TABS = ("riepilogo", "config", "qualita", "permessi", "record", "log")
+ANOMALIE_SETTINGS_TABS = ("riepilogo", "config", "notifiche", "qualita", "permessi", "record", "log")
 # Alias retrocompatibili: le vecchie URL ?tab=ruoli|accessi restano valide e
 # vengono normalizzate nella view al nuovo tab "permessi" con sub corrispondente.
 ANOMALIE_SETTINGS_TAB_ALIASES = {
@@ -3907,6 +3907,11 @@ def anomalie_configurazione_page(request):
     context.update(email_log_context)
     if tab == "qualita":
         context.update(_anomalie_qualita_tab_context())
+    if tab == "notifiche":
+        from .notifiche import stato_pannello
+
+        context["notifiche"] = stato_pannello()
+        context["notifiche_modificabile"] = _can_manage_anomalie_config(request)
     context.update(ruoli_context)
     context.update(access_context)
     return render(request, "anomalie/pages/anomalie_configurazione.html", context)
@@ -4015,6 +4020,37 @@ def api_anomalie_config_liste(request):
         "derived_sources": saved_derived_sources if saved_derived_sources is not None
         else _load_anomalie_derived_sources(),
     })
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_anomalie_notifiche(request):
+    """Salva il pannello unico delle mail (Configurazione → Notifiche e Automazioni)."""
+    if not _can_manage_anomalie_config(request):
+        return JsonResponse({"success": False, "error": "Permesso negato"}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"success": False, "error": "Body JSON non valido"}, status=400)
+    from .notifiche import salva_pannello
+
+    try:
+        ok, message = salva_pannello(payload)
+    except Exception:
+        logger.exception("[anomalie] salvataggio notifiche fallito")
+        return JsonResponse({"success": False, "error": "Salvataggio non riuscito"}, status=500)
+    if not ok:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    try:
+        log_action(request, "anomalie_notifiche_update", "anomalie", {
+            "liste": sorted((payload.get("liste") or {}).keys()) if isinstance(payload.get("liste"), dict) else [],
+            "attivi": payload.get("attivi") if isinstance(payload.get("attivi"), dict) else {},
+            "parametri": payload.get("parametri") if isinstance(payload.get("parametri"), dict) else {},
+        })
+    except Exception:
+        pass
+    return JsonResponse({"success": True, "message": message})
 
 
 @login_required

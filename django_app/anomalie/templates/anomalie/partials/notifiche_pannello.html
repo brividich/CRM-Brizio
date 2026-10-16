@@ -1,0 +1,168 @@
+{% comment %}
+Pannello unico delle mail anomalie. Incluso in Gestione anomalie → Configurazione →
+Notifiche e in Automazioni → Notifiche di sistema: stessi dati, stesso salvataggio
+(anomalie.notifiche). Contesto: `notifiche` (stato_pannello) e `notifiche_modificabile`.
+{% endcomment %}
+<style>
+  .ntf { display:grid; gap:16px; }
+  .ntf-warn { border:1px solid #fca5a5; background:var(--danger-bg); color:var(--danger); border-radius:10px; padding:10px 14px; font-weight:700; font-size:var(--fs-sm); }
+  .ntf-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+  .ntf-table { width:100%; border-collapse:collapse; font-size:var(--fs-sm); }
+  .ntf-table th, .ntf-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+  .ntf-table tr:last-child td { border-bottom:none; }
+  .ntf-table th { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em; color:var(--text-light); background:var(--bg); }
+  .ntf-name { font-weight:800; color:var(--text); }
+  .ntf-muted { color:var(--text-mid); }
+  .ntf-chip { display:inline-block; margin:3px 4px 0 0; padding:1px 8px; border-radius:999px; border:1px solid var(--border); background:var(--bg); font-size:var(--fs-xs); font-weight:700; color:var(--text); }
+  .ntf-ok { color:var(--success); font-weight:700; }
+  .ntf-ko { color:var(--danger); font-weight:700; }
+  .ntf-off td { opacity:.6; }
+  .ntf-switch { display:inline-flex; align-items:center; gap:6px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .ntf-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .ntf-grid .field small { display:block; color:var(--text-mid); margin:2px 0 6px; }
+  .ntf-grid textarea { min-height:86px; }
+  .ntf-params { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  .ntf-sub { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em; font-weight:800; color:var(--text-light); margin:4px 0 8px; }
+  .ntf-actions { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
+  .ntf-status { font-weight:700; font-size:var(--fs-sm); }
+  @media (max-width:760px) { .ntf-grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="ntf" id="ntf-panel" data-save-url="{% url 'api_anomalie_notifiche' %}">
+  {% for m in notifiche.motori %}{% if not m.attivo %}
+  <div class="ntf-warn">Il processo «{{ m.label }}» è spento: le mail che dipendono da lui non partono.
+    {% if m.rule_id %}<a href="{% url 'admin_portale:automazioni_rule_designer' rule_id=m.rule_id %}">Riattivalo</a>{% endif %}</div>
+  {% endif %}{% endfor %}
+
+  <div class="ntf-wrap">
+    <table class="ntf-table">
+      <thead>
+        <tr><th>Mail</th><th>Quando parte</th><th>Chi la riceve</th><th>Attiva</th><th>Ultimo invio</th></tr>
+      </thead>
+      <tbody>
+        {% for r in notifiche.righe %}
+        <tr class="{% if not r.attiva %}ntf-off{% endif %}">
+          <td><span class="ntf-name">{{ r.titolo }}</span>
+            {% if r.motore_spento %}<div class="ntf-ko">Processo spento</div>{% endif %}</td>
+          <td class="ntf-muted">{{ r.quando }}</td>
+          <td class="ntf-muted">{% if r.auto %}{{ r.auto }}{% endif %}
+            {% for l in r.liste_label %}<span class="ntf-chip">{{ l }}</span>{% endfor %}</td>
+          <td>
+            {% if r.toggle %}
+              <label class="ntf-switch"><input type="checkbox" data-ntf-toggle="{{ r.toggle }}"{% if r.attiva %} checked{% endif %}{% if not notifiche_modificabile %} disabled{% endif %} aria-label="Attiva: {{ r.titolo }}"> Attiva</label>
+            {% else %}<span class="ntf-muted">Sempre</span>{% endif %}
+          </td>
+          <td>
+            {% if r.ultimo %}
+              <span class="{% if r.ultimo.ok %}ntf-ok{% else %}ntf-ko{% endif %}" title="{{ r.ultimo.error }}">{{ r.ultimo.at|date:"d/m/Y H:i" }}{% if not r.ultimo.ok %} · fallita{% endif %}</span>
+            {% elif r.log %}<span class="ntf-muted">Mai</span>{% else %}<span class="ntf-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div>
+    <div class="ntf-sub">Destinatari fissi — un indirizzo per riga</div>
+    <div class="ntf-grid">
+      {% for l in notifiche.liste %}
+      <div class="field">
+        <label for="ntf-lista-{{ l.key }}">{{ l.label }}</label>
+        <small>{{ l.uso }}</small>
+        <textarea id="ntf-lista-{{ l.key }}" class="input" data-ntf-lista="{{ l.key }}" spellcheck="false"{% if not notifiche_modificabile %} readonly{% endif %}>{% for v in l.valori %}{{ v }}{% if not forloop.last %}
+{% endif %}{% endfor %}</textarea>
+      </div>
+      {% endfor %}
+      <div class="field">
+        <label for="ntf-nuova-to">Nuova anomalia fuori controllo</label>
+        {% if notifiche.nuova_anomalia.presente %}
+        <small>Un solo indirizzo. Riceve il link per decidere sulle anomalie inserite fuori da un controllo. Vuoto = mail spenta.</small>
+        <input id="ntf-nuova-to" type="email" class="input" value="{{ notifiche.nuova_anomalia.to }}" spellcheck="false"{% if not notifiche_modificabile %} readonly{% endif %}>
+        {% else %}
+        <small>Regola Automazioni non presente: questa mail non parte.</small>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="ntf-sub">Orari e soglie</div>
+    <div class="ntf-params">
+      <label class="field">Ora del resoconto e del digest
+        <select class="input" data-ntf-param="ora_invio"{% if not notifiche_modificabile %} disabled{% endif %}>
+          {% for h in "x"|rjust:24|make_list %}<option value="{{ forloop.counter0 }}"{% if forloop.counter0 == notifiche.parametri.ora_invio %} selected{% endif %}>{{ forloop.counter0|stringformat:"02d" }}:00</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">Resoconto: ore «In attesa»
+        <input type="number" min="1" max="720" class="input" data-ntf-param="soglia_ore" value="{{ notifiche.parametri.soglia_ore }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
+      <label class="field">RDC senza numero: dopo giorni
+        <input type="number" min="1" max="60" class="input" data-ntf-param="rdc_giorni" value="{{ notifiche.parametri.rdc_giorni }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
+      <label class="field">Ricorrenza: anomalie sullo stesso P/N
+        <input type="number" min="2" max="50" class="input" data-ntf-param="ricorrenza_n" value="{{ notifiche.parametri.ricorrenza_n }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
+      <label class="field">Ricorrenza: in giorni
+        <input type="number" min="1" max="365" class="input" data-ntf-param="ricorrenza_giorni" value="{{ notifiche.parametri.ricorrenza_giorni }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
+    </div>
+  </div>
+
+  {% if notifiche_modificabile %}
+  <div class="ntf-actions">
+    <span class="ntf-status" id="ntf-status"></span>
+    <button type="button" class="btn" id="ntf-save">Salva notifiche</button>
+  </div>
+  {% else %}
+  <p class="ntf-muted">Sola lettura: per modificare serve il permesso di configurazione del modulo anomalie.</p>
+  {% endif %}
+</div>
+
+{% if notifiche_modificabile %}
+<script>
+  (function () {
+    const panel = document.getElementById('ntf-panel');
+    const btn = document.getElementById('ntf-save');
+    const statusEl = document.getElementById('ntf-status');
+    if (!panel || !btn) return;
+    const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+    const setStatus = (ok, msg) => { statusEl.className = 'ntf-status ' + (ok ? 'ntf-ok' : 'ntf-ko'); statusEl.textContent = msg; };
+    btn.addEventListener('click', async () => {
+      const payload = { liste: {}, attivi: {}, parametri: {} };
+      panel.querySelectorAll('[data-ntf-lista]').forEach(el => {
+        payload.liste[el.dataset.ntfLista] = el.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      });
+      panel.querySelectorAll('[data-ntf-toggle]').forEach(el => {
+        if (el.dataset.ntfToggle === 'nuova_anomalia') return;
+        payload.attivi[el.dataset.ntfToggle] = el.checked;
+      });
+      panel.querySelectorAll('[data-ntf-param]').forEach(el => {
+        const n = parseInt(el.value, 10);
+        if (!isNaN(n)) payload.parametri[el.dataset.ntfParam] = n;
+      });
+      const nuovaTo = document.getElementById('ntf-nuova-to');
+      const nuovaToggle = panel.querySelector('[data-ntf-toggle="nuova_anomalia"]');
+      if (nuovaTo) {
+        payload.nuova_anomalia = { to: nuovaTo.value.trim(), attiva: nuovaToggle ? nuovaToggle.checked : true };
+      }
+      btn.disabled = true;
+      try {
+        const r = await fetch(panel.dataset.saveUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.success) throw new Error(j.error || 'Salvataggio non riuscito');
+        setStatus(true, j.message || 'Notifiche salvate.');
+        setTimeout(() => window.location.reload(), 600);
+      } catch (e) {
+        setStatus(false, e.message || 'Errore durante il salvataggio');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>
+{% endif %}

@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/anomalie/db/ordini", views.api_db_ordini, name="api_anomalie_db_ordini"),
     path("api/anomalie/db/ordini/crea", views.api_db_ordini_crea, name="api_anomalie_db_ordini_crea"),
     path("api/anomalie/config/liste", views.api_anomalie_config_liste, name="api_anomalie_config_liste"),
+    path("api/anomalie/config/notifiche", views.api_anomalie_notifiche, name="api_anomalie_notifiche"),
     path("api/anomalie/config/logo", views.api_anomalie_config_logo, name="api_anomalie_config_logo"),
     path("api/anomalie/config/logo/reset", views.api_anomalie_config_logo_reset, name="api_anomalie_config_logo_reset"),
     path("api/anomalie/db/anomalie", views.api_db_anomalie, name="api_anomalie_db_anomalie"),
