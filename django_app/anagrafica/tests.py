@@ -3232,7 +3232,7 @@ class SicurezzaHubTests(TestCase):
         resp = self.client.get(reverse("anagrafica:sicurezza_hub"))
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode()
-        self.assertIn("Sicurezza", body)
+        self.assertIn("Cruscotto sicurezza", body)
         self.assertIn("Mansioni di rischio", body)
         # la mansione con requisiti conta come "di rischio"
         self.assertEqual(resp.context["n_mansioni_rischio"], 1)

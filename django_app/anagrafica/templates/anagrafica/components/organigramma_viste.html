@@ -1,0 +1,24 @@
+{% comment %}
+Selettore unico delle viste dell'organigramma: Elenco · Albero · Diagramma · Rischi.
+Parametro: attiva = elenco | albero | diagramma | rischi. Le quattro pagine restano
+URL distinte (link, segnalibri ed export non cambiano): qui diventano un solo posto.
+{% endcomment %}
+<style>
+.ogv { display:inline-flex; gap:2px; padding:3px; border-radius:12px; flex-wrap:wrap;
+  background:var(--hr-surface-alt, #f8fafc); border:1px solid var(--hr-border, #e2e8f0); }
+.ogv a { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:9px;
+  font-size:13px; font-weight:700; color:var(--hr-muted, #64748b); text-decoration:none; white-space:nowrap; }
+.ogv a:hover { color:var(--hr-title, #0c2545); background:var(--hr-surface, #fff); }
+.ogv a.active { background:var(--hr-navy, #0c2545); color:#fff; }
+body.theme-dark .ogv { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .ogv a { color:var(--text-light); }
+body.theme-dark .ogv a:hover { background:var(--surface); color:#93c5fd; }
+body.theme-dark .ogv a.active { background:#93c5fd; color:#0c2545; }
+@media (max-width:600px) { .ogv { display:flex; flex-wrap:nowrap; overflow-x:auto; max-width:100%; } }
+</style>
+<nav class="ogv" aria-label="Viste dell'organigramma">
+  <a href="{% url 'anagrafica:organigramma' %}" class="{% if attiva == 'elenco' %}active{% endif %}"{% if attiva == 'elenco' %} aria-current="page"{% endif %} title="Reparti, aree, capi e persone in forza">▦ Elenco</a>
+  <a href="{% url 'anagrafica:organigramma_albero' %}" class="{% if attiva == 'albero' %}active{% endif %}"{% if attiva == 'albero' %} aria-current="page"{% endif %} title="Gerarchia dei ruoli operativi">🌳 Albero</a>
+  <a href="{% url 'anagrafica:organigramma_diagramma' %}" class="{% if attiva == 'diagramma' %}active{% endif %}"{% if attiva == 'diagramma' %} aria-current="page"{% endif %} title="Una tessera per posizione, da stampare">🗺 Diagramma</a>
+  <a href="{% url 'anagrafica:organigramma_mansioni_rischio' %}" class="{% if attiva == 'rischi' %}active{% endif %}"{% if attiva == 'rischi' %} aria-current="page"{% endif %} title="Gruppi omogenei del DVR per mansione di rischio">⚠ Rischi</a>
+</nav>

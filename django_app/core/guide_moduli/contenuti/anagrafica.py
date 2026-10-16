@@ -19,11 +19,65 @@ GUIDA = {
                 ("def", [
                     ("Persone", "elenco dipendenti, nuovo dipendente, ex dipendenti, documenti, organigramma, reparti."),
                     ("Competenze", "formazione (corsi, sessioni, e-learning, copertura) e skill matrix."),
-                    ("Salute e sicurezza", "visite mediche, idoneità, mansioni di rischio."),
+                    ("Salute e sicurezza", "cruscotto sicurezza, visite mediche, idoneità, mansioni di rischio. Sulle pagine "
+                                           "della sezione, sotto il menu compare una seconda riga con le sue parti "
+                                           "(Operatività, Sorveglianza sanitaria, Rischi e mansioni, Formazione e DPI)."),
                     ("Report", "reportistica componibile ed export."),
                     ("Impostazioni", "cataloghi (ruoli, mansioni di rischio, aree, reparti) e permessi HR."),
                 ]),
-                ("p", "Vedi solo le voci per cui hai il permesso."),
+                ("p", "Vedi solo le voci per cui hai il permesso. Le voci con un codice di modulo (es. «Processi "
+                      "qualificati» = MOD.128, «Abilitazioni macchina» = MOD.187) lo spiegano al passaggio del mouse."),
+            ],
+        },
+        {
+            "id": "scheda",
+            "titolo": "La scheda del dipendente",
+            "blocchi": [
+                ("p", "In alto trovi lo stato della persona: «In forza», «Uscita in corso» o «Cessato il …», e il semaforo "
+                      "di conformità alla mansione (In regola con la mansione / Adempimenti in scadenza / Non conforme — "
+                      "verificare): un clic porta al dettaglio nel Riepilogo."),
+                ("p", "«🔀 Cambia mansione» apre il modulo «Nuovo spostamento» nella scheda Anagrafica, con il cursore "
+                      "sulla mansione. Le azioni che chiudono o sospendono il rapporto (Avvia uscita dipendente…, "
+                      "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
+                      "con motivo, data e restituzioni."),
+                ("p", "Le schede DPI, Visite mediche, Documenti e Asset mostrano accanto al nome quante voci contengono."),
+            ],
+        },
+        {
+            "id": "il-mio-team",
+            "titolo": "Il mio team (capo reparto)",
+            "blocchi": [
+                ("p", "Anagrafica → Persone → «Il mio team» (anche dalla Dashboard reparto delle Assenze) elenca le persone "
+                      "di cui sei responsabile: quelle della tua area aziendale, o del tuo reparto se l'area non ha un "
+                      "responsabile. È la stessa regola che decide a chi arrivano le richieste di ferie."),
+                ("p", "Per ognuno vedi area, mansione e il semaforo di conformità alla mansione; prima chi non è conforme, "
+                      "poi chi ha adempimenti in scadenza. Nessun dato sanitario. Il nome apre la scheda solo se hai il "
+                      "permesso di vederla."),
+                ("nota", "Se l'elenco è vuoto ma sei capo, chiedi all'HR di indicarti come responsabile dell'area o "
+                         "caporeparto nel catalogo Reparti; se dice «Account non collegato», il tuo utente va collegato "
+                         "alla tua scheda."),
+            ],
+        },
+        {
+            "id": "organigramma-viste",
+            "titolo": "Organigramma: una pagina, quattro viste",
+            "blocchi": [
+                ("def", [
+                    ("Elenco", "reparti, aree, capi e persone in forza."),
+                    ("Albero", "la gerarchia dei ruoli operativi («riporta a»)."),
+                    ("Diagramma", "una tessera per posizione, da stampare."),
+                    ("Rischi", "i gruppi omogenei del DVR per mansione di rischio."),
+                ]),
+                ("p", "Il selettore in alto passa da una vista all'altra; i collegamenti salvati continuano a funzionare."),
+            ],
+        },
+        {
+            "id": "scadenzario",
+            "titolo": "Scadenzario: filtrare per periodo",
+            "blocchi": [
+                ("p", "Oltre a tipo, stato e reparto, il menu «Periodo» mostra solo le scadenze di «Questo mese», del "
+                      "«Prossimo mese» o di un «Intervallo…» (dal / al, anche una sola data). Con un periodo scelto il "
+                      "filtro di stato non conta; l'export Excel/PDF dei risultati filtrati usa lo stesso periodo."),
             ],
         },
         {
@@ -109,6 +163,41 @@ GUIDA = {
                 ("p", "Referti clinici: con i ruoli del portale attivi li apre solo chi ha l'azione «Referti clinici» delle "
                       "visite mediche (nei ruoli pronti, Gestione personale). Capi reparto e preposti vedono idoneità, "
                       "limitazioni e scadenze del loro team, non il referto."),
+            ],
+        },
+        {
+            "id": "visite-richiamo",
+            "titolo": "Visite: il richiamo scritto dal medico",
+            "blocchi": [
+                ("p", "Nella registrazione o modifica di una visita, «Richiamo indicato dal medico» è la data entro cui il "
+                      "medico competente vuole rivedere la persona. Se c'è, la scadenza della visita è quella (con la nota "
+                      "«Scadenza indicata dal medico competente.») e il ricalcolo notturno non la cambia più; vuoto = "
+                      "data della visita + periodicità del tipo, anticipata se la mansione chiede di più. Il richiamo deve "
+                      "essere dopo la data della visita. L'import da Excel con una «data richiamo» diversa dalla durata "
+                      "del tipo la scrive qui."),
+                ("p", "L'export Excel dello scadenzario visite contiene la colonna «Prescrizioni» solo per chi può aprire "
+                      "i referti clinici."),
+            ],
+        },
+        {
+            "id": "omonimi",
+            "titolo": "Anagrafiche doppie e omonimi",
+            "blocchi": [
+                ("p", "Due righe con lo stesso nome e cognome vengono considerate la stessa persona (in elenchi, report e "
+                      "scadenze) solo se codice fiscale e matricola non dicono il contrario: con CF o matricola diversi "
+                      "restano due persone. Una riga senza CF né matricola si unisce alla prima compatibile."),
+            ],
+        },
+        {
+            "id": "retention",
+            "titolo": "Conservazione dei dati (retention)",
+            "blocchi": [
+                ("p", "Ogni lunedì alle 06:30 il portale conta, senza cancellare nulla, i documenti dei dipendenti cessati "
+                      "oltre gli anni di conservazione e i candidati chiusi (non idonei, rinunce, annullati) fermi da "
+                      "oltre 24 mesi. Se ce ne sono apre in Monitoraggio la segnalazione «Retention HR» con i soli "
+                      "numeri; quando non ce ne sono più la chiude."),
+                ("p", "La cancellazione dei documenti resta un comando a mano: cleanup_expired_documents (prova), poi "
+                      "con --apply. Un dipendente in forza non perde mai documenti."),
             ],
         },
         {
@@ -243,6 +332,9 @@ GUIDA = {
                 ("def", [
                     ("normalizza_nomi_dipendenti", "riscrive i nomi nel formato COGNOME NOME maiuscolo."),
                     ("pulisci_scadenze_hr", "ricalcola le scadenze di formazione e visite."),
+                    ("cleanup_expired_documents", "documenti dei cessati oltre la conservazione: in prova di default, "
+                                                  "--apply per cancellare. Il report settimanale in Monitoraggio dice "
+                                                  "quanti sono."),
                     ("report_ruoli_disallineati", "elenca i ruoli diversi tra anagrafica e account."),
                     ("importa_mansioni_idoneita", "assegna la mansione di rischio ai dipendenti che non l'hanno, dall'elenco "
                                                   "idoneità del medico (codice fiscale e «MANSIONE DI RISCHIO»). In prova di "
@@ -280,6 +372,21 @@ GUIDA = {
             "fare": [
                 "Apri la scheda: il campo «Mansione di rischio» deve avere un valore del catalogo «Mansioni di rischio».",
                 "Per molti dipendenti insieme usa il comando importa_mansioni_idoneita (prima in prova).",
+            ],
+        },
+        {
+            "sintomo": "Due colleghi con lo stesso nome compaiono come una persona sola",
+            "perche": "nessuna delle due schede ha codice fiscale o matricola, quindi il portale non li distingue.",
+            "fare": [
+                "Inserisci il codice fiscale (scheda → Anagrafica civile) o la matricola in entrambe le schede.",
+                "Ricarica la pagina: con codici diversi restano due persone.",
+            ],
+        },
+        {
+            "sintomo": "La scadenza di una visita non è quella scritta dal medico",
+            "fare": [
+                "Apri la visita → «Modifica visita» e scrivi la data in «Richiamo indicato dal medico».",
+                "Salva: da quel momento la scadenza è quella, anche dopo il ricalcolo notturno.",
             ],
         },
         {

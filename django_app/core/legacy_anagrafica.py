@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 from django.db import connections, transaction
 
 from . import naming
 from .legacy_utils import legacy_table_columns
 
+logger = logging.getLogger(__name__)
 
 _ANAGRAFICA_REQUIRED_EXTRAS = {
     "mansione": {"sqlite": "TEXT", "default": "NVARCHAR(200) NULL"},
@@ -136,13 +139,73 @@ def _anagrafica_row_score(row: dict) -> tuple[int, int, int, int, int, int]:
     )
 
 
+def _codici_fiscali_per_id(ids) -> dict[int, str]:
+    """CF registrati in anagrafica civile, per id legacy (vuoto se la tabella manca)."""
+    ids = sorted({int(i) for i in ids if int(i or 0) > 0})
+    if not ids:
+        return {}
+    try:
+        from anagrafica.models import DipendenteAnagraficaCivile
+        from anagrafica.reportistica.dati import filtra_in
+
+        out: dict[int, str] = {}
+        qs = DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="").values_list(
+            "legacy_anagrafica_id", "codice_fiscale"
+        )
+        for lid, cf in filtra_in(qs, "legacy_anagrafica_id", ids):
+            out[int(lid)] = _normalized_key(cf)
+        return out
+    except Exception:
+        logger.warning("Codici fiscali non leggibili: deduplica solo per nome e matricola", exc_info=True)
+        return {}
+
+
+def _codici_identita(row: dict, cf_map: dict[int, str]) -> dict[str, str]:
+    """Codici che distinguono due omonimi: CF e matricola, se valorizzati."""
+    codici = {"cf": cf_map.get(int(row.get("id") or 0), "")}
+    codici["matricola"] = _normalized_key(_row_text(row, "matricola"))
+    return {k: v for k, v in codici.items() if v}
+
+
+def _codici_compatibili(a: dict[str, str], b: dict[str, str]) -> bool:
+    """Stesso nome ma CF o matricola diversi = due persone: non si fondono."""
+    return all(a[k] == b[k] for k in a.keys() & b.keys())
+
+
+def _identity_keys_con_guardia(rows: list[dict]) -> list[str]:
+    """Chiave di fusione per riga: nome normalizzato, separato fra omonimi con codici diversi.
+
+    La chiave storica (nome + cognome) resta per chi non ha CF ne' matricola o li ha
+    uguali; due anagrafiche con lo stesso nome ma CF o matricola diversi ricevono
+    chiavi distinte (``nome#2``...) e restano due persone.
+    """
+    cf_map = _codici_fiscali_per_id(row.get("id") for row in rows)
+    gruppi: dict[str, list[dict[str, str]]] = {}
+    chiavi: list[str] = []
+    for row in rows:
+        base = _anagrafica_row_identity(row)
+        if not base:
+            chiavi.append("")
+            continue
+        codici = _codici_identita(row, cf_map)
+        cluster = gruppi.setdefault(base, [])
+        for indice, noti in enumerate(cluster):
+            if _codici_compatibili(noti, codici):
+                noti.update(codici)
+                break
+        else:
+            cluster.append(dict(codici))
+            indice = len(cluster) - 1
+        chiavi.append(base if indice == 0 else f"{base}#{indice + 1}")
+    return chiavi
+
+
 def merge_duplicate_anagrafica_rows(rows: list[dict]) -> list[dict]:
     merged_by_key: dict[str, dict] = {}
     ordered: list[dict] = []
     merge_fields = ["matricola", "reparto", "mansione", "ruolo", "email_notifica", "email", "aliasusername", "attivo"]
 
-    for row in rows:
-        key = _anagrafica_row_identity(row)
+    for row, key in zip(rows, _identity_keys_con_guardia(rows)):
         if not key:
             ordered.append(dict(row))
             continue
@@ -166,6 +229,7 @@ def merge_duplicate_anagrafica_rows(rows: list[dict]) -> list[dict]:
 
         merged_ids = {int(value) for value in list(preferred.get("_merged_ids") or []) if int(value or 0) > 0}
         merged_ids.add(int(alternate.get("id") or 0))
+        merged_ids.add(int(preferred.get("id") or 0))
         preferred["_merged_ids"] = sorted(merged_ids)
 
         for field_name in merge_fields:
@@ -292,8 +356,7 @@ def count_anagrafica_statuses(*, deduplicate: bool = True) -> dict[str, int]:
 def cleanup_duplicate_anagrafica_rows() -> dict[str, int]:
     rows = fetch_anagrafica_rows(deduplicate=False)
     grouped: dict[str, list[dict]] = {}
-    for row in rows:
-        key = _anagrafica_row_identity(row)
+    for row, key in zip(rows, _identity_keys_con_guardia(rows)):
         if not key:
             continue
         grouped.setdefault(key, []).append(row)

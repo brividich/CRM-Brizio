@@ -315,12 +315,12 @@ def _get_user_reparto(legacy_id) -> str:
         extra = UserExtraInfo.objects.filter(legacy_user_id=legacy_id).only("reparto").first()
         if extra and extra.reparto:
             return extra.reparto.strip()
-        from anagrafica.models import AnagraficaDipendente
+        from core.legacy_models import AnagraficaDipendente
         ana = AnagraficaDipendente.objects.filter(utente_id=legacy_id).only("reparto").first()
         if ana and ana.reparto:
             return ana.reparto.strip()
     except Exception:
-        pass
+        logger.warning("Reparto utente legacy %s non risolto", legacy_id, exc_info=True)
     return ""
 
 

@@ -3188,6 +3188,16 @@ def _can_use_anagrafica_runtime(request) -> tuple[bool, str]:
     if getattr(user, "is_superuser", False):
         return True, "superuser"
 
+    # Sistema ruoli attivo: decide lui, come la pagina (dati riservati su «tutti»).
+    # Il vecchio permesso singleton vale solo come fallback a ruoli spenti.
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        esito = decisione(request, "anagrafica", "dati_riservati")
+        if esito.consentito and esito.ambito == "tutti":
+            return True, "ruoli_dati_riservati"
+        return False, "missing_ruoli_dati_riservati"
+
     from anagrafica.models import AnagraficaHRPermission
     from core.legacy_utils import is_legacy_admin
 

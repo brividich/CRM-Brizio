@@ -8587,8 +8587,12 @@ def _build_scadenzario_voci(
     filtro_stato: str = "",
     filtro_reparto: str = "",
     dip_map: dict | None = None,
+    periodo: tuple | None = None,
 ) -> list[dict]:
     """Voci dello scadenzario unificato, ordinate per urgenza.
+
+    ``periodo`` = ``(dal, al)``: solo le scadenze in quell'intervallo (inclusi),
+    al posto della finestra di stato (scadute / 30 / 60 giorni).
 
     Fonte unica per la pagina scadenzario e per il blocco «Cose da gestire» della
     dashboard: se i due contassero per conto proprio, il numero sulla dashboard e
@@ -8623,7 +8627,9 @@ def _build_scadenzario_voci(
         qs_q = DipendenteQualifica.objects.select_related("tipo").filter(
             data_scadenza__isnull=False
         ).exclude(legacy_anagrafica_id__in=cessati)
-        if filtro_stato == "scaduta":
+        if periodo:
+            qs_q = qs_q.filter(data_scadenza__range=periodo)
+        elif filtro_stato == "scaduta":
             qs_q = qs_q.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
             qs_q = qs_q.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
@@ -8665,7 +8671,9 @@ def _build_scadenzario_voci(
         qs_v = VisitaMedica.objects.select_related("tipo").filter(
             id__in=ultime_visite_correnti_ids(), data_scadenza__isnull=False
         ).exclude(legacy_anagrafica_id__in=cessati)
-        if filtro_stato == "scaduta":
+        if periodo:
+            qs_v = qs_v.filter(data_scadenza__range=periodo)
+        elif filtro_stato == "scaduta":
             qs_v = qs_v.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
             qs_v = qs_v.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
@@ -8702,7 +8710,9 @@ def _build_scadenzario_voci(
             .filter(is_required=True, data_scadenza__isnull=False)
             .exclude(legacy_anagrafica_id__in=cessati)
         )
-        if filtro_stato == "scaduta":
+        if periodo:
+            qs_f = qs_f.filter(data_scadenza__range=periodo)
+        elif filtro_stato == "scaduta":
             qs_f = qs_f.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
             qs_f = qs_f.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
@@ -8760,7 +8770,10 @@ def _build_scadenzario_voci(
             scadenze_contratti.append((legacy_id, fine_prova, "Fine periodo di prova"))
 
         for legacy_id, data_fine, descrizione in scadenze_contratti:
-            if filtro_stato == "scaduta":
+            if periodo:
+                if not (periodo[0] <= data_fine <= periodo[1]):
+                    continue
+            elif filtro_stato == "scaduta":
                 if data_fine >= oggi:
                     continue
             elif filtro_stato == "30":
@@ -8826,6 +8839,37 @@ def _raggruppa_scadenze_per_tipo(voci: list[dict]) -> list[dict]:
     return gruppi
 
 
+def _scadenzario_periodo(request, oggi):
+    """``(chiave, dal, al, periodo)`` dal GET: mese | prossimo | intervallo (dal/al ISO).
+
+    Intervallo con una sola data = da quella data in poi (o fino a quella data).
+    Date non valide o invertite = nessun periodo (vale il filtro di stato)."""
+    import calendar as _cal
+
+    chiave = request.GET.get("periodo", "").strip()
+    if chiave == "mese":
+        dal = oggi.replace(day=1)
+        al = oggi.replace(day=_cal.monthrange(oggi.year, oggi.month)[1])
+        return chiave, dal, al, (dal, al)
+    if chiave == "prossimo":
+        dal = _add_months(oggi.replace(day=1), 1)
+        al = dal.replace(day=_cal.monthrange(dal.year, dal.month)[1])
+        return chiave, dal, al, (dal, al)
+    if chiave == "intervallo":
+        def _data(nome):
+            try:
+                return parse_date(request.GET.get(nome, "").strip())
+            except ValueError:
+                return None
+
+        dal, al = _data("dal"), _data("al")
+        if dal or al:
+            dal_eff, al_eff = dal or date(1900, 1, 1), al or date(9999, 12, 31)
+            if dal_eff <= al_eff:
+                return chiave, dal, al, (dal_eff, al_eff)
+    return "", None, None, None
+
+
 @login_required
 def scadenzario(request):
     """Scadenzario unificato: qualifiche, visite mediche, formazione obbligatoria
@@ -8845,12 +8889,15 @@ def scadenzario(request):
     filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "60" / ""
     filtro_reparto = request.GET.get("reparto", "").strip()
     export_csv     = request.GET.get("format") == "csv"
+    # Periodo: «questo mese», «prossimo mese» o un intervallo dal/al libero.
+    filtro_periodo, periodo_dal, periodo_al, periodo = _scadenzario_periodo(request, oggi)
 
     voci = _build_scadenzario_voci(
         request,
         filtro_tipo=filtro_tipo,
         filtro_stato=filtro_stato,
         filtro_reparto=filtro_reparto,
+        periodo=periodo,
     )
 
     # KPI
@@ -8951,6 +8998,9 @@ def scadenzario(request):
         "filtro_tipo":   filtro_tipo,
         "filtro_stato":  filtro_stato,
         "filtro_reparto": filtro_reparto,
+        "filtro_periodo": filtro_periodo,
+        "periodo_dal":   periodo_dal,
+        "periodo_al":    periodo_al,
         "reparti":       reparti,
         "gruppi":        gruppi,
         "can_view_visite": can_view_visite,
@@ -11425,7 +11475,8 @@ def visita_medica_dettaglio(request, v_id: int):
     return render(request, "anagrafica/pages/visita_medica_dettaglio.html", {
         "visita": visita,
         "scadenza_tipo": scadenza_tipo,
-        "scadenza_anticipata": bool(scadenza_tipo and visita.data_scadenza and visita.data_scadenza < scadenza_tipo),
+        "scadenza_anticipata": bool(not visita.scadenza_medico and scadenza_tipo and visita.data_scadenza
+                                    and visita.data_scadenza < scadenza_tipo),
         "dipendente_nome": dipendente_nome,
         "form": VisitaMedicaForm(instance=visita),
         "can_edit_visite": _can_edit_visite_mediche(request),
@@ -13428,8 +13479,12 @@ def visite_mediche_export_scadenze(request):
     ws = wb.active
     ws.title = "Scadenze"
 
+    # Le prescrizioni sono dato sanitario: escono solo a chi apre anche i referti.
+    con_prescrizioni = _can_view_referti(request)
     header = ["Dipendente", "Codice Fiscale", "Tipo visita", "Data svolgimento",
-              "Data scadenza", "Giorni a scadenza", "Esito", "Note"]
+              "Data scadenza", "Giorni a scadenza", "Esito"]
+    if con_prescrizioni:
+        header.append("Prescrizioni")
     append_row(ws, header)
     for cell in ws[1]:
         cell.font = Font(bold=True)
@@ -13439,14 +13494,16 @@ def visite_mediche_export_scadenze(request):
         nome = nomi_map.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
         cf = cf_map.get(v.legacy_anagrafica_id, "")
         giorni = (v.data_scadenza - oggi).days if v.data_scadenza else ""
-        append_row(ws, [
+        riga = [
             nome, cf, v.tipo.nome,
             v.data_svolgimento.strftime("%d-%m-%Y") if v.data_svolgimento else "",
             v.data_scadenza.strftime("%d-%m-%Y") if v.data_scadenza else "",
             giorni,
             v.get_esito_display(),
-            v.prescrizioni or "",
-        ])
+        ]
+        if con_prescrizioni:
+            riga.append(v.prescrizioni or "")
+        append_row(ws, riga)
 
     for col in ws.columns:
         ws.column_dimensions[col[0].column_letter].width = max(
@@ -18127,6 +18184,17 @@ def dipendente_conformita_panel(request, legacy_id: int):
     Mai esiti/prescrizioni. La logica privacy è applicata dal service via
     ``include_visite_dettaglio``.
     """
+    if request.GET.get("vista") == "badge":
+        # Solo il semaforo complessivo, per l'intestazione della scheda.
+        can_view_visite = _can_view_visite_mediche(request)
+        mansione_nome = (
+            AnagraficaDipendente.objects.filter(id=legacy_id).values_list("mansione", flat=True).first()
+        ) or ""
+        stato = conformita_service.stato_conformita(
+            legacy_id, include_visite_dettaglio=can_view_visite, mansione=mansione_nome,
+        )
+        return render(request, "anagrafica/partials/conformita_badge.html",
+                      {"esito": stato.get("complessivo") or "na"})
     return render(
         request, "anagrafica/partials/conformita_panel.html",
         _build_conformita_panel_ctx(request, legacy_id),

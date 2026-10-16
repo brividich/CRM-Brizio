@@ -82,6 +82,7 @@ def subnav_svg_icon(label):
         ("chiedi", "i-search"),
         ("report", "i-clipboard"),
         ("persone", "i-users"),
+        ("team", "i-users"),
         ("competenze", "i-cap"),
         ("amministrazion", "i-coins"),
         ("referti", "i-doc"),
@@ -173,6 +174,24 @@ GLOSSARIO_INFO = {
         "M = medio (12h) · B = basso (8h). Determina le ore della formazione lavoratori "
         "e il rinnovo quinquennale."
     ),
+    # Codici di modulo e sigle (fuori dai menu: qui come spiegazione)
+    "mod128": (
+        "MOD.128 — Matrice dei processi qualificati: chi è abilitato a eseguire un processo "
+        "speciale (es. controlli non distruttivi, EN 4179) e con quale timbro personale."
+    ),
+    "mod187": (
+        "MOD.187 — Skill Matrix delle abilitazioni macchina: per ogni persona e macchina il "
+        "livello raggiunto, con revisione semestrale."
+    ),
+    "livelli_ilou": (
+        "Livelli della Skill Matrix: I = in formazione, L = lavora con supervisione, "
+        "U = lavora in autonomia, O = può formare gli altri. Le etichette si cambiano "
+        "dalle impostazioni Skill Matrix."
+    ),
+    "skm": "SKM = Skill Matrix (MOD.187): abilitazioni persona × macchina.",
+    "mod155": "MOD.155 — Verbale di consegna DPI al dipendente.",
+    "mod040": "MOD.040 — Registro presenze della sessione di formazione.",
+    "car": "CAR = capo reparto: approva le richieste di assenza del proprio reparto.",
     # Ratei
     "ratei": (
         "Saldi maturati da cedolino: Ferie, ROL (Riduzione Orario di Lavoro, ex permessi "
@@ -180,6 +199,25 @@ GLOSSARIO_INFO = {
         "e residuo."
     ),
 }
+
+
+# Spiegazione (tooltip) delle voci di menu che hanno un codice di modulo: il codice
+# esce dall'etichetta e resta qui. Chiave = etichetta senza emoji, minuscola.
+GLOSSARIO_MENU = {
+    "processi qualificati": GLOSSARIO_INFO["mod128"],
+    "abilitazioni macchina": GLOSSARIO_INFO["mod187"],
+    "validazione abbinamento macchine": GLOSSARIO_INFO["skm"],
+    "scadenzario abilitazioni": GLOSSARIO_INFO["skm"],
+    "copertura abilitazioni": GLOSSARIO_INFO["skm"],
+    "refresh semestrale": GLOSSARIO_INFO["skm"],
+}
+
+
+@register.filter(name="menu_hint")
+def menu_hint(label) -> str:
+    """Tooltip di una voce di menu (codici MOD.xxx e sigle), vuoto se non serve."""
+    testo = "".join(ch for ch in str(label or "") if ch.isalnum() or ch in " ()./-").strip().lower()
+    return GLOSSARIO_MENU.get(testo, "")
 
 
 @register.inclusion_tag("anagrafica/components/_info.html")
@@ -441,7 +479,7 @@ def _nome_cognome_da(oggetto):
 # url name, view che la tengono accesa anche nelle sottopagine, contatore).
 _SAFETY_GRUPPI = (
     ("Operatività", (
-        ("hub", "Cruscotto", "anagrafica:sicurezza_hub", ("anagrafica:sicurezza_ricerca",), None),
+        ("hub", "Cruscotto sicurezza", "anagrafica:sicurezza_hub", ("anagrafica:sicurezza_ricerca",), None),
         ("cambi", "Cambi mansione e adempimenti", "anagrafica:cambi_mansione", (), "adempimenti"),
         ("scadenzario", "Scadenzario", "anagrafica:scadenzario", (), "scadute"),
         ("conformita", "Conformità e idoneità", "anagrafica:conformita_report", (), None),
@@ -576,6 +614,31 @@ def safety_subnav(context, active=""):
             voce["n"] = conteggi.get(voce["contatore"] or "", 0)
         gruppo["n"] = sum(v["n"] for v in gruppo["voci"])
     return gruppi
+
+
+def _pagina_di_sicurezza(request) -> bool:
+    """La pagina corrente e' una voce (o sottopagina) di Salute e sicurezza."""
+    try:
+        view_name = request.resolver_match.view_name
+    except Exception:
+        return False
+    for _titolo, voci in _SAFETY_GRUPPI:
+        for chiave, _etichetta, nome_url, sottopagine, _contatore in voci:
+            if view_name == nome_url or view_name in sottopagine:
+                # L'elenco qualifiche e' di sicurezza solo filtrato su quella categoria.
+                return chiave != "qualifiche" or request.GET.get("categoria") == "SICUREZZA"
+    return False
+
+
+@register.simple_tag(takes_context=True)
+def safety_subnav_corrente(context):
+    """Secondo livello della subnav dal DB: le sezioni di Salute e sicurezza, solo
+    sulle pagine che ne fanno parte (riconosciute dalla view). Sostituisce la barra
+    «Salute e sicurezza» che ogni pagina includeva a mano."""
+    request = context.get("request")
+    if request is None or not _pagina_di_sicurezza(request):
+        return []
+    return safety_subnav(context, "")
 
 
 @register.simple_tag(takes_context=True)

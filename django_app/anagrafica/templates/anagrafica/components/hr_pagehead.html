@@ -1,0 +1,16 @@
+{% comment %}
+Header di pagina unico del modulo HR. Parametri: eyebrow, title, desc, guida_url (link «? Guida»),
+action_url + action_label (azione principale), back_url (link «← Indietro»).
+Uso: {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Salute e sicurezza" title="Scadenzario" %}
+{% endcomment %}<header class="hr-pagehead">
+  <div class="hr-pagehead-main">
+    {% if eyebrow %}<div class="hr-pagehead-eyebrow">{{ eyebrow }}</div>{% endif %}
+    <h1 class="hr-pagehead-title">{{ title }}</h1>
+    {% if desc %}<p class="hr-pagehead-desc">{{ desc }}</p>{% endif %}
+  </div>
+  <div class="hr-pagehead-actions">
+    {% if action_url and action_label %}<a class="hr-btn hr-btn-primary hr-btn-sm" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+    {% if guida_url %}<a class="hr-btn hr-btn-outline hr-btn-sm" href="{{ guida_url }}" title="Guida della pagina">? Guida</a>{% endif %}
+    {% if back_url %}<a class="hr-btn hr-btn-ghost hr-btn-sm" href="{{ back_url }}">&larr; Indietro</a>{% endif %}
+  </div>
+</header>

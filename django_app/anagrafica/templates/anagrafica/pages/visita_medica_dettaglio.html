@@ -144,7 +144,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
     <section class="hr-card vm-detail-edit" aria-labelledby="vm-modifica" style="margin-top:14px;">
       <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-modifica">Modifica visita</h2><div class="hr-card-desc">Correggi i dati della registrazione</div></div></div>
       <div class="hr-card-pad" style="padding:20px;">
-        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita, e anticipata se la mansione richiede oggi una periodicità più stretta. Un nuovo referto diventa quello principale: il precedente resta nel fascicolo, segnato come sostituito.</p>
+        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita, e anticipata se la mansione richiede oggi una periodicità più stretta. Se il medico ha scritto una data di richiamo, indicala in «Richiamo indicato dal medico»: prevale sul calcolo. Un nuovo referto diventa quello principale: il precedente resta nel fascicolo, segnato come sostituito.</p>
         <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
           {% csrf_token %}
           <div class="vm-detail-form">{% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}</div>

@@ -1,0 +1,7 @@
+{% comment %}
+Pill di stato unica del modulo HR. Parametri:
+  tone  = ok | warning | danger | blue | neutral (default neutral)
+  label = testo; url (facoltativo) = la pill diventa un link; dot = pallino colorato; title = tooltip.
+Uso: {% include "anagrafica/components/hr_pill.html" with tone="ok" label="In regola" %}
+Colori dai token --hr-* di _hr_restyle.html (chiaro e scuro).
+{% endcomment %}{% if url %}<a href="{{ url }}" class="hr-pill {{ tone|default:'neutral' }}{% if dot %} hr-pill-dot{% endif %}"{% if title %} title="{{ title }}"{% endif %}>{{ label }}</a>{% else %}<span class="hr-pill {{ tone|default:'neutral' }}{% if dot %} hr-pill-dot{% endif %}"{% if title %} title="{{ title }}"{% endif %}>{{ label }}</span>{% endif %}

@@ -9,6 +9,7 @@ from . import views_cambio_mansione
 from . import views_mansioni_rischio
 from . import views_mansionario
 from . import views_coerenza_capi
+from . import views_mio_team
 from . import views_elearning
 from . import views_sorveglianza
 from . import views_elenco
@@ -332,6 +333,7 @@ urlpatterns = [
     path("scadenzario/", views.scadenzario, name="scadenzario"),
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
+    path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),
     path("organigramma/", views.organigramma, name="organigramma"),
     path("organigramma/coerenza-capi/", views_coerenza_capi.coerenza_capi, name="coerenza_capi"),
     path("organigramma/coerenza-capi/<int:legacy_id>/eccezione", views_coerenza_capi.coerenza_capi_eccezione,

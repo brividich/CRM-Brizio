@@ -29,7 +29,6 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
   <div class="fmd-wrap">
-    {% include "anagrafica/partials/_safety_subnav.html" with active="organigramma_rischio" %}
 
     <div class="fmd-pagehead">
       <div>
@@ -38,6 +37,7 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
         <p class="fmd-ph-sub">Gruppi omogenei del DVR con le persone esposte, per RSPP e medico competente. In rosso chi non è idoneo a operare, in giallo chi ha un avviso o è in deroga.{% if senza_mansione %} Dipendenti attivi senza mansione di rischio in anagrafica: <strong>{{ senza_mansione }}</strong> (compaiono qui solo se la ricavano dalle mansioni che svolgono).{% endif %}</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/components/organigramma_viste.html" with attiva="rischi" %}
         {% include "anagrafica/components/_export_menu.html" with export_key="organigramma_mansioni_rischio" %}
       </div>
     </div>

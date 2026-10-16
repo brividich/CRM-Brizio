@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+{% load anagrafica_extras %}
+
+{% block title %}Il mio team | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.mt-kpi { display:flex; gap:8px; flex-wrap:wrap; }
+.mt-table-wrap { overflow-x:auto; }
+.mt-mansione { color:var(--hr-muted); font-size:12px; }
+@media (max-width:640px) {
+  .mt-col-area { display:none; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% url 'guida_modulo' 'anagrafica' as guida_url %}
+  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Persone" title="Il mio team" desc="Le persone di cui sei responsabile (area aziendale o reparto) e se sono in regola con gli obblighi della loro mansione. Nessun dato sanitario: solo il semaforo." guida_url=guida_url|add:"#il-mio-team" %}
+
+  {% if righe %}
+  <section class="hr-card">
+    <div class="hr-card-head">
+      <div>
+        <div class="hr-card-title">{{ righe|length }} person{{ righe|length|pluralize:"a,e" }}</div>
+        <div class="hr-card-desc">Prima chi non è conforme, poi chi ha adempimenti in scadenza. {% info_hint "conformita" %}</div>
+      </div>
+      <div class="mt-kpi">
+        {% if conteggi.ko %}{% include "anagrafica/components/hr_pill.html" with tone="danger" dot=1 label=conteggi.ko|stringformat:"d"|add:" non conformi" %}{% endif %}
+        {% if conteggi.warn %}{% include "anagrafica/components/hr_pill.html" with tone="warning" dot=1 label=conteggi.warn|stringformat:"d"|add:" in scadenza" %}{% endif %}
+        {% if conteggi.ok %}{% include "anagrafica/components/hr_pill.html" with tone="ok" dot=1 label=conteggi.ok|stringformat:"d"|add:" in regola" %}{% endif %}
+      </div>
+    </div>
+    <div class="mt-table-wrap">
+      <table class="hr-table">
+        <thead><tr><th>Persona</th><th class="mt-col-area">Area / reparto</th><th>Conformità</th></tr></thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td>
+              {% if r.scheda %}<a href="{% url 'anagrafica:dipendente_detail' r.id %}">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}
+              {% if r.mansione %}<div class="mt-mansione">{{ r.mansione }}</div>{% endif %}
+            </td>
+            <td class="mt-col-area">{{ r.area|default:r.reparto|default:"—" }}</td>
+            <td>{% include "anagrafica/components/hr_pill.html" with tone=r.tono dot=1 label=r.esito_label %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% elif not collegato %}
+  <section class="hr-card">
+    {% include "anagrafica/components/hr_empty.html" with icon="🔗" title="Account non collegato a un dipendente" text="Il tuo utente del portale non è collegato a una scheda in anagrafica: chiedi all'ufficio HR di collegarlo." %}
+  </section>
+  {% else %}
+  <section class="hr-card">
+    {% include "anagrafica/components/hr_empty.html" with icon="👥" title="Nessuna persona nel tuo team" text="Risulti responsabile di un'area aziendale o caporeparto di un reparto solo se indicato nel catalogo Reparti. Se manca qualcuno, segnalalo all'ufficio HR." %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

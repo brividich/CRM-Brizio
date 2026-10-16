@@ -343,13 +343,12 @@ class Command(BaseCommand):
             if overwrite:
                 existing.esito = esito
                 existing.prescrizioni = note
+                campi = ["esito", "prescrizioni", "updated_at"]
                 if data_richiamo:
-                    # Forza la data scadenza storica bypassando save()
-                    existing.save(update_fields=["esito", "prescrizioni", "updated_at"])
-                    if data_richiamo:
-                        VisitaMedica.objects.filter(pk=existing.pk).update(data_scadenza=data_richiamo)
-                else:
-                    existing.save(update_fields=["esito", "prescrizioni", "updated_at"])
+                    # Richiamo del medico: campo dedicato, cosi' il ricalcolo notturno lo rispetta.
+                    existing.scadenza_medico = data_richiamo
+                    campi.append("scadenza_medico")
+                existing.save(update_fields=campi)
                 stats["aggiornate"] += 1
                 return f"AGGIORNATA id={existing.pk}"
         else:
@@ -360,10 +359,10 @@ class Command(BaseCommand):
                 esito=esito,
                 prescrizioni=note,
             )
-            visita.save()  # auto-calcola data_scadenza dal tipo
-            # Se l'Excel riporta una data richiamo diversa, la usiamo (dato storico)
-            if data_richiamo and data_richiamo != visita.data_scadenza:
-                VisitaMedica.objects.filter(pk=visita.pk).update(data_scadenza=data_richiamo)
+            # Data richiamo dell'Excel diversa dalla durata del tipo = scelta del medico.
+            if data_richiamo and data_richiamo != visita.scadenza_naturale():
+                visita.scadenza_medico = data_richiamo
+            visita.save()
             stats["create"] += 1
             return f"CREATA id={visita.pk} — {tipo_nome} [{esito}]"
 

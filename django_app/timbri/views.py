@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from pathlib import Path
 
 from django.contrib import messages
@@ -147,74 +146,11 @@ def _can_manage_timbri_config(request) -> bool:
     return _can_edit_timbri(request)
 
 
-def _normalized_key(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
-
-
-def _is_all_caps_text(value: str) -> bool:
-    text = "".join(ch for ch in str(value or "") if ch.isalpha())
-    return bool(text) and text == text.upper()
-
-
-def _legacy_row_identity(row: dict) -> str:
-    full_name = f"{_field_to_text(row.get('nome'))} {_field_to_text(row.get('cognome'))}".strip()
-    key = _normalized_key(full_name)
-    if key:
-        return key
-    return _normalized_key(_field_to_text(row.get("aliasusername")))
-
-
-def _legacy_row_score(row: dict) -> tuple[int, int, int, int, int, int]:
-    nome = _field_to_text(row.get("nome"))
-    cognome = _field_to_text(row.get("cognome"))
-    return (
-        1 if row.get("utente_id") else 0,
-        1 if nome and not _is_all_caps_text(nome) else 0,
-        1 if cognome and not _is_all_caps_text(cognome) else 0,
-        1 if _field_to_text(row.get("aliasusername")) else 0,
-        1 if row.get("attivo") else 0,
-        int(row.get("id") or 0),
-    )
-
-
 def _merge_duplicate_legacy_rows(rows: list[dict]) -> list[dict]:
-    merged_by_key: dict[str, dict] = {}
-    ordered: list[dict] = []
-    merge_fields = ["matricola", "reparto", "mansione", "ruolo", "email_notifica", "email", "aliasusername", "attivo"]
+    # Stessa regola dell'anagrafica: omonimi con CF o matricola diversi restano due persone.
+    from core.legacy_anagrafica import merge_duplicate_anagrafica_rows
 
-    for row in rows:
-        key = _legacy_row_identity(row)
-        if not key:
-            ordered.append(row)
-            continue
-        current = merged_by_key.get(key)
-        if current is None:
-            clone = dict(row)
-            clone["_merged_ids"] = [int(row.get("id") or 0)]
-            merged_by_key[key] = clone
-            ordered.append(clone)
-            continue
-
-        preferred = current
-        alternate = row
-        if _legacy_row_score(row) > _legacy_row_score(current):
-            preferred = dict(row)
-            preferred["_merged_ids"] = list(current.get("_merged_ids") or [])
-            alternate = current
-            merged_by_key[key] = preferred
-            ordered[ordered.index(current)] = preferred
-
-        merged_ids = {int(value) for value in list(preferred.get("_merged_ids") or []) if int(value or 0) > 0}
-        merged_ids.add(int(alternate.get("id") or 0))
-        preferred["_merged_ids"] = sorted(merged_ids)
-        for field_name in merge_fields:
-            if _field_to_text(preferred.get(field_name)):
-                continue
-            value = alternate.get(field_name)
-            if value not in {None, ""}:
-                preferred[field_name] = value
-
-    return ordered
+    return merge_duplicate_anagrafica_rows(rows)
 
 
 def _field_to_text(value) -> str:

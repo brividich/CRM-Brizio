@@ -220,13 +220,15 @@ class VisitaMedicaForm(forms.ModelForm):
     class Meta:
         model = VisitaMedica
         fields = [
-            "tipo", "data_svolgimento", "esito",
+            "tipo", "data_svolgimento", "esito", "scadenza_medico",
             "prescrizioni", "medico_competente", "note",
         ]
+        labels = {"scadenza_medico": "Richiamo indicato dal medico"}
         widgets = {
             "tipo": forms.Select(attrs={"class": "dp-input"}),
             "data_svolgimento": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "esito": forms.Select(attrs={"class": "dp-input"}),
+            "scadenza_medico": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "prescrizioni": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
             "medico_competente": forms.TextInput(attrs={"class": "dp-input"}),
             "note": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
@@ -246,6 +248,13 @@ class VisitaMedicaForm(forms.ModelForm):
         if data and data > timezone.localdate():
             raise forms.ValidationError("La data di svolgimento non può essere nel futuro.")
         return data
+
+    def clean_scadenza_medico(self):
+        richiamo = self.cleaned_data.get("scadenza_medico")
+        svolta = self.cleaned_data.get("data_svolgimento")
+        if richiamo and svolta and richiamo <= svolta:
+            raise forms.ValidationError("Il richiamo deve essere successivo alla data della visita.")
+        return richiamo
 
     def clean_referto_file(self):
         """SEC (audit A8): solo PDF/PNG/JPEG, verificati dal contenuto."""

@@ -2958,6 +2958,9 @@ class VisitaSessione(models.Model):
         return f"Giornata {self.data_svolgimento} — {self.medico_competente or '—'}"
 
 
+NOTA_SCADENZA_MEDICO = "Scadenza indicata dal medico competente."
+
+
 class VisitaMedica(models.Model):
     """Registrazione di una visita medica effettuata da un dipendente."""
 
@@ -2989,6 +2992,12 @@ class VisitaMedica(models.Model):
     # Perché la scadenza è anticipata rispetto al tipo della visita fatta (ricalcolo
     # prudente, services.scadenze.ricalcola_visite). Vuoto = scadenza del tipo.
     scadenza_nota = models.CharField(max_length=300, blank=True, default="")
+    # Richiamo scritto dal medico competente sul giudizio (art. 41 c.2 b D.Lgs. 81/08):
+    # quando c'e' prevale sulla durata del tipo e sul ricalcolo dai requisiti.
+    scadenza_medico = models.DateField(
+        null=True, blank=True,
+        help_text="Data di richiamo indicata dal medico. Vuoto = scadenza calcolata dal tipo.",
+    )
     esito = models.CharField(
         max_length=20, choices=Esito.choices, default=Esito.IDONEO
     )
@@ -3071,15 +3080,21 @@ class VisitaMedica(models.Model):
         "note", "prescrizioni", "medico_competente",
     })
 
+    def scadenza_naturale(self):
+        """Richiamo del medico se indicato, altrimenti data_svolgimento + durata del tipo."""
+        if self.scadenza_medico:
+            return self.scadenza_medico
+        durata = self.tipo.durata_mesi or 0
+        return _add_months(self.data_svolgimento, durata) if durata > 0 else None
+
     def save(self, *args, **kwargs):
         update_fields = kwargs.get("update_fields")
         campi = set(update_fields) if update_fields is not None else None
         # Con update_fields la scadenza si ricalcola solo se cambiano data o tipo:
         # azzerare in memoria scadenza_nota senza salvarla lascerebbe l'oggetto incoerente.
-        if (campi is None or campi & {"data_svolgimento", "tipo", "data_scadenza"})                 and self.data_svolgimento and self.tipo_id:
-            durata = self.tipo.durata_mesi or 0
-            self.data_scadenza = _add_months(self.data_svolgimento, durata) if durata > 0 else None
-            self.scadenza_nota = ""
+        if (campi is None or campi & {"data_svolgimento", "tipo", "data_scadenza", "scadenza_medico"})                 and self.data_svolgimento and self.tipo_id:
+            self.data_scadenza = self.scadenza_naturale()
+            self.scadenza_nota = NOTA_SCADENZA_MEDICO if self.scadenza_medico else ""
             if campi is not None:
                 kwargs["update_fields"] = list(campi | {"data_scadenza", "scadenza_nota"})
         super().save(*args, **kwargs)

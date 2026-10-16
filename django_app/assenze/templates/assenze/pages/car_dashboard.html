@@ -200,6 +200,10 @@
           </a>
         {% endif %}
       {% endif %}
+      <a href="{% url 'anagrafica:mio_team' %}" class="abs-hero-action" title="Le persone di cui sei responsabile e se sono in regola con la mansione">
+        <svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>
+        Il mio team
+      </a>
       <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action abs-hero-action-primary">
         <svg aria-hidden="true"><use href="#abs-i-download"></use></svg>
         Esporta CSV
@@ -538,7 +542,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Diagnostica assegnazione CAR</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Diagnostica assegnazione capo reparto <abbr title="CAR = capo reparto: approva le assenze del suo reparto">(CAR)</abbr></h2>
           <p class="abs-panel-subtitle">Controllo matching fra utente corrente, capi reparto e sorgenti legacy.</p>
         </div>
       </div>
