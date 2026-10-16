@@ -86,7 +86,7 @@
                     <td class="md-right md-nowrap">
                       {% if occ.status == "OPEN" and wo_can_execute_maintenance %}
                         <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
-                        <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_followup_create' occ.pk %}">Follow-up</a>
+                        <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_followup_create' occ.pk %}">Intervento di verifica</a>
                       {% endif %}
                       {% if occ.status == "OPEN" and wo_can_plan_maintenance %}
                         <form method="post" action="{% url 'assets:workorder_occurrence_remove' workorder.pk occ.pk %}" style="display:inline"

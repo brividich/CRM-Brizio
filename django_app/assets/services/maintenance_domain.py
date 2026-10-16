@@ -15,8 +15,10 @@ La fonte di verita' della scadenza e' l'occorrenza: nessun ``next_due`` altrove.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any, Iterable
 
 from django.db import IntegrityError, transaction
@@ -25,11 +27,14 @@ from django.utils import timezone
 from ..models import (
     Asset,
     AssetGroupMembership,
+    AssetMeter,
+    AssetMeterHistory,
     MaintenanceInterventionTemplate,
     MaintenanceOccurrence,
     MaintenancePlanAssignment,
     WorkOrder,
     WorkOrderLog,
+    occurrence_has_attachments,
 )
 from .recurrence import (
     ANCHOR_FIXED_CALENDAR,
@@ -282,6 +287,122 @@ def compute_due_date_for(
     return first_due_date_for(assignment, start_date=start, today=start)
 
 
+# ---------------------------------------------------------------------------
+# Piani a contatore
+# ---------------------------------------------------------------------------
+
+def meter_value_at_activation(assignment: MaintenancePlanAssignment, meter: AssetMeter) -> Decimal:
+    """Valore del contatore quando l'assegnazione e' stata attivata.
+
+    Un'assegnazione per categoria o gruppo vale per molti asset: un solo
+    ``meter_baseline`` non basta. Si ricava dallo storico: l'ultima lettura prima
+    dell'attivazione, altrimenti il valore di partenza della prima lettura dopo,
+    altrimenti (contatore mai cambiato da allora) il valore attuale.
+    """
+    activated_at = assignment.created_at or timezone.now()
+    before = (
+        AssetMeterHistory.objects.filter(meter=meter, recorded_at__lte=activated_at)
+        .order_by("-recorded_at", "-id")
+        .values_list("new_value", flat=True)
+        .first()
+    )
+    if before is not None:
+        return Decimal(before)
+    after = (
+        AssetMeterHistory.objects.filter(meter=meter, recorded_at__gt=activated_at)
+        .order_by("recorded_at", "id")
+        .values_list("old_value", flat=True)
+        .first()
+    )
+    if after is not None:
+        return Decimal(after)
+    return Decimal(meter.current_value)
+
+
+def meter_target_for(
+    assignment: MaintenancePlanAssignment,
+    meter: AssetMeter,
+    *,
+    last_completed: MaintenanceOccurrence | None,
+) -> Decimal:
+    """Prossimo traguardo: ultima esecuzione (o base) + intervallo."""
+    if last_completed is not None and last_completed.meter_value_at_completion is not None:
+        base = Decimal(last_completed.meter_value_at_completion)
+    elif assignment.meter_baseline is not None:
+        base = Decimal(assignment.meter_baseline)
+    else:
+        base = meter_value_at_activation(assignment, meter)
+    return base + Decimal(assignment.meter_interval or 0)
+
+
+def estimate_meter_due_date(meter: AssetMeter, target: Decimal, *, today: date) -> tuple[date, bool]:
+    """Data stimata per raggiungere ``target`` dal consumo medio degli ultimi 30 giorni.
+
+    Con storico insufficiente o lettura vecchia la data non si stima: ``(oggi, False)``,
+    e l'interfaccia lo dichiara invece di mostrare una data inventata.
+    """
+    from .meters import daily_rate
+
+    if meter.is_stale:
+        return today, False
+    rate = daily_rate(meter).per_day
+    if not rate:
+        return today, False
+    remaining = Decimal(target) - Decimal(meter.current_value)
+    if remaining <= 0:
+        return today, True
+    return today + timedelta(days=math.ceil(remaining / rate)), True
+
+
+def _generate_meter_occurrence(resolution, *, last_completed, current_day, dry_run, meters):
+    """Una coppia (piano, asset) a contatore. Ritorna (esito, riga)."""
+    assignment = resolution.assignment
+    meter = meters.get((resolution.asset.pk, assignment.meter_type))
+    if meter is None:
+        return "no_meter", None
+    target = meter_target_for(assignment, meter, last_completed=last_completed)
+    if Decimal(meter.current_value) < target - Decimal(assignment.effective_meter_warning):
+        return "not_due", None
+    due_date, estimated = estimate_meter_due_date(meter, target, today=current_day)
+    # Il vincolo unico e' (piano, asset, scadenza): se quel giorno e' gia' occupato
+    # (es. la manutenzione appena eseguita oggi), la stima slitta al primo libero.
+    taken = set(
+        MaintenanceOccurrence.objects.filter(
+            plan=resolution.plan, asset=resolution.asset, due_date__gte=due_date, due_date__lte=due_date + timedelta(days=31)
+        ).values_list("due_date", flat=True)
+    )
+    while due_date in taken:
+        due_date += timedelta(days=1)
+    row = {
+        "plan": resolution.plan.label,
+        "asset": getattr(resolution.asset, "asset_tag", "") or resolution.asset.name,
+        "due_date": due_date,
+        "warning_days": 0,
+        "due_meter_value": target,
+    }
+    if dry_run:
+        return "created", row
+    try:
+        with transaction.atomic():
+            MaintenanceOccurrence.objects.create(
+                plan=resolution.plan,
+                assignment=assignment,
+                asset=resolution.asset,
+                due_date=due_date,
+                warning_days=0,
+                schedule_anchor=assignment.effective_schedule_anchor,
+                previous_due_date=last_completed.due_date if last_completed else None,
+                supplier=assignment.effective_supplier,
+                source=MaintenanceOccurrence.SOURCE_SCHEDULER,
+                is_meter_based=True,
+                due_meter_value=target,
+                meter_due_estimated=estimated,
+            )
+    except IntegrityError:
+        return "open", None
+    return "created", row
+
+
 def generate_occurrences(
     *,
     today: date | None = None,
@@ -324,16 +445,21 @@ def generate_occurrences(
             asset_id__in=asset_id_set,
         )
         .order_by("plan_id", "asset_id", "completed_on", "due_date", "id")
-        .only("id", "plan_id", "asset_id", "due_date", "completed_on", "original_due_date")
+        .only("id", "plan_id", "asset_id", "due_date", "completed_on", "original_due_date", "meter_value_at_completion")
     ):
         completed_map[(occurrence.plan_id, occurrence.asset_id)] = occurrence
 
     created = 0
     skipped_open = 0
     skipped_not_due = 0
+    skipped_no_meter = 0
     conflicts = 0
     excluded = 0
     rows: list[dict[str, Any]] = []
+    meters = {
+        (meter.asset_id, meter.meter_type): meter
+        for meter in AssetMeter.objects.filter(asset_id__in=asset_id_set)
+    }
 
     for (plan_id, asset_id), resolution in sorted(resolutions.items()):
         if resolution.is_conflict:
@@ -350,6 +476,20 @@ def generate_occurrences(
             continue
 
         last_completed = completed_map.get((plan_id, asset_id))
+        if assignment.is_meter_based:
+            outcome, row = _generate_meter_occurrence(
+                resolution, last_completed=last_completed, current_day=current_day, dry_run=dry_run, meters=meters
+            )
+            if outcome == "created":
+                created += 1
+                rows.append(row)
+            elif outcome == "open":
+                skipped_open += 1
+            elif outcome == "no_meter":
+                skipped_no_meter += 1
+            else:
+                skipped_not_due += 1
+            continue
         due_date = compute_due_date_for(resolution, last_completed=last_completed, today=current_day)
         if due_date is None:
             continue
@@ -396,6 +536,7 @@ def generate_occurrences(
         "created": created,
         "skipped_open": skipped_open,
         "skipped_not_due": skipped_not_due,
+        "skipped_no_meter": skipped_no_meter,
         "conflicts": conflicts,
         "excluded": excluded,
         "rows": rows,
@@ -419,6 +560,7 @@ def complete_occurrence(
     notes: str = "",
     downtime_minutes: int | None = None,
     create_next: bool = True,
+    meter_value=None,
 ) -> MaintenanceOccurrence | None:
     """Chiude un'occorrenza e crea la successiva. Ritorna la nuova occorrenza.
 
@@ -426,11 +568,13 @@ def complete_occurrence(
     stanno nello stesso OdL.
     """
     if occurrence.status == MaintenanceOccurrence.STATUS_DONE:
-        raise OccurrenceCompletionError("L'occorrenza risulta gia' eseguita.")
+        raise OccurrenceCompletionError("La manutenzione risulta gia' eseguita.")
     if occurrence.attachment_required and not occurrence.attachments.exists():
         raise OccurrenceCompletionError(
             "Per completare questa scadenza e' obbligatorio allegare il documento aggiornato."
         )
+    if occurrence.is_meter_based:
+        _record_completion_meter(occurrence, meter_value, user=user)
 
     occurrence.status = MaintenanceOccurrence.STATUS_DONE
     occurrence.completed_on = completed_on or timezone.localdate()
@@ -446,6 +590,7 @@ def complete_occurrence(
             "completed_by",
             "completion_notes",
             "downtime_minutes",
+            "meter_value_at_completion",
             "updated_at",
         ]
     )
@@ -454,6 +599,10 @@ def complete_occurrence(
         return None
     assignment = occurrence.assignment
     if assignment is None or not assignment.is_active or assignment.is_excluded or not assignment.auto_generate:
+        return None
+    if occurrence.is_meter_based or assignment.is_meter_based:
+        # A contatore la prossima nasce dal valore letto all'esecuzione, quando il
+        # contatore entra nel preavviso: la crea la generazione, non il calendario.
         return None
 
     anchor = next_anchor_after(occurrence, assignment)
@@ -491,6 +640,36 @@ def complete_occurrence(
         return MaintenanceOccurrence.objects.filter(
             plan=occurrence.plan, asset=occurrence.asset, due_date=next_due
         ).first()
+
+
+def _record_completion_meter(occurrence: MaintenanceOccurrence, meter_value, *, user) -> None:
+    """Valore del contatore all'esecuzione: obbligatorio per le scadenze a contatore.
+
+    Se e' diverso dall'ultimo letto lo registra anche come lettura (stesse regole
+    di ``record_meter_reading``: niente valori in calo).
+    """
+    from .meters import MeterReadingError, MeterReadingOlder, parse_meter_value, record_meter_reading
+
+    if meter_value in (None, ""):
+        raise OccurrenceCompletionError("Indica il valore del contatore al momento della manutenzione.")
+    try:
+        value = parse_meter_value(meter_value)
+    except MeterReadingError as exc:
+        raise OccurrenceCompletionError(str(exc)) from None
+    assignment = occurrence.assignment
+    meter_type = getattr(assignment, "meter_type", "") if assignment is not None else ""
+    meter = AssetMeter.objects.filter(asset=occurrence.asset, meter_type=meter_type).first() if meter_type else None
+    if meter is not None and value != Decimal(meter.current_value):
+        try:
+            record_meter_reading(
+                meter, value, read_at=timezone.now(), source=AssetMeter.SOURCE_MANUAL, user=user,
+                note=f"Letto registrando: {occurrence.plan.label}",
+            )
+        except MeterReadingOlder:
+            pass
+        except MeterReadingError as exc:
+            raise OccurrenceCompletionError(str(exc)) from None
+    occurrence.meter_value_at_completion = value
 
 
 def next_anchor_after(occurrence: MaintenanceOccurrence, assignment: MaintenancePlanAssignment) -> str:
@@ -626,9 +805,11 @@ def occurrence_view_state(occurrence: MaintenanceOccurrence, *, today: date | No
         # "Lavoro eseguito" e "pratica completa" sono due cose diverse: tra
         # l'intervento del fornitore e l'arrivo del rapportino l'occorrenza non e'
         # ancora chiusa a norma.
-        if occurrence.attachment_required and not occurrence.attachments.exists():
+        # Lista con prefetch degli allegati: niente query per riga.
+        has_attachments = occurrence_has_attachments(occurrence)
+        if occurrence.attachment_required and not has_attachments:
             return MaintenanceOccurrence.VIEW_REPORT_MISSING
-        if occurrence.is_external and occurrence.report_received_at is None and not occurrence.attachments.exists():
+        if occurrence.is_external and occurrence.report_received_at is None and not has_attachments:
             return MaintenanceOccurrence.VIEW_REPORT_MISSING
         return MaintenanceOccurrence.VIEW_COMPLETED
 

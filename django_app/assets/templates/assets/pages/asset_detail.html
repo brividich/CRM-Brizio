@@ -792,7 +792,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
       </div>
       {% include "assets/partials/qr_dialog.html" %}
       <div class="af-sub">
-        <span class="af-pill {% if asset_status.badge_class == 'ok' %}af-pill--ok{% elif asset_status.badge_class == 'danger' %}af-pill--danger{% else %}af-pill--warn{% endif %}">{{ asset_status.label }}</span>
+        {% asset_status_badge asset %}
         {% if asset.part_145 %}<span class="af-pill af-pill--part145" title="Rientra nel regolamento aeronautico PART 145">PART 145</span>{% endif %}
         {% if asset_completeness %}
           <span class="af-pill {% if asset_completeness.pct >= 90 %}af-pill--ok{% elif asset_completeness.pct >= 60 %}af-pill--warn{% else %}af-pill--danger{% endif %}"

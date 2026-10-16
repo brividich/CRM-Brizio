@@ -1,0 +1,24 @@
+/* Badge di stato del modulo Asset (as-badge / as-badge--<tono>).
+   Unico posto: base_shell e le pagine fuori shell (lista asset, QR) lo includono. */
+.as-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.as-badge--ok { background: #dcfce7; color: #15803d; }
+.as-badge--warn { background: #fef3c7; color: #92400e; }
+.as-badge--danger { background: #fee2e2; color: #b91c1c; }
+.as-badge--muted { background: #e2e8f0; color: #475569; }
+.as-badge--info { background: #dbeafe; color: #1d4ed8; }
+body.theme-dark .as-badge--ok    { background: rgba(21,128,61,.22); color: #86efac; }
+body.theme-dark .as-badge--warn  { background: rgba(146,64,14,.22); color: #fde68a; }
+body.theme-dark .as-badge--danger{ background: rgba(185,28,28,.22); color: #fca5a5; }
+body.theme-dark .as-badge--muted { background: rgba(255,255,255,.1); color: var(--text-light); }
+body.theme-dark .as-badge--info  { background: rgba(29,78,216,.22); color: #93c5fd; }

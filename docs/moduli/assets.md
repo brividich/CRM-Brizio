@@ -129,11 +129,82 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
   - **Documenti: video .avi e cartelle grandi** — formati ammessi: PDF, Word, Excel, CSV, JPG/PNG/WEBP, `.msg`, `.avi` (MIME reale verificato; `accept` del campo generato da `ASSET_DOCUMENT_ALLOWED_EXTENSIONS`). La scheda invia file e cartelle a lotti (~80 MB / 200 file per richiesta, sotto `maxAllowedContentLength` di IIS) con `Accept: application/json` (`{"saved", "errors"}`); cartelle trascinate lette ricorsivamente con il percorso relativo; i file non validi sono scartati ed elencati senza bloccare gli altri (anche senza JS).
   - **Dismetti / Riattiva / Elimina** (menu «Altro» della scheda, POST `retire_asset` / `reactivate_asset` / `delete_asset` su `asset_view`): permessi `legacy.assets.asset_retire` e `legacy.assets.asset_delete` (migrazione 0133, grant attivo ai ruoli legacy con «manutenz/manutent» nel nome), oltre agli amministratori del modulo; con il sistema dei ruoli decide la matrice («modificare» / «cancellare» su tutti). «Elimina» solo senza storico (`services/ciclo_vita_asset.blocchi_eliminazione`: blocca ogni relazione non descrittiva, nuove comprese); snapshot in audit `delete_asset`.
 
+## Ticket e interventi
+
+Un intervento (OdL) creato da una segnalazione di manutenzione (pulsante «Crea intervento» del ticket, `tickets:api_crea_workorder`) nasce con **origine «Da ticket»** (`WorkOrder.ORIGIN_TICKET`; prima restava «Manuale») e, se la segnalazione era «Aperta», la porta a **«In carico»** con nota «Creato intervento #N» nel log del ticket. La migrazione `assets 0134` corregge l'origine degli OdL già esistenti con ticket collegato.
+
+Nella pagina **Chiudi intervento** (`/assets/workorders/close/<id>/`, pulsante «Registra intervento»), se l'OdL ha una segnalazione ancora aperta (Aperta, In carico, In attesa) e chi chiude può gestirla (stessa regola delle API ticket: gestore del tipo MAN/IT o admin), compare la casella **«Segna anche la segnalazione <numero> come Risolta»**: si spunta da sola scegliendo l'esito «Risolto» e vale solo con quell'esito. «Risolto temporaneamente» e «Non risolto» non toccano il ticket, e il log dell'intervento lo scrive. Chi non può gestire il ticket non vede la casella: la segnalazione resta com'è. Se l'OdL non indica il fermo e la segnalazione sì (`ore_fermo_macchina`), il fermo del form parte da quel valore (ore × 60), modificabile.
+
+Il cambio di stato del ticket passa da un unico service (`tickets/services/stato.py`, `cambia_stato_ticket`), lo stesso usato dall'API `tickets:api_stato`: log strutturato, commento interno automatico e sincronizzazione SharePoint a transazione confermata.
+
+**Chiusura atomica** (`assets/services/workorder_close.py`, `close_workorder`): chiusura, causa del guasto, giorni di esecuzione, esito, intervento di follow-up, allegati, log e ticket si scrivono in un'unica transazione con lock sulla riga dell'OdL. Se un passo fallisce non resta nulla a metà (né righe né file); un doppio invio del form trova l'intervento già chiuso e lo dice («risulta già chiuso: nessuna modifica registrata»). `WorkOrder.close()` rifiuta lo stato aperto: il «Non risolto» usa `record_outcome_keep_open()`. Anche la registrazione di una manutenzione con rapporto allegato è atomica: se la registrazione viene rifiutata, l'allegato non resta.
+
+**Badge di stato unico**: lo stato dell'asset si mostra ovunque con il tag `{% asset_status_badge asset %}` (`assets/components/_status_badge.html`, CSS `assets/css/status_badge.css`): sempre l'etichetta del modello (In uso, In magazzino, In riparazione, Dismesso) e un solo colore per stato (`Asset.STATUS_TONES`). La lista asset non scrive più «Critico»/«Inattivo».
+
+**KPI della lista asset**: «Salute asset» = percentuale di asset non in riparazione, con giudizio Buona (≥ 90%), Da monitorare (70-89%), Critica (< 70%); la barra «Manutenzioni in scadenza» è la quota reale di interventi aperti da oltre la soglia sul totale degli aperti (il denominatore è nel tooltip, es. «1 su 4 interventi aperti»). «Rischio conformità» somma asset in riparazione e interventi aperti, unità diverse: mostra il numero e il dettaglio, senza barra.
+
+## UX operativa
+
+**Lista asset** (`/assets/lista/`): sta dentro la shell del modulo come le altre pagine (menu laterale e ricerca globale Ctrl+K comuni). Restano filtri avanzati, scelta e ridimensionamento delle colonne, selezione e modifica in blocco, etichette QR, esportazione XLSX/PDF, widget KPI. Un solo pulsante «+ Nuovo asset» apre il menu Asset generico / Macchina / Prodotto chimico.
+
+**Studio inventario** (Impostazioni → tab «Studio inventario», solo amministratori del modulo): campi personalizzati, valori delle liste, pulsanti azione della scheda, dati mostrati nel dettaglio asset, strumenti header. Categorie asset e menu laterale restano nelle loro tab. Le azioni sono le stesse di prima (stesso endpoint della lista).
+
+**«✓ Fatta oggi»** (in «Da fare», accanto a «Registra»): registra con un tap una manutenzione aperta, interna e senza documento obbligatorio, con la data di oggi e la nota «Registrata con «Fatta oggi»». Il pulsante diventa «Annulla (5)»: la registrazione parte dopo 5 secondi, un secondo tap la annulla. Per le manutenzioni con documento obbligatorio o affidate a un fornitore resta solo «Registra». Selezionando più righe, «✓ Segna come fatte oggi» registra le ammissibili e dice quante sono state escluse.
+
+**Segnala un guasto dal QR**: «Segnala guasto ora» della pagina del QR apre una pagina pensata per il telefono, senza menu: la macchina è già indicata in testa, si scrive cosa non va, si sceglie quanto è urgente (Bassa / Media / Alta) e si possono scattare fino a 3 foto (JPG o PNG). La categoria è facoltativa: se manca la segnalazione va in «Generica». Il login resta obbligatorio.
+
+**Panoramica** (`/assets/manutenzione/quadro/`): sei numeri in testa — Scadute, In scadenza 7 giorni, Non pianificate, Interventi aperti, Puntualità ultimi 90 giorni (solo con almeno 10 manutenzioni concluse dal portale), Arretrato (giorni della più vecchia scaduta). Tutti gli altri indicatori, compresi quelli della vecchia pagina KPI, sono in «Dettaglio indicatori». `/assets/manutenzione/quadro/kpi/` e `?vista=sintesi` portano lì. «Il mio turno» (`/assets/manutenzione/il-mio-turno/`) porta a «Da fare» → «Il mio lavoro».
+
+**Parole dell'interfaccia**: assegnazione (di un piano), scadenza / manutenzione, intervento (con «OdL n.» come dettaglio), intervento di verifica, vista a colonne, Panoramica, Scadenzario.
+
+## Contatori e piani a contatore
+
+**Letture** (scheda asset → Contatori, pagina del QR → «Registra una lettura»): ogni lettura passa da `assets/services/meters.py` (`record_meter_reading`). Il valore non può scendere, salvo «Contatore azzerato o sostituito?» con una nota; una lettura più vecchia dell'ultima è ignorata. Ogni contatore mostra quanto è fresca la lettura: verde (recente), ambra (oltre metà della soglia), grigio («lettura vecchia: N giorni», oltre `ASSETS_METER_STALE_HOURS`, default 168 ore, o la soglia del singolo contatore). Registrare una lettura richiede il permesso di eseguire le manutenzioni (prima bastava essere autenticati).
+
+**Collector** (`POST /api/assets/contatori/ingest/`, solo rete interna): token per collector, allowlist IP `ASSETS_METER_INGEST_ALLOWED_IPS`, esito per riga. Contratto ed esempi in [assets_contatori_ingest.md](assets_contatori_ingest.md). Creazione: admin Django «Collector letture contatori» o `manage.py meter_ingest_client`.
+
+**Piani a contatore** (form dell'assegnazione → «Quando scatta» = «A contatore»): contatore, ogni quanto (es. 500 ore), preavviso (vuoto = 10% dell'intervallo), valore di partenza (vuoto = valore del contatore all'attivazione). La scadenza nasce quando il contatore arriva al traguardo meno il preavviso; il traguardo riparte dal valore letto all'ultima esecuzione. La data è una stima dal consumo degli ultimi 30 giorni: con lettura vecchia o storico insufficiente la data è oggi e la riga dice «data stimata non disponibile». In «Da fare» e Scadenzario la riga mostra «a 12000 h (ora 11650, aggiornato 3 ore fa)». Registrando la manutenzione il valore del contatore è obbligatorio (se diverso dall'ultimo diventa anche una lettura); «Fatta oggi» non vale per queste scadenze. Chiudendo un intervento su un asset con contatore ore, `meter_value_at_close` prende il valore corrente.
+
+## Codici guasto
+
+**Catalogo** (Impostazioni → tab «Codici guasto», solo amministratori del modulo): problema (cosa si vede), causa (perché), rimedio (cosa si è fatto). Un codice senza categoria vale per tutti gli asset; uno di categoria vale per quella categoria e per le sue sotto-categorie. Un codice usato da un intervento non si elimina: si disattiva (resta sugli interventi che lo hanno). La migrazione crea le sei cause storiche (Elettrica, Meccanica, Idraulica, Usura, Errore operatore, Altro) e le collega agli interventi che avevano già la causa.
+
+**Chiusura intervento** (correttivi, sicurezza, taratura): tre selezioni facoltative Problema / Causa / Rimedio con i codici validi per la categoria dell'asset. Una causa che coincide con una delle sei storiche aggiorna anche la vecchia «Causa del guasto», che resta per i report esistenti.
+
+**Panoramica → Dettaglio indicatori → «Guasti più frequenti — ultimi 90 giorni»**: i dieci problemi più ricorrenti negli interventi chiusi, filtrabili per categoria (con le sotto-categorie), con il fermo dove è stato indicato e la copertura dichiarata («fermo indicato in 8 interventi su 15»).
+
+## Ricambi
+
+**Ricambi** (Manutenzione → «Ricambi», `/assets/manutenzione/ricambi/`): anagrafica minima (codice, descrizione, unità, giacenza, scorta minima, scaffale, costo unitario, fornitore, asset e categorie compatibili), filtro «Sotto scorta» (giacenza alla scorta minima o sotto), esportazione XLSX, scheda con lo storico dei movimenti. Una sola scorta, nessun ordine d'acquisto.
+
+**Movimenti** (`assets/services/spare_parts.py`, `register_movement`): carico, scarico, rettifica inventario (porta la giacenza al valore contato, con nota obbligatoria); lock sulla riga del ricambio, uno scarico che porterebbe sotto zero è rifiutato. Anagrafica, carichi e rettifiche: `admin_assets`; scarico su un intervento: `maintenance_execute` (nessuna azione ACL nuova).
+
+**Intervento → «Ricambi usati»** (scheda dell'intervento e pagina di chiusura): cerca il ricambio (prima quelli compatibili con l'asset o la sua categoria), quantità, «Aggiungi». Se in chiusura il costo materiali non è indicato a mano, è la somma quantità × costo al momento dello scarico; se è indicato a mano prevale, e il riquadro mostra la differenza.
+
+**Avvisi**: tessera «Ricambi sotto scorta» nella Panoramica («Dettaglio indicatori») e sezione «RICAMBI SOTTO SCORTA» nel promemoria giornaliero (`send_maintenance_reminders`), solo se ce ne sono.
+
+## Struttura del codice delle viste
+
+`assets/views.py` (circa 20.000 righe) è diventato il package `assets/views/` (refactor C4, ottobre 2026), spezzato per area: `documents`, `asset_crud`, `asset_detail`, `qr_labels`, `deadlines`, `maintenance_legacy`, `it`, `machines`, `layout`, `workorders`, `exports`, `reports`, `settings_admin`, `dashboard`, `calendar`, più gli helper condivisi `_helpers`, `_helpers_b`, `_helpers_c`, `asset_detail_helpers`. Ogni file sta sotto le 2.000 righe. `assets/views/__init__.py` riesporta esplicitamente i nomi usati da `urls.py`, dalle altre app e dai test, quindi `from assets import views` e `views.<nome>` funzionano come prima. Lo spostamento è meccanico: nessun cambio di logica, URL, ACL o template.
+
+Per i test: un `mock.patch` deve puntare al modulo dove il nome è **usato** (es. `assets.views.documents.validate_extension_and_mime`), non al package. Patchare `assets.views.<nome>` cambia solo l'attributo del package, e la funzione nel sottomodulo continua a vedere l'originale.
+
 ## Note di rilascio
 
 **Prefisso porte dello switch** (ottobre 2026, migrazione `assets 0137`). Nuovo campo `Asset.switch_prefisso_porte` (es. «A0»), impostato dalla mappa porte della scheda switch (`views_asset_rete.asset_rete_prefisso`, route `/assets/edit/<id>/rete/prefisso/`, sostituisce il «Collega le porte» in blocco mai deployato). Appartenenza calcolata alla lettura (`rete_switch._endpoint_collegati` / `switch_per_endpoint`): endpoint con `switch_name` vuoto e prefisso porta uguale → switch; uno `switch_name` esplicito vince. Nessuna scrittura sugli endpoint: le porte censite dopo seguono lo switch. Prefisso univoco fra gli switch (controllo nella vista), tracciato nello storico campi (gruppo Rete). Dopo il deploy: impostare A0 su `IT-SWHP-CN20HL1446` (switch CED; il doppione `IT-000155` resta senza prefisso) e A1 sullo switch amministrazione.
 
 **Rete modificabile dalla scheda e mappa porte dello switch** (ottobre 2026, nessuna migrazione). Tab «Tecnica e rete»: «Modifica rete» / «+ Aggiungi interfaccia» modifica in-linea gli `AssetEndpoint` (formset HTMX, `views_asset_rete.asset_rete_edit`, route `/assets/edit/<id>/rete/` sotto il binding di «Modifica asset»). Il campo Switch suggerisce le matricole degli apparati di rete (`services/rete_switch.switch_disponibili`); un `switch_name` uguale a matricola o nome di un asset diventa link. Mappa porte (`rete_switch.mappa_switch`): mostrata per apparati di rete (tipo Firewall, nome/categoria «switch» o «apparati rete») o per qualsiasi asset indicato come switch da un endpoint; porte nel formato `<prefisso>.<membro>.<porta>` o `<prefisso>.<porta>`, frontale 24/48 porte, colori per VLAN. «Collega le porte censite senza switch» (`/assets/edit/<id>/rete/collega-porte/`) scrive la matricola dello switch sugli endpoint con `switch_name` vuoto e prefisso porta scelto. Tutto tracciato nello storico campi (gruppo Rete). Dati di inventario: nessuna lettura SNMP delle porte.
+Viste divise in package (ottobre 2026): nessuna migrazione e nessuna azione al deploy.
+
+Ricambi (ottobre 2026): dopo il deploy `migrate assets` (0141 tabelle `assets_sparepart` e `assets_sparepartmovement`; 0142 binding ACL di `/assets/manutenzione/ricambi/` con lo stesso permesso di «Da fare» e voce «Ricambi» in fondo al menu Manutenzione).
+
+Codici guasto (ottobre 2026): dopo il deploy `migrate assets` (0139 tabella `assets_failurecode` e campi sull'intervento; 0140 crea le sei cause storiche e collega gli interventi esistenti, il numero è stampato dalla migrazione).
+
+Contatori (ottobre 2026): dopo il deploy `migrate assets` (0138: campi lettura/provenienza/freschezza, piani a contatore, tabella `assets_meteringestclient`). Per il collector OPC UA: creare il collector (`meter_ingest_client`), impostare `ASSETS_METER_INGEST_ALLOWED_IPS` con l'IP della macchina che lo esegue, **non** pubblicare `/api/assets/contatori/` su Entra.
+
+UX operativa (ottobre 2026): dopo il deploy `migrate assets` (0135 nasconde la voce «KPI» dal menu Manutenzione; 0136 solo testi, nessun SQL). Nessuna nuova tabella; nuovi URL `/assets/manutenzione/scadenze/<id>/fatta-oggi/` e `/assets/manutenzione/scadenze/fatte-oggi/` sotto il binding ACL «Scadenze manutenzione».
+
+Ticket ↔ intervento e chiusura atomica (ottobre 2026): dopo il deploy `migrate assets` (0134, backfill dell'origine «Da ticket» degli OdL già collegati a un ticket; il numero corretto viene stampato dalla migrazione). Nessuna nuova tabella.
 
 Dopo il deploy: `migrate assets` (0133). Verificare in Accessi che il ruolo della manutenzione abbia «Assets - Dismetti / riattiva asset» e «Assets - Elimina asset (senza storico)»; se il nome del ruolo non contiene «manutenz»/«manutent» il grant va dato a mano.
 

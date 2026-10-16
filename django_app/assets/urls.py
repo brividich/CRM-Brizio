@@ -3,6 +3,9 @@ from django.views.generic import RedirectView
 
 from . import views, views_asset_qr, views_asset_rete, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
 
+from .api_meters import api as meters_api
+from . import views_spare_parts
+
 app_name = "assets"
 
 urlpatterns = [
@@ -282,6 +285,31 @@ urlpatterns = [
         "assets/manutenzione/scadenze/<int:occurrence_id>/registra/",
         views_maintenance.occurrence_complete,
         name="occurrence_complete",
+    ),
+    # Sotto /scadenze/ come le altre azioni sulla singola manutenzione: il binding
+    # ACL «Scadenze manutenzione» copre il prefisso (con ACL strict una route fuori
+    # prefisso sarebbe negata ai non superuser).
+    # Ricambi: tutto sotto /assets/manutenzione/ricambi/ (binding ACL della 0141).
+    path("assets/manutenzione/ricambi/", views_spare_parts.spare_part_list, name="spare_part_list"),
+    path("assets/manutenzione/ricambi/nuovo/", views_spare_parts.spare_part_form, name="spare_part_create"),
+    path("assets/manutenzione/ricambi/<int:part_id>/", views_spare_parts.spare_part_detail, name="spare_part_detail"),
+    path("assets/manutenzione/ricambi/<int:part_id>/modifica/", views_spare_parts.spare_part_form, name="spare_part_edit"),
+    path(
+        "assets/manutenzione/ricambi/intervento/<int:workorder_id>/",
+        views_spare_parts.workorder_spare_parts,
+        name="workorder_spare_parts",
+    ),
+    # Ingest letture contatori dai collector (token, solo rete interna): vedi assets/api_meters.py.
+    path("api/assets/contatori/", meters_api.urls),
+    path(
+        "assets/manutenzione/scadenze/<int:occurrence_id>/fatta-oggi/",
+        views_maintenance.occurrence_quick_complete,
+        name="occurrence_quick_complete",
+    ),
+    path(
+        "assets/manutenzione/scadenze/fatte-oggi/",
+        views_maintenance.occurrence_quick_complete_bulk,
+        name="occurrence_quick_complete_bulk",
     ),
     path(
         "assets/manutenzione/scadenze/<int:occurrence_id>/rinvia/",

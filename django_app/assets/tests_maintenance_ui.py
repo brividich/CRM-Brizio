@@ -790,7 +790,7 @@ class ChecklistFollowUpTests(MaintenanceUITestCase):
     def test_uno_step_fuori_range_offre_il_follow_up(self):
         response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
 
-        self.assertContains(response, "Apri follow-up")
+        self.assertContains(response, "Apri intervento di verifica")
         self.assertContains(
             response,
             f"{reverse('assets:occurrence_followup_create', args=[self.occurrences[0].pk])}?step={self.step.pk}",
@@ -822,9 +822,9 @@ class ChecklistFollowUpTests(MaintenanceUITestCase):
 
         response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
 
-        self.assertContains(response, "Follow-up aperto")
+        self.assertContains(response, "Intervento di verifica aperto")
         self.assertContains(response, f"#{follow_up.pk}")
-        self.assertNotContains(response, "Apri follow-up")
+        self.assertNotContains(response, "Apri intervento di verifica")
 
     def test_uno_step_fuori_range_non_e_marcato_come_risolto(self):
         # Compilato non vuol dire a posto: barrarlo in verde nasconde l'anomalia
@@ -844,7 +844,7 @@ class ChecklistFollowUpTests(MaintenanceUITestCase):
 
         response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
 
-        self.assertNotContains(response, "Apri follow-up")
+        self.assertNotContains(response, "Apri intervento di verifica")
 
 
 class AssetDetailPlansTests(MaintenanceUITestCase):
@@ -1250,10 +1250,9 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
     def test_la_sintesi_misura_la_puntualita_sulle_concluse(self):
         self._occorrenze_concluse(12, in_ritardo=3)
 
-        response = self.client.get(reverse("assets:maintenance_kpi"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["vista"], "sintesi")
         sintesi = response.context["sintesi"]
         self.assertTrue(sintesi["puntualita_misurabile"])
         self.assertEqual(sintesi["concluse_12m"], 12)
@@ -1267,7 +1266,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         164 su 164 e producevano un "100% nei tempi" che non misurava nulla."""
         self._occorrenze_concluse(12, source=MaintenanceOccurrence.SOURCE_MIGRATION)
 
-        response = self.client.get(reverse("assets:maintenance_kpi"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
         sintesi = response.context["sintesi"]
 
         # Restano contate, ma fuori dalla misura - e la pagina dice perche'.
@@ -1284,7 +1283,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         self._chiudi(self.occurrences[0], giorni_di_ritardo=-2)
         self._chiudi(self.occurrences[1], giorni_di_ritardo=5)
 
-        response = self.client.get(reverse("assets:maintenance_kpi"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
         sintesi = response.context["sintesi"]
 
         # Due righe non fanno una statistica: "50%" sarebbe un numero, non una misura.
@@ -1302,7 +1301,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         )
         chiuso.close(status=WorkOrder.STATUS_DONE)
 
-        response = self.client.get(reverse("assets:maintenance_kpi"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
 
         self.assertContains(response, "Cosa il portale non puo' ancora misurare")
         self.assertContains(response, "MTTR")
@@ -1312,28 +1311,28 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         self.assertEqual(gaps["Costi di manutenzione"]["label"], "0%")
         self.assertFalse(gaps["Fermo macchina"]["reliable"])
 
-    def test_le_liste_operative_non_compaiono_nella_sintesi(self):
+    def test_liste_operative_e_sintesi_nella_stessa_pagina(self):
+        """KPI e Panoramica sono una pagina sola: le liste dicono cosa fare, la
+        sintesi (in «Dettaglio indicatori») come sta andando."""
         WorkOrder.objects.create(
             asset=self.assets[0],
             kind=WorkOrder.KIND_CORRECTIVE,
             title="Guasto da gestire subito",
         )
 
-        sintesi = self.client.get(reverse("assets:maintenance_kpi"))
-        operativo = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
 
-        self.assertNotContains(sintesi, "Guasto da gestire subito")
-        self.assertContains(operativo, "Guasto da gestire subito")
-        self.assertEqual(operativo.context["sintesi"], None)
+        self.assertContains(response, "Guasto da gestire subito")
+        self.assertIsNotNone(response.context["sintesi"])
+        self.assertContains(response, "Cosa il portale non puo' ancora misurare")
 
-    def test_la_vecchia_sintesi_e_la_pagina_kpi(self):
-        """Panoramica e KPI sono due voci di menu: niente piu' switch. I link salvati
-        con ``?vista=sintesi`` arrivano ai KPI conservando gli altri parametri."""
-        self.assertEqual(
-            self.client.get(reverse("assets:maintenance_responsabile")).context["vista"], "operativo"
-        )
+    def test_la_vecchia_sintesi_porta_al_dettaglio(self):
+        """I link salvati con ?vista=sintesi (e la vecchia pagina KPI) arrivano a
+        «Dettaglio indicatori» della Panoramica conservando gli altri parametri."""
         response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "sintesi", "reparto": "X"})
-        self.assertRedirects(response, reverse("assets:maintenance_kpi") + "?reparto=X", fetch_redirect_response=False)
+        self.assertRedirects(
+            response, reverse("assets:maintenance_responsabile") + "?reparto=X#dettaglio", fetch_redirect_response=False
+        )
         self.assertNotContains(
             self.client.get(reverse("assets:maintenance_responsabile")), 'class="ms-switch"', html=False
         )

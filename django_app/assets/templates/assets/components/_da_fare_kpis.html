@@ -1,0 +1,26 @@
+{% comment %}Numeri in testa a «Da fare». Si ricaricano da soli (hx-get) dopo una
+   registrazione con «Fatta oggi» (evento occurrenceCompleted), con gli stessi filtri.{% endcomment %}
+<div id="md-da-fare-kpis" hx-get="{{ kpi_url }}" hx-trigger="occurrenceCompleted from:body" hx-swap="outerHTML">
+  <div class="md-kpis" data-tour-step="2" data-tour-title="Cosa urge" data-tour-text="Scadute, di oggi, della settimana e assegnate a te: clicca un numero per filtrare la lista.">
+    <a class="md-kpi is-danger" href="{% url 'assets:maintenance_da_fare' %}?window=overdue">
+      <span class="md-kpi-label">Scadute</span>
+      <span class="md-kpi-value">{{ summary.overdue }}</span>
+      <span class="md-kpi-sub">da recuperare</span>
+    </a>
+    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_da_fare' %}?window=0">
+      <span class="md-kpi-label">Da fare oggi</span>
+      <span class="md-kpi-value">{{ summary.today }}</span>
+      <span class="md-kpi-sub">entro fine giornata</span>
+    </a>
+    <a class="md-kpi" href="{% url 'assets:maintenance_da_fare' %}?window=7">
+      <span class="md-kpi-label">Prossimi 7 giorni</span>
+      <span class="md-kpi-value">{{ summary.week }}</span>
+      <span class="md-kpi-sub">questa settimana</span>
+    </a>
+    <a class="md-kpi" href="{% url 'assets:maintenance_da_fare' %}?assignee={{ request.user.id }}">
+      <span class="md-kpi-label">Assegnate a me</span>
+      <span class="md-kpi-value">{{ summary.mine }}</span>
+      <span class="md-kpi-sub">in totale</span>
+    </a>
+  </div>
+</div>

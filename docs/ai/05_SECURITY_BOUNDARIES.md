@@ -6,7 +6,9 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## Security Center AI Prime Rules
 
-- Treat safety/compliance modules (diario_preposto, ilevazione_incidenti, procedure_refresh, dpi, entri) as high-integrity workflows: preserve auditability, permissions, source-of-truth boundaries, and user-visible traceability.
+- Treat safety/compliance modules (diario_preposto, 
+ilevazione_incidenti, procedure_refresh, dpi, 
+entri) as high-integrity workflows: preserve auditability, permissions, source-of-truth boundaries, and user-visible traceability.
 - Do not include secrets, real customer data, mailbox dumps, production logs, credentials, certificates, private reports, or raw personal-data exports in prompts, docs, commits, generated examples, screenshots, or test fixtures.
 - Use synthetic examples for incidents, procedures, DPI, approvals, mailbox messages, Graph payloads, and SharePoint data.
 - Keep Microsoft Graph, LDAP, SMTP, SQL Server, and Entra configuration as environment/runtime data only; document variable names, not values.
@@ -119,9 +121,12 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 /assets/public/            (QR asset tokenizzato: redirect solo a link SharePoint pubblico gia salvato)
 /automazioni/approvazione/   (token-based, no login required)
 /approval-actions/           (token-based, Entra Application Proxy frontend)
+/api/assets/contatori/ingest/  (token per collector + allowlist IP, SOLO rete interna)
 ```
 
 Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py`.
+
+**`/api/assets/contatori/ingest/` — letture contatori dai collector** (es. OPC UA delle CNC): nessuna sessione, `Authorization: Bearer <token>` di un `MeterIngestClient` attivo (a DB solo hash SHA-256, confronto `hmac.compare_digest`), client IP in `ASSETS_METER_INGEST_ALLOWED_IPS` (IP o CIDR, default solo loopback; fuori = 403 JSON), ogni collector scrive solo sugli asset consentiti, 500 letture per chiamata. **Non pubblicare su Entra Application Proxy**: è un endpoint macchina-macchina di rete interna. Token creato da admin Django o `manage.py meter_ingest_client` (mostrato una volta sola). Contratto: `docs/moduli/assets_contatori_ingest.md`.
 
 **`/approval-actions/` — Entra Application Proxy**: endpoint pensati per essere pubblicati selettivamente su Entra Application Proxy. Pubblicare **solo** `/approval-actions/*`, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
 

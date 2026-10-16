@@ -1,6 +1,9 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block extra_head %}
+{# Badge di stato condivisi (as-badge): anche le pagine fuori dalla shell li caricano da qui. #}
+<link rel="stylesheet" href="{% static 'assets/css/status_badge.css' %}">
 <style>
 .content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
 .as-shell { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; background: linear-gradient(180deg,#f8fbff 0%,#f4f7fc 100%); border-top: 1px solid #dbe3f0; }
@@ -260,23 +263,6 @@ body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38
 .as-kpi-label { color: #64748b; font-size: var(--fs-sm); }
 .as-kpi-value { font-size: var(--fs-display-lg); font-weight: 700; line-height: 1; }
 .as-meta { color: #94a3b8; font-size: var(--fs-sm); }
-.as-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-}
-.as-badge--ok { background: #dcfce7; color: #15803d; }
-.as-badge--warn { background: #fef3c7; color: #92400e; }
-.as-badge--danger { background: #fee2e2; color: #b91c1c; }
-.as-badge--muted { background: #e2e8f0; color: #475569; }
-.as-badge--info { background: #dbeafe; color: #1d4ed8; }
 .as-link-subtle {
   color: #1d4ed8;
   text-decoration: none;
@@ -382,11 +368,6 @@ body.theme-dark .as-help, body.theme-dark .as-note, body.theme-dark .as-meta { c
 body.theme-dark .as-error { color: #fca5a5; }
 body.theme-dark .as-section-title, body.theme-dark .as-section-title-lg { color: var(--text); }
 body.theme-dark .as-kpi-label { color: var(--text-light); }
-body.theme-dark .as-badge--ok    { background: rgba(21,128,61,.22); color: #86efac; }
-body.theme-dark .as-badge--warn  { background: rgba(146,64,14,.22); color: #fde68a; }
-body.theme-dark .as-badge--danger{ background: rgba(185,28,28,.22); color: #fca5a5; }
-body.theme-dark .as-badge--muted { background: rgba(255,255,255,.1); color: var(--text-light); }
-body.theme-dark .as-badge--info  { background: rgba(29,78,216,.22); color: #93c5fd; }
 body.theme-dark .as-link-subtle { color: #60a5fa; }
 body.theme-dark .assets-message        { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
 body.theme-dark .assets-message-success{ background: rgba(21,128,61,.15); border-color: rgba(134,239,172,.3); color: #86efac; }
@@ -487,7 +468,7 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
         <div class="as-search-pop" id="as-search-pop" role="listbox" hidden></div>
       </form>
       <a class="as-tool" href="{% url 'assets:wo_list' %}" title="Avvisi">&#128276;</a>
-      <a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>
+      {% if not assets_shell_hide_new %}<a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>{% endif %}
     </header>
 
     {% comment %}Pagine con una testata "di oggetto" (es. la singola verifica periodica): la barra del modulo sta sopra, la testata sotto.{% endcomment %}

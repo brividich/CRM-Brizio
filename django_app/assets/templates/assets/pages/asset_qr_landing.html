@@ -1,11 +1,13 @@
 {% extends base_template|default:"core/base.html" %}
 {% load static %}
+{% load assets_extras %}
 
 {% block title %}
   {% if asset %}{{ asset.asset_tag }} — {{ asset.name }}{% else %}Asset non trovato{% endif %}
 {% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{% static 'assets/css/status_badge.css' %}">
 <style>
 * { box-sizing: border-box; }
 .qrl-body {
@@ -283,15 +285,7 @@ body.theme-dark .qrl-upload-body { background: var(--surface, #1e293b); border-c
         <div class="qrl-kv-row">
           <span class="qrl-kv-label">Stato asset</span>
           <span class="qrl-kv-value">
-            {% if asset.status == 'IN_USE' %}
-              <span class="qrl-badge qrl-badge--ok">In uso</span>
-            {% elif asset.status == 'IN_REPAIR' %}
-              <span class="qrl-badge qrl-badge--alert">In riparazione</span>
-            {% elif asset.status == 'RETIRED' %}
-              <span class="qrl-badge qrl-badge--warn">Dismesso</span>
-            {% else %}
-              <span class="qrl-badge qrl-badge--info">{{ asset.get_status_display }}</span>
-            {% endif %}
+            {% asset_status_badge asset %}
           </span>
         </div>
         {% if days_since_last is not None %}
@@ -324,6 +318,31 @@ body.theme-dark .qrl-upload-body { background: var(--surface, #1e293b); border-c
       </div>
     </div>
   </div>
+
+  {% if qr_meters and not qr_public %}
+  {% comment %}Contatori: quanto e' fresca l'ultima lettura (verde/ambra/grigio). Chi esegue le
+    manutenzioni registra una lettura da qui (pannello caricato al click).{% endcomment %}
+  <div class="qrl-card" id="contatori">
+    <div class="qrl-card-title">Contatori</div>
+    <div class="qrl-card-body">
+      <div class="qrl-kv">
+        {% for m in qr_meters %}
+          <div class="qrl-kv-row">
+            <span class="qrl-kv-label">{{ m.get_meter_type_display }}</span>
+            <span class="qrl-kv-value"><strong>{{ m.current_value|floatformat:"-2" }}</strong> {{ m.unit_label }}
+              <span class="as-badge as-badge--{{ m.freshness_tone }}">{{ m.freshness_label }}</span></span>
+          </div>
+        {% endfor %}
+      </div>
+      {% if qr_can_record_meter %}
+        <details class="qrl-meter-read">
+          <summary class="qrl-btn qrl-btn--secondary" style="display:inline-flex;min-height:44px;align-items:center;margin-top:10px;cursor:pointer">Registra una lettura</summary>
+          <div hx-get="{% url 'assets:asset_meter_update' asset.pk %}" hx-trigger="toggle from:closest details once" hx-swap="innerHTML">Caricamento…</div>
+        </details>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   {% if messages %}
     {% for m in messages %}

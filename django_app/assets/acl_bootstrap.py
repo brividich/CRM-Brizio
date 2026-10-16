@@ -68,6 +68,7 @@ _PULSANTI_DEFINITIONS = [
     # Categorie delle verifiche: catalogo con permesso proprio (binding a prefisso
     # piu' lungo di verifiche-impianti, migrazione assets 0118).
     {"modulo": "assets", "codice": "assets_periodic_check_categories", "label": "Assets - Categorie verifiche periodiche", "url": "/assets/manutenzione/verifiche-impianti/categorie/", "hide": True},
+    {"modulo": "assets", "codice": "assets_spare_parts", "label": "Assets - Ricambi", "url": "/assets/manutenzione/ricambi/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_quadro", "label": "Assets - Quadro manutenzione (responsabile)", "url": "/assets/manutenzione/quadro/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_plans", "label": "Assets - Piani di manutenzione", "url": "/assets/manutenzione/piani/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_groups", "label": "Assets - Gruppi di asset", "url": "/assets/manutenzione/gruppi/", "hide": True},

@@ -40,6 +40,10 @@ GUIDA = {
             "blocchi": [
                 ("p", "Per un guasto apri un ticket di manutenzione (modulo Ticket, «+ Ticket MAN») scegliendo la macchina, "
                       "oppure dal QR della macchina."),
+                ("p", "Dal QR, «Segnala guasto ora» apre una pagina per il telefono: la macchina è già indicata, "
+                      "scegli quanto è urgente e allega fino a 3 foto. La categoria è facoltativa."),
+                ("p", "Quando il manutentore crea l'intervento la segnalazione passa a «In carico»; chiudendo l'intervento "
+                      "con esito «Risolto» può segnarla anche come «Risolto»."),
             ],
         },
         {
@@ -48,7 +52,20 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "«Manutenzione» mostra lo scadenzario unico, dal più urgente.",
+                    "In «Da fare», «✓ Fatta oggi» registra con un tap le manutenzioni semplici (interne, senza documento "
+                    "obbligatorio): hai 5 secondi per annullare. Con più righe selezionate: «Segna come fatte oggi».",
+                    "«Il mio turno» è la scheda «Il mio lavoro» di Da fare; i KPI sono nella Panoramica, sotto "
+                    "«Dettaglio indicatori».",
+                    "Ricambi: in un intervento, riquadro «Ricambi usati» → cerca, quantità, «Aggiungi» (la giacenza "
+                    "scende subito). «Manutenzione → Ricambi» con il filtro «Sotto scorta» mostra cosa sta finendo.",
+                    "Contatori (ore, km, cicli): si aggiornano dalla scheda asset o dal QR; l'etichetta dice quanto è "
+                    "fresca la lettura. Un valore non può scendere: per un azzeramento serve la nota. I piani «a "
+                    "contatore» chiedono il valore letto quando si registra la manutenzione.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
+                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
+                    "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
+                    "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "
+                    "indicato nella segnalazione.",
                     "Una manutenzione che non si riesce a fare in tempo si rinvia («Rinvia» nella pagina «Registra», "
                     "o trascinandola nel Calendario): la scadenza originale resta e, eseguita, la successiva riparte "
                     "dalla data di esecuzione.",
@@ -68,6 +85,10 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Asset → «Impostazioni»: categorie, menu laterale, piani di manutenzione.",
+                    "Impostazioni → «Codici guasto»: problema, causa e rimedio per la chiusura degli interventi "
+                    "(senza categoria = validi per tutti). Un codice usato non si elimina: si disattiva.",
+                    "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "
+                    "dati del dettaglio asset e strumenti della lista (prima nello «Studio amministratore» della lista).",
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (assicurazioni, contratti) sono separate dai piani di manutenzione.",
@@ -114,6 +135,48 @@ GUIDA = {
             "fare": [
                 "Leggi l'elenco sotto il riquadro: formato non ammesso, file oltre il limite o vuoto.",
                 "Converti i file (es. video in .avi o documenti in PDF) e caricali di nuovo.",
+            ],
+        },
+        {
+            "sintomo": "«Il contatore non può scendere» aggiornando ore o km",
+            "fare": [
+                "Controlla il valore: deve essere uguale o maggiore dell'ultimo letto.",
+                "Se il contatore è stato azzerato o sostituito, apri «Contatore azzerato o sostituito?» e scrivi una nota.",
+            ],
+        },
+        {
+            "sintomo": "Il collector delle CNC non aggiorna le ore",
+            "fare": [
+                "Admin Django → «Collector letture contatori»: il collector deve essere attivo e avere un «ultimo contatto» recente.",
+                "L'IP della macchina del collector deve essere in ASSETS_METER_INGEST_ALLOWED_IPS; il contatore deve esistere sull'asset.",
+            ],
+        },
+        {
+            "sintomo": "«Giacenza insufficiente» scaricando un ricambio",
+            "fare": [
+                "A magazzino ce n'è meno della quantità indicata: controlla il numero.",
+                "Se il magazzino reale è diverso, chiedi a un amministratore una rettifica di inventario dalla scheda del ricambio.",
+            ],
+        },
+        {
+            "sintomo": "In «Da fare» una manutenzione non ha «✓ Fatta oggi»",
+            "fare": [
+                "Richiede il documento allegato, è affidata a un fornitore oppure è a contatore: usa «Registra».",
+                "Il pulsante compare solo a chi può registrare le manutenzioni.",
+            ],
+        },
+        {
+            "sintomo": "Chiudendo l'intervento non compare «Segna anche la segnalazione come Risolta»",
+            "fare": [
+                "La casella compare solo se la segnalazione è ancora aperta e solo a chi gestisce i ticket di manutenzione.",
+                "Chiudi l'intervento e chiedi a un gestore dei ticket di risolvere la segnalazione dal modulo Ticket.",
+            ],
+        },
+        {
+            "sintomo": "Chiudendo un intervento compare «risulta già chiuso: nessuna modifica registrata»",
+            "fare": [
+                "Il modulo era stato inviato due volte: la prima chiusura è valida, la seconda è stata ignorata.",
+                "Apri l'intervento per controllare esito e storico.",
             ],
         },
         {
