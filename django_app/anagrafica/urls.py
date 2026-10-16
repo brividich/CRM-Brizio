@@ -8,6 +8,7 @@ from . import views_reportistica_chat
 from . import views_cambio_mansione
 from . import views_mansioni_rischio
 from . import views_mansionario
+from . import views_coerenza_capi
 from . import views_elearning
 from . import views_sorveglianza
 from . import views_elenco
@@ -332,6 +333,9 @@ urlpatterns = [
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("organigramma/", views.organigramma, name="organigramma"),
+    path("organigramma/coerenza-capi/", views_coerenza_capi.coerenza_capi, name="coerenza_capi"),
+    path("organigramma/coerenza-capi/<int:legacy_id>/eccezione", views_coerenza_capi.coerenza_capi_eccezione,
+         name="coerenza_capi_eccezione"),
     path("organigramma/albero/", views.organigramma_albero, name="organigramma_albero"),
     path("organigramma/diagramma/", views.organigramma_diagramma, name="organigramma_diagramma"),
 
