@@ -72,6 +72,39 @@ class DerivedListsFromRolesTests(TestCase):
             values = anomalie_views._resolve_derived_list("capi_commessa", self.sources)
         self.assertEqual(values, ["Carlo Verdi"])
 
+    def test_assegnazioni_chiuse_e_dipendenti_cessati_esclusi(self):
+        """Chi ha cambiato ruolo (data_fine passata) o non e' piu' dipendente non entra in lista."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
+
+        oggi = timezone.localdate()
+        ruolo = RuoloOperativo.objects.create(nome="Project Engineer Test")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=1, ruolo=ruolo)
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=2, ruolo=ruolo, data_fine=oggi - timedelta(days=1)
+        )
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=3, ruolo=ruolo, data_fine=oggi)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=4, ruolo=ruolo)
+        righe = {
+            1: {"id": 1, "nome": "Anna", "cognome": "Bianchi", "attivo": True},
+            3: {"id": 3, "nome": "Carlo", "cognome": "Verdi", "attivo": True},
+            4: {"id": 4, "nome": "Dario", "cognome": "Cessato", "attivo": False},
+        }
+        chiesti = []
+
+        def _fetch(ids=None, deduplicate=True):
+            chiesti.extend(ids or [])
+            return [righe[i] for i in ids or [] if i in righe]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", side_effect=_fetch):
+            nomi = anomalie_views._names_for_ruoli_operativi([ruolo.pk])
+        self.assertNotIn(2, chiesti)
+        self.assertEqual(len(nomi), 2)
+        self.assertFalse(any("Cessato".casefold() in n.casefold() for n in nomi))
+
     def test_normalizzazione_sorgente_scarta_id_non_validi(self):
         cfg = anomalie_views._normalize_derived_source(
             {"ruoli": ["4", 4, 0, -2, "x", None], "extra": [" Tizio ", ""], "esclusi": None}

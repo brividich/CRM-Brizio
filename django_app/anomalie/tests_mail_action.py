@@ -134,6 +134,29 @@ class AnomaliaMailActionTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "OP-2026-TEST")
 
+    def test_spunta_applica_al_blocco_come_nel_portale(self):
+        """Come in Gestione anomalie: la spunta compare solo nei blocchi con piu' anomalie."""
+        token_obj = self._create_token(action="aggiorna_avanzamento")
+        righe = _make_anomalie_rows(3)
+        gruppi = [
+            {"chiave": "b1", "titolo": "SN-0001-0010", "sottotitolo": "", "righe": righe[:2], "nuovo": True},
+            {"chiave": "r3", "titolo": "SN-0003", "sottotitolo": "", "righe": righe[2:], "nuovo": False},
+        ]
+        url = reverse("anomalie_mail_action", kwargs={"token": token_obj.token})
+        with patch("anomalie.mail_action_views._load_anomalie_live_by_op", return_value=righe), \
+             patch("anomalie.mail_action_views._raggruppa", return_value=gruppi):
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="applica-1"')
+        self.assertContains(response, 'id="applica-2"')
+        self.assertNotContains(response, 'id="applica-3"')
+        self.assertContains(
+            response,
+            "Applica la stessa decisione anche alle altre <b>1</b> anomalia aperte di questi seriali",
+            count=2,
+        )
+        self.assertNotContains(response, "Applica a tutte")
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
 class AnomaliaMailActionPostTests(TestCase):

@@ -55,19 +55,34 @@ def get_legacy_anagrafica_id(django_user) -> int | None:
     return int(anagrafica.id) if anagrafica is not None else None
 
 
+def _assegnazioni_in_corso():
+    """Assegnazioni ruolo in corso oggi: le chiuse (``data_fine`` passata) non contano.
+
+    Lo storico tiene le assegnazioni concluse con la loro ``data_fine``: chi ha
+    cambiato ruolo o ha lasciato l'azienda non deve piu' risultare nel ruolo.
+    """
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from anagrafica.models import DipendenteRuoloOperativo
+
+    oggi = timezone.localdate()
+    return DipendenteRuoloOperativo.objects.filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi))
+
+
 def get_roles_for_user(django_user):
-    """Ruoli Operativi (attivi) ricoperti da un utente Django.
+    """Ruoli Operativi (attivi) ricoperti oggi da un utente Django.
 
     Restituisce un queryset di ``RuoloOperativo`` (eventualmente vuoto).
     """
-    from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
+    from anagrafica.models import RuoloOperativo
 
     anagrafica_id = get_legacy_anagrafica_id(django_user)
     if anagrafica_id is None:
         return RuoloOperativo.objects.none()
 
     ruolo_ids = (
-        DipendenteRuoloOperativo.objects.filter(legacy_anagrafica_id=anagrafica_id)
+        _assegnazioni_in_corso().filter(legacy_anagrafica_id=anagrafica_id)
         .values_list("ruolo_id", flat=True)
     )
     return RuoloOperativo.objects.filter(id__in=list(ruolo_ids), is_active=True).order_by("nome")
@@ -79,11 +94,9 @@ def get_role_ids_for_user(django_user) -> set[int]:
 
 
 def get_anagrafica_ids_for_role(ruolo_id: int) -> list[int]:
-    """``legacy_anagrafica_id`` dei dipendenti che ricoprono il ruolo dato."""
-    from anagrafica.models import DipendenteRuoloOperativo
-
+    """``legacy_anagrafica_id`` dei dipendenti che ricoprono oggi il ruolo dato."""
     return list(
-        DipendenteRuoloOperativo.objects.filter(ruolo_id=int(ruolo_id))
+        _assegnazioni_in_corso().filter(ruolo_id=int(ruolo_id))
         .values_list("legacy_anagrafica_id", flat=True)
     )
 
