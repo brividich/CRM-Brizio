@@ -28,6 +28,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <strong>In questa guida</strong>
     <a href="#rinvio">Rinvio di una manutenzione</a>
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
+    <a href="#contatori">Contatori e piani a contatore</a>
     <a href="#ticket">Interventi nati da una segnalazione</a>
     <a href="#stato">Stato dell'asset</a>
     <a href="#documenti">Documenti, cartelle e video</a>
@@ -79,6 +80,19 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>«Il mio turno» è la scheda <strong>«Il mio lavoro»</strong> di Da fare. I KPI sono nella <strong>Panoramica</strong>: in testa sei numeri (Scadute, In scadenza 7 giorni, Non pianificate, Interventi aperti, Puntualità ultimi 90 giorni, Arretrato), tutto il resto in <strong>«Dettaglio indicatori»</strong>. I vecchi collegamenti portano lì.</p>
       <h3>Lista asset e Studio inventario</h3>
       <p>La lista asset usa il menu e la ricerca del modulo (Ctrl+K). <span class="ag-btn">+ Nuovo asset</span> apre la scelta fra asset generico, macchina e prodotto chimico. Campi personalizzati, valori delle liste, pulsanti della scheda e dati del dettaglio si configurano in <strong>Impostazioni → Studio inventario</strong>.</p>
+    </section>
+
+    <section class="ag-sec" id="contatori">
+      <h2>Contatori e piani a contatore</h2>
+      <p>Ore, km o cicli di una macchina si leggono nella scheda asset (riquadro <strong>Contatori</strong>) e nella pagina del QR. Accanto al valore un'etichetta dice quanto è fresca la lettura: <strong>verde</strong> se recente, <strong>ambra</strong> se si avvicina alla soglia, <strong>grigia</strong> («lettura vecchia: N giorni») quando è più vecchia di una settimana.</p>
+      <ul>
+        <li>Per registrare una lettura scrivi il nuovo valore e premi <span class="ag-btn">Aggiorna</span> (dal QR: <span class="ag-btn">Registra una lettura</span>). Serve il permesso di eseguire le manutenzioni.</li>
+        <li>Il valore <strong>non può scendere</strong>. Se il contatore è stato azzerato o sostituito apri <strong>«Contatore azzerato o sostituito?»</strong>, spunta la casella e scrivi una nota.</li>
+        <li>Le macchine collegate (es. le CNC) inviano le ore da sole: la lettura risulta «OPC UA».</li>
+      </ul>
+      <h3>Piani a contatore</h3>
+      <p>Nel form dell'assegnazione scegli <strong>«Quando scatta» → «A contatore»</strong> e indica il contatore e ogni quanto (es. 500 ore). La manutenzione compare in Da fare quando il contatore si avvicina al traguardo; la riga dice «a 1500 h (ora 1460, aggiornato 2 ore fa)». La data è stimata dal consumo delle ultime settimane: se la lettura è vecchia compare «data stimata non disponibile».</p>
+      <p>Registrando una manutenzione a contatore va indicato il <strong>valore letto</strong>: la successiva parte da lì. «Fatta oggi» non è disponibile per queste manutenzioni.</p>
     </section>
 
     <section class="ag-sec" id="ticket">

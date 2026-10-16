@@ -48,6 +48,7 @@
               {% else %}{{ occ.due_date|date:"d/m/Y" }}{% endif %}
               <span class="md-sub" style="display:inline">· {{ occ.due_date|date:"d/m/Y" }}</span>
             </span>
+            {% if occ.is_meter_based %}<span class="md-sub md-meter-due" style="display:block">a {{ occ.due_meter_value|floatformat:"-2" }} {{ row.meter.unit_label|default:row.meter.get_meter_type_display|default:"" }}{% if row.meter %} (ora {{ row.meter.current_value|floatformat:"-2" }}, {{ row.meter.freshness_label }}){% endif %}{% if not occ.meter_due_estimated %} · data stimata non disponibile{% endif %}</span>{% endif %}
           </td>
           <td>
             <a class="md-op-title" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}">{{ occ.asset.asset_tag|default:occ.asset.name }}</a>
@@ -124,6 +125,7 @@
           {% endif %}
           <td>
             <span class="md-due {% if row.state == 'overdue' %}is-late{% endif %}">{{ occ.due_date|date:"d/m/Y" }}</span>
+            {% if occ.is_meter_based %}<span class="md-sub md-meter-due" style="display:block">a {{ occ.due_meter_value|floatformat:"-2" }} {{ row.meter.unit_label|default:row.meter.get_meter_type_display|default:"" }}{% if row.meter %} (ora {{ row.meter.current_value|floatformat:"-2" }}, {{ row.meter.freshness_label }}){% endif %}{% if not occ.meter_due_estimated %} · data stimata non disponibile{% endif %}</span>{% endif %}
             {% if row.days_until_due != None %}
               <span class="md-sub">
                 {% if row.days_late %}scaduta da {{ row.days_late }} gg

@@ -42,6 +42,9 @@ GUIDA = {
                     "obbligatorio): hai 5 secondi per annullare. Con più righe selezionate: «Segna come fatte oggi».",
                     "«Il mio turno» è la scheda «Il mio lavoro» di Da fare; i KPI sono nella Panoramica, sotto "
                     "«Dettaglio indicatori».",
+                    "Contatori (ore, km, cicli): si aggiornano dalla scheda asset o dal QR; l'etichetta dice quanto è "
+                    "fresca la lettura. Un valore non può scendere: per un azzeramento serve la nota. I piani «a "
+                    "contatore» chiedono il valore letto quando si registra la manutenzione.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
                     "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
                     "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
@@ -109,9 +112,23 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "«Il contatore non può scendere» aggiornando ore o km",
+            "fare": [
+                "Controlla il valore: deve essere uguale o maggiore dell'ultimo letto.",
+                "Se il contatore è stato azzerato o sostituito, apri «Contatore azzerato o sostituito?» e scrivi una nota.",
+            ],
+        },
+        {
+            "sintomo": "Il collector delle CNC non aggiorna le ore",
+            "fare": [
+                "Admin Django → «Collector letture contatori»: il collector deve essere attivo e avere un «ultimo contatto» recente.",
+                "L'IP della macchina del collector deve essere in ASSETS_METER_INGEST_ALLOWED_IPS; il contatore deve esistere sull'asset.",
+            ],
+        },
+        {
             "sintomo": "In «Da fare» una manutenzione non ha «✓ Fatta oggi»",
             "fare": [
-                "Richiede il documento allegato oppure è affidata a un fornitore: usa «Registra».",
+                "Richiede il documento allegato, è affidata a un fornitore oppure è a contatore: usa «Registra».",
                 "Il pulsante compare solo a chi può registrare le manutenzioni.",
             ],
         },

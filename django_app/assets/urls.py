@@ -3,6 +3,8 @@ from django.views.generic import RedirectView
 
 from . import views, views_asset_qr, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
 
+from .api_meters import api as meters_api
+
 app_name = "assets"
 
 urlpatterns = [
@@ -283,6 +285,8 @@ urlpatterns = [
     # Sotto /scadenze/ come le altre azioni sulla singola manutenzione: il binding
     # ACL «Scadenze manutenzione» copre il prefisso (con ACL strict una route fuori
     # prefisso sarebbe negata ai non superuser).
+    # Ingest letture contatori dai collector (token, solo rete interna): vedi assets/api_meters.py.
+    path("api/assets/contatori/", meters_api.urls),
     path(
         "assets/manutenzione/scadenze/<int:occurrence_id>/fatta-oggi/",
         views_maintenance.occurrence_quick_complete,

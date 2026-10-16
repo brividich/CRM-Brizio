@@ -9178,6 +9178,9 @@ class AssetMeterAuditTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user("meter-audit", "meter-audit@test.local", "pw")
+        # Registrare una lettura ora richiede il permesso di esecuzione manutenzioni.
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
         _complete_onboarding(self.user)
         self.category = AssetCategory.objects.create(
             code="cnc-audit", label="CNC audit", base_asset_type=Asset.TYPE_CNC, sort_order=10,

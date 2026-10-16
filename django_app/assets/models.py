@@ -3200,6 +3200,16 @@ class AssetMeter(models.Model):
         (METER_CYCLES, "Cicli"),
         (METER_OTHER, "Altro"),
     ]
+    SOURCE_MANUAL = "MANUAL"
+    SOURCE_OPCUA = "OPCUA"
+    SOURCE_SNMP = "SNMP"
+    SOURCE_IMPORT = "IMPORT"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Manuale"),
+        (SOURCE_OPCUA, "OPC UA"),
+        (SOURCE_SNMP, "SNMP"),
+        (SOURCE_IMPORT, "Import"),
+    ]
 
     asset = models.ForeignKey(
         Asset,
@@ -3219,6 +3229,15 @@ class AssetMeter(models.Model):
     )
     notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Momento della LETTURA (dal collector o dichiarato da chi la registra): distinto
+    # da ``updated_at``, che cambia anche per una modifica di etichetta o note.
+    read_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    stale_after_hours = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Ore dopo le quali la lettura e' vecchia. Vuoto = impostazione generale (ASSETS_METER_STALE_HOURS).",
+    )
 
     class Meta:
         ordering = ["asset__name", "meter_type", "id"]
@@ -3235,7 +3254,55 @@ class AssetMeter(models.Model):
         label = self.unit_label or self.get_meter_type_display()
         return f"{self.asset} — {label}: {self.current_value}"
 
+    @property
+    def effective_stale_hours(self) -> int:
+        configured = self.stale_after_hours
+        if configured:
+            return int(configured)
+        return int(getattr(settings, "ASSETS_METER_STALE_HOURS", 168) or 168)
+
+    @property
+    def last_read_at(self):
+        """Ultima lettura nota: ``read_at``, oppure ``updated_at`` per i contatori
+        aggiornati prima che esistesse il campo."""
+        return self.read_at or self.updated_at
+
+    @property
+    def is_stale(self) -> bool:
+        last = self.last_read_at
+        if last is None:
+            return True
+        return timezone.now() - last > timedelta(hours=self.effective_stale_hours)
+
+    @property
+    def freshness_tone(self) -> str:
+        """Colore del badge: ok (fresca), warn (oltre meta' della soglia), muted (vecchia)."""
+        last = self.last_read_at
+        if last is None or self.is_stale:
+            return "muted"
+        if timezone.now() - last > timedelta(hours=self.effective_stale_hours / 2):
+            return "warn"
+        return "ok"
+
+    @property
+    def freshness_label(self) -> str:
+        """«aggiornato 2 ore fa» / «lettura vecchia: 9 giorni»."""
+        last = self.last_read_at
+        if last is None:
+            return "mai letto"
+        hours = int((timezone.now() - last).total_seconds() // 3600)
+        if hours < 1:
+            age = "meno di un'ora"
+        elif hours < 48:
+            age = f"{hours} or{'a' if hours == 1 else 'e'}"
+        else:
+            age = f"{hours // 24} giorni"
+        if self.is_stale:
+            return f"lettura vecchia: {age}"
+        return f"aggiornato {age} fa"
+
     def update_value(self, new_value, user) -> "AssetMeterHistory":
+        """Compatibilita': usare ``assets.services.meters.record_meter_reading``."""
         old_value = self.current_value
         self.current_value = new_value
         self.updated_by = user
@@ -3264,6 +3331,13 @@ class AssetMeterHistory(models.Model):
         related_name="asset_meter_history_entries",
     )
     recorded_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    source = models.CharField(max_length=10, choices=AssetMeter.SOURCE_CHOICES, default=AssetMeter.SOURCE_MANUAL)
+    is_reset = models.BooleanField(
+        default=False,
+        help_text="Azzeramento o sostituzione del contatore: l'unico caso in cui il valore puo' scendere.",
+    )
+    note = models.TextField(blank=True, default="")
 
     class Meta:
         ordering = ["-recorded_at", "id"]
@@ -3272,6 +3346,62 @@ class AssetMeterHistory(models.Model):
 
     def __str__(self) -> str:
         return f"{self.meter} @ {self.recorded_at:%Y-%m-%d %H:%M}: {self.old_value} -> {self.new_value}"
+
+
+class MeterIngestClient(models.Model):
+    """Collector autorizzato a inviare letture dei contatori (es. OPC UA delle CNC).
+
+    Il token in chiaro si vede una volta sola, alla creazione: a DB resta solo
+    l'hash SHA-256. Solo rete interna: l'endpoint non va pubblicato su Entra
+    Application Proxy (vedi docs/ai/05_SECURITY_BOUNDARIES.md).
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    token_hash = models.CharField(max_length=64, unique=True, editable=False)
+    is_active = models.BooleanField(default=True, db_index=True)
+    all_meter_assets = models.BooleanField(
+        default=False,
+        help_text="Se attivo puo' scrivere su tutti gli asset che hanno un contatore; altrimenti solo su quelli elencati.",
+    )
+    allowed_assets = models.ManyToManyField(Asset, blank=True, related_name="meter_ingest_clients")
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meter_ingest_clients_created",
+    )
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["name", "id"]
+        verbose_name = "Collector letture contatori"
+        verbose_name_plural = "Collector letture contatori"
+
+    def __str__(self) -> str:
+        return self.name
+
+    @staticmethod
+    def hash_token(token: str) -> str:
+        import hashlib
+
+        return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+    @classmethod
+    def issue_token(cls) -> str:
+        import secrets
+
+        return secrets.token_urlsafe(32)
+
+    def set_token(self, token: str) -> None:
+        self.token_hash = self.hash_token(token)
+
+    def can_write_asset(self, asset_id: int) -> bool:
+        if self.all_meter_assets:
+            return True
+        return self.allowed_assets.filter(pk=asset_id).exists()
 
 
 class AssetCalendarEvent(models.Model):
@@ -3609,6 +3739,13 @@ class MaintenancePlanAssignment(models.Model):
         (ANCHOR_FIXED_CALENDAR, "Dalla scadenza teorica"),
     ]
 
+    TRIGGER_CALENDAR = "CALENDAR"
+    TRIGGER_METER = "METER"
+    TRIGGER_CHOICES = [
+        (TRIGGER_CALENDAR, "A calendario"),
+        (TRIGGER_METER, "A contatore"),
+    ]
+
     plan = models.ForeignKey(
         "MaintenanceInterventionTemplate",
         on_delete=models.PROTECT,
@@ -3717,6 +3854,21 @@ class MaintenancePlanAssignment(models.Model):
     )
     is_active = models.BooleanField(default=True, db_index=True)
     notes = models.TextField(blank=True, default="")
+    # --- A contatore: il traguardo e' un valore (ore, km, cicli), non una data ---
+    trigger_type = models.CharField(max_length=10, choices=TRIGGER_CHOICES, default=TRIGGER_CALENDAR, db_index=True)
+    meter_type = models.CharField(max_length=20, choices=AssetMeter.METER_TYPE_CHOICES, blank=True, default="")
+    meter_interval = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Ogni quanto (nell'unita' del contatore): es. 500 ore.",
+    )
+    meter_warning_before = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Preavviso nell'unita' del contatore. Vuoto = 10% dell'intervallo.",
+    )
+    meter_baseline = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Valore di partenza: vuoto = valore del contatore alla prima generazione.",
+    )
     legacy_rule = models.ForeignKey(
         "MaintenanceRule",
         on_delete=models.SET_NULL,
@@ -3816,10 +3968,32 @@ class MaintenancePlanAssignment(models.Model):
         if self.is_excluded and self.target_type != self.TARGET_ASSET:
             raise ValidationError({"is_excluded": "L'esclusione vale solo per un asset specifico."})
 
+        if self.trigger_type == self.TRIGGER_METER:
+            # A contatore i campi del calendario non servono: il traguardo e' un valore.
+            if not self.meter_type:
+                raise ValidationError({"meter_type": "Scegli il contatore (ore, km, cicli...)."})
+            if self.meter_interval is None or self.meter_interval <= 0:
+                raise ValidationError({"meter_interval": "L'intervallo del contatore deve essere maggiore di zero."})
+            if self.meter_warning_before is not None and self.meter_warning_before < 0:
+                raise ValidationError({"meter_warning_before": "Il preavviso non puo' essere negativo."})
+            return
+
         if not self.is_excluded:
             from .services.recurrence import validate_recurrence_fields
 
             validate_recurrence_fields(self)
+
+    @property
+    def is_meter_based(self) -> bool:
+        return self.trigger_type == self.TRIGGER_METER
+
+    @property
+    def effective_meter_warning(self):
+        if self.meter_warning_before is not None:
+            return self.meter_warning_before
+        if self.meter_interval is None:
+            return Decimal("0")
+        return (self.meter_interval / Decimal("10")).quantize(Decimal("0.01"))
 
     def recurrence_label(self) -> str:
         from .services.recurrence import describe_recurrence
@@ -3948,6 +4122,15 @@ class MaintenanceOccurrence(models.Model):
     )
 
     cancel_reason = models.CharField(max_length=255, blank=True, default="")
+    # A contatore: il traguardo e il valore letto all'esecuzione. ``due_date`` resta
+    # (le liste ordinano per data) ed e' una stima dal consumo medio.
+    is_meter_based = models.BooleanField(default=False, db_index=True)
+    due_meter_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    meter_value_at_completion = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    meter_due_estimated = models.BooleanField(
+        default=True,
+        help_text="False quando la data non si e' potuta stimare (storico insufficiente o lettura vecchia).",
+    )
     source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default=SOURCE_SCHEDULER, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -4018,11 +4201,23 @@ class MaintenanceOccurrence(models.Model):
             return "richiede il documento allegato"
         if self.is_external:
             return "e' affidata a un fornitore esterno"
+        if self.is_meter_based:
+            return "e' a contatore: serve il valore letto"
         return ""
 
     @property
     def quick_complete_allowed(self) -> bool:
         return not self.quick_complete_block_reason
+
+    @property
+    def meter_for_completion(self):
+        """Contatore dell'asset su cui si misura questa scadenza (solo a contatore)."""
+        if not self.is_meter_based or not self.assignment_id or self.assignment is None:
+            return None
+        meter_type = self.assignment.meter_type
+        if not meter_type:
+            return None
+        return AssetMeter.objects.filter(asset_id=self.asset_id, meter_type=meter_type).first()
 
     def days_until_due(self, reference_date=None) -> int | None:
         if not self.due_date:

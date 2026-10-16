@@ -70,6 +70,7 @@
     <div class="md-grid-2">
       {% include "assets/components/_md_field.html" with field=form.completed_on %}
       {% include "assets/components/_md_field.html" with field=form.downtime_minutes %}
+      {% if form.meter_value %}{% include "assets/components/_md_field.html" with field=form.meter_value %}{% endif %}
       {% if form.report_received_at %}{% include "assets/components/_md_field.html" with field=form.report_received_at %}{% endif %}
     </div>
     {% include "assets/components/_md_field.html" with field=form.notes %}

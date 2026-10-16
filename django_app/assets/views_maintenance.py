@@ -300,14 +300,27 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
 def _decorate(occurrences: list[MaintenanceOccurrence], *, today: date) -> list[dict[str, Any]]:
     """Aggiunge lo stato visuale derivato senza toccare il DB."""
     rows = []
+    meters = _meters_for_rows(occurrences)
     for occurrence in occurrences:
         payload = domain.occurrence_state_payload(occurrence, today=today)
         days = payload.get("days_until_due")
         # Il ritardo si calcola qui: il template non deve fare aritmetica.
         payload["days_late"] = -days if days is not None and days < 0 else 0
+        if occurrence.is_meter_based and occurrence.assignment_id:
+            payload["meter"] = meters.get((occurrence.asset_id, getattr(occurrence.assignment, "meter_type", "")))
         rows.append({"occurrence": occurrence, **payload})
     rows.sort(key=lambda row: (row["order"], row["occurrence"].due_date, row["occurrence"].id))
     return rows
+
+
+def _meters_for_rows(occurrences) -> dict:
+    """Contatori delle righe a contatore, in una query sola (niente N+1 nelle liste)."""
+    from .models import AssetMeter
+
+    asset_ids = {occ.asset_id for occ in occurrences if getattr(occ, "is_meter_based", False)}
+    if not asset_ids:
+        return {}
+    return {(m.asset_id, m.meter_type): m for m in AssetMeter.objects.filter(asset_id__in=asset_ids)}
 
 
 def _report_missing_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2463,6 +2476,7 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
                     completed_on=form.cleaned_data["completed_on"],
                     notes=form.cleaned_data.get("notes") or "",
                     downtime_minutes=form.cleaned_data.get("downtime_minutes"),
+                    meter_value=form.cleaned_data.get("meter_value"),
                 )
             except domain.OccurrenceCompletionError as exc:
                 messages.error(request, str(exc))

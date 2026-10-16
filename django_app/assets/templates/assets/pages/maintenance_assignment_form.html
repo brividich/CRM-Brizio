@@ -55,6 +55,15 @@
 
   <fieldset class="md-fieldset">
     <h2>2 · Quando</h2>
+    {% include "assets/components/_md_field.html" with field=form.trigger_type %}
+    <div class="md-grid-2" data-md-meter-block>
+      {% include "assets/components/_md_field.html" with field=form.meter_type %}
+      {% include "assets/components/_md_field.html" with field=form.meter_interval %}
+      {% include "assets/components/_md_field.html" with field=form.meter_warning_before %}
+      {% include "assets/components/_md_field.html" with field=form.meter_baseline %}
+      <p class="md-hint" style="grid-column:1/-1">A contatore la scadenza nasce quando il contatore arriva al traguardo meno il preavviso (vuoto = 10% dell'intervallo). Il traguardo riparte dal valore letto all'ultima esecuzione; la data mostrata e' una stima dal consumo degli ultimi 30 giorni.</p>
+    </div>
+    <div data-md-calendar-block>
     {% include "assets/components/_md_field.html" with field=form.recurrence_preset %}
     <div class="md-grid-2" data-md-custom-recurrence>
       {% include "assets/components/_md_field.html" with field=form.interval %}
@@ -69,7 +78,22 @@
       {% include "assets/components/_md_field.html" with field=form.first_due_date %}
       {% include "assets/components/_md_field.html" with field=form.schedule_anchor %}
     </div>
+    </div>
   </fieldset>
+  <script>
+  (function () {
+    var trigger = document.getElementById("{{ form.trigger_type.id_for_label }}");
+    var meterBlock = document.querySelector("[data-md-meter-block]");
+    var calendarBlock = document.querySelector("[data-md-calendar-block]");
+    function sync() {
+      var isMeter = trigger && trigger.value === "METER";
+      if (meterBlock) { meterBlock.hidden = !isMeter; }
+      if (calendarBlock) { calendarBlock.hidden = isMeter; }
+    }
+    if (trigger) { trigger.addEventListener("change", sync); }
+    sync();
+  })();
+  </script>
 
   <fieldset class="md-fieldset">
     <h2>3 · Chi</h2>

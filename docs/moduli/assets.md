@@ -157,7 +157,17 @@ Il cambio di stato del ticket passa da un unico service (`tickets/services/stato
 
 **Parole dell'interfaccia**: assegnazione (di un piano), scadenza / manutenzione, intervento (con «OdL n.» come dettaglio), intervento di verifica, vista a colonne, Panoramica, Scadenzario.
 
+## Contatori e piani a contatore
+
+**Letture** (scheda asset → Contatori, pagina del QR → «Registra una lettura»): ogni lettura passa da `assets/services/meters.py` (`record_meter_reading`). Il valore non può scendere, salvo «Contatore azzerato o sostituito?» con una nota; una lettura più vecchia dell'ultima è ignorata. Ogni contatore mostra quanto è fresca la lettura: verde (recente), ambra (oltre metà della soglia), grigio («lettura vecchia: N giorni», oltre `ASSETS_METER_STALE_HOURS`, default 168 ore, o la soglia del singolo contatore). Registrare una lettura richiede il permesso di eseguire le manutenzioni (prima bastava essere autenticati).
+
+**Collector** (`POST /api/assets/contatori/ingest/`, solo rete interna): token per collector, allowlist IP `ASSETS_METER_INGEST_ALLOWED_IPS`, esito per riga. Contratto ed esempi in [assets_contatori_ingest.md](assets_contatori_ingest.md). Creazione: admin Django «Collector letture contatori» o `manage.py meter_ingest_client`.
+
+**Piani a contatore** (form dell'assegnazione → «Quando scatta» = «A contatore»): contatore, ogni quanto (es. 500 ore), preavviso (vuoto = 10% dell'intervallo), valore di partenza (vuoto = valore del contatore all'attivazione). La scadenza nasce quando il contatore arriva al traguardo meno il preavviso; il traguardo riparte dal valore letto all'ultima esecuzione. La data è una stima dal consumo degli ultimi 30 giorni: con lettura vecchia o storico insufficiente la data è oggi e la riga dice «data stimata non disponibile». In «Da fare» e Scadenzario la riga mostra «a 12000 h (ora 11650, aggiornato 3 ore fa)». Registrando la manutenzione il valore del contatore è obbligatorio (se diverso dall'ultimo diventa anche una lettura); «Fatta oggi» non vale per queste scadenze. Chiudendo un intervento su un asset con contatore ore, `meter_value_at_close` prende il valore corrente.
+
 ## Note di rilascio
+
+Contatori (ottobre 2026): dopo il deploy `migrate assets` (0137: campi lettura/provenienza/freschezza, piani a contatore, tabella `assets_meteringestclient`). Per il collector OPC UA: creare il collector (`meter_ingest_client`), impostare `ASSETS_METER_INGEST_ALLOWED_IPS` con l'IP della macchina che lo esegue, **non** pubblicare `/api/assets/contatori/` su Entra.
 
 UX operativa (ottobre 2026): dopo il deploy `migrate assets` (0135 nasconde la voce «KPI» dal menu Manutenzione; 0136 solo testi, nessun SQL). Nessuna nuova tabella; nuovi URL `/assets/manutenzione/scadenze/<id>/fatta-oggi/` e `/assets/manutenzione/scadenze/fatte-oggi/` sotto il binding ACL «Scadenze manutenzione».
 

@@ -24,6 +24,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import (
+    AssetMeter,
     MaintenanceOccurrence,
     WorkOrder,
     WorkOrderAttachment,
@@ -198,6 +199,13 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
         workorder.record_outcome_keep_open(**closure_kwargs)
     else:
         workorder.close(status=data.status, closed_at=data.closed_at, **closure_kwargs)
+        # Ore macchina alla chiusura: il dato che serve a MTBF e ai piani a
+        # contatore. Prima il campo esisteva ma nessuna chiusura lo scriveva.
+        if workorder.status == WorkOrder.STATUS_DONE and workorder.meter_value_at_close is None:
+            hours_meter = AssetMeter.objects.filter(asset_id=workorder.asset_id, meter_type=AssetMeter.METER_HOURS).first()
+            if hours_meter is not None:
+                workorder.meter_value_at_close = hours_meter.current_value
+                workorder.save(update_fields=["meter_value_at_close"])
 
     failure_cause = data.failure_cause or ""
     if workorder.kind not in FAILURE_CAUSE_KINDS:

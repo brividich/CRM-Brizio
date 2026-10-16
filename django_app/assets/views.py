@@ -11322,6 +11322,12 @@ def asset_qr_ticket_upload(request: HttpRequest, public_qr_token: str, ticket_id
     return redirect(landing_url)
 
 
+def _qr_can_record_meter(request: HttpRequest) -> bool:
+    from .views_maintenance import can_execute_maintenance
+
+    return can_execute_maintenance(request)
+
+
 def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool) -> HttpResponse:
     asset_tag = asset.asset_tag
     today = timezone.localdate()
@@ -11459,6 +11465,8 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         "qr_upload_enabled": qr_upload_enabled,
         "qr_uploader_name": qr_uploader_name,
         "qr_landing_url": request.path,
+        "qr_meters": [] if public else list(AssetMeter.objects.filter(asset=asset).order_by("meter_type")),
+        "qr_can_record_meter": False if public else _qr_can_record_meter(request),
     }
     if public:
         # Nessuna shell applicativa (sidebar/nav/ACL) per i visitatori non autenticati.
@@ -17250,29 +17258,44 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
     POST: aggiorna il valore del contatore selezionato e restituisce lo stesso partial.
     Usato via HTMX (hx-post + hx-swap='outerHTML') dalla asset_detail e dalla work_machine_dashboard.
     """
+    from .services.meters import MeterReadingError, record_meter_reading
+    from .views_maintenance import can_execute_maintenance
+
     asset = get_object_or_404(Asset, pk=asset_id)
     meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
     error = None
     success_message = None
+    can_record = can_execute_maintenance(request)
 
     if request.method == "POST":
+        # Scrivere una lettura e' un'esecuzione di manutenzione: la lettura guida
+        # le scadenze a contatore. Prima bastava essere autenticati.
+        if not can_record:
+            return HttpResponse("Non hai i permessi per registrare le letture dei contatori.", status=403)
         meter_id = _as_int(request.POST.get("meter_id"), default=0)
-        new_value_raw = request.POST.get("new_value", "").strip()
+        is_reset = request.POST.get("is_reset") == "1"
+        note = _clean_string(request.POST.get("note"))
         try:
-            new_value = Decimal(new_value_raw.replace(",", "."))
-            if new_value < 0:
-                raise ValueError("Il valore non può essere negativo.")
-        except Exception:
-            error = "Valore non valido. Inserire un numero positivo."
-            new_value = None
-
-        if new_value is not None and meter_id:
+            meter = AssetMeter.objects.get(pk=meter_id, asset=asset)
+        except AssetMeter.DoesNotExist:
+            error = "Contatore non trovato."
+        else:
             try:
-                meter = AssetMeter.objects.get(pk=meter_id, asset=asset)
-                history = meter.update_value(new_value, request.user)
+                history = record_meter_reading(
+                    meter,
+                    request.POST.get("new_value", ""),
+                    read_at=timezone.now(),
+                    source=AssetMeter.SOURCE_MANUAL,
+                    user=request.user,
+                    is_reset=is_reset,
+                    note=note,
+                )
+            except MeterReadingError as exc:
+                error = str(exc)
+            else:
                 # La firma è log_action(request, azione, modulo, dettaglio): passare
                 # request.user come request faceva fallire l'audit in silenzio (fire-and-forget)
-                # proprio sul dato che pilota la generazione degli OdL a soglia.
+                # proprio sul dato che pilota la generazione delle scadenze a contatore.
                 log_action(
                     request,
                     "asset_meter_update",
@@ -17284,12 +17307,11 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
                         "meter_type": meter.meter_type,
                         "old_value": str(history.old_value),
                         "new_value": str(history.new_value),
+                        "is_reset": history.is_reset,
                     },
                 )
                 meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
-                success_message = f"Contatore aggiornato a {new_value}."
-            except AssetMeter.DoesNotExist:
-                error = "Contatore non trovato."
+                success_message = f"Contatore aggiornato a {history.new_value}."
 
     recent_history = (
         AssetMeterHistory.objects
@@ -17304,6 +17326,7 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
         "recent_history": recent_history,
         "error": error,
         "success_message": success_message,
+        "can_record_meter": can_record,
     }
     return render(request, "assets/components/asset_meter_panel.html", ctx)
 
