@@ -1,0 +1,77 @@
+<form class="mst-editor" hx-post="{% url 'anagrafica:mansionario_struttura_mansione' mansione.pk %}" hx-target="this" hx-swap="outerHTML">
+  {% csrf_token %}
+  <input type="hidden" name="n_righe" value="{{ n_righe }}">
+  {% if errore %}<div class="mst-msg mst-msg-ko" role="alert">{{ errore }}</div>{% endif %}
+  {% if salvato %}<div class="mst-msg mst-msg-ok" role="status">{{ salvato }}</div>{% endif %}
+
+  <div class="mst-config">
+    <label class="mst-campo mst-largo"><span>Nome</span>
+      <input type="text" name="nome" value="{{ config.nome }}" maxlength="255" required>
+    </label>
+    <label class="mst-campo"><span>Ruoli</span>
+      <select name="ruoli" multiple size="5">
+        {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in config.ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito_id %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
+      </select>
+      <small>Ctrl+clic per sceglierne più di uno</small>
+    </label>
+    <label class="mst-campo"><span>Mansioni di rischio</span>
+      <select name="mansioni_rischio" multiple size="5">
+        {% for m in rischi_opts %}<option value="{{ m.pk }}"{% if m.pk in config.rischi %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+      </select>
+      <small>DPI, visite e schede di sicurezza vengono da qui</small>
+    </label>
+    <label class="mst-campo"><span>Reparto</span>
+      {% if mansione.asset_id %}
+      <input type="text" value="{{ mansione.reparto_effettivo|default:'—' }}" disabled>
+      <small>Dalla macchina {{ mansione.asset.name }}</small>
+      {% else %}
+      <select name="reparto">
+        <option value="">— nessuno —</option>
+        {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == config.reparto %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+      </select>
+      {% endif %}
+    </label>
+    <label class="mst-check"><input type="checkbox" name="attiva"{% if config.attiva %} checked{% endif %}> Mansione attiva</label>
+  </div>
+
+  <div class="mst-scroll">
+  <table class="fmd-table mst-comp" data-fm-table-skip="1">
+    <thead><tr>
+      <th>Competenza</th><th>Livello minimo</th><th title="Sotto il minimo blocca l'abilitazione">Bloccante</th>
+      <th>Corso</th><th>Qualifica</th><th>MOD.128</th><th>Ordine</th><th>Togli</th>
+    </tr></thead>
+    <tbody>
+    {% for r in righe %}
+      <tr{% if not r.id %} class="mst-nuova-r"{% endif %}>
+        <td><input type="hidden" name="r{{ r.i }}_id" value="{{ r.id|default:'' }}">
+          <input type="text" name="r{{ r.i }}_nome" value="{{ r.nome }}" maxlength="150" placeholder="{% if r.id %}Nome{% else %}Nuova competenza{% endif %}" aria-label="Nome della competenza"></td>
+        <td><select name="r{{ r.i }}_livello_minimo" aria-label="Livello minimo">
+          {% for codice, etichetta in livelli_label %}<option value="{{ codice }}"{% if codice == r.livello_minimo %} selected{% endif %}>{{ codice }} · {{ etichetta }}</option>{% endfor %}
+        </select></td>
+        <td class="mst-c"><input type="checkbox" name="r{{ r.i }}_bloccante"{% if r.bloccante %} checked{% endif %} aria-label="Bloccante"></td>
+        <td><select name="r{{ r.i }}_corso" aria-label="Corso richiesto">
+          <option value="">—</option>
+          {% for c in corsi_opts %}<option value="{{ c.id }}"{% if c.id == r.corso_id %} selected{% endif %}>{{ c.titolo|truncatechars:60 }}</option>{% endfor %}
+        </select></td>
+        <td><select name="r{{ r.i }}_qualifica" aria-label="Qualifica richiesta">
+          <option value="">—</option>
+          {% for q in qualifiche_opts %}<option value="{{ q.pk }}"{% if q.pk == r.qualifica_id %} selected{% endif %}>{{ q.nome }}</option>{% endfor %}
+        </select></td>
+        <td><select name="r{{ r.i }}_processo" aria-label="Abilitazione MOD.128 richiesta">
+          <option value="">—</option>
+          {% for p in processi_opts %}<option value="{{ p.id }}"{% if p.id == r.processo_id %} selected{% endif %}>{{ p.nome|truncatechars:50 }}</option>{% endfor %}
+        </select></td>
+        <td><input type="number" name="r{{ r.i }}_ordine" value="{{ r.ordine }}" min="0" max="999" class="mst-ord" aria-label="Ordine"></td>
+        <td class="mst-c">{% if r.id %}<input type="checkbox" name="r{{ r.i }}_togli"{% if r.togli %} checked{% endif %} aria-label="Togli la competenza">{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="mst-nota">Le righe vuote in fondo servono per aggiungere competenze. «Togli» la spegne: i livelli già registrati restano e tornano se la riattivi con lo stesso nome.</p>
+
+  <div class="mst-azioni">
+    <button type="submit" class="fmd-btn fmd-btn-navy">Salva la mansione</button>
+    <a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">Apri la scheda (persone e valutazioni) →</a>
+  </div>
+</form>

@@ -1,0 +1,121 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Cambio ruoli in blocco | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=2">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:ruoli_operativi_list' %}">Ruoli</a><span class="fmd-sep"> / </span><span class="fmd-cur">Cambio in blocco</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Cambio ruoli in blocco</h1>
+        <p class="fmd-ph-sub">Aggiungi, sostituisci o chiudi un ruolo per più persone insieme. Prima vedi l'anteprima, poi registri.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_struttura' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Struttura del Mansionario</a>
+        {% include "anagrafica/partials/_guida_persone_link.html" with ancora="ruoli-in-blocco" %}
+      </div>
+    </div>
+
+    <form method="get" class="fmd-panel fmd-block mst-filtri" aria-label="Filtra le persone">
+      <label class="mst-campo"><span>Reparto</span>
+        <select name="reparto"><option value="">Tutti</option>
+          {% for r in reparti_opts %}<option value="{{ r.nome }}"{% if r.nome == filtri.reparto %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+        </select></label>
+      <label class="mst-campo"><span>Che ha il ruolo</span>
+        <select name="filtro_ruolo"><option value="">Qualsiasi</option>
+          {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk == filtri.ruolo_id %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+        </select></label>
+      <label class="mst-campo"><span>Cerca</span><input type="search" name="cerca" value="{{ filtri.cerca }}" placeholder="Nome o reparto"></label>
+      <button type="submit" class="fmd-btn fmd-btn-ghost">Filtra</button>
+    </form>
+
+    {% if esiti %}
+    <section class="fmd-panel fmd-block" aria-label="Esito">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>{% if applicato %}Registrato{% else %}Anteprima: non è stato salvato niente{% endif %}</div></div>
+      <div class="mst-scroll">
+      <table class="fmd-table">
+        <thead><tr><th>Persona</th><th>Ruolo principale prima</th><th>Esito</th><th>Dettaglio</th></tr></thead>
+        <tbody>
+        {% for e in esiti %}
+          <tr><td>{{ e.nome }}</td><td>{{ e.prima|default:"—" }}</td>
+            <td><span class="mst-pill mst-p-{% if e.azione == 'cambia' %}nuovo{% elif e.azione == 'errore' %}errore{% else %}invariato{% endif %}">{% if e.azione == 'cambia' %}{% if applicato %}registrato{% else %}cambierà{% endif %}{% elif e.azione == 'errore' %}errore{% else %}nessun cambio{% endif %}</span></td>
+            <td>{{ e.dettaglio }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <form method="post" class="fmd-panel fmd-block" aria-label="Cambio di ruolo">
+      {% csrf_token %}
+      <input type="hidden" name="reparto" value="{{ filtri.reparto }}">
+      <input type="hidden" name="filtro_ruolo" value="{{ filtri.ruolo_id|default:'' }}">
+      <input type="hidden" name="cerca" value="{{ filtri.cerca }}">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Che cosa cambia</div></div>
+      <div class="mst-config">
+        <label class="mst-campo"><span>Operazione</span>
+          <select name="modo">{% for codice, etichetta in modi %}<option value="{{ codice }}"{% if codice == scelta.modo %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
+          <small>Sostituisci = nuovo ruolo principale (il precedente si chiude il giorno prima). Chiudi = la data è l'ultimo giorno.</small>
+        </label>
+        <label class="mst-campo"><span>Ruolo</span>
+          <select name="ruolo" required><option value="">— scegli —</option>
+            {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk == scelta.ruolo_id %} selected{% endif %}>{{ r.nome }}{% if r.ambito_id %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
+          </select></label>
+        <label class="mst-campo"><span>Dal / il</span><input type="date" name="data" value="{{ scelta.data }}" required></label>
+        <label class="mst-campo mst-largo"><span>Nota (facoltativa)</span><input type="text" name="note" value="{{ scelta.note }}" maxlength="500"></label>
+      </div>
+
+      <div class="mst-sel-head">
+        <strong>Persone ({{ persone|length }})</strong>
+        <label class="mst-check"><input type="checkbox" data-mst-tutti> Seleziona tutte quelle in elenco</label>
+        <span class="mst-nota">Al massimo {{ max_persone }} alla volta.</span>
+      </div>
+      <div class="mst-scroll mst-persone">
+      <table class="fmd-table" data-fm-table-skip="1">
+        <thead><tr><th></th><th>Persona</th><th>Reparto</th><th>Ruolo principale</th><th>Ruoli in essere</th></tr></thead>
+        <tbody>
+        {% for p in persone %}
+          <tr><td class="mst-c"><input type="checkbox" name="persone" value="{{ p.legacy_id }}"{% if p.legacy_id in scelta.persone %} checked{% endif %} aria-label="{{ p.nome }}"></td>
+            <td>{{ p.nome }}</td><td>{{ p.reparto|default:"—" }}</td><td>{{ p.principale|default:"—" }}</td><td>{{ p.ruoli|join:", "|default:"—" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="5" class="mst-vuoto">Nessuna persona con questi filtri.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <div class="mst-azioni">
+        <button type="submit" name="azione" value="prova" class="fmd-btn fmd-btn-ghost">Anteprima</button>
+        <button type="submit" name="azione" value="applica" class="fmd-btn fmd-btn-navy" data-mst-conferma>Registra</button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var tutti=document.querySelector('[data-mst-tutti]');
+  if(tutti)tutti.addEventListener('change',function(){document.querySelectorAll('input[name="persone"]').forEach(function(c){c.checked=tutti.checked;});});
+  var reg=document.querySelector('[data-mst-conferma]');
+  if(reg)reg.addEventListener('click',function(e){
+    var n=document.querySelectorAll('input[name="persone"]:checked').length;
+    if(!window.confirm('Registrare il cambio per '+n+' persone?'))e.preventDefault();
+  });
+})();
+</script>
+{% endblock %}

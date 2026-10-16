@@ -49,6 +49,7 @@
       {% if parte_admin %}
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
+      <a class="fmd-data-link" href="#ruoli-in-blocco">Cambio ruoli in blocco</a>
       <a class="fmd-data-link" href="#nuovo-dipendente">Nuovo dipendente</a>
       <a class="fmd-data-link" href="#account-portale">Account portale nella scheda</a>
       <a class="fmd-data-link" href="#amministrazione">Amministrazione e import</a>
@@ -126,6 +127,24 @@
         <li>Il «Caporeparto» della scheda si aggiorna quando si salva il reparto o l'area: il responsabile dell'area vince sul caporeparto.</li>
         <li>Nella card <strong>Spostamenti organizzativi</strong> il riquadro <strong>Mansioni lavorative da rivedere</strong> elenca le mansioni del Mansionario dove la persona è ancora in lista ma che sono di un altro reparto o previste per ruoli che non ricopre più. <strong>Togli dalla lista</strong> la toglie (lo storico resta). Finché resta in lista, restano attive anche le mansioni di rischio che ne derivano: il portale non toglie niente da solo.</li>
       </ul>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="ruoli-in-blocco">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Cambio ruoli in blocco</h2>
+      <p>Da <strong>Ruoli → Cambio ruoli in blocco</strong> si cambia il ruolo di più persone insieme.</p>
+      <ol>
+        <li>Filtra le persone per <strong>Reparto</strong>, <strong>Che ha il ruolo</strong> o nome, poi spuntale (o <strong>Seleziona tutte quelle in elenco</strong>; al massimo 300 alla volta).</li>
+        <li>Scegli l'<strong>Operazione</strong>:
+          <ul>
+            <li><strong>Aggiungi il ruolo</strong>: si somma a quelli in essere; diventa il ruolo principale solo se la persona non ne ha uno;</li>
+            <li><strong>Sostituisci il ruolo principale</strong>: registra uno spostamento con la data indicata; il ruolo di prima si chiude il giorno precedente, reparto e mansione restano;</li>
+            <li><strong>Chiudi il ruolo</strong>: la data è l'ultimo giorno (oggi o passata); se era il principale subentra il primo ruolo rimasto.</li>
+          </ul>
+        </li>
+        <li><strong>Anteprima</strong> mostra cosa succede a ciascuno, senza salvare; <strong>Registra</strong> lo fa. Chi lo ricopre già, o non lo ricopre, resta com'è.</li>
+      </ol>
+      <div class="gpa-nota">Un ruolo di un altro organigramma (per esempio ISO 45001) non diventa il ruolo principale: si aggiunge. Ogni cambio va nel registro attività; il ruolo chiuso resta nello storico.</div>
+      <p>Per collegare i ruoli alle mansioni e alle competenze c'è <strong>Mansionario → Struttura e import</strong>, con export e import in Excel: vedi la guida dell'Anagrafica, parte per amministratori.</p>
     </section>
 
     <section class="fmd-panel gpa-sec" id="nuovo-dipendente">

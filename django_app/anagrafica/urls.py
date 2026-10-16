@@ -8,6 +8,7 @@ from . import views_reportistica_chat
 from . import views_cambio_mansione
 from . import views_mansioni_rischio
 from . import views_mansionario
+from . import views_struttura
 from . import views_coerenza_capi
 from . import views_mio_team
 from . import views_mia_scheda
@@ -373,6 +374,14 @@ urlpatterns = [
          name="mansionario_valuta"),
     path("mansionario/persona/<int:legacy_id>/", views_mansionario.mansionario_persona, name="mansionario_persona"),
     path("mansionario/lacune/", views_mansionario.mansionario_lacune, name="mansionario_lacune"),
+    # Struttura ruolo → mansione → competenze: editor unico, export/import Excel
+    path("mansionario/struttura/", views_struttura.struttura, name="mansionario_struttura"),
+    path("mansionario/struttura/nuova/", views_struttura.struttura_nuova, name="mansionario_struttura_nuova"),
+    path("mansionario/struttura/<int:mansione_id>/", views_struttura.struttura_mansione,
+         name="mansionario_struttura_mansione"),
+    path("mansionario/struttura/export.xlsx", views_struttura.struttura_export, name="mansionario_struttura_export"),
+    path("mansionario/struttura/import/", views_struttura.struttura_import, name="mansionario_struttura_import"),
+    path("ruoli-operativi/cambio-in-blocco/", views_struttura.ruoli_in_blocco, name="ruoli_in_blocco"),
     path("skill-matrix/scadenzario/", views.skm_scadenzario, name="skm_scadenzario"),
     path("skill-matrix/copertura/", views.skm_copertura, name="skm_copertura"),
     path("skill-matrix/impostazioni/", views.skm_impostazioni, name="skm_impostazioni"),
