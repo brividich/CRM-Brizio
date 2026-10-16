@@ -6,13 +6,17 @@ il capocommessa). ``AnomaliaControllo`` e ``AnomaliaBlocco`` le raggruppano:
 il controllo è la sessione dell'operatore su un OP, il blocco è l'insieme di
 seriali su cui sono state riscontrate una o più anomalie.
 
-La mail al capocommessa con il link di decisione parte:
-- ``subito``: dopo ogni salvataggio di blocco, quando il controllo è fermo da
-  qualche minuto (stesso debounce della mail di riepilogo, così più salvataggi
-  ravvicinati diventano una sola mail);
-- ``fine``: una sola volta, a «Termina controllo». Se l'operatore non lo preme,
-  il task periodico la manda comunque dopo ``FINE_TIMEOUT_MINUTI`` di inattività,
-  così nessuna anomalia resta senza comunicazione.
+La mail al capocommessa con il link di decisione parte una sola volta, a
+«Termina controllo» (modalità ``fine``, l'unica per i nuovi controlli). Se dopo
+``PROMEMORIA_MINUTI`` dall'ultimo salvataggio la mail non è ancora partita, il
+controllore riceve un promemoria (notifica nel portale + mail con il riepilogo
+e il link per riprendere il controllo e inviarla). Se non la manda nemmeno così,
+il task periodico la invia da solo dopo ``FINE_TIMEOUT_MINUTI`` di inattività,
+così nessuna anomalia resta senza comunicazione. I blocchi sono già salvati nel
+DB a ogni «Salva blocco»: il riepilogo non si perde chiudendo la pagina.
+
+La modalità storica ``subito`` (mail qualche minuto dopo ogni salvataggio) resta
+solo per i controlli aperti prima del 16/10/2026.
 """
 from __future__ import annotations
 
@@ -27,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 DEBOUNCE_MINUTI = 5
 FINE_TIMEOUT_MINUTI = 240
+PROMEMORIA_MINUTI = 15
+TIPO_NOTIFICA_PROMEMORIA = "anomalie_controllo_da_inviare"
 MAX_TENTATIVI_MAIL = 5
 SCADENZA_LINK_ORE = 72
 
@@ -219,6 +225,10 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         "da_notificare": len(controllo.da_notificare or []),
         "ultima_mail_at": controllo.ultima_mail_at.isoformat() if controllo.ultima_mail_at else "",
         "mail_errore": controllo.mail_errore,
+        "destinatari_extra": [
+            {"email": d.get("email", ""), "nome": d.get("nome", "")}
+            for d in (controllo.destinatari_extra or []) if isinstance(d, dict)
+        ],
         "blocchi": blocchi,
     }
 
@@ -252,7 +262,8 @@ def accoda_notifica(controllo, ids: list[int]) -> None:
             pending.append(int(i))
     controllo.da_notificare = pending
     controllo.ultimo_salvataggio_at = timezone.now()
-    controllo.save(update_fields=["da_notificare", "ultimo_salvataggio_at", "updated_at"])
+    controllo.promemoria_at = None
+    controllo.save(update_fields=["da_notificare", "ultimo_salvataggio_at", "promemoria_at", "updated_at"])
 
 
 def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
@@ -334,15 +345,167 @@ def _destinatari(op_id: str) -> tuple[dict | None, dict | None]:
     return primary, secondary
 
 
-def destinatari_display(op_id: str) -> dict:
-    """Chi riceverà la mail del controllo, per il riepilogo dell'operatore."""
+def destinatari_display(op_id: str, extra: list | None = None) -> dict:
+    """Chi riceverà la mail del controllo, per l'operatore: capocommessa/CAR
+    risolti dall'OP più le persone aggiunte a mano (in copia)."""
+    extra_out = [{"email": d.get("email", ""), "nome": d.get("nome", "")} for d in (extra or []) if isinstance(d, dict)]
     try:
         primary, secondary = _destinatari(op_id)
     except Exception:
         logger.warning("controllo: destinatari non risolti op=%s", op_id, exc_info=True)
-        return {"to": "", "cc": ""}
+        return {"to": "", "cc": "", "to_email": "", "cc_email": "", "extra": extra_out}
     nome = lambda rec: (rec.get("display") or rec.get("email") or "") if rec else ""  # noqa: E731
-    return {"to": nome(primary), "cc": nome(secondary)}
+    return {
+        "to": nome(primary),
+        "cc": nome(secondary),
+        "to_email": primary.get("email", "") if primary else "",
+        "cc_email": secondary.get("email", "") if secondary else "",
+        "extra": extra_out,
+    }
+
+
+# ── Destinatari aggiuntivi ────────────────────────────────────────────────────
+# Ricevono la stessa mail (con il link di decisione) in copia: per questo si
+# accettano solo indirizzi di persone presenti in anagrafica, mai indirizzi liberi.
+
+MAX_DESTINATARI_EXTRA = 10
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _persona_row(a) -> dict | None:
+    from core import naming
+
+    email = str(a.email_notifica or "").strip()
+    if not _EMAIL_RE.match(email):
+        return None
+    return {"email": email, "nome": naming.nome_completo(a.nome, a.cognome) or email}
+
+
+def _solo_attivi(qs):
+    """Esclude i dipendenti cessati: la colonna legacy ``attivo`` non è nel modello."""
+    try:
+        from core.legacy_utils import legacy_table_columns
+
+        if "attivo" in (legacy_table_columns("anagrafica_dipendenti") or set()):
+            return qs.extra(where=["attivo = 1"])
+    except Exception:
+        logger.warning("controllo: colonne anagrafica non leggibili", exc_info=True)
+    return qs
+
+
+def cerca_persone(q: str, limit: int = 15) -> list[dict]:
+    """Persone in anagrafica con un'email di notifica, per nome, cognome o email."""
+    q = str(q or "").strip()
+    if len(q) < 2:
+        return []
+    from django.db.models import Q
+
+    from core.legacy_models import AnagraficaDipendente
+
+    filtro = Q(email_notifica__icontains=q)
+    for parola in q.split()[:3]:
+        filtro |= Q(nome__icontains=parola) | Q(cognome__icontains=parola)
+    risultati, visti = [], set()
+    try:
+        qs = (
+            _solo_attivi(AnagraficaDipendente.objects.filter(filtro))
+            .exclude(email_notifica__isnull=True).exclude(email_notifica="")
+            .order_by("cognome", "nome")[: limit * 2]
+        )
+        for a in qs:
+            row = _persona_row(a)
+            if row and row["email"].lower() not in visti:
+                visti.add(row["email"].lower())
+                risultati.append(row)
+            if len(risultati) >= limit:
+                break
+    except Exception:
+        logger.warning("controllo: ricerca persone non riuscita q=%s", q, exc_info=True)
+    return risultati
+
+
+def persona_da_email(email: str) -> dict | None:
+    """La persona in anagrafica con questa email di notifica (o login), None se sconosciuta."""
+    email = str(email or "").strip()
+    if not _EMAIL_RE.match(email):
+        return None
+    from django.db.models import Q
+
+    from core.legacy_models import AnagraficaDipendente
+
+    try:
+        for a in _solo_attivi(AnagraficaDipendente.objects.filter(
+            Q(email_notifica__iexact=email) | Q(email__iexact=email)
+        )).order_by("id")[:5]:
+            row = _persona_row(a)
+            if row:
+                return row
+    except Exception:
+        logger.warning("controllo: lookup persona non riuscito", exc_info=True)
+    return None
+
+
+def _norm_nome(text) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def capi_commessa_persone() -> list[dict]:
+    """I capicommessa della configurazione (lista «Capi commessa») con la loro email
+    di notifica, per «Aggiungi altro capocommessa». Chi non ha email resta fuori."""
+    try:
+        from .views import _load_anomalie_lists
+
+        nomi = _load_anomalie_lists().get("capi_commessa") or []
+    except Exception:
+        logger.warning("controllo: lista capi commessa non leggibile", exc_info=True)
+        return []
+    if not nomi:
+        return []
+    from core.legacy_models import AnagraficaDipendente
+
+    per_nome: dict[str, dict] = {}
+    try:
+        qs = _solo_attivi(
+            AnagraficaDipendente.objects.exclude(email_notifica__isnull=True).exclude(email_notifica="")
+        ).only("nome", "cognome", "email_notifica")
+        for a in qs:
+            row = _persona_row(a)
+            if not row:
+                continue
+            for chiave in (_norm_nome(f"{a.nome} {a.cognome}"), _norm_nome(f"{a.cognome} {a.nome}")):
+                per_nome.setdefault(chiave, row)
+    except Exception:
+        logger.warning("controllo: anagrafica capi commessa non leggibile", exc_info=True)
+        return []
+    out, visti = [], set()
+    for nome in nomi:
+        row = per_nome.get(_norm_nome(nome))
+        if row and row["email"].lower() not in visti:
+            visti.add(row["email"].lower())
+            out.append(row)
+    return sorted(out, key=lambda r: r["nome"].casefold())
+
+
+def normalizza_destinatari_extra(raw) -> tuple[list[dict], list[str]]:
+    """Valida l'elenco inviato dalla pagina: (destinatari validi, email rifiutate).
+    Nome ed email vengono sempre riletti dall'anagrafica, mai presi dal client."""
+    if not isinstance(raw, list):
+        return [], []
+    validi, rifiutati, visti = [], [], set()
+    for item in raw[: MAX_DESTINATARI_EXTRA * 2]:
+        email = str((item.get("email") if isinstance(item, dict) else item) or "").strip()[:200]
+        if not email:
+            continue
+        persona = persona_da_email(email)
+        if persona is None:
+            rifiutati.append(email)
+            continue
+        chiave = persona["email"].lower()
+        if chiave in visti:
+            continue
+        visti.add(chiave)
+        validi.append(persona)
+    return validi[:MAX_DESTINATARI_EXTRA], rifiutati
 
 
 def stati_superficie_configurati() -> bool:
@@ -377,6 +540,15 @@ def invia_mail_controllo(controllo) -> dict:
         return {"sent": False, "reason": "nessuna_anomalia"}
 
     primary, secondary = _destinatari(controllo.op_id)
+    cc = [secondary["email"]] if secondary else []
+    gia = {e.lower() for e in cc} | ({primary["email"].lower()} if primary else set())
+    extra = []
+    for d in controllo.destinatari_extra or []:
+        email = str((d or {}).get("email") or "").strip() if isinstance(d, dict) else ""
+        if email and email.lower() not in gia:
+            gia.add(email.lower())
+            cc.append(email)
+            extra.append(d.get("nome") or email)
     try:
         if not primary:
             raise ValueError("Capocommessa e CAR dell'OP non hanno un indirizzo email risolvibile.")
@@ -390,7 +562,7 @@ def invia_mail_controllo(controllo) -> dict:
             expires_hours=SCADENZA_LINK_ORE,
             source_automation=f"controllo:{controllo.pk}",
             created_by=controllo.operatore,
-            cc=[secondary["email"]] if secondary else None,
+            cc=cc or None,
         )
     except Exception as exc:
         controllo.mail_tentativi = int(controllo.mail_tentativi or 0) + 1
@@ -440,6 +612,7 @@ def invia_mail_controllo(controllo) -> dict:
         "sent": True,
         "to": primary.get("display") or primary["email"],
         "cc": (secondary.get("display") or secondary["email"]) if secondary else "",
+        "extra": extra,
         "n": len(rows),
     }
 
@@ -452,7 +625,7 @@ def flush_controlli() -> dict:
     # Niente filtri sul JSONField (su SQL Server i confronti JSON sono fragili):
     # si guardano i controlli recenti e si verifica la coda in Python.
     candidati = AnomaliaControllo.objects.filter(ultimo_salvataggio_at__gte=now - timedelta(days=14))
-    inviati = 0
+    inviati = promemoria = 0
     for controllo in candidati:
         if not controllo.da_notificare:
             continue
@@ -461,6 +634,125 @@ def flush_controlli() -> dict:
             pronto = controllo.terminato_at is not None or fermo >= timedelta(minutes=FINE_TIMEOUT_MINUTI)
         else:
             pronto = fermo >= timedelta(minutes=DEBOUNCE_MINUTI)
-        if pronto and invia_mail_controllo(controllo).get("sent"):
-            inviati += 1
-    return {"controlli_inviati": inviati}
+        if pronto:
+            if invia_mail_controllo(controllo).get("sent"):
+                inviati += 1
+            continue
+        if (
+            controllo.mail_mode == AnomaliaControllo.MailMode.FINE
+            and controllo.terminato_at is None
+            and controllo.promemoria_at is None
+            and fermo >= timedelta(minutes=PROMEMORIA_MINUTI)
+            and invia_promemoria_controllore(controllo)
+        ):
+            promemoria += 1
+    return {"controlli_inviati": inviati, "controlli_promemoria": promemoria}
+
+
+def url_controllo(controllo) -> str:
+    """Pagina del controllo: con ``op_id`` si apre sull'OP con «Riprendi»."""
+    from urllib.parse import quote
+
+    from django.urls import reverse
+
+    return f"{reverse('apertura_segnalazione')}?op_id={quote(str(controllo.op_id or ''), safe='/')}"
+
+
+def _contatti_operatore(controllo) -> tuple[int | None, str]:
+    """(id utente legacy, email di notifica) del controllore."""
+    user = controllo.operatore
+    if user is None:
+        return None, ""
+    legacy_id = None
+    try:
+        legacy_id = int(user.profile.legacy_user_id)
+    except Exception:
+        legacy_id = None
+    email = ""
+    if legacy_id:
+        try:
+            from core.legacy_models import AnagraficaDipendente
+
+            a = AnagraficaDipendente.objects.filter(utente_id=legacy_id).only("email_notifica").first()
+            email = str(getattr(a, "email_notifica", "") or "").strip()
+        except Exception:
+            logger.warning("controllo: email operatore non letta", exc_info=True)
+    if not _EMAIL_RE.match(email):
+        email = str(user.email or "").strip()
+    return legacy_id, (email if _EMAIL_RE.match(email) else "")
+
+
+def invia_promemoria_controllore(controllo) -> bool:
+    """Ricorda al controllore che la mail al capocommessa non è ancora partita:
+    notifica nel portale e mail con il riepilogo del controllo e il link per
+    riprenderlo e premere «Termina controllo». Uno per pausa (``promemoria_at``)."""
+    ids = [int(i) for i in (controllo.da_notificare or [])]
+    righe = carica_righe(ids)
+    rows = [righe[i] for i in ids if i in righe and not righe[i].get("chiudere")]
+    controllo.promemoria_at = timezone.now()
+    controllo.save(update_fields=["promemoria_at", "updated_at"])
+    if not rows:
+        return False
+
+    from django.conf import settings
+
+    n = len(rows)
+    cosa = f"{n} anomali{'a' if n == 1 else 'e'}"
+    url = url_controllo(controllo)
+    link = f"{str(getattr(settings, 'SITE_URL', '') or '').rstrip('/')}{url}"
+    legacy_id, email = _contatti_operatore(controllo)
+    fatto = False
+
+    if legacy_id:
+        try:
+            from core.models import Notifica
+
+            Notifica.objects.filter(
+                legacy_user_id=legacy_id, tipo=TIPO_NOTIFICA_PROMEMORIA, url_azione=url, letta=False,
+            ).update(letta=True)
+            Notifica.objects.create(
+                legacy_user_id=legacy_id,
+                tipo=TIPO_NOTIFICA_PROMEMORIA,
+                messaggio=(f"OP {controllo.op_id} · fase {controllo.fase}: {cosa} non ancora inviate al "
+                           f"capocommessa. Riprendi il controllo e premi «Termina controllo».")[:500],
+                url_azione=url,
+            )
+            fatto = True
+        except Exception:
+            logger.warning("controllo %s: notifica promemoria non creata", controllo.pk, exc_info=True)
+
+    if email:
+        try:
+            from .mail_action_service import send_and_log_email
+
+            gruppi = gruppi_per_blocco(rows)
+            righe_testo = []
+            for g in gruppi:
+                righe_testo.append(f"  S/N {g.get('titolo') or '—'}")
+                for r in g.get("righe") or []:
+                    _stati, testo = separa_descrizione(r.get("descrizione"))
+                    righe_testo.append(f"    • {testo or '—'}")
+            minuti_auto = FINE_TIMEOUT_MINUTI // 60
+            body = "\n".join([
+                f"Il controllo dell'OP {controllo.op_id} (fase {controllo.fase}) ha {cosa} salvate ma la mail al "
+                "capocommessa non è ancora partita.",
+                "",
+                "Riepilogo salvato:",
+                *righe_testo,
+                "",
+                f"Riprendi il controllo e premi «Termina controllo» per inviarla: {link}",
+                f"Se non lo fai, la mail partirà da sola dopo {minuti_auto} ore dall'ultimo salvataggio.",
+            ])
+            ok, _log = send_and_log_email(
+                kind="promemoria_controllo",
+                subject=f"[Novicrom Hub] OP {controllo.op_id}: mail al capocommessa non ancora inviata",
+                body_text=body,
+                to=[email],
+                op_id=controllo.op_id,
+                context={"controllo_id": controllo.pk, "anomalie_count": n},
+                fail_silently=True,
+            )
+            fatto = fatto or bool(ok)
+        except Exception:
+            logger.warning("controllo %s: mail promemoria non inviata", controllo.pk, exc_info=True)
+    return fatto
