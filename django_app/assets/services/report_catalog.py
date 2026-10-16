@@ -308,7 +308,7 @@ def report_esistenti() -> list[dict]:
          "descrizione": "Snapshot inventario pianificati dalle Impostazioni, con PDF/Excel immutabili e trend.",
          "filtri": "Tipo, categoria, reparto, SNMP", "output": "PDF, Excel"},
         {"titolo": "Scadenzario manutenzione", "url": reverse("assets:maintenance_scadenze"),
-         "descrizione": "Occorrenze di manutenzione per finestra, piano, gruppo, fornitore.",
+         "descrizione": "Scadenze di manutenzione per finestra, piano, gruppo, fornitore.",
          "filtri": "Finestra, piano, gruppo, asset, reparto, tipo, fornitore", "output": "Pagina, Excel, PDF"},
         {"titolo": "Export elenco asset", "url": reverse("assets:asset_list"),
          "descrizione": "Elenco asset con i filtri della lista (pulsante Esporta).",

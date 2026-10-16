@@ -1,0 +1,44 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Ricambi — Manutenzione{% endblock %}
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+{% block assets_shell_title %}Ricambi{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Cosa c'è a magazzino, cosa si consuma, cosa sta finendo. {% if below_total %}<strong>{{ below_total }} sotto scorta.</strong>{% endif %}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{{ export_url }}">&#8595; Esporta XLSX</a>
+  {% if can_manage %}<a class="btn btn-primary" href="{% url 'assets:spare_part_create' %}">+ Nuovo ricambio</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <form class="md-filters" method="get">
+    <div class="md-field"><label for="sp-q">Cerca</label><input id="sp-q" class="input" type="search" name="q" value="{{ q }}" placeholder="Codice, descrizione, scaffale"></div>
+    <label class="md-field md-field-check" style="align-self:end"><span><input type="checkbox" name="sotto_scorta" value="1"{% if only_below %} checked{% endif %}> Sotto scorta</span></label>
+    <button class="btn btn-primary" type="submit">Filtra</button>
+    {% if q or only_below %}<a class="btn btn-secondary" href="{% url 'assets:spare_part_list' %}">Azzera</a>{% endif %}
+  </form>
+
+  <div class="md-scroll">
+    <table class="md-table" data-fm-hide-search="1">
+      <thead><tr><th>Codice</th><th>Descrizione</th><th class="md-right">Giacenza</th><th class="md-right">Scorta minima</th><th>Posizione</th><th class="md-right">Costo unitario</th></tr></thead>
+      <tbody>
+        {% for part in parts %}
+          <tr data-row-href="{% url 'assets:spare_part_detail' part.pk %}">
+            <td><a class="md-asset" href="{% url 'assets:spare_part_detail' part.pk %}">{{ part.code }}</a></td>
+            <td>{{ part.description }}{% if not part.is_active %} <span class="md-badge badge-muted">non attivo</span>{% endif %}</td>
+            <td class="md-right">{{ part.stock_qty|floatformat:"-2" }} {{ part.unit }}
+              {% if part.is_below_min %}<span class="md-badge badge-danger">sotto scorta</span>{% endif %}</td>
+            <td class="md-right">{{ part.min_qty|floatformat:"-2" }} {{ part.unit }}</td>
+            <td>{{ part.location|default:"—" }}</td>
+            <td class="md-right">{% if part.unit_cost_eur != None %}{{ part.unit_cost_eur }} €{% else %}—{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="md-empty">{% if only_below %}Nessun ricambio sotto scorta.{% else %}Nessun ricambio in anagrafica.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

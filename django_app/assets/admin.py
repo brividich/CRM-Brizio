@@ -24,6 +24,7 @@ from .models import (
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
+    MeterIngestClient,
     PeriodicVerification,
     PlantLayout,
     PlantLayoutArea,
@@ -431,3 +432,30 @@ class AssetMaintenanceBudgetAdmin(admin.ModelAdmin):
     list_filter = ("year", "asset_category")
     search_fields = ("asset_category__label", "asset_category__code")
     ordering = ("-year", "asset_category")
+
+
+@admin.register(MeterIngestClient)
+class MeterIngestClientAdmin(admin.ModelAdmin):
+    """Collector delle letture contatori. Il token si vede UNA volta, alla creazione:
+    a DB resta solo l'hash. Per un token nuovo si crea un collector nuovo (o si usa
+    ``manage.py meter_ingest_client --rigenera``)."""
+
+    list_display = ("name", "is_active", "all_meter_assets", "last_seen_at", "created_at")
+    list_filter = ("is_active", "all_meter_assets")
+    search_fields = ("name",)
+    filter_horizontal = ("allowed_assets",)
+    readonly_fields = ("last_seen_at", "created_at", "created_by")
+    fields = ("name", "is_active", "all_meter_assets", "allowed_assets", "notes", "last_seen_at", "created_at", "created_by")
+
+    def save_model(self, request, obj, form, change):
+        token = None
+        if not change:
+            token = MeterIngestClient.issue_token()
+            obj.set_token(token)
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+        if token:
+            messages.warning(
+                request,
+                f"Token del collector «{obj.name}»: {token} — copialo ora, non verra' piu' mostrato.",
+            )

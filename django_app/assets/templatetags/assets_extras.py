@@ -4,6 +4,17 @@ from django.template.defaultfilters import floatformat
 register = template.Library()
 
 
+@register.inclusion_tag("assets/components/_status_badge.html")
+def asset_status_badge(asset):
+    """Badge di stato dell'asset: sempre l'etichetta del modello e il tono di
+    ``Asset.STATUS_TONES``. Una sola fonte, niente etichette scritte a mano."""
+    from ..models import Asset
+
+    status = getattr(asset, "status", "")
+    label = asset.get_status_display() if hasattr(asset, "get_status_display") else str(status or "")
+    return {"label": label, "tone": Asset.STATUS_TONES.get(status, "muted"), "status": status}
+
+
 @register.filter
 def kpi(value, decimals=0):
     """Come ``floatformat``, ma un KPI non calcolato si legge «dato non disponibile» (PROMPT 06 - D)."""

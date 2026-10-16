@@ -169,9 +169,22 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
             <div class="woc-field woc-field--full" id="wocFollowUpField" hidden>
               <label for="{{ form.follow_up_date.id_for_label }}">{{ form.follow_up_date.label }} <span class="woc-required">*</span></label>
               {{ form.follow_up_date }}
-              <div class="woc-note">Verrà creato automaticamente un nuovo intervento di follow-up collegato a questa scadenza.</div>
+              <div class="woc-note">Verrà creato automaticamente un nuovo intervento di verifica collegato a questa scadenza.</div>
               {% if form.follow_up_date.errors %}<div class="woc-error">{{ form.follow_up_date.errors }}</div>{% endif %}
             </div>
+            {% if form.resolve_ticket %}
+            {% comment %}Segnalazione collegata ancora aperta: compare solo a chi puo' gestire quel ticket. Spuntata quando l'esito e' «Risolto».{% endcomment %}
+            <div class="woc-field woc-field--full woc-field--check" id="wocResolveTicketField">
+              <label class="woc-check" for="{{ form.resolve_ticket.id_for_label }}">
+                {{ form.resolve_ticket }}
+                <span>{{ form.resolve_ticket.label }}</span>
+              </label>
+              <div class="woc-note">{{ form.resolve_ticket.help_text }}</div>
+              {% if form.resolve_ticket.errors %}<div class="woc-error">{{ form.resolve_ticket.errors }}</div>{% endif %}
+            </div>
+            {% elif linked_ticket %}
+            <div class="woc-field woc-field--full"><div class="woc-note">Segnalazione collegata: {{ linked_ticket.numero_ticket }} ({{ linked_ticket.get_stato_display }}). Chiudere l'intervento non la modifica.</div></div>
+            {% endif %}
           </div>
         </section>
 
@@ -205,6 +218,7 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
                 </div>
                 {% if form.downtime_hours.errors %}<div class="woc-error">{{ form.downtime_hours.errors }}</div>{% endif %}
                 {% if form.downtime_remainder.errors %}<div class="woc-error">{{ form.downtime_remainder.errors }}</div>{% endif %}
+                {% if ticket_downtime_prefilled %}<div class="woc-note">Precompilato dal fermo indicato nella segnalazione {{ workorder.ticket.numero_ticket }}: correggilo se serve.</div>{% endif %}
               </div>
             </div>
           </div>
@@ -229,6 +243,12 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
               <div class="woc-note">Serve a capire se un guasto si ripete per lo stesso motivo.</div>
               {% if form.failure_cause.errors %}<div class="woc-error">{{ form.failure_cause.errors }}</div>{% endif %}
             </div>
+            <div class="woc-grid">
+              <div class="woc-field"><label for="{{ form.failure_problem.id_for_label }}">{{ form.failure_problem.label }} <span class="woc-note">opzionale</span></label>{{ form.failure_problem }}</div>
+              <div class="woc-field"><label for="{{ form.failure_cause_code.id_for_label }}">{{ form.failure_cause_code.label }} <span class="woc-note">opzionale</span></label>{{ form.failure_cause_code }}</div>
+              <div class="woc-field"><label for="{{ form.failure_remedy.id_for_label }}">{{ form.failure_remedy.label }} <span class="woc-note">opzionale</span></label>{{ form.failure_remedy }}</div>
+            </div>
+            <div class="woc-note">Problema, causa e rimedio dal catalogo «Codici guasto» (globali e della categoria dell'asset): alimentano «Guasti più frequenti» nella Panoramica.</div>
             {% endif %}
             <div class="woc-field">
               <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }} <span class="woc-note">opzionale</span></label>
@@ -260,6 +280,8 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
             {% endif %}
           </div>
         </section>
+
+        <div hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento ricambi…</p></div>
 
         <section class="woc-card">
           <div class="woc-card-body">
@@ -338,6 +360,19 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
     const isClosing=statusField.value!=="CANCELED";
     esitoField.hidden=!isClosing;
     if(followUpField)followUpField.hidden=!isClosing||selectedEsito()!=="RESOLVED_TEMP";
+    syncResolveTicket();
+  }
+  // Casella di risoluzione del ticket collegato: vale solo con esito Risolto.
+  // Si spunta da sola quando si sceglie Risolto (finche' l'utente non la tocca).
+  const resolveTicketBox=document.getElementById("id_resolve_ticket");
+  let resolveTicketTouched=false;
+  if(resolveTicketBox)resolveTicketBox.addEventListener("change",function(){resolveTicketTouched=true;});
+  function syncResolveTicket(){
+    if(!resolveTicketBox)return;
+    const allowed=statusField&&statusField.value!=="CANCELED"&&selectedEsito()==="RESOLVED";
+    resolveTicketBox.disabled=!allowed;
+    if(!allowed){resolveTicketBox.checked=false;}
+    else if(!resolveTicketTouched){resolveTicketBox.checked=true;}
   }
 
   const initialDays=daysHidden&&daysHidden.value?daysHidden.value.split(",").filter(Boolean):[];

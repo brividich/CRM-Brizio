@@ -1,10 +1,10 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Follow-up — {{ occurrence.asset.asset_tag }}{% endblock %}
+{% block title %}Intervento di verifica — {{ occurrence.asset.asset_tag }}{% endblock %}
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}Follow-up su {{ occurrence.asset.asset_tag|default:occurrence.asset.name }}{% endblock %}
+{% block assets_shell_title %}Intervento di verifica su {{ occurrence.asset.asset_tag|default:occurrence.asset.name }}{% endblock %}
 {% block assets_shell_subtitle %}
   <p>Emerso durante «{{ occurrence.plan.label }}»{% if occurrence.work_order_id %} — ordine di lavoro #{{ occurrence.work_order_id }}{% endif %}.</p>
 {% endblock %}
@@ -16,7 +16,7 @@
   <input type="hidden" name="checklist_item" value="{{ checklist_item_id|default:'' }}">
 
   <div class="md-preview">
-    Il follow-up riguarda <strong>questo asset</strong>, non l'intero lotto dell'ordine di lavoro.
+    L'intervento di verifica riguarda <strong>questo asset</strong>, non l'intero lotto dell'ordine di lavoro.
     La manutenzione programmata resta eseguibile e la sua periodicita' avanza lo stesso: «eseguita» e «problema risolto» sono due domande diverse.
   </div>
 
@@ -31,7 +31,7 @@
   </fieldset>
 
   <div class="md-form-actions">
-    <button type="submit" class="btn btn-primary">Apri follow-up</button>
+    <button type="submit" class="btn btn-primary">Apri intervento di verifica</button>
     <a class="btn btn-secondary" href="{% url 'assets:occurrence_complete' occurrence.pk %}">Annulla</a>
   </div>
 </form>

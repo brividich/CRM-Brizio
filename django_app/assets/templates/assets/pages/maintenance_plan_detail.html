@@ -54,7 +54,7 @@
   {% endif %}
 
   <section class="md-section">
-    <div class="md-section-head"><h2>Applicazioni</h2><span class="md-badge badge-muted">{{ assignment_rows|length }}</span></div>
+    <div class="md-section-head"><h2>Assegnazioni</h2><span class="md-badge badge-muted">{{ assignment_rows|length }}</span></div>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
         <thead>
@@ -104,7 +104,7 @@
                 <td class="md-right md-nowrap">
                   <a class="btn btn-sm btn-secondary" href="{% url 'assets:maintenance_assignment_edit' plan.pk assignment.pk %}">Modifica</a>
                   <form method="post" action="{% url 'assets:maintenance_assignment_delete' plan.pk assignment.pk %}" style="display:inline"
-                        onsubmit="return confirm('Rimuovere questa applicazione? Se ha storico verra disattivata, non cancellata.');">
+                        onsubmit="return confirm('Rimuovere questa assegnazione? Se ha storico verra disattivata, non cancellata.');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-danger">Rimuovi</button>
                   </form>

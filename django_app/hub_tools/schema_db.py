@@ -68,6 +68,13 @@ AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qu
 
 CONNESSIONI_ESTERNE: list[dict] = [
     {
+        "nome": "Collector letture contatori (OPC UA)",
+        "cosa": "Script esterni (es. il collector OPC UA delle CNC) che inviano le ore/km/cicli delle macchine a POST /api/assets/contatori/ingest/. Le letture finiscono in assets_assetmeter e assets_assetmeterhistory e alimentano i piani di manutenzione a contatore.",
+        "chi": "Asset → contatori e scadenze a contatore.",
+        "config": "Token per collector (admin Django «Collector letture contatori» o manage.py meter_ingest_client); ASSETS_METER_INGEST_ALLOWED_IPS (IP/CIDR ammessi); ASSETS_METER_STALE_HOURS (ore oltre cui una lettura è vecchia). Solo rete interna, mai su Entra.",
+        "controllo": "Admin «Collector letture contatori» → «ultimo contatto»; badge di freschezza sulla scheda asset e sulla pagina del QR.",
+    },
+    {
         "nome": "SQL Server",
         "cosa": "Il database del portale: tutte le tabelle di questa pagina, comprese le tabelle storiche (utenti, ruoli, permessi, pulsanti, assenze, anagrafica_dipendenti).",
         "chi": "Tutto il portale.",

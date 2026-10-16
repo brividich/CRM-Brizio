@@ -669,7 +669,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
       <h2 class="wo-table-title">{% if workorder_view == 'mine' %}Interventi assegnati a me{% elif workorder_view == 'unassigned' %}Interventi di nessuno{% elif workorder_view == 'closed' %}Archivio interventi chiusi{% else %}Interventi aperti{% endif %}</h2>
       <span class="as-badge as-badge--info">{{ workorders|length }} righe</span>
       {% if workorder_view != 'closed' %}
-        <a class="btn btn-secondary" href="{{ workorder_display_toggle_url }}">{% if workorder_display == 'board' %}Vista elenco{% else %}Vista board{% endif %}</a>
+        <a class="btn btn-secondary" href="{{ workorder_display_toggle_url }}">{% if workorder_display == 'board' %}Vista elenco{% else %}Vista a colonne{% endif %}</a>
       {% endif %}
     </div>
     {% if workorder_display == 'board' and workorder_view != 'closed' %}

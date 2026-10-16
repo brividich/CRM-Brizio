@@ -3148,7 +3148,7 @@ class WorkOrderCloseForm(forms.Form):
     )
     follow_up_date = forms.DateField(
         required=False,
-        label="Data verifica follow-up",
+        label="Data dell'intervento di verifica",
         widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
     )
     execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
@@ -3195,11 +3195,40 @@ class WorkOrderCloseForm(forms.Form):
     assistance_contract = forms.ModelChoiceField(required=False, queryset=AssistanceContract.objects.none(), label="Contratto assistenza")
     covered_by_contract = forms.BooleanField(required=False, label="Coperto da contratto")
     log_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Nota di chiusura")
+    resolve_ticket = forms.BooleanField(required=False, label="Segna anche la segnalazione come Risolta")
+    failure_problem = forms.ModelChoiceField(required=False, queryset=None, label="Problema", empty_label="Non specificato")
+    failure_cause_code = forms.ModelChoiceField(required=False, queryset=None, label="Causa", empty_label="Non specificata")
+    failure_remedy = forms.ModelChoiceField(required=False, queryset=None, label="Rimedio", empty_label="Non specificato")
 
     def __init__(self, *args, **kwargs):
         self.asset = kwargs.pop("asset", None)
         self.workorder = kwargs.pop("workorder", None)
+        # Ticket collegato ancora aperto E gestibile da chi chiude: solo allora la
+        # casella esiste. Senza, il campo non c'e' e il ticket non si tocca.
+        self.resolvable_ticket = kwargs.pop("resolvable_ticket", None)
         super().__init__(*args, **kwargs)
+        if self.resolvable_ticket is None:
+            del self.fields["resolve_ticket"]
+        else:
+            self.fields["resolve_ticket"].label = (
+                f"Segna anche la segnalazione {self.resolvable_ticket.numero_ticket} come Risolta"
+            )
+            self.fields["resolve_ticket"].help_text = (
+                "Vale solo con esito «Risolto». Con «Risolto temporaneamente» o «Non risolto» "
+                "la segnalazione resta com'e'."
+            )
+        # Codici guasto: globali + categoria dell'asset e sue antenate.
+        from .models import FailureCode
+        from .services.failure_codes import codes_for_category
+
+        category = getattr(self.asset, "asset_category", None)
+        for field_name, kind in (
+            ("failure_problem", FailureCode.KIND_PROBLEM),
+            ("failure_cause_code", FailureCode.KIND_CAUSE),
+            ("failure_remedy", FailureCode.KIND_REMEDY),
+        ):
+            current = getattr(self.workorder, f"{field_name}_id", None)
+            self.fields[field_name].queryset = codes_for_category(kind, category, include_ids=[current])
         current_contract_id = getattr(self.workorder, "assistance_contract_id", None)
         contract_rows = get_applicable_assistance_contracts(self.asset) if self.asset is not None else []
         contract_ids = [contract.id for contract in contract_rows]
@@ -3256,6 +3285,8 @@ class WorkOrderCloseForm(forms.Form):
                 self.initial["execution_days"] = ",".join(day.isoformat() for day in existing_days)
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
+        if "resolve_ticket" in self.fields:
+            self.fields["resolve_ticket"].widget.attrs["class"] = ""
 
     def clean(self):
         cleaned_data = super().clean()
@@ -3276,9 +3307,9 @@ class WorkOrderCloseForm(forms.Form):
             elif esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
                 follow_up_date = cleaned_data.get("follow_up_date")
                 if not follow_up_date:
-                    self.add_error("follow_up_date", "Indica una data di verifica per il follow-up.")
+                    self.add_error("follow_up_date", "Indica la data dell'intervento di verifica.")
                 elif follow_up_date < timezone.localtime(closed_at).date():
-                    self.add_error("follow_up_date", "La data di follow-up non puo essere precedente alla chiusura.")
+                    self.add_error("follow_up_date", "La data dell'intervento di verifica non puo essere precedente alla chiusura.")
 
         raw_days = str(cleaned_data.get("execution_days") or "")
         execution_days = []

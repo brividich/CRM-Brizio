@@ -878,7 +878,16 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/2fa/",                       # 2FA verify/setup — gestiti internamente
     "/gestione-anomalie/mail-action/",  # token-based, no login required
     "/suggestion-corner/nuova/",  # form pubblico anonimo (§5), no login required
+    # Letture contatori dai collector (es. OPC UA delle CNC): token per collector +
+    # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
+    # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
+    "/api/assets/contatori/ingest/",
 )
+
+# Contatori asset: ore dopo le quali una lettura e' "vecchia" (default una settimana)
+# e client IP (o reti CIDR) da cui i collector possono inviare letture.
+ASSETS_METER_STALE_HOURS = int(os.environ.get("ASSETS_METER_STALE_HOURS", "168") or 168)
+ASSETS_METER_INGEST_ALLOWED_IPS = env_list("ASSETS_METER_INGEST_ALLOWED_IPS", ["127.0.0.1", "::1"])
 
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",

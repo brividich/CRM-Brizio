@@ -131,12 +131,12 @@ class WorkorderAttachmentAccessTests(SimpleTestCase):
         request = RequestFactory().get("/assets/workorders/allegati/1/download/")
         request.user = SimpleNamespace(is_authenticated=True, is_superuser=False)
         request.legacy_user = SimpleNamespace(id=5)
-        with patch.object(views, "_is_assets_admin", return_value=False), \
+        with patch.object(views._helpers, "_is_assets_admin", return_value=False), \
              patch("core.legacy_utils.legacy_auth_enabled", return_value=True), \
              patch("core.acl_v2.resolve_acl_access", return_value={"allowed": False}), \
              patch("core.middleware.enforce_strict_canonical", return_value=False):
             self.assertFalse(views._can_view_workorder(request, SimpleNamespace(pk=1)))
-        with patch.object(views, "_is_assets_admin", return_value=False), \
+        with patch.object(views._helpers, "_is_assets_admin", return_value=False), \
              patch("core.legacy_utils.legacy_auth_enabled", return_value=True), \
              patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True}), \
              patch("core.middleware.enforce_strict_canonical", return_value=False):
