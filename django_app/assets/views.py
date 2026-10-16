@@ -24,7 +24,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
-from django.db.models import Avg, Case, Count, IntegerField, Max, Prefetch, Q, When
+from django.db.models import Avg, Case, Count, IntegerField, Max, Prefetch, ProtectedError, Q, When
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect, render
@@ -171,6 +171,7 @@ from .services.dashboard_kpi import (
 )
 from .services.maintenance_kpi import build_maintenance_report_kpis
 from .services import storico_asset
+from .services.ciclo_vita_asset import blocchi_eliminazione
 from .models import AssetFieldHistory
 from .services.sidebar_categories import (
     category_sidebar_active_match as _service_category_sidebar_active_match,
@@ -199,6 +200,7 @@ ASSET_DOCUMENT_ALLOWED_EXTENSIONS = {
     ".png",
     ".webp",
     ".msg",
+    ".avi",
 }
 ASSET_DOCUMENT_ALLOWED_MIMES = {
     "application/pdf",
@@ -218,6 +220,11 @@ ASSET_DOCUMENT_ALLOWED_MIMES = {
     "application/vnd.ms-outlook",
     "application/x-ole-storage",
     "application/cdfv2",
+    # Video AVI (contenitore RIFF): etichette diverse a seconda della versione di libmagic.
+    "video/x-msvideo",
+    "video/avi",
+    "video/msvideo",
+    "video/vnd.avi",
 }
 # File di sistema da ignorare silenziosamente negli upload di intere cartelle.
 ASSET_DOCUMENT_IGNORED_FILENAMES = {"thumbs.db", "desktop.ini", ".ds_store"}
@@ -3412,6 +3419,31 @@ def _can_manage_asset_timeline_entries(request: HttpRequest) -> bool:
         user_can_modulo_action(request, "assets", "admin_assets")
         or user_can_modulo_action(request, "assets", "asset_timeline_entry")
     )
+
+
+def _can_asset_lifecycle_action(request: HttpRequest, *, azione_ruoli: str, azione_acl: str) -> bool:
+    """Dismetti/elimina dalla scheda: admin del modulo, oppure chi ha il permesso dedicato.
+
+    Il permesso (``assets/asset_retire``, ``assets/asset_delete``) nasce gia' concesso ai
+    ruoli della manutenzione (migrazione 0133) e si estende ad altri ruoli da Accessi.
+    Con il sistema dei ruoli attivo decide la matrice («modificare» / «cancellare» su tutti).
+    """
+    if _is_assets_admin(request):
+        return True
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        esito = decisione(request, "assets", azione_ruoli)
+        return bool(esito.consentito and esito.ambito == "tutti")
+    return bool(user_can_modulo_action(request, "assets", azione_acl))
+
+
+def _can_retire_asset(request: HttpRequest) -> bool:
+    return _can_asset_lifecycle_action(request, azione_ruoli="modificare", azione_acl="asset_retire")
+
+
+def _can_delete_asset(request: HttpRequest) -> bool:
+    return _can_asset_lifecycle_action(request, azione_ruoli="cancellare", azione_acl="asset_delete")
 
 
 def _asset_timeline_entry_payload(request: HttpRequest) -> tuple[dict | None, str]:
@@ -9874,21 +9906,90 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
             messages.success(request, f"Voce \"{event_labels[event_key]}\" rimossa dalla timeline di vita.")
             return redirect("assets:asset_view", id=asset.id)
+        if action in {"retire_asset", "reactivate_asset"}:
+            if not _can_retire_asset(request):
+                messages.error(request, "Permessi insufficienti per dismettere o riattivare l'asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            target_status = Asset.STATUS_RETIRED if action == "retire_asset" else Asset.STATUS_IN_USE
+            old_status = asset.status
+            if old_status != target_status:
+                with storico_asset.traccia([asset.id], fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                           dettaglio="Dismissione" if action == "retire_asset" else "Riattivazione"):
+                    Asset.objects.filter(pk=asset.pk).update(status=target_status, updated_at=timezone.now())
+                log_action(
+                    request,
+                    action,
+                    "assets",
+                    {"asset_id": asset.id, "old_status": old_status, "new_status": target_status},
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=asset.id,
+                )
+            if action == "retire_asset":
+                messages.success(request, f"«{asset.name}» dismesso: non compare piu' negli elenchi operativi.")
+            else:
+                messages.success(request, f"«{asset.name}» riportato in uso.")
+            return redirect("assets:asset_view", id=asset.id)
+        if action == "delete_asset":
+            if not _can_delete_asset(request):
+                messages.error(request, "Permessi insufficienti per eliminare l'asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            blocks = blocchi_eliminazione(asset)
+            if blocks:
+                messages.error(
+                    request,
+                    f"«{asset.name}» ha gia' uno storico ({', '.join(blocks)}): non si elimina, usa «Dismetti».",
+                )
+                return redirect("assets:asset_view", id=asset.id)
+            snapshot = {
+                "asset_id": asset.id,
+                "asset_tag": asset.asset_tag,
+                "name": asset.name,
+                "asset_type": asset.asset_type,
+                "status": asset.status,
+                "serial_number": asset.serial_number,
+            }
+            try:
+                with transaction.atomic():
+                    asset.delete()
+            except ProtectedError:
+                messages.error(request, f"«{snapshot['name']}» e' collegato ad altri moduli: non si elimina, usa «Dismetti».")
+                return redirect("assets:asset_view", id=snapshot["asset_id"])
+            log_action(
+                request,
+                "delete_asset",
+                "assets",
+                snapshot,
+                oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                oggetto_id=snapshot["asset_id"],
+            )
+            messages.success(request, f"Asset «{snapshot['name']}» eliminato.")
+            return redirect("assets:asset_list")
         if action == "upload_asset_documents":
+            # Una cartella con molti file non si perde per un file non ammesso: i
+            # validi entrano, gli scartati sono elencati. Il caricamento a lotti della
+            # scheda (fetch) chiede JSON e compone lui il riepilogo finale.
             uploads, upload_errors = _validate_asset_document_uploads(request, asset)
             upload_count = _asset_document_upload_count(uploads)
-            for error in upload_errors:
-                messages.error(request, error)
-            if not upload_errors and upload_count <= 0:
-                messages.error(request, "Seleziona almeno un file da caricare.")
-            if not upload_errors and upload_count > 0:
+            if upload_count > 0:
                 _apply_asset_document_changes(
                     asset,
                     uploads=uploads,
                     remove_ids=set(),
                     actor=request.user,
                 )
+            if request.headers.get("Accept", "").startswith("application/json"):
+                return JsonResponse({"ok": True, "saved": upload_count, "errors": upload_errors})
+            if upload_count > 0:
                 messages.success(request, f"{upload_count} file caricato/i in archivio.")
+            if upload_errors:
+                shown = upload_errors[:10]
+                more = len(upload_errors) - len(shown)
+                messages.error(
+                    request,
+                    f"{len(upload_errors)} file non caricato/i: " + "; ".join(shown) + (f"; e altri {more}." if more else "."),
+                )
+            if not upload_errors and upload_count <= 0:
+                messages.error(request, "Seleziona almeno un file da caricare.")
             return redirect("assets:asset_view", id=asset.id)
         if action == "delete_asset_document":
             document_id = _as_int(request.POST.get("document_id"), default=0)
@@ -10502,8 +10603,10 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     )
     asset_status = _asset_status_payload(asset)
     can_manage_asset_maintenance_rules = _is_assets_admin(request)
-    # "Metti fuori uso"/"Riattiva": riusa l'endpoint gated asset_bulk_update (solo admin).
-    can_retire_asset = _is_assets_admin(request)
+    # «Dismetti»/«Riattiva» ed «Elimina»: admin del modulo e ruoli della manutenzione.
+    can_retire_asset = _can_retire_asset(request)
+    can_delete_asset = _can_delete_asset(request)
+    asset_delete_blocks = blocchi_eliminazione(asset) if can_delete_asset else []
     asset_assign_url = reverse("assets:asset_assign", kwargs={"id": asset.id})
 
     buttons_by_zone = _build_action_buttons_for_asset(asset, create_workorder_url=asset_create_workorder_url)
@@ -10812,8 +10915,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "map_marker": map_marker,
             "map_url": map_url,
             "can_retire_asset": can_retire_asset,
+            "can_delete_asset": can_delete_asset,
+            "document_upload_accept": _workorder_attachment_accept_attr(),
+            "document_upload_max_bytes": ASSET_DOCUMENT_MAX_BYTES,
+            "asset_delete_blocks": asset_delete_blocks,
             "asset_is_retired": asset.status == Asset.STATUS_RETIRED,
-            "asset_bulk_update_url": reverse("assets:asset_bulk_update"),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25), **shell_kwargs),
         },
     )
