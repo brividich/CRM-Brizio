@@ -112,7 +112,7 @@
 /* Modale edit */
 .imp-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; align-items:center; justify-content:center; }
 .imp-modal-overlay.open { display:flex; }
-.imp-modal { background:#fff; border-radius:14px; padding:22px 26px; width:min(520px, 95vw); max-height:90vh; overflow-y:auto; position:relative; }
+.imp-modal { background:#fff; border-radius:14px; padding:22px 26px; width:min(520px, 95vw); max-height:calc(90 * var(--vh, 1vh)); overflow-y:auto; position:relative; }
 .imp-modal-title { font-size:16px; font-weight:800; color:#0f172a; margin-bottom:16px; }
 .imp-modal-close { position:absolute; top:10px; right:14px; font-size:20px; cursor:pointer; color:#64748b; background:none; border:none; }
 .imp-modal-body { display:flex; flex-direction:column; gap:10px; }

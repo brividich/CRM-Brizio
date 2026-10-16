@@ -115,7 +115,7 @@
 .rp-cell select[data-v="team"] { border-color: var(--warning); background: var(--warning-bg); }
 .rp-cell select[data-v="tutti"] { border-color: var(--success); background: var(--success-bg); }
 .rp-cell select[data-v="no"] { border-color: var(--danger); background: var(--danger-bg); }
-.rp-matrix-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px; }
+.rp-matrix-wrap { overflow: auto; max-height: calc(70 * var(--vh, 1vh)); border: 1px solid var(--border); border-radius: 10px; }
 .rp-sticky-actions {
   position: sticky;
   bottom: 0;

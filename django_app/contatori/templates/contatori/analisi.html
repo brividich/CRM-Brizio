@@ -59,7 +59,7 @@
   <h2>Consumo per trimestre <span class="pos" style="font-weight:400">— copie effettivamente prodotte</span></h2>
   <p class="pos">Differenza tra le letture di due trimestri consecutivi. Una MFC senza lettura in un trimestre non viene contata né in quello né nel successivo: il trimestre risulta «parziale».</p>
   {% if anomalie_consumo %}<div class="banner">⚠ {{ anomalie_consumo }} calo/i di lettura contati come 0 nel calcolo (refuso o azzeramento).</div>{% endif %}
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Trimestre</th><th class="num">BN</th><th class="num">Colore</th><th class="num">Totale prodotto</th><th style="width:40%">Volume</th></tr></thead>
     <tbody>
     {% for c in consumo %}
@@ -74,13 +74,13 @@
       <tr><td colspan="5" class="pos">Serve almeno un secondo trimestre per calcolare il consumo.</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 <!-- Classifica reparti -->
 <div class="panel">
   <h2>Classifica reparti <span class="pos" style="font-weight:400">— per volume prodotto</span></h2>
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>#</th><th>Reparto</th><th class="num">BN</th><th class="num">Colore</th><th class="num">Totale</th><th class="num">Quota colore</th><th style="width:30%">Volume</th></tr></thead>
     <tbody>
     {% for r in classifica %}
@@ -95,13 +95,13 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 <!-- Andamento cumulato -->
 <div class="panel">
   <h2>Andamento cumulato per trimestre</h2>
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Trimestre</th>
       <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
       <th class="num">BN</th><th class="num">Colore</th><th class="num">Totale</th></tr></thead>
@@ -116,7 +116,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 {% endif %}

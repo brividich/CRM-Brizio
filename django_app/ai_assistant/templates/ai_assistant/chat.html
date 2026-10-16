@@ -8,7 +8,7 @@
 .ai-shell {
   max-width: 1060px;
   margin: 0 auto;
-  min-height: calc(100vh - 170px);
+  min-height: calc(calc(100 * var(--vh, 1vh)) - 170px);
   display: grid;
   grid-template-rows: auto auto auto 1fr;
   gap: 14px;
@@ -834,7 +834,7 @@ body.theme-dark .ai-history-del:hover { background: rgba(185,28,28,.25); color: 
 
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .ai-shell { min-height: calc(100vh - 130px); }
+  .ai-shell { min-height: calc(calc(100 * var(--vh, 1vh)) - 130px); }
   .ai-hero-text h1 { font-size: 17px; }
   .ai-form-row { flex-wrap: wrap; }
   .ai-send, .ai-learn { width: 100%; min-width: unset; }

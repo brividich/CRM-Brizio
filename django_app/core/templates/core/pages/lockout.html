@@ -8,9 +8,9 @@
 
 {% block extra_head %}
 <style>
-  body { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%); min-height: 100vh; }
-  .main-wrap { min-height: 100vh; }
-  .content { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px 16px; }
+  body { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%); min-height: calc(100 * var(--vh, 1vh)); }
+  .main-wrap { min-height: calc(100 * var(--vh, 1vh)); }
+  .content { display: flex; align-items: center; justify-content: center; min-height: calc(100 * var(--vh, 1vh)); padding: 24px 16px; }
   .lockout-wrap { width: 100%; max-width: 460px; }
   .lockout-card {
     background: #fff;

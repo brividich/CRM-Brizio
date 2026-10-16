@@ -11,15 +11,15 @@
 <style>
 body.login-page {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%);
-  min-height: 100vh;
+  min-height: calc(100 * var(--vh, 1vh));
 }
-.main-wrap { min-height: 100vh; width: 100%; }
-.content { position:relative; width:100vw; max-width:none; margin:0; min-height:100vh; padding:0; overflow:hidden; }
+.main-wrap { min-height: calc(100 * var(--vh, 1vh)); width: 100%; }
+.content { position:relative; width:100vw; max-width:none; margin:0; min-height:calc(100 * var(--vh, 1vh)); padding:0; overflow:hidden; }
 .twofa-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: calc(100 * var(--vh, 1vh));
   padding: 20px;
 }
 .twofa-box {

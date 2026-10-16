@@ -144,7 +144,7 @@
 {# ── Modal modifica piano ────────────────────────────────────────────────── #}
 {% if is_editor %}
 <div id="modal-edit-piano" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:560px;max-width:95vw;max-height:calc(90 * var(--vh, 1vh));overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <strong style="font-size:16px;">Modifica piano</strong>
       <button onclick="document.getElementById('modal-edit-piano').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>

@@ -558,7 +558,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
 {# ── Modal modifica sessione ─────────────────────────────────────────────── #}
 {% if is_editor %}
 <div id="modal-edit-sessione" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:640px;max-width:95vw;max-height:calc(90 * var(--vh, 1vh));overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <strong style="font-size:16px;">Modifica sessione</strong>
       <button onclick="document.getElementById('modal-edit-sessione').style.display='none'"
@@ -578,7 +578,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
 
 {# ── Modal modifica lezione ──────────────────────────────────────────────── #}
 <div id="modal-edit-lezione" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:580px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:580px;max-width:95vw;max-height:calc(90 * var(--vh, 1vh));overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
       <strong style="font-size:16px;">Modifica lezione</strong>
       <button onclick="document.getElementById('modal-edit-lezione').style.display='none'"
