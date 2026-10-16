@@ -7018,7 +7018,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(calendar_event.due_date), "2026-06-15")
         self.assertEqual(calendar_event.graph_event_id, "evt-periodic")
 
-        with patch.object(asset_views._monolith, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views.maintenance_legacy, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(reverse("assets:periodic_verifications") + f"?asset={self.asset.id}&scope=production")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
