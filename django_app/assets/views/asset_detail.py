@@ -5,183 +5,61 @@ Estratto meccanicamente da assets/views.py (refactor C4): nessun cambio di compo
 
 from __future__ import annotations
 
-import io
-import json
-import logging
-import mimetypes
-import os
-import re
-import tempfile
-from collections import defaultdict
-from datetime import date, datetime, time, timedelta
-from decimal import Decimal, InvalidOperation
-from html import escape
-from pathlib import Path, PurePosixPath
-from types import SimpleNamespace
-from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
-from uuid import NAMESPACE_URL, uuid4, uuid5
+from datetime import datetime, timedelta
+from pathlib import Path
+from urllib.parse import quote
 
-import requests
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
-from django.core.management import call_command
-from django.core.paginator import Paginator
-from django.db import DatabaseError, IntegrityError, connections, transaction
-from django.db.models import Avg, Case, Count, IntegerField, Max, Prefetch, ProtectedError, Q, When
-from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
-from django.utils.dateparse import parse_date
+from django.db import transaction
+from django.db.models import Max, ProtectedError
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.templatetags.static import static
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.text import slugify
-from reportlab.graphics import renderPDF
-from reportlab.graphics.barcode import qr
-from reportlab.graphics.shapes import Drawing
-from reportlab.lib.colors import HexColor
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.units import mm
-from reportlab.lib.utils import ImageReader
-from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph
 
-from admin_portale.decorators import legacy_admin_or_acl_required, legacy_admin_required
-from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
-from core.acl import user_can_modulo_action
-from core.public_headers import risposta_pubblica
 from core.audit import log_action, storico_oggetto
-from core.upload_limits import DOCUMENT_MAX_BYTES
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
 # `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
 # stringa sparsa perche' un refuso qui non romperebbe nulla — semplicemente la
 # voce non comparirebbe mai nello storico, e non se ne accorgerebbe nessuno.
 AUDIT_OGGETTO_ASSET = "assets.asset"
-from core.graph_utils import acquire_graph_token, is_placeholder_value
-from core.legacy_models import AnagraficaDipendente, UtenteLegacy
-from core.legacy_utils import get_legacy_user, is_legacy_admin
-from core.models import AuditLog, SiteConfig, UserDashboardLayout, UserExtraInfo
-from core.module_branding import (
-    get_module_branding_context,
-    handle_module_branding_post,
-    resolve_module_logo,
-)
-from core.module_registry import resolve_module_label
-from core.pdf import (
-    PdfTheme,
-    draw_canvas_footer,
-    draw_canvas_header,
-)
-from core.table_pdf import render_table_pdf as _report_table_pdf
-from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
-from ..forms import (
-    AssistanceContractForm,
-    AssetAdministrativeDeadlineForm,
-    AssetAssignmentForm,
-    AssetComponentForm,
-    AssetFilterForm,
-    AssetForm,
-    AssetLabelTemplateForm,
-    ChemicalAssetForm,
-    MaintenanceChecklistStepFormSet,
-    MaintenanceInterventionTemplateForm,
-    MaintenanceRuleForm,
-    MaintenanceRuleAssetOverrideForm,
-    PeriodicVerificationForm,
-    PlantLayoutForm,
-    SoftwareLicenseForm,
-    SoftwareLicenseRenewalForm,
-    WorkMachineAssetForm,
-    DeviceFilterForm,
-    IT_DEVICE_TYPES,
-    NON_IT_ASSET_TYPES,
-    PRODUCTION_ASSET_TYPES,
-    WorkMachineFilterForm,
-    WorkOrderCloseForm,
-    WorkOrderForm,
-)
-from ..models import _add_months
+from core.legacy_models import AnagraficaDipendente
 from ..models import (
     Asset,
     AssetActionButton,
-    AssetAdministrativeDeadline,
     AssetAdministrativeDeadlineCompletion,
-    AssetAdministrativeDeadlineCompletionAttachment,
     AssetCategory,
     AssetCategoryDocumentFolder,
-    AssetCategoryField,
-    AssetComponent,
     AssetCustomField,
-    AssetDashboardConfig,
     AssetDetailField,
     AssetDetailSectionLayout,
     AssetDocument,
-    AssetHeaderTool,
-    AssetLabelTemplate,
-    AssetListLayout,
-    AssetListOption,
     AssetMaintenanceBudget,
-    AssetMaintenanceRuleState,
-    AssetMeter,
-    AssetMeterHistory,
-    AssetCalendarEvent,
-    AssistanceContract,
-    AssetReportDefinition,
-    AssetReportTemplate,
-    AssetSidebarButton,
     AssetTimelineEntry,
     AssetTimelineHiddenEvent,
-    SoftwareLicense,
-    SoftwareLicenseRenewal,
-    MaintenanceInterventionTemplate,
     MaintenanceRule,
-    MaintenanceRuleAssetOverride,
-    PeriodicVerification,
-    PlantLayout,
-    PlantLayoutArea,
     PlantLayoutMarker,
     WorkMachine,
     WorkOrder,
-    WorkOrderAttachment,
-    WorkOrderChecklist,
-    WorkOrderExecutionDay,
     WorkOrderLog,
 )
 from ..maintenance import (
-    build_workorder_prefill_payload,
     build_day_based_maintenance_schedule_rows,
     contract_state_payload,
     copy_template_checklist_to_workorder,
-    distribute_campaign_due_dates,
-    get_applicable_assistance_contracts,
     get_primary_assistance_contract,
-    get_workorder_overdue_days,
-    normalize_workorder_source,
-    preview_maintenance_rule_impact,
     resolve_asset_maintenance_rules,
-    upsert_asset_maintenance_rule_state,
 )
-from ..notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
+from ..notifications import notify_workorder_assigned
 from ..services.dashboard_kpi import (
     get_asset_maintenance_costs,
-    get_downtime_by_family,
-    get_families_distribution,
-    get_family_dashboard_kpis,
-    get_fire_safety_kpis,
-    get_maintenance_by_family,
-    get_maintenance_kpis_for_types,
-    get_maintenance_performance_kpis,
 )
-from ..services.maintenance_kpi import build_maintenance_report_kpis
 from ..services import storico_asset
 from ..services.ciclo_vita_asset import blocchi_eliminazione
 from ..models import AssetFieldHistory
-from ..services.sidebar_categories import (
-    category_sidebar_active_match as _service_category_sidebar_active_match,
-    category_sidebar_target as _service_category_sidebar_target,
-)
 
 from ._helpers import (  # noqa: F401
     ASSET_DOCUMENT_MAX_BYTES,
