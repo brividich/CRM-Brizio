@@ -319,9 +319,10 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
         <div class="imp-card">
           <div class="imp-card-head">
             <div>
-              <div class="imp-card-title">Catalogo mansioni</div>
-              <div class="imp-card-sub">Job title CCNL assegnabili ai dipendenti (operaio, impiegato, quadro, dirigente)</div>
+              <div class="imp-card-title">Mansioni di rischio</div>
+              <div class="imp-card-sub">Mansioni del DVR (ADDETTO …): da qui partono visite, DPI, schede di sicurezza e corsi obbligatori</div>
             </div>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansioni_list' %}">Catalogo completo →</a>
           </div>
           {% if is_admin %}
           <form method="post" action="{% url 'anagrafica:mansione_create' %}" class="imp-add-form">
@@ -430,6 +431,16 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
           {% empty %}
             <div class="imp-empty">Nessuna mansione registrata.</div>
           {% endfor %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Mansioni lavorative ({{ n_mansioni_lavorative }})</div>
+              <div class="imp-card-sub">Macchine e processi della skill matrix, sotto i ruoli: si gestiscono nel Mansionario (persone assegnate, competenze, valutazioni). La mansione di rischio della persona si ricava da queste.</div>
+            </div>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansionario' %}">Apri il Mansionario →</a>
+          </div>
         </div>
       </section>
 
@@ -2283,7 +2294,8 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
   var root = document.getElementById('imp-root');
   if (!root) return;
 
-  var tabs = root.querySelectorAll('.imp-tab');
+  // Solo le schede vere: E-learning, Viste elenco e Amministrazione sono link ad altre pagine.
+  var tabs = root.querySelectorAll('.imp-tab[data-tab]');
   var panels = root.querySelectorAll('.imp-panel');
 
   function setTab(tabName, push) {
@@ -2297,9 +2309,9 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
       p.classList.toggle('active', p.dataset.panel === tabName);
     });
     if (!found) {
-      // fallback al primo tab
-      tabs[0] && tabs[0].classList.add('active');
-      panels[0] && panels[0].classList.add('active');
+      // scheda sconosciuta (es. vecchio ?tab=undefined): torna alla prima, con il suo pannello
+      if (tabs[0] && tabs[0].dataset.tab !== tabName) setTab(tabs[0].dataset.tab, true);
+      return;
     }
     if (push) {
       var url = new URL(window.location.href);

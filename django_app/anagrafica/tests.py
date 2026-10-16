@@ -1540,6 +1540,18 @@ class TipoVisitaMedicaCategoriaMansioniTests(TestCase):
         # Collassate di default: nessun attributo "open" sui <details> del catalogo.
         self.assertNotIn('<details class="imp-card" open', body)
 
+    def test_impostazioni_mansioni_distingue_rischio_e_lavorative(self):
+        self.client.force_login(self.user_super)
+        response = self.client.get(reverse("anagrafica:impostazioni"), {"tab": "mansioni"})
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("Mansioni di rischio", body)
+        self.assertNotIn("Job title CCNL", body)
+        self.assertIn(reverse("anagrafica:mansioni_list"), body)
+        self.assertIn(reverse("anagrafica:mansionario"), body)
+        # I link in fondo alla barra non sono schede: niente più ?tab=undefined.
+        self.assertIn("querySelectorAll('.imp-tab[data-tab]')", body)
+
     def test_create_via_htmx_ritorna_il_partial_senza_redirect(self):
         self.client.force_login(self.user_super)
         response = self.client.post(
