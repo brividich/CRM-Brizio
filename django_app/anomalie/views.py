@@ -795,8 +795,83 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
     return items
 
 
+ANOMALIE_CONFIG_SITECONFIG_KEY = "anomalie_config_json"
+
+
 def _anomalie_lists_path() -> Path:
+    """File storico della configurazione (dentro la release: NON sopravvive ai deploy).
+
+    Resta solo come sorgente di import una tantum verso il DB.
+    """
     return _repo_root() / "config" / "anomalie_liste.json"
+
+
+def _anomalie_config_legacy_paths() -> list[Path]:
+    """Copie storiche da cui importare la configurazione se il DB è ancora vuoto.
+
+    In produzione ogni deploy è una cartella ``releases/<tag>``: il file modificato
+    dagli utenti resta nella release precedente, quindi si guardano anche le altre
+    release (la copia modificata più di recente per prima).
+    """
+    paths = [_anomalie_lists_path()]
+    releases_dir = _repo_root().parent
+    if releases_dir.name.lower() == "releases":
+        try:
+            others = [
+                p for p in releases_dir.glob("*/config/anomalie_liste.json")
+                if p != paths[0]
+            ]
+            paths = sorted(paths + others, key=lambda p: p.stat().st_mtime if p.exists() else 0,
+                           reverse=True)
+        except OSError:
+            logger.warning("[anomalie] release precedenti non leggibili", exc_info=True)
+    private_root = getattr(settings, "PRIVATE_ATTACHMENTS_ROOT", None)
+    if private_root:
+        paths.append(Path(private_root) / "anomalie_config" / "anomalie_liste.json")
+    return paths
+
+
+def _read_anomalie_config() -> dict:
+    """Configurazione del modulo (liste, capi reparto/commessa, logo, permessi).
+
+    Fonte unica: ``SiteConfig[anomalie_config_json]`` nel DB, così sopravvive ai deploy
+    (ogni release è una cartella nuova e il vecchio file JSON andava perso). Se il DB
+    è ancora vuoto importa una volta la prima copia storica trovata.
+    """
+    from core.models import SiteConfig
+
+    raw = SiteConfig.get(ANOMALIE_CONFIG_SITECONFIG_KEY, "")
+    if raw:
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            logger.exception("[anomalie] configurazione nel DB non leggibile")
+            return {}
+        return payload if isinstance(payload, dict) else {}
+    for path in _anomalie_config_legacy_paths():
+        try:
+            if not path.exists():
+                continue
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            logger.exception("[anomalie] impossibile leggere file liste: %s", path)
+            continue
+        if not isinstance(payload, dict) or not payload:
+            continue
+        if SiteConfig.set(ANOMALIE_CONFIG_SITECONFIG_KEY, json.dumps(payload, ensure_ascii=False),
+                          "Configurazione modulo anomalie (liste, capi, logo)"):
+            logger.info("[anomalie] configurazione importata nel DB da %s", path)
+        return payload
+    return {}
+
+
+def _write_anomalie_config(payload: dict) -> None:
+    from core.models import SiteConfig
+
+    ok = SiteConfig.set(ANOMALIE_CONFIG_SITECONFIG_KEY, json.dumps(payload, ensure_ascii=False),
+                        "Configurazione modulo anomalie (liste, capi, logo)")
+    if not ok:
+        raise RuntimeError("Impossibile salvare la configurazione anomalie nel database")
 
 
 def _normalize_choice_list(values) -> list[str]:
@@ -929,14 +1004,7 @@ def _normalize_derived_source(raw) -> dict:
 def _load_anomalie_derived_sources() -> dict[str, dict]:
     """Sorgenti configurate per le liste derivate (ruoli + override utente)."""
     data = _default_derived_sources()
-    path = _anomalie_lists_path()
-    if not path.exists():
-        return data
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return data
-    raw = (payload or {}).get(ANOMALIE_DERIVED_SOURCES_KEY)
+    raw = _read_anomalie_config().get(ANOMALIE_DERIVED_SOURCES_KEY)
     if not isinstance(raw, dict):
         return data
     for key in ANOMALIE_DERIVED_LIST_KEYS:
@@ -945,34 +1013,20 @@ def _load_anomalie_derived_sources() -> dict[str, dict]:
 
 
 def _save_anomalie_derived_sources(payload: dict) -> dict[str, dict]:
-    """Persiste le sorgenti delle liste derivate nel file JSON del modulo."""
+    """Persiste le sorgenti delle liste derivate nella configurazione del modulo."""
     normalized = _default_derived_sources()
     if isinstance(payload, dict):
         for key in ANOMALIE_DERIVED_LIST_KEYS:
             normalized[key] = _normalize_derived_source(payload.get(key))
-    path = _anomalie_lists_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except Exception:
-        existing = {}
-    if not isinstance(existing, dict):
-        existing = {}
+    existing = _read_anomalie_config()
     existing[ANOMALIE_DERIVED_SOURCES_KEY] = normalized
-    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_anomalie_config(existing)
     return normalized
 
 
 def _load_anomalie_permessi_ruoli() -> list[int]:
     """Id dei Ruoli Operativi da mostrare nel tab Permessi (vuoto = tutti)."""
-    path = _anomalie_lists_path()
-    if not path.exists():
-        return []
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    raw = (payload or {}).get(ANOMALIE_PERMESSI_RUOLI_KEY)
+    raw = _read_anomalie_config().get(ANOMALIE_PERMESSI_RUOLI_KEY)
     out: list[int] = []
     for value in raw or []:
         try:
@@ -994,16 +1048,9 @@ def _save_anomalie_permessi_ruoli(ruolo_ids) -> list[int]:
             continue
         if rid > 0 and rid not in normalized:
             normalized.append(rid)
-    path = _anomalie_lists_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except Exception:
-        existing = {}
-    if not isinstance(existing, dict):
-        existing = {}
+    existing = _read_anomalie_config()
     existing[ANOMALIE_PERMESSI_RUOLI_KEY] = normalized
-    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_anomalie_config(existing)
     return normalized
 
 
@@ -1094,19 +1141,7 @@ def _apply_derived_anomalie_lists(data: dict[str, list[str]]) -> None:
 
 def _load_anomalie_lists() -> dict[str, list[str]]:
     data = _default_anomalie_lists()
-    path = _anomalie_lists_path()
-    if not path.exists():
-        _apply_derived_anomalie_lists(data)
-        return data
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.exception("[anomalie] impossibile leggere file liste: %s", path)
-        _apply_derived_anomalie_lists(data)
-        return data
-    if not isinstance(payload, dict):
-        _apply_derived_anomalie_lists(data)
-        return data
+    payload = _read_anomalie_config()
     for key in ANOMALIE_LIST_KEYS:
         if key in ANOMALIE_DERIVED_LIST_KEYS:
             continue  # sempre da anagrafica
@@ -1121,42 +1156,25 @@ def _load_anomalie_lists() -> dict[str, list[str]]:
 
 
 def _save_anomalie_lists(lists_payload: dict[str, list[str]]) -> None:
-    path = _anomalie_lists_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Legge il file esistente per preservare chiavi non-lista (es. menu_logo)
-    try:
-        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except Exception:
-        existing = {}
+    # Rilegge la configurazione per preservare chiavi non-lista (es. menu_logo)
+    existing = _read_anomalie_config()
     for key in ANOMALIE_LIST_KEYS:
         if key in ANOMALIE_DERIVED_LIST_KEYS:
             existing.pop(key, None)  # derivata da anagrafica: mai persistita
             continue
         existing[key] = _normalize_choice_list(lists_payload.get(key, []))
-    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_anomalie_config(existing)
 
 
 def _load_anomalie_menu_logo() -> str:
     """Restituisce l'URL del logo personalizzato del menu anomalie, o stringa vuota."""
-    path = _anomalie_lists_path()
-    if not path.exists():
-        return ""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return str(payload.get("menu_logo") or "").strip()
-    except Exception:
-        return ""
+    return str(_read_anomalie_config().get("menu_logo") or "").strip()
 
 
 def _save_anomalie_menu_logo(url: str) -> None:
-    path = _anomalie_lists_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except Exception:
-        existing = {}
+    existing = _read_anomalie_config()
     existing["menu_logo"] = str(url or "").strip()
-    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_anomalie_config(existing)
 
 
 
