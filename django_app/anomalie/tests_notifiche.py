@@ -37,7 +37,7 @@ class _ListeTmpMixin:
         self.addCleanup(self._tmp.cleanup)
 
     def _file(self):
-        return json.loads(self.lists_path.read_text(encoding="utf-8"))
+        return anomalie_views._read_anomalie_config()
 
     def _regola(self, to="it@example.test", attiva=True):
         rule = AutomationRule.objects.create(

@@ -58,5 +58,15 @@ GUIDA = {
             "perche": "i collegamenti sono monouso e scadono.",
             "fare": ["Il capocommessa può decidere dal portale, aprendo l'OP in Gestione anomalie."],
         },
+        {
+            "sintomo": "Dopo un aggiornamento del portale capi reparto, capi commessa, liste o logo sono tornati vuoti",
+            "perche": "fino a ottobre 2026 la configurazione stava in un file dentro la cartella del programma, "
+                      "che ogni aggiornamento sostituisce. Ora è salvata nel database e resta.",
+            "fare": [
+                "Apri Configurazione: al primo accesso il portale recupera da solo l'ultima copia salvata.",
+                "Se manca ancora qualcosa, chiedi all'amministratore di sistema di ripristinare la copia del "
+                "file della versione precedente.",
+            ],
+        },
     ],
 }

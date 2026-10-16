@@ -109,6 +109,16 @@ class Asset(models.Model):
         verbose_name="Immagine asset",
         help_text="Foto o immagine dell'asset, mostrata come icona in cima alla scheda.",
     )
+    # Solo per gli switch: prefisso delle porte dell'inventario (es. "A0" per A0.1.37).
+    # I punti rete senza switch indicato con quel prefisso appartengono a questo switch
+    # (services/rete_switch.py); uno switch_name esplicito vince sempre.
+    switch_prefisso_porte = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name="Prefisso porte switch",
+    )
     part_145 = models.BooleanField(
         default=False,
         verbose_name="Rientra in PART 145",

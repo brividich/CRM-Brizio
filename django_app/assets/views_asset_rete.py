@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.forms import modelformset_factory
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .models import Asset, AssetEndpoint, AssetFieldHistory
@@ -77,9 +78,13 @@ def _can_edit(request: HttpRequest, asset: Asset) -> bool:
 def rete_context(request: HttpRequest, asset: Asset, *, can_edit: bool | None = None) -> dict:
     """Contesto del blocco «Interfacce e collegamenti di rete» (scheda e risposta HTMX)."""
     endpoints = list(asset.endpoints.all())
-    switch_per_nome = rete_switch.risolvi_switch(endpoints)
+    risolti = rete_switch.switch_per_endpoint(endpoints)
     righe = [
-        {"endpoint": ep, "switch": switch_per_nome.get((ep.switch_name or "").strip().casefold())}
+        {
+            "endpoint": ep,
+            "switch": risolti[ep.id][0] if ep.id in risolti else None,
+            "da_prefisso": risolti[ep.id][1] if ep.id in risolti else False,
+        }
         for ep in endpoints
     ]
     return {
@@ -145,23 +150,30 @@ def asset_rete_edit(request: HttpRequest, id: int) -> HttpResponse:
 
 @login_required
 @require_POST
-def asset_rete_collega_porte(request: HttpRequest, id: int) -> HttpResponse:
-    """Collega a questo switch le porte censite con un prefisso e senza switch indicato."""
+def asset_rete_prefisso(request: HttpRequest, id: int) -> HttpResponse:
+    """Imposta (o toglie, se vuoto) il prefisso porte dello switch: es. "A0" per le porte A0.x.x.
+
+    Non scrive sui punti rete: l'appartenenza si calcola alla lettura, quindi le porte
+    aggiunte dopo seguono lo switch e un errore si corregge cambiando un solo valore.
+    """
     asset = get_object_or_404(Asset, pk=id)
     if not _can_edit(request, asset):
         return HttpResponseForbidden("Non hai il permesso di modificare questo asset.")
-    prefisso = rete_switch.prefisso_valido(request.POST.get("prefisso"))
-    if not prefisso:
-        messages.error(request, "Indica il prefisso delle porte (es. A0).")
-        return redirect("assets:asset_view", id=asset.id)
-    endpoints = rete_switch.endpoint_con_prefisso(prefisso)
-    if endpoints:
-        with storico_asset.traccia({ep.asset_id for ep in endpoints}, fonte=AssetFieldHistory.FONTE_FORM,
-                                   utente=request.user, dettaglio=f"Porte {prefisso}.* collegate a {asset.asset_tag}"):
-            for ep in endpoints:
-                ep.switch_name = asset.asset_tag
-                ep.save(update_fields=["switch_name"])
-        messages.success(request, f"{len(endpoints)} porte con prefisso {prefisso} collegate a {asset.asset_tag}.")
-    else:
-        messages.info(request, f"Nessuna porta senza switch con prefisso {prefisso}.")
-    return redirect("assets:asset_view", id=asset.id)
+    grezzo = (request.POST.get("prefisso") or "").strip()
+    prefisso = rete_switch.prefisso_valido(grezzo)
+    if grezzo and not prefisso:
+        messages.error(request, "Prefisso non valido: solo lettere e cifre, es. A0.")
+        return redirect(f"{reverse('assets:asset_view', args=[asset.id])}#asset-switch-mappa")
+    if prefisso and (altro := rete_switch.switch_con_prefisso(prefisso, escludi_id=asset.id)):
+        messages.error(request, f"Il prefisso {prefisso} è già dello switch {altro.asset_tag} ({altro.name}): toglilo prima da lì.")
+        return redirect(f"{reverse('assets:asset_view', args=[asset.id])}#asset-switch-mappa")
+    if prefisso != asset.switch_prefisso_porte:
+        with storico_asset.traccia([asset.id], fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                   dettaglio="Prefisso porte dello switch"):
+            asset.switch_prefisso_porte = prefisso
+            asset.save(update_fields=["switch_prefisso_porte"])
+        if prefisso:
+            messages.success(request, f"Le porte {prefisso}.x.x senza switch indicato ora appartengono a {asset.asset_tag}.")
+        else:
+            messages.success(request, "Prefisso porte tolto.")
+    return redirect(f"{reverse('assets:asset_view', args=[asset.id])}#asset-switch-mappa")

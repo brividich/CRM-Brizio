@@ -133,7 +133,7 @@ class DerivedSourcesPersistenceTests(TestCase):
                 self.assertEqual(saved["capi_reparto"]["ruoli"], [2])
                 reloaded = anomalie_views._load_anomalie_derived_sources()
                 self.assertEqual(reloaded["capi_reparto"]["extra"], ["Tizio"])
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload = anomalie_views._read_anomalie_config()
         self.assertEqual(payload["causali_doc"], ["OP"])
         self.assertEqual(payload["menu_logo"], "/x.png")
 

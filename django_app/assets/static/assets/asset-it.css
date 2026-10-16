@@ -156,9 +156,9 @@ body.theme-dark .af-rete-errore, body.theme-dark .af-rete-elimina { color: #fca5
 .af-vl4 { background: #c4b5fd; color: #0f172a; } .af-vl5 { background: #5eead4; color: #0f172a; } .af-vl6 { background: #fdba74; color: #0f172a; } .af-vl7 { background: #a5b4fc; color: #0f172a; }
 .af-vlx { background: #e5e7eb; color: #0f172a; }
 .af-swmap-porta.af-vlx { background: #d1d5db; }
-.af-swmap-collega { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border: 1px dashed #cbd5e1; border-radius: 10px; }
+.af-swmap-collega { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin: 6px 0 12px; padding: 10px 12px; border: 1px dashed #cbd5e1; border-radius: 10px; }
 .af-swmap-collega label { display: flex; flex-direction: column; gap: 3px; }
-.af-swmap-collega select { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; }
+.af-swmap-collega input, .af-swmap-collega select { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; }
 body.theme-dark .af-swmap-pannello { background: #0b1220; border: 1px solid var(--border); }
 body.theme-dark .af-swmap-collega { border-color: var(--border); }
-body.theme-dark .af-swmap-collega select { background: var(--surface, #0f172a); border-color: var(--border); color: var(--text); }
+body.theme-dark .af-swmap-collega input, body.theme-dark .af-swmap-collega select { background: var(--surface, #0f172a); border-color: var(--border); color: var(--text); }

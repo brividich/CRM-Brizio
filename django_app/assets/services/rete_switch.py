@@ -6,8 +6,10 @@ matricola o con il nome dell'asset switch: dalla scheda si sceglie lo switch e s
 salva la matricola, che e' univoca. Nessun dato viene dedotto da nome o IP.
 
 La porta segue la convenzione dell'inventario ``<switch>.<membro stack>.<porta>``
-(es. ``A0.1.37``) oppure ``<switch>.<porta>`` (es. ``A1.19``); il prefisso serve a
-collegare in blocco allo switch le porte gia' censite senza switch indicato.
+(es. ``A0.1.37``) oppure ``<switch>.<porta>`` (es. ``A1.19``). Lo switch puo' dichiarare
+il suo prefisso (``Asset.switch_prefisso_porte``, es. "A0"): i punti rete SENZA switch
+indicato e con quel prefisso gli appartengono, anche quelli aggiunti dopo. Uno
+``switch_name`` esplicito vince sempre sul prefisso.
 """
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ from django.db.models import Q
 from ..models import Asset, AssetEndpoint
 
 _PORTA = re.compile(r"^\s*([A-Za-z0-9]+?)\s*[./:]\s*(?:([0-9]+)\s*[./:]\s*)?([0-9]+)\s*$")
-_PREFISSO = re.compile(r"^[A-Za-z0-9_-]{1,20}$")
+_PREFISSO = re.compile(r"^[A-Z0-9]{1,20}$")
 
 
 def scomponi_porta(valore: str) -> tuple[str, str, int] | None:
@@ -41,6 +43,7 @@ def _filtro_switch() -> Q:
         | Q(asset_category__label__icontains="switch")
         | Q(asset_category__label__icontains="apparati rete")
         | Q(asset_category__label__icontains="apparati di rete")
+        | Q(switch_prefisso_porte__gt="")
     )
 
 
@@ -50,42 +53,74 @@ def switch_disponibili() -> list[dict]:
         Asset.objects.filter(_filtro_switch())
         .exclude(status=Asset.STATUS_RETIRED)
         .order_by("name", "asset_tag")
-        .values("id", "asset_tag", "name")[:300]
+        .values("id", "asset_tag", "name", "switch_prefisso_porte")[:300]
     )
-    return [{"id": r["id"], "valore": r["asset_tag"], "etichetta": f"{r['asset_tag']} — {r['name']}"} for r in rows]
+    return [
+        {
+            "id": r["id"],
+            "valore": r["asset_tag"],
+            "etichetta": f"{r['asset_tag']} — {r['name']}"
+            + (f" (porte {r['switch_prefisso_porte']})" if r["switch_prefisso_porte"] else ""),
+        }
+        for r in rows
+    ]
 
 
 def chiavi_switch(asset: Asset) -> list[str]:
     return [v for v in {(asset.asset_tag or "").strip(), (asset.name or "").strip()} if v]
 
 
-def risolvi_switch(endpoints) -> dict[str, Asset]:
-    """Mappa ``switch_name`` (casefold) -> asset switch, per linkare la scheda dello switch."""
+def switch_per_endpoint(endpoints) -> dict[int, tuple[Asset, bool]]:
+    """``endpoint.id -> (switch, da_prefisso)`` per linkare la scheda dello switch."""
+    endpoints = list(endpoints)
     nomi = {(e.switch_name or "").strip() for e in endpoints if (e.switch_name or "").strip()}
-    if not nomi:
+    prefissi = {
+        parti[0] for e in endpoints
+        if not (e.switch_name or "").strip() and (parti := scomponi_porta(e.switch_port))
+    }
+    if not nomi and not prefissi:
         return {}
-    filtro = Q()
+    filtro = Q(pk__in=[])
     for nome in nomi:
         filtro |= Q(asset_tag__iexact=nome) | Q(name__iexact=nome)
-    trovati: dict[str, Asset] = {}
-    for asset in Asset.objects.filter(filtro).only("id", "asset_tag", "name").order_by("id"):
-        trovati.setdefault(asset.asset_tag.casefold(), asset)
-        trovati.setdefault((asset.name or "").casefold(), asset)
-    return {nome.casefold(): trovati[nome.casefold()] for nome in nomi if nome.casefold() in trovati}
+    if prefissi:
+        filtro |= Q(switch_prefisso_porte__in=prefissi)
+    per_nome: dict[str, Asset] = {}
+    per_prefisso: dict[str, Asset] = {}
+    for asset in Asset.objects.filter(filtro).only("id", "asset_tag", "name", "switch_prefisso_porte").order_by("id"):
+        per_nome.setdefault(asset.asset_tag.casefold(), asset)
+        per_nome.setdefault((asset.name or "").casefold(), asset)
+        if asset.switch_prefisso_porte:
+            per_prefisso.setdefault(asset.switch_prefisso_porte, asset)
+    risultato: dict[int, tuple[Asset, bool]] = {}
+    for ep in endpoints:
+        nome = (ep.switch_name or "").strip()
+        if nome:
+            if nome.casefold() in per_nome:
+                risultato[ep.id] = (per_nome[nome.casefold()], False)
+        elif (parti := scomponi_porta(ep.switch_port)) and parti[0] in per_prefisso:
+            risultato[ep.id] = (per_prefisso[parti[0]], True)
+    return risultato
 
 
-def _endpoint_collegati(asset: Asset):
-    filtro = Q()
+def _endpoint_collegati(asset: Asset) -> list[AssetEndpoint]:
+    filtro = Q(pk__in=[])
     for chiave in chiavi_switch(asset):
         filtro |= Q(switch_name__iexact=chiave)
-    if not filtro:
-        return AssetEndpoint.objects.none()
-    return (
-        AssetEndpoint.objects.filter(filtro)
-        .exclude(asset_id=asset.id)
-        .select_related("asset")
-        .order_by("switch_port", "id")
-    )
+    collegati = list(AssetEndpoint.objects.filter(filtro).exclude(asset_id=asset.id).select_related("asset"))
+    prefisso = asset.switch_prefisso_porte
+    if prefisso:
+        for ep in (
+            AssetEndpoint.objects.filter(switch_name="", switch_port__istartswith=prefisso)
+            .exclude(asset_id=asset.id)
+            .select_related("asset")
+        ):
+            parti = scomponi_porta(ep.switch_port)
+            if parti and parti[0] == prefisso:
+                ep.da_prefisso = True
+                collegati.append(ep)
+    collegati.sort(key=lambda ep: (scomponi_porta(ep.switch_port) or ("~", "", 0), ep.switch_port, ep.id))
+    return collegati
 
 
 def _classi_vlan(endpoints) -> dict:
@@ -94,9 +129,9 @@ def _classi_vlan(endpoints) -> dict:
     return {v: f"af-vl{i % 8}" for i, v in enumerate(vlan)}
 
 
-def mappa_switch(asset: Asset) -> dict | None:
+def mappa_switch(asset: Asset) -> dict:
     """Pannello frontale dello switch: porte occupate per membro dello stack."""
-    collegati = list(_endpoint_collegati(asset))
+    collegati = _endpoint_collegati(asset)
     colori = _classi_vlan(collegati)
     membri: dict[tuple[str, str], dict[int, list]] = {}
     altre = []
@@ -129,33 +164,33 @@ def mappa_switch(asset: Asset) -> dict | None:
             "occupate": len(porte),
             "totale": totale,
         })
-
     return {
         "pannelli": pannelli,
         "altre": altre,
         "collegati": collegati,
         "totale": len(collegati),
         "vlan": [{"vlan": v, "classe": c} for v, c in colori.items()],
+        "prefisso": asset.switch_prefisso_porte,
         "prefissi_liberi": prefissi_senza_switch(),
     }
 
 
 def prefissi_senza_switch() -> list[dict]:
-    """Prefissi di porta ancora senza switch indicato, con quante porte li usano."""
+    """Prefissi usati da porte senza switch e non ancora assegnati a nessuno switch."""
+    assegnati = set(Asset.objects.exclude(switch_prefisso_porte="").values_list("switch_prefisso_porte", flat=True))
     conteggi: dict[str, int] = {}
     for porta in AssetEndpoint.objects.filter(switch_name="").exclude(switch_port="").values_list("switch_port", flat=True):
         parti = scomponi_porta(porta)
-        if parti:
+        if parti and parti[0] not in assegnati:
             conteggi[parti[0]] = conteggi.get(parti[0], 0) + 1
     return [{"prefisso": k, "porte": v} for k, v in sorted(conteggi.items())]
 
 
-def endpoint_con_prefisso(prefisso: str) -> list[AssetEndpoint]:
-    """Punti rete senza switch la cui porta inizia con ``prefisso``."""
-    return [
-        ep for ep in AssetEndpoint.objects.filter(switch_name="").exclude(switch_port="")
-        if (parti := scomponi_porta(ep.switch_port)) and parti[0] == prefisso
-    ]
+def switch_con_prefisso(prefisso: str, *, escludi_id: int | None = None) -> Asset | None:
+    qs = Asset.objects.filter(switch_prefisso_porte=prefisso)
+    if escludi_id:
+        qs = qs.exclude(pk=escludi_id)
+    return qs.only("id", "asset_tag", "name").first()
 
 
 def is_switch(asset: Asset) -> bool:
