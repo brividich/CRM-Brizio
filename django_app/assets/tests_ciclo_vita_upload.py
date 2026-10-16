@@ -100,7 +100,7 @@ class AssetRetireDeleteTests(TestCase):
     def _as_maintenance(self):
         """Il ruolo della manutenzione ha i permessi assets/asset_retire e assets/asset_delete."""
         return patch(
-            "assets.views.user_can_modulo_action",
+            "assets.views._monolith.user_can_modulo_action",
             side_effect=lambda request, modulo, azione: azione in {"asset_retire", "asset_delete"},
         )
 

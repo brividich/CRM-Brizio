@@ -1,3 +1,5 @@
+"""Parte di assets/views.py non ancora spezzata (refactor C4, transitorio)."""
+
 from __future__ import annotations
 
 import io
@@ -71,7 +73,7 @@ from core.pdf import (
 )
 from core.table_pdf import render_table_pdf as _report_table_pdf
 from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
-from .forms import (
+from ..forms import (
     AssistanceContractForm,
     AssetAdministrativeDeadlineForm,
     AssetAssignmentForm,
@@ -97,8 +99,8 @@ from .forms import (
     WorkOrderCloseForm,
     WorkOrderForm,
 )
-from .models import _add_months
-from .models import (
+from ..models import _add_months
+from ..models import (
     Asset,
     AssetActionButton,
     AssetAdministrativeDeadline,
@@ -144,7 +146,7 @@ from .models import (
     WorkOrderExecutionDay,
     WorkOrderLog,
 )
-from .maintenance import (
+from ..maintenance import (
     build_workorder_prefill_payload,
     build_day_based_maintenance_schedule_rows,
     contract_state_payload,
@@ -158,8 +160,8 @@ from .maintenance import (
     resolve_asset_maintenance_rules,
     upsert_asset_maintenance_rule_state,
 )
-from .notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
-from .services.dashboard_kpi import (
+from ..notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
+from ..services.dashboard_kpi import (
     get_asset_maintenance_costs,
     get_downtime_by_family,
     get_families_distribution,
@@ -169,11 +171,135 @@ from .services.dashboard_kpi import (
     get_maintenance_kpis_for_types,
     get_maintenance_performance_kpis,
 )
-from .services.maintenance_kpi import build_maintenance_report_kpis
-from .services import storico_asset
-from .services.ciclo_vita_asset import blocchi_eliminazione
-from .models import AssetFieldHistory
-from .services.sidebar_categories import (
+from ..services.maintenance_kpi import build_maintenance_report_kpis
+from ..services import storico_asset
+from ..services.ciclo_vita_asset import blocchi_eliminazione
+from ..models import AssetFieldHistory
+from ..services.sidebar_categories import (
+    category_sidebar_active_match as _service_category_sidebar_active_match,
+    category_sidebar_target as _service_category_sidebar_target,
+)
+
+from core.graph_utils import acquire_graph_token, is_placeholder_value
+from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.models import AuditLog, SiteConfig, UserDashboardLayout, UserExtraInfo
+from core.module_branding import (
+    get_module_branding_context,
+    handle_module_branding_post,
+    resolve_module_logo,
+)
+from core.module_registry import resolve_module_label
+from core.pdf import (
+    PdfTheme,
+    draw_canvas_footer,
+    draw_canvas_header,
+)
+from core.table_pdf import render_table_pdf as _report_table_pdf
+from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
+from ..forms import (
+    AssistanceContractForm,
+    AssetAdministrativeDeadlineForm,
+    AssetAssignmentForm,
+    AssetComponentForm,
+    AssetFilterForm,
+    AssetForm,
+    AssetLabelTemplateForm,
+    ChemicalAssetForm,
+    MaintenanceChecklistStepFormSet,
+    MaintenanceInterventionTemplateForm,
+    MaintenanceRuleForm,
+    MaintenanceRuleAssetOverrideForm,
+    PeriodicVerificationForm,
+    PlantLayoutForm,
+    SoftwareLicenseForm,
+    SoftwareLicenseRenewalForm,
+    WorkMachineAssetForm,
+    DeviceFilterForm,
+    IT_DEVICE_TYPES,
+    NON_IT_ASSET_TYPES,
+    PRODUCTION_ASSET_TYPES,
+    WorkMachineFilterForm,
+    WorkOrderCloseForm,
+    WorkOrderForm,
+)
+from ..models import _add_months
+from ..models import (
+    Asset,
+    AssetActionButton,
+    AssetAdministrativeDeadline,
+    AssetAdministrativeDeadlineCompletion,
+    AssetAdministrativeDeadlineCompletionAttachment,
+    AssetCategory,
+    AssetCategoryDocumentFolder,
+    AssetCategoryField,
+    AssetComponent,
+    AssetCustomField,
+    AssetDashboardConfig,
+    AssetDetailField,
+    AssetDetailSectionLayout,
+    AssetDocument,
+    AssetHeaderTool,
+    AssetLabelTemplate,
+    AssetListLayout,
+    AssetListOption,
+    AssetMaintenanceBudget,
+    AssetMaintenanceRuleState,
+    AssetMeter,
+    AssetMeterHistory,
+    AssetCalendarEvent,
+    AssistanceContract,
+    AssetReportDefinition,
+    AssetReportTemplate,
+    AssetSidebarButton,
+    AssetTimelineEntry,
+    AssetTimelineHiddenEvent,
+    SoftwareLicense,
+    SoftwareLicenseRenewal,
+    MaintenanceInterventionTemplate,
+    MaintenanceRule,
+    MaintenanceRuleAssetOverride,
+    PeriodicVerification,
+    PlantLayout,
+    PlantLayoutArea,
+    PlantLayoutMarker,
+    WorkMachine,
+    WorkOrder,
+    WorkOrderAttachment,
+    WorkOrderChecklist,
+    WorkOrderExecutionDay,
+    WorkOrderLog,
+)
+from ..maintenance import (
+    build_workorder_prefill_payload,
+    build_day_based_maintenance_schedule_rows,
+    contract_state_payload,
+    copy_template_checklist_to_workorder,
+    distribute_campaign_due_dates,
+    get_applicable_assistance_contracts,
+    get_primary_assistance_contract,
+    get_workorder_overdue_days,
+    normalize_workorder_source,
+    preview_maintenance_rule_impact,
+    resolve_asset_maintenance_rules,
+    upsert_asset_maintenance_rule_state,
+)
+from ..notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
+from ..services.dashboard_kpi import (
+    get_asset_maintenance_costs,
+    get_downtime_by_family,
+    get_families_distribution,
+    get_family_dashboard_kpis,
+    get_fire_safety_kpis,
+    get_maintenance_by_family,
+    get_maintenance_kpis_for_types,
+    get_maintenance_performance_kpis,
+)
+from ..services.maintenance_kpi import build_maintenance_report_kpis
+from ..services import storico_asset
+from ..services.ciclo_vita_asset import blocchi_eliminazione
+from ..models import AssetFieldHistory
+from ..services.sidebar_categories import (
     category_sidebar_active_match as _service_category_sidebar_active_match,
     category_sidebar_target as _service_category_sidebar_target,
 )
@@ -1583,7 +1709,7 @@ def _build_work_machine_maintenance_month_dataset(
     # Dalle scadenze pianificate (occorrenze), come Scadenzario e Calendario:
     # WorkMachine.next_maintenance_date non si aggiorna piu' alla chiusura e dava
     # un mese diverso da quello delle pagine. Una riga per manutenzione.
-    from .models import MaintenanceOccurrence
+    from ..models import MaintenanceOccurrence
 
     queryset = (
         MaintenanceOccurrence.objects.filter(
@@ -2327,7 +2453,7 @@ def _normalize_document_path(value: str | None) -> str:
 
 
 def _asset_qr_target_url(request: HttpRequest, asset: Asset, *, target: str = "detail") -> tuple[str, str]:
-    from .services import asset_qr
+    from ..services import asset_qr
 
     desired = _clean_string(target).lower()
     # "sharepoint" e' un valore legacy (link e template etichetta salvati prima
@@ -2800,8 +2926,8 @@ def _planned_maintenance_status(asset_queryset, today) -> dict[str, object]:
     (scaduta / in soglia di preavviso / in linea); gli asset in uso senza alcun
     piano applicato sono "senza piano".
     """
-    from .models import MaintenanceOccurrence
-    from .services import maintenance_domain as maintenance_dom
+    from ..models import MaintenanceOccurrence
+    from ..services import maintenance_domain as maintenance_dom
 
     assets = list(asset_queryset)
     asset_ids = [asset.id for asset in assets]
@@ -5101,11 +5227,11 @@ def _resolve_asset_detail_source_value(
     if source_key == "cpu_load":
         return _coalesce_str(extra.get("avg_cpu_load"), extra.get("cpu_load"), "")
     if source_key == "storage_free":
-        from .services.it_presentation import it_profile
+        from ..services.it_presentation import it_profile
         capacity_fallback = "" if it_profile(asset) else getattr(it_details, "disco", "")
         return _coalesce_str(extra.get("storage_free"), extra.get("free_storage"), capacity_fallback, "")
     if source_key == "purchase_date":
-        from .services.it_presentation import it_profile
+        from ..services.it_presentation import it_profile
         return _coalesce_str(
             asset.purchase_date.strftime("%d-%m-%Y") if asset.purchase_date else "",
             extra.get("purchase_date"),
@@ -5182,7 +5308,7 @@ def _build_configured_asset_detail_sections(
     sync_text: str,
 ) -> tuple[dict[str, list[dict[str, str]]], bool]:
     configured = list(AssetDetailField.objects.filter(is_active=True).order_by("section", "asset_scope", "sort_order", "id"))
-    from .services.it_presentation import it_profile
+    from ..services.it_presentation import it_profile
     profile = it_profile(asset)
     irrelevant_defaults = set()
     if profile in ("server", "vm", "printer"):
@@ -5310,7 +5436,7 @@ def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, 
     # Le voci della Manutenzione si accendono per nome di rotta, dalla stessa
     # definizione della barra di sezione: un pezzo di URL non basta, perche'
     # Configurazione e Manutenzione condividono il prefisso /assets/manutenzione/.
-    from .maintenance_nav import sidebar_code_routes
+    from ..maintenance_nav import sidebar_code_routes
 
     nav_routes = sidebar_code_routes().get(_clean_string(button.code))
     if nav_routes is not None:
@@ -6279,7 +6405,7 @@ def _da_fare_badge(request: HttpRequest) -> int | None:
     cached = getattr(request, "_assets_da_fare_badge", "unset")
     if cached != "unset":
         return cached
-    from .models import MaintenanceOccurrence
+    from ..models import MaintenanceOccurrence
 
     try:
         count = MaintenanceOccurrence.objects.filter(
@@ -6752,7 +6878,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     Configurazione): stessa definizione, stesso ordine e stesse etichette della
     sidebar.
     """
-    from .maintenance_nav import GROUP_OPERATIVO, find_active
+    from ..maintenance_nav import GROUP_OPERATIVO, find_active
 
     current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
     found = find_active(current_route)
@@ -6782,7 +6908,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     if group.key != GROUP_OPERATIVO:
         breadcrumbs.append({"label": group.label, "url": reverse(f"assets:{group.items[0].route}")})
     breadcrumbs.append({"label": active_item.label, "url": ""})
-    from .maintenance_nav import help_for
+    from ..maintenance_nav import help_for
 
     return {
         "label": group.label,
@@ -7028,7 +7154,7 @@ def _plant_layout_machine_alerts(assets, *, today=None) -> dict[int, dict[str, o
     """asset_id -> OdL aperti, manutenzioni scadute/in scadenza, in riparazione.
 
     Due query batch per tutta la mappa; i ticket arrivano da ``_open_tickets_by_asset``."""
-    from .models import MaintenanceOccurrence
+    from ..models import MaintenanceOccurrence
 
     today = today or timezone.localdate()
     now = timezone.now()
@@ -9034,7 +9160,7 @@ def _failure_code_admin_context(request: HttpRequest) -> dict[str, object]:
     """Tab «Codici guasto» delle Impostazioni: elenco per tipo e form di creazione."""
     from django.db.models import Count
 
-    from .models import FailureCode
+    from ..models import FailureCode
 
     codes = list(
         FailureCode.objects.select_related("asset_category")
@@ -9064,7 +9190,7 @@ def _handle_failure_code_request(request: HttpRequest) -> HttpResponse:
     """
     from django.db.models import ProtectedError
 
-    from .models import FailureCode
+    from ..models import FailureCode
 
     target = redirect(f"{reverse('assets:gestione_admin')}?tab=guasti")
     if not _is_assets_admin(request):
@@ -9335,7 +9461,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     page_number = _as_int(request.GET.get("page"), default=1)
     page_obj = paginator.get_page(page_number)
     assets = page_obj.object_list
-    from .services.it_monitoring import monitoring_dots
+    from ..services.it_monitoring import monitoring_dots
 
     # Pallino del Monitor SNMP (stato salvato, nessuna interrogazione) accanto al nome.
     _dots = monitoring_dots(request, [a.id for a in assets])
@@ -9990,7 +10116,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             if not _can_edit_asset(request, asset.id):
                 messages.error(request, "Permessi insufficienti per modificare l'asset.")
                 return redirect("assets:asset_view", id=asset.id)
-            from .services.it_identity_diff import snmp_identity_diffs
+            from ..services.it_identity_diff import snmp_identity_diffs
 
             field = _clean_string(request.POST.get("field"))
             value = _clean_string(request.POST.get("value"))
@@ -10311,7 +10437,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         ]
         profile_card_title = "Anagrafica e assegnazione"
 
-    from .services.it_presentation import it_context
+    from ..services.it_presentation import it_context
 
     it_presentation = it_context(asset)
     it_ticket_create_url = ""
@@ -10463,7 +10589,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         )
     # Fatti dal monitoraggio SNMP e dal SOC (dispositivo muto, alert gravi,
     # vulnerabilita' critiche): ricalcolati, mai salvati, nel rispetto dei permessi.
-    from .services.it_timeline import monitoring_timeline_events
+    from ..services.it_timeline import monitoring_timeline_events
 
     timeline_events.extend(monitoring_timeline_events(request, asset))
     hidden_auto_keys = _asset_timeline_hidden_keys(asset)
@@ -10907,7 +11033,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     scheda_chimica = asset.prodotto_chimico.scheda_corrente() if asset.prodotto_chimico_id else None
     it_monitoring = None
     if it_presentation is not None:
-        from .services.it_monitoring import monitoring_for_asset
+        from ..services.it_monitoring import monitoring_for_asset
         it_monitoring = monitoring_for_asset(
             request,
             asset,
@@ -10915,14 +11041,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             endpoint_ips=[e.ip for e in it_presentation.get("endpoints", []) if e.ip],
         )
         if it_monitoring is not None:
-            from .services.it_identity_diff import snmp_identity_diffs
+            from ..services.it_identity_diff import snmp_identity_diffs
 
             it_monitoring["identity_diffs"] = snmp_identity_diffs(asset)
             it_monitoring["can_apply_identity"] = _can_edit_asset(request, asset.id)
-    from .services.asset_kpis import device_kpis as _device_kpis
+    from ..services.asset_kpis import device_kpis as _device_kpis
 
     device_kpis = _device_kpis(request, asset, it_presentation)
-    from .services.costi_asset import costi_asset as _costi_asset
+    from ..services.costi_asset import costi_asset as _costi_asset
 
     asset_costi = _costi_asset(asset)
     return render(
@@ -11407,7 +11533,7 @@ def asset_qr_ticket_upload(request: HttpRequest, public_qr_token: str, ticket_id
 
 
 def _qr_can_record_meter(request: HttpRequest) -> bool:
-    from .views_maintenance import can_execute_maintenance
+    from ..views_maintenance import can_execute_maintenance
 
     return can_execute_maintenance(request)
 
@@ -11450,7 +11576,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     # Scadenzario e Calendario): prima la pagina QR leggeva il motore a regole.
     # Solo ordinarie e amministrative: licenze e contratti non riguardano chi
     # inquadra la macchina.
-    from .services import deadline_feed as feed
+    from ..services import deadline_feed as feed
 
     _status_order = {"overdue": 0, "warning": 1, "upcoming": 2, "missing": 3}
     _feed_status = {feed.STATE_OVERDUE: "overdue", feed.STATE_DUE_SOON: "warning"}
@@ -12137,7 +12263,7 @@ def _group_deadline_series(rows: list[dict]) -> list[dict]:
 
 
 def _deadline_category_choices() -> list[tuple[str, str]]:
-    from .forms_maintenance import category_filter_choices
+    from ..forms_maintenance import category_filter_choices
 
     return category_filter_choices()
 
@@ -12392,7 +12518,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     if family_filter:
         deadline_qs = deadline_qs.filter(asset__asset_type__in=_DEADLINE_FAMILY_TYPES[family_filter])
     if category_id:
-        from .forms_maintenance import category_with_descendants
+        from ..forms_maintenance import category_with_descendants
 
         deadline_qs = deadline_qs.filter(asset__asset_category_id__in=category_with_descendants(category_id))
     if q:
@@ -12733,7 +12859,7 @@ def maintenance_template_list(request: HttpRequest) -> HttpResponse:
 def _save_template_checklist_formset(formset, template) -> None:
     """Salva il formset degli step checklist e normalizza la numerazione a 10, 20, 30...
     Gli step lasciati senza numero finiscono in coda."""
-    from .models import MaintenanceChecklistStep
+    from ..models import MaintenanceChecklistStep
 
     formset.instance = template
     saved = formset.save(commit=False)
@@ -14013,7 +14139,7 @@ def device_list(request: HttpRequest) -> HttpResponse:
                 Q(reparto__icontains=reparto) | Q(assignment_reparto__icontains=reparto)
             )
 
-    from .services.it_coverage import COVERAGE_FILTERS, apply_coverage_filter, coverage_for_assets, coverage_totals
+    from ..services.it_coverage import COVERAGE_FILTERS, apply_coverage_filter, coverage_for_assets, coverage_totals
 
     coverage_filter = _clean_string(request.GET.get("copertura"))
     if coverage_filter not in COVERAGE_FILTERS:
@@ -14945,7 +15071,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             if verification.is_legacy:
                 messages.info(request, "Questo piano e gia gestito da una regola di manutenzione.")
                 return redirect(redirect_url)
-            from .services.periodic_migration import migrate_periodic_verification_to_rule
+            from ..services.periodic_migration import migrate_periodic_verification_to_rule
 
             result = migrate_periodic_verification_to_rule(verification)
             if not result.get("ok"):
@@ -15301,8 +15427,8 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
 def _plant_layout_check_links() -> list[dict[str, object]]:
     """Le planimetrie delle verifiche periodiche (luci di emergenza, differenziali...):
     stanno nella loro scheda, qui solo il collegamento con lo stato della verifica."""
-    from .models import PeriodicCheckType
-    from .services import periodic_checks as checks
+    from ..models import PeriodicCheckType
+    from ..services import periodic_checks as checks
 
     links = []
     for check_type in (
@@ -16123,7 +16249,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             for key, label in WorkOrder.OPSTATE_LABELS.items()
         ]
 
-    from .views_maintenance import can_execute_maintenance, can_plan_maintenance, _workorder_bulk_form
+    from ..views_maintenance import can_execute_maintenance, can_plan_maintenance, _workorder_bulk_form
 
     can_bulk_workorders = operational_view != "closed" and can_execute_maintenance(request)
     return render(
@@ -16502,10 +16628,10 @@ def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -
     Vive qui e non in ``views_maintenance`` perche' e' il dettaglio OdL storico a
     doverlo mostrare; la dipendenza fra i due moduli resta a senso unico.
     """
-    from .forms_maintenance import ExecutionDayForm, OccurrenceBulkCompletionForm
-    from .models import MaintenanceOccurrence
-    from .services import maintenance_domain as maintenance_dom
-    from .views_maintenance import can_execute_maintenance, can_plan_maintenance
+    from ..forms_maintenance import ExecutionDayForm, OccurrenceBulkCompletionForm
+    from ..models import MaintenanceOccurrence
+    from ..services import maintenance_domain as maintenance_dom
+    from ..views_maintenance import can_execute_maintenance, can_plan_maintenance
 
     occurrences = list(
         MaintenanceOccurrence.objects.filter(work_order=workorder)
@@ -16757,7 +16883,7 @@ def _asset_deadlines_context(request: HttpRequest, asset) -> dict[str, object]:
     """Tutte le scadenze aperte dell'asset nei prossimi 12 mesi, dalla stessa fonte
     di Calendario e Scadenzario: manutenzioni, adempimenti, licenze e contratti
     (anche quelli sulla sua categoria). Le scadute restano finche' sono aperte."""
-    from .services import deadline_feed as feed
+    from ..services import deadline_feed as feed
 
     today = timezone.localdate()
     rows = feed.collect(
@@ -16805,8 +16931,8 @@ def _workorder_suggestions(request: HttpRequest, workorder: WorkOrder) -> dict[s
 
     Solo proposte: nulla viene modificato finche' qualcuno non preme il pulsante.
     """
-    from .maintenance import get_applicable_assistance_contracts
-    from .models import MaintenanceOccurrence
+    from ..maintenance import get_applicable_assistance_contracts
+    from ..models import MaintenanceOccurrence
 
     suggestions: list[dict[str, object]] = []
     if workorder.status != WorkOrder.STATUS_OPEN:
@@ -16867,8 +16993,8 @@ def _asset_maintenance_plans_context(asset) -> dict[str, object]:
     macchina non poteva sapere quali manutenzioni la riguardassero: la domanda
     piu' ovvia davanti a un asset.
     """
-    from .models import MaintenanceOccurrence
-    from .services import maintenance_domain as maintenance_dom
+    from ..models import MaintenanceOccurrence
+    from ..services import maintenance_domain as maintenance_dom
 
     resolutions = maintenance_dom.resolve_asset_plans(asset)
     if not resolutions:
@@ -16912,8 +17038,8 @@ def _checklist_followup_context(request: HttpRequest, workorder: WorkOrder, item
     quindi serve sapere *su quale macchina*: su un OdL massivo la checklist e' una
     sola ma gli asset sono molti, e sceglierne uno d'ufficio sarebbe un'invenzione.
     """
-    from .models import MaintenanceOccurrence
-    from .views_maintenance import can_execute_maintenance
+    from ..models import MaintenanceOccurrence
+    from ..views_maintenance import can_execute_maintenance
 
     if not can_execute_maintenance(request):
         return {"checklist_followup_occurrences": [], "checklist_followups_by_item": {}}
@@ -17160,7 +17286,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
     # ma solo chi puo' gestire quel ticket (stessa regola delle API ticket).
     from tickets.services.accesso import identita_utente, utente_puo_gestire_ticket
 
-    from .services.workorder_close import ticket_resolvable
+    from ..services.workorder_close import ticket_resolvable
 
     linked_ticket = workorder.ticket if ticket_resolvable(workorder) else None
     can_manage_ticket = bool(linked_ticket is not None and utente_puo_gestire_ticket(request, linked_ticket))
@@ -17171,7 +17297,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
     # asset avanza sul suo piano quando *quella* manutenzione e' dichiarata eseguita),
     # quindi restano dovute. Prima l'avviso arrivava a cose fatte, su una pagina gia'
     # cambiata: si leggeva di sfuggita. Ora ferma la chiusura e la fa confermare.
-    from .views_maintenance import can_plan_maintenance
+    from ..views_maintenance import can_plan_maintenance
 
     pending_occurrences: list = []
     pending_confirmation = False
@@ -17187,7 +17313,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             form.add_error(None, error)
         pending_reason_value = _clean_string(request.POST.get("open_occurrences_reason"))
         if form_is_valid and form.cleaned_data["status"] in (WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED):
-            from .models import MaintenanceOccurrence
+            from ..models import MaintenanceOccurrence
 
             pending_occurrences = list(
                 MaintenanceOccurrence.objects.filter(
@@ -17208,7 +17334,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                             "Spiega perche' chiudi l'intervento lasciando manutenzioni non registrate.",
                         )
         if form_is_valid and not upload_errors:
-            from .services.workorder_close import (
+            from ..services.workorder_close import (
                 CloseData,
                 RequestIdentity,
                 WorkOrderAlreadyClosed,
@@ -17348,8 +17474,8 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
     POST: aggiorna il valore del contatore selezionato e restituisce lo stesso partial.
     Usato via HTMX (hx-post + hx-swap='outerHTML') dalla asset_detail e dalla work_machine_dashboard.
     """
-    from .services.meters import MeterReadingError, record_meter_reading
-    from .views_maintenance import can_execute_maintenance
+    from ..services.meters import MeterReadingError, record_meter_reading
+    from ..views_maintenance import can_execute_maintenance
 
     asset = get_object_or_404(Asset, pk=asset_id)
     meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
@@ -17699,7 +17825,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
         # Manutenzioni registrate direttamente ("Registra" da Da fare, Calendario,
         # Scadenzario) senza un ordine di lavoro: sono lavoro fatto quanto un OdL
         # chiuso, e prima nello Storico non comparivano.
-        from .models import MaintenanceOccurrence
+        from ..models import MaintenanceOccurrence
 
         registered = MaintenanceOccurrence.objects.filter(
             status=MaintenanceOccurrence.STATUS_DONE, work_order__isnull=True
@@ -17866,7 +17992,7 @@ def _maintenance_supplier_rows() -> list[dict[str, object]]:
 
     from anagrafica.models import Fornitore
 
-    from .models import AssistanceContract
+    from ..models import AssistanceContract
 
     def _counts(qs) -> dict[int, int]:
         # .order_by() azzera l'ordering di default del modello: senza, su SQL Server
@@ -18035,7 +18161,7 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
 
     from anagrafica.models import Fornitore
 
-    from .models import AssistanceContract
+    from ..models import AssistanceContract
 
     supplier = get_object_or_404(Fornitore, pk=fornitore_id)
     today = timezone.localdate()
@@ -18193,7 +18319,7 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
 def maintenance_worksheet(request: HttpRequest, asset_id: int, rule_id: int) -> HttpResponse:
     """Scheda intervento stampabile (A4) da portare alla macchina: dati macchina, intervento,
     checklist da spuntare a penna, ultime esecuzioni e campi per la registrazione manuale."""
-    from .models import AssetMaintenanceRuleState, MaintenanceChecklistStep
+    from ..models import AssetMaintenanceRuleState, MaintenanceChecklistStep
 
     asset = get_object_or_404(Asset.objects.select_related("asset_category"), pk=asset_id)
     base_rule = get_object_or_404(
@@ -19273,7 +19399,7 @@ def _compute_dashboard_kpis(today: date) -> dict:
 
     # Scadenze amministrative: registro separato dai piani, senza le copie
     # migrate (``deadline_feed``).
-    from .services import deadline_feed as feed
+    from ..services import deadline_feed as feed
 
     admin_dues = feed.administrative_dues(due_to=in_90, exclude_retired=False)
     dl_scadute = sum(1 for due in admin_dues if due.due_date < today)
@@ -19411,7 +19537,7 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
     """Scadenze (piani, amministrative, licenze, contratti) + verifiche periodiche
     entro 30 giorni o gia' scadute, in una lista sola. Sola lettura: le azioni
     puntano alle pagine che gia' le gestiscono."""
-    from .services import deadline_feed as feed
+    from ..services import deadline_feed as feed
 
     horizon = today + timedelta(days=30)
     rows: list[dict] = []
@@ -19773,7 +19899,7 @@ def _asset_calendar_events(asset_id: int) -> list[dict]:
     # -- Manutenzioni e adempimenti pianificati (occorrenze: stessa fonte del
     #    Calendario manutenzione; prima si leggeva il motore a regole) --
     try:
-        from .services import deadline_feed as feed
+        from ..services import deadline_feed as feed
 
         _pm_colors = {
             feed.STATE_OVERDUE: "#dc2626", feed.STATE_DUE_SOON: "#f59e0b",
@@ -19828,9 +19954,9 @@ def calendario_asset(request: HttpRequest) -> HttpResponse:
     elenco e per asset; i filtri vanno al server, le tipologie si accendono e
     spengono senza ricaricare.
     """
-    from .forms_maintenance import category_filter_choices
-    from .models import AssetGroup
-    from .services import deadline_feed as feed
+    from ..forms_maintenance import category_filter_choices
+    from ..models import AssetGroup
+    from ..services import deadline_feed as feed
 
     allowed = feed.allowed_kinds(request)
     kinds = [
@@ -19842,8 +19968,8 @@ def calendario_asset(request: HttpRequest) -> HttpResponse:
     reparti = list(
         Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
     )
-    from .forms_maintenance import WorkOrderFromOccurrencesForm
-    from .views_maintenance import can_execute_maintenance, can_plan_maintenance
+    from ..forms_maintenance import WorkOrderFromOccurrencesForm
+    from ..views_maintenance import can_execute_maintenance, can_plan_maintenance
 
     can_plan = can_plan_maintenance(request)
     return render(request, "assets/pages/calendario_asset.html", {
@@ -19923,8 +20049,8 @@ def _machine_work_events(start: date, end: date, filters) -> list[dict]:
 @login_required
 def calendario_asset_json(request: HttpRequest) -> JsonResponse:
     """Eventi del Calendario manutenzione per il periodo visibile (``start``/``end``)."""
-    from .forms_maintenance import category_with_descendants
-    from .services import deadline_feed as feed
+    from ..forms_maintenance import category_with_descendants
+    from ..services import deadline_feed as feed
 
     today = timezone.localdate()
     start = _calendar_range_date(request.GET.get("start")) or today.replace(day=1) - timedelta(days=7)

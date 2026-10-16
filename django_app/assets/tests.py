@@ -1893,7 +1893,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-work-machine-form-") as tmpdir:
             manual_file = SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:work_machine_create"),
                         {
@@ -1954,7 +1954,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-work-machine-upload-") as tmpdir:
             manual_file = SimpleUploadedFile("../manuale rischio.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:work_machine_create"),
                         {
@@ -1995,7 +1995,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-detail-upload-") as tmpdir:
             specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {
@@ -2020,7 +2020,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-detail-folder-upload-") as tmpdir:
             specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {
@@ -2106,7 +2106,7 @@ class AssetsRoutingTests(TestCase):
         )
         with _workspace_temporary_directory("assets-long-folder-upload-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {"action": "upload_asset_documents", field_name: long_file},
@@ -2657,7 +2657,7 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(self.user)
 
         with patch(
-            "assets.views._model_table_exists",
+            "assets.views._monolith._model_table_exists",
             side_effect=lambda model: False if model is AssetReportTemplate else True,
         ):
             with patch.object(
@@ -2722,7 +2722,7 @@ class AssetsRoutingTests(TestCase):
         abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
-        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views._monolith._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
@@ -2742,7 +2742,7 @@ class AssetsRoutingTests(TestCase):
         abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
-        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views._monolith._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
@@ -2819,7 +2819,7 @@ class AssetsRoutingTests(TestCase):
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-detail")
         self.client.force_login(self.user)
 
-        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views._monolith._draw_asset_label_pdf") as draw_label:
             response = self.client.get(f"{reverse('assets:asset_qr_label', kwargs={'id': asset.id})}?target=detail")
 
         self.assertEqual(response.status_code, 200)
@@ -4173,7 +4173,7 @@ class AssetsRoutingTests(TestCase):
 
     def test_delegated_user_can_access_asset_detail_layout_admin_page(self):
         self.client.force_login(self.user)
-        with patch("assets.views.user_can_modulo_action", return_value=True):
+        with patch("assets.views._monolith.user_can_modulo_action", return_value=True):
             response = self.client.get(reverse("assets:asset_detail_layout_admin"))
 
         self.assertEqual(response.status_code, 200)
@@ -4424,7 +4424,7 @@ class AssetsRoutingTests(TestCase):
         )
         self.client.force_login(self.user)
 
-        with patch("assets.views.user_can_modulo_action", return_value=True):
+        with patch("assets.views._monolith.user_can_modulo_action", return_value=True):
             response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
 
         self.assertEqual(response.status_code, 200)
@@ -5403,7 +5403,7 @@ class WorkOrderFlowTests(TestCase):
 
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset.id]),
                     {
@@ -5430,7 +5430,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
         upload = SimpleUploadedFile("report.pdf", b"MZ...", content_type="application/pdf")
         with patch(
-            "assets.views.validate_extension_and_mime",
+            "assets.views._monolith.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("report.pdf: tipo MIME non consentito (application/x-msdownload)."),
         ):
             response = self.client.post(
@@ -5454,7 +5454,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with patch(
-            "assets.views.validate_extension_and_mime",
+            "assets.views._monolith.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("Validazione MIME non disponibile sul server. Upload bloccato."),
         ):
             response = self.client.post(
@@ -5838,7 +5838,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
 
         with _workspace_temporary_directory("assets-wo-close-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_close", args=[workorder.id]),
                     {
@@ -6871,7 +6871,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-        with patch.object(asset_views, "_outlook_calendar_create_event") as mocked_create:
+        with patch.object(asset_views._monolith, "_outlook_calendar_create_event") as mocked_create:
             response = self.client.post(
                 reverse("assets:maintenance_schedule"),
                 {
@@ -6920,7 +6920,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views,
+            asset_views._monolith,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-deadline", "webLink": "https://outlook.office.com/calendar/item/evt-deadline"},
         ) as mocked_create:
@@ -6954,7 +6954,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(calendar_event.target_email, "g.verdi@example.local")
         self.assertEqual(calendar_event.graph_event_id, "evt-deadline")
 
-        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views._monolith, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(
                 reverse("assets:asset_administrative_deadline_list") + f"?asset={self.asset.id}"
             )
@@ -6985,7 +6985,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views,
+            asset_views._monolith,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-periodic", "webLink": "https://outlook.office.com/calendar/item/evt-periodic"},
         ) as mocked_create:
@@ -7018,7 +7018,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(calendar_event.due_date), "2026-06-15")
         self.assertEqual(calendar_event.graph_event_id, "evt-periodic")
 
-        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views._monolith, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(reverse("assets:periodic_verifications") + f"?asset={self.asset.id}&scope=production")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
@@ -7050,7 +7050,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views,
+            asset_views._monolith,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-contract", "webLink": "https://outlook.office.com/calendar/item/evt-contract"},
         ) as mocked_create:
@@ -7086,7 +7086,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(calendar_event.due_date), "2026-12-31")
         self.assertEqual(calendar_event.graph_event_id, "evt-contract")
 
-        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views._monolith, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
@@ -7299,7 +7299,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
             b"%PDF-1.4 fake",
             content_type="application/pdf",
         )
-        with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+        with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
             response = self.client.post(
                 reverse("assets:periodic_verifications"),
                 {
@@ -7420,7 +7420,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
             _workspace_temporary_directory("assets-media-") as media_root,
             _workspace_temporary_directory("assets-private-") as private_root,
             override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
-            patch("assets.views.validate_extension_and_mime", return_value="application/pdf"),
+            patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"),
         ):
             response = self.client.post(
                 reverse("assets:asset_administrative_deadline_list"),
@@ -8085,7 +8085,7 @@ class AssetMaintenanceRegisterUnifiedTests(TestCase):
 
         self.client.force_login(self.user)
         with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset1.id]),
                     {
@@ -10350,7 +10350,7 @@ class WorkOrderChecklistTypedStepsTests(TestCase):
         upload = SimpleUploadedFile("step-photo.jpg", b"binarydata", content_type="image/jpeg")
 
         with _workspace_temporary_directory("assets-checklist-photo-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="image/jpeg"):
+            with patch("assets.views._monolith.validate_extension_and_mime", return_value="image/jpeg"):
                 response = self.client.post(
                     reverse("assets:wo_checklist_photo", args=[self.workorder.id, item.id]),
                     {"photo": upload},
