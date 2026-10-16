@@ -10,6 +10,8 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+**Schermi grandi e mobile** (ottobre 2026, solo CSS). Su mobile la barra del modulo va a capo e «Gestisci letture» mostra le letture a schede sotto i 640px. Sopra i 1800px le pagine arrivano a 2200px (il resto del portale resta a 1680px). Sopra i 3000px, cioè schermi 4K a scala 100% come monitor e TV da 55-85", il modulo viene ingrandito del 50% e si impagina come su un 2560px, così testo e riquadri restano leggibili a distanza. Corretta anche la lente che copriva «Cerca…» nelle tabelle filtrabili del modulo.
+
 **Gestisci letture** (ottobre 2026, migrazione `contatori 0041`, solo binding ACL). Nuova pagina `/contatori/letture/gestisci/` (Letture → «Modifica / elimina letture», permesso gestione): elenco unico delle letture **trimestrali** o **mensili** dalla più recente, filtri per MFC, anno e «Solo letture con un calo» (contatore più basso della lettura prima della stessa MFC, in rosso), «Modifica» con ritorno all'elenco filtrato ed **eliminazione in blocco** con conferma (audit `letture_eliminate`). Le letture **mensili** diventano correggibili ed eliminabili (`/contatori/letture/mensili/<pk>/`, stesso controllo dei cali con conferma), anche dalla scheda MFC («Correggi»). Guida: sezione «Gestisci letture».
 
 **Profilo generico e tipo dell'apparato** (ottobre 2026, nessuna migrazione). `services.applica_profilo_dispositivo` con un profilo di categoria «Generico» non cambia più la categoria già impostata sul dispositivo (prima diventava «Altro»): uno switch creato dal wizard e riconosciuto con il profilo generico resta «Rete». Un profilo specifico continua a impostare la sua categoria.
