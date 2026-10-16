@@ -1893,7 +1893,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-work-machine-form-") as tmpdir:
             manual_file = SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:work_machine_create"),
                         {
@@ -1954,7 +1954,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-work-machine-upload-") as tmpdir:
             manual_file = SimpleUploadedFile("../manuale rischio.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:work_machine_create"),
                         {
@@ -1995,7 +1995,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-detail-upload-") as tmpdir:
             specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {
@@ -2020,7 +2020,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-detail-folder-upload-") as tmpdir:
             specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {
@@ -2106,7 +2106,7 @@ class AssetsRoutingTests(TestCase):
         )
         with _workspace_temporary_directory("assets-long-folder-upload-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views._monolith.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {"action": "upload_asset_documents", field_name: long_file},
@@ -6871,7 +6871,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-        with patch.object(asset_views._monolith, "_outlook_calendar_create_event") as mocked_create:
+        with patch.object(asset_views._helpers, "_outlook_calendar_create_event") as mocked_create:
             response = self.client.post(
                 reverse("assets:maintenance_schedule"),
                 {
@@ -6920,7 +6920,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views._monolith,
+            asset_views._helpers,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-deadline", "webLink": "https://outlook.office.com/calendar/item/evt-deadline"},
         ) as mocked_create:
@@ -6985,7 +6985,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views._monolith,
+            asset_views._helpers,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-periodic", "webLink": "https://outlook.office.com/calendar/item/evt-periodic"},
         ) as mocked_create:
@@ -7050,7 +7050,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views._monolith,
+            asset_views._helpers,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-contract", "webLink": "https://outlook.office.com/calendar/item/evt-contract"},
         ) as mocked_create:
