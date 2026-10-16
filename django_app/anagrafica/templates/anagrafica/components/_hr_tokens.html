@@ -1,0 +1,35 @@
+{% comment %}
+Design token HR: unica fonte dei colori del modulo (chiaro e scuro). Incluso da
+_hr_restyle.html e _fm_style.html; si può includere più volte (solo variabili).
+Toni di stato: ok (in regola) · warn (entro 60/90 giorni) · alert (entro 30) ·
+ko (scaduto/negato) · info (pianificato) · na (neutro/mancante).
+{% endcomment %}<style>
+/* ── Design token HR (unica fonte di colori del modulo) ──────────────────────
+   Palette realmente in uso: navy #0c2545 / blu #1f87cd + scala slate. I componenti
+   nuovi (pill, header, stato vuoto) leggono SOLO questi token; il tema scuro li
+   ridefinisce una volta sola qui sotto. Componenti: anagrafica/components/hr_pill.html,
+   hr_pagehead.html, hr_empty.html. */
+:root {
+  --hr-navy:#0c2545; --hr-navy-dark:#08142d; --hr-blue:#1f87cd;
+  --hr-surface:#fff; --hr-surface-alt:#f8fafc; --hr-border:#e2e8f0; --hr-border-soft:#f1f5f9;
+  --hr-text:#0f172a; --hr-text-mid:#334155; --hr-muted:#64748b; --hr-faint:#94a3b8;
+  --hr-title:#0c2545; --hr-radius:16px; --hr-radius-sm:11px;
+  --hr-ok-bg:#ecfdf5; --hr-ok-fg:#047857; --hr-ok-bd:#a7f3d0;
+  --hr-warn-bg:#fffbeb; --hr-warn-fg:#b45309; --hr-warn-bd:#fde68a;
+  --hr-alert-bg:#fff7ed; --hr-alert-fg:#c2410c; --hr-alert-bd:#fed7aa;
+  --hr-ko-bg:#fef2f2; --hr-ko-fg:#b91c1c; --hr-ko-bd:#fecaca;
+  --hr-info-bg:#eff6ff; --hr-info-fg:#1f87cd; --hr-info-bd:#bfdbfe;
+  --hr-na-bg:#f1f5f9; --hr-na-fg:#334155; --hr-na-bd:#e2e8f0;
+}
+body.theme-dark {
+  --hr-surface:var(--surface); --hr-surface-alt:var(--surface-alt); --hr-border:var(--border); --hr-border-soft:var(--border);
+  --hr-text:var(--text); --hr-text-mid:var(--text-mid); --hr-muted:var(--text-light); --hr-faint:var(--text-light);
+  --hr-title:#93c5fd;
+  --hr-ok-bg:rgba(22,101,52,.25); --hr-ok-fg:#86efac; --hr-ok-bd:rgba(134,239,172,.3);
+  --hr-warn-bg:rgba(133,77,14,.25); --hr-warn-fg:#fde68a; --hr-warn-bd:rgba(253,230,138,.3);
+  --hr-alert-bg:rgba(194,65,12,.22); --hr-alert-fg:#fdba74; --hr-alert-bd:rgba(253,186,116,.3);
+  --hr-ko-bg:rgba(153,27,27,.3); --hr-ko-fg:#fca5a5; --hr-ko-bd:rgba(252,165,165,.3);
+  --hr-info-bg:rgba(31,135,205,.18); --hr-info-fg:#93c5fd; --hr-info-bd:rgba(147,197,253,.3);
+  --hr-na-bg:rgba(100,116,139,.25); --hr-na-fg:#cbd5e1; --hr-na-bd:rgba(203,213,225,.25);
+}
+</style>

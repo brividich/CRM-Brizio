@@ -5532,16 +5532,12 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
     )
 
     # Fallback nome "COGNOME NOME" → legacy_anagrafica_id quando il CF non è ancora in DipendenteAnagraficaCivile
+    # Solo nomi unici di persone senza CF registrato: mai sull'omonimo.
     nome_to_id: dict[str, int] = {}
     try:
-        _legacy_all = fetch_anagrafica_rows(deduplicate=True)
-        for _lr in _legacy_all:
-            _cog = str(_lr.get("cognome") or "").strip().upper()
-            _nom = str(_lr.get("nome") or "").strip().upper()
-            _full = f"{_cog} {_nom}".strip()
-            _lid = int(_lr.get("id") or 0)
-            if _full and _lid:
-                nome_to_id[_full] = _lid
+        from core.legacy_anagrafica import nomi_sicuri_per_abbinamento
+
+        nome_to_id = nomi_sicuri_per_abbinamento()
     except Exception:
         logger.warning("Fallback nome-based per retribuzioni non disponibile (legacy DB non raggiungibile)")
 
@@ -6205,16 +6201,12 @@ def _import_csv_contratti(file_obj, user) -> tuple[int, int, int]:
         cf_to_id[str(row["codice_fiscale"]).strip().upper()] = row["legacy_anagrafica_id"]
 
     # Fallback nome-based
+    # Solo nomi unici di persone senza CF registrato: mai sull'omonimo.
     nome_to_id: dict[str, int] = {}
     try:
-        _legacy_all = fetch_anagrafica_rows(deduplicate=True)
-        for _lr in _legacy_all:
-            _cog = str(_lr.get("cognome") or "").strip().upper()
-            _nom = str(_lr.get("nome") or "").strip().upper()
-            _full = f"{_cog} {_nom}".strip()
-            _lid = int(_lr.get("id") or 0)
-            if _full and _lid:
-                nome_to_id[_full] = _lid
+        from core.legacy_anagrafica import nomi_sicuri_per_abbinamento
+
+        nome_to_id = nomi_sicuri_per_abbinamento()
     except Exception:
         logger.warning("Fallback nome-based per contratti non disponibile")
 
