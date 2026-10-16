@@ -2,7 +2,7 @@
 {% load static %}
 {% load anagrafica_extras %}
 
-{% block title %}Ratei Ferie / Permessi | Anagrafica HR{% endblock %}
+{% block title %}Ferie e permessi | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -82,13 +82,15 @@
     <div class="fmd-hero-bg" aria-hidden="true"></div>
     <div class="fmd-hero-inner">
       <div>
-        <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Presenze e assenze</div>
-        <h1><svg class="fmd-ico fmd-cap"><use href="#i-calendar"/></svg>Ratei Ferie / Permessi{% info_hint "ratei" %}</h1>
-        <p class="fmd-sub">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.</p>
+        <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Amministrazione</div>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-calendar"/></svg>Ferie e permessi{% info_hint "ratei" %}</h1>
+        <p class="fmd-sub">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.{% if is_admin %} L'importazione del file cedolini (anche da SharePoint) è in fondo alla pagina.{% endif %}</p>
         <div class="fmd-hero-actions">
           <span class="fmd-pill {% if n_negativi %}fmd-pill-red{% else %}fmd-pill-grey{% endif %}">Ferie negative <span class="fmd-pn">{{ n_negativi }}</span></span>
           <span class="fmd-pill {% if n_accumulo %}fmd-pill-amber{% else %}fmd-pill-grey{% endif %}">Oltre soglia ({{ soglie.ore_max|floatformat:0 }}h) <span class="fmd-pn">{{ n_accumulo }}</span></span>
           <span class="fmd-pill fmd-pill-grey">In allerta <span class="fmd-pn">{{ n_allerta }}</span></span>
+          {% if is_admin %}<a class="fmd-btn-template" href="#importazione"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa cedolini</a>{% endif %}
+          <a class="fmd-btn-template" href="{% url 'anagrafica:retribuzioni_globale' %}"><svg class="fmd-ico"><use href="#i-coins"/></svg>Cedolini</a>
         </div>
       </div>
     </div>
@@ -263,6 +265,13 @@
     </div>
     {% endif %}
   </div>
+
+  {% if is_admin %}
+  <div class="fmd" style="margin-top:22px;">
+    <div class="fmd-block-head" style="margin:0 0 10px;"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-download"/></svg>Importazione dal file cedolini</div><div class="fmd-block-aside">saldi ferie, ROL ed ex festività</div></div>
+  </div>
+  {% include "anagrafica/partials/_import_cedolini.html" with importazioni=importazioni_cedolini %}
+  {% endif %}
 
 </div>
 

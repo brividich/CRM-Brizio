@@ -28,11 +28,31 @@ class ImportPagesUITests(TestCase):
         self.assertContains(resp, "hrnav")  # subnav modulo anagrafica
         self.assertContains(resp, "body.theme-dark .ci-card")
 
-    def test_cedolini_import_ha_subnav_e_dark(self):
+    def test_cedolini_import_vive_in_ferie_e_permessi(self):
+        # Da ottobre 2026 l'import cedolini è la sezione «Importazione» della pagina Ferie e permessi.
         resp = self.client.get(reverse("anagrafica:cedolini_import"))
+        self.assertRedirects(resp, reverse("anagrafica:ratei_list") + "#importazione", fetch_redirect_response=False)
+        resp = self.client.get(reverse("anagrafica:ratei_list"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "hrnav")
+        self.assertContains(resp, 'id="importazione"')
         self.assertContains(resp, "body.theme-dark .ci-card")
+        self.assertContains(resp, f'action="{reverse("anagrafica:cedolini_import")}"')
+
+    def test_retribuzioni_import_vive_in_cedolini(self):
+        resp = self.client.get(reverse("anagrafica:retribuzioni_import"))
+        self.assertRedirects(resp, reverse("anagrafica:retribuzioni_globale") + "#importazione",
+                             fetch_redirect_response=False)
+        resp = self.client.get(reverse("anagrafica:retribuzioni_globale"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'id="importazione"')
+        self.assertContains(resp, "body.theme-dark .ri-card")
+        self.assertContains(resp, f'action="{reverse("anagrafica:retribuzioni_import")}"')
+
+    def test_import_senza_file_torna_alla_pagina_unita(self):
+        resp = self.client.post(reverse("anagrafica:retribuzioni_import"), {})
+        self.assertRedirects(resp, reverse("anagrafica:retribuzioni_globale") + "#importazione",
+                             fetch_redirect_response=False)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
