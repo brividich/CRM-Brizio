@@ -170,7 +170,7 @@ from .dashboard import (  # noqa: F401
     asset_dashboard,
     asset_quick_report,
 )
-from ._monolith import (  # noqa: F401
+from .calendar import (  # noqa: F401
     asset_calendar_json,
     calendario_asset,
     calendario_asset_json,

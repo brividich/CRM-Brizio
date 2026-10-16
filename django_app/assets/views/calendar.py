@@ -1,4 +1,7 @@
-"""Parte di assets/views.py non ancora spezzata (refactor C4, transitorio)."""
+"""Calendario asset (lavori macchina e manutenzioni).
+
+Estratto meccanicamente da assets/views.py (refactor C4): nessun cambio di comportamento.
+"""
 
 from __future__ import annotations
 
