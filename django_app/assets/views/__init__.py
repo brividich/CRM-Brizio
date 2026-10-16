@@ -75,6 +75,10 @@ from .asset_crud import (  # noqa: F401
     chemical_asset_create,
     chemical_asset_edit,
 )
+from .asset_detail import (  # noqa: F401
+    asset_detail,
+    asset_detail_layout_admin,
+)
 from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_administrative_deadline_create,
@@ -82,9 +86,7 @@ from ._monolith import (  # noqa: F401
     asset_administrative_deadline_list,
     asset_calendar_json,
     asset_dashboard,
-    asset_detail,
     asset_detail_export_xlsx,
-    asset_detail_layout_admin,
     asset_label_designer,
     asset_list_export,
     asset_maintenance_rule_list,
