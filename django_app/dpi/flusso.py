@@ -6,6 +6,8 @@ del dipendente e' quello dell'AREA AZIENDALE, altrimenti il caporeparto del
 REPARTO (``reparto_canonico.resolve_responsabile_effettivo``); si aggiungono i
 co-responsabili di area/reparto e i colleghi della stessa area con ruolo
 operativo «Preposto». I gestori DPI restano approvatori di ripiego (gate in view).
+Con la regola unica capo/team di Anagrafica accesa (``capo_team``) il capo
+diretto viene da lì; co-responsabili e preposto restano.
 
 Le notifiche sono fail-soft: un errore di invio non blocca mai il flusso.
 """
@@ -42,6 +44,26 @@ def _area_reparto(legacy_id: int):
     return area, reparto
 
 
+def _capo_regola_unica(legacy_id) -> int | None:
+    """Capo diretto dalla regola unica di Anagrafica, se accesa (None altrimenti)."""
+    try:
+        from anagrafica.services import capo_team
+
+        return capo_team.capo_effettivo(legacy_id) if capo_team.regola_unica_attiva() else None
+    except Exception:
+        return None
+
+
+def _team_regola_unica(legacy_id) -> set[int] | None:
+    """Team diretto dalla regola unica, se accesa (None = regola di prima)."""
+    try:
+        from anagrafica.services import capo_team
+
+        return capo_team.team_anagrafica(legacy_id, solo_diretti=True) if capo_team.regola_unica_attiva() else None
+    except Exception:
+        return None
+
+
 def approvatori_di(legacy_id: int | None) -> set[int]:
     """ID legacy anagrafica di chi puo' approvare le richieste di ``legacy_id``."""
     if not legacy_id:
@@ -52,7 +74,9 @@ def approvatori_di(legacy_id: int | None) -> set[int]:
     ids: set[int] = set()
     try:
         area, reparto = _area_reparto(legacy_id)
-        principale = resolve_responsabile_effettivo(area=area, reparto=reparto)
+        principale = _capo_regola_unica(legacy_id)
+        if principale is None:
+            principale = resolve_responsabile_effettivo(area=area, reparto=reparto)
         if principale:
             ids.add(int(principale))
         if area is not None:
@@ -91,12 +115,21 @@ def dipendenti_di_approvatore(approvatore_legacy_id: int | None) -> set[int]:
     try:
         # Aree guidate (responsabile o co-responsabile) + aree di un reparto senza
         # responsabile d'area proprio guidato da me (caporeparto = ripiego) o co-guidato.
-        aree = AreaAziendale.objects.filter(
-            Q(responsabile_legacy_id=me)
-            | Q(responsabili__id=me)
-            | Q(reparto__responsabili__id=me)
-            | Q(reparto__caporeparto_legacy_id=me, responsabile_legacy_id__isnull=True)
-        ).values_list("id", flat=True)
+        team_unico = _team_regola_unica(me)
+        if team_unico is not None:
+            # Regola unica accesa: il capo diretto lo dice lei; restano i
+            # co-responsabili di area/reparto e il preposto (sotto).
+            result.update(team_unico)
+            aree = AreaAziendale.objects.filter(
+                Q(responsabili__id=me) | Q(reparto__responsabili__id=me)
+            ).values_list("id", flat=True)
+        else:
+            aree = AreaAziendale.objects.filter(
+                Q(responsabile_legacy_id=me)
+                | Q(responsabili__id=me)
+                | Q(reparto__responsabili__id=me)
+                | Q(reparto__caporeparto_legacy_id=me, responsabile_legacy_id__isnull=True)
+            ).values_list("id", flat=True)
         area_ids = set(aree)
         # Preposto: le persone della propria area.
         if DipendenteRuoloOperativo.objects.filter(

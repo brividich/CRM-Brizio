@@ -38,6 +38,9 @@ def canonical_team_predicates(legacy_user_id, alias="a"):
         )
     if not links:
         return "", "", []
+    unica = _predicati_regola_unica(legacy_user_id, links)
+    if unica is not None:
+        return unica
     responsible = "COALESCE(ar.responsabile_legacy_id, rep.caporeparto_legacy_id, az.caporeparto_legacy_id)"
     base = (
         "SELECT 1 FROM anagrafica_dipendenti dip "
@@ -52,3 +55,31 @@ def canonical_team_predicates(legacy_user_id, alias="a"):
         f"WHERE manager.id = {responsible} AND manager.utente_id = %s))"
     )
     return known, mine, [int(legacy_user_id)]
+
+
+def _predicati_regola_unica(legacy_user_id, links):
+    """Gli stessi due predicati con la regola unica capo/team di Anagrafica.
+
+    ``None`` se la regola è spenta. «Nota» = la persona ha un capo; «mia» = il
+    capo è chi guarda (team diretto: l'approvazione resta al capo diretto).
+    Gli id sono interi letti dal DB, scritti in chiaro nella IN.
+    """
+    try:
+        from anagrafica.services import capo_team
+
+        if not capo_team.regola_unica_attiva():
+            return None
+        from core.legacy_models import AnagraficaDipendente
+
+        mappa = capo_team.mappa_capi_in_cache()
+        miei_id = set(AnagraficaDipendente.objects.filter(utente_id=int(legacy_user_id)).values_list("id", flat=True))
+    except Exception:
+        return None
+    noti = sorted(int(p) for p, c in mappa.items() if c)
+    miei = sorted(int(p) for p, c in mappa.items() if c and int(c) in miei_id)
+
+    def _in(ids):
+        return f"dip.id IN ({', '.join(str(i) for i in ids)})" if ids else "1 = 0"
+
+    base = f"SELECT 1 FROM anagrafica_dipendenti dip WHERE ({' OR '.join(links)})"
+    return f"EXISTS ({base} AND {_in(noti)})", f"EXISTS ({base} AND {_in(miei)})", []

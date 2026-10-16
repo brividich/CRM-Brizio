@@ -113,15 +113,34 @@ def ruoli_sottoposti(ruolo_ids) -> set[int]:
     return visti - radici
 
 
+def _team_regola_unica(legacy_user_id: int) -> set[int] | None:
+    """Team dalla regola unica capo/team (reparto/area + organigramma), se accesa.
+
+    ``None`` = regola spenta: vale la gerarchia dei soli ruoli qui sotto.
+    """
+    try:
+        from anagrafica.services import capo_team
+    except Exception:
+        return None
+    if not capo_team.regola_unica_attiva():
+        return None
+    team: set[int] = set()
+    for anagrafica_id in _anagrafica_ids_di(legacy_user_id):
+        team |= capo_team.team_anagrafica(anagrafica_id)
+    return team
+
+
 def _calcola_team(legacy_user_id: int) -> frozenset[int]:
     from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 
-    sottoposti = ruoli_sottoposti(ruoli_organigramma_di(legacy_user_id))
-    if not sottoposti:
-        return frozenset()
-    anagrafica_ids = set(
-        _assegnazioni_attive().filter(ruolo_id__in=sottoposti).values_list("legacy_anagrafica_id", flat=True)
-    )
+    anagrafica_ids = _team_regola_unica(legacy_user_id)
+    if anagrafica_ids is None:
+        sottoposti = ruoli_sottoposti(ruoli_organigramma_di(legacy_user_id))
+        if not sottoposti:
+            return frozenset()
+        anagrafica_ids = set(
+            _assegnazioni_attive().filter(ruolo_id__in=sottoposti).values_list("legacy_anagrafica_id", flat=True)
+        )
     if not anagrafica_ids:
         return frozenset()
     utenti = set(

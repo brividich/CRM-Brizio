@@ -117,6 +117,10 @@ def coerenza_capi(request):
     if not _is_anagrafica_admin(request):
         messages.error(request, "Accesso riservato agli amministratori dell'anagrafica.")
         return redirect("anagrafica:dipendenti_list")
+    from .services import capo_team
+
+    if request.method == "POST" and request.POST.get("azione") == "regola":
+        return _cambia_regola(request, attiva=request.POST.get("attiva") == "1")
     righe, nomi = _righe()
     filtro = request.GET.get("filtro") or "tutti"
     if filtro not in dict(FILTRI):
@@ -142,7 +146,35 @@ def coerenza_capi(request):
         "filtro": filtro,
         "persone": persone,
         "conteggi": conteggi,
+        "regola_attiva": capo_team.regola_unica_attiva(),
     })
+
+
+def _cambia_regola(request, *, attiva: bool):
+    """Accende o spegne la regola unica per tutti i moduli (con audit)."""
+    from core.audit import log_action
+
+    from .services import capo_team
+
+    if attiva and request.POST.get("conferma") != "1":
+        messages.error(request, "Per accendere la regola unica spunta la conferma.")
+        return redirect("anagrafica:coerenza_capi")
+    capo_team.imposta_regola_unica(attiva)
+    if attiva:
+        schede = capo_team.riallinea_tutte_le_schede()
+    else:
+        # Spenta: la copia nelle schede torna alla regola area → reparto.
+        from .models import Reparto
+        from .services.reparto_canonico import riallinea_capo_schede
+
+        schede = sum(riallinea_capo_schede(reparto=r) for r in Reparto.objects.all())
+    log_action(request, "update", "anagrafica", {"oggetto": "regola_unica_capi", "attiva": attiva, "schede": schede})
+    if attiva:
+        messages.success(request, f"Regola unica accesa: permessi, assenze, DPI e solleciti usano ora questi capi "
+                                  f"({schede} schede aggiornate).")
+    else:
+        messages.success(request, "Regola unica spenta: ogni modulo torna alla regola di prima.")
+    return redirect("anagrafica:coerenza_capi")
 
 
 @login_required

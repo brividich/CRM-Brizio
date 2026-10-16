@@ -226,6 +226,19 @@ def _graph_get_motivazioni() -> list[str]:
         return []
 
 
+def _capo_regola_unica(anagrafica_id) -> int | None:
+    """Capo dalla regola unica capo/team di Anagrafica, se accesa; altrimenti None
+    e il chiamante resta sulla regola area → reparto di prima."""
+    try:
+        from anagrafica.services import capo_team
+
+        if not capo_team.regola_unica_attiva():
+            return None
+        return _as_int(capo_team.capo_effettivo(anagrafica_id))
+    except Exception:
+        return None
+
+
 def _as_int(value) -> int | None:
     if value is None:
         return None
@@ -4016,9 +4029,11 @@ def _resolve_anagrafica_hr_effective_capo_ids(
                 # al salvataggio del dipendente, e puo' essere stantia.
                 area = getattr(aziendale, "area_aziendale", None)
                 rep_canonico = getattr(area, "reparto", None) if area is not None else None
-                capo_anagrafica_id = _as_int(
-                    resolve_responsabile_effettivo(area=area, reparto=rep_canonico)
-                )
+                capo_anagrafica_id = _capo_regola_unica(employee_id)
+                if capo_anagrafica_id is None:
+                    capo_anagrafica_id = _as_int(
+                        resolve_responsabile_effettivo(area=area, reparto=rep_canonico)
+                    )
                 if capo_anagrafica_id is None:
                     capo_anagrafica_id = _as_int(getattr(aziendale, "caporeparto_legacy_id", None))
                 reparto = str(getattr(aziendale, "area", "") or "").strip()
@@ -4251,7 +4266,9 @@ def _superior_capo_option(capo_anagrafica_id: int | None, capi: list[dict]) -> s
         # campo denormalizzato solo come ultima spiaggia.
         area = getattr(az, "area_aziendale", None) if az else None
         rep_canonico = getattr(area, "reparto", None) if area is not None else None
-        sup_id = _as_int(resolve_responsabile_effettivo(area=area, reparto=rep_canonico))
+        sup_id = _capo_regola_unica(capo_anagrafica_id)
+        if sup_id is None:
+            sup_id = _as_int(resolve_responsabile_effettivo(area=area, reparto=rep_canonico))
         if sup_id is None:
             sup_id = _as_int(getattr(az, "caporeparto_legacy_id", None)) if az else None
         if not sup_id:
