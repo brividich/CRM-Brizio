@@ -165,7 +165,17 @@ Il cambio di stato del ticket passa da un unico service (`tickets/services/stato
 
 **Piani a contatore** (form dell'assegnazione → «Quando scatta» = «A contatore»): contatore, ogni quanto (es. 500 ore), preavviso (vuoto = 10% dell'intervallo), valore di partenza (vuoto = valore del contatore all'attivazione). La scadenza nasce quando il contatore arriva al traguardo meno il preavviso; il traguardo riparte dal valore letto all'ultima esecuzione. La data è una stima dal consumo degli ultimi 30 giorni: con lettura vecchia o storico insufficiente la data è oggi e la riga dice «data stimata non disponibile». In «Da fare» e Scadenzario la riga mostra «a 12000 h (ora 11650, aggiornato 3 ore fa)». Registrando la manutenzione il valore del contatore è obbligatorio (se diverso dall'ultimo diventa anche una lettura); «Fatta oggi» non vale per queste scadenze. Chiudendo un intervento su un asset con contatore ore, `meter_value_at_close` prende il valore corrente.
 
+## Codici guasto
+
+**Catalogo** (Impostazioni → tab «Codici guasto», solo amministratori del modulo): problema (cosa si vede), causa (perché), rimedio (cosa si è fatto). Un codice senza categoria vale per tutti gli asset; uno di categoria vale per quella categoria e per le sue sotto-categorie. Un codice usato da un intervento non si elimina: si disattiva (resta sugli interventi che lo hanno). La migrazione crea le sei cause storiche (Elettrica, Meccanica, Idraulica, Usura, Errore operatore, Altro) e le collega agli interventi che avevano già la causa.
+
+**Chiusura intervento** (correttivi, sicurezza, taratura): tre selezioni facoltative Problema / Causa / Rimedio con i codici validi per la categoria dell'asset. Una causa che coincide con una delle sei storiche aggiorna anche la vecchia «Causa del guasto», che resta per i report esistenti.
+
+**Panoramica → Dettaglio indicatori → «Guasti più frequenti — ultimi 90 giorni»**: i dieci problemi più ricorrenti negli interventi chiusi, filtrabili per categoria (con le sotto-categorie), con il fermo dove è stato indicato e la copertura dichiarata («fermo indicato in 8 interventi su 15»).
+
 ## Note di rilascio
+
+Codici guasto (ottobre 2026): dopo il deploy `migrate assets` (0138 tabella `assets_failurecode` e campi sull'intervento; 0139 crea le sei cause storiche e collega gli interventi esistenti, il numero è stampato dalla migrazione).
 
 Contatori (ottobre 2026): dopo il deploy `migrate assets` (0137: campi lettura/provenienza/freschezza, piani a contatore, tabella `assets_meteringestclient`). Per il collector OPC UA: creare il collector (`meter_ingest_client`), impostare `ASSETS_METER_INGEST_ALLOWED_IPS` con l'IP della macchina che lo esegue, **non** pubblicare `/api/assets/contatori/` su Entra.
 

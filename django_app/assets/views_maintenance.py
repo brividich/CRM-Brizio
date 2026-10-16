@@ -17,7 +17,7 @@ import logging
 import io
 import json
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import urlencode
 
@@ -51,6 +51,7 @@ from .forms_maintenance import (
 )
 from .models import (
     Asset,
+    AssetCategory,
     AssetGroup,
     MaintenanceInterventionTemplate,
     MaintenanceOccurrence,
@@ -1302,6 +1303,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
             "sintesi": sintesi,
             "panoramica": _panoramica(request, today=today),
             "conformita": _conformita(request, today=today),
+            "pareto": _failure_pareto(request, today=today),
             "kpi": kpi,
             "unplanned": unplanned[:60],
             "report_missing": report_missing[:40],
@@ -1320,6 +1322,53 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
             "can_bulk_workorders": can_execute_maintenance(request),
         },
     )
+
+
+PARETO_DAYS = 90
+PARETO_TOP = 10
+
+
+def _failure_pareto(request: HttpRequest, *, today: date) -> dict[str, Any]:
+    """«Guasti piu' frequenti»: interventi chiusi negli ultimi 90 giorni per problema.
+
+    Il fermo e' facoltativo in chiusura: si somma dove c'e' e si dichiara su
+    quanti interventi e' stato indicato, invece di presentarlo come totale vero.
+    """
+    from django.db.models import Sum
+
+    since = timezone.make_aware(datetime.combine(today - timedelta(days=PARETO_DAYS), time.min))
+    queryset = WorkOrder.objects.filter(
+        status=WorkOrder.STATUS_DONE, closed_at__gte=since, failure_problem__isnull=False
+    )
+    category_id = _as_int(request.GET.get("pareto_cat"), default=0)
+    if category_id:
+        queryset = queryset.filter(asset__asset_category_id__in=category_with_descendants(category_id))
+    # ``order_by()`` esplicito: Meta.ordering con values()+annotate() su SQL Server da' l'errore 8127.
+    rows = list(
+        queryset.values("failure_problem_id", "failure_problem__label")
+        .annotate(
+            total=Count("id"),
+            with_downtime=Count("id", filter=Q(downtime_minutes__gt=0)),
+            downtime=Sum("downtime_minutes"),
+        )
+        .order_by()
+    )
+    rows.sort(key=lambda row: (-row["total"], row["failure_problem__label"] or ""))
+    top = rows[:PARETO_TOP]
+    peak = max((row["total"] for row in top), default=0)
+    for row in top:
+        row["pct"] = round(100 * row["total"] / peak) if peak else 0
+        row["downtime_hours"] = round((row["downtime"] or 0) / 60, 1)
+    total = sum(row["total"] for row in rows)
+    with_downtime = sum(row["with_downtime"] for row in rows)
+    return {
+        "rows": top,
+        "total": total,
+        "with_downtime": with_downtime,
+        "days": PARETO_DAYS,
+        "category_id": category_id,
+        "categories": list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label").values_list("id", "label")),
+    }
 
 
 def _workorder_bulk_form():

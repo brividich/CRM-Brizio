@@ -69,6 +69,8 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Asset → «Impostazioni»: categorie, menu laterale, piani di manutenzione.",
+                    "Impostazioni → «Codici guasto»: problema, causa e rimedio per la chiusura degli interventi "
+                    "(senza categoria = validi per tutti). Un codice usato non si elimina: si disattiva.",
                     "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "
                     "dati del dettaglio asset e strumenti della lista (prima nello «Studio amministratore» della lista).",
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",

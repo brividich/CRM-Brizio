@@ -2353,6 +2353,60 @@ class AssetReportTemplate(models.Model):
             storage.delete(file_name)
 
 
+class FailureCode(models.Model):
+    """Tassonomia dei guasti: problema (cosa si vede), causa (perche'), rimedio (cosa si fa).
+
+    ``asset_category`` vuoto = valido per tutte le categorie; altrimenti vale per
+    quella categoria e per le sue sotto-categorie. Un codice usato da un intervento
+    non si cancella (PROTECT): si disattiva.
+    """
+
+    KIND_PROBLEM = "PROBLEM"
+    KIND_CAUSE = "CAUSE"
+    KIND_REMEDY = "REMEDY"
+    KIND_CHOICES = [
+        (KIND_PROBLEM, "Problema"),
+        (KIND_CAUSE, "Causa"),
+        (KIND_REMEDY, "Rimedio"),
+    ]
+
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, db_index=True)
+    code = models.SlugField(max_length=50)
+    label = models.CharField(max_length=150)
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="failure_codes",
+        help_text="Vuoto = valido per tutte le categorie.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["kind", "sort_order", "label", "id"]
+        verbose_name = "Codice guasto"
+        verbose_name_plural = "Codici guasto"
+        constraints = [
+            # Unico per categoria; per i globali (categoria vuota) un indice a parte:
+            # su SQL Server un vincolo con colonna nullable va filtrato.
+            models.UniqueConstraint(
+                fields=["kind", "code", "asset_category"],
+                condition=models.Q(asset_category__isnull=False),
+                name="uniq_failure_code_per_category",
+            ),
+            models.UniqueConstraint(
+                fields=["kind", "code"],
+                condition=models.Q(asset_category__isnull=True),
+                name="uniq_failure_code_global",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.label
+
+
 class WorkOrder(models.Model):
     # Prefisso di reference_batch per gli OdL creati insieme in un'unica
     # registrazione multi-asset: distingue questo raggruppamento (numerazione
@@ -2547,6 +2601,20 @@ class WorkOrder(models.Model):
         help_text="Causa del guasto, per statistiche di ricorrenza (opzionale).",
     )
     notes = models.TextField(blank=True, default="", help_text="Note aggiuntive sulla manutenzione")
+    # Tassonomia guasti (facoltativa): il CharField ``failure_cause`` resta per i
+    # report esistenti ed e' allineato quando la causa coincide con uno dei sei valori.
+    failure_problem = models.ForeignKey(
+        "FailureCode", on_delete=models.PROTECT, null=True, blank=True, related_name="workorders_as_problem",
+        limit_choices_to={"kind": "PROBLEM"},
+    )
+    failure_cause_code = models.ForeignKey(
+        "FailureCode", on_delete=models.PROTECT, null=True, blank=True, related_name="workorders_as_cause",
+        limit_choices_to={"kind": "CAUSE"},
+    )
+    failure_remedy = models.ForeignKey(
+        "FailureCode", on_delete=models.PROTECT, null=True, blank=True, related_name="workorders_as_remedy",
+        limit_choices_to={"kind": "REMEDY"},
+    )
     intervention_duration_minutes = models.PositiveIntegerField(default=0)
     downtime_minutes = models.PositiveIntegerField(default=0)
     labor_cost_eur = models.DecimalField(

@@ -9027,6 +9027,90 @@ def _inventory_studio_context(request: HttpRequest) -> dict[str, object]:
     }
 
 
+FAILURE_CODE_ACTIONS = {"failure_code_create", "failure_code_update", "failure_code_delete"}
+
+
+def _failure_code_admin_context(request: HttpRequest) -> dict[str, object]:
+    """Tab «Codici guasto» delle Impostazioni: elenco per tipo e form di creazione."""
+    from django.db.models import Count
+
+    from .models import FailureCode
+
+    codes = list(
+        FailureCode.objects.select_related("asset_category")
+        .annotate(
+            used=Count("workorders_as_problem", distinct=True)
+            + Count("workorders_as_cause", distinct=True)
+            + Count("workorders_as_remedy", distinct=True)
+        )
+        .order_by("kind", "sort_order", "label", "id")
+    )
+    groups = [
+        {"kind": kind, "label": label, "codes": [code for code in codes if code.kind == kind]}
+        for kind, label in FailureCode.KIND_CHOICES
+    ]
+    return {
+        "failure_code_groups": groups,
+        "failure_code_kind_choices": FailureCode.KIND_CHOICES,
+        "failure_code_categories": list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label")),
+        "failure_code_can_manage": _is_assets_admin(request),
+    }
+
+
+def _handle_failure_code_request(request: HttpRequest) -> HttpResponse:
+    """Crea / modifica / elimina un codice guasto. Solo amministratori del modulo Asset.
+
+    Un codice usato da un intervento non si elimina (PROTECT): si disattiva.
+    """
+    from django.db.models import ProtectedError
+
+    from .models import FailureCode
+
+    target = redirect(f"{reverse('assets:gestione_admin')}?tab=guasti")
+    if not _is_assets_admin(request):
+        messages.error(request, "Solo gli amministratori del modulo Asset gestiscono i codici guasto.")
+        return target
+    action = request.POST.get("action")
+    if action == "failure_code_create":
+        kind = _clean_string(request.POST.get("kind")).upper()
+        label = _clean_string(request.POST.get("label"))[:150]
+        code = slugify(_clean_string(request.POST.get("code")) or label)[:50]
+        category_id = _as_int(request.POST.get("asset_category"), default=0) or None
+        if kind not in dict(FailureCode.KIND_CHOICES) or not label or not code:
+            messages.error(request, "Indica tipo ed etichetta del codice.")
+            return target
+        if FailureCode.objects.filter(kind=kind, code=code, asset_category_id=category_id).exists():
+            messages.error(request, f"Esiste gia' un codice «{code}» di questo tipo per questa categoria.")
+            return target
+        FailureCode.objects.create(
+            kind=kind, code=code, label=label, asset_category_id=category_id,
+            sort_order=_as_int(request.POST.get("sort_order"), default=100),
+        )
+        log_action(request, "failure_code_create", "assets", {"kind": kind, "code": code})
+        messages.success(request, f"Codice «{label}» creato.")
+        return target
+    code_obj = FailureCode.objects.filter(pk=_as_int(request.POST.get("code_id"), default=0)).first()
+    if code_obj is None:
+        messages.error(request, "Codice non trovato.")
+        return target
+    if action == "failure_code_update":
+        code_obj.label = _clean_string(request.POST.get("label"))[:150] or code_obj.label
+        code_obj.sort_order = _as_int(request.POST.get("sort_order"), default=code_obj.sort_order)
+        code_obj.is_active = request.POST.get("is_active") == "1"
+        code_obj.save(update_fields=["label", "sort_order", "is_active"])
+        log_action(request, "failure_code_update", "assets", {"code_id": code_obj.pk, "attivo": code_obj.is_active})
+        messages.success(request, f"Codice «{code_obj.label}» aggiornato.")
+        return target
+    try:
+        code_obj.delete()
+    except ProtectedError:
+        messages.error(request, f"«{code_obj.label}» e' usato da almeno un intervento: disattivalo invece di eliminarlo.")
+        return target
+    log_action(request, "failure_code_delete", "assets", {"code_id": code_obj.pk})
+    messages.success(request, "Codice eliminato.")
+    return target
+
+
 def _studio_redirect(request: HttpRequest) -> HttpResponse:
     """Dopo un'azione dello «Studio inventario» si torna da dove si e' partiti.
 
@@ -17158,6 +17242,9 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 pending_reason=pending_reason_value if pending_occurrences else "",
                 uploads=tuple(uploads),
                 resolve_ticket=bool(cleaned.get("resolve_ticket")),
+                failure_problem=cleaned.get("failure_problem"),
+                failure_cause_code=cleaned.get("failure_cause_code"),
+                failure_remedy=cleaned.get("failure_remedy"),
             )
             try:
                 result = close_workorder(
@@ -17206,6 +17293,9 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     request.user.id if request.user.is_authenticated else None
                 ),
                 "failure_cause": workorder.failure_cause,
+                "failure_problem": workorder.failure_problem_id,
+                "failure_cause_code": workorder.failure_cause_code_id,
+                "failure_remedy": workorder.failure_remedy_id,
             },
             asset=workorder.asset,
             workorder=workorder,
@@ -18887,6 +18977,8 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             messages.success(request, "Logo personalizzato rimosso.")
             return config_redirect
 
+        if action in FAILURE_CODE_ACTIONS:
+            return _handle_failure_code_request(request)
         if action in ("add_categoria_ticket", "toggle_categoria_ticket", "delete_categoria_ticket"):
             from tickets.models import CategoriaTicket, Ticket as _Ticket, TipoTicket
             ticket_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=ticket")
@@ -18984,6 +19076,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
     # --- Log ---
     audit_entries = AuditLog.objects.filter(modulo="assets").order_by("-created_at")[:100]
     studio_context = _inventory_studio_context(request) if tab == "studio" else {}
+    failure_code_context = _failure_code_admin_context(request) if tab == "guasti" else {}
 
     return render(
         request,
@@ -19047,6 +19140,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             ),
             "document_folder_focus_id": _as_int(request.GET.get("cat"), default=0),
             **studio_context,
+            **failure_code_context,
             **_assets_shell_context(request),
         },
     )

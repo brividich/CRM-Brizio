@@ -435,6 +435,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     <a href="?tab=sidebar" class="ga-tab {% if tab == 'sidebar' %}active{% endif %}">Sidebar</a>
     <a href="?tab=categorie" class="ga-tab {% if tab == 'categorie' %}active{% endif %}">Categorie asset</a>
     <a href="?tab=studio" class="ga-tab {% if tab == 'studio' %}active{% endif %}">Studio inventario</a>
+    <a href="?tab=guasti" class="ga-tab {% if tab == 'guasti' %}active{% endif %}">Codici guasto</a>
     <a href="?tab=cartelle" class="ga-tab {% if tab == 'cartelle' %}active{% endif %}">Cartelle documento</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
     <a href="?tab=ticket" class="ga-tab {% if tab == 'ticket' %}active{% endif %}">Categorie Ticket</a>
@@ -1451,6 +1452,55 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     <div class="card"><div class="card-head"><h3 class="card-title">Studio inventario</h3></div>
       <p class="muted-note" style="padding:0 16px 16px">Le modifiche a campi, liste, pulsanti e dettaglio asset sono riservate agli amministratori del modulo Asset.</p></div>
   {% endif %}
+  {% endif %}
+
+  {% if tab == 'guasti' %}
+  {% comment %}Tassonomia guasti (problema / causa / rimedio) usata nella chiusura degli interventi
+    e nel Pareto della Panoramica. Un codice usato non si elimina: si disattiva.{% endcomment %}
+  <div class="card" id="codici-guasto" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Codici guasto</h3>
+      <span class="muted-note">Vuoto in «Categoria» = valido per tutte; un codice di categoria vale anche per le sue sotto-categorie.</span></div>
+    {% if failure_code_can_manage %}
+    <form method="post" class="ga-inline-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:0 16px 14px;">
+      {% csrf_token %}<input type="hidden" name="action" value="failure_code_create">
+      <label>Tipo<br><select name="kind" class="input">{% for value, label in failure_code_kind_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+      <label>Etichetta<br><input class="input" name="label" maxlength="150" required placeholder="Es. Perdita olio"></label>
+      <label>Codice<br><input class="input" name="code" maxlength="50" placeholder="dall'etichetta"></label>
+      <label>Categoria<br><select name="asset_category" class="input"><option value="">Tutte</option>{% for cat in failure_code_categories %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endfor %}</select></label>
+      <label>Ordine<br><input class="input" type="number" name="sort_order" value="100" min="0" style="width:90px"></label>
+      <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
+    </form>
+    {% endif %}
+    {% for group in failure_code_groups %}
+      <div style="padding:0 16px 14px">
+        <h4 style="margin:6px 0">{{ group.label }} ({{ group.codes|length }})</h4>
+        {% if group.codes %}
+        <table class="table" data-fm-hide-search="1"><thead><tr><th>Etichetta</th><th>Codice</th><th>Categoria</th><th>Ordine</th><th>Attivo</th><th>Usato</th><th></th></tr></thead><tbody>
+        {% for code in group.codes %}
+          <tr>
+            {% if failure_code_can_manage %}
+            <td colspan="1"><form method="post" id="fc-{{ code.id }}">{% csrf_token %}<input type="hidden" name="action" value="failure_code_update"><input type="hidden" name="code_id" value="{{ code.id }}"><input class="input" name="label" value="{{ code.label }}" maxlength="150"></form></td>
+            <td><code>{{ code.code }}</code></td>
+            <td>{{ code.asset_category.label|default:"Tutte" }}</td>
+            <td><input class="input" type="number" name="sort_order" value="{{ code.sort_order }}" min="0" form="fc-{{ code.id }}" style="width:80px"></td>
+            <td><input type="checkbox" name="is_active" value="1" form="fc-{{ code.id }}"{% if code.is_active %} checked{% endif %}></td>
+            <td>{{ code.used }}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-sm" type="submit" form="fc-{{ code.id }}">Salva</button>
+              <form method="post" style="display:inline" onsubmit="return confirm('Eliminare il codice?');">{% csrf_token %}<input type="hidden" name="action" value="failure_code_delete"><input type="hidden" name="code_id" value="{{ code.id }}"><button class="btn btn-sm btn-secondary" type="submit"{% if code.used %} disabled title="Usato da {{ code.used }} interventi: disattivalo"{% endif %}>Elimina</button></form>
+            </td>
+            {% else %}
+            <td>{{ code.label }}</td><td><code>{{ code.code }}</code></td><td>{{ code.asset_category.label|default:"Tutte" }}</td><td>{{ code.sort_order }}</td><td>{% if code.is_active %}Sì{% else %}No{% endif %}</td><td>{{ code.used }}</td><td></td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+        </tbody></table>
+        {% else %}
+          <p class="muted-note">Nessun codice di questo tipo.</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
   {% endif %}
 
   {% if tab == 'cartelle' %}

@@ -230,7 +230,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
   </div>
   {% endif %}
 
-  <details class="md-section" id="dettaglio" data-panoramica-dettaglio>
+  <details class="md-section" id="dettaglio" data-panoramica-dettaglio{% if pareto.category_id %} open{% endif %}>
     <summary class="md-section-head"><h2>Dettaglio indicatori</h2><span class="md-sub" style="display:inline">tipologie, organizzazione del lavoro, puntualità, conformità e copertura dei dati</span></summary>
     <div class="md-dettaglio-body" style="padding:12px;display:grid;gap:12px">
 
@@ -427,6 +427,28 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       mostrato qui sarebbe inventato al ribasso.</span>
     </div>
   </section>
+      <section class="ms-gaps" id="pareto-guasti">
+        <h2>Guasti più frequenti — ultimi {{ pareto.days }} giorni</h2>
+        <form method="get" action="#pareto-guasti" style="padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label for="pareto-cat" class="md-sub" style="display:inline">Categoria</label>
+          <select id="pareto-cat" name="pareto_cat" onchange="this.form.submit()">
+            <option value="">Tutte</option>
+            {% for value, label in pareto.categories %}<option value="{{ value }}"{% if value == pareto.category_id %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <noscript><button type="submit" class="btn btn-secondary">Applica</button></noscript>
+        </form>
+        {% if pareto.rows %}
+          <div class="pn-bars" style="padding:0 16px 10px">
+            {% for row in pareto.rows %}
+              <div class="pn-bar"><span>{{ row.failure_problem__label }}</span><span class="pn-track"><span style="width:{{ row.pct }}%"></span></span><b>{{ row.total }}</b>
+                <span class="md-sub" style="display:inline">{% if row.with_downtime %}fermo {{ row.downtime_hours|floatformat:"-1" }} h su {{ row.with_downtime }}{% else %}fermo non indicato{% endif %}</span></div>
+            {% endfor %}
+          </div>
+          <p class="md-sub" style="padding:0 16px 12px">Fermo indicato in {{ pareto.with_downtime }} interventi su {{ pareto.total }} con un problema registrato.</p>
+        {% else %}
+          <p class="md-sub" style="padding:10px 16px">Nessun intervento chiuso con un problema registrato in questo periodo. Il problema si sceglie chiudendo un intervento («Codici guasto»).</p>
+        {% endif %}
+      </section>
     </div>
   </details>
 

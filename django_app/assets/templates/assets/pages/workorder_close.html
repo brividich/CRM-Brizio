@@ -243,6 +243,12 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
               <div class="woc-note">Serve a capire se un guasto si ripete per lo stesso motivo.</div>
               {% if form.failure_cause.errors %}<div class="woc-error">{{ form.failure_cause.errors }}</div>{% endif %}
             </div>
+            <div class="woc-grid">
+              <div class="woc-field"><label for="{{ form.failure_problem.id_for_label }}">{{ form.failure_problem.label }} <span class="woc-note">opzionale</span></label>{{ form.failure_problem }}</div>
+              <div class="woc-field"><label for="{{ form.failure_cause_code.id_for_label }}">{{ form.failure_cause_code.label }} <span class="woc-note">opzionale</span></label>{{ form.failure_cause_code }}</div>
+              <div class="woc-field"><label for="{{ form.failure_remedy.id_for_label }}">{{ form.failure_remedy.label }} <span class="woc-note">opzionale</span></label>{{ form.failure_remedy }}</div>
+            </div>
+            <div class="woc-note">Problema, causa e rimedio dal catalogo «Codici guasto» (globali e della categoria dell'asset): alimentano «Guasti più frequenti» nella Panoramica.</div>
             {% endif %}
             <div class="woc-field">
               <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }} <span class="woc-note">opzionale</span></label>

@@ -73,6 +73,9 @@ class CloseData:
     pending_reason: str = ""
     uploads: tuple = ()
     resolve_ticket: bool = False
+    failure_problem: Any = None
+    failure_cause_code: Any = None
+    failure_remedy: Any = None
 
 
 @dataclass(frozen=True)
@@ -210,9 +213,19 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
     failure_cause = data.failure_cause or ""
     if workorder.kind not in FAILURE_CAUSE_KINDS:
         failure_cause = ""
-    if failure_cause != workorder.failure_cause:
-        workorder.failure_cause = failure_cause
-        workorder.save(update_fields=["failure_cause"])
+    # Codici guasto (facoltativi): una causa che coincide con uno dei sei valori
+    # storici aggiorna anche il campo legacy, che resta per i report esistenti.
+    from .failure_codes import legacy_cause_for
+
+    codes_allowed = workorder.kind in FAILURE_CAUSE_KINDS
+    workorder.failure_problem = data.failure_problem if codes_allowed else None
+    workorder.failure_cause_code = data.failure_cause_code if codes_allowed else None
+    workorder.failure_remedy = data.failure_remedy if codes_allowed else None
+    legacy = legacy_cause_for(workorder.failure_cause_code)
+    if legacy:
+        failure_cause = legacy
+    workorder.failure_cause = failure_cause
+    workorder.save(update_fields=["failure_cause", "failure_problem", "failure_cause_code", "failure_remedy"])
 
     execution_days = list(data.execution_days or ())
     workorder.execution_days.all().delete()
