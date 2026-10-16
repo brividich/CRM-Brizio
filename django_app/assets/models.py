@@ -66,6 +66,14 @@ class Asset(models.Model):
         (STATUS_IN_REPAIR, "In riparazione"),
         (STATUS_RETIRED, "Dismesso"),
     ]
+    # Tono del badge di stato (classe ``as-badge--<tono>``): definito solo qui,
+    # cosi' ogni pagina mostra la stessa etichetta con lo stesso colore.
+    STATUS_TONES = {
+        STATUS_IN_USE: "ok",
+        STATUS_IN_STOCK: "muted",
+        STATUS_IN_REPAIR: "danger",
+        STATUS_RETIRED: "warn",
+    }
 
     asset_tag = models.CharField(max_length=32, unique=True)
     internal_number = models.CharField(max_length=64, blank=True, default="", db_index=True)
@@ -2688,6 +2696,52 @@ class WorkOrder(models.Model):
         covered_by_contract: bool | None = None,
         assistance_contract: "AssistanceContract" | None = None,
     ):
+        """Chiude (DONE) o annulla (CANCELED) l'intervento.
+
+        ``status=OPEN`` e' rifiutato: un "Non risolto" registra l'esito e i dati
+        dell'intervento ma lascia l'OdL aperto, e lo dice con
+        ``record_outcome_keep_open()``. Prima ``close(status=OPEN)`` passava e
+        "chiudere" poteva voler dire "lasciare aperto" senza che si vedesse.
+        """
+        if status == self.STATUS_OPEN:
+            raise ValueError(
+                "WorkOrder.close() non accetta lo stato OPEN: usa record_outcome_keep_open()."
+            )
+        self._apply_closure_data(
+            status=status,
+            closed_at=closed_at,
+            resolution=resolution,
+            downtime=downtime,
+            cost=cost,
+            labor_cost=labor_cost,
+            materials_cost=materials_cost,
+            intervention_duration=intervention_duration,
+            covered_by_contract=covered_by_contract,
+            assistance_contract=assistance_contract,
+        )
+
+    def record_outcome_keep_open(self, **kwargs) -> None:
+        """Registra i dati di chiusura (durata, fermo, costi, risoluzione) lasciando
+        l'intervento aperto: e' il percorso "Non risolto". Stessi argomenti di
+        ``close()`` tranne ``status`` e ``closed_at``."""
+        kwargs.pop("status", None)
+        kwargs.pop("closed_at", None)
+        self._apply_closure_data(status=self.STATUS_OPEN, closed_at=None, **kwargs)
+
+    def _apply_closure_data(
+        self,
+        *,
+        status: str,
+        closed_at=None,
+        resolution: str = "",
+        downtime: int | None = None,
+        cost: Decimal | None = None,
+        labor_cost: Decimal | None = None,
+        materials_cost: Decimal | None = None,
+        intervention_duration: int | None = None,
+        covered_by_contract: bool | None = None,
+        assistance_contract: "AssistanceContract" | None = None,
+    ):
         self.status = status
         self.closed_at = (closed_at or timezone.now()) if status != self.STATUS_OPEN else None
         if status == self.STATUS_DONE and not self.started_at:
@@ -3949,7 +4003,7 @@ class MaintenanceOccurrence(models.Model):
 
     @property
     def has_attachment(self) -> bool:
-        return self.attachments.exists()
+        return occurrence_has_attachments(self)
 
     def days_until_due(self, reference_date=None) -> int | None:
         if not self.due_date:
@@ -3988,6 +4042,19 @@ class MaintenanceOccurrencePostponement(models.Model):
 
     def __str__(self) -> str:
         return f"Rinvio<{self.occurrence_id}: {self.from_date} -> {self.to_date}>"
+
+
+def occurrence_has_attachments(occurrence) -> bool:
+    """True se l'occorrenza ha almeno un allegato.
+
+    ``attachments.exists()`` va sempre a DB e ignora il ``prefetch_related``
+    delle liste: in "Da fare" e nello Scadenzario era una query per riga. Se gli
+    allegati sono gia' prefetchati si legge la cache; altrimenti si interroga il DB.
+    """
+    cache = getattr(occurrence, "_prefetched_objects_cache", None) or {}
+    if "attachments" in cache:
+        return bool(occurrence.attachments.all())
+    return occurrence.attachments.exists()
 
 
 def _occurrence_attachment_upload_to(instance, filename: str) -> str:

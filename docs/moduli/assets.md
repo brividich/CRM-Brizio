@@ -129,7 +129,23 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
   - **Documenti: video .avi e cartelle grandi** — formati ammessi: PDF, Word, Excel, CSV, JPG/PNG/WEBP, `.msg`, `.avi` (MIME reale verificato; `accept` del campo generato da `ASSET_DOCUMENT_ALLOWED_EXTENSIONS`). La scheda invia file e cartelle a lotti (~80 MB / 200 file per richiesta, sotto `maxAllowedContentLength` di IIS) con `Accept: application/json` (`{"saved", "errors"}`); cartelle trascinate lette ricorsivamente con il percorso relativo; i file non validi sono scartati ed elencati senza bloccare gli altri (anche senza JS).
   - **Dismetti / Riattiva / Elimina** (menu «Altro» della scheda, POST `retire_asset` / `reactivate_asset` / `delete_asset` su `asset_view`): permessi `legacy.assets.asset_retire` e `legacy.assets.asset_delete` (migrazione 0133, grant attivo ai ruoli legacy con «manutenz/manutent» nel nome), oltre agli amministratori del modulo; con il sistema dei ruoli decide la matrice («modificare» / «cancellare» su tutti). «Elimina» solo senza storico (`services/ciclo_vita_asset.blocchi_eliminazione`: blocca ogni relazione non descrittiva, nuove comprese); snapshot in audit `delete_asset`.
 
+## Ticket e interventi
+
+Un intervento (OdL) creato da una segnalazione di manutenzione (pulsante «Crea intervento» del ticket, `tickets:api_crea_workorder`) nasce con **origine «Da ticket»** (`WorkOrder.ORIGIN_TICKET`; prima restava «Manuale») e, se la segnalazione era «Aperta», la porta a **«In carico»** con nota «Creato intervento #N» nel log del ticket. La migrazione `assets 0134` corregge l'origine degli OdL già esistenti con ticket collegato.
+
+Nella pagina **Chiudi intervento** (`/assets/workorders/close/<id>/`, pulsante «Registra intervento»), se l'OdL ha una segnalazione ancora aperta (Aperta, In carico, In attesa) e chi chiude può gestirla (stessa regola delle API ticket: gestore del tipo MAN/IT o admin), compare la casella **«Segna anche la segnalazione <numero> come Risolta»**: si spunta da sola scegliendo l'esito «Risolto» e vale solo con quell'esito. «Risolto temporaneamente» e «Non risolto» non toccano il ticket, e il log dell'intervento lo scrive. Chi non può gestire il ticket non vede la casella: la segnalazione resta com'è. Se l'OdL non indica il fermo e la segnalazione sì (`ore_fermo_macchina`), il fermo del form parte da quel valore (ore × 60), modificabile.
+
+Il cambio di stato del ticket passa da un unico service (`tickets/services/stato.py`, `cambia_stato_ticket`), lo stesso usato dall'API `tickets:api_stato`: log strutturato, commento interno automatico e sincronizzazione SharePoint a transazione confermata.
+
+**Chiusura atomica** (`assets/services/workorder_close.py`, `close_workorder`): chiusura, causa del guasto, giorni di esecuzione, esito, intervento di follow-up, allegati, log e ticket si scrivono in un'unica transazione con lock sulla riga dell'OdL. Se un passo fallisce non resta nulla a metà (né righe né file); un doppio invio del form trova l'intervento già chiuso e lo dice («risulta già chiuso: nessuna modifica registrata»). `WorkOrder.close()` rifiuta lo stato aperto: il «Non risolto» usa `record_outcome_keep_open()`. Anche la registrazione di una manutenzione con rapporto allegato è atomica: se la registrazione viene rifiutata, l'allegato non resta.
+
+**Badge di stato unico**: lo stato dell'asset si mostra ovunque con il tag `{% asset_status_badge asset %}` (`assets/components/_status_badge.html`, CSS `assets/css/status_badge.css`): sempre l'etichetta del modello (In uso, In magazzino, In riparazione, Dismesso) e un solo colore per stato (`Asset.STATUS_TONES`). La lista asset non scrive più «Critico»/«Inattivo».
+
+**KPI della lista asset**: «Salute asset» = percentuale di asset non in riparazione, con giudizio Buona (≥ 90%), Da monitorare (70-89%), Critica (< 70%); la barra «Manutenzioni in scadenza» è la quota reale di interventi aperti da oltre la soglia sul totale degli aperti (il denominatore è nel tooltip, es. «1 su 4 interventi aperti»). «Rischio conformità» somma asset in riparazione e interventi aperti, unità diverse: mostra il numero e il dettaglio, senza barra.
+
 ## Note di rilascio
+
+Ticket ↔ intervento e chiusura atomica (ottobre 2026): dopo il deploy `migrate assets` (0134, backfill dell'origine «Da ticket» degli OdL già collegati a un ticket; il numero corretto viene stampato dalla migrazione). Nessuna nuova tabella.
 
 Dopo il deploy: `migrate assets` (0133). Verificare in Accessi che il ruolo della manutenzione abbia «Assets - Dismetti / riattiva asset» e «Assets - Elimina asset (senza storico)»; se il nome del ruolo non contiene «manutenz»/«manutent» il grant va dato a mano.
 

@@ -30,6 +30,7 @@ from ..models import (
     MaintenancePlanAssignment,
     WorkOrder,
     WorkOrderLog,
+    occurrence_has_attachments,
 )
 from .recurrence import (
     ANCHOR_FIXED_CALENDAR,
@@ -626,9 +627,11 @@ def occurrence_view_state(occurrence: MaintenanceOccurrence, *, today: date | No
         # "Lavoro eseguito" e "pratica completa" sono due cose diverse: tra
         # l'intervento del fornitore e l'arrivo del rapportino l'occorrenza non e'
         # ancora chiusa a norma.
-        if occurrence.attachment_required and not occurrence.attachments.exists():
+        # Lista con prefetch degli allegati: niente query per riga.
+        has_attachments = occurrence_has_attachments(occurrence)
+        if occurrence.attachment_required and not has_attachments:
             return MaintenanceOccurrence.VIEW_REPORT_MISSING
-        if occurrence.is_external and occurrence.report_received_at is None and not occurrence.attachments.exists():
+        if occurrence.is_external and occurrence.report_received_at is None and not has_attachments:
             return MaintenanceOccurrence.VIEW_REPORT_MISSING
         return MaintenanceOccurrence.VIEW_COMPLETED
 

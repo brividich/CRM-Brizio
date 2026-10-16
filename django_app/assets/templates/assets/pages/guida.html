@@ -27,6 +27,8 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
   <nav class="ag-toc" aria-label="Indice della guida">
     <strong>In questa guida</strong>
     <a href="#rinvio">Rinvio di una manutenzione</a>
+    <a href="#ticket">Interventi nati da una segnalazione</a>
+    <a href="#stato">Stato dell'asset</a>
     <a href="#documenti">Documenti, cartelle e video</a>
     <a href="#dismetti">Dismettere o eliminare un asset</a>
     <a href="#qr">QR ed etichette</a>
@@ -60,6 +62,28 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Per annullare il rinvio riporta la data alla scadenza originale.</li>
       </ul>
       <p class="ag-note">Rinviare è riservato a chi pianifica la manutenzione, nel proprio reparto.</p>
+    </section>
+
+    <section class="ag-sec" id="ticket">
+      <h2>Interventi nati da una segnalazione</h2>
+      <p>Quando da una segnalazione di manutenzione (ticket) si crea l'intervento, l'intervento risulta <strong>«Da ticket»</strong> e la segnalazione, se era «Aperta», passa a <strong>«In carico»</strong> (nel suo storico compare «Creato intervento #…»).</p>
+      <ol>
+        <li>Apri l'intervento e premi <span class="ag-btn">Registra intervento</span> per chiuderlo.</li>
+        <li>Scegli l'esito <strong>«Risolto»</strong>: la casella <strong>«Segna anche la segnalazione … come Risolta»</strong> si spunta da sola. Togli la spunta se la segnalazione deve restare aperta.</li>
+        <li>Conferma: intervento chiuso e segnalazione «Risolto» insieme.</li>
+      </ol>
+      <ul>
+        <li>Con <strong>«Risolto temporaneamente»</strong> o <strong>«Non risolto»</strong> la segnalazione non cambia; nello storico dell'intervento è scritto che è rimasta invariata.</li>
+        <li>La casella compare solo a chi può gestire quella segnalazione (gestori dei ticket di manutenzione). Gli altri chiudono l'intervento e la segnalazione resta com'è.</li>
+        <li>Se l'intervento non indica il fermo macchina ma la segnalazione sì, il campo <strong>«Fermo impianto totale»</strong> parte da quello della segnalazione: correggilo se serve.</li>
+        <li>Se premi due volte «Conferma chiusura», il secondo invio non registra nulla: compare «risulta già chiuso».</li>
+      </ul>
+    </section>
+
+    <section class="ag-sec" id="stato">
+      <h2>Stato dell'asset</h2>
+      <p>Lo stato si legge allo stesso modo in lista, scheda, dispositivi IT e pagina del QR: <strong>In uso</strong> (verde), <strong>In magazzino</strong> (grigio), <strong>In riparazione</strong> (rosso), <strong>Dismesso</strong> (giallo).</p>
+      <p>In cima alla lista asset: <strong>«Salute asset»</strong> è la percentuale di asset non in riparazione — <strong>Buona</strong> da 90%, <strong>Da monitorare</strong> fra 70% e 89%, <strong>Critica</strong> sotto 70%. La barra di <strong>«Manutenzioni in scadenza»</strong> mostra quanti interventi aperti sono oltre la soglia di ritardo sul totale degli aperti: passa il mouse sulla barra per leggere i numeri (es. «1 su 4 interventi aperti»). <strong>«Rischio conformità»</strong> somma asset in riparazione e interventi aperti e non ha barra.</p>
     </section>
 
     <section class="ag-sec" id="documenti">

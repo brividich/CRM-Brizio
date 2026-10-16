@@ -24,6 +24,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Max, Q, Value, When
 from django.db.models.functions import TruncMonth
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -1544,6 +1545,51 @@ def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) ->
     return {"previous": previous, "same_asset_open": same_asset, "contract": contracts[0] if contracts else None}
 
 
+def _complete_with_attachment(
+    occurrence: MaintenanceOccurrence,
+    *,
+    user,
+    upload=None,
+    shared_attachment=None,
+    before_complete=None,
+    **complete_kwargs,
+):
+    """Allegato e completamento di un'occorrenza in un'unica transazione.
+
+    Prima l'allegato si creava fuori dalla transazione di ``complete_occurrence``:
+    se il completamento falliva restava un allegato su una manutenzione mai
+    registrata. Ora o passano entrambi o nessuno; il file scritto sullo storage
+    da ``upload`` viene rimosso se la transazione si annulla. ``shared_attachment``
+    riusa il file di un altro allegato (stessa uscita): quello non si cancella.
+    Ritorna ``(occorrenza successiva, allegato creato)``.
+    """
+    created = None
+    try:
+        with transaction.atomic():
+            if upload is not None:
+                created = MaintenanceOccurrenceAttachment.objects.create(
+                    occurrence=occurrence, file=upload, uploaded_by=user
+                )
+            elif shared_attachment is not None:
+                created = MaintenanceOccurrenceAttachment.objects.create(
+                    occurrence=occurrence,
+                    file=shared_attachment.file.name,
+                    original_name=shared_attachment.original_name,
+                    uploaded_by=user,
+                )
+            if before_complete is not None:
+                before_complete()
+            following = domain.complete_occurrence(occurrence, user=user, **complete_kwargs)
+    except Exception:
+        if upload is not None and created is not None:
+            try:
+                created.file.delete(save=False)
+            except Exception:  # pragma: no cover - lo storage non deve coprire l'errore vero
+                logger.exception("Allegato occorrenza %s: file non rimosso dopo il rollback", occurrence.pk)
+        raise
+    return following, created
+
+
 def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attachment=None) -> list:
     """Registra insieme alla principale le altre manutenzioni della stessa macchina
     spuntate in «Registra» (stessa uscita): stessa data e stesse note; il fermo
@@ -1559,18 +1605,12 @@ def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attac
     )
     done, failed = [], []
     for other in others:
-        if first_attachment is not None:
-            MaintenanceOccurrenceAttachment.objects.create(
-                occurrence=other,
-                file=first_attachment.file.name,
-                original_name=first_attachment.original_name,
-                uploaded_by=request.user,
-            )
         try:
-            domain.complete_occurrence(
+            _complete_with_attachment(
                 other,
-                completed_on=form.cleaned_data["completed_on"],
                 user=request.user,
+                shared_attachment=first_attachment,
+                completed_on=form.cleaned_data["completed_on"],
                 notes=form.cleaned_data.get("notes") or "",
             )
         except domain.OccurrenceCompletionError as exc:
@@ -2300,14 +2340,14 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
             # Lo stesso rapporto vale per tutte: il file viene riletto da capo
             # per ogni allegato, altrimenti dal secondo in poi si salva vuoto.
             upload.seek(0)
-            MaintenanceOccurrenceAttachment.objects.create(
-                occurrence=occurrence, file=upload, uploaded_by=request.user
-            )
         try:
-            domain.complete_occurrence(
+            # Allegato e chiusura insieme: una che fallisce non lascia allegati
+            # orfani e non annulla le altre.
+            _complete_with_attachment(
                 occurrence,
-                completed_on=completed_on,
                 user=request.user,
+                upload=upload or None,
+                completed_on=completed_on,
                 notes=notes,
                 downtime_minutes=downtime,
             )
@@ -2335,7 +2375,6 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
     return redirect("assets:wo_view", id=workorder_id)
 
 
-@login_required
 def _safe_back_url(request: HttpRequest, fallback: str) -> str:
     """Dove tornare dopo un'azione: ``next`` esplicito, altrimenti la pagina da cui
     si e' arrivati (stesso host). Mai un URL esterno."""
@@ -2350,6 +2389,7 @@ def _safe_back_url(request: HttpRequest, fallback: str) -> str:
     return fallback
 
 
+@login_required
 def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Chiusura di una singola manutenzione: ogni asset avanza per conto suo.
 
@@ -2370,20 +2410,21 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
         form = OccurrenceCompletionForm(request.POST, request.FILES, occurrence=occurrence)
         if form.is_valid():
             upload = form.cleaned_data.get("attachment")
-            new_attachment = None
-            if upload:
-                new_attachment = MaintenanceOccurrenceAttachment.objects.create(
-                    occurrence=occurrence, file=upload, uploaded_by=request.user
-                )
             report_received = form.cleaned_data.get("report_received_at")
-            if report_received:
-                occurrence.report_received_at = report_received
-                occurrence.save(update_fields=["report_received_at", "updated_at"])
+
+            def _save_report_received():
+                if report_received:
+                    occurrence.report_received_at = report_received
+                    occurrence.save(update_fields=["report_received_at", "updated_at"])
+
+            new_attachment = None
             try:
-                following = domain.complete_occurrence(
+                following, new_attachment = _complete_with_attachment(
                     occurrence,
-                    completed_on=form.cleaned_data["completed_on"],
                     user=request.user,
+                    upload=upload or None,
+                    before_complete=_save_report_received,
+                    completed_on=form.cleaned_data["completed_on"],
                     notes=form.cleaned_data.get("notes") or "",
                     downtime_minutes=form.cleaned_data.get("downtime_minutes"),
                 )

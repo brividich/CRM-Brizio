@@ -172,6 +172,19 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
               <div class="woc-note">Verrà creato automaticamente un nuovo intervento di follow-up collegato a questa scadenza.</div>
               {% if form.follow_up_date.errors %}<div class="woc-error">{{ form.follow_up_date.errors }}</div>{% endif %}
             </div>
+            {% if form.resolve_ticket %}
+            {% comment %}Segnalazione collegata ancora aperta: compare solo a chi puo' gestire quel ticket. Spuntata quando l'esito e' «Risolto».{% endcomment %}
+            <div class="woc-field woc-field--full woc-field--check" id="wocResolveTicketField">
+              <label class="woc-check" for="{{ form.resolve_ticket.id_for_label }}">
+                {{ form.resolve_ticket }}
+                <span>{{ form.resolve_ticket.label }}</span>
+              </label>
+              <div class="woc-note">{{ form.resolve_ticket.help_text }}</div>
+              {% if form.resolve_ticket.errors %}<div class="woc-error">{{ form.resolve_ticket.errors }}</div>{% endif %}
+            </div>
+            {% elif linked_ticket %}
+            <div class="woc-field woc-field--full"><div class="woc-note">Segnalazione collegata: {{ linked_ticket.numero_ticket }} ({{ linked_ticket.get_stato_display }}). Chiudere l'intervento non la modifica.</div></div>
+            {% endif %}
           </div>
         </section>
 
@@ -205,6 +218,7 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
                 </div>
                 {% if form.downtime_hours.errors %}<div class="woc-error">{{ form.downtime_hours.errors }}</div>{% endif %}
                 {% if form.downtime_remainder.errors %}<div class="woc-error">{{ form.downtime_remainder.errors }}</div>{% endif %}
+                {% if ticket_downtime_prefilled %}<div class="woc-note">Precompilato dal fermo indicato nella segnalazione {{ workorder.ticket.numero_ticket }}: correggilo se serve.</div>{% endif %}
               </div>
             </div>
           </div>
@@ -338,6 +352,19 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
     const isClosing=statusField.value!=="CANCELED";
     esitoField.hidden=!isClosing;
     if(followUpField)followUpField.hidden=!isClosing||selectedEsito()!=="RESOLVED_TEMP";
+    syncResolveTicket();
+  }
+  // Casella di risoluzione del ticket collegato: vale solo con esito Risolto.
+  // Si spunta da sola quando si sceglie Risolto (finche' l'utente non la tocca).
+  const resolveTicketBox=document.getElementById("id_resolve_ticket");
+  let resolveTicketTouched=false;
+  if(resolveTicketBox)resolveTicketBox.addEventListener("change",function(){resolveTicketTouched=true;});
+  function syncResolveTicket(){
+    if(!resolveTicketBox)return;
+    const allowed=statusField&&statusField.value!=="CANCELED"&&selectedEsito()==="RESOLVED";
+    resolveTicketBox.disabled=!allowed;
+    if(!allowed){resolveTicketBox.checked=false;}
+    else if(!resolveTicketTouched){resolveTicketBox.checked=true;}
   }
 
   const initialDays=daysHidden&&daysHidden.value?daysHidden.value.split(",").filter(Boolean):[];

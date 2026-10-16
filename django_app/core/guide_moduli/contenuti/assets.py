@@ -26,6 +26,8 @@ GUIDA = {
             "blocchi": [
                 ("p", "Per un guasto apri un ticket di manutenzione (modulo Ticket, «+ Ticket MAN») scegliendo la macchina, "
                       "oppure dal QR della macchina."),
+                ("p", "Quando il manutentore crea l'intervento la segnalazione passa a «In carico»; chiudendo l'intervento "
+                      "con esito «Risolto» può segnarla anche come «Risolto»."),
             ],
         },
         {
@@ -35,6 +37,10 @@ GUIDA = {
                 ("ul", [
                     "«Manutenzione» mostra lo scadenzario unico, dal più urgente.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
+                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
+                    "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
+                    "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "
+                    "indicato nella segnalazione.",
                     "Una manutenzione che non si riesce a fare in tempo si rinvia («Rinvia» nella pagina «Registra», "
                     "o trascinandola nel Calendario): la scadenza originale resta e, eseguita, la successiva riparte "
                     "dalla data di esecuzione.",
@@ -92,6 +98,20 @@ GUIDA = {
             "fare": [
                 "Leggi l'elenco sotto il riquadro: formato non ammesso, file oltre il limite o vuoto.",
                 "Converti i file (es. video in .avi o documenti in PDF) e caricali di nuovo.",
+            ],
+        },
+        {
+            "sintomo": "Chiudendo l'intervento non compare «Segna anche la segnalazione come Risolta»",
+            "fare": [
+                "La casella compare solo se la segnalazione è ancora aperta e solo a chi gestisce i ticket di manutenzione.",
+                "Chiudi l'intervento e chiedi a un gestore dei ticket di risolvere la segnalazione dal modulo Ticket.",
+            ],
+        },
+        {
+            "sintomo": "Chiudendo un intervento compare «risulta già chiuso: nessuna modifica registrata»",
+            "fare": [
+                "Il modulo era stato inviato due volte: la prima chiusura è valida, la seconda è stata ignorata.",
+                "Apri l'intervento per controllare esito e storico.",
             ],
         },
         {

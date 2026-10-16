@@ -1383,15 +1383,9 @@ def _asset_administrative_deadline_state(
 
 
 def _asset_status_payload(asset: Asset) -> dict[str, str]:
-    if asset.status == Asset.STATUS_IN_USE:
-        badge_class = "ok"
-    elif asset.status == Asset.STATUS_IN_REPAIR:
-        badge_class = "danger"
-    else:
-        badge_class = "muted"
     return {
         "label": asset.get_status_display(),
-        "badge_class": badge_class,
+        "badge_class": Asset.STATUS_TONES.get(asset.status, "muted"),
     }
 
 
@@ -8944,6 +8938,12 @@ def asset_part_145_export_excel(request: HttpRequest) -> HttpResponse:
     return resp
 
 
+# Soglie del sottotitolo «Salute asset» nella lista (percentuale di asset non in
+# riparazione): >= 90 Buona, 70-89 Da monitorare, < 70 Critica.
+ASSET_HEALTH_GOOD_MIN = 90
+ASSET_HEALTH_WATCH_MIN = 70
+
+
 @login_required
 def asset_list(request: HttpRequest) -> HttpResponse:
     can_manage_custom_fields = _is_assets_admin(request)
@@ -9295,12 +9295,25 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     ).count()
     work_machine_total = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
 
+    # Salute = quota di asset NON in riparazione sul totale filtrato; rischio =
+    # asset in riparazione + OdL aperti (unita' diverse: niente barra, solo numero).
     health_percent = 0.0
     in_use_percent = 0.0
     if total_assets > 0:
         health_percent = max(0.0, round((1 - (in_repair_count / total_assets)) * 100, 1))
         in_use_percent = max(0.0, min(100.0, round((in_use_count / total_assets) * 100, 1)))
     risk_count = in_repair_count + open_wo_count
+    if health_percent >= ASSET_HEALTH_GOOD_MIN:
+        health_label = "Buona"
+    elif health_percent >= ASSET_HEALTH_WATCH_MIN:
+        health_label = "Da monitorare"
+    else:
+        health_label = "Critica"
+    if not total_assets:
+        health_label = "Nessun asset"
+    # Manutenzioni in scadenza = OdL aperti da oltre la soglia di ritardo: il
+    # denominatore e' il totale degli OdL aperti dello stesso perimetro.
+    due_percent = round(maintenance_due_count / open_wo_count * 100, 1) if open_wo_count else 0.0
 
     phase_1_count = Asset.objects.filter(
         asset_type__in=[
@@ -9434,6 +9447,9 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "admin_checks": admin_checks,
             "table_colspan": 7 + len(custom_fields),
             "health_percent": health_percent,
+            "health_label": health_label,
+            "due_percent": due_percent,
+            "open_wo_count": open_wo_count,
             "in_use_percent": in_use_percent,
             "risk_count": risk_count,
             "maintenance_due_count": maintenance_due_count,
@@ -17086,9 +17102,22 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
     if id is None:
         return redirect("assets:wo_list")
     workorder = get_object_or_404(
-        WorkOrder.objects.select_related("asset", "maintenance_rule", "assistance_contract", "assistance_contract__supplier"),
+        WorkOrder.objects.select_related(
+            "asset", "maintenance_rule", "assistance_contract", "assistance_contract__supplier", "ticket"
+        ),
         pk=id,
     )
+
+    # Segnalazione collegata ancora aperta: la si puo' risolvere insieme all'OdL,
+    # ma solo chi puo' gestire quel ticket (stessa regola delle API ticket).
+    from tickets.services.accesso import identita_utente, utente_puo_gestire_ticket
+
+    from .services.workorder_close import ticket_resolvable
+
+    linked_ticket = workorder.ticket if ticket_resolvable(workorder) else None
+    can_manage_ticket = bool(linked_ticket is not None and utente_puo_gestire_ticket(request, linked_ticket))
+    ticket_identity = identita_utente(request) if can_manage_ticket else ("", "")
+    form_ticket_kwargs = {"resolvable_ticket": linked_ticket if can_manage_ticket else None}
 
     # Manutenzioni raccolte e non ancora registrate: la chiusura non le tocca (ogni
     # asset avanza sul suo piano quando *quella* manutenzione e' dichiarata eseguita),
@@ -17103,7 +17132,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
     can_force_close = can_plan_maintenance(request)
 
     if request.method == "POST":
-        form = WorkOrderCloseForm(request.POST, asset=workorder.asset, workorder=workorder)
+        form = WorkOrderCloseForm(request.POST, asset=workorder.asset, workorder=workorder, **form_ticket_kwargs)
         uploads, upload_errors = _validate_workorder_attachment_uploads(request, field_name="close_attachments")
         form_is_valid = form.is_valid()
         for error in upload_errors:
@@ -17130,203 +17159,77 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                             None,
                             "Spiega perche' chiudi l'intervento lasciando manutenzioni non registrate.",
                         )
-        if form_is_valid and form.cleaned_data["status"] == WorkOrder.STATUS_DONE:
-            blocking_items = [item for item in workorder.checklist_items.all() if item.blocks_closure]
-            if blocking_items:
-                labels = ", ".join(f"#{item.step_number} {item.description}" for item in blocking_items)
-                form.add_error(
-                    None,
-                    f"Completa o salta con motivazione gli step obbligatori della checklist prima di chiudere: {labels}.",
-                )
-                form_is_valid = False
         if form_is_valid and not upload_errors:
-            resolved_supplier = form.cleaned_data.get("resolved_supplier")
-            if resolved_supplier is not None and workorder.supplier_id is None:
-                workorder.supplier = resolved_supplier
-            assigned_to = form.cleaned_data.get("assigned_to")
-            executed_by = form.cleaned_data.get("executed_by")
-            previous_assignee_id = workorder.assigned_to_id
-            previous_assignee_label = (
-                workorder.assigned_to.get_full_name() or workorder.assigned_to.username
-                if workorder.assigned_to_id
-                else "nessuno"
+            from .services.workorder_close import (
+                CloseData,
+                RequestIdentity,
+                WorkOrderAlreadyClosed,
+                WorkOrderCloseError,
+                close_workorder,
             )
-            if assigned_to is not None:
-                workorder.assigned_to = assigned_to
-            # Coda condivisa: un intervento che nessuno aveva preso in carico si intesta
-            # a chi lo chiude. Senza questo, il lavoro fatto resterebbe di "nessuno" e lo
-            # storico non direbbe chi c'e' andato. La casella e' spuntata di default ma
-            # resta disattivabile: chi registra per conto di un altro non deve mentire.
-            claim_on_close = form.cleaned_data.get("claim_on_close")
-            if claim_on_close and workorder.assigned_to_id is None and request.user.is_authenticated:
-                workorder.assigned_to = request.user
-            if executed_by is not None:
-                workorder.executed_by = executed_by
-            # "Eseguito da" segue la stessa logica: se non e' stato dichiarato nessuno,
-            # chi chiude e' la risposta piu' probabile e comunque migliore del vuoto.
-            if claim_on_close and workorder.executed_by_id is None and request.user.is_authenticated:
-                workorder.executed_by = request.user
-            assignee_changed = workorder.assigned_to_id != previous_assignee_id
-            requested_status = form.cleaned_data["status"]
-            esito = form.cleaned_data.get("esito")
-            # "Non risolto" non deve mai risultare chiuso, nemmeno per un istante: se il
-            # WO fosse chiuso prima di riaprirlo, close()/sync_workorder_maintenance_state
-            # avanzerebbero la prossima scadenza su una manutenzione che non ha risolto nulla.
-            reopened_as_unresolved = (
-                requested_status == WorkOrder.STATUS_DONE and esito == WorkOrder.OUTCOME_NOT_RESOLVED
+
+            cleaned = form.cleaned_data
+            ticket_name, ticket_email = ticket_identity
+            close_data = CloseData(
+                status=cleaned["status"],
+                esito=cleaned.get("esito") or "",
+                closed_at=cleaned.get("closed_at"),
+                resolution=cleaned.get("resolution") or "",
+                intervention_duration=cleaned.get("intervention_duration_minutes"),
+                downtime=cleaned.get("downtime_minutes"),
+                labor_cost=cleaned.get("labor_cost_eur"),
+                materials_cost=cleaned.get("materials_cost_eur"),
+                cost=cleaned.get("cost_eur"),
+                covered_by_contract=cleaned.get("covered_by_contract"),
+                assistance_contract=cleaned.get("assistance_contract"),
+                resolved_supplier=cleaned.get("resolved_supplier"),
+                failure_cause=cleaned.get("failure_cause") or "",
+                execution_days=tuple(cleaned.get("execution_days_list") or ()),
+                follow_up_date=cleaned.get("follow_up_date"),
+                log_note=_clean_string(cleaned.get("log_note")),
+                assigned_to=cleaned.get("assigned_to"),
+                executed_by=cleaned.get("executed_by"),
+                claim_on_close=bool(cleaned.get("claim_on_close")),
+                pending_occurrences_count=len(pending_occurrences),
+                pending_reason=pending_reason_value if pending_occurrences else "",
+                uploads=tuple(uploads),
+                resolve_ticket=bool(cleaned.get("resolve_ticket")),
             )
-            effective_status = WorkOrder.STATUS_OPEN if reopened_as_unresolved else requested_status
             try:
-                workorder.close(
-                    status=effective_status,
-                    closed_at=form.cleaned_data.get("closed_at"),
-                    resolution=form.cleaned_data.get("resolution") or "",
-                    intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
-                    downtime=form.cleaned_data.get("downtime_minutes"),
-                    labor_cost=form.cleaned_data.get("labor_cost_eur"),
-                    materials_cost=form.cleaned_data.get("materials_cost_eur"),
-                    cost=form.cleaned_data.get("cost_eur"),
-                    covered_by_contract=form.cleaned_data.get("covered_by_contract"),
-                    assistance_contract=form.cleaned_data.get("assistance_contract"),
+                result = close_workorder(
+                    workorder.pk,
+                    data=close_data,
+                    user=request.user,
+                    request_identity=RequestIdentity(
+                        name=ticket_name, email=ticket_email, can_manage_ticket=can_manage_ticket
+                    ),
                 )
+            except WorkOrderAlreadyClosed as exc:
+                # Doppio invio del form: la prima chiusura e' gia' passata.
+                messages.info(request, str(exc))
+                return redirect("assets:wo_view", id=workorder.id)
+            except WorkOrderCloseError as exc:
+                form.add_error(None, str(exc))
             except ValidationError as exc:
                 _add_form_validation_errors(form, exc)
             else:
-                failure_cause = form.cleaned_data.get("failure_cause") or ""
-                if workorder.kind not in (WorkOrder.KIND_CORRECTIVE, WorkOrder.KIND_SAFETY, WorkOrder.KIND_CALIBRATION):
-                    failure_cause = ""
-                if failure_cause != workorder.failure_cause:
-                    workorder.failure_cause = failure_cause
-                    workorder.save(update_fields=["failure_cause"])
-                execution_days = form.cleaned_data.get("execution_days_list") or []
-                workorder.execution_days.all().delete()
-                WorkOrderExecutionDay.objects.bulk_create(
-                    [
-                        WorkOrderExecutionDay(work_order=workorder, execution_date=execution_day)
-                        for execution_day in execution_days
-                    ]
-                )
-                # Lo stato del vecchio motore non viene piu' alimentato:
-                # l'ultima esecuzione si legge dalle occorrenze eseguite.
-
-                author = request.user if request.user.is_authenticated else None
-                follow_up_child = None
-                if reopened_as_unresolved:
-                    workorder.outcome = esito
-                    workorder.save(update_fields=["outcome"])
-                elif workorder.status == WorkOrder.STATUS_DONE and esito:
-                    outcome_fields = ["outcome"]
-                    workorder.outcome = esito
-                    if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
-                        workorder.follow_up_date = form.cleaned_data.get("follow_up_date")
-                        outcome_fields.append("follow_up_date")
-                    workorder.save(update_fields=outcome_fields)
-                    if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
-                        follow_up_child = WorkOrder.objects.create(
-                            asset=workorder.asset,
-                            supplier=workorder.supplier,
-                            maintenance_rule=workorder.maintenance_rule,
-                            kind=workorder.kind,
-                            origin=WorkOrder.ORIGIN_MANUAL,
-                            assigned_to=workorder.assigned_to,
-                            title=f"Follow-up: {workorder.title}",
-                            description=(
-                                f"Verifica di follow-up dell'intervento #{workorder.id}, "
-                                f"risolto temporaneamente il {timezone.localtime(workorder.closed_at):%d/%m/%Y}."
-                            ),
-                            follow_up_of=workorder,
-                        )
-                        WorkOrderLog.objects.create(
-                            work_order=follow_up_child,
-                            note=f"Creato come follow-up dell'intervento #{workorder.id}.",
-                            author=author,
-                        )
-
-                log_note = _clean_string(form.cleaned_data.get("log_note"))
-                if workorder.status == WorkOrder.STATUS_DONE:
-                    closure_note = f"Intervento chiuso · esito: {workorder.get_outcome_display()}."
-                elif workorder.status == WorkOrder.STATUS_CANCELED:
-                    closure_note = "Intervento annullato."
-                else:
-                    closure_note = f"Intervento non risolto, resta aperto · esito: {workorder.get_outcome_display()}."
-                if follow_up_child is not None:
-                    closure_note = (
-                        f"{closure_note} Follow-up #{follow_up_child.id} creato "
-                        f"(verifica entro il {workorder.follow_up_date:%d/%m/%Y})."
-                    )
-                if assignee_changed:
-                    new_assignee_label = (
-                        workorder.assigned_to.get_full_name() or workorder.assigned_to.username
-                        if workorder.assigned_to_id
-                        else "nessuno"
-                    )
-                    closure_note = (
-                        f"{closure_note} Assegnatario aggiornato: {previous_assignee_label} → {new_assignee_label}."
-                    )
-                if execution_days:
-                    closure_note = f"{closure_note} Giorni esecuzione: {', '.join(day.strftime('%d/%m/%Y') for day in execution_days)}."
-                if pending_occurrences:
-                    closure_note = (
-                        f"{closure_note} Chiuso con {len(pending_occurrences)} manutenzioni "
-                        "raccolte non registrate, che restano dovute."
-                    )
-                    if pending_reason_value:
-                        closure_note = f"{closure_note} Motivo: {pending_reason_value}"
-                if log_note:
-                    closure_note = f"{closure_note} {log_note}"
-                if uploads:
-                    created_attachments = _save_workorder_attachments(
-                        workorder=workorder,
-                        uploads=uploads,
-                        user=request.user,
-                    )
-                    closure_note = f"{closure_note} Allegati caricati: {len(created_attachments)}."
-                WorkOrderLog.objects.create(
-                    work_order=workorder,
-                    note=closure_note,
-                    author=author,
-                )
-                if workorder.status == WorkOrder.STATUS_DONE:
-                    success_message = "Intervento chiuso."
-                elif workorder.status == WorkOrder.STATUS_CANCELED:
-                    success_message = "Intervento annullato."
-                else:
-                    success_message = "Intervento registrato come non risolto: resta aperto."
-                if follow_up_child is not None:
-                    success_message = f"{success_message} Creato il follow-up #{follow_up_child.id}."
-                messages.success(request, success_message)
-                # Chiudere l'intervento non registra le manutenzioni raccolte: ogni
-                # asset avanza sul suo piano quando *quella* manutenzione viene
-                # dichiarata eseguita. Se l'OdL si chiude e restano occorrenze
-                # aperte, la scadenza resta scaduta: va detto qui, non scoperto
-                # una settimana dopo davanti a una lista che non si e' svuotata.
-                if workorder.status in (WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED):
-                    from .models import MaintenanceOccurrence
-
-                    aperte = MaintenanceOccurrence.objects.filter(
-                        work_order=workorder, status=MaintenanceOccurrence.STATUS_OPEN
-                    ).count()
-                    if aperte == 1:
-                        messages.warning(
-                            request,
-                            "Una manutenzione raccolta in questo intervento non risulta "
-                            "registrata: la sua scadenza resta aperta. Registrala dal "
-                            "pannello \u00abManutenzioni raccolte\u00bb.",
-                        )
-                    elif aperte:
-                        messages.warning(
-                            request,
-                            f"{aperte} manutenzioni raccolte in questo intervento non "
-                            "risultano registrate: le loro scadenze restano aperte. "
-                            "Registrale dal pannello \u00abManutenzioni raccolte\u00bb.",
-                        )
+                for text in result.messages:
+                    messages.success(request, text)
+                for text in result.warnings:
+                    messages.warning(request, text)
                 return redirect("assets:wo_view", id=workorder.id)
     else:
+        # Fermo: se l'OdL non lo dice ma la segnalazione si', si parte da quello
+        # dichiarato sul ticket (ore -> minuti). Resta modificabile.
+        initial_downtime = workorder.downtime_minutes
+        ticket_hours = getattr(workorder.ticket, "ore_fermo_macchina", None) if workorder.ticket_id else None
+        if not initial_downtime and ticket_hours:
+            initial_downtime = int(round(Decimal(ticket_hours) * 60))
         form = WorkOrderCloseForm(
             initial={
                 "status": WorkOrder.STATUS_DONE,
                 "intervention_duration_minutes": workorder.intervention_duration_minutes,
-                "downtime_minutes": workorder.downtime_minutes,
+                "downtime_minutes": initial_downtime,
                 "labor_cost_eur": workorder.labor_cost_eur,
                 "materials_cost_eur": workorder.materials_cost_eur,
                 "cost_eur": workorder.cost_eur,
@@ -17342,6 +17245,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             },
             asset=workorder.asset,
             workorder=workorder,
+            **form_ticket_kwargs,
         )
 
     return render(
@@ -17370,6 +17274,11 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "pending_reason_required": pending_reason_required,
             "pending_reason_value": pending_reason_value,
             "can_force_close": can_force_close,
+            "linked_ticket": linked_ticket,
+            "ticket_downtime_prefilled": bool(
+                request.method != "POST" and not workorder.downtime_minutes and workorder.ticket_id
+                and getattr(workorder.ticket, "ore_fermo_macchina", None)
+            ),
             "occurrences_anchor": f"{reverse('assets:wo_view', kwargs={'id': workorder.id})}#manutenzioni-raccolte",
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,

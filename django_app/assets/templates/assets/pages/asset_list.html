@@ -1,10 +1,12 @@
 {% extends "core/base.html" %}
 {% load safe_json %}
 {% load assets_extras %}
+{% load static %}
 
 {% block title %}Cruscotto inventario asset{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'assets/css/status_badge.css' %}">
 <style>
 .content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
 .dash { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
@@ -629,19 +631,19 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
     <section class="kpi widget-zone" data-zone="kpi" data-zone-label="KPI principali" data-axis="x">
       <article class="k widget-item" data-widget-id="kpi_total_assets" data-widget-title="Totale asset">
         <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-        <div class="kh">Totale asset</div><div class="kv">{{ total_assets }}</div><div class="ks">{{ in_use_count }} in uso</div><div class="bar"><div class="fill" style="width:{{ in_use_percent }}%"></div></div>
+        <div class="kh">Totale asset</div><div class="kv">{{ total_assets }}</div><div class="ks">{{ in_use_count }} in uso</div><div class="bar"><div class="fill" style="width:{{ in_use_percent|stringformat:'s' }}%"></div></div>
       </article>
       <article class="k widget-item" data-widget-id="kpi_health" data-widget-title="Salute asset">
         <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-        <div class="kh">Salute asset</div><div class="kv">{{ health_percent }}%</div><div class="ks">Ottimale</div><div class="bar"><div class="fill" style="width:{{ health_percent }}%;background:#22c55e"></div></div>
+        <div class="kh">Salute asset</div><div class="kv">{{ health_percent }}%</div><div class="ks">{{ health_label }}</div><div class="bar" title="{{ health_percent }}% degli asset non in riparazione ({{ total_assets }} asset)"><div class="fill" style="width:{{ health_percent|stringformat:'s' }}%;background:#22c55e"></div></div>
       </article>
       <article class="k widget-item" data-widget-id="kpi_risk" data-widget-title="Rischio conformita">
         <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-        <div class="kh">Rischio conformita</div><div class="kv">{{ risk_count }}</div><div class="ks">{% if risk_count %}Gravita alta{% else %}Nessuna anomalia{% endif %}</div><div class="bar"><div class="fill" style="width:{% if risk_count %}78{% else %}18{% endif %}%;background:#ef4444"></div></div>
+        <div class="kh">Rischio conformita</div><div class="kv">{{ risk_count }}</div><div class="ks">{% if risk_count %}{{ in_repair_count }} in riparazione · {{ open_wo_count }} interventi aperti{% else %}Nessuna anomalia{% endif %}</div>
       </article>
       <article class="k widget-item" data-widget-id="kpi_maintenance" data-widget-title="Manutenzioni in scadenza">
         <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-        <div class="kh">Manutenzioni in scadenza</div><div class="kv">{{ maintenance_due_count }}</div><div class="ks">+{{ assigned_count }} assegnati</div><div class="bar"><div class="fill" style="width:{% if maintenance_due_count %}72{% else %}20{% endif %}%;background:#f59e0b"></div></div>
+        <div class="kh">Manutenzioni in scadenza</div><div class="kv">{{ maintenance_due_count }}</div><div class="ks">+{{ assigned_count }} assegnati</div><div class="bar" data-kpi-bar="due" title="{{ maintenance_due_count }} su {{ open_wo_count }} interventi aperti"><div class="fill" style="width:{{ due_percent|stringformat:'s' }}%;background:#f59e0b"></div></div>
       </article>
     </section>
 
@@ -758,7 +760,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
                 <tr class="r assets-row-link" data-href="{% url 'assets:asset_view' asset.id %}" data-asset-id="{{ asset.id }}">
                   <td><input type="checkbox" class="row-select-cb" value="{{ asset.id }}"></td>
                   <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{% if asset.snmp_dot %}<span class="dot snmp-dot {{ asset.snmp_dot.css }}" title="{{ asset.snmp_dot.title }}" aria-label="{{ asset.snmp_dot.title }}" role="img"></span>{% endif %}{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}{% if asset.internal_number %} &middot; N.{{ asset.internal_number }}{% endif %}</div></div></div></td>
-                  <td data-col="status">{% if asset.status == "IN_USE" %}<span class="st ok">In uso</span>{% elif asset.status == "IN_REPAIR" %}<span class="st er">Critico</span>{% elif asset.status == "IN_STOCK" %}<span class="st id">Inattivo</span>{% else %}<span class="st wg">{{ asset.get_status_display }}</span>{% endif %}</td>
+                  <td data-col="status">{% asset_status_badge asset %}</td>
                   <td data-col="category"><div class="cell-main"><div class="cell-title">{{ asset.category_label }}</div><div class="cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
                   <td data-col="assigned">{% if asset.assignment_to %}<div class="cell-main"><div class="cell-title">{{ asset.assignment_to }}</div><div class="cell-sub">{{ asset.assignment_reparto|default:"-" }}</div></div>{% else %}<span class="cell-muted">Non assegnato</span>{% endif %}</td>
                   <td data-col="assignment_location"><div class="cell-main"><div class="cell-title">{% firstof asset.assignment_location asset.reparto "-" %}</div><div class="cell-sub">{{ asset.reparto|default:"-" }}</div></div></td>

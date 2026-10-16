@@ -55,6 +55,8 @@ from core import naming
 from core.upload_limits import DOCUMENT_MAX_BYTES
 
 from .registro_permessi import MODULO_PER_TIPO
+from .services.accesso import utente_puo_gestire_ticket
+from .services.stato import cambia_stato_ticket
 
 logger = logging.getLogger(__name__)
 
@@ -537,8 +539,7 @@ def _api_require_ticket_access(request, ticket: Ticket):
 
     Ritorna ``JsonResponse`` 403 se l'accesso è negato, altrimenti ``None``.
     """
-    access = _ticket_access_flags(request, ticket)
-    if access["is_gestore"] or access["is_admin"]:
+    if utente_puo_gestire_ticket(request, ticket):
         return None
     return _json_err("Accesso non consentito a questo ticket.", status=403)
 
@@ -1930,66 +1931,16 @@ def api_stato(request):
     denied = _api_require_ticket_access(request, ticket)  # SEC: gestore del TIPO specifico
     if denied is not None:
         return denied
-    vecchio = ticket.stato
-    ticket.stato = nuovo_stato
-    now = tz_now()
-
-    if nuovo_stato in (StatoTicket.CHIUSO, StatoTicket.ANNULLATO, StatoTicket.RISOLTO):
-        if not ticket.closed_at:
-            ticket.closed_at = now
-    else:
-        ticket.closed_at = None
-
-    # Analytics: registra data_presa_in_carico al primo passaggio IN_CARICO
-    update_fields = ["stato", "closed_at", "updated_at"]
     name, email, _ = _legacy_identity(request)
-
-    if nuovo_stato == StatoTicket.IN_CARICO and not ticket.data_presa_in_carico:
-        ticket.data_presa_in_carico = now
-        update_fields.append("data_presa_in_carico")
-
-    # Data prevista risoluzione quando messo IN_ATTESA
-    if nuovo_stato == StatoTicket.IN_ATTESA and data_prevista:
-        try:
-            ticket.data_prevista_risoluzione = datetime.strptime(data_prevista, "%Y-%m-%d").date()
-            update_fields.append("data_prevista_risoluzione")
-        except ValueError:
-            pass
-
-    # Analytics: chi ha risolto
-    if nuovo_stato == StatoTicket.RISOLTO and not ticket.risolto_da_nome:
-        ticket.risolto_da_nome = name
-        update_fields.append("risolto_da_nome")
-
-    ticket.save(update_fields=update_fields)
-
-    # Log strutturato cambio stato
-    TicketStatoLog.objects.create(
-        ticket=ticket,
-        da_stato=vecchio,
-        a_stato=nuovo_stato,
+    cambia_stato_ticket(
+        ticket,
+        nuovo_stato,
         utente_nome=name,
         utente_email=email,
         nota=nota,
+        data_prevista=data_prevista,
     )
-
-    # Commento automatico cambio stato
     label_stato = dict(StatoTicket.choices).get(nuovo_stato, nuovo_stato)
-    testo_auto  = f"Stato aggiornato: {dict(StatoTicket.choices).get(vecchio, vecchio)} → {label_stato}"
-    if nota:
-        testo_auto += f"\n{nota}"
-    TicketCommento.objects.create(
-        ticket=ticket,
-        autore_nome=name,
-        autore_email=email,
-        testo=testo_auto,
-        is_interno=True,
-    )
-
-    try:
-        _update_ticket_sharepoint(ticket)
-    except Exception:
-        logger.exception("Ticket %s: sincronizzazione SharePoint fallita", ticket.pk)
 
     return JsonResponse({"ok": True, "stato": nuovo_stato, "label": label_stato})
 
@@ -3056,14 +3007,29 @@ def api_crea_workorder_da_ticket(request):
     title       = (payload.get("title") or ticket.titolo).strip()[:255]
     description = (payload.get("description") or ticket.descrizione).strip()
 
-    wo = WorkOrder.objects.create(
-        asset=ticket.asset,
-        ticket=ticket,
-        supplier=ticket.delegato_fornitore,
-        kind=WorkOrder.KIND_CORRECTIVE,
-        title=title,
-        description=description,
-    )
+    from django.db import transaction
+
+    with transaction.atomic():
+        wo = WorkOrder.objects.create(
+            asset=ticket.asset,
+            ticket=ticket,
+            supplier=ticket.delegato_fornitore,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            origin=WorkOrder.ORIGIN_TICKET,
+            title=title,
+            description=description,
+        )
+        # Aprire l'intervento vuol dire prendere in carico la segnalazione: senza
+        # questo il ticket restava «Aperta» con un OdL gia' al lavoro.
+        if ticket.stato == StatoTicket.APERTA:
+            name, email, _ = _legacy_identity(request)
+            cambia_stato_ticket(
+                ticket,
+                StatoTicket.IN_CARICO,
+                utente_nome=name,
+                utente_email=email,
+                nota=f"Creato intervento #{wo.pk}",
+            )
 
     wo_url = reverse("assets:wo_view", args=[wo.pk])
     return JsonResponse({
