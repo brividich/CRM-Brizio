@@ -47,8 +47,8 @@ def _txt(value, max_len: int) -> str:
 
 
 def _mail_mode(value) -> str:
-    value = str(value or "").strip().lower()
-    return value if value in AnomaliaControllo.MailMode.values else AnomaliaControllo.MailMode.SUBITO
+    """Dal 16/10/2026 la mail parte solo a fine controllo, qualunque cosa chieda la pagina."""
+    return AnomaliaControllo.MailMode.FINE
 
 
 def _get_controllo(request, pk: int):
@@ -95,8 +95,33 @@ def api_controllo_dettaglio(request, pk: int):
     return JsonResponse({
         "success": True,
         "controllo": cs.serializza_controllo(controllo),
-        "destinatari": cs.destinatari_display(controllo.op_id),
+        "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
+
+
+@login_required
+@require_GET
+def api_destinatari_op(request):
+    """Chi riceverà la mail del controllo su un OP: serve alla pagina prima ancora
+    che il controllo esista, per mostrare i destinatari già in fase di avvio."""
+    from .views import _can_edit_anomalie_for_op
+
+    op_id = _txt(request.GET.get("op_id"), 100)
+    if not op_id:
+        return _err("op_id obbligatorio")
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    return JsonResponse({"success": True, "destinatari": cs.destinatari_display(op_id)})
+
+
+@login_required
+@require_GET
+def api_persone(request):
+    """Ricerca persone (anagrafica con email di notifica) da aggiungere in copia;
+    con ``ruolo=capocommessa`` l'elenco dei capicommessa configurati."""
+    if request.GET.get("ruolo") == "capocommessa":
+        return JsonResponse({"success": True, "results": cs.capi_commessa_persone()})
+    return JsonResponse({"success": True, "results": cs.cerca_persone(request.GET.get("q"))})
 
 
 @login_required
@@ -113,17 +138,22 @@ def api_controllo_apri(request):
         return _err("Indica la fase del controllo")
     if not _can_edit_anomalie_for_op(request, op_id):
         return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    extra, rifiutati = cs.normalizza_destinatari_extra(data.get("destinatari_extra"))
+    if rifiutati:
+        return _err("Indirizzi non collegati a nessuna persona in anagrafica: " + ", ".join(rifiutati))
     identity = _current_user_identity(request)
     controllo = AnomaliaControllo.objects.create(
         op_id=op_id,
         op_item_id=_txt(data.get("op_item_id"), 100),
         fase=fase,
         mail_mode=_mail_mode(data.get("mail_mode")),
+        destinatari_extra=extra,
         operatore=request.user,
         operatore_display=_txt(identity.get("name") or request.user.get_full_name() or request.user.username, 200),
     )
     log_action(request, "anomalie_controllo_aperto", "anomalie", {
         "controllo_id": controllo.pk, "op_id": op_id, "fase": fase, "mail_mode": controllo.mail_mode,
+        "destinatari_extra": [d["email"] for d in extra],
     })
     return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
 
@@ -131,7 +161,7 @@ def api_controllo_apri(request):
 @login_required
 @require_POST
 def api_controllo_impostazioni(request, pk: int):
-    """Cambio fase o modalità mail: vale per i blocchi salvati da qui in avanti."""
+    """Cambio fase, modalità mail o destinatari aggiuntivi: vale per le mail da qui in avanti."""
     controllo, error = _get_controllo(request, pk)
     if error:
         return error
@@ -148,6 +178,16 @@ def api_controllo_impostazioni(request, pk: int):
     if "mail_mode" in data:
         controllo.mail_mode = _mail_mode(data.get("mail_mode"))
         fields.append("mail_mode")
+    if "destinatari_extra" in data:
+        extra, rifiutati = cs.normalizza_destinatari_extra(data.get("destinatari_extra"))
+        if rifiutati:
+            return _err("Indirizzi non collegati a nessuna persona in anagrafica: " + ", ".join(rifiutati))
+        controllo.destinatari_extra = extra
+        fields.append("destinatari_extra")
+        log_action(request, "anomalie_controllo_destinatari", "anomalie", {
+            "controllo_id": controllo.pk, "op_id": controllo.op_id,
+            "destinatari_extra": [d["email"] for d in extra],
+        })
     controllo.save(update_fields=fields)
     return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo, con_allegati=False)})
 
