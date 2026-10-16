@@ -165,11 +165,13 @@ from .reports import (  # noqa: F401
 from .settings_admin import (  # noqa: F401
     gestione_admin,
 )
-from ._monolith import (  # noqa: F401
+from .dashboard import (  # noqa: F401
     api_asset_dashboard_save_config,
-    asset_calendar_json,
     asset_dashboard,
     asset_quick_report,
+)
+from ._monolith import (  # noqa: F401
+    asset_calendar_json,
     calendario_asset,
     calendario_asset_json,
 )
