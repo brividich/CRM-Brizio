@@ -192,3 +192,16 @@ class SparePartViewsTests(TestCase):
         call_command("send_maintenance_reminders", "--dry-run", "--recipients", "test@example.com", stdout=out)
         self.assertIn("RICAMBI SOTTO SCORTA (1)", out.getvalue())
         self.assertIn("CINGHIA", out.getvalue())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SparePartNoUserTests(TestCase):
+    def test_movimento_senza_utente_non_rompe_le_pagine(self):
+        admin = User.objects.create_superuser(username="c3-nouser", password="x", email="c3nu@example.com")
+        asset = Asset.objects.create(asset_tag="C3-NU", name="CNC NU")
+        wo = WorkOrder.objects.create(asset=asset, title="NU", kind=WorkOrder.KIND_CORRECTIVE)
+        part = SparePart.objects.create(code="NU-1", description="Senza utente", stock_qty=Decimal("3"))
+        register_movement(part, SparePartMovement.KIND_OUT, "1", work_order=wo, user=None)
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(reverse("assets:spare_part_detail", args=[part.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("assets:workorder_spare_parts", args=[wo.pk])).status_code, 200)

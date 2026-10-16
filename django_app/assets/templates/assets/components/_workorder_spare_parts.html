@@ -22,7 +22,7 @@
             <tr><td><a href="{% url 'assets:spare_part_detail' m.part_id %}">{{ m.part.code }}</a> {{ m.part.description }}</td>
               <td>{{ m.qty|floatformat:"-2" }} {{ m.part.unit }}</td>
               <td>{% if m.line_cost != None %}{{ m.line_cost }} €{% else %}—{% endif %}</td>
-              <td>{{ m.user.get_full_name|default:m.user.username|default:"—" }}</td></tr>
+              <td>{% if m.user %}{{ m.user.get_full_name|default:m.user.username }}{% else %}—{% endif %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

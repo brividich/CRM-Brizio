@@ -45,7 +45,7 @@
               <td class="md-right">{{ m.stock_after|floatformat:"-2"|default:"—" }}</td>
               <td>{% if m.work_order_id %}<a href="{% url 'assets:wo_view' m.work_order_id %}">Intervento</a> <span class="md-sub" style="display:inline">OdL n. {{ m.work_order_id }}</span>{% else %}—{% endif %}</td>
               <td>{{ m.note|default:"—" }}</td>
-              <td>{{ m.user.get_full_name|default:m.user.username|default:"—" }}</td>
+              <td>{% if m.user %}{{ m.user.get_full_name|default:m.user.username }}{% else %}—{% endif %}</td>
             </tr>
           {% empty %}
             <tr><td colspan="7" class="md-empty">Nessun movimento.</td></tr>
