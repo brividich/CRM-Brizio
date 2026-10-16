@@ -107,20 +107,29 @@ def _sistema_ruoli_attivo() -> bool:
 def user_group_ids(legacy_user_id: int | None) -> list[int]:
     """Id dei gruppi attivi a cui appartiene l'utente legacy.
 
+    Comprende i ruoli che arrivano dall'organigramma (``core.permessi.organigramma``).
     Con il sistema dei ruoli attivo (``core.permessi``) ogni utente ha anche
-    il ruolo base «Dipendente», senza bisogno di iscriverlo.
+    il ruolo base «Operatore», senza bisogno di iscriverlo.
     """
     if not legacy_user_id:
         return []
+    from core.permessi.scadenze import q_appartenenze_valide
+
     try:
         ids = list(
             AccessGroupMembership.objects.filter(
+                q_appartenenze_valide(),
                 legacy_user_id=int(legacy_user_id),
                 group__is_active=True,
             ).values_list("group_id", flat=True)
         )
     except DatabaseError:
         return []
+    from core.permessi.organigramma import profili_da_organigramma
+
+    for gruppo_id in profili_da_organigramma(legacy_user_id):
+        if gruppo_id not in ids:
+            ids.append(gruppo_id)
     if _sistema_ruoli_attivo():
         from core.permessi.motore import id_ruolo_base
 
@@ -338,12 +347,20 @@ def describe_user_groups(legacy_user_id: int | None) -> list[dict]:
     """Gruppi dell'utente in ordine di peso: serve a diagnostica e pannello."""
     if not legacy_user_id:
         return []
+    from django.db.models import Q
+
+    from core.permessi.organigramma import profili_da_organigramma
+    from core.permessi.scadenze import q_appartenenze_valide
+
     try:
         groups = list(
-            AccessGroup.objects.filter(
-                is_active=True,
-                memberships__legacy_user_id=int(legacy_user_id),
-            ).order_by("-priority", "label", "id")
+            AccessGroup.objects.filter(is_active=True)
+            .filter(
+                (Q(memberships__legacy_user_id=int(legacy_user_id)) & q_appartenenze_valide("memberships__"))
+                | Q(id__in=profili_da_organigramma(legacy_user_id))
+            )
+            .distinct()
+            .order_by("-priority", "label", "id")
         )
     except DatabaseError:
         return []

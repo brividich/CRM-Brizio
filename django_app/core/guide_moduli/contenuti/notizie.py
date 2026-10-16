@@ -48,7 +48,7 @@ GUIDA = {
             "blocchi": [
                 ("p", "Notizie → «Impostazioni» (Centro impostazioni comunicazioni): «Salva permessi dashboard» decide chi entra nella "
                       "dashboard di gestione. Con il sistema «Ruoli e permessi» acceso conta il permesso «gestire» su Notizie "
-                      "(preset HR e Sicurezza)."),
+                      "(ruoli Gestione personale, Amministrazione e RSPP)."),
             ],
         },
     ],

@@ -411,6 +411,16 @@ class RuoloOperativo(models.Model):
         verbose_name="Riporta a",
         help_text="Ruolo sovraordinato nella gerarchia (es. i capireparto riportano al coordinamento). Relazione tra RUOLI, non tra persone.",
     )
+    # Ruoli del portale che chi ricopre questo ruolo riceve in automatico
+    # (core.permessi.organigramma). Mai un ruolo amministratore: quello si
+    # assegna solo a mano. Si modifica dalla pagina «Ruoli e permessi».
+    profili_permessi = models.ManyToManyField(
+        "core.AccessGroup",
+        blank=True,
+        related_name="ruoli_organigramma",
+        verbose_name="Ruoli del portale collegati",
+        help_text="Chi ricopre questo ruolo riceve questi ruoli del portale finché lo ricopre.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -1698,6 +1698,23 @@ def _can_view_visite_mediche(request) -> bool:
     return False
 
 
+def _can_view_referti(request) -> bool:
+    """Aprire il referto clinico (file, contenuto, coda referti).
+
+    Con il sistema dei ruoli attivo serve l'azione «referti» delle visite mediche
+    su tutti: chi vede le visite del team (capi, preposti) vede idoneita',
+    limitazioni e scadenze, non il referto. Spento il sistema vale la regola
+    storica: chi vede le visite apre anche i referti.
+    """
+    if not _can_view_visite_mediche(request):
+        return False
+    if request.user.is_superuser:
+        return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "visite_mediche", "referti")
+    return True
+
+
 def _can_edit_visite_mediche(request) -> bool:
     """Registrare, modificare o superare visite (e giornate, referti in arrivo).
 
@@ -2200,8 +2217,9 @@ def dipendente_detail(request, legacy_id: int):
     cartelle_documenti = []
     try:
         qs_doc = DocumentoDipendente.objects.filter(legacy_anagrafica_id=legacy_id).select_related("cartella")
-        # Nasconde i referti sanitari a chi non ha il permesso visite
-        if not can_view_visite:
+        # Nasconde i referti sanitari a chi non ha il permesso visite (e, con i ruoli
+        # attivi, a chi vede l'idoneita' ma non i referti clinici)
+        if not can_view_visite or not _can_view_referti(request):
             qs_doc = qs_doc.exclude(tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO)
         # Cartelle riservate (solo_admin): solo a chi ha il permesso documenti riservati.
         if not _can_view_documenti_riservati(request):
@@ -11651,7 +11669,7 @@ def referto_gestione(request, doc_id: int):
     cosi' la scheda stessa e' il registro di cosa e' stato fatto e di chi ha
     aperto il file.
     """
-    if not _can_view_visite_mediche(request):
+    if not _can_view_referti(request):
         return HttpResponseForbidden("Non hai i permessi per gestire i referti sanitari.")
 
     doc = get_object_or_404(
@@ -11905,7 +11923,7 @@ def documento_dipendente_download(request, doc_id: int):
 
     # ACL: referti visite mediche → permesso visite. Altri → admin/HR.
     if doc.tipo == DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO:
-        if not _can_view_visite_mediche(request):
+        if not _can_view_referti(request):
             return HttpResponse(status=403)
     else:
         legacy_user = get_legacy_user(request.user)

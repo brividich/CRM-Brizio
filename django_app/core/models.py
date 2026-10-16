@@ -1274,6 +1274,9 @@ class AccessGroupMembership(models.Model):
     group = models.ForeignKey(AccessGroup, on_delete=models.CASCADE, related_name="memberships")
     legacy_user_id = models.IntegerField(db_index=True)
     note = models.CharField(max_length=255, blank=True, default="")
+    # Utenti esterni (RSPP, medico, ente di certificazione): dal giorno dopo il
+    # ruolo non conta piu' (core.permessi.scadenze). Vuoto = senza scadenza.
+    scade_il = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

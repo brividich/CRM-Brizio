@@ -41,6 +41,9 @@ def sezioni() -> list[dict]:
                      "30 righe viene detto («ne mostro 30 su 42»): quello completo è nel modulo."),
                     ("I tuoi permessi", "«posso inserire un nuovo timbro?», «perché non vedo il pulsante Copia?»: "
                      "controlla i permessi che hai davvero sul modulo nominato e risponde sì o no per ogni azione. "
+                     "Con i ruoli del portale attivi dice anche quali ruoli hai e da dove arrivano: dal tuo ruolo "
+                     "nell'organigramma (cambiano se cambia quel ruolo in Anagrafica), assegnati a mano (con la "
+                     "data di scadenza, se c'è) o il ruolo base Operatore. "
                      "Se manca un permesso, va chiesto a un amministratore del portale."),
                 ]),
             ],

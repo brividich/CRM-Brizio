@@ -24,6 +24,7 @@ from core.permessi.motore import (
     contesto_per,
     sistema_ruoli_attivo,
 )
+from core.permessi.organigramma import provenienze_per_utenti
 from core.permessi.preset import PRESETS_PER_CHIAVE, applica_preset
 from core.permessi.registro import AMBITI, AMBITI_LABEL, AZIONI_LABEL, AZIONI_STANDARD, moduli_registrati
 from core.permessi.sync import (
@@ -58,12 +59,50 @@ def _ruoli():
     return list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
 
 
+def _data(valore):
+    """(data, errata) da un campo data del form: vuoto = (None, False)."""
+    testo = str(valore or "").strip()
+    if not testo:
+        return None, False
+    from datetime import datetime
+
+    for formato in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(testo, formato).date(), False
+        except ValueError:
+            continue
+    return None, True
+
+
 def _ruoli_per_persona(ids) -> dict[int, list]:
+    """Ruoli assegnati a mano; ogni gruppo porta ``scade_il`` e ``scaduto`` dell'appartenenza."""
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
     mappa: dict[int, list] = {}
     for m in AccessGroupMembership.objects.filter(legacy_user_id__in=list(ids)).select_related("group"):
-        mappa.setdefault(int(m.legacy_user_id), []).append(m.group)
+        gruppo = m.group
+        gruppo.scade_il = m.scade_il
+        gruppo.scaduto = bool(m.scade_il and m.scade_il < oggi)
+        mappa.setdefault(int(m.legacy_user_id), []).append(gruppo)
     for gruppi in mappa.values():
         gruppi.sort(key=lambda g: -int(g.priority or 0))
+    return mappa
+
+
+def _ruoli_da_organigramma(ids) -> dict[int, list[dict]]:
+    """Per persona: ruoli del portale che arrivano dall'organigramma, con i ruoli che li danno."""
+    provenienze = provenienze_per_utenti(list(ids))
+    gruppi = {g.id: g for g in AccessGroup.objects.filter(id__in={g for p in provenienze.values() for g in p})}
+    mappa: dict[int, list[dict]] = {}
+    for persona_id, per_gruppo in provenienze.items():
+        righe = [
+            {"gruppo": gruppi[g], "da": ", ".join(sorted(nomi))}
+            for g, nomi in per_gruppo.items()
+            if g in gruppi
+        ]
+        righe.sort(key=lambda r: -int(r["gruppo"].priority or 0))
+        mappa[persona_id] = righe
     return mappa
 
 
@@ -120,12 +159,26 @@ def _ctx_persone(request) -> dict:
     persona_id = _int(request.GET.get("persona"))
     if persona_id:
         selezionata = UtenteLegacy.objects.filter(id=persona_id).first()
+    organigramma_map = _ruoli_da_organigramma([p.id for p in persone] + ([persona_id] if persona_id else []))
+    organigramma_selezionata = organigramma_map.get(persona_id, []) if persona_id else []
+    ruoli_mano_selezionata = _ruoli_per_persona([persona_id]).get(persona_id, []) if persona_id else []
+    scadenze = sorted({g.scade_il for g in ruoli_mano_selezionata if g.scade_il})
     return {
         "q": q,
         "solo_con_ruoli": solo_con_ruoli,
-        "persone": [{"persona": p, "ruoli": ruoli_map.get(int(p.id), [])} for p in persone],
+        "persone": [
+            {
+                "persona": p,
+                "ruoli": ruoli_map.get(int(p.id), []),
+                "da_organigramma": organigramma_map.get(int(p.id), []),
+            }
+            for p in persone
+        ],
         "selezionata": selezionata,
-        "ruoli_selezionata": {g.id for g in _ruoli_per_persona([persona_id]).get(persona_id, [])} if persona_id else set(),
+        "ruoli_selezionata": {g.id for g in ruoli_mano_selezionata},
+        "scadenza_selezionata": scadenze[0] if scadenze else None,
+        "organigramma_selezionata": organigramma_selezionata,
+        "ids_organigramma_selezionata": {r["gruppo"].id for r in organigramma_selezionata},
     }
 
 
@@ -143,11 +196,46 @@ def ruoli_portale_persona(request, legacy_user_id: int):
     )
     aggiunti, tolti = validi - attuali, attuali - validi
     nota = str(request.POST.get("nota") or "").strip()[:255]
+    scade_il, scadenza_errata = _data(request.POST.get("scade_il"))
+    if scadenza_errata:
+        messages.error(request, "Data di scadenza non valida: usa il formato della data (gg/mm/aaaa).")
+        return redirect(_url("persone", persona=persona.id, q=request.POST.get("q", "")))
+    scadenza_prima = set(
+        AccessGroupMembership.objects.filter(legacy_user_id=persona.id).values_list("scade_il", flat=True)
+    )
     with transaction.atomic():
         for gruppo_id in aggiunti:
-            AccessGroupMembership.objects.create(group_id=gruppo_id, legacy_user_id=persona.id, note=nota)
+            AccessGroupMembership.objects.create(
+                group_id=gruppo_id, legacy_user_id=persona.id, note=nota, scade_il=scade_il
+            )
         AccessGroupMembership.objects.filter(legacy_user_id=persona.id, group_id__in=tolti).delete()
-    if aggiunti or tolti:
+        # Una sola scadenza per i ruoli a mano della persona (caso tipico: un esterno).
+        cambiata_scadenza = (
+            AccessGroupMembership.objects.filter(legacy_user_id=persona.id).exclude(scade_il=scade_il).update(
+                scade_il=scade_il
+            )
+            if scade_il
+            else AccessGroupMembership.objects.filter(legacy_user_id=persona.id, scade_il__isnull=False).update(
+                scade_il=None
+            )
+        )
+    if cambiata_scadenza and not (aggiunti or tolti):
+        log_action(
+            request,
+            "permessi_scadenza_persona",
+            MODULO_AUDIT,
+            {
+                "persona": persona.nome,
+                "legacy_user_id": persona.id,
+                "prima": sorted(str(d) for d in scadenza_prima if d),
+                "dopo": str(scade_il) if scade_il else "",
+            },
+            oggetto_tipo="utente",
+            oggetto_id=str(persona.id),
+        )
+        invalida_permessi()
+        messages.success(request, f"Scadenza dei ruoli di {persona.nome} aggiornata.")
+    elif aggiunti or tolti:
         etichette = dict(AccessGroup.objects.filter(id__in=aggiunti | tolti).values_list("id", "label"))
         log_action(
             request,
@@ -159,6 +247,7 @@ def ruoli_portale_persona(request, legacy_user_id: int):
                 "aggiunti": sorted(etichette[i] for i in aggiunti),
                 "tolti": sorted(etichette[i] for i in tolti),
                 "nota": nota,
+                "scade_il": str(scade_il) if scade_il else "",
             },
             oggetto_tipo="utente",
             oggetto_id=str(persona.id),
@@ -229,7 +318,126 @@ def _ctx_matrice(request) -> dict:
         "ambiti": AMBITI,
         "preset_ruolo": PRESETS_PER_CHIAVE.get(getattr(ruolo, "preset", "")),
         "persone_ruolo": AccessGroupMembership.objects.filter(group=ruolo).count() if ruolo else 0,
+        **_ctx_collegamento_organigramma(ruolo),
     }
+
+
+def _ctx_collegamento_organigramma(ruolo) -> dict:
+    """Ruoli d'organigramma per ambito, con quelli che danno il ruolo del portale spuntati."""
+    if ruolo is None:
+        return {"organigramma_ambiti": [], "organigramma_collegati": 0, "persone_organigramma": 0}
+    from django.db.models import Count
+
+    from anagrafica.models import RuoloOperativo
+    from core.permessi.team import _assegnazioni_attive
+
+    try:
+        collegati = set(ruolo.ruoli_organigramma.values_list("id", flat=True))
+        catalogo = list(
+            RuoloOperativo.objects.filter(Q(is_active=True) | Q(id__in=collegati))
+            .select_related("ambito")
+            .order_by("ambito__ordine", "ambito__nome", "nome")
+        )
+        persone_per_ruolo = dict(
+            _assegnazioni_attive()
+            .values("ruolo_id")
+            .annotate(n=Count("legacy_anagrafica_id", distinct=True))
+            .order_by()
+            .values_list("ruolo_id", "n")
+        )
+        persone_organigramma = (
+            _assegnazioni_attive()
+            .filter(ruolo_id__in=collegati)
+            .values("legacy_anagrafica_id")
+            .distinct()
+            .count()
+            if collegati
+            else 0
+        )
+    except DatabaseError:
+        return {"organigramma_ambiti": [], "organigramma_collegati": 0, "persone_organigramma": 0}
+    ambiti: list[dict] = []
+    for r in catalogo:
+        etichetta = r.ambito_label
+        if not ambiti or ambiti[-1]["nome"] != etichetta:
+            ambiti.append({"nome": etichetta, "ruoli": []})
+        ambiti[-1]["ruoli"].append(
+            {"ruolo": r, "collegato": r.id in collegati, "persone": persone_per_ruolo.get(r.id, 0)}
+        )
+    return {
+        "organigramma_ambiti": ambiti,
+        "organigramma_collegati": len(collegati),
+        "persone_organigramma": persone_organigramma,
+    }
+
+
+@legacy_admin_required
+def ruoli_portale_riesame(request):
+    """Excel per il riesame degli accessi (27001 A.5.18): persone, matrice, organigramma, foglio da firmare."""
+    from django.http import HttpResponse
+
+    from .riesame_accessi import genera_riesame_xlsx
+
+    preparato_da = request.user.get_full_name() or request.user.get_username()
+    contenuto = genera_riesame_xlsx(preparato_da=preparato_da, sistema_attivo=sistema_ruoli_attivo())
+    log_action(request, "permessi_riesame_esportato", MODULO_AUDIT, {"preparato_da": preparato_da})
+    from django.utils import timezone
+
+    nome = f"riesame_accessi_{timezone.localdate():%Y%m%d}.xlsx"
+    risposta = HttpResponse(
+        contenuto, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    risposta["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return risposta
+
+
+@legacy_admin_required
+@require_POST
+def ruoli_portale_organigramma(request, ruolo_id: int):
+    """Collega il ruolo del portale ai ruoli d'organigramma che lo concedono in automatico."""
+    from anagrafica.models import RuoloOperativo
+
+    ruolo = AccessGroup.objects.filter(id=ruolo_id).first()
+    if ruolo is None:
+        messages.error(request, "Ruolo non trovato.")
+        return redirect(_url("matrice"))
+    if ruolo.amministratore:
+        messages.error(request, "Un ruolo amministratore si assegna solo a mano: non si collega all'organigramma.")
+        return redirect(_url("matrice", ruolo=ruolo.id))
+    if ruolo.preset == PRESET_BASE:
+        messages.error(request, "Il ruolo base vale già per tutti: non serve collegarlo all'organigramma.")
+        return redirect(_url("matrice", ruolo=ruolo.id))
+    attuali = set(ruolo.ruoli_organigramma.values_list("id", flat=True))
+    voluti = {i for i in (_int(v) for v in request.POST.getlist("ruoli_organigramma")) if i}
+    # Si collegano ruoli attivi; un collegamento a un ruolo disattivato resta se non lo si toglie.
+    validi = set(
+        RuoloOperativo.objects.filter(Q(is_active=True) | Q(id__in=attuali), id__in=voluti).values_list("id", flat=True)
+    )
+    aggiunti, tolti = validi - attuali, attuali - validi
+    if not aggiunti and not tolti:
+        messages.info(request, "Nessuna modifica ai collegamenti con l'organigramma.")
+        return redirect(_url("matrice", ruolo=ruolo.id))
+    with transaction.atomic():
+        if aggiunti:
+            ruolo.ruoli_organigramma.add(*aggiunti)
+        if tolti:
+            ruolo.ruoli_organigramma.remove(*tolti)
+    nomi = dict(RuoloOperativo.objects.filter(id__in=aggiunti | tolti).values_list("id", "nome"))
+    log_action(
+        request,
+        "permessi_ruolo_organigramma",
+        MODULO_AUDIT,
+        {
+            "ruolo": ruolo.label,
+            "collegati": sorted(nomi[i] for i in aggiunti),
+            "scollegati": sorted(nomi[i] for i in tolti),
+        },
+        oggetto_tipo="ruolo",
+        oggetto_id=str(ruolo.id),
+    )
+    invalida_permessi()
+    messages.success(request, f"Collegamenti di «{ruolo.label}» con l'organigramma aggiornati.")
+    return redirect(_url("matrice", ruolo=ruolo.id))
 
 
 # ── Riepilogo per modulo ─────────────────────────────────────────────────────
@@ -405,7 +613,7 @@ def ruoli_portale_ruolo(request, ruolo_id: int | None = None):
             messages.error(request, "Ruolo non trovato.")
             return redirect(_url("matrice"))
         if ruolo.preset == PRESET_BASE and not dati["is_active"]:
-            messages.error(request, "Il ruolo base «Dipendente» non si disattiva: e' il minimo di ogni utente.")
+            messages.error(request, "Il ruolo base «Operatore» non si disattiva: e' il minimo di ogni utente.")
             return redirect(_url("matrice", ruolo=ruolo.id))
         prima = {k: getattr(ruolo, k) for k in dati}
         for chiave, valore in dati.items():
@@ -416,6 +624,12 @@ def ruoli_portale_ruolo(request, ruolo_id: int | None = None):
             log_action(request, "permessi_ruolo_modificato", MODULO_AUDIT, {"ruolo": ruolo.label, "campi": cambiati},
                        oggetto_tipo="ruolo", oggetto_id=str(ruolo.id))
         messages.success(request, f"Ruolo «{ruolo.label}» salvato.")
+        if ruolo.amministratore and ruolo.ruoli_organigramma.exists():
+            messages.warning(
+                request,
+                "Il ruolo è amministratore: i collegamenti con l'organigramma restano ma non danno il ruolo a nessuno. "
+                "Un amministratore si assegna solo a mano.",
+            )
     sincronizza_ruolo(ruolo)
     invalida_permessi()
     return redirect(_url("matrice", ruolo=ruolo.id))
@@ -539,7 +753,10 @@ def _ctx_sistema(request) -> dict:
     return {
         "persone_con_ruolo": con_ruolo,
         "persone_attive": attivi,
-        "ruoli_senza_persone": [r for r in _ruoli() if r.preset != PRESET_BASE and not r.memberships.exists()],
+        "ruoli_senza_persone": [
+            r for r in _ruoli()
+            if r.preset != PRESET_BASE and not r.memberships.exists() and not r.ruoli_organigramma.exists()
+        ],
         "amministratori": AccessGroupMembership.objects.filter(group__amministratore=True, group__is_active=True).count(),
     }
 

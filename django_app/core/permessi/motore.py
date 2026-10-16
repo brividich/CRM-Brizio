@@ -166,7 +166,11 @@ def _legacy_user_di(user, request=None):
 
 
 def ruoli_della_persona(legacy_user_id: int | None, *, includi_base: bool = True) -> list:
-    """AccessGroup attivi della persona, dal piu' alto in ordine. Include il ruolo base."""
+    """AccessGroup attivi della persona, dal piu' alto in ordine.
+
+    Somma i ruoli assegnati a mano, quelli che arrivano dall'organigramma
+    (:mod:`core.permessi.organigramma`) e il ruolo base.
+    """
     from core.models import AccessGroup
 
     try:
@@ -174,7 +178,13 @@ def ruoli_della_persona(legacy_user_id: int | None, *, includi_base: bool = True
         if legacy_user_id:
             from django.db.models import Q
 
-            filtro = Q(memberships__legacy_user_id=int(legacy_user_id))
+            from core.permessi.organigramma import profili_da_organigramma
+            from core.permessi.scadenze import q_appartenenze_valide
+
+            filtro = Q(memberships__legacy_user_id=int(legacy_user_id)) & q_appartenenze_valide("memberships__")
+            da_organigramma = profili_da_organigramma(legacy_user_id)
+            if da_organigramma:
+                filtro |= Q(id__in=da_organigramma)
             if includi_base:
                 filtro |= Q(preset=PRESET_BASE)
             qs = qs.filter(filtro)

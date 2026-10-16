@@ -93,6 +93,14 @@ GUIDA = {
             "blocchi": [
                 ("p", "Anagrafica → «Impostazioni» raccoglie in un'unica pagina: ruoli (catalogo unico, con «riporta a»), "
                       "mansioni di rischio, aree, reparti, tipi documento, campi di ingresso e uscita, permessi HR."),
+                ("p", "Un ruolo del catalogo può essere collegato a ruoli del portale (Amministrazione → «Ruoli e permessi», "
+                      "matrice, «Dall'organigramma»): chi ricopre il ruolo riceve quei permessi da solo e li perde quando "
+                      "lascia il ruolo. Assegnare o togliere un ruolo qui cambia quindi anche cosa la persona può fare nel portale."),
+                ("p", "Fra gli ambiti dei ruoli c'è «Incarichi»: gestione del personale, gestione della formazione, auditor "
+                      "interni, docenti. Sono ruoli che si aggiungono alla posizione della persona."),
+                ("p", "Referti clinici: con i ruoli del portale attivi li apre solo chi ha l'azione «Referti clinici» delle "
+                      "visite mediche (nei ruoli pronti, Gestione personale). Capi reparto e preposti vedono idoneità, "
+                      "limitazioni e scadenze del loro team, non il referto."),
             ],
         },
         {

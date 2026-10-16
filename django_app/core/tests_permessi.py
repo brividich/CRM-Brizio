@@ -152,17 +152,17 @@ class MotoreTests(PersoneMixin, TestCase):
 
     def test_comanda_il_ruolo_con_ordine_piu_alto(self):
         user, _ = self.persona("Preposto e responsabile", ruoli=("ruolo-preposto", "ruolo-responsabile"))
-        # Responsabile (400) > Preposto (300) sulla visibilita' del diario: team.
+        # Caporeparto (400) > Preposto (300) sulla visibilita' del diario: team.
         esito = decisione(user, "diario_preposto", "vedere")
         self.assertEqual((esito.consentito, esito.ambito), (True, "team"))
-        self.assertIn("Responsabile", esito.ruolo)
+        self.assertIn("Caporeparto", esito.ruolo)
         # Il responsabile non si esprime su «creare» nel diario: decide il preposto.
         self.assertEqual(decisione(user, "diario_preposto", "creare").ambito, "propri")
 
     def test_ruolo_che_tace_lascia_decidere_il_successivo(self):
         user, _ = self.persona("HR", ruoli=("ruolo-hr",))
-        # HR non si esprime sui ticket IT: vale il Dipendente.
-        esito = decisione(user, "ticket_it", "vedere")
+        # Gestione personale non si esprime sui ticket di manutenzione: vale l'Operatore.
+        esito = decisione(user, "ticket_manutenzione", "vedere")
         self.assertEqual((esito.consentito, esito.ambito), (True, "propri"))
 
     def test_no_esplicito_batte_un_ruolo_piu_basso(self):

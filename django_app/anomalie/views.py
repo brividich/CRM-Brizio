@@ -2882,6 +2882,47 @@ def _insert_anomalia_return_id(cursor, quoted_cols: str, placeholders: str, para
             return None
 
 
+# Campi con cui il capocommessa decide sull'anomalia: chi l'ha aperta non li cambia.
+_CAMPI_DECISIONE = ("note_capocommessa", "segnalare_cliente", "aprire_rdc", "chiudere")
+
+
+def _decisione_su_propria_anomalia(local_pk_id, cols, writable: dict, legacy_user) -> str:
+    """Messaggio d'errore se l'autore dell'anomalia prova a deciderla, altrimenti "".
+
+    Separazione dei compiti (EN 9100 §8.7): chi rileva la non conformità non ne
+    decide la disposizione. Vale con il sistema dei ruoli acceso, come nei DPI e
+    nelle assenze; le altre modifiche (descrizione, seriale, avanzamento) restano.
+    """
+    from core.permessi import sistema_ruoli_attivo
+
+    campi = [c for c in _CAMPI_DECISIONE if c in writable and c in cols]
+    if not campi or legacy_user is None or "created_by_user_id" not in cols or not sistema_ruoli_attivo():
+        return ""
+    try:
+        with connections["default"].cursor() as cur:
+            cur.execute(
+                f"SELECT created_by_user_id, {', '.join(_quote_identifier(c) for c in campi)} FROM anomalie WHERE id = %s",
+                [local_pk_id],
+            )
+            riga = cur.fetchone()
+    except DatabaseError:
+        logger.warning("api_salva: lettura autore fallita id=%s", local_pk_id, exc_info=True)
+        return ""
+    if not riga or riga[0] is None or int(riga[0]) != int(legacy_user.id):
+        return ""
+
+    def norma(campo, valore):
+        if campo == "note_capocommessa":
+            return str(valore or "").strip()
+        return int(bool(valore))
+
+    cambiati = [c for c, prima in zip(campi, riga[1:]) if norma(c, prima) != norma(c, writable.get(c))]
+    if not cambiati:
+        return ""
+    return ("Hai aperto tu questa anomalia: la decisione (note del capocommessa, segnalazione al cliente, "
+            "RDC, chiusura) la prende un'altra persona.")
+
+
 def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True) -> dict:
     """Inserisce o aggiorna UNA riga della tabella legacy ``anomalie``.
 
@@ -2981,6 +3022,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
         except DatabaseError:
             logger.warning("api_salva: lettura stato precedente fallita id=%s", local_pk_id, exc_info=True)
+        errore = _decisione_su_propria_anomalia(local_pk_id, cols, writable, legacy_user)
+        if errore:
+            return {"success": False, "error": errore, "status": 403}
 
     try:
         with connections["default"].cursor() as cursor:
