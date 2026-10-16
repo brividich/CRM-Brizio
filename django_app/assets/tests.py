@@ -4173,7 +4173,7 @@ class AssetsRoutingTests(TestCase):
 
     def test_delegated_user_can_access_asset_detail_layout_admin_page(self):
         self.client.force_login(self.user)
-        with patch("assets.views._monolith.user_can_modulo_action", return_value=True):
+        with patch("assets.views.asset_detail_helpers.user_can_modulo_action", return_value=True):
             response = self.client.get(reverse("assets:asset_detail_layout_admin"))
 
         self.assertEqual(response.status_code, 200)
@@ -4424,7 +4424,7 @@ class AssetsRoutingTests(TestCase):
         )
         self.client.force_login(self.user)
 
-        with patch("assets.views._monolith.user_can_modulo_action", return_value=True):
+        with patch("assets.views.asset_detail_helpers.user_can_modulo_action", return_value=True):
             response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
 
         self.assertEqual(response.status_code, 200)
