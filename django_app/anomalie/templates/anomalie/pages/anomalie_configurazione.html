@@ -68,6 +68,7 @@
 <div class="subnav" style="margin-bottom:18px;">
   <a href="?tab=riepilogo" class="sub-a {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
   <a href="?tab=config" class="sub-a {% if tab == 'config' or not tab %}active{% endif %}">Configurazione</a>
+  <a href="?tab=notifiche" class="sub-a {% if tab == 'notifiche' %}active{% endif %}">Notifiche</a>
   <a href="?tab=qualita" class="sub-a {% if tab == 'qualita' %}active{% endif %}">Qualit&agrave;</a>
   <a href="?tab=permessi" class="sub-a {% if tab == 'permessi' %}active{% endif %}">Permessi</a>
   <a href="?tab=record" class="sub-a {% if tab == 'record' %}active{% endif %}">Record</a>
@@ -278,20 +279,9 @@
         <small>Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.</small>
         <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
       </div>
-      <div class="field">
-        <label for="conferma_aggiornamenti">Email conferma aggiornamenti</label>
-        <small>Una <strong>email per riga</strong>. Riceve <em>sempre</em> il riepilogo delle modifiche registrate sulle anomalie, oltre all'operatore segnalante e a capocommessa/CAR dell'OP.</small>
-        <textarea id="conferma_aggiornamenti" class="input" spellcheck="false"></textarea>
-      </div>
-      <div class="field">
-        <label for="rdc_segnalazione">Email RDC / segnalazione cliente</label>
-        <small>Una <strong>email per riga</strong>. Riceve il riepilogo <em>solo quando</em> almeno un'anomalia &egrave; da <strong>aprire RDC</strong> o da <strong>segnalare a cliente</strong>, con quelle anomalie in risalto.</small>
-        <textarea id="rdc_segnalazione" class="input" spellcheck="false"></textarea>
-      </div>
       <div class="field" style="grid-column:1/-1;">
-        <label for="escalation_supervisori">Email supervisori (resoconto OP da controllare)</label>
-        <small>Una <strong>email per riga</strong>. Ricevono il <strong>resoconto giornaliero</strong> degli OP con anomalie ferme in &laquo;In attesa&raquo; oltre la soglia (vedi sezione <em>Promemoria &amp; escalation</em> sotto), oltre a capocommessa/CAR dell'OP.</small>
-        <textarea id="escalation_supervisori" class="input" spellcheck="false"></textarea>
+        <label>Indirizzi email delle notifiche</label>
+        <small>Destinatari fissi, interruttori e orari di tutte le mail del modulo sono nella scheda <a href="?tab=notifiche"><strong>Notifiche</strong></a> (la stessa vista compare in Automazioni &rarr; Notifiche di sistema).</small>
       </div>
       <div class="field" style="grid-column:1/-1;">
         <label for="attachments_dir">Percorso cartella allegati</label>
@@ -306,92 +296,26 @@
     </div>
   </div>
 
-  {# ── Promemoria & escalation OP da controllare ── #}
   <div class="card" style="margin-top:18px;">
-    <div class="card-head">
-      <div>
-        <div class="card-title">Promemoria &amp; escalation</div>
-        <div class="page-sub" style="margin-top:4px;">Promemoria in dashboard a capocommessa/CAR appena un'anomalia &egrave; segnalata; resoconto email automatico per gli OP/PN ancora &laquo;In attesa&raquo; oltre la soglia. Cadenza: <strong>{{ escalation_cfg.cadenza_label }}</strong> all'ora impostata.</div>
-      </div>
-    </div>
-    <div class="card-body" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
-      <div class="field" style="grid-column:1/-1;">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="esc_attivo" />
-          <span>Attiva il resoconto email di escalation</span>
-        </label>
-        <small>Se disattivo, i promemoria in dashboard continuano a comparire ma non viene inviata alcuna email.</small>
-      </div>
-      <div class="field">
-        <label for="esc_soglia_ore">Soglia (ore in &laquo;In attesa&raquo;)</label>
-        <small>Ore oltre cui un'anomalia non gestita entra nel resoconto. Default 24, max 720 (30 giorni).</small>
-        <input id="esc_soglia_ore" type="number" min="1" max="720" step="1" class="input" />
-      </div>
-      <div class="field">
-        <label for="esc_ora_invio">Ora di invio resoconto</label>
-        <small>Il resoconto parte a quest'ora ogni giorno lavorativo (lun&ndash;ven). Default 06:00.</small>
-        <select id="esc_ora_invio" class="input"></select>
-      </div>
-
-      <div class="field" style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
-        <label style="font-weight:800;">Automazioni aggiuntive</label>
-        <small>Girano insieme al controllo orario dell'escalation. Spente finch&eacute; non le attivi (tranne le decisioni all'operatore); ogni evento viene notificato una sola volta.</small>
-      </div>
-      <div class="field">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="auto_ricorrenza_attivo" />
-          <span>Difetto ricorrente per P/N</span>
-        </label>
-        <small>Se lo stesso P/N accumula troppe anomalie nella finestra, parte una mail alle liste <em>supervisori</em> e <em>RDC / segnalazione cliente</em>. Una sola mail per P/N per finestra.</small>
-        <div style="display:flex;gap:10px;margin-top:6px;">
-          <label style="flex:1;font-size:var(--fs-sm);">Anomalie (min 2)
-            <input id="auto_ricorrenza_n" type="number" min="2" max="50" step="1" class="input" />
-          </label>
-          <label style="flex:1;font-size:var(--fs-sm);">In giorni
-            <input id="auto_ricorrenza_giorni" type="number" min="1" max="365" step="1" class="input" />
-          </label>
-        </div>
-      </div>
-      <div class="field">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="auto_rdc_attivo" />
-          <span>RDC richiesto ma senza numero</span>
-        </label>
-        <small>Anomalie aperte con &laquo;Aprire RDC&raquo; attivo e numero RDC vuoto da oltre i giorni indicati: promemoria in dashboard a capocommessa/CAR e sezione dedicata nel resoconto giornaliero.</small>
-        <div style="display:flex;gap:10px;margin-top:6px;">
-          <label style="flex:1;font-size:var(--fs-sm);">Dopo giorni
-            <input id="auto_rdc_giorni" type="number" min="1" max="60" step="1" class="input" />
-          </label>
-        </div>
-      </div>
-      <div class="field">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="auto_digest_attivo" />
-          <span>Digest settimanale KPI</span>
-        </label>
-        <small>Ogni luned&igrave; all'ora del resoconto, ai <em>supervisori</em>: nuove e chiuse della settimana, aperte, in attesa oltre soglia, RDC senza numero, tempo medio di chiusura, OP e P/N con pi&ugrave; anomalie.</small>
-      </div>
-      <div class="field">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="auto_op_completato_attivo" />
-          <span>OP completato</span>
-        </label>
-        <small>Quando l'ultima anomalia aperta di un OP viene chiusa, capocommessa e CAR ricevono una mail con il link al Report OP (circa 5 minuti dopo il salvataggio).</small>
-      </div>
-      <div class="field">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="auto_decisioni_operatore_attivo" />
-          <span>Decisioni del capocommessa all'operatore</span>
-        </label>
-        <small>Attiva di default. Quando il capocommessa decide (dalla pagina della mail o da Gestione anomalie), l'operatore che ha segnalato le anomalie riceve una mail con stato, RDC, segnalazione al cliente e note, pi&ugrave; una notifica nel portale. L'indirizzo &egrave; l'<em>email di notifica</em> della sua scheda anagrafica.</small>
-      </div>
-    </div>
-    <div id="esc-status" class="status" style="margin:0 16px;"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;padding:16px;">
-      <button id="btn-esc-save" class="btn" type="button">Salva promemoria &amp; escalation</button>
+    <div class="card-body">
+      <strong>Promemoria &amp; escalation</strong> &mdash; resoconto giornaliero, RDC senza numero, difetto ricorrente, digest, OP completato e decisioni all'operatore si accendono e si regolano nella scheda <a href="?tab=notifiche"><strong>Notifiche</strong></a>.
     </div>
   </div>
 
+{% endif %}
+
+{% if tab == 'notifiche' %}
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Notifiche del modulo</div>
+        <div class="page-sub" style="margin-top:4px;">Tutte le mail delle anomalie in un posto: quando partono, chi le riceve, se sono attive e l'ultimo invio. &Egrave; la stessa vista di Automazioni &rarr; Notifiche di sistema: quello che cambi qui cambia anche l&igrave;. Lo storico completo &egrave; in <a href="?tab=log">Log attivit&agrave;</a>.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      {% include "anomalie/partials/notifiche_pannello.html" %}
+    </div>
+  </div>
 {% endif %}
 
 {# ========== TAB PERMESSI ========== #}
@@ -1046,9 +970,6 @@
       "stati_superficie",
       "avanzamenti",
       "autorizzati_modifica",
-      "conferma_aggiornamenti",
-      "rdc_segnalazione",
-      "escalation_supervisori",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
     // Liste derivate: la composizione (ruoli + override persona) e' modificabile,
@@ -1222,101 +1143,6 @@
     fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
     fillDerivedSources(window._CFG_DERIVED_SOURCES);
     loadFromApi();
-  })();
-</script>
-<script>
-  // ── Promemoria & escalation ─────────────────────────────────────────────────
-  (function () {
-    const elAttivo = document.getElementById('esc_attivo');
-    const elSoglia = document.getElementById('esc_soglia_ore');
-    const elOra    = document.getElementById('esc_ora_invio');
-    const elSupervisori = document.getElementById('escalation_supervisori'); // condiviso con le liste
-    const btnSave  = document.getElementById('btn-esc-save');
-    const statusEl = document.getElementById('esc-status');
-    if (!btnSave || !elAttivo) return; // non siamo nella tab config
-
-    const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
-    const setStatus = (ok, msg) => { statusEl.className = 'status ' + (ok ? 'ok' : 'err'); statusEl.textContent = msg; };
-
-    // Popola la select delle ore 00..23
-    for (let h = 0; h < 24; h++) {
-      const o = document.createElement('option');
-      o.value = String(h);
-      o.textContent = (h < 10 ? '0' + h : String(h)) + ':00';
-      elOra.appendChild(o);
-    }
-
-    const cfg = window._CFG_ESCALATION || { attivo: false, soglia_ore: 24, ora_invio: 6 };
-    elAttivo.checked = !!cfg.attivo;
-    elSoglia.value = cfg.soglia_ore != null ? cfg.soglia_ore : 24;
-    elOra.value = String(cfg.ora_invio != null ? cfg.ora_invio : 6);
-
-    // Automazioni aggiuntive: [id elemento, chiave, tipo, default]
-    const AUTO_FIELDS = [
-      ['auto_ricorrenza_attivo', 'ricorrenza_attivo', 'bool', false],
-      ['auto_ricorrenza_n', 'ricorrenza_n', 'int', 3],
-      ['auto_ricorrenza_giorni', 'ricorrenza_giorni', 'int', 30],
-      ['auto_rdc_attivo', 'rdc_attivo', 'bool', false],
-      ['auto_rdc_giorni', 'rdc_giorni', 'int', 3],
-      ['auto_digest_attivo', 'digest_attivo', 'bool', false],
-      ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],
-      ['auto_decisioni_operatore_attivo', 'decisioni_operatore_attivo', 'bool', true],
-    ];
-    const fillAuto = (src) => {
-      AUTO_FIELDS.forEach(([id, key, type, def]) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const v = src && src[key] != null ? src[key] : def;
-        if (type === 'bool') el.checked = !!v; else el.value = v;
-      });
-    };
-    const readAuto = () => {
-      const out = {};
-      AUTO_FIELDS.forEach(([id, key, type, def]) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        out[key] = type === 'bool' ? !!el.checked : (parseInt(el.value, 10) || def);
-      });
-      return out;
-    };
-    fillAuto(cfg);
-
-    btnSave.addEventListener('click', async () => {
-      // I supervisori viaggiano nella stessa chiave liste; li salviamo insieme
-      // riusando l'endpoint config/liste con il blocco "escalation".
-      const fromText = (v) => String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
-      const payload = {
-        // includi la chiave lista supervisori per non azzerarla lato server
-        escalation_supervisori: elSupervisori ? fromText(elSupervisori.value) : [],
-        escalation: {
-          attivo: !!elAttivo.checked,
-          soglia_ore: parseInt(elSoglia.value, 10) || 24,
-          ora_invio: parseInt(elOra.value, 10) || 6,
-          automazioni: readAuto(),
-        },
-      };
-      btnSave.disabled = true;
-      try {
-        const r = await fetch('/api/anomalie/config/liste', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-          body: JSON.stringify(payload),
-        });
-        const j = await r.json();
-        if (!r.ok || !j.success) throw new Error(j.error || 'Salvataggio non riuscito');
-        if (j.escalation) {
-          elAttivo.checked = !!j.escalation.attivo;
-          elSoglia.value = j.escalation.soglia_ore;
-          elOra.value = String(j.escalation.ora_invio);
-          fillAuto(j.escalation);
-        }
-        setStatus(true, 'Impostazioni promemoria & escalation salvate.');
-      } catch (e) {
-        setStatus(false, e.message || 'Errore durante il salvataggio');
-      } finally {
-        btnSave.disabled = false;
-      }
-    });
   })();
 </script>
 <script>

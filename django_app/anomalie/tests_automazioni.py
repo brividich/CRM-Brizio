@@ -258,10 +258,9 @@ class DecisioniOperatoreConfigPageTests(TestCase):
 
         admin = get_user_model().objects.create_superuser("anom-cfg", "anom-cfg@test.local", "pass12345")
         self.client.force_login(admin)
-        html = self.client.get(reverse("anomalie_configurazione_page")).content.decode()
-        self.assertIn('id="auto_decisioni_operatore_attivo"', html)
-        self.assertIn("decisioni_operatore_attivo: true", html)
-        self.assertIn("['auto_decisioni_operatore_attivo', 'decisioni_operatore_attivo', 'bool', true]", html)
+        # L'interruttore sta nella scheda Notifiche (pannello unico con Automazioni).
+        html = self.client.get(reverse("anomalie_configurazione_page") + "?tab=notifiche").content.decode()
+        self.assertIn('data-ntf-toggle="decisioni_operatore_attivo" checked', html)
         self.assertNotIn("{#", html)
 
 

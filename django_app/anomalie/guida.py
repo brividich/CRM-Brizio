@@ -296,8 +296,12 @@ SEZIONI: list[dict] = [
                 ("Riepilogo", "la distribuzione delle anomalie per avanzamento."),
                 ("Configurazione", "logo del menu, modello del Report OP, liste (avanzamenti, stati superficie, causali, "
                  "destinatari), composizione di capicommessa e CAR dai ruoli operativi dell'Anagrafica (solo assegnazioni in corso e "
-                 "dipendenti attivi: chi ha cambiato ruolo o ha lasciato l'azienda non compare), promemoria e "
-                 "automazioni."),
+                 "dipendenti attivi: chi ha cambiato ruolo o ha lasciato l'azienda non compare)."),
+                ("Notifiche", "tutte le mail del modulo in un posto: quando partono, chi le riceve, se sono attive "
+                 "e l'ultimo invio. Qui si cambiano le liste di destinatari fissi (riepilogo modifiche, RDC / "
+                 "segnalazione cliente, supervisori), l'indirizzo della mail «nuova anomalia fuori da un controllo», "
+                 "gli interruttori e gli orari. È la stessa vista di Automazioni → Notifiche di sistema: quello che "
+                 "cambi in una pagina lo trovi già cambiato nell'altra."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
                  "singolo utente."),
@@ -305,7 +309,7 @@ SEZIONI: list[dict] = [
                 ("Log attività", "audit del modulo e registro delle mail inviate, con «Reinvia»."),
             ]),
             ("nota", "Le automazioni di promemoria (difetto ricorrente, RDC senza numero, digest settimanale, OP completato) "
-                     "sono spente di default: si accendono dalla scheda Configurazione."),
+                     "sono spente di default: si accendono dalla scheda Notifiche."),
         ],
     },
     {

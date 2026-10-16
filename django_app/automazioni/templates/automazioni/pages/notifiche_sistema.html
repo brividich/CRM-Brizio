@@ -67,4 +67,12 @@
       </tbody>
     </table>
   </div>
+
+  {% if notifiche %}
+  <section id="anomalie" style="margin-top:28px;">
+    <h2 style="margin:0 0 4px;font-size:18px;">Gestione anomalie</h2>
+    <p class="evn-note">Le mail delle anomalie. &Egrave; la stessa vista di <a href="{% url 'anomalie_configurazione_page' %}?tab=notifiche">Gestione anomalie &rarr; Configurazione &rarr; Notifiche</a>: quello che cambi qui cambia anche l&igrave;.</p>
+    {% include "anomalie/partials/notifiche_pannello.html" %}
+  </section>
+  {% endif %}
 {% endblock %}
