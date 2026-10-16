@@ -148,9 +148,8 @@
     .gruppo-sub { font-size: 12px; color: #64748b; }
     .gruppo-count { flex-shrink: 0; font-size: 12px; font-weight: 700; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 10px; }
     .gruppo .anomalie-list { margin-bottom: 0; }
-    .gruppo-bulk { background: #fff; border: 1px dashed #cbd5e1; border-radius: 10px; margin: 0 0 10px; }
-    .gruppo-bulk summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #1f5c91; }
-    .gruppo-bulk-body { padding: 4px 12px 12px; }
+    .applica-blocco { display: flex; align-items: flex-start; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 9px 12px; font-size: 13px; color: #7c2d12; cursor: pointer; }
+    .applica-blocco input { margin-top: 2px; accent-color: #ea580c; flex-shrink: 0; }
     .altri-divider { margin: 22px 0 10px; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 10px; }
     .altri-divider::after { content: ""; flex: 1; height: 1px; background: #dbe3ec; }
     .anomalia-row.is-nuova .anomalia-row-stripe { background: #ff6b00; }
@@ -365,35 +364,6 @@
       <div class="gruppo-count">{{ gruppo.righe|length }} anomali{{ gruppo.righe|length|pluralize:"a,e" }}</div>
     </div>
 
-    {% if is_dispositive and can_edit and gruppo.righe|length > 1 %}
-    <details class="gruppo-bulk" id="bulk-{{ gruppo.chiave }}">
-      <summary>Stessa decisione per tutte le {{ gruppo.righe|length }} anomalie di questi seriali</summary>
-      <div class="gruppo-bulk-body">
-        <div class="toggle-group toggle-inline">
-          <label class="toggle-row"><input type="checkbox" data-bulk="rdc" onchange="onBulkChange('{{ gruppo.chiave }}')"><span>Aprire RDC?</span></label>
-          <label class="toggle-row"><input type="checkbox" data-bulk="seg" onchange="onBulkChange('{{ gruppo.chiave }}')"><span>Segnalare a cliente?</span></label>
-        </div>
-        <div class="decisione-fields">
-          <div>
-            <div class="field-label">Nuovo avanzamento</div>
-            <select class="field-select" data-bulk="av"><option value="">— invariato —</option></select>
-          </div>
-          <div class="rdc-num-wrap" data-bulk-wrap="num" hidden>
-            <div class="field-label">N° RDC</div>
-            <input class="field-input" type="text" data-bulk="num" maxlength="100" placeholder="Numero RDC">
-          </div>
-          <div class="field-wide">
-            <div class="field-label">Risposta / note (per tutte)</div>
-            <textarea class="field-textarea" data-bulk="note" placeholder="Lascia vuoto per non cambiare le note delle singole anomalie"></textarea>
-          </div>
-          <div>
-            <button type="button" class="salva-btn" onclick="applicaGruppo('{{ gruppo.chiave }}')">Applica a tutte</button>
-          </div>
-        </div>
-      </div>
-    </details>
-    {% endif %}
-
     <div class="anomalie-list">
       {% for a in gruppo.righe %}
       <div class="anomalia-row{% if a.nuova %} is-nuova{% endif %}" id="row-{{ a.id }}" data-id="{{ a.id }}" data-gruppo="{{ gruppo.chiave }}">
@@ -488,6 +458,12 @@
                   <div class="field-label">Risposta / note del capocommessa</div>
                   <textarea class="field-textarea" id="note-{{ a.id }}" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
                 </div>
+                {% if gruppo.righe|length > 1 %}
+                <label class="applica-blocco field-wide">
+                  <input type="checkbox" id="applica-{{ a.id }}">
+                  <span>Applica la stessa decisione anche alle altre <b>{{ gruppo.righe|length|add:"-1" }}</b> anomali{{ gruppo.righe|length|add:"-1"|pluralize:"a,e" }} aperte di questi seriali</span>
+                </label>
+                {% endif %}
                 <div>
                   <button type="button" class="salva-btn" onclick="salvaIndividuale({{ a.id }})">Salva</button>
                 </div>
@@ -671,58 +647,39 @@
       var id = p.id.replace('panel-', '');
       onToggleChange(id);
     });
-    document.querySelectorAll('.gruppo-bulk').forEach(function(b){
-      onBulkChange(b.id.replace('bulk-', ''));
-    });
   });
 
-  function bulkField(key, name) {
-    return document.querySelector('#bulk-' + key + ' [data-bulk="' + name + '"]');
-  }
-
-  function onBulkChange(key) {
-    var rdc = bulkField(key, 'rdc');
-    var seg = bulkField(key, 'seg');
-    var av = bulkField(key, 'av');
-    if (av) {
-      var prev = av.value;
-      av.innerHTML = '<option value="">— invariato —</option>';
-      buildAvanzamentoOptions(rdc && rdc.checked).forEach(function(o){
-        var op = document.createElement('option');
-        op.value = o; op.textContent = o;
-        av.appendChild(op);
-      });
-      if (prev) av.value = prev;
-      av.disabled = !!(seg && seg.checked);
-    }
-    var wrap = document.querySelector('#bulk-' + key + ' [data-bulk-wrap="num"]');
-    if (wrap) wrap.hidden = !(rdc && rdc.checked);
-  }
-
-  // Copia la decisione del blocco su ogni anomalia del gruppo e la salva.
-  function applicaGruppo(key) {
-    var rdc = bulkField(key, 'rdc'), seg = bulkField(key, 'seg');
-    var av = bulkField(key, 'av'), num = bulkField(key, 'num'), note = bulkField(key, 'note');
-    document.querySelectorAll('.anomalia-row[data-gruppo="' + key + '"]').forEach(function(row){
-      var id = row.dataset.id;
-      var r = document.getElementById('rdc-' + id), s = document.getElementById('seg-' + id);
+  // Come in Gestione anomalie: copia la decisione dell'anomalia sulle altre anomalie
+  // aperte dello stesso blocco di seriali (flag, avanzamento, N° RDC, note) e le salva.
+  // Le risposte alle singole descrizioni restano di ciascuna anomalia.
+  function applicaAlBlocco(id) {
+    var row = document.getElementById('row-' + id);
+    if (!row) return 0;
+    var rdc = document.getElementById('rdc-' + id), seg = document.getElementById('seg-' + id);
+    var av = document.getElementById('av-' + id), num = document.getElementById('num-' + id);
+    var note = document.getElementById('note-' + id);
+    var n = 0;
+    document.querySelectorAll('.anomalia-row[data-gruppo="' + row.dataset.gruppo + '"]').forEach(function(altra){
+      var aid = altra.dataset.id;
+      if (aid === String(id)) return;
+      var r = document.getElementById('rdc-' + aid), s = document.getElementById('seg-' + aid);
       if (r) r.checked = !!(rdc && rdc.checked);
       if (s) s.checked = !!(seg && seg.checked);
-      onToggleChange(id);
-      var a = document.getElementById('av-' + id);
+      onToggleChange(aid);
+      var a = document.getElementById('av-' + aid);
       if (a && av) a.value = av.value;
-      var n = document.getElementById('num-' + id);
-      if (n && num && num.value.trim()) n.value = num.value.trim();
-      var t = document.getElementById('note-' + id);
-      if (t && note && note.value.trim()) t.value = note.value.trim();
-      onToggleChange(id);
-      salvaIndividuale(id);
+      var nn = document.getElementById('num-' + aid);
+      if (nn) nn.value = (num && rdc && rdc.checked) ? num.value.trim() : nn.value;
+      var t = document.getElementById('note-' + aid);
+      if (t && note) t.value = note.value.trim();
+      onToggleChange(aid);
+      salvaIndividuale(aid, true);
+      n += 1;
     });
-    var box = document.getElementById('bulk-' + key);
-    if (box) box.open = false;
+    return n;
   }
 
-  function salvaIndividuale(id) {
+  function salvaIndividuale(id, daBlocco) {
     var av   = document.getElementById('av-' + id);
     var note = document.getElementById('note-' + id);
     var rdc  = document.getElementById('rdc-' + id);
@@ -759,9 +716,18 @@
     var row = document.getElementById('row-' + id);
     if (row) row.classList.add('st-verde');
 
+    var testo = '✓ Salvato' + (av.value ? ' — ' + av.value : '');
+    var applica = document.getElementById('applica-' + id);
+    if (!daBlocco && applica && applica.checked) {
+      var altre = applicaAlBlocco(id);
+      applica.checked = false;
+      if (altre) testo += ' · applicata anche ad altre ' + altre;
+    } else if (daBlocco) {
+      testo += ' (dalla decisione del blocco)';
+    }
     if (esito) {
       esito.classList.add('visible');
-      esito.textContent = '✓ Salvato' + (av.value ? ' — ' + av.value : '');
+      esito.textContent = testo;
     }
     updateUI();
   }

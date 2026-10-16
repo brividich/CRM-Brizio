@@ -1025,9 +1025,11 @@ def _names_for_ruoli_operativi(ruolo_ids: list[int]) -> list[str]:
     try:
         from core.legacy_anagrafica import fetch_anagrafica_rows
 
+        # Chi non e' piu' dipendente esce dalla lista anche se l'assegnazione e' aperta.
         names = [
             _label_from_anagrafica_row(row)
             for row in fetch_anagrafica_rows(ids=sorted(ids), deduplicate=True)
+            if row.get("attivo") is None or row.get("attivo")
         ]
     except Exception:
         logger.debug("[anomalie] impossibile risolvere i nomi dei ruoli operativi", exc_info=True)

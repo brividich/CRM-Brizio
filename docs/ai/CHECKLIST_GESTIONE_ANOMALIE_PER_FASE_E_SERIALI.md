@@ -41,7 +41,7 @@ Esempio: controllo l'OP X e trovo **1 S/N con N anomalie**. Inserisco il S/N, la
 
 ### Decisione del capocommessa
 
-- **Pagina della mail**: anomalie raggruppate per blocco (prima quelle della mail, «Da decidere», poi le altre aperte dell'OP), foto e allegati per ogni anomalia, campi già compilati con lo stato attuale (RDC, cliente, numero RDC, note), «Stessa decisione per tutte le anomalie di questi seriali». Si aggiornano **solo** le anomalie salvate nella pagina.
+- **Pagina della mail**: anomalie raggruppate per blocco (prima quelle della mail, «Da decidere», poi le altre aperte dell'OP), foto e allegati per ogni anomalia, campi già compilati con lo stato attuale (RDC, cliente, numero RDC, note), «Applica la stessa decisione anche alle altre … anomalie aperte di questi seriali» nel pannello di ogni anomalia (come nel portale). Si aggiornano **solo** le anomalie salvate nella pagina.
 - **Gestione anomalie**: le anomalie dello stesso blocco sono raggruppate sotto un'intestazione con S/N, fase, operatore e data; nel dettaglio un'opzione applica la stessa decisione alle altre anomalie aperte del blocco.
 
 ## 4. Modello dati
