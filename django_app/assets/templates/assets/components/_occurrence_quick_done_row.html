@@ -1,0 +1,11 @@
+{% comment %}Riga di «Da fare» dopo «Fatta oggi» (risposta HTMX di occurrence_quick_complete).
+   Sostituisce la riga della manutenzione appena registrata.{% endcomment %}
+<tr class="tone-green md-quick-done" data-md-quick-done="{{ occurrence.pk }}">
+  <td colspan="{{ cols }}">
+    <span class="md-badge badge-success">&#10003; Fatta oggi</span>
+    <strong>{{ occurrence.plan.label }}</strong> &middot; {{ occurrence.asset.asset_tag|default:occurrence.asset.name }}
+    <span class="md-sub" style="display:inline">
+      &mdash; {% if following %}prossima scadenza {{ following.due_date|date:"d/m/Y" }}{% else %}nessuna scadenza successiva{% endif %}
+    </span>
+  </td>
+</tr>

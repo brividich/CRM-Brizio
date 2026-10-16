@@ -17,13 +17,14 @@ import logging
 import io
 import json
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Max, Q, Value, When
 from django.db.models.functions import TruncMonth
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -50,6 +51,7 @@ from .forms_maintenance import (
 )
 from .models import (
     Asset,
+    AssetCategory,
     AssetGroup,
     MaintenanceInterventionTemplate,
     MaintenanceOccurrence,
@@ -299,14 +301,27 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
 def _decorate(occurrences: list[MaintenanceOccurrence], *, today: date) -> list[dict[str, Any]]:
     """Aggiunge lo stato visuale derivato senza toccare il DB."""
     rows = []
+    meters = _meters_for_rows(occurrences)
     for occurrence in occurrences:
         payload = domain.occurrence_state_payload(occurrence, today=today)
         days = payload.get("days_until_due")
         # Il ritardo si calcola qui: il template non deve fare aritmetica.
         payload["days_late"] = -days if days is not None and days < 0 else 0
+        if occurrence.is_meter_based and occurrence.assignment_id:
+            payload["meter"] = meters.get((occurrence.asset_id, getattr(occurrence.assignment, "meter_type", "")))
         rows.append({"occurrence": occurrence, **payload})
     rows.sort(key=lambda row: (row["order"], row["occurrence"].due_date, row["occurrence"].id))
     return rows
+
+
+def _meters_for_rows(occurrences) -> dict:
+    """Contatori delle righe a contatore, in una query sola (niente N+1 nelle liste)."""
+    from .models import AssetMeter
+
+    asset_ids = {occ.asset_id for occ in occurrences if getattr(occ, "is_meter_based", False)}
+    if not asset_ids:
+        return {}
+    return {(m.asset_id, m.meter_type): m for m in AssetMeter.objects.filter(asset_id__in=asset_ids)}
 
 
 def _report_missing_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -486,6 +501,13 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             and r["occurrence"].work_order.assigned_to_id == user_id
         ),
     }
+    kpi_query = request.GET.copy()
+    kpi_query.pop("partial", None)
+    kpi_query["partial"] = "kpi"
+    kpi_url = f"{reverse('assets:maintenance_da_fare')}?{kpi_query.urlencode()}"
+    if _clean_string(request.GET.get("partial")) == "kpi":
+        # Solo i numeri in testa: li ricarica «Fatta oggi» dopo ogni registrazione.
+        return render(request, "assets/components/_da_fare_kpis.html", {"summary": summary, "kpi_url": kpi_url})
 
     # Gli ordini di lavoro che riguardano chi guarda la pagina. Le occorrenze qui
     # sopra dicono *cosa* e' dovuto; questo blocco dice *cosa e' gia' in mano a
@@ -541,6 +563,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "group_links": _group_mode_links(request, view_mode, with_none=False),
             "group_label": dict(_GROUP_MODES).get(view_mode, "").lower(),
             "summary": summary,
+            "kpi_url": kpi_url,
             "total": len(rows),
             "can_plan": can_plan,
             "can_execute": can_execute,
@@ -811,6 +834,13 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     # invece di stampare un numero che sembrerebbe una statistica.
     BASE_MINIMA = 10
     puntualita_misurabile = concluse >= BASE_MINIMA
+    # Stessa misura sugli ultimi 90 giorni: e' la tessera in testa alla Panoramica.
+    puntualita_90 = misurabili_qs.filter(completed_on__gte=today - timedelta(days=90)).aggregate(
+        concluse=Count("id"),
+        nei_tempi=Count("id", filter=Q(completed_on__lte=F("due_date"))),
+    )
+    concluse_90 = puntualita_90["concluse"] or 0
+    nei_tempi_90 = puntualita_90["nei_tempi"] or 0
 
     # Andamento a 12 mesi: stessa base della puntualita', per lo stesso motivo.
     mesi_rows = list(
@@ -880,6 +910,10 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
         "puntualita_misurabile": puntualita_misurabile,
         "nei_tempi_12m": nei_tempi,
         "puntualita_pct": round(100 * nei_tempi / concluse) if puntualita_misurabile else None,
+        "concluse_90": concluse_90,
+        "nei_tempi_90": nei_tempi_90,
+        "puntualita_90_misurabile": concluse_90 >= BASE_MINIMA,
+        "puntualita_90_pct": round(100 * nei_tempi_90 / concluse_90) if concluse_90 >= BASE_MINIMA else None,
         "andamento": andamento,
         "scadute": len(scadute),
         "arretrato_da": piu_vecchia,
@@ -1070,28 +1104,35 @@ def _conformita(request: HttpRequest, *, today: date) -> dict[str, Any]:
 
 @login_required
 def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
-    """Panoramica: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
-    pianificato. La distinzione fra "dovuta" e "pianificata" e' il punto della pagina.
+    """Panoramica: una pagina sola per «cosa fare» e «come sta andando».
 
-    La vecchia lettura "Sintesi" (``?vista=sintesi``) e' la pagina KPI: i link
-    salvati ci arrivano con gli altri parametri intatti.
+    In testa sei numeri (scadute, in scadenza 7 giorni, non pianificate,
+    interventi aperti, puntualita' 90 giorni, arretrato); tutti gli altri
+    indicatori - compresi quelli della vecchia pagina KPI - stanno in
+    «Dettaglio indicatori» (#dettaglio). ?vista=sintesi dei link salvati porta
+    li', con gli altri parametri intatti.
     """
     if _clean_string(request.GET.get("vista")).lower() == "sintesi":
         query = request.GET.copy()
         query.pop("vista", None)
-        target = reverse("assets:maintenance_kpi")
-        return redirect(f"{target}?{query.urlencode()}" if query else target)
-    return _responsabile_response(request, kpi_page=False)
+        return redirect(_panoramica_dettaglio_url(query))
+    return _responsabile_response(request)
+
+
+def _panoramica_dettaglio_url(query) -> str:
+    target = reverse("assets:maintenance_responsabile")
+    encoded = query.urlencode() if query else ""
+    return f"{target}?{encoded}#dettaglio" if encoded else f"{target}#dettaglio"
 
 
 @login_required
 def maintenance_kpi(request: HttpRequest) -> HttpResponse:
-    """KPI: la lettura "come sta andando" (puntualita', arretrato, copertura,
-    conformita'). Stesso calcolo della Sintesi, con una voce di menu propria."""
-    return _responsabile_response(request, kpi_page=True)
+    """La pagina KPI e' confluita nella Panoramica (sezione «Dettaglio indicatori»).
+    L'URL resta per i link salvati: redirect con la query string conservata."""
+    return redirect(_panoramica_dettaglio_url(request.GET.copy()))
 
 
-def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpResponse:
+def _responsabile_response(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
     open_rows = _decorate(
         list(_base_occurrence_queryset().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:3000]),
@@ -1222,36 +1263,48 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
         "report_missing": len(report_missing),
         "follow_ups": follow_ups.count(),
         "conflicts": len(conflicts),
+        "spare_below_min": _spare_below_min_count(),
     }
 
-    # Due letture della stessa pagina, non due pagine: l'operativo elenca cosa fare,
-    # la sintesi dice come sta andando. Stesso URL, stesso conteggio, un parametro.
-    # Due pagine, non uno switch: la Panoramica elenca cosa fare, KPI dice come sta andando.
-    vista = "sintesi" if kpi_page else "operativo"
-    sintesi = (
-        _sintesi_direzione(
-            today=today,
-            open_rows=open_rows,
-            done_rows=done_rows,
-            report_missing=len(report_missing),
-            resolutions=resolutions,
-        )
-        if vista == "sintesi"
-        else None
+    # Una pagina sola: le liste dicono cosa fare, la sintesi come sta andando.
+    sintesi = _sintesi_direzione(
+        today=today,
+        open_rows=open_rows,
+        done_rows=done_rows,
+        report_missing=len(report_missing),
+        resolutions=resolutions,
     )
+    week_end = today + timedelta(days=7)
+    # Le sei tessere in testa. «In scadenza 7 giorni» = aperte, non ancora scadute,
+    # con scadenza da oggi a 7 giorni; «Arretrato» = da quanti giorni e' scaduta la
+    # piu' vecchia (non quante: quello e' «Scadute»).
+    headline = {
+        "scadute": sintesi["scadute"],
+        "in_scadenza_7": sum(
+            1 for r in open_rows
+            if r["state"] != MaintenanceOccurrence.VIEW_OVERDUE and today <= r["occurrence"].due_date <= week_end
+        ),
+        "non_pianificate": kpi["unplanned"],
+        "interventi_aperti": kpi["workorders_open"],
+        "puntualita_90_pct": sintesi["puntualita_90_pct"],
+        "puntualita_90_misurabile": sintesi["puntualita_90_misurabile"],
+        "concluse_90": sintesi["concluse_90"],
+        "nei_tempi_90": sintesi["nei_tempi_90"],
+        "arretrato_giorni": sintesi["arretrato_giorni"],
+    }
 
     return render(
         request,
         "assets/pages/maintenance_responsabile.html",
         {
             **_assets_shell_context(request),
-            "page_title": "KPI manutenzione" if kpi_page else "Panoramica manutenzione",
-            "kpi_page": kpi_page,
+            "page_title": "Panoramica manutenzione",
             "today": today,
-            "vista": vista,
+            "headline": headline,
             "sintesi": sintesi,
-            "panoramica": _panoramica(request, today=today) if vista == "operativo" else None,
-            "conformita": _conformita(request, today=today) if vista == "sintesi" else None,
+            "panoramica": _panoramica(request, today=today),
+            "conformita": _conformita(request, today=today),
+            "pareto": _failure_pareto(request, today=today),
             "kpi": kpi,
             "unplanned": unplanned[:60],
             "report_missing": report_missing[:40],
@@ -1270,6 +1323,59 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
             "can_bulk_workorders": can_execute_maintenance(request),
         },
     )
+
+
+def _spare_below_min_count() -> int:
+    from .services.spare_parts import below_min_queryset
+
+    return below_min_queryset().count()
+
+
+PARETO_DAYS = 90
+PARETO_TOP = 10
+
+
+def _failure_pareto(request: HttpRequest, *, today: date) -> dict[str, Any]:
+    """«Guasti piu' frequenti»: interventi chiusi negli ultimi 90 giorni per problema.
+
+    Il fermo e' facoltativo in chiusura: si somma dove c'e' e si dichiara su
+    quanti interventi e' stato indicato, invece di presentarlo come totale vero.
+    """
+    from django.db.models import Sum
+
+    since = timezone.make_aware(datetime.combine(today - timedelta(days=PARETO_DAYS), time.min))
+    queryset = WorkOrder.objects.filter(
+        status=WorkOrder.STATUS_DONE, closed_at__gte=since, failure_problem__isnull=False
+    )
+    category_id = _as_int(request.GET.get("pareto_cat"), default=0)
+    if category_id:
+        queryset = queryset.filter(asset__asset_category_id__in=category_with_descendants(category_id))
+    # ``order_by()`` esplicito: Meta.ordering con values()+annotate() su SQL Server da' l'errore 8127.
+    rows = list(
+        queryset.values("failure_problem_id", "failure_problem__label")
+        .annotate(
+            total=Count("id"),
+            with_downtime=Count("id", filter=Q(downtime_minutes__gt=0)),
+            downtime=Sum("downtime_minutes"),
+        )
+        .order_by()
+    )
+    rows.sort(key=lambda row: (-row["total"], row["failure_problem__label"] or ""))
+    top = rows[:PARETO_TOP]
+    peak = max((row["total"] for row in top), default=0)
+    for row in top:
+        row["pct"] = round(100 * row["total"] / peak) if peak else 0
+        row["downtime_hours"] = round((row["downtime"] or 0) / 60, 1)
+    total = sum(row["total"] for row in rows)
+    with_downtime = sum(row["with_downtime"] for row in rows)
+    return {
+        "rows": top,
+        "total": total,
+        "with_downtime": with_downtime,
+        "days": PARETO_DAYS,
+        "category_id": category_id,
+        "categories": list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label").values_list("id", "label")),
+    }
 
 
 def _workorder_bulk_form():
@@ -1544,6 +1650,51 @@ def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) ->
     return {"previous": previous, "same_asset_open": same_asset, "contract": contracts[0] if contracts else None}
 
 
+def _complete_with_attachment(
+    occurrence: MaintenanceOccurrence,
+    *,
+    user,
+    upload=None,
+    shared_attachment=None,
+    before_complete=None,
+    **complete_kwargs,
+):
+    """Allegato e completamento di un'occorrenza in un'unica transazione.
+
+    Prima l'allegato si creava fuori dalla transazione di ``complete_occurrence``:
+    se il completamento falliva restava un allegato su una manutenzione mai
+    registrata. Ora o passano entrambi o nessuno; il file scritto sullo storage
+    da ``upload`` viene rimosso se la transazione si annulla. ``shared_attachment``
+    riusa il file di un altro allegato (stessa uscita): quello non si cancella.
+    Ritorna ``(occorrenza successiva, allegato creato)``.
+    """
+    created = None
+    try:
+        with transaction.atomic():
+            if upload is not None:
+                created = MaintenanceOccurrenceAttachment.objects.create(
+                    occurrence=occurrence, file=upload, uploaded_by=user
+                )
+            elif shared_attachment is not None:
+                created = MaintenanceOccurrenceAttachment.objects.create(
+                    occurrence=occurrence,
+                    file=shared_attachment.file.name,
+                    original_name=shared_attachment.original_name,
+                    uploaded_by=user,
+                )
+            if before_complete is not None:
+                before_complete()
+            following = domain.complete_occurrence(occurrence, user=user, **complete_kwargs)
+    except Exception:
+        if upload is not None and created is not None:
+            try:
+                created.file.delete(save=False)
+            except Exception:  # pragma: no cover - lo storage non deve coprire l'errore vero
+                logger.exception("Allegato occorrenza %s: file non rimosso dopo il rollback", occurrence.pk)
+        raise
+    return following, created
+
+
 def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attachment=None) -> list:
     """Registra insieme alla principale le altre manutenzioni della stessa macchina
     spuntate in «Registra» (stessa uscita): stessa data e stesse note; il fermo
@@ -1559,18 +1710,12 @@ def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attac
     )
     done, failed = [], []
     for other in others:
-        if first_attachment is not None:
-            MaintenanceOccurrenceAttachment.objects.create(
-                occurrence=other,
-                file=first_attachment.file.name,
-                original_name=first_attachment.original_name,
-                uploaded_by=request.user,
-            )
         try:
-            domain.complete_occurrence(
+            _complete_with_attachment(
                 other,
-                completed_on=form.cleaned_data["completed_on"],
                 user=request.user,
+                shared_attachment=first_attachment,
+                completed_on=form.cleaned_data["completed_on"],
                 notes=form.cleaned_data.get("notes") or "",
             )
         except domain.OccurrenceCompletionError as exc:
@@ -1592,7 +1737,7 @@ def maintenance_assignment_form(
     request: HttpRequest, plan_id: int, assignment_id: int | None = None
 ) -> HttpResponse:
     if not can_manage_maintenance_plans(request):
-        return _deny(request, "Non hai i permessi per configurare le applicazioni dei piani.")
+        return _deny(request, "Non hai i permessi per configurare le assegnazioni dei piani.")
     plan = get_object_or_404(MaintenanceInterventionTemplate, pk=plan_id)
     assignment = (
         get_object_or_404(MaintenancePlanAssignment, pk=assignment_id, plan=plan) if assignment_id else None
@@ -1613,14 +1758,14 @@ def maintenance_assignment_form(
             if created:
                 messages.success(
                     request,
-                    f"Applicazione su «{saved.target_label}» salvata: {created} scadenz"
+                    f"Assegnazione su «{saved.target_label}» salvata: {created} scadenz"
                     f"{'a creata' if created == 1 else 'e create'} ora. Le successive compariranno "
                     "nel preavviso, e intanto sono visibili come «previste» nel Calendario.",
                 )
             else:
                 messages.success(
                     request,
-                    f"Applicazione su «{saved.target_label}» salvata. Nessuna scadenza e' ancora nel "
+                    f"Assegnazione su «{saved.target_label}» salvata. Nessuna scadenza e' ancora nel "
                     "preavviso: la vedi come «prevista» nel Calendario e comparira' negli elenchi "
                     "quando si avvicina.",
                 )
@@ -1633,7 +1778,7 @@ def maintenance_assignment_form(
         "assets/pages/maintenance_assignment_form.html",
         {
             **_assets_shell_context(request),
-            "page_title": f"Applicazione — {plan.label}",
+            "page_title": f"Assegnazione — {plan.label}",
             "form": form,
             "plan": plan,
             "assignment": assignment,
@@ -1648,17 +1793,17 @@ def maintenance_assignment_form(
 @require_POST
 def maintenance_assignment_delete(request: HttpRequest, plan_id: int, assignment_id: int) -> HttpResponse:
     if not can_manage_maintenance_plans(request):
-        return _deny(request, "Non hai i permessi per rimuovere le applicazioni.")
+        return _deny(request, "Non hai i permessi per rimuovere le assegnazioni.")
     assignment = get_object_or_404(MaintenancePlanAssignment, pk=assignment_id, plan_id=plan_id)
     if assignment.occurrences.exists():
         # Un'applicazione con storico non si cancella: si disattiva. Altrimenti le
         # occorrenze gia' eseguite perderebbero il riferimento a come erano nate.
         assignment.is_active = False
         assignment.save(update_fields=["is_active", "updated_at"])
-        messages.success(request, "Applicazione disattivata (ha storico, quindi non viene eliminata).")
+        messages.success(request, "Assegnazione disattivata (ha storico, quindi non viene eliminata).")
     else:
         assignment.delete()
-        messages.success(request, "Applicazione rimossa.")
+        messages.success(request, "Assegnazione rimossa.")
     return redirect("assets:maintenance_plan_detail", plan_id=plan_id)
 
 
@@ -2300,14 +2445,14 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
             # Lo stesso rapporto vale per tutte: il file viene riletto da capo
             # per ogni allegato, altrimenti dal secondo in poi si salva vuoto.
             upload.seek(0)
-            MaintenanceOccurrenceAttachment.objects.create(
-                occurrence=occurrence, file=upload, uploaded_by=request.user
-            )
         try:
-            domain.complete_occurrence(
+            # Allegato e chiusura insieme: una che fallisce non lascia allegati
+            # orfani e non annulla le altre.
+            _complete_with_attachment(
                 occurrence,
-                completed_on=completed_on,
                 user=request.user,
+                upload=upload or None,
+                completed_on=completed_on,
                 notes=notes,
                 downtime_minutes=downtime,
             )
@@ -2335,7 +2480,6 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
     return redirect("assets:wo_view", id=workorder_id)
 
 
-@login_required
 def _safe_back_url(request: HttpRequest, fallback: str) -> str:
     """Dove tornare dopo un'azione: ``next`` esplicito, altrimenti la pagina da cui
     si e' arrivati (stesso host). Mai un URL esterno."""
@@ -2350,6 +2494,7 @@ def _safe_back_url(request: HttpRequest, fallback: str) -> str:
     return fallback
 
 
+@login_required
 def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Chiusura di una singola manutenzione: ogni asset avanza per conto suo.
 
@@ -2370,22 +2515,24 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
         form = OccurrenceCompletionForm(request.POST, request.FILES, occurrence=occurrence)
         if form.is_valid():
             upload = form.cleaned_data.get("attachment")
-            new_attachment = None
-            if upload:
-                new_attachment = MaintenanceOccurrenceAttachment.objects.create(
-                    occurrence=occurrence, file=upload, uploaded_by=request.user
-                )
             report_received = form.cleaned_data.get("report_received_at")
-            if report_received:
-                occurrence.report_received_at = report_received
-                occurrence.save(update_fields=["report_received_at", "updated_at"])
+
+            def _save_report_received():
+                if report_received:
+                    occurrence.report_received_at = report_received
+                    occurrence.save(update_fields=["report_received_at", "updated_at"])
+
+            new_attachment = None
             try:
-                following = domain.complete_occurrence(
+                following, new_attachment = _complete_with_attachment(
                     occurrence,
-                    completed_on=form.cleaned_data["completed_on"],
                     user=request.user,
+                    upload=upload or None,
+                    before_complete=_save_report_received,
+                    completed_on=form.cleaned_data["completed_on"],
                     notes=form.cleaned_data.get("notes") or "",
                     downtime_minutes=form.cleaned_data.get("downtime_minutes"),
+                    meter_value=form.cleaned_data.get("meter_value"),
                 )
             except domain.OccurrenceCompletionError as exc:
                 messages.error(request, str(exc))
@@ -2424,6 +2571,116 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
             **_completion_suggestions(occurrence, back_url),
         },
     )
+
+
+QUICK_COMPLETE_NOTE = "Registrata con «Fatta oggi»"
+
+
+def _is_htmx(request: HttpRequest) -> bool:
+    return request.headers.get("HX-Request") == "true"
+
+
+@login_required
+@require_POST
+def occurrence_quick_complete(request: HttpRequest, occurrence_id: int) -> HttpResponse:
+    """«Fatta oggi»: registra una manutenzione semplice con un tap.
+
+    Solo per manutenzioni aperte, interne e senza documento obbligatorio: le altre
+    passano dal form completo. Data = oggi, nessuna nota dell'operatore, nessun
+    fermo. L'annullamento e' solo lato client (conto alla rovescia prima dell'invio):
+    una volta registrata si corregge come qualunque altra esecuzione.
+    """
+    occurrence = get_object_or_404(
+        MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment", "work_order"),
+        pk=occurrence_id,
+    )
+    if not can_execute_maintenance(request):
+        if _is_htmx(request):
+            return HttpResponse("Non hai i permessi per registrare le manutenzioni.", status=403)
+        raise PermissionDenied("Non hai i permessi per registrare le manutenzioni.")
+    reason = occurrence.quick_complete_block_reason
+    if reason:
+        if _is_htmx(request):
+            return HttpResponse(f"«Fatta oggi» non disponibile: la manutenzione {reason}.", status=409)
+        return redirect(reverse("assets:occurrence_complete", args=[occurrence.pk]))
+
+    with transaction.atomic():
+        following = domain.complete_occurrence(
+            occurrence,
+            completed_on=timezone.localdate(),
+            user=request.user,
+            notes=QUICK_COMPLETE_NOTE,
+            downtime_minutes=None,
+        )
+    if occurrence.work_order_id:
+        domain.close_workorder_if_complete(occurrence.work_order, user=request.user)
+
+    if _is_htmx(request):
+        cols = _as_int(request.POST.get("cols"), default=5) or 5
+        response = render(
+            request,
+            "assets/components/_occurrence_quick_done_row.html",
+            {"occurrence": occurrence, "following": following, "cols": cols},
+        )
+        response["HX-Trigger"] = "occurrenceCompleted"
+        return response
+    if following is not None:
+        messages.success(
+            request, f"Manutenzione registrata oggi. Prossima scadenza: {following.due_date:%d/%m/%Y}."
+        )
+    else:
+        messages.success(request, "Manutenzione registrata oggi.")
+    return redirect(_safe_back_url(request, reverse("assets:maintenance_da_fare")))
+
+
+@login_required
+@require_POST
+def occurrence_quick_complete_bulk(request: HttpRequest) -> HttpResponse:
+    """«Segna come fatte oggi» sulle manutenzioni selezionate in «Da fare».
+
+    Una transazione per manutenzione: una che fallisce non annulla le altre. Quelle
+    che richiedono il documento o sono esterne vengono escluse e contate.
+    """
+    back = _safe_back_url(request, reverse("assets:maintenance_da_fare"))
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai i permessi per registrare le manutenzioni.")
+    occurrences = _selected_occurrences(request)
+    if not occurrences:
+        messages.error(request, "Seleziona almeno una manutenzione.")
+        return redirect(back)
+
+    registrate: list[MaintenanceOccurrence] = []
+    escluse: list[str] = []
+    fallite: list[str] = []
+    today = timezone.localdate()
+    for occurrence in occurrences:
+        etichetta = f"{occurrence.asset.asset_tag or occurrence.asset.name} · {occurrence.plan.label}"
+        reason = occurrence.quick_complete_block_reason
+        if reason:
+            escluse.append(etichetta)
+            continue
+        try:
+            with transaction.atomic():
+                domain.complete_occurrence(
+                    occurrence, completed_on=today, user=request.user, notes=QUICK_COMPLETE_NOTE,
+                    downtime_minutes=None,
+                )
+        except domain.OccurrenceCompletionError as exc:
+            fallite.append(f"{etichetta} ({exc})")
+            continue
+        registrate.append(occurrence)
+    for work_order in {occ.work_order_id: occ.work_order for occ in registrate if occ.work_order_id}.values():
+        domain.close_workorder_if_complete(work_order, user=request.user)
+
+    riepilogo = f"{len(registrate)} registrat{'a' if len(registrate) == 1 else 'e'} oggi"
+    if escluse:
+        riepilogo += f", {len(escluse)} esclus{'a' if len(escluse) == 1 else 'e'} (richiedono allegato o sono esterne)"
+    (messages.success if registrate else messages.warning)(request, riepilogo + ".")
+    if escluse:
+        messages.info(request, "Escluse: " + "; ".join(escluse) + ".")
+    if fallite:
+        messages.warning(request, "Non registrate: " + "; ".join(fallite) + ".")
+    return redirect(back)
 
 
 @login_required
@@ -2713,7 +2970,7 @@ def occurrence_followup_create(request: HttpRequest, occurrence_id: int) -> Http
         MaintenanceOccurrence.objects.select_related("plan", "asset", "work_order"), pk=occurrence_id
     )
     if not can_execute_maintenance(request):
-        return _deny(request, "Non hai i permessi per aprire un follow-up.")
+        return _deny(request, "Non hai i permessi per aprire un intervento di verifica.")
 
     checklist_item_id = _as_int(request.GET.get("step"), default=0) or _as_int(
         request.POST.get("checklist_item"), default=0
@@ -2736,7 +2993,7 @@ def occurrence_followup_create(request: HttpRequest, occurrence_id: int) -> Http
                 follow_up_checklist_item_id=checklist_item_id or None,
                 follow_up_reason=form.cleaned_data["reason"],
             )
-            messages.success(request, f"Follow-up #{follow_up.pk} aperto su {occurrence.asset.asset_tag}.")
+            messages.success(request, f"Intervento di verifica #{follow_up.pk} aperto su {occurrence.asset.asset_tag}.")
             return redirect("assets:wo_view", id=follow_up.pk)
     else:
         form = FollowUpForm(
@@ -2751,7 +3008,7 @@ def occurrence_followup_create(request: HttpRequest, occurrence_id: int) -> Http
         "assets/pages/occurrence_followup_form.html",
         {
             **_assets_shell_context(request),
-            "page_title": f"Follow-up — {occurrence.asset.asset_tag}",
+            "page_title": f"Intervento di verifica — {occurrence.asset.asset_tag}",
             "form": form,
             "occurrence": occurrence,
             "checklist_item_id": checklist_item_id,
@@ -2999,14 +3256,14 @@ def maintenance_setup(request: HttpRequest) -> HttpResponse:
             "applicazioni", "Applica ogni piano ad asset, gruppi o categorie",
             "todo" if plans_without_target else ("done" if plans else "blocked"),
             (f"{len(plans_without_target)} piani non sono applicati a nessun asset: non generano scadenze."
-             if plans_without_target else "Tutti i piani attivi hanno almeno un'applicazione."),
+             if plans_without_target else "Tutti i piani attivi hanno almeno un'assegnazione."),
             [("Piani", reverse("assets:maintenance_plan_list"))],
             [(plan.label, reverse("assets:maintenance_plan_detail", args=[plan.id])) for plan in plans_without_target[:8]],
         ),
         step(
             "generazione", "Conferma le periodicita' da verificare",
             "todo" if manual_generation else "done",
-            (f"{len(manual_generation)} applicazioni hanno la generazione automatica spenta: "
+            (f"{len(manual_generation)} assegnazioni hanno la generazione automatica spenta: "
              "di solito arrivano dalla migrazione, con periodicita' da confermare."
              if manual_generation else "Tutte le applicazioni generano le scadenze da sole."),
             [],

@@ -69,3 +69,20 @@ def risposta_pubblica(view_func):
         return blinda_risposta_pubblica(view_func(request, *args, **kwargs))
 
     return _wrapped
+
+
+def risposta_pubblica_con_form(view_func):
+    """Come ``risposta_pubblica``, per le pagine che contengono un form POST.
+
+    Usa ``Referrer-Policy: same-origin``: con ``no-referrer`` Chromium invia
+    ``Origin: null`` al salvataggio e Django risponde 403 «Origin checking
+    failed». Il token resta comunque dentro il dominio.
+    """
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        response = view_func(request, *args, **kwargs)
+        response["Referrer-Policy"] = "same-origin"
+        return blinda_risposta_pubblica(response)
+
+    return _wrapped

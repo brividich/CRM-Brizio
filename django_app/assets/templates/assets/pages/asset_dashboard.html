@@ -403,7 +403,7 @@ body.theme-dark .ad-overlay { background:rgba(0,0,0,.6); }
           <a class="ad-facet {% if dash_wo.urgent %}red{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&priority=URGENT">Urgenti <b>{{ dash_wo.urgent }}</b></a>
           <a class="ad-facet {% if dash_wo.late %}amber{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN">In ritardo <b>{{ dash_wo.late }}</b></a>
           <a class="ad-facet" href="{% url 'assets:wo_list' %}?status=OPEN">Da assegnare <b>{{ dash_wo.unassigned }}</b></a>
-          <a class="ad-facet" href="{% url 'assets:il_mio_turno' %}">Miei <b>{{ dash_wo.mine }}</b></a>
+          <a class="ad-facet" href="{% url 'assets:maintenance_da_fare' %}?mio=1">Miei <b>{{ dash_wo.mine }}</b></a>
         </div>
         {% if dash_wo.items %}
         <ul class="ad-rows">

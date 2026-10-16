@@ -1,4 +1,5 @@
 {% extends "assets/base_shell.html" %}
+{% load assets_extras %}
 
 {% block title %}Dispositivi IT{% endblock %}
 
@@ -446,17 +447,7 @@ body.theme-dark .dv-cov-badge.none { background:rgba(255,255,255,.08); color:var
             <td><input type="checkbox" class="dv-select-cb" value="{{ asset.id }}" title="Seleziona {{ asset.name }}"></td>
             <td><div class="dv-cell-main"><div class="dv-cell-title">{{ asset.name }}</div><div class="dv-cell-sub">#{{ asset.asset_tag }}</div></div></td>
             <td>
-              {% if asset.status == "IN_USE" %}
-                <span class="dv-status ok">In uso</span>
-              {% elif asset.status == "IN_REPAIR" %}
-                <span class="dv-status danger">Riparazione</span>
-              {% elif asset.status == "IN_STOCK" %}
-                <span class="dv-status idle">Magazzino</span>
-              {% elif asset.status == "RETIRED" %}
-                <span class="dv-status dead">Dismesso</span>
-              {% else %}
-                <span class="dv-status warn">{{ asset.get_status_display }}</span>
-              {% endif %}
+              {% asset_status_badge asset %}
             </td>
             <td><div class="dv-cell-main"><div class="dv-cell-title">{{ asset.category_label }}</div><div class="dv-cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
             <td>{% if asset.assignment_to %}<div class="dv-cell-main"><div class="dv-cell-title">{{ asset.assignment_to }}</div><div class="dv-cell-sub">{{ asset.assignment_reparto|default:"-" }}</div></div>{% else %}<span class="dv-cell-muted">Non assegnato</span>{% endif %}</td>
@@ -483,15 +474,7 @@ body.theme-dark .dv-cov-badge.none { background:rgba(255,255,255,.08); color:var
           <span class="dv-dc-tag">{{ asset.asset_tag }}</span>
           <div class="dv-dc-badges">
             <span class="dv-type-badge dv-type-{{ asset.asset_type }}">{{ asset.get_asset_type_display }}</span>
-            {% if asset.status == "IN_USE" %}
-              <span class="dv-status ok">In uso</span>
-            {% elif asset.status == "IN_REPAIR" %}
-              <span class="dv-status danger">Riparazione</span>
-            {% elif asset.status == "IN_STOCK" %}
-              <span class="dv-status idle">Magazzino</span>
-            {% elif asset.status == "RETIRED" %}
-              <span class="dv-status dead">Dismesso</span>
-            {% endif %}
+            {% asset_status_badge asset %}
           </div>
         </div>
 

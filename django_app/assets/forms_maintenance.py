@@ -104,7 +104,7 @@ class MaintenancePlanForm(forms.ModelForm):
             Q(is_active=True) | Q(pk=getattr(self.instance, "asset_category_id", None))
         ).order_by("sort_order", "label", "id")
         self.fields["asset_category"].help_text = (
-            "Facoltativa. Il perimetro reale lo decidono le applicazioni del piano."
+            "Facoltativa. Il perimetro reale lo decidono le assegnazioni del piano."
         )
         self.fields["default_supplier"].required = False
         self.fields["default_supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
@@ -210,6 +210,11 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
             "asset",
             "asset_group",
             "asset_category",
+            "trigger_type",
+            "meter_type",
+            "meter_interval",
+            "meter_warning_before",
+            "meter_baseline",
             "frequency",
             "interval",
             "weekday",
@@ -227,6 +232,11 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
             "notes",
         ]
         labels = {
+            "trigger_type": "Quando scatta",
+            "meter_type": "Contatore",
+            "meter_interval": "Ogni (valore del contatore)",
+            "meter_warning_before": "Preavviso (valore del contatore)",
+            "meter_baseline": "Valore di partenza",
             "target_type": "Si applica a",
             "asset": "Asset",
             "asset_group": "Gruppo di asset",
@@ -272,6 +282,8 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
         )
         self.fields["supplier"].required = False
         self.fields["supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
+        # Chi non sceglie resta «A calendario» (come prima di questo campo).
+        self.fields["trigger_type"].required = False
         self.fields["assigned_to"].required = False
         _set_user_choices(self.fields["assigned_to"])
         self.fields["schedule_anchor"].required = False
@@ -301,6 +313,15 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
         if keep and not cleaned.get(keep):
             self.add_error(keep, "Seleziona su cosa si applica il piano.")
 
+        if not cleaned.get("trigger_type"):
+            cleaned["trigger_type"] = MaintenancePlanAssignment.TRIGGER_CALENDAR
+        if cleaned.get("trigger_type") == MaintenancePlanAssignment.TRIGGER_METER:
+            # A contatore il calendario non serve: niente errori sui suoi campi.
+            if not cleaned.get("meter_type"):
+                self.add_error("meter_type", "Scegli il contatore (ore, km, cicli...).")
+            interval = cleaned.get("meter_interval")
+            if interval is None or interval <= 0:
+                self.add_error("meter_interval", "Indica ogni quanto (valore maggiore di zero).")
         if not cleaned.get("first_due_date") and not self.instance.pk:
             cleaned["first_due_date"] = timezone.localdate()
         return cleaned
@@ -309,8 +330,13 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
         assignment = super().save(commit=False)
         if self.plan is not None:
             assignment.plan = self.plan
+        is_meter = self.cleaned_data.get("trigger_type") == MaintenancePlanAssignment.TRIGGER_METER
         for name in _RECURRENCE_FIELDS:
-            setattr(assignment, name, self.cleaned_data.get(name))
+            value = self.cleaned_data.get(name)
+            if is_meter and value in (None, ""):
+                # Campi del calendario non compilati: restano i valori del modello.
+                continue
+            setattr(assignment, name, value)
         if commit:
             assignment.save()
         return assignment
@@ -495,11 +521,29 @@ class OccurrenceCompletionForm(forms.Form):
         widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
     )
     attachment = forms.FileField(label="Rapporto / documento", required=False)
+    meter_value = forms.DecimalField(
+        label="Valore del contatore", required=False, min_value=0, max_digits=12, decimal_places=2,
+    )
 
     def __init__(self, *args, occurrence: MaintenanceOccurrence | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.occurrence = occurrence
         self.fields["completed_on"].initial = timezone.localdate()
+        if occurrence is not None and occurrence.is_meter_based:
+            # A contatore la prossima scadenza parte dal valore letto adesso: senza,
+            # il piano non sa quando tornare.
+            meter = occurrence.meter_for_completion
+            self.fields["meter_value"].required = True
+            if meter is not None:
+                self.fields["meter_value"].initial = meter.current_value
+                unit = meter.unit_label or meter.get_meter_type_display().lower()
+                self.fields["meter_value"].label = f"Valore del contatore ({unit})"
+                self.fields["meter_value"].help_text = (
+                    f"Ultima lettura: {meter.current_value} · {meter.freshness_label}. "
+                    "Se il valore e' diverso viene registrato anche come lettura."
+                )
+        else:
+            del self.fields["meter_value"]
         if occurrence is not None and not occurrence.is_external:
             del self.fields["report_received_at"]
         if occurrence is not None and occurrence.attachment_required:

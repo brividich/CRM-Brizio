@@ -356,10 +356,14 @@ class PanoramicaKpiTests(DeadlineFeedTestCase):
         self.assertIn(f"category={self.famiglia.id}", response.context["panoramica"]["scadenzario_url"])
 
     def test_pagina_kpi(self):
-        response = self.client.get(reverse("assets:maintenance_kpi"))
+        """La pagina KPI e' confluita nella Panoramica: gli stessi indicatori stanno
+        in «Dettaglio indicatori», il vecchio URL ci porta."""
+        redirect_response = self.client.get(reverse("assets:maintenance_kpi"))
+        self.assertEqual(redirect_response.status_code, 302)
+        self.assertTrue(redirect_response["Location"].endswith("#dettaglio"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["vista"], "sintesi")
-        self.assertTrue(response.context["kpi_page"])
+        self.assertContains(response, 'id="dettaglio"', html=False)
         conformita = response.context["conformita"]
         self.assertEqual(conformita["adempimenti_aperti"], 1)
         self.assertEqual(conformita["adempimenti_scaduti"], 1)

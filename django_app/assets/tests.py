@@ -1007,8 +1007,8 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:asset_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-li-nav-group', html=False)
-        self.assertContains(response, 'class="li-nav-children"', html=False)
+        self.assertContains(response, 'data-as-nav-group', html=False)
+        self.assertContains(response, 'class="as-nav-children"', html=False)
         self.assertContains(response, 'aria-expanded="false"', html=False)
         self.assertContains(response, "localStorage.removeItem(storageKey)", html=False)
         self.assertContains(response, "closeOtherGroups", html=False)
@@ -1893,7 +1893,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-work-machine-form-") as tmpdir:
             manual_file = SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:work_machine_create"),
                         {
@@ -1954,7 +1954,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-work-machine-upload-") as tmpdir:
             manual_file = SimpleUploadedFile("../manuale rischio.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:work_machine_create"),
                         {
@@ -1995,7 +1995,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-detail-upload-") as tmpdir:
             specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {
@@ -2020,7 +2020,7 @@ class AssetsRoutingTests(TestCase):
         with _workspace_temporary_directory("assets-detail-folder-upload-") as tmpdir:
             specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {
@@ -2106,7 +2106,7 @@ class AssetsRoutingTests(TestCase):
         )
         with _workspace_temporary_directory("assets-long-folder-upload-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                with patch("assets.views._helpers.validate_extension_and_mime", return_value="application/pdf"):
                     response = self.client.post(
                         reverse("assets:asset_view", args=[asset.id]),
                         {"action": "upload_asset_documents", field_name: long_file},
@@ -2657,7 +2657,7 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(self.user)
 
         with patch(
-            "assets.views._model_table_exists",
+            "assets.views.exports._model_table_exists",
             side_effect=lambda model: False if model is AssetReportTemplate else True,
         ):
             with patch.object(
@@ -2722,7 +2722,7 @@ class AssetsRoutingTests(TestCase):
         abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
-        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
@@ -2742,7 +2742,7 @@ class AssetsRoutingTests(TestCase):
         abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
-        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
@@ -2819,7 +2819,7 @@ class AssetsRoutingTests(TestCase):
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-detail")
         self.client.force_login(self.user)
 
-        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+        with patch("assets.views.qr_labels._draw_asset_label_pdf") as draw_label:
             response = self.client.get(f"{reverse('assets:asset_qr_label', kwargs={'id': asset.id})}?target=detail")
 
         self.assertEqual(response.status_code, 200)
@@ -3702,11 +3702,13 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Numero seriale")
+        # Ancora al markup reale: se la classe cambia di nuovo, i NotContains sotto non passano a vuoto.
+        self.assertContains(response, '<span class="af-kv-k">Numero seriale</span>', html=False)
         self.assertContains(response, "SN-SPECS-001")
-        self.assertNotContains(response, '<span class="af-spec-k">Processore</span>', html=False)
-        self.assertNotContains(response, '<span class="af-spec-k">Memoria</span>', html=False)
-        self.assertNotContains(response, '<span class="af-spec-k">Sistema operativo</span>', html=False)
-        self.assertNotContains(response, '<span class="af-spec-k">Grafica</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Processore</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Memoria</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Sistema operativo</span>', html=False)
+        self.assertNotContains(response, '<span class="af-kv-k">Grafica</span>', html=False)
 
     def test_asset_detail_specs_hide_empty_category_fields_even_when_show_if_empty(self):
         category = AssetCategory.objects.create(
@@ -3782,7 +3784,7 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Presidio attivo")
-        self.assertContains(response, '<span class="af-spec-v">No</span>', html=False)
+        self.assertContains(response, '<span class="af-kv-v">No</span>', html=False)
 
     def test_asset_detail_specs_card_not_rendered_when_configured_specs_are_empty(self):
         AssetDetailField.objects.all().delete()
@@ -3998,7 +4000,8 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_scadenze")}">Scadenzario</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_history")}">Storico</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_kpi")}">KPI</a>', html=False)
+        # KPI e' confluita nella Panoramica: niente piu' voce propria nella barra.
+        self.assertNotContains(hub_response, '>KPI</a>', html=False)
         self.assertNotContains(hub_response, f'class="as-section-tab" href="{reverse("assets:maintenance_plan_list")}"', html=False)
 
         plans_response = self.client.get(reverse("assets:maintenance_plan_list"))
@@ -4023,7 +4026,8 @@ class AssetsRoutingTests(TestCase):
         self.assertNotContains(hub_response, 'data-as-section-action="export-workorders"', html=False)
         self.assertNotContains(hub_response, 'data-as-section-action="new-plan"', html=False)
         kpi_response = self.client.get(reverse("assets:maintenance_kpi"))
-        self.assertNotContains(kpi_response, 'data-as-section-action="new-workorder"', html=False)
+        self.assertEqual(kpi_response.status_code, 302)
+        self.assertTrue(kpi_response["Location"].endswith("#dettaglio"), kpi_response["Location"])
 
         # Le pagine del vecchio motore sono state ritirate: restano raggiungibili
         # per URL ma rimandano alla superficie nuova equivalente, cosi' chi arriva
@@ -4055,7 +4059,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(report_templates_response.status_code, 200)
         self.assertContains(
             report_templates_response,
-            f'class="as-section-tab active" href="{reverse("assets:maintenance_kpi")}" aria-current="page">KPI</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_responsabile")}" aria-current="page">Panoramica</a>',
             html=False,
         )
 
@@ -4171,7 +4175,7 @@ class AssetsRoutingTests(TestCase):
 
     def test_delegated_user_can_access_asset_detail_layout_admin_page(self):
         self.client.force_login(self.user)
-        with patch("assets.views.user_can_modulo_action", return_value=True):
+        with patch("assets.views.asset_detail_helpers.user_can_modulo_action", return_value=True):
             response = self.client.get(reverse("assets:asset_detail_layout_admin"))
 
         self.assertEqual(response.status_code, 200)
@@ -4422,7 +4426,7 @@ class AssetsRoutingTests(TestCase):
         )
         self.client.force_login(self.user)
 
-        with patch("assets.views.user_can_modulo_action", return_value=True):
+        with patch("assets.views.asset_detail_helpers.user_can_modulo_action", return_value=True):
             response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
 
         self.assertEqual(response.status_code, 200)
@@ -5401,7 +5405,7 @@ class WorkOrderFlowTests(TestCase):
 
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset.id]),
                     {
@@ -5428,7 +5432,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
         upload = SimpleUploadedFile("report.pdf", b"MZ...", content_type="application/pdf")
         with patch(
-            "assets.views.validate_extension_and_mime",
+            "assets.views._helpers_c.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("report.pdf: tipo MIME non consentito (application/x-msdownload)."),
         ):
             response = self.client.post(
@@ -5452,7 +5456,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with patch(
-            "assets.views.validate_extension_and_mime",
+            "assets.views._helpers_c.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("Validazione MIME non disponibile sul server. Upload bloccato."),
         ):
             response = self.client.post(
@@ -5836,7 +5840,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
 
         with _workspace_temporary_directory("assets-wo-close-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_close", args=[workorder.id]),
                     {
@@ -6869,7 +6873,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-        with patch.object(asset_views, "_outlook_calendar_create_event") as mocked_create:
+        with patch.object(asset_views._helpers, "_outlook_calendar_create_event") as mocked_create:
             response = self.client.post(
                 reverse("assets:maintenance_schedule"),
                 {
@@ -6918,7 +6922,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views,
+            asset_views._helpers,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-deadline", "webLink": "https://outlook.office.com/calendar/item/evt-deadline"},
         ) as mocked_create:
@@ -6952,7 +6956,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(calendar_event.target_email, "g.verdi@example.local")
         self.assertEqual(calendar_event.graph_event_id, "evt-deadline")
 
-        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views.deadlines, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(
                 reverse("assets:asset_administrative_deadline_list") + f"?asset={self.asset.id}"
             )
@@ -6983,7 +6987,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views,
+            asset_views._helpers,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-periodic", "webLink": "https://outlook.office.com/calendar/item/evt-periodic"},
         ) as mocked_create:
@@ -7016,7 +7020,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(calendar_event.due_date), "2026-06-15")
         self.assertEqual(calendar_event.graph_event_id, "evt-periodic")
 
-        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views.maintenance_legacy, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(reverse("assets:periodic_verifications") + f"?asset={self.asset.id}&scope=production")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
@@ -7048,7 +7052,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.client.force_login(self.admin)
 
         with patch.object(
-            asset_views,
+            asset_views._helpers,
             "_outlook_calendar_create_event",
             return_value={"id": "evt-contract", "webLink": "https://outlook.office.com/calendar/item/evt-contract"},
         ) as mocked_create:
@@ -7084,7 +7088,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(calendar_event.due_date), "2026-12-31")
         self.assertEqual(calendar_event.graph_event_id, "evt-contract")
 
-        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+        with patch.object(asset_views.deadlines, "_outlook_calendar_graph_ready", return_value=True):
             page_response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
@@ -7297,7 +7301,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
             b"%PDF-1.4 fake",
             content_type="application/pdf",
         )
-        with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+        with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
             response = self.client.post(
                 reverse("assets:periodic_verifications"),
                 {
@@ -7418,7 +7422,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
             _workspace_temporary_directory("assets-media-") as media_root,
             _workspace_temporary_directory("assets-private-") as private_root,
             override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
-            patch("assets.views.validate_extension_and_mime", return_value="application/pdf"),
+            patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"),
         ):
             response = self.client.post(
                 reverse("assets:asset_administrative_deadline_list"),
@@ -8083,7 +8087,7 @@ class AssetMaintenanceRegisterUnifiedTests(TestCase):
 
         self.client.force_login(self.user)
         with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset1.id]),
                     {
@@ -9176,6 +9180,9 @@ class AssetMeterAuditTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user("meter-audit", "meter-audit@test.local", "pw")
+        # Registrare una lettura ora richiede il permesso di esecuzione manutenzioni.
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
         _complete_onboarding(self.user)
         self.category = AssetCategory.objects.create(
             code="cnc-audit", label="CNC audit", base_asset_type=Asset.TYPE_CNC, sort_order=10,
@@ -10139,68 +10146,19 @@ class IlMioTurnoTests(TestCase):
         defaults.update(kwargs)
         return WorkOrder.objects.create(**defaults)
 
-    def test_sections_are_mutually_exclusive_and_populated(self):
-        # Orario fisso a metà giornata: il bucket "oggi" dipende dal confronto tra
-        # due_at e "adesso"/"oggi" calcolati dalla view nello stesso istante in cui
-        # il test li prepara — usare il vero timezone.now() rende il test fragile
-        # a cavallo di mezzanotte (due_at scivola sul giorno dopo).
-        frozen_now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
-        with patch("django.utils.timezone.now", return_value=frozen_now):
-            bloccato = self._wo(title="Bloccato", assigned_to=self.user)
-            bloccato.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO)
-            urgente = self._wo(title="Urgente", assigned_to=self.user, priority=WorkOrder.PRIORITY_URGENT)
-            scaduto = self._wo(
-                title="Scaduto", assigned_to=self.user, due_at=frozen_now - timedelta(hours=2)
-            )
-            oggi = self._wo(
-                title="Oggi",
-                assigned_to=self.user,
-                due_at=frozen_now + timedelta(minutes=5),
-            )
-            in_corso = self._wo(title="In corso", assigned_to=self.user)
-            in_corso.start()
-            altro = self._wo(title="Altro assegnato", assigned_to=self.user)
-            non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
-            di_nessuno = self._wo(title="Di nessuno")
-            chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=frozen_now)
-
-            self.client.force_login(self.user)
-            response = self.client.get(reverse("assets:il_mio_turno"))
-
-        self.assertEqual(response.status_code, 200)
-        sections = {section["key"]: section["rows"] for section in response.context["sections"]}
-        self.assertEqual([wo.id for wo in sections["bloccati"]], [bloccato.id])
-        self.assertEqual([wo.id for wo in sections["emergenze"]], [urgente.id])
-        self.assertEqual([wo.id for wo in sections["scaduti"]], [scaduto.id])
-        self.assertEqual([wo.id for wo in sections["oggi"]], [oggi.id])
-        self.assertEqual([wo.id for wo in sections["in_corso"]], [in_corso.id])
-        # Coda condivisa: l'OdL di nessuno sta nella coda insieme ai miei, non in una
-        # sezione a parte da rivendicare.
-        self.assertEqual(
-            sorted(wo.id for wo in sections["altri"]), sorted([altro.id, di_nessuno.id])
-        )
-        self.assertNotIn("da_prendere", sections)
-        all_shown_ids = {wo.id for rows in sections.values() for wo in rows}
-        self.assertNotIn(non_mio.id, all_shown_ids)
-        self.assertNotIn(chiuso.id, all_shown_ids)
-
-    def test_sezioni_vuote_non_vengono_stampate(self):
-        """Le sezioni senza righe non arrivano al template: quattro riquadri vuoti in
-        cima spingevano sotto la piega il lavoro vero."""
-        mio = self._wo(title="Solo questo", assigned_to=self.user)
+    def test_il_mio_turno_porta_a_il_mio_lavoro_di_da_fare(self):
+        """«Il mio turno» non e' piu' una pagina: e' «Da fare» con «Il mio lavoro».
+        Il vecchio URL resta per i segnalibri e conserva la query string."""
         self.client.force_login(self.user)
-
-        response = self.client.get(reverse("assets:il_mio_turno"))
-
-        keys = [section["key"] for section in response.context["sections"]]
-        self.assertEqual(keys, ["altri"])
-        self.assertEqual([wo.id for wo in response.context["sections"][0]["rows"]], [mio.id])
-        # Quello che manca si riassume in una riga sola.
-        self.assertIn("nessuna emergenza", response.context["quiet_labels"])
-        self.assertIn("niente di scaduto", response.context["quiet_labels"])
-        self.assertEqual(response.context["total_open"], 1)
-        self.assertEqual(response.context["total_urgent"], 0)
-        self.assertNotContains(response, "Prendi in carico")
+        response = self.client.get(reverse("assets:il_mio_turno"), {"window": "7"})
+        self.assertEqual(response.status_code, 302)
+        target = response["Location"]
+        self.assertTrue(target.startswith(reverse("assets:maintenance_da_fare")), target)
+        self.assertIn("mio=1", target)
+        self.assertIn("window=7", target)
+        page = self.client.get(target)
+        self.assertEqual(page.status_code, 200)
+        self.assertTrue(page.context["only_mine"])
 
     def test_chiusura_intesta_a_chi_chiude_se_di_nessuno(self):
         """Coda condivisa: chiudendo un intervento di nessuno, diventa di chi lo chiude.
@@ -10242,16 +10200,16 @@ class IlMioTurnoTests(TestCase):
         di_nessuno.refresh_from_db()
         self.assertIsNone(di_nessuno.assigned_to_id)
 
-    def test_claim_from_il_mio_turno_redirects_back(self):
+    def test_claim_from_il_mio_lavoro_redirects_back(self):
         da_prendere = self._wo(title="Da prendere via claim")
         self.client.force_login(self.user)
 
         response = self.client.post(
             reverse("assets:wo_claim", args=[da_prendere.id]),
-            {"next": reverse("assets:il_mio_turno")},
+            {"next": reverse("assets:maintenance_da_fare") + "?mio=1"},
         )
 
-        self.assertRedirects(response, reverse("assets:il_mio_turno"))
+        self.assertRedirects(response, reverse("assets:maintenance_da_fare") + "?mio=1")
         da_prendere.refresh_from_db()
         self.assertEqual(da_prendere.assigned_to_id, self.user.id)
 
@@ -10394,7 +10352,7 @@ class WorkOrderChecklistTypedStepsTests(TestCase):
         upload = SimpleUploadedFile("step-photo.jpg", b"binarydata", content_type="image/jpeg")
 
         with _workspace_temporary_directory("assets-checklist-photo-") as media_root, override_settings(MEDIA_ROOT=media_root):
-            with patch("assets.views.validate_extension_and_mime", return_value="image/jpeg"):
+            with patch("assets.views._helpers_c.validate_extension_and_mime", return_value="image/jpeg"):
                 response = self.client.post(
                     reverse("assets:wo_checklist_photo", args=[self.workorder.id, item.id]),
                     {"photo": upload},

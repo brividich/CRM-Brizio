@@ -1,0 +1,179 @@
+"""Viste del modulo Asset, spezzate per area (refactor C4).
+
+Questo file riesporta esplicitamente i nomi usati fuori dal package (urls.py, altre
+viste, test): niente ``import *``, che non riesporterebbe i nomi privati.
+"""
+
+from ._helpers import (  # noqa: F401
+    ASSET_DOCUMENT_ALLOWED_EXTENSIONS,
+    ASSET_DOCUMENT_ALLOWED_MIMES,
+    ASSET_DOCUMENT_MAX_BYTES,
+    AUDIT_OGGETTO_ASSET,
+    REPORT_TEMPLATE_ALLOWED_EXTENSIONS,
+    _as_int,
+    _asset_calendar_source_key,
+    _asset_document_custom_field_name,
+    _asset_document_folder_specs,
+    _asset_maintenance_rule_list_page_url,
+    _build_asset_documents_by_category,
+    _build_work_machine_maintenance_month_dataset,
+    _can_delete_asset,
+    _can_download_asset_document,
+    _can_retire_asset,
+    _can_view_workorder,
+    _clean_string,
+    _draw_asset_label_pdf,
+    _ensure_asset_plant_layout_marker,
+    _get_default_asset_label_template,
+    _is_assets_admin,
+    _maintenance_schedule_page_url,
+    _resolve_asset_label_template,
+)
+from ._helpers_b import (  # noqa: F401
+    _build_asset_report_snapshot,
+    _dashboard_open_workorder_alert_rows,
+    _default_sidebar_seed_rows,
+    _ensure_default_asset_detail_section_layouts,
+    _is_sidebar_button_active,
+    _resolve_asset_detail_source_value,
+    _resolve_sidebar_url,
+    _seed_default_asset_detail_fields,
+    _sidebar_input_suggestions,
+    _sidebar_target_label,
+)
+from ._helpers_c import (  # noqa: F401
+    _assets_section_nav,
+    _assets_shell_context,
+    _build_sidebar_groups,
+    _can_edit_asset,
+    _category_subtree_ids,
+    _copertura_dato,
+    _handle_sidebar_button_request,
+    _open_tickets_by_asset,
+    _plant_layout_public_payload,
+    _validate_asset_image,
+    _validate_workorder_attachment_uploads,
+    _xl_write_sheet,
+)
+from .documents import (  # noqa: F401
+    admin_deadline_attachment_download,
+    asset_document_download,
+    asset_document_qr_download,
+    workorder_attachment_download,
+)
+from .asset_crud import (  # noqa: F401
+    asset_bulk_update,
+    asset_component_create,
+    asset_component_edit,
+    asset_component_list,
+    asset_create,
+    asset_edit,
+    asset_image_upload,
+    asset_internal_number_next,
+    asset_list,
+    asset_part_145_list,
+    assignment_set,
+    chemical_asset_create,
+    chemical_asset_edit,
+)
+from .asset_detail import (  # noqa: F401
+    asset_detail,
+    asset_detail_layout_admin,
+)
+from .qr_labels import (  # noqa: F401
+    asset_label_designer,
+    asset_qr_label,
+    asset_qr_landing,
+    asset_qr_public_landing,
+    asset_qr_ticket_upload,
+)
+from .deadlines import (  # noqa: F401
+    asset_administrative_deadline_create,
+    asset_administrative_deadline_edit,
+    asset_administrative_deadline_list,
+    assistance_contract_list,
+    software_license_list,
+)
+from .maintenance_legacy import (  # noqa: F401
+    asset_maintenance_rule_list,
+    asset_maintenance_rule_override_create,
+    asset_maintenance_rule_override_edit,
+    asset_maintenance_rule_override_reset,
+    maintenance_coverage_matrix,
+    maintenance_history,
+    maintenance_hub,
+    maintenance_impostazioni,
+    maintenance_rule_create,
+    maintenance_rule_edit,
+    maintenance_rule_impact_preview,
+    maintenance_rule_list,
+    maintenance_scadenzario,
+    maintenance_schedule,
+    maintenance_supplier_detail,
+    maintenance_suppliers,
+    maintenance_template_create,
+    maintenance_template_edit,
+    maintenance_template_list,
+    maintenance_todo,
+    maintenance_worksheet,
+    periodic_verification_list,
+)
+from .it import (  # noqa: F401
+    device_list,
+)
+from .machines import (  # noqa: F401
+    asset_meter_update,
+    work_machine_create,
+    work_machine_dashboard,
+    work_machine_edit,
+    work_machine_list,
+    work_machine_maintenance_month_pdf,
+)
+from .layout import (  # noqa: F401
+    plant_layout_editor,
+    plant_layout_map,
+)
+from .workorders import (  # noqa: F401
+    il_mio_turno,
+    workorder_campaign_create,
+    workorder_checklist_add,
+    workorder_checklist_delete,
+    workorder_checklist_photo,
+    workorder_checklist_set_value,
+    workorder_checklist_skip,
+    workorder_checklist_toggle,
+    workorder_claim,
+    workorder_close,
+    workorder_create,
+    workorder_detail,
+    workorder_list,
+    workorder_set_state,
+)
+from .exports import (  # noqa: F401
+    asset_detail_export_xlsx,
+    asset_list_export,
+    asset_part_145_export_excel,
+    asset_part_145_export_pdf,
+    asset_report_pdf,
+    work_machine_export_excel,
+    work_machine_export_pdf,
+    workorder_list_export,
+)
+from .reports import (  # noqa: F401
+    report_template_admin,
+    reports_dashboard,
+)
+from .settings_admin import (  # noqa: F401
+    gestione_admin,
+)
+from .dashboard import (  # noqa: F401
+    api_asset_dashboard_save_config,
+    asset_dashboard,
+    asset_quick_report,
+)
+from .calendar import (  # noqa: F401
+    asset_calendar_json,
+    calendario_asset,
+    calendario_asset_json,
+)
+from ..models import WorkOrder  # noqa: F401  (i test lo usano come assets.views.WorkOrder)

@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core.audit import log_action
-from core.public_headers import risposta_pubblica
+from core.public_headers import risposta_pubblica, risposta_pubblica_con_form
 
 from .guida import sezione as guida_sezione
 
@@ -38,7 +38,7 @@ _ACTION_TO_AVANZAMENTO = {
 }
 
 
-@risposta_pubblica
+@risposta_pubblica_con_form
 @require_http_methods(["GET", "POST"])
 def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     """Pagina portale raggiunta dal link email con token anomalie. Nessun login richiesto."""

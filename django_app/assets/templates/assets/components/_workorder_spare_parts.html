@@ -1,0 +1,69 @@
+{% comment %}Riquadro «Ricambi usati» dell'intervento (scheda OdL e chiusura). HTMX: la ricerca e
+   lo scarico ricaricano solo questo riquadro. Prima i ricambi compatibili con l'asset.{% endcomment %}
+<section class="woc-card sp-panel" id="sp-panel">
+  <style>
+    .sp-panel .sp-body { padding: 14px 16px; display: grid; gap: 10px; }
+    .sp-panel table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+    .sp-panel td, .sp-panel th { padding: 6px 8px; border-bottom: 1px solid #eef2f7; text-align: left; }
+    .sp-panel .sp-row-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .sp-panel .sp-row-form input[type=number] { width: 90px; }
+    .sp-panel .sp-tag { font-size: var(--fs-2xs); font-weight: 800; color: #15803d; }
+    .sp-panel .sp-error { color: #b91c1c; font-weight: 700; }
+    @media (pointer: coarse) { .sp-panel button, .sp-panel input { min-height: 44px; font-size: 16px; } }
+  </style>
+  <div class="sp-body">
+    <h3 style="margin:0">Ricambi usati</h3>
+    {% if sp_error %}<div class="sp-error" role="alert">{{ sp_error }}</div>{% endif %}
+    {% if sp_movements %}
+      <table data-fm-hide-search="1">
+        <thead><tr><th>Ricambio</th><th>Quantità</th><th>Costo</th><th>Da</th></tr></thead>
+        <tbody>
+          {% for m in sp_movements %}
+            <tr><td><a href="{% url 'assets:spare_part_detail' m.part_id %}">{{ m.part.code }}</a> {{ m.part.description }}</td>
+              <td>{{ m.qty|floatformat:"-2" }} {{ m.part.unit }}</td>
+              <td>{% if m.line_cost != None %}{{ m.line_cost }} €{% else %}—{% endif %}</td>
+              <td>{% if m.user %}{{ m.user.get_full_name|default:m.user.username }}{% else %}—{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="woc-note">
+        {% if sp_calculated_cost != None %}Costo materiali dai ricambi: <strong>{{ sp_calculated_cost }} €</strong>.{% endif %}
+        {% if sp_cost_difference != None %} Costo materiali indicato a mano: {{ sp_manual_cost }} € (differenza {{ sp_cost_difference }} €): prevale quello a mano.{% elif sp_calculated_cost != None %} Se non indichi il costo materiali in chiusura si usa questo.{% endif %}
+      </div>
+    {% else %}
+      <p class="woc-note">Nessun ricambio scaricato su questo intervento.</p>
+    {% endif %}
+
+    {% if sp_can_unload %}
+      {% comment %}Niente <form>: nella pagina di chiusura il riquadro sta dentro il form principale.{% endcomment %}
+      <div class="sp-search" style="display:flex;gap:6px">
+        <input class="input" type="search" name="q" value="{{ sp_q }}" placeholder="Cerca ricambio per codice o descrizione" aria-label="Cerca ricambio"
+               hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-target="#sp-panel" hx-swap="outerHTML"
+               hx-trigger="keyup changed delay:400ms, search" hx-include="this">
+      </div>
+      {% if sp_suggestions %}
+        <table data-fm-hide-search="1">
+          <tbody>
+            {% for part in sp_suggestions %}
+              <tr>
+                <td>{{ part.code }} — {{ part.description }} {% if part.is_compatible %}<span class="sp-tag">compatibile</span>{% endif %}
+                  <div class="woc-note">disponibili {{ part.stock_qty|floatformat:"-2" }} {{ part.unit }}{% if part.location %} · {{ part.location }}{% endif %}</div></td>
+                <td>
+                  <div class="sp-row-form">
+                    <input type="hidden" name="part_id" value="{{ part.pk }}">
+                    <input class="input" type="number" name="qty" min="0.01" step="0.01" value="1" aria-label="Quantità {{ part.code }}" inputmode="decimal">
+                    <button class="btn btn-primary btn-sm" type="button"
+                            hx-post="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-target="#sp-panel" hx-swap="outerHTML"
+                            hx-include="closest .sp-row-form">Aggiungi</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="woc-note">{% if sp_q %}Nessun ricambio trovato.{% else %}Nessun ricambio compatibile con questo asset: cerca per codice o descrizione.{% endif %}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>

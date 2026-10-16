@@ -1,0 +1,195 @@
+{% load assets_extras %}
+{% comment %}Corpo della segnalazione guasto (asset_quick_report): usato dalla pagina con la
+   shell del modulo e da quella minimale aperta dal QR (?from=qr). Mobile first: una
+   colonna, campi e pulsanti alti almeno 44px, testo a 16px (niente zoom su iOS).{% endcomment %}
+<style>
+.qr-page { max-width: 680px; display: grid; gap: 16px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+.qr-card { border: 1px solid #dbe1ea; border-radius: 16px; background: #fff; box-shadow: 0 10px 24px rgba(15,23,42,.05); padding: 22px; }
+.qr-title { margin: 0 0 16px; font-size: var(--fs-title-lg); color: #0f172a; }
+.qr-grid { display: grid; gap: 16px; }
+.qr-field { display: grid; gap: 6px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.qr-label, .qr-field legend { font-size: var(--fs-sm); font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .05em; padding: 0; }
+.qr-input, .qr-select, .qr-textarea {
+  border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 16px;
+  width: 100%; box-sizing: border-box; background: #fff; min-height: 44px; font-family: inherit;
+}
+.qr-textarea { resize: vertical; min-height: 110px; }
+.qr-hint { font-size: var(--fs-xs); color: #64748b; }
+.qr-asset-head { display: grid; gap: 4px; padding: 14px 16px; border-radius: 14px; background: #0f172a; color: #fff; }
+.qr-asset-tag { font-size: var(--fs-sm); font-weight: 800; letter-spacing: .06em; opacity: .8; }
+.qr-asset-name { font-size: var(--fs-title-lg); font-weight: 800; line-height: 1.2; }
+.qr-asset-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: var(--fs-sm); opacity: .9; }
+.qr-prio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.qr-prio input { position: absolute; opacity: 0; pointer-events: none; }
+.qr-prio label {
+  display: flex; align-items: center; justify-content: center; min-height: 52px; border: 2px solid #cbd5e1;
+  border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; background: #fff; color: #334155;
+}
+.qr-prio input:checked + label { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.qr-prio input:focus-visible + label { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.qr-prio .is-alta input:checked + label { border-color: #dc2626; background: #fef2f2; color: #b91c1c; }
+.qr-photos { font-size: 16px; min-height: 44px; }
+.qr-error { border: 1px solid #fca5a5; border-radius: 10px; background: #fef2f2; color: #b91c1c; padding: 10px 14px; font-size: var(--fs-sm); font-weight: 600; }
+.qr-note { border: 1px solid #fde68a; border-radius: 10px; background: #fffbeb; color: #92400e; padding: 10px 14px; font-size: var(--fs-sm); }
+.qr-success { border: 1px solid #86efac; border-radius: 14px; background: #f0fdf4; color: #166534; padding: 18px; display: grid; gap: 10px; }
+.qr-success strong { font-size: var(--fs-title-sm); }
+.qr-success .qr-ticket-no { font-size: var(--fs-display-lg); font-weight: 900; color: #14532d; }
+.qr-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.qr-actions .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
+.qr-sicurezza-row { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #fde68a; border-radius: 10px; background: #fffbeb; }
+.qr-sicurezza-row input { width: 22px; height: 22px; flex: 0 0 auto; }
+.qr-sicurezza-row label { font-size: 16px; color: #78350f; cursor: pointer; }
+.qr-back { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; text-decoration: none; color: #1d4ed8; }
+@media (max-width: 600px) {
+  .qr-page { gap: 12px; }
+  .qr-card { padding: 16px; border-radius: 14px; }
+  .qr-actions { flex-direction: column; align-items: stretch; }
+  .qr-actions .btn { width: 100%; }
+}
+body.theme-dark .qr-card { background: var(--surface); border-color: var(--border); }
+body.theme-dark .qr-title { color: var(--text); }
+body.theme-dark .qr-label, body.theme-dark .qr-field legend { color: var(--text-light); }
+body.theme-dark .qr-input, body.theme-dark .qr-select, body.theme-dark .qr-textarea { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
+body.theme-dark .qr-prio label { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
+body.theme-dark .qr-prio input:checked + label { background: rgba(37,99,235,.2); color: #93c5fd; border-color: #3b82f6; }
+body.theme-dark .qr-hint { color: var(--text-light); }
+body.theme-dark .qr-sicurezza-row { background: #1c1206; border-color: #78350f; }
+body.theme-dark .qr-sicurezza-row label { color: #fde68a; }
+</style>
+
+<section class="qr-page">
+  <header>
+    {% if landing_url %}
+      <a href="{{ landing_url }}" class="qr-back">&larr; Torna alla macchina</a>
+    {% else %}
+      <a href="{% url 'assets:wo_list' %}" class="qr-back">&larr; Torna agli interventi</a>
+    {% endif %}
+  </header>
+
+  {% if fixed_asset %}
+    <div class="qr-asset-head" data-qr-fixed-asset="{{ fixed_asset.id }}">
+      <span class="qr-asset-tag">{{ fixed_asset.asset_tag }}</span>
+      <span class="qr-asset-name">{{ fixed_asset.name }}</span>
+      <span class="qr-asset-meta">
+        {% if fixed_asset.reparto %}<span>{{ fixed_asset.reparto }}</span>{% endif %}
+        {% if fixed_asset.asset_category %}<span>&middot; {{ fixed_asset.asset_category.label }}</span>{% endif %}
+        {% asset_status_badge fixed_asset %}
+      </span>
+    </div>
+  {% endif %}
+
+  {% if success_ticket %}
+    <div class="qr-success" role="status">
+      <strong>&#10003; Segnalazione inviata</strong>
+      <span class="qr-ticket-no">{{ success_ticket.numero_ticket }}</span>
+      <span>Il team di manutenzione l'ha ricevuta e ti aggiornerà sullo stato.</span>
+      {% for note in photo_notes %}<div class="qr-note">{{ note }}</div>{% endfor %}
+      <div class="qr-actions">
+        <a href="{{ again_url }}" class="btn btn-primary">Segnala un altro problema</a>
+        {% if landing_url %}<a href="{{ landing_url }}" class="btn btn-secondary">Torna alla macchina</a>{% endif %}
+        <a href="{% url 'tickets:detail' success_ticket.id %}" class="btn btn-secondary">Apri la segnalazione</a>
+      </div>
+    </div>
+  {% else %}
+
+    {% if error %}<div class="qr-error" role="alert">{{ error }}</div>{% endif %}
+
+    <article class="qr-card">
+      <h2 class="qr-title">{% if fixed_asset %}Cosa non va?{% else %}Nuova segnalazione manutenzione{% endif %}</h2>
+      <form method="post" class="qr-grid" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% if from_qr %}<input type="hidden" name="from" value="qr">{% endif %}
+
+        {% if fixed_asset %}
+          <input type="hidden" name="fixed_asset" value="{{ fixed_asset.id }}">
+        {% else %}
+          <div class="qr-field">
+            <label class="qr-label" for="id_asset_id">Asset / Macchina</label>
+            <select name="asset_id" id="id_asset_id" class="qr-select">
+              <option value="">-- Seleziona un asset --</option>
+              {% for a in asset_choices %}
+                <option value="{{ a.id }}"{% if request.POST.asset_id == a.id|stringformat:'s' %} selected{% endif %}>
+                  {{ a.asset_tag }} — {{ a.name }}{% if a.reparto %} ({{ a.reparto }}){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <span class="qr-hint">Se non trovi l'asset nell'elenco, descrivi il punto di intervento nel campo qui sotto.</span>
+          </div>
+
+          <div class="qr-field">
+            <label class="qr-label" for="id_asset_libera">Punto di intervento (testo libero)</label>
+            <input type="text" name="asset_descrizione_libera" id="id_asset_libera" class="qr-input" maxlength="300"
+                   placeholder="Es. Pressa P3, Magazzino B scaffale 4..." value="{{ request.POST.asset_descrizione_libera|default:'' }}">
+          </div>
+        {% endif %}
+
+        <div class="qr-field">
+          <label class="qr-label" for="id_titolo">In breve <span style="color:#dc2626;">*</span></label>
+          <input type="text" name="titolo" id="id_titolo" class="qr-input" maxlength="300" required
+                 placeholder="Es. Perdita olio al basamento, rumore anomalo..." value="{{ request.POST.titolo|default:'' }}">
+        </div>
+
+        <div class="qr-field">
+          <label class="qr-label" for="id_descrizione">Descrizione del problema <span style="color:#dc2626;">*</span></label>
+          <textarea name="descrizione" id="id_descrizione" class="qr-textarea" required
+                    placeholder="Quando è comparso, cosa si vede o si sente, cosa hai già provato...">{{ request.POST.descrizione|default:'' }}</textarea>
+        </div>
+
+        <fieldset class="qr-field">
+          <legend>Quanto è urgente?</legend>
+          <div class="qr-prio">
+            {% for code, label in priorita_choices %}
+              <span class="{% if code == 'ALTA' %}is-alta{% endif %}">
+                <input type="radio" name="priorita" value="{{ code }}" id="id_prio_{{ code|lower }}"
+                  {% if request.POST.priorita == code %}checked{% elif not request.POST.priorita and code == 'MEDIA' %}checked{% endif %}>
+                <label for="id_prio_{{ code|lower }}">{{ label }}</label>
+              </span>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <div class="qr-field">
+          <label class="qr-label" for="id_foto">Foto <span class="qr-hint" style="text-transform:none;letter-spacing:0">facoltative, al massimo {{ max_photos }}</span></label>
+          <input type="file" name="foto" id="id_foto" class="qr-photos" accept="image/*" capture="environment" multiple>
+          <span class="qr-hint">JPG o PNG. Dal telefono si apre direttamente la fotocamera.</span>
+        </div>
+
+        <div class="qr-field">
+          <label class="qr-label" for="id_categoria">Categoria <span class="qr-hint" style="text-transform:none;letter-spacing:0">facoltativa</span></label>
+          <select name="categoria" id="id_categoria" class="qr-select">
+            <option value="">Non so / decide la manutenzione</option>
+            {% for code, label in categorie_man %}
+              <option value="{{ code }}"{% if request.POST.categoria == code %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="qr-sicurezza-row">
+          <input type="checkbox" name="incide_sicurezza" id="id_sicurezza" value="1"
+                 {% if request.POST.incide_sicurezza == '1' %}checked{% endif %}>
+          <label for="id_sicurezza">&#9888; Il problema potrebbe incidere sulla sicurezza sul lavoro</label>
+        </div>
+
+        <div class="qr-actions">
+          <button class="btn btn-primary" type="submit">Invia segnalazione</button>
+          <a class="btn btn-secondary" href="{% if landing_url %}{{ landing_url }}{% else %}{% url 'assets:wo_list' %}{% endif %}">Annulla</a>
+        </div>
+      </form>
+    </article>
+  {% endif %}
+</section>
+<script>
+(function () {
+  var input = document.getElementById("id_foto");
+  if (!input) { return; }
+  var max = {{ max_photos }};
+  input.addEventListener("change", function () {
+    if (input.files && input.files.length > max) {
+      input.setCustomValidity("Al massimo " + max + " foto.");
+    } else {
+      input.setCustomValidity("");
+    }
+    input.reportValidity();
+  });
+})();
+</script>

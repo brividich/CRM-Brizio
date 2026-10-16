@@ -66,6 +66,14 @@ class Asset(models.Model):
         (STATUS_IN_REPAIR, "In riparazione"),
         (STATUS_RETIRED, "Dismesso"),
     ]
+    # Tono del badge di stato (classe ``as-badge--<tono>``): definito solo qui,
+    # cosi' ogni pagina mostra la stessa etichetta con lo stesso colore.
+    STATUS_TONES = {
+        STATUS_IN_USE: "ok",
+        STATUS_IN_STOCK: "muted",
+        STATUS_IN_REPAIR: "danger",
+        STATUS_RETIRED: "warn",
+    }
 
     asset_tag = models.CharField(max_length=32, unique=True)
     internal_number = models.CharField(max_length=64, blank=True, default="", db_index=True)
@@ -1034,14 +1042,14 @@ class MaintenanceInterventionTemplate(models.Model):
         null=True,
         blank=True,
         related_name="maintenance_intervention_templates",
-        help_text="Categoria di riferimento (facoltativa). Il perimetro reale lo danno le applicazioni.",
+        help_text="Categoria di riferimento (facoltativa). Il perimetro reale lo danno le assegnazioni.",
     )
     execution_mode = models.CharField(
         max_length=20,
         choices=EXECUTION_MODE_CHOICES,
         default=MODE_INTERNAL,
         db_index=True,
-        help_text="Modalita' predefinita di esecuzione; ogni applicazione puo' sovrascriverla.",
+        help_text="Modalita' predefinita di esecuzione; ogni assegnazione puo' sovrascriverla.",
     )
     default_supplier = models.ForeignKey(
         "anagrafica.Fornitore",
@@ -1062,7 +1070,7 @@ class MaintenanceInterventionTemplate(models.Model):
     attachment_required = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Se attivo, l'occorrenza non si puo' chiudere senza allegato (obbligatorio per le amministrative).",
+        help_text="Se attivo, la manutenzione non si puo' chiudere senza allegato (obbligatorio per le amministrative).",
     )
     schedule_anchor = models.CharField(
         max_length=20,
@@ -2355,6 +2363,60 @@ class AssetReportTemplate(models.Model):
             storage.delete(file_name)
 
 
+class FailureCode(models.Model):
+    """Tassonomia dei guasti: problema (cosa si vede), causa (perche'), rimedio (cosa si fa).
+
+    ``asset_category`` vuoto = valido per tutte le categorie; altrimenti vale per
+    quella categoria e per le sue sotto-categorie. Un codice usato da un intervento
+    non si cancella (PROTECT): si disattiva.
+    """
+
+    KIND_PROBLEM = "PROBLEM"
+    KIND_CAUSE = "CAUSE"
+    KIND_REMEDY = "REMEDY"
+    KIND_CHOICES = [
+        (KIND_PROBLEM, "Problema"),
+        (KIND_CAUSE, "Causa"),
+        (KIND_REMEDY, "Rimedio"),
+    ]
+
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, db_index=True)
+    code = models.SlugField(max_length=50)
+    label = models.CharField(max_length=150)
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="failure_codes",
+        help_text="Vuoto = valido per tutte le categorie.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["kind", "sort_order", "label", "id"]
+        verbose_name = "Codice guasto"
+        verbose_name_plural = "Codici guasto"
+        constraints = [
+            # Unico per categoria; per i globali (categoria vuota) un indice a parte:
+            # su SQL Server un vincolo con colonna nullable va filtrato.
+            models.UniqueConstraint(
+                fields=["kind", "code", "asset_category"],
+                condition=models.Q(asset_category__isnull=False),
+                name="uniq_failure_code_per_category",
+            ),
+            models.UniqueConstraint(
+                fields=["kind", "code"],
+                condition=models.Q(asset_category__isnull=True),
+                name="uniq_failure_code_global",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.label
+
+
 class WorkOrder(models.Model):
     # Prefisso di reference_batch per gli OdL creati insieme in un'unica
     # registrazione multi-asset: distingue questo raggruppamento (numerazione
@@ -2549,6 +2611,20 @@ class WorkOrder(models.Model):
         help_text="Causa del guasto, per statistiche di ricorrenza (opzionale).",
     )
     notes = models.TextField(blank=True, default="", help_text="Note aggiuntive sulla manutenzione")
+    # Tassonomia guasti (facoltativa): il CharField ``failure_cause`` resta per i
+    # report esistenti ed e' allineato quando la causa coincide con uno dei sei valori.
+    failure_problem = models.ForeignKey(
+        "FailureCode", on_delete=models.PROTECT, null=True, blank=True, related_name="workorders_as_problem",
+        limit_choices_to={"kind": "PROBLEM"},
+    )
+    failure_cause_code = models.ForeignKey(
+        "FailureCode", on_delete=models.PROTECT, null=True, blank=True, related_name="workorders_as_cause",
+        limit_choices_to={"kind": "CAUSE"},
+    )
+    failure_remedy = models.ForeignKey(
+        "FailureCode", on_delete=models.PROTECT, null=True, blank=True, related_name="workorders_as_remedy",
+        limit_choices_to={"kind": "REMEDY"},
+    )
     intervention_duration_minutes = models.PositiveIntegerField(default=0)
     downtime_minutes = models.PositiveIntegerField(default=0)
     labor_cost_eur = models.DecimalField(
@@ -2688,6 +2764,52 @@ class WorkOrder(models.Model):
         self,
         *,
         status: str = STATUS_DONE,
+        closed_at=None,
+        resolution: str = "",
+        downtime: int | None = None,
+        cost: Decimal | None = None,
+        labor_cost: Decimal | None = None,
+        materials_cost: Decimal | None = None,
+        intervention_duration: int | None = None,
+        covered_by_contract: bool | None = None,
+        assistance_contract: "AssistanceContract" | None = None,
+    ):
+        """Chiude (DONE) o annulla (CANCELED) l'intervento.
+
+        ``status=OPEN`` e' rifiutato: un "Non risolto" registra l'esito e i dati
+        dell'intervento ma lascia l'OdL aperto, e lo dice con
+        ``record_outcome_keep_open()``. Prima ``close(status=OPEN)`` passava e
+        "chiudere" poteva voler dire "lasciare aperto" senza che si vedesse.
+        """
+        if status == self.STATUS_OPEN:
+            raise ValueError(
+                "WorkOrder.close() non accetta lo stato OPEN: usa record_outcome_keep_open()."
+            )
+        self._apply_closure_data(
+            status=status,
+            closed_at=closed_at,
+            resolution=resolution,
+            downtime=downtime,
+            cost=cost,
+            labor_cost=labor_cost,
+            materials_cost=materials_cost,
+            intervention_duration=intervention_duration,
+            covered_by_contract=covered_by_contract,
+            assistance_contract=assistance_contract,
+        )
+
+    def record_outcome_keep_open(self, **kwargs) -> None:
+        """Registra i dati di chiusura (durata, fermo, costi, risoluzione) lasciando
+        l'intervento aperto: e' il percorso "Non risolto". Stessi argomenti di
+        ``close()`` tranne ``status`` e ``closed_at``."""
+        kwargs.pop("status", None)
+        kwargs.pop("closed_at", None)
+        self._apply_closure_data(status=self.STATUS_OPEN, closed_at=None, **kwargs)
+
+    def _apply_closure_data(
+        self,
+        *,
+        status: str,
         closed_at=None,
         resolution: str = "",
         downtime: int | None = None,
@@ -3156,6 +3278,16 @@ class AssetMeter(models.Model):
         (METER_CYCLES, "Cicli"),
         (METER_OTHER, "Altro"),
     ]
+    SOURCE_MANUAL = "MANUAL"
+    SOURCE_OPCUA = "OPCUA"
+    SOURCE_SNMP = "SNMP"
+    SOURCE_IMPORT = "IMPORT"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Manuale"),
+        (SOURCE_OPCUA, "OPC UA"),
+        (SOURCE_SNMP, "SNMP"),
+        (SOURCE_IMPORT, "Import"),
+    ]
 
     asset = models.ForeignKey(
         Asset,
@@ -3175,6 +3307,15 @@ class AssetMeter(models.Model):
     )
     notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Momento della LETTURA (dal collector o dichiarato da chi la registra): distinto
+    # da ``updated_at``, che cambia anche per una modifica di etichetta o note.
+    read_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    stale_after_hours = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Ore dopo le quali la lettura e' vecchia. Vuoto = impostazione generale (ASSETS_METER_STALE_HOURS).",
+    )
 
     class Meta:
         ordering = ["asset__name", "meter_type", "id"]
@@ -3191,7 +3332,55 @@ class AssetMeter(models.Model):
         label = self.unit_label or self.get_meter_type_display()
         return f"{self.asset} — {label}: {self.current_value}"
 
+    @property
+    def effective_stale_hours(self) -> int:
+        configured = self.stale_after_hours
+        if configured:
+            return int(configured)
+        return int(getattr(settings, "ASSETS_METER_STALE_HOURS", 168) or 168)
+
+    @property
+    def last_read_at(self):
+        """Ultima lettura nota: ``read_at``, oppure ``updated_at`` per i contatori
+        aggiornati prima che esistesse il campo."""
+        return self.read_at or self.updated_at
+
+    @property
+    def is_stale(self) -> bool:
+        last = self.last_read_at
+        if last is None:
+            return True
+        return timezone.now() - last > timedelta(hours=self.effective_stale_hours)
+
+    @property
+    def freshness_tone(self) -> str:
+        """Colore del badge: ok (fresca), warn (oltre meta' della soglia), muted (vecchia)."""
+        last = self.last_read_at
+        if last is None or self.is_stale:
+            return "muted"
+        if timezone.now() - last > timedelta(hours=self.effective_stale_hours / 2):
+            return "warn"
+        return "ok"
+
+    @property
+    def freshness_label(self) -> str:
+        """«aggiornato 2 ore fa» / «lettura vecchia: 9 giorni»."""
+        last = self.last_read_at
+        if last is None:
+            return "mai letto"
+        hours = int((timezone.now() - last).total_seconds() // 3600)
+        if hours < 1:
+            age = "meno di un'ora"
+        elif hours < 48:
+            age = f"{hours} or{'a' if hours == 1 else 'e'}"
+        else:
+            age = f"{hours // 24} giorni"
+        if self.is_stale:
+            return f"lettura vecchia: {age}"
+        return f"aggiornato {age} fa"
+
     def update_value(self, new_value, user) -> "AssetMeterHistory":
+        """Compatibilita': usare ``assets.services.meters.record_meter_reading``."""
         old_value = self.current_value
         self.current_value = new_value
         self.updated_by = user
@@ -3220,6 +3409,13 @@ class AssetMeterHistory(models.Model):
         related_name="asset_meter_history_entries",
     )
     recorded_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    source = models.CharField(max_length=10, choices=AssetMeter.SOURCE_CHOICES, default=AssetMeter.SOURCE_MANUAL)
+    is_reset = models.BooleanField(
+        default=False,
+        help_text="Azzeramento o sostituzione del contatore: l'unico caso in cui il valore puo' scendere.",
+    )
+    note = models.TextField(blank=True, default="")
 
     class Meta:
         ordering = ["-recorded_at", "id"]
@@ -3228,6 +3424,165 @@ class AssetMeterHistory(models.Model):
 
     def __str__(self) -> str:
         return f"{self.meter} @ {self.recorded_at:%Y-%m-%d %H:%M}: {self.old_value} -> {self.new_value}"
+
+
+class MeterIngestClient(models.Model):
+    """Collector autorizzato a inviare letture dei contatori (es. OPC UA delle CNC).
+
+    Il token in chiaro si vede una volta sola, alla creazione: a DB resta solo
+    l'hash SHA-256. Solo rete interna: l'endpoint non va pubblicato su Entra
+    Application Proxy (vedi docs/ai/05_SECURITY_BOUNDARIES.md).
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    token_hash = models.CharField(max_length=64, unique=True, editable=False)
+    is_active = models.BooleanField(default=True, db_index=True)
+    all_meter_assets = models.BooleanField(
+        default=False,
+        help_text="Se attivo puo' scrivere su tutti gli asset che hanno un contatore; altrimenti solo su quelli elencati.",
+    )
+    allowed_assets = models.ManyToManyField(Asset, blank=True, related_name="meter_ingest_clients")
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meter_ingest_clients_created",
+    )
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["name", "id"]
+        verbose_name = "Collector letture contatori"
+        verbose_name_plural = "Collector letture contatori"
+
+    def __str__(self) -> str:
+        return self.name
+
+    @staticmethod
+    def hash_token(token: str) -> str:
+        import hashlib
+
+        return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+    @classmethod
+    def issue_token(cls) -> str:
+        import secrets
+
+        return secrets.token_urlsafe(32)
+
+    def set_token(self, token: str) -> None:
+        self.token_hash = self.hash_token(token)
+
+    def can_write_asset(self, asset_id: int) -> bool:
+        if self.all_meter_assets:
+            return True
+        return self.allowed_assets.filter(pk=asset_id).exists()
+
+
+class SparePart(models.Model):
+    """Ricambio a magazzino: cosa c'e', cosa si consuma, cosa sta finendo.
+
+    Volutamente minimo (una sola scorta, nessun ordine d'acquisto): la giacenza
+    cambia solo con un movimento (``assets.services.spare_parts.register_movement``).
+    """
+
+    UNIT_PIECES = "pz"
+    UNIT_METERS = "m"
+    UNIT_LITERS = "l"
+    UNIT_KG = "kg"
+    UNIT_CHOICES = [
+        (UNIT_PIECES, "pz"),
+        (UNIT_METERS, "m"),
+        (UNIT_LITERS, "l"),
+        (UNIT_KG, "kg"),
+    ]
+
+    code = models.CharField(max_length=60, unique=True)
+    description = models.CharField(max_length=255)
+    unit = models.CharField(max_length=4, choices=UNIT_CHOICES, default=UNIT_PIECES)
+    stock_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    min_qty = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Scorta minima: a questo valore (o sotto) il ricambio risulta «sotto scorta».",
+    )
+    location = models.CharField(max_length=120, blank=True, default="", help_text="Scaffale / posizione.")
+    unit_cost_eur = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_spare_parts",
+    )
+    compatible_assets = models.ManyToManyField(Asset, blank=True, related_name="spare_parts")
+    compatible_categories = models.ManyToManyField(AssetCategory, blank=True, related_name="spare_parts")
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["code", "id"]
+        verbose_name = "Ricambio"
+        verbose_name_plural = "Ricambi"
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.description}"
+
+    @property
+    def is_below_min(self) -> bool:
+        return self.stock_qty <= self.min_qty
+
+
+class SparePartMovement(models.Model):
+    """Movimento di magazzino: carico, scarico (anche su un intervento), rettifica.
+
+    ``qty`` e' sempre positiva: il verso lo dice ``kind``. Una rettifica porta la
+    giacenza al valore contato (``qty``) ed e' l'unico modo di correggere un errore.
+    """
+
+    KIND_IN = "IN"
+    KIND_OUT = "OUT"
+    KIND_ADJUST = "ADJUST"
+    KIND_CHOICES = [
+        (KIND_IN, "Carico"),
+        (KIND_OUT, "Scarico"),
+        (KIND_ADJUST, "Rettifica inventario"),
+    ]
+
+    part = models.ForeignKey(SparePart, on_delete=models.PROTECT, related_name="movements")
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES, db_index=True)
+    qty = models.DecimalField(max_digits=12, decimal_places=2)
+    stock_after = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    work_order = models.ForeignKey(
+        "WorkOrder", on_delete=models.SET_NULL, null=True, blank=True, related_name="spare_part_movements"
+    )
+    unit_cost_eur = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Costo unitario al momento del movimento (resta anche se poi il prezzo cambia).",
+    )
+    note = models.CharField(max_length=255, blank=True, default="")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="spare_part_movements"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Movimento ricambio"
+        verbose_name_plural = "Movimenti ricambi"
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.qty} {self.part.unit} — {self.part.code}"
+
+    @property
+    def line_cost(self):
+        if self.unit_cost_eur is None or self.kind != self.KIND_OUT:
+            return None
+        return (self.qty * self.unit_cost_eur).quantize(Decimal("0.01"))
 
 
 class AssetCalendarEvent(models.Model):
@@ -3565,6 +3920,13 @@ class MaintenancePlanAssignment(models.Model):
         (ANCHOR_FIXED_CALENDAR, "Dalla scadenza teorica"),
     ]
 
+    TRIGGER_CALENDAR = "CALENDAR"
+    TRIGGER_METER = "METER"
+    TRIGGER_CHOICES = [
+        (TRIGGER_CALENDAR, "A calendario"),
+        (TRIGGER_METER, "A contatore"),
+    ]
+
     plan = models.ForeignKey(
         "MaintenanceInterventionTemplate",
         on_delete=models.PROTECT,
@@ -3622,7 +3984,7 @@ class MaintenancePlanAssignment(models.Model):
 
     warning_days = models.PositiveIntegerField(
         default=30,
-        help_text="Giorni di preavviso: da quando l'occorrenza diventa visibile e pianificabile.",
+        help_text="Giorni di preavviso: da quando la scadenza diventa visibile e pianificabile.",
     )
     schedule_anchor = models.CharField(
         max_length=20,
@@ -3664,15 +4026,30 @@ class MaintenancePlanAssignment(models.Model):
     is_excluded = models.BooleanField(
         default=False,
         db_index=True,
-        help_text="Solo per applicazioni su asset singolo: esclude l'asset dal Piano ereditato dal gruppo.",
+        help_text="Solo per assegnazioni su asset singolo: esclude l'asset dal Piano ereditato dal gruppo.",
     )
     auto_generate = models.BooleanField(
         default=True,
         db_index=True,
-        help_text="Genera automaticamente le occorrenze quando si entra nella finestra di preavviso.",
+        help_text="Genera automaticamente le scadenze quando si entra nella finestra di preavviso.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
     notes = models.TextField(blank=True, default="")
+    # --- A contatore: il traguardo e' un valore (ore, km, cicli), non una data ---
+    trigger_type = models.CharField(max_length=10, choices=TRIGGER_CHOICES, default=TRIGGER_CALENDAR, db_index=True)
+    meter_type = models.CharField(max_length=20, choices=AssetMeter.METER_TYPE_CHOICES, blank=True, default="")
+    meter_interval = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Ogni quanto (nell'unita' del contatore): es. 500 ore.",
+    )
+    meter_warning_before = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Preavviso nell'unita' del contatore. Vuoto = 10% dell'intervallo.",
+    )
+    meter_baseline = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Valore di partenza: vuoto = valore del contatore alla prima generazione.",
+    )
     legacy_rule = models.ForeignKey(
         "MaintenanceRule",
         on_delete=models.SET_NULL,
@@ -3761,21 +4138,43 @@ class MaintenancePlanAssignment(models.Model):
                 self.TARGET_GROUP: "asset_group",
                 self.TARGET_CATEGORY: "asset_category",
             }[self.target_type]
-            raise ValidationError({field: "Seleziona il bersaglio dell'applicazione."})
+            raise ValidationError({field: "Seleziona il bersaglio dell'assegnazione."})
         # Un'applicazione ha un solo bersaglio: gli altri restano vuoti.
         for target_type, value in targets.items():
             if target_type != self.target_type and value:
                 raise ValidationError(
-                    {"target_type": "L'applicazione puo' avere un solo bersaglio (asset, gruppo o categoria)."}
+                    {"target_type": "L'assegnazione puo' avere un solo bersaglio (asset, gruppo o categoria)."}
                 )
 
         if self.is_excluded and self.target_type != self.TARGET_ASSET:
             raise ValidationError({"is_excluded": "L'esclusione vale solo per un asset specifico."})
 
+        if self.trigger_type == self.TRIGGER_METER:
+            # A contatore i campi del calendario non servono: il traguardo e' un valore.
+            if not self.meter_type:
+                raise ValidationError({"meter_type": "Scegli il contatore (ore, km, cicli...)."})
+            if self.meter_interval is None or self.meter_interval <= 0:
+                raise ValidationError({"meter_interval": "L'intervallo del contatore deve essere maggiore di zero."})
+            if self.meter_warning_before is not None and self.meter_warning_before < 0:
+                raise ValidationError({"meter_warning_before": "Il preavviso non puo' essere negativo."})
+            return
+
         if not self.is_excluded:
             from .services.recurrence import validate_recurrence_fields
 
             validate_recurrence_fields(self)
+
+    @property
+    def is_meter_based(self) -> bool:
+        return self.trigger_type == self.TRIGGER_METER
+
+    @property
+    def effective_meter_warning(self):
+        if self.meter_warning_before is not None:
+            return self.meter_warning_before
+        if self.meter_interval is None:
+            return Decimal("0")
+        return (self.meter_interval / Decimal("10")).quantize(Decimal("0.01"))
 
     def recurrence_label(self) -> str:
         from .services.recurrence import describe_recurrence
@@ -3904,6 +4303,15 @@ class MaintenanceOccurrence(models.Model):
     )
 
     cancel_reason = models.CharField(max_length=255, blank=True, default="")
+    # A contatore: il traguardo e il valore letto all'esecuzione. ``due_date`` resta
+    # (le liste ordinano per data) ed e' una stima dal consumo medio.
+    is_meter_based = models.BooleanField(default=False, db_index=True)
+    due_meter_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    meter_value_at_completion = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    meter_due_estimated = models.BooleanField(
+        default=True,
+        help_text="False quando la data non si e' potuta stimare (storico insufficiente o lettura vecchia).",
+    )
     source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default=SOURCE_SCHEDULER, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -3959,7 +4367,38 @@ class MaintenanceOccurrence(models.Model):
 
     @property
     def has_attachment(self) -> bool:
-        return self.attachments.exists()
+        return occurrence_has_attachments(self)
+
+    @property
+    def quick_complete_block_reason(self) -> str:
+        """Perche' questa manutenzione NON si puo' registrare con «Fatta oggi» ("" = si puo').
+
+        Un tap registra oggi, senza note e senza documento: vale solo per le
+        manutenzioni aperte, interne e senza rapporto obbligatorio.
+        """
+        if self.status != self.STATUS_OPEN:
+            return "non e' piu' aperta"
+        if self.attachment_required:
+            return "richiede il documento allegato"
+        if self.is_external:
+            return "e' affidata a un fornitore esterno"
+        if self.is_meter_based:
+            return "e' a contatore: serve il valore letto"
+        return ""
+
+    @property
+    def quick_complete_allowed(self) -> bool:
+        return not self.quick_complete_block_reason
+
+    @property
+    def meter_for_completion(self):
+        """Contatore dell'asset su cui si misura questa scadenza (solo a contatore)."""
+        if not self.is_meter_based or not self.assignment_id or self.assignment is None:
+            return None
+        meter_type = self.assignment.meter_type
+        if not meter_type:
+            return None
+        return AssetMeter.objects.filter(asset_id=self.asset_id, meter_type=meter_type).first()
 
     def days_until_due(self, reference_date=None) -> int | None:
         if not self.due_date:
@@ -3998,6 +4437,19 @@ class MaintenanceOccurrencePostponement(models.Model):
 
     def __str__(self) -> str:
         return f"Rinvio<{self.occurrence_id}: {self.from_date} -> {self.to_date}>"
+
+
+def occurrence_has_attachments(occurrence) -> bool:
+    """True se l'occorrenza ha almeno un allegato.
+
+    ``attachments.exists()`` va sempre a DB e ignora il ``prefetch_related``
+    delle liste: in "Da fare" e nello Scadenzario era una query per riga. Se gli
+    allegati sono gia' prefetchati si legge la cache; altrimenti si interroga il DB.
+    """
+    cache = getattr(occurrence, "_prefetched_objects_cache", None) or {}
+    if "attachments" in cache:
+        return bool(occurrence.attachments.all())
+    return occurrence.attachments.exists()
 
 
 def _occurrence_attachment_upload_to(instance, filename: str) -> str:
