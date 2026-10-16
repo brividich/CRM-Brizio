@@ -507,6 +507,7 @@ class Command(BaseCommand):
             matricola=_norm_matricola(cell(raw_row, "matricola")),
             attivo=not is_cessato,
             detach_account=is_cessato,
+            codice_fiscale=cf,
         )
         new_legacy_id = int(legacy_row["id"])
         if is_cessato:
