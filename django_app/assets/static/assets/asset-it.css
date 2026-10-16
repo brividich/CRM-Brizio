@@ -115,3 +115,50 @@ body.theme-dark .af-net-ico { background: rgba(59,130,246,.18); color: #93c5fd; 
 body.theme-dark .af-net-vlan { background: rgba(99,102,241,.2); color: #c7d2fe; }
 body.theme-dark .af-net-path li::before { background: #93c5fd; }
 @media (max-width: 600px) { .af-net-list { grid-template-columns: 1fr; } .af-net-path { grid-template-columns: 1fr; } .af-net-path li + li::after { content: none; } .af-it-dev .af-btn { width: 100%; } }
+
+/* Interfacce di rete: modifica in-linea dalla scheda «Tecnica e rete». */
+.af-rete-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.af-rete-head .af-it-sub { flex: 1; }
+.af-btn.af-btn-sm { padding: 5px 11px; font-size: 12.5px; min-height: 0; }
+.af-rete-form { display: grid; gap: 10px; }
+.af-rete-riga { margin: 0; padding: 10px 14px 12px; border: 1px solid #dbe1ea; border-radius: 12px; }
+.af-rete-riga.is-nuova { border-style: dashed; }
+.af-rete-riga legend { padding: 0 6px; font-weight: 700; font-size: 13px; }
+.af-rete-campi { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 12px; }
+.af-rete-campo { display: flex; flex-direction: column; gap: 3px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: #64748b; }
+.af-rete-campo input { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 14px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; }
+.af-rete-campo.has-error input { border-color: #dc2626; }
+.af-rete-errore { color: #b91c1c; font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.af-rete-elimina { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: #b91c1c; }
+.af-rete-azioni { display: flex; gap: 8px; flex-wrap: wrap; }
+body.theme-dark .af-rete-riga { border-color: var(--border); }
+body.theme-dark .af-rete-campo { color: var(--text-light); }
+body.theme-dark .af-rete-campo input { background: var(--surface, #0f172a); border-color: var(--border); color: var(--text); }
+body.theme-dark .af-rete-errore, body.theme-dark .af-rete-elimina { color: #fca5a5; }
+
+/* Mappa porte dello switch: frontale con porte dispari sopra e pari sotto. */
+.af-swmap { margin-top: 6px; }
+.af-swmap-legenda { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.af-swmap-chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.af-swmap-pannello { margin-bottom: 12px; padding: 10px 12px 12px; border-radius: 12px; background: #1f2937; color: #e5e7eb; overflow-x: auto; }
+.af-swmap-titolo { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.af-swmap-titolo span { color: #9ca3af; }
+.af-swmap-occ { margin-left: auto; }
+.af-swmap-frontale { display: grid; gap: 4px; min-width: max-content; }
+.af-swmap-fila { display: flex; gap: 3px; }
+.af-swmap-porta { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 44px; height: 40px; border-radius: 5px; background: #111827; border: 1px solid #374151; color: #6b7280; font-size: 10px; line-height: 1.15; text-decoration: none; }
+.af-swmap-porta .n { font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+.af-swmap-porta .d { max-width: 40px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 9px; }
+.af-swmap-porta.is-occ { color: #0f172a; border-color: transparent; }
+.af-swmap-porta.is-occ:hover, .af-swmap-porta.is-occ:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.af-swmap-porta.is-conflitto { box-shadow: inset 0 0 0 2px #dc2626; }
+.af-vl0 { background: #93c5fd; color: #0f172a; } .af-vl1 { background: #86efac; color: #0f172a; } .af-vl2 { background: #fcd34d; color: #0f172a; } .af-vl3 { background: #f9a8d4; color: #0f172a; }
+.af-vl4 { background: #c4b5fd; color: #0f172a; } .af-vl5 { background: #5eead4; color: #0f172a; } .af-vl6 { background: #fdba74; color: #0f172a; } .af-vl7 { background: #a5b4fc; color: #0f172a; }
+.af-vlx { background: #e5e7eb; color: #0f172a; }
+.af-swmap-porta.af-vlx { background: #d1d5db; }
+.af-swmap-collega { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 12px; border: 1px dashed #cbd5e1; border-radius: 10px; }
+.af-swmap-collega label { display: flex; flex-direction: column; gap: 3px; }
+.af-swmap-collega select { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; }
+body.theme-dark .af-swmap-pannello { background: #0b1220; border: 1px solid var(--border); }
+body.theme-dark .af-swmap-collega { border-color: var(--border); }
+body.theme-dark .af-swmap-collega select { background: var(--surface, #0f172a); border-color: var(--border); color: var(--text); }

@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_asset_qr, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
+from . import views, views_asset_qr, views_asset_rete, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
 
 app_name = "assets"
 
@@ -127,6 +127,9 @@ urlpatterns = [
     path("assets/new/", views.asset_create, name="asset_create"),
     path("assets/edit/", views.asset_edit, name="asset_edit"),
     path("assets/edit/<int:id>/", views.asset_edit, name="asset_edit"),
+    # Sotto /assets/edit/: stesso binding ACL v2 della modifica asset (prefisso).
+    path("assets/edit/<int:id>/rete/", views_asset_rete.asset_rete_edit, name="asset_rete_edit"),
+    path("assets/edit/<int:id>/rete/collega-porte/", views_asset_rete.asset_rete_collega_porte, name="asset_rete_collega_porte"),
     # Sotto il prefisso di modifica: stessi permessi di chi modifica l'asset.
     path("assets/edit/<int:id>/immagine/", views.asset_image_upload, name="asset_image_upload"),
     path("assets/assign/", views.assignment_set, name="asset_assign"),
