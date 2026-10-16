@@ -113,16 +113,50 @@ class MappaSwitchTests(TestCase):
         self.assertEqual(porta3["occupanti"][0].asset.asset_tag, "SYN-PC-0")
         self.assertEqual({p["prefisso"]: p["porte"] for p in mappa["prefissi_liberi"]}, {"A0": 1, "B1": 1})
 
-    def test_collega_prefisso_e_scheda_switch(self):
-        resp = self.client.post(reverse("assets:asset_rete_collega_porte", args=[self.switch.id]), {"prefisso": "a0"})
+    def _prefisso(self, valore, switch=None):
+        return self.client.post(reverse("assets:asset_rete_prefisso", args=[(switch or self.switch).id]), {"prefisso": valore})
+
+    def test_prefisso_collega_senza_scrivere_sui_punti_rete(self):
+        resp = self._prefisso("a0")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(AssetEndpoint.objects.filter(switch_name="SYN-SW-2").count(), 1)
-        self.assertEqual(AssetEndpoint.objects.filter(switch_name="").count(), 1)  # B1 resta libero
-        self.assertTrue(AssetFieldHistory.objects.filter(campo="endpoint.switch_name").exists())
+        self.switch.refresh_from_db()
+        self.assertEqual(self.switch.switch_prefisso_porte, "A0")
+        self.assertEqual(AssetEndpoint.objects.filter(switch_name="").count(), 2)  # nessuna scrittura sugli endpoint
+        self.assertTrue(AssetFieldHistory.objects.filter(asset=self.switch, campo="switch_prefisso_porte").exists())
+        mappa = rete_switch.mappa_switch(self.switch)
+        self.assertEqual(mappa["totale"], 2)
+        self.assertEqual([p["titolo"] for p in mappa["pannelli"]], ["A0.1", "A0.2"])
+        self.assertEqual({p["prefisso"] for p in mappa["prefissi_liberi"]}, {"B1"})
+        # Una porta censita dopo segue lo switch da sola.
+        nuovo = Asset.objects.create(asset_tag="SYN-PC-9", name="PC 9", asset_type=Asset.TYPE_PC)
+        ep = AssetEndpoint.objects.create(asset=nuovo, switch_port="A0.2.9")
+        self.assertEqual(rete_switch.mappa_switch(self.switch)["totale"], 3)
+        self.assertEqual(rete_switch.switch_per_endpoint([ep])[ep.id], (self.switch, True))
         resp = self.client.get(reverse("assets:asset_view", args=[self.switch.id]))
         self.assertContains(resp, "Mappa porte dello switch")
         self.assertContains(resp, "A0.2")
+        resp = self.client.get(reverse("assets:asset_view", args=[nuovo.id]))
+        self.assertContains(resp, "da prefisso")
+
+    def test_switch_name_esplicito_vince_sul_prefisso(self):
+        altro = Asset.objects.create(asset_tag="SYN-SW-3", name="Altro switch", asset_type=Asset.TYPE_HW)
+        self._prefisso("A0", altro)
+        altro.refresh_from_db()
+        # A0.1.3 indica SYN-SW-2 esplicitamente: resta suo; A0.2.7 (senza switch) va ad altro.
+        self.assertEqual(rete_switch.mappa_switch(self.switch)["totale"], 1)
+        self.assertEqual(rete_switch.mappa_switch(altro)["totale"], 1)
+
+    def test_prefisso_duplicato_rifiutato_e_rimovibile(self):
+        self._prefisso("A0")
+        altro = Asset.objects.create(asset_tag="SYN-SW-4", name="Switch doppione", asset_type=Asset.TYPE_HW)
+        self._prefisso("A0", altro)
+        altro.refresh_from_db()
+        self.assertEqual(altro.switch_prefisso_porte, "")
+        self._prefisso("")
+        self.switch.refresh_from_db()
+        self.assertEqual(self.switch.switch_prefisso_porte, "")
 
     def test_prefisso_non_valido(self):
-        self.client.post(reverse("assets:asset_rete_collega_porte", args=[self.switch.id]), {"prefisso": "A0;--"})
-        self.assertFalse(AssetEndpoint.objects.filter(switch_name="SYN-SW-2").exclude(switch_port="A0.1.3").exists())
+        self._prefisso("A0;--")
+        self.switch.refresh_from_db()
+        self.assertEqual(self.switch.switch_prefisso_porte, "")

@@ -129,7 +129,7 @@ urlpatterns = [
     path("assets/edit/<int:id>/", views.asset_edit, name="asset_edit"),
     # Sotto /assets/edit/: stesso binding ACL v2 della modifica asset (prefisso).
     path("assets/edit/<int:id>/rete/", views_asset_rete.asset_rete_edit, name="asset_rete_edit"),
-    path("assets/edit/<int:id>/rete/collega-porte/", views_asset_rete.asset_rete_collega_porte, name="asset_rete_collega_porte"),
+    path("assets/edit/<int:id>/rete/prefisso/", views_asset_rete.asset_rete_prefisso, name="asset_rete_prefisso"),
     # Sotto il prefisso di modifica: stessi permessi di chi modifica l'asset.
     path("assets/edit/<int:id>/immagine/", views.asset_image_upload, name="asset_image_upload"),
     path("assets/assign/", views.assignment_set, name="asset_assign"),
