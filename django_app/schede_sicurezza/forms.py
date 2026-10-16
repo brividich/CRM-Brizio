@@ -148,7 +148,7 @@ class ImpostazioniEtichettaForm(forms.ModelForm):
         fields = [
             "larghezza_mm", "altezza_mm", "posizione_qr", "testo_qr",
             "mostra_logo", "logo", "logo_altezza_mm",
-            "nome_dimensione_pt", "nome_maiuscolo", "riga_extra", "mostra_pittogrammi",
+            "nome_dimensione_pt", "nome_maiuscolo", "riga_extra", "mostra_pittogrammi", "mostra_dpi",
             "testo_emergenza", "colore_fascia", "mostra_bordo",
         ]
         widgets = {

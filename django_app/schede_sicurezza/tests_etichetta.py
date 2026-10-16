@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from anagrafica.models import Reparto
+from dpi.models import CategoriaDPI
 
 from .forms import ImpostazioniEtichettaForm
 from .models import ImpostazioniEtichetta, ProdottoChimico
@@ -19,7 +20,7 @@ def _dati_form(**override) -> dict:
         "larghezza_mm": "100", "altezza_mm": "50", "posizione_qr": "destra",
         "testo_qr": "Scheda di sicurezza e primo soccorso",
         "mostra_logo": "on", "logo_altezza_mm": "8", "nome_dimensione_pt": "11",
-        "nome_maiuscolo": "on", "riga_extra": "", "mostra_pittogrammi": "on",
+        "nome_maiuscolo": "on", "riga_extra": "", "mostra_pittogrammi": "on", "mostra_dpi": "on",
         "testo_emergenza": "", "colore_fascia": "",
     }
     dati.update(override)
@@ -61,6 +62,40 @@ class ImpaginazioneTest(TestCase):
         layout = impagina(imp, self.prodotto)
         self.assertEqual(layout["pittogrammi"], [])
         self.assertEqual(layout["riga_extra"], "CH-012")
+
+
+    def test_dpi_obbligatori_nella_stessa_fascia(self):
+        guanti = CategoriaDPI.objects.create(nome="Guanti", icona_emoji="gloves", order_index=1)
+        occhiali = CategoriaDPI.objects.create(nome="Occhiali", icona_emoji="glasses", order_index=2)
+        spenta = CategoriaDPI.objects.create(nome="Vecchia", is_active=False)
+        self.prodotto.dpi_obbligatori.add(guanti, occhiali, spenta)
+        imp = ImpostazioniEtichetta.correnti()
+        layout = impagina(imp, self.prodotto)
+        self.assertEqual([d["icona"] for d in layout["dpi"]], ["gloves", "glasses"])
+        # 2 GHS + 2 DPI stanno in fila, nella colonna accanto al QR.
+        self.assertFalse(layout["segnali_separati"])
+        lato = float(layout["mm"]["pittogramma"])
+        colonna = 100 - 2 * 2.5 - float(layout["mm"]["qr"]) - 2.0
+        self.assertAlmostEqual(float(layout["mm"]["segnali_w"]), 4 * lato + 3 * 0.8, delta=0.1)
+        self.assertLessEqual(float(layout["mm"]["segnali_w"]), colonna + 0.05)
+
+        imp.mostra_dpi = False
+        self.assertEqual(impagina(imp, self.prodotto)["dpi"], [])
+
+    def test_molti_segnali_su_piu_righe_restano_nel_bordo(self):
+        imp = ImpostazioniEtichetta.correnti()
+        imp.larghezza_mm, imp.altezza_mm = 70, 40
+        self.prodotto.pittogrammi = ["GHS01", "GHS02", "GHS05", "GHS06", "GHS07", "GHS08"]
+        for i, icona in enumerate(["gloves", "glasses", "mask", "boots"]):
+            self.prodotto.dpi_obbligatori.add(CategoriaDPI.objects.create(nome=f"D{i}", icona_emoji=icona))
+        layout = impagina(imp, self.prodotto)
+        # Su piu' righe i DPI ripartono a capo: due gruppi distinti.
+        self.assertTrue(layout["segnali_separati"])
+        lato = float(layout["mm"]["pittogramma"])
+        colonna = 70 - 2 * 2.5 - float(layout["mm"]["qr"]) - 2.0
+        self.assertLessEqual(float(layout["mm"]["segnali_w"]), colonna + 0.05)
+        self.assertGreaterEqual(lato, 6.0)
+        self.assertGreaterEqual(layout["righe_nome"], 1)
 
 
 class ImpostazioniEtichettaFormTest(TestCase):
@@ -111,6 +146,13 @@ class ImpostazioniEtichettaViewTest(TestCase):
         self.assertContains(etichetta, "row-reverse")
         self.assertContains(etichetta, "Emergenza 112")
         self.assertContains(etichetta, "background: #B91C1C")
+
+    def test_etichetta_mostra_segnale_dpi(self):
+        self.prodotto.dpi_obbligatori.add(CategoriaDPI.objects.create(nome="Guanti", icona_emoji="gloves"))
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_etichetta", args=[self.prodotto.pk]))
+        self.assertContains(resp, 'aria-label="Obbligo: Guanti"')
+        self.assertContains(resp, 'href="#i-dpi-gloves"')
+        self.assertContains(resp, 'id="i-dpi-gloves"')
 
     def test_anteprima_non_salva(self):
         resp = self.client.post(reverse("schede_sicurezza:etichetta_anteprima"), _dati_form(

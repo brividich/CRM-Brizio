@@ -89,6 +89,8 @@ body.theme-dark .et-anteprima iframe { border-color:var(--border); }
         </div>
         <label class="et-flag">{{ form.nome_maiuscolo }} {{ form.nome_maiuscolo.label }}</label>
         <label class="et-flag">{{ form.mostra_pittogrammi }} {{ form.mostra_pittogrammi.label }}</label>
+        <label class="et-flag">{{ form.mostra_dpi }} {{ form.mostra_dpi.label }}</label>
+        <div class="et-help">{{ form.mostra_dpi.help_text }}</div>
         {% include "schede_sicurezza/partials/_et_campo.html" with campo=form.testo_qr %}
       </section>
 
