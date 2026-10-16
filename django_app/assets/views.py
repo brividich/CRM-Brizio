@@ -10793,6 +10793,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     from .services.costi_asset import costi_asset as _costi_asset
 
     asset_costi = _costi_asset(asset)
+    from .views_asset_rete import rete_context, switch_context
+
+    can_edit_asset = _can_edit_asset(request, asset.id)
+    rete_ctx = rete_context(request, asset, can_edit=can_edit_asset) if it_presentation is not None else {}
+    switch_mappa = switch_context(request, asset, can_edit=can_edit_asset)
     return render(
         request,
         "assets/pages/asset_detail.html",
@@ -10824,6 +10829,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "detail_metrics": detail_metrics,
             "asset_primary_kpis": asset_primary_kpis,
             "it_presentation": it_presentation,
+            **rete_ctx,
+            "switch_mappa": switch_mappa,
             "it_monitoring": it_monitoring,
             "device_kpis": device_kpis,
             "it_ticket_create_url": it_ticket_create_url,

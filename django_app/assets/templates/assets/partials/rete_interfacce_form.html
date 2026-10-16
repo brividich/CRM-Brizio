@@ -1,0 +1,30 @@
+{# Modifica in-linea delle interfacce di rete (risposta HTMX di asset_rete_edit). Sostituisce #asset-rete-interfacce. #}
+<div id="asset-rete-interfacce" class="af-rete-blocco">
+  <div class="af-rete-head">
+    <h3 class="af-it-sub">Interfacce e collegamenti di rete · modifica</h3>
+  </div>
+  <form method="post" action="{% url 'assets:asset_rete_edit' asset.id %}" hx-post="{% url 'assets:asset_rete_edit' asset.id %}" hx-target="#asset-rete-interfacce" hx-swap="outerHTML" class="af-rete-form">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="af-rete-errore">{{ formset.non_form_errors }}</div>{% endif %}
+    {% for form in formset %}
+      <fieldset class="af-rete-riga{% if not form.instance.pk %} is-nuova{% endif %}">
+        <legend>{% if form.instance.pk %}{{ form.instance.endpoint_name|default:"Interfaccia" }}{% else %}Nuova interfaccia <span class="af-note">(lascia vuoto se non serve)</span>{% endif %}</legend>
+        {{ form.id }}
+        {% if form.non_field_errors %}<div class="af-rete-errore">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="af-rete-campi">
+          {% for field in form.visible_fields %}{% if field.name != "DELETE" %}
+          <label class="af-rete-campo{% if field.errors %} has-error{% endif %}"><span>{{ field.label }}</span>{{ field }}{% for e in field.errors %}<small class="af-rete-errore">{{ e }}</small>{% endfor %}</label>
+          {% endif %}{% endfor %}
+        </div>
+        {% if form.instance.pk %}<label class="af-rete-elimina">{{ form.DELETE }} Elimina questa interfaccia</label>{% endif %}
+      </fieldset>
+    {% endfor %}
+    <datalist id="asset-rete-switch-list">{% for sw in switch_disponibili %}<option value="{{ sw.valore }}">{{ sw.etichetta }}</option>{% endfor %}</datalist>
+    <p class="af-note">Switch: scegli la matricola di uno switch censito per vederlo nella sua mappa porte. Le modifiche finiscono in «Cosa è cambiato nella rete».</p>
+    <div class="af-rete-azioni">
+      <button type="submit" class="af-btn af-btn-primary af-btn-sm">Salva rete</button>
+      <button type="button" class="af-btn af-btn-sm" hx-get="{% url 'assets:asset_rete_edit' asset.id %}?annulla=1" hx-target="#asset-rete-interfacce" hx-swap="outerHTML">Annulla</button>
+    </div>
+  </form>
+</div>
