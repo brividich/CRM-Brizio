@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("core", "0080_bacheca_self_help"),
         # Il riallineamento spegne i preset ritirati solo se nessun ruolo d'organigramma li concede.
-        ("anagrafica", "0174_ruolo_profili_permessi"),
+        ("anagrafica", "0177_ruolo_profili_permessi"),
     ]
 
     operations = [

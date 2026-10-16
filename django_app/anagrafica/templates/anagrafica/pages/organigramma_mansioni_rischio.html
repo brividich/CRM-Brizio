@@ -35,7 +35,7 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Mansioni di rischio</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Organigramma per mansione di rischio</h1>
-        <p class="fmd-ph-sub">Gruppi omogenei del DVR con le persone esposte, per RSPP e medico competente. In rosso chi non è idoneo a operare, in giallo chi ha un avviso o è in deroga.{% if senza_mansione %} Dipendenti attivi senza mansione di rischio in anagrafica, che non compaiono qui: <strong>{{ senza_mansione }}</strong>.{% endif %}</p>
+        <p class="fmd-ph-sub">Gruppi omogenei del DVR con le persone esposte, per RSPP e medico competente. In rosso chi non è idoneo a operare, in giallo chi ha un avviso o è in deroga.{% if senza_mansione %} Dipendenti attivi senza mansione di rischio in anagrafica: <strong>{{ senza_mansione }}</strong> (compaiono qui solo se la ricavano dalle mansioni che svolgono).{% endif %}</p>
       </div>
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/components/_export_menu.html" with export_key="organigramma_mansioni_rischio" %}
@@ -60,9 +60,15 @@ body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border
         {% if can_view_visite and g.visite %}<div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Protocollo: {% for v in g.visite %}{{ v.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
         <div class="orgr-mansione">
           <div class="orgr-persone">
-            {% for p in g.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}" title="{{ p.reparto }}{% if p.stato %} · {{ p.stato }}{% endif %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">Nessuno</span>{% endfor %}
+            {% for p in g.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}" title="{{ p.reparto }}{% if p.stato %} · {{ p.stato }}{% endif %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">{% if g.da_mansioni or g.aggiunte %}Nessuno con questa mansione in anagrafica{% else %}Nessuno{% endif %}</span>{% endfor %}
           </div>
         </div>
+        {% if g.da_mansioni %}
+        <div class="orgr-mansione">
+          <div class="orgr-mansione-head">Dalle mansioni svolte</div>
+          <div class="orgr-persone">{% for p in g.da_mansioni %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}" title="Da mansione {{ p.da|join:', ' }}{% if p.stato %} · {{ p.stato }}{% endif %}">{{ p.nome }}</a>{% endfor %}</div>
+        </div>
+        {% endif %}
         {% if g.aggiunte %}
         <div class="orgr-mansione">
           <div class="orgr-mansione-head">Aggiunte individuali</div>

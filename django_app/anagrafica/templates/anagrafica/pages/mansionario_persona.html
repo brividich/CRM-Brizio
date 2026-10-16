@@ -52,15 +52,18 @@
 
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Mansioni di rischio che ne derivano</div>
-        <div class="fmd-block-aside">Dalle mansioni assegnate · in anagrafica oggi: {{ mansione_anagrafica|default:"nessuna" }}</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Mansioni di rischio</div>
+        <div class="fmd-block-aside">In anagrafica: {{ mansione_anagrafica|default:"nessuna" }}</div>
       </div>
-      {% for r in scheda.rischi %}
-      <div style="margin-bottom:6px;"><a class="fmd-badge fmd-b-violet" style="text-decoration:none;" href="{% url 'anagrafica:mansione_requisiti' r.mansione.pk %}">{{ r.mansione.nome }}</a> <span class="fmd-muted">da {{ r.da|join:", " }}</span></div>
+      {% for e in rischi_effettivi %}
+      <div style="margin-bottom:6px;"><a class="fmd-badge fmd-b-violet" style="text-decoration:none;" href="{% url 'anagrafica:mansione_requisiti' e.mansione_rischio.pk %}">{{ e.mansione_rischio.nome }}</a> <span class="fmd-muted">{% if e.origine == 'OVERRIDE' %}aggiunta individuale{% elif e.origine == 'MANSIONARIO' %}da {{ e.da|join:", " }}{% else %}in anagrafica{% if e.da %}, anche da {{ e.da|join:", " }}{% endif %}{% endif %}</span></div>
       {% empty %}
-      <div class="fmd-muted">Nessuna: le mansioni assegnate non indicano mansioni di rischio.</div>
+      <div class="fmd-muted">Nessuna: né in anagrafica né dalle mansioni assegnate.</div>
       {% endfor %}
-      <p class="fmd-muted" style="margin:10px 0 0;font-size:12.5px;">Per ora è un'indicazione: DPI, visite e schede di sicurezza seguono ancora la mansione di rischio scritta in anagrafica.</p>
+      {% for e in rischi_esclusi %}
+      <div style="margin-bottom:6px;"><span class="fmd-badge" style="text-decoration:line-through;">{{ e.mansione_rischio.nome }}</span> <span class="fmd-muted">esclusa individualmente</span></div>
+      {% endfor %}
+      <p class="fmd-muted" style="margin:10px 0 0;font-size:12.5px;">Sono queste a decidere DPI, visite, formazione e schede di sicurezza della persona.</p>
     </section>
   </div>
 </div>

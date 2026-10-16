@@ -1,15 +1,15 @@
-"""Mansioni di rischio (gruppi omogenei del DVR), distinte dalle mansioni lavorative.
+"""Override individuali delle mansioni di rischio e sicurezza operativa.
 
-La ``Mansione`` dice *cosa fa* la persona (job, reparto, livello ASR delle ore
-di formazione). La ``MansioneRischio`` dice *a cosa è esposta*: fattori di
-rischio, protocollo sanitario (tipi di visita), categorie DPI e regole
-formative, con il riferimento alla revisione del DVR che la definisce.
+Le mansioni di rischio sono il catalogo ``Mansione`` (DVR e medico competente).
+Quelle di una persona sono la mansione di rischio scritta in anagrafica più
+quelle ricavate dalle mansioni che svolge (Mansionario), con **override
+individuali** motivati (``DipendenteMansioneRischioOverride``) per i casi reali:
+addetto antincendio, preposto, esclusione su indicazione del medico competente.
+Vedi ``services/mansionario.py``.
 
-Le due cose sono collegate molti-a-molti (``MansioneLavorativaRischio``): il
-dipendente eredita le mansioni di rischio dalla sua mansione lavorativa, con
-**override individuali** motivati (``DipendenteMansioneRischioOverride``) per i
-casi reali — addetto antincendio, preposto, esclusione su indicazione del
-medico competente.
+Il vecchio catalogo separato ``MansioneRischio`` e il suo collegamento
+``MansioneLavorativaRischio`` sono stati assorbiti nel catalogo ``Mansione``
+(Mansionario fase 6, migrazioni anagrafica 0174-0176: nessun dato perso).
 
 La **periodicità** delle visite non sta qui: la decide il medico competente
 (``TipoVisitaMedica.durata_mesi`` e protocollo individuale
@@ -31,102 +31,11 @@ from django.utils import timezone
 
 
 __all__ = [
-    "MansioneRischio",
-    "MansioneLavorativaRischio",
     "DipendenteMansioneRischioOverride",
     "EventoSicurezzaDipendente",
     "DerogaOperativaVisita",
     "ConfigSicurezzaOperativa",
 ]
-
-
-class MansioneRischio(models.Model):
-    """Gruppo omogeneo di esposizione definito nel DVR."""
-
-    LIVELLO_BASSO = "B"
-    LIVELLO_MEDIO = "M"
-    LIVELLO_ALTO = "A"
-    LIVELLO_CHOICES = [
-        (LIVELLO_BASSO, "Basso"),
-        (LIVELLO_MEDIO, "Medio"),
-        (LIVELLO_ALTO, "Alto"),
-    ]
-
-    codice = models.CharField(max_length=20, unique=True)
-    nome = models.CharField(max_length=150)
-    descrizione = models.TextField(blank=True, default="")
-    livello_rischio_dvr = models.CharField(
-        max_length=1, choices=LIVELLO_CHOICES, blank=True, default="",
-        verbose_name="Livello di rischio (DVR)",
-        help_text="Stima del rischio nel DVR. Informativo: le ore di formazione ASR restano sulla mansione lavorativa.",
-    )
-    dvr_revisione = models.CharField(max_length=30, blank=True, default="", verbose_name="Revisione DVR")
-    dvr_data = models.DateField(null=True, blank=True, verbose_name="Data revisione DVR")
-
-    fattori = models.ManyToManyField(
-        "anagrafica.FattoreRischio", blank=True, related_name="mansioni_rischio",
-    )
-    visite = models.ManyToManyField(
-        "anagrafica.TipoVisitaMedica", blank=True, related_name="mansioni_rischio",
-        help_text="Protocollo sanitario: tipi di visita dovuti. La periodicità la decide il medico competente.",
-    )
-    categorie_dpi = models.ManyToManyField(
-        "dpi.CategoriaDPI", blank=True, related_name="mansioni_rischio",
-    )
-
-    is_active = models.BooleanField(default=True)
-    # Marker della migrazione dati (comando ``migra_mansioni_rischio``): la
-    # mansione lavorativa da cui il profilo è stato generato e l'impronta del
-    # profilo di allora. Servono a idempotenza e rollback, non al calcolo.
-    origine_mansione = models.ForeignKey(
-        "anagrafica.Mansione", null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="profili_rischio_migrati",
-    )
-    origine_migrazione_hash = models.CharField(max_length=64, blank=True, default="")
-
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["nome"]
-        verbose_name = "Mansione di rischio"
-        verbose_name_plural = "Mansioni di rischio"
-        indexes = [models.Index(fields=["is_active"])]
-
-    def __str__(self) -> str:
-        return f"{self.codice} · {self.nome}"
-
-
-class MansioneLavorativaRischio(models.Model):
-    """Collegamento mansione lavorativa ↔ mansione di rischio."""
-
-    mansione = models.ForeignKey(
-        "anagrafica.Mansione", on_delete=models.CASCADE, related_name="link_rischio",
-    )
-    mansione_rischio = models.ForeignKey(
-        MansioneRischio, on_delete=models.PROTECT, related_name="link_mansioni",
-    )
-    ordine = models.PositiveSmallIntegerField(default=0)
-    note = models.CharField(max_length=300, blank=True, default="")
-    origine_migrazione = models.BooleanField(default=False)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["mansione", "ordine", "pk"]
-        verbose_name = "Collegamento mansione ↔ mansione di rischio"
-        verbose_name_plural = "Collegamenti mansione ↔ mansione di rischio"
-        constraints = [
-            models.UniqueConstraint(fields=["mansione", "mansione_rischio"], name="uniq_mansione_link_rischio"),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.mansione} → {self.mansione_rischio}"
 
 
 class DipendenteMansioneRischioOverride(models.Model):
@@ -146,7 +55,8 @@ class DipendenteMansioneRischioOverride(models.Model):
 
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     mansione_rischio = models.ForeignKey(
-        MansioneRischio, on_delete=models.PROTECT, related_name="override_dipendenti",
+        "anagrafica.Mansione", on_delete=models.PROTECT, related_name="override_dipendenti",
+        verbose_name="Mansione di rischio",
     )
     azione = models.CharField(max_length=8, choices=AZIONE_CHOICES)
     motivo = models.CharField(max_length=500)

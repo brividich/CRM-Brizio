@@ -18,16 +18,15 @@ from datetime import date
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import FattoreRischio, Mansione, TipoVisitaMedica
+from .models import FattoreRischio, Mansione
 from .models_mansioni_rischio import (
-    ConfigSicurezzaOperativa, DerogaOperativaVisita, DipendenteMansioneRischioOverride, MansioneRischio,
+    ConfigSicurezzaOperativa, DerogaOperativaVisita, DipendenteMansioneRischioOverride,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,17 +60,13 @@ def _data(valore) -> date | None:
         return None
 
 
-def _ids(request, nome) -> list[int]:
-    return [int(v) for v in request.POST.getlist(nome) if str(v).isdigit()]
-
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Catalogo
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Decisione 15/10/2026 (spec Mansionario): il catalogo delle mansioni di rischio
-# è ``Mansione``. Le pagine del modello ``MansioneRischio`` (vuoto in
-# produzione) rimandano lì; modello e codice si eliminano nella fase di pulizia.
+# è ``Mansione``. Il vecchio catalogo separato è stato assorbito (fase 6); i suoi
+# indirizzi restano e rimandano al catalogo, per i collegamenti salvati.
 _AVVISO_CATALOGO = ("Le mansioni di rischio sono il catalogo «Mansioni di rischio»: "
                     "DPI, visite e schede di sicurezza si gestiscono dai requisiti di ogni voce.")
 
@@ -88,92 +83,11 @@ def mansioni_rischio_list(request):
     return _al_catalogo(request)
 
 
-def _mansioni_rischio_list_legacy(request):
-    """Vecchio catalogo MansioneRischio: non più raggiungibile, resta fino alla pulizia."""
-    q = (request.GET.get("q") or "").strip()
-    qs = MansioneRischio.objects.prefetch_related("fattori", "link_mansioni__mansione").order_by("-is_active", "codice")
-    if q:
-        from django.db.models import Q
-        qs = qs.filter(Q(nome__icontains=q) | Q(codice__icontains=q))
-    return render(request, "anagrafica/pages/mansioni_rischio_list.html", {
-        "page_title": "Mansioni di rischio",
-        "mansioni_rischio": list(qs),
-        "q": q,
-        "config": ConfigSicurezzaOperativa.load(),
-        "is_admin": _puo_gestire(request),
-        "n_senza_collegamento": Mansione.objects.filter(is_active=True, link_rischio__isnull=True).count(),
-    })
-
-
 @login_required
 def mansione_rischio_dettaglio(request, mr_id: int):
     if not _puo_vedere(request):
         return _nega(request)
     return _al_catalogo(request)
-
-
-def _mansione_rischio_dettaglio_legacy(request, mr_id: int):
-    from .services import mansionario
-    from .services.mansioni_rischio_admin import esposti
-    from .views import _can_view_visite_mediche
-
-    mr = get_object_or_404(MansioneRischio.objects.prefetch_related("fattori", "visite", "categorie_dpi"), pk=mr_id)
-    return render(request, "anagrafica/pages/mansione_rischio_dettaglio.html", {
-        "page_title": mr.nome,
-        "mr": mr,
-        "requisiti": mansionario.requisiti_mansioni_rischio([mr.pk]).get(mr.pk) or mansionario.requisiti_vuoti(),
-        "collegamenti": list(mr.link_mansioni.select_related("mansione").order_by("mansione__nome")),
-        "esposti": esposti(mr),
-        "override": list(mr.override_dipendenti.filter(attivo=True).order_by("legacy_anagrafica_id")),
-        "is_admin": _puo_gestire(request),
-        "can_view_visite": _can_view_visite_mediche(request),
-    })
-
-
-def _cataloghi() -> dict:
-    from django.db.models import Case, When
-    out = {
-        "fattori_opts": list(FattoreRischio.objects.filter(is_active=True).order_by("categoria", "nome")),
-        "visite_opts": list(TipoVisitaMedica.objects.filter(is_active=True)
-                            .order_by(Case(When(categoria="", then=1), default=0), "categoria", "nome")),
-        "mansioni_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
-        "livello_choices": MansioneRischio.LIVELLO_CHOICES,
-        "dpi_opts": [],
-    }
-    try:
-        from dpi.models import CategoriaDPI
-        out["dpi_opts"] = list(CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome"))
-    except Exception:
-        pass
-    return out
-
-
-def _dati_da_post(request):
-    from .services.mansioni_rischio_admin import Dati
-    return Dati(
-        codice=(request.POST.get("codice") or "").strip()[:20],
-        nome=(request.POST.get("nome") or "").strip()[:150],
-        descrizione=(request.POST.get("descrizione") or "").strip(),
-        livello_rischio_dvr=(request.POST.get("livello_rischio_dvr") or "").strip()[:1],
-        dvr_revisione=(request.POST.get("dvr_revisione") or "").strip()[:30],
-        dvr_data=_data(request.POST.get("dvr_data")),
-        is_active=request.POST.get("is_active") == "on",
-        fattori=_ids(request, "fattori"), visite=_ids(request, "visite"),
-        categorie_dpi=_ids(request, "categorie_dpi"), mansioni=_ids(request, "mansioni"),
-    )
-
-
-def _dati_da_istanza(mr):
-    from .services.mansioni_rischio_admin import Dati
-    if mr.pk is None:
-        return Dati(codice="", nome="", is_active=True)
-    return Dati(
-        codice=mr.codice, nome=mr.nome, descrizione=mr.descrizione, livello_rischio_dvr=mr.livello_rischio_dvr,
-        dvr_revisione=mr.dvr_revisione, dvr_data=mr.dvr_data, is_active=mr.is_active,
-        fattori=list(mr.fattori.values_list("pk", flat=True)), visite=list(mr.visite.values_list("pk", flat=True)),
-        categorie_dpi=list(mr.categorie_dpi.values_list("pk", flat=True)),
-        mansioni=list(mr.link_mansioni.values_list("mansione_id", flat=True)),
-    )
 
 
 @login_required
@@ -182,46 +96,6 @@ def mansione_rischio_form(request, mr_id: int | None = None):
     if not _puo_gestire(request):
         return _nega(request, "Non hai i permessi per modificare le mansioni di rischio.")
     return _al_catalogo(request)
-
-
-def _mansione_rischio_form_legacy(request, mr_id: int | None = None):
-    from .services import mansioni_rischio_admin as admin_svc
-
-    mr = get_object_or_404(MansioneRischio, pk=mr_id) if mr_id else MansioneRischio()
-    # Il protocollo sanitario (tipi di visita) si modifica solo con il permesso
-    # visite: senza, il form lo mostra in sola lettura e il server lo conserva.
-    puo_protocollo = _puo_sorveglianza(request)
-    dati, effetto, errori = _dati_da_istanza(mr), None, []
-    if request.method == "POST":
-        visite_attuali = list(mr.visite.values_list("pk", flat=True)) if mr.pk else []
-        dati = _dati_da_post(request)
-        if not puo_protocollo:
-            dati.visite = visite_attuali
-        if not dati.codice or not dati.nome:
-            errori.append("Codice e nome sono obbligatori.")
-        elif MansioneRischio.objects.filter(codice=dati.codice).exclude(pk=mr.pk).exists():
-            errori.append(f"Il codice «{dati.codice}» è già usato.")
-        if not errori:
-            try:
-                if request.POST.get("azione") == "anteprima":
-                    effetto = admin_svc.anteprima(mr, dati)
-                else:
-                    mr, nuova = admin_svc.salva(mr, dati, user=request.user)
-                    log_action(request, "mansione_rischio_salvata", MODULE, {
-                        "mansione_rischio": mr.pk, "codice": mr.codice, "nuova": nuova,
-                        "fattori": dati.fattori, "visite": dati.visite, "dpi": dati.categorie_dpi,
-                        "mansioni": dati.mansioni,
-                    }, oggetto=mr)
-                    messages.success(request, f"Mansione di rischio «{mr.nome}» salvata. Gli adempimenti dei "
-                                              "dipendenti coinvolti vengono riallineati in background.")
-                    return redirect("anagrafica:mansione_rischio_dettaglio", mr_id=mr.pk)
-            except ValidationError as exc:
-                errori.extend(exc.messages)
-    return render(request, "anagrafica/pages/mansione_rischio_form.html", {
-        "page_title": mr.nome if mr.pk else "Nuova mansione di rischio",
-        "mr": mr, "dati": dati, "effetto": effetto, "errori": errori, "puo_protocollo": puo_protocollo,
-        **_cataloghi(),
-    })
 
 
 @login_required
@@ -318,7 +192,7 @@ def dipendente_sicurezza_panel(request, legacy_id: int):
         "override": override,
         "deroghe": list(DerogaOperativaVisita.objects.filter(legacy_anagrafica_id=legacy_id).order_by("-autorizzato_il")[:10]),
         "config": ConfigSicurezzaOperativa.load(),
-        "mansioni_rischio_opts": list(MansioneRischio.objects.filter(is_active=True).order_by("codice")),
+        "mansioni_rischio_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
         "timeline": eventi_sicurezza.timeline([legacy_id], limite=40),
         "oggi": timezone.localdate(),
     })
@@ -344,7 +218,7 @@ def dipendente_override_aggiungi(request, legacy_id: int):
     if not _dipendente_esiste(legacy_id):
         messages.error(request, "Dipendente non trovato.")
         return redirect("anagrafica:dipendenti_list")
-    mr = MansioneRischio.objects.filter(pk=request.POST.get("mansione_rischio") or 0, is_active=True).first()
+    mr = Mansione.objects.filter(pk=request.POST.get("mansione_rischio") or 0, is_active=True).first()
     if mr is None:
         messages.error(request, "Mansione di rischio non valida.")
         return _torna(legacy_id)

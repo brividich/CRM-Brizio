@@ -172,8 +172,10 @@ GUIDA = {
                                                             "mansione di rischio. Serve all'RSPP; si corregge "
                                                             "dall'anagrafica o dalla scheda della mansione."),
                 ]),
-                ("nota", "Le mansioni di rischio ricavate dalle mansioni sono per ora un'indicazione: DPI, visite e schede "
-                         "di sicurezza seguono ancora la mansione di rischio scritta in anagrafica."),
+                ("nota", "Le mansioni di rischio di una persona sono quella scritta in anagrafica (del medico competente) "
+                         "più quelle delle mansioni che svolge, più le aggiunte individuali e meno le esclusioni. "
+                         "Contano tutte per DPI, visite, formazione e schede di sicurezza: assegnare una persona a una "
+                         "mansione le porta subito i suoi obblighi; nessuna mansione toglie quella in anagrafica."),
             ],
         },
         {

@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0173_mansionario_competenze_dati"),
+        ("anagrafica", "0176_mansioni_rischio_unificate_pulizia"),
         ("core", "0080_bacheca_self_help"),
     ]
 

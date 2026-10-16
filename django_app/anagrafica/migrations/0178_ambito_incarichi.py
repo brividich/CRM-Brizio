@@ -31,7 +31,7 @@ def semina(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0174_ruolo_profili_permessi"),
+        ("anagrafica", "0177_ruolo_profili_permessi"),
     ]
 
     operations = [

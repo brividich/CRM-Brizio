@@ -26,7 +26,7 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
   scheda e coda referti (`views_sorveglianza._puo`).
 - **Ruoli dall'organigramma**: `anagrafica.RuoloOperativo.profili_permessi` (M2M verso
-  `AccessGroup`, migrazione anagrafica 0174). Chi ricopre oggi un ruolo d'organigramma collegato
+  `AccessGroup`, migrazione anagrafica 0177). Chi ricopre oggi un ruolo d'organigramma collegato
   (stesse assegnazioni del team: ruolo attivo, `data_fine` vuota o futura) riceve quei ruoli,
   sommati a quelli a mano. Fonte unica `core/permessi/organigramma.py`
   (`profili_da_organigramma`, `provenienze_per_utenti`), letta da `motore.ruoli_della_persona` e da

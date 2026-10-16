@@ -1,17 +1,16 @@
-"""Mansioni di rischio ≠ mansioni lavorative: motore, override, cambio mansione a prova
-di errore, stato operativo, migrazione dati, integrità.
+"""Mansioni di rischio (catalogo ``Mansione``): motore, override, cambio mansione a prova
+di errore, stato operativo, integrità. La migrazione dal vecchio catalogo separato è in
+``tests_mansioni_rischio_unificazione``.
 
 Dati **sintetici**: anagrafiche legacy create nel DB di test, nessun dato reale.
 Ogni classe copre una riga della tabella dei casi del prompt 04.
 """
 from __future__ import annotations
 
-import io
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -19,7 +18,7 @@ from django.utils import timezone
 from anagrafica.models import (
     AdempimentoCambioMansione as A, ConfigSicurezzaOperativa, DipendenteAnagraficaAziendale,
     DipendenteAssegnazione, DipendenteMansioneRischioOverride as O, EsposizioneRischio,
-    EventoSicurezzaDipendente, FattoreRischio, Mansione, MansioneLavorativaRischio, MansioneRischio,
+    EventoSicurezzaDipendente, FattoreRischio, Mansione,
     TipoVisitaMedica, TrainingCourse, TrainingPlan, TrainingRequirementRule, VisitaMedica,
 )
 from anagrafica.services import cambio_mansione, mansionario, riallineamento, stato_operativo
@@ -47,15 +46,12 @@ class _Base(TestCase):
         self.fumi = FattoreRischio.objects.create(codice="FUM-T", nome="Fumi", richiede_visita_medica=True)
         self.fumi.tipi_visita.add(self.annuale)
 
-        self.mr_rumore = MansioneRischio.objects.create(codice="MR-RUM", nome="Esposti rumore")
-        self.mr_rumore.fattori.add(self.rumore)
-        self.mr_fumi = MansioneRischio.objects.create(codice="MR-FUM", nome="Esposti fumi")
-        self.mr_fumi.fattori.add(self.fumi)
-
+        # Il catalogo Mansione è quello delle mansioni di rischio (fase 6).
         self.operaio = Mansione.objects.create(nome="Operaio T")
         self.saldatore = Mansione.objects.create(nome="Saldatore T")
-        MansioneLavorativaRischio.objects.create(mansione=self.operaio, mansione_rischio=self.mr_rumore)
-        MansioneLavorativaRischio.objects.create(mansione=self.saldatore, mansione_rischio=self.mr_fumi)
+        EsposizioneRischio.objects.create(fattore=self.rumore, mansione=self.operaio)
+        EsposizioneRischio.objects.create(fattore=self.fumi, mansione=self.saldatore)
+        self.mr_rumore, self.mr_fumi = self.operaio, self.saldatore
 
         self.lid = self._dipendente("Mario", "Rossi", "Operaio T")
 
@@ -79,14 +75,14 @@ class MotoreMansioniRischioTests(_Base):
         det = mansionario.requisiti_dipendente_dettaglio(self.lid)
         self.assertEqual([v.pk for v in det["requisiti"]["visite"]], [self.audiometria.pk])
         self.assertEqual(det["origini"][("visite", self.audiometria.pk)],
-                         ["Mansione di rischio «Esposti rumore» (da mansione «Operaio T»)"])
+                         ["Mansione di rischio «Operaio T» (anagrafica)"])
         self.assertEqual(det["origini_strutturate"][("visite", self.audiometria.pk)]["mansione_rischio_id"],
                          self.mr_rumore.pk)
 
-    def test_campi_legacy_ignorati_se_la_mansione_ha_collegamenti(self):
+    def test_profilo_unisce_visite_dirette_e_fattori(self):
         self.operaio.visite_richieste.add(self.oculistica)
         visite = {v.pk for v in mansionario.requisiti_mansione(self.operaio)["visite"]}
-        self.assertEqual(visite, {self.audiometria.pk})
+        self.assertEqual(visite, {self.audiometria.pk, self.oculistica.pk})
 
     def test_mansione_senza_collegamenti_legge_i_campi_legacy(self):
         magazziniere = Mansione.objects.create(nome="Magazziniere T")
@@ -120,7 +116,7 @@ class MotoreMansioniRischioTests(_Base):
         piano, _ = TrainingPlan.objects.get_or_create(codice="PT-MR", defaults={"nome": "P", "stato": "ATTIVO"})
         corso = TrainingCourse.objects.create(piano=piano, codice="RUM-C", titolo="Rischio rumore",
                                               durata_ore_teorica=2, validita_mesi=60)
-        TrainingRequirementRule.objects.create(corso=corso, mansione_rischio=self.mr_rumore)
+        TrainingRequirementRule.objects.create(corso=corso, mansione=self.mr_rumore)
         self.assertIn(corso, mansionario.requisiti_dipendente(self.lid)["corsi"])
 
 
@@ -168,7 +164,7 @@ class CambioMansioneTests(_Base):
     def test_rigenerazione_chiude_come_non_piu_dovuto(self):
         ass = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=15), mansione="Saldatore T",
                                 user=self.admin)
-        self.mr_fumi.fattori.remove(self.fumi)
+        EsposizioneRischio.objects.filter(mansione=self.saldatore, fattore=self.fumi).delete()
         cambio_mansione.genera_piano(ass, mansione_precedente="Operaio T", user=self.admin)
         ad = A.objects.get(assegnazione=ass, chiave=f"VISITA:{self.annuale.pk}")
         self.assertEqual((ad.stato, ad.attivo), (A.STATO_NON_PIU_DOVUTO, False))
@@ -192,7 +188,7 @@ class CambioMansioneTests(_Base):
     def test_spostamenti_programmati_in_fila_usano_la_card_precedente(self):
         crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=10), mansione="Saldatore T", user=self.admin)
         terza = Mansione.objects.create(nome="Saldatore capo T")
-        MansioneLavorativaRischio.objects.create(mansione=terza, mansione_rischio=self.mr_fumi)
+        EsposizioneRischio.objects.create(fattore=self.fumi, mansione=terza)
         ass2 = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=40), mansione="Saldatore capo T",
                                  user=self.admin)
         # Baseline = Saldatore (programmato), non Operaio: niente visita «nuova» da rifare.
@@ -268,7 +264,7 @@ class RiallineamentoMassivoTests(_Base):
         for lid in ids:
             self._card(lid, "Operaio T")
         foto = riallineamento.fotografa_mansioni([self.operaio.pk])
-        MansioneLavorativaRischio.objects.create(mansione=self.operaio, mansione_rischio=self.mr_fumi, ordine=1)
+        EsposizioneRischio.objects.create(fattore=self.fumi, mansione=self.operaio)
         report = riallineamento.esegui_riallineamento({str(k): v for k, v in foto.items()}, "Test collegamento")
         self.assertEqual(report["dipendenti"], 51)  # i 50 + il dipendente dello scenario
         self.assertEqual(report["creati"], 50)       # lo scenario non ha card aperta
@@ -276,68 +272,6 @@ class RiallineamentoMassivoTests(_Base):
         again = riallineamento.esegui_riallineamento({str(k): v for k, v in foto.items()}, "Test collegamento")
         self.assertEqual(again["creati"], 0)
         self.assertEqual(A.objects.filter(legacy_anagrafica_id__in=ids, chiave=f"VISITA:{self.annuale.pk}").count(), 50)
-
-
-# ── Migrazione dati ───────────────────────────────────────────────────────────
-class MigrazioneDatiTests(TestCase):
-    def setUp(self):
-        self.visita = TipoVisitaMedica.objects.create(nome="Visita sintetica M", durata_mesi=12)
-        self.fattore = FattoreRischio.objects.create(codice="MIG-F", nome="Fattore M")
-        self.verniciatore = Mansione.objects.create(nome="Verniciatore M")
-        self.verniciatore.visite_richieste.add(self.visita)
-        EsposizioneRischio.objects.create(fattore=self.fattore, mansione=self.verniciatore)
-        self.impiegato = Mansione.objects.create(nome="Impiegato M")  # profilo vuoto
-        self.dubbia = Mansione.objects.create(nome="Dubbia M")
-        EsposizioneRischio.objects.create(fattore=self.fattore, mansione=self.dubbia, note="solo turno notte")
-
-    def _cmd(self, *args):
-        out = io.StringIO()
-        call_command("migra_mansioni_rischio", *args, stdout=out)
-        return out.getvalue()
-
-    def test_dry_run_non_scrive(self):
-        out = self._cmd()
-        self.assertIn("[MAPPATO]", out)
-        self.assertIn("[SKIP_VUOTO]", out)
-        self.assertIn("[DA_DECIDERE]", out)
-        self.assertFalse(MansioneRischio.objects.exists())
-
-    def test_apply_idempotente_equivalente_e_rollback(self):
-        prima = {d: {o.pk for o in v} for d, v in mansionario.requisiti_mansione(self.verniciatore).items()}
-        self._cmd("--apply")
-        mr = MansioneRischio.objects.get(origine_mansione=self.verniciatore)
-        self.assertEqual(mr.codice, f"MR-{self.verniciatore.pk:04d}")
-        self.assertTrue(MansioneLavorativaRischio.objects.filter(mansione=self.verniciatore, mansione_rischio=mr).exists())
-        self.assertFalse(MansioneRischio.objects.filter(origine_mansione=self.dubbia).exists())  # da decidere
-        dopo = {d: {o.pk for o in v} for d, v in mansionario.requisiti_mansione(self.verniciatore).items()}
-        self.assertEqual(prima, dopo)
-        self.assertIn("0 differenze", self._cmd("--verifica"))
-
-        self.assertIn("[GIA_MIGRATO]", self._cmd("--apply"))
-        self.assertEqual(MansioneRischio.objects.count(), 1)
-
-        self.assertIn("[DA_RIMUOVERE]", self._cmd("--rollback"))  # dry-run
-        self.assertTrue(MansioneRischio.objects.exists())
-        self._cmd("--rollback", "--apply")
-        self.assertFalse(MansioneRischio.objects.exists())
-        self.assertEqual(list(self.verniciatore.visite_richieste.all()), [self.visita])  # legacy intatto
-
-    def test_rollback_rifiutato_se_modificata(self):
-        self._cmd("--apply")
-        mr = MansioneRischio.objects.get(origine_mansione=self.verniciatore)
-        mr.visite.clear()
-        self.assertIn("[NON_ROLLBACKABILE]", self._cmd("--rollback", "--apply"))
-        self.assertTrue(MansioneRischio.objects.filter(pk=mr.pk).exists())
-
-    def test_divergente_dopo_modifica_del_legacy(self):
-        self._cmd("--apply")
-        self.verniciatore.visite_richieste.clear()
-        self.assertIn("[DIVERGENTE]", self._cmd("--apply"))
-
-    def test_nome_mansione_dipendente_non_a_catalogo(self):
-        AnagraficaDipendente.objects.create(nome="A", cognome="B", mansione="Mansione Fantasma",
-                                            reparto="X", aliasusername="ab.mig.t")
-        self.assertIn("[NON_MAPPATO_DIPENDENTE]", self._cmd())
 
 
 class MigrazioneBackfillChiaveTests(TestCase):
@@ -491,9 +425,9 @@ class PagineMansioniRischioTests(_Base):
                            ("mansione_rischio_modifica", [self.mr_fumi.pk])):
             r = self.client.get(reverse(f"anagrafica:{nome}", args=args))
             self.assertRedirects(r, reverse("anagrafica:mansioni_list"), msg_prefix=nome)
-        n = MansioneRischio.objects.count()
+        n = Mansione.objects.count()
         self.client.post(reverse("anagrafica:mansione_rischio_nuova"), {"codice": "MR-NEW", "nome": "Nuova", "azione": "salva"})
-        self.assertEqual(MansioneRischio.objects.count(), n)
+        self.assertEqual(Mansione.objects.count(), n)
 
     def test_subnav_raggruppata_con_voce_accesa(self):
         self.client.force_login(self.admin)
@@ -544,7 +478,7 @@ class PagineMansioniRischioTests(_Base):
         self._dipendente("Senza", "Mansione", "")
         self.client.force_login(self.admin)
         r = self.client.get(reverse("anagrafica:organigramma_mansioni_rischio"))
-        self.assertContains(r, "senza mansione di rischio in anagrafica, che non compaiono qui: <strong>1</strong>.")
+        self.assertContains(r, "senza mansione di rischio in anagrafica: <strong>1</strong>")
 
     def test_export_organigramma(self):
         self.client.force_login(self.admin)
@@ -593,24 +527,18 @@ class RegressioniReviewTests(_Base):
     def test_job_rispetta_le_esclusioni_individuali(self):
         altro = self._dipendente("Escluso", "Sintetico", "Operaio T")
         self._card(altro, "Operaio T")
-        O.objects.create(legacy_anagrafica_id=altro, mansione_rischio=self.mr_fumi, azione=O.AZIONE_ESCLUDI,
+        O.objects.create(legacy_anagrafica_id=altro, mansione_rischio=self.operaio, azione=O.AZIONE_ESCLUDI,
                          motivo="Indicazione del medico competente", data_inizio=OGGI)
         foto = riallineamento.fotografa_mansioni([self.operaio.pk])
-        MansioneLavorativaRischio.objects.create(mansione=self.operaio, mansione_rischio=self.mr_fumi, ordine=1)
+        EsposizioneRischio.objects.create(fattore=self.fumi, mansione=self.operaio)
         riallineamento.esegui_riallineamento({str(k): v for k, v in foto.items()}, "Test")
         self.assertFalse(A.objects.filter(legacy_anagrafica_id=altro, chiave=f"VISITA:{self.annuale.pk}").exists())
-
-    def test_mansione_migrata_non_torna_ai_campi_deprecati(self):
-        self.operaio.visite_richieste.add(self.oculistica)
-        self.mr_rumore.is_active = False
-        self.mr_rumore.save()
-        self.assertEqual(mansionario.requisiti_mansione(self.operaio)["visite"], [])
 
     def test_annullare_b_rigenera_il_piano_di_c(self):
         self.client.force_login(self.admin)
         b = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=10), mansione="Saldatore T", user=self.admin)
         capo = Mansione.objects.create(nome="Saldatore capo T")
-        MansioneLavorativaRischio.objects.create(mansione=capo, mansione_rischio=self.mr_fumi)
+        EsposizioneRischio.objects.create(fattore=self.fumi, mansione=capo)
         c = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=40), mansione="Saldatore capo T", user=self.admin)
         self.assertFalse(c.adempimenti.filter(tipo="VISITA").exists())  # baseline B: nulla di nuovo
         self.client.post(reverse("anagrafica:dipendente_assegnazione_annulla", args=[self.lid, b.pk]), {"motivo": "x"})

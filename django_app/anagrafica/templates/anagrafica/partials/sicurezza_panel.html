@@ -73,31 +73,27 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 </div>
 {% endif %}
 
-{# ── Mansione di rischio (catalogo Mansione, spec Mansionario 15/10/2026) ── #}
-<div class="sp-sez">Mansione di rischio</div>
+{# ── Mansioni di rischio della persona: anagrafica + mansioni svolte + aggiunte − esclusioni ── #}
+<div class="sp-sez">Mansioni di rischio</div>
 <div class="sp-mr">
-  {% if mansione_catalogo %}
-  <a class="sp-chip" href="{% url 'anagrafica:mansione_requisiti' mansione_catalogo.pk %}" style="text-decoration:none;color:inherit;">
-    {{ mansione_catalogo.nome }}{% if mansione_catalogo.livello_rischio %} <small>rischio {{ mansione_catalogo.get_livello_rischio_display|lower }}</small>{% endif %}
-  </a>
-  {% elif det.mansione_nome %}
-  <span class="sp-chip">{{ det.mansione_nome }} <small>non presente nel catalogo</small></span>
-  {% endif %}
   {% for e in det.mansioni_rischio %}
-  <a class="sp-chip" href="{% url 'anagrafica:mansioni_list' %}" style="text-decoration:none;color:inherit;">
-    {{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}
-    <small>{% if e.origine == 'OVERRIDE' %}aggiunta individuale{% else %}da mansione «{{ det.mansione_nome }}»{% endif %}</small>
+  <a class="sp-chip" href="{% url 'anagrafica:mansione_requisiti' e.mansione_rischio.pk %}" style="text-decoration:none;color:inherit;">
+    {{ e.mansione_rischio.nome }}
+    <small>{% if e.origine == 'OVERRIDE' %}aggiunta individuale{% elif e.origine == 'MANSIONARIO' %}da mansione {{ e.da|join:", " }}{% else %}in anagrafica{% if e.da %}, anche da mansione {{ e.da|join:", " }}{% endif %}{% endif %}</small>
   </a>
   {% endfor %}
+  {% if det.mansione_nome and not mansione_catalogo %}
+  <span class="sp-chip">{{ det.mansione_nome }} <small>in anagrafica, non presente nel catalogo</small></span>
+  {% endif %}
   {% for e in det.mansioni_rischio_escluse %}
-  <span class="sp-chip"{% if can_view_visite %} title="Esclusa: {{ e.override.motivo }}"{% endif %}><span class="sp-chip-escl">{{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}</span><small>esclusa</small></span>
+  <span class="sp-chip"{% if can_view_visite %} title="Esclusa: {{ e.override.motivo }}"{% endif %}><span class="sp-chip-escl">{{ e.mansione_rischio.nome }}</span><small>esclusa</small></span>
   {% endfor %}
   {% if not det.mansione_nome and not det.mansioni_rischio %}
-  <span style="color:#94a3b8;">Nessuna mansione di rischio in anagrafica.</span>
+  <span style="color:#94a3b8;">Nessuna mansione di rischio: né in anagrafica né dalle mansioni svolte.</span>
   {% endif %}
 </div>
 
-{# ── Override individuali (vecchio modello, mostrati solo se ce ne sono) ── #}
+{# ── Aggiunte ed esclusioni individuali ── #}
 {% if override or mansioni_rischio_opts %}
 <div class="sp-sez">Aggiunte ed esclusioni individuali</div>
 {% if override %}
@@ -106,11 +102,11 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
   <tbody>
   {% for o in override %}
   <tr{% if not o.attivo %} style="color:#94a3b8;"{% endif %}>
-    <td>{{ o.mansione_rischio.codice }} · {{ o.mansione_rischio.nome }}</td>
+    <td>{{ o.mansione_rischio.nome }}</td>
     <td>{{ o.get_azione_display }}</td>
     <td>dal {{ o.data_inizio|date:"d/m/Y" }}{% if o.data_fine %} al {{ o.data_fine|date:"d/m/Y" }}{% endif %}</td>
     <td>{% if can_view_visite %}{{ o.motivo }}{% else %}<span style="color:#94a3b8;">motivo riservato</span>{% endif %}{% if not o.attivo %}<br><small>Revocato il {{ o.revocato_il|date:"d/m/Y" }}{% if can_view_visite %}: {{ o.revoca_motivo }}{% endif %}</small>{% endif %}</td>
-    <td>{{ o.created_by.get_full_name|default:o.created_by.username|default:"—" }}</td>
+    <td>{% if o.created_by %}{{ o.created_by.get_full_name|default:o.created_by.username }}{% else %}—{% endif %}</td>
     <td>
       {% if o.attivo and puo_sorveglianza %}
       <form method="post" action="{% url 'anagrafica:dipendente_override_revoca' legacy_id o.pk %}" style="display:flex;gap:4px;">
@@ -131,7 +127,7 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
   {% csrf_token %}
   <div><label for="ov-mr">Mansione di rischio</label>
     <select id="ov-mr" name="mansione_rischio" class="dp-input" required>
-      {% for mr in mansioni_rischio_opts %}<option value="{{ mr.pk }}">{{ mr.codice }} · {{ mr.nome }}</option>{% endfor %}
+      {% for mr in mansioni_rischio_opts %}<option value="{{ mr.pk }}">{{ mr.nome }}</option>{% endfor %}
     </select></div>
   <div><label for="ov-azione">Tipo</label>
     <select id="ov-azione" name="azione" class="dp-input"><option value="ADD">Aggiunta (es. addetto antincendio)</option><option value="EXCLUDE">Esclusione</option></select></div>
