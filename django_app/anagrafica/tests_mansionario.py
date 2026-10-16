@@ -167,3 +167,56 @@ class PagineTests(_Base):
         self.client.post(reverse("anagrafica:mansionario_assegna", args=[self.processo.pk]),
                          {"persona": self.p1.pk, "livello": "O"})
         self.assertFalse(AbilitazioneMacchina.objects.filter(competenza=self.processo).exists())
+
+
+class DaRivedereDopoSpostamentoTests(_Base):
+    """Fase 3 riordino capo/team: dopo uno spostamento si propongono le mansioni che non tornano."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+
+        self.processo.reparto = self.reparto
+        self.processo.save()
+        self.processo.ruoli.set([self.ruolo])
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=self.p1.pk, area="TORNI")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=self.p1.pk, ruolo=self.ruolo)
+        self.ab_tornio = svc.assegna(self.tornio, legacy_anagrafica_id=self.p1.pk, livello="U")
+        self.ab_lavaggio = svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="L")
+
+    def test_propone_solo_le_mansioni_di_un_altro_reparto(self):
+        nomi = [r["nome"] for r in svc.da_rivedere_dopo_spostamento(self.p1.pk)]
+        self.assertEqual(nomi, ["Lavaggio pezzi"])
+
+    def test_ruolo_non_piu_ricoperto(self):
+        from .models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+
+        # Spostato in LAVAGGIO: ora è il tornio a non tornare, il lavaggio sì.
+        DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=self.p1.pk).update(area="LAVAGGIO T")
+        self.assertEqual([r["nome"] for r in svc.da_rivedere_dopo_spostamento(self.p1.pk)], ["Tornio CNC TC-02"])
+        # Il ruolo previsto per il lavaggio finisce: anche il lavaggio va rivisto.
+        DipendenteRuoloOperativo.objects.filter(legacy_anagrafica_id=self.p1.pk).update(
+            data_inizio="2020-01-01", data_fine="2020-12-31"
+        )
+        righe = {r["nome"]: r for r in svc.da_rivedere_dopo_spostamento(self.p1.pk)}
+        self.assertEqual(sorted(righe), ["Lavaggio pezzi", "Tornio CNC TC-02"])
+        self.assertIn("Operatore MU sintetico", righe["Lavaggio pezzi"]["motivi"][0])
+
+    def test_togli_dalla_scheda_torna_alla_scheda(self):
+        self.client.force_login(self.admin)
+        scheda = reverse("anagrafica:dipendente_detail", args=[self.p1.pk])
+        resp = self.client.post(
+            reverse("anagrafica:mansionario_togli", args=[self.processo.pk, self.ab_lavaggio.pk]), {"next": scheda},
+        )
+        self.assertRedirects(resp, scheda, fetch_redirect_response=False)
+        self.ab_lavaggio.refresh_from_db()
+        self.assertFalse(self.ab_lavaggio.in_lista)
+
+    def test_next_esterno_ignorato(self):
+        self.client.force_login(self.admin)
+        resp = self.client.post(
+            reverse("anagrafica:mansionario_togli", args=[self.processo.pk, self.ab_lavaggio.pk]),
+            {"next": "https://esempio.invalid/x"},
+        )
+        self.assertRedirects(resp, reverse("anagrafica:mansionario_mansione", args=[self.processo.pk]),
+                             fetch_redirect_response=False)

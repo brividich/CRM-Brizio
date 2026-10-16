@@ -91,6 +91,10 @@ GUIDA = {
                     "il responsabile dell'area vince sul caporeparto, e il caporeparto non risulta mai capo di sé stesso.",
                     "Uno spostamento che cambia il ruolo (senza «Ruolo in parallelo») chiude il ruolo di prima il giorno "
                     "prima della decorrenza: resta nello storico dei ruoli come concluso, ma non dà più permessi né posto nel team.",
+                    "Dopo uno spostamento, se la persona è ancora in lista su mansioni del Mansionario di un altro reparto o "
+                    "previste per ruoli che non ricopre più, la card «Spostamenti organizzativi» le elenca in «Mansioni "
+                    "lavorative da rivedere»: «Togli dalla lista» la toglie (lo storico resta). Finché resta in lista, "
+                    "restano attive anche le mansioni di rischio che ne derivano.",
                 ]),
                 ("nota", "Prima di cambiare responsabile o area di un gruppo di persone, avvisa: le richieste già inviate restano al vecchio responsabile."),
             ],

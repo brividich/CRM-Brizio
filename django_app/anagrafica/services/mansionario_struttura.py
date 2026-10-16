@@ -172,3 +172,53 @@ def reparto_principale(legacy_anagrafica_id: int) -> str:
     lontano = timezone.localdate().replace(year=9999)
     abil.sort(key=lambda a: (-ordinale_livello(a.livello), a.data_assegnazione or lontano, a.pk))
     return abil[0].competenza.reparto_effettivo
+
+
+def da_rivedere_dopo_spostamento(legacy_anagrafica_id: int) -> list[dict]:
+    """Mansioni lavorative della persona che non tornano più con reparto e ruoli di oggi.
+
+    Fase 3 del riordino capo/team (16/10/2026): uno spostamento cambia reparto e
+    ruolo ma non tocca il Mansionario, e le mansioni di rischio ricavate da
+    macchine che la persona non usa più restano attive. Qui si **propone**: è
+    chi registra a decidere cosa togliere. Motivi: la mansione è di un altro
+    reparto; la mansione è prevista per ruoli che la persona non ricopre più.
+    """
+    from django.db.models import Q
+
+    from ..models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+
+    oggi = timezone.localdate()
+    az = (
+        DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_anagrafica_id)
+        .select_related("area_aziendale__reparto").first()
+    )
+    reparto = ""
+    if az is not None:
+        if az.area_aziendale_id and az.area_aziendale.reparto_id:
+            reparto = az.area_aziendale.reparto.nome
+        reparto = (reparto or az.area or "").strip()
+    ruoli = set(
+        DipendenteRuoloOperativo.objects.filter(
+            Q(data_fine__isnull=True) | Q(data_fine__gte=oggi), legacy_anagrafica_id=legacy_anagrafica_id,
+        ).values_list("ruolo_id", flat=True)
+    )
+    out = []
+    for ab in (
+        AbilitazioneMacchina.objects.filter(legacy_anagrafica_id=legacy_anagrafica_id, in_lista=True,
+                                            competenza__isnull=False)
+        .select_related("competenza__asset", "competenza__reparto")
+        .prefetch_related("competenza__ruoli")
+    ):
+        mansione = ab.competenza
+        motivi = []
+        rep_mansione = (mansione.reparto_effettivo or "").strip()
+        if reparto and rep_mansione and rep_mansione.casefold() != reparto.casefold():
+            motivi.append(f"è del reparto {rep_mansione}")
+        ruoli_mansione = {r.pk: r.nome for r in mansione.ruoli.all()}
+        if ruoli_mansione and not (set(ruoli_mansione) & ruoli):
+            motivi.append("è prevista per " + ", ".join(sorted(ruoli_mansione.values())))
+        if motivi:
+            out.append({"abilitazione": ab, "mansione": mansione, "nome": str(mansione), "livello": ab.livello,
+                        "motivi": motivi})
+    out.sort(key=lambda r: r["nome"].casefold())
+    return out
