@@ -1,4 +1,4 @@
-"""La configurazione del modulo anomalie sopravvive ai deploy.
+"""La configurazione del modulo anomalie (e il modello del Report OP) sopravvive ai deploy.
 
 Ogni deploy di produzione è una cartella nuova ``releases/<tag>``: il vecchio file
 ``config/anomalie_liste.json`` restava nella release precedente e capi reparto/commessa,
@@ -85,3 +85,64 @@ class ConfigPersistenteTests(TestCase):
         rel = self._release("20260103_000000", {"menu_logo": "/file.png"})
         with patch.object(anomalie_views, "_repo_root", return_value=rel):
             self.assertEqual(anomalie_views._load_anomalie_menu_logo(), "/db.png")
+
+
+MODELLO = "<html><body>OP {{ op.id }} {{ anomalia.seriale }} {{ anomalia.descrizione }}</body></html>"
+
+
+class ReportTemplatePersistenteTests(TestCase):
+    """Il modello del Report OP sta nel DB e resta dopo un deploy."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.admin = get_user_model().objects.create_superuser("rpt_admin", "rpt@example.test", "x")
+        self.client.force_login(self.admin)
+        p = patch.object(anomalie_views, "_can_manage_anomalie_config", return_value=True)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _release(self, tag: str, modello: str | None = None) -> Path:
+        rel = self.root / "releases" / tag
+        (rel / "config").mkdir(parents=True)
+        if modello is not None:
+            (rel / "config" / anomalie_views._REPORT_TEMPLATE_FILENAME).write_text(modello, encoding="utf-8")
+        return rel
+
+    def _url(self):
+        from django.urls import reverse
+
+        return reverse("api_anomalie_config_report_template")
+
+    def test_caricamento_resta_dopo_il_deploy(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        vecchia = self._release("20260101_000000")
+        with patch.object(anomalie_views, "_repo_root", return_value=vecchia):
+            r = self.client.post(self._url(), {
+                "action": "upload",
+                "template": SimpleUploadedFile("report.html", MODELLO.encode("utf-8"), content_type="text/html"),
+            })
+            self.assertTrue(r.json()["success"], r.json())
+        self.assertFalse((vecchia / "config" / anomalie_views._REPORT_TEMPLATE_FILENAME).exists())
+        nuova = self._release("20260102_000000")
+        with patch.object(anomalie_views, "_repo_root", return_value=nuova):
+            self.assertEqual(anomalie_views._load_report_template(), MODELLO)
+            self.assertTrue(self.client.get(self._url()).json()["has_custom"])
+
+    def test_import_dal_vecchio_file_e_reset_non_lo_reimporta(self):
+        rel = self._release("20260103_000000", MODELLO)
+        with patch.object(anomalie_views, "_repo_root", return_value=rel):
+            self.assertEqual(anomalie_views._load_report_template(), MODELLO)
+            r = self.client.post(self._url(), {"action": "reset"})
+            self.assertTrue(r.json()["success"])
+            self.assertIsNone(anomalie_views._load_report_template())
+            self.assertFalse(self.client.get(self._url()).json()["has_custom"])
+
+    def test_senza_modello_si_usa_il_default(self):
+        rel = self._release("20260104_000000")
+        with patch.object(anomalie_views, "_repo_root", return_value=rel):
+            self.assertIsNone(anomalie_views._load_report_template())

@@ -4698,8 +4698,54 @@ _EVENT_HANDLER_RE = re.compile(r'<[^>]*\son\w+\s*=', re.IGNORECASE)
 _DANGEROUS_URI_RE = re.compile(r'(?:href|src|action|formaction)\s*=\s*["\']?\s*(?:javascript|data|vbscript):', re.IGNORECASE)
 
 
+ANOMALIE_REPORT_TEMPLATE_SITECONFIG_KEY = "anomalie_report_template_html"
+
+
 def _report_template_path() -> Path:
+    """File storico del modello Report OP (dentro la release: NON sopravvive ai deploy).
+
+    Resta solo come sorgente di import una tantum verso il DB.
+    """
     return _repo_root() / "config" / _REPORT_TEMPLATE_FILENAME
+
+
+def _report_template_row():
+    """Riga SiteConfig del modello Report OP; la crea importando il vecchio file se esiste.
+
+    Valore vuoto = nessun modello personalizzato (si usa il default).
+    """
+    from core.models import SiteConfig
+
+    try:
+        return SiteConfig.objects.get(chiave=ANOMALIE_REPORT_TEMPLATE_SITECONFIG_KEY)
+    except SiteConfig.DoesNotExist:
+        pass
+    except DatabaseError:
+        return None
+    legacy = _report_template_path()
+    try:
+        content = legacy.read_text(encoding="utf-8") if legacy.exists() else ""
+    except Exception:
+        logger.exception("[anomalie] modello report storico non leggibile: %s", legacy)
+        content = ""
+    if not content:
+        return None
+    try:
+        row, _ = SiteConfig.objects.get_or_create(
+            chiave=ANOMALIE_REPORT_TEMPLATE_SITECONFIG_KEY,
+            defaults={"valore": content, "descrizione": "Modello HTML del Report OP anomalie"},
+        )
+    except DatabaseError:
+        return None
+    logger.info("[anomalie] modello report importato nel DB da %s", legacy)
+    return row
+
+
+def _save_report_template(content: str) -> None:
+    from core.models import SiteConfig
+
+    if not SiteConfig.set(ANOMALIE_REPORT_TEMPLATE_SITECONFIG_KEY, content, "Modello HTML del Report OP anomalie"):
+        raise RuntimeError("Impossibile salvare il modello report nel database")
 
 
 def _default_report_template_path() -> Path:
@@ -4707,8 +4753,8 @@ def _default_report_template_path() -> Path:
 
 
 def _load_report_template() -> str | None:
-    p = _report_template_path()
-    return p.read_text(encoding="utf-8") if p.exists() else None
+    row = _report_template_row()
+    return (row.valore or None) if row is not None else None
 
 
 def _validate_report_template(content: bytes, filename: str) -> list[str]:
@@ -5050,22 +5096,20 @@ def api_anomalie_config_report_template(request):
         return JsonResponse({"error": "Permesso negato"}, status=403)
 
     if request.method == "GET":
-        p = _report_template_path()
-        if p.exists():
-            stat = p.stat()
+        row = _report_template_row()
+        if row is not None and row.valore:
             return JsonResponse({
                 "has_custom": True,
-                "size": stat.st_size,
-                "modified": dj_tz.localtime(datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)).strftime("%d-%m-%Y %H:%M"),
+                "size": len(row.valore.encode("utf-8")),
+                "modified": dj_tz.localtime(row.updated_at).strftime("%d-%m-%Y %H:%M"),
             })
         return JsonResponse({"has_custom": False})
 
     if request.method == "POST":
         action = request.POST.get("action", "upload")
         if action == "reset":
-            p = _report_template_path()
-            if p.exists():
-                p.unlink()
+            # Valore vuoto (non riga cancellata): così il vecchio file non viene reimportato.
+            _save_report_template("")
             log_action(request, "anomalie_report_template_reset", "Template report ripristinato al default")
             return JsonResponse({"success": True, "message": "Template ripristinato al default."})
 
@@ -5078,9 +5122,7 @@ def api_anomalie_config_report_template(request):
         if errors:
             return JsonResponse({"success": False, "errors": errors})
 
-        p = _report_template_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(content)
+        _save_report_template(content.decode("utf-8"))
         log_action(request, "anomalie_report_template_upload", f"Template report aggiornato: {file_obj.name}")
         return JsonResponse({"success": True, "message": f"Template '{file_obj.name}' caricato correttamente."})
 
