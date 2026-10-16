@@ -748,9 +748,40 @@ class SpostamentoRuoloParalleloTests(TestCase):
     def test_senza_flag_il_ruolo_dello_stesso_ambito_sostituisce(self):
         self._post(ruolo_aziendale="Capocommessa")
         self.assertEqual(self._principale(), "Capocommessa")
-        # Il ruolo di prima resta fra le assegnazioni: il multiruolo non si perde,
-        # cambia solo quale dei due rappresenta la persona.
+        # Il ruolo di prima resta fra le assegnazioni come periodo concluso (lo
+        # storico non si perde), ma non è più in essere: niente permessi né
+        # posto nel team del ruolo lasciato.
         self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno"])
+        vecchio = DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.legacy_id, ruolo=self.capoturno)
+        self.assertEqual(vecchio.data_fine, _fra(-1))
+        self.assertTrue(vecchio.is_conclusa)
+        nuovo = DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.legacy_id, ruolo=self.capocommessa)
+        self.assertEqual(nuovo.tipologia, DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE)
+        self.assertEqual(nuovo.data_inizio, _oggi())
+        self.assertIsNone(nuovo.data_fine)
+
+    def test_sostituzione_non_chiude_i_ruoli_di_altri_ambiti(self):
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=self.legacy_id, ruolo=self.preposto)
+        self._post(ruolo_aziendale="Capocommessa")
+        preposto = DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.legacy_id, ruolo=self.preposto)
+        self.assertIsNone(preposto.data_fine)
+
+    def test_tornare_a_un_ruolo_concluso_lo_riapre(self):
+        self._post(ruolo_aziendale="Capocommessa")
+        self._post(ruolo_aziendale="Capoturno", data_inizio=_fra(1).isoformat())
+        from .services.assegnazioni import attiva_programmate_scadute
+        DipendenteAssegnazione.objects.filter(legacy_anagrafica_id=self.legacy_id, attivata_il__isnull=True).update(
+            data_inizio=_oggi()
+        )
+        attiva_programmate_scadute()
+        capoturno = DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.legacy_id, ruolo=self.capoturno)
+        self.assertIsNone(capoturno.data_fine)
+        self.assertEqual(self._principale(), "Capoturno")
+
+    def test_parallelo_non_chiude_il_principale(self):
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        capoturno = DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.legacy_id, ruolo=self.capoturno)
+        self.assertIsNone(capoturno.data_fine)
 
     # ── Con flag: si aggiunge ──────────────────────────────────────────────
     def test_flag_parallelo_non_tocca_il_ruolo_aziendale(self):

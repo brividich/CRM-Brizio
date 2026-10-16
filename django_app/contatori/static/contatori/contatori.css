@@ -324,7 +324,15 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
   .contatori-module .lg-tabella tr.riga-calo{background:color-mix(in srgb,var(--cm-danger) 9%,transparent)}
   .contatori-module .lg-tabella tr.riga-calo td{background:transparent}
 }
+/* La regola generica degli input del modulo annullava lo spazio della lente nelle tabelle filtrabili. */
+.contatori-module .fm-tbl-search input{padding-left:34px}
 @media(min-width:1800px){.content:has(>.contatori-module){width:min(100%,2280px)}.contatori-module{max-width:min(2200px,100%)}}
+/* Schermi 4K a scala 100% (monitor/TV da 55"-85"): ingrandimento proporzionale, la pagina si
+   impagina come su 2560px e testo e riquadri restano leggibili a distanza. */
+@media(min-width:3000px){html:has(.contatori-module){zoom:1.5}
+  /* Con lo zoom i 100vh valgono 1,5 schermi: altezza minima riportata a uno schermo. */
+  html:has(.contatori-module) body,html:has(.contatori-module) .main-wrap{min-height:calc(100vh / 1.5)}
+  .contatori-module .centrale-grid{height:max(380px,calc(100vh / 1.5 - 345px))}}
 /* KPI Centrale: 8 riquadri senza «orfani» (Stato flotta largo il doppio). */
 .contatori-module .centrale-kpi{grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,2.2fr) repeat(4,minmax(0,1fr))}
 .contatori-module .kpi-flotta{grid-column:auto}

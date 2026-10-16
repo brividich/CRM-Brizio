@@ -7133,6 +7133,8 @@ def area_aziendale_edit(request, area_id: int):
     area.is_active = request.POST.get("is_active") == "1"
     area.save()
     area.responsabili.set(_resolve_responsabili_ids(request.POST.getlist("responsabili")))
+    from anagrafica.services.reparto_canonico import riallinea_capo_schede
+    riallinea_capo_schede(area=area)
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
     return _back_to_caller(request, "anagrafica:aree_list")
 
@@ -7232,9 +7234,8 @@ def area_edit(request, area_id: int):
     rep.caporeparto_legacy_id = _resolve_caporeparto_id(request.POST.get("caporeparto_legacy_id"))
     rep.save()
     _sync_reparto_capo_mapping(rep)
-    DipendenteAnagraficaAziendale.objects.filter(area__iexact=rep.nome).update(
-        caporeparto_legacy_id=rep.caporeparto_legacy_id
-    )
+    from anagrafica.services.reparto_canonico import riallinea_capo_schede
+    riallinea_capo_schede(reparto=rep)
     rep.responsabili.set(_resolve_responsabili_ids(request.POST.getlist("responsabili")))
     messages.success(request, f'Reparto "{rep.nome}" aggiornato.')
     return _back_to_caller(request, "anagrafica:aree_list")
