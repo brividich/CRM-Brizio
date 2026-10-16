@@ -117,6 +117,9 @@ from .maintenance_legacy import (  # noqa: F401
     maintenance_worksheet,
     periodic_verification_list,
 )
+from .it import (  # noqa: F401
+    device_list,
+)
 from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_calendar_json,
@@ -130,7 +133,6 @@ from ._monolith import (  # noqa: F401
     asset_report_pdf,
     calendario_asset,
     calendario_asset_json,
-    device_list,
     gestione_admin,
     il_mio_turno,
     plant_layout_editor,
