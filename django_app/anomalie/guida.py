@@ -225,7 +225,9 @@ SEZIONI: list[dict] = [
                 "Espandi un'anomalia per vedere descrizione, foto e allegati. «Espandi tutte» le apre tutte.",
                 "Nella «Decisione su questa anomalia» scegli «Aprire RDC?», «Segnalare a cliente?», il «Nuovo avanzamento» "
                 "e scrivi la risposta. «Chiudere? (automatico)» si calcola da solo.",
-                "Per decidere tutto un blocco insieme compila il riquadro del blocco e premi «Applica a tutte».",
+                "Per dare la stessa decisione a tutto il blocco spunta «Applica la stessa decisione anche alle altre … anomalie "
+                "aperte di questi seriali» prima di «Salva»: avanzamento, RDC, cliente e note vengono copiati, come in "
+                "Gestione anomalie.",
                 "Premi «Conferma e invia aggiornamenti», controlla il riepilogo e conferma con «Conferma e invia».",
             ]),
             ("ul", [
@@ -293,7 +295,8 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Riepilogo", "la distribuzione delle anomalie per avanzamento."),
                 ("Configurazione", "logo del menu, modello del Report OP, liste (avanzamenti, stati superficie, causali, "
-                 "destinatari), composizione di capicommessa e CAR dai ruoli operativi dell'Anagrafica, promemoria e "
+                 "destinatari), composizione di capicommessa e CAR dai ruoli operativi dell'Anagrafica (solo assegnazioni in corso e "
+                 "dipendenti attivi: chi ha cambiato ruolo o ha lasciato l'azienda non compare), promemoria e "
                  "automazioni."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
