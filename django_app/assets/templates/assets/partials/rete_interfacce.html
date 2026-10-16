@@ -12,7 +12,7 @@
       <div class="af-net-id"><span class="af-net-label">MAC</span><strong class="af-it-mono">{{ endpoint.mac|default:"—" }}</strong></div>
       <span class="af-net-vlan">VLAN {{ endpoint.vlan|default_if_none:"—" }}</span></div>
     <ol class="af-net-path" aria-label="Percorso fisico">
-      <li><span class="af-net-label">Switch</span><strong>{% if riga.switch %}<a href="{% url 'assets:asset_view' riga.switch.id %}#asset-switch-mappa" title="{{ riga.switch.name }}">{{ riga.switch.asset_tag }}</a>{% else %}{{ endpoint.switch_name|default:"—" }}{% endif %}</strong></li>
+      <li><span class="af-net-label">Switch</span><strong>{% if riga.switch %}<a href="{% url 'assets:asset_view' riga.switch.id %}#asset-switch-mappa" title="{{ riga.switch.name }}">{{ riga.switch.asset_tag }}</a>{% if riga.da_prefisso %} <small class="af-net-label" title="Collegato dal prefisso porte dello switch">da prefisso</small>{% endif %}{% else %}{{ endpoint.switch_name|default:"—" }}{% endif %}</strong></li>
       <li><span class="af-net-label">Porta SW</span><strong class="af-it-mono">{{ endpoint.switch_port|default:"—" }}</strong></li>
       <li><span class="af-net-label">Porta patch panel</span><strong class="af-it-mono">{{ endpoint.punto|default:"—" }}</strong></li>
     </ol>

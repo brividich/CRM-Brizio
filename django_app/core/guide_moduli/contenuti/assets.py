@@ -30,7 +30,8 @@ GUIDA = {
                     "Compila IP, MAC, VLAN, Switch (matricola dello switch), Porta SW e Porta patch panel; premi «Salva rete».",
                 ]),
                 ("p", "Nella scheda dello switch, «Mappa porte dello switch» mostra le porte occupate colorate per VLAN. "
-                      "Le porte importate senza switch si collegano in blocco scegliendo il prefisso (es. A0) e premendo «Collega a …»."),
+                      "Per collegare lo switch al suo stack scrivi il «Prefisso porte di questo switch» (es. A0) e premi «Salva prefisso»: "
+                      "le porte A0.x.x senza switch indicato, anche quelle censite dopo, appartengono a quello switch."),
             ],
         },
         {
@@ -85,7 +86,8 @@ GUIDA = {
             "sintomo": "La mappa porte dello switch è vuota",
             "fare": [
                 "I dispositivi devono indicare lo switch: in «Modifica rete» scrivi la matricola dello switch nel campo Switch.",
-                "Per le porte importate senza switch usa «Collega le porte censite senza switch» in fondo alla mappa.",
+                "Nella scheda dello switch indica il «Prefisso porte di questo switch» (es. A0) e premi «Salva prefisso».",
+                "Se il prefisso è già su un altro switch (es. un doppione), toglilo da lì lasciando il campo vuoto.",
             ],
         },
         {
