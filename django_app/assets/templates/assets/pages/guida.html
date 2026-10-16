@@ -27,6 +27,8 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
   <nav class="ag-toc" aria-label="Indice della guida">
     <strong>In questa guida</strong>
     <a href="#rinvio">Rinvio di una manutenzione</a>
+    <a href="#documenti">Documenti, cartelle e video</a>
+    <a href="#dismetti">Dismettere o eliminare un asset</a>
     <a href="#qr">QR ed etichette</a>
     <a href="#mfc">Stampanti multifunzione</a>
     <a href="#tvcc">Videosorveglianza (TVCC)</a>
@@ -58,6 +60,28 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Per annullare il rinvio riporta la data alla scadenza originale.</li>
       </ul>
       <p class="ag-note">Rinviare è riservato a chi pianifica la manutenzione, nel proprio reparto.</p>
+    </section>
+
+    <section class="ag-sec" id="documenti">
+      <h2>Documenti, cartelle e video</h2>
+      <p>Nella scheda asset, riquadro <strong>Documenti</strong>, scegli la cartella (Specifiche, Manuali, Interventi o quelle della categoria) e:</p>
+      <ul>
+        <li>clicca il riquadro o trascinaci sopra <strong>file e cartelle</strong>, oppure usa <span class="ag-btn">Carica cartella</span>; poi <span class="ag-btn">Carica</span>;</li>
+        <li>le <strong>sottocartelle</strong> restano: ogni cartella caricata diventa un riquadro con il suo percorso;</li>
+        <li>formati ammessi: PDF, Word, Excel, CSV, immagini JPG/PNG/WEBP, messaggi Outlook <code>.msg</code> e video <code>.avi</code>; massimo {{ upload_max_mb }} MB per file;</li>
+        <li>una cartella grande parte <strong>a lotti</strong> (circa 80 MB per invio) con l'avanzamento «Caricamento 2 di 5…»;</li>
+        <li>i file non ammessi (formato, troppo grandi, vuoti) <strong>non bloccano gli altri</strong>: alla fine trovi l'elenco di quelli scartati e il motivo. <code>Thumbs.db</code> e <code>desktop.ini</code> si ignorano.</li>
+      </ul>
+    </section>
+
+    <section class="ag-sec" id="dismetti">
+      <h2>Dismettere o eliminare un asset <span class="ag-perm {% if puo_dismettere %}si">Puoi dismettere{% else %}no">Dismettere: non abilitato per te{% endif %}</span> <span class="ag-perm {% if puo_eliminare %}si">Puoi eliminare{% else %}no">Eliminare: non abilitato per te{% endif %}</span></h2>
+      <p>Dalla scheda asset, menu <span class="ag-btn">Altro &#9662;</span>:</p>
+      <ul>
+        <li><span class="ag-btn">Dismetti</span>: l'asset passa allo stato <strong>Dismesso</strong> ed esce dagli elenchi operativi; storico, OdL e documenti restano. Si annulla con <span class="ag-btn">Riattiva</span>.</li>
+        <li><span class="ag-btn">Elimina</span>: cancella l'asset <strong>definitivamente</strong>. È pensato per gli asset creati per errore: si può solo se l'asset <strong>non ha storico</strong> (ordini di lavoro, scadenze, documenti, ticket, abilitazioni macchina…). Altrimenti la voce compare come «Elimina (non disponibile: ha storico)» e il motivo è nel suggerimento: usa «Dismetti».</li>
+      </ul>
+      <p class="ag-note">Entrambe le azioni chiedono conferma e restano nel registro attività con l'autore.</p>
     </section>
 
     <section class="ag-sec" id="qr">
@@ -240,6 +264,8 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <tbody>
           <tr><td>Vedere il QR, stampare le etichette, leggere lo storico, aprire questa guida</td><td>Chi vede gli asset</td><td><span class="ag-perm si">Sì</span></td></tr>
           <tr><td>Abilitare, disattivare o rigenerare il link pubblico</td><td>Amministratori Asset o azione «Gestisci link pubblico QR»</td><td><span class="ag-perm {% if puo_link_pubblico %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
+          <tr><td>Dismettere / riattivare un asset</td><td>Amministratori Asset e ruoli della manutenzione (azione «Dismetti / riattiva asset»)</td><td><span class="ag-perm {% if puo_dismettere %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
+          <tr><td>Eliminare un asset senza storico</td><td>Amministratori Asset e ruoli della manutenzione (azione «Elimina asset (senza storico)»)</td><td><span class="ag-perm {% if puo_eliminare %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
           <tr><td>«Leggi adesso» / «Leggi ora» dei consumabili</td><td>Gestione del modulo Contatori IT</td><td><span class="ag-perm {% if puo_leggere_ora %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
           <tr><td>Pianificare l'invio email dei report</td><td>Amministratori Asset o azione «Invio report via email»</td><td><span class="ag-perm {% if puo_pianificare %}si">Sì{% else %}no">No{% endif %}</span></td></tr>
         </tbody>

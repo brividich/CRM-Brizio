@@ -27,8 +27,10 @@ def _puo_leggere_ora(request: HttpRequest) -> bool:
 @login_required
 @require_GET
 def guida(request: HttpRequest) -> HttpResponse:
+    from core.upload_limits import DOCUMENT_MAX_MB
+
     from .services import report_catalog
-    from .views import _assets_shell_context
+    from .views import _assets_shell_context, _can_delete_asset, _can_retire_asset
 
     return render(request, "assets/pages/guida.html", {
         **_assets_shell_context(request),
@@ -36,6 +38,9 @@ def guida(request: HttpRequest) -> HttpResponse:
         "puo_link_pubblico": can_manage_public_qr(request),
         "puo_pianificare": can_schedule_email(request),
         "puo_leggere_ora": _puo_leggere_ora(request),
+        "puo_dismettere": _can_retire_asset(request),
+        "puo_eliminare": _can_delete_asset(request),
+        "upload_max_mb": DOCUMENT_MAX_MB,
         "max_etichette": MAX_ETICHETTE,
         "soglia_consumabili": mfc_stats.giorni_soglia_consumabili(),
         "soglia_contatori": mfc_stats.giorni_soglia_contatori(),
