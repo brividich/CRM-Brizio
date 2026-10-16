@@ -79,7 +79,7 @@ def ruoli_che_alimentano(legacy_id: int):
             .select_related("ruolo", "ruolo__ambito")
             .order_by("ruolo__nome")
         )
-        if a.ruolo.alimenta_ruolo_principale
+        if a.ruolo.alimenta_ruolo_principale and not a.is_conclusa
     ]
 
 
@@ -138,7 +138,9 @@ def dopo_rimozione(legacy_id: int, nome_rimosso: str, *, user=None) -> str:
     return nuovo
 
 
-def assicura_assegnazione(legacy_id: int, nome_ruolo: str, *, user=None) -> bool:
+def assicura_assegnazione(
+    legacy_id: int, nome_ruolo: str, *, user=None, principale: bool = False, data_inizio=None,
+) -> bool:
     """Il ruolo aziendale scelto esiste anche come assegnazione.
 
     Serve al percorso inverso: lo spostamento organizzativo scrive un nome nel
@@ -146,13 +148,62 @@ def assicura_assegnazione(legacy_id: int, nome_ruolo: str, *, user=None) -> bool
     altre assegnazioni **restano** (multiruolo). Ritorna True se l'assegnazione
     è stata creata ora; False se c'era già o se il nome non è in catalogo — un
     valore storico fuori catalogo resta legittimo nel campo testuale.
+
+    ``principale``: il ruolo è quello della scheda, l'assegnazione lo dice
+    (tipologia «Principale»). ``data_inizio``: decorrenza, scritta se manca.
+    Un'assegnazione conclusa dello stesso ruolo (la persona ci torna) si riapre.
     """
     ruolo = _ruolo_per_nome(nome_ruolo)
     if ruolo is None:
         return False
-    _, creata = DipendenteRuoloOperativo.objects.get_or_create(
+    assegnazione, creata = DipendenteRuoloOperativo.objects.get_or_create(
         legacy_anagrafica_id=legacy_id,
         ruolo=ruolo,
-        defaults={"assegnato_da": user if getattr(user, "pk", None) else None},
+        defaults={
+            "assegnato_da": user if getattr(user, "pk", None) else None,
+            "tipologia": DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE if principale else "",
+            "data_inizio": data_inizio,
+        },
     )
-    return creata
+    if creata:
+        return True
+    campi = []
+    if assegnazione.is_conclusa:
+        assegnazione.data_fine = None
+        assegnazione.data_inizio = data_inizio
+        campi += ["data_fine", "data_inizio"]
+    elif data_inizio and not assegnazione.data_inizio:
+        assegnazione.data_inizio = data_inizio
+        campi.append("data_inizio")
+    if principale and assegnazione.tipologia != DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE:
+        assegnazione.tipologia = DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE
+        campi.append("tipologia")
+    if campi:
+        # save(), non update(): i segnali azzerano la cache di permessi e team.
+        assegnazione.save(update_fields=campi)
+    return False
+
+
+def chiudi_assegnazione(legacy_id: int, nome_ruolo: str, *, data_fine) -> bool:
+    """Conclude l'assegnazione in essere di un ruolo alla data indicata.
+
+    È la metà mancante della sostituzione: uno spostamento che cambia il ruolo
+    principale chiude quello vecchio, altrimenti la persona ne conserverebbe
+    permessi e posto nel team. Non elimina nulla: il periodo resta nello storico.
+    Ritorna True se ha chiuso qualcosa.
+    """
+    ruolo = _ruolo_per_nome(nome_ruolo)
+    if ruolo is None:
+        return False
+    assegnazione = (
+        DipendenteRuoloOperativo.objects
+        .filter(legacy_anagrafica_id=legacy_id, ruolo=ruolo, data_fine__isnull=True)
+        .first()
+    )
+    if assegnazione is None:
+        return False
+    if assegnazione.data_inizio and data_fine < assegnazione.data_inizio:
+        data_fine = assegnazione.data_inizio
+    assegnazione.data_fine = data_fine
+    assegnazione.save(update_fields=["data_fine"])
+    return True

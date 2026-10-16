@@ -102,6 +102,40 @@ def resolve_responsabile_effettivo(*, area, reparto) -> int | None:
     return None
 
 
+def riallinea_capo_schede(*, reparto: Reparto | None = None, area: AreaAziendale | None = None) -> int:
+    """Ricalcola il «Caporeparto» copiato nelle schede dopo una modifica al
+    reparto o all'area aziendale.
+
+    Stessa regola di :func:`resolve_responsabile_effettivo` (l'area vince sul
+    reparto) e dello spostamento: nessuno è responsabile di sé stesso. Prima il
+    salvataggio di un reparto scriveva il suo caporeparto su tutti i membri,
+    anche su quelli di un'area con un responsabile proprio e sul capo stesso; e
+    cambiare il responsabile di un'area non arrivava alle schede. Ritorna il
+    numero di schede cambiate.
+    """
+    from django.db.models import Q
+
+    if reparto is None and area is None:
+        return 0
+    if area is not None:
+        filtro = Q(area_aziendale=area)
+    else:
+        filtro = Q(area_aziendale__reparto=reparto) | Q(area_aziendale__isnull=True, area__iexact=reparto.nome)
+    cambiate = 0
+    for az in DipendenteAnagraficaAziendale.objects.filter(filtro).select_related(
+        "area_aziendale", "area_aziendale__reparto"
+    ):
+        area_az = az.area_aziendale
+        rep = area_az.reparto if area_az is not None and area_az.reparto_id else reparto
+        capo = resolve_responsabile_effettivo(area=area_az, reparto=rep)
+        if capo is not None and int(capo) == int(az.legacy_anagrafica_id):
+            capo = None
+        if az.caporeparto_legacy_id != capo:
+            DipendenteAnagraficaAziendale.objects.filter(pk=az.pk).update(caporeparto_legacy_id=capo)
+            cambiate += 1
+    return cambiate
+
+
 def build_responsabile_effettivo_map(legacy_ids: list[int] | None = None) -> dict[int, int]:
     """``legacy_anagrafica_id`` → id legacy del responsabile effettivo."""
     result: dict[int, int] = {}

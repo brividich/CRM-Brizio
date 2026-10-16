@@ -24,6 +24,7 @@ passano le tre cose che il modulo deve garantire:
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from django.db import transaction
@@ -616,7 +617,7 @@ def _aggiorna_ruolo_aziendale(
     if not (ruolo or "").strip():
         return
 
-    from .ruoli_sync import assicura_assegnazione, nome_alimenta_principale
+    from .ruoli_sync import assicura_assegnazione, chiudi_assegnazione, nome_alimenta_principale
 
     # Ruolo che si somma invece di sostituire. Due casi, stesso effetto:
     # il flag «in parallelo» scelto da chi registra lo spostamento, e i ruoli di
@@ -636,15 +637,21 @@ def _aggiorna_ruolo_aziendale(
     if precedente.strip().casefold() == (ruolo or "").strip().casefold():
         # Stesso ruolo di prima: niente da storicizzare, ma l'assegnazione può
         # mancare lo stesso (schede più vecchie della card «Ruoli operativi»).
-        assicura_assegnazione(legacy_id, ruolo, user=user)
+        assicura_assegnazione(legacy_id, ruolo, user=user, principale=True, data_inizio=data_decorrenza)
         return
     az.ruolo_aziendale = ruolo
     az.updated_by = user
     az.save(update_fields=["ruolo_aziendale", "updated_by", "updated_at"])
+    # Sostituzione: il ruolo principale di prima finisce il giorno prima della
+    # decorrenza. Senza questa chiusura la persona ne conservava permessi e
+    # posto nel team (core.permessi). Gli altri ruoli non si toccano — il
+    # multiruolo resta.
+    decorrenza = data_decorrenza or timezone.localdate()
+    if precedente.strip():
+        chiudi_assegnazione(legacy_id, precedente, data_fine=decorrenza - timedelta(days=1))
     # Il ruolo principale è uno dei ruoli della persona: se lo spostamento ne
-    # nomina uno del catalogo, deve comparire anche tra le assegnazioni. Le
-    # altre non si toccano — il multiruolo resta.
-    assicura_assegnazione(legacy_id, ruolo, user=user)
+    # nomina uno del catalogo, deve comparire anche tra le assegnazioni.
+    assicura_assegnazione(legacy_id, ruolo, user=user, principale=True, data_inizio=decorrenza)
     _registra_cambiamento(
         legacy_id,
         DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
