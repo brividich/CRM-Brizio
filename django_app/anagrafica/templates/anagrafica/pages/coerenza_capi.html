@@ -1,0 +1,99 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Coerenza capi · Organigramma | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<style>
+  .cc-sub { font-size:12px; color:var(--fmd-muted, #64748b); }
+  .cc-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:var(--fmd-surface-alt, #eef2f7); }
+  .cc-cambia { background:#fff4e5; color:#9a4b00; }
+  .cc-uguale { background:#e8f7ee; color:#1c6b3c; }
+  .cc-ecc { margin-top:6px; }
+  .cc-ecc summary { cursor:pointer; font-size:12px; color:var(--fmd-cyan, #1f87cd); font-weight:600; }
+  .cc-ecc form { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .cc-ecc select, .cc-ecc input { font-size:12px; padding:4px 6px; max-width:100%; }
+  :root[data-theme="dark"] .cc-cambia, body.theme-dark .cc-cambia { background:#3a2a12; color:#ffc27a; }
+  :root[data-theme="dark"] .cc-uguale, body.theme-dark .cc-uguale { background:#12301f; color:#8be0ac; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Coerenza capi</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Coerenza capi</h1>
+        <p class="fmd-ph-sub">Per ogni persona: il capo che oggi approva assenze e DPI (area → reparto) e quello della regola unica, che aggiunge le eccezioni sulla persona e l'organigramma dei ruoli. Questa pagina non cambia nulla nei moduli: serve a vedere l'effetto prima del passaggio.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#capo-team" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Persone in forza <span class="fmd-count">{{ righe|length }}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          {% for codice, etichetta, n in filtri %}
+          <a class="fmd-btn {% if filtro == codice %}fmd-btn-navy{% else %}fmd-btn-ghost{% endif %}" href="?filtro={{ codice }}">{{ etichetta }} ({{ n }})</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% if righe %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr>
+            <th>Persona</th><th>Reparto · area</th><th>Ruoli</th>
+            <th>Capo oggi<div class="cc-sub">assenze, DPI</div></th>
+            <th>Capo con la regola unica</th>
+            <th>Nel team permessi di (oggi)</th>
+          </tr></thead>
+          <tbody>
+          {% for r in righe %}
+            <tr id="p{{ r.legacy_id }}">
+              <td><a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.nome }}</a></td>
+              <td>{{ r.reparto|default:"—" }}{% if r.area %}<div class="cc-sub">{{ r.area }}</div>{% endif %}</td>
+              <td>{% for ruolo in r.ruoli %}{{ ruolo }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="cc-sub">nessun ruolo</span>{% endfor %}</td>
+              <td>{{ r.capo_oggi|default:"—" }}</td>
+              <td>
+                {{ r.capo_nuovo|default:"—" }}
+                {% if r.cambia %}<span class="cc-badge cc-cambia">cambia</span>{% else %}<span class="cc-badge cc-uguale">uguale</span>{% endif %}
+                <div class="cc-sub">{{ r.origine_label }}</div>
+                {% if r.alternative %}<div class="cc-sub">Altri candidati: {{ r.alternative|join:", " }}</div>{% endif %}
+                {% if r.catena|length > 1 %}<div class="cc-sub">Sopra: {{ r.catena|slice:"1:"|join:" → " }}</div>{% endif %}
+                {% if r.eccezione_id %}<div class="cc-sub">Motivo: {{ r.eccezione_motivo }}</div>{% endif %}
+                <details class="cc-ecc">
+                  <summary>{% if r.eccezione_id %}Modifica eccezione{% else %}Indica un'eccezione{% endif %}</summary>
+                  <form method="post" action="{% url 'anagrafica:coerenza_capi_eccezione' r.legacy_id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="filtro" value="{{ filtro }}">
+                    <select name="capo" aria-label="Capo di {{ r.nome }}">
+                      <option value="">— nessuna eccezione (vale la regola) —</option>
+                      {% for pid, pnome in persone %}{% if pid != r.legacy_id %}<option value="{{ pid }}" {% if pid == r.eccezione_id %}selected{% endif %}>{{ pnome }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <input type="text" name="motivo" maxlength="200" placeholder="Motivo (es. distacco)" value="{{ r.eccezione_motivo }}">
+                    <button type="submit" class="fmd-btn fmd-btn-navy">Salva</button>
+                  </form>
+                </details>
+              </td>
+              <td>{% if r.team_permessi %}{{ r.team_permessi|slice:":3"|join:", " }}{% if r.team_permessi|length > 3 %} <span class="cc-sub">+{{ r.team_permessi|length|add:"-3" }}</span>{% endif %}{% else %}<span class="cc-sub">nessuno</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessuna persona in questo filtro</span></div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

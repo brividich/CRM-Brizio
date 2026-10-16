@@ -17996,6 +17996,7 @@ def organigramma(request):
     n_dipendenti = len(dip_rows)
 
     return render(request, "anagrafica/pages/organigramma.html", {
+        "is_anagrafica_admin": _is_anagrafica_admin(request),
         "blocchi": blocchi,
         "non_mappati": non_mappati,
         "nomi_reparti": nomi_reparti,

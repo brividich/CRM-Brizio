@@ -1254,6 +1254,19 @@ class DipendenteAnagraficaAziendale(models.Model):
         verbose_name="Caporeparto",
         help_text="ID legacy del caporeparto, compilato automaticamente dal reparto assegnato.",
     )
+    # Caso particolare: la persona risponde a qualcuno che reparto, area e
+    # organigramma non indicherebbero (distacco, interim, ...). Vince su tutto
+    # nella regola di services.capo_team; si gestisce da «Coerenza capi».
+    capo_eccezione_legacy_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Capo (eccezione)",
+        help_text="ID legacy del capo indicato a mano per questa persona: vince su area, reparto e organigramma.",
+    )
+    capo_eccezione_motivo = models.CharField(
+        max_length=200, blank=True, default="", verbose_name="Motivo dell'eccezione",
+    )
     ruolo_aziendale = models.CharField(max_length=200, blank=True, default="", verbose_name="Ruolo aziendale")
 
     taglia_scarpe = models.CharField(max_length=10, blank=True, default="")

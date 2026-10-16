@@ -112,6 +112,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "capo-team",
+            "titolo": "Capo e team: la regola unica e «Coerenza capi»",
+            "blocchi": [
+                ("p", "Il capo di una persona si cerca in quest'ordine: 1) eccezione indicata a mano sulla persona; "
+                      "2) responsabile dell'area aziendale; 3) caporeparto del reparto; 4) organigramma: chi ha un ruolo "
+                      "sopra quello della persona («riporta a») e lavora nella stessa area, poi nello stesso reparto, poi "
+                      "chi non ha un reparto (ruolo trasversale); se nessuno, si sale di livello: chi guida un altro reparto "
+                      "non diventa mai il capo. In cima vale la persona unica dell'ultimo livello. Nessuno è capo di sé stesso. "
+                      "Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
+                ("p", "Organigramma → «Coerenza capi» (amministratori dell'anagrafica) mostra per ogni persona il capo di oggi "
+                      "(quello che approva assenze e DPI), il capo con la regola unica e come è stato trovato, chi ha oggi la "
+                      "persona nel team dei permessi. Filtri: «Il capo cambia», «Senza capo», «Più candidati», «Eccezioni»."),
+                ("p", "«Indica un'eccezione» fissa il capo di una persona (distacco, interim…): serve il motivo, la modifica "
+                      "va nel registro attività. «Nessuna eccezione» torna alla regola."),
+                ("nota", "Per ora la pagina confronta e basta: assenze, DPI, anomalie, digest e permessi continuano con le "
+                         "regole di prima finché non si fa il passaggio."),
+            ],
+        },
+        {
             "id": "mansioni-rischio",
             "titolo": "Mansioni di rischio",
             "blocchi": [
