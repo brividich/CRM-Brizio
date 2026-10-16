@@ -427,8 +427,8 @@ def prodotto_qr(request, pk: int):
 def prodotto_etichetta(request, pk: int):
     """Etichetta stampabile da attaccare al contenitore (formato da «Personalizza etichetta»).
 
-    Logo, nome prodotto, pittogrammi di pericolo e QR verso la vista mobile:
-    il resto (frasi H/P, primo soccorso, DPI) e' dietro al QR.
+    Logo, nome prodotto, pittogrammi di pericolo, segnali di obbligo DPI e QR
+    verso la vista mobile: il resto (frasi H/P, primo soccorso) e' dietro al QR.
     """
     if not _can_view(request):
         raise Http404()
