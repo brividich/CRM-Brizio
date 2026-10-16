@@ -22,6 +22,16 @@
 .ss-item-meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:10px; }
 .ss-item-actions { display:flex; gap:7px; margin-top:12px; flex-wrap:wrap; align-items:center; }
 .ss-item-actions .fmd-btn { padding:6px 12px; }
+/* Tutta la card apre il dettaglio: il link sul nome si allarga a coprirla
+   (un solo link per card, niente <a> annidati); i pulsanti restano sopra. */
+.ss-item { transition:border-color .14s, box-shadow .14s; }
+.ss-item-link { color:inherit; text-decoration:none; }
+.ss-item-link::after { content:""; position:absolute; inset:0; z-index:1; }
+.ss-item-link:focus-visible { outline:none; }
+.ss-item:hover { border-color:#b7c7de; box-shadow:0 4px 14px rgba(12,37,69,.10); }
+.ss-item:hover .ss-item-link { text-decoration:underline; text-underline-offset:2px; }
+.ss-item-link:focus-visible::after { border-radius:12px; box-shadow:inset 0 0 0 2px #2563eb; }
+.ss-item-actions { position:relative; z-index:2; }
 
 /* Rastrelliera pittogrammi: filtro per pericolo, con conteggio. */
 .ss-rail { display:flex; gap:5px; flex-wrap:wrap; align-items:center; padding:0 16px 14px; }
@@ -33,6 +43,7 @@
 
 body.theme-dark .ss-item { background:var(--surface); border-color:var(--border); }
 body.theme-dark .ss-item-name { color:#dbeafe; }
+body.theme-dark .ss-item:hover { border-color:#3b5578; box-shadow:0 4px 14px rgba(0,0,0,.35); }
 body.theme-dark .ss-item-desc { color:var(--text-light); }
 body.theme-dark .ss-hazard-none { color:#fca5a5; }
 body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
@@ -137,7 +148,7 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
           <div class="ss-item">
             <div class="ss-item-accent" style="background-color:{{ card.accento }};"></div>
 
-            <div class="ss-item-name">{{ card.prodotto.nome }}</div>
+            <div class="ss-item-name"><a class="ss-item-link" href="{% url 'schede_sicurezza:prodotto_detail' pk=card.prodotto.pk %}">{{ card.prodotto.nome }}</a></div>
             <div class="ss-item-desc">
               {{ card.prodotto.fornitore|default:"Fornitore non indicato" }}{% if card.prodotto.numero_interno %} · {{ card.prodotto.numero_interno }}{% elif card.prodotto.codice_prodotto %} · {{ card.prodotto.codice_prodotto }}{% endif %}
             </div>

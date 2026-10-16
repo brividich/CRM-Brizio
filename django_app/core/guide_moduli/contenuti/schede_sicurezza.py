@@ -37,6 +37,7 @@ GUIDA = {
                 ("ul", [
                     "L'elenco «Prodotti chimici» è diviso per reparto. Filtra per reparto, famiglia o stato della scheda e clicca «Filtra».",
                     "Clicca un pittogramma di pericolo in alto per vedere solo i prodotti con quel pericolo.",
+                    "Clicca un punto qualsiasi del riquadro di un prodotto per aprirne il dettaglio; «PDF» scarica la scheda.",
                     "Barra verde = scheda aggiornata; ambra = scheda più vecchia di 36 mesi («Da rivedere»); rossa = scheda mancante.",
                 ]),
             ],
@@ -70,7 +71,9 @@ GUIDA = {
                     "Controlla l'anteprima a destra (puoi cambiare il prodotto di esempio) e clicca «Salva».",
                 ]),
                 ("nota", "Le impostazioni valgono per le etichette di tutti i prodotti. Il logo appena scelto compare in anteprima solo dopo «Salva». "
-                         "L'icona di un DPI è quella della sua categoria nel modulo DPI (o l'immagine caricata lì): pittogrammi e DPI si rimpiccioliscono insieme se sono tanti."),
+                         "Se non carichi un logo qui e il portale non ne ha uno, l'etichetta esce senza logo e il nome ha più spazio. "
+                         "L'icona di un DPI è quella della sua categoria nel modulo DPI (o l'immagine caricata lì): pittogrammi e DPI si rimpiccioliscono insieme se sono tanti, "
+                         "e restano sempre tutti dentro l'etichetta."),
             ],
         },
         {

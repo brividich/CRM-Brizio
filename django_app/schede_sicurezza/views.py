@@ -444,7 +444,6 @@ def _render_etichetta(request, prodotto, impostazioni, *, anteprima: bool):
         "prodotto": prodotto,
         "imp": impostazioni,
         "layout": impagina(impostazioni, prodotto),
-        "logo_url": logo_url(impostazioni),
         "anteprima": anteprima,
         "can_gestire": _can_gestire(request),
     })
