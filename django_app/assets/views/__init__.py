@@ -128,6 +128,10 @@ from .machines import (  # noqa: F401
     work_machine_list,
     work_machine_maintenance_month_pdf,
 )
+from .layout import (  # noqa: F401
+    plant_layout_editor,
+    plant_layout_map,
+)
 from ._monolith import (  # noqa: F401
     api_asset_dashboard_save_config,
     asset_calendar_json,
@@ -142,8 +146,6 @@ from ._monolith import (  # noqa: F401
     calendario_asset_json,
     gestione_admin,
     il_mio_turno,
-    plant_layout_editor,
-    plant_layout_map,
     report_template_admin,
     reports_dashboard,
     work_machine_export_excel,
