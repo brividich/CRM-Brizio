@@ -474,6 +474,40 @@ def check_embeddings() -> CheckResult:
                        details={"backend": "ollama", "model": model})
 
 
+_AUDIT_GROWTH_CACHE_KEY = "monitoring:audit-growth:result"
+
+
+def check_audit_growth() -> CheckResult:
+    """Crescita di ``core_auditlog`` e saturazione del limite dell'edizione SQL.
+
+    Mai critical per /readyz (un problema di capacità non deve togliere il sito
+    dal bilanciamento): fail = saturazione prevista sotto 60 giorni. Il calcolo
+    legge statistiche e conteggi indicizzati, ed è memoizzato per un'ora.
+    """
+    name = "audit_growth"
+    cached = cache.get(_AUDIT_GROWTH_CACHE_KEY)
+    if isinstance(cached, dict):
+        return CheckResult(**cached)
+    from core import db_diagnostics
+
+    capacity = db_diagnostics.server_capacity()
+    growth = db_diagnostics.audit_growth(days=7, months=1, top=0)
+    level, message = db_diagnostics.audit_growth_status(capacity, growth)
+    status = {"ok": STATUS_OK, "warning": STATUS_WARN, "critical": STATUS_FAIL}[level]
+    forecast = db_diagnostics.saturation_forecast(capacity, growth)
+    result = CheckResult(
+        name=name, status=status, latency_ms=0, critical=False, message=message,
+        details={
+            "monthly_projection_mb": growth.get("monthly_projection_mb"),
+            "days_to_limit": forecast.get("days_to_limit"),
+            "used_pct": capacity.get("used_pct"),
+            "policy_version": growth.get("policy_version"),
+        },
+    )
+    cache.set(_AUDIT_GROWTH_CACHE_KEY, asdict(result), 3600)
+    return result
+
+
 def run_ai_checks() -> list[CheckResult]:
     """Esegue i check AI con timing/isolamento eccezioni (come il readyz)."""
     return [_timed(check_ollama_chat), _timed(check_embeddings)]
@@ -490,6 +524,7 @@ _CHECK_REGISTRY: dict[str, str] = {
     "ldap": "check_ldap",
     "smtp": "check_smtp",
     "automation_queue": "check_automation_queue",
+    "audit_growth": "check_audit_growth",
 }
 
 

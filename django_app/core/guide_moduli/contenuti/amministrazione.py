@@ -75,6 +75,26 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "audit-politica",
+            "titolo": "Cosa registra l'audit automatico",
+            "blocchi": [
+                ("p", "Oltre alle azioni degli utenti, il portale registra da solo inserimenti, modifiche ed eliminazioni dei dati. "
+                      "Quanto registra lo decide una politica scritta nel codice (core/audit_policy.py, documento docs/dr/AUDIT_POLICY.md)."),
+                ("def", [
+                    ("Dati di business", "anagrafica, visite, formazione, asset, DPI, ticket, anomalie, assenze, permessi e menu: audit completo, come prima."),
+                    ("Registri tecnici", "esecuzioni delle automazioni, job del Monitoraggio, letture SNMP, impatti CVE: non entrano nell'audit perché hanno già il loro registro."),
+                    ("Contenuti di file e mail", "file e messaggi del Security Center, testi estratti dai documenti SGI: l'audit dice chi, quando e quali campi sono cambiati, mai il contenuto."),
+                    ("Campi tecnici", "«ultima esecuzione» di una regola, «letta» di una notifica, stato SNMP di un dispositivo: da soli non generano righe."),
+                ]),
+                ("ul", [
+                    "Un salvataggio senza modifiche reali non scrive nulla. I testi oltre 500 caratteri sono troncati: la riga riporta lunghezza e impronta del valore.",
+                    "Terminale, solo lettura: hub_backup_doctor mostra spazio del database rispetto al limite di SQL Express, crescita dell'audit, previsione di saturazione e i modelli che scrivono di più.",
+                    "audit_archive --plan mostra cosa si può archiviare e liberare. audit_archive --run archivia su NAS (file verificati) e poi pulisce: in produzione lo lancia solo il responsabile, dopo aver letto il --plan.",
+                    "L'audit dei dati di business resta online 5 anni; gli archivi si conservano 10 anni.",
+                ]),
+            ],
+        },
     ],
     "problemi": [
         {
@@ -91,6 +111,14 @@ GUIDA = {
             "fare": [
                 "Centrale di comando: ci sono migrazioni da applicare? Se sì, il rilascio non è completo (Manuale di emergenza → «Dopo un aggiornamento»).",
                 "Svuota la cache del browser (Ctrl+F5).",
+            ],
+        },
+        {
+            "sintomo": "Il database cresce troppo o il Monitoraggio segnala «audit_growth»",
+            "fare": [
+                "Dal terminale: hub_backup_doctor. Guarda «Top modelli»: un modello tecnico con molte righe va proposto per l'esclusione (modifica di core/audit_policy.py tramite PR).",
+                "audit_archive --plan per vedere quanto spazio si libera; il --run lo lancia il responsabile.",
+                "Non fare SHRINK del database: lo spazio liberato viene riusato.",
             ],
         },
     ],

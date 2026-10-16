@@ -49,6 +49,18 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 
 Sopra i 3000px di larghezza (monitor/TV 4K a scala 100%) `theme.css` applica `zoom:1.5` a tutto il portale: la pagina si impagina come su 2560px, contenuto fino a 2280px. Con lo zoom le unità `vh` valgono 1,5 schermi, quindi **nel codice nuovo non usare `Nvh` ma `calc(N * var(--vh, 1vh))`** (`--vh` è definita solo sotto zoom; il fallback `1vh` lascia invariati gli schermi normali). Le unità `vw` vanno bene dentro `min()`/`clamp()`. La barra admin (`.subnav.subnav-wrap`) va a capo sopra i 700px invece di uscire dalla pagina.
 
+## Politica dell'audit automatico (ottobre 2026)
+
+L'audit automatico di insert/update/delete segue `core/audit_policy.py` (versione 1): classe A (default) audit completo; classe B (registri tecnici: `AutomationRunLog`, `AutomationExecution`, `SecurityCveImpact`, `RilevazioneSNMP`…) esclusa, senza listener; classe C (`SecuritySourceFile`, `SecurityMailboxMessage`, `SecurityReport`, `SgiTestoEstratto`) solo metadati e nomi dei campi; classe D (`AutomationRule`, `ManagedFlow`, `DispositivoSNMP`, `SecurityCveRecord`, `Notifica`) senza righe quando cambiano solo campi tecnici. Nessuna riga per update senza modifiche reali, valori oltre 500 caratteri troncati con lunghezza e impronta SHA-256. `log_action` e `login_fallito` invariati. Check `core.W002`/`core.W003` su chiavi e campi della politica.
+
+Comandi:
+
+- `audit_archive` (dry-run `--plan` di default; `--run --archive-dir <UNC>` archivia in `auditlog\<AAAA-MM>\part-*.jsonl.gz` + `manifest.json` verificati e poi pulisce; `--category business --older-than-months 60`; `--restore` in tabella separata; `--prune-archives` oltre 120 mesi).
+- `hub_backup_doctor` (solo lettura: capacità del DB rispetto al limite di SQL Express, top tabelle, crescita dell'audit, previsione di saturazione, cache su DB; le sezioni di backup arrivano con il motore di backup).
+- `hub_db_tuning --query-store-max-mb 100 [--apply]` (limite del Query Store, dry-run di default).
+
+Il monitoring ha il nuovo check `audit_growth` (warning oltre 500 MB/mese, fail sotto 60 giorni dalla saturazione, mai critical). Dettaglio, motivazioni e ordine operativo: [docs/dr/AUDIT_POLICY.md](../dr/AUDIT_POLICY.md).
+
 ## Pulizia pre go-live (`pulizia_pre_golive`)
 
 Comando una tantum per partire in produzione senza i log accumulati in sviluppo e collaudo. Dry-run di default (solo conteggi); `--esegui` cancella a batch da 2000 righe e scrive una riga `AuditLog` (`azione=pulizia_pre_golive`) con i numeri; `--solo` accetta i codici separati da virgola.
