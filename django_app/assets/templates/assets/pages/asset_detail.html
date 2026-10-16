@@ -590,7 +590,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 {% endblock %}
 
 {% block assets_shell_content %}
-{% if it_presentation %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
+{% if it_presentation or switch_mappa %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
 <style>
 /* Cruscotto per tipo di asset */
 .af-kpiband { margin:0 0 14px; padding:14px 16px; border:1px solid #dbe3f0; border-radius:14px; background:linear-gradient(180deg,#f7faff 0%,#fff 100%); }
@@ -881,7 +881,9 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   {% endif %}
 
   {% if asset.asset_type != "PRODOTTO_CHIMICO" %}
-  {% if it_presentation %}{% include "assets/partials/it_overview.html" %}{% endif %}
+  {% if it_presentation %}{% include "assets/partials/it_overview.html" %}{% elif switch_mappa %}
+  <section class="af-card af-span-full" data-af-tab="Tecnica e rete"><div class="af-card-head"><div><div class="af-card-kicker">DATI DI INVENTARIO</div><h2 class="af-card-title">Rete</h2></div></div><div class="af-it-body">{% include "assets/partials/rete_switch_mappa.html" %}</div></section>
+  {% endif %}
   {% if asset_status_band %}
     <section class="af-statusband" data-af-tab="Panoramica">
       {% with c=asset_status_band.coverage %}
