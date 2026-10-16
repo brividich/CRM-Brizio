@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=1">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -23,7 +24,7 @@
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Competenze</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-grid"/></svg>Mansionario</h1>
-          <p class="fmd-sub">Ruolo → mansione → persone. Ogni mansione è una macchina o un processo (le colonne della skill matrix MOD.187): sta sotto uno o più ruoli, ha il reparto della macchina e le mansioni di rischio che comporta.</p>
+          <p class="fmd-sub">Ogni ruolo raccoglie le sue mansioni: le macchine e i processi della skill matrix MOD.187. Apri una mansione per vedere chi la sa fare, quali competenze servono e quali rischi comporta.</p>
           <div class="fmd-hero-actions">
             <a class="fmd-btn-template" href="{% url 'anagrafica:skill_matrix_macchina' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Skill matrix</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:skm_scadenzario' %}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Refresh caporeparto</a>
@@ -31,83 +32,139 @@
           </div>
         </div>
         <div class="fmd-hero-side">
-          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi.mansioni }}</span><span class="fmd-lbl">Mansioni</span></div>
-          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi.scoperte }}</span><span class="fmd-lbl">Senza operativi</span></div>
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi.ruoli }}</span><span class="fmd-lbl">Ruoli</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi.mansioni }}</span><span class="fmd-lbl">Mansioni</span></div>
         </div>
       </div>
     </section>
 
-    {# ── KPI ────────────────────────────────────────────────────────────── #}
-    <section class="fmd-kpi">
-      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansionario_lacune' %}?esito=non_abilitato" style="text-decoration:none;">
-        <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.non_abilitati }}</span></div>
-        <div class="fmd-mtr-lbl">Non abilitati</div>
-        <div class="fmd-mtr-sub">Manca un requisito o una competenza bloccante</div>
-      </a>
-      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:mansionario_lacune' %}?esito=in_addestramento" style="text-decoration:none;">
-        <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span><span class="fmd-mtr-val">{{ kpi.in_addestramento }}</span></div>
-        <div class="fmd-mtr-lbl">In addestramento</div>
-        <div class="fmd-mtr-sub">Manca solo livello</div>
-      </a>
-      <div class="fmd-mtr fmd-t-orange">
+    {# ── Riquadri: i primi tre filtrano le schede, gli altri aprono le lacune ── #}
+    <section class="fmd-kpi mns-kpi" aria-label="Situazione del mansionario">
+      <button type="button" class="fmd-mtr fmd-t-orange" data-mns-flag="scoperta" aria-pressed="false">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.scoperte }}</span></div>
         <div class="fmd-mtr-lbl">Senza operativi</div>
-        <div class="fmd-mtr-sub">Nessuno al livello di soglia</div>
-      </div>
-      <div class="fmd-mtr fmd-t-amber">
+        <div class="fmd-mtr-sub">Nessuno al livello di soglia · clic per filtrare</div>
+      </button>
+      <button type="button" class="fmd-mtr fmd-t-amber" data-mns-flag="senza-ruolo" aria-pressed="false">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.senza_ruolo }}</span></div>
         <div class="fmd-mtr-lbl">Senza ruolo</div>
-        <div class="fmd-mtr-sub">Da collegare a un ruolo</div>
-      </div>
-      <div class="fmd-mtr fmd-t-amber">
+        <div class="fmd-mtr-sub">Da collegare a un ruolo · clic per filtrare</div>
+      </button>
+      <button type="button" class="fmd-mtr fmd-t-amber" data-mns-flag="senza-rischio" aria-pressed="false">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi.senza_rischio }}</span></div>
         <div class="fmd-mtr-lbl">Senza mansione di rischio</div>
-        <div class="fmd-mtr-sub">DPI, visite e SDS non ricavabili</div>
-      </div>
+        <div class="fmd-mtr-sub">DPI, visite e SDS non ricavabili · clic per filtrare</div>
+      </button>
+      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansionario_lacune' %}?esito=non_abilitato">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.non_abilitati }}</span></div>
+        <div class="fmd-mtr-lbl">Persone non abilitate</div>
+        <div class="fmd-mtr-sub">Manca un requisito o una competenza bloccante →</div>
+      </a>
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:mansionario_lacune' %}?esito=in_addestramento">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span><span class="fmd-mtr-val">{{ kpi.in_addestramento }}</span></div>
+        <div class="fmd-mtr-lbl">In addestramento</div>
+        <div class="fmd-mtr-sub">Manca solo livello →</div>
+      </a>
     </section>
 
-    {# ── Stile C: una scheda per mansione ───────────────────────────────── #}
-    {% include "anagrafica/components/_fmd_cc_grid.html" with cc=griglia %}
-
-    <div class="fmd-low">
-      <section class="fmd-panel fmd-block fmd-low-main">
-        <div class="fmd-block-head">
-          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Elenco mansioni <span class="fmd-count">{{ righe|length }}</span></div>
-          <div class="fmd-block-aside">Livelli: I in formazione · L intermedio · U autonomo · O esperto</div>
-        </div>
-        {% if righe %}
-        <div class="fmd-tablewrap">
-          <table class="fmd-table">
-            <thead><tr><th>Mansione</th><th>Reparto</th><th>Ruoli</th><th>Mansioni di rischio</th><th class="fmd-nowrap">In lista per livello</th><th class="fmd-r">Operativi</th></tr></thead>
-            <tbody>
-              {% for r in righe %}
-              <tr>
-                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}">{{ r.nome }}</a> <span class="fmd-muted">{{ r.mansione.get_tipo_display|lower }}</span></td>
-                <td class="fmd-muted">{{ r.reparto|default:"—" }}</td>
-                <td>{% for x in r.ruoli %}{{ x.nome }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="fmd-muted">—</span>{% endfor %}</td>
-                <td>{% for x in r.rischi %}<span class="fmd-badge fmd-b-violet" style="margin:0 4px 4px 0;">{{ x.nome }}</span>{% empty %}<span class="fmd-muted">—</span>{% endfor %}</td>
-                <td class="fmd-nowrap fmd-num">O {{ r.livelli.O }} · U {{ r.livelli.U }} · L {{ r.livelli.L }} · I {{ r.livelli.I }}</td>
-                <td class="fmd-r fmd-num">{% if r.operativi %}{{ r.operativi }}{% else %}<span class="fmd-badge fmd-b-red">0</span>{% endif %}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="fmd-empty"><span class="fmd-et">Nessuna mansione attiva</span><span class="fmd-em">Le mansioni sono le colonne della skill matrix MOD.187.</span></div>
-        {% endif %}
-      </section>
-
-      <div class="fmd-low-side">
-        {% include "anagrafica/components/_fmd_arealist.html" with aree=aree titolo="Sezioni collegate" %}
+    {# ── Ruolo → mansioni ───────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block mns-box" id="mns-elenco" data-mns-box>
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli e mansioni</div>
+        <div class="fmd-block-aside">Clic su una mansione per persone, competenze e impostazioni</div>
       </div>
-    </div>{# .fmd-low #}
+      {% if gruppi %}
+      <div class="mns-tools">
+        <label class="mns-search"><svg class="fmd-ico" aria-hidden="true"><use href="#i-search"/></svg>
+          <input type="search" placeholder="Cerca mansione, reparto, ruolo o rischio…" aria-label="Cerca nel mansionario" data-mns-q autocomplete="off">
+        </label>
+        <div class="fmd-chips" role="group" aria-label="Filtra per tipo">
+          <button type="button" class="fmd-chip fmd-on" data-mns-tipo="" aria-pressed="true">Tutte</button>
+          <button type="button" class="fmd-chip" data-mns-tipo="macchina" aria-pressed="false">Macchine</button>
+          <button type="button" class="fmd-chip" data-mns-tipo="processo" aria-pressed="false">Processi</button>
+        </div>
+        <div class="fmd-chips mns-tools-r">
+          <button type="button" class="fmd-chip" data-mns-espandi="1">Apri tutti</button>
+          <button type="button" class="fmd-chip" data-mns-espandi="0">Chiudi tutti</button>
+        </div>
+      </div>
+      <div class="mns-filtro-attivo" data-mns-attivo hidden>
+        <span data-mns-attivo-testo></span>
+        <button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mns-reset>Mostra tutto</button>
+      </div>
+
+      {% for g in gruppi %}
+      <details class="mns-gruppo{% if g.da_collegare %} mns-gruppo-warn{% endif %}" open data-mns-gruppo>
+        <summary>
+          <span class="mns-gruppo-h">
+            <svg class="fmd-ico mns-chev" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+            <span class="mns-gruppo-nome">{{ g.nome }}</span>
+            <span class="fmd-count" data-mns-n>{{ g.schede|length }}</span>
+          </span>
+          <span class="mns-gruppo-meta">
+            {{ g.in_lista }} in lista
+            {% if g.scoperte %}<span class="fmd-c-ko">· {{ g.scoperte }} senza operativi</span>{% endif %}
+            {% if g.ruolo %}<a class="mns-gruppo-link" href="{% url 'anagrafica:ruoli_operativi_list' %}" title="Catalogo dei ruoli">ruolo →</a>{% endif %}
+          </span>
+        </summary>
+        {% if g.da_collegare %}<p class="mns-gruppo-nota">Queste mansioni non stanno ancora sotto un ruolo: aprile e scegli il ruolo in «Impostazioni».</p>{% endif %}
+        <div class="fmd-cgrid">
+          {% for s in g.schede %}{% include "anagrafica/components/_fmd_cc_card.html" with cc=cc_card %}{% endfor %}
+        </div>
+      </details>
+      {% endfor %}
+
+      <div class="fmd-empty" data-mns-vuoto hidden><span class="fmd-et">Nessuna mansione corrisponde</span><span class="fmd-em">Cambia la ricerca o togli il filtro.</span></div>
+
+      <div class="fmd-legend" aria-hidden="true">
+        {% for chiave, etichetta in legenda %}<span><i class="fmd-k-{{ chiave }}"></i>{{ etichetta }}</span>{% endfor %}
+        <span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto</span>
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessuna mansione attiva</span><span class="fmd-em">Le mansioni sono le colonne macchina e processo della skill matrix MOD.187.</span></div>
+      {% endif %}
+    </section>
+
+    <div class="mns-aree">{% include "anagrafica/components/_fmd_arealist.html" with aree=aree titolo="Sezioni collegate" %}</div>
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+
+<script>
+(function(){
+  var box=document.querySelector('[data-mns-box]');if(!box)return;
+  var q=box.querySelector('[data-mns-q]'),tipo='',flag='';
+  var etichette={'scoperta':'Mansioni senza operativi','senza-ruolo':'Mansioni senza ruolo','senza-rischio':'Mansioni senza mansione di rischio'};
+  function applica(){
+    var testo=(q&&q.value||'').trim().toLowerCase(),tot=0,filtrando=!!(testo||tipo||flag);
+    box.querySelectorAll('[data-mns-gruppo]').forEach(function(g){
+      var n=0;
+      g.querySelectorAll('.fmd-cc').forEach(function(c){
+        var t=c.getAttribute('data-tags')||'',ok=(!tipo||t.indexOf(' '+tipo+' ')>=0)&&(!flag||t.indexOf(' '+flag+' ')>=0)&&(!testo||(c.getAttribute('data-q')||'').indexOf(testo)>=0);
+        c.hidden=!ok;if(ok)n++;
+      });
+      g.hidden=n===0;g.querySelector('[data-mns-n]').textContent=n;
+      if(filtrando&&n)g.open=true;tot+=n;
+    });
+    box.querySelector('[data-mns-vuoto]').hidden=tot>0;
+    var att=box.querySelector('[data-mns-attivo]');att.hidden=!flag;
+    if(flag)box.querySelector('[data-mns-attivo-testo]').textContent='Filtro: '+etichette[flag]+' ('+tot+')';
+    document.querySelectorAll('[data-mns-flag]').forEach(function(b){var on=b.dataset.mnsFlag===flag;b.classList.toggle('mns-on',on);b.setAttribute('aria-pressed',String(on));});
+  }
+  if(q)q.addEventListener('input',applica);
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-mns-tipo],[data-mns-flag],[data-mns-reset],[data-mns-espandi]');if(!b)return;
+    if(b.hasAttribute('data-mns-tipo')){tipo=b.dataset.mnsTipo;box.querySelectorAll('[data-mns-tipo]').forEach(function(x){var on=x===b;x.classList.toggle('fmd-on',on);x.setAttribute('aria-pressed',String(on));});}
+    else if(b.hasAttribute('data-mns-flag')){flag=flag===b.dataset.mnsFlag?'':b.dataset.mnsFlag;if(flag)box.scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(b.hasAttribute('data-mns-reset')){flag='';tipo='';if(q)q.value='';box.querySelectorAll('[data-mns-tipo]').forEach(function(x,i){x.classList.toggle('fmd-on',i===0);x.setAttribute('aria-pressed',String(i===0));});}
+    else{var apri=b.dataset.mnsEspandi==='1';box.querySelectorAll('[data-mns-gruppo]').forEach(function(g){g.open=apri;});return;}
+    applica();
+  });
+})();
+</script>
 {% endblock %}

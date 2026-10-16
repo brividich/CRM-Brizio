@@ -1,0 +1,27 @@
+{% comment %}
+Una scheda dello stile C (classe fmd-cc). Parametri: s = services.sezioni_c.scheda(...),
+cc = dati della griglia (serve solo cc.legenda per l'etichetta accessibile della barra).
+Usata da _fmd_cc_grid.html e dalle griglie raggruppate (es. Mansionario per ruolo).
+{% endcomment %}
+{% if s.href %}<a class="fmd-cc{% if s.attiva %} fmd-cc-on{% endif %}" href="{{ s.href }}"{% if s.attiva %} aria-current="true"{% endif %}{% else %}<div class="fmd-cc"{% endif %}
+   data-tags=" {{ s.tags }} "{% if s.q %} data-q="{{ s.q }}"{% endif %} data-alfa="{{ s.alfa }}"{% for k, v in s.ordini.items %} data-o-{{ k }}="{{ v }}"{% endfor %}>
+  <span class="fmd-cc-h"><b>{{ s.titolo }}</b>{% if s.codice %}<span class="fmd-cc-code">{{ s.codice }}</span>{% endif %}</span>
+  {% if s.meta %}<span class="fmd-cc-meta">{{ s.meta }}</span>{% endif %}
+  {% if s.segmenti %}
+  <span class="fmd-stk" role="img" aria-label="{% for seg in s.segmenti %}{{ seg.n }}{% for chiave, etichetta in cc.legenda %}{% if chiave == seg.chiave %} {{ etichetta }}{% endif %}{% endfor %}{% if not forloop.last %}, {% endif %}{% endfor %} su {{ s.totale }}">
+    {% for seg in s.segmenti %}<i class="fmd-k-{{ seg.chiave }}" style="width:{{ seg.perc|stringformat:'s' }}%" title="{{ seg.n }}"></i>{% endfor %}
+  </span>
+  {% endif %}
+  <span class="fmd-stk-l">
+    {% if s.principale %}<span><b>{{ s.principale }}</b> {{ s.principale_label }}{% if s.principale_sub %} <span class="fmd-muted">{{ s.principale_sub }}</span>{% endif %}</span>{% endif %}
+    {% for p in s.pillole %}<span class="{{ p.classe }}">{{ p.testo }}</span>{% endfor %}
+  </span>
+  <span class="fmd-cc-foot">
+    <span{% if s.piede_muted %} class="fmd-muted"{% endif %}>{{ s.piede }}</span>
+    {% if s.azioni %}
+    <span class="fmd-cc-acts">
+      {% for a in s.azioni %}{% if a.post %}<form method="post" action="{{ a.url }}">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">{{ a.label }}</button></form>{% else %}<a class="fmd-btn {% if a.primaria %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %} fmd-btn-mini" href="{{ a.url }}">{{ a.label }}</a>{% endif %}{% endfor %}
+    </span>
+    {% elif s.vai %}<span class="fmd-cc-go">{{ s.vai }}</span>{% endif %}
+  </span>
+{% if s.href %}</a>{% else %}</div>{% endif %}
