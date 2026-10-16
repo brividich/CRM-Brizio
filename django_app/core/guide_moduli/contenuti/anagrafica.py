@@ -128,7 +128,7 @@ GUIDA = {
                     ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
                     ("Salute e sicurezza", "una scheda per mansione di rischio; con il permesso HR la barra dice quante persone sono in regola con tutti gli obblighi."),
                     ("Visite mediche", "una scheda per tipo di visita: in regola, entro 60 giorni, scadute, senza visita. Mai esiti o giudizi."),
-                    ("Amministrazione", "una scheda per flusso (retribuzioni, ferie e permessi dal file cedolini, contratti) con righe abbinate e scartate dell'ultimo import; il clic porta alla sezione «Importazione» della pagina."),
+                    ("Cedolini", "solo i cedolini: ultima mensilità, mensilità in archivio, dipendenti, righe e le righe dell'ultimo import (arancione se ne ha scartate; il clic porta alla sezione «Importazione»), poi la vista globale. Contratti e scadenze stanno nello Scadenzario, i saldi in «Ferie e permessi»."),
                     ("Report", "una scheda per modello con le generazioni degli ultimi 30 giorni e i pulsanti Genera, Modifica, Duplica."),
                 ]),
                 ("p", "Sopra le schede, i pulsanti filtrano (per categoria, livello di rischio, norma…) e cambiano l'ordine. "

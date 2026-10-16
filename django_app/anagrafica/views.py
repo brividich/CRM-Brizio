@@ -9937,50 +9937,12 @@ def retribuzioni_globale(request):
     page_obj = paginator.get_page(request.GET.get("page", 1))
     rows = _retribuzioni_globale_rows(ctx, list(page_obj.object_list))
 
-    # Stile C: una scheda per flusso amministrativo (ultimo import, righe abbinate/scartate).
-    from .services import sezioni_c
-    oggi = django_timezone.localdate()
-    cessati = _cessati_legacy_ids()
-    ultimo_contratto: dict[int, StoricoContratto] = {}
-    for c in (StoricoContratto.objects.filter(legacy_anagrafica_id__isnull=False)
-              .order_by("legacy_anagrafica_id", "-data_inizio", "-created_at")):
-        ultimo_contratto.setdefault(c.legacy_anagrafica_id, c)
-    contratti = {"totale": 0, "indeterminato": 0, "termine_oltre": 0, "s60": 0, "s30": 0,
-                 "ultimo": StoricoContratto.objects.aggregate(u=Max("created_at"))["u"]}
-    for lid, c in ultimo_contratto.items():
-        if lid in cessati or (c.data_fine is not None and c.data_fine < oggi):
-            continue
-        contratti["totale"] += 1
-        if c.data_fine is None:
-            contratti["indeterminato"] += 1
-        elif c.data_fine <= oggi + _timedelta(days=30):
-            contratti["s30"] += 1
-        elif c.data_fine <= oggi + _timedelta(days=60):
-            contratti["s60"] += 1
-        else:
-            contratti["termine_oltre"] += 1
-    import_mese = sezioni_c.griglia(
-        id="fmd-import", titolo="Import del mese", icona="i-download",
-        aside="Ultimo caricamento di ogni flusso · righe abbinate e scartate",
-        schede=sezioni_c.schede_import(
-            ultima_retribuzioni=ImportazioneRetributiva.objects.filter(origine=ImportazioneRetributiva.ORIGINE_CSV)
-            .order_by("-data_importazione").first(),
-            ultimo_cedolini=ImportazioneCedolini.objects.order_by("-data_importazione").first(),
-            contratti=contratti,
-        ),
-        legenda=[("ok", "abbinate / a tempo indeterminato"), ("cy", "a termine oltre 60gg"), ("s90", "≤60gg"),
-                 ("s30", "≤30gg"), ("mai", "non abbinate"), ("ko", "scartate")],
-        vuoto_titolo="Nessun import ancora caricato",
-        vuoto_testo="Le schede compaiono dopo il primo import di retribuzioni, cedolini o contratti.",
+    # Solo cedolini: contratti, ferie/permessi e scadenze hanno le loro pagine
+    # (Scadenzario, «Ferie e permessi», Impostazioni → Amministrazione e import).
+    ultima_importazione = (
+        ImportazioneRetributiva.objects.filter(origine=ImportazioneRetributiva.ORIGINE_CSV)
+        .order_by("-data_importazione").first()
     )
-    contratti_in_scadenza = [
-        v for v in _build_scadenzario_voci(request, filtro_tipo="contratto") if v["giorni"] >= 0
-    ]
-    aree = sezioni_c.aree_visibili(request, [
-        sezioni_c.Area("anagrafica:ratei_list", "Ferie e permessi", "Saldi ferie, ROL ed ex festività, con il loro import", icona="i-cal-clock"),
-        sezioni_c.Area("anagrafica:contratti_import", "Contratti", "Import e storico contrattuale", icona="i-clipboard"),
-    ] + ([sezioni_c.Area("anagrafica:amministrazione_hub", "Storico import", "Scarti e scarico", "scheda=import", icona="i-refresh")]
-         if is_admin else []))
 
     # Sezione «Importazione» (ex pagina retribuzioni_import): solo per gli admin.
     importazioni_retribuzioni = list(
@@ -9990,9 +9952,7 @@ def retribuzioni_globale(request):
     ) if is_admin else []
     return render(request, "anagrafica/pages/retribuzioni_globale.html", {
         "importazioni_retribuzioni": importazioni_retribuzioni,
-        "import_mese": import_mese,
-        "contratti_in_scadenza": contratti_in_scadenza,
-        "aree": aree,
+        "ultima_importazione": ultima_importazione,
         "page_obj": page_obj,
         "rows": rows,
         "colonne": ctx["colonne"],
