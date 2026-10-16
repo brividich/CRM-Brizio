@@ -2024,6 +2024,23 @@ def _assenze_kpi_annuali(assenze_list: list[dict]) -> list[dict]:
 # Scheda dettaglio dipendente
 # ---------------------------------------------------------------------------
 
+def _mansioni_da_rivedere_ctx(request, legacy_id: int, is_admin: bool) -> dict:
+    """Mansioni lavorative che non tornano più con reparto e ruoli di oggi (card Spostamenti)."""
+    if not is_admin:
+        return {"mansioni_da_rivedere": []}
+    try:
+        from .services.mansionario_struttura import da_rivedere_dopo_spostamento
+        from .views_mansionario import _puo_valutare
+
+        return {
+            "mansioni_da_rivedere": da_rivedere_dopo_spostamento(legacy_id),
+            "puo_togliere_mansioni": _puo_valutare(request),
+        }
+    except Exception:
+        logger.warning("mansioni da rivedere non calcolate per %s", legacy_id, exc_info=True)
+        return {"mansioni_da_rivedere": []}
+
+
 @login_required
 def dipendente_detail(request, legacy_id: int):
     ensure_anagrafica_schema()
@@ -2734,6 +2751,7 @@ def dipendente_detail(request, legacy_id: int):
         "ruoli_disponibili_per_ambito": ruoli_disponibili_per_ambito,
         "mansioni_catalogo": mansioni_catalogo,
         "assegnazioni": assegnazioni,
+        **_mansioni_da_rivedere_ctx(request, legacy_id, is_admin),
         "assegnazione_in_corso": assegnazione_in_corso,
         "assetto_attuale": assetto_attuale,
         "ruoli_aziendali_catalogo": ruoli_aziendali_catalogo,

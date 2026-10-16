@@ -339,6 +339,15 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .sc-filter-active { background:#0c2545 !important; color:#fff !important; border-color:#0c2545 !important; }
 .sc-row:hover { background:#fafafa; }
 
+/* Mansioni lavorative da rivedere dopo uno spostamento */
+.dp-mdr { border:1px solid #fde68a; background:#fffbeb; border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+.dp-mdr-title { font-weight:700; font-size:13px; color:#92400e; }
+.dp-mdr-sub { font-size:12px; color:#92400e; margin:2px 0 8px; }
+.dp-mdr-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.dp-mdr-list li { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; }
+.dp-mdr-why { color:#92400e; font-size:12px; }
+body.theme-dark .dp-mdr { background:rgba(217,119,6,.12); border-color:rgba(217,119,6,.35); }
+body.theme-dark .dp-mdr-title, body.theme-dark .dp-mdr-sub, body.theme-dark .dp-mdr-why { color:#fcd34d; }
 /* Spostamenti organizzativi (assegnazioni a periodo) */
 .sp-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
 .sp-card { border:1px solid #e2e8f0; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
@@ -1544,6 +1553,27 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       <button type="button" onclick="toggleSection('spostamento-form')" class="dp-btn dp-btn-primary dp-btn-sm">+ Nuovo spostamento</button>
     </div>
     <div class="dp-card-body">
+
+      {% if mansioni_da_rivedere %}
+      <div class="dp-mdr" role="note" aria-label="Mansioni lavorative da rivedere">
+        <div class="dp-mdr-title">Mansioni lavorative da rivedere ({{ mansioni_da_rivedere|length }})</div>
+        <div class="dp-mdr-sub">Con reparto e ruoli di oggi queste mansioni del Mansionario non tornano più. Restare in lista tiene attive anche le mansioni di rischio che ne derivano: togli quelle che la persona non svolge più.</div>
+        <ul class="dp-mdr-list">
+          {% for m in mansioni_da_rivedere %}
+          <li>
+            <span><a href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}">{{ m.nome }}</a>{% if m.livello %} · livello {{ m.livello }}{% endif %}<span class="dp-mdr-why"> — {{ m.motivi|join:"; " }}</span></span>
+            {% if puo_togliere_mansioni %}
+            <form method="post" action="{% url 'anagrafica:mansionario_togli' m.mansione.pk m.abilitazione.pk %}" onsubmit="return confirm('Togliere la persona da {{ m.nome|escapejs }}? Resta nello storico.');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="dp-btn dp-btn-sm">Togli dalla lista</button>
+            </form>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
       <!-- Form nuovo spostamento -->
       <div class="dp-edit-section" id="spostamento-form">

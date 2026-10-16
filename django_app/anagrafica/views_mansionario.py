@@ -291,6 +291,13 @@ def mansionario_togli(request, mansione_id: int, abilitazione_id: int):
         "mansione": mansione_id, "legacy_anagrafica_id": ab.legacy_anagrafica_id,
     }, oggetto=ab)
     messages.success(request, "Persona tolta dalla mansione.")
+    # Dalla scheda dipendente (mansioni da rivedere dopo uno spostamento) si torna lì.
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    prossima = request.POST.get("next") or ""
+    if prossima and url_has_allowed_host_and_scheme(prossima, allowed_hosts={request.get_host()},
+                                                     require_https=request.is_secure()):
+        return redirect(prossima)
     return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
 
 
