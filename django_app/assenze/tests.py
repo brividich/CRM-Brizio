@@ -1458,12 +1458,9 @@ class AssenzeInsertForOthersScopeTests(SimpleTestCase):
         self.assertEqual(perms["insert_for_others_scope"], "none")
         self.assertFalse(perms["can_insert_for_others"])
 
-    def test_solo_il_ruolo_utente_non_sceglie_il_caporeparto(self):
-        self.assertFalse(self._perms(["Utente"])["can_choose_capo"])
-        self.assertFalse(self._perms([])["can_choose_capo"])
-        for ruolo in ("Caporeparto", "Amministrazione", "Impiegato", "Capocommessa"):
-            self.assertTrue(self._perms([ruolo])["can_choose_capo"], ruolo)
-        self.assertTrue(self._perms(["Utente", "Qualita"])["can_choose_capo"])
+    def test_tutti_possono_scegliere_il_caporeparto(self):
+        for ruoli in (["Utente"], [], ["Caporeparto"], ["Amministrazione"], ["Utente", "Qualita"]):
+            self.assertTrue(self._perms(ruoli)["can_choose_capo"], ruoli)
 
 
 class RiconciliazionePresenzeLogicTests(SimpleTestCase):
@@ -2342,3 +2339,51 @@ class AssenzeSubnavTests(SimpleTestCase):
         )
         self.assertNotIn("Riconciliazione", html)
         self.assertNotIn("assenze_riconciliazione", html)
+
+
+from unittest import mock  # noqa: E402
+
+
+class CapoSceltoTests(TestCase):
+    """Capo scelto a mano nella richiesta: lo vede e lo approva solo lui."""
+
+    def test_registra_e_legge_il_capo_scelto(self):
+        from assenze import views
+
+        views._registra_capo_scelto(501, {"LegacyUserId": "77", "Value": "ROSSI MARIO"}, scelto_da="u1")
+        self.assertEqual(views._capo_scelto_legacy_user_id(501), 77)
+        views._registra_capo_scelto(501, {"LegacyUserId": "78"})
+        self.assertEqual(views._capo_scelto_legacy_user_id(501), 78)
+        views._registra_capo_scelto(501, None)
+        self.assertIsNone(views._capo_scelto_legacy_user_id(501))
+        self.assertIsNone(views._capo_scelto_legacy_user_id(None))
+
+    @mock.patch("assenze.views._table_exists", return_value=True)
+    def test_perimetro_approvazione_esclude_le_scelte_altrui(self, _table_exists):
+        from assenze import views
+
+        where, params = views._con_capo_scelto("a.capo_reparto_id = %s", [5], legacy_user_id=5, alias="a", per_approvazione=True)
+        self.assertIn("NOT EXISTS", where)
+        self.assertEqual(params, [5, 5, 5])
+        where, params = views._con_capo_scelto("a.capo_reparto_id = %s", [5], legacy_user_id=5, alias="a", per_approvazione=False)
+        self.assertNotIn("NOT EXISTS", where)
+        self.assertEqual(params, [5, 5])
+        where, params = views._con_capo_scelto("", [], legacy_user_id=5, alias="a", per_approvazione=True)
+        self.assertTrue(where.startswith("EXISTS"))
+        self.assertEqual(params, [5])
+
+    def test_solo_il_capo_scelto_approva(self):
+        from unittest import mock
+
+        from assenze import views
+        from assenze.models import AssenzaCapoScelto
+
+        AssenzaCapoScelto.objects.create(assenza_id=900, capo_legacy_user_id=42)
+        row = {"id": 900, "utente_id": 10, "capo_reparto_id": 7}
+        base = {"can_update_owned": True, "view_scope_source": "ruoli", "team_utenti_ids": {10}}
+        with mock.patch.object(views, "_assenze_permissions", return_value={**base, "legacy_user_id": 7}):
+            self.assertFalse(views._can_manage_record(object(), row))
+        with mock.patch.object(views, "_assenze_permissions", return_value={**base, "legacy_user_id": 42}):
+            self.assertTrue(views._can_manage_record(object(), row))
+        with mock.patch.object(views, "_assenze_permissions", return_value={**base, "legacy_user_id": 7, "can_update_any": True}):
+            self.assertTrue(views._can_manage_record(object(), row))
