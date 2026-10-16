@@ -3,7 +3,7 @@
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}
 <style>
 .sg-guide{ display:grid; grid-template-columns:260px minmax(0,1fr); gap:22px; align-items:start; }
-.sg-guide-toc{ position:sticky; top:16px; padding:16px 18px; max-height:calc(100vh - 32px); overflow:auto; }
+.sg-guide-toc{ position:sticky; top:16px; padding:16px 18px; max-height:calc(calc(100 * var(--vh, 1vh)) - 32px); overflow:auto; }
 .sg-guide-toc-t{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-light); margin-bottom:8px; }
 .sg-guide-toc ol{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:13px; }
 .sg-guide-toc a{ color:var(--text); text-decoration:none; }

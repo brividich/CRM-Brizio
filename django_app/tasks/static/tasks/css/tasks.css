@@ -2162,7 +2162,7 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
   box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden;
   /* Con date, tipo attivita' e attrezzatura il pannello supera lo schermo:
      senza questo limite i campi in cima restavano tagliati e irraggiungibili. */
-  display: flex; flex-direction: column; max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column; max-height: calc(calc(100 * var(--vh, 1vh)) - 32px);
 }
 .ctm-panel .ctm-head { flex: 0 0 auto; }
 .ctm-panel .ctm-body { flex: 1 1 auto; overflow-y: auto; }
@@ -3481,7 +3481,7 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
             .ts-gantt-cm .gzoom input[type=range] { accent-color:#1f87cd; }
             .ts-gantt-cm .gcasc { display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; color:var(--text-mid); border:1px solid var(--border); border-radius:10px; padding:6px 10px; background:var(--surface); cursor:pointer; }
             .ts-gantt-cm .gcasc:has(input:checked) { background:rgba(31,135,205,.10); border-color:#1f87cd; }
-            .ts-gantt-cm .gscroll { overflow:auto; max-height:70vh; border:1px solid var(--border); background:var(--surface); box-shadow:0 16px 34px rgba(12,37,69,.05); }
+            .ts-gantt-cm .gscroll { overflow:auto; max-height:calc(70 * var(--vh, 1vh)); border:1px solid var(--border); background:var(--surface); box-shadow:0 16px 34px rgba(12,37,69,.05); }
             .ts-gantt-cm .grow { display:flex; align-items:stretch; border-bottom:1px solid var(--surface-alt, #f8fafc); }
             .ts-gantt-cm .gmac { position:sticky; left:0; z-index:2; min-width:240px; max-width:240px; box-sizing:border-box; background:var(--surface); border-right:1px solid var(--border); padding:7px 12px; }
             .ts-gantt-cm .gmac-title { display:block; color:var(--primary); font-weight:800; font-size:.82rem; text-decoration:none; line-height:1.25; }

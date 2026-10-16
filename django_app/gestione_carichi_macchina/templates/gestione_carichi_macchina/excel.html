@@ -33,7 +33,7 @@
   .gcm-toggle a.active { background: var(--primary,#0c2545); color: #fff; }
 
   .gcm-scroll {
-    overflow: auto; max-height: 74vh;
+    overflow: auto; max-height: calc(74 * var(--vh, 1vh));
     border: 1px solid #d9e2ef; border-radius: 14px; background: #fff;
     box-shadow: 0 16px 34px rgba(12,37,69,.05);
   }
@@ -124,7 +124,7 @@
   .gcm-dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
 
   /* modali (+ Aggiungi lavoro / AI) */
-  .gcm-ov { position: fixed; inset: 0; background: rgba(12,37,69,.45); display: none; align-items: flex-start; justify-content: center; z-index: 1000; padding-top: 6vh; }
+  .gcm-ov { position: fixed; inset: 0; background: rgba(12,37,69,.45); display: none; align-items: flex-start; justify-content: center; z-index: 1000; padding-top: calc(6 * var(--vh, 1vh)); }
   .gcm-ov.open { display: flex; }
   .gcm-modal { width: min(520px, 94vw); background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(12,37,69,.35); overflow: hidden; }
   .gcm-modal h3 { margin: 0; padding: 14px 18px; background: var(--primary,#0c2545); color: #fff; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; }

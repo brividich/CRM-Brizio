@@ -1,6 +1,6 @@
 {% load ui_icons %}
 {% if admin_subnav_items %}
-<div class="subnav">
+<div class="subnav subnav-wrap">
   {% for item in admin_subnav_items %}
     {% ifchanged item.group %}
       {% if item.group and not forloop.first %}<div class="sub-sep"></div>{% endif %}
