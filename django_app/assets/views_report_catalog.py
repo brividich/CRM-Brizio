@@ -55,6 +55,13 @@ def _pk(raw) -> int:
     return int(value)
 
 
+def _querystring(request, *, escludi=()) -> str:
+    dati = request.GET.copy()
+    for chiave in escludi:
+        dati.pop(chiave, None)
+    return dati.urlencode()
+
+
 def _salvati_visibili(user):
     return AssetSavedReport.objects.filter(Q(owner=user) | Q(condiviso=True)).select_related("owner")
 
@@ -66,7 +73,9 @@ def catalog(request: HttpRequest) -> HttpResponse:
         request,
         page_title="Catalogo report asset",
         definizioni=list(report_catalog.definizioni().values()),
+        aree=report_catalog.definizioni_per_area(),
         esistenti=report_catalog.report_esistenti(),
+        tab_report="catalogo",
         salvati=_salvati_visibili(request.user).order_by("report_code", "nome"),
     ))
 
@@ -76,17 +85,22 @@ def catalog(request: HttpRequest) -> HttpResponse:
 def run(request: HttpRequest, code: str) -> HttpResponse:
     definizione = _definizione(code)
     if not report_catalog.accesso_extra(code, request.user):
-        return HttpResponse("Serve anche l'accesso al modulo Contatori.", status=403)
+        return HttpResponse("Serve anche l'accesso alla pagina da cui vengono i dati (Contatori, Licenze o "
+                            "Ordini di lavoro).", status=403)
     salvato = None
     if request.GET.get("salvato"):
         salvato = get_object_or_404(_salvati_visibili(request.user), pk=_pk(request.GET.get("salvato")), report_code=code)
         filtri = report_catalog.filtri_da_richiesta(definizione, salvato.filtri or {})
+        # La vista in querystring (ordinamento, colonne) vince su quella salvata.
+        vista = report_catalog.vista_da_richiesta(
+            request.GET if report_catalog.ha_vista(request.GET) else (salvato.filtri or {}).get("_vista") or {})
     else:
         filtri = report_catalog.filtri_da_richiesta(definizione, request.GET)
-    risultato = definizione.esegui(filtri)
+        vista = report_catalog.vista_da_richiesta(request.GET)
+    risultato, numeriche = report_catalog.esegui(definizione, filtri, vista)
     formato = request.GET.get("formato")
     if formato in ("xlsx", "pdf"):
-        data, nome, ctype = report_catalog.esporta(definizione, risultato, filtri, formato, request.user)
+        data, nome, ctype = report_catalog.esporta(definizione, risultato, filtri, formato, request.user, vista)
         log_action(request, "asset_report_export", "assets", {"report": code, "formato": formato, "righe": len(risultato.righe)})
         response = HttpResponse(data, content_type=ctype)
         response["Content-Disposition"] = f'attachment; filename="{nome}"'
@@ -100,6 +114,12 @@ def run(request: HttpRequest, code: str) -> HttpResponse:
         risultato=risultato,
         filtri=filtri,
         filtri_label=report_catalog.etichetta_filtri(definizione, filtri),
+        vista={"cerca": "", "col": [], "ordina": None, "verso": "asc", **vista},
+        intestazioni_view=list(zip(risultato.intestazioni, risultato.colonne_idx)),
+        vista_label=report_catalog.etichetta_vista(definizione, vista, risultato),
+        numeriche=numeriche,
+        qs_ordina=_querystring(request, escludi=("ordina", "verso", "formato")),
+        tab_report="catalogo",
         estrazione=report_catalog.intestazione_estrazione(request.user),
         salvato=salvato,
         puo_modificare_salvato=bool(salvato and salvato.owner_id == request.user.id),
@@ -134,6 +154,9 @@ def save(request: HttpRequest, code: str) -> HttpResponse:
     salvato = salvato or AssetSavedReport(owner=request.user, report_code=code)
     salvato.nome = nome
     salvato.filtri = report_catalog.filtri_da_richiesta(definizione, request.POST)
+    vista = report_catalog.vista_da_richiesta(request.POST)
+    if vista:
+        salvato.filtri["_vista"] = vista
     salvato.condiviso = bool(request.POST.get("condiviso"))
     frequenza = request.POST.get("frequenza") or ""
     if frequenza and not can_schedule_email(request):

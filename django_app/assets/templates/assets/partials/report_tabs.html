@@ -1,0 +1,11 @@
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 4px}
+.rp-tabs a{padding:8px 14px;border-radius:999px;border:1px solid var(--border,#dbe3ef);background:var(--surface,#fff);color:var(--text,#16253c);text-decoration:none;font-weight:650;font-size:14px}
+.rp-tabs a:hover{border-color:#93c5fd}
+.rp-tabs a[aria-current="page"]{background:#2563eb;border-color:#2563eb;color:#fff}
+</style>
+<nav class="rp-tabs" aria-label="Report del modulo asset">
+  <a href="{% url 'assets:report_catalog' %}"{% if tab_report == "catalogo" %} aria-current="page"{% endif %}>Catalogo report</a>
+  <a href="{% url 'assets:reports' %}"{% if tab_report == "cruscotto" %} aria-current="page"{% endif %}>Cruscotto manutenzione</a>
+  <a href="{% url 'assets:reporting_archive' %}"{% if tab_report == "archivio" %} aria-current="page"{% endif %}>Archivio report</a>
+</nav>

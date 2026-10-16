@@ -35,6 +35,23 @@ GUIDA = {
             ],
         },
         {
+            "id": "report",
+            "titolo": "Estrarre un report (rete, licenze, costi, schede incomplete)",
+            "blocchi": [
+                ("passi", [
+                    "Apri il «Catalogo report» (icona dei grafici nell'elenco asset, o la scheda «Catalogo report» "
+                    "in cima alle pagine dei report) e cerca il report per nome.",
+                    "Imposta i filtri; con «Cerca nelle righe» tieni solo le righe che contengono le parole scritte.",
+                    "Clicca un'intestazione per ordinare; in «Colonne» scegli cosa vedere; premi «Aggiorna».",
+                    "«Scarica Excel» o «Scarica PDF» producono esattamente quello che vedi; «Salva report» lo "
+                    "conserva (anche condiviso o inviato via email).",
+                ]),
+                ("p", "Report disponibili: Inventario per stato e reparto, Qualità dei dati, Parco IT e rete, "
+                      "Licenze software, Modifiche di rete e assegnazioni, Scadenze, Costi e ore di manutenzione, "
+                      "MFC. In testa a ogni report ci sono riquadri di riepilogo e un grafico."),
+            ],
+        },
+        {
             "id": "guasto",
             "titolo": "Segnalare un guasto",
             "blocchi": [
@@ -88,6 +105,14 @@ GUIDA = {
                 "I dispositivi devono indicare lo switch: in «Modifica rete» scrivi la matricola dello switch nel campo Switch.",
                 "Nella scheda dello switch indica il «Prefisso porte di questo switch» (es. A0) e premi «Salva prefisso».",
                 "Se il prefisso è già su un altro switch (es. un doppione), toglilo da lì lasciando il campo vuoto.",
+            ],
+        },
+        {
+            "sintomo": "Un report del catalogo risponde «Serve anche l'accesso alla pagina da cui vengono i dati»",
+            "fare": [
+                "MFC, Licenze software e Costi e ore di manutenzione mostrano dati di altre pagine: servono anche "
+                "Consumabili (Contatori IT), Licenze oppure Ordini di lavoro.",
+                "Chiedi il permesso da Amministrazione → Accessi.",
             ],
         },
         {
