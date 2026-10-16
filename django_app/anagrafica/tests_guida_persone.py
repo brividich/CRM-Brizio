@@ -32,7 +32,7 @@ class GuidaPersoneTests(TestCase):
     def test_admin_vede_anche_gestione_e_it(self):
         self.client.force_login(User.objects.create_superuser("guida.admin", "guida.admin@example.invalid", "x"))
         r = self.client.get(reverse(URL))
-        for ancora in ("capo", "coerenza-capi", "viste", "nuovo-dipendente", "account-portale", "amministrazione", "ad", "avviso-it", "dopo-il-deploy"):
+        for ancora in ("capo", "coerenza-capi", "ruoli-in-blocco", "viste", "nuovo-dipendente", "account-portale", "amministrazione", "ad", "avviso-it", "dopo-il-deploy"):
             self.assertContains(r, f'id="{ancora}"')
 
     def test_ogni_pulsante_guida_punta_a_un_paragrafo_esistente(self):

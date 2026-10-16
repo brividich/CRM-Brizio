@@ -128,7 +128,7 @@ GUIDA = {
                     ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
                     ("Salute e sicurezza", "una scheda per mansione di rischio; con il permesso HR la barra dice quante persone sono in regola con tutti gli obblighi."),
                     ("Visite mediche", "una scheda per tipo di visita: in regola, entro 60 giorni, scadute, senza visita. Mai esiti o giudizi."),
-                    ("Amministrazione", "una scheda per flusso (retribuzioni, ferie e permessi dal file cedolini, contratti) con righe abbinate e scartate dell'ultimo import; il clic porta alla sezione «Importazione» della pagina."),
+                    ("Cedolini", "solo i cedolini: ultima mensilità, mensilità in archivio, dipendenti, righe e le righe dell'ultimo import (arancione se ne ha scartate; il clic porta alla sezione «Importazione»), poi la vista globale. Contratti e scadenze stanno nello Scadenzario, i saldi in «Ferie e permessi»."),
                     ("Report", "una scheda per modello con le generazioni degli ultimi 30 giorni e i pulsanti Genera, Modifica, Duplica."),
                 ]),
                 ("p", "Sopra le schede, i pulsanti filtrano (per categoria, livello di rischio, norma…) e cambiano l'ordine. "
@@ -251,6 +251,41 @@ GUIDA = {
                       "Spenta: ogni modulo torna alla regola di prima (area → reparto; per i permessi, la gerarchia dei ruoli)."),
                 ("nota", "Prima di accenderla guarda i filtri «Il capo cambia» e «Senza capo»: chi resta senza capo non ha "
                          "nessuno che gli approvi le assenze."),
+            ],
+        },
+        {
+            "id": "struttura-mansionario",
+            "titolo": "Struttura ruoli → mansioni → competenze: editor, Excel e ruoli in blocco",
+            "blocchi": [
+                ("p", "Mansionario → «Struttura e import» (amministratori dell'anagrafica) mostra ogni ruolo con le sue "
+                      "mansioni. Clic su una mansione: si apre l'editor con nome, ruoli, mansioni di rischio, reparto (solo "
+                      "per i processi; per le macchine vale quello della macchina), «Mansione attiva» e la tabella delle "
+                      "competenze (livello minimo I/L/U/O, bloccante, corso, qualifica, abilitazione MOD.128, ordine). Le "
+                      "righe vuote in fondo aggiungono competenze, «Togli» le spegne. «Salva la mansione» registra tutto "
+                      "insieme: se una riga è sbagliata non si salva niente e il messaggio dice quale. «Nuova mansione "
+                      "(processo)» crea un processo; le macchine nascono dalla skill matrix."),
+                ("passi", [
+                    "«Scarica Excel»: fogli Ruoli, Mansioni e Competenze con i dati di oggi, più le istruzioni.",
+                    "Correggi o completa il file. Cella vuota = il dato non cambia; NO in «Attiva»/«Attivo» spegne. "
+                    "Più ruoli o rischi nella stessa cella si separano con ; e sostituiscono l'elenco di oggi.",
+                    "Caricalo in «Importa ed esporta in Excel» e premi «Prova»: vedi per foglio le righe nuove, "
+                    "modificate, invariate e scartate con il motivo. Non si salva niente.",
+                    "«Applica» registra le righe buone; quelle scartate si correggono nel file e si ricaricano.",
+                ]),
+                ("p", "L'import non cancella mai e non crea mansioni di rischio, reparti, ambiti, corsi, qualifiche, "
+                      "processi MOD.128 o macchine: un nome che non esiste è un errore della riga. La colonna «Chiave» "
+                      "identifica la mansione; una riga senza chiave si abbina per nome, e un nome nuovo crea un processo. "
+                      "Un «Riporta a» che creerebbe un giro nella gerarchia non si applica e compare negli avvisi. Una "
+                      "competenza tolta e poi riaggiunta con lo stesso nome riprende i livelli già registrati."),
+                ("p", "Ruoli → «Cambio ruoli in blocco»: filtra le persone (reparto, ruolo che hanno, nome), spuntale e "
+                      "scegli: «Aggiungi il ruolo» (si somma; diventa principale solo se la persona non ne ha uno), "
+                      "«Sostituisci il ruolo principale» (registra uno spostamento con la data: il ruolo di prima si chiude "
+                      "il giorno precedente, reparto e mansione restano) o «Chiudi il ruolo» (la data è l'ultimo giorno, "
+                      "di oggi o passata; se era il principale subentra il primo ruolo rimasto). «Anteprima» mostra cosa "
+                      "succede a ciascuno senza salvare; «Registra» lo fa, al massimo 300 persone alla volta. Ogni "
+                      "operazione va nel registro attività."),
+                ("nota", "Un ruolo di un altro organigramma (per esempio ISO 45001) non diventa il ruolo principale: "
+                         "si aggiunge con «Aggiungi il ruolo»."),
             ],
         },
         {

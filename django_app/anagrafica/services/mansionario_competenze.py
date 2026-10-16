@@ -79,6 +79,11 @@ def salva_competenza(mansione: CompetenzaSkm, *, voce: VoceMacchinaCatalogo | No
     if doppione.exists():
         raise ValueError(f"La mansione ha già la competenza «{nome}».")
     if voce is None:
+        # Una competenza tolta in passato con lo stesso nome si riattiva: una voce
+        # nuova lascerebbe orfani i livelli già registrati sulla vecchia.
+        voce = (VoceMacchinaCatalogo.objects.filter(mansione=mansione, attiva=False, nome__iexact=nome)
+                .order_by("pk").first())
+    if voce is None:
         voce = VoceMacchinaCatalogo(mansione=mansione, codice=_codice(mansione, nome))
     voce.nome = nome
     voce.livello_minimo = livello_minimo
@@ -135,6 +140,65 @@ def _requisito_mancante(voce: VoceMacchinaCatalogo, legacy_id: int, oggi) -> str
     return ""
 
 
+class Requisiti:
+    """Requisiti formali precaricati per un gruppo di persone e competenze.
+
+    Stesse regole di ``_requisito_mancante`` con tre query in tutto invece di
+    fino a tre per persona e competenza: le pagine che valutano molte persone
+    (home del Mansionario, lacune, scheda della mansione) restano veloci anche
+    con l'intero organico in lista.
+    """
+
+    def __init__(self, legacy_ids, voci, *, oggi=None):
+        from ..models import DipendenteQualifica, TrainingDeadline
+        from ..models_mpq import AbilitazioneProcesso
+        from .skillmatrix_qualifica import _STATI_VALIDI
+
+        self.oggi = oggi or timezone.localdate()
+        ids = {int(i) for i in legacy_ids if i}
+        voci = list(voci)
+        corsi = {v.corso_id for v in voci if v.corso_id}
+        qualifiche = {v.qualifica_id for v in voci if v.qualifica_id}
+        processi = {v.processo_mpq_id for v in voci if v.processo_mpq_id}
+        self.corsi_ok = set()
+        self.qualifiche_ok = set()
+        self.mpq_ok = set()
+        if not ids:
+            return
+        if corsi:
+            self.corsi_ok = {
+                (lid, cid) for lid, cid, stato in TrainingDeadline.objects.filter(
+                    legacy_anagrafica_id__in=ids, corso_id__in=corsi,
+                ).values_list("legacy_anagrafica_id", "corso_id", "stato_scadenza")
+                if stato in _STATI_VALIDI
+            }
+        if qualifiche:
+            self.qualifiche_ok = {
+                (lid, tid) for lid, tid, scad in DipendenteQualifica.objects.filter(
+                    legacy_anagrafica_id__in=ids, tipo_id__in=qualifiche,
+                ).values_list("legacy_anagrafica_id", "tipo_id", "data_scadenza")
+                if scad is None or scad >= self.oggi
+            }
+        if processi:
+            self.mpq_ok = set(AbilitazioneProcesso.objects.filter(
+                legacy_anagrafica_id__in=ids, processo_id__in=processi, stato=AbilitazioneProcesso.STATO_ATTIVA,
+            ).values_list("legacy_anagrafica_id", "processo_id"))
+
+    def mancante(self, voce: VoceMacchinaCatalogo, legacy_id: int) -> str:
+        from ..models_mpq import ProcessoQualificato
+
+        if voce.corso_id and (legacy_id, voce.corso_id) not in self.corsi_ok:
+            return f"corso «{voce.corso.titolo}»"
+        if voce.qualifica_id and (legacy_id, voce.qualifica_id) not in self.qualifiche_ok:
+            return f"qualifica «{voce.qualifica.nome}»"
+        if voce.processo_mpq_id:
+            p = voce.processo_mpq
+            processo_ok = p.stato == ProcessoQualificato.STATO_ATTIVO and (p.data_scadenza is None or p.data_scadenza >= self.oggi)
+            if not (processo_ok and (legacy_id, p.pk) in self.mpq_ok):
+                return f"abilitazione MOD.128 «{p.nome}»"
+        return ""
+
+
 @dataclass
 class Valutazione:
     esito: str
@@ -147,7 +211,8 @@ class Valutazione:
         return ESITI_LABEL[self.esito]
 
 
-def valuta(abilitazione: AbilitazioneMacchina, *, voci=None, config=None, oggi=None) -> Valutazione:
+def valuta(abilitazione: AbilitazioneMacchina, *, voci=None, config=None, oggi=None,
+           requisiti: Requisiti | None = None) -> Valutazione:
     config = config or SkillMatrixConfig.get_instance()
     oggi = oggi or timezone.localdate()
     soglia = config.soglia_operativa_ordinale
@@ -161,7 +226,8 @@ def valuta(abilitazione: AbilitazioneMacchina, *, voci=None, config=None, oggi=N
     non_abilitato = False
     for v in voci:
         lv = livelli.get(v.pk, "")
-        requisito = _requisito_mancante(v, abilitazione.legacy_anagrafica_id, oggi)
+        requisito = (requisiti.mancante(v, abilitazione.legacy_anagrafica_id) if requisiti is not None
+                     else _requisito_mancante(v, abilitazione.legacy_anagrafica_id, oggi))
         if requisito:
             # Senza requisito formale la competenza non supera «I – in formazione».
             lv = "I" if lv else ""
@@ -223,9 +289,14 @@ def scheda_persona(legacy_id: int) -> dict:
         .prefetch_related("voci", "competenza__mansioni_rischio", "competenza__ruoli")
     )
     config = SkillMatrixConfig.get_instance()
+    voci_per_mansione: dict[int, list] = {}
+    for v in VoceMacchinaCatalogo.objects.filter(mansione_id__in={a.competenza_id for a in abil}, attiva=True) \
+            .select_related("corso", "qualifica", "processo_mpq").order_by("ordine", "pk"):
+        voci_per_mansione.setdefault(v.mansione_id, []).append(v)
+    requisiti = Requisiti([legacy_id], [v for vs in voci_per_mansione.values() for v in vs])
     righe, rischi = [], {}
     for a in abil:
-        val = valuta(a, config=config)
+        val = valuta(a, voci=voci_per_mansione.get(a.competenza_id, []), config=config, requisiti=requisiti)
         righe.append({"abilitazione": a, "mansione": a.competenza, "valutazione": val})
         for m in a.competenza.mansioni_rischio.all():
             rischi.setdefault(m.pk, {"mansione": m, "da": []})["da"].append(a.competenza.nome)
@@ -253,9 +324,11 @@ def lacune() -> list[dict]:
         voci_per_mansione.setdefault(v.mansione_id, []).append(v)
     nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
             for r in fetch_anagrafica_rows(ids=list({a.legacy_anagrafica_id for a in abil}))} if abil else {}
+    requisiti = Requisiti({a.legacy_anagrafica_id for a in abil},
+                          [v for vs in voci_per_mansione.values() for v in vs])
     out = []
     for a in abil:
-        val = valuta(a, voci=voci_per_mansione.get(a.competenza_id, []), config=config)
+        val = valuta(a, voci=voci_per_mansione.get(a.competenza_id, []), config=config, requisiti=requisiti)
         if val.esito == ABILITATO:
             continue
         out.append({"legacy_id": a.legacy_anagrafica_id, "nome": nomi.get(a.legacy_anagrafica_id, f"#{a.legacy_anagrafica_id}"),

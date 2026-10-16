@@ -127,12 +127,25 @@ def assegna(mansione: CompetenzaSkm, *, legacy_anagrafica_id: int, livello: str,
     livello = (livello or "").strip().upper()
     if livello not in LIVELLI:
         raise ValueError(f"Livello non valido: {livello!r}")
+    from django.db import IntegrityError
+
     oggi = timezone.localdate()
     chiave = {"asset_id": mansione.asset_id} if mansione.asset_id else {"competenza": mansione}
-    ab = AbilitazioneMacchina.objects.filter(legacy_anagrafica_id=legacy_anagrafica_id, **chiave).first()
+    righe = AbilitazioneMacchina.objects.select_for_update().filter(legacy_anagrafica_id=legacy_anagrafica_id, **chiave)
+    ab = righe.first()
     if ab is None:
-        ab = AbilitazioneMacchina(legacy_anagrafica_id=legacy_anagrafica_id, asset_id=mansione.asset_id,
-                                  competenza=mansione, data_assegnazione=oggi)
+        # Doppio invio dello stesso form: chi arriva secondo trova la riga creata
+        # dal primo (indice unico persona+mansione) e la aggiorna invece di dare errore.
+        try:
+            with transaction.atomic():
+                ab = AbilitazioneMacchina.objects.create(
+                    legacy_anagrafica_id=legacy_anagrafica_id, asset_id=mansione.asset_id,
+                    competenza=mansione, data_assegnazione=oggi, livello=livello,
+                )
+        except IntegrityError:
+            ab = righe.first()
+            if ab is None:
+                raise
     ab.competenza = mansione
     ab.livello = livello
     ab.in_lista = True
@@ -151,6 +164,8 @@ def assegna(mansione: CompetenzaSkm, *, legacy_anagrafica_id: int, livello: str,
 @transaction.atomic
 def togli(abilitazione: AbilitazioneMacchina) -> None:
     """Toglie la persona dalla lista della mansione (la riga resta, con lo storico)."""
+    if not abilitazione.in_lista:
+        return  # già fuori lista (doppio clic): nessuno scatto doppio nello storico
     abilitazione.in_lista = False
     abilitazione.save(update_fields=["in_lista", "updated_at"])
     AbilitazioneMacchinaStorico.objects.create(
@@ -158,6 +173,80 @@ def togli(abilitazione: AbilitazioneMacchina) -> None:
         competenza_id=abilitazione.competenza_id, livello="", data_rilevazione=timezone.localdate(),
         fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE, note="Mansionario: tolto dalla lista",
     )
+
+
+def chiave_nuova(nome: str) -> str:
+    """Chiave univoca per una mansione nata nel portale (non dal foglio MOD.187)."""
+    import re
+
+    base = "MANS-" + re.sub(r"[^0-9A-Z]+", "-", (nome or "").upper()).strip("-")[:100]
+    chiave, n = base, 2
+    while CompetenzaSkm.objects.filter(competenza_key=chiave).exists():
+        chiave, n = f"{base}-{n}", n + 1
+    return chiave
+
+
+@transaction.atomic
+def crea_processo(nome: str, *, reparto_id=None, ruoli_ids=()) -> CompetenzaSkm:
+    """Mansione nuova di tipo processo (le macchine nascono dalla skill matrix)."""
+    from ..models import Reparto, RuoloOperativo
+
+    nome = (nome or "").strip()[:255]
+    if not nome:
+        raise ValueError("Scrivi il nome della mansione.")
+    if CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, display__iexact=nome).exists():
+        raise ValueError(f"Esiste già una mansione «{nome}».")
+    mansione = CompetenzaSkm.objects.create(
+        competenza_key=chiave_nuova(nome), display=nome, tipo=CompetenzaSkm.TIPO_PROCESSO,
+        reparto=Reparto.objects.filter(pk=reparto_id, is_active=True).first() if reparto_id else None,
+    )
+    mansione.ruoli.set(RuoloOperativo.objects.filter(pk__in=list(ruoli_ids), is_active=True))
+    return mansione
+
+
+@transaction.atomic
+def salva_editor(mansione: CompetenzaSkm, *, nome: str, ruoli_ids, rischi_ids, reparto_id, attiva: bool,
+                 righe: list[dict]) -> dict:
+    """Configurazione e competenze di una mansione in un colpo solo (editor della struttura).
+
+    ``righe``: una per competenza, ``{"id", "nome", "livello_minimo", "bloccante",
+    "corso_id", "qualifica_id", "processo_id", "ordine", "togli"}``; ``id`` vuoto =
+    competenza nuova (si salta se anche il nome è vuoto). Tutto o niente: al primo
+    errore si annulla e si solleva ``ValueError`` con il numero della riga.
+    """
+    from ..models import VoceMacchinaCatalogo
+    from .mansionario_competenze import salva_competenza
+
+    salva_configurazione(mansione, ruoli_ids=ruoli_ids, rischi_ids=rischi_ids, reparto_id=reparto_id,
+                         attiva=attiva)
+    nome = (nome or "").strip()[:255]
+    if nome and nome != mansione.nome:
+        mansione.display = nome
+        mansione.save(update_fields=["display", "updated_at"])
+    conta = {"salvate": 0, "nuove": 0, "tolte": 0}
+    voci = {v.pk: v for v in VoceMacchinaCatalogo.objects.filter(mansione=mansione)}
+    for i, r in enumerate(righe, 1):
+        voce = voci.get(r.get("id")) if r.get("id") else None
+        if r.get("id") and voce is None:
+            raise ValueError(f"Riga {i}: la competenza non appartiene a questa mansione.")
+        if voce is not None and r.get("togli"):
+            if voce.attiva:
+                voce.attiva = False
+                voce.save(update_fields=["attiva"])
+                conta["tolte"] += 1
+            continue
+        if voce is None and not (r.get("nome") or "").strip():
+            continue
+        try:
+            salva_competenza(
+                mansione, voce=voce, nome=r.get("nome"), livello_minimo=(r.get("livello_minimo") or "U").upper(),
+                bloccante=bool(r.get("bloccante")), corso_id=r.get("corso_id"), qualifica_id=r.get("qualifica_id"),
+                processo_id=r.get("processo_id"), ordine=r.get("ordine") or 0,
+            )
+        except ValueError as exc:
+            raise ValueError(f"Riga {i}: {exc}") from exc
+        conta["nuove" if voce is None else "salvate"] += 1
+    return conta
 
 
 def reparto_principale(legacy_anagrafica_id: int) -> str:
