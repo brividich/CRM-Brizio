@@ -298,3 +298,35 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .lg-tabs a .muted{font-weight:400;font-size:12px}
 .contatori-module .lg-bulk{gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 .contatori-module .lg-azioni{white-space:nowrap}
+/* Responsive: barra del modulo che va a capo su mobile, piu' spazio sugli schermi grandi. */
+.contatori-module .cnav-gruppo{flex-wrap:wrap;min-width:0}
+@media(max-width:760px){
+  .contatori-module .cnav{gap:2px 4px}
+  .contatori-module .cnav a{padding:7px 9px}
+  .contatori-module .row>.actions{width:100%;margin-bottom:14px}
+  .contatori-module .lg-tabs a{padding:8px 10px;font-size:13px}
+  .contatori-module .lg-tabs a .muted{display:none}
+}
+@media(max-width:640px){
+  .contatori-module .lg-tabella thead{display:none}
+  .contatori-module .lg-tabella,.contatori-module .lg-tabella tbody{display:block;width:100%}
+  .contatori-module .lg-tabella tr{display:grid;grid-template-columns:28px 1fr auto;gap:2px 10px;padding:12px 10px;border-bottom:1px solid var(--cm-border)}
+  .contatori-module .lg-tabella td{display:block;padding:0;border:0;text-align:left}
+  .contatori-module .lg-tabella td.lg-sel{grid-row:1/span 2}
+  .contatori-module .lg-tabella td.lg-mfc{grid-column:2}
+  .contatori-module .lg-tabella td.lg-periodo{grid-column:3;text-align:right}
+  .contatori-module .lg-tabella td.lg-azioni{grid-column:3;grid-row:2;text-align:right}
+  .contatori-module .lg-tabella td[data-label]{grid-column:2/-1;display:flex;justify-content:space-between;gap:12px;font-size:13px}
+  .contatori-module .lg-tabella td[data-label]::before{content:attr(data-label);color:var(--cm-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .contatori-module .lg-tabella td.lg-data{margin-top:6px}
+  .contatori-module .lg-tabella td.lg-controllo .pill{white-space:normal;text-align:right}
+  .contatori-module .lg-tabella td.empty{grid-column:1/-1}
+  .contatori-module .lg-tabella tr.riga-calo{background:color-mix(in srgb,var(--cm-danger) 9%,transparent)}
+  .contatori-module .lg-tabella tr.riga-calo td{background:transparent}
+}
+@media(min-width:1800px){.content:has(>.contatori-module){width:min(100%,2280px)}.contatori-module{max-width:min(2200px,100%)}}
+/* KPI Centrale: 8 riquadri senza «orfani» (Stato flotta largo il doppio). */
+.contatori-module .centrale-kpi{grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,2.2fr) repeat(4,minmax(0,1fr))}
+.contatori-module .kpi-flotta{grid-column:auto}
+@media(max-width:1599px){.contatori-module .centrale-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:span 2}}
+@media(max-width:640px){.contatori-module .centrale-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:1/-1}.contatori-module .centrale-kpi{grid-auto-flow:row dense}.contatori-module .centrale-kpi>:last-child{grid-column:1/-1}}

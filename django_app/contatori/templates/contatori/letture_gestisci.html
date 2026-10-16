@@ -21,18 +21,18 @@
 <input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="next" value="{{ qui }}">
 <section class="panel">
   <div class="row lg-bulk"><strong>{{ righe|length }} lettur{{ righe|length|pluralize:"a,e" }}</strong>{% if con_cali %} <span class="pill danger">{{ con_cali }} con calo</span>{% endif %}<div class="spacer"></div><span class="muted" id="lg-sel">0 selezionate</span><button class="btn ghost danger" type="submit" id="lg-elimina" disabled>Elimina selezionate</button></div>
-  <div class="table-wrap"><table data-fm-table-skip="1">
+  <div class="table-wrap"><table class="lg-tabella" data-fm-table-skip="1">
     <thead><tr><th><input type="checkbox" id="lg-tutte" aria-label="Seleziona tutte"></th><th>MFC</th><th>{% if tipo == 'mensili' %}Mese{% else %}Trimestre{% endif %}</th><th>{% if tipo == 'mensili' %}Rilevata il{% else %}Data{% endif %}</th>
       <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th>{% if tipo == 'trimestrali' %}<th>Fonte</th>{% endif %}<th>Controllo</th><th></th></tr></thead>
     <tbody>{% for r in righe %}{% with l=r.lettura %}<tr{% if r.cali %} class="riga-calo"{% endif %}>
-      <td><input type="checkbox" name="lettura" value="{{ l.pk }}" aria-label="Seleziona {{ r.macchina.reparto }} {{ r.periodo }}"></td>
-      <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.matricola }}</div></td>
-      <td><strong>{{ r.periodo }}</strong></td>
-      <td>{% if tipo == 'mensili' %}{{ l.rilevata_il|date:"d/m/Y H:i" }}{% else %}{{ l.data|date:"d/m/Y" }}{% endif %}</td>
-      <td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
-      <td class="num"><strong>{{ l.totale }}</strong></td>
-      {% if tipo == 'trimestrali' %}<td><span class="pill {% if l.fonte == 'SNMP' %}ok{% elif l.fonte == 'FATTURA' %}warn{% endif %}">{{ l.get_fonte_display }}</span></td>{% endif %}
-      <td>{% if r.cali %}<span class="pill danger" title="Più basso della lettura precedente della stessa MFC">calo {{ r.cali|join:", " }}</span>{% else %}<span class="muted">ok</span>{% endif %}</td>
+      <td class="lg-sel"><input type="checkbox" name="lettura" value="{{ l.pk }}" aria-label="Seleziona {{ r.macchina.reparto }} {{ r.periodo }}"></td>
+      <td class="lg-mfc"><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.matricola }}</div></td>
+      <td class="lg-periodo"><strong>{{ r.periodo }}</strong></td>
+      <td class="lg-data" data-label="{% if tipo == 'mensili' %}Rilevata il{% else %}Data{% endif %}">{% if tipo == 'mensili' %}{{ l.rilevata_il|date:"d/m/Y H:i" }}{% else %}{{ l.data|date:"d/m/Y" }}{% endif %}</td>
+      <td class="num" data-label="A4 BN">{{ l.a4_bn }}</td><td class="num" data-label="A3 BN">{{ l.a3_bn }}</td><td class="num" data-label="A4 COL">{{ l.a4_col }}</td><td class="num" data-label="A3 COL">{{ l.a3_col }}</td>
+      <td class="num" data-label="Totale"><strong>{{ l.totale }}</strong></td>
+      {% if tipo == 'trimestrali' %}<td data-label="Fonte"><span class="pill {% if l.fonte == 'SNMP' %}ok{% elif l.fonte == 'FATTURA' %}warn{% endif %}">{{ l.get_fonte_display }}</span></td>{% endif %}
+      <td class="lg-controllo" data-label="Controllo">{% if r.cali %}<span class="pill danger" title="Più basso della lettura precedente della stessa MFC">calo {{ r.cali|join:", " }}</span>{% else %}<span class="muted">ok</span>{% endif %}</td>
       <td class="lg-azioni"><a class="plain" href="{% if tipo == 'mensili' %}{% url 'contatori:lettura_mensile_edit' l.pk %}{% else %}{% url 'contatori:lettura_edit' l.pk %}{% endif %}?next={{ qui|urlencode }}">Modifica</a></td>
     </tr>{% endwith %}{% empty %}<tr><td colspan="12" class="empty">Nessuna lettura{% if macchina_id or anno or solo_cali %} con questi filtri{% endif %}.</td></tr>{% endfor %}</tbody>
   </table></div>
