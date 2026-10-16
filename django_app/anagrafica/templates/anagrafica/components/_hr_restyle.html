@@ -6,7 +6,32 @@
    Incluso inline (pattern del modulo anagrafica) per non dipendere da collectstatic.
    ========================================================================== */
 
-#ana-root, .hr-shell { --hr-navy:#0c2545; --hr-navy-dark:#08142d; --hr-blue:#1f87cd; }
+/* ── Design token HR (unica fonte di colori del modulo) ──────────────────────
+   Palette realmente in uso: navy #0c2545 / blu #1f87cd + scala slate. I componenti
+   nuovi (pill, header, stato vuoto) leggono SOLO questi token; il tema scuro li
+   ridefinisce una volta sola qui sotto. Componenti: anagrafica/components/hr_pill.html,
+   hr_pagehead.html, hr_empty.html. */
+:root {
+  --hr-navy:#0c2545; --hr-navy-dark:#08142d; --hr-blue:#1f87cd;
+  --hr-surface:#fff; --hr-surface-alt:#f8fafc; --hr-border:#e2e8f0; --hr-border-soft:#f1f5f9;
+  --hr-text:#0f172a; --hr-text-mid:#334155; --hr-muted:#64748b; --hr-faint:#94a3b8;
+  --hr-title:#0c2545; --hr-radius:16px; --hr-radius-sm:11px;
+  --hr-ok-bg:#ecfdf5; --hr-ok-fg:#047857; --hr-ok-bd:#a7f3d0;
+  --hr-warn-bg:#fffbeb; --hr-warn-fg:#b45309; --hr-warn-bd:#fde68a;
+  --hr-ko-bg:#fef2f2; --hr-ko-fg:#b91c1c; --hr-ko-bd:#fecaca;
+  --hr-info-bg:#eff6ff; --hr-info-fg:#1f87cd; --hr-info-bd:#bfdbfe;
+  --hr-na-bg:#f1f5f9; --hr-na-fg:#334155; --hr-na-bd:#e2e8f0;
+}
+body.theme-dark {
+  --hr-surface:var(--surface); --hr-surface-alt:var(--surface-alt); --hr-border:var(--border); --hr-border-soft:var(--border);
+  --hr-text:var(--text); --hr-text-mid:var(--text-mid); --hr-muted:var(--text-light); --hr-faint:var(--text-light);
+  --hr-title:#93c5fd;
+  --hr-ok-bg:rgba(22,101,52,.25); --hr-ok-fg:#86efac; --hr-ok-bd:rgba(134,239,172,.3);
+  --hr-warn-bg:rgba(133,77,14,.25); --hr-warn-fg:#fde68a; --hr-warn-bd:rgba(253,230,138,.3);
+  --hr-ko-bg:rgba(153,27,27,.3); --hr-ko-fg:#fca5a5; --hr-ko-bd:rgba(252,165,165,.3);
+  --hr-info-bg:rgba(31,135,205,.18); --hr-info-fg:#93c5fd; --hr-info-bd:rgba(147,197,253,.3);
+  --hr-na-bg:rgba(100,116,139,.25); --hr-na-fg:#cbd5e1; --hr-na-bd:rgba(203,213,225,.25);
+}
 .hr-shell, #ana-root { font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 /* ── Shell pagina ────────────────────────────────────────────────────────── */
@@ -96,11 +121,13 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
   display:inline-flex; align-items:center; border-radius:999px; border:1px solid;
   padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap;
 }
-.hr-pill.neutral { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
-.hr-pill.ok      { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
-.hr-pill.warning { background:#fffbeb; color:#b45309; border-color:#fde68a; }
-.hr-pill.danger  { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
-.hr-pill.blue    { background:#eff6ff; color:#1f87cd; border-color:#bfdbfe; }
+.hr-pill.neutral { background:var(--hr-na-bg); color:var(--hr-na-fg); border-color:var(--hr-na-bd); }
+.hr-pill.ok      { background:var(--hr-ok-bg); color:var(--hr-ok-fg); border-color:var(--hr-ok-bd); }
+.hr-pill.warning { background:var(--hr-warn-bg); color:var(--hr-warn-fg); border-color:var(--hr-warn-bd); }
+.hr-pill.danger  { background:var(--hr-ko-bg); color:var(--hr-ko-fg); border-color:var(--hr-ko-bd); }
+.hr-pill.blue    { background:var(--hr-info-bg); color:var(--hr-info-fg); border-color:var(--hr-info-bd); }
+.hr-pill-dot::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; margin-right:6px; }
+a.hr-pill { text-decoration:none; }
 
 /* ── Progress ────────────────────────────────────────────────────────────── */
 .hr-progress { height:6px; border-radius:999px; background:#f1f5f9; overflow:hidden; }
@@ -180,7 +207,13 @@ th.st-th { cursor:default; }
 .hr-infocell-muted { font-size:12px; color:#64748b; }
 
 /* ── Stato vuoto / placeholder ───────────────────────────────────────────── */
-.hr-empty { padding:30px; text-align:center; color:#94a3b8; font-size:13px; }
+.hr-empty { padding:30px; text-align:center; color:var(--hr-faint); font-size:13px; }
+.hr-empty-ico { font-size:26px; line-height:1; margin-bottom:8px; }
+.hr-empty-title { font-size:14px; font-weight:800; color:var(--hr-text-mid); }
+.hr-empty-text { margin:4px auto 0; max-width:52ch; color:var(--hr-muted); }
+.hr-empty-actions { margin-top:12px; }
+.hr-pagehead-main { min-width:0; }
+.hr-pagehead-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .hr-soon {
   border:1px dashed #cbd5e1; border-radius:14px; background:#f8fafc;
   padding:22px; text-align:center; color:#64748b;

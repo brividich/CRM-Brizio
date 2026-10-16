@@ -246,8 +246,7 @@
       <p class="hr-pagehead-desc">Una tessera per posizione (persona + ruolo), disegnata ad albero: il genitore sta al centro e i riporti si affiancano sotto. La gerarchia resta tra ruoli, e gli ex dipendenti non occupano posizioni. Clicca una tessera per la scheda sintetica della persona; la tela si trascina, si zooma, va a schermo intero e si stampa.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_albero' %}">⌸ Vista ad albero</a>
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma' %}">▦ Vista griglia</a>
+      {% include "anagrafica/components/organigramma_viste.html" with attiva="diagramma" %}
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>
   </div>

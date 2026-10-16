@@ -343,3 +343,14 @@ def run_integrita_sicurezza() -> dict:
     except Exception:
         logger.exception("run_integrita_sicurezza: eccezione inattesa")
         raise
+
+
+def run_report_retention() -> dict:
+    """Report settimanale di retention GDPR in monitoring: solo conteggi, nessuna cancellazione."""
+    from anagrafica.services.retention import pubblica_in_monitoring, report_retention
+
+    try:
+        return pubblica_in_monitoring(report_retention())
+    except Exception:
+        logger.exception("run_report_retention: eccezione inattesa")
+        raise

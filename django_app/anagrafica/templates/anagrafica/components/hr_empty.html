@@ -1,0 +1,9 @@
+{% comment %}
+Stato vuoto unico del modulo HR. Parametri: icon, title, text, cta_url, cta_label.
+Uso: {% include "anagrafica/components/hr_empty.html" with icon="📭" title="Nessuna visita" text="..." %}
+{% endcomment %}<div class="hr-empty">
+  {% if icon %}<div class="hr-empty-ico" aria-hidden="true">{{ icon }}</div>{% endif %}
+  {% if title %}<div class="hr-empty-title">{{ title }}</div>{% endif %}
+  {% if text %}<p class="hr-empty-text">{{ text }}</p>{% endif %}
+  {% if cta_url and cta_label %}<div class="hr-empty-actions"><a class="hr-btn hr-btn-outline hr-btn-sm" href="{{ cta_url }}">{{ cta_label }}</a></div>{% endif %}
+</div>
