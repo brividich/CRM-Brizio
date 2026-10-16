@@ -22,6 +22,10 @@
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     {% include "anagrafica/partials/_export_buttons.html" with export_key="ruoli_operativi" %}
+    {% if is_admin %}
+    <a class="ro-btn ro-btn-ghost" href="{% url 'anagrafica:ruoli_in_blocco' %}">Cambio ruoli in blocco</a>
+    <a class="ro-btn ro-btn-ghost" href="{% url 'anagrafica:mansionario_struttura' %}">Struttura ruoli → mansioni</a>
+    {% endif %}
     <a class="ro-btn ro-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
   </div>
 </div>

@@ -195,7 +195,7 @@ def mansionario_mansione(request, mansione_id: int):
             return _nega(request, "Non hai i permessi per modificare il Mansionario.")
         svc.salva_configurazione(
             mansione, ruoli_ids=_ids(request, "ruoli"), rischi_ids=_ids(request, "mansioni_rischio"),
-            reparto_id=(request.POST.get("reparto") or "").strip() or None,
+            reparto_id=_int_o_none(request.POST.get("reparto")),
             attiva=request.POST.get("attiva") == "on",
         )
         log_action(request, "mansionario_configurazione", MODULE, {
@@ -212,8 +212,9 @@ def mansionario_mansione(request, mansione_id: int):
 
     competenze = list(comp_svc.competenze(mansione))
     persone = svc.persone(mansione)
+    requisiti = comp_svc.Requisiti([p["legacy_id"] for p in persone], competenze)
     for p in persone:
-        val = comp_svc.valuta(p["abilitazione"], voci=competenze)
+        val = comp_svc.valuta(p["abilitazione"], voci=competenze, requisiti=requisiti)
         p["valutazione"] = val
         p["livello_label"] = LIVELLO_LABEL.get(p["livello"], "")
         # Nessun livello registrato sulle competenze: la cosa da fare è valutarla,

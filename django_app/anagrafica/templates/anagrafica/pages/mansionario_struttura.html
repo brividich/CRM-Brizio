@@ -1,0 +1,203 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Struttura del Mansionario | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=2">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">Struttura</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Struttura del Mansionario</h1>
+        <p class="fmd-ph-sub">Ruolo → mansioni → competenze in una pagina sola. Apri una mansione per cambiarne ruoli, rischi e competenze e salvare tutto insieme; per caricare molti dati usa il file Excel.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_struttura_export' %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica Excel</a>
+        <a class="fmd-btn fmd-btn-ghost" href="#importa"><svg class="fmd-ico"><use href="#i-plus"/></svg>Importa</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:ruoli_in_blocco' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Cambio ruoli in blocco</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-mansionario" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    <div class="mns-stats">
+      <div class="mns-stat"><b>{{ kpi.ruoli }}</b><span>ruoli con mansioni</span></div>
+      <div class="mns-stat"><b>{{ kpi.mansioni }}</b><span>mansioni attive</span></div>
+      <div class="mns-stat"><b>{{ kpi.competenze }}</b><span>competenze</span></div>
+      <div class="mns-stat{% if kpi.senza_competenze %} mns-mid{% endif %}"><b>{{ kpi.senza_competenze }}</b><span>mansioni senza competenze</span></div>
+      <div class="mns-stat{% if kpi.senza_ruolo %} mns-ko{% endif %}"><b>{{ kpi.senza_ruolo }}</b><span>mansioni senza ruolo</span></div>
+    </div>
+
+    {% if esito %}
+    <section class="fmd-panel fmd-block" id="esito-import" aria-label="Esito dell'importazione">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>{% if esito.applicato %}Importazione registrata{% else %}Anteprima dell'importazione{% endif %}</div>
+        <div class="fmd-block-aside">{{ nome_file }}</div>
+      </div>
+      {% if not esito.applicato %}<p class="mst-nota">È una prova: <strong>non è stato salvato niente</strong>. Controlla le righe e poi premi «Applica».</p>{% endif %}
+      <table class="fmd-table mst-conti">
+        <thead><tr><th>Foglio</th><th>Nuove</th><th>Modificate</th><th>Invariate</th><th>Scartate</th></tr></thead>
+        <tbody>
+        {% for foglio, c in esito_conteggi.items %}
+          <tr><td>{{ foglio }}</td><td>{{ c.nuovo }}</td><td>{{ c.modificato }}</td><td>{{ c.invariato }}</td><td>{% if c.errore %}<span class="fmd-c-ko">{{ c.errore }}</span>{% else %}0{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if esito.avvisi %}<ul class="mst-avvisi">{% for a in esito.avvisi %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+      <details class="mst-dett"{% if esito.errori %} open{% endif %}>
+        <summary>Righe del file ({{ esito_righe|length }})</summary>
+        <div class="mst-scroll">
+        <table class="fmd-table">
+          <thead><tr><th>Foglio</th><th>Riga</th><th>Voce</th><th>Esito</th><th>Dettaglio</th></tr></thead>
+          <tbody>
+          {% for r in esito_righe %}
+            <tr class="mst-r-{{ r.azione }}"><td>{{ r.foglio }}</td><td>{{ r.numero }}</td><td>{{ r.chiave }}</td><td><span class="mst-pill mst-p-{{ r.azione }}">{{ r.azione }}</span></td><td>{{ r.dettaglio }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </details>
+      {% if not esito.applicato %}
+        {% if esito.cambi %}
+        <form method="post" action="{% url 'anagrafica:mansionario_struttura_import' %}" class="mst-applica">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="applica">
+          <input type="hidden" name="sha" value="{{ sha }}">
+          <button type="submit" class="fmd-btn fmd-btn-navy">Applica {{ esito.cambi }} righe</button>
+          {% if esito.errori %}<span class="mst-nota">Le {{ esito.errori }} righe scartate non si registrano: correggile nel file e ricaricalo quando vuoi.</span>{% endif %}
+        </form>
+        {% else %}
+        <p class="mst-nota">Il file non cambia niente rispetto a oggi.</p>
+        {% endif %}
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="fmd-panel fmd-block mns-box" data-mst-box aria-label="Ruoli e mansioni">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli e mansioni</div>
+        <div class="fmd-block-aside">Clic su una mansione per modificarla qui</div>
+      </div>
+
+      <form method="post" action="{% url 'anagrafica:mansionario_struttura_nuova' %}" class="mst-nuova">
+        {% csrf_token %}
+        <strong>Nuova mansione (processo)</strong>
+        <input type="text" name="nome" placeholder="Nome della mansione" required maxlength="255" aria-label="Nome della nuova mansione">
+        <select name="ruoli" aria-label="Ruolo">
+          <option value="">— ruolo —</option>
+          {% for r in ruoli_opts %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}
+        </select>
+        <select name="reparto" aria-label="Reparto">
+          <option value="">— reparto —</option>
+          {% for r in reparti_opts %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Crea</button>
+        <span class="mst-nota">Le macchine nascono dalla skill matrix.</span>
+      </form>
+
+      <div class="mns-tools">
+        <label class="mns-search"><svg class="fmd-ico" aria-hidden="true"><use href="#i-search"/></svg>
+          <input type="search" placeholder="Cerca mansione o ruolo…" aria-label="Cerca nella struttura" data-mst-q autocomplete="off">
+        </label>
+        <div class="fmd-chips mns-tools-r">
+          <button type="button" class="fmd-chip" data-mst-espandi="1">Apri tutti i ruoli</button>
+          <button type="button" class="fmd-chip" data-mst-espandi="0">Chiudi tutti</button>
+        </div>
+      </div>
+
+      {% for g in gruppi %}
+      <details class="mns-gruppo{% if not g.ruolo %} mns-gruppo-warn{% endif %}"{% if g.mansioni %} open{% endif %} data-mst-gruppo data-q="{{ g.ruolo.nome|default:'senza ruolo'|lower }}">
+        <summary>
+          <span class="mns-gruppo-h">
+            <svg class="fmd-ico mns-chev" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+            <span class="mns-gruppo-nome">{% if g.ruolo %}{{ g.ruolo.nome }}{% else %}Da collegare a un ruolo{% endif %}</span>
+            <span class="fmd-count" data-mst-n>{{ g.mansioni|length }}</span>
+          </span>
+          {% if g.ruolo %}
+          <span class="mns-gruppo-meta">
+            {{ g.ruolo.ambito_label }}{% if g.ruolo.riporta_a_id %} · riporta a {{ g.ruolo.riporta_a.nome }}{% endif %}
+            <a class="mns-gruppo-link" href="{% url 'anagrafica:ruolo_operativo_edit' g.ruolo.pk %}">modifica ruolo →</a>
+          </span>
+          {% endif %}
+        </summary>
+        {% if not g.mansioni %}<p class="mst-vuoto">Nessuna mansione sotto questo ruolo.</p>{% endif %}
+        {% for m in g.mansioni %}
+        <details class="mst-m{% if not m.attiva %} mst-spenta{% endif %}" data-mansione="{{ m.pk }}" data-q="{{ m.nome|lower }} {{ m.reparto_effettivo|lower }}"
+                 hx-get="{% url 'anagrafica:mansionario_struttura_mansione' m.pk %}" hx-target="find .mst-body"
+                 hx-trigger="toggle once">
+          <summary>
+            <span class="mst-m-nome">{{ m.nome }}</span>
+            <span class="mst-m-meta">
+              {{ m.get_tipo_display }}{% if m.reparto_effettivo %} · {{ m.reparto_effettivo }}{% endif %}
+              · <span class="{% if not m.n_comp %}fmd-c-s30{% endif %}">{{ m.n_comp }} competenz{{ m.n_comp|pluralize:"a,e" }}</span>
+              · {{ m.n_persone }} in lista
+              {% if not m.mansioni_rischio.all %}· <span class="fmd-c-mai">senza rischio</span>{% endif %}
+              {% if not m.attiva %}· <strong>spenta</strong>{% endif %}
+            </span>
+          </summary>
+          <div class="mst-body"><p class="mst-nota">Caricamento…</p></div>
+        </details>
+        {% endfor %}
+      </details>
+      {% endfor %}
+      <div class="fmd-empty" data-mst-vuoto hidden><span class="fmd-et">Nessuna mansione corrisponde</span></div>
+    </section>
+
+    <section class="fmd-panel fmd-block" id="importa" aria-label="Importa ed esporta">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa ed esporta in Excel</div>
+      </div>
+      <ol class="mst-passi">
+        <li><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_struttura_export' %}">Scarica il file Excel</a>: fogli Ruoli, Mansioni e Competenze con i dati di oggi, più le istruzioni.</li>
+        <li>Correggi o completa il file. Cella vuota = il dato non cambia; per spegnere scrivi NO in «Attiva». L'import non cancella niente.</li>
+        <li>Caricalo qui e premi «Prova»: vedi riga per riga cosa cambierebbe, senza salvare. Poi «Applica».</li>
+      </ol>
+      <form method="post" action="{% url 'anagrafica:mansionario_struttura_import' %}" enctype="multipart/form-data" class="mst-import">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="prova">
+        <input type="file" name="file" accept=".xlsx" required aria-label="File Excel della struttura">
+        <button type="submit" class="fmd-btn fmd-btn-navy">Prova</button>
+        <span class="mst-nota">File .xlsx, al massimo 5 MB.</span>
+      </form>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var box=document.querySelector('[data-mst-box]');if(!box)return;
+  var q=box.querySelector('[data-mst-q]');
+  function filtra(){
+    var t=(q.value||'').trim().toLowerCase(),tot=0;
+    box.querySelectorAll('[data-mst-gruppo]').forEach(function(g){
+      var nomeRuolo=(g.dataset.q||''),n=0,ms=g.querySelectorAll('.mst-m');
+      ms.forEach(function(m){var ok=!t||nomeRuolo.indexOf(t)>=0||(m.dataset.q||'').indexOf(t)>=0;m.hidden=!ok;if(ok)n++;});
+      var mostra=!t||n>0||nomeRuolo.indexOf(t)>=0;g.hidden=!mostra;g.querySelector('[data-mst-n]').textContent=n;
+      if(t&&n)g.open=true;tot+=mostra?1:0;
+    });
+    box.querySelector('[data-mst-vuoto]').hidden=tot>0;
+  }
+  q.addEventListener('input',filtra);
+  box.addEventListener('click',function(e){
+    var b=e.target.closest('[data-mst-espandi]');if(!b)return;
+    var apri=b.dataset.mstEspandi==='1';box.querySelectorAll('[data-mst-gruppo]').forEach(function(g){g.open=apri;});
+  });
+  // ?apri=<id>: la mansione appena creata si apre già nell'editor.
+  var apri=new URLSearchParams(location.search).get('apri');
+  if(apri){var m=box.querySelector('.mst-m[data-mansione="'+apri+'"]');if(m){m.closest('[data-mst-gruppo]').open=true;m.open=true;m.scrollIntoView({block:'start'});}}
+})();
+</script>
+{% endblock %}
