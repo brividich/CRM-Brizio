@@ -1,0 +1,118 @@
+/* ============================================================
+   Mansionario (anagrafica) — elenco per ruolo e scheda mansione a tab.
+   Si appoggia ai token e ai componenti fmd- di formazione_design.css;
+   qui solo ciò che è proprio delle pagine del mansionario (prefisso mns-).
+   ============================================================ */
+
+/* ── Riquadri: quelli che filtrano sono <button> ── */
+.mns-kpi{ grid-template-columns:repeat(5,1fr); }
+.fmd button.fmd-mtr{ font:inherit; text-align:left; cursor:pointer; color:inherit; width:100%; transition:transform .12s, box-shadow .12s, border-color .12s; }
+.fmd button.fmd-mtr:hover{ border-color:#cfd9ea; box-shadow:0 6px 18px rgba(12,37,69,.08); }
+.fmd .fmd-mtr.mns-on{ border-color:var(--fmd-cyan); box-shadow:inset 0 0 0 1px var(--fmd-cyan), 0 6px 18px rgba(12,37,69,.08); }
+@media (max-width:1100px){ .mns-kpi{ grid-template-columns:repeat(3,1fr); } }
+@media (max-width:640px){ .mns-kpi{ grid-template-columns:1fr 1fr; } }
+
+/* ── Barra strumenti ── */
+.mns-tools{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+.mns-tools-r{ margin-left:auto; }
+.mns-search{ display:flex; align-items:center; gap:8px; flex:1 1 280px; max-width:420px; padding:0 12px; height:36px; border:1px solid var(--fmd-line); border-radius:8px; background:#fff; color:var(--fmd-muted); }
+.mns-search:focus-within{ border-color:var(--fmd-cyan); box-shadow:0 0 0 3px rgba(31,135,205,.14); }
+.mns-search input{ flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; font-size:13px; color:var(--fmd-ink); }
+.mns-filtro-attivo{ display:flex; align-items:center; gap:10px; margin:-4px 0 12px; padding:8px 12px; border-radius:8px; background:#e8f3fb; color:var(--fmd-navy); font-size:12.5px; font-weight:600; }
+.mns-box [hidden]{ display:none !important; }
+
+/* ── Gruppo del ruolo ── */
+.mns-gruppo{ border:1px solid var(--fmd-line); border-radius:11px; margin-bottom:12px; background:#fbfcfe; }
+.mns-gruppo[hidden]{ display:none; }
+.mns-gruppo > summary{ list-style:none; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:11px 14px; cursor:pointer; border-radius:11px; }
+.mns-gruppo > summary::-webkit-details-marker{ display:none; }
+.mns-gruppo > summary:hover{ background:#f3f7fb; }
+.mns-gruppo[open] > summary{ border-bottom:1px solid var(--fmd-line-soft); border-radius:11px 11px 0 0; }
+.mns-gruppo-h{ display:flex; align-items:center; gap:9px; min-width:0; }
+.mns-chev{ color:var(--fmd-muted); transition:transform .15s; }
+.mns-gruppo[open] .mns-chev{ transform:rotate(90deg); }
+.mns-gruppo-nome{ font-size:14px; font-weight:800; letter-spacing:.01em; color:var(--fmd-navy); }
+.mns-gruppo-meta{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--fmd-muted); }
+.mns-gruppo-link{ color:var(--fmd-cyan); font-weight:700; text-decoration:none; margin-left:4px; }
+.mns-gruppo-link:hover{ text-decoration:underline; }
+.mns-gruppo > .fmd-cgrid{ padding:14px; }
+.mns-gruppo-nota{ margin:12px 14px 0; font-size:12.5px; color:#9a3412; }
+.mns-gruppo-warn{ border-color:#f5c99b; background:#fffaf4; }
+.mns-gruppo-warn .mns-gruppo-nome{ color:#9a3412; }
+
+/* Sezioni collegate su più colonne */
+.mns-aree .fmd-arealist{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); column-gap:18px; }
+.mns-aree .fmd-arealist-i:last-child{ border-bottom:1px solid var(--fmd-line-soft); }
+
+/* ============================================================
+   Scheda della mansione
+   ============================================================ */
+.mns-head{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+.mns-facts{ display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:12px; }
+.mns-fact{ display:flex; flex-direction:column; gap:5px; min-width:0; }
+.mns-fact-l{ font-family:var(--fmd-mono); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--fmd-muted-2); }
+.mns-fact-v{ display:flex; flex-wrap:wrap; gap:5px; align-items:center; font-size:13px; }
+.mns-fact-v a.fmd-badge{ text-decoration:none; }
+.mns-warn-txt{ color:#c2410c; font-weight:600; font-size:12.5px; }
+
+.mns-stats{ display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+.mns-stat{ display:flex; align-items:baseline; gap:8px; padding:10px 14px; border:1px solid var(--fmd-line); border-radius:10px; background:#fff; min-width:130px; }
+.mns-stat b{ font-size:22px; font-weight:800; line-height:1; color:var(--fmd-navy); }
+.mns-stat span{ font-size:12px; color:var(--fmd-muted); }
+.mns-stat.mns-ok b{ color:#1f7a52; } .mns-stat.mns-ko b{ color:#c53030; } .mns-stat.mns-mid b{ color:#c2410c; }
+
+/* Tab */
+.mns-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--fmd-line); margin-bottom:16px; overflow-x:auto; }
+.mns-tab{ display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border:0; border-bottom:2px solid transparent; margin-bottom:-1px; background:transparent; font:inherit; font-size:13.5px; font-weight:700; color:var(--fmd-muted); cursor:pointer; text-decoration:none; white-space:nowrap; }
+.mns-tab:hover{ color:var(--fmd-navy); }
+.mns-tab[aria-selected="true"]{ color:var(--fmd-navy); border-bottom-color:var(--fmd-cyan); }
+.mns-tab .fmd-count{ margin:0; }
+.mns-js .mns-pane{ display:none; }
+.mns-js .mns-pane.mns-pane-on{ display:block; }
+
+/* Aggiunta persona */
+.mns-add{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; padding:12px 14px; margin-bottom:14px; border:1px dashed #cfd9ea; border-radius:10px; background:#fbfcfe; }
+.mns-add .fm-form-field{ margin:0; }
+.mns-add-title{ width:100%; font-size:12.5px; font-weight:700; color:var(--fmd-navy); display:flex; align-items:center; gap:6px; }
+
+/* Livello come pastiglia con etichetta */
+.mns-lv{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--fmd-muted); white-space:nowrap; }
+.mns-lv b{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; font-size:12px; font-weight:800; color:#fff; background:#9aa8bb; }
+.mns-lv-O b, .mns-lv-U b{ background:#2f9e6b; } .mns-lv-L b{ background:#d6a516; }
+.mns-manca{ font-size:12.5px; color:var(--fmd-ink); }
+.mns-manca ul{ margin:0; padding-left:16px; }
+.mns-manca li{ margin:1px 0; }
+.mns-manca .fmd-muted{ font-size:12px; }
+.mns-actions{ display:inline-flex; gap:6px; justify-content:flex-end; }
+.mns-actions form{ margin:0; }
+
+/* Competenze: modifica in riga */
+.mns-edit-row td{ background:#fbfcfe; }
+.mns-edit-row[hidden]{ display:none; }
+.mns-form-inline{ display:grid; grid-template-columns:2fr 160px auto 1.4fr 1.4fr 1.4fr; gap:10px; align-items:end; }
+.mns-form-inline .fm-form-field{ margin:0; }
+.mns-check{ display:flex; gap:7px; align-items:center; padding-bottom:10px; font-size:13px; }
+@media (max-width:1100px){ .mns-form-inline{ grid-template-columns:1fr 1fr; } }
+
+/* ── Tema scuro ── */
+body.theme-dark .fmd .mns-search,
+body.theme-dark .fmd .mns-stat{ background:var(--surface); border-color:var(--border); }
+body.theme-dark .fmd .mns-gruppo,
+body.theme-dark .fmd .mns-add,
+body.theme-dark .fmd .mns-edit-row td{ background:var(--surface-alt, #172338); border-color:var(--border); }
+body.theme-dark .fmd .mns-gruppo > summary:hover{ background:rgba(255,255,255,.04); }
+body.theme-dark .fmd .mns-gruppo-warn{ border-color:#7c4a1e; background:rgba(194,65,12,.08); }
+body.theme-dark .fmd .mns-gruppo-warn .mns-gruppo-nome,
+body.theme-dark .fmd .mns-gruppo-nota,
+body.theme-dark .fmd .mns-warn-txt{ color:#f6ad55; }
+body.theme-dark .fmd .mns-gruppo-nome,
+body.theme-dark .fmd .mns-stat b,
+body.theme-dark .fmd .mns-tab:hover,
+body.theme-dark .fmd .mns-tab[aria-selected="true"],
+body.theme-dark .fmd .mns-add-title{ color:var(--text); }
+body.theme-dark .fmd .mns-stat.mns-ok b{ color:#68d391; } body.theme-dark .fmd .mns-stat.mns-ko b{ color:#f08080; } body.theme-dark .fmd .mns-stat.mns-mid b{ color:#f6ad55; }
+body.theme-dark .fmd .mns-filtro-attivo{ background:rgba(31,135,205,.16); color:var(--text); }
+body.theme-dark .fmd button.fmd-mtr:hover{ border-color:var(--fmd-cyan); }
+.mns-actions .fmd-btn-mini.fmd-btn-primary, .mns-pane .fmd-btn-mini.fmd-btn-primary{ background:var(--fmd-navy, #0c2545); border-color:var(--fmd-navy, #0c2545); color:#fff; }
+body.theme-dark .fmd .mns-actions .fmd-btn-mini.fmd-btn-primary, body.theme-dark .fmd .mns-pane .fmd-btn-mini.fmd-btn-primary{ background:#1f87cd; border-color:#1f87cd; color:#fff; }
+.mns-box, [data-mns-tabs]{ scroll-margin-top:130px; }

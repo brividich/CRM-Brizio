@@ -9,6 +9,8 @@ Le pagine mostrano livelli di esperienza I/L/U/O, mai dati sanitari.
 """
 from __future__ import annotations
 
+from collections import Counter
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
@@ -58,45 +60,91 @@ def _nega(request, testo="Non hai i permessi per il Mansionario."):
     return redirect("anagrafica:index")
 
 
+def _alla_scheda(mansione_id: int, tab: str = ""):
+    """Redirect alla scheda della mansione, sulla tab indicata (persone è la prima)."""
+    url = reverse("anagrafica:mansionario_mansione", args=[mansione_id])
+    return redirect(f"{url}#{tab}" if tab else url)
+
+
+LIVELLO_LABEL = {"I": "in formazione", "L": "intermedio", "U": "autonomo", "O": "esperto"}
+
+
 def _ids(request, nome) -> list[int]:
     return [int(v) for v in request.POST.getlist(nome) if str(v).isdigit()]
 
 
-def _schede(righe: list[dict]) -> list[dict]:
-    """Una scheda per mansione: barra per livello I/L/U/O, operativi in evidenza."""
+LEGENDA_LIVELLI = [("ok", "autonomo o esperto"), ("s90", "intermedio"), ("mai", "in formazione")]
+
+
+def _scheda(r: dict, *, ruolo_gruppo=None) -> dict:
+    """Una scheda per mansione: barra per livello I/L/U/O, operativi in evidenza.
+
+    Dentro il gruppo del ruolo il ruolo non si ripete: la riga dice solo il tipo e,
+    se la mansione serve anche ad altri ruoli, quali.
+    """
     from .services import sezioni_c
 
-    out = []
+    m = r["mansione"]
+    lv = r["livelli"]
+    altri = [x.nome for x in r["ruoli"] if ruolo_gruppo is None or x.pk != ruolo_gruppo.pk]
+    meta = m.get_tipo_display() + (f" · anche {', '.join(altri)}" if altri and ruolo_gruppo else "")
+    rischi = ", ".join(x.nome for x in r["rischi"])
+    flag = []
+    if not r["operativi"]:
+        flag.append("scoperta")
+    if not r["ruoli"]:
+        flag.append("senza-ruolo")
+    if not r["rischi"]:
+        flag.append("senza-rischio")
+    s = sezioni_c.scheda(
+        titolo=r["nome"],
+        href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
+        codice=r["reparto"] or "",
+        meta=meta,
+        tags=(m.tipo, *flag),
+        # Colori dei segmenti: O/U operativi in verde, L in giallo, I in grigio.
+        seg=[("ok", lv["O"] + lv["U"]), ("s90", lv["L"]), ("mai", lv["I"])],
+        principale=str(r["operativi"]), principale_label="operativ" + ("o" if r["operativi"] == 1 else "i"),
+        principale_sub=f"su {r['in_lista']} in lista",
+        pillole=[
+            sezioni_c.pillola("fmd-c-ko", "nessun operativo") if not r["operativi"] else
+            (sezioni_c.pillola("fmd-c-s30", "uomo solo") if r["uomo_solo"] else None),
+            sezioni_c.pillola("fmd-c-mai", "senza mansione di rischio") if not r["rischi"] else None,
+        ],
+        piede=f"Rischio: {rischi}" if rischi else "Mansione di rischio da indicare",
+        piede_muted=not rischi,
+        vai="Apri →",
+    )
+    s["q"] = " ".join([r["nome"], r["reparto"] or "", rischi, *(x.nome for x in r["ruoli"])]).casefold()
+    return s
+
+
+def _gruppi_per_ruolo(righe: list[dict]) -> list[dict]:
+    """Ruolo → mansioni. Una mansione con più ruoli compare sotto ciascuno; quelle
+    senza ruolo finiscono in fondo, in «Da collegare a un ruolo». Dentro il gruppo
+    prima le meno coperte."""
+    per_ruolo: dict[int, dict] = {}
+    senza = []
     for r in righe:
-        m = r["mansione"]
-        lv = r["livelli"]
-        ruoli = ", ".join(x.nome for x in r["ruoli"]) or "nessun ruolo"
-        rischi = ", ".join(x.nome for x in r["rischi"])
-        out.append(sezioni_c.scheda(
-            titolo=r["nome"],
-            href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
-            codice=r["reparto"] or "",
-            meta=f"{m.get_tipo_display()} · {ruoli}",
-            tags=(m.tipo, *("ruolo-" + sezioni_c.tag_slug(x.nome) for x in r["ruoli"])),
-            # Colori dei segmenti: O/U operativi in verde, L in giallo, I in grigio.
-            seg=[("ok", lv["O"] + lv["U"]), ("s90", lv["L"]), ("mai", lv["I"])],
-            principale=str(r["operativi"]), principale_label="operativ" + ("o" if r["operativi"] == 1 else "i"),
-            principale_sub=f"su {r['in_lista']} in lista",
-            pillole=[
-                sezioni_c.pillola("fmd-c-ko", "nessun operativo") if not r["operativi"] else
-                (sezioni_c.pillola("fmd-c-s30", "uomo solo") if r["uomo_solo"] else None),
-                sezioni_c.pillola("fmd-c-mai", "senza ruolo") if not r["ruoli"] else None,
-                sezioni_c.pillola("fmd-c-mai", "senza mansione di rischio") if not r["rischi"] else None,
-            ],
-            piede=f"Rischio: {rischi}" if rischi else "Mansione di rischio da indicare",
-            piede_muted=not rischi,
-            vai="Apri →",
-            ordini={"gap": (r["operativi"], r["in_lista"])},
-        ))
-    out.sort(key=lambda s: s["ordini"]["gap"])
-    for i, s in enumerate(out):
-        s["ordini"]["gap"] = i
-    return out
+        if not r["ruoli"]:
+            senza.append(r)
+        for ruolo in r["ruoli"]:
+            per_ruolo.setdefault(ruolo.pk, {"ruolo": ruolo, "righe": []})["righe"].append(r)
+
+    def _gruppo(nome, righe_g, *, ruolo=None, da_collegare=False):
+        righe_g = sorted(righe_g, key=lambda x: (x["operativi"], x["in_lista"], x["nome"].casefold()))
+        return {
+            "nome": nome, "ruolo": ruolo, "da_collegare": da_collegare,
+            "schede": [_scheda(x, ruolo_gruppo=ruolo) for x in righe_g],
+            "scoperte": sum(1 for x in righe_g if not x["operativi"]),
+            "in_lista": sum(x["in_lista"] for x in righe_g),
+        }
+
+    gruppi = [_gruppo(g["ruolo"].nome, g["righe"], ruolo=g["ruolo"])
+              for g in sorted(per_ruolo.values(), key=lambda g: g["ruolo"].nome.casefold())]
+    if senza:
+        gruppi.append(_gruppo("Da collegare a un ruolo", senza, da_collegare=True))
+    return gruppi
 
 
 @login_required
@@ -106,19 +154,6 @@ def mansionario(request):
     from .services import sezioni_c
 
     righe = svc.riepilogo()
-    ruoli_presenti = sorted({x.nome for r in righe for x in r["ruoli"]}, key=str.casefold)
-    griglia = sezioni_c.griglia(
-        id="fmd-mansionario", titolo="Mansioni", icona="i-grid",
-        aside="Persone in lista per livello · clic per persone e configurazione",
-        schede=_schede(righe),
-        filtri=[("", "Tutte"), (CompetenzaSkm.TIPO_MACCHINA, "Macchine"), (CompetenzaSkm.TIPO_PROCESSO, "Processi")]
-        + [("ruolo-" + sezioni_c.tag_slug(n), n) for n in ruoli_presenti],
-        etichetta_filtri="Filtra per tipo o ruolo",
-        ordini=[("gap", "Prima le meno coperte"), ("az", "A–Z")],
-        legenda=[("ok", "autonomo o esperto"), ("s90", "intermedio"), ("mai", "in formazione")],
-        vuoto_titolo="Nessuna mansione attiva",
-        vuoto_testo="Le mansioni sono le colonne macchina e processo della skill matrix MOD.187.",
-    )
     aree = sezioni_c.aree_visibili(request, [
         sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di competenza", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
         sezioni_c.Area("anagrafica:skill_matrix_macchina", "Skill matrix", "Persone × macchine, livelli I/L/U/O", icona="i-grid"),
@@ -132,11 +167,15 @@ def mansionario(request):
     kpi = svc.kpi(righe)
     kpi["non_abilitati"] = sum(1 for r in lacune if r["valutazione"].esito == comp_svc.NON_ABILITATO)
     kpi["in_addestramento"] = sum(1 for r in lacune if r["valutazione"].esito == comp_svc.IN_ADDESTRAMENTO)
+    gruppi = _gruppi_per_ruolo(righe)
+    kpi["ruoli"] = sum(1 for g in gruppi if not g["da_collegare"])
     return render(request, "anagrafica/pages/mansionario.html", {
         "page_title": "Mansionario",
         "righe": righe,
         "kpi": kpi,
-        "griglia": griglia,
+        "gruppi": gruppi,
+        "legenda": LEGENDA_LIVELLI,
+        "cc_card": {"legenda": LEGENDA_LIVELLI},
         "aree": aree,
         "is_admin": _puo_gestire(request),
     })
@@ -164,7 +203,7 @@ def mansionario_mansione(request, mansione_id: int):
             "mansioni_rischio": _ids(request, "mansioni_rischio"), "attiva": mansione.attiva,
         }, oggetto=mansione)
         messages.success(request, f"Mansione «{mansione.nome}» salvata.")
-        return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+        return _alla_scheda(mansione.pk, "impostazioni")
 
     from core.legacy_anagrafica import fetch_anagrafica_rows
     from core import naming
@@ -174,7 +213,23 @@ def mansionario_mansione(request, mansione_id: int):
     competenze = list(comp_svc.competenze(mansione))
     persone = svc.persone(mansione)
     for p in persone:
-        p["valutazione"] = comp_svc.valuta(p["abilitazione"], voci=competenze)
+        val = comp_svc.valuta(p["abilitazione"], voci=competenze)
+        p["valutazione"] = val
+        p["livello_label"] = LIVELLO_LABEL.get(p["livello"], "")
+        # Nessun livello registrato sulle competenze: la cosa da fare è valutarla,
+        # non leggere l'elenco di tutte le competenze «mancanti».
+        p["da_valutare"] = bool(competenze) and not any(r["livello"] or r["requisito"] for r in val.voci)
+    # Ogni persona in una sola casella: sospesa, da valutare, poi l'esito calcolato.
+    for p in persone:
+        p["stato"] = "sospesa" if p["sospesa"] else "da_valutare" if p["da_valutare"] else p["valutazione"].esito
+    conta = Counter(p["stato"] for p in persone)
+    stato = {
+        "operativi": conta[comp_svc.ABILITATO],
+        "addestramento": conta[comp_svc.IN_ADDESTRAMENTO],
+        "non_abilitati": conta[comp_svc.NON_ABILITATO],
+        "da_valutare": conta["da_valutare"],
+        "sospese": conta["sospesa"],
+    }
     in_lista = {p["legacy_id"] for p in persone}
     candidati = []
     if is_admin:
@@ -189,9 +244,11 @@ def mansionario_mansione(request, mansione_id: int):
         "mansione": mansione,
         "competenze": competenze,
         "persone": persone,
+        "stato": stato,
         "candidati": candidati,
         **(_opzioni_requisiti() if is_admin else {}),
         "livelli": svc.LIVELLI,
+        "livelli_label": list(LIVELLO_LABEL.items()),
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
         "rischi_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
         "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
@@ -277,13 +334,13 @@ def mansionario_competenza_salva(request, mansione_id: int):
         )
     except ValueError as exc:
         messages.error(request, str(exc))
-        return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+        return _alla_scheda(mansione.pk, "competenze")
     log_action(request, "mansionario_competenza", MODULE, {
         "mansione": mansione.pk, "competenza": voce.pk, "nome": voce.nome, "livello_minimo": voce.livello_minimo,
         "bloccante": voce.bloccante, "corso": voce.corso_id, "qualifica": voce.qualifica_id, "mod128": voce.processo_mpq_id,
     }, oggetto=mansione)
     messages.success(request, f"Competenza «{voce.nome}» salvata.")
-    return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+    return _alla_scheda(mansione.pk, "competenze")
 
 
 @login_required
@@ -298,7 +355,7 @@ def mansionario_competenza_disattiva(request, mansione_id: int, voce_id: int):
     voce.save(update_fields=["attiva"])
     log_action(request, "mansionario_competenza_tolta", MODULE, {"mansione": mansione_id, "competenza": voce.pk}, oggetto=voce)
     messages.success(request, f"Competenza «{voce.nome}» tolta dalla mansione (i livelli registrati restano).")
-    return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+    return _alla_scheda(mansione_id, "competenze")
 
 
 @login_required

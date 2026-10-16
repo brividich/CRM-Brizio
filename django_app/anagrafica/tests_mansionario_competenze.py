@@ -131,6 +131,26 @@ class ValutazioneTests(TestCase):
         voce.refresh_from_db()
         self.assertFalse(voce.attiva)
 
+    def test_modifica_competenza_in_riga_e_ritorno_sulla_tab(self):
+        self.client.force_login(self.admin)
+        url = reverse("anagrafica:mansionario_mansione", args=[self.mansione.pk])
+        r = self.client.post(reverse("anagrafica:mansionario_competenza_salva", args=[self.mansione.pk]),
+                             {"voce": self.prog.pk, "nome": "Programmazione ISO", "livello_minimo": "U"})
+        self.assertEqual(r["Location"], url + "#competenze")
+        self.prog.refresh_from_db()
+        self.assertEqual((self.prog.nome, self.prog.livello_minimo, self.prog.bloccante), ("Programmazione ISO", "U", False))
+        self.assertEqual(VoceMacchinaCatalogo.objects.filter(mansione=self.mansione, attiva=True).count(), 2)
+
+    def test_persona_senza_livelli_sulle_competenze_e_da_valutare(self):
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.mansione.pk]))
+        self.assertEqual(r.context["stato"]["da_valutare"], 1)
+        self.assertEqual(r.context["stato"]["non_abilitati"], 0)
+        self.assertContains(r, "Competenze non ancora valutate")
+        comp.registra_livelli(self.ab, {self.setup_voce.pk: "I", self.prog.pk: "L"})
+        r = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.mansione.pk]))
+        self.assertEqual((r.context["stato"]["da_valutare"], r.context["stato"]["non_abilitati"]), (0, 1))
+
     def test_utente_senza_permessi_non_valuta(self):
         semplice = User.objects.create_user("mnc_semplice", "s@example.invalid", "x")
         self.client.force_login(semplice)
