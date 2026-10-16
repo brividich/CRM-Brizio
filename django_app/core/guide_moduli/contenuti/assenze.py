@@ -25,7 +25,8 @@ GUIDA = {
                     ("Permesso", "da 30 minuti a 8 ore, sempre nello stesso giorno."),
                     ("Ferie di più giorni", "contano a giornata intera."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
-                    ("Capo reparto", "è proposto in automatico. Se il tuo ruolo lo permette puoi sceglierne un altro dall'elenco."),
+                    ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
+                     "in quel caso la richiesta la vede e la approva solo il capo che hai scelto."),
                 ]),
                 ("nota", "Se l'ora di fine è prima dell'ora di inizio il portale la corregge da solo a inizio + 30 minuti e te lo dice: controlla prima di inviare."),
             ],
@@ -107,8 +108,13 @@ GUIDA = {
             "titolo": "Chi vede e chi approva",
             "blocchi": [
                 ("ul", [
-                    "Il capo che approva è il responsabile dell'area aziendale del dipendente; se l'area non ne ha uno, "
-                    "il caporeparto del reparto. Si cambia in Anagrafica (aree aziendali e reparti), non qui.",
+                    "Il capo proposto è il capo del dipendente in Anagrafica: con la «regola unica capi» accesa "
+                    "(pagina Organigramma → Coerenza capi) vale eccezione sulla persona → responsabile dell'area → "
+                    "caporeparto del reparto → gerarchia dei ruoli; spenta, responsabile dell'area e poi caporeparto del reparto. "
+                    "Si cambia in Anagrafica, non qui.",
+                    "Tutti possono scegliere un altro capo nella richiesta. Se lo fanno, la richiesta compare in coda "
+                    "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma la vede "
+                    "ancora nel calendario ma non la approva.",
                     "La visibilità si assegna in Amministrazione → «Accessi» con i permessi «view_all_assenze» "
                     "(tutta l'azienda) e «view_reparto_assenze» (solo il reparto), a un ruolo o a una singola persona.",
                     "Se il sistema unico «Ruoli e permessi» è acceso, valgono le righe Assenze della matrice (vedere, approvare, esportare).",
@@ -145,8 +151,9 @@ GUIDA = {
     "problemi": [
         {
             "sintomo": "La richiesta va al capo sbagliato",
-            "perche": "il capo si ricava dall'area aziendale del dipendente in Anagrafica.",
+            "perche": "il capo si ricava dall'Anagrafica, oppure il dipendente ne ha scelto un altro nella richiesta.",
             "fare": [
+                "Se il dipendente ha scelto un altro capo, la richiesta va a quello: è voluto (registro «assenza_caporeparto_scelto»).",
                 "Apri Anagrafica e cerca il dipendente: controlla «Area aziendale» e «Reparto».",
                 "Apri l'area aziendale e controlla il «Responsabile». Se manca, vale il caporeparto del reparto.",
                 "Correggi e fai reinviare la richiesta (le richieste già inviate restano al vecchio capo).",
@@ -155,7 +162,8 @@ GUIDA = {
         {
             "sintomo": "Un capo non vede le richieste dei suoi dipendenti",
             "fare": [
-                "Controlla in Anagrafica che sia responsabile dell'area aziendale o caporeparto del reparto giusto.",
+                "Controlla in Anagrafica che sia il capo del dipendente (Organigramma → Coerenza capi).",
+                "Se il dipendente ha scelto un altro capo nella richiesta, la vede e la approva solo quello.",
                 "Controlla che abbia un ruolo che apre «Assenze del reparto» (Amministrazione → Accessi, oppure Ruoli e permessi).",
                 "Fagli ricaricare la pagina: il conteggio «da approvare» si aggiorna al caricamento.",
             ],
