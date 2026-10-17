@@ -30,6 +30,16 @@
 .PARAMETER DatabaseName
     Nome database (usato solo se -IncludeDatabase). Default: letto da .env
 
+.PARAMETER UseHubBackup
+    Delega a "manage.py hub_backup --type all" (backup verificato con manifest, file
+    incrementali, fotografia della macchina). Default: $true. Con $false si usa il
+    percorso storico (copia di media e, con -IncludeDatabase, BACKUP DATABASE).
+
+.NOTES
+    Audit M10: il .env completo NON viene copiato nel backup dati (solo i NOMI delle
+    variabili in config\env_keys.txt). Se il .env dichiara BACKUP_ENV_DIR, la copia
+    completa va li', in una destinazione separata.
+
 .EXAMPLE
     .\backup-environment.ps1 -Environment prod
     .\backup-environment.ps1 -Environment prod -IncludeDatabase -SqlServerName "SQL01"
@@ -44,7 +54,8 @@ param(
     [bool]$IncludeMedia = $true,
     [switch]$IncludeDatabase,
     [string]$SqlServerName  = "",
-    [string]$DatabaseName   = ""
+    [string]$DatabaseName   = "",
+    [bool]$UseHubBackup     = $true
 )
 
 Set-StrictMode -Version Latest
@@ -76,14 +87,29 @@ Log-BackupStep "[1] Backup config..."
 $configBackup = "$backupRoot\config"
 New-Item -ItemType Directory -Path $configBackup -Force | Out-Null
 
-foreach ($file in @(".env")) {
-    $src = "$($paths.Config)\$file"
-    if (Test-Path $src) {
-        Copy-Item $src "$configBackup\$file" -Force
-        Log-BackupStep "  Copiato: $src"
+# Audit M10: nel backup dati solo i NOMI delle variabili; il .env completo solo in BACKUP_ENV_DIR.
+$envSrc = "$($paths.Config)\.env"
+if (Test-Path $envSrc) {
+    $envLines = Get-Content $envSrc
+    $envLines | Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } |
+        ForEach-Object { ($_ -split '=', 2)[0].Trim() } | Set-Content "$configBackup\env_keys.txt" -Encoding UTF8
+    Log-BackupStep "  Nomi delle variabili .env -> config\env_keys.txt (valori esclusi)"
+    $envDir = ""
+    foreach ($line in $envLines) { if ($line -match '^\s*BACKUP_ENV_DIR\s*=\s*(.+)$') { $envDir = $Matches[1].Trim().Trim('"') } }
+    if ($envDir) {
+        $dest = Join-Path $envDir "$Environment\$timestamp"
+        try {
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            Copy-Item $envSrc (Join-Path $dest ".env") -Force
+            Log-BackupStep "  .env completo copiato nella destinazione separata BACKUP_ENV_DIR"
+        } catch {
+            Log-BackupStep "  Copia .env in BACKUP_ENV_DIR fallita: $_"
+        }
     } else {
-        Log-BackupStep "  Non trovato (non critico): $src"
+        Log-BackupStep "  BACKUP_ENV_DIR non configurata: .env completo NON copiato (custodirlo nel Recovery Kit)"
     }
+} else {
+    Log-BackupStep "  Non trovato (non critico): $envSrc"
 }
 
 # ---------------------------------------------------------------------------
@@ -112,7 +138,23 @@ try {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Media (opzionale)
+# 4. Motore di backup verificabile (default)
+# ---------------------------------------------------------------------------
+if ($UseHubBackup) {
+    Log-BackupStep "[4] hub_backup --type all (DB verificato, file incrementali, macchina)..."
+    $settingsModule = "config.settings.prod"
+    try {
+        Invoke-Venv -VenvPath $paths.Venv -WorkDir $paths.DjangoApp -PyArgs @("manage.py", "hub_backup", "--type", "all", "--env", $Environment, "--no-exit-code", "--settings=$settingsModule")
+        Log-BackupStep "  hub_backup completato: esito e set in <BACKUP_TARGET>\$Environment\status.json"
+    } catch {
+        Log-BackupStep "  hub_backup fallito: $_"
+    }
+    $IncludeMedia = $false
+    $IncludeDatabase = $false
+}
+
+# ---------------------------------------------------------------------------
+# 4b. Media (percorso storico, solo con -UseHubBackup:$false)
 # ---------------------------------------------------------------------------
 if ($IncludeMedia) {
     Log-BackupStep "[4] Backup media..."

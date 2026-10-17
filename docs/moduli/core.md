@@ -61,6 +61,10 @@ Comandi:
 
 Il monitoring ha il nuovo check `audit_growth` (warning oltre 500 MB/mese, fail sotto 60 giorni dalla saturazione, mai critical). Dettaglio, motivazioni e ordine operativo: [docs/dr/AUDIT_POLICY.md](../dr/AUDIT_POLICY.md).
 
+## Motore di backup verificabile (ottobre 2026)
+
+Package `core/backup_engine/` e comandi `hub_backup` (`full`, `log`, `files`, `host`, `retention`, `all`; exit 0/1/2), `hub_backup_verify`, `hub_backup_set_recovery`, `hub_backup_doctor`; `backup_portale` è un wrapper compatibile. Ogni set ha un manifest con SHA-256, viene verificato (`RESTORE VERIFYONLY`) e copiato con hash controllato su `BACKUP_TARGET` (share del NAS); stato in `status.json` anche a DB spento; retention GFS. Task con `deployment\scripts\register-backup-tasks.ps1`. Dettaglio, impostazioni e ordine di attivazione: [docs/dr/BACKUP_MOTORE.md](../dr/BACKUP_MOTORE.md).
+
 ## Pulizia pre go-live (`pulizia_pre_golive`)
 
 Comando una tantum per partire in produzione senza i log accumulati in sviluppo e collaudo. Dry-run di default (solo conteggi); `--esegui` cancella a batch da 2000 righe e scrive una riga `AuditLog` (`azione=pulizia_pre_golive`) con i numeri; `--solo` accetta i codici separati da virgola.

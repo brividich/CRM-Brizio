@@ -1,17 +1,22 @@
 """Diagnostica non distruttiva per backup e capacità del database.
 
-Sezioni attuali (BUILD_SPEC R0): capacità del DB rispetto al limite dell'edizione,
-top tabelle, crescita dell'audit e previsione di saturazione, versione della
-politica di audit, diagnostica della cache su DB. Le sezioni backup/recovery
-(target, catena log, Recovery Kit, drill, task) arrivano con il motore R1.
+Sezioni: capacità del DB rispetto al limite dell'edizione, top tabelle, crescita
+dell'audit e previsione di saturazione, versione della politica di audit, cache su
+DB (R0); motore di backup: target/staging scrivibili, destinazione secondaria,
+BACKUP_ENV_DIR, recovery model, freschezza dei set, prova di ripristino, task
+pianificati, nomi del portale (ALLOWED_HOSTS, CSRF, DNS, SPN) (R1).
+Exit code: 0 = tutto ok, 1 = avvisi, 2 = almeno un controllo critico.
 """
 from __future__ import annotations
 
 import json
+import sys
 
 from django.core.management.base import BaseCommand
 
 from core import db_diagnostics
+from core.backup_engine.config import load_config
+from core.backup_engine.doctor import run_checks
 
 
 class Command(BaseCommand):
@@ -20,21 +25,38 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--json", action="store_true", help="Output JSON.")
         parser.add_argument("--days", type=int, default=7)
+        parser.add_argument("--env", default=None)
+        parser.add_argument("--offline", action="store_true", help="Salta DNS/SPN e task pianificati.")
+        parser.add_argument("--no-exit-code", action="store_true")
 
     def handle(self, *args, **opts):
         capacity = db_diagnostics.server_capacity()
         growth = db_diagnostics.audit_growth(days=opts["days"])
         forecast = db_diagnostics.saturation_forecast(capacity, growth)
         level, message = db_diagnostics.audit_growth_status(capacity, growth)
+        try:
+            cfg = load_config(opts["env"])
+            backup = run_checks(cfg, with_tasks=not opts["offline"], with_network=not opts["offline"])
+        except ValueError as exc:
+            backup = [{"check": "config", "level": "critical", "message": str(exc)}]
         report = {
             "capacity": capacity,
             "top_tables": db_diagnostics.top_tables(),
             "audit": {**growth, **forecast, "level": level, "message": message},
             "cache": db_diagnostics.cache_diagnostics(),
+            "backup": backup,
         }
+        levels = {c["level"] for c in backup} | {level}
+        exit_code = 2 if "critical" in levels else 1 if "warning" in levels else 0
         if opts["json"]:
             self.stdout.write(json.dumps(report, ensure_ascii=False, indent=2, default=str))
-            return
+        else:
+            self._print(report, level, message)
+        if exit_code and not opts["no_exit_code"]:
+            sys.exit(exit_code)
+
+    def _print(self, report, level, message):
+        capacity = report["capacity"]
         w = self.stdout.write
         w("== Capacità database ==")
         if capacity.get("supported"):
@@ -71,3 +93,8 @@ class Command(BaseCommand):
                 w(f"    {p['prefisso']:<40} {p['righe']:>8} righe {p['mb']:>8} MB")
         else:
             w(f"  non disponibile ({c.get('backend') or c.get('error', '')})")
+        w("== Backup e ripristino ==")
+        icons = {"ok": "OK  ", "info": "info", "warning": "WARN", "critical": "CRIT"}
+        for c in report["backup"]:
+            style = {"warning": self.style.WARNING, "critical": self.style.ERROR}.get(c["level"], str)
+            w(style(f"  [{icons.get(c['level'], c['level'])}] {c['check']}: {c['message']}"))

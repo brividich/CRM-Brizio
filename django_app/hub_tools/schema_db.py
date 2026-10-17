@@ -22,7 +22,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "admin_portale": ("Piattaforma", "#1d4ed8", "Pannello di amministrazione"),
     "hub_tools": ("Piattaforma", "#3b82f6", "Strumenti hub: moduli, database, guide"),
     "dashboard": ("Piattaforma", "#60a5fa", "Home e cruscotti"),
-    "monitoring": ("Piattaforma", "#fb923c", "Salute del portale, segnalazioni, schedule"),
+    "monitoring": ("Piattaforma", "#fb923c", "Salute del portale, segnalazioni, schedule, esiti dei backup e prove di ripristino"),
     "setup_wizard": ("Piattaforma", "#94a3b8", "Configurazione iniziale"),
     "twofa": ("Piattaforma", "#64748b", "Verifica in due passaggi"),
     "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
@@ -73,6 +73,13 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "chi": "Tutto il portale.",
         "config": "DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_DRIVER, DB_TRUST_CERT, DB_ENCRYPT, DB_QUERY_TIMEOUT",
         "controllo": "Servizio Windows MSSQL… avviato; errori «ODBC»/«10061» in logs\\app.log; Centrale di comando.",
+    },
+    {
+        "nome": "Share dei backup (NAS)",
+        "cosa": "Destinazione dei backup verificabili: set FULL/LOG/FILES/HOST con manifest, store dei file, zip della release. Il .env completo va in una share separata.",
+        "chi": "Comandi hub_backup* lanciati dai task PortaleNovicrom-Backup-<ENV>-* (non dal qcluster).",
+        "config": "BACKUP_TARGET, BACKUP_TARGET_SECONDARY, BACKUP_STAGING_DIR, BACKUP_ENV_DIR, BACKUP_LOG_WINDOW, BACKUP_KEEP_*, BACKUP_EXTRA_DATABASES",
+        "controllo": "manage.py hub_backup_doctor; <BACKUP_TARGET>\\<env>\\status.json e logs\\backup-status.json; tabella monitoring_backuprun.",
     },
     {
         "nome": "Trigger SQL e coda eventi",
