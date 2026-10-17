@@ -31,10 +31,10 @@ a.hrg-kpi:hover { border-color: var(--fmd-cyan, #1f87cd); }
 
 /* ── Pillole di stato ───────────────────────────────────────────────────── */
 .hrg-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px;
-  font-weight: 800; white-space: nowrap; background: #eef2f7; color: #334155; }
-.hrg-pill-ok { background: #dcfce7; color: #166534; }
-.hrg-pill-warn { background: #fef3c7; color: #92400e; }
-.hrg-pill-danger { background: #fee2e2; color: #991b1b; }
+  font-weight: 800; white-space: nowrap; background:var(--hr-na-bg,#eef2f7); color:var(--hr-na-fg,#334155); }
+.hrg-pill-ok { background:var(--hr-ok-bg,#dcfce7); color:var(--hr-ok-fg,#166534); }
+.hrg-pill-warn { background:var(--hr-warn-bg,#fef3c7); color:var(--hr-warn-fg,#92400e); }
+.hrg-pill-danger { background:var(--hr-ko-bg,#fee2e2); color:var(--hr-ko-fg,#991b1b); }
 
 /* ── Quadro cambi mansione ──────────────────────────────────────────────── */
 .hrg-cm-lista { display: grid; gap: 12px; }
@@ -87,9 +87,6 @@ body.theme-dark .hrg-box-title { color: var(--text); }
 body.theme-dark .hrg-kpi-danger .hrg-kpi-v { color: #fca5a5; }
 body.theme-dark .hrg-filtro-on { background: #1f87cd; border-color: #1f87cd; color: #fff; }
 body.theme-dark .hrg-pill { background: rgba(148,163,184,.18); color: var(--text-mid); }
-body.theme-dark .hrg-pill-ok { background: rgba(34,197,94,.18); color: #86efac; }
-body.theme-dark .hrg-pill-warn { background: rgba(245,158,11,.18); color: #fcd34d; }
-body.theme-dark .hrg-pill-danger { background: rgba(239,68,68,.2); color: #fca5a5; }
 body.theme-dark .hrg-cm-voci li { background: rgba(245,158,11,.10); border-color: rgba(245,158,11,.30); }
 body.theme-dark .hrg-cm-voci li.hrg-cm-ritardo { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.35); }
 body.theme-dark .hrg-cm-voci li.hrg-cm-chiuso { background: var(--surface-alt, rgba(255,255,255,.04)); border-color: var(--border); }
