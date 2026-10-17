@@ -107,14 +107,18 @@ SEZIONI: list[dict] = [
                   "con «Riprendi» continui da dove eri rimasto."),
             ("def", [
                 ("Quando parte la mail", "una sola volta, quando premi «Termina controllo»."),
-                ("Promemoria dopo 15 minuti", "se 15 minuti dopo l'ultimo blocco salvato la mail non è ancora partita, "
+                ("Promemoria (15 minuti)", "se 15 minuti dopo l'ultimo blocco salvato la mail non è ancora partita, "
                  "ricevi una notifica nel portale e una mail con il riepilogo salvato e il collegamento per riprendere il "
                  "controllo e inviarla. Un nuovo salvataggio fa ripartire il conteggio."),
-                ("Dopo 4 ore", "se non termini il controllo, la mail al capocommessa parte da sola: nessuna anomalia resta "
-                 "senza comunicazione."),
+                ("Invio automatico (1 ora)", "se non termini il controllo, 1 ora dopo l'ultimo blocco salvato la mail al "
+                 "capocommessa parte da sola: nessuna anomalia resta senza comunicazione."),
             ]),
-            ("p", "I blocchi salvati restano nel portale anche se chiudi la pagina: dal promemoria, o rientrando nell'OP, "
-                  "«Riprendi» li ritrova tutti. Va salvato con «Salva blocco» solo il blocco che stai scrivendo."),
+            ("p", "I due tempi sono quelli predefiniti: chi gestisce il modulo li cambia in Configurazione → Notifiche → "
+                  "«Orari e soglie» («Controllo OP: promemoria dopo minuti» e «Controllo OP: invio automatico dopo minuti»)."),
+            ("p", "Salvataggio automatico: mentre scrivi un blocco, seriali, stato superficie e descrizioni si salvano da "
+                  "soli pochi secondi dopo ogni modifica (sotto il titolo del blocco compare «salvato in automatico alle …»). "
+                  "Se chiudi la pagina o si spegne il PC, rientrando nell'OP con «Riprendi» ritrovi il blocco com'era. "
+                  "Gli allegati non si salvano in automatico: dopo il ripristino vanno ricaricati."),
         ],
     },
     {

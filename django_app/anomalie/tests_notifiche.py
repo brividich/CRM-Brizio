@@ -56,7 +56,7 @@ class StatoPannelloTests(_ListeTmpMixin, TestCase):
         self._regola()
         stato = notifiche.stato_pannello()
         codes = [r["code"] for r in stato["righe"]]
-        self.assertEqual(codes, ["controllo", "nuova_anomalia", "riepilogo", "decisioni_operatore",
+        self.assertEqual(codes, ["controllo", "promemoria_controllo", "nuova_anomalia", "riepilogo", "decisioni_operatore",
                                  "op_completato", "resoconto", "rdc", "ricorrenza", "digest"])
         liste = {l["key"]: l["valori"] for l in stato["liste"]}
         self.assertEqual(liste["conferma_aggiornamenti"], ["vecchio@example.test"])
@@ -99,6 +99,22 @@ class SalvaPannelloTests(_ListeTmpMixin, TestCase):
         self.assertTrue(cfg["digest_attivo"])
         self.assertFalse(cfg["decisioni_operatore_attivo"])
         self.assertEqual((cfg["soglia_ore"], cfg["ora_invio"], cfg["ricorrenza_n"]), (48, 7, 5))
+
+    def test_tempi_del_controllo_configurabili(self):
+        from anomalie.escalation_config import tempi_controllo
+
+        self.assertEqual(tempi_controllo(), {"promemoria": 15, "invio_auto": 60})
+        ok, _ = notifiche.salva_pannello({"parametri": {
+            "controllo_promemoria_minuti": 20, "controllo_invio_auto_minuti": 90,
+        }})
+        self.assertTrue(ok)
+        self.assertEqual(tempi_controllo(), {"promemoria": 20, "invio_auto": 90})
+        righe = {r["code"]: r for r in notifiche.stato_pannello()["righe"]}
+        self.assertIn("1 ora e 30 minuti", righe["controllo"]["quando"])
+        self.assertIn("20 minuti", righe["promemoria_controllo"]["quando"])
+        # Fuori dai limiti: si riporta nell'intervallo ammesso.
+        notifiche.salva_pannello({"parametri": {"controllo_promemoria_minuti": 1, "controllo_invio_auto_minuti": 99999}})
+        self.assertEqual(tempi_controllo(), {"promemoria": 5, "invio_auto": 1440})
 
     def test_indirizzo_nuova_anomalia_va_nella_regola(self):
         rule = self._regola()
