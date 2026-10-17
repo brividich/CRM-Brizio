@@ -39,7 +39,8 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] `hub_db_tuning --compatibility-level N [--apply]` (comando dedicato per il 170 dopo 2 settimane)
 - [x] Test `deployment/tests/test-sql-scripts.ps1` (guardie + giro completo su DB sintetico), verdi su PS 5.1 e 7; test Django 44 verdi
 - [x] `docs/dr/SQL2025_MIGRAZIONE.md` (requisiti, passi, tempi, rollback)
-- [~] Commit, push, PR verso `main` (dopo R0)
+- [x] Commit e push su `feature/sql2025-istanza` (`5fead6bd`)
+- [ ] PR: da aprire a mano dopo quella di R0 (oppure con base `fix/audit-policy-crescita`) — https://github.com/brividich/CRM-Brizio/compare/main...feature/sql2025-istanza?expand=1 ; testo nello scratchpad `pr_s1.md`
 - [B] Installazione istanza `HUB2025` sul PC di produzione
 - [B] Prova su TEST (`move-db-to-instance.ps1 -Environment test …`) e tempi reali
 - [B] Migrazione PROD, poi recovery FULL + log orario (R1), Query Store 100 MB, compat 170 dopo 2 settimane
