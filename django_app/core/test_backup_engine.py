@@ -100,6 +100,21 @@ class SqlServerTests(SimpleTestCase):
         self.assertEqual(h["last_lsn"], "100000000045600001")
         self.assertTrue(h["has_checksums"])
 
+    def test_intestazioni_una_volta_sola_e_righe_multiple(self):
+        """Bug trovato dalla prova reale: con -h 1 sqlcmd ripeteva l'intestazione a ogni riga."""
+        out = SEP.join(["LogicalName", "PhysicalName", "Type", "Size"]) + "\n" + SEP.join(["---"] * 4) + "\n" \
+            + SEP.join(["DB", "a.mdf", "D", "1"]) + "\n" + SEP.join(["DB_log", "a.ldf", "L", "1"]) + "\n"
+        r = FakeRunner([("FILELISTONLY", _proc(out))])
+        files = SqlServer(host="h", runner=r).filelist(Path("x.bak"))
+        self.assertEqual([f["logical"] for f in files], ["DB", "DB_log"])
+        self.assertNotIn("-h", r.calls[0][0])
+
+    def test_errore_localizzato(self):
+        r = FakeRunner([("VERIFYONLY", _proc("", rc=1, stderr="Messaggio 3234, livello 16\nIl file logico non fa parte del database"))])
+        with self.assertRaises(SqlError) as ctx:
+            SqlServer(host="h", runner=r).verify(Path("x.bak"))
+        self.assertIn("non fa parte", str(ctx.exception))
+
     def test_log_su_simple_rifiutato(self):
         r = FakeRunner([("recovery_model_desc", _proc("SIMPLE\n"))])
         with self.assertRaises(LogBackupNotPossible):

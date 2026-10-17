@@ -62,3 +62,9 @@ def run_system_digest(**kwargs) -> dict:
     except Exception:
         logger.exception("run_system_digest: errore inatteso")
     return result
+
+
+def run_backup_health_alert(**kwargs) -> dict:
+    """Entry point schedulato: check di backup e ripristino → Issue nella centrale ed
+    email agli admin solo per gli stati critici (dedup e quiet hours del monitoring)."""
+    return health.run_backup_health_alert(force_email=bool(kwargs.get("force_email", False)))

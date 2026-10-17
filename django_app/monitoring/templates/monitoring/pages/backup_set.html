@@ -1,0 +1,69 @@
+{% extends "core/base.html" %}
+
+{% block title %}Backup {{ set_id }} | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:backup_status' as back_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Backup "|add:set_id page_subtitle="Manifest del backup: cosa contiene, impronte dei file, esito della verifica." page_action_label="Backup e ripristino" page_action_url=back_url %}
+
+  <style>
+    .bs-card{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface);margin-bottom:16px}
+    .bs-card h2{font-size:15px;margin:0 0 10px;color:var(--text)}
+    .bs-table{width:100%;border-collapse:collapse;font-size:13px}
+    .bs-table th,.bs-table td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+    .bs-table th{color:var(--text-mid);font-weight:600;font-size:12px;width:220px}
+    .bs-mono{font-family:Consolas,monospace;font-size:12px;word-break:break-all}
+    .bs-scroll{overflow-x:auto;max-width:100%}
+    .bs-pre{max-height:420px;overflow:auto;background:var(--surface-alt, var(--bg));border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text)}
+    .bs-alert{padding:10px 14px;border:1px solid var(--danger);border-left-width:5px;border-radius:8px;background:var(--danger-bg);color:var(--text);margin-bottom:12px}
+    .bs-btn{border:1px solid var(--primary-mid);background:var(--primary-mid);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
+  </style>
+
+  {% if error %}<div class="bs-alert">{{ error }}</div>{% endif %}
+
+  {% if data %}
+  <div class="bs-card">
+    <h2>Riepilogo</h2>
+    <div class="bs-scroll"><table class="bs-table" data-fm-hide-controls="1">
+      <tr><th>Tipo</th><td>{{ data.type|upper }}</td></tr>
+      <tr><th>Esito</th><td>{{ data.status|upper }}</td></tr>
+      <tr><th>Creato</th><td>{{ data.created_at }}</td></tr>
+      <tr><th>Macchina</th><td>{{ data.host }}</td></tr>
+      <tr><th>Versione del portale</th><td>{{ data.app.version }} {% if data.app.commit %}<span class="bs-mono">({{ data.app.commit|slice:":10" }})</span>{% endif %}</td></tr>
+      {% if data.sql %}<tr><th>SQL Server</th><td>{{ data.sql.edition }} {{ data.sql.product_version }} · {{ data.sql.collation }}</td></tr>{% endif %}
+      {% if data.chain %}<tr><th>FULL di riferimento</th><td>{{ data.chain.full_set_id }}</td></tr>{% endif %}
+      {% if data.files %}<tr><th>File</th><td>{{ data.files.count }} file, {{ data.files.new_objects }} nuovi</td></tr>{% endif %}
+      {% if data.release_ref %}<tr><th>Release</th><td class="bs-mono">{{ data.release_ref }}</td></tr>{% endif %}
+      <tr><th>Variabili del .env</th><td>{{ env_names_count }} nomi registrati (mai i valori)</td></tr>
+      <tr><th>Durata</th><td>{{ data.duration_s }} s</td></tr>
+      {% if data.warnings %}<tr><th>Avvisi</th><td>{% for w in data.warnings %}<div>{{ w }}</div>{% endfor %}</td></tr>{% endif %}
+    </table></div>
+  </div>
+
+  <div class="bs-card">
+    <h2>File del backup</h2>
+    <div class="bs-scroll"><table class="bs-table" data-fm-hide-controls="1">
+      <thead><tr><th>Percorso</th><th>Database</th><th>Dimensione</th><th>Verifica</th><th>SHA-256</th></tr></thead>
+      <tbody>
+        {% for a in data.artifacts %}
+          <tr><td class="bs-mono">{{ a.path }}</td><td>{{ a.database|default:"—" }}</td><td>{{ a.size|filesizeformat }}</td><td>{{ a.verify_status }}</td><td class="bs-mono">{{ a.sha256 }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    <form method="post" action="{% url 'monitoring_admin:backup_verify' %}" style="margin-top:10px">
+      {% csrf_token %}
+      <input type="hidden" name="set_id" value="{{ set_id }}">
+      <button type="submit" class="bs-btn">🔎 Verifica questo backup</button>
+    </form>
+  </div>
+
+  <div class="bs-card">
+    <h2>Manifest completo</h2>
+    <pre class="bs-pre">{{ manifest_json }}</pre>
+  </div>
+  {% endif %}
+{% endblock %}

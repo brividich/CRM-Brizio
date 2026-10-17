@@ -143,6 +143,17 @@ body.theme-dark .backup-meta{color:var(--text-mid)}
     </div>
 
     <!-- Ripristino -->
+    {% if not restore_enabled %}
+    <div class="tool-card">
+      <div class="tool-card-title">🔄 Ripristino da backup</div>
+      <div class="tool-card-desc">
+        Il ripristino del database dall'applicazione è disattivato: il portale non sovrascrive il database a cui è collegato.
+        Il ripristino si fa con il tool dedicato (<code>deployment\scripts\restore-host.ps1</code>), che prova prima su una copia
+        e lascia un report. Stato e verifica dei backup: Monitoring → «Backup e ripristino».
+      </div>
+      <a class="btn btn-secondary" href="{% url 'monitoring_admin:backup_status' %}">💾 Backup e ripristino</a>
+    </div>
+    {% else %}
     <div class="tool-card">
       <div class="tool-card-title">🔄 Ripristino da backup</div>
       <div class="tool-card-desc">
@@ -165,6 +176,7 @@ body.theme-dark .backup-meta{color:var(--text-mid)}
       {% endif %}
       <div class="result-box" id="restoreResult"></div>
     </div>
+    {% endif %}
 
   </div>
 </div>

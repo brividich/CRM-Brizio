@@ -129,3 +129,90 @@ Tutte su una copia del database di sviluppo, poi eliminata:
 - Un byte alterato nel `.trn`: verifica FAILED, exit 2.
 - Retention e wrapper `backup_portale`.
 - Righe `BackupRun` registrate per ogni esito.
+
+## Monitoraggio e prova di ripristino (blocco R2)
+
+### Controlli di salute
+
+I controlli di salute stanno in `monitoring/health.py`. Entrano in `/readyz`, ma **non sono mai critical**: un backup in ritardo non toglie il sito dal bilanciamento e non blocca il post-deploy. Nel payload pubblico compaiono solo nome e stato.
+
+| Check | OK | WARN | FAIL |
+|---|---|---|---|
+| `backup_full` | ultimo FULL riuscito ≤ 26 h | ≤ 50 h | oltre 50 h, oppure nessun FULL |
+| `backup_log` | nella finestra 07–21, ultimo log OK < 2 h | log in ritardo | catena interrotta |
+| `restore_drill` | ultima prova riuscita < 8 giorni | < 35 giorni, mai eseguita, o ultima prova fallita | oltre 35 giorni |
+| `recovery_kit` | kit allineato a `.env` e chiavi | kit assente o non allineato | — |
+| `db_capacity` | < 70% del limite dell'edizione | ≥ 70% | ≥ 85% |
+
+Fuori dalla finestra oraria il log non viene controllato. Con recovery SIMPLE il check del log risulta SKIPPED.
+
+Lo schedule django-q `backup_health_alert` (ogni 30 minuti) apre o chiude una segnalazione nella centrale per ogni WARN/FAIL. Manda la mail agli amministratori **solo per i FAIL**, con dedup e quiet hours. L'alert dell'assistente AI non include più questi check.
+
+Il digest giornaliero mostra «Servizi degradato» finché i backup non sono attivi: è voluto.
+
+### Pagina «Backup e ripristino»
+
+Si apre da Monitoring → Centrale di comando → «💾 Backup e ripristino» (`/admin-portale/monitoring/backup/`). È solo per gli amministratori di portale.
+
+- **Riquadri**:
+  - RPO attuale (minuti dall'ultimo punto ripristinabile, calcolato dal piano di ripristino);
+  - ultimo FULL;
+  - catena dei log;
+  - ultima prova di ripristino con l'RTO misurato;
+  - capacità del DB;
+  - Recovery Kit.
+- **Azioni**:
+  - «Verifica ora»: accoda `core.backup_engine.tasks.verify_task`; l'esito compare come `BackupRun` di tipo verifica;
+  - download di `restore-plan.json` per un punto nel tempo.
+- **Tabelle**:
+  - esecuzioni, con filtri per tipo, esito e periodo;
+  - dettaglio di ogni set, con manifest leggibile;
+  - ultime prove di ripristino.
+
+Da questa pagina **non si può ripristinare nulla**.
+
+### `manage.py hub_restore_drill`
+
+1. Prende l'ultimo FULL verificato e i LOG fino al più recente (oppure `--stopat "AAAA-MM-GG HH:MM"`).
+2. Se il DB × 1,1 non entra nello staging, non parte e registra un WARNING.
+3. Esegue `RESTORE DATABASE <db>_drill … WITH MOVE, NORECOVERY, CHECKSUM`, poi i log in sequenza, poi `RECOVERY` (con `STOPAT`).
+4. Sulla copia controlla:
+   - `DBCC CHECKDB` (`PHYSICAL_ONLY` per default, `BACKUP_DRILL_CHECKDB_MODE=full` per il controllo completo);
+   - migrazioni identiche al manifest;
+   - righe delle tabelle chiave entro `BACKUP_DRILL_ROW_TOLERANCE_PCT` (5%).
+5. Decifra in memoria `BACKUP_DRILL_DECRYPT_SAMPLES` (5) file per radice privata con la chiave corrente.
+6. Esegue sempre `DROP DATABASE <db>_drill` nel `finally` e ripulisce lo staging.
+7. Registra un `RestoreDrill` con l'RTO della sola parte DB e l'esito di ogni controllo.
+
+Guardie: il nome della copia finisce sempre con `_drill` e non si usa mai `WITH REPLACE`. Anche i DB di `BACKUP_EXTRA_DATABASES` vengono ripristinati su una copia `_drill`, controllati e poi eliminati.
+
+Il task DRILL (domenica 04:00) si registra con `register-backup-tasks.ps1 -IncludeDrill`.
+
+### `manage.py hub_restore_plan`
+
+`--target-time "AAAA-MM-GG HH:MM" [--out restore-plan.json]` calcola il piano di ripristino. Il calcolo sta in `core/backup_engine/restore_plan.py`, che non dipende da Django: il tool di ripristino lo usa anche su una macchina nuova.
+
+Il piano contiene:
+
+- il FULL di partenza;
+- i LOG in ordine, con `STOPAT` sull'ultimo;
+- lo snapshot dei file e la fotografia della macchina non oltre il punto richiesto;
+- lo zip della release;
+- le migrazioni;
+- le impronte attese delle chiavi.
+
+Se la catena ha un buco, il comando esce con exit 2.
+
+### Ripristino dall'applicazione disattivato
+
+`HUB_TOOLS_DB_RESTORE_ENABLED=False` è il default (decisione del 16/10/2026):
+
+- `hub_tools.api_db_restore` risponde 403 JSON con `reason=restore_disabled` e rimanda a `restore-host.ps1`;
+- in Hub → «Database» il pulsante «Ripristina» è sostituito da un rimando alla pagina dei backup;
+- il **backup** al volo resta disponibile.
+
+### Verifiche fatte (17/10/2026, SQL Server 2025 Express, copia del DB di sviluppo poi eliminata)
+
+- `hub_restore_drill` reale: FULL + log ripristinati su `PN_R2_TEST_drill` con CHECKDB pulito e migrazioni identiche. Conteggi identici (utenti 140, anagrafica 145, asset 774, ticket 691), decifratura ok, RTO DB 10 s, copia eliminata.
+- La prova ha trovato un bug, già corretto: `sqlcmd -h 1` ripeteva l'intestazione a ogni riga e `FILELISTONLY` veniva letto male. Corretti anche i messaggi d'errore localizzati («Messaggio N»).
+- Pagina verificata a video in tema chiaro, scuro e su telefono a 390 px, senza scroll orizzontale.

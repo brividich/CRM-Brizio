@@ -91,7 +91,9 @@ class SqlServer:
 
     def run(self, sql: str, database: str = "master", headers: bool = False) -> list[list[str]]:
         args, env = self._base_args(database)
-        args += ["-W", "-s", SEP, "-h", ("1" if headers else "-1"), "-Q", f"SET NOCOUNT ON; {sql}"]
+        # -h -1: nessuna intestazione. Con intestazioni si lascia il default (una volta sola):
+        # "-h 1" la ripeterebbe a ogni riga.
+        args += ["-W", "-s", SEP] + ([] if headers else ["-h", "-1"]) + ["-Q", f"SET NOCOUNT ON; {sql}"]
         try:
             proc = (self.runner or _default_runner)(args, self.timeout_s + 30, env)
         except subprocess.TimeoutExpired as exc:
@@ -115,7 +117,7 @@ class SqlServer:
         if not rows:
             return []
         header = rows[0]
-        data = [r for r in rows[1:] if not all(set(c) <= {"-"} for c in r)]
+        data = [r for r in rows[1:] if not all(set(c) <= {"-"} for c in r) and r != header]
         return [dict(zip(header, r)) for r in data]
 
     # ── informazioni ─────────────────────────────────────────────────────────
@@ -227,7 +229,7 @@ def _first_error(text: str) -> str:
     """Prima riga «Msg N, Level…» con il testo che la segue (formato sqlcmd)."""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     for i, line in enumerate(lines):
-        if line.startswith("Msg "):
+        if line.startswith(("Msg ", "Messaggio ")):    # sqlcmd localizzato
             detail = lines[i + 1] if i + 1 < len(lines) else ""
             return f"{line} {detail}".strip()[:400]
     for line in lines:
