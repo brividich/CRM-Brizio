@@ -96,6 +96,7 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] `SetupWizard.exe` rigenerato (23,6 MB), bundle verificato (script e `backup_engine` presenti, nessun `.env`)
 - [x] `hub_restore_drill --keep` per il recupero selettivo
 - [x] `RUNBOOK_RIPRISTINO.md` + `deployment/RUNBOOK_RIPRISTINO.pdf` (generatore reportlab), `DR_PLAN.md`; `RECOVERY_KIT.md` (fatto in R3)
-- [~] Commit, push, PR (impilata su R3)
+- [x] Commit e push su `feature/recovery-wizard`
+- [ ] PR: da aprire a mano dopo R0→R3 (oppure con base `feature/recovery-tool`) — compare `main...feature/recovery-wizard`; testo nello scratchpad `pr_r4.md`
 - [B] Stampare il runbook per la Direzione, copiare il PDF sul NAS, compilare i contatti nella copia stampata
 - [B] Prima prova di ripristino completo su VM isolata (trimestrale) con il kit custodito
