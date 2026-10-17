@@ -69,22 +69,35 @@ def upsert_pulsante(
     url: str,
     *,
     icona: str = "tool",
+    codici_riservati: set[str] | frozenset[str] | None = None,
 ) -> tuple[int | None, bool]:
     """Crea o aggiorna un pulsante nella tabella legacy `pulsanti`.
 
     Restituisce (pulsante_id, changed).
     Aggiorna modulo, codice, nome_visibile, url se differenti dall'esistente.
+
+    Il pulsante si cerca prima per (modulo, codice), che lo identifica.
+    Per URL si cerca solo in seconda battuta (pulsanti creati prima con un altro
+    codice), mai con URL vuoto e mai prendendo un pulsante il cui codice è in
+    `codici_riservati`: sono i codici delle altre definizioni dello stesso
+    bootstrap. Senza questa esclusione due definizioni con lo stesso URL si
+    rubavano a vicenda la stessa riga a ogni avvio.
     """
     changed = False
     pulsante = None
+    riservati = {c.strip().lower() for c in (codici_riservati or ()) if c}
+    riservati.discard(codice.strip().lower())
     try:
-        pulsante = Pulsante.objects.filter(url__iexact=url).order_by("-id").first()
-        if pulsante is None:
-            pulsante = (
-                Pulsante.objects.filter(modulo__iexact=modulo, codice__iexact=codice)
-                .order_by("-id")
-                .first()
-            )
+        pulsante = (
+            Pulsante.objects.filter(modulo__iexact=modulo, codice__iexact=codice)
+            .order_by("-id")
+            .first()
+        )
+        if pulsante is None and (url or "").strip():
+            for candidato in Pulsante.objects.filter(url__iexact=url).order_by("-id"):
+                if (candidato.codice or "").strip().lower() not in riservati:
+                    pulsante = candidato
+                    break
     except DatabaseError:
         return None, False
 
@@ -329,6 +342,8 @@ def run_bootstrap(
     _section = section or f"{app_name}_api"
     changed = False
 
+    codici_bootstrap = {d["codice"] for d in definitions if d.get("codice")}
+
     try:
         with transaction.atomic():
             for defn in definitions:
@@ -339,7 +354,7 @@ def run_bootstrap(
                 per_icona = defn.get("icona", icona)
 
                 pid, item_changed = upsert_pulsante(
-                    modulo, codice, label, url, icona=per_icona
+                    modulo, codice, label, url, icona=per_icona, codici_riservati=codici_bootstrap
                 )
                 changed = changed or item_changed
 
