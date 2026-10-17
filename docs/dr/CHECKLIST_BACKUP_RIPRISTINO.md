@@ -83,7 +83,8 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] `prereqs.lock.json` + `update-prereqs-lock.ps1`: 9/9 installer verificati con firma Authenticode (Python 3.11/3.12/3.13, VC++, ODBC 18, HttpPlatformHandler, URL Rewrite, SQL 2025 Express, connector Entra)
 - [x] Test: `core.test_recovery_kit` (12) + `deployment/tests/test-restore-host.ps1` (8 controlli, PS 5.1) verdi. Scelta: test PowerShell nello stile del repo (script con `Check`), non Pester
 - [x] `docs/dr/RECOVERY_KIT.md`, `docs/dr/RIPRISTINO_HOST.md`, CHANGELOG, `docs/moduli/core.md`, guida Centro guide
-- [~] Commit, push, PR (impilata su R2)
+- [x] Commit e push su `feature/recovery-tool`
+- [ ] PR: da aprire a mano dopo R0→R2 (oppure con base `feature/backup-monitoraggio`) — compare `main...feature/recovery-tool`; testo nello scratchpad `pr_r3.md`
 - [B] Esportare il Recovery Kit in produzione e custodirlo nelle 4 collocazioni; `restore-host.ps1 -CachePrereqsOnly` verso il NAS
 - [B] Prova di ripristino completa su VM isolata (trimestrale) con il kit custodito
 
