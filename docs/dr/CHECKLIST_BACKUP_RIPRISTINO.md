@@ -70,7 +70,8 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] `HUB_TOOLS_DB_RESTORE_ENABLED=False`: endpoint 403 JSON, pulsante sostituito da rimando, test aggiornati
 - [x] Test: nuovi in `core.test_backup_drill`, `monitoring.test_backup_page`; monitoring + hub_tools + backup 183 verdi; schedule/doc automazioni verdi
 - [x] Guida in-app (Centro guide → Amministrazione «Backup e ripristino», emergenza), `docs/dr/BACKUP_MOTORE.md`, CHANGELOG, `docs/moduli/monitoring.md`, `hub_tools.md`, `docs/AUTOMAZIONI.md` rigenerato
-- [~] Commit, push, PR (impilata su R1)
+- [x] Commit e push su `feature/backup-monitoraggio` (`7216eff0`)
+- [ ] PR: da aprire a mano dopo R0, S1, R1 (oppure con base `feature/backup-motore`) — compare `main...feature/backup-monitoraggio`; testo nello scratchpad `pr_r2.md`
 - [B] Dopo il deploy: `setup_q_schedules` (nuovo `backup_health_alert`), `register-backup-tasks.ps1 … -IncludeDrill`
 
 ## R3 — Recovery Kit e restore headless
