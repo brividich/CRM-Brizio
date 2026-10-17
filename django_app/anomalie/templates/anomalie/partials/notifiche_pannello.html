@@ -106,6 +106,12 @@ Notifiche e in Automazioni → Notifiche di sistema: stessi dati, stesso salvata
       <label class="field">Ricorrenza: in giorni
         <input type="number" min="1" max="365" class="input" data-ntf-param="ricorrenza_giorni" value="{{ notifiche.parametri.ricorrenza_giorni }}"{% if not notifiche_modificabile %} readonly{% endif %}>
       </label>
+      <label class="field">Controllo OP: promemoria dopo minuti
+        <input type="number" min="5" max="240" class="input" data-ntf-param="controllo_promemoria_minuti" value="{{ notifiche.parametri.controllo_promemoria_minuti }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
+      <label class="field">Controllo OP: invio automatico dopo minuti
+        <input type="number" min="15" max="1440" class="input" data-ntf-param="controllo_invio_auto_minuti" value="{{ notifiche.parametri.controllo_invio_auto_minuti }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
     </div>
   </div>
 

@@ -510,7 +510,7 @@ class ControlloMailTests(LegacyTableMixin, TestCase):
             cs.flush_controlli()
             invio.assert_not_called()  # fine: aspetta «Termina controllo»
             AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(
-                ultimo_salvataggio_at=timezone.now() - timedelta(minutes=cs.FINE_TIMEOUT_MINUTI + 1))
+                ultimo_salvataggio_at=timezone.now() - timedelta(minutes=60 + 1))  # invio automatico: default 60
             cs.flush_controlli()
             self.assertEqual(invio.call_count, 1)  # rete di sicurezza dopo l'inattività
 

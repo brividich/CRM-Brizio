@@ -37,7 +37,10 @@ TOGGLE_KEYS = (
     "attivo", "ricorrenza_attivo", "rdc_attivo", "digest_attivo",
     "op_completato_attivo", "decisioni_operatore_attivo",
 )
-PARAM_KEYS = ("soglia_ore", "ora_invio", "ricorrenza_n", "ricorrenza_giorni", "rdc_giorni")
+PARAM_KEYS = ("soglia_ore", "ora_invio", "ricorrenza_n", "ricorrenza_giorni", "rdc_giorni",
+              "controllo_promemoria_minuti", "controllo_invio_auto_minuti")
+AUTO_PARAM_KEYS = ("ricorrenza_n", "ricorrenza_giorni", "rdc_giorni",
+                   "controllo_promemoria_minuti", "controllo_invio_auto_minuti")
 
 # Flussi pianificati che spediscono le mail (Automazioni → processi del modulo).
 MOTORI = (
@@ -107,10 +110,12 @@ def _ultimi_invii(kinds: set[str]) -> dict[str, dict]:
 
 def stato_pannello() -> dict:
     """Tutto quello che serve al pannello: mail, destinatari, interruttori, motori."""
-    from .escalation_config import get_escalation_config
+    from .escalation_config import durata_label, get_escalation_config
     from .views import _load_anomalie_lists
 
     cfg = get_escalation_config()
+    prom = durata_label(cfg["controllo_promemoria_minuti"])
+    auto_inv = durata_label(cfg["controllo_invio_auto_minuti"])
     liste_correnti = _load_anomalie_lists() or {}
     rule, action = _regola_nuova_anomalia()
     nuova_to = str(((action.config_json or {}) if action else {}).get("to") or "").strip()
@@ -120,9 +125,16 @@ def stato_pannello() -> dict:
     righe = [
         {
             "code": "controllo", "titolo": "Controllo OP: decisione al capocommessa",
-            "quando": "5 minuti dopo l'ultimo blocco salvato, oppure a fine controllo.",
-            "auto": "Capocommessa dell'OP, in copia il CAR.", "liste": [],
+            "quando": f"A «Termina controllo»; se il controllo resta fermo parte da sola {auto_inv} dopo "
+                      "l'ultimo blocco salvato.",
+            "auto": "Capocommessa dell'OP, in copia il CAR e le persone aggiunte dal controllore.", "liste": [],
             "toggle": None, "attiva": True, "log": "mail_action:controllo", "motore": "anomalie_pending_notifications",
+        },
+        {
+            "code": "promemoria_controllo", "titolo": "Promemoria al controllore: mail non ancora inviata",
+            "quando": f"{prom} dopo l'ultimo blocco salvato, se la mail del controllo non è ancora partita.",
+            "auto": "Chi ha aperto il controllo (notifica nel portale e mail con il riepilogo).", "liste": [],
+            "toggle": None, "attiva": True, "log": "promemoria_controllo", "motore": "anomalie_pending_notifications",
         },
         {
             "code": "nuova_anomalia", "titolo": "Nuova anomalia inserita fuori da un controllo",
@@ -185,7 +197,7 @@ def stato_pannello() -> dict:
         },
     ]
 
-    invii = _ultimi_invii({"mail_action", "conferma_aggiornamenti", "decisioni_operatore",
+    invii = _ultimi_invii({"mail_action", "promemoria_controllo", "conferma_aggiornamenti", "decisioni_operatore",
                            "op_completato", "escalation_resoconto", "ricorrenza_pn",
                            "digest_settimanale"})
     motori = _motori()
@@ -282,7 +294,7 @@ def salva_pannello(payload: dict) -> tuple[bool, str]:
             ora_invio=parametri.get("ora_invio", cfg["ora_invio"]),
         )
     auto = {k: bool(attivi[k]) for k in TOGGLE_KEYS if k != "attivo" and k in attivi}
-    auto.update({k: parametri[k] for k in ("ricorrenza_n", "ricorrenza_giorni", "rdc_giorni") if k in parametri})
+    auto.update({k: parametri[k] for k in AUTO_PARAM_KEYS if k in parametri})
     if auto:
         save_automazioni_config(auto)
 

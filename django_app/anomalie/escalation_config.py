@@ -58,6 +58,15 @@ RICORRENZA_GIORNI_MIN, RICORRENZA_GIORNI_MAX = 1, 365
 DEFAULT_RDC_GIORNI = 3
 RDC_GIORNI_MIN, RDC_GIORNI_MAX = 1, 60
 
+# Mail del controllo OP (parte a «Termina controllo»): promemoria al controllore e
+# invio automatico se il controllo resta fermo. Minuti dall'ultimo blocco salvato.
+KEY_CTRL_PROMEMORIA_MIN = "anomalie_controllo_promemoria_minuti"
+KEY_CTRL_INVIO_AUTO_MIN = "anomalie_controllo_invio_auto_minuti"
+DEFAULT_CTRL_PROMEMORIA_MIN = 15
+CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX = 5, 240
+DEFAULT_CTRL_INVIO_AUTO_MIN = 60
+CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX = 15, 1440
+
 
 def _parse_bool(raw: str, default: bool) -> bool:
     if raw is None or raw == "":
@@ -110,7 +119,36 @@ def get_escalation_config() -> dict:
         "digest_attivo": _parse_bool(SiteConfig.get(KEY_DIGEST_ATTIVO, ""), default=False),
         "op_completato_attivo": _parse_bool(SiteConfig.get(KEY_OP_COMPLETATO_ATTIVO, ""), default=False),
         "decisioni_operatore_attivo": _parse_bool(SiteConfig.get(KEY_DECISIONI_OPERATORE_ATTIVO, ""), default=True),
+        "controllo_promemoria_minuti": _clamp_int(
+            SiteConfig.get(KEY_CTRL_PROMEMORIA_MIN, "") or DEFAULT_CTRL_PROMEMORIA_MIN,
+            DEFAULT_CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX,
+        ),
+        "controllo_invio_auto_minuti": _clamp_int(
+            SiteConfig.get(KEY_CTRL_INVIO_AUTO_MIN, "") or DEFAULT_CTRL_INVIO_AUTO_MIN,
+            DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
+        ),
     }
+
+
+def tempi_controllo() -> dict:
+    """(promemoria, invio automatico) in minuti per la mail del controllo OP."""
+    try:
+        cfg = get_escalation_config()
+        return {"promemoria": cfg["controllo_promemoria_minuti"], "invio_auto": cfg["controllo_invio_auto_minuti"]}
+    except Exception:
+        return {"promemoria": DEFAULT_CTRL_PROMEMORIA_MIN, "invio_auto": DEFAULT_CTRL_INVIO_AUTO_MIN}
+
+
+def durata_label(minuti: int) -> str:
+    """«15 minuti», «1 ora», «1 ora e 30 minuti»."""
+    minuti = int(minuti)
+    ore, resto = divmod(minuti, 60)
+    parti = []
+    if ore:
+        parti.append(f"{ore} or{'a' if ore == 1 else 'e'}")
+    if resto or not ore:
+        parti.append(f"{resto} minut{'o' if resto == 1 else 'i'}")
+    return " e ".join(parti)
 
 
 def save_automazioni_config(payload: dict) -> bool:
@@ -138,6 +176,12 @@ def save_automazioni_config(payload: dict) -> bool:
                               RICORRENZA_GIORNI_MAX, "Anomalie: finestra in giorni dell'allarme ricorrenza P/N."),
         "rdc_giorni": (KEY_RDC_GIORNI, DEFAULT_RDC_GIORNI, RDC_GIORNI_MIN, RDC_GIORNI_MAX,
                        "Anomalie: giorni oltre cui un RDC richiesto senza numero genera il promemoria."),
+        "controllo_promemoria_minuti": (
+            KEY_CTRL_PROMEMORIA_MIN, DEFAULT_CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX,
+            "Anomalie: minuti dall'ultimo blocco salvato dopo cui il controllore riceve il promemoria di inviare la mail."),
+        "controllo_invio_auto_minuti": (
+            KEY_CTRL_INVIO_AUTO_MIN, DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
+            "Anomalie: minuti dall'ultimo blocco salvato dopo cui la mail del controllo parte da sola."),
     }
     for field, (key, default, lo, hi, desc) in numbers.items():
         if field in payload:

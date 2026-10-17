@@ -9,9 +9,11 @@ Il catalogo elenca anche i report gia' esistenti nel modulo, con il loro link.
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from django.db.models import Count, Q
 from django.urls import reverse
@@ -38,6 +40,20 @@ class RisultatoReport:
     totali: list | None = None
     note: list[str] = field(default_factory=list)
     troncato: bool = False
+    #: Colonne sommate quando la ricerca libera restringe le righe (i totali si ricalcolano).
+    somma: tuple = ()
+    #: Riquadri in testa alla pagina: [(etichetta, valore)], dalle righe mostrate.
+    riepilogo: list = field(default_factory=list)
+    #: Grafico a barre: {"titolo": str, "barre": [{"etichetta", "valore", "testo", "pct"}]}.
+    grafico: dict | None = None
+    #: Indici (sulle intestazioni originali) delle colonne mostrate, nell'ordine.
+    colonne_idx: list = field(default_factory=list)
+    #: Tutte le intestazioni del report, anche quelle nascoste (per la scelta colonne).
+    intestazioni_tutte: list = field(default_factory=list)
+
+
+#: Aree del catalogo, nell'ordine in cui compaiono.
+AREE = ("Inventario", "IT e rete", "Manutenzione e scadenze", "Stampanti e contatori")
 
 
 @dataclass
@@ -48,6 +64,36 @@ class DefinizioneReport:
     esempio: str
     filtri: list[Filtro]
     esegui: callable
+    area: str = "Inventario"
+    #: ``sintesi(righe) -> (riepilogo, grafico)`` sulle righe mostrate.
+    sintesi: callable | None = None
+
+
+def _num(valore) -> str:
+    """Numero leggibile all'italiana (1.234 / 1.234,50) per i riquadri di riepilogo."""
+    if isinstance(valore, float) and not valore.is_integer():
+        return f"{valore:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{int(valore):,}".replace(",", ".")
+
+
+def _barre(titolo: str, coppie, *, euro: bool = False, max_barre: int = 12) -> dict | None:
+    """Grafico a barre orizzontali dai valori più alti; None se non c'è niente da disegnare."""
+    coppie = sorted(((str(e) or "—", v) for e, v in coppie if v), key=lambda c: (-c[1], c[0].lower()))
+    if not coppie:
+        return None
+    massimo = coppie[0][1] or 1
+    barre = [{"etichetta": e, "valore": v, "testo": _num(v) + (" €" if euro else ""),
+              "pct": max(2, round(100 * v / massimo))} for e, v in coppie[:max_barre]]
+    if len(coppie) > max_barre:
+        titolo += f" (primi {max_barre} di {len(coppie)})"
+    return {"titolo": titolo, "barre": barre}
+
+
+def _conta(righe, idx) -> dict:
+    out: dict = defaultdict(int)
+    for r in righe:
+        out[r[idx] if r[idx] not in (None, "") else "—"] += 1
+    return out
 
 
 def _d(raw, default=None):
@@ -98,7 +144,17 @@ def _inventario(filtri: dict) -> RisultatoReport:
         valori = [pivot[reparto].get(code, 0) for code, _ in stati]
         righe.append([reparto, *valori, sum(valori)])
     totali = ["Totale", *[sum(r[i + 1] for r in righe) for i in range(len(stati))], sum(r[-1] for r in righe)]
-    return RisultatoReport("Inventario per stato e reparto", ["Reparto", *[l for _, l in stati], "Totale"], righe, totali)
+    return RisultatoReport("Inventario per stato e reparto", ["Reparto", *[l for _, l in stati], "Totale"], righe, totali,
+                           somma=tuple(range(1, len(stati) + 2)))
+
+
+def _sintesi_inventario(righe):
+    from ..models import Asset
+
+    stati = list(Asset.STATUS_CHOICES)
+    riepilogo = [("Asset", _num(sum(r[-1] for r in righe)))]
+    riepilogo += [(label, _num(sum(r[i + 1] for r in righe))) for i, (_, label) in enumerate(stati)]
+    return riepilogo, _barre("Asset per reparto", [(r[0], r[-1]) for r in righe])
 
 
 # ── 2. MFC: pagine e consumabili ─────────────────────────────────────────────
@@ -156,7 +212,18 @@ def _mfc(filtri: dict) -> RisultatoReport:
         note=["Pagine del mese = differenza fra letture mensili consecutive; un mese mancante o un contatore "
               "azzerato non viene stimato (colonna «Mesi non calcolabili»)."],
         troncato=len(macchine) >= MAX_RIGHE,
+        somma=(4, 5, 6, 7),
     )
+
+
+def _sintesi_mfc(righe):
+    per_reparto: dict = defaultdict(int)
+    for r in righe:
+        per_reparto[r[0] or "Senza reparto"] += r[6]
+    riepilogo = [("Macchine", _num(len(righe))), ("Pagine totali", _num(sum(r[6] for r in righe))),
+                 ("B/N", _num(sum(r[4] for r in righe))), ("Colore", _num(sum(r[5] for r in righe))),
+                 ("Mai lette", _num(sum(1 for r in righe if r[10] == "mai letta")))]
+    return riepilogo, _barre("Pagine per reparto", per_reparto.items())
 
 
 # ── 3. Scadenze: manutenzione, amministrative, garanzie ───────────────────────
@@ -208,6 +275,13 @@ def _scadenze(filtri: dict) -> RisultatoReport:
                            troncato=len(righe) >= MAX_RIGHE)
 
 
+def _sintesi_scadenze(righe):
+    stati = _conta(righe, 6)
+    riepilogo = [("Scadenze", _num(len(righe))), ("Scadute", _num(stati.get("Scaduta", 0))),
+                 ("Entro 30 giorni", _num(stati.get("In scadenza", 0))), ("Pianificate", _num(stati.get("Pianificata", 0)))]
+    return riepilogo, _barre("Scadenze per tipo", _conta(righe, 1).items())
+
+
 # ── 4. Modifiche rete e assegnazioni (dallo storico campi) ────────────────────
 
 
@@ -245,6 +319,321 @@ def _modifiche(filtri: dict) -> RisultatoReport:
                            righe, totali, troncato=len(righe) >= MAX_RIGHE)
 
 
+def _sintesi_modifiche(righe):
+    riepilogo = [("Modifiche", _num(len(righe))), ("Asset", _num(len({r[1] for r in righe}))),
+                 ("Autori", _num(len({r[7] for r in righe if r[7]})))]
+    return riepilogo, _barre("Modifiche per campo", _conta(righe, 3).items())
+
+
+# ── 5. Parco IT e rete (interfacce, IP, switch e porte) ───────────────────────
+
+
+def _switch_choices():
+    from .rete_switch import switch_disponibili
+
+    return [("", "Tutti")] + [(str(s["id"]), s["etichetta"]) for s in switch_disponibili()]
+
+
+PROBLEMI_RETE = [("", "Nessun controllo"), ("senza_ip", "Senza IP"), ("senza_switch", "Switch non riconosciuto"),
+                 ("senza_mac", "Senza MAC"), ("ip_duplicato", "IP usato da più interfacce"),
+                 ("senza_rete", "Dispositivi IT senza interfacce")]
+
+
+def _parco_it(filtri: dict) -> RisultatoReport:
+    from ..forms import IT_DEVICE_TYPES
+    from ..models import Asset, AssetEndpoint
+    from .rete_switch import switch_per_endpoint
+
+    tipi = dict(Asset.TYPE_CHOICES)
+    qs = Asset.objects.exclude(status=Asset.STATUS_RETIRED)
+    if filtri.get("asset_type"):
+        qs = qs.filter(asset_type=filtri["asset_type"])
+    else:
+        qs = qs.filter(Q(asset_type__in=IT_DEVICE_TYPES) | Q(endpoints__isnull=False)).distinct()
+    if filtri.get("reparto"):
+        qs = qs.filter(reparto__icontains=filtri["reparto"])
+    assets = list(qs.order_by("asset_tag").only("id", "asset_tag", "name", "asset_type", "reparto", "assignment_to")[:MAX_RIGHE])
+    endpoints: dict[int, list] = defaultdict(list)
+    ids = [a.pk for a in assets]
+    for start in range(0, len(ids), 1000):
+        for ep in AssetEndpoint.objects.filter(asset_id__in=ids[start:start + 1000]).order_by("asset_id", "endpoint_name", "id"):
+            endpoints[ep.asset_id].append(ep)
+    tutti = [ep for lista in endpoints.values() for ep in lista]
+    switch = switch_per_endpoint(tutti)
+    # IP duplicati sull'intero censimento, non solo nelle righe filtrate.
+    ip_usati: dict[str, int] = defaultdict(int)
+    for ip in AssetEndpoint.objects.exclude(ip__isnull=True).exclude(ip="").values_list("ip", flat=True):
+        ip_usati[ip.strip()] += 1
+    vlan = (filtri.get("vlan") or "").strip()
+    switch_id = filtri.get("switch") or ""
+    problema = filtri.get("problema") or ""
+    righe = []
+    for a in assets:
+        base = [a.asset_tag, a.name, tipi.get(a.asset_type, a.asset_type), a.reparto, a.assignment_to]
+        lista = endpoints.get(a.pk, [])
+        if not lista:
+            if not (vlan or switch_id) and problema in ("", "senza_rete") and a.asset_type in IT_DEVICE_TYPES:
+                righe.append([*base, "", "", "", "", "", "", "", "Nessuna interfaccia di rete"])
+            continue
+        if problema == "senza_rete":
+            continue
+        for ep in lista:
+            sw, da_prefisso = switch.get(ep.id, (None, False))
+            ip = (ep.ip or "").strip()
+            note = []
+            if ip and ip_usati.get(ip, 0) > 1:
+                note.append("IP duplicato")
+            if sw is None and (ep.switch_name or ep.switch_port):
+                note.append("switch non riconosciuto")
+            elif da_prefisso:
+                note.append("switch dal prefisso porte")
+            if vlan and str(ep.vlan or "") != vlan:
+                continue
+            if switch_id and (sw is None or str(sw.pk) != switch_id):
+                continue
+            if problema == "senza_ip" and ip:
+                continue
+            if problema == "senza_switch" and sw is not None:
+                continue
+            if problema == "senza_mac" and ep.mac:
+                continue
+            if problema == "ip_duplicato" and "IP duplicato" not in note:
+                continue
+            righe.append([*base, ep.endpoint_name, ip, ep.mac, ep.vlan if ep.vlan is not None else "",
+                          sw.asset_tag if sw else (ep.switch_name or ""), ep.switch_port, ep.punto, ", ".join(note)])
+    asset_distinti = len({r[0] for r in righe})
+    totali = [f"Totale {len(righe)} righe", f"{asset_distinti} asset", "", "", "", "", "", "", "", "", "", "", ""]
+    return RisultatoReport(
+        "Parco IT e rete",
+        ["Asset", "Nome", "Tipo", "Reparto", "Assegnatario", "Interfaccia", "IP", "MAC", "VLAN", "Switch", "Porta",
+         "Punto rete", "Note"],
+        righe, totali,
+        note=["Una riga per interfaccia di rete. Lo switch è quello indicato nel punto rete oppure, se manca, "
+              "quello che ha il prefisso della porta (es. A0 per A0.1.12). Gli asset dismessi sono esclusi."],
+        troncato=len(assets) >= MAX_RIGHE,
+    )
+
+
+def _sintesi_parco_it(righe):
+    con_rete = [r for r in righe if r[5] or r[6] or r[10]]
+    per_switch: dict = defaultdict(int)
+    for r in con_rete:
+        if r[9]:
+            per_switch[r[9]] += 1
+    riepilogo = [("Asset", _num(len({r[0] for r in righe}))), ("Interfacce", _num(len(con_rete))),
+                 ("Senza IP", _num(sum(1 for r in con_rete if not r[6]))),
+                 ("Switch non riconosciuto", _num(sum(1 for r in righe if "switch non riconosciuto" in r[12]))),
+                 ("IP duplicati", _num(sum(1 for r in righe if "IP duplicato" in r[12]))),
+                 ("Senza interfacce", _num(sum(1 for r in righe if r[12] == "Nessuna interfaccia di rete")))]
+    return riepilogo, _barre("Interfacce per switch", per_switch.items())
+
+
+# ── 6. Licenze software ──────────────────────────────────────────────────────
+
+
+def _licenze(filtri: dict) -> RisultatoReport:
+    from ..models import SoftwareLicense
+
+    oggi = timezone.localdate()
+    categorie = dict(SoftwareLicense.CATEGORY_CHOICES)
+    qs = SoftwareLicense.objects.select_related("asset")
+    stato_filtro = filtri.get("stato") or ""
+    if stato_filtro != "tutte":
+        qs = qs.filter(is_active=True)
+    if filtri.get("categoria"):
+        qs = qs.filter(category=filtri["categoria"])
+    if filtri.get("reparto"):
+        qs = qs.filter(Q(asset__reparto__icontains=filtri["reparto"]) | Q(assigned_reparto__icontains=filtri["reparto"]))
+
+    def stato(lic):
+        if not lic.is_active:
+            return "Disattivata"
+        if lic.expiry_date and lic.expiry_date < oggi:
+            return "Scaduta"
+        if lic.expiry_date and lic.expiry_date <= oggi + timedelta(days=60):
+            return "In scadenza"
+        return "Attiva"
+
+    righe = []
+    for lic in qs.order_by("category", "vendor", "product_name", "id")[:MAX_RIGHE]:
+        s = stato(lic)
+        if stato_filtro == "scadute" and s != "Scaduta":
+            continue
+        if stato_filtro == "in_scadenza" and s != "In scadenza":
+            continue
+        if lic.asset_id:
+            assegnata, reparto = f"{lic.asset.asset_tag} — {lic.asset.name}", lic.asset.reparto
+        else:
+            assegnata, reparto = lic.assignment_label, lic.assigned_reparto
+        righe.append([categorie.get(lic.category, lic.category), lic.product_name, lic.edition, lic.vendor,
+                      lic.license_reference, assegnata, reparto, lic.seats_used or 0,
+                      lic.seats_total if lic.seats_total is not None else "",
+                      lic.expiry_date.strftime("%d/%m/%Y") if lic.expiry_date else "",
+                      "Sì" if lic.auto_renew else "No", s])
+    totali = [f"Totale {len(righe)} licenze", "", "", "", "", "", "", sum(r[7] for r in righe),
+              sum(r[8] for r in righe if r[8] != ""), "", "", f"Scadute {sum(1 for r in righe if r[11] == 'Scaduta')}"]
+    return RisultatoReport("Licenze software", ["Categoria", "Prodotto", "Edizione", "Produttore", "Riferimento",
+                                                "Assegnata a", "Reparto", "Posti usati", "Posti totali", "Scadenza",
+                                                "Rinnovo automatico", "Stato"],
+                           righe, totali, somma=(7, 8), troncato=len(righe) >= MAX_RIGHE,
+                           note=["«In scadenza» = entro 60 giorni. Le licenze disattivate compaiono solo con Stato «Tutte»."])
+
+
+def _sintesi_licenze(righe):
+    stati = _conta(righe, 11)
+    per_prodotto: dict = defaultdict(int)
+    for r in righe:
+        per_prodotto[r[1]] += r[7]
+    riepilogo = [("Licenze", _num(len(righe))), ("Posti usati", _num(sum(r[7] for r in righe))),
+                 ("Scadute", _num(stati.get("Scaduta", 0))), ("Entro 60 giorni", _num(stati.get("In scadenza", 0)))]
+    return riepilogo, _barre("Posti usati per prodotto", per_prodotto.items())
+
+
+# ── 7. Costi e ore di manutenzione (OdL chiusi) ──────────────────────────────
+
+RAGGRUPPA_COSTI = [("asset", "Asset"), ("reparto", "Reparto"), ("tipo", "Tipo di intervento"),
+                   ("fornitore", "Fornitore"), ("mese", "Mese di chiusura")]
+
+
+def _costi(filtri: dict) -> RisultatoReport:
+    from decimal import Decimal
+
+    from ..models import WorkOrder
+
+    oggi = timezone.localdate()
+    dal = _d(filtri.get("dal"), oggi.replace(month=1, day=1))
+    al = _d(filtri.get("al"), oggi)
+    if dal > al:
+        dal, al = al, dal
+    raggruppa = filtri.get("raggruppa") or "asset"
+    from .storico_asset import inizio_giorno
+
+    qs = WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__gte=inizio_giorno(dal),
+                                  closed_at__lt=inizio_giorno(al + timedelta(days=1)))
+    if filtri.get("reparto"):
+        qs = qs.filter(asset__reparto__icontains=filtri["reparto"])
+    if filtri.get("kind"):
+        qs = qs.filter(kind=filtri["kind"])
+    tipi = dict(WorkOrder.KIND_CHOICES)
+    gruppi: dict = OrderedDict()
+    zero = Decimal("0")
+    for wo in qs.select_related("asset", "supplier").order_by("closed_at", "id")[:50000]:
+        if raggruppa == "reparto":
+            chiave = wo.asset.reparto or "Senza reparto"
+        elif raggruppa == "tipo":
+            chiave = tipi.get(wo.kind, wo.kind)
+        elif raggruppa == "fornitore":
+            chiave = str(wo.supplier) if wo.supplier_id else "Interno / senza fornitore"
+        elif raggruppa == "mese":
+            chiave = timezone.localtime(wo.closed_at).strftime("%Y-%m")
+        else:
+            chiave = f"{wo.asset.asset_tag} — {wo.asset.name}"
+        g = gruppi.setdefault(chiave, {"n": 0, "prev": 0, "corr": 0, "contratto": 0, "min": 0, "fermo": 0,
+                                       "lab": zero, "mat": zero, "tot": zero})
+        g["n"] += 1
+        g["prev"] += wo.kind == WorkOrder.KIND_PREVENTIVE
+        g["corr"] += wo.kind == WorkOrder.KIND_CORRECTIVE
+        g["contratto"] += bool(wo.covered_by_contract)
+        g["min"] += wo.intervention_duration_minutes or 0
+        g["fermo"] += wo.downtime_minutes or 0
+        g["lab"] += wo.labor_cost_eur or zero
+        g["mat"] += wo.materials_cost_eur or zero
+        g["tot"] += wo.resolved_total_cost_eur or zero
+
+    def euro(v):
+        return float(round(v, 2))
+
+    righe = [[k, g["n"], g["prev"], g["corr"], g["contratto"], round(g["min"] / 60, 1), round(g["fermo"] / 60, 1),
+              euro(g["lab"]), euro(g["mat"]), euro(g["tot"])] for k, g in gruppi.items()]
+    if raggruppa == "mese":
+        righe.sort(key=lambda r: r[0])
+    else:
+        righe.sort(key=lambda r: (-r[9], str(r[0]).lower()))
+    somma = tuple(range(1, 10))
+    totali = ["Totale", *[round(sum(r[i] for r in righe), 2) for i in somma]]
+    etichetta = dict(RAGGRUPPA_COSTI).get(raggruppa, "Asset")
+    return RisultatoReport(
+        f"Costi e ore di manutenzione dal {dal:%d/%m/%Y} al {al:%d/%m/%Y}",
+        [etichetta, "Interventi", "Preventivi", "Correttivi", "Coperti da contratto", "Ore intervento", "Ore fermo",
+         "Manodopera €", "Materiali €", "Totale €"],
+        righe, totali, somma=somma,
+        note=["Ordini di lavoro chiusi nel periodo. Il totale è il costo indicato in chiusura oppure, se manca, "
+              "manodopera + materiali."],
+    )
+
+
+def _sintesi_costi(righe):
+    n = sum(r[1] for r in righe)
+    tot = round(sum(r[9] for r in righe), 2)
+    riepilogo = [("Interventi chiusi", _num(n)), ("Costo totale", _num(float(tot)) + " €"),
+                 ("Costo medio", (_num(round(tot / n, 2)) + " €") if n else "—"),
+                 ("Ore di fermo", _num(round(sum(r[6] for r in righe), 1)))]
+    return riepilogo, _barre("Costo totale", [(r[0], r[9]) for r in righe], euro=True)
+
+
+# ── 8. Qualità dei dati (schede incomplete) ──────────────────────────────────
+
+
+def _qualita(filtri: dict) -> RisultatoReport:
+    from django.db.models import Prefetch
+
+    from ..forms import IT_DEVICE_TYPES
+    from ..models import Asset, AssetCategoryField, AssetEndpoint
+
+    tipi = dict(Asset.TYPE_CHOICES)
+    stati = dict(Asset.STATUS_CHOICES)
+    qs = Asset.objects.exclude(status=Asset.STATUS_RETIRED).select_related("asset_category")
+    if filtri.get("asset_type"):
+        qs = qs.filter(asset_type=filtri["asset_type"])
+    if filtri.get("reparto"):
+        qs = qs.filter(reparto__icontains=filtri["reparto"])
+    qs = qs.prefetch_related(Prefetch("asset_category__category_fields",
+                                      queryset=AssetCategoryField.objects.filter(is_active=True, is_required=True)))
+    assets = list(qs.order_by("asset_tag")[:MAX_RIGHE])
+    con_ip = set(AssetEndpoint.objects.exclude(ip__isnull=True).exclude(ip="").values_list("asset_id", flat=True).distinct())
+    manca = (filtri.get("manca") or "").strip()
+    righe = []
+    for a in assets:
+        campi = list(a.asset_category.category_fields.all()) if a.asset_category_id else []
+        esito = a.completeness(category_fields=campi)
+        mancanti = list(esito["missing"])
+        if a.asset_type in IT_DEVICE_TYPES and a.pk not in con_ip:
+            mancanti.append("Indirizzo IP")
+        if not a.asset_category_id:
+            mancanti.append("Categoria")
+        if not mancanti or (manca and manca not in mancanti):
+            continue
+        righe.append([a.asset_tag, a.name, tipi.get(a.asset_type, a.asset_type), a.reparto,
+                      stati.get(a.status, a.status), esito["pct"], len(mancanti), ", ".join(mancanti)])
+    righe.sort(key=lambda r: (-r[6], r[0]))
+    totali = [f"Totale {len(righe)} asset", f"su {len(assets)} controllati", "", "", "", "",
+              sum(r[6] for r in righe), ""]
+    return RisultatoReport(
+        "Qualità dei dati: schede incomplete",
+        ["Asset", "Nome", "Tipo", "Reparto", "Stato", "Completezza %", "Dati mancanti", "Cosa manca"],
+        righe, totali, somma=(6,), troncato=len(assets) >= MAX_RIGHE,
+        note=["Controlla nome, numero di serie, produttore, modello, reparto, data acquisto, assegnatario, "
+              "categoria, i campi obbligatori della categoria e, per i dispositivi IT, l'indirizzo IP. "
+              "Gli asset dismessi sono esclusi."],
+    )
+
+
+def _sintesi_qualita(righe):
+    per_dato: dict = defaultdict(int)
+    for r in righe:
+        for voce in r[7].split(", "):
+            if voce:
+                per_dato[voce] += 1
+    riepilogo = [("Schede incomplete", _num(len(righe))), ("Dati mancanti", _num(sum(r[6] for r in righe))),
+                 ("Completezza media", (_num(round(sum(r[5] for r in righe) / len(righe))) + "%") if righe else "—")]
+    return riepilogo, _barre("Asset per dato mancante", per_dato.items())
+
+
+MANCA_CHOICES = [("", "Qualsiasi dato"), ("Numero di serie", "Numero di serie"), ("Assegnatario", "Assegnatario"),
+                 ("Reparto", "Reparto"), ("Produttore", "Produttore"), ("Modello", "Modello"),
+                 ("Data acquisto", "Data acquisto"), ("Categoria", "Categoria"), ("Indirizzo IP", "Indirizzo IP")]
+
+
 def _fonte_choices():
     from ..models import AssetFieldHistory
 
@@ -257,6 +646,18 @@ def _type_choices():
     return [("", "Tutti")] + list(Asset.TYPE_CHOICES)
 
 
+def _categoria_licenze_choices():
+    from ..models import SoftwareLicense
+
+    return [("", "Tutte")] + list(SoftwareLicense.CATEGORY_CHOICES)
+
+
+def _kind_choices():
+    from ..models import WorkOrder
+
+    return [("", "Tutti")] + list(WorkOrder.KIND_CHOICES)
+
+
 def definizioni() -> "OrderedDict[str, DefinizioneReport]":
     return OrderedDict((d.code, d) for d in (
         DefinizioneReport(
@@ -265,7 +666,47 @@ def definizioni() -> "OrderedDict[str, DefinizioneReport]":
             "CED · In uso 42 · In riparazione 1 · In magazzino 3 · Dismesso 0 · Totale 46",
             [Filtro("reparto", "Reparto contiene"), Filtro("asset_type", "Tipo", "select", _type_choices()),
              Filtro("stato", "Stato", "select", _status_choices())],
-            _inventario,
+            _inventario, "Inventario", _sintesi_inventario,
+        ),
+        DefinizioneReport(
+            "qualita-dati", "Qualità dei dati: schede incomplete",
+            "Gli asset a cui mancano dati (numero di serie, assegnatario, reparto, categoria, campi obbligatori, "
+            "IP per i dispositivi IT), dal più incompleto: la lista di cose da sistemare.",
+            "PC-0042 · Notebook ufficio · Completezza 63% · 3 dati mancanti · Numero di serie, Assegnatario, Indirizzo IP",
+            [Filtro("asset_type", "Tipo", "select", _type_choices()), Filtro("reparto", "Reparto contiene"),
+             Filtro("manca", "Manca", "select", MANCA_CHOICES)],
+            _qualita, "Inventario", _sintesi_qualita,
+        ),
+        DefinizioneReport(
+            "parco-it-rete", "Parco IT e rete",
+            "Un elenco di tutte le interfacce di rete: IP, MAC, VLAN, switch e porta di ogni dispositivo IT, con i "
+            "problemi trovati (IP duplicati, switch non riconosciuto, dispositivi senza rete).",
+            "PC-0042 · Notebook ufficio · CED · 192.0.2.10 · VLAN 10 · IT-SW-01 · A0.1.12",
+            [Filtro("reparto", "Reparto contiene"), Filtro("asset_type", "Tipo", "select", _type_choices()),
+             Filtro("switch", "Switch", "select", _switch_choices()), Filtro("vlan", "VLAN"),
+             Filtro("problema", "Controllo", "select", PROBLEMI_RETE)],
+            _parco_it, "IT e rete", _sintesi_parco_it,
+        ),
+        DefinizioneReport(
+            "licenze-software", "Licenze software",
+            "Licenze con assegnazione, posti usati e totali, scadenza e stato (attiva, in scadenza entro 60 giorni, "
+            "scaduta).",
+            "Office · Microsoft 365 Business · PC-0042 · 1/1 posti · 31/12/2026 · Attiva",
+            [Filtro("categoria", "Categoria", "select", _categoria_licenze_choices()),
+             Filtro("stato", "Stato", "select", [("", "Attive"), ("in_scadenza", "In scadenza (60 giorni)"),
+                                                 ("scadute", "Scadute"), ("tutte", "Tutte, anche disattivate")]),
+             Filtro("reparto", "Reparto contiene")],
+            _licenze, "IT e rete", _sintesi_licenze,
+        ),
+        DefinizioneReport(
+            "costi-manutenzione", "Costi e ore di manutenzione",
+            "Ordini di lavoro chiusi nel periodo raggruppati per asset, reparto, tipo di intervento, fornitore o mese: "
+            "numero di interventi, ore di intervento e di fermo, costi di manodopera e materiali.",
+            "Officina · 14 interventi · 9 preventivi · 5 correttivi · 21,5 ore fermo · 3.240,00 €",
+            [Filtro("dal", "Dal", "date"), Filtro("al", "Al", "date"),
+             Filtro("raggruppa", "Raggruppa per", "select", RAGGRUPPA_COSTI),
+             Filtro("kind", "Tipo di intervento", "select", _kind_choices()), Filtro("reparto", "Reparto contiene")],
+            _costi, "Manutenzione e scadenze", _sintesi_costi,
         ),
         DefinizioneReport(
             "mfc-pagine-consumabili", "MFC: pagine stampate e consumabili",
@@ -273,7 +714,7 @@ def definizioni() -> "OrderedDict[str, DefinizioneReport]":
             "giorni stimati all'esaurimento e data dell'ultima lettura.",
             "Amministrazione · MAT-123 · 4.210 B/N · 380 colore · Toner nero 12% · ~9 giorni",
             [Filtro("dal", "Dal mese", "month"), Filtro("al", "Al mese", "month"), Filtro("reparto", "Reparto contiene")],
-            _mfc,
+            _mfc, "Stampanti e contatori", _sintesi_mfc,
         ),
         DefinizioneReport(
             "scadenze", "Scadenze di manutenzione, amministrative e garanzie",
@@ -282,7 +723,7 @@ def definizioni() -> "OrderedDict[str, DefinizioneReport]":
             [Filtro("dal", "Dal", "date"), Filtro("al", "Al", "date"), Filtro("reparto", "Reparto contiene"),
              Filtro("tipo", "Tipo", "select", [("", "Tutti"), ("manutenzione", "Manutenzione"),
                                                ("amministrativa", "Amministrativa"), ("garanzia", "Garanzia")])],
-            _scadenze,
+            _scadenze, "Manutenzione e scadenze", _sintesi_scadenze,
         ),
         DefinizioneReport(
             "modifiche-rete-assegnazioni", "Modifiche di rete e assegnazioni",
@@ -293,9 +734,18 @@ def definizioni() -> "OrderedDict[str, DefinizioneReport]":
              Filtro("gruppo", "Gruppo", "select", [("", "Rete e assegnazioni"), ("rete", "Rete"),
                                                    ("assegnazione", "Assegnazione"), ("stato", "Stato")]),
              Filtro("fonte", "Fonte", "select", _fonte_choices()), Filtro("reparto", "Reparto contiene")],
-            _modifiche,
+            _modifiche, "IT e rete", _sintesi_modifiche,
         ),
     ))
+
+
+def definizioni_per_area() -> list[tuple[str, list]]:
+    gruppi: dict = OrderedDict((a, []) for a in AREE)
+    for d in definizioni().values():
+        gruppi.setdefault(d.area, []).append(d)
+    for r in report_esistenti():
+        gruppi.setdefault(r["area"], []).append(r)
+    return [(area, voci) for area, voci in gruppi.items() if voci]
 
 
 def report_esistenti() -> list[dict]:
@@ -303,21 +753,21 @@ def report_esistenti() -> list[dict]:
     return [
         {"titolo": "Reportistica manutenzione", "url": reverse("assets:reports"),
          "descrizione": "KPI di manutenzione (PM compliance, budget, costi per categoria).", "filtri": "Ambito, mese",
-         "output": "Pagina con grafici"},
+         "output": "Pagina con grafici", "area": "Manutenzione e scadenze"},
         {"titolo": "Archivio report programmati", "url": reverse("assets:reporting_archive"),
          "descrizione": "Snapshot inventario pianificati dalle Impostazioni, con PDF/Excel immutabili e trend.",
-         "filtri": "Tipo, categoria, reparto, SNMP", "output": "PDF, Excel"},
+         "filtri": "Tipo, categoria, reparto, SNMP", "output": "PDF, Excel", "area": "Inventario"},
         {"titolo": "Scadenzario manutenzione", "url": reverse("assets:maintenance_scadenze"),
          "descrizione": "Scadenze di manutenzione per finestra, piano, gruppo, fornitore.",
-         "filtri": "Finestra, piano, gruppo, asset, reparto, tipo, fornitore", "output": "Pagina, Excel, PDF"},
+         "filtri": "Finestra, piano, gruppo, asset, reparto, tipo, fornitore", "output": "Pagina, Excel, PDF", "area": "Manutenzione e scadenze"},
         {"titolo": "Export elenco asset", "url": reverse("assets:asset_list"),
          "descrizione": "Elenco asset con i filtri della lista (pulsante Esporta).",
-         "filtri": "Ricerca, tipo, categoria, reparto, VLAN, IP", "output": "Excel"},
+         "filtri": "Ricerca, tipo, categoria, reparto, VLAN, IP", "output": "Excel", "area": "Inventario"},
         {"titolo": "Scheda asset PDF", "url": "", "descrizione": "Report del singolo asset dalla sua scheda.",
-         "filtri": "Asset", "output": "PDF"},
+         "filtri": "Asset", "output": "PDF", "area": "Inventario"},
         {"titolo": "Manutenzione mensile macchine", "url": "",
          "descrizione": "PDF mensile delle manutenzioni macchine di lavoro (dalla Reportistica).", "filtri": "Mese",
-         "output": "PDF"},
+         "output": "PDF", "area": "Manutenzione e scadenze"},
     ]
 
 
@@ -341,6 +791,95 @@ def etichetta_filtri(definizione: DefinizioneReport, filtri: dict) -> str:
                 valore = dict(f.scelte).get(valore, valore)
             parti.append(f"{f.etichetta}: {valore}")
     return " · ".join(parti) or "Nessun filtro"
+
+
+# ── Vista: ricerca libera, ordinamento e colonne (uguali in pagina ed export) ──
+
+
+def vista_da_richiesta(data) -> dict:
+    """Ricerca, colonne e ordinamento da querystring/POST o dal report salvato (chiave ``_vista``)."""
+    if data is None:
+        return {}
+    colonne = data.getlist("col") if hasattr(data, "getlist") else (data.get("col") or [])
+    vista = {
+        "cerca": str(data.get("cerca") or "").strip()[:120],
+        "col": sorted({int(c) for c in colonne if str(c).isdigit() and len(str(c)) < 4}),
+        "ordina": int(data["ordina"]) if str(data.get("ordina") or "").isdigit() and len(str(data["ordina"])) < 4 else None,
+        "verso": "desc" if data.get("verso") == "desc" else "asc",
+    }
+    return {k: v for k, v in vista.items() if v not in ("", [], None) and not (k == "verso" and v == "asc")}
+
+
+def ha_vista(data) -> bool:
+    return any(k in data for k in ("cerca", "col", "ordina", "verso"))
+
+
+_DATA_IT = re.compile(r"^(\d{2})/(\d{2})/(\d{4})(?: (\d{2}):(\d{2}))?$")
+
+
+def _chiave(valore):
+    if isinstance(valore, bool):
+        return (1, 0, str(valore))
+    if isinstance(valore, (int, float, Decimal)):
+        return (0, float(valore), "")
+    if isinstance(valore, date):
+        return (0, float(valore.toordinal()), "")
+    testo = str(valore)
+    m = _DATA_IT.match(testo)
+    if m:
+        g, mese, anno, ora, minuto = m.groups()
+        return (0, float(f"{anno}{mese}{g}{ora or '00'}{minuto or '00'}"), "")
+    return (1, 0, testo.casefold())
+
+
+def applica_vista(definizione: DefinizioneReport, risultato: RisultatoReport, vista: dict) -> RisultatoReport:
+    n = len(risultato.intestazioni)
+    righe = list(risultato.righe)
+    totali = list(risultato.totali) if risultato.totali else None
+    cerca = (vista.get("cerca") or "").casefold()
+    if cerca:
+        parole = cerca.split()
+        righe = [r for r in righe if all(any(p in str(v).casefold() for v in r) for p in parole)]
+        totali = [""] * n
+        totali[0] = f"Totale {len(righe)} righe"
+        for i in risultato.somma:
+            totali[i] = round(sum(r[i] for r in righe if isinstance(r[i], (int, float, Decimal))), 2)
+    riepilogo, grafico = definizione.sintesi(righe) if definizione.sintesi else ([], None)
+    ordina = vista.get("ordina")
+    if ordina is not None and 0 <= ordina < n:
+        piene = [r for r in righe if r[ordina] not in (None, "")]
+        vuote = [r for r in righe if r[ordina] in (None, "")]
+        piene.sort(key=lambda r: _chiave(r[ordina]), reverse=vista.get("verso") == "desc")
+        righe = piene + vuote
+    idx = [i for i in (vista.get("col") or []) if 0 <= i < n] or list(range(n))
+    righe = [[r[i] for i in idx] for r in righe]
+    numeriche = [pos for pos, i in enumerate(idx)
+                 if any(isinstance(r[pos], (int, float, Decimal)) and not isinstance(r[pos], bool) for r in righe)]
+    return RisultatoReport(
+        titolo=risultato.titolo, intestazioni=[risultato.intestazioni[i] for i in idx], righe=righe,
+        totali=[totali[i] for i in idx] if totali else None, note=risultato.note, troncato=risultato.troncato,
+        somma=risultato.somma, riepilogo=riepilogo, grafico=grafico, colonne_idx=idx,
+        intestazioni_tutte=list(risultato.intestazioni),
+    ), numeriche
+
+
+def esegui(definizione: DefinizioneReport, filtri: dict, vista: dict | None = None):
+    """Esegue il report e applica la vista: ``(risultato, colonne_numeriche)``."""
+    return applica_vista(definizione, definizione.esegui(filtri), vista or {})
+
+
+def etichetta_vista(definizione: DefinizioneReport, vista: dict, risultato: RisultatoReport | None = None) -> str:
+    parti = []
+    if vista.get("cerca"):
+        parti.append(f"Ricerca: «{vista['cerca']}»")
+    if vista.get("col") and risultato is not None and len(risultato.intestazioni) < len(risultato.intestazioni_tutte):
+        parti.append(f"{len(risultato.intestazioni)} colonne su {len(risultato.intestazioni_tutte)}")
+    if vista.get("ordina") is not None and risultato is not None:
+        tutte = risultato.intestazioni_tutte or risultato.intestazioni
+        nome = tutte[vista["ordina"]] if vista["ordina"] < len(tutte) else ""
+        if nome:
+            parti.append(f"Ordinato per {nome}{' (decrescente)' if vista.get('verso') == 'desc' else ''}")
+    return " · ".join(parti)
 
 
 def intestazione_estrazione(utente=None, quando: datetime | None = None) -> str:
@@ -369,7 +908,8 @@ def destinatario_ammesso(code: str, utente) -> bool:
 
 
 #: Report che mostrano dati di altri moduli: serve anche la consultazione di quel modulo.
-ACCESSI_EXTRA = {"mfc-pagine-consumabili": "contatori:consumabili"}
+ACCESSI_EXTRA = {"mfc-pagine-consumabili": "contatori:consumabili", "licenze-software": "assets:software_license_list",
+                 "costi-manutenzione": "assets:wo_list"}
 
 
 def accesso_extra(code: str, utente) -> bool:
@@ -457,8 +997,9 @@ def invia_report_pianificati(ora: datetime | None = None) -> dict:
                 esito(pk, "Nessun destinatario con accesso al report: invio saltato.")
                 continue
             filtri = filtri_da_richiesta(definizione, salvato.filtri or {})
-            risultato = definizione.esegui(filtri)
-            data, nome, ctype = esporta(definizione, risultato, filtri, salvato.formato, salvato.owner)
+            vista = vista_da_richiesta((salvato.filtri or {}).get("_vista") or {})
+            risultato, _ = esegui(definizione, filtri, vista)
+            data, nome, ctype = esporta(definizione, risultato, filtri, salvato.formato, salvato.owner, vista)
             send_hub_mail(
                 f"Report asset: {salvato.nome}",
                 f"In allegato il report «{salvato.nome}» ({definizione.titolo}).\n"
@@ -480,13 +1021,19 @@ def _riga_export(riga):
     return [v.strftime("%d/%m/%Y") if isinstance(v, date) else v for v in riga]
 
 
-def esporta(definizione: DefinizioneReport, risultato: RisultatoReport, filtri: dict, formato: str, utente=None) -> tuple[bytes, str, str]:
-    """Bytes, nome file e content type. Data di estrazione e filtri stampati nel file."""
+def esporta(definizione: DefinizioneReport, risultato: RisultatoReport, filtri: dict, formato: str, utente=None,
+            vista: dict | None = None) -> tuple[bytes, str, str]:
+    """Bytes, nome file e content type. Data di estrazione, filtri e riepilogo stampati nel file."""
     from core.excel_export import build_xlsx_bytes
     from core.table_pdf import render_table_pdf
 
     estrazione = intestazione_estrazione(utente)
     filtri_txt = etichetta_filtri(definizione, filtri)
+    extra = etichetta_vista(definizione, vista or {}, risultato)
+    if extra:
+        filtri_txt += f" · {extra}"
+    if risultato.riepilogo:
+        estrazione += " · " + " · ".join(f"{e}: {v}" for e, v in risultato.riepilogo)
     righe = [_riga_export(r) for r in risultato.righe]
     if risultato.totali:
         righe.append(_riga_export(risultato.totali))
