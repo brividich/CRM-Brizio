@@ -127,6 +127,7 @@
 
 {% block assets_shell_content %}
 <section class="rd-page">
+  {% include "assets/partials/report_tabs.html" with tab_report="cruscotto" %}
   <section class="rd-kpis">
     <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}">
       <div class="rd-kpi-label">PM compliance</div>

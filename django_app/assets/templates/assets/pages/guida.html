@@ -314,20 +314,32 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="report">
       <h2>Catalogo report <span class="ag-perm {% if puo_pianificare %}si">Puoi pianificare l'invio email{% else %}no">Invio email: non abilitato per te{% endif %}</span></h2>
-      <p>Da <a href="{% url 'assets:report_catalog' %}">Catalogo report</a> apri uno dei report:</p>
+      <p>Il <a href="{% url 'assets:report_catalog' %}">Catalogo report</a> è il punto d'ingresso unico. Lo apri dall'icona dei grafici nell'elenco asset oppure dalle schede <strong>Catalogo report · Cruscotto manutenzione · Archivio report</strong> in cima alle pagine dei report. I report sono divisi per area (Inventario, IT e rete, Manutenzione e scadenze, Stampanti e contatori) e il campo <strong>«Cerca un report»</strong> li filtra mentre scrivi. Ogni scheda ha i pulsanti <span class="ag-btn">Apri</span>, <span class="ag-btn">Excel</span> e <span class="ag-btn">PDF</span>: gli ultimi due scaricano subito il report con i filtri predefiniti.</p>
       <div class="ag-wrap"><table class="ag-table">
         <thead><tr><th>Report</th><th>Cosa contiene</th></tr></thead>
         <tbody>{% for d in report %}<tr><td><a href="{% url 'assets:report_catalog_run' d.code %}">{{ d.titolo }}</a></td><td>{{ d.descrizione }}</td></tr>{% endfor %}</tbody>
       </table></div>
-      <h3>Filtri, salvataggio ed export</h3>
+      <h3>Leggere un report</h3>
+      <p>In testa al report trovi i <strong>riquadri di riepilogo</strong> (per esempio Asset, Scadute, Costo totale) e un <strong>grafico a barre</strong> con le voci più grandi, fino a 12. Riquadri e grafico si calcolano sulle righe che vedi, quindi seguono filtri e ricerca. I numeri sono allineati a destra e la riga dei totali resta in fondo alla tabella.</p>
+      <h3>Filtri, ricerca, colonne ed export</h3>
       <ol>
-        <li>Imposta i filtri e guarda il risultato nella pagina.</li>
-        <li>Scarica in <strong>Excel</strong> o <strong>PDF</strong>: il file riporta data di estrazione e filtri usati.</li>
-        <li>Con <span class="ag-btn">Salva report</span> dai un nome ai filtri; spuntando la condivisione li vedono anche i colleghi, nella sezione <strong>Report salvati</strong> del catalogo.</li>
+        <li>Imposta i filtri del report e premi <span class="ag-btn">Aggiorna</span>. <span class="ag-btn">Azzera filtri</span> torna ai valori predefiniti.</li>
+        <li><strong>«Cerca nelle righe»</strong> filtra la tabella mentre scrivi: restano solo le righe che contengono tutte le parole scritte, in qualsiasi colonna. Excel e PDF seguono subito la ricerca; premendo <span class="ag-btn">Aggiorna</span> si ricalcolano anche totali («Totale N righe») e riepilogo.</li>
+        <li>Clicca un'<strong>intestazione</strong> per ordinare: ▲ crescente, un secondo clic ▼ decrescente. Le date si ordinano come date e le celle vuote vanno in fondo.</li>
+        <li>In <strong>«Colonne»</strong> scegli quali colonne vedere e premi <span class="ag-btn">Aggiorna</span>.</li>
+        <li><span class="ag-btn">Scarica Excel</span> e <span class="ag-btn">Scarica PDF</span> producono esattamente quello che vedi: filtri, ricerca, ordinamento e colonne. Il file riporta anche la data di estrazione, i filtri e il riepilogo.</li>
+        <li>Con <span class="ag-btn">Salva report</span> dai un nome a filtri, ricerca, colonne e ordinamento. Se spunti la condivisione li vedono anche i colleghi, nella sezione <strong>Report salvati</strong> in cima al catalogo.</li>
       </ol>
+      <h3>I report nuovi</h3>
+      <ul>
+        <li><strong>Parco IT e rete</strong>: una riga per ogni interfaccia di rete, con IP, MAC, VLAN, switch, porta e punto rete. Lo switch è quello indicato nel punto rete oppure, se manca, quello con il <em>prefisso porte</em>, come nella mappa dello switch. La colonna Note segnala «IP duplicato», «switch non riconosciuto» o «switch dal prefisso porte». Il filtro <strong>Controllo</strong> mostra solo uno di questi casi: interfacce senza IP, senza switch riconosciuto o senza MAC, IP usati da più interfacce, dispositivi IT senza interfacce. Gli asset dismessi sono esclusi.</li>
+        <li><strong>Licenze software</strong>: posti usati e totali, scadenza e stato. Una licenza è <em>In scadenza</em> se scade entro 60 giorni. Le licenze disattivate compaiono solo con Stato «Tutte, anche disattivate».</li>
+        <li><strong>Costi e ore di manutenzione</strong>: gli ordini di lavoro chiusi nel periodo (di default dall'inizio dell'anno a oggi), raggruppati per asset, reparto, tipo di intervento, fornitore o mese. Il costo è quello indicato in chiusura oppure, se manca, manodopera più materiali.</li>
+        <li><strong>Qualità dei dati</strong>: gli asset non dismessi a cui manca qualcosa, dal più incompleto. Controlla nome, numero di serie, produttore, modello, reparto, data acquisto, assegnatario, categoria, i campi obbligatori della categoria e, per i dispositivi IT, l'IP.</li>
+      </ul>
       <h3>Invio email pianificato</h3>
       <p>Salvando il report puoi scegliere frequenza (ogni giorno, settimana o mese), formato e destinatari. Il report arriva <strong>solo a chi ha accesso a quel report</strong>: chi non ce l'ha viene escluso al salvataggio e di nuovo a ogni invio. Se tu perdi il permesso di invio, la pianificazione si sospende. Nella colonna <strong>Ultimo esito</strong> del catalogo vedi com'è andato l'ultimo invio.</p>
-      <p class="ag-note">Il report sulle MFC richiede anche l'accesso alla pagina Consumabili del modulo Contatori IT.</p>
+      <p class="ag-note">Alcuni report chiedono anche l'accesso alla pagina da cui vengono i dati: <strong>MFC</strong> → Consumabili del modulo Contatori IT; <strong>Licenze software</strong> → Licenze; <strong>Costi e ore di manutenzione</strong> → Ordini di lavoro.</p>
     </section>
 
     <section class="ag-sec" id="kpi">

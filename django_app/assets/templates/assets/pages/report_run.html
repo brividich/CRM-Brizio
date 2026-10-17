@@ -2,40 +2,76 @@
 {% load assets_extras %}
 {% block title %}{{ definizione.titolo }}{% endblock %}
 {% block reporting_content %}
-<section class="rp-hero"><div><h1>{{ risultato.titolo }}</h1><p>{{ definizione.descrizione }}</p></div><a class="rp-button secondary" href="{% url 'assets:report_catalog' %}">← Catalogo report</a></section>
+{% include "assets/partials/report_tabs.html" %}
+<section class="rp-hero"><div><h1>{{ risultato.titolo }}</h1><p>{{ definizione.descrizione }}</p></div><div class="rp-actions"><a class="rp-button secondary" href="{% url 'assets:report_catalog' %}">← Catalogo report</a><a class="rp-button secondary" href="{% url 'assets:guida' %}#report">? Guida</a></div></section>
+
 <section class="rp-panel">
-  <form method="get" class="rp-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));align-items:end">
+  <form method="get" id="rp-filtri">
+    <div class="rp-filtri">
     {% for f in definizione.filtri %}
       <div class="rp-field"><label for="f-{{ f.nome }}">{{ f.etichetta }}</label>
         {% if f.tipo == "select" %}<select id="f-{{ f.nome }}" name="{{ f.nome }}">{% for code, label in f.scelte %}<option value="{{ code }}"{% if filtri|dict_get:f.nome == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
         {% else %}<input id="f-{{ f.nome }}" name="{{ f.nome }}" type="{% if f.tipo == 'date' %}date{% elif f.tipo == 'month' %}month{% else %}text{% endif %}" value="{{ filtri|dict_get:f.nome }}">{% endif %}
       </div>
     {% endfor %}
-    <div class="rp-actions"><button class="rp-button" type="submit">Aggiorna</button></div>
+      <div class="rp-field"><label for="f-cerca">Cerca nelle righe</label><input id="f-cerca" name="cerca" type="search" value="{{ vista.cerca|default:'' }}" placeholder="Filtra mentre scrivi" autocomplete="off"></div>
+    </div>
+    {% if vista.ordina is not None %}<input type="hidden" name="ordina" value="{{ vista.ordina }}">{% if vista.verso == "desc" %}<input type="hidden" name="verso" value="desc">{% endif %}{% endif %}
+    <details class="rp-colonne"{% if vista.col %} open{% endif %}>
+      <summary>Colonne ({{ risultato.intestazioni|length }} di {{ risultato.intestazioni_tutte|length }})</summary>
+      <div class="rp-colonne-lista">
+        {% for h in risultato.intestazioni_tutte %}<label><input type="checkbox" name="col" value="{{ forloop.counter0 }}"{% if forloop.counter0 in risultato.colonne_idx %} checked{% endif %}> {{ h }}</label>{% endfor %}
+      </div>
+      <p class="rp-help">Le colonne scelte valgono anche per Excel, PDF e il report salvato.</p>
+    </details>
+    <div class="rp-actions"><button class="rp-button" type="submit">Aggiorna</button><a class="rp-button secondary" href="{% url 'assets:report_catalog_run' definizione.code %}">Azzera filtri</a>
+      <span class="rp-spacer"></span>
+      <a class="rp-button secondary" data-rp-export="xlsx" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}formato=xlsx">Scarica Excel</a>
+      <a class="rp-button secondary" data-rp-export="pdf" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}formato=pdf">Scarica PDF</a>
+    </div>
   </form>
-  <p class="rp-help">{{ estrazione }} · Filtri: {{ filtri_label }}{% if salvato %} · Report salvato «{{ salvato.nome }}»{% endif %}</p>
-  <div class="rp-actions">
-    <a class="rp-button secondary" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}formato=xlsx">Excel</a>
-    <a class="rp-button secondary" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}formato=pdf">PDF</a>
+  <p class="rp-help">{{ estrazione }} · Filtri: {{ filtri_label }}{% if vista_label %} · {{ vista_label }}{% endif %}{% if salvato %} · Report salvato «{{ salvato.nome }}»{% endif %}</p>
+</section>
+
+{% if risultato.riepilogo %}
+<section class="rp-riepilogo" aria-label="Riepilogo">
+  {% for etichetta, valore in risultato.riepilogo %}<div class="rp-kpi"><span>{{ etichetta }}</span><strong>{{ valore }}</strong></div>{% endfor %}
+</section>
+{% endif %}
+
+{% if risultato.grafico %}
+<section class="rp-panel">
+  <h2>{{ risultato.grafico.titolo }}</h2>
+  <div class="rp-barre">
+    {% for b in risultato.grafico.barre %}<div class="rp-barra"><span class="rp-barra-etichetta" title="{{ b.etichetta }}">{{ b.etichetta }}</span><span class="rp-barra-traccia"><span style="width:{{ b.pct }}%"></span></span><span class="rp-barra-valore">{{ b.testo }}</span></div>{% endfor %}
   </div>
 </section>
+{% endif %}
+
 <section class="rp-panel">
   {% for nota in risultato.note %}<p class="rp-help">{{ nota }}</p>{% endfor %}
   {% if risultato.troncato %}<p class="rp-help"><strong>Risultato limitato alle prime 5000 righe:</strong> restringi i filtri.</p>{% endif %}
-  <div class="rp-table-wrap"><table>
-    <thead><tr>{% for h in risultato.intestazioni %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+  <p class="rp-help"><span id="rp-conteggio">{{ risultato.righe|length }} righe</span> · clicca un'intestazione per ordinare.<span id="rp-ricalcola" hidden> · <strong>Totali e riepilogo si aggiornano con «Aggiorna»</strong>; Excel e PDF seguono già la ricerca.</span></p>
+  <div class="rp-table-wrap rp-scroll"><table class="rp-dati" id="rp-tabella" data-fm-table-skip="1">
+    <thead><tr>{% for h, idx in intestazioni_view %}<th{% if forloop.counter0 in numeriche %} class="num"{% endif %}><a class="rp-ordina" href="?{% if qs_ordina %}{{ qs_ordina }}&amp;{% endif %}ordina={{ idx }}{% if vista.ordina == idx and vista.verso != 'desc' %}&amp;verso=desc{% endif %}">{{ h }}{% if vista.ordina == idx %} {% if vista.verso == "desc" %}▼{% else %}▲{% endif %}{% endif %}</a></th>{% endfor %}</tr></thead>
     <tbody>
-      {% for riga in risultato.righe %}<tr>{% for v in riga %}<td>{% if v|stringformat:"s" == "" %}—{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>
+      {% for riga in risultato.righe %}<tr>{% for v in riga %}{% if forloop.counter0 in numeriche %}<td class="num">{% if v|stringformat:"s" == "" %}—{% else %}{{ v|floatformat:"-2g" }}{% endif %}</td>{% else %}<td>{% if v|stringformat:"s" == "" %}—{% else %}{{ v }}{% endif %}</td>{% endif %}{% endfor %}</tr>
       {% empty %}<tr><td colspan="{{ risultato.intestazioni|length }}" class="rp-empty">Nessun dato con questi filtri.</td></tr>{% endfor %}
     </tbody>
-    {% if risultato.totali and risultato.righe %}<tfoot><tr class="rp-totali">{% for v in risultato.totali %}<th>{{ v }}</th>{% endfor %}</tr></tfoot>{% endif %}
+    {% if risultato.totali and risultato.righe %}<tfoot><tr class="rp-totali">{% for v in risultato.totali %}{% if forloop.counter0 in numeriche %}<th class="num">{% if v|stringformat:"s" == "" %}{% else %}{{ v|floatformat:"-2g" }}{% endif %}</th>{% else %}<th>{{ v }}</th>{% endif %}{% endfor %}</tr></tfoot>{% endif %}
   </table></div>
 </section>
+
 <section class="rp-panel">
   <h2>{% if puo_modificare_salvato %}Aggiorna il report salvato{% else %}Salva report{% endif %}</h2>
+  <p class="rp-help">Vengono salvati filtri, ricerca, colonne e ordinamento che vedi ora.</p>
   <form method="post" action="{% url 'assets:report_catalog_save' definizione.code %}" class="rp-grid">
     {% csrf_token %}
     {% for k, v in filtri.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    {% if vista.cerca %}<input type="hidden" name="cerca" value="{{ vista.cerca }}">{% endif %}
+    {% for c in vista.col %}<input type="hidden" name="col" value="{{ c }}">{% endfor %}
+    {% if vista.ordina is not None %}<input type="hidden" name="ordina" value="{{ vista.ordina }}">{% endif %}
+    {% if vista.verso %}<input type="hidden" name="verso" value="{{ vista.verso }}">{% endif %}
     <input type="hidden" name="querystring" value="{{ querystring }}">
     {% if puo_modificare_salvato %}<input type="hidden" name="salvato_id" value="{{ salvato.pk }}">{% endif %}
     <div class="rp-field"><label for="s-nome">Nome</label><input id="s-nome" name="nome" maxlength="120" required value="{% if puo_modificare_salvato %}{{ salvato.nome }}{% endif %}"></div>
@@ -48,4 +84,27 @@
     <div class="rp-actions"><button class="rp-button" type="submit">{% if puo_modificare_salvato %}Aggiorna{% else %}Salva report{% endif %}</button>{% if salvato and salvato.ultimo_esito %}<span class="rp-muted">Ultimo invio: {{ salvato.ultimo_esito }}</span>{% endif %}</div>
   </form>
 </section>
+<script>
+(function () {
+  var input = document.getElementById("f-cerca"), tabella = document.getElementById("rp-tabella");
+  if (!input || !tabella || !tabella.tBodies[0]) return;
+  var iniziale = input.value.trim(), righe = Array.prototype.slice.call(tabella.tBodies[0].rows);
+  var conteggio = document.getElementById("rp-conteggio"), avviso = document.getElementById("rp-ricalcola");
+  input.addEventListener("input", function () {
+    var testo = input.value.trim(), parole = testo.toLowerCase().split(/\s+/).filter(Boolean), visibili = 0;
+    righe.forEach(function (tr) {
+      if (tr.querySelector(".rp-empty")) return;
+      var t = tr.textContent.toLowerCase(), ok = parole.every(function (p) { return t.indexOf(p) !== -1; });
+      tr.hidden = !ok; if (ok) visibili++;
+    });
+    if (conteggio) conteggio.textContent = visibili + " righe";
+    if (avviso) avviso.hidden = testo === iniziale;
+    document.querySelectorAll("[data-rp-export]").forEach(function (a) {
+      var url = new URL(a.href, window.location.href);
+      if (testo) url.searchParams.set("cerca", testo); else url.searchParams.delete("cerca");
+      a.href = url.pathname + url.search;
+    });
+  });
+})();
+</script>
 {% endblock %}
