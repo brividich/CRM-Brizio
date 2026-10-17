@@ -51,7 +51,7 @@ def load_sets(env_root: Path) -> list[_Set]:
         if not m or not mp.exists():
             continue
         try:
-            data = json.loads(mp.read_text(encoding="utf-8"))
+            data = json.loads(mp.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
         if data.get("status") == "failed":
@@ -154,3 +154,34 @@ def latest_restore_point(env_root: Path) -> datetime | None:
         return datetime.fromisoformat(build_plan(env_root)["restore_point"])
     except PlanError:
         return None
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI senza Django: ``python restore_plan.py <BACKUP_TARGET>\\<env> [--target-time "AAAA-MM-GG HH:MM"] [--out file]``."""
+    import argparse
+    import sys
+
+    ap = argparse.ArgumentParser(description="Piano di ripristino NOVICROM HUB (dai soli manifest)")
+    ap.add_argument("env_root", help="Cartella dei backup dell'ambiente, es. \\\\nas\\hub-backup\\prod")
+    ap.add_argument("--target-time", default=None)
+    ap.add_argument("--out", default=None)
+    args = ap.parse_args(argv)
+    when = datetime.strptime(args.target_time, "%Y-%m-%d %H:%M") if args.target_time else None
+    try:
+        plan = build_plan(Path(args.env_root), when)
+    except PlanError as exc:
+        print(f"ERRORE: {exc}", file=sys.stderr)
+        return 2
+    text = json.dumps(plan, ensure_ascii=False, indent=2)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"OK: piano scritto in {args.out} (punto di ripristino {plan['restore_point']})")
+    else:
+        print(text)
+    for w in plan["warnings"]:
+        print(f"AVVISO: {w}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

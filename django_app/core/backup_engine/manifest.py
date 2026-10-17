@@ -24,7 +24,7 @@ class ManifestError(ValueError):
 
 @lru_cache(maxsize=1)
 def schema() -> dict:
-    return json.loads((Path(__file__).with_name("manifest.schema.json")).read_text(encoding="utf-8"))
+    return json.loads((Path(__file__).with_name("manifest.schema.json")).read_text(encoding="utf-8-sig"))
 
 
 _TYPES = {
@@ -150,7 +150,7 @@ def dumps(data: dict) -> bytes:
 def load(set_dir: Path) -> dict:
     p = Path(set_dir) / MANIFEST_NAME
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(p.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as exc:
         raise ManifestError(f"{p}: illeggibile ({exc})") from exc
     validate(data)

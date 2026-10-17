@@ -65,6 +65,10 @@ Il monitoring ha il nuovo check `audit_growth` (warning oltre 500 MB/mese, fail 
 
 Package `core/backup_engine/` e comandi `hub_backup` (`full`, `log`, `files`, `host`, `retention`, `all`; exit 0/1/2), `hub_backup_verify`, `hub_backup_set_recovery`, `hub_backup_doctor`; `backup_portale` è un wrapper compatibile. Ogni set ha un manifest con SHA-256, viene verificato (`RESTORE VERIFYONLY`) e copiato con hash controllato su `BACKUP_TARGET` (share del NAS); stato in `status.json` anche a DB spento; retention GFS. Task con `deployment\scripts\register-backup-tasks.ps1`. Dettaglio, impostazioni e ordine di attivazione: [docs/dr/BACKUP_MOTORE.md](../dr/BACKUP_MOTORE.md).
 
+## Recovery Kit e reinstallazione (ottobre 2026)
+
+`hub_recovery_kit export|verify|import` gestisce il kit cifrato con `.env` e certificato HTTPS (passphrase di almeno 5 parole, scrypt + AES-256-GCM, impronte delle chiavi nell'intestazione). `hub_recovery_selfcheck` verifica un ambiente appena ripristinato. La reinstallazione di una macchina nuova si fa con `deployment\scripts\restore-host.ps1` (12 fasi, `-WhatIf`, `-Resume`, report con RTO). Dettaglio: [docs/dr/RECOVERY_KIT.md](../dr/RECOVERY_KIT.md), [docs/dr/RIPRISTINO_HOST.md](../dr/RIPRISTINO_HOST.md).
+
 ## Pulizia pre go-live (`pulizia_pre_golive`)
 
 Comando una tantum per partire in produzione senza i log accumulati in sviluppo e collaudo. Dry-run di default (solo conteggi); `--esegui` cancella a batch da 2000 righe e scrive una riga `AuditLog` (`azione=pulizia_pre_golive`) con i numeri; `--solo` accetta i codici separati da virgola.

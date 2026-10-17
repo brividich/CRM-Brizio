@@ -76,10 +76,16 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 
 ## R3 — Recovery Kit e restore headless
 
-- [ ] `hub_recovery_kit export/verify/import`
-- [ ] `hub_restore_plan`
-- [ ] `restore-host.ps1` (fasi 0–11, ripresa, WhatIf) + `prereqs.lock.json`
-- [ ] Test Pester + Python
+- [x] Worktree `C:\Dev\pn-recovery`, branch `feature/recovery-tool` (sopra `feature/backup-monitoraggio`)
+- [x] `hub_recovery_kit export/verify/import` (scrypt 2^17 + AES-256-GCM, intestazione autenticata, impronte, passphrase ≥ 5 parole mai su riga di comando; eseguibile senza Django) + stato per il check «kit allineato»
+- [x] `hub_restore_plan` (fatto in R2) + `restore_plan.py`/`restore_files.py` eseguibili senza Django
+- [x] `restore-host.ps1` (fasi 0–11, `-Resume`, `-WhatIf`, report HTML/JSON con RTO) + `_restorelib.ps1`; `hub_recovery_selfcheck`; `install-sql2025-instance.ps1 -Collation/-AuthMode`
+- [x] `prereqs.lock.json` + `update-prereqs-lock.ps1`: 9/9 installer verificati con firma Authenticode (Python 3.11/3.12/3.13, VC++, ODBC 18, HttpPlatformHandler, URL Rewrite, SQL 2025 Express, connector Entra)
+- [x] Test: `core.test_recovery_kit` (12) + `deployment/tests/test-restore-host.ps1` (8 controlli, PS 5.1) verdi. Scelta: test PowerShell nello stile del repo (script con `Check`), non Pester
+- [x] `docs/dr/RECOVERY_KIT.md`, `docs/dr/RIPRISTINO_HOST.md`, CHANGELOG, `docs/moduli/core.md`, guida Centro guide
+- [~] Commit, push, PR (impilata su R2)
+- [B] Esportare il Recovery Kit in produzione e custodirlo nelle 4 collocazioni; `restore-host.ps1 -CachePrereqsOnly` verso il NAS
+- [B] Prova di ripristino completa su VM isolata (trimestrale) con il kit custodito
 
 ## R4 — Wizard "Ripristina da backup" + runbook
 

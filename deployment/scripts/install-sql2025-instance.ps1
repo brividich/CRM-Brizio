@@ -23,7 +23,11 @@ param(
     [string[]]$SysAdminAccounts = @(),
     [string]$DataDir = "",
     [string]$WorkDir = "C:\PortaleNovicrom\shared\sql2025",
-    [switch]$OpenFirewall
+    [switch]$OpenFirewall,
+    # Macchina nuova (restore-host.ps1): collation e autenticazione dal manifest del backup,
+    # senza leggerle da un'istanza esistente.
+    [string]$Collation = "",
+    [ValidateSet("", "windows", "mixed")][string]$AuthMode = ""
 )
 
 Set-StrictMode -Version Latest
@@ -75,7 +79,12 @@ try {
     }
 
     # ── 3. Collation e autenticazione dall'istanza di origine ──
-    $src = Get-SqlInstanceInfo -Instance $SourceInstance
+    if ($Collation) {
+        $src = [pscustomobject]@{ Edition = "(dal manifest del backup)"; ProductVersion = "-"; Collation = $Collation
+                                  WindowsAuthOnly = ($AuthMode -ne "mixed") }
+    } else {
+        $src = Get-SqlInstanceInfo -Instance $SourceInstance
+    }
     Write-Log "Origine ${SourceInstance}: $($src.Edition) $($src.ProductVersion), collation $($src.Collation), $(if ($src.WindowsAuthOnly) { 'solo Windows' } else { 'mista' })" "INFO"
 
     if (-not $existing) {

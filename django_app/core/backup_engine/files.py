@@ -114,4 +114,4 @@ def load_index(set_dir: Path) -> dict:
     p = Path(set_dir) / "files" / "index.json"
     if not p.exists():
         return {}
-    return json.loads(p.read_text(encoding="utf-8"))
+    return json.loads(p.read_text(encoding="utf-8-sig"))
