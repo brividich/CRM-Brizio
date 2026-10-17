@@ -146,7 +146,7 @@ def list_sets(cfg: BackupConfig, root: Path | None = None) -> list[retention.Set
         if not parsed or not (d / mf.MANIFEST_NAME).exists():
             continue
         try:
-            data = json.loads((d / mf.MANIFEST_NAME).read_text(encoding="utf-8"))
+            data = json.loads((d / mf.MANIFEST_NAME).read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
         verified = all(a.get("verify_status") in ("ok", "not_applicable") for a in data.get("artifacts", []))

@@ -64,7 +64,7 @@ def _decrypt_samples(cfg: BackupConfig, plan: dict, n: int, rng: random.Random) 
 
     if not plan.get("files_index"):
         return {"status": "warning", "message": "nessun backup dei file"}
-    index = json.loads((cfg.env_root / plan["files_index"]).read_text(encoding="utf-8"))
+    index = json.loads((cfg.env_root / plan["files_index"]).read_text(encoding="utf-8-sig"))
     out: dict = {"roots": {}}
     status = "ok"
     for label, root in sorted(index.items()):
@@ -122,7 +122,7 @@ def run_drill(cfg: BackupConfig, *, stopat: datetime | None = None, sql: SqlServ
         staging.mkdir(parents=True, exist_ok=True)
 
         # spazio
-        full_manifest = json.loads((cfg.env_root / plan["full_set_id"] / "manifest.json").read_text(encoding="utf-8"))
+        full_manifest = json.loads((cfg.env_root / plan["full_set_id"] / "manifest.json").read_text(encoding="utf-8-sig"))
         need_mb = sum(int(d.get("allocated_mb") or 0) for d in full_manifest.get("databases", []))
         need_mb += sum(int(a["size"] / 1048576) for a in full_manifest.get("artifacts", []))
         free = _free_mb(staging)
