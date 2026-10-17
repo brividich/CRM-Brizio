@@ -370,6 +370,8 @@ def api_controllo_blocco(request, pk: int):
     if da_notificare:
         cs.accoda_notifica(controllo, da_notificare)
     errori = [r["error"] for r in risultati if not r["ok"]]
+    if not errori and controllo.bozza:
+        cs.salva_bozza(controllo, {})
     log_action(request, "anomalie_controllo_blocco", "anomalie", {
         "controllo_id": controllo.pk, "blocco_id": blocco.pk, "op_id": controllo.op_id,
         "seriali": label, "anomalie": [r.get("local_id") for r in risultati], "errori": len(errori),
@@ -384,6 +386,20 @@ def api_controllo_blocco(request, pk: int):
         "risultati": risultati,
         "controllo": cs.serializza_controllo(controllo),
     }, status=200 if not errori else 207)
+
+
+@login_required
+@require_POST
+def api_controllo_bozza(request, pk: int):
+    """Salvataggio automatico del blocco in scrittura (``{"bozza": {...}}``; vuoto = cancella)."""
+    controllo, error = _get_controllo(request, pk)
+    if error:
+        return error
+    if controllo.terminato_at:
+        return _err("Il controllo è già terminato", 409)
+    if not cs.salva_bozza(controllo, _body(request).get("bozza")):
+        return _err("Bozza troppo grande", 413)
+    return JsonResponse({"success": True, "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else ""})
 
 
 def _sync_scheda(local_id: int) -> None:

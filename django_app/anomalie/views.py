@@ -4147,6 +4147,8 @@ def apertura_segnalazione_page(request):
         or request.user.get_full_name()
         or request.user.username
     )
+    from .escalation_config import tempi_controllo
+
     context = {
         "page_title": "Apertura Segnalazione",
         "legacy_user": legacy_user,
@@ -4155,6 +4157,7 @@ def apertura_segnalazione_page(request):
         "db_has_anomalie": _has_table("anomalie"),
         "can_manage_config": _can_manage_anomalie_config(request),
         "config_lists_json": json.dumps(_load_anomalie_lists(), ensure_ascii=False),
+        "controllo_tempi": tempi_controllo(),
     }
     return render(request, "anomalie/pages/apertura_segnalazione.html", context)
 

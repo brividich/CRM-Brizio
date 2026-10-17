@@ -218,6 +218,11 @@ class AnomaliaControllo(models.Model):
     # Promemoria al controllore quando la mail «a fine controllo» non è ancora partita;
     # torna vuoto a ogni nuovo salvataggio, così il promemoria riparte dopo la pausa successiva.
     promemoria_at = models.DateTimeField(null=True, blank=True)
+    # Salvataggio automatico del blocco che il controllore sta scrivendo e non ha
+    # ancora salvato (seriali, stato superficie, testi; non gli allegati). Si svuota
+    # quando il blocco viene salvato; «Riprendi» la rimette nell'editor.
+    bozza = models.JSONField(default=dict, blank=True)
+    bozza_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

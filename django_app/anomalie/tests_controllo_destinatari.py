@@ -21,6 +21,7 @@ from anomalie.quality_models import AnomaliaBlocco, AnomaliaControllo, AnomaliaS
 from anomalie.tests_controllo import OP, LegacyTableMixin, _salva_finta
 
 User = get_user_model()
+PROMEMORIA = 15  # default di Configurazione → Notifiche
 
 PERSONE = [
     # (nome, cognome, email login, email notifica, attivo)
@@ -249,9 +250,9 @@ class PromemoriaControlloreTests(LegacyTableMixin, TestCase):
 
         self.assertEqual(self.controllo.mail_mode, "fine")
         with patch.object(cs, "invia_mail_controllo") as invio:
-            self.fermo_da(cs.PROMEMORIA_MINUTI - 2)
+            self.fermo_da(PROMEMORIA - 2)
             self.assertEqual(cs.flush_controlli()["controlli_promemoria"], 0)
-            self.fermo_da(cs.PROMEMORIA_MINUTI + 1)
+            self.fermo_da(PROMEMORIA + 1)
             self.assertEqual(cs.flush_controlli()["controlli_promemoria"], 1)
             self.assertEqual(cs.flush_controlli()["controlli_promemoria"], 0)  # niente doppioni
             invio.assert_not_called()  # la mail al capocommessa aspetta il controllore
@@ -262,6 +263,7 @@ class PromemoriaControlloreTests(LegacyTableMixin, TestCase):
         self.assertEqual(mail.outbox[0].to, ["controllore@example.local"])
         self.assertIn("Foro fuori quota", mail.outbox[0].body)
         self.assertIn("https://hub.example.local/gestione-anomalie/nuova-segnalazione?op_id=", mail.outbox[0].body)
+        self.assertIn("partirà da sola 1 ora dopo", mail.outbox[0].body)
 
         # Un nuovo salvataggio riarma il promemoria.
         cs.accoda_notifica(self.controllo, [])
@@ -270,8 +272,66 @@ class PromemoriaControlloreTests(LegacyTableMixin, TestCase):
 
     def test_niente_promemoria_a_controllo_terminato(self):
         AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(terminato_at=timezone.now())
-        self.fermo_da(cs.PROMEMORIA_MINUTI + 1)
+        self.fermo_da(PROMEMORIA + 1)
         with patch.object(cs, "invia_mail_controllo", return_value={"sent": True}):
             esito = cs.flush_controlli()
         self.assertEqual(esito["controlli_promemoria"], 0)
         self.assertEqual(esito["controlli_inviati"], 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
+class BozzaAutomaticaTests(LegacyTableMixin, TestCase):
+    def setUp(self):
+        self.crea_tabella()
+        self.user = User.objects.create_superuser(username="ctl-bozza", password="pass12345", email="b@example.local")
+        self.client.force_login(self.user)
+        self._patches = [
+            patch("anomalie.views._can_edit_anomalie_for_op", return_value=True),
+            patch("anomalie.views._salva_riga_anomalia", side_effect=_salva_finta),
+            patch("anomalie.controllo_views._sync_scheda"),
+            patch("anomalie.controllo_service._allegati", return_value=[]),
+            patch("anomalie.controllo_service.stati_superficie_configurati", return_value=False),
+        ]
+        for p in self._patches:
+            p.start()
+        r = self.post("api_anomalie_controllo_apri", {"op_id": OP, "fase": "Collaudo"})
+        self.cid = r.json()["controllo"]["id"]
+
+    def tearDown(self):
+        for p in self._patches:
+            p.stop()
+        self.elimina_tabella()
+
+    def post(self, name, body, pk=None):
+        url = reverse(name, args=[pk]) if pk else reverse(name)
+        return self.client.post(url, data=json.dumps(body), content_type="application/json")
+
+    def test_bozza_salvata_ripresa_e_svuotata_dal_salvataggio_del_blocco(self):
+        bozza = {"bloccoId": None, "voci": ["LCN00001"], "stati": [],
+                 "anomalie": [{"localId": None, "testo": "Graffio in corso di scrittura", "tutti": True, "sel": [], "allegati": 1}]}
+        r = self.post("api_anomalie_controllo_bozza", {"bozza": bozza}, self.cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(r.json()["bozza_at"])
+        d = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[self.cid])).json()
+        self.assertEqual(d["controllo"]["bozza"], bozza)
+
+        r = self.post("api_anomalie_controllo_blocco", {
+            "seriali": ["LCN00001"], "anomalie": [{"testo": "Graffio"}],
+        }, self.cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        c = AnomaliaControllo.objects.get(pk=self.cid)
+        self.assertEqual(c.bozza, {})
+        self.assertIsNone(c.bozza_at)
+
+    def test_bozza_vuota_cancella_e_troppo_grande_rifiutata(self):
+        self.post("api_anomalie_controllo_bozza", {"bozza": {"voci": ["LCN00001"]}}, self.cid)
+        self.post("api_anomalie_controllo_bozza", {"bozza": {}}, self.cid)
+        self.assertEqual(AnomaliaControllo.objects.get(pk=self.cid).bozza, {})
+        r = self.post("api_anomalie_controllo_bozza", {"bozza": {"testo": "x" * (cs.MAX_BOZZA_BYTES + 1)}}, self.cid)
+        self.assertEqual(r.status_code, 413)
+
+    def test_bozza_solo_del_proprio_controllo(self):
+        altro = User.objects.create_user(username="ctl-altro", password="pass12345")
+        self.client.force_login(altro)
+        r = self.post("api_anomalie_controllo_bozza", {"bozza": {"voci": ["X"]}}, self.cid)
+        self.assertEqual(r.status_code, 403)

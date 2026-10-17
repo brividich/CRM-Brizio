@@ -34,9 +34,12 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
-                    "La mail al capocommessa parte una sola volta, a fine controllo; dopo 15 minuti dall'ultimo "
-                    "salvataggio senza invio il controllore riceve un promemoria (notifica + mail con riepilogo), dopo 4 "
-                    "ore parte da sola.",
+                    "La mail al capocommessa parte una sola volta, a fine controllo; se il controllo resta fermo il "
+                    "controllore riceve un promemoria (notifica + mail con riepilogo, default 15 minuti) e la mail parte "
+                    "da sola dopo il tempo di invio automatico (default 1 ora). I due tempi si cambiano in "
+                    "Configurazione → Notifiche → «Orari e soglie».",
+                    "Il blocco che il controllore sta scrivendo si salva da solo come bozza e torna con «Riprendi» "
+                    "(senza gli allegati).",
                     "La mail del controllo la spedisce il modulo stesso: al capocommessa dell'OP, con il CAR in copia "
                     "più le persone che l'operatore aggiunge (solo dall'anagrafica, con email di notifica, max 10). "
                     "Tutte le mail del modulo stanno in Configurazione → Notifiche: quando partono, chi le riceve, "

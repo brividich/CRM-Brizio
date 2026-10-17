@@ -358,6 +358,7 @@
     window._AP_HAS_ANOMALIE = {% if db_has_anomalie %}true{% else %}false{% endif %};
     window._AP_CAN_MANAGE_CONFIG = {% if can_manage_config %}true{% else %}false{% endif %};
     window._AP_UPLOAD_MAX_MB = Number("{{ upload_max_mb|default:100 }}") || 100;
+    window._AP_TEMPI = { promemoria: Number("{{ controllo_tempi.promemoria|default:15 }}") || 15, invio_auto: Number("{{ controllo_tempi.invio_auto|default:60 }}") || 60 };
     window._AP_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
     window._AP_API = {
       db_ordini: "{% url 'api_anomalie_db_ordini' %}",
@@ -373,6 +374,7 @@
       controllo_impostazioni: "{% url 'api_anomalie_controllo_impostazioni' 0 %}",
       controllo_blocco: "{% url 'api_anomalie_controllo_blocco' 0 %}",
       controllo_termina: "{% url 'api_anomalie_controllo_termina' 0 %}",
+      controllo_bozza: "{% url 'api_anomalie_controllo_bozza' 0 %}",
       controllo_destinatari: "{% url 'api_anomalie_controllo_destinatari' %}",
       controllo_persone: "{% url 'api_anomalie_controllo_persone' %}",
     };
@@ -394,6 +396,7 @@
     controllo_impostazioni: '/api/anomalie/controlli/0/impostazioni',
     controllo_blocco: '/api/anomalie/controlli/0/blocco',
     controllo_termina: '/api/anomalie/controlli/0/termina',
+    controllo_bozza: '/api/anomalie/controlli/0/bozza',
     controllo_destinatari: '/api/anomalie/controlli/destinatari',
     controllo_persone: '/api/anomalie/controlli/persone',
   };
@@ -796,7 +799,16 @@
   const MAX_RANGE = 1000;
   // La mail al capocommessa parte solo con «Termina controllo»; dopo 15 minuti dall'ultimo
   // salvataggio senza invio arriva un promemoria al controllore, dopo 4 ore parte da sola.
-  const MAIL_FINE_HINT = 'La mail parte quando premi «Termina controllo». Se 15 minuti dopo l’ultimo salvataggio non è ancora partita ricevi un promemoria per inviarla; dopo 4 ore parte da sola.';
+  // I due tempi si impostano in Configurazione → Notifiche.
+  const TEMPI = window._AP_TEMPI || { promemoria: 15, invio_auto: 60 };
+  const durata = (min) => {
+    const h = Math.floor(min / 60), m = min % 60;
+    const parti = [];
+    if (h) parti.push(`${h} or${h === 1 ? 'a' : 'e'}`);
+    if (m || !h) parti.push(`${m} minut${m === 1 ? 'o' : 'i'}`);
+    return parti.join(' e ');
+  };
+  const MAIL_FINE_HINT = `La mail parte quando premi «Termina controllo». Se ${durata(TEMPI.promemoria)} dopo l’ultimo salvataggio non è ancora partita ricevi un promemoria per inviarla; dopo ${durata(TEMPI.invio_auto)} parte da sola.`;
 
   const urlFor = (tpl, id) => String(tpl).replace('/controlli/0', `/controlli/${id}`);
 
@@ -910,6 +922,37 @@
     confermaRipetuti: false,
     confermaScoperti: '',
   });
+  /* Bozza del blocco in scrittura, salvata in automatico sul server (senza gli allegati). */
+  const bozzaDa = (ed) => ({
+    bloccoId: ed.bloccoId,
+    voci: ed.voci,
+    stati: ed.stati,
+    anomalie: ed.anomalie.filter(a => a.localId || a.testo.trim() || a.files.length).map(a => ({
+      localId: a.localId, testo: a.testo, tutti: a.tutti, sel: a.sel, allegati: a.files.length,
+    })),
+  });
+  const bozzaPiena = (bz) => !!bz && ((bz.voci || []).length > 0 || (bz.stati || []).length > 0 || (bz.anomalie || []).length > 0 || !!bz.bloccoId);
+  const editorDaBozza = (bz, blocchi) => {
+    const blocco = bz.bloccoId ? (blocchi || []).find(b => b.id === bz.bloccoId) : null;
+    if (bz.bloccoId && !blocco) return newEditor();
+    const base = blocco ? editorFromBlocco(blocco) : newEditor();
+    const daBozza = bz.anomalie || [];
+    const perId = {};
+    daBozza.forEach(a => { if (a.localId) perId[a.localId] = a; });
+    const esistenti = blocco ? base.anomalie.map(a => {
+      const b = perId[a.localId];
+      return b && !a.gestita ? { ...a, testo: b.testo || '', tutti: b.tutti !== false, sel: b.sel || [] } : a;
+    }) : [];
+    const nuove = daBozza.filter(a => !a.localId).map(a => ({ ...newAnomalia(), testo: a.testo || '', tutti: a.tutti !== false, sel: a.sel || [] }));
+    const anomalie = [...esistenti, ...nuove];
+    return {
+      ...base,
+      voci: base.bloccato ? base.voci : [...(bz.voci || [])],
+      stati: [...(bz.stati || base.stati)],
+      anomalie: anomalie.length ? anomalie : [newAnomalia()],
+      attiva: anomalie.length ? anomalie.length - 1 : 0,
+    };
+  };
   /* S/N del blocco senza nessuna anomalia (stessa regola di controllo_service.seriali_senza_anomalia). */
   const serialiScoperti = (tokens, anomalie) => {
     const piene = (anomalie || []).filter(a => a.localId || a.testo.trim() || a.files.length);
@@ -1293,6 +1336,8 @@
     const [riepilogo, setRiepilogo] = useState(false);
     const [destinatari, setDestinatari] = useState(null);
     const [extraAvvio, setExtraAvvio] = useState([]);
+    const [bozzaAt, setBozzaAt] = useState('');
+    const bozzaRef = useRef({ salvata: false, pending: null });
     const [confirmRipetuti, setConfirmRipetuti] = useState(null);
     const [serialiAperti, setSerialiAperti] = useState({ seriali: [], dettagli: {} });
     const [copilot, setCopilot] = useState({ key: '', loading: false, sug: null, err: '' });
@@ -1413,10 +1458,54 @@
         setControllo(j.controllo);
         setDestinatari(j.destinatari || null);
         setFase(j.controllo.fase);
-        setEditor(newEditor());
+        const bz = j.controllo.bozza;
+        if (bozzaPiena(bz)) {
+          setEditor(editorDaBozza(bz, j.controllo.blocchi));
+          bozzaRef.current.salvata = true;
+          setBozzaAt(j.controllo.bozza_at || '');
+          const allegati = (bz.anomalie || []).reduce((n, a) => n + (a.allegati || 0), 0);
+          setNotice('Ripristinato il blocco che stavi scrivendo (salvato in automatico).'
+            + (allegati ? ` Gli allegati non si salvano in bozza: ricarica ${allegati === 1 ? 'il file' : `i ${allegati} file`}.` : ''));
+        } else {
+          setEditor(newEditor());
+        }
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
     };
+
+    // Salvataggio automatico del blocco in scrittura: 1,5 s dopo l'ultima modifica.
+    // Un blocco vuoto cancella la bozza; il salvataggio del blocco la svuota lato server.
+    const inviaBozza = (body, keepalive) => fetch(urlFor(API.controllo_bozza, controllo.id), {
+      method: 'POST', credentials: 'same-origin', keepalive: !!keepalive,
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body),
+    });
+    useEffect(() => {
+      if (!controllo || controllo.terminato || riepilogo || saving) return undefined;
+      const dirty = editorDirty(editor);
+      if (!dirty && !bozzaRef.current.salvata) { bozzaRef.current.pending = null; return undefined; }
+      const body = { bozza: dirty ? bozzaDa(editor) : {} };
+      bozzaRef.current.pending = body;
+      const t = setTimeout(() => {
+        inviaBozza(body)
+          .then(r => (r.ok ? r.json() : null))
+          .then(j => {
+            if (!j) return;
+            bozzaRef.current.salvata = dirty;
+            if (bozzaRef.current.pending === body) bozzaRef.current.pending = null;
+            setBozzaAt(dirty ? (j.bozza_at || '') : '');
+          })
+          .catch(() => {});
+      }, 1500);
+      return () => clearTimeout(t);
+    }, [editor, controllo && controllo.id, riepilogo, saving]);
+    // Chiudendo la pagina prima dei 1,5 s parte comunque l'ultima bozza.
+    useEffect(() => {
+      if (!controllo) return undefined;
+      const flush = () => { const b = bozzaRef.current.pending; if (b) { bozzaRef.current.pending = null; inviaBozza(b, true).catch(() => {}); } };
+      window.addEventListener('pagehide', flush);
+      return () => window.removeEventListener('pagehide', flush);
+    }, [controllo && controllo.id]);
 
     const salvaImpostazioni = async (patch) => {
       setError('');
@@ -1756,7 +1845,7 @@
           <div className="blk-num is-active">{editor.bloccoId ? blocchi.findIndex(b => b.id === editor.bloccoId) + 1 : blocchi.length + 1}</div>
           <div className="blk-head__main">
             <div className="blk-title">{editor.bloccoId ? 'Modifica blocco' : 'Nuovo blocco di seriali'}</div>
-            <div className="blk-meta">Fase {controllo.fase}</div>
+            <div className="blk-meta">Fase {controllo.fase}{bozzaAt ? ` · salvato in automatico alle ${new Date(bozzaAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` : ''}</div>
           </div>
         </div>
 
@@ -2034,7 +2123,7 @@
           <div className="ctl-footer">
             <div className="field-hint">
               {controllo.mail_mode === 'fine'
-                ? (controllo.da_notificare ? `${controllo.da_notificare} anomalie in attesa: partiranno in un’unica mail con «Termina controllo». Se ti fermi, fra 15 minuti ricevi un promemoria.` : 'La mail partirà con «Termina controllo».')
+                ? (controllo.da_notificare ? `${controllo.da_notificare} anomalie in attesa: partiranno in un’unica mail con «Termina controllo». Se ti fermi, fra ${durata(TEMPI.promemoria)} ricevi un promemoria.` : 'La mail partirà con «Termina controllo».')
                 : (controllo.da_notificare ? `${controllo.da_notificare} anomalie in coda: la mail parte pochi minuti dopo l’ultimo salvataggio.` : 'Ogni blocco salvato viene comunicato al capocommessa.')}
               {controllo.mail_errore && <div className="copilot-err">Ultimo invio non riuscito: {controllo.mail_errore}</div>}
             </div>

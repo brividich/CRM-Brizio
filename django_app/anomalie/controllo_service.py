@@ -8,12 +8,13 @@ seriali su cui sono state riscontrate una o più anomalie.
 
 La mail al capocommessa con il link di decisione parte una sola volta, a
 «Termina controllo» (modalità ``fine``, l'unica per i nuovi controlli). Se dopo
-``PROMEMORIA_MINUTI`` dall'ultimo salvataggio la mail non è ancora partita, il
+i minuti di promemoria dall'ultimo salvataggio la mail non è ancora partita, il
 controllore riceve un promemoria (notifica nel portale + mail con il riepilogo
 e il link per riprendere il controllo e inviarla). Se non la manda nemmeno così,
-il task periodico la invia da solo dopo ``FINE_TIMEOUT_MINUTI`` di inattività,
-così nessuna anomalia resta senza comunicazione. I blocchi sono già salvati nel
-DB a ogni «Salva blocco»: il riepilogo non si perde chiudendo la pagina.
+il task periodico la invia da solo dopo i minuti di invio automatico. I due
+tempi si impostano in Configurazione → Notifiche (``escalation_config.tempi_controllo``;
+default 15 e 60 minuti). I blocchi sono nel DB a ogni «Salva blocco» e quello
+ancora in scrittura si salva da solo come bozza (``AnomaliaControllo.bozza``).
 
 La modalità storica ``subito`` (mail qualche minuto dopo ogni salvataggio) resta
 solo per i controlli aperti prima del 16/10/2026.
@@ -30,8 +31,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 DEBOUNCE_MINUTI = 5
-FINE_TIMEOUT_MINUTI = 240
-PROMEMORIA_MINUTI = 15
+MAX_BOZZA_BYTES = 200_000
 TIPO_NOTIFICA_PROMEMORIA = "anomalie_controllo_da_inviare"
 MAX_TENTATIVI_MAIL = 5
 SCADENZA_LINK_ORE = 72
@@ -225,6 +225,8 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         "da_notificare": len(controllo.da_notificare or []),
         "ultima_mail_at": controllo.ultima_mail_at.isoformat() if controllo.ultima_mail_at else "",
         "mail_errore": controllo.mail_errore,
+        "bozza": controllo.bozza if isinstance(controllo.bozza, dict) else {},
+        "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else "",
         "destinatari_extra": [
             {"email": d.get("email", ""), "nome": d.get("nome", "")}
             for d in (controllo.destinatari_extra or []) if isinstance(d, dict)
@@ -617,10 +619,27 @@ def invia_mail_controllo(controllo) -> dict:
     }
 
 
+def salva_bozza(controllo, bozza) -> bool:
+    """Salva (o svuota, con un dict vuoto) la bozza del blocco in scrittura."""
+    import json
+
+    if not isinstance(bozza, dict):
+        bozza = {}
+    if len(json.dumps(bozza, ensure_ascii=False)) > MAX_BOZZA_BYTES:
+        return False
+    controllo.bozza = bozza
+    controllo.bozza_at = timezone.now() if bozza else None
+    controllo.save(update_fields=["bozza", "bozza_at", "updated_at"])
+    return True
+
+
 def flush_controlli() -> dict:
     """Task periodico: manda le mail dei controlli pronti."""
     from .quality_models import AnomaliaControllo
 
+    from .escalation_config import tempi_controllo
+
+    tempi = tempi_controllo()
     now = timezone.now()
     # Niente filtri sul JSONField (su SQL Server i confronti JSON sono fragili):
     # si guardano i controlli recenti e si verifica la coda in Python.
@@ -631,7 +650,7 @@ def flush_controlli() -> dict:
             continue
         fermo = now - controllo.ultimo_salvataggio_at
         if controllo.mail_mode == AnomaliaControllo.MailMode.FINE:
-            pronto = controllo.terminato_at is not None or fermo >= timedelta(minutes=FINE_TIMEOUT_MINUTI)
+            pronto = controllo.terminato_at is not None or fermo >= timedelta(minutes=tempi["invio_auto"])
         else:
             pronto = fermo >= timedelta(minutes=DEBOUNCE_MINUTI)
         if pronto:
@@ -642,8 +661,8 @@ def flush_controlli() -> dict:
             controllo.mail_mode == AnomaliaControllo.MailMode.FINE
             and controllo.terminato_at is None
             and controllo.promemoria_at is None
-            and fermo >= timedelta(minutes=PROMEMORIA_MINUTI)
-            and invia_promemoria_controllore(controllo)
+            and fermo >= timedelta(minutes=tempi["promemoria"])
+            and invia_promemoria_controllore(controllo, invio_auto_minuti=tempi["invio_auto"])
         ):
             promemoria += 1
     return {"controlli_inviati": inviati, "controlli_promemoria": promemoria}
@@ -682,7 +701,7 @@ def _contatti_operatore(controllo) -> tuple[int | None, str]:
     return legacy_id, (email if _EMAIL_RE.match(email) else "")
 
 
-def invia_promemoria_controllore(controllo) -> bool:
+def invia_promemoria_controllore(controllo, *, invio_auto_minuti: int | None = None) -> bool:
     """Ricorda al controllore che la mail al capocommessa non è ancora partita:
     notifica nel portale e mail con il riepilogo del controllo e il link per
     riprenderlo e premere «Termina controllo». Uno per pausa (``promemoria_at``)."""
@@ -732,16 +751,21 @@ def invia_promemoria_controllore(controllo) -> bool:
                 for r in g.get("righe") or []:
                     _stati, testo = separa_descrizione(r.get("descrizione"))
                     righe_testo.append(f"    • {testo or '—'}")
-            minuti_auto = FINE_TIMEOUT_MINUTI // 60
+            from .escalation_config import durata_label, tempi_controllo
+
+            minuti_auto = invio_auto_minuti or tempi_controllo()["invio_auto"]
+            bozza_txt = (["", "C'è anche un blocco non ancora salvato (bozza salvata in automatico): lo ritrovi con «Riprendi»."]
+                         if controllo.bozza else [])
             body = "\n".join([
                 f"Il controllo dell'OP {controllo.op_id} (fase {controllo.fase}) ha {cosa} salvate ma la mail al "
                 "capocommessa non è ancora partita.",
                 "",
                 "Riepilogo salvato:",
                 *righe_testo,
+                *bozza_txt,
                 "",
                 f"Riprendi il controllo e premi «Termina controllo» per inviarla: {link}",
-                f"Se non lo fai, la mail partirà da sola dopo {minuti_auto} ore dall'ultimo salvataggio.",
+                f"Se non lo fai, la mail partirà da sola {durata_label(minuti_auto)} dopo l'ultimo salvataggio.",
             ])
             ok, _log = send_and_log_email(
                 kind="promemoria_controllo",
