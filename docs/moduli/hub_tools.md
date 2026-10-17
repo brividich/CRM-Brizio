@@ -19,3 +19,7 @@ Collezione di tool sotto `/admin-portale/hub/` protetti da `@legacy_admin_requir
 - **Setup Wizard Hub** — rilancia il wizard di configurazione (14 step) sul `.env` corrente, normalizzando i booleani `True`/`False` e `1`/`0`; la sezione Microsoft Graph / SharePoint centralizza credenziali e ID delle liste usate da assenze, incidenti e automazioni.
 - **Guide** — catalogo auto-indicizzato di documenti (HTML/PDF/MD) da `tools/`, `doc/`, `deployment/`, con dedup per formato
 - **Categorie moduli / branding portale** — raggruppa la navigazione e personalizza nome, loghi upload/URL, favicon e colori globali della shell
+
+## Ripristino del database disattivato (ottobre 2026)
+
+Il ripristino da Hub → «Database» è disattivato (`HUB_TOOLS_DB_RESTORE_ENABLED=False`, decisione del 16/10/2026): l'endpoint risponde 403 JSON `restore_disabled` e la pagina rimanda a Monitoring → «Backup e ripristino». Il ripristino si fa con il tool dedicato (`deployment/scripts/restore-host.ps1`). Il backup al volo resta.

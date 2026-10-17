@@ -5,11 +5,16 @@ import unittest.mock as mock
 
 from django.test import TestCase, override_settings
 
-from monitoring import tasks
+from monitoring import health, tasks
 from monitoring.digest import build_system_digest, render_system_digest
 from monitoring.models import Issue
 
+# Il DB di test non ha backup configurati: i check di backup (che nel digest di
+# produzione devono comparire) qui segnalerebbero «nessun backup». Si escludono.
+_SENZA_BACKUP = [n for n in health.available_checks() if n not in health.BACKUP_CHECK_NAMES]
 
+
+@override_settings(READYZ_CHECKS_ENABLED=_SENZA_BACKUP, READYZ_TTL_SECONDS=0)
 class SystemDigestTests(TestCase):
     def test_build_all_green_on_empty_db(self):
         digest = build_system_digest()

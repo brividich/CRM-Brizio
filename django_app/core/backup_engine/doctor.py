@@ -129,18 +129,8 @@ def run_checks(cfg: BackupConfig, *, with_tasks: bool = True, with_network: bool
     except Exception as exc:
         checks.append(_check("recovery_model", WARN, f"Lettura recovery model non riuscita: {exc.__class__.__name__}"))
     checks += freshness(cfg)
-    try:
-        from monitoring.models import RestoreDrill
-
-        drill = RestoreDrill.objects.filter(status="ok").order_by("-started_at").first()
-        if drill:
-            days = (timezone.now() - drill.started_at).days
-            checks.append(_check("restore_drill", OK if days < 8 else WARN if days < 35 else CRIT,
-                                 f"Ultima prova di ripristino riuscita {days} giorni fa (RTO DB {drill.rto_seconds} s)."))
-        else:
-            checks.append(_check("restore_drill", WARN, "Nessuna prova di ripristino riuscita (blocco R2)."))
-    except Exception:
-        pass
+    checks.append(drill_check())
+    checks.append(recovery_kit_check(cfg))
     if with_tasks:
         tasks = scheduled_tasks(cfg.env)
         if tasks:
@@ -172,3 +162,93 @@ def run_checks(cfg: BackupConfig, *, with_tasks: bool = True, with_network: bool
             checks.append(_check(f"hostname:{n}", OK if not problems else WARN,
                                  "OK" if not problems else "; ".join(problems)))
     return checks
+
+
+# ── Controlli per il monitoraggio (R2) ───────────────────────────────────────
+
+RECOVERY_KIT_STATUS = "recovery-kit.json"
+
+
+def env_file_sha256() -> str | None:
+    """Impronta del .env persistente (o di quello attivo): cambia a ogni modifica del file."""
+    import hashlib
+
+    for candidate in (Path(settings.BASE_DIR).parent / "config" / ".env", Path(settings.BASE_DIR) / ".env"):
+        if candidate.exists():
+            return hashlib.sha256(candidate.read_bytes()).hexdigest()
+    return None
+
+
+def recovery_kit_check(cfg: BackupConfig) -> dict:
+    """Il Recovery Kit è allineato al .env e alle chiavi correnti?
+
+    ``hub_recovery_kit export`` (R3) scrive ``<LOG_DIR>/recovery-kit.json`` con data e
+    impronte (mai valori). Qui si confrontano con l'ambiente attuale."""
+    import json as _json
+
+    from . import manifest as mf
+
+    path = cfg.status_dir / RECOVERY_KIT_STATUS
+    if not path.exists():
+        return _check("recovery_kit", WARN, "Nessun Recovery Kit registrato (manage.py hub_recovery_kit export).")
+    try:
+        data = _json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return _check("recovery_kit", WARN, "Stato del Recovery Kit illeggibile.")
+    keys = mf.keys_section()
+    mismatch = []
+    if data.get("document_encryption_key_sha256") != keys.get("document_encryption_key_sha256"):
+        mismatch.append("DOCUMENT_ENCRYPTION_KEY")
+    if data.get("secret_key_sha256") != keys.get("secret_key_sha256"):
+        mismatch.append("SECRET_KEY")
+    env_sha = env_file_sha256()
+    if env_sha and data.get("env_sha256") and data["env_sha256"] != env_sha:
+        mismatch.append(".env")
+    age = _age_hours(data.get("exported_at"), timezone.now())
+    age_days = int(age / 24) if age is not None else None
+    if mismatch:
+        return _check("recovery_kit", WARN,
+                      f"Kit non allineato ({', '.join(mismatch)} cambiati dopo l'esportazione): rigenerarlo.",
+                      age_days=age_days)
+    return _check("recovery_kit", OK,
+                  f"Recovery Kit allineato (esportato {age_days if age_days is not None else '?'} giorni fa).",
+                  age_days=age_days)
+
+
+def drill_check(now: datetime | None = None) -> dict:
+    now = now or timezone.now()
+    try:
+        from monitoring.models import RestoreDrill
+
+        last_ok = RestoreDrill.objects.filter(status__in=("ok", "warning")).order_by("-started_at").first()
+        last = RestoreDrill.objects.order_by("-started_at").first()
+    except Exception:
+        return _check("restore_drill", WARN, "Prove di ripristino non leggibili.")
+    if last_ok is None:
+        return _check("restore_drill", WARN, "Nessuna prova di ripristino riuscita.")
+    days = (now - last_ok.started_at).total_seconds() / 86400
+    level = OK if days < 8 else WARN if days < 35 else CRIT
+    msg = f"Ultima prova riuscita {int(days)} giorni fa, RTO DB {last_ok.rto_seconds or '?'} s."
+    if last and last.pk != last_ok.pk and last.status == "failed":
+        level = WARN if level == OK else level
+        msg += f" L'ultima prova ({timezone.localtime(last.started_at):%d/%m %H:%M}) è FALLITA: {last.error[:120]}"
+    return _check("restore_drill", level, msg, days=round(days, 1), rto_seconds=last_ok.rto_seconds)
+
+
+def log_check(cfg: BackupConfig, now: datetime | None = None) -> dict:
+    """Backup del log: nella finestra ultimo OK < 2 h; fuori finestra ignorato; catena spezzata = critico."""
+    now = now or timezone.now()
+    try:
+        from core.db_diagnostics import server_capacity
+
+        rec = str(server_capacity().get("recovery_model") or "").upper()
+    except Exception:
+        rec = ""
+    if rec and rec != "FULL":
+        return _check("backup_log", INFO, f"Recovery model {rec}: backup del log non previsto.")
+    for c in freshness(cfg, now):
+        if c["check"] == "backup_log":
+            return c
+    if rec == "FULL":
+        return _check("backup_log", WARN, "Recovery FULL ma nessun backup del log registrato.")
+    return _check("backup_log", INFO, "Backup del log non attivo.")
