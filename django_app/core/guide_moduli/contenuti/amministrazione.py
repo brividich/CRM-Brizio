@@ -69,7 +69,10 @@ GUIDA = {
             "titolo": "Database",
             "blocchi": [
                 ("ul", [
-                    "Hub → «Database»: dimensione delle tabelle, backup, pulizia di log e sessioni.",
+                    "Hub → «Database»: dimensione delle tabelle, backup al volo, pulizia di log e sessioni.",
+                    "Backup automatici e verificati: task PortaleNovicrom-Backup-<ENV>-* registrati con deployment\\scripts\\register-backup-tasks.ps1. "
+                    "Ogni backup ha un manifest con le impronte dei file e viene verificato; lo stato si legge con manage.py hub_backup_doctor "
+                    "(spazio, recovery model, età dell'ultimo backup, task presenti, nomi del portale) e in logs\\backup-status.json anche a database spento.",
                     "Hub → «Schema DB»: tutte le tabelle del portale con campi e collegamenti, e le connessioni verso l'esterno. "
                     "Si genera da solo dal codice, quindi è sempre aggiornato.",
                 ]),

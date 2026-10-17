@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 67
+**Totale automazioni disponibili:** 68
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -17,6 +17,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 00:40
 - **Task eseguito:** `anagrafica.tasks.run_integrita_sicurezza`
 - **Cosa fa:** ANAGRAFICA HR — controllo di integrita' requisiti/adempimenti/visite: il report finisce in monitoring (vedi anagrafica.services.integrita_scadenze).
+
+### `anagrafica_report_retention`
+
+- **Quando gira:** ogni lun, alle 06:30
+- **Task eseguito:** `anagrafica.tasks.run_report_retention`
+- **Cosa fa:** ANAGRAFICA HR — retention GDPR in SOLA LETTURA: conta documenti e candidati oltre la conservazione e apre/risolve una Issue in monitoring. Non cancella: la cancellazione resta il comando cleanup_expired_documents --apply.
 
 ### `anagrafica_ricalcolo_scadenze`
 

@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "novicrom-hub/backup-manifest/1",
+  "title": "Manifest di un backup set NOVICROM HUB",
+  "type": "object",
+  "required": ["schema_version", "set_id", "type", "env", "created_at", "app", "artifacts", "keys", "duration_s", "warnings", "status"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "set_id": {"type": "string", "pattern": "^[0-9]{8}_[0-9]{6}_(full|log|files|host)$"},
+    "type": {"type": "string", "enum": ["full", "log", "files", "host"]},
+    "env": {"type": "string"},
+    "status": {"type": "string", "enum": ["ok", "warning", "failed"]},
+    "created_at": {"type": "string"},
+    "host": {"type": "string"},
+    "app": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": {"type": "string"},
+        "commit": {"type": ["string", "null"]},
+        "branch": {"type": ["string", "null"]},
+        "migrations": {"type": "object"}
+      }
+    },
+    "sql": {"type": ["object", "null"]},
+    "databases": {"type": "array", "items": {"type": "object"}},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "size"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size": {"type": "integer"},
+          "kind": {"type": "string"},
+          "database": {"type": "string"},
+          "verify_status": {"type": "string", "enum": ["ok", "failed", "not_applicable", "skipped"]}
+        }
+      }
+    },
+    "chain": {"type": ["object", "null"]},
+    "files": {"type": ["object", "null"]},
+    "keys": {
+      "type": "object",
+      "properties": {
+        "document_encryption_key_sha256": {"type": ["string", "null"]},
+        "secret_key_sha256": {"type": ["string", "null"]},
+        "env_var_names": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "row_counts": {"type": "object"},
+    "host_manifest_ref": {"type": ["string", "null"]},
+    "release_ref": {"type": ["string", "null"]},
+    "duration_s": {"type": "number"},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}
