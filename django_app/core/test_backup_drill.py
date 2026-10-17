@@ -161,6 +161,14 @@ class DrillSqlServerSimulatoTests(TestCase):
         self.assertEqual(res["checks"]["row_counts"]["status"], "ok")
         self.assertTrue(RestoreDrill.objects.filter(full_set_id="20261016_020000_full").exists())
 
+    def test_keep_lascia_la_copia_per_il_recupero_selettivo(self):
+        r = _Runner()
+        with mock.patch.object(drill, "connection", self.conn), \
+                mock.patch.object(drill, "copy_verified", lambda src, dst, expected_sha256=None: shutil.copy(src, dst)):
+            res = drill.run_drill(self.cfg, sql=SqlServer(host="h", runner=r), samples=0, record=False, keep=True)
+        self.assertEqual(res["kept_databases"], ["DB_drill"])
+        self.assertFalse(any("DROP DATABASE" in q for q in r.sql))
+
     def test_drop_anche_su_errore(self):
         r = _Runner(fail_on="DBCC CHECKDB")
         res = self._run(r)

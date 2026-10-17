@@ -106,7 +106,9 @@ def _check_rows(expected: dict, actual: dict, tolerance_pct: float) -> tuple[boo
 
 
 def run_drill(cfg: BackupConfig, *, stopat: datetime | None = None, sql: SqlServer | None = None,
-              samples: int | None = None, seed: int | None = None, record: bool = True) -> dict:
+              samples: int | None = None, seed: int | None = None, record: bool = True, keep: bool = False) -> dict:
+    """``keep=True`` (recupero selettivo dopo una cancellazione per errore) lascia la copia
+    ``<db>_drill`` sull'istanza: va eliminata a mano quando i dati sono stati recuperati."""
     started = timezone.now()
     result: dict = {"status": "running", "checks": {}, "error": "", "full_set_id": "", "last_log_set_id": "",
                     "rto_seconds": None, "point_in_time": stopat.isoformat() if stopat else None}
@@ -201,7 +203,9 @@ def run_drill(cfg: BackupConfig, *, stopat: datetime | None = None, sql: SqlServ
         result["status"] = "failed"
         result["error"] = f"{exc.__class__.__name__}: {exc}"
     finally:
-        if sql_client is not None:
+        if keep and created_dbs:
+            result["kept_databases"] = list(created_dbs)
+        elif sql_client is not None:
             for name in created_dbs:
                 if not name.endswith(SUFFIX):
                     continue
