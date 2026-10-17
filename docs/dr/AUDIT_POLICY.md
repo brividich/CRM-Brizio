@@ -87,7 +87,7 @@ I task pianificati vengono registrati da `register-backup-tasks.ps1` (blocco R1)
 
 - `manage.py hub_backup_doctor`: spazio usato rispetto al limite dell'edizione (Express: 10 GB fino a SQL Server 2022, 50 GB con SQL Server 2025), top tabelle, crescita giornaliera e mensile dell'audit, top modelli degli ultimi 7 giorni con la loro classe, previsione di saturazione, versione della politica, diagnostica della cache su DB.
 - Check `audit_growth` del monitoring: warning se la crescita proiettata supera 500 MB al mese, fail se la saturazione prevista scende sotto 60 giorni. Non è mai critical per `/readyz`: un problema di capacità non deve togliere il sito dal bilanciamento.
-- `manage.py hub_db_tuning --query-store-max-mb 100 [--apply]`: limite del Query Store (dry-run di default).
+- `manage.py hub_db_tuning --query-store-max-mb 100 [--apply]`: limite del Query Store (dry-run di default). Se il Query Store è spento non lo accende, salvo `--enable`.
 
 ## Riferimenti normativi
 

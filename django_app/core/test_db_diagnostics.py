@@ -58,6 +58,28 @@ class DiagnosticaTests(TestCase):
         self.assertIn("audit", data)
         self.assertFalse(data["capacity"]["supported"])
 
+    def test_azioni_esplicite_marcate(self):
+        AuditLog.objects.create(azione="ai_daily_brief", modulo="ai_assistant", dettaglio={"model": "qwen"})
+        classi = {t["modello"]: t["classe"] for t in dd.top_models(days=7)}
+        self.assertEqual(classi["qwen"], "esplicito")
+
+    def test_tuning_query_store_spento_non_si_accende_senza_enable(self):
+        from core.management.commands import hub_db_tuning as cmd
+
+        fake = mock.MagicMock(vendor="microsoft")
+        with mock.patch.object(cmd, "connection", fake), \
+                mock.patch.object(cmd.Command, "_state", return_value={"actual_state": "OFF"}):
+            out = io.StringIO()
+            call_command("hub_db_tuning", "--apply", stdout=out)
+        self.assertIn("nessuna modifica", out.getvalue())
+        fake.cursor.assert_not_called()
+        with mock.patch.object(cmd, "connection", fake), \
+                mock.patch.object(cmd.Command, "_state", return_value={"actual_state": "READ_WRITE"}):
+            call_command("hub_db_tuning", "--apply", stdout=io.StringIO())
+        executed = [c.args[0] for c in fake.cursor.return_value.__enter__.return_value.execute.call_args_list]
+        self.assertEqual(len(executed), 1)
+        self.assertIn("MAX_STORAGE_SIZE_MB = 100", executed[0])
+
     def test_tuning_no_op_fuori_da_sql_server(self):
         out = io.StringIO()
         call_command("hub_db_tuning", "--apply", stdout=out)

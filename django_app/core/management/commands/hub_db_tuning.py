@@ -20,6 +20,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--query-store-max-mb", type=int, default=100)
         parser.add_argument("--apply", action="store_true", help="Esegue l'ALTER DATABASE (default: dry-run).")
+        parser.add_argument("--enable", action="store_true",
+                            help="Se il Query Store è spento, lo accende (solo insieme ad --apply).")
         parser.add_argument("--json", action="store_true")
 
     def _state(self) -> dict:
@@ -47,9 +49,18 @@ class Command(BaseCommand):
         )
         before = self._state()
         after = None
+        spento = str(before.get("actual_state", "")).upper() == "OFF"
+        if spento and not opts["enable"]:
+            # Non si cambia lo stato del Query Store senza una scelta esplicita.
+            self.stdout.write("Query Store spento su questo database: nessuna modifica "
+                              "(usare --enable insieme ad --apply per accenderlo con il limite).")
+            if opts["json"]:
+                self.stdout.write(json.dumps({"apply": False, "before": before, "skipped": "query_store_off"}, default=str))
+            return
         if opts["apply"]:
             with connection.cursor() as cur:
-                cur.execute("ALTER DATABASE CURRENT SET QUERY_STORE = ON")
+                if spento:
+                    cur.execute("ALTER DATABASE CURRENT SET QUERY_STORE = ON")
                 cur.execute(sql)
             after = self._state()
         payload = {"apply": opts["apply"], "sql": sql, "before": before, "after": after}

@@ -181,7 +181,9 @@ def top_models(days: int = 7, limit: int = 10) -> list[dict]:
     return [
         {"modulo": m, "azione": a, "modello": mod, "righe": int(n or 0),
          "mb": round(float(b or 0) / MB, 2),
-         "classe": audit_policy.classify_key(f"{(m or '').lower()}.{(mod or '').lower()}") if mod else "full"}
+         # le azioni esplicite (log_action) non passano dalla politica
+         "classe": (audit_policy.classify_key(f"{(m or '').lower()}.{(mod or '').lower()}")
+                    if str(a or "").startswith("auto_") else "esplicito")}
         for m, a, mod, n, b in rows
     ]
 
