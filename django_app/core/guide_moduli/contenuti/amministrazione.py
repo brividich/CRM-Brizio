@@ -105,8 +105,12 @@ GUIDA = {
                     "Recovery Kit (dal terminale): manage.py hub_recovery_kit export --out <file.hubkit> crea il file cifrato con .env e certificato; "
                     "la passphrase (almeno 5 parole) si digita a mano e va custodita in busta in Direzione, separata dal file. "
                     "manage.py hub_recovery_kit verify <file> controlla che il kit apra i documenti, senza scrivere nulla.",
-                    "Macchina nuova: deployment\\scripts\\restore-host.ps1 ricostruisce tutto dai backup (prima con -WhatIf) e lascia un report con il tempo impiegato. "
-                    "Istruzioni in docs/dr/RIPRISTINO_HOST.md.",
+                    "Macchina nuova: SetupWizard.exe → «♻ Ripristina da backup» (oppure deployment\\scripts\\restore-host.ps1). "
+                    "Si sceglie la cartella dei backup e il momento, si vede il piano, si fa prima la simulazione e poi il ripristino reale; "
+                    "alla fine c'è il report con il tempo impiegato e le azioni manuali rimaste. Procedura completa nel runbook "
+                    "(deployment\\RUNBOOK_RIPRISTINO.pdf, da tenere stampato).",
+                    "Dati cancellati per errore: manage.py hub_restore_drill --stopat \"AAAA-MM-GG HH:MM\" --keep crea una copia del database "
+                    "a quel momento (nome che finisce con _drill) da cui recuperare le righe; poi la copia si elimina.",
                 ]),
                 ("nota", "I controlli girano da soli ogni 30 minuti: se uno diventa rosso si apre una segnalazione e parte una mail agli amministratori. "
                          "Il ripristino da Hub → «Database» è disattivato: si fa solo con il tool dedicato, dopo aver parlato con la Direzione."),
