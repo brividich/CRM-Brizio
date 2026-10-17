@@ -2,6 +2,7 @@
 
   manage.py hub_db_tuning                         # dry-run: stato attuale e comando previsto
   manage.py hub_db_tuning --query-store-max-mb 100 --apply
+  manage.py hub_db_tuning --compatibility-level 170 [--apply]   # S1.4: solo dopo 2 settimane su SQL 2025
 
 Il Query Store non viene disattivato: si limita la dimensione e si attiva la
 pulizia automatica. In produzione ``--apply`` lo esegue solo Brizio (dopo S1).
@@ -22,7 +23,44 @@ class Command(BaseCommand):
         parser.add_argument("--apply", action="store_true", help="Esegue l'ALTER DATABASE (default: dry-run).")
         parser.add_argument("--enable", action="store_true",
                             help="Se il Query Store è spento, lo accende (solo insieme ad --apply).")
+        parser.add_argument("--compatibility-level", type=int, default=None,
+                            help="Imposta il compatibility level del DB (es. 170 dopo 2 settimane su SQL 2025; "
+                                 "il valore precedente per tornare indietro). Solo con --apply modifica.")
         parser.add_argument("--json", action="store_true")
+
+    def _compatibility(self, opts) -> None:
+        """Compatibility level: separato dal Query Store, mai implicito (BUILD_SPEC S1.4)."""
+        wanted = opts["compatibility_level"]
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT compatibility_level, CAST(SERVERPROPERTY('ProductMajorVersion') AS INT) "
+                "FROM sys.databases WHERE name = DB_NAME()"
+            )
+            current, major = cur.fetchone()
+        massimo = int(major) * 10
+        if wanted not in (100, 110, 120, 130, 140, 150, 160, 170) or wanted > massimo:
+            raise CommandError(f"Compatibility level {wanted} non ammesso su questo server (massimo {massimo}).")
+        sql = f"ALTER DATABASE CURRENT SET COMPATIBILITY_LEVEL = {int(wanted)}"
+        payload = {"apply": opts["apply"], "current": current, "wanted": wanted, "server_max": massimo, "sql": sql}
+        if int(current) == wanted:
+            payload["skipped"] = "already_set"
+        elif opts["apply"]:
+            with connection.cursor() as cur:
+                cur.execute(sql)
+            payload["after"] = wanted
+        if opts["json"]:
+            self.stdout.write(json.dumps(payload, default=str, indent=2))
+            return
+        self.stdout.write(f"Compatibility level attuale: {current} (massimo del server: {massimo}).")
+        if payload.get("skipped"):
+            self.stdout.write("Già impostato: nessuna modifica.")
+        elif opts["apply"]:
+            self.stdout.write(self.style.SUCCESS(
+                f"Applicato: {current} → {wanted}. Per tornare indietro: --compatibility-level {current} --apply. "
+                "Annotarlo nel CHANGELOG."))
+        else:
+            self.stdout.write(f"Dry-run. Con --apply verrebbe eseguito:\n  {sql}\n"
+                              f"(per tornare indietro: --compatibility-level {current} --apply)")
 
     def _state(self) -> dict:
         with connection.cursor() as cur:
@@ -40,6 +78,8 @@ class Command(BaseCommand):
             self.stdout.write("hub_db_tuning: supportato solo su SQL Server (database corrente: "
                               f"{connection.vendor}). Nessuna azione.")
             return
+        if opts["compatibility_level"] is not None:
+            return self._compatibility(opts)
         max_mb = opts["query_store_max_mb"]
         if not 10 <= max_mb <= 10240:
             raise CommandError("--query-store-max-mb fuori intervallo (10–10240).")
