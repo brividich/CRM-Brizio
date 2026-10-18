@@ -26,6 +26,17 @@ def run_caporeparto_morning_digest() -> dict:
         raise
 
 
+def run_report_pianificati() -> dict:
+    """Genera e invia per mail i report pianificati arrivati a scadenza (Centro report)."""
+    from core.report_centro.pianificazione import esegui_scadute
+
+    try:
+        return {"ok": True, **esegui_scadute()}
+    except Exception:
+        logger.exception("run_report_pianificati: eccezione inattesa")
+        raise
+
+
 def run_report_emissioni_pulizia() -> dict:
     """Elimina dal registro emissioni report le righe oltre la conservazione.
 

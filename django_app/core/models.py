@@ -1557,3 +1557,49 @@ class ReportAssegnazioneLayout(models.Model):
 
     def __str__(self) -> str:
         return f"{self.ambito}:{self.chiave} → {self.profilo_id}"
+
+
+class ReportPianificazione(models.Model):
+    """Report del catalogo generato e inviato per mail a intervalli regolari.
+
+    Il file si genera eseguendo la route della variante **per conto del
+    proprietario** (i controlli della vista e dell'ACL valgono come se lo
+    scaricasse lui); ogni destinatario lo riceve solo se può aprire lo stesso
+    report. Motore in :mod:`core.report_centro.pianificazione`.
+    """
+
+    FREQ_SETTIMANALE = "settimanale"
+    FREQ_MENSILE = "mensile"
+    FREQ_CHOICES = [(FREQ_SETTIMANALE, "Ogni settimana"), (FREQ_MENSILE, "Ogni mese")]
+
+    ESITO_OK = "ok"
+    ESITO_PARZIALE = "parziale"
+    ESITO_ERRORE = "errore"
+    ESITO_CHOICES = [(ESITO_OK, "Inviato"), (ESITO_PARZIALE, "Inviato in parte"), (ESITO_ERRORE, "Errore")]
+
+    nome = models.CharField(max_length=120)
+    voce_chiave = models.CharField(max_length=120, db_index=True)
+    variante = models.CharField(max_length=40)
+    frequenza = models.CharField(max_length=12, choices=FREQ_CHOICES, default=FREQ_MENSILE)
+    giorno_settimana = models.PositiveSmallIntegerField(default=0, help_text="0 = lunedì … 6 = domenica")
+    giorno_mese = models.PositiveSmallIntegerField(default=1, help_text="1–28")
+    ora = models.PositiveSmallIntegerField(default=7, help_text="0–23")
+    proprietario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    destinatari = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="+")
+    attiva = models.BooleanField(default=True, db_index=True)
+    prossima_esecuzione = models.DateTimeField(null=True, blank=True, db_index=True)
+    ultima_esecuzione = models.DateTimeField(null=True, blank=True)
+    ultimo_esito = models.CharField(max_length=10, choices=ESITO_CHOICES, blank=True, default="")
+    ultimo_messaggio = models.CharField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nome", "id"]
+        verbose_name = "Report pianificato"
+        verbose_name_plural = "Report pianificati"
+
+    def __str__(self) -> str:
+        return self.nome

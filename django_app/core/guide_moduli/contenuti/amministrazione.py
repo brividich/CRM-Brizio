@@ -130,6 +130,9 @@ GUIDA = {
                     ("Registro emissioni", "ogni file di report scaricato: chi, quando, quale report, filtri, dimensione, impronta SHA-256 e IP. "
                                            "Il file non si conserva. «Cerca» accetta anche l'impronta: dice se un file in circolazione è uscito dal portale. "
                                            "Conservazione predefinita 730 giorni (0 = sempre), pulizia ogni notte alle 02:45."),
+                    ("Pianificazioni", "report con l'etichetta «Pianificabile» generati da soli ogni settimana o ogni mese e inviati per mail "
+                                       "come allegato (max 10 MB). Si generano con i permessi di chi crea la pianificazione; ogni destinatario "
+                                       "li riceve solo se può aprire lo stesso report. «Invia ora», «Sospendi», esito dell'ultimo invio; controllo ogni ora."),
                     ("Layout", "profili con colori, logo, piè di pagina, filigrana, data e numero di pagina, assegnati a un modulo o a un singolo report "
                                "(il report vince sul modulo). Valgono per i PDF ed Excel costruiti con il template del portale; i modelli su misura non cambiano."),
                 ]),

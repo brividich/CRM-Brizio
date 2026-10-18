@@ -624,6 +624,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CORE — Centro report: genera e invia per mail i report pianificati
+        # arrivati a scadenza (Admin portale → Centro report → Pianificazioni).
+        # Fail-safe: senza pianificazioni attive non fa nulla.
+        "name": "report_pianificati",
+        "func": "core.tasks.run_report_pianificati",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "5 * * * *",        # ogni ora al minuto 5
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del
         # reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica).
         # Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket

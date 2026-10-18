@@ -252,8 +252,8 @@ class LibrettoPeriodoTests(TestCase):
             )
 
     def _get(self, **params):
-        with patch("anagrafica.views.ensure_anagrafica_schema"), \
-             patch("anagrafica.views.fetch_anagrafica_rows", return_value=FAKE_DIP):
+        with patch("anagrafica.views.dipendenti.ensure_anagrafica_schema"), \
+             patch("anagrafica.views.dipendenti.fetch_anagrafica_rows", return_value=FAKE_DIP):
             resp = self.client.get(
                 reverse("anagrafica:dipendente_libretto_formativo", args=[self.LEGACY_ID]),
                 params,

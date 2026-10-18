@@ -90,7 +90,7 @@ class RetentionConfermaTests(TestCase):
 
     def test_non_admin_403(self):
         self.client.force_login(_utente("rt_utente"))
-        with mock.patch("anagrafica.views._is_anagrafica_admin", return_value=False):
+        with mock.patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=False):
             resp = self.client.get(reverse("anagrafica:retention"))
         self.assertEqual(resp.status_code, 403)
 
@@ -147,7 +147,7 @@ class MiaSchedaTests(TestCase):
         self.client.force_login(_utente("ms_utente"))
 
     def _get(self, lid, url=None):
-        with mock.patch("anagrafica.views._current_legacy_anagrafica_id", return_value=lid):
+        with mock.patch("anagrafica.views._helpers._current_legacy_anagrafica_id", return_value=lid):
             return self.client.get(url or reverse("anagrafica:mia_scheda"))
 
     def test_non_collegato(self):

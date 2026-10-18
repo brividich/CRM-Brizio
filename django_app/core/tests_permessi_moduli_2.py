@@ -125,9 +125,9 @@ class AnagraficaTests(ModuliBase):
     def test_scheda_fuori_team_negata(self):
         from anagrafica import views
 
-        with patch("anagrafica.views.fetch_anagrafica_rows",
+        with patch("anagrafica.views.dipendenti.fetch_anagrafica_rows",
                    return_value=[{"id": anag(self.altro_l), "utente_id": self.altro_l.id}]), \
-             patch("anagrafica.views.ensure_anagrafica_schema"), \
+             patch("anagrafica.views.dipendenti.ensure_anagrafica_schema"), \
              patch("core.permessi.negato.render", side_effect=fake_render):
             risposta = views.dipendente_detail(self.req(self.resp, self.resp_l), anag(self.altro_l))
         self.assertEqual(risposta.status_code, 403)
