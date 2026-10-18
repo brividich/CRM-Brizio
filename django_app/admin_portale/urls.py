@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_ruoli
+from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_centro_report, views_ruoli
 
 
 app_name = "admin_portale"
@@ -115,6 +115,10 @@ urlpatterns = [
     path("audit/", views.audit_log_view, name="audit_log"),
     path("attivita-utenti/", views.user_activity_view, name="user_activity"),
     path("notifiche-log/", views.notifiche_log_view, name="notifiche_log"),
+    path("centro-report/", views_centro_report.centro_report, name="centro_report"),
+    path("centro-report/azione/", views_centro_report.centro_report_azione, name="centro_report_azione"),
+    path("centro-report/registro.csv", views_centro_report.centro_report_registro_csv, name="centro_report_registro_csv"),
+    path("centro-report/anteprima/<int:pk>/", views_centro_report.centro_report_anteprima, name="centro_report_anteprima"),
     path("notifiche-config/", views.notifiche_config_view, name="notifiche_config"),
     path("health/", views.admin_health_check, name="health_check"),
     path("accessi/", views.accessi_unificati, name="accessi"),

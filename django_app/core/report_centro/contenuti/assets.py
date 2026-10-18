@@ -1,0 +1,41 @@
+from core.report_centro.catalogo import LAYOUT_COMPONIBILE, LAYOUT_CORE_PDF, LAYOUT_SU_MISURA, voce
+
+MODULO = "assets"
+ETICHETTA = "Asset e manutenzione"
+
+VOCI = [
+    voce("catalogo", "Catalogo report asset",
+         "Report predefiniti degli asset e della manutenzione, con salvataggio dei filtri.",
+         ("pdf", "xlsx"), route="assets:report_catalog_run", pagina="assets:report_catalog",
+         layout=LAYOUT_COMPONIBILE),
+    voce("pianificati", "Report pianificati",
+         "Estrazioni periodiche (settimanali, mensili) con archivio dei file generati.",
+         ("pdf", "xlsx"), route=("assets:reporting_download", "assets:reporting_run"),
+         pagina="assets:reporting_archive", layout=LAYOUT_COMPONIBILE),
+    voce("elenco_asset", "Elenco asset",
+         "PDF ed Excel dell'elenco asset con i filtri applicati.",
+         ("pdf", "xlsx"), route="assets:asset_list_export", pagina="assets:reports", layout=LAYOUT_CORE_PDF),
+    voce("scheda_asset", "Scheda asset",
+         "Report PDF ed Excel del singolo asset (dati, manutenzioni, documenti).",
+         ("pdf", "xlsx"), route=("assets:asset_report_pdf", "assets:asset_detail_export_xlsx"),
+         pagina="assets:reports", layout=LAYOUT_CORE_PDF),
+    voce("ordini_lavoro", "Ordini di lavoro",
+         "PDF ed Excel degli ordini di lavoro.",
+         ("pdf", "xlsx"), route="assets:workorder_list_export", pagina="assets:reports", layout=LAYOUT_CORE_PDF),
+    voce("macchine", "Macchine di lavoro",
+         "PDF ed Excel del parco macchine e del piano manutentivo del mese.",
+         ("pdf", "xlsx"), route=("assets:work_machine_export_excel", "assets:work_machine_export_pdf",
+                                 "assets:work_machine_maintenance_month_pdf"),
+         pagina="assets:reports", layout=LAYOUT_CORE_PDF),
+    voce("part_145", "Part-145",
+         "Elenco degli strumenti in ambito Part-145.",
+         ("pdf", "xlsx"), route=("assets:part_145_export_pdf", "assets:part_145_export_excel"),
+         pagina="assets:reports", layout=LAYOUT_CORE_PDF, norma="EASA Part-145"),
+    voce("verifiche_impianti", "Foglio verifiche impianti",
+         "Foglio di verifica periodica degli impianti, da compilare o compilato.",
+         "pdf", route="assets:periodic_check_sheet_pdf", pagina="assets:reports", layout=LAYOUT_SU_MISURA),
+    voce("etichette_qr", "Etichette QR",
+         "Etichette QR degli asset, singole o in serie.",
+         "pdf", route=("assets:asset_qr_label", "assets:asset_qr_labels_bulk"), pagina="assets:asset_label_designer",
+         layout=LAYOUT_SU_MISURA),
+]

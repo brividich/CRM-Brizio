@@ -119,6 +119,9 @@ def _brand_header(ws, *, title, subtitle, filters_label, logo):
         except Exception:  # logo non disegnabile: si prosegue senza (mai eccezione all'utente)
             pass
 
+    # Filigrana del profilo di layout (Centro report): in Excel diventa una dicitura in testa.
+    if getattr(theme, "watermark", ""):
+        write_cell(ws, 2, 2, str(theme.watermark).upper()).font = Font(bold=True, size=10, color="B91C1C")
     write_cell(ws, 3, 1, str(title)).font = Font(bold=True, size=14, color=navy)
     if subtitle:
         write_cell(ws, 4, 1, str(subtitle)).font = Font(size=10, color="5B6B7C")
