@@ -312,9 +312,9 @@ body.theme-dark .sl-renewals > summary { color:#93c5fd; }
                         <a href="{{ row.asset_url }}">{{ row.license.asset.asset_tag }}</a>
                       {% elif row.license.assigned_to_display %}
                         {% if row.employee_url %}
-                          <a href="{{ row.employee_url }}">{{ row.license.assigned_to_display }}</a>
+                          <a href="{{ row.employee_url }}">{{ row.license.assigned_to_display|upper }}</a>
                         {% else %}
-                          {{ row.license.assigned_to_display }}
+                          {{ row.license.assigned_to_display|upper }}
                         {% endif %}
                       {% else %}
                         <span class="sl-meta">Da assegnare</span>

@@ -14,7 +14,7 @@ from pathlib import Path
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, connections, transaction
-from django.db.models import Count, Max, Prefetch, Q, Sum
+from django.db.models import Count, Prefetch, Q
 from django.http import (
     Http404, HttpResponse, HttpResponseForbidden, HttpResponseNotFound,
     HttpResponseRedirect, JsonResponse,
@@ -145,7 +145,6 @@ from .models_formazione import (
     TrainingQuizQuestion,
     TrainingQuizOption,
     TrainingElearningEnrollment,
-    TrainingQuizAttempt,
 )
 from .services.dpi_ingresso import (
     RigaConsegnaIniziale,
@@ -3281,7 +3280,6 @@ def attestato_report_export(request):
         messages.error(request, "Non hai i permessi per esportare i report.")
         return redirect("anagrafica:attestato_impostazioni")
 
-    import csv
     from .services.attestato_pdf import RIFERIMENTO_TIPO
 
     nomi_map = _build_nomi_map()
@@ -3587,7 +3585,6 @@ def formazione_corso_report_iscritti_csv(request, corso_id: int):
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
 
-    from collections import defaultdict
     agg = defaultdict(lambda: {"n_sessioni": 0, "stati": set(), "data": None, "idoneo": None, "n_compl": 0, "perc": None})
     for e in TrainingEnrollment.objects.filter(sessione__corso=corso).values(
         "legacy_anagrafica_id", "stato", "percentuale_presenza"
@@ -3610,7 +3607,6 @@ def formazione_corso_report_iscritti_csv(request, corso_id: int):
     ordine = _build_ordine_map()
     _prio = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
 
-    import csv
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="corso_{corso.codice}_iscritti.csv"'
     response.write("﻿")
@@ -4295,7 +4291,6 @@ def widget_permissions(request):
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:index")
 
-    from core.legacy_models import Ruolo
     perm = AnagraficaStatPermission.get_instance()
 
     if request.method == "POST":
@@ -6529,7 +6524,6 @@ def dipendenti_report(request):
     # Export CSV (no campi sensibili)
     fmt = request.GET.get("format", "").strip()
     if fmt == "csv":
-        import csv
         from django.http import HttpResponse
         response = HttpResponse(content_type=CSV_CONTENT_TYPE)
         response["Content-Disposition"] = 'attachment; filename="dipendenti_report.csv"'
@@ -8247,7 +8241,6 @@ def qualifica_sessione_report_csv(request, sessione_id: int):
         key=lambda q: ordine.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}").casefold(),
     )
 
-    import csv
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     fname = f"sessione_qualifica_{sess.tipo.nome}_{sess.data_conseguimento:%Y%m%d}.csv".replace(" ", "_")
     response["Content-Disposition"] = f'attachment; filename="{fname}"'
@@ -9286,7 +9279,6 @@ def cedolini_import(request):
 @login_required
 def ratei_list(request):
     """Lista aggregata saldi cedolini con filtro per periodo e dipendente (solo HR)."""
-    from core.legacy_models import UtenteLegacy
     legacy_user = get_legacy_user(request.user)
     is_admin = _is_anagrafica_admin(request)
     can_hr = _check_hr_permission(request)
@@ -10547,7 +10539,6 @@ def impostazioni_acl_role_grants_save(request):
     if not ok:
         return resp
     from core.models import PermissionDefinition
-    from core.legacy_models import Ruolo
     from core.acl_v2 import apply_role_grants
 
     perms = list(PermissionDefinition.objects.filter(module="anagrafica", is_active=True))
@@ -10847,7 +10838,7 @@ def _dpi_validate_image(uploaded) -> str | None:
     if uploaded is None:
         return None
     try:
-        from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+        from core.upload_mime import validate_extension_and_mime
         validate_extension_and_mime(
             uploaded,
             allowed_extensions={".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"},
@@ -13234,7 +13225,7 @@ def visite_mediche_api_cerca_dipendente(request):
 
     qs = (
         AnagraficaDipendente.objects
-        .filter(Q(cognome__icontains=q) | Q(nome__icontains=q))
+        .filter(Q(cognome__icontains=q) | Q(nome__icontains=q) | naming.q_persona(q, "nome", "cognome"))
         .exclude(id__in=exclude_ids)
         .order_by("cognome", "nome")[:25]
     )
@@ -14390,7 +14381,6 @@ def formazione_corso_detail(request, corso_id: int):
 
     # Aggregazione dipendenti iscritti distinti (across all sessioni del corso).
     # Per ciascuno: n. sessioni, stato sintetico, ultimo completamento, idoneo.
-    from collections import defaultdict
     agg_dip = defaultdict(lambda: {
         "n_sessioni": 0,
         "stati": set(),
@@ -15359,7 +15349,6 @@ def formazione_sessioni_list(request):
     filtro_anno   = request.GET.get("anno", "")
     q_search      = (request.GET.get("q") or "").strip()
 
-    from django.utils import timezone as _tz
     qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
     if filtro_corso:
         qs = qs.filter(corso_id=filtro_corso)
@@ -17426,7 +17415,7 @@ def formazione_plan(request, legacy_id: int | None = None):
 
     from datetime import timedelta
     import calendar as _calendar
-    from collections import OrderedDict, defaultdict
+    from collections import OrderedDict
 
     today = django_timezone.localdate()
     view_mode = (request.GET.get("view") or "mese").lower()

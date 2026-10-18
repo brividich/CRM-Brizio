@@ -1905,7 +1905,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
       {% for entry in audit_entries %}
       <div class="log-row">
         <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
-        <span>{{ entry.utente_display|default:"—" }}</span>
+        <span>{{ entry.utente_display|upper|default:"—" }}</span>
         <span>{{ entry.azione }}</span>
         <span class="text-xs" style="color:#64748b;">{{ entry.dettaglio }}</span>
       </div>

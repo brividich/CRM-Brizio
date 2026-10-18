@@ -145,7 +145,7 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 <ul class="sp-tl">
   {% for ev in timeline %}
   <li><time datetime="{{ ev.occorso_il|date:'c' }}">{{ ev.occorso_il|date:"d/m/Y H:i" }}</time>
-    <div><strong>{{ ev.get_tipo_display }}</strong> — {{ ev.descrizione }}{% if ev.payload.motivo and can_view_visite %} <span style="color:#64748b;">({{ ev.payload.motivo }})</span>{% endif %}<br><small style="color:#64748b;">{{ ev.actor_display|default:"Sistema" }}{% if ev.data_effetto %} · effetto {{ ev.data_effetto|date:"d/m/Y" }}{% endif %}</small></div></li>
+    <div><strong>{{ ev.get_tipo_display }}</strong> — {{ ev.descrizione }}{% if ev.payload.motivo and can_view_visite %} <span style="color:#64748b;">({{ ev.payload.motivo }})</span>{% endif %}<br><small style="color:#64748b;">{{ ev.actor_display|upper|default:"Sistema" }}{% if ev.data_effetto %} · effetto {{ ev.data_effetto|date:"d/m/Y" }}{% endif %}</small></div></li>
   {% endfor %}
 </ul>
 {% else %}<div style="color:#94a3b8;">Nessun evento registrato.</div>{% endif %}

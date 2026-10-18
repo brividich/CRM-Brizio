@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Onboarding {{ pratica.dipendente_nome }} | Anagrafica{% endblock %}
+{% block title %}Onboarding {{ pratica.dipendente_nome|upper }} | Anagrafica{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -21,9 +21,9 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:onboarding_list' %}">Onboarding</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ pratica.dipendente_nome|default:pratica.legacy_anagrafica_id }}</span></div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:onboarding_list' %}">Onboarding</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ pratica.dipendente_nome|upper|default:pratica.legacy_anagrafica_id }}</span></div>
         <h1>
-          {{ pratica.dipendente_nome|default:pratica.legacy_anagrafica_id }}
+          {{ pratica.dipendente_nome|upper|default:pratica.legacy_anagrafica_id }}
           {% if pratica.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-cyan">In corso</span>
           {% elif pratica.stato == "CHIUSA" %}<span class="fmd-badge fmd-b-green">Chiusa</span>
           {% elif pratica.stato == "CHIUSA_CON_ECCEZIONI" %}<span class="fmd-badge fmd-b-amber">Chiusa con eccezioni</span>

@@ -6,7 +6,6 @@ Gating: `@login_required` + ACLMiddleware (binding canonico per rotta).
 """
 from __future__ import annotations
 
-import csv
 import io
 import json
 import re
@@ -21,7 +20,6 @@ from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from core.csv_export import safe_csv_writer
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
@@ -38,7 +36,7 @@ from .ai_copilota import (
 from .distribuzione import DerogaCopieRichiesta, crea_distribuzione
 from .forms import ApprovazioneForm, DistribuzioneForm, RigaMOD133FormSet, SpecificaForm
 from .models import (
-    AutoApprovazioneConfig, AzioneOFI, Distribuzione, EventoSpecifica,
+    AutoApprovazioneConfig, AzioneOFI, EventoSpecifica,
     MOD133, RigaMOD133, Specifica,
 )
 from .ofi import approva_azione_ofi, crea_ofi_da_riga

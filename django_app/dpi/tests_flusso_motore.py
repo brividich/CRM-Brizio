@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from unittest import mock
 
 from django.core import mail
 from django.test import TestCase, override_settings

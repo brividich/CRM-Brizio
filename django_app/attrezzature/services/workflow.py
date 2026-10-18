@@ -4,7 +4,6 @@ from django.db import transaction
 from django.utils import timezone
 
 from attrezzature.models import (
-    Attrezzatura,
     AttrezzaturaAvanzamento,
     AttrezzaturaNota,
     AttrezzaturaStato,

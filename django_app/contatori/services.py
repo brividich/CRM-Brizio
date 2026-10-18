@@ -22,7 +22,6 @@ from django.utils import timezone
 from . import errori_snmp
 from .models import (
     CONTATORI,
-    ColonnaProfiloSNMP,
     DispositivoSNMP,
     Fattura,
     ImpostazioniSNMP,

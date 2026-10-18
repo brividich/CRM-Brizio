@@ -5,7 +5,7 @@
       <h3 class="fm-section-title" style="margin:0;">Chiusura e approvazione (MOD.040)</h3>
       <p class="muted" style="font-size:12px;margin:4px 0 0;">
         {% if sessione.is_approvata %}
-          Approvato da <strong>{{ sessione.approvata_da_nome|default:"—" }}</strong> il {{ sessione.approvata_il|date:"d/m/Y H:i" }}.
+          Approvato da <strong>{{ sessione.approvata_da_nome|upper|default:"—" }}</strong> il {{ sessione.approvata_il|date:"d/m/Y H:i" }}.
           L'edizione è chiusa: calendario, iscritti, esiti e presenze non si modificano.
         {% elif sessione.stato == "COMPLETATA" %}
           Edizione completata: calendario, iscritti e presenze sono bloccati; gli esiti degli iscritti si chiudono ancora.
@@ -48,7 +48,7 @@
   <div style="margin-top:12px;">
     <strong style="font-size:13px;">Verifica assenza NC nei successivi 6 mesi</strong>
     {% if sessione.verifica_nc_esito %}
-      <p style="margin:4px 0 0;font-size:13px;">{{ sessione.get_verifica_nc_esito_display }} — registrata il {{ sessione.verifica_nc_il|date:"d/m/Y" }} da {{ sessione.verifica_nc_da_nome|default:"—" }}.
+      <p style="margin:4px 0 0;font-size:13px;">{{ sessione.get_verifica_nc_esito_display }} — registrata il {{ sessione.verifica_nc_il|date:"d/m/Y" }} da {{ sessione.verifica_nc_da_nome|upper|default:"—" }}.
         {% if sessione.verifica_nc_note %}<br><span class="muted">{{ sessione.verifica_nc_note }}</span>{% endif %}</p>
     {% else %}
       <p class="muted" style="font-size:12px;margin:4px 0 6px;">Dovuta dal {{ sessione.verifica_nc_dovuta_dal|date:"d/m/Y" }}{% if verifica_nc_scaduta %} — <strong>è il momento di registrarla</strong>{% endif %}.</p>

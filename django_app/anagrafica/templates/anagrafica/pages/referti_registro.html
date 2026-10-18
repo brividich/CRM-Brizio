@@ -76,7 +76,7 @@ body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
           <div class="rr-msg">{{ riga.get_origine_display }}{% if riga.pagina > 1 %} · pag. {{ riga.pagina }}{% endif %}</div>
         </td>
         <td>
-          {{ riga.letto_nominativo|default:"—" }}
+          {{ riga.letto_nominativo|upper|default:"—" }}
           {% if riga.letto_data_giudizio %}
           <div class="rr-msg">giudizio {{ riga.letto_data_giudizio|date:"d/m/Y" }}</div>
           {% endif %}

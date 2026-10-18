@@ -128,7 +128,6 @@ class Command(BaseCommand):
             # Solo rendering — niente DB, niente SMTP
             from django.utils import timezone
             from datetime import timedelta
-            from anomalie.mail_action_models import AnomaliaMailActionToken
 
             fake_token = "DRY-RUN-TOKEN-NON-PERSISTITO-xxxxxxxxxxxxxxxxxxx"
             expires_at = timezone.now() + timedelta(hours=expires_hours)

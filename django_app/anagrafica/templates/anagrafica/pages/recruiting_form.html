@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{% if candidato %}Modifica {{ candidato.nominativo }}{% else %}Nuovo candidato{% endif %} | Recruiting{% endblock %}
+{% block title %}{% if candidato %}Modifica {{ candidato.nominativo|upper }}{% else %}Nuovo candidato{% endif %} | Recruiting{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -24,7 +24,7 @@
       <div class="fmd-crumb">
         <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
         <span>/</span>
-        <span>{% if candidato %}{{ candidato.nominativo }}{% else %}Nuovo candidato{% endif %}</span>
+        <span>{% if candidato %}{{ candidato.nominativo|upper }}{% else %}Nuovo candidato{% endif %}</span>
       </div>
     </div>
 

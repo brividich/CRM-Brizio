@@ -21,7 +21,6 @@ from django.utils import timezone
 
 
 def _corsi_pubblicati():
-    from ..models_formazione import TrainingCourse
     from .elearning_fruizione import corsi_pubblicati
     return {c.pk: c for c in corsi_pubblicati()}
 

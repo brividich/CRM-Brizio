@@ -6,9 +6,7 @@ import logging
 import os
 import re
 import shlex
-import socket
 import subprocess
-import tempfile
 import threading
 import time
 import urllib.error
@@ -26,7 +24,7 @@ from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.core.mail import EmailMultiAlternatives, get_connection
+from django.core.mail import EmailMultiAlternatives, get_connection  # noqa: F401 — EmailMultiAlternatives e' bersaglio di mock.patch nei test
 from django.core.validators import validate_email
 from django.core.files.storage import default_storage
 from django.core.management import call_command
@@ -46,7 +44,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer
 from werkzeug.security import generate_password_hash
 
-from config.env_config import get_first_env_value, load_env_file_values, primary_runtime_env_path, update_env_file_values
+from config.env_config import load_env_file_values, primary_runtime_env_path, update_env_file_values
 from automazioni.approval_mailbox_runtime import (
     get_approval_imap_form_defaults,
     get_approval_imap_status,
@@ -69,7 +67,6 @@ from core.exporting import export_rows_response
 from core.caporeparto_utils import (
     format_caporeparto_label,
     normalize_caporeparto_option,
-    resolve_caporeparto_legacy_user,
 )
 from core.impersonation import start_impersonation
 from core.ldap_conn import build_ldap_server, ldap_receive_timeout
@@ -2822,7 +2819,7 @@ def ai_knowledge(request: HttpRequest):
 
 def _ldap_test_connect(server_url: str, timeout: int) -> tuple[bool, str]:
     try:
-        from ldap3 import NONE, Server
+        pass
     except Exception as exc:
         return False, f"ldap3 non disponibile: {exc}"
     try:
@@ -2843,7 +2840,7 @@ def _ldap_test_connect(server_url: str, timeout: int) -> tuple[bool, str]:
 
 def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str, domain: str, upn_suffix: str) -> tuple[bool, str]:
     try:
-        from ldap3 import NONE, NTLM, SIMPLE, Connection, Server
+        from ldap3 import NTLM, SIMPLE, Connection
     except Exception as exc:
         return False, f"ldap3 non disponibile: {exc}"
 
@@ -4352,8 +4349,7 @@ def ldap_import_utenti(request):
         )
 
     try:
-        from ldap3 import NONE, NTLM, SIMPLE, SUBTREE, Connection
-        from ldap3 import Server as LdapServer
+        from ldap3 import NTLM, SIMPLE, SUBTREE, Connection
         from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
     except Exception as exc:
         return JsonResponse({"ok": False, "error": f"ldap3 non disponibile: {exc}"}, status=500)
@@ -5581,7 +5577,7 @@ def utenti_list(request):
 
     utenti_qs = UtenteLegacy.objects.all().order_by("id")
     if q:
-        utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q))
+        utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome"))
     if attivo_filter in {"0", "1"}:
         utenti_qs = utenti_qs.filter(attivo=bool(int(attivo_filter)))
     if ruolo_filter.isdigit():
@@ -9464,7 +9460,7 @@ def audit_log_view(request):
             rows=qs.order_by("-created_at"),
             columns=[
                 ("Data/Ora", "created_at"),
-                ("Utente", "utente_display"),
+                ("Utente", lambda e: (e.utente_display or "").upper()),
                 ("Legacy user ID", "legacy_user_id"),
                 ("Modulo", "modulo"),
                 ("Azione", "azione"),
@@ -9679,7 +9675,7 @@ def user_activity_view(request):
             rows=qs.order_by("-created_at"),
             columns=[
                 ("Data/Ora", "created_at"),
-                ("Utente", "utente_display"),
+                ("Utente", lambda e: (e.utente_display or "").upper()),
                 ("Legacy user ID", "legacy_user_id"),
                 ("Modulo", "modulo"),
                 ("Azione", "azione"),
@@ -11357,7 +11353,6 @@ Write-Output "Task restart IIS avviato: {full_task_name}"
 
 @legacy_admin_required
 def crea_release(request):
-    from django.http import FileResponse, Http404
 
     repo_root = Path(settings.BASE_DIR).parent
     script_path = repo_root / "deployment" / "scripts" / "package-release.ps1"

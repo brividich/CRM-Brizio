@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import tempfile
-from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -11,7 +10,6 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 
 

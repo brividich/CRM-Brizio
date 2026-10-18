@@ -11,7 +11,6 @@ from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.backends.signed_cookies import SessionStore
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
@@ -19,7 +18,6 @@ from django.utils import timezone
 from .models import (
     DipendenteAnagraficaAziendale,
     DipendenteRuoloOperativo,
-    DocumentoDipendente,
     RuoloOperativo,
     TipoVisitaMedica,
     VisitaMedica,

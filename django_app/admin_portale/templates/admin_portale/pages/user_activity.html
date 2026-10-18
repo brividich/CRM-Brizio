@@ -78,7 +78,7 @@
             {% for log in page_obj %}
               <tr style="border-bottom:1px solid var(--border,#f1f5f9);">
                 <td style="padding:9px 14px;font-size:12px;color:var(--text-mid,#64748b);white-space:nowrap;">{{ log.created_at|date:"d-m-Y H:i:s" }}</td>
-                <td style="padding:9px 14px;font-size:13px;font-weight:600;color:var(--text,#1e293b);">{{ log.utente_display|default:"-" }}</td>
+                <td style="padding:9px 14px;font-size:13px;font-weight:600;color:var(--text,#1e293b);">{{ log.utente_display|upper|default:"-" }}</td>
                 <td style="padding:9px 14px;font-size:13px;color:var(--text-mid,#475569);">{{ log.modulo }}</td>
                 <td style="padding:9px 14px;font-size:13px;color:var(--text-mid,#475569);font-family:monospace;">{{ log.azione }}</td>
                 <td style="padding:9px 14px;font-size:12px;color:#94a3b8;font-family:monospace;">{{ log.ip_address|default:"-" }}</td>

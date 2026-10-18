@@ -103,7 +103,7 @@ def build_nc_pdf_bytes(nc, righe: list[dict], *, ishikawa_labels: dict) -> bytes
     if azioni:
         rows = [["Azione", "Tipo", "Responsabile", "Scadenza", "Stato"]]
         for a in azioni:
-            rows.append([p(_esc(a.descrizione)), a.get_tipo_display(), p(_esc(a.responsabile_nome) or "—"),
+            rows.append([p(_esc(a.descrizione)), a.get_tipo_display(), p(_esc((a.responsabile_nome or "").upper()) or "—"),
                          _data(a.scadenza), p(_esc(a.get_stato_display() + (f" ({_data(a.completata_il)})" if a.completata_il else "")))])
         story.append(data_table(rows, theme, col_widths=[70 * mm, 22 * mm, 36 * mm, 20 * mm, 26 * mm]))
     else:

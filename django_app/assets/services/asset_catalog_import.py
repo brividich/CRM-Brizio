@@ -138,7 +138,7 @@ def source_key_for_row(row: dict[str, str]) -> str:
         compact_key(row.get("ubicazione")),
     ]
     raw = "|".join(parts)
-    digest = hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()
+    digest = hashlib.sha1(raw.encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()
     return f"asset-catalog:{digest}"
 
 
@@ -158,7 +158,7 @@ class AssetCodeGenerator:
         if matricola:
             base = f"A{family}{subcategory}-{matricola[:18]}"
         else:
-            digest = hashlib.sha1(source_key_for_row(row).encode("utf-8", errors="ignore")).hexdigest()
+            digest = hashlib.sha1(source_key_for_row(row).encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()
             fingerprint = int(digest[:10], 16) % 1_000_000
             base = f"A{family}{subcategory}-{fingerprint:06d}"
         return self._unique(base[:32])

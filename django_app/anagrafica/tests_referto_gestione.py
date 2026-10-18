@@ -226,6 +226,6 @@ class RefertoGestioneTests(TestCase):
         )
         self.client.force_login(self.admin)
         response = self.client.get(self.url)
-        self.assertContains(response, "Chi Legge Nuovo")
-        self.assertContains(response, "Chi Legge Storico")
+        self.assertContains(response, "CHI LEGGE NUOVO")
+        self.assertContains(response, "CHI LEGGE STORICO")
         self.assertEqual(response.context["accessi_count"], 2)

@@ -8,7 +8,6 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import connection
 from django.test import TestCase
-from django.urls import reverse
 
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import UtenteLegacy

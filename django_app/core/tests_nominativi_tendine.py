@@ -24,3 +24,17 @@ class TendineNominativiTests(TestCase):
 
         self.assertEqual(_anagrafica_row_label({"id": 1, "nome": "Mario", "cognome": "Rossi"}), "ROSSI MARIO")
         self.assertEqual(_anagrafica_row_label({"id": 2, "aliasusername": "m.rossi"}), "m.rossi")
+
+
+class RicercaPersonaTests(TestCase):
+    def test_q_persona_trova_in_qualunque_ordine(self):
+        from core import naming
+        from core.legacy_models import AnagraficaDipendente
+
+        AnagraficaDipendente.objects.create(nome="MARIO", cognome="ROSSI")
+        AnagraficaDipendente.objects.create(nome="LUCA", cognome="BIANCHI")
+        for testo in ("rossi mario", "Mario Rossi", "ROSSI", "mar ros"):
+            trovati = list(AnagraficaDipendente.objects.filter(naming.q_persona(testo, "nome", "cognome"))
+                           .values_list("cognome", flat=True))
+            self.assertEqual(trovati, ["ROSSI"], testo)
+        self.assertFalse(AnagraficaDipendente.objects.filter(naming.q_persona("", "nome", "cognome")).exists())

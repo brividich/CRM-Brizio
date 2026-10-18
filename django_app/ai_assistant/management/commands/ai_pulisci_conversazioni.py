@@ -1,4 +1,4 @@
-"""Cancella le conversazioni dell'assistente AI scadute (storico chat).
+r"""Cancella le conversazioni dell'assistente AI scadute (storico chat).
 
     python django_app\manage.py ai_pulisci_conversazioni            # usa AI_CHAT_HISTORY_RETENTION_DAYS
     python django_app\manage.py ai_pulisci_conversazioni --giorni 30

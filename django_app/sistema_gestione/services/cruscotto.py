@@ -8,7 +8,7 @@ import re
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.utils import timezone
 
 from ..models import Audit, AuditEsito, AuditVerificaEfficacia, AzioneCorrettivaAudit, CellaProgramma, Processo, ProgrammaAudit

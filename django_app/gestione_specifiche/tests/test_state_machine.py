@@ -11,7 +11,7 @@ from django.test import RequestFactory, TestCase
 from django_fsm import TransitionNotAllowed
 
 from gestione_specifiche import constants as C
-from gestione_specifiche.models import MOD133, EventoSpecifica, Specifica
+from gestione_specifiche.models import MOD133, Specifica
 
 User = get_user_model()
 

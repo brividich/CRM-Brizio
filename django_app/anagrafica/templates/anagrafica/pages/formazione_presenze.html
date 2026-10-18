@@ -343,7 +343,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
           <tr>
             <td><a href="{% url 'anagrafica:formazione_allegato_download' a.pk %}" style="color:#3b82f6;text-decoration:none;">{{ a.nome_originale }}</a></td>
             <td style="font-size:12px;color:#475569;">{{ a.get_tipo_display }}</td>
-            <td style="font-size:12px;color:#475569;">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+            <td style="font-size:12px;color:#475569;">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display|upper }}{% endif %}</td>
             {% if is_editor %}
             <td>
               <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"

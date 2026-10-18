@@ -36,7 +36,7 @@ def _cache_ttl() -> int:
 
 def _cache_key(depth: int) -> str:
     # La chiave include le radici: correttezza in prod e isolamento fra test (radici diverse).
-    h = hashlib.md5((";".join(radici_consentite())).encode("utf-8")).hexdigest()[:10]
+    h = hashlib.md5((";".join(radici_consentite())).encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
     return f"gs:cartelle_share:{depth}:{h}"
 
 

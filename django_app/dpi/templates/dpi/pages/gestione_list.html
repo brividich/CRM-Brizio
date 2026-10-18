@@ -159,7 +159,7 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
               {{ r.categoria.nome }}{% if r.tipo_dpi %} / {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} / {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} / {{ r.taglia_dpi.valore }}{% endif %}
             </span>
           </td>
-          <td>{{ r.richiedente_nome }}</td>
+          <td>{{ r.richiedente_nome|upper }}</td>
           <td>{{ r.richiedente_reparto|default:"-" }}</td>
           <td>{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
           <td><span class="dpi-badge dpi-badge-{{ r.stato }}">{{ r.label_stato }}</span></td>

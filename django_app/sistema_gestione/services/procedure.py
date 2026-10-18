@@ -2,7 +2,6 @@
 from decimal import Decimal
 import re
 from django.core.exceptions import ValidationError
-from django.utils import timezone
 from ..models import Audit, Processo, CellaProgramma, AuditPreparazione
 
 

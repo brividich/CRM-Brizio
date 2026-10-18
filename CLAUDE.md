@@ -15,7 +15,7 @@ Do not read all docs automatically. Open only the files relevant to the current 
 - Use synthetic examples for incidents, procedures, DPI, approvals, mailbox messages, Graph payloads, SharePoint data, and employee/customer records.
 - Preserve ACL v2 as the primary authorization layer; legacy ACL is compatibility fallback only when no canonical binding exists.
 - Navigation visibility is not a security boundary. Server-side ACL/middleware decisions remain authoritative.
-- Public/token surfaces must stay narrow: `/automazioni/approvazione/*` and `/approval-actions/*` only for approval tokens; publish only `/approval-actions/*` through Entra Application Proxy.
+- Public/token surfaces must stay narrow: `/automazioni/approvazione/*` and `/approval-actions/*` only for approval tokens; publish only `/approval-actions/*` through Entra Application Proxy. The full list of login/ACL-exempt prefixes is `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py` (documented in `docs/ai/05_SECURITY_BOUNDARIES.md`); every new exemption also goes into `PUBLIC_VIEWS` of `core/test_security_audit_fase3.py`.
 - API/AJAX protected endpoints must return JSON `401/403`, not HTML redirects.
 - For Security Center AI work (`diario_preposto`, `rilevazione_incidenti`, `procedure_refresh`, `dpi`, `rentri`), preserve audit trail, source-of-truth boundaries, privacy, and user-visible traceability.
 

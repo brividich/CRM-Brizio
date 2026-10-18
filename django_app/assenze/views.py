@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import time
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -4929,7 +4928,6 @@ def _salva_impostazioni_flessibilita(request):
 
 
 def _riconciliazione_csv(items, da, a):
-    import csv
 
     from django.http import HttpResponse
 
@@ -5393,7 +5391,6 @@ def calendario(request):
             }
         )
     from .htmx_views import _month_nav_ctx, _parse_mese
-    from datetime import date
     mese_date = _parse_mese(request.GET.get("mese", timezone.localdate().strftime("%Y-%m")))
     return render(request, "assenze/pages/calendario.html", {
         "eventi_preview": eventi_preview,
@@ -5986,7 +5983,6 @@ def api_sync_pull(request):
 # Export CSV
 # ─────────────────────────────────────────────────────────────────────────────
 
-import csv
 from django.http import StreamingHttpResponse
 
 

@@ -2202,7 +2202,7 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
     if not _should_run(request, "assets", _wants_asset_context(prompt)):
         return RuntimeContext()
 
-    from assets.models import Asset, AssetAdministrativeDeadline, PeriodicVerification, WorkOrder
+    from assets.models import Asset, PeriodicVerification, WorkOrder
     from assets.views import _is_assets_admin
     from core.acl import user_can_modulo_action
 
