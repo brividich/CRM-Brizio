@@ -10,5 +10,6 @@ VOCI = [
     voce("incidenti", "Registro incidenti",
          "Registro degli incidenti di sicurezza e scheda del singolo incidente.",
          "pdf", route=("security:incidents_register_pdf", "security:incident_pdf"), pagina="security:incidents",
-         layout=LAYOUT_CORE_PDF, norma="NIS2 / GDPR art. 33"),
+         layout=LAYOUT_CORE_PDF, norma="NIS2 / GDPR art. 33",
+         pianificabile=(("registro", "Registro completo", "security:incidents_register_pdf", {}),)),
 ]

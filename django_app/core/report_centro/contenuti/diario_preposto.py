@@ -11,5 +11,6 @@ VOCI = [
     voce("elenco", "Elenco segnalazioni",
          "Excel delle segnalazioni del diario con i filtri applicati.",
          "xlsx", route="diario_preposto:export_excel", pagina="diario_preposto:lista",
-         dati_personali=True, layout=LAYOUT_EXCEL),
+         dati_personali=True, layout=LAYOUT_EXCEL,
+         pianificabile=(("tutte", "Tutte le segnalazioni", "diario_preposto:export_excel", {}),)),
 ]

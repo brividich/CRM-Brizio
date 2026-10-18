@@ -19,6 +19,7 @@
     <a class="btn{% if scheda != 'catalogo' %} btn-secondary{% endif %}" href="?tab=catalogo">Catalogo</a>
     <a class="btn{% if scheda != 'registro' %} btn-secondary{% endif %}" href="?tab=registro">Registro emissioni</a>
     <a class="btn{% if scheda != 'layout' %} btn-secondary{% endif %}" href="?tab=layout">Layout</a>
+    <a class="btn{% if scheda != 'pianificazioni' %} btn-secondary{% endif %}" href="?tab=pianificazioni">Pianificazioni</a>
     <a class="btn rc-guida{% if scheda != 'guida' %} btn-secondary{% endif %}" href="?tab=guida">? Guida</a>
   </nav>
 
@@ -67,6 +68,7 @@
                     <div style="margin-top:4px;">
                       {% if r.voce.dati_personali %}<span class="rc-chip gdpr" title="Il file contiene dati personali: ogni scaricamento è registrato">Dati personali</span>{% endif %}
                       {% if r.voce.norma %}<span class="rc-chip norma">{{ r.voce.norma }}</span>{% endif %}
+                      {% if r.voce.pianificabile %}<a class="rc-chip ok" href="?tab=pianificazioni" title="Si può inviare per mail a intervalli regolari">Pianificabile</a>{% endif %}
                     </div>
                   </td>
                   <td>
@@ -219,6 +221,7 @@
                         <span class="rc-chip fmt">{{ e.formato }}</span>
                         {% if e.dati_personali %}<span class="rc-chip gdpr">Dati personali</span>{% endif %}
                         {% if e.profilo_layout %}<span class="rc-chip">{{ e.profilo_layout }}</span>{% endif %}
+                        {% if r.in_archivio_hr %}<a class="rc-chip ok" href="{% url 'anagrafica:reportistica_index' %}" title="Lo stesso file (stessa impronta) è conservato nell'archivio della Reportistica HR">Copia in archivio HR</a>{% endif %}
                       </div>
                     </td>
                     <td>
@@ -402,6 +405,162 @@
         {% endif %}
       </div>
     </section>
+
+  {% elif scheda == "pianificazioni" %}
+    <section class="card rc-modulo">
+      <div class="card-head">
+        <div class="card-title">Report pianificati</div>
+        <span class="rc-muted">Generati da soli e inviati per mail; controllo ogni ora</span>
+      </div>
+      <div class="card-body">
+        {% if pianificazioni %}
+          <div class="rc-table-wrap">
+            <table class="rc-table">
+              <thead><tr><th>Pianificazione</th><th>Quando</th><th>Destinatari</th><th>Ultimo invio</th><th></th></tr></thead>
+              <tbody>
+                {% for r in pianificazioni %}
+                  {% with p=r.p %}
+                  <tr>
+                    <td>
+                      <div class="rc-nome">{{ p.nome }}</div>
+                      {% if r.voce %}
+                        <div class="rc-muted">{{ r.voce.nome }}{% if r.variante %} · {{ r.variante.etichetta }}{% endif %}</div>
+                        {% if r.voce.dati_personali %}<span class="rc-chip gdpr">Dati personali</span>{% endif %}
+                      {% else %}
+                        <span class="rc-chip gdpr">Report non più a catalogo</span>
+                      {% endif %}
+                      {% if not p.attiva %}<span class="rc-chip">Sospesa</span>{% endif %}
+                      <div class="rc-muted">Generato come {{ r.proprietario|default:"— (proprietario assente)" }}</div>
+                    </td>
+                    <td>
+                      <div>{{ r.frequenza }}</div>
+                      {% if p.attiva and p.prossima_esecuzione %}<div class="rc-muted">prossimo {{ p.prossima_esecuzione|date:"d/m/Y H:i" }}</div>{% endif %}
+                    </td>
+                    <td>
+                      {% for d in r.destinatari %}<div>{{ d }}</div>{% empty %}<span class="rc-muted">—</span>{% endfor %}
+                    </td>
+                    <td>
+                      {% if p.ultima_esecuzione %}
+                        <span class="rc-chip{% if p.ultimo_esito == 'ok' %} ok{% elif p.ultimo_esito %} gdpr{% endif %}">{{ p.get_ultimo_esito_display }}</span>
+                        <div class="rc-muted">{{ p.ultima_esecuzione|date:"d/m/Y H:i" }}</div>
+                        {% if p.ultimo_messaggio %}<div class="rc-muted">{{ p.ultimo_messaggio }}</div>{% endif %}
+                      {% else %}
+                        <span class="rc-muted">Mai inviato</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="rc-actions">
+                        <a class="btn btn-secondary" href="?tab=pianificazioni&amp;pianificazione={{ p.pk }}">Modifica</a>
+                        <form method="post" action="{% url 'admin_portale:centro_report_azione' %}">
+                          {% csrf_token %}
+                          <input type="hidden" name="pianificazione_id" value="{{ p.pk }}">
+                          <button class="btn btn-secondary" type="submit" name="azione" value="pianificazione_esegui">Invia ora</button>
+                          <button class="btn btn-secondary" type="submit" name="azione" value="pianificazione_attiva">{% if p.attiva %}Sospendi{% else %}Riattiva{% endif %}</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="rc-empty">Nessun report pianificato.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">{% if pianificazione_modifica %}Modifica «{{ pianificazione_modifica.nome }}»{% else %}Nuova pianificazione{% endif %}</div>
+        {% if pianificazione_modifica %}<a class="rc-muted" href="?tab=pianificazioni">Nuova pianificazione</a>{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-form">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="pianificazione_salva">
+          {% if pianificazione_modifica %}<input type="hidden" name="pianificazione_id" value="{{ pianificazione_modifica.pk }}">{% endif %}
+          <div class="rc-row">
+            <label>Nome
+              <input type="text" name="nome" maxlength="120" required value="{% if pianificazione_modifica %}{{ pianificazione_modifica.nome }}{% endif %}" placeholder="Es. Visite in scadenza per HR">
+            </label>
+            <label>Report
+              <select name="variante" required>
+                <option value="">— scegli —</option>
+                {% for v in varianti %}
+                  <option value="{{ v.valore }}"{% if v.valore == variante_scelta %} selected{% endif %}>{{ v.voce.modulo_etichetta }} · {{ v.voce.nome }} — {{ v.variante.etichetta }}{% if v.voce.dati_personali %} (dati personali){% endif %}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="rc-row">
+            <label>Frequenza
+              <select name="frequenza" id="rc-frequenza">
+                <option value="mensile"{% if not pianificazione_modifica or pianificazione_modifica.frequenza == "mensile" %} selected{% endif %}>Ogni mese</option>
+                <option value="settimanale"{% if pianificazione_modifica and pianificazione_modifica.frequenza == "settimanale" %} selected{% endif %}>Ogni settimana</option>
+              </select>
+            </label>
+            <label>Ora
+              <select name="ora">
+                {% for h in ore %}<option value="{{ h }}"{% if pianificazione_modifica and pianificazione_modifica.ora == h %} selected{% elif not pianificazione_modifica and h == 7 %} selected{% endif %}>{{ h|stringformat:"02d" }}:00</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="rc-row">
+            <label data-rc-freq="mensile">Giorno del mese
+              <select name="giorno_mese">
+                {% for g in giorni_mese %}<option value="{{ g }}"{% if pianificazione_modifica and pianificazione_modifica.giorno_mese == g %} selected{% endif %}>{{ g }}</option>{% endfor %}
+              </select>
+            </label>
+            <label data-rc-freq="settimanale">Giorno della settimana
+              <select name="giorno_settimana">
+                {% for n, g in giorni_settimana %}<option value="{{ n }}"{% if pianificazione_modifica and pianificazione_modifica.giorno_settimana == n %} selected{% endif %}>{{ g }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <label>Destinatari <small>solo persone del portale con email; chi non può aprire il report viene saltato</small>
+            <input type="text" id="rc-dest-cerca" placeholder="Filtra per nome o email…" autocomplete="off">
+            <select name="destinatari" id="rc-destinatari" multiple size="8" required>
+              {% for u in utenti %}<option value="{{ u.id }}"{% if u.id in destinatari_scelti %} selected{% endif %}>{{ u.nome }} · {{ u.email }}</option>{% endfor %}
+            </select>
+            <small>Ctrl+clic per sceglierne più di uno.</small>
+          </label>
+          <label class="rc-check"><input type="checkbox" name="attiva" value="1"{% if not pianificazione_modifica or pianificazione_modifica.attiva %} checked{% endif %}> Attiva</label>
+          <div class="rc-actions"><button class="btn" type="submit">Salva pianificazione</button></div>
+        </form>
+        {% if pianificazione_modifica %}
+          <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" onsubmit="return confirm('Eliminare la pianificazione?');">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="pianificazione_elimina">
+            <input type="hidden" name="pianificazione_id" value="{{ pianificazione_modifica.pk }}">
+            <button class="btn btn-secondary" type="submit">Elimina pianificazione</button>
+          </form>
+        {% endif %}
+        <p class="rc-muted" style="margin:12px 0 0;">Il report si genera con i permessi di chi ha creato la pianificazione e arriva come allegato (massimo 10 MB). Ogni invio finisce nel registro emissioni.</p>
+      </div>
+    </section>
+    <script>
+      (function () {
+        var freq = document.getElementById("rc-frequenza");
+        function aggiorna() {
+          document.querySelectorAll("[data-rc-freq]").forEach(function (el) {
+            el.hidden = el.getAttribute("data-rc-freq") !== freq.value;
+          });
+        }
+        if (freq) { freq.addEventListener("change", aggiorna); aggiorna(); }
+        var cerca = document.getElementById("rc-dest-cerca");
+        var lista = document.getElementById("rc-destinatari");
+        if (cerca && lista) {
+          cerca.addEventListener("input", function () {
+            var q = cerca.value.trim().toLowerCase();
+            Array.prototype.forEach.call(lista.options, function (o) {
+              o.hidden = !!q && !o.selected && o.textContent.toLowerCase().indexOf(q) === -1;
+            });
+          });
+        }
+      })();
+    </script>
 
   {% else %}
     <div class="card"><div class="card-body rc-guida-testo">

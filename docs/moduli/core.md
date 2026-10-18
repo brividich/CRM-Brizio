@@ -110,3 +110,7 @@ Una guida per ogni modulo, scritta a passi numerati con le etichette vere dei pu
 - Le guide di dettaglio già presenti nei moduli si collegano con `dettaglio`.
 - Assistente AI (`ai_assistant/guide_portale.py::_guide_centro`): parte `uso` come `centro-<modulo>` per tutti (solo moduli senza `dettaglio`, gli altri sono già indicizzati dalla guida di dettaglio); parti `admin` + `problemi` come `centro-<modulo>-admin` e il Manuale di emergenza come `centro-emergenza`, con `solo_admin=True`: `guide_consentite` le dà solo a chi passa `puo_vedere_admin`.
 - Quando cambia una funzione visibile si aggiorna anche il file del modulo qui (regola «guida in-app» di `CLAUDE.md`). Test: `core.tests_guide_moduli` (rotte, guide di dettaglio, render di ogni parte, permessi, PDF).
+
+## I miei report (`/report/`)
+
+Pagina personale (voce «I miei report» nel menu utente, rotta condivisa in `_ACL_SHARED_ROUTE_NAMES`): elenca le voci del catalogo del Centro report la cui pagina l'utente può aprire (`core.report_centro.accesso.voci_accessibili`, stessa politica del middleware via `acl_allows_path`), i report pianificati che riceve per mail e i propri scaricamenti degli ultimi 90 giorni da `ReportEmissione`. Guida in-app con `?guida=1`. Il permesso vero resta quello della pagina e della route di export.

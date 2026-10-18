@@ -73,6 +73,20 @@ _MODULI_CONTENUTI = (
 
 
 @dataclass(frozen=True)
+class Variante:
+    """Un modo di generare la voce senza intervento dell'utente (report pianificati).
+
+    ``route`` è una route **senza argomenti** che restituisce il file con un GET;
+    ``parametri`` è la querystring fissa (es. ``{"scad": "prossimo_mese"}``).
+    """
+
+    chiave: str
+    etichetta: str
+    route: str
+    parametri: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class ReportVoce:
     """Un report del portale, come lo dichiara il modulo che lo produce."""
 
@@ -87,6 +101,7 @@ class ReportVoce:
     norma: str = ""
     modulo: str = field(default="", compare=False)
     modulo_etichetta: str = field(default="", compare=False)
+    varianti: tuple[Variante, ...] = ()
 
     @property
     def layout_etichetta(self) -> str:
@@ -95,6 +110,16 @@ class ReportVoce:
     @property
     def accetta_profilo(self) -> bool:
         return self.layout in LAYOUT_CON_PROFILO
+
+    @property
+    def pianificabile(self) -> bool:
+        return bool(self.varianti)
+
+    def variante(self, chiave: str) -> Variante | None:
+        for v in self.varianti:
+            if v.chiave == chiave:
+                return v
+        return None
 
     @property
     def tracciato(self) -> bool:
@@ -113,8 +138,13 @@ def voce(
     dati_personali: bool = False,
     layout: str = LAYOUT_CORE_PDF,
     norma: str = "",
+    pianificabile=(),
 ) -> dict:
-    """Dichiarazione compatta usata dai file ``contenuti``."""
+    """Dichiarazione compatta usata dai file ``contenuti``.
+
+    ``pianificabile``: tuple ``(chiave, etichetta, route, {parametri})`` delle
+    varianti che il Centro report può generare e inviare da solo.
+    """
     if isinstance(formati, str):
         formati = (formati,)
     if isinstance(route, str):
@@ -129,6 +159,10 @@ def voce(
         "dati_personali": dati_personali,
         "layout": layout,
         "norma": norma,
+        "varianti": tuple(
+            Variante(chiave=c, etichetta=e, route=r, parametri=tuple(sorted((p or {}).items())))
+            for c, e, r, p in pianificabile
+        ),
     }
 
 
@@ -158,6 +192,7 @@ def moduli() -> tuple[Modulo, ...]:
                 norma=d["norma"],
                 modulo=chiave_modulo,
                 modulo_etichetta=mod.ETICHETTA,
+                varianti=d["varianti"],
             )
             for d in mod.VOCI
         )
@@ -189,6 +224,10 @@ def voce_per_chiave(chiave: str) -> ReportVoce | None:
 
 def voce_per_route(view_name: str) -> ReportVoce | None:
     return _indice_route().get(str(view_name or ""))
+
+
+def varianti_pianificabili() -> list[tuple[ReportVoce, Variante]]:
+    return [(v, var) for v in voci() for var in v.varianti]
 
 
 def etichetta_modulo(chiave: str) -> str:
