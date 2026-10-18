@@ -9,6 +9,7 @@ from django.urls import reverse
 
 from core.models import EmployeeBoardConfig, EmployeeBoardTemplate
 from dashboard import views as dashboard_views
+from dpi.models import StatoRichiesta
 from tickets.models import PrioritaTicket, StatoTicket, Ticket
 
 
@@ -698,7 +699,8 @@ class ScadenzeGlobaliTests(TestCase):
 
         categoria = CategoriaDPI.objects.create(nome="Guanti antitaglio")
         richiesta = RichiestaDPI.objects.create(
-            categoria=categoria, richiedente_nome="Mario Rossi", richiedente_reparto="OFFICINA"
+            categoria=categoria, richiedente_nome="Mario Rossi", richiedente_reparto="OFFICINA",
+            stato=StatoRichiesta.CONSEGNATA,
         )
         ConsegnaDPI.objects.create(
             richiesta=richiesta,
@@ -711,6 +713,124 @@ class ScadenzeGlobaliTests(TestCase):
         self.assertEqual(items[0].source, SOURCE_DPI)
         self.assertEqual(items[0].titolo, "Guanti antitaglio")
         self.assertEqual(items[0].soggetto, "Mario Rossi")
+
+    def _consegna_dpi(self, *, nome, days, stato):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        from dpi.models import CategoriaDPI, ConsegnaDPI, RichiestaDPI
+
+        categoria = CategoriaDPI.objects.create(nome=nome)
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria, richiedente_nome="Persona Sintetica", stato=stato,
+        )
+        return ConsegnaDPI.objects.create(
+            richiesta=richiesta,
+            data_consegna=timezone.localdate(),
+            data_scadenza_stimata=timezone.localdate() + timedelta(days=days),
+        )
+
+    def test_dpi_provider_esclude_consegne_sostituite_e_non_consegnate(self):
+        # Stesso perimetro del promemoria DPI: solo la consegna in essere.
+        from dashboard.scadenze_providers import ScadenzeContext, collect_dpi
+
+        vecchia = self._consegna_dpi(nome="Scarpe S3 vecchie", days=-10, stato=StatoRichiesta.CONSEGNATA)
+        nuova = self._consegna_dpi(nome="Scarpe S3 nuove", days=20, stato=StatoRichiesta.CONSEGNATA)
+        vecchia.sostituita_da = nuova
+        vecchia.save(update_fields=["sostituita_da"])
+        self._consegna_dpi(nome="Occhiali annullati", days=5, stato=StatoRichiesta.ANNULLATA)
+
+        titoli = [i.titolo for i in collect_dpi(ScadenzeContext.build(SimpleNamespace(user=self.admin)))]
+        self.assertEqual(titoli, ["Scarpe S3 nuove"])
+
+    def test_orizzonte_novanta_giorni(self):
+        from dashboard.scadenze_providers import ORIZZONTE_GIORNI, ScadenzeContext, collect_asset
+
+        self.assertEqual(ORIZZONTE_GIORNI, 90)
+        self._make_asset_deadline(days=80, title="Collaudo a 80")
+        self._make_asset_deadline(days=95, title="Collaudo a 95")
+        titoli = [i.titolo for i in collect_asset(ScadenzeContext.build(SimpleNamespace(user=self.admin)))]
+        self.assertIn("Collaudo a 80", titoli)
+        self.assertNotIn("Collaudo a 95", titoli)
+
+    def test_filtro_stato_90_e_kpi(self):
+        self.client.force_login(self.admin)
+        self._make_asset_deadline(days=10, title="Entro dieci")
+        self._make_asset_deadline(days=75, title="Entro settantacinque")
+        response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=90")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["n_90gg"], 1)
+        self.assertContains(response, "Entro settantacinque")
+        self.assertContains(response, "Asset")  # etichetta della sorgente, non il codice
+        response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=30")
+        self.assertNotContains(response, "Entro settantacinque")
+
+    def _tipo_verifica(self, *, name, days, attivo=True):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        from assets.models import PeriodicCheckSystem, PeriodicCheckType
+
+        system, _ = PeriodicCheckSystem.objects.get_or_create(name="Antincendio")
+        return PeriodicCheckType.objects.create(
+            system=system, name=name, is_active=attivo,
+            next_due_date=(timezone.localdate() + timedelta(days=days)) if days is not None else None,
+        )
+
+    def test_impianti_provider_legge_prossima_verifica(self):
+        from dashboard.scadenze_providers import SOURCE_IMPIANTI, ScadenzeContext, collect_impianti
+
+        self._tipo_verifica(name="Estintori", days=-3)
+        self._tipo_verifica(name="Luci emergenza", days=40)
+        self._tipo_verifica(name="Idranti lontani", days=200)
+        self._tipo_verifica(name="Da pianificare", days=None)
+        self._tipo_verifica(name="Spento", days=5, attivo=False)
+
+        items = collect_impianti(ScadenzeContext.build(SimpleNamespace(user=self.admin)))
+        by_title = {i.titolo: i for i in items}
+        self.assertEqual(set(by_title), {"Estintori", "Luci emergenza"})
+        self.assertTrue(by_title["Estintori"].scaduta)
+        self.assertEqual(by_title["Estintori"].extra["stato"], "Scaduta")
+        self.assertEqual(by_title["Luci emergenza"].soggetto, "Antincendio")
+        self.assertTrue(all(i.source == SOURCE_IMPIANTI for i in items))
+        self.assertIn("/verifiche-impianti/tipo/", by_title["Estintori"].url)
+
+    def test_impianti_provider_negato_senza_accesso_alla_pagina(self):
+        from dashboard.scadenze_providers import ScadenzeContext, collect_impianti
+
+        self._tipo_verifica(name="Estintori", days=-3)
+        with patch("core.middleware.acl_allows_path", return_value=False):
+            items = collect_impianti(ScadenzeContext.build(SimpleNamespace(user=self.user)))
+        self.assertEqual(items, [])
+
+    def test_hr_provider_usa_la_fonte_unica_di_anagrafica(self):
+        # Le voci HR arrivano da _build_scadenzario_voci (stesse regole dello
+        # Scadenzario di Anagrafica): qui si normalizzano e basta.
+        from datetime import date, timedelta
+
+        from django.utils import timezone
+        from dashboard.scadenze_providers import SOURCE_HR, ScadenzeContext, collect_hr
+
+        oggi = timezone.localdate()
+        voce = {
+            "kind": "visita", "kind_label": "Visita medica", "legacy_id": 7,
+            "cognome": "BIANCHI", "nome": "LUCA", "reparto": "OFFICINA",
+            "tipo_nome": "Visita periodica", "data_scadenza": oggi + timedelta(days=12),
+            "giorni": 12, "scaduta": False,
+        }
+        ctx = ScadenzeContext.build(SimpleNamespace(user=self.admin))
+        with patch("anagrafica.views._build_scadenzario_voci", return_value=[voce]) as build:
+            items = collect_hr(ctx)
+        _, kwargs = build.call_args
+        self.assertEqual(kwargs["periodo"], (date(1900, 1, 1), ctx.orizzonte))
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item.source, SOURCE_HR)
+        self.assertEqual(item.kind, "visita")
+        self.assertEqual(item.titolo, "Visita periodica")
+        self.assertIn("BIANCHI", item.soggetto)
+        self.assertEqual(item.giorni, 12)
+        self.assertTrue(item.url.endswith("?tipo=visita"))
 
 
 class CoseDaGestireSafetyTests(TestCase):

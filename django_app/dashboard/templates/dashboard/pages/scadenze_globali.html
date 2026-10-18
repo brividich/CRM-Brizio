@@ -42,6 +42,8 @@ Context (vedi dashboard/views_scadenze.py):
   .sg-src.asset { background:#ecfeff; color:#155e75; }
   .sg-src.dpi { background:#f0fdf4; color:#166534; }
   .sg-src.rentri { background:#fef3c7; color:#92400e; }
+  .sg-src.impianti { background:#fdf2f8; color:#9d174d; }
+  .sg-src.capa { background:#f5f3ff; color:#5b21b6; }
   .sg-when { font-weight:700; }
   .sg-when.scaduta { color:#b91c1c; }
   .sg-when.soon { color:#9a3412; }
@@ -71,14 +73,16 @@ Context (vedi dashboard/views_scadenze.py):
   <div class="sg-head">
     <div>
       <h1 class="sg-title">📅 Scadenzario globale</h1>
-      <p class="sg-sub">Tutte le scadenze del portale (personale, asset, DPI, RENTRI) nei prossimi 60 giorni, in un'unica vista.</p>
+      <p class="sg-sub">Le scadenze che puoi vedere (personale, asset, verifiche impianti, DPI, RENTRI, azioni CAPA): le scadute e quelle dei prossimi {{ orizzonte_giorni }} giorni, in un'unica vista.</p>
     </div>
+    <a class="sg-btn ghost" href="{% url 'guida_modulo' 'home' %}#scadenzario">? Guida</a>
   </div>
 
   <div class="sg-kpis">
     <div class="sg-kpi danger"><b>{{ n_scadute }}</b><span>Scadute</span></div>
     <div class="sg-kpi warn"><b>{{ n_30gg }}</b><span>Entro 30 giorni</span></div>
     <div class="sg-kpi info"><b>{{ n_60gg }}</b><span>31–60 giorni</span></div>
+    <div class="sg-kpi info"><b>{{ n_90gg }}</b><span>61–90 giorni</span></div>
     <div class="sg-kpi"><b>{{ totale }}</b><span>Totale</span></div>
   </div>
 
@@ -97,6 +101,7 @@ Context (vedi dashboard/views_scadenze.py):
         <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Scadute</option>
         <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
         <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+        <option value="90" {% if filtro_stato == "90" %}selected{% endif %}>Entro 90 giorni</option>
       </select>
     </label>
     <label>Reparto
@@ -126,7 +131,7 @@ Context (vedi dashboard/views_scadenze.py):
     <tbody>
       {% for v in page_obj %}
         <tr>
-          <td><span class="sg-src {{ v.source }}">{{ v.source|upper }}</span></td>
+          <td><span class="sg-src {{ v.source }}">{{ v.source_label }}</span></td>
           <td>{{ v.kind_label }}</td>
           <td>
             {% if v.url %}<a href="{{ v.url }}">{{ v.soggetto }}</a>{% else %}{{ v.soggetto }}{% endif %}

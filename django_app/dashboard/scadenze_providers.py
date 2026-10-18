@@ -30,14 +30,24 @@ SOURCE_ASSET = "asset"
 SOURCE_DPI = "dpi"
 SOURCE_RENTRI = "rentri"
 SOURCE_CAPA = "capa"
+SOURCE_IMPIANTI = "impianti"
 
 SOURCE_LABELS = {
     SOURCE_HR: "Personale (HR)",
     SOURCE_ASSET: "Asset",
+    SOURCE_IMPIANTI: "Verifiche impianti",
     SOURCE_DPI: "DPI",
     SOURCE_RENTRI: "RENTRI",
     SOURCE_CAPA: "Azioni CAPA",
 }
+
+# Orizzonte dello scadenzario: tutto ciò che è scaduto più ciò che scade entro
+# questi giorni. I filtri 30/60/90 lavorano dentro questa finestra.
+ORIZZONTE_GIORNI = 90
+
+# Pagina delle verifiche impianti: la sorgente entra solo se chi guarda la può
+# aprire (stessa decisione dell'ACLMiddleware).
+VERIFICHE_IMPIANTI_PATH = "/assets/manutenzione/verifiche-impianti/"
 
 
 @dataclass
@@ -59,6 +69,10 @@ class ScadenzaItem:
     def scaduta(self) -> bool:
         return self.giorni is not None and self.giorni < 0
 
+    @property
+    def source_label(self) -> str:
+        return SOURCE_LABELS.get(self.source, self.source)
+
 
 @dataclass
 class ScadenzeContext:
@@ -68,15 +82,17 @@ class ScadenzeContext:
     oggi: date
     soglia_30: date
     soglia_60: date
+    orizzonte: date
 
     @classmethod
-    def build(cls, request) -> "ScadenzeContext":
-        oggi = timezone.localdate()
+    def build(cls, request, *, oggi: date | None = None) -> "ScadenzeContext":
+        oggi = oggi or timezone.localdate()
         return cls(
             request=request,
             oggi=oggi,
             soglia_30=oggi + timedelta(days=30),
             soglia_60=oggi + timedelta(days=60),
+            orizzonte=oggi + timedelta(days=ORIZZONTE_GIORNI),
         )
 
 
@@ -111,7 +127,7 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     kinds = feed.allowed_kinds(request) & {feed.KIND_ADMINISTRATIVE, feed.KIND_LICENSE, feed.KIND_CONTRACT}
     rows = feed.collect(
         start=None,
-        end=ctx.soglia_60,
+        end=ctx.orizzonte,
         filters=feed.FeedFilters(kinds=frozenset(kinds)),
         today=ctx.oggi,
     )
@@ -200,7 +216,7 @@ def collect_rentri(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             if not g.aperta or not g.primo_carico:
                 continue
             scad = g.primo_carico + timedelta(days=gmax)
-            if scad > ctx.soglia_60:
+            if scad > ctx.orizzonte:
                 continue
             items.append(
                 ScadenzaItem(
@@ -239,14 +255,22 @@ def collect_dpi(ctx: ScadenzeContext) -> list[ScadenzaItem]:
         if not user_can_modulo_action(request, "dpi", "dpi_view"):
             return []
 
-    from dpi.models import ConsegnaDPI
+    from dpi.models import ConsegnaDPI, StatoRichiesta
     from core.legacy_anagrafica import fetch_anagrafica_rows
     from django.urls import reverse
 
+    # Stesso perimetro del promemoria DPI (``send_dpi_expiry_reminders``): solo le
+    # consegne in essere. Una consegna sostituita da una successiva dello stesso
+    # tipo è storico, non una scadenza da gestire.
     qs = (
         ConsegnaDPI.objects
         .select_related("richiesta", "richiesta__tipo_dpi", "richiesta__categoria")
-        .filter(data_scadenza_stimata__isnull=False, data_scadenza_stimata__lte=ctx.soglia_60)
+        .filter(
+            richiesta__stato=StatoRichiesta.CONSEGNATA,
+            sostituita_da__isnull=True,
+            data_scadenza_stimata__isnull=False,
+            data_scadenza_stimata__lte=ctx.orizzonte,
+        )
         .order_by("data_scadenza_stimata")
     )
     consegne = list(qs)
@@ -299,119 +323,42 @@ def collect_dpi(ctx: ScadenzeContext) -> list[ScadenzaItem]:
 # ---------------------------------------------------------------------------
 
 def collect_hr(ctx: ScadenzeContext) -> list[ScadenzaItem]:
-    """Scadenze del personale, ognuna gated dal proprio permesso anagrafica.
+    """Scadenze del personale: qualifiche, visite mediche, formazione obbligatoria,
+    contratti e periodi di prova.
 
-    - Qualifiche: visibili a ogni utente autenticato.
-    - Visite mediche (dati sanitari): solo `_can_view_visite_mediche` → titolo
-      generico "Visita medica" senza esiti clinici (privacy).
-    - Formazione obbligatoria: solo `_can_view_formazione`.
-    - Contratti a termine / periodi di prova (dato HR): solo `_check_hr_permission`.
+    Adattatore su ``anagrafica.views._build_scadenzario_voci``, la fonte unica dello
+    Scadenzario di Anagrafica e del blocco «Cose da gestire»: stesse regole
+    (solo la qualifica e la visita in vigore, ex dipendenti esclusi) e stesso
+    gating per sorgente (visite = dato sanitario, formazione e contratti = dato
+    HR). Prima qui c'era una seconda copia della logica che contava le qualifiche
+    già rinnovate e i cessati: i numeri delle due pagine non tornavano.
     """
-    from django.db.models import Max
-    from anagrafica.views import (
-        _can_view_formazione,
-        _can_view_visite_mediche,
-        _check_hr_permission,
-    )
-    from anagrafica.models import (
-        DipendenteAnagraficaAziendale,
-        DipendenteQualifica,
-        StoricoContratto,
-        VisitaMedica,
-    )
-    from anagrafica.models_formazione import TrainingDeadline
-    from core.legacy_anagrafica import fetch_anagrafica_rows
+    from django.urls import reverse
 
-    request = ctx.request
-    oggi, soglia = ctx.oggi, ctx.soglia_60
+    from anagrafica.views import _build_scadenzario_voci
+    from core.naming import nome_completo
 
-    dip_map = {int(r["id"]): r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("id")}
-
-    def _dip(legacy_id):
-        d = dip_map.get(legacy_id, {})
-        nominativo = " ".join(
-            str(d.get(k) or "").strip() for k in ("cognome", "nome")
-        ).strip() or f"ID {legacy_id}"
-        return nominativo, str(d.get("reparto") or "").strip()
+    voci = _build_scadenzario_voci(ctx.request, periodo=(date(1900, 1, 1), ctx.orizzonte))
+    try:
+        base_url = reverse("anagrafica:scadenzario")
+    except Exception:
+        base_url = ""
 
     items: list[ScadenzaItem] = []
-
-    # Qualifiche (tutti)
-    for q in DipendenteQualifica.objects.select_related("tipo").filter(
-        data_scadenza__isnull=False, data_scadenza__lte=soglia
-    ):
-        nominativo, reparto = _dip(q.legacy_anagrafica_id)
+    for v in voci:
+        kind = v.get("kind") or ""
         items.append(ScadenzaItem(
-            source=SOURCE_HR, kind="qualifica", kind_label="Qualifica",
-            titolo=q.tipo.nome, soggetto=nominativo, reparto=reparto,
-            data_scadenza=q.data_scadenza, giorni=_giorni(oggi, q.data_scadenza),
-            extra={"legacy_id": q.legacy_anagrafica_id},
+            source=SOURCE_HR,
+            kind=kind,
+            kind_label=v.get("kind_label") or "",
+            titolo=v.get("tipo_nome") or "",
+            soggetto=nome_completo(v.get("nome") or "", v.get("cognome") or ""),
+            reparto=(v.get("reparto") or "").strip(),
+            data_scadenza=v.get("data_scadenza"),
+            giorni=v.get("giorni"),
+            url=f"{base_url}?tipo={kind}" if base_url and kind else base_url,
+            extra={"legacy_id": v.get("legacy_id")},
         ))
-
-    # Visite mediche (gated — solo esito valido/scaduto, nessun dato clinico)
-    if _can_view_visite_mediche(request):
-        latest = (
-            VisitaMedica.objects.filter(data_scadenza__isnull=False)
-            .values("legacy_anagrafica_id", "tipo_id").annotate(m=Max("id"))
-            .values_list("m", flat=True)
-        )
-        for v in VisitaMedica.objects.select_related("tipo").filter(
-            id__in=list(latest), data_scadenza__lte=soglia
-        ):
-            nominativo, reparto = _dip(v.legacy_anagrafica_id)
-            items.append(ScadenzaItem(
-                source=SOURCE_HR, kind="visita", kind_label="Visita medica",
-                titolo=v.tipo.nome, soggetto=nominativo, reparto=reparto,
-                data_scadenza=v.data_scadenza, giorni=_giorni(oggi, v.data_scadenza),
-                extra={"legacy_id": v.legacy_anagrafica_id},
-            ))
-
-    # Formazione obbligatoria (gated)
-    if _can_view_formazione(request):
-        for d in TrainingDeadline.objects.select_related("corso").filter(
-            is_required=True, data_scadenza__isnull=False, data_scadenza__lte=soglia
-        ):
-            nominativo, reparto = _dip(d.legacy_anagrafica_id)
-            items.append(ScadenzaItem(
-                source=SOURCE_HR, kind="formazione", kind_label="Formazione",
-                titolo=d.corso.titolo, soggetto=nominativo, reparto=reparto,
-                data_scadenza=d.data_scadenza, giorni=_giorni(oggi, d.data_scadenza),
-                extra={"legacy_id": d.legacy_anagrafica_id},
-            ))
-
-    # Contratti a termine e periodi di prova (gated: dato HR)
-    if _check_hr_permission(request):
-        cessati = set(
-            DipendenteAnagraficaAziendale.objects
-            .filter(data_cessazione__isnull=False)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
-        ultimo: dict[int, StoricoContratto] = {}
-        for c in (
-            StoricoContratto.objects.filter(legacy_anagrafica_id__isnull=False)
-            .order_by("legacy_anagrafica_id", "-data_inizio", "-created_at")
-        ):
-            ultimo.setdefault(c.legacy_anagrafica_id, c)
-        scadenze: list[tuple[int, date, str]] = []
-        for legacy_id, c in ultimo.items():
-            if legacy_id in cessati or c.data_fine is None:
-                continue
-            scadenze.append((legacy_id, c.data_fine, f"Contratto {c.tipologia_contratto or 'a termine'}"))
-        for legacy_id, fine in DipendenteAnagraficaAziendale.objects.filter(
-            data_cessazione__isnull=True, prova_data_fine__isnull=False, prova_data_fine__gte=oggi
-        ).values_list("legacy_anagrafica_id", "prova_data_fine"):
-            scadenze.append((legacy_id, fine, "Fine periodo di prova"))
-        for legacy_id, data_fine, descr in scadenze:
-            if data_fine > soglia:
-                continue
-            nominativo, reparto = _dip(legacy_id)
-            items.append(ScadenzaItem(
-                source=SOURCE_HR, kind="contratto", kind_label="Contratto",
-                titolo=descr, soggetto=nominativo, reparto=reparto,
-                data_scadenza=data_fine, giorni=_giorni(oggi, data_fine),
-                extra={"legacy_id": legacy_id},
-            ))
-
     return items
 
 
@@ -435,7 +382,7 @@ def collect_capa(ctx: ScadenzeContext) -> list[ScadenzaItem]:
         ActionItem.objects
         .select_related("responsabile")
         .exclude(stato__in=ActionItem.STATI_CONCLUSI)
-        .filter(data_scadenza__isnull=False, data_scadenza__lte=ctx.soglia_60)
+        .filter(data_scadenza__isnull=False, data_scadenza__lte=ctx.orizzonte)
     )
     if not _can_manage_capa(request):
         user_id = getattr(getattr(request, "user", None), "id", None)
@@ -467,6 +414,58 @@ def collect_capa(ctx: ScadenzeContext) -> list[ScadenzaItem]:
 
 
 # ---------------------------------------------------------------------------
+# Provider: verifiche periodiche degli impianti
+# ---------------------------------------------------------------------------
+
+def collect_impianti(ctx: ScadenzeContext) -> list[ScadenzaItem]:
+    """Prossime verifiche degli impianti (``PeriodicCheckType.next_due_date``).
+
+    Stato e scadenza sono quelli della pagina Verifiche impianti
+    (``assets.services.periodic_checks.type_state``): la data si ricalcola da sola
+    a ogni verifica registrata, qui si legge e basta. I tipi senza data («da
+    pianificare») non sono una scadenza e restano fuori.
+
+    Gating: la stessa decisione ACL della pagina delle verifiche (fail-closed).
+    """
+    from core.middleware import acl_allows_path
+
+    request = ctx.request
+    try:
+        if not acl_allows_path(VERIFICHE_IMPIANTI_PATH, django_user=request.user, request=request):
+            return []
+    except Exception:
+        logger.exception("Scadenzario globale: ACL verifiche impianti non valutabile")
+        return []
+
+    from django.urls import reverse
+
+    from assets.models import PeriodicCheckType
+    from assets.services.periodic_checks import STATE_LABELS, type_state
+
+    qs = (
+        PeriodicCheckType.objects.select_related("system", "supplier")
+        .filter(is_active=True, next_due_date__isnull=False, next_due_date__lte=ctx.orizzonte)
+        .order_by("next_due_date", "id")
+    )
+    items: list[ScadenzaItem] = []
+    for t in qs:
+        stato = type_state(t, today=ctx.oggi)
+        items.append(ScadenzaItem(
+            source=SOURCE_IMPIANTI,
+            kind="verifica_impianto",
+            kind_label="Verifica impianto",
+            titolo=t.name,
+            soggetto=t.system.name if t.system_id else "",
+            reparto="",
+            data_scadenza=t.next_due_date,
+            giorni=_giorni(ctx.oggi, t.next_due_date),
+            url=reverse("assets:periodic_check_type_detail", args=[t.id]),
+            extra={"stato": STATE_LABELS.get(stato, ""), "esecutore": t.performer_label},
+        ))
+    return items
+
+
+# ---------------------------------------------------------------------------
 # Registry + aggregatore difensivo
 # ---------------------------------------------------------------------------
 
@@ -474,20 +473,21 @@ def collect_capa(ctx: ScadenzeContext) -> list[ScadenzaItem]:
 PROVIDERS: dict[str, Callable[[ScadenzeContext], list[ScadenzaItem]]] = {
     SOURCE_HR: collect_hr,
     SOURCE_ASSET: collect_asset,
+    SOURCE_IMPIANTI: collect_impianti,
     SOURCE_DPI: collect_dpi,
     SOURCE_RENTRI: collect_rentri,
     SOURCE_CAPA: collect_capa,
 }
 
 
-def collect_all(request, *, sources: set[str] | None = None) -> list[ScadenzaItem]:
+def collect_all(request, *, sources: set[str] | None = None, oggi: date | None = None) -> list[ScadenzaItem]:
     """Esegue i provider richiesti e ritorna le voci ordinate per urgenza.
 
     Ogni provider è isolato: un errore (modulo assente/rotto, query legacy non
     disponibile) viene loggato e non fa cadere l'intera pagina — la sorgente
     semplicemente non contribuisce.
     """
-    ctx = ScadenzeContext.build(request)
+    ctx = ScadenzeContext.build(request, oggi=oggi)
     wanted = sources or set(PROVIDERS.keys())
     out: list[ScadenzaItem] = []
     for code, provider in PROVIDERS.items():

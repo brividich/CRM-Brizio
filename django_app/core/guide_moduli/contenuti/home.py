@@ -52,6 +52,27 @@ GUIDA = {
                       "La guida completa della home è nel collegamento qui sopra."),
             ],
         },
+        {
+            "id": "scadenzario",
+            "titolo": "Lo Scadenzario globale",
+            "blocchi": [
+                ("p", "Dalla home, pulsante «Scadenzario» (indirizzo /scadenze): tutte le scadenze del portale in una tabella sola, "
+                      "le scadute in cima. Contiene le scadute e quelle dei prossimi 90 giorni."),
+                ("def", [
+                    ("Personale (HR)", "qualifiche, visite mediche, corsi obbligatori, contratti a termine e periodi di prova. Le stesse voci dello Scadenzario di Anagrafica."),
+                    ("Asset", "scadenze amministrative (revisioni, certificati), licenze software e contratti di assistenza."),
+                    ("Verifiche impianti", "la prossima verifica di ogni tipo attivo (estintori, luci di emergenza, quadri…)."),
+                    ("DPI", "i DPI consegnati e non ancora sostituiti, alla data di fine vita utile."),
+                    ("RENTRI", "FIR mancanti e depositi temporanei vicini al limite."),
+                    ("Azioni CAPA", "le azioni aperte con una scadenza; chi non gestisce le CAPA vede solo le proprie."),
+                ]),
+                ("ul", [
+                    "Vedi solo le fonti che puoi aprire: se non hai accesso alle visite mediche, le visite non compaiono.",
+                    "Filtri: Sorgente, Stato (Scadute, Entro 30, 60 o 90 giorni) e Reparto; «⬇ CSV» scarica le righe filtrate.",
+                    "Il nome nella colonna Soggetto apre la pagina dove la scadenza si gestisce. Qui si guarda soltanto: niente si modifica.",
+                ]),
+            ],
+        },
     ],
     "admin": [
         {
@@ -76,6 +97,16 @@ GUIDA = {
                 "Accesso bloccato dopo 5 tentativi sbagliati: il blocco dura un'ora. Per sbloccare subito, dal terminale del Setup Wizard: axes_reset_username <nome utente>.",
                 "L'utente non esiste: va creato o importato da Active Directory (Amministrazione → Import Utenti LDAP).",
                 "Se nessuno riesce a entrare, apri il Manuale di emergenza → «Nessuno riesce a entrare».",
+            ],
+        },
+        {
+            "sintomo": "Nello Scadenzario globale manca una scadenza (o una fonte intera)",
+            "fare": [
+                "Controlla che la persona possa aprire la pagina del modulo da cui arriva la scadenza: ogni fonte compare solo con quel permesso.",
+                "Verifiche impianti: il tipo di verifica deve essere attivo e avere una «Prossima scadenza».",
+                "DPI: compare solo la consegna in essere (richiesta «Consegnata», non sostituita da una consegna successiva).",
+                "Personale: valgono le regole dello Scadenzario di Anagrafica (solo la qualifica e la visita in vigore, ex dipendenti esclusi).",
+                "Se una fonte intera manca anche per un amministratore, cerca nel log «Scadenzario globale: provider … fallito».",
             ],
         },
         {
