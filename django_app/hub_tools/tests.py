@@ -422,6 +422,23 @@ class HubDatabaseRestoreSecurityTests(TestCase):
         )
         return stack
 
+    def test_restore_disattivato_per_default(self):
+        with self._admin_access():
+            response = self.client.post(
+                self.url, data=json.dumps({"backup_name": "x.sqlite3"}), content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["reason"], "restore_disabled")
+        self.assertIn("restore-host.ps1", response.json()["error"])
+
+    def test_pagina_database_nasconde_il_pulsante_ripristina(self):
+        with self._admin_access():
+            response = self.client.get(reverse("hub_tools:hub_database"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "doRestore(this)")
+        self.assertContains(response, "restore-host.ps1")
+
+    @override_settings(HUB_TOOLS_DB_RESTORE_ENABLED=True)
     def test_restore_rejects_path_traversal_backup_name(self):
         with (
             self._admin_access(),

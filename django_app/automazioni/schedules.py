@@ -442,6 +442,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {"include_services": True},
     },
     {
+        # Backup e ripristino (BUILD_SPEC R2): età dell'ultimo FULL, catena dei log,
+        # prova di ripristino, Recovery Kit, capacità del DB. Issue nella centrale per
+        # WARN/FAIL, email solo per i FAIL (dedup + quiet hours). I backup veri girano
+        # da Task Scheduler (register-backup-tasks.ps1), non da qui: questo solo controlla.
+        "name": "backup_health_alert",
+        "func": "monitoring.tasks.run_backup_health_alert",
+        "schedule_type": "I",       # Schedule.MINUTES
+        "minutes": 30,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in
         # scadenza come notifiche portale (idempotente, fired flag). Porta i
         # promemoria nello scheduler centralizzato al posto del Task Windows.

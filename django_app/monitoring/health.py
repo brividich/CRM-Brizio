@@ -474,6 +474,149 @@ def check_embeddings() -> CheckResult:
                        details={"backend": "ollama", "model": model})
 
 
+_AUDIT_GROWTH_CACHE_KEY = "monitoring:audit-growth:result"
+
+
+def check_audit_growth() -> CheckResult:
+    """Crescita di ``core_auditlog`` e saturazione del limite dell'edizione SQL.
+
+    Mai critical per /readyz (un problema di capacità non deve togliere il sito
+    dal bilanciamento): fail = saturazione prevista sotto 60 giorni. Il calcolo
+    legge statistiche e conteggi indicizzati, ed è memoizzato per un'ora.
+    """
+    name = "audit_growth"
+    cached = cache.get(_AUDIT_GROWTH_CACHE_KEY)
+    if isinstance(cached, dict):
+        return CheckResult(**cached)
+    from core import db_diagnostics
+
+    capacity = db_diagnostics.server_capacity()
+    growth = db_diagnostics.audit_growth(days=7, months=1, top=0)
+    level, message = db_diagnostics.audit_growth_status(capacity, growth)
+    status = {"ok": STATUS_OK, "warning": STATUS_WARN, "critical": STATUS_FAIL}[level]
+    forecast = db_diagnostics.saturation_forecast(capacity, growth)
+    result = CheckResult(
+        name=name, status=status, latency_ms=0, critical=False, message=message,
+        details={
+            "monthly_projection_mb": growth.get("monthly_projection_mb"),
+            "days_to_limit": forecast.get("days_to_limit"),
+            "used_pct": capacity.get("used_pct"),
+            "policy_version": growth.get("policy_version"),
+        },
+    )
+    cache.set(_AUDIT_GROWTH_CACHE_KEY, asdict(result), 3600)
+    return result
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Check backup e ripristino (BUILD_SPEC R2). Leggono lo stato su file del motore
+# di backup (core.backup_engine) e due righe di DB: economici, mai critical per
+# /readyz (un backup in ritardo non toglie il sito dal bilanciamento). Nel payload
+# pubblico finiscono solo nome e stato (to_public_payload).
+# ──────────────────────────────────────────────────────────────────────────────
+
+BACKUP_CHECK_NAMES = frozenset({"backup_full", "backup_log", "restore_drill", "recovery_kit", "db_capacity",
+                                "audit_growth"})
+_LEVEL_TO_STATUS = {"ok": STATUS_OK, "info": STATUS_SKIPPED, "warning": STATUS_WARN, "critical": STATUS_FAIL}
+
+
+def _backup_check(name: str, producer) -> CheckResult:
+    try:
+        from core.backup_engine.config import load_config
+
+        cfg = load_config()
+        c = producer(cfg)
+    except ValueError as exc:
+        return CheckResult(name=name, status=STATUS_WARN, latency_ms=0, message=f"Configurazione backup: {exc}")
+    return CheckResult(name=name, status=_LEVEL_TO_STATUS.get(c["level"], STATUS_WARN), latency_ms=0,
+                       critical=False, message=c["message"], details=c.get("details", {}))
+
+
+def check_backup_full() -> CheckResult:
+    from core.backup_engine import doctor
+
+    return _backup_check("backup_full", lambda cfg: next(c for c in doctor.freshness(cfg) if c["check"] == "backup_full"))
+
+
+def check_backup_log() -> CheckResult:
+    from core.backup_engine import doctor
+
+    return _backup_check("backup_log", doctor.log_check)
+
+
+def check_restore_drill() -> CheckResult:
+    from core.backup_engine import doctor
+
+    return _backup_check("restore_drill", lambda cfg: doctor.drill_check())
+
+
+def check_recovery_kit() -> CheckResult:
+    from core.backup_engine import doctor
+
+    return _backup_check("recovery_kit", doctor.recovery_kit_check)
+
+
+def check_db_capacity() -> CheckResult:
+    from core import db_diagnostics
+
+    cap = db_diagnostics.server_capacity()
+    if not cap.get("supported"):
+        return CheckResult(name="db_capacity", status=STATUS_SKIPPED, latency_ms=0, message="Non SQL Server.")
+    status = {"ok": STATUS_OK, "warning": STATUS_WARN, "critical": STATUS_FAIL}.get(cap.get("level"), STATUS_OK)
+    limit = f"{cap['limit_mb']} MB" if cap.get("limit_mb") else "nessun limite di edizione"
+    return CheckResult(name="db_capacity", status=status, latency_ms=0, critical=False,
+                       message=f"Dati {cap['data_used_mb']} MB usati, limite {limit}"
+                               + (f" ({cap['used_pct']}%)." if cap.get("used_pct") is not None else "."),
+                       details={"used_pct": cap.get("used_pct"), "limit_mb": cap.get("limit_mb"),
+                                "recovery_model": cap.get("recovery_model")})
+
+
+def run_backup_checks() -> list[CheckResult]:
+    return [_timed(f) for f in (check_backup_full, check_backup_log, check_restore_drill, check_recovery_kit,
+                                check_db_capacity, check_audit_growth)]
+
+
+_BACKUP_ALERT_STATE_KEY = "monitoring:backup-alert:fingerprint"
+
+
+def run_backup_health_alert(*, force_email: bool = False) -> dict[str, Any]:
+    """Check di backup/ripristino → Issue nella centrale (WARN = media, FAIL = alta) ed
+    email agli admin solo per i FAIL, con dedup e quiet hours di ``emit_monitoring_alert``."""
+    checks = run_backup_checks()
+    try:
+        from monitoring.models import Issue
+        from monitoring.services import open_or_update_issue_from_health_check, resolve_health_check_issue
+
+        for c in checks:
+            key = f"backup_{c.name}" if not c.name.startswith("backup_") else c.name
+            if c.status in (STATUS_WARN, STATUS_FAIL):
+                open_or_update_issue_from_health_check(
+                    check_name=key, title=f"Backup · {c.name}: {c.status.upper()}" + (f" — {c.message}" if c.message else ""),
+                    message=c.message or "", severity=Issue.Severity.HIGH if c.status == STATUS_FAIL else Issue.Severity.MEDIUM,
+                    category=Issue.Category.SYSTEM, module_name="monitoring",
+                    extra_json={"check": c.name, "status": c.status, "details": c.details}, notify=False,
+                )
+            elif c.status == STATUS_OK:
+                resolve_health_check_issue(check_name=key, category=Issue.Category.SYSTEM, summary=f"{c.name} tornato OK.")
+    except Exception:
+        logger.exception("Sync Issue backup fallito")
+    failed = [c for c in checks if c.status == STATUS_FAIL]
+    payload = {"status": _aggregate_status(checks), "emailed": False, "checks": [asdict(c) for c in checks]}
+    if not failed:
+        cache.delete(_BACKUP_ALERT_STATE_KEY)
+        return payload
+    env_label = getattr(settings, "MONITORING_ENVIRONMENT", "") or ""
+    lines = ["Controlli di backup e ripristino in stato critico:", ""]
+    lines += [f"- {c.name}: {c.message}" for c in failed]
+    lines += ["", "Dettaglio: Monitoring → «Backup e ripristino» oppure manage.py hub_backup_doctor."]
+    payload["emailed"] = emit_monitoring_alert(
+        subject="[BACKUP CRITICO] " + ", ".join(c.name for c in failed) + (f" — {env_label}" if env_label else ""),
+        body="\n".join(lines), fingerprint=";".join(f"{c.name}:{c.status}" for c in failed),
+        state_key=_BACKUP_ALERT_STATE_KEY, force=force_email,
+    )
+    return payload
+
+
 def run_ai_checks() -> list[CheckResult]:
     """Esegue i check AI con timing/isolamento eccezioni (come il readyz)."""
     return [_timed(check_ollama_chat), _timed(check_embeddings)]
@@ -490,6 +633,12 @@ _CHECK_REGISTRY: dict[str, str] = {
     "ldap": "check_ldap",
     "smtp": "check_smtp",
     "automation_queue": "check_automation_queue",
+    "audit_growth": "check_audit_growth",
+    "backup_full": "check_backup_full",
+    "backup_log": "check_backup_log",
+    "restore_drill": "check_restore_drill",
+    "recovery_kit": "check_recovery_kit",
+    "db_capacity": "check_db_capacity",
 }
 
 
@@ -736,7 +885,8 @@ def run_ai_readiness_alert(*, include_services: bool = False, force_email: bool 
     """
     checks = run_ai_checks()
     if include_services:
-        checks = checks + run_readyz_checks().checks
+        # i check di backup/capacità hanno il loro alert (run_backup_health_alert)
+        checks = checks + [c for c in run_readyz_checks().checks if c.name not in BACKUP_CHECK_NAMES]
     status = _aggregate_status(checks)
     degraded = status in (STATUS_WARN, STATUS_FAIL)
     payload: dict[str, Any] = {

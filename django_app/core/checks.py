@@ -107,3 +107,42 @@ def check_rag_cache_sizing(app_configs, **kwargs):
             )
         )
     return warnings
+
+
+@register()
+def check_audit_policy_keys(app_configs, **kwargs):
+    """Le chiavi di ``core.audit_policy`` devono corrispondere a modelli installati.
+
+    Un refuso in una chiave rende l'esclusione (o la riduzione) silenziosamente
+    inefficace: il modello resta in audit completo senza che nessuno se ne accorga.
+    Idem per i campi ignorati di classe D che non esistono sul modello.
+    """
+    from django.apps import apps
+
+    from core import audit_policy
+
+    installati = {m._meta.label_lower: m for m in apps.get_models()}
+    warnings = []
+    for key in sorted(audit_policy.configured_keys() - audit_policy.OPTIONAL_KEYS):
+        if key not in installati:
+            warnings.append(
+                Warning(
+                    f"core.audit_policy: la chiave '{key}' non corrisponde a nessun modello installato.",
+                    hint="Correggi il refuso in core/audit_policy.py (formato 'app_label.modelname').",
+                    id="core.W002",
+                )
+            )
+    for key, campi in sorted(audit_policy.IGNORED_FIELDS.items()):
+        model = installati.get(key)
+        if model is None:
+            continue
+        attnames = {f.attname for f in model._meta.concrete_fields}
+        for campo in sorted(campi - attnames):
+            warnings.append(
+                Warning(
+                    f"core.audit_policy: il campo ignorato '{campo}' non esiste su '{key}'.",
+                    hint="Aggiorna IGNORED_FIELDS in core/audit_policy.py.",
+                    id="core.W003",
+                )
+            )
+    return warnings

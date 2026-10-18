@@ -36,3 +36,7 @@ Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=
 ## Hardening ottobre 2026
 
 - `SETUP_COMPLETED` si legge dagli stessi `.env` del runtime con la stessa precedenza (in TEST/PROD prima `ENV/config/.env`), non solo da `django_app/.env`. Il web.config generato include i blocchi IIS su tutte le cartelle `/media/` private (`tickets`, `assets_documents`, `assets_workorders`, `notizie`, `rentri`, `suggestion_corner`, `diario_preposto`), il deny di `media_private` e waitress a 24 thread.
+
+## Ripristina da backup (ottobre 2026)
+
+Dal launcher «♻ Ripristina da backup» (o `SetupWizard.exe --mode restore`): quattro pagine — backup e piano (anteprima dai manifest), segreti e macchina (Recovery Kit, nomi, identità, SQL, simulazione), esecuzione (log e barra per fase di `restore-host.ps1`, ripresa dopo un errore), completato (RTO, azioni manuali, report). Tutta l'esecuzione sta in `deployment/scripts/restore-host.ps1`; i segreti passano su stdin. Runbook: `deployment/RUNBOOK_RIPRISTINO.pdf` (sorgente `docs/dr/RUNBOOK_RIPRISTINO.md`).

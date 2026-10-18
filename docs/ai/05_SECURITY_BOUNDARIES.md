@@ -192,6 +192,20 @@ Pattern: `AppConfig.ready()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ chiama `b
 
 ---
 
+## Politica di audit (`core/audit_policy.py`)
+
+L'audit automatico di insert/update/delete (`core/audit_signals.py`) segue una politica dichiarativa e versionata. Dettaglio e motivazioni: [docs/dr/AUDIT_POLICY.md](../dr/AUDIT_POLICY.md).
+
+- **Classe A (default)**: audit completo. Ogni modello non elencato resta qui: si riduce solo ciò che è elencato esplicitamente.
+- **Classe B**: modelli tecnici che sono già log (`AutomationRunLog`, `AutomationExecution`, `SecurityCveImpact`, `RilevazioneSNMP`…): nessuna riga e nessun listener.
+- **Classe C**: contenuti voluminosi o personali (`SecuritySourceFile`, `SecurityMailboxMessage`, `SecurityReport`, `SgiTestoEstratto`): solo metadati e nomi dei campi, mai i valori (minimizzazione GDPR).
+- **Classe D**: campi tecnici di stato che da soli non generano righe (es. `AutomationRule.last_run_at`, `Notifica.letta`).
+- Invarianti: `log_action` e `login_fallito` non passano dalla politica; insert e delete di classe A/D si registrano sempre; nessuna riga per update senza modifiche reali; valori oltre 500 caratteri troncati con lunghezza e impronta SHA-256.
+- Un modello di business non va mai in classe B o C. Ogni modifica della politica passa da PR + CHANGELOG e incrementa `AUDIT_POLICY_VERSION` (ISO/IEC 27001); `manage.py check` segnala chiavi errate (`core.W002`/`core.W003`).
+- Lo storico si riduce solo con `manage.py audit_archive` (dry-run di default; archivio verificato prima di toccare il DB; `--run` in produzione lo esegue solo Brizio).
+
+---
+
 
 ## URL routing
 

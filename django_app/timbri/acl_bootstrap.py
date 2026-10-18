@@ -152,6 +152,7 @@ def bootstrap_timbri_runtime(force: bool = False) -> None:
                     item["label"],
                     item["url"],
                     icona="tag",
+                    codici_riservati={d["codice"] for d in _PULSANTI_DEFINITIONS},
                 )
                 if pid:
                     created_ids.append((pid, bool(item["hide"])))

@@ -1,0 +1,199 @@
+{% extends "core/base.html" %}
+
+{% block title %}Backup e ripristino | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:system_status' as status_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Backup e ripristino" page_subtitle="Ultimo punto ripristinabile, verifica dei backup, prove di ripristino e capacità del database." page_action_label="Centrale di comando" page_action_url=status_url %}
+
+  <style>
+    .bk-top{display:flex;justify-content:flex-end;gap:10px;margin:-4px 0 8px}
+    .bk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0 18px}
+    .bk-tile{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface)}
+    .bk-tile h3{margin:0 0 6px;font-size:13px;color:var(--text-mid);font-weight:600}
+    .bk-tile .val{font-size:22px;font-weight:700;color:var(--text)}
+    .bk-tile .note{font-size:12.5px;color:var(--text-mid);margin-top:4px}
+    .bk-tile.ok{border-left:5px solid var(--success)}
+    .bk-tile.warn{border-left:5px solid var(--warning)}
+    .bk-tile.fail{border-left:5px solid var(--danger)}
+    .bk-tile.skip{border-left:5px solid var(--border)}
+    .bk-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;display:inline-block}
+    .bk-badge.ok{background:var(--success-bg);color:var(--success)}
+    .bk-badge.warn{background:var(--warning-bg);color:var(--warning)}
+    .bk-badge.fail{background:var(--danger-bg);color:var(--danger)}
+    .bk-badge.skip,.bk-badge.running{background:var(--surface-alt, var(--bg));color:var(--text-mid)}
+    .bk-card{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:var(--surface);margin-bottom:16px}
+    .bk-card h2{font-size:15px;margin:0 0 10px;color:var(--text)}
+    .bk-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+    .bk-actions form{margin:0;display:flex;gap:8px;align-items:flex-end}
+    .bk-actions label{font-size:12.5px;color:var(--text-mid);display:flex;flex-direction:column;gap:3px}
+    .bk-input{border:1px solid var(--border);border-radius:8px;padding:6px 9px;background:var(--surface);color:var(--text)}
+    .bk-btn{border:1px solid var(--primary-mid);background:var(--primary-mid);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;text-decoration:none}
+    .bk-btn.secondary{background:var(--surface);color:var(--text);border-color:var(--border)}
+    .bk-table{width:100%;border-collapse:collapse;font-size:13px}
+    .bk-table th,.bk-table td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+    .bk-table th{color:var(--text-mid);font-weight:600;font-size:12px}
+    .bk-table td.num{text-align:right;white-space:nowrap}
+    .bk-table .err{color:var(--danger);font-size:12px;max-width:420px}
+    .bk-note{font-size:12.5px;color:var(--text-mid);margin:6px 0 0}
+    .bk-alert{padding:10px 14px;border:1px solid var(--danger);border-left-width:5px;border-radius:8px;background:var(--danger-bg);color:var(--text);margin-bottom:12px}
+    .bk-scroll{overflow-x:auto;max-width:100%}
+    .bk-pager{display:flex;gap:10px;align-items:center;margin-top:10px;font-size:13px}
+    @media (max-width:700px){.bk-table .hide-sm{display:none}}
+  </style>
+
+  <div class="bk-top">
+    <a class="bk-btn secondary" href="{% url 'guida_modulo' 'amministrazione' %}#backup-ripristino" title="Come funziona questa pagina">? Guida</a>
+  </div>
+
+  {% if cfg_error %}<div class="bk-alert">Configurazione dei backup non valida: {{ cfg_error }}</div>{% endif %}
+
+  <div class="bk-grid">
+    <div class="bk-tile {{ tiles.rpo.css|default:'skip' }}">
+      <h3>RPO attuale</h3>
+      <div class="val">{{ tiles.rpo.value|default:"—" }}</div>
+      <div class="note">{{ tiles.rpo.note|default:"" }}</div>
+    </div>
+    {% with c=by_name.backup_full %}
+    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+      <h3>Ultimo backup completo</h3>
+      <div class="val">{% if tiles.full_when %}{{ tiles.full_when|date:"d/m H:i" }}{% else %}—{% endif %}</div>
+      <div class="note">{{ c.message }}</div>
+    </div>
+    {% endwith %}
+    {% with c=by_name.backup_log %}
+    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+      <h3>Catena dei log</h3>
+      <div class="val">{% if c.status == 'ok' %}Continua{% elif c.status == 'fail' %}Interrotta{% elif c.status == 'warn' %}In ritardo{% else %}Non attiva{% endif %}</div>
+      <div class="note">{{ c.message }}</div>
+    </div>
+    {% endwith %}
+    {% with c=by_name.restore_drill %}
+    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+      <h3>Ultima prova di ripristino</h3>
+      <div class="val">{% if last_drill %}{{ last_drill.get_status_display }}{% else %}Mai{% endif %}</div>
+      <div class="note">{% if last_drill %}{{ last_drill.started_at|date:"d/m/Y H:i" }} · RTO DB {{ last_drill.rto_seconds|default:"?" }} s{% else %}{{ c.message }}{% endif %}</div>
+    </div>
+    {% endwith %}
+    {% with c=by_name.db_capacity %}
+    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+      <h3>Capacità database</h3>
+      <div class="val">{% if capacity.used_pct is not None %}{{ capacity.used_pct }}%{% else %}—{% endif %}</div>
+      <div class="note">{{ c.message }}{% if capacity.recovery_model %} · recovery {{ capacity.recovery_model }}{% endif %}</div>
+    </div>
+    {% endwith %}
+    {% with c=by_name.recovery_kit %}
+    <div class="bk-tile {% if c.status == 'ok' %}ok{% elif c.status == 'fail' %}fail{% elif c.status == 'warn' %}warn{% else %}skip{% endif %}">
+      <h3>Recovery Kit</h3>
+      <div class="val">{% if c.status == 'ok' %}Allineato{% else %}Da rigenerare{% endif %}</div>
+      <div class="note">{{ c.message }}</div>
+    </div>
+    {% endwith %}
+  </div>
+
+  <div class="bk-card">
+    <h2>Azioni</h2>
+    <div class="bk-actions">
+      <form method="post" action="{% url 'monitoring_admin:backup_verify' %}">
+        {% csrf_token %}
+        <button type="submit" class="bk-btn">🔎 Verifica ora l'ultimo backup</button>
+      </form>
+      <form method="get" action="{% url 'monitoring_admin:backup_restore_plan' %}">
+        <label>Punto nel tempo (vuoto = il più recente)
+          <input class="bk-input" type="datetime-local" name="t">
+        </label>
+        <button type="submit" class="bk-btn secondary">⬇ Scarica il piano di ripristino</button>
+      </form>
+    </div>
+    <p class="bk-note">La verifica ricalcola le impronte dei file sul NAS e controlla il backup con SQL Server; si accoda e l'esito compare nella tabella. Il piano di ripristino (restore-plan.json) dice quali backup usare per tornare a quel momento: si usa con il tool di ripristino. Da qui non si ripristina nulla.</p>
+  </div>
+
+  <div class="bk-card">
+    <h2>Controlli</h2>
+    <div class="bk-scroll"><table class="bk-table" data-fm-hide-controls="1">
+      <thead><tr><th>Controllo</th><th>Stato</th><th>Dettaglio</th></tr></thead>
+      <tbody>
+        {% for c in checks %}
+          <tr><td>{{ c.name }}</td><td><span class="bk-badge {{ c.css }}">{{ c.status|upper }}</span></td><td>{{ c.message }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="bk-note">Gli stessi controlli girano ogni 30 minuti: con esito critico aprono una segnalazione e mandano una mail agli amministratori. Dal terminale: <code>manage.py hub_backup_doctor</code>.</p>
+  </div>
+
+  <div class="bk-card">
+    <h2>Esecuzioni</h2>
+    <form method="get" class="bk-actions" style="margin-bottom:10px">
+      <label>Tipo
+        <select class="bk-input" name="kind"><option value="">Tutti</option>
+          {% for v, l in kinds %}<option value="{{ v }}" {% if filters.kind == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Esito
+        <select class="bk-input" name="status"><option value="">Tutti</option>
+          {% for v, l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Periodo
+        <select class="bk-input" name="days">
+          <option value="7" {% if filters.days == "7" %}selected{% endif %}>Ultimi 7 giorni</option>
+          <option value="30" {% if filters.days == "30" %}selected{% endif %}>Ultimi 30 giorni</option>
+          <option value="90" {% if filters.days == "90" %}selected{% endif %}>Ultimi 90 giorni</option>
+          <option value="365" {% if filters.days == "365" %}selected{% endif %}>Ultimo anno</option>
+        </select>
+      </label>
+      <button type="submit" class="bk-btn secondary">Filtra</button>
+    </form>
+    <div class="bk-scroll"><table class="bk-table" data-fm-hide-controls="1">
+      <thead><tr><th>Inizio</th><th>Tipo</th><th>Esito</th><th>Set</th><th class="hide-sm">Database</th><th class="num">MB</th><th class="hide-sm">Verifica</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for r in page %}
+          <tr>
+            <td>{{ r.started_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ r.get_kind_display }}</td>
+            <td><span class="bk-badge {% if r.status == 'ok' %}ok{% elif r.status == 'warning' %}warn{% elif r.status == 'failed' %}fail{% else %}running{% endif %}">{{ r.get_status_display }}</span></td>
+            <td>{% if r.set_id %}<a href="{% url 'monitoring_admin:backup_set_detail' r.set_id %}">{{ r.set_id }}</a>{% else %}—{% endif %}</td>
+            <td class="hide-sm">{{ r.database|default:"—" }}</td>
+            <td class="num">{% widthratio r.bytes 1048576 1 %}</td>
+            <td class="hide-sm">{{ r.verify_status|default:"—" }}</td>
+            <td class="err">{{ r.error|truncatechars:160 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8">Nessuna esecuzione nel periodo. I backup si attivano con <code>register-backup-tasks.ps1</code>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% if page.has_other_pages %}
+      <div class="bk-pager">
+        {% if page.has_previous %}<a href="?kind={{ filters.kind }}&status={{ filters.status }}&days={{ filters.days }}&page={{ page.previous_page_number }}">← Precedenti</a>{% endif %}
+        <span>Pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?kind={{ filters.kind }}&status={{ filters.status }}&days={{ filters.days }}&page={{ page.next_page_number }}">Successive →</a>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="bk-card">
+    <h2>Prove di ripristino</h2>
+    <div class="bk-scroll"><table class="bk-table" data-fm-hide-controls="1">
+      <thead><tr><th>Data</th><th>Esito</th><th>FULL</th><th class="hide-sm">Ultimo log</th><th class="num">RTO DB</th><th>Controlli</th></tr></thead>
+      <tbody>
+        {% for d in drills %}
+          <tr>
+            <td>{{ d.started_at|date:"d/m/Y H:i" }}</td>
+            <td><span class="bk-badge {% if d.status == 'ok' %}ok{% elif d.status == 'warning' %}warn{% elif d.status == 'failed' %}fail{% else %}running{% endif %}">{{ d.get_status_display }}</span></td>
+            <td>{{ d.full_set_id|default:"—" }}</td>
+            <td class="hide-sm">{{ d.last_log_set_id|default:"—" }}</td>
+            <td class="num">{{ d.rto_seconds|default:"—" }} s</td>
+            <td>{% for name, c in d.checks.items %}<span class="bk-badge {% if c.status == 'ok' %}ok{% elif c.status == 'warning' %}warn{% else %}fail{% endif %}" title="{{ name }}">{{ name }}</span> {% endfor %}{% if d.error %}<div class="err">{{ d.error|truncatechars:160 }}</div>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">Nessuna prova ancora. Si attiva con il task DRILL (domenica 04:00) o con <code>manage.py hub_restore_drill</code>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+{% endblock %}

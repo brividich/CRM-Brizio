@@ -186,8 +186,13 @@ GUIDA = {
             "titolo": "Backup",
             "blocchi": [
                 ("ul", [
-                    "Il backup del database si fa da Amministrazione → Hub → «Database».",
-                    "Lo script deployment\\scripts\\backup-environment.ps1 -Environment prod fa una copia di configurazione e cartelle dell'ambiente.",
+                    "I backup girano da soli con i task PortaleNovicrom-Backup-PROD-* (database ogni notte alle 02:00, file alle 02:30, "
+                    "fotografia della macchina alle 03:00, pulizia alle 05:00). Finiscono sulla share del NAS indicata in BACKUP_TARGET.",
+                    "Per sapere se sono a posto, dal terminale: manage.py hub_backup_doctor. Righe CRIT = da sistemare subito.",
+                    "Backup fuori programma (es. prima di un intervento): manage.py hub_backup --type all, poi manage.py hub_backup_verify --latest.",
+                    "Lo stato si vede anche da Monitoring → «Backup e ripristino» (ultimo backup, catena dei log, prova di ripristino della domenica).",
+                    "Un backup dal pulsante di Amministrazione → Hub → «Database» si può ancora fare; il ripristino da lì invece è disattivato.",
+                    "Lo script deployment\\scripts\\backup-environment.ps1 -Environment prod esegue lo stesso backup verificato. Il file .env completo non va mai nel backup dei dati: sta nel Recovery Kit.",
                     "Il ripristino di un backup del database sovrascrive i dati: si fa solo dopo aver parlato con la Direzione.",
                 ]),
             ],

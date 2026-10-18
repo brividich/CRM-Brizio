@@ -1,0 +1,170 @@
+{
+    "schema_version":  1,
+    "note":  "Prerequisiti della reinstallazione (restore-host.ps1). sha256/url_resolved/signer li scrive SOLO update-prereqs-lock.ps1 dopo download e verifica della firma Authenticode. Una voce senza sha256 non viene mai scaricata.",
+    "updated_at":  "2026-10-17T18:07:52",
+    "items":  [
+                  {
+                      "name":  "python-3.13",
+                      "kind":  "exe",
+                      "url":  "https://www.python.org/ftp/python/{latest:3.13}/python-{latest:3.13}-amd64.exe",
+                      "signer_must_contain":  "Python Software Foundation",
+                      "silent_args":  "/quiet InstallAllUsers=1 PrependPath=0 Include_test=0 Include_launcher=1 TargetDir=C:\\Python313",
+                      "check":  "Test-Path \u0027C:\\Python313\\python.exe\u0027",
+                      "when":  "python_minor=3.13",
+                      "url_resolved":  "https://www.python.org/ftp/python/3.13.16/python-3.13.16-amd64.exe",
+                      "sha256":  "fb4f9f5d438b2396da0086dc70b935c530cb578e37adc6d354f7ad2037fee83b",
+                      "size":  29935584,
+                      "signer":  "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US",
+                      "version":  "3.13.16150.0",
+                      "file_name":  "python-3.13-fb4f9f5d438b-python-3.13.16-amd64.exe",
+                      "verified_at":  "2026-10-17T18:01:29"
+                  },
+                  {
+                      "name":  "python-3.12",
+                      "kind":  "exe",
+                      "url":  "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe",
+                      "signer_must_contain":  "Python Software Foundation",
+                      "silent_args":  "/quiet InstallAllUsers=1 PrependPath=0 Include_test=0 Include_launcher=1 TargetDir=C:\\Python312",
+                      "check":  "Test-Path \u0027C:\\Python312\\python.exe\u0027",
+                      "when":  "python_minor=3.12",
+                      "url_resolved":  "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe",
+                      "sha256":  "67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb",
+                      "size":  26964224,
+                      "signer":  "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US",
+                      "version":  "3.12.10150.0",
+                      "file_name":  "python-3.12-67b5635e80ea-python-3.12.10-amd64.exe",
+                      "verified_at":  "2026-10-17T18:02:21"
+                  },
+                  {
+                      "name":  "python-3.11",
+                      "kind":  "exe",
+                      "url":  "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe",
+                      "signer_must_contain":  "Python Software Foundation",
+                      "silent_args":  "/quiet InstallAllUsers=1 PrependPath=0 Include_test=0 Include_launcher=1 TargetDir=C:\\Python311",
+                      "check":  "Test-Path \u0027C:\\Python311\\python.exe\u0027",
+                      "when":  "python_minor=3.11",
+                      "url_resolved":  "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe",
+                      "sha256":  "5ee42c4eee1e6b4464bb23722f90b45303f79442df63083f05322f1785f5fdde",
+                      "size":  26216840,
+                      "signer":  "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US",
+                      "version":  "3.11.9150.0",
+                      "file_name":  "python-3.11-5ee42c4eee1e-python-3.11.9-amd64.exe",
+                      "verified_at":  "2026-10-17T18:03:13"
+                  },
+                  {
+                      "name":  "vcredist-x64",
+                      "kind":  "exe",
+                      "url":  "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+                      "signer_must_contain":  "Microsoft Corporation",
+                      "silent_args":  "/install /quiet /norestart",
+                      "check":  "Test-Path \"$env:SystemRoot\\System32\\vcruntime140.dll\"",
+                      "when":  "always",
+                      "url_resolved":  "https://download.visualstudio.microsoft.com/download/pr/990c720a-46ce-4dc7-87b9-c2eb615d34b9/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
+                      "sha256":  "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b",
+                      "size":  25635768,
+                      "signer":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "version":  "14.44.35211.0",
+                      "file_name":  "vcredist-x64-cc0ff0eb1dc3-VC_redist.x64.exe",
+                      "verified_at":  "2026-10-17T18:04:06"
+                  },
+                  {
+                      "name":  "odbc-driver-18",
+                      "kind":  "msi",
+                      "url":  "https://go.microsoft.com/fwlink/?linkid=2280794",
+                      "url_alternatives":  [
+                                               "https://download.microsoft.com/download/8d6e3acc-bf5b-41fe-ad51-a9ad406a780f/amd64/1033/msodbcsql.msi"
+                                           ],
+                      "signer_must_contain":  "Microsoft Corporation",
+                      "silent_args":  "/quiet /norestart IACCEPTMSODBCSQLLICENSETERMS=YES",
+                      "check":  "(Get-OdbcDriver -Name \u0027ODBC Driver 18 for SQL Server\u0027 -ErrorAction SilentlyContinue) -ne $null",
+                      "when":  "always",
+                      "url_resolved":  "https://download.microsoft.com/download/1/7/4/17423b83-b75d-42e1-b5b9-eaa266561c5e/Windows/amd64/1033/msodbcsql.msi",
+                      "sha256":  "b0fe5feb86975837c3297bf09e843c30241512aac4d10a4d40377c54039016bb",
+                      "size":  4747264,
+                      "signer":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "version":  "18.4.1.1",
+                      "file_name":  "odbc-driver-18-b0fe5feb8697-msodbcsql.msi",
+                      "verified_at":  "2026-10-17T18:06:38"
+                  },
+                  {
+                      "name":  "httpplatformhandler-1.2",
+                      "kind":  "msi",
+                      "url":  "https://go.microsoft.com/fwlink/?LinkId=690722",
+                      "url_alternatives":  [
+                                               "https://go.microsoft.com/fwlink/?LinkId=690721"
+                                           ],
+                      "file_must_contain":  "amd64",
+                      "signer_must_contain":  "Microsoft Corporation",
+                      "silent_args":  "/quiet /norestart",
+                      "check":  "Test-Path \"$env:SystemRoot\\System32\\inetsrv\\httpPlatformHandler.dll\"",
+                      "when":  "always",
+                      "manual_page":  "https://www.iis.net/downloads/microsoft/httpplatformhandler",
+                      "url_resolved":  "https://download.microsoft.com/download/8/1/3/813AC4E6-9203-4F7A-8DD5-F3D54D10C5CD/httpPlatformHandler_amd64.msi",
+                      "sha256":  "90f8d4905a0ab4f2c95223b3c79e2807a0b74507747d240e43c4302e8db4b5ef",
+                      "size":  557056,
+                      "signer":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "version":  "1.2.1959",
+                      "file_name":  "httpplatformhandler-1.2-90f8d4905a0a-httpPlatformHandler_amd64.msi",
+                      "verified_at":  "2026-10-17T18:07:52"
+                  },
+                  {
+                      "name":  "iis-url-rewrite-2.1",
+                      "kind":  "msi",
+                      "url":  "https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi",
+                      "signer_must_contain":  "Microsoft Corporation",
+                      "silent_args":  "/quiet /norestart",
+                      "check":  "Test-Path \"$env:SystemRoot\\System32\\inetsrv\\rewrite.dll\"",
+                      "when":  "host_manifest_has=rewrite",
+                      "url_resolved":  "https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi",
+                      "sha256":  "37342ff2f585f263f34f48e9de59eb1051d61015a8e967dbde4075716230a32a",
+                      "size":  6078464,
+                      "signer":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "version":  "7.2.1993",
+                      "file_name":  "iis-url-rewrite-2.1-37342ff2f585-rewrite_amd64_en-US.msi",
+                      "verified_at":  "2026-10-17T18:06:50"
+                  },
+                  {
+                      "name":  "sql-server-2025-express-bootstrapper",
+                      "kind":  "exe",
+                      "url":  "https://download.microsoft.com/download/7ab8f535-7eb8-4b16-82eb-eca0fa2d38f3/SQL2025-SSEI-Expr.exe",
+                      "signer_must_contain":  "Microsoft Corporation",
+                      "silent_args":  "/ACTION=Download /MEDIAPATH=\"{cache}\\sql2025-media\" /MEDIATYPE=Core /QUIET",
+                      "check":  "(Get-Service -Name \u0027MSSQL$*\u0027 -ErrorAction SilentlyContinue) -ne $null",
+                      "when":  "sql_missing",
+                      "url_resolved":  "https://download.microsoft.com/download/7ab8f535-7eb8-4b16-82eb-eca0fa2d38f3/SQL2025-SSEI-Expr.exe",
+                      "sha256":  "1c677a33b318481c3217128835f8405cf0026621dcd04b13eb6cb0982e823f27",
+                      "size":  4595248,
+                      "signer":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "version":  "17.0.1000.7",
+                      "file_name":  "sql-server-2025-express-bootstrapper-1c677a33b318-SQL2025-SSEI-Expr.exe",
+                      "verified_at":  "2026-10-17T18:04:51"
+                  },
+                  {
+                      "name":  "entra-private-network-connector",
+                      "kind":  "exe",
+                      "url":  "https://download.msappproxy.net/Subscription/d3c8b69d-6bf7-42be-a529-3fe9c2e70c90/Connector/DownloadConnectorInstaller",
+                      "signer_must_contain":  "Microsoft Corporation",
+                      "silent_args":  "REGISTERCONNECTOR=\"false\" /q",
+                      "check":  "(Get-Service -Name \u0027WAPCsvc\u0027 -ErrorAction SilentlyContinue) -ne $null",
+                      "when":  "entra_connector",
+                      "manual_page":  "https://entra.microsoft.com (Global Secure Access → Connect → Connectors → Download connector service)",
+                      "url_resolved":  "https://download.msappproxy.net/Subscription/d3c8b69d-6bf7-42be-a529-3fe9c2e70c90/Connector/DownloadConnectorInstaller",
+                      "sha256":  "7da3de9b244e80fee72cb633edafae309a177dfc924ba18525e86e2a78f83dcf",
+                      "size":  30388824,
+                      "signer":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "version":  "1.5.4892.0",
+                      "file_name":  "entra-private-network-connector-7da3de9b244e-entra-private-network-connector.exe",
+                      "verified_at":  "2026-10-17T18:05:57"
+                  }
+              ],
+    "manual":  [
+                   {
+                       "name":  "tesseract-ocr",
+                       "note":  "Solo se TESSERACT_CMD era valorizzato nella macchina d\u0027origine: installare la stessa versione indicata nell\u0027host-manifest (UB Mannheim)."
+                   },
+                   {
+                       "name":  "poppler",
+                       "note":  "Solo se usato dai parser PDF: copiare la cartella indicata nell\u0027host-manifest."
+                   }
+               ]
+}
