@@ -641,7 +641,8 @@ class SchedaAnonimaTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         c.refresh_from_db()
         self.assertFalse(c.anagrafica_da_completare)
-        self.assertEqual(c.nominativo, "Neri Luca")
+        # Nominativi sempre in «COGNOME NOME» maiuscolo (core.naming.nome_completo).
+        self.assertEqual(c.nominativo, "NERI LUCA")
 
     def test_import_anonimo_riconosce_riferimento_e_significativita(self):
         from anagrafica.management.commands.import_recruiting_xlsx import Command
