@@ -694,6 +694,41 @@ class AuditLog(models.Model):
         return f"AuditLog<{self.azione} {self.modulo} user={self.legacy_user_id}>"
 
 
+class AuditSigillo(models.Model):
+    """Sigillo mensile dell'audit: catena di hash, un anello per mese.
+
+    Copre le azioni esplicite (``log_action``, accessi, approvazioni, impostazioni),
+    non le righe tecniche ``auto_*`` che la politica di archiviazione
+    (``core.audit_archive``) può legittimamente ridurre o cancellare. Ogni sigillo
+    contiene l'hash del precedente: cambiare o togliere una riga di un mese
+    sigillato rompe quel sigillo e tutti i successivi (vedi ``core.audit_sigilli``).
+    """
+
+    mese = models.CharField(max_length=7, unique=True, help_text="AAAA-MM")
+    righe = models.PositiveIntegerField(default=0)
+    id_min = models.BigIntegerField(null=True, blank=True)
+    id_max = models.BigIntegerField(null=True, blank=True)
+    hash_righe = models.CharField(max_length=64)
+    hash_precedente = models.CharField(max_length=64)
+    hash_sigillo = models.CharField(max_length=64, unique=True)
+    versione = models.PositiveSmallIntegerField(default=1)
+    creato_il = models.DateTimeField(auto_now_add=True)
+    export_ok = models.BooleanField(default=False)
+    export_il = models.DateTimeField(null=True, blank=True)
+    export_percorso = models.CharField(max_length=500, blank=True, default="")
+    export_errore = models.CharField(max_length=500, blank=True, default="")
+    verificato_il = models.DateTimeField(null=True, blank=True)
+    verifica_ok = models.BooleanField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["mese"]
+        verbose_name = "Sigillo audit mensile"
+        verbose_name_plural = "Sigilli audit mensili"
+
+    def __str__(self) -> str:
+        return f"AuditSigillo<{self.mese} {self.righe} righe {self.hash_sigillo[:12]}>"
+
+
 # ── Anagrafica configurabile ──────────────────────────────────────────────────
 
 class OptioneConfig(models.Model):

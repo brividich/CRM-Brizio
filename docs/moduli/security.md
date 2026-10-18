@@ -121,7 +121,17 @@ Una sola voce **Configurazione** nel gruppo Gestione (prima: Caselle mail, Confi
 - UI: Configurazione › Parser, «Prova e chiedi all'AI» (cache 24 h per testo), «Letture da verificare» e «Proposta AI» negli elementi non elaborati.
 - Misura: `manage.py soc_ai_lettura_prova [--ripeti N]` su campioni sintetici (tempi medio/mediano/max, campi corretti, valori «non nel testo», tentativo di manipolazione).
 
+## Alert di Microsoft Defender (Graph Security)
+
+- `security/services/defender_alerts.py`: passo `defender` del `security_cycle` (ogni 15 min). Legge `GET /v1.0/security/alerts_v2?$filter=lastUpdateDateTime ge <cursore>` (paginazione `@odata.nextLink` solo verso `graph.microsoft.com`, max 20 pagine × 100), token da `core.graph_utils.acquire_graph_token` con le credenziali Graph del SOC.
+- Un evento `defender_alert` sulla sorgente «Microsoft Defender (Graph Security)» per alert nuovo o con stato/severità cambiati; dedup `make_hash(source, defender_alert, id)`; `SecurityAsset` dal primo dispositivo. Payload minimo: titolo, severità, stato, classificazione, categoria, prodotto, tecniche MITRE, dispositivi, link `alertWebUrl` (solo https); degli utenti solo `users_count`.
+- `rule_engine._evaluate_defender_alert`: `resolved` in Defender → `auto_resolution.resolve_alert` sull'alert attivo; sotto `defender.severita_minima` → `kpi_only`; altrimenti alert «Defender: <titolo> su <PC>» aggiornato (severità e titolo) se Defender lo cambia, evidenza e notifica alla creazione.
+- Impostazioni (`soc_settings`, sezione `defender`): `defender.alert.attivo` (spenta), `defender.severita_minima` (Media), `defender.primo_giro_giorni` (7). Stato tecnico in `SecurityCenterSetting` `defender.cursore` / `defender.ultimo_giro` (scritto senza audit di configurazione).
+- Comando `defender_alerts [--prova | --esegui]`. Prerequisito: permesso applicativo Graph **`SecurityAlert.Read.All`** con consenso amministratore; senza, il giro registra «Graph ha risposto 403» e il ciclo prosegue.
+
 ## Note di rilascio
+
+- **Alert di Microsoft Defender nel SOC** — nessuna migrazione del modulo security. Dopo il deploy: riavvio del qcluster; aggiungere `SecurityAlert.Read.All` all'app Graph (consenso amministratore), `defender_alerts --prova`, poi accendere la sezione in /soc/impostazioni/.
 
 - **Lettura assistita dall'AI come flusso Automazioni** — nessuna migrazione. Dopo il deploy: `setup_q_schedules` (registra lo schedule `security_ai_lettura` e crea i due flussi nel designer) e riavvio del qcluster. Spenta finché non accesa in /soc/impostazioni/. Prima di accenderla lanciare `soc_ai_lettura_prova` sul server.
 

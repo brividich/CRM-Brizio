@@ -136,8 +136,40 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "audit-sigillo",
+            "titolo": "Audit sigillato (non modificabile)",
+            "blocchi": [
+                ("p", "Il giorno 1 di ogni mese (alle 3:40, lavoro «audit_sigilli») il portale chiude il mese appena finito con un sigillo: "
+                      "un'impronta (SHA-256) di tutte le azioni registrate quel mese, legata all'impronta del mese prima. Se qualcuno cambia, "
+                      "aggiunge o toglie una riga di un mese chiuso, il sigillo non torna più e la catena si rompe da lì in avanti."),
+                ("def", [
+                    ("Cosa copre", "le azioni esplicite: accessi, approvazioni, permessi, impostazioni, attivazioni e revoche. Le righe tecniche "
+                                   "automatiche (inserimenti/modifiche dei dati) restano fuori, perché l'archiviazione le riduce per politica."),
+                    ("Verifica", "a ogni giro tutta la catena viene ricalcolata; se è rotta parte una mail agli amministratori."),
+                    ("Export", "per ogni mese due file nella cartella SharePoint configurata: le righe (audit-AAAA-MM.jsonl.gz) e il sigillo "
+                               "(audit-AAAA-MM.sigillo.json). Un file già presente non viene mai sovrascritto."),
+                ]),
+                ("passi", [
+                    "Scegli la cartella SharePoint (meglio una raccolta con etichetta di conservazione o in sola lettura per le persone).",
+                    "Dai all'app Graph del portale il permesso di scrittura su quel sito (Sites.Selected con «write», o Sites.ReadWrite.All).",
+                    "Imposta in SiteConfig «audit_export_sp_drive_id» (id della raccolta) e «audit_export_sp_cartella» (percorso, es. Audit/Portale).",
+                    "Dal terminale: audit_sigilli --esporta carica subito i mesi in attesa; audit_sigilli senza opzioni mostra lo stato di ogni mese.",
+                ]),
+                ("nota", "audit_sigilli --verifica ricalcola tutto e segnala i mesi alterati. I mesi oltre i 5 anni, tolti dal database "
+                         "dall'archiviazione, risultano «in archivio»: si controllano sui file esportati."),
+            ],
+        },
     ],
     "problemi": [
+        {
+            "sintomo": "Mail «[AUDIT] Catena dei sigilli rotta»",
+            "fare": [
+                "Dal terminale: audit_sigilli --verifica dice quali mesi e perché (righe aggiunte o tolte, contenuto modificato, sigillo modificato).",
+                "Confronta con i file esportati su SharePoint di quel mese (audit_sigilli --file AAAA-MM --out <cartella> ricrea quelli attuali).",
+                "È un possibile evento di sicurezza: non correggere a mano le righe, apri un incidente nel Security Center e conserva le prove.",
+            ],
+        },
         {
             "sintomo": "«Accesso negato» per una persona che dovrebbe entrare",
             "fare": [

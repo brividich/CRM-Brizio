@@ -298,6 +298,62 @@ def _evaluate_software_policy(event):
         notify_alert_created(alert)
 
 
+def _evaluate_defender_alert(event):
+    """Alert di Microsoft Defender (``defender_alerts``): uno per id di Defender.
+
+    Risolto in Defender → chiude l'alert attivo del SOC (se c'è). Sotto la severità
+    minima scelta in /soc/impostazioni/ → resta un evento (KPI). Altrimenti apre o
+    aggiorna l'alert del SOC con lo stesso dedup.
+    """
+    from security.services import defender_alerts
+    from security.services.auto_resolution import resolve_alert
+
+    payload = event.payload or {}
+    if payload.get("status_defender") in defender_alerts.RESOLVED_STATUSES:
+        alert = _active_alert(event.source, event.dedup_hash)
+        trace = {"decision": "resolved_upstream", "reason": "Alert risolto in Microsoft Defender",
+                 "classification": payload.get("classification")}
+        if alert:
+            resolve_alert(alert, "Risolto in Microsoft Defender", evidence_event=event, rule_code=defender_alerts.EVENT_TYPE)
+            trace["alert_id"] = alert.pk
+        event.decision_trace = trace
+        event.save(update_fields=["decision_trace"])
+        return
+    if not defender_alerts.meets_threshold(event.severity):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Sotto la severità minima scelta per Defender",
+                                "severity": event.severity}
+        event.save(update_fields=["decision_trace"])
+        return
+    devices = payload.get("devices") or []
+    trace = {
+        "decision": "alert",
+        "rule": "Microsoft Defender: alert sopra la severità minima => alert",
+        "defender_id": payload.get("defender_id"),
+        "status_defender": payload.get("status_defender"),
+        "category": payload.get("category"),
+        "devices": devices,
+        "web_url": payload.get("web_url"),
+    }
+    where = f" su {devices[0]}" if len(devices) == 1 else (f" su {len(devices)} dispositivi" if devices else "")
+    title = f"Defender: {payload.get('title')}{where}"[:255]
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=title, severity=event.severity,
+        dedup_hash=event.dedup_hash, decision_trace=trace,
+    )
+    if not alert_created and (alert.severity != event.severity or alert.title != title):
+        alert.severity = event.severity
+        alert.title = title
+        alert.save(update_fields=["severity", "title", "updated_at"])
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
+    if alert_created:
+        notify_alert_created(alert)
+
+
 def _ticket_for_cve_impact(event, alert, evidence, payload, cve):
     from security.models import SecurityRemediationTicket
     from security.services.ticketing import ACTIVE_TICKET_STATUSES
@@ -650,4 +706,5 @@ _HANDLERS = {
     "possible_sender_spoofing": _evaluate_sender_spoofing,
     "cve_impact_confirmed": _evaluate_cve_impact,
     "software_policy": _evaluate_software_policy,
+    "defender_alert": _evaluate_defender_alert,
 }

@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 70
+**Totale automazioni disponibili:** 71
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -321,6 +321,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in scadenza come notifiche portale (idempotente, fired flag). Porta i promemoria nello scheduler centralizzato al posto del Task Windows.
 
 ## Trasversale (Core)
+
+### `audit_sigilli`
+
+- **Quando gira:** il giorno 1,2 del mese, alle 03:40
+- **Task eseguito:** `core.tasks.run_audit_sigilli`
+- **Cosa fa:** CORE — sigillo mensile dell'audit: sigilla i mesi conclusi (catena di hash), verifica tutta la catena (mail agli ADMINS se rotta) ed esporta su SharePoint se la cartella è configurata (SiteConfig audit_export_sp_*). Il giorno 1 e il 2 (riprova dell'export se il primo giro non è riuscito).
 
 ### `caporeparto_morning_digest`
 

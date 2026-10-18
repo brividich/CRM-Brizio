@@ -696,6 +696,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CORE — sigillo mensile dell'audit: sigilla i mesi conclusi (catena di hash),
+        # verifica tutta la catena (mail agli ADMINS se rotta) ed esporta su SharePoint
+        # se la cartella è configurata (SiteConfig audit_export_sp_*). Il giorno 1 e il 2
+        # (riprova dell'export se il primo giro non è riuscito).
+        "name": "audit_sigilli",
+        "func": "core.tasks.run_audit_sigilli",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 3 1,2 * *",     # giorni 1 e 2 del mese alle 03:40
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo
         # agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op
         # altrimenti); giorni feriali, una mail al giorno al massimo.

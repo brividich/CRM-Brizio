@@ -35,6 +35,8 @@ GUIDA = {
                     "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico.",
                     "Il ciclo di lettura gira ogni 15 minuti (lavoro «security_cycle»).",
                     "Regole, soglie e AI si configurano nelle Impostazioni del Security Center (capitolo «Impostazioni e AI» della guida completa).",
+                    "Alert di Microsoft Defender: Impostazioni › «Alert di Microsoft Defender». Serve il permesso Graph SecurityAlert.Read.All "
+                    "con consenso amministratore sull'app del portale; prova con manage.py defender_alerts --prova.",
                 ]),
             ],
         },
@@ -48,6 +50,15 @@ GUIDA = {
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_cycle».",
                 "Se la lettura della casella dà 401/403 il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard.",
                 "Altri casi: capitolo «Risoluzione problemi» della guida completa.",
+            ],
+        },
+        {
+            "sintomo": "Gli alert di Microsoft Defender non arrivano nel SOC",
+            "fare": [
+                "Impostazioni › «Alert di Microsoft Defender»: «Leggi gli alert di Defender» deve essere acceso.",
+                "Dal terminale: manage.py defender_alerts mostra l'esito dell'ultimo giro. «Graph ha risposto 403» = manca il permesso "
+                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID.",
+                "Arriva l'evento ma non l'alert: la severità è sotto la «Severità minima per l'alert» (l'evento resta nei KPI).",
             ],
         },
         {

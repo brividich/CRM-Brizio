@@ -26,6 +26,18 @@ def run_caporeparto_morning_digest() -> dict:
         raise
 
 
+def run_audit_sigilli() -> dict:
+    """Sigillo mensile dell'audit: sigilla i mesi conclusi, verifica la catena,
+    esporta su SharePoint (``core.audit_sigilli.ciclo_mensile``)."""
+    from core.audit_sigilli import ciclo_mensile
+
+    try:
+        return {"ok": True, **ciclo_mensile()}
+    except Exception:
+        logger.exception("run_audit_sigilli: eccezione inattesa")
+        raise
+
+
 def run_notifiche_archivio() -> dict:
     """Archivia le notifiche in-app scadute ed elimina le archiviate oltre soglia.
 

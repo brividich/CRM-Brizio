@@ -15,6 +15,19 @@ Gli avvisi partono verso i **canali** (mail o Teams) definiti in **Configurazion
 | Report periodico automatico | Manda il report settimanale (il lunedì, sulla settimana prima) o mensile (il giorno 1, sul mese prima), dalle 7 | Spento |
 | Soppressione appresa | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#soppressione-appresa) | Accesa |
 | Impatto CVE sugli asset | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#impatto-cve-sugli-asset) | Arricchimento spento |
+| Alert di Microsoft Defender | Vedi [Alert di Microsoft Defender](#alert-di-microsoft-defender) qui sotto | Spenta, severità minima Media |
+
+## Alert di Microsoft Defender
+
+Con **Leggi gli alert di Defender** acceso, ogni 15 minuti il SOC chiede a Microsoft Graph gli alert di Defender aggiornati dall'ultimo giro (la prima volta: gli ultimi giorni scelti in **Primo giro**, default 7).
+
+- Ogni alert di Defender diventa un evento della sorgente **Microsoft Defender (Graph Security)**. Un nuovo evento nasce solo quando cambia lo **stato** o la **severità** in Defender.
+- Dalla **Severità minima per l'alert** in su (default Media) nasce un alert del SOC «Defender: <titolo> su <PC>», **uno per alert di Defender**: se Defender lo aggiorna, si aggiorna lo stesso alert.
+- Sotto la soglia l'evento resta nei KPI, senza alert. Gli alert «informativi» di Defender non aprono mai un alert.
+- Quando Defender dà l'alert **risolto**, l'alert del SOC si chiude da solo («Risolto in Microsoft Defender») e i casi collegati seguono le regole di sempre.
+- Si tengono titolo, severità, stato, categoria, tecniche MITRE, i nomi dei **dispositivi** e il link all'alert nel portale Defender. Degli **utenti** coinvolti solo il numero: i dettagli si leggono in Defender.
+
+Serve il permesso applicativo **SecurityAlert.Read.All** (Microsoft Graph, con consenso amministratore) sull'app del portale. Prova dal terminale del server: `manage.py defender_alerts --prova`. L'esito dell'ultimo giro: `manage.py defender_alerts`. Se manca il permesso, il giro registra «Graph ha risposto 403» e il resto del ciclo SOC prosegue.
 
 Come si comportano:
 
