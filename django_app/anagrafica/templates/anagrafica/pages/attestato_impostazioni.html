@@ -21,6 +21,13 @@
   .att-arch-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .att-arch-actions form { margin:0; }
   .att-danger { color:#b91c1c; border-color:#fecaca !important; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .att-cfg-note{background:rgba(59,130,246,.18);color:var(--text-mid)}
+body.theme-dark .att-stat{background:var(--surface-alt,#0f1b2d);border-color:var(--border)}
+body.theme-dark .att-stat .v{color:var(--text)}
+body.theme-dark .att-stat .k{color:var(--text-light)}
+body.theme-dark .att-danger{color:#fca5a5}
 </style>
 {% endblock %}
 

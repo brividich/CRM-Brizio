@@ -4286,3 +4286,47 @@ body.theme-dark .ts-guide-nota { background: rgba(251,146,60,.12); border-color:
 .md-convocazione-note.warn { border-color: #fdba74; background: #fff7ed; color: #7c2d12; }
 body.theme-dark .md-convocazione-note.warn { background: rgba(251,146,60,.12); border-color: rgba(251,146,60,.45); color: #fed7aa; }
 .md-convocazione-note[hidden] { display: none; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .ts-kpi.blue  .ts-kpi-value{color:#93c5fd}
+body.theme-dark .ts-kpi.teal  .ts-kpi-value{color:#86efac}
+body.theme-dark .ts-kpi.green .ts-kpi-value{color:#86efac}
+body.theme-dark .ts-kpi.amber .ts-kpi-value{color:#fcd34d}
+body.theme-dark .ts-kpi.red   .ts-kpi-value{color:#fca5a5}
+body.theme-dark .ts-kpi.slate .ts-kpi-value{color:var(--text-mid)}
+body.theme-dark .ts-card{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .ts-card-title{color:var(--text)}
+body.theme-dark .ts-card-text{color:var(--text-light)}
+body.theme-dark .ts-card-meta{color:var(--text-light)}
+body.theme-dark .ts-card-link:hover .ts-card-title{color:#93c5fd}
+body.theme-dark .ts-field-error{color:#fca5a5}
+body.theme-dark .meetings-hero-cta{color:#93c5fd}
+body.theme-dark .meeting-num{color:#93c5fd}
+body.theme-dark .vrf-preview-table td:first-child{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .task-attachment-link:hover{color:#93c5fd}
+body.theme-dark .tf-panel-accent{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .tf-kicker{color:#93c5fd}
+body.theme-dark .tf-search-tag{color:#93c5fd}
+body.theme-dark .tf-id-chip.pn{color:#93c5fd}
+body.theme-dark .tf-banner{color:#93c5fd}
+body.theme-dark .date-suggestion-banner{color:#93c5fd}
+body.theme-dark .status-badge.todo{color:#93c5fd}
+body.theme-dark .tf-asset-conflict{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .md-presenze-count{color:#93c5fd}
+body.theme-dark .tl-task-link:hover{color:#93c5fd}
+body.theme-dark .tl-ko-link:hover{color:#93c5fd}
+body.theme-dark .kb-col.col-todo    .kb-col-count{background:rgba(139,92,246,.2)}
+body.theme-dark .kb-col.col-done    .kb-col-count{color:#86efac}
+body.theme-dark .pk-task-title:hover{color:#93c5fd}
+body.theme-dark .gantt-page{--g-head-bg:var(--surface-alt,#0f1b2d)}
+body.theme-dark .g-health-card.blue  .g-health-value{color:#93c5fd}
+body.theme-dark .g-health-card.teal  .g-health-value{color:#86efac}
+body.theme-dark .g-flag:has(input:checked){color:#fdba74}
+body.theme-dark .gantt-task-link:hover{color:#93c5fd}
+body.theme-dark .quick-edit-head a:hover{color:#93c5fd}
+body.theme-dark .ts-gantt-cm .gmac-title{color:#93c5fd}
+body.theme-dark .ts-gantt-cm .gmac-title:hover{color:#93c5fd}
+body.theme-dark .ts-gantt-cm .gbar.status-canceled{color:var(--text-mid)}
+body.theme-dark .agenda-add-title{color:#93c5fd}
+body.theme-dark .mf-toggle::before{background:var(--surface)}
+body.theme-dark .mf-recap a{color:#93c5fd}

@@ -98,6 +98,40 @@
     .auto-health--ok .auto-health-dot,
     .auto-meta-item, .auto-list-row, .auto-tl-item::before { animation:none !important; transition:none !important; }
   }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .auto-meta-item:hover{border-color:var(--border)}
+body.theme-dark .auto-meta-label{color:var(--text-light)}
+body.theme-dark .auto-badge-active{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-badge-inactive{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .auto-badge-draft{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-badge-INSERT{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-badge-UPDATE{background:rgba(139,92,246,.2);color:#c4b5fd}
+body.theme-dark .auto-badge-scope{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .auto-health--ok{color:#86efac}
+body.theme-dark .auto-health--ready{color:#93c5fd}
+body.theme-dark .auto-health--warn{color:#fcd34d}
+body.theme-dark .auto-health--off{color:var(--text-light)}
+body.theme-dark .auto-icon-chip code{color:var(--text)}
+body.theme-dark .auto-icon-chip.is-action .auto-icon-symbol{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-icon-chip.is-control .auto-icon-symbol{background:rgba(139,92,246,.2);color:#c4b5fd}
+body.theme-dark .auto-icon-chip.is-side .auto-icon-symbol{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-tl-item{border-color:var(--border)}
+body.theme-dark .auto-tl-item::before{background:var(--surface);border-color:var(--border)}
+body.theme-dark .auto-tl-item.is-test::before{background:rgba(214,158,46,.16)}
+body.theme-dark .auto-tl-main a{color:#93c5fd}
+body.theme-dark .auto-tl-msg{color:var(--text-mid)}
+body.theme-dark .auto-tl-meta{color:var(--text-light)}
+body.theme-dark .auto-tl-dur{color:var(--text)}
+body.theme-dark .auto-status-pill.is-ok{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-status-pill.is-fail{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-status-pill.is-skip{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-status-pill.is-pending{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-list-row:hover{border-color:var(--border)}
+body.theme-dark .auto-list-row.is-disabled{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-list-body code{color:var(--text)}
+body.theme-dark .auto-list-meta{color:var(--text-light)}
+body.theme-dark .auto-diff-mini{background:rgba(214,158,46,.16);color:#fcd34d}
 </style>
 {% endblock %}
 

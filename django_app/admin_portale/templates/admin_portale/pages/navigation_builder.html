@@ -518,7 +518,14 @@
       .nav-builder .admin-form-grid > .field.field-wide,
       .nav-builder .admin-form-grid > .field.field-actions { grid-column: span 12; }
     }
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .nav-builder .sortable-ghost{background:rgba(59,130,246,.18)}
+body.theme-dark .nav-builder .text-danger{color:#fca5a5}
+body.theme-dark .nav-builder .visual-section-tab:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .nav-builder .visual-badge.ok{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);color:#fca5a5}
+</style>
 {% endblock %}
 
 {% block subnav %}

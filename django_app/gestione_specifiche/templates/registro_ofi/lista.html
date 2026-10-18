@@ -38,6 +38,10 @@
 /* la tappa in corso: stesso colore pieno + anello arancio per dire «sei qui» */
 .ofi-mini-current{ box-shadow:0 0 0 2.5px rgba(255,138,31,.9); }
 .ofi-legend{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .ofi-table td.ofi-pdca.ofi-on{color:#86efac}
+body.theme-dark .ofi-mini-s{background:var(--surface)}
 </style>
 {% endblock %}
 

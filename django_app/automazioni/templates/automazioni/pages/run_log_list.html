@@ -72,6 +72,21 @@
   @media (prefers-reduced-motion: reduce) {
     .auto-chip, .auto-table tbody tr, .auto-table tbody tr td:first-child { transition:none !important; }
   }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .auto-field label{color:var(--text-mid)}
+body.theme-dark .auto-field input,body.theme-dark .auto-field select{border-color:var(--border);background:var(--surface)}
+body.theme-dark .auto-table th,body.theme-dark .auto-table td{border-color:var(--border)}
+body.theme-dark .auto-table th{color:var(--text-light);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-status-pill.is-ok{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-status-pill.is-fail{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-status-pill.is-skip{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-status-pill.is-pending{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-dur-val{color:var(--text)}
+body.theme-dark .auto-view-button:hover{color:#93c5fd}
+body.theme-dark .auto-group-section{border-color:var(--border)}
+body.theme-dark .auto-group-header{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-group-title{color:var(--text)}
 </style>
 {% endblock %}
 

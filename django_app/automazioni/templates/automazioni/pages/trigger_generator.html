@@ -52,7 +52,21 @@
     @media (max-width:800px) {
       .tg-layout { grid-template-columns:1fr; }
     }
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .tg-source-btn{background:var(--surface);color:var(--text)}
+body.theme-dark .tg-source-btn.active{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .tg-source-btn small{color:var(--text-light)}
+body.theme-dark .tg-op-label{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .tg-op-label input:checked ~ span{color:#93c5fd}
+body.theme-dark .tg-field-label{border-color:var(--border);background:var(--surface)}
+body.theme-dark .tg-field-label .field-name{color:var(--text)}
+body.theme-dark .tg-field-label .field-col{color:var(--text-light)}
+body.theme-dark .tg-result-ok{color:#86efac}
+body.theme-dark .tg-result-err{color:#fca5a5}
+body.theme-dark .badge-op-insert{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .badge-op-update{background:rgba(59,130,246,.18);color:#93c5fd}
+</style>
 {% endblock %}
 
 {% block subnav %}

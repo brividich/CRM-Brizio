@@ -32,6 +32,25 @@
   .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
   .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
   .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .auto-meta-item{border-color:var(--border);background:var(--surface)}
+body.theme-dark .auto-meta-label{color:var(--text-light)}
+body.theme-dark .auto-meta-value{color:var(--text)}
+body.theme-dark .auto-badge-pending{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-badge-processing{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-badge-done{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-badge-error{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-poller{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-poller-badge-healthy{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-poller-badge-warning{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-poller-badge-error{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-poller-box{background:var(--surface)}
+body.theme-dark .auto-poller-label{color:var(--text-light)}
+body.theme-dark .auto-poller-value{color:var(--text)}
+body.theme-dark .auto-poller-meta{color:var(--text-mid)}
+body.theme-dark .auto-table th,body.theme-dark .auto-table td{border-color:var(--border)}
+body.theme-dark .auto-table th{color:var(--text-light);background:var(--surface-alt,#0f1b2d)}
 </style>
 {% endblock %}
 

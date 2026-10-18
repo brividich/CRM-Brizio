@@ -482,3 +482,51 @@
 @media (max-width: 900px){
   .hp-bacheca{ grid-template-columns:1fr }
 }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .hp-wrap{color:var(--text)}
+body.theme-dark .hp-tone-danger{--tone-bg:rgba(229,62,62,.16);--tone-fg:#fca5a5}
+body.theme-dark .hp-tone-red{--tone-bg:rgba(229,62,62,.16);--tone-fg:#fca5a5}
+body.theme-dark .hp-tone-warning{--tone-bg:var(--surface);--tone-fg:#fdba74}
+body.theme-dark .hp-tone-orange{--tone-bg:var(--surface);--tone-fg:#fdba74}
+body.theme-dark .hp-tone-info{--tone-bg:var(--surface);--tone-fg:#93c5fd}
+body.theme-dark .hp-tone-blue{--tone-bg:var(--surface);--tone-fg:#93c5fd}
+body.theme-dark .hp-tone-success{--tone-bg:var(--surface);--tone-fg:#86efac}
+body.theme-dark .hp-tone-green{--tone-bg:var(--surface);--tone-fg:#86efac}
+body.theme-dark .hp-prio-card{background:var(--surface)}
+body.theme-dark .hp-prio-num{color:var(--text)}
+body.theme-dark .hp-prio-lbl{color:var(--text)}
+body.theme-dark .hp-h2{color:var(--text)}
+body.theme-dark .hp-grp-l{color:var(--text)}
+body.theme-dark .hp-grp-c{color:#93c5fd}
+body.theme-dark .hp-tile{background:var(--surface);color:var(--text)}
+body.theme-dark .hp-tile-lock .hp-tile-ico{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .hp-tile-lock-ic{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .hp-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .hp-card-h{border-color:var(--border)}
+body.theme-dark .hp-card-t{color:var(--text)}
+body.theme-dark .hp-card-link{color:#93c5fd}
+body.theme-dark .hp-counter{color:#fdba74}
+body.theme-dark .hp-list-t{color:var(--text)}
+body.theme-dark .hp-list-appr li{background:var(--surface)}
+body.theme-dark .hp-ok-y{color:#86efac}
+body.theme-dark .hp-ok-y:hover{background:rgba(56,161,105,.18)}
+body.theme-dark .hp-ok-n{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .hp-ok-n:hover{background:rgba(229,62,62,.16)}
+body.theme-dark .hp-flash{color:#86efac}
+body.theme-dark .hp-cal-c{background:var(--surface)}
+body.theme-dark .hp-cal-c.now .hp-cal-d{color:#fdba74}
+body.theme-dark .hp-cal-n{color:var(--text)}
+body.theme-dark .hp-cal-c.now .hp-cal-n{color:#fdba74}
+body.theme-dark .hp-cal-tag{color:#fdba74}
+body.theme-dark .hp-cal-abs{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .hp-news-t{color:var(--text)}
+body.theme-dark .hp-act-ic{color:#93c5fd}
+body.theme-dark .hp-safety{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .hp-safety-c{background:var(--surface)}
+body.theme-dark .hp-sys-l{color:var(--text)}
+body.theme-dark .hp-chev:hover{color:var(--text)}
+body.theme-dark .hp-tile-wrap .hp-tile{background:var(--surface)}
+body.theme-dark .hp-tile-panel{background:var(--surface)}
+body.theme-dark .hp-doc.k-url .hp-doc-ic{color:#93c5fd}
+body.theme-dark .hp-doc.k-url .hp-doc-kind{color:#93c5fd}

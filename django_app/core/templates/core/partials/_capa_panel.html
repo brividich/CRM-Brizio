@@ -21,7 +21,17 @@ Stili scoped con prefisso .capa-panel-* per non collidere col template ospite.
     .capa-panel .st-ANNULLATA { background:#f1f5f9; color:#64748b; }
     .capa-panel-meta { color:#94a3b8; margin-left:auto; font-size:.82rem; }
     .capa-panel-empty { color:#94a3b8; font-size:.9rem; padding:6px 0; }
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .capa-panel{background:var(--surface);border-color:var(--border)}
+body.theme-dark .capa-panel-head h3{color:var(--text)}
+body.theme-dark .capa-panel-row{border-color:var(--border)}
+body.theme-dark .capa-panel-row a{color:var(--text)}
+body.theme-dark .capa-panel .st-IN_CORSO{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .capa-panel .st-CHIUSA{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .capa-panel .st-VERIFICATA{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .capa-panel .st-ANNULLATA{background:var(--surface-alt,#0f1b2d);color:var(--text-light)}
+</style>
   <div class="capa-panel-head">
     <h3>✅ Azioni correttive/preventive</h3>
     {% if capa_new_url %}<a class="capa-panel-new" href="{{ capa_new_url }}">+ Nuova azione</a>{% endif %}

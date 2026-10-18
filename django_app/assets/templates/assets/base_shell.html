@@ -401,6 +401,9 @@ details.as-collapse--cap > .as-collapse-body { max-height: calc(62 * var(--vh, 1
 tr[data-row-href] { cursor: pointer; }
 tr[data-row-href]:hover > td { background: #f1f6ff; }
 body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10); }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark details.as-collapse > summary:hover::after{color:#93c5fd}
 </style>
 {% block assets_shell_head %}{% endblock %}
 {% endblock %}

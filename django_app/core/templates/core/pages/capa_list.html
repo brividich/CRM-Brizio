@@ -46,6 +46,31 @@ Context (vedi core/views_capa.py::capa_list).
   .capa-pager { display:flex; gap:8px; justify-content:center; margin-top:16px; align-items:center; color:#64748b; font-size:.85rem; }
   .capa-pager a { text-decoration:none; border:1px solid #cbd5e1; border-radius:8px; padding:5px 12px; color:#0f172a; }
   .capa-msg { background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;margin-bottom:14px; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .capa-title{color:var(--text)}
+body.theme-dark .capa-sub{color:var(--text-light)}
+body.theme-dark .capa-kpi{background:var(--surface);border-color:var(--border)}
+body.theme-dark .capa-kpi span{color:var(--text-light)}
+body.theme-dark .capa-kpi.danger b{color:#fca5a5}
+body.theme-dark .capa-kpi.warn b{color:#fdba74}
+body.theme-dark .capa-kpi.info b{color:#93c5fd}
+body.theme-dark .capa-filters{background:var(--surface);border-color:var(--border)}
+body.theme-dark .capa-filters label{color:var(--text-mid)}
+body.theme-dark .capa-filters select,body.theme-dark .capa-filters input{border-color:var(--border)}
+body.theme-dark .capa-btn.ghost{background:var(--surface);color:var(--text);border-color:var(--border)}
+body.theme-dark .capa-table{background:var(--surface);border-color:var(--border)}
+body.theme-dark .capa-table th{color:var(--text-light);background:var(--surface-alt,#0f1b2d);border-color:var(--border)}
+body.theme-dark .capa-table td{border-color:var(--border);color:var(--text)}
+body.theme-dark .st-IN_CORSO{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .st-CHIUSA{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .st-VERIFICATA{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .st-ANNULLATA{background:var(--surface-alt,#0f1b2d);color:var(--text-light)}
+body.theme-dark .capa-when.scaduta{color:#fca5a5}
+body.theme-dark .capa-when.soon{color:#fdba74}
+body.theme-dark .capa-pager{color:var(--text-light)}
+body.theme-dark .capa-pager a{border-color:var(--border);color:var(--text)}
+body.theme-dark .capa-msg{background:rgba(56,161,105,.18);color:#86efac}
 </style>
 {% endblock %}
 

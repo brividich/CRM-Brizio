@@ -81,6 +81,25 @@
   .ac-kpis,
   .ac-filter { grid-template-columns:1fr; }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .ac-banner,body.theme-dark .ac-card,body.theme-dark .ac-kpi{background:var(--surface)}
+body.theme-dark .ac-banner{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .ac-banner-title{color:var(--text-light)}
+body.theme-dark .ac-banner-text{color:var(--text)}
+body.theme-dark .ac-banner-note{color:var(--text-light)}
+body.theme-dark .ac-kpi-label{color:var(--text-light)}
+body.theme-dark .ac-kpi-value{color:var(--text)}
+body.theme-dark .ac-card-head{border-color:var(--border)}
+body.theme-dark .ac-card-head h2{color:var(--text)}
+body.theme-dark .ac-card-head p{color:var(--text-light)}
+body.theme-dark .ac-field label{color:var(--text)}
+body.theme-dark .ac-field :is(input,body.theme-dark select){border-color:var(--border);background:var(--surface);color:var(--text)}
+body.theme-dark .ac-table th{border-color:var(--border);color:var(--text-light)}
+body.theme-dark .ac-table td{border-color:var(--border);color:var(--text)}
+body.theme-dark .ac-pill.ok{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .ac-pill.muted{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .ac-empty{color:var(--text-light)}
 </style>
 {% endblock %}
 

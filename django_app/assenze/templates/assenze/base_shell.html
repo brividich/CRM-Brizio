@@ -646,7 +646,13 @@
     body.theme-dark .abs-empty-text  { color: var(--text-mid); }
     body.theme-dark .abs-hero-action-primary { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.2); }
     body.theme-dark .abs-hero-action-primary:hover { background: rgba(255,255,255,.22); }
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .abs-subnav-link.active .abs-subnav-badge{background:var(--surface);color:#86efac}
+body.theme-dark .abs-kpi.red .abs-kpi-value{color:#fca5a5}
+body.theme-dark .abs-panel-title svg{color:#86efac}
+body.theme-dark .abs-field-error{color:#fca5a5}
+</style>
   {% block assenze_shell_head %}{% endblock %}
 {% endblock %}
 

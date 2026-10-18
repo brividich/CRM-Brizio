@@ -322,3 +322,20 @@ body.theme-dark .monitoring-kpi-value { color: var(--text); }
     display: none;
   }
 }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .monitoring-modal-subtitle{color:var(--text-light)}
+body.theme-dark .monitoring-modal-status{color:var(--text-light)}
+body.theme-dark .monitoring-modal-status.is-error{color:#fca5a5}
+body.theme-dark .monitoring-modal-status.is-success{color:#86efac}
+body.theme-dark .monitoring-subnav-action{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .monitoring-subnav-action:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .monitoring-kpi-label{color:var(--text-light)}
+body.theme-dark .monitoring-meta{color:var(--text-light)}
+body.theme-dark .monitoring-pill.severity-low,body.theme-dark .monitoring-pill.status-resolved{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .monitoring-pill.severity-medium,body.theme-dark .monitoring-pill.status-triage{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .monitoring-pill.severity-high,body.theme-dark .monitoring-pill.status-in_progress{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .monitoring-pill.severity-critical,body.theme-dark .monitoring-pill.status-new{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .monitoring-pill.status-ignored,body.theme-dark .monitoring-pill.source-user_manual{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .monitoring-pill.source-automation,body.theme-dark .monitoring-pill.source-system_watchdog{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .monitoring-note{color:var(--text-light)}
