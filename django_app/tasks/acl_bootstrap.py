@@ -176,8 +176,9 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_minute_pdf": "tasks.kickoff.projects",
     "tasks:project_vrf_upload": "tasks.kickoff.projects",
     "tasks:project_vrf_compile": "tasks.kickoff.projects",
-    # Bridge attrezzature — ACL effettivo gestito dal modulo attrezzature
-    "tasks:attrezzature_action": "tasks.kickoff.view",
+    # Bridge attrezzature: il binding di tasks:attrezzature_action lo scrive solo
+    # il modulo attrezzature (attrezzature.kickoff.link). Due binding sulla stessa
+    # rotta si sovrascrivevano a ogni avvio.
 }
 
 _ROLE_GRANTS = {
