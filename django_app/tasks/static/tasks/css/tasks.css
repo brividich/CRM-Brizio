@@ -4300,33 +4300,36 @@ body.theme-dark .ts-card-text{color:var(--text-light)}
 body.theme-dark .ts-card-meta{color:var(--text-light)}
 body.theme-dark .ts-card-link:hover .ts-card-title{color:#93c5fd}
 body.theme-dark .ts-field-error{color:#fca5a5}
+body.theme-dark .meetings-hero-icon{background:rgba(255,255,255,.06)}
 body.theme-dark .meetings-hero-cta{color:#93c5fd}
 body.theme-dark .meeting-num{color:#93c5fd}
 body.theme-dark .vrf-preview-table td:first-child{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .task-attach-icon{color:#86efac}
 body.theme-dark .task-attachment-link:hover{color:#93c5fd}
 body.theme-dark .tf-panel-accent{background:var(--surface-alt,#0f1b2d)}
-body.theme-dark .tf-kicker{color:#93c5fd}
-body.theme-dark .tf-search-tag{color:#93c5fd}
-body.theme-dark .tf-id-chip.pn{color:#93c5fd}
-body.theme-dark .tf-banner{color:#93c5fd}
-body.theme-dark .date-suggestion-banner{color:#93c5fd}
-body.theme-dark .status-badge.todo{color:#93c5fd}
 body.theme-dark .tf-asset-conflict{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .tf-asset-conflict-head .badge{background:var(--surface)}
+body.theme-dark .md-hero-num{background:rgba(255,255,255,.06)}
+body.theme-dark .md-btn.ghost{background:rgba(255,255,255,.06)}
+body.theme-dark .md-btn.ghost:hover{background:rgba(255,255,255,.06)}
 body.theme-dark .md-presenze-count{color:#93c5fd}
 body.theme-dark .tl-task-link:hover{color:#93c5fd}
 body.theme-dark .tl-ko-link:hover{color:#93c5fd}
+body.theme-dark .pk-header-chip{background:rgba(255,255,255,.06)}
 body.theme-dark .kb-col.col-todo    .kb-col-count{background:rgba(139,92,246,.2)}
 body.theme-dark .kb-col.col-done    .kb-col-count{color:#86efac}
 body.theme-dark .pk-task-title:hover{color:#93c5fd}
 body.theme-dark .gantt-page{--g-head-bg:var(--surface-alt,#0f1b2d)}
+body.theme-dark .g-progress-bar-wrap{background:rgba(255,255,255,.06)}
+body.theme-dark .g-progress-pill{background:rgba(255,255,255,.06)}
 body.theme-dark .g-health-card.blue  .g-health-value{color:#93c5fd}
 body.theme-dark .g-health-card.teal  .g-health-value{color:#86efac}
-body.theme-dark .g-flag:has(input:checked){color:#fdba74}
 body.theme-dark .gantt-task-link:hover{color:#93c5fd}
 body.theme-dark .quick-edit-head a:hover{color:#93c5fd}
 body.theme-dark .ts-gantt-cm .gmac-title{color:#93c5fd}
 body.theme-dark .ts-gantt-cm .gmac-title:hover{color:#93c5fd}
-body.theme-dark .ts-gantt-cm .gbar.status-canceled{color:var(--text-mid)}
+body.theme-dark .ts-gantt-cm .ghandle{background:rgba(255,255,255,.06)}
+body.theme-dark .mf-header-icon{background:rgba(255,255,255,.06)}
 body.theme-dark .agenda-add-title{color:#93c5fd}
 body.theme-dark .mf-toggle::before{background:var(--surface)}
 body.theme-dark .mf-recap a{color:#93c5fd}

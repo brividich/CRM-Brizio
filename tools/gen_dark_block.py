@@ -99,6 +99,7 @@ def top_level_rules(css: str):
 
 def dark_decls(body: str) -> list[str]:
     out = []
+    bg_seen = bg_mapped = False
     for decl in body.split(";"):
         if ":" not in decl:
             continue
@@ -106,6 +107,9 @@ def dark_decls(body: str) -> list[str]:
         prop, val = prop.strip().lower(), val.strip()
         if "!important" in val:
             continue
+        n_before = len(out)
+        if prop in ("background", "background-color") and val not in ("none", "transparent") and not val.startswith("var("):
+            bg_seen = True
         if prop.startswith("--"):
             # token di sotto-tema (--fmd-navy, --hub-ink...): ribaltato solo se il nome dice a cosa serve
             tok = _token_dark(prop, val)
@@ -129,14 +133,24 @@ def dark_decls(body: str) -> list[str]:
                 hexes = re.findall(r"#([0-9a-fA-F]{3,6})(?![0-9a-fA-F])", val)
                 if hexes and all(_lum(h) > 0.85 for h in hexes):
                     out.append("background:var(--surface-alt,#0f1b2d)")
-                continue
-            tok = _lookup(BG, val)
-            if tok:
-                out.append(f"background:{tok}")
+            else:
+                m = re.match(r"rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*([0-9.]+)\s*\)", val)
+                if m:  # bianco traslucido: opaco -> superficie, velo -> resta un velo chiaro
+                    out.append("background:var(--surface)" if float(m.group(1)) >= 0.5 else "background:rgba(255,255,255,.06)")
+                else:
+                    tok = _lookup(BG, val)
+                    if tok:
+                        out.append(f"background:{tok}")
+            if len(out) > n_before:
+                bg_mapped = True
         elif prop in ("border", "border-color", "border-top", "border-bottom", "border-left", "border-right"):
             tok = _lookup(BORDER, val)
             if tok:
                 out.append(f"border-color:{tok}")
+    if bg_seen and not bg_mapped:
+        # sfondo colorato che resta com'e' (giallo, verde, arancio...): il testo era scelto per quello sfondo,
+        # ribaltarlo lo renderebbe chiaro su chiaro
+        out = [d for d in out if not d.startswith("color:")]
     return out
 
 
@@ -146,9 +160,16 @@ def build_block(css: str, src: str = "") -> str:
         if "theme-dark" in sel:
             continue
         first = sel.split(",")[0].strip()
-        if src and re.search(r"theme-dark\s+" + re.escape(first) + r"\s*[,{:\s]", src):
-            continue  # gia' coperto da un gemello scritto a mano
         decls = dark_decls(body)
+        if src and decls:
+            # gemello scritto a mano per lo stesso selettore: tengo solo le proprieta' che NON imposta gia'
+            # (es. un blocco a mano che ribalta il bordo di .tabs ma dimentica lo sfondo bianco)
+            covered: set[str] = set()
+            for m in re.finditer(r"theme-dark\s+" + re.escape(first) + r"\s*(?:,[^{]*)?\{([^}]*)\}", src):
+                covered.update(d.partition(":")[0].strip().lower() for d in m.group(1).split(";") if ":" in d)
+            if "background" in covered:
+                covered.add("background-color")
+            decls = [d for d in decls if d.partition(":")[0] not in covered]
         if not decls:
             continue
         sels = ",".join(("body.theme-dark" if s.strip() in (":root", "html", "body") else "body.theme-dark " + s.strip()) for s in sel.split(",") if s.strip())

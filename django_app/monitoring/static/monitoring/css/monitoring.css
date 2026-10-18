@@ -328,6 +328,8 @@ body.theme-dark .monitoring-modal-subtitle{color:var(--text-light)}
 body.theme-dark .monitoring-modal-status{color:var(--text-light)}
 body.theme-dark .monitoring-modal-status.is-error{color:#fca5a5}
 body.theme-dark .monitoring-modal-status.is-success{color:#86efac}
+body.theme-dark .nav-report-btn,body.theme-dark .app-header-report-btn{background:rgba(255,255,255,.06)}
+body.theme-dark .nav-report-btn:hover,body.theme-dark .app-header-report-btn:hover{background:rgba(255,255,255,.06)}
 body.theme-dark .monitoring-subnav-action{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
 body.theme-dark .monitoring-subnav-action:hover{background:var(--surface-alt,#0f1b2d)}
 body.theme-dark .monitoring-kpi-label{color:var(--text-light)}

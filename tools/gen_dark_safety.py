@@ -25,10 +25,10 @@ BG = {
     "var(--surface)": ["fff", "ffffff", "fafafa"],
     "var(--surface-alt,#0f1b2d)": ["f8fafc", "f1f5f9", "f9fafb", "f3f4f6", "eef2f7", "eef3f8", "eef1f6", "e2e8f0", "f5f7fa", "f4f6f8", "f8fbff", "fbfdff", "f6f8fb", "f5f7fb", "f7f9fc", "f9fbfd", "f5f5f5", "f0f3f7"],
     "rgba(229,62,62,.16)": ["fee2e2", "fef2f2", "fff5f5", "fecaca", "fde2e2"],
-    "rgba(214,158,46,.16)": ["fef3c7", "fffbeb", "fff7ed", "ffedd5", "fdf1de", "fff1e3", "fff5ec", "fef9c3", "fef08a", "fed7aa", "fef4d0"],
-    "rgba(59,130,246,.18)": ["dbeafe", "eff6ff", "e0f2fe", "e4f1fb", "e0f7ff", "bfdbfe", "dfedfe"],
+    "rgba(214,158,46,.16)": ["fef3c7", "fffbeb", "fff7ed", "ffedd5", "fdf1de", "fff1e3", "fff5ec", "fef9c3", "fef08a", "fed7aa", "fef4d0", "f8f0e2"],
+    "rgba(59,130,246,.18)": ["dbeafe", "eff6ff", "e0f2fe", "e4f1fb", "e0f7ff", "bfdbfe", "dfedfe", "ecfeff", "cffafe"],
     "rgba(56,161,105,.18)": ["dcfce7", "d1fae5", "f0fdf4", "f0fdfa", "ecfdf5", "bbf7d0", "daf8e5"],
-    "rgba(139,92,246,.2)": ["ede9fe", "f5f3ff", "ddd6fe", "e0e7ff"],
+    "rgba(139,92,246,.2)": ["ede9fe", "f5f3ff", "ddd6fe", "e0e7ff", "eef2ff"],
 }
 # variabili fittizie usate inline (non esistono in theme.css: resta sempre la riserva chiara)
 FAKE_VARS = ["var(--bg-alt", "var(--bg-card", "var(--bg-hover", "var(--surface-2"]
@@ -52,10 +52,22 @@ def sels(prop, hexes):
     return ",\n".join(out)
 
 
+def attr_sels(prop, hexes):
+    """Solo i selettori di attributo, senza prefisso (per :is())."""
+    return ",".join(f'[style*="{prop}:{sp}#{h}" i]' for h in hexes for sp in ("", " "))
+
+
 def main(out_path):
-    lines = [HEADER, "/* 1. Testo scuro -> token del tema (il testo chiaro inline, es. #fff su bottoni colorati, non viene toccato). */"]
+    # sfondi inline che la sezione 2 sa ribaltare: solo su questi (o senza sfondo inline) il testo va ribaltato;
+    # su uno sfondo colorato che resta com'e' (giallo, verde...) il testo scuro era giusto e deve restare
+    mapped_bg = ",".join(attr_sels(p, h) for p in ("background", "background-color") for h in BG.values()) \
+        + "," + ",".join(f'[style*="{v}" i]' for v in FAKE_VARS)
+    lines = [HEADER, "/* 1. Testo scuro -> token del tema: se l'elemento non ha uno sfondo inline, oppure ha uno sfondo che la",
+             "   sezione 2 ribalta. Il testo chiaro inline (es. #fff su bottoni colorati) non viene toccato. */"]
     for tok, hexes in TEXT.items():
-        lines.append(sels("color", hexes) + f"{{color:{tok}!important}}")
+        text_sels = attr_sels("color", hexes)
+        lines.append(f'body.theme-dark :is({text_sels}):not([style*="background" i]),\n'
+                     f'body.theme-dark :is({mapped_bg}):is({text_sels}){{color:{tok}!important}}')
     lines.append("")
     lines.append("/* 2. Sfondi chiari -> superficie del tema o tinta semantica traslucida. Prima i neutri (#fff), poi le tinte")
     lines.append("   (#fff7ed...): il selettore e' per sottostringa e a pari specificita' vince l'ultima regola. */")
