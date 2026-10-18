@@ -1,0 +1,38 @@
+<h3 id="guida-cosa">A cosa serve</h3>
+<p>Il Centro report mette in un unico elenco tutti i report che il portale produce: PDF, Excel, CSV, Word e ZIP. I report <strong>si generano sempre dal loro modulo</strong>: il pulsante «Apri» porta alla pagina giusta. Qui si vede cosa esiste, chi ha scaricato cosa e con quale veste grafica escono i documenti.</p>
+
+<h3 id="guida-catalogo">Catalogo</h3>
+<ul>
+  <li>«Cerca nel catalogo» filtra mentre scrivi, su nome e descrizione del report, modulo, formato e norma.</li>
+  <li>I report sono divisi per modulo. Per ognuno trovi i formati, la veste («Template PDF del portale», «Excel con intestazione», «Dati (senza veste)», «Componibile dal modulo», «Modello su misura», «Pagina da stampare») e gli scaricamenti degli ultimi 30 giorni.</li>
+  <li>L'etichetta <strong>«Dati personali»</strong> segna i report che contengono dati di persone: sono quelli da tenere d'occhio nel registro.</li>
+  <li>«Registro» apre la scheda Registro filtrata su quel report, sugli ultimi 365 giorni.</li>
+  <li>Le «Pagine a video» (report consultati e stampati dal browser) non producono un file e quindi non compaiono nel registro.</li>
+  <li><strong>Route da catalogare</strong>: file scaricati da pagine che il catalogo non conosce ancora. Vengono registrati lo stesso, ma senza nome del report né indicazione dei dati personali: vanno segnalati per aggiungerli al catalogo.</li>
+</ul>
+
+<h3 id="guida-registro">Registro emissioni</h3>
+<ul>
+  <li>Ogni file di report scaricato viene registrato in automatico: data, persona (e, se stava impersonando, chi), report, formato, nome e dimensione del file, filtri usati e indirizzo IP.</li>
+  <li><strong>Il file non viene conservato.</strong> Si conserva solo la sua impronta SHA-256: incollandola in «Cerca» si scopre se un file in circolazione è uscito dal portale, quando e a chi.</li>
+  <li>I filtri «Periodo» (7, 30, 90 o 365 giorni), «Modulo», «Formato», «Cerca» (persona, nome del file o impronta) e «Solo con dati personali» si combinano; «Esporta CSV» scarica le stesse righe (al massimo 20.000), e anche questo scaricamento finisce nel registro.</li>
+  <li><strong>Conservazione del registro</strong>: le registrazioni più vecchie della soglia (predefinita 730 giorni, massimo 3650) vengono eliminate ogni notte alle 02:45. Con 0 si conservano per sempre.</li>
+  <li>Gli allegati caricati dagli utenti (documenti, referti, allegati di ticket…) non sono report e restano fuori dal registro.</li>
+</ul>
+
+<h3 id="guida-layout">Layout</h3>
+<ul>
+  <li>Un <strong>profilo di layout</strong> cambia la veste dei report che usano il template del portale: colore primario e di accento, logo, piè di pagina, filigrana, data di generazione e numero di pagina. I campi lasciati vuoti restano quelli del <a href="{% url 'admin_portale:pdf_template_config' %}">Template PDF</a> globale.</li>
+  <li>La <strong>filigrana</strong> (es. «BOZZA», «COPIA NON CONTROLLATA») è scritta in diagonale su ogni pagina dei PDF; negli Excel con intestazione compare in rosso in testa al foglio.</li>
+  <li>«Anteprima PDF» genera un documento dimostrativo con il profilo, per controllarlo prima di assegnarlo.</li>
+  <li>In «Chi usa quale profilo» assegni un profilo a un intero modulo o a un singolo report: <strong>il report vince sul modulo</strong>; «— template globale —» e «— come il modulo —» tolgono l'assegnazione. Le modifiche valgono dal report successivo, dopo «Salva assegnazioni».</li>
+  <li>Un profilo «Disattivato» resta assegnato ma non si applica. Eliminando un profilo i report assegnati tornano al template globale.</li>
+  <li>I modelli su misura (attestati, MOD.040, fogli firme, etichette) e le esportazioni di soli dati hanno una veste propria e non cambiano con i profili.</li>
+</ul>
+
+<h3 id="guida-problemi">Se qualcosa non torna</h3>
+<ul>
+  <li><strong>Un report scaricato non compare nel registro</strong>: è una pagina a video, un allegato caricato, oppure il download è fallito (si registrano solo i file consegnati con successo).</li>
+  <li><strong>Il profilo non cambia il PDF</strong>: verifica che sia «Attivo», che il report sia tra quelli elencati in «Chi usa quale profilo» e che non abbia un'assegnazione propria che vince su quella del modulo. Nel registro, la colonna del report mostra il profilo effettivamente applicato.</li>
+  <li><strong>Il logo non compare</strong>: deve essere un PNG o JPG sotto /media/; SVG e WebP non sono supportati e al loro posto si vede il monogramma.</li>
+</ul>
