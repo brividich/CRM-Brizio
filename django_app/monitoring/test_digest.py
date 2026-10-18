@@ -10,8 +10,13 @@ from monitoring.digest import build_system_digest, render_system_digest
 from monitoring.models import Issue
 
 # Il DB di test non ha backup configurati: i check di backup (che nel digest di
-# produzione devono comparire) qui segnalerebbero «nessun backup». Si escludono.
-_SENZA_BACKUP = [n for n in health.available_checks() if n not in health.BACKUP_CHECK_NAMES]
+# produzione devono comparire) qui segnalerebbero «nessun backup». Si escludono,
+# come i check dell'infrastruttura (qcluster, disco, certificato), che dipendono
+# dalla macchina su cui girano i test.
+_SENZA_BACKUP = [
+    n for n in health.available_checks()
+    if n not in health.BACKUP_CHECK_NAMES and n not in health.INFRA_CHECK_NAMES
+]
 
 
 @override_settings(READYZ_CHECKS_ENABLED=_SENZA_BACKUP, READYZ_TTL_SECONDS=0)

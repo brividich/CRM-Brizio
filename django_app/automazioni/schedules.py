@@ -454,6 +454,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Server: qcluster, coda django-q, spazio su disco, certificato https. Issue nella
+        # centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). Il controllo
+        # «qcluster fermo» da qui non può avvisare se il qcluster è fermo: per quello
+        # c'è anche il comando infra_health_alert da Utilità di pianificazione.
+        "name": "infra_health_alert",
+        "func": "monitoring.tasks.run_infra_health_alert",
+        "schedule_type": "I",       # Schedule.MINUTES
+        "minutes": 30,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in
         # scadenza come notifiche portale (idempotente, fired flag). Porta i
         # promemoria nello scheduler centralizzato al posto del Task Windows.

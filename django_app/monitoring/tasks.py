@@ -64,6 +64,12 @@ def run_system_digest(**kwargs) -> dict:
     return result
 
 
+def run_infra_health_alert(**kwargs) -> dict:
+    """Entry point schedulato: qcluster, coda, disco e certificato https → Issue nella
+    centrale ed email agli admin solo per gli stati critici (dedup e quiet hours)."""
+    return health.run_infra_health_alert(force_email=bool(kwargs.get("force_email", False)))
+
+
 def run_backup_health_alert(**kwargs) -> dict:
     """Entry point schedulato: check di backup e ripristino → Issue nella centrale ed
     email agli admin solo per gli stati critici (dedup e quiet hours del monitoring)."""

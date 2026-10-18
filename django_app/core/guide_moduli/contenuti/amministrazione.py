@@ -137,6 +137,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "allarmi-server",
+            "titolo": "Allarmi del server",
+            "blocchi": [
+                ("p", "Ogni 30 minuti (lavoro «infra_health_alert») il portale controlla quattro cose e le mostra nella Centrale di comando:"),
+                ("def", [
+                    ("qcluster", "l'ultimo lavoro pianificato completato. Oltre 40 minuti senza niente = qcluster fermo: automazioni, mail e SOC non girano."),
+                    ("qcluster_coda", "lavori in attesa (oltre 50 = avviso) e lavori falliti nelle ultime 24 ore, con il nome."),
+                    ("disk_space", "spazio libero dei dischi con log, file caricati, archivi privati e area dei backup: sotto il 15% avviso, sotto il 5% guasto."),
+                    ("tls_cert", "giorni alla scadenza del certificato https del portale: 30 avviso, 7 guasto."),
+                ]),
+                ("ul", [
+                    "Avvisi e guasti aprono una segnalazione nella Centrale, che si chiude da sola quando torna tutto a posto.",
+                    "Solo i guasti mandano una mail agli amministratori, una volta per problema, mai di notte (stesse regole degli allarmi dei backup).",
+                    "Se il qcluster è fermo, l'allarme dal qcluster non parte: registra anche il comando infra_health_alert in Utilità di pianificazione "
+                    "(register-backup-tasks.ps1 -IncludeInfraAlert). Dal terminale: infra_health_alert --solo-mostra mostra lo stato senza avvisare.",
+                ]),
+            ],
+        },
+        {
             "id": "audit-sigillo",
             "titolo": "Audit sigillato (non modificabile)",
             "blocchi": [
@@ -162,6 +181,20 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Mail «[SERVER CRITICO] qcluster»",
+            "fare": [
+                "Il qcluster non completa lavori da oltre 40 minuti: riavvialo (Manuale di emergenza → «qcluster»).",
+                "Dopo il riavvio la segnalazione nella Centrale si chiude da sola al giro successivo.",
+            ],
+        },
+        {
+            "sintomo": "Mail «[SERVER CRITICO] disk_space» o «tls_cert»",
+            "fare": [
+                "disk_space: la mail dice quale disco e quali cartelle. Libera spazio (log vecchi, area di lavoro dei backup) o allarga il disco.",
+                "tls_cert: il certificato https sta per scadere o è scaduto: rinnovalo e aggiornalo nel binding https di IIS.",
+            ],
+        },
         {
             "sintomo": "Mail «[AUDIT] Catena dei sigilli rotta»",
             "fare": [

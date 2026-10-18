@@ -167,3 +167,15 @@
 .rp-pag-ecc { border-style: dashed; border-color: var(--warning); font-weight: 600; }
 /* Anteprima: la cella e' cambiata ma non ancora salvata. */
 .rp-pag-dasalvare { border-style: solid; border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 600; }
+
+/* Simulatore: «Prova un ruolo» e «Confronta due ruoli» */
+.rp-prova { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 10px 0 14px; }
+.rp-prova label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-mid); }
+.rp-prova select { min-width: 200px; }
+.rp-effetto { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.rp-effetto-table { width: 100%; margin: 8px 0; }
+.rp-scroll-x { overflow-x: auto; max-width: 100%; }
+.rp-effetto-table tr.rp-guadagna td { background: var(--success-bg); }
+.rp-effetto-table tr.rp-perde td { background: var(--danger-bg); }
+.rp-effetto-table tr.rp-diverso td { background: var(--warning-bg, rgba(245, 158, 11, .12)); }
+@media (max-width: 640px) { .rp-prova select { min-width: 0; width: 100%; } .rp-prova label { flex: 1 1 100%; } }

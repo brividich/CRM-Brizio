@@ -30,6 +30,7 @@
     <a href="?tab=matrice" class="{% if tab == 'matrice' %}active{% endif %}">Matrice dei ruoli</a>
     <a href="?tab=modulo" class="{% if tab == 'modulo' %}active{% endif %}">Riepilogo per modulo</a>
     <a href="?tab=anteprima" class="{% if tab == 'anteprima' %}active{% endif %}">Cosa vede questa persona</a>
+    <a href="?tab=confronta" class="{% if tab == 'confronta' %}active{% endif %}">Confronta due ruoli</a>
     <a href="?tab=registro" class="{% if tab == 'registro' %}active{% endif %}">Registro modifiche</a>
     <a href="?tab=sistema" class="{% if tab == 'sistema' %}active{% endif %}">Sistema</a>
     <a href="?tab=guida" class="{% if tab == 'guida' %}active{% endif %}">Guida</a>
@@ -389,6 +390,50 @@
         Team d'organigramma: {% if team %}{{ team|length }} persone ({{ team|join:", " }}){% else %}nessuno{% endif %}.
         {% if not sistema_attivo %}<strong>Il sistema è spento:</strong> oggi valgono ancora le regole storiche; questa è la situazione dopo l'attivazione.{% endif %}
       </div>
+
+      <form method="get" class="rp-prova">
+        <input type="hidden" name="tab" value="anteprima">
+        <input type="hidden" name="persona" value="{{ persona.id }}">
+        <span class="acl-text"><strong>Prova un ruolo</strong> (non salva niente):</span>
+        <label>aggiungi
+          <select class="input" name="prova_aggiungi">
+            <option value="">—</option>
+            {% for r in ruoli_da_provare %}<option value="{{ r.id }}" {% if r.id == prova_aggiungi %}selected{% endif %}>{{ r.label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>togli
+          <select class="input" name="prova_togli">
+            <option value="">—</option>
+            {% for r in ruoli_da_togliere %}<option value="{{ r.id }}" {% if r.id == prova_togli %}selected{% endif %}>{{ r.label }}</option>{% endfor %}
+          </select>
+        </label>
+        <button class="btn" type="submit">Mostra cosa cambia</button>
+        {% if effetto is not None %}<a class="btn btn-secondary" href="?tab=anteprima&persona={{ persona.id }}">Annulla la prova</a>{% endif %}
+      </form>
+      {% if effetto is not None %}
+        <div class="rp-effetto">
+          <div class="card-title" style="font-size:15px;">
+            Se {% if prova_aggiungi_label %}aggiungi «{{ prova_aggiungi_label }}»{% endif %}{% if prova_aggiungi_label and prova_togli_label %} e {% endif %}{% if prova_togli_label %}togli «{{ prova_togli_label }}»{% endif %}:
+            {% if effetto %}{{ effetto|length }} cambi{% else %}non cambia niente{% endif %}
+          </div>
+          {% if effetto %}
+          <div class="acl-table-wrap rp-scroll-x"><table class="acl-table rp-effetto-table">
+            <thead><tr><th>Modulo</th><th>Azione</th><th>Oggi</th><th>Dopo</th></tr></thead>
+            <tbody>
+              {% for c in effetto %}
+              <tr class="{% if c.guadagna %}rp-guadagna{% elif c.perde %}rp-perde{% endif %}">
+                <td>{{ c.modulo.nome }}</td>
+                <td>{{ c.label }}</td>
+                <td>{% if c.prima.consentito %}<span class="acl-chip allow">{{ c.prima.ambito_label }}</span>{% else %}<span class="acl-chip unset">no</span>{% endif %}</td>
+                <td>{% if c.dopo.consentito %}<span class="acl-chip allow" title="{{ c.dopo.motivo }}">{{ c.dopo.ambito_label }}</span>{% else %}<span class="acl-chip deny" title="{{ c.dopo.motivo }}">no</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+          {% endif %}
+          <div class="acl-muted">Per renderlo vero: scheda «Persone», scegli la persona e assegna o togli il ruolo.</div>
+        </div>
+      {% endif %}
       {% for r in righe %}
         <div class="rp-preview-mod{% if not r.qualcosa %} rp-preview-off{% endif %}">
           <div class="rp-preview-head">
@@ -406,6 +451,50 @@
       {% endfor %}
     {% elif not errore %}
       <div class="acl-empty">Cerca una persona per vedere, modulo per modulo, cosa può fare e su quali dati.</div>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if tab == "confronta" %}
+  <div class="card"><div class="card-body">
+    <form method="get" class="rp-prova">
+      <input type="hidden" name="tab" value="confronta">
+      <label>Ruolo A
+        <select class="input" name="a" required>
+          <option value="">— scegli —</option>
+          {% for r in ruoli_tutti %}<option value="{{ r.id }}" {% if ruolo_a and r.id == ruolo_a.id %}selected{% endif %}>{{ r.label }}{% if not r.is_active %} (disattivo){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Ruolo B
+        <select class="input" name="b" required>
+          <option value="">— scegli —</option>
+          {% for r in ruoli_tutti %}<option value="{{ r.id }}" {% if ruolo_b and r.id == ruolo_b.id %}selected{% endif %}>{{ r.label }}{% if not r.is_active %} (disattivo){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="btn" type="submit">Confronta</button>
+    </form>
+    {% if confronto %}
+      <div class="card-title" style="font-size:15px;margin-top:12px;">
+        «{{ ruolo_a.label }}» contro «{{ ruolo_b.label }}»: {% if confronto.differenze %}{{ confronto.differenze }} differenze{% else %}fanno le stesse cose{% endif %}
+      </div>
+      <div class="acl-muted" style="margin-bottom:10px;">Ogni ruolo è guardato da solo, senza il ruolo base e senza l'organigramma. Le righe evidenziate sono diverse.</div>
+      <div class="acl-table-wrap rp-scroll-x"><table class="acl-table rp-effetto-table">
+        <thead><tr><th>Modulo</th><th>Azione</th><th>{{ ruolo_a.label }}</th><th>{{ ruolo_b.label }}</th></tr></thead>
+        <tbody>
+          {% for m in confronto.moduli %}{% for r in m.righe %}
+          <tr class="{% if r.diverso %}rp-diverso{% endif %}">
+            <td>{% if forloop.first %}<strong>{{ m.modulo.nome }}</strong>{% endif %}</td>
+            <td>{{ r.label }}</td>
+            <td>{% if r.a.consentito %}<span class="acl-chip allow">{{ r.a.ambito_label }}</span>{% else %}<span class="acl-chip unset">no</span>{% endif %}</td>
+            <td>{% if r.b.consentito %}<span class="acl-chip allow">{{ r.b.ambito_label }}</span>{% else %}<span class="acl-chip unset">no</span>{% endif %}</td>
+          </tr>
+          {% endfor %}{% empty %}
+          <tr><td colspan="4" class="acl-muted">Nessuno dei due ruoli concede qualcosa.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% elif not ruolo_a or not ruolo_b %}
+      <div class="acl-empty" style="margin-top:12px;">Scegli due ruoli: si vedono, modulo per modulo, le azioni che concedono e su quali dati, con le differenze evidenziate.</div>
     {% endif %}
   </div></div>
   {% endif %}

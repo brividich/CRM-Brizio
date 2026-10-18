@@ -617,6 +617,62 @@ def run_backup_health_alert(*, force_email: bool = False) -> dict[str, Any]:
     return payload
 
 
+# Controlli dell'infrastruttura (monitoring.infra_checks): nel registro come attributi
+# di questo modulo, così Centrale di comando e /readyz li vedono e i test li patchano.
+from monitoring.infra_checks import (  # noqa: E402
+    check_disk_space,
+    check_qcluster,
+    check_qcluster_coda,
+    check_tls_cert,
+)
+
+INFRA_CHECK_NAMES = ("qcluster", "qcluster_coda", "disk_space", "tls_cert")
+_INFRA_ALERT_STATE_KEY = "monitoring:infra-alert:fingerprint"
+
+
+def run_infra_checks() -> list[CheckResult]:
+    return [_timed(_resolve_check(n)) for n in INFRA_CHECK_NAMES]
+
+
+def run_infra_health_alert(*, force_email: bool = False) -> dict[str, Any]:
+    """Check dell'infrastruttura → segnalazioni nella Centrale (WARN = media, FAIL =
+    alta, chiuse quando tornano OK) e mail agli amministratori solo per i FAIL, con la
+    stessa deduplica e le stesse fasce di silenzio degli alert di backup."""
+    checks = run_infra_checks()
+    try:
+        from monitoring.models import Issue
+        from monitoring.services import open_or_update_issue_from_health_check, resolve_health_check_issue
+
+        for c in checks:
+            key = f"infra_{c.name}"
+            if c.status in (STATUS_WARN, STATUS_FAIL):
+                open_or_update_issue_from_health_check(
+                    check_name=key, title=f"Server · {c.name}: {c.status.upper()}" + (f" — {c.message}" if c.message else ""),
+                    message=c.message or "", severity=Issue.Severity.HIGH if c.status == STATUS_FAIL else Issue.Severity.MEDIUM,
+                    category=Issue.Category.SYSTEM, module_name="monitoring",
+                    extra_json={"check": c.name, "status": c.status, "details": c.details}, notify=False,
+                )
+            elif c.status == STATUS_OK:
+                resolve_health_check_issue(check_name=key, category=Issue.Category.SYSTEM, summary=f"{c.name} tornato OK.")
+    except Exception:
+        logger.exception("Sync Issue infrastruttura fallito")
+    failed = [c for c in checks if c.status == STATUS_FAIL]
+    payload = {"status": _aggregate_status(checks), "emailed": False, "checks": [asdict(c) for c in checks]}
+    if not failed:
+        cache.delete(_INFRA_ALERT_STATE_KEY)
+        return payload
+    env_label = getattr(settings, "MONITORING_ENVIRONMENT", "") or ""
+    lines = ["Controlli del server in stato critico:", ""]
+    lines += [f"- {c.name}: {c.message}" for c in failed]
+    lines += ["", "Dettaglio: Amministrazione → Centrale di comando. Guida: Centro guide → Amministrazione → «Allarmi del server»."]
+    payload["emailed"] = emit_monitoring_alert(
+        subject="[SERVER CRITICO] " + ", ".join(c.name for c in failed) + (f" — {env_label}" if env_label else ""),
+        body="\n".join(lines), fingerprint=";".join(f"{c.name}:{c.status}" for c in failed),
+        state_key=_INFRA_ALERT_STATE_KEY, force=force_email,
+    )
+    return payload
+
+
 def run_ai_checks() -> list[CheckResult]:
     """Esegue i check AI con timing/isolamento eccezioni (come il readyz)."""
     return [_timed(check_ollama_chat), _timed(check_embeddings)]
@@ -639,6 +695,10 @@ _CHECK_REGISTRY: dict[str, str] = {
     "restore_drill": "check_restore_drill",
     "recovery_kit": "check_recovery_kit",
     "db_capacity": "check_db_capacity",
+    "qcluster": "check_qcluster",
+    "qcluster_coda": "check_qcluster_coda",
+    "disk_space": "check_disk_space",
+    "tls_cert": "check_tls_cert",
 }
 
 

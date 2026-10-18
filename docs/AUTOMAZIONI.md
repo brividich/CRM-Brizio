@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 71
+**Totale automazioni disponibili:** 72
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -273,6 +273,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 30 minuti
 - **Task eseguito:** `monitoring.tasks.run_backup_health_alert`
 - **Cosa fa:** Backup e ripristino (BUILD_SPEC R2): età dell'ultimo FULL, catena dei log, prova di ripristino, Recovery Kit, capacità del DB. Issue nella centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). I backup veri girano da Task Scheduler (register-backup-tasks.ps1), non da qui: questo solo controlla.
+
+### `infra_health_alert`
+
+- **Quando gira:** ogni 30 minuti
+- **Task eseguito:** `monitoring.tasks.run_infra_health_alert`
+- **Cosa fa:** Server: qcluster, coda django-q, spazio su disco, certificato https. Issue nella centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). Il controllo «qcluster fermo» da qui non può avvisare se il qcluster è fermo: per quello c'è anche il comando infra_health_alert da Utilità di pianificazione.
 
 ### `system_digest`
 
