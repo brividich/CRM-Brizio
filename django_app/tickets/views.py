@@ -5,7 +5,6 @@ import io
 import json
 import logging
 import mimetypes
-import os
 from io import BytesIO
 from datetime import datetime, timedelta, timezone as dt_timezone
 from functools import wraps
@@ -19,13 +18,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.timezone import now as tz_now
 from django.views.decorators.http import require_POST
-from reportlab.lib.colors import HexColor, white, black
+from reportlab.lib.colors import HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT
 
 from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
 
@@ -35,8 +31,6 @@ from core.audit import log_action
 from core.permessi import puo_fare, sistema_ruoli_attivo, utenti_visibili
 
 from .models import (
-    CATEGORIE_IT,
-    CATEGORIE_MAN,
     CategoriaTicket,
     EsitoIntervento,
     PrioritaTicket,
@@ -2193,7 +2187,7 @@ def api_cerca_utenti(request):
 
     results = []
     try:
-        from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+        from core.legacy_models import AnagraficaDipendente
         from django.db.models import Q
 
         # Cerca in anagrafica_dipendenti (nome + cognome) e utenti (email/UPN)
@@ -2255,7 +2249,6 @@ def api_test_sp(request):
         return _json_err("List ID vuoto")
 
     try:
-        import os
         from core.graph_utils import acquire_graph_token, is_placeholder_value
         from config.env_config import get_first_env_value
 

@@ -45,7 +45,6 @@ from ..models import (
     TaskCategory,
     TaskImpostazioni,
     TaskPriority,
-    TaskStatus,
 )
 from ..access import (
     can_manage_project,
@@ -83,7 +82,6 @@ from ..services.notify import (
 from ._shared import (
     _safe_int,
     _tasks_shell_context,
-    _vrf_status_detail,
 )
 from ._tooling import (
     _apply_task_tooling_action,

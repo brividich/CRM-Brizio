@@ -50,7 +50,6 @@ def _complete_onboarding(user) -> None:
 
 def _make_user_with_legacy(username: str, legacy_user_id: int, ruolo_id: int = 1, ruolo: str = "utente"):
     """Crea un Django user con Profile associato a un legacy_user_id fittizio."""
-    from core.legacy_models import UtenteLegacy
 
     user = User.objects.create_user(username=username, password="pass12345")
     Profile.objects.create(user=user, legacy_user_id=legacy_user_id, legacy_ruolo_id=ruolo_id, legacy_ruolo=ruolo)

@@ -139,7 +139,7 @@ def _short_code(nome: str, prefix: str = "", max_len: int = 20) -> str:
     """
     nome = _norm(nome)
     slug = re.sub(r"[^A-Z0-9]+", "_", nome.upper()).strip("_")
-    h = hashlib.sha1(nome.encode("utf-8")).hexdigest()[:6].upper()
+    h = hashlib.sha1(nome.encode("utf-8"), usedforsecurity=False).hexdigest()[:6].upper()
     body_max = max_len - len(prefix) - 7  # 7 = "-" + 6 hash chars
     body = slug[:body_max] if body_max > 0 else ""
     if prefix:

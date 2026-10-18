@@ -7,13 +7,9 @@ from django.utils import timezone
 from core import naming
 
 from .models import (
-    AreaAziendale,
-    Reparto,
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
     FiglioACarico,
-    Mansione,
-    RuoloOperativo,
     SkillMatrixConfig,
     TipoVisitaMedica,
     VisitaMedica,
@@ -24,8 +20,6 @@ from .models_formazione import (
     TrainingAttachment,
     TrainingCourse,
     TrainingCompletionRule,
-    TrainingCourseDependency,
-    TrainingCourseModule,
     TrainingCourseVersion,
     TrainingEnrollment,
     TrainingInstructor,

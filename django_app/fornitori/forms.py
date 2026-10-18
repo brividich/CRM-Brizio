@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from django import forms
-from django.db.models import Q
 from django.utils import timezone
 
 from anagrafica.models import (

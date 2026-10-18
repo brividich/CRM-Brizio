@@ -1,7 +1,6 @@
 """Controlli non distruttivi del motore di backup, riusati da hub_backup_doctor e dal monitoraggio."""
 from __future__ import annotations
 
-import os
 import platform
 import subprocess
 import uuid

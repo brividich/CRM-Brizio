@@ -1,7 +1,7 @@
 """Redaction service for AI context - masks sensitive data"""
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 
 SENSITIVE_FIELDS = {

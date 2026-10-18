@@ -5,8 +5,7 @@ import time
 from typing import Any, Optional
 
 from django.core.cache import cache
-from django.db.models import Avg, Count, Q
-from django.db.models.functions import TruncDay
+from django.db.models import Avg
 from django.utils import timezone
 from rest_framework import status as http_status
 from rest_framework.response import Response

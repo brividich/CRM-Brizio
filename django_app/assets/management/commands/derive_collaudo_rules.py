@@ -13,7 +13,6 @@ from openpyxl import load_workbook
 from assets.maintenance import upsert_asset_maintenance_rule_state
 from assets.models import (
     Asset,
-    AssetMaintenanceRuleState,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
 )

@@ -9,12 +9,11 @@ dal management command `send_task_reminders`.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from uuid import uuid5, NAMESPACE_URL
 
 from django.db import IntegrityError
 from django.urls import reverse
-from django.utils import timezone
 
 from core.outlook_calendar import (
     build_event_payload,

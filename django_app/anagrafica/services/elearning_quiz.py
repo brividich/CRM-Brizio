@@ -190,7 +190,7 @@ def domande_servite(tentativo) -> list[DomandaServita]:
 
 def correggi(enr, token: str, risposte: dict[int, set[int]], regola: Regola):
     """Corregge il tentativo aperto ``token`` del discente. Ritorna il tentativo inviato."""
-    from ..models_formazione import TrainingElearningEnrollment, TrainingQuizAttempt, TrainingQuizOption
+    from ..models_formazione import TrainingElearningEnrollment, TrainingQuizAttempt
 
     errore = ""
     with transaction.atomic():

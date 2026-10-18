@@ -1,14 +1,11 @@
-from datetime import date
 from unittest.mock import patch
 
 from django.http import HttpResponseForbidden
-from django.urls import reverse
 from django.utils import timezone
 
 from .tests_audit import AuditBase, _request
-from .models import Audit, AuditEsito, Processo, ProcessoRevisione, AuditPersona, AuditAgenda
+from .models import Audit, AuditEsito, Processo, ProcessoRevisione, AuditPersona
 from .audit_forms import AuditForm, ProcessoForm, RigaProgrammaForm, AuditAgendaForm
-from .services.audit import verifica_completezza, prepara_nuovo_audit
 from . import processi_views, audit_views
 from .acl_bootstrap import _ROUTE_BINDINGS, PERM_AUDIT_EDIT, PERM_AUDIT_VIEW
 

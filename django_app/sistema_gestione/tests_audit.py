@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import io
-from datetime import date, timedelta
+from datetime import date
 
 import fitz
 from unittest.mock import patch
@@ -13,7 +13,6 @@ from django.http import HttpResponseForbidden
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory, TestCase
-from django.urls import reverse
 from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4

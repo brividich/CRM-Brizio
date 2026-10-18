@@ -197,7 +197,6 @@ def build_attestato_pdf_bytes(record, cfg=None) -> bytes:
     nominativo, eventuali dati personali (gated dal toggle GDPR), dati del corso,
     doppia firma (Responsabile del corso + Dipendente) e nota legale.
     """
-    from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.platypus import HRFlowable, Paragraph, Spacer, Table, TableStyle
     from core.pdf import PdfTheme, build_styles, header_footer_callback, make_document
@@ -357,7 +356,6 @@ def build_libretto_pdf_bytes(legacy_id: int, *, dal=None, al=None) -> bytes:
     che non lo dice sembrerebbe un libretto incompleto. Gli obblighi correnti
     non si filtrano: sono lo stato di oggi.
     """
-    from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.platypus import Paragraph, Spacer
     from django.utils import timezone

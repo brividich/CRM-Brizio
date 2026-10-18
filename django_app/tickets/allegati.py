@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 
-from django.conf import settings
 from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone

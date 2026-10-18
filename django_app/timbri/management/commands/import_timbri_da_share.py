@@ -30,14 +30,11 @@ Utilizzo:
 """
 from __future__ import annotations
 
-import io
-import re
 import unicodedata
 from pathlib import Path
 
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 SHARE_ROOT = Path("//Novisrv/area it/_FIRME E TIMBRI")
 

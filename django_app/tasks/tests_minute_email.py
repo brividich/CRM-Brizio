@@ -12,7 +12,7 @@ from tasks.minute_email import (
     send_meeting_invite,
     send_meeting_minute,
 )
-from tasks.models import KickoffMeeting, Project, Task
+from tasks.models import KickoffMeeting, Task
 from .tests_utils import make_project
 
 User = get_user_model()

@@ -486,7 +486,7 @@ def salva_esito(esito: AuditEsito, *, utente, genera_rilievo=True, bozza_token: 
 
 
 def contatori_rilievi(audit: Audit) -> dict[str, int]:
-    from django.db.models import Count, Q
+    from django.db.models import Count
 
     c = audit.esiti.aggregate(
         ofi=Count("pk", filter=Q(esito=AuditEsito.ESITO_OFI)),

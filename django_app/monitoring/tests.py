@@ -14,7 +14,7 @@ from __future__ import annotations
 import unittest.mock as mock
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, TestCase
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -25,7 +25,6 @@ from .services import (
     count_consecutive_failures,
     detect_missed_jobs,
     detect_stuck_jobs,
-    open_or_update_issue_from_automation_error,
     open_or_update_issue_from_web_error,
     register_user_problem_report,
 )

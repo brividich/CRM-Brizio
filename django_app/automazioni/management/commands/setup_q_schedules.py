@@ -11,7 +11,6 @@ Utilizzo:
 """
 from __future__ import annotations
 
-import json
 
 from django.core.management.base import BaseCommand
 

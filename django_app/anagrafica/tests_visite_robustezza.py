@@ -18,7 +18,6 @@ from core.models import AuditLog
 from .models import (
     AnagraficaVisiteMedichePermission,
     DipendenteAnagraficaCivile,
-    DocumentoDipendente,
     TipoVisitaMedica,
     VisitaMedica,
     VisitaSessione,

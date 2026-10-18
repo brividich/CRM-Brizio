@@ -21,10 +21,9 @@ from tickets.models import (
     TicketCommento,
     TicketImpostazioni,
     TicketIntervento,
-    TicketStatoLog,
     TipoTicket,
 )
-from tickets.views import _build_ticket_activity_feed, _get_assets_for_select
+from tickets.views import _get_assets_for_select
 
 
 def _complete_onboarding(user) -> None:

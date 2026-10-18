@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import json
 import mimetypes
-import os
 from datetime import timedelta
 from functools import wraps
 from io import BytesIO

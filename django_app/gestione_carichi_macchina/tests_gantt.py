@@ -127,7 +127,7 @@ class GanttViewTest(TestCase):
         vengono impilati in giorni distinti, non ammucchiati sulla stessa data."""
         from datetime import date
 
-        from .views import _piano_slittamento, _sovrapposizioni
+        from .views import _piano_slittamento
         d = date(2026, 6, 22)  # lunedì
         p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
         # B e C già entrambi sul giorno 23 (slot condiviso pre-esistente)

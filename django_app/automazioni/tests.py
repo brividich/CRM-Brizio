@@ -6058,7 +6058,7 @@ class ApprovalEmailTemplateDBTests(TestCase):
         self.assertFalse(missing)
 
     def test_uses_mailto(self):
-        from .models import ApprovalEmailTemplate, ApprovalEmailTemplateDeliveryMode
+        from .models import ApprovalEmailTemplateDeliveryMode
         tpl = self._make_tpl(delivery_mode=ApprovalEmailTemplateDeliveryMode.MAIL_REPLY)
         self.assertTrue(tpl.uses_mailto())
         self.assertFalse(tpl.uses_portal_links())
@@ -6430,7 +6430,6 @@ class PollApprovalMailboxParserTests(SimpleTestCase):
 
     def test_get_text_parts_non_text_returns_empty(self):
         import email as email_lib
-        from email.mime.base import MIMEBase
         from .management.commands.poll_approval_mailbox import _get_text_parts
         raw = b"From: t@t.it\r\nContent-Type: application/octet-stream\r\n\r\nbinary"
         msg = email_lib.message_from_bytes(raw)

@@ -1,5 +1,4 @@
 """Regressioni dei finding delle review indipendenti (sicurezza e QA lead auditor) del prompt 08."""
-import json
 from datetime import date, timedelta
 from unittest.mock import patch
 

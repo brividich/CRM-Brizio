@@ -16,7 +16,6 @@ import logging
 import os
 import shutil
 import socket
-import tempfile
 from collections import deque
 from datetime import datetime
 from html import escape
