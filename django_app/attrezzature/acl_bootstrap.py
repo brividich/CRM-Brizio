@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from django.db import DatabaseError, transaction
+from django.db import transaction
 
 from core.acl_bootstrap_base import run_bootstrap
 
@@ -241,7 +241,6 @@ def _upsert_legacy_permission(*, role_id: int, action: str, enabled: bool) -> bo
 def _bootstrap_canonical_acl(*, seed_role_grants: bool = False) -> bool:
     from core.legacy_models import Ruolo
     from core.models import (
-        NavigationItem,
         NavigationRoleAccess,
         PermissionDefinition,
         RolePermissionGrant,

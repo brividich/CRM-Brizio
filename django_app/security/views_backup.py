@@ -1,5 +1,4 @@
 """Sezione Backup del SOC: panoramica con KPI, statistiche per PC e per job, log, scheda dispositivo."""
-from django.http import Http404
 from django.shortcuts import render
 
 from .models import BackupJobRecord

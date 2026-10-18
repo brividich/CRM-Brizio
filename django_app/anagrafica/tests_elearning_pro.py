@@ -4,13 +4,10 @@ cruscotto e registro, video. Dati sintetici.
 """
 from __future__ import annotations
 
-import io
 from datetime import timedelta
-from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -19,9 +16,9 @@ from .models_formazione import (
     TrainingAssignment, TrainingCompletionRule, TrainingElearningEnrollment, TrainingEmployeeRecord,
     TrainingQuizAttempt, TrainingQuizOption, TrainingQuizQuestion, TrainingSlide,
 )
-from .services import elearning_assegnazioni, elearning_completamento, elearning_quiz, elearning_tracciamento
+from .services import elearning_assegnazioni, elearning_completamento, elearning_quiz
 from .services.elearning_regole import regola_corso
-from .tests_elearning_sicurezza import _Base, _discente
+from .tests_elearning_sicurezza import _Base
 
 User = get_user_model()
 

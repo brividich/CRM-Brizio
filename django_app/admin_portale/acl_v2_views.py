@@ -10,7 +10,7 @@ from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
-from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from django.views.decorators.http import require_GET, require_http_methods
 
 from admin_portale.decorators import is_legacy_admin_bypass_view, legacy_admin_required
 from core.csv_export import safe_csv_writer

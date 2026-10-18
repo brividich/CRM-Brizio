@@ -31,7 +31,7 @@ def _kickoff(project) -> str:
 
 
 def build_safety_alert(project) -> tuple[str, str, str]:
-    from core.email_utils import email_facts_table, text_to_html
+    from core.email_utils import email_facts_table
 
     n = _kickoff(project)
     subject = f"⚠️ Impatto sicurezza — KICK-OFF {n}: {project.name}"

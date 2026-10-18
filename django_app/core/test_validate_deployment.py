@@ -181,7 +181,6 @@ class ValidateDeploymentCommandTests(TestCase):
         self.assertIn("wildcard", host_checks[0]["message"].lower())
 
     def test_assets_private_root_under_media_root_warns(self):
-        import os
         from pathlib import Path
 
         out = StringIO()

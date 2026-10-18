@@ -2,7 +2,6 @@ from datetime import timedelta
 from io import StringIO
 from unittest.mock import Mock, patch
 
-from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase

@@ -19,7 +19,6 @@ import logging
 from datetime import timedelta
 
 from django.db import IntegrityError, transaction
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ STATI_DA_ASSEGNARE = ("MAI_FREQUENTATO", "SCADUTO")  # in scadenza: vedi finestr
 
 def sincronizza(legacy_ids=None, *, oggi=None, notifica: bool = True) -> dict:
     """Crea le assegnazioni mancanti per gli obblighi su corsi e-learning pubblicati."""
-    from ..models_formazione import ElearningConfig, TrainingAssignment, TrainingCourse
+    from ..models_formazione import ElearningConfig, TrainingAssignment
     from . import requisiti
     from .elearning_fruizione import ciclo_corrente
 

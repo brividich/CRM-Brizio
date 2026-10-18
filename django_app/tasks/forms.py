@@ -62,7 +62,7 @@ TASKS_ATTACHMENT_MIMES = {
 
 from .models import (
     KickoffMeeting, MeetingStatus, Project, ProjectComment, SubTask, Task, TaskAttachment,
-    TaskCategory, TaskComment, TaskPriority, TaskRoleAssignment, TaskRoleType,
+    TaskCategory, TaskComment, TaskPriority, TaskRoleType,
     TaskStatus,
 )
 

@@ -3,7 +3,7 @@ Esegue il dump di NavigationItem, PermissionDefinition, RolePermissionGrant,
 UserPermissionOverride e NavigationSnapshot salvando esplicitamente in UTF-8.
 Uso: python django_app/fixtures/dump_nav_acl.py
 """
-import os, sys, json, django
+import os, sys, django
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..","django_app"))

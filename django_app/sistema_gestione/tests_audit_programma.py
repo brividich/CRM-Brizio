@@ -10,7 +10,7 @@ from core.models import SiteConfig
 
 from . import programma_views
 from .audit_forms import AuditForm, AuditorForm
-from .models import Audit, AuditEsito, Auditor, CellaProgramma, CicloAudit, ProgrammaAudit, Processo, RigaProgramma
+from .models import Audit, AuditEsito, CellaProgramma, CicloAudit, ProgrammaAudit, Processo, RigaProgramma
 from .services import audit as service
 from .services import programma as programma_service
 from .services.audit_automation import priorita_processi

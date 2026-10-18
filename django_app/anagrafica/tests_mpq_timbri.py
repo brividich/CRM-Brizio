@@ -13,7 +13,7 @@ Nessun dato reale: esempi fittizi.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -42,7 +42,6 @@ def _make_timbro(ab=None, **extra):
 
 class RegistroTimbroSospensioneModelTests(TestCase):
     def test_stato_label_sospeso(self):
-        from timbri.models import RegistroTimbro
         t = _make_timbro()
         t.is_sospeso = True
         t.save()

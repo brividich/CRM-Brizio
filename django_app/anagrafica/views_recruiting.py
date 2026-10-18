@@ -41,7 +41,6 @@ from .forms_recruiting import (
 )
 from .models_recruiting import (
     Candidato,
-    CandidatoLog,
     CandidatoPunteggio,
     PosizioneAperta,
     RecruitingCriterio,

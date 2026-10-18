@@ -10,12 +10,10 @@ una sola volta, sotto lock dell'iscrizione. Le regole stanno in
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -26,8 +24,7 @@ from django.views.decorators.http import require_POST
 from core.audit import log_action
 
 from .models_formazione import (
-    ElearningConfig, TrainingAssignment, TrainingCourse, TrainingElearningEnrollment, TrainingQuizAttempt,
-    TrainingSlide,
+    ElearningConfig, TrainingAssignment, TrainingCourse, TrainingElearningEnrollment, TrainingSlide,
 )
 from .services import elearning_fruizione as fruizione
 from .services import elearning_quiz as quiz

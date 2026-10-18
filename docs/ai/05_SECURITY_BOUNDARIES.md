@@ -116,15 +116,21 @@ Sidebar nav side: i gruppi aperti devono restare visivamente distinti dal primo 
 Questi path bypassano completamente l'`ACLMiddleware`:
 
 ```text
-/health  /version  /login  /logout  /cambia-password
-/static/  /media/  /admin/  /favicon  /setup/  /admin-portale/hub/
-/assets/public/            (QR asset tokenizzato: redirect solo a link SharePoint pubblico gia salvato)
+/health  /healthz  /readyz  /version  /check  /login  /logout  /cambia-password
+/static/  /media/  /admin/  /favicon  /setup/  /2fa/
+/admin-portale/hub/          (Hub Tools: ogni view ha legacy_admin_or_acl_required)
+/monitoring/report-problem/  (segnalazione problema dal client, POST JSON)
+/assets/qr/pub/              (landing QR asset con token opaco, sola lettura)
+/schede-sicurezza/s/         (scheda SDS mobile via QR fisico, sola lettura)
+/gestione-anomalie/mail-action/  (azioni dalla mail anomalie, token monouso)
+/suggestion-corner/nuova/    (form pubblico anonimo, rate-limit per IP + honeypot)
 /automazioni/approvazione/   (token-based, no login required)
+/admin-portale/automazioni/approvazione/
 /approval-actions/           (token-based, Entra Application Proxy frontend)
 /api/assets/contatori/ingest/  (token per collector + allowlist IP, SOLO rete interna)
 ```
 
-Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py`.
+Allineato a `config/settings/base.py` il 18/10/2026. Il middleware non applica né login né ACL su questi prefissi: la protezione dipende solo dalla view (decoratore ACL, token, allowlist). Il test `core/test_security_audit_fase3.py` elenca in `PUBLIC_VIEWS` quelle che rispondono 200 a un anonimo: una nuova esenzione va aggiunta sia a `MIDDLEWARE_EXEMPT_PREFIXES` sia lì, con motivazione.
 
 **`/api/assets/contatori/ingest/` — letture contatori dai collector** (es. OPC UA delle CNC): nessuna sessione, `Authorization: Bearer <token>` di un `MeterIngestClient` attivo (a DB solo hash SHA-256, confronto `hmac.compare_digest`), client IP in `ASSETS_METER_INGEST_ALLOWED_IPS` (IP o CIDR, default solo loopback; fuori = 403 JSON), ogni collector scrive solo sugli asset consentiti, 500 letture per chiamata. **Non pubblicare su Entra Application Proxy**: è un endpoint macchina-macchina di rete interna. Token creato da admin Django o `manage.py meter_ingest_client` (mostrato una volta sola). Contratto: `docs/moduli/assets_contatori_ingest.md`.
 

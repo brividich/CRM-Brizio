@@ -20,8 +20,6 @@ from .models import (
 )
 from .services.ruoli_sync import (
     assicura_assegnazione,
-    dopo_assegnazione,
-    dopo_rimozione,
     ruolo_principale,
 )
 from .tests import _ensure_anagrafica_table

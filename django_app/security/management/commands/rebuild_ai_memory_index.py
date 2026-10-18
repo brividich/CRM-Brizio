@@ -5,7 +5,6 @@ from security.ai.services.memory.chunker import chunk_text
 from security.ai.services.memory.embedding_indexer import rebuild_embeddings
 from security.ai.services.memory.embedding_provider import get_embedding_provider
 from security.ai.services.memory.embedding_diagnostics import (
-    get_active_embedding_provider,
     is_embedding_provider_configured,
     is_pgvector_available,
 )

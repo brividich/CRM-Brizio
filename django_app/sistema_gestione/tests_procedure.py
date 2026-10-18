@@ -13,12 +13,12 @@ from django.utils import timezone
 from gestione_specifiche.models import RegistroOFI
 from gestione_specifiche.forms import RegistroOFIForm
 from .tests_audit import AuditBase, _request
-from .models import Audit, AuditPreparazione, AzioneCorrettivaAudit, RilevazioneKpi, ProgrammaAudit, RigaProgramma, CellaProgramma, Auditor, Processo
+from .models import Audit, AuditPreparazione, AzioneCorrettivaAudit, RilevazioneKpi, ProgrammaAudit, RigaProgramma, CellaProgramma, Processo
 from .services import procedure, audit as service
 from .procedure_forms import KpiForm, CarForm
 from . import procedure_views as views
 from .audit_views import audit_avvia
-from .acl_bootstrap import PERM_AUDIT_VIEW, PERM_AUDIT_EDIT, PERM_AUDIT_APPROVA, _ROUTE_BINDINGS
+from .acl_bootstrap import PERM_AUDIT_VIEW, PERM_AUDIT_APPROVA, _ROUTE_BINDINGS
 
 
 class ProcedureTests(AuditBase):

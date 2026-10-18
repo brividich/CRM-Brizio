@@ -6,7 +6,7 @@ from unittest.mock import patch
 from django.utils import timezone
 
 from . import audit_views, programma_views
-from .models import Audit, AuditAgenda, AuditEsito, AuditPersona, AuditVerificaEfficacia, CellaProgramma, ProgrammaAudit, RigaProgramma
+from .models import Audit, AuditEsito, AuditPersona, AuditVerificaEfficacia, CellaProgramma, ProgrammaAudit, RigaProgramma
 from .services import audit as service
 from .services import audit_outlook
 from .tests_audit import AuditBase, _request

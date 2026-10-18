@@ -14,7 +14,6 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from . import constants as C
 from .models import ConfigPresaVisione, Distribuzione, EventoSpecifica
 
 logger = logging.getLogger(__name__)

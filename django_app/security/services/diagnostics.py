@@ -8,7 +8,6 @@ from django.utils import timezone
 
 from security.models import (
     BackupExpectedJobConfig,
-    BackupJobRecord,
     ParseStatus,
     SecurityAlert,
     SecurityAlertRuleConfig,

@@ -1053,7 +1053,6 @@ class OcrDisponibilitaTests(TestCase):
     """Tesseract assente non deve rompere niente."""
 
     def test_senza_tesseract_la_lettura_dichiara_il_motivo(self):
-        from .services.referti_ocr import ErroreLettura
 
         with patch("anagrafica.services.referti_ocr.percorso_tesseract", return_value=""):
             from .services.referti_ocr import disponibile

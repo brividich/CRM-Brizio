@@ -446,7 +446,7 @@ def _iter_header_cells(ws, header_row: int) -> dict[int, str]:
 
 def _source_key(sheet_name: str, reparto: str, tipo: str, nome: str, serial: str, vlan: str, ip: str) -> str:
     raw = f"{sheet_name}|{reparto}|{tipo}|{nome}|{serial}|{vlan}|{ip}"
-    return hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()
+    return hashlib.sha1(raw.encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()
 
 
 class Command(BaseCommand):
@@ -546,7 +546,7 @@ class Command(BaseCommand):
             if dry_run:
                 return None
 
-            base_code = slugify(effective_label)[:75] or f"extra-{hashlib.sha1(effective_label.encode('utf-8')).hexdigest()[:8]}"
+            base_code = slugify(effective_label)[:75] or f"extra-{hashlib.sha1(effective_label.encode('utf-8'), usedforsecurity=False).hexdigest()[:8]}"
             candidate = base_code
             suffix = 2
             while candidate in field_by_code:
