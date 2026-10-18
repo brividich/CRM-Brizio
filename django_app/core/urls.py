@@ -4,6 +4,7 @@ from . import legacy_flask_views
 from . import views
 from . import views_capa
 from . import views_guide
+from . import views_push
 from .accounts.views import LegacyLoginView, cambia_password, logout_view
 from .accounts.windows_sso import windows_sso_view
 
@@ -58,6 +59,12 @@ urlpatterns = [
     path("api/notifiche/live/", views.api_notifiche_live, name="api_notifiche_live"),
     path("api/notifiche/mark-all-read/", views.api_notifiche_mark_all_read, name="api_notifiche_mark_all_read"),
     path("api/notifiche/popup-ack/", views.api_notifiche_popup_ack, name="api_notifiche_popup_ack"),
+    # Notifiche push (core.push): service worker alla radice + API del browser.
+    path("sw-notifiche.js", views_push.service_worker, name="push_service_worker"),
+    path("api/notifiche/push/iscrizione/", views_push.api_push_iscrizione, name="api_push_iscrizione"),
+    path("api/notifiche/push/revoca/", views_push.api_push_revoca, name="api_push_revoca"),
+    path("api/notifiche/push/prova/", views_push.api_push_prova, name="api_push_prova"),
+    path("api/notifiche/push/ultime/", views_push.api_push_ultime, name="api_push_ultime"),
     path(
         "api/gestione-reparto/<int:user_id>/assegna",
         views.api_gestione_reparto_assegna,

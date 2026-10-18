@@ -63,6 +63,12 @@ def invia_notifica(
             tipo,
             legacy_user_id,
         )
+        return
+    # Push sul telefono/PC, se l'utente l'ha chiesta per questa categoria.
+    # Best effort: accodata fuori dalla richiesta, non solleva mai.
+    from core.push import notifica_creata
+
+    notifica_creata(legacy_user_id, tipo)
 
 
 def legacy_user_ids_for_email(email: str) -> list[int]:

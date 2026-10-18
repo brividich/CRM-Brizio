@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 69
+**Totale automazioni disponibili:** 70
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -413,6 +413,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:40
 - **Task eseguito:** `contatori.tasks.pulisci_rilevazioni_tvcc`
 - **Cosa fa:** CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40. Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
+
+### `scadenze_digest_personale`
+
+- **Quando gira:** da lun a ven, alle 07:30
+- **Task eseguito:** `dashboard.tasks.run_scadenze_digest`
+- **Cosa fa:** DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op altrimenti); giorni feriali, una mail al giorno al massimo.
 
 ### `security_ai_lettura`
 

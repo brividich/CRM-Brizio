@@ -460,6 +460,80 @@ class Notifica(models.Model):
         return f"Notifica<user={self.legacy_user_id} tipo={self.tipo} letta={self.letta}>"
 
 
+class NotificaCanali(models.Model):
+    """Dove recapitare le notifiche oltre alla campanella, scelto dall'utente.
+
+    La campanella (``Notifica``) resta sempre: qui l'utente aggiunge la notifica
+    push sul telefono/PC per categoria e il riepilogo mattutino delle scadenze
+    via mail. Le categorie sono ``core.notifiche_meta.CATEGORIE``: una categoria
+    spenta (dall'admin o dall'utente) non produce né campanella né push.
+    Record creato al primo salvataggio; fino ad allora tutto spento.
+    """
+
+    DIGEST_GIORNI_CHOICES = [(7, "Scadute e prossimi 7 giorni"), (30, "Scadute e prossimi 30 giorni")]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifiche_canali",
+    )
+    push_categorie = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Categorie (core.notifiche_meta.CATEGORIE) per cui inviare anche la notifica push.",
+    )
+    digest_scadenze = models.BooleanField(default=False)
+    digest_giorni = models.PositiveSmallIntegerField(default=7, choices=DIGEST_GIORNI_CHOICES)
+    digest_ultimo_invio = models.DateField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_notificacanali"
+        verbose_name = "Canali notifiche utente"
+        verbose_name_plural = "Canali notifiche utenti"
+
+    def __str__(self) -> str:
+        return f"NotificaCanali(user={self.user_id}, push={self.push_categorie}, digest={self.digest_scadenze})"
+
+    def push_per_categoria(self, categoria: str) -> bool:
+        cats = self.push_categorie if isinstance(self.push_categorie, list) else []
+        return str(categoria or "") in cats
+
+
+class PushIscrizione(models.Model):
+    """Un browser (telefono o PC) iscritto alle notifiche push di un utente.
+
+    Le push partono **senza contenuto**: il servizio del produttore del browser
+    (Google, Mozilla, Microsoft, Apple) riceve solo il segnale «c'è qualcosa»;
+    il testo lo legge il browser dal portale, con la sessione dell'utente.
+    L'``endpoint`` è accettato solo verso i servizi push noti (``core.push``).
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_iscrizioni",
+    )
+    endpoint = models.TextField()
+    # SHA-256 dell'endpoint: unico. L'endpoint (fino a ~800 caratteri) non può
+    # stare in un indice univoco su SQL Server (limite 1700 byte della chiave).
+    endpoint_hash = models.CharField(max_length=64, unique=True)
+    dispositivo = models.CharField(max_length=200, blank=True, default="")
+    attiva = models.BooleanField(default=True, db_index=True)
+    errori_consecutivi = models.PositiveSmallIntegerField(default=0)
+    ultimo_invio_ok = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_pushiscrizione"
+        ordering = ["-created_at"]
+        verbose_name = "Iscrizione push"
+        verbose_name_plural = "Iscrizioni push"
+
+    def __str__(self) -> str:
+        return f"PushIscrizione(user={self.user_id}, attiva={self.attiva}, {self.dispositivo[:40]})"
+
+
 class UserExtraInfo(models.Model):
     """Informazioni anagrafiche aggiuntive per utente (reparto, caporeparto, macchina, contatti).
 

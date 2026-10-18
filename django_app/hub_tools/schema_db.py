@@ -125,6 +125,15 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "controllo": "Mail di prova dall'Amministrazione; Log notifiche; run log automazioni.",
     },
     {
+        "nome": "Servizi push dei browser (Web Push)",
+        "cosa": "Il segnale «c'è una notifica nuova» verso telefoni e PC, attraverso il servizio del produttore del browser "
+                "(Google, Mozilla, Microsoft, Apple). Parte solo il segnale, senza testo: il dispositivo legge la notifica dal portale.",
+        "chi": "Notifiche del portale per chi ha attivato la push (Impostazioni notifiche); invii dal qcluster.",
+        "config": "VAPID_PRIVATE_KEY, VAPID_SUBJECT (manage.py genera_chiavi_vapid); uscita https verso fcm.googleapis.com, "
+                  "*.push.services.mozilla.com, *.notify.windows.com, *.push.apple.com",
+        "controllo": "Impostazioni notifiche → «Invia una prova»; manage.py genera_chiavi_vapid --verifica.",
+    },
+    {
         "nome": "Entra Application Proxy",
         "cosa": "Pubblica su internet solo i collegamenti di approvazione (/approval-actions/), per approvare dal telefono fuori rete.",
         "chi": "Automazioni → approvazioni via mail.",

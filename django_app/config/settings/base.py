@@ -144,6 +144,11 @@ EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
 EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10") or "10")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "") or EMAIL_HOST_USER
 SITE_URL = env("SITE_URL", "")
+# Notifiche push sul telefono/PC (Web Push, core.push). Chiave privata VAPID P-256
+# in base64url (genera con `manage.py genera_chiavi_vapid`); la pubblica si ricava.
+# Vuota = push spente. VAPID_SUBJECT = contatto per i servizi push (mailto:...).
+VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = env("VAPID_SUBJECT", "") or (f"mailto:{DEFAULT_FROM_EMAIL}" if DEFAULT_FROM_EMAIL else "")
 SESSION_IDLE_TIMEOUT_SECONDS = int(env("SESSION_IDLE_TIMEOUT_SECONDS", "3600") or "3600")
 # Throttle scrittura del timestamp di attività: il middleware idle-timeout riscrive
 # (e salva la sessione) al più una volta ogni N secondi, non a ogni richiesta. Riduce

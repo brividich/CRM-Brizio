@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "accesso login password home menu notifiche cerca profilo",
+    "parole": "accesso login password home menu notifiche push telefono cerca profilo scadenzario",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida")],
@@ -41,6 +41,30 @@ GUIDA = {
                     ("Stella", "l'Assistente AI: fai una domanda in italiano, per esempio «come chiedo un permesso?»."),
                     ("Campanella", "le notifiche. Il numero rosso dice quante non hai ancora letto."),
                     ("Il tuo nome", "profilo, preferenze, tema chiaro/scuro, «Segnala un problema» ed «Esci»."),
+                ]),
+            ],
+        },
+        {
+            "id": "notifiche",
+            "titolo": "Scegliere le notifiche (portale, telefono, mail)",
+            "blocchi": [
+                ("p", "Campanella → «Impostazioni» (indirizzo /notifiche/impostazioni/). Per ogni categoria scegli dove riceverla."),
+                ("def", [
+                    ("Portale", "la notifica nella campanella. Se la spegni, la categoria non ti arriva da nessuna parte."),
+                    ("Push", "la notifica compare anche sul telefono o sul PC, a portale chiuso. Si spunta solo se «Portale» è acceso."),
+                ]),
+                ("passi", [
+                    "Apri le Impostazioni notifiche dal telefono o dal PC su cui vuoi le push.",
+                    "In «Notifiche push su telefono e PC» premi «Attiva su questo dispositivo» e consenti le notifiche quando il browser lo chiede.",
+                    "Spunta «Push» sulle categorie che ti interessano e premi «Salva preferenze».",
+                    "Premi «Invia una prova»: entro qualche secondo arriva «NOVICROM HUB · prova».",
+                ]),
+                ("ul", [
+                    "Ogni dispositivo si attiva a parte; l'elenco «Dispositivi attivi» mostra dove sono attive, «Togli» le spegne.",
+                    "Su iPhone serve prima «Condividi → Aggiungi alla schermata Home» e aprire il portale da lì (iOS 16.4 o successivo).",
+                    "Fuori dalla rete aziendale la push arriva lo stesso ma mostra un testo generico: il dettaglio si legge aprendo il portale.",
+                    "«Riepilogo scadenze via mail»: ogni mattina dei giorni feriali alle 7:30 le scadenze dello Scadenzario globale che puoi vedere "
+                    "(scadute e prossimi 7 o 30 giorni). Se non c'è niente non parte; al massimo una al giorno.",
                 ]),
             ],
         },
@@ -87,6 +111,25 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "push-admin",
+            "titolo": "Attivare le notifiche push sul server",
+            "blocchi": [
+                ("passi", [
+                    "Dal terminale del server: manage.py genera_chiavi_vapid. Stampa due righe, VAPID_PRIVATE_KEY e VAPID_SUBJECT.",
+                    "Copiale nel .env del server (è un segreto come gli altri: niente mail o ticket) e riavvia il sito e il qcluster.",
+                    "Controllo: manage.py genera_chiavi_vapid --verifica deve dire «VAPID_PRIVATE_KEY valida».",
+                ]),
+                ("ul", [
+                    "Il portale deve essere in https (le push non funzionano in http).",
+                    "Il server deve poter uscire su internet in https (porta 443) verso fcm.googleapis.com, *.push.services.mozilla.com, "
+                    "*.notify.windows.com e *.push.apple.com. Il traffico contiene solo il segnale, mai il testo della notifica.",
+                    "Gli invii partono dal qcluster (django-q): senza qcluster attivo le push non partono, la campanella sì.",
+                    "Il riepilogo scadenze è il task «scadenze_digest_personale» (lun-ven 7:30), disattivabile dalla Centrale di comando.",
+                    "Cambiare la chiave spegne le push già attivate: ogni utente deve riattivarle.",
+                ]),
+            ],
+        },
     ],
     "problemi": [
         {
@@ -97,6 +140,17 @@ GUIDA = {
                 "Accesso bloccato dopo 5 tentativi sbagliati: il blocco dura un'ora. Per sbloccare subito, dal terminale del Setup Wizard: axes_reset_username <nome utente>.",
                 "L'utente non esiste: va creato o importato da Active Directory (Amministrazione → Import Utenti LDAP).",
                 "Se nessuno riesce a entrare, apri il Manuale di emergenza → «Nessuno riesce a entrare».",
+            ],
+        },
+        {
+            "sintomo": "Le notifiche push non arrivano sul telefono",
+            "fare": [
+                "In Impostazioni notifiche, dal telefono: «Questo dispositivo» deve dire «attive», e la categoria deve avere «Push» spuntato.",
+                "«bloccate nelle impostazioni del browser»: sblocca le notifiche per il sito del portale dalle impostazioni del browser.",
+                "«Invia una prova»: se risponde «servizio push non raggiungibile», il server non esce su internet verso i servizi push (vedi «Attivare le notifiche push sul server»).",
+                "«non sono ancora attive sul server»: manca VAPID_PRIVATE_KEY nel .env.",
+                "Arriva la prova ma non le notifiche vere: controlla che il qcluster sia attivo (Centrale di comando).",
+                "Dopo 5 invii falliti di fila o se il browser revoca il permesso, il dispositivo si toglie da solo: va riattivato.",
             ],
         },
         {

@@ -62,6 +62,9 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "organigramma",
     "ui_prefs_page",
     "ui_prefs_api_save",
+    # Preferenze notifiche personali (canali, push, riepilogo): solo i dati
+    # dell'utente collegato, come le preferenze interfaccia.
+    "notifiche_impostazioni",
     "ui_sidebar_save",
     "api_global_search",
     "stop_impersonation",
@@ -93,6 +96,10 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",
     "legacy_flask_check",
+    # Service worker delle notifiche push: script statico senza dati, deve
+    # potersi aggiornare per ogni utente collegato (le API stanno sotto
+    # /api/notifiche/, già condiviso: ognuno vede solo i propri dati).
+    "push_service_worker",
 )
 _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     "/api/onboarding/",

@@ -696,6 +696,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo
+        # agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op
+        # altrimenti); giorni feriali, una mail al giorno al massimo.
+        "name": "scadenze_digest_personale",
+        "func": "dashboard.tasks.run_scadenze_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1-5",     # lun-ven alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CHECKLIST OPERATIVA — promemoria in-app ai responsabili con task non
         # confermati per le chiusure aziendali in arrivo (soglie 7/3/1/0 giorni).
         "name": "checklist_chiusura_reminders",
