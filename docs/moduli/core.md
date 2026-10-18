@@ -57,7 +57,7 @@ Comandi:
 
 - `audit_archive` (dry-run `--plan` di default; `--run --archive-dir <UNC>` archivia in `auditlog\<AAAA-MM>\part-*.jsonl.gz` + `manifest.json` verificati e poi pulisce; `--category business --older-than-months 60`; `--restore` in tabella separata; `--prune-archives` oltre 120 mesi).
 - `hub_backup_doctor` (solo lettura: capacità del DB rispetto al limite di SQL Express, top tabelle, crescita dell'audit, previsione di saturazione, cache su DB; le sezioni di backup arrivano con il motore di backup).
-- `hub_db_tuning --query-store-max-mb 100 [--apply]` (limite del Query Store, dry-run di default).
+- `hub_db_tuning --query-store-max-mb 100 [--apply]` (limite del Query Store, dry-run di default; spento resta spento senza `--enable`) e `hub_db_tuning --compatibility-level 170 [--apply]` (dopo la migrazione a SQL Server 2025, vedi [docs/dr/SQL2025_MIGRAZIONE.md](../dr/SQL2025_MIGRAZIONE.md)).
 
 Il monitoring ha il nuovo check `audit_growth` (warning oltre 500 MB/mese, fail sotto 60 giorni dalla saturazione, mai critical). Dettaglio, motivazioni e ordine operativo: [docs/dr/AUDIT_POLICY.md](../dr/AUDIT_POLICY.md).
 

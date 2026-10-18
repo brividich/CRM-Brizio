@@ -23,19 +23,27 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 - [x] R0.5 Osservabilità: check `audit_growth` (monitoring), previsione saturazione, top modelli con classe (pagina R2 la riuserà)
 - [x] R0.6 Test: 49 nuovi in `django_app.core` verdi; regressione su core, monitoring, tickets, automazioni, security, contatori: 2657 test, 3 falliti **preesistenti** (falliscono identici su `origin/main` nello stesso ambiente: `core.test_acl_cleanup_command…test_sync_legacy_riallinea…`, `core.test_security_audit_residui…test_denied_when_workorder_page_denied`, `security.tests.test_asset_overview…test_projection_query_count…`)
 - [x] R0.7 Documentazione (`05_SECURITY_BOUNDARIES.md`, `docs/dr/AUDIT_POLICY.md`, `docs/moduli/core.md`, `monitoring.md`), CHANGELOG, guida admin Centro guide. Bump: non fatto (pratica attuale: `[Unreleased]` + bump al rilascio; funzione solo admin/terminale). `schema_db.py`: descrizione di `core` già generica, invariata
-- [x] Commit e push su `fix/audit-policy-crescita` (`68ebe571`, `5bc24a14`, `8aa653cb`)
+- [x] Commit e push su `fix/audit-policy-crescita` (`68ebe571`, `5bc24a14`, `8aa653cb`, fix `4264e4bb`: Query Store spento non si accende senza `--enable`; doctor distingue le azioni esplicite)
+- [x] Verifica su SQL Server reale (copia del DB di sviluppo su SQL 2025): doctor, `audit_archive --plan` → `--run` (1.091 righe tecniche archiviate in 17 parti e cancellate, classe A invariata 668/668) → `--plan` a zero → `--restore` in tabella separata
 - [ ] PR verso `main`: da aprire a mano (`gh` non autenticato) — https://github.com/brividich/CRM-Brizio/compare/main...fix/audit-policy-crescita?expand=1 ; testo pronto nello scratchpad `pr_r0.md`
 - [B] Deploy R0.2 in produzione
 - [B] `audit_archive --plan` in prod → revisione → `audit_archive --run`
 
 ## S1 — SQL Server 2025 Express, istanza affiancata
 
-- [ ] Verifica requisiti ufficiali Windows 11 / hardware
-- [ ] `install-sql2025-instance.ps1` (WhatIf, collation identica, idempotente)
-- [ ] Prova su TEST + verifica mssql-django/pyodbc/ODBC 18
-- [ ] `move-db-to-instance.ps1` (WhatIf, rifiuta DLM/CNGAUGE)
-- [ ] `docs/dr/SQL2025_MIGRAZIONE.md`
-- [B] Migrazione PROD, recovery FULL, Query Store 100 MB
+- [x] Worktree `C:\Dev\pn-sql2025`, branch `feature/sql2025-istanza` (sopra `fix/audit-policy-crescita`)
+- [x] Requisiti ufficiali (Microsoft Learn): Windows 11 Pro supportato per Express; .NET 4.7.2; 6 GB liberi; Express 2025 = 50 GB/DB, 4 core, buffer pool 1.410 MB
+- [x] Driver: mssql-django supporta SQL 2025 dalla 1.7 (repo: 1.7.4); **la macchina di sviluppo gira già su SQL 2025 Express 17.0.1000.7**
+- [x] `install-sql2025-instance.ps1` (WhatIf, collation e autenticazione dall'istanza attuale, porta fissa, idempotente) — dry-run verificato su PS 5.1 e 7
+- [x] `move-db-to-instance.ps1` (WhatIf, rifiuta sistema e DLM/CNGAUGE, mai REPLACE, riferimenti cross-DB, origine OFFLINE, rollback automatico in manutenzione, idempotente) — giro reale su copia del DB di sviluppo: 464 MB in 28 s, Django check pulito, 0 migrazioni mancanti
+- [x] `hub_db_tuning --compatibility-level N [--apply]` (comando dedicato per il 170 dopo 2 settimane)
+- [x] Test `deployment/tests/test-sql-scripts.ps1` (guardie + giro completo su DB sintetico), verdi su PS 5.1 e 7; test Django 44 verdi
+- [x] `docs/dr/SQL2025_MIGRAZIONE.md` (requisiti, passi, tempi, rollback)
+- [x] Commit e push su `feature/sql2025-istanza` (`5fead6bd`)
+- [ ] PR: da aprire a mano dopo quella di R0 (oppure con base `fix/audit-policy-crescita`) — https://github.com/brividich/CRM-Brizio/compare/main...feature/sql2025-istanza?expand=1 ; testo nello scratchpad `pr_s1.md`
+- [B] Installazione istanza `HUB2025` sul PC di produzione
+- [B] Prova su TEST (`move-db-to-instance.ps1 -Environment test …`) e tempi reali
+- [B] Migrazione PROD, poi recovery FULL + log orario (R1), Query Store 100 MB, compat 170 dopo 2 settimane
 
 ## R1 — Motore di backup verificabile
 

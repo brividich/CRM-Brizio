@@ -7,6 +7,7 @@ from unittest import mock
 
 from django.core.cache import cache
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 
 from core import db_diagnostics as dd
@@ -79,6 +80,25 @@ class DiagnosticaTests(TestCase):
         executed = [c.args[0] for c in fake.cursor.return_value.__enter__.return_value.execute.call_args_list]
         self.assertEqual(len(executed), 1)
         self.assertIn("MAX_STORAGE_SIZE_MB = 100", executed[0])
+
+    def test_compatibility_level_dry_run_apply_e_limiti(self):
+        from core.management.commands import hub_db_tuning as cmd
+
+        fake = mock.MagicMock(vendor="microsoft")
+        cur = fake.cursor.return_value.__enter__.return_value
+        cur.fetchone.return_value = (130, 17)
+        with mock.patch.object(cmd, "connection", fake):
+            out = io.StringIO()
+            call_command("hub_db_tuning", "--compatibility-level", "170", stdout=out)
+            self.assertIn("Dry-run", out.getvalue())
+            self.assertFalse(any("ALTER" in c.args[0] for c in cur.execute.call_args_list))
+            call_command("hub_db_tuning", "--compatibility-level", "170", "--apply", stdout=io.StringIO())
+            self.assertIn("SET COMPATIBILITY_LEVEL = 170", cur.execute.call_args_list[-1].args[0])
+            with self.assertRaises(CommandError):
+                call_command("hub_db_tuning", "--compatibility-level", "180", stdout=io.StringIO())
+            cur.fetchone.return_value = (130, 16)  # SQL 2022: massimo 160
+            with self.assertRaises(CommandError):
+                call_command("hub_db_tuning", "--compatibility-level", "170", stdout=io.StringIO())
 
     def test_tuning_no_op_fuori_da_sql_server(self):
         out = io.StringIO()
