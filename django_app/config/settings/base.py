@@ -561,6 +561,7 @@ INSTALLED_APPS = [
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
     "checklist_operativa.apps.ChecklistOperativaConfig",
+    "dati_bi.apps.DatiBiConfig",
     "django_extensions",
     "django_q",
     "django_htmx",
@@ -925,7 +926,15 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
     # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
     "/api/assets/contatori/ingest/",
+    # API dati in sola lettura per applicazioni (Power BI, Power Automate, gestionali):
+    # token per applicazione con ambiti + allowlist IP nella view (DATI_API_ALLOWED_IPS).
+    # Nessun dato personale nominativo. Solo rete interna, MAI pubblicata su Entra
+    # Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md, dati_bi/api.py).
+    "/api/v1/",
 )
+
+# API dati (dati_bi): client IP (o reti CIDR) da cui le applicazioni possono leggere.
+DATI_API_ALLOWED_IPS = env_list("DATI_API_ALLOWED_IPS", ["127.0.0.1", "::1"])
 
 # Contatori asset: ore dopo le quali una lettura e' "vecchia" (default una settimana)
 # e client IP (o reti CIDR) da cui i collector possono inviare letture.
