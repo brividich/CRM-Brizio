@@ -25,7 +25,7 @@
           <select name="legacy_user_id" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;min-width:220px;">
             <option value="">Tutti</option>
             {% for u in users %}
-              <option value="{{ u.legacy_user_id }}" {% if legacy_user_id == u.legacy_user_id|stringformat:"s" %}selected{% endif %}>{{ u.utente_display|default:u.legacy_user_id }} ({{ u.total }})</option>
+              <option value="{{ u.legacy_user_id }}" {% if legacy_user_id == u.legacy_user_id|stringformat:"s" %}selected{% endif %}>{{ u.utente_display|upper|default:u.legacy_user_id }} ({{ u.total }})</option>
             {% endfor %}
           </select>
         </div>

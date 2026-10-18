@@ -56,7 +56,7 @@ class NotificheLogViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Documento MT CN 06")
         self.assertContains(resp, "Presa visione")   # etichetta dal registro
-        self.assertContains(resp, "Mario Rossi")      # nome risolto da UtenteLegacy
+        self.assertContains(resp, "MARIO ROSSI")      # nome risolto da UtenteLegacy, maiuscolo
         tipi = {t["tipo"] for t in resp.context["per_tipo"]}
         self.assertIn("presa_visione", tipi)
         self.assertIn("dpi_scadenza", tipi)

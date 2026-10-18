@@ -3715,7 +3715,7 @@ def _anagrafica_row_label(row: dict) -> str:
     cognome = str(row.get("cognome") or "").strip()
     alias = str(row.get("aliasusername") or "").strip()
     email = str(row.get("email_notifica") or row.get("email") or "").strip()
-    return " ".join(part for part in [cognome, nome] if part) or alias or email or f"#{row.get('id')}"
+    return naming.nome_completo(nome, cognome) or alias or email or f"#{row.get('id')}"
 
 
 def _fetch_anagrafica_rows_by_ids(ids: set[int]) -> dict[int, dict]:
@@ -3752,7 +3752,7 @@ def _build_anagrafica_hr_capo_option(row: dict) -> dict:
     legacy_user = _legacy_user_for_anagrafica_row(row)
     legacy_user_id = _as_int(getattr(legacy_user, "id", None)) if legacy_user is not None else _as_int(row.get("utente_id"))
     email = str(getattr(legacy_user, "email", "") or "").strip()
-    label = str(getattr(legacy_user, "nome", "") or "").strip() or _anagrafica_row_label(row)
+    label = naming.normalizza_parte(getattr(legacy_user, "nome", "")) or _anagrafica_row_label(row)
     lookup_value = f"legacy_user:{legacy_user_id}" if legacy_user_id is not None else f"anagrafica:{anagrafica_id or ''}"
     option_value = email or lookup_value
     return {

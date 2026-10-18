@@ -1427,6 +1427,8 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
             pk__in=convocati.values_list("pk", flat=True)
         )
         self.fields["presenti_utenti"].queryset = convocati
+        self.fields["presenti_utenti"].label_from_instance = user_display_label
+        self.fields["aggiunti_utenti"].label_from_instance = user_display_label
         self.fields["presenti_email_list"].choices = [(e, e) for e in emails]
 
         # Prima registrazione: si parte con tutti presenti, e' il caso normale.

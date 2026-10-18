@@ -26,6 +26,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from config.env_config import get_first_env_value
+from core import naming
 from core.acl import user_can_modulo_action
 from core.upload_limits import DOCUMENT_MAX_BYTES
 
@@ -1608,17 +1609,12 @@ def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[st
         uid = int(user.id)
         anagrafica = anagrafica_map.get(uid)
         extra = extra_map.get(uid)
-        nome = _clean_string(user.nome)
+        nome = naming.normalizza_parte(user.nome)
         email = _clean_string(user.email)
         notification_email = _clean_string(getattr(anagrafica, "email_notifica", ""))
         calendar_user_id = email or notification_email
         if not nome and anagrafica:
-            nome = " ".join(
-                [
-                    _clean_string(getattr(anagrafica, "nome", "")),
-                    _clean_string(getattr(anagrafica, "cognome", "")),
-                ]
-            ).strip()
+            nome = naming.nome_completo(getattr(anagrafica, "nome", ""), getattr(anagrafica, "cognome", ""))
         display_name = nome or email or f"Utente #{uid}"
         reparto = _clean_string(getattr(extra, "reparto", "")) or _clean_string(getattr(anagrafica, "reparto", ""))
         label_email = calendar_user_id
@@ -1647,12 +1643,11 @@ def _anagrafica_assignment_options() -> tuple[list[tuple[str, str]], dict[str, d
     details: dict[str, dict[str, str]] = {}
     departments: set[str] = set()
     for row in rows:
-        display_name = " ".join(
-            [
-                _clean_string(getattr(row, "cognome", "")),
-                _clean_string(getattr(row, "nome", "")),
-            ]
-        ).strip() or _clean_string(getattr(row, "aliasusername", "")) or f"Dipendente #{row.id}"
+        display_name = (
+            naming.nome_completo(getattr(row, "nome", ""), getattr(row, "cognome", ""))
+            or _clean_string(getattr(row, "aliasusername", ""))
+            or f"Dipendente #{row.id}"
+        )
         reparto = _clean_string(getattr(row, "reparto", ""))
         mansione = _clean_string(getattr(row, "mansione", ""))
         label_bits = [display_name]

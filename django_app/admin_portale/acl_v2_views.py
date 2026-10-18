@@ -939,7 +939,7 @@ def acl_canonico(request):
             if anag and anag.cognome:
                 u["display"] = naming.nome_completo(anag.nome, anag.cognome) + f" — {u['email'] or ''}"
             else:
-                u["display"] = f"{u['nome']} — {u['email'] or ''}"
+                u["display"] = f"{naming.normalizza_parte(u['nome'])} — {u['email'] or ''}"
     except DatabaseError:
         all_legacy_users = []
 
@@ -955,9 +955,9 @@ def acl_canonico(request):
                 if anag and anag.cognome:
                     selected_user_label = naming.nome_completo(anag.nome, anag.cognome)
                 else:
-                    selected_user_label = selected_user.nome or selected_user.email or f"#{selected_user_id}"
+                    selected_user_label = naming.normalizza_parte(selected_user.nome) or selected_user.email or f"#{selected_user_id}"
             except DatabaseError:
-                selected_user_label = selected_user.nome or f"#{selected_user_id}"
+                selected_user_label = naming.normalizza_parte(selected_user.nome) or f"#{selected_user_id}"
             # Carica role grants per il ruolo dell'utente
             user_role_grants = _permissions_for_role(selected_user.ruolo_id) if selected_user.ruolo_id else {}
             # Carica override canonici per l'utente
@@ -986,9 +986,9 @@ def acl_canonico(request):
                 if anag and anag.cognome:
                     nav_ov_user_label = naming.nome_completo(anag.nome, anag.cognome)
                 else:
-                    nav_ov_user_label = nav_ov_user.nome or nav_ov_user.email or f"#{nav_ov_user_id}"
+                    nav_ov_user_label = naming.normalizza_parte(nav_ov_user.nome) or nav_ov_user.email or f"#{nav_ov_user_id}"
             except DatabaseError:
-                nav_ov_user_label = nav_ov_user.nome or f"#{nav_ov_user_id}"
+                nav_ov_user_label = naming.normalizza_parte(nav_ov_user.nome) or f"#{nav_ov_user_id}"
             user_nav_grants = {
                 int(ov.item_id): bool(ov.enabled)
                 for ov in UserNavigationOverride.objects.filter(legacy_user_id=nav_ov_user_id)
@@ -1234,7 +1234,7 @@ def api_acl_legacy_user_search(request):
             if anag and anag.cognome:
                 nome_display = naming.nome_completo(anag.nome, anag.cognome)
             else:
-                nome_display = u.nome or ""
+                nome_display = naming.normalizza_parte(u.nome)
             results.append({
                 "id": u.id,
                 "display": f"{nome_display} — {u.email or ''}".strip(" —"),
