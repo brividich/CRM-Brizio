@@ -65,9 +65,26 @@ def _lookup(name: str, func, local_imports) -> object:
     return func.__globals__.get(name, _MISSING)
 
 
+def _resolve(node, func, local_imports) -> object:
+    """Valore di ``nome`` o ``modulo.nome`` (es. ``_helpers._can_view_formazione``) nel
+    modulo della view; ``_MISSING`` se non è un riferimento di quella forma."""
+    if isinstance(node, ast.Name):
+        return _lookup(node.id, func, local_imports)
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        base = _lookup(node.value.id, func, local_imports)
+        return _MISSING if base is _MISSING else getattr(base, node.attr, _MISSING)
+    return _MISSING
+
+
 def _gate_from_call(call, func, local_imports) -> Callable | None:
-    """Da ``helper(request, COSTANTE, ...)`` a ``lambda request: helper(request, ...)``."""
-    if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name) or not call.args:
+    """Da ``helper(request, COSTANTE, ...)`` a ``lambda request: helper(request, ...)``.
+
+    L'helper può essere un nome del modulo della view o un attributo di un modulo
+    importato lì (``_helpers.nome``, come nei pilastri di ``anagrafica/views/``).
+    """
+    if not isinstance(call, ast.Call) or not call.args:
+        return None
+    if not isinstance(call.func, (ast.Name, ast.Attribute)):
         return None
     first = call.args[0]
     if not (isinstance(first, ast.Name) and first.id == "request"):
@@ -76,21 +93,22 @@ def _gate_from_call(call, func, local_imports) -> Callable | None:
     def _value(node):
         if isinstance(node, ast.Constant):
             return node.value
-        if isinstance(node, ast.Name) and node.id != "request":
-            return _lookup(node.id, func, local_imports)
-        return _MISSING
+        if isinstance(node, ast.Name) and node.id == "request":
+            return _MISSING
+        return _resolve(node, func, local_imports)
 
     args = [_value(a) for a in call.args[1:]]
     kwargs = {kw.arg: _value(kw.value) for kw in call.keywords if kw.arg}
     if len(kwargs) != len(call.keywords) or _MISSING in args or _MISSING in kwargs.values():
         return None
-    name = call.func.id
-    if not callable(_lookup(name, func, local_imports)):
+    callee = call.func
+    if not callable(_resolve(callee, func, local_imports)):
         return None
+    name = callee.id if isinstance(callee, ast.Name) else callee.attr
 
     def gate(request):
         # Risolto a ogni chiamata: vale l'helper del modulo della view in quel momento.
-        return _lookup(name, func, local_imports)(request, *args, **kwargs)
+        return _resolve(callee, func, local_imports)(request, *args, **kwargs)
 
     gate.__name__ = name
     return gate

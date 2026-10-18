@@ -614,6 +614,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CORE — Centro report: elimina dal registro emissioni le righe oltre la
+        # conservazione (SiteConfig, Admin portale → Centro report; 0 = mai).
+        "name": "report_emissioni_pulizia",
+        "func": "core.tasks.run_report_emissioni_pulizia",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "45 2 * * *",       # ogni notte alle 02:45
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del
         # reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica).
         # Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket

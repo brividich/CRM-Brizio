@@ -1921,7 +1921,7 @@ class ScadenzarioEstesoTests(TestCase):
             data_fine=oggi + timedelta(days=20),
             tipologia_contratto="DETERMINATO",
         )
-        with patch("anagrafica.views._check_hr_permission", return_value=False):
+        with patch("anagrafica.views._helpers._check_hr_permission", return_value=False):
             resp = self.client.get(reverse("anagrafica:scadenzario"))
         self.assertNotContains(resp, "Contratto DETERMINATO")
 
@@ -1989,7 +1989,7 @@ class LibrettoFormativoTests(TestCase):
         self.assertContains(resp, "Nessun corso completato registrato")
 
     def test_libretto_negato_senza_permesso_formazione(self):
-        with patch("anagrafica.views._can_view_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_formazione", return_value=False):
             resp = self.client.get(
                 reverse("anagrafica:dipendente_libretto_formativo", args=[301])
             )
@@ -2076,7 +2076,7 @@ class AttestatoFormazioneTests(TestCase):
 
     def test_attestato_negato_senza_permesso_formazione(self):
         rec = self._make_record()
-        with patch("anagrafica.views._can_view_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_formazione", return_value=False):
             resp = self.client.get(
                 reverse("anagrafica:attestato_formazione", args=[rec.pk])
             )
@@ -2128,7 +2128,7 @@ class AttestatoFormazioneTests(TestCase):
         self.assertEqual(cfg.updated_by_id, self.admin.id)
 
     def test_impostazioni_negato_senza_permesso_modifica(self):
-        with patch("anagrafica.views._can_edit_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_edit_formazione", return_value=False):
             resp = self.client.get(reverse("anagrafica:attestato_impostazioni"))
         self.assertEqual(resp.status_code, 302)
 
@@ -2211,7 +2211,7 @@ class RegistroPresenzeLezioneTests(TestCase):
 
     def test_registro_negato_senza_permesso(self):
         sess, lez = self._make_lezione()
-        with patch("anagrafica.views._can_view_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_formazione", return_value=False):
             resp = self.client.get(
                 reverse("anagrafica:formazione_lezione_registro", args=[sess.pk, lez.pk])
             )
@@ -2871,7 +2871,7 @@ class AttestatoArchivioTests(TestCase):
 
     def test_salva_box_negato_senza_permesso(self):
         rec = self._make_record()
-        with patch("anagrafica.views._can_edit_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_edit_formazione", return_value=False):
             resp = self.client.post(reverse("anagrafica:attestato_salva_box", args=[rec.pk]))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(
@@ -3041,7 +3041,7 @@ class LibrettoArchivioTests(TestCase):
 
     def test_libretto_salva_box_negato_senza_permesso(self):
         self._make_record_for(701)
-        with patch("anagrafica.views._can_edit_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_edit_formazione", return_value=False):
             resp = self.client.post(reverse("anagrafica:libretto_salva_box", args=[701]))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(DocumentoDipendente.objects.filter(legacy_anagrafica_id=701).count(), 0)
@@ -3850,7 +3850,7 @@ class ConformitaReportTests(TestCase):
         self.client.force_login(self.admin)
 
     def test_report_richiede_permesso_hr(self):
-        with patch("anagrafica.views._check_hr_permission", return_value=False):
+        with patch("anagrafica.views._helpers._check_hr_permission", return_value=False):
             resp = self.client.get(reverse("anagrafica:conformita_report"))
         self.assertEqual(resp.status_code, 302)
 
@@ -4069,7 +4069,7 @@ class OnboardingViewTests(TestCase):
         self.client.force_login(self.admin)
 
     def test_list_richiede_permesso_hr(self):
-        with patch("anagrafica.views._check_hr_permission", return_value=False):
+        with patch("anagrafica.views._helpers._check_hr_permission", return_value=False):
             resp = self.client.get(reverse("anagrafica:onboarding_list"))
         self.assertEqual(resp.status_code, 302)
 
@@ -4138,8 +4138,8 @@ class QueryAssenzeDipendenteTests(TestCase):
 
     _DESC = [("data_inizio",), ("data_fine",), ("tipo_assenza",), ("moderation_status",)]
 
-    @patch("anagrafica.views.legacy_table_columns")
-    @patch("anagrafica.views.connections")
+    @patch("anagrafica.views.dipendenti.legacy_table_columns")
+    @patch("anagrafica.views.dipendenti.connections")
     def test_match_per_copia_nome_senza_dipendente_id(self, mock_conn, mock_cols):
         """Scenario prod: `assenze` ha copia_nome ma non dipendente_id."""
         from anagrafica import views
@@ -4169,8 +4169,8 @@ class QueryAssenzeDipendenteTests(TestCase):
         self.assertIn("%Mario Rossi%", params)
         self.assertIn("%Rossi Mario%", params)
 
-    @patch("anagrafica.views.legacy_table_columns")
-    @patch("anagrafica.views.connections")
+    @patch("anagrafica.views.dipendenti.legacy_table_columns")
+    @patch("anagrafica.views.dipendenti.connections")
     def test_join_dipendenti_quando_colonna_presente(self, mock_conn, mock_cols):
         from anagrafica import views
 
@@ -4197,7 +4197,7 @@ class QueryAssenzeDipendenteTests(TestCase):
         self.assertIn("a.utente_id = %s", sql)
         self.assertIn("d.utente_id = %s", sql)
 
-    @patch("anagrafica.views.legacy_table_columns")
+    @patch("anagrafica.views.dipendenti.legacy_table_columns")
     def test_no_link_senza_identita(self, mock_cols):
         from anagrafica import views
 
@@ -4208,7 +4208,7 @@ class QueryAssenzeDipendenteTests(TestCase):
         self.assertEqual(lista, [])
         mock_cols.assert_not_called()
 
-    @patch("anagrafica.views.legacy_table_columns", return_value=set())
+    @patch("anagrafica.views.dipendenti.legacy_table_columns", return_value=set())
     def test_tabella_assente_non_e_no_link(self, _mock_cols):
         """Senza tabella legacy (dev) non è un problema di linking: lista vuota,
         no_link False (mostra 'Nessuna assenza' anziché 'non collegato')."""
@@ -4651,7 +4651,7 @@ class FormazioneAllegatiReportTests(TestCase):
                 reverse("anagrafica:formazione_allegato_upload", args=[sess.pk]), {"file": up}
             )
             att = TrainingAttachment.objects.get(sessione=sess)
-            with patch("anagrafica.views._can_view_formazione", return_value=False):
+            with patch("anagrafica.views._helpers._can_view_formazione", return_value=False):
                 d = self.client.get(reverse("anagrafica:formazione_allegato_download", args=[att.pk]))
             self.assertEqual(d.status_code, 403)
 

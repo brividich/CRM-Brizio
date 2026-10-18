@@ -26,6 +26,20 @@ def run_caporeparto_morning_digest() -> dict:
         raise
 
 
+def run_report_emissioni_pulizia() -> dict:
+    """Elimina dal registro emissioni report le righe oltre la conservazione.
+
+    Soglia in SiteConfig (Admin portale → Centro report → Registro); 0 = mai."""
+    from core.report_centro.registro import giorni_conservazione, pulisci_scadute
+
+    try:
+        giorni = giorni_conservazione()
+        return {"ok": True, "giorni": giorni, "eliminate": pulisci_scadute(giorni)}
+    except Exception:
+        logger.exception("run_report_emissioni_pulizia: eccezione inattesa")
+        raise
+
+
 def run_notifiche_archivio() -> dict:
     """Archivia le notifiche in-app scadute ed elimina le archiviate oltre soglia.
 
