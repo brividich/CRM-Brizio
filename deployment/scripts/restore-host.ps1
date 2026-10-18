@@ -38,21 +38,53 @@ param(
     [switch]$Resume,
     [switch]$CachePrereqsOnly,
     [string]$BootstrapPython = "",       # python già presente da usare per piano/kit/file (default: quello installato dai prerequisiti)
+    [string]$EngineDir = "",             # cartella con restore_plan.py/recovery_kit.py/restore_files.py (default: repo)
+    [string]$LockPath = "",              # prereqs.lock.json (default: repo, poi <BackupTarget>\_prereqs)
+    # Uso dal SetupWizard: una riga JSON su stdin con kit_passphrase, task_user, task_password,
+    # pool_password. I segreti non passano mai sulla riga di comando né finiscono nel transcript.
+    [switch]$SecretsFromStdin,
     [switch]$Force
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+# output in UTF-8: il SetupWizard lo legge per la barra di avanzamento
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 . "$PSScriptRoot\_lib.ps1"
 . "$PSScriptRoot\_sqllib.ps1"
 . "$PSScriptRoot\_restorelib.ps1"
 
 $dryRun = [bool]$WhatIfPreference
-$repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$engineDir = Join-Path $repoRoot "django_app\core\backup_engine"
-$lockPath = Join-Path $repoRoot "deployment\recovery\prereqs.lock.json"
+# con -File (SetupWizard) la lista arriva come stringa unica "a,b"
+$AltHostnames = @($AltHostnames | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$repoRoot =Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$engineDir = if ($EngineDir) { $EngineDir } else { Join-Path $repoRoot "django_app\core\backup_engine" }
 $envRoot = Join-Path $BackupTarget $Environment
 $cacheDir = Join-Path $BackupTarget "_prereqs"
+$lockPath = $LockPath
+if (-not $lockPath) {
+    $lockPath = Join-Path $repoRoot "deployment\recovery\prereqs.lock.json"
+    if (-not (Test-Path $lockPath)) { $lockPath = Join-Path $cacheDir "prereqs.lock.json" }   # copia lasciata da -CachePrereqsOnly
+}
+
+# Segreti dal SetupWizard (stdin): diventano SecureString/PSCredential e non vengono mai scritti.
+$script:stdinSecrets = $null
+if ($SecretsFromStdin) {
+    $line = [Console]::In.ReadLine()
+    if ($line) {
+        $obj = $line | ConvertFrom-Json
+        $line = $null
+        $toSecure = { param($v) if ($v) { ConvertTo-SecureString -String ([string]$v) -AsPlainText -Force } else { $null } }
+        $script:stdinSecrets = @{ kit = (& $toSecure $obj.kit_passphrase) }
+        if ($obj.PSObject.Properties["task_user"] -and $obj.task_user -and $obj.task_password) {
+            $TaskCredential = New-Object PSCredential ([string]$obj.task_user), (& $toSecure $obj.task_password)
+        }
+        if ($obj.PSObject.Properties["pool_password"] -and $obj.pool_password -and $AppPoolIdentity -notin @("ApplicationPoolIdentity") -and -not $AppPoolIdentity.EndsWith('$')) {
+            $AppPoolCredential = New-Object PSCredential $AppPoolIdentity, (& $toSecure $obj.pool_password)
+        }
+        $obj = $null
+    }
+}
 $paths = Get-EnvPaths -Env $Environment
 $stateDir = Join-Path $DEPLOY_BASE "shared\recovery"
 $statePath = Join-Path $stateDir "state.json"
@@ -63,7 +95,11 @@ $poolLogin = if ($AppPoolIdentity -eq "ApplicationPoolIdentity") { "IIS APPPOOL\
 if (-not $dryRun) { Assert-Admin }
 New-Item -ItemType Directory -Force -Path $stateDir -WhatIf:$false | Out-Null
 $transcript = Join-Path $stateDir ("restore-" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
-$wi = $WhatIfPreference; $WhatIfPreference = $false; Start-Transcript -Path $transcript -Append | Out-Null; $WhatIfPreference = $wi
+$wi = $WhatIfPreference; $WhatIfPreference = $false
+Start-Transcript -Path $transcript -Append | Out-Null
+# moduli caricati prima del WhatIf: altrimenti l'autocaricamento stampa «Imposta alias» a decine
+foreach ($m in "CimCmdlets", "NetTCPIP", "ScheduledTasks") { Import-Module $m -ErrorAction SilentlyContinue }
+$WhatIfPreference = $wi
 
 $state = if ($Resume) { Read-RestoreState $statePath } else { $null }
 if (-not $state) {
@@ -168,7 +204,7 @@ $phaseBodies["preflight"] = {
     $full = Get-LatestSetDir $envRoot "full"
     if (-not $full) { throw "Nessun backup FULL in $envRoot." }
     $fm = Get-Content (Join-Path $full.FullName "manifest.json") -Raw | ConvertFrom-Json
-    $dbMB = ($fm.databases | Measure-Object -Property allocated_mb -Sum).Sum
+    $dbMB = if ($fm.PSObject.Properties["databases"] -and $fm.databases) { [int](($fm.databases | Measure-Object -Property allocated_mb -Sum).Sum) } else { 0 }
     $filesSet = Get-LatestSetDir $envRoot "files"
     $filesMB = 0
     if ($filesSet) { $filesMB = [int](((Get-Content (Join-Path $filesSet.FullName "manifest.json") -Raw | ConvertFrom-Json).files.total_bytes) / 1MB) }
@@ -346,10 +382,13 @@ ALTER ROLE db_owner ADD MEMBER $(ConvertTo-SqlName $poolLogin);
 }
 
 $phaseBodies["secrets"] = {
-    if (-not $RecoveryKit) { throw "Indicare -RecoveryKit (file .hubkit)." }
+    if (-not $RecoveryKit) {
+        if ($dryRun) { return @("WhatIf: Recovery Kit non indicato: nel ripristino reale è obbligatorio") }
+        throw "Indicare -RecoveryKit (file .hubkit)."
+    }
     if (-not $plan) { Load-Plan }
     if ($dryRun) { return @("WhatIf: import del Recovery Kit in $($paths.Config)\.env con verifica delle impronte del piano") }
-    $secure = Read-Host -AsSecureString "Passphrase del Recovery Kit"
+    $secure = if ($script:stdinSecrets -and $script:stdinSecrets.kit) { $script:stdinSecrets.kit } else { Read-Host -AsSecureString "Passphrase del Recovery Kit" }
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
     New-Item -ItemType Directory -Force -Path $paths.Config | Out-Null
@@ -373,6 +412,9 @@ $phaseBodies["files"] = {
     if (Test-Path $envFile) { $pyArgs += @("--env-file", $envFile) } else { Add-Manual "Campioni dei documenti cifrati non verificati: .env assente durante la fase file." }
     if ($dryRun) { $pyArgs += "--dry-run" }
     if (-not (Test-Path (Join-Path $envRoot $plan.files_index))) { throw "Indice dei file non trovato: $($plan.files_index)" }
+    if ($dryRun) {
+        try { $null = Get-Python } catch { return @("WhatIf: Python non ancora installato (lo installa la fase 1): verifica dei file rimandata") }
+    }
     $r = Invoke-PyScript (Join-Path $engineDir "restore_files.py") $pyArgs
     $rep = $null
     try { $rep = $r.Out | ConvertFrom-Json } catch { }
@@ -452,8 +494,11 @@ $phaseBodies["tasks"] = {
     # worker qcluster (stessa definizione del wizard, mai interattivo)
     $scriptPath = Join-Path $DEPLOY_BASE "shared\scripts\start_qcluster.ps1"
     New-Item -ItemType Directory -Force -Path (Split-Path $scriptPath) | Out-Null
-    Copy-Item (Join-Path $repoRoot "deployment\start_qcluster.ps1") $scriptPath -Force
-    Copy-Item (Join-Path $repoRoot "deployment\watch_qcluster.ps1") (Join-Path (Split-Path $scriptPath) "watch_qcluster.ps1") -Force
+    # gli script del qcluster vengono dalla release appena attivata (dal repo solo se assente)
+    $qSrc = Join-Path $paths.Current "deployment"
+    if (-not (Test-Path (Join-Path $qSrc "start_qcluster.ps1"))) { $qSrc = Join-Path $repoRoot "deployment" }
+    Copy-Item (Join-Path $qSrc "start_qcluster.ps1") $scriptPath -Force
+    Copy-Item (Join-Path $qSrc "watch_qcluster.ps1") (Join-Path (Split-Path $scriptPath) "watch_qcluster.ps1") -Force
     $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$scriptPath`" -Environment $Environment"
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
     $common = @{ TaskPath = "\PortaleNovicrom\"; TaskName = "QCluster_$($Environment.ToUpper())"; Action = $action
@@ -587,6 +632,10 @@ try {
                 $f = Get-VerifiedInstaller $item $cacheDir
                 Write-Log "$($item.name): ok ($f)" "SUCCESS"
             }
+        }
+        # copia del lock accanto agli installer: il SetupWizard (exe) non contiene deployment\recovery
+        if ($PSCmdlet.ShouldProcess((Join-Path $cacheDir "prereqs.lock.json"), "Copia del lock")) {
+            Copy-Item -LiteralPath $lockPath -Destination (Join-Path $cacheDir "prereqs.lock.json") -Force
         }
         return
     }

@@ -94,6 +94,7 @@ STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
 
 STEPS_RELEASE   = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
 STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato"]
+STEPS_RESTORE   = ["Backup e piano", "Segreti e macchina", "Esecuzione", "Completato"]
 
 # Mappa ambiente → settings module Django.
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
@@ -6925,6 +6926,512 @@ class UninstallApp:
 
 
 # ─────────────────────────────────────────────────────────────
+# RIPRISTINO DA BACKUP — interfaccia di restore-host.ps1 (BUILD_SPEC R4)
+# Il wizard non duplica la logica: legge i manifest per mostrare il piano e lancia
+# restore-host.ps1, che fa tutto (ed è usabile anche senza GUI).
+# ─────────────────────────────────────────────────────────────
+
+RESTORE_PHASE_COUNT = 12
+
+
+def _restore_engine_dir() -> Path:
+    """Cartella con restore_plan.py (sorgente bundled nell'exe, o repo)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "_bundled_src" / "django_app" / "core" / "backup_engine"
+    return Path(__file__).resolve().parents[1] / "django_app" / "core" / "backup_engine"
+
+
+def _load_restore_plan_module():
+    """Carica restore_plan.py (solo libreria standard) per l'anteprima del piano."""
+    import importlib.util
+
+    path = _restore_engine_dir() / "restore_plan.py"
+    spec = importlib.util.spec_from_file_location("hub_restore_plan", path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod   # @dataclass cerca il modulo in sys.modules
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _prepare_restore_tool(base_dir: str) -> Path:
+    """Script di ripristino in una cartella di lavoro con la stessa struttura del repo.
+
+    Dall'exe: deployment\\scripts (bundled) + django_app\\requirements.txt e
+    core\\backup_engine (bundled). Dal repo: si usa il repo così com'è.
+    """
+    if not getattr(sys, "frozen", False):
+        return Path(__file__).resolve().parent / "scripts" / "restore-host.ps1"
+    tool = Path(base_dir) / "shared" / "recovery" / "tool"
+    scripts_dst = tool / "deployment" / "scripts"
+    scripts_dst.mkdir(parents=True, exist_ok=True)
+    for f in (Path(sys._MEIPASS) / "scripts").glob("*.ps1"):
+        shutil.copy2(f, scripts_dst / f.name)
+    src_app = Path(sys._MEIPASS) / "_bundled_src" / "django_app"
+    (tool / "django_app").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src_app / "requirements.txt", tool / "django_app" / "requirements.txt")
+    shutil.copytree(src_app / "core" / "backup_engine", tool / "django_app" / "core" / "backup_engine", dirs_exist_ok=True)
+    return scripts_dst / "restore-host.ps1"
+
+
+class RestoreConfig:
+    def __init__(self):
+        self.base_dir = r"C:\PortaleNovicrom"
+        self.backup_target = ""
+        self.environment = "prod"
+        self.target_time = ""          # "" = il più recente
+        self.plan = None
+        self.recovery_kit = ""
+        self.kit_passphrase = ""
+        self.public_hostname = "hub.costruzioninovicrom.it"
+        self.alt_hostnames = "hub.cnovicrom.local"
+        self.pool_identity = "ApplicationPoolIdentity"
+        self.pool_password = ""
+        self.task_user = ""
+        self.task_password = ""
+        self.sql_instance = r".\SQLEXPRESS"
+        self.sql_version = "2025"
+        self.skip_entra = False
+        self.entra_tenant = ""
+        self.whatif = True
+        self.resume = False
+
+
+class RestoreSourcePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Ripristina da backup",
+                         "Da quali backup e a quale momento: il piano si calcola dai manifest")
+        self.cfg = cfg
+        self.sf.show_scrollbar(True)
+        b = self.body
+        self._target = tk.StringVar(value=cfg.backup_target)
+        self._when = tk.StringVar(value="")
+        self._latest = tk.BooleanVar(value=True)
+        frame(b, height=8).pack()
+        sec = frame(b); sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="Cartella dei backup (share del NAS)", font=(SF, 9, "bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0, 4))
+        row = frame(sec); row.pack(fill="x")
+        tk.Entry(row, textvariable=self._target, font=FMO, relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200, highlightcolor=BRAND
+                 ).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ",
+                        lambda: self._target.set(filedialog.askdirectory() or self._target.get())
+                        ).pack(side="left", padx=(8, 0))
+        tk.Label(sec, text=r"Es. \\nas\hub-backup  (contiene le cartelle prod, test, _prereqs)",
+                 font=FSM, fg=GRAY400, bg="white").pack(anchor="w", pady=(2, 10))
+
+        tk.Label(sec, text="Ambiente", font=(SF, 9, "bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0, 6))
+        self._env_sel = CardSelector(sec, [
+            ("prod", "PROD", "Ripristina l'ambiente di produzione", (GREEN_BG, GREEN_BD, "#166534")),
+            ("test", "TEST", "Ripristina l'ambiente di collaudo", (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
+        ], initial=cfg.environment)
+        self._env_sel.pack(fill="x")
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+        tk.Label(sec, text="Punto nel tempo", font=(SF, 9, "bold"), fg=GRAY600, bg="white").pack(anchor="w")
+        tk.Checkbutton(sec, text="  Il più recente disponibile", variable=self._latest, font=FN, bg="white",
+                       activebackground="white", selectcolor="white").pack(anchor="w", pady=(4, 2))
+        row2 = frame(sec); row2.pack(fill="x")
+        tk.Label(row2, text="oppure data e ora (AAAA-MM-GG HH:MM):", font=FSM, fg=GRAY500, bg="white").pack(side="left")
+        tk.Entry(row2, textvariable=self._when, font=FMO, width=18, relief="flat", bg=GRAY50,
+                 highlightthickness=1, highlightbackground=GRAY200).pack(side="left", padx=(8, 0), ipady=4)
+
+        frame(sec, height=10).pack()
+        SecondaryButton(sec, "  🔎 Leggi i backup e calcola il piano  ", self._compute).pack(anchor="w")
+        frame(sec, height=8).pack()
+        self._txt = tk.Text(sec, font=FMO, bg=CODE_BG, fg=CODE_FG, relief="flat", height=12,
+                            state="disabled", padx=12, pady=8)
+        self._txt.pack(fill="x")
+        self._txt.tag_configure("h", foreground="#58a6ff", font=("Consolas", 9, "bold"))
+        self._txt.tag_configure("ok", foreground="#7ee787")
+        self._txt.tag_configure("warn", foreground="#fbbf24")
+        self._txt.tag_configure("err", foreground="#f85149")
+
+    def _write(self, lines):
+        t = self._txt
+        t.configure(state="normal"); t.delete("1.0", "end")
+        for text, tag in lines:
+            t.insert("end", text + "\n", tag)
+        t.configure(state="disabled")
+
+    def _compute(self):
+        self.cfg.plan = None
+        target = self._target.get().strip()
+        env = self._env_sel.value
+        when = None
+        if not self._latest.get():
+            try:
+                when = datetime.strptime(self._when.get().strip(), "%Y-%m-%d %H:%M")
+            except ValueError:
+                self._write([("Data e ora non valide: usa il formato AAAA-MM-GG HH:MM.", "err")]); return
+        env_root = Path(target) / env
+        if not env_root.exists():
+            self._write([(f"Cartella non raggiungibile: {env_root}", "err")]); return
+        try:
+            mod = _load_restore_plan_module()
+            plan = mod.build_plan(env_root, when)
+        except Exception as e:
+            self._write([(f"Piano non costruibile: {e}", "err")]); return
+        self.cfg.plan = plan
+        lines = [("── Piano di ripristino ─────────────────────────", "h"),
+                 (f"  Punto di ripristino : {plan['restore_point']}" + (" (STOPAT)" if plan.get("stopat") else ""), "ok"),
+                 (f"  Backup completo     : {plan['full_set_id']}", ""),
+                 (f"  Ultimo log          : {plan.get('last_log_set_id') or '— (solo il backup completo)'}", "")]
+        for db, entry in plan["databases"].items():
+            lines.append((f"  Database            : {db} — {len(entry['logs'])} log da applicare", ""))
+        lines += [(f"  File                : {plan.get('files_set_id') or 'nessun backup dei file'}", ""),
+                  (f"  Release             : {plan['release'].get('version')} ({(plan['release'].get('commit') or '')[:10]})"
+                   f" {plan['release'].get('zip') or '— zip non nel target'}", ""),
+                  (f"  SQL d'origine       : {(plan.get('sql') or {}).get('product_version', '?')} · "
+                   f"{(plan.get('sql') or {}).get('collation', '?')}", "")]
+        for w in plan.get("warnings", []):
+            lines.append((f"  ⚠ {w}", "warn"))
+        self._write(lines)
+
+    def validate(self):
+        self.cfg.backup_target = self._target.get().strip()
+        self.cfg.environment = self._env_sel.value
+        self.cfg.target_time = "" if self._latest.get() else self._when.get().strip()
+        if not self.cfg.plan:
+            messagebox.showwarning("Piano mancante", "Calcola prima il piano di ripristino («Leggi i backup e calcola il piano»).")
+            return False
+        return True
+
+
+class RestoreOptionsPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Segreti e macchina", "Recovery Kit, nomi del portale, identità e SQL Server")
+        self.cfg = cfg
+        self.sf.show_scrollbar(True)
+        b = self.body
+        self.v = {k: tk.StringVar(value=getattr(cfg, k)) for k in (
+            "recovery_kit", "kit_passphrase", "public_hostname", "alt_hostnames", "pool_identity", "pool_password",
+            "task_user", "task_password", "sql_instance", "sql_version", "entra_tenant")}
+        self._skip_entra = tk.BooleanVar(value=cfg.skip_entra)
+        self._whatif = tk.BooleanVar(value=cfg.whatif)
+        frame(b, height=8).pack()
+        sec = frame(b); sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="Recovery Kit (file .hubkit)", font=(SF, 9, "bold"), fg=GRAY600, bg="white").pack(anchor="w")
+        row = frame(sec); row.pack(fill="x", pady=(2, 8))
+        tk.Entry(row, textvariable=self.v["recovery_kit"], font=FMO, relief="flat", bg=GRAY50,
+                 highlightthickness=1, highlightbackground=GRAY200).pack(side="left", fill="x", expand=True, ipady=6, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ", lambda: self.v["recovery_kit"].set(
+            filedialog.askopenfilename(filetypes=[("Recovery Kit", "*.hubkit"), ("Tutti", "*.*")]) or self.v["recovery_kit"].get())
+        ).pack(side="left", padx=(8, 0))
+        FieldGroup(sec, "Passphrase del Recovery Kit (busta in Direzione)", self.v["kit_passphrase"], show="•").pack(fill="x", pady=(0, 8))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=8)
+        FieldGroup(sec, "Nome pubblico del portale", self.v["public_hostname"], mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Nomi alternativi (separati da virgola)", self.v["alt_hostnames"], mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Identità del pool IIS (ApplicationPoolIdentity, DOMINIO\\utente o DOMINIO\\gmsa$)",
+                   self.v["pool_identity"], mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Password dell'identità del pool (solo per un utente di dominio)", self.v["pool_password"],
+                   show="•").pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Account dei task pianificati (accesso di rete alla share), es. CNOVICROM\\svc-hub — "
+                        "per un gMSA scrivere DOMINIO\\gmsa$ e lasciare vuota la password",
+                   self.v["task_user"], mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Password dell'account dei task", self.v["task_password"], show="•").pack(fill="x", pady=(0, 6))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=8)
+        FieldGroup(sec, "Istanza SQL Server", self.v["sql_instance"], mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Versione SQL Server se da installare (2025 o 2022; mai più vecchia del backup)",
+                   self.v["sql_version"], mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(sec, "Tenant Entra (facoltativo, per la registrazione automatica del connector)",
+                   self.v["entra_tenant"], mono=True).pack(fill="x", pady=(0, 6))
+        tk.Checkbutton(sec, text="  Salta il connector Entra Application Proxy", variable=self._skip_entra, font=FN,
+                       bg="white", activebackground="white", selectcolor="white").pack(anchor="w", pady=(4, 0))
+        warn = frame(sec, bg=BLUE_BG, highlightthickness=1, highlightbackground=BLUE_BD)
+        warn.pack(fill="x", pady=(10, 0))
+        tk.Checkbutton(warn, text="  Solo simulazione (consigliato la prima volta): mostra cosa farebbe ogni fase senza cambiare nulla",
+                       variable=self._whatif, font=FSM, bg=BLUE_BG, activebackground=BLUE_BG, selectcolor="white",
+                       wraplength=520, justify="left").pack(anchor="w", padx=10, pady=8)
+
+    def validate(self):
+        for k, var in self.v.items():
+            setattr(self.cfg, k, var.get().strip() if "password" not in k and "passphrase" not in k else var.get())
+        self.cfg.skip_entra = self._skip_entra.get()
+        self.cfg.whatif = self._whatif.get()
+        missing = []
+        if not self.cfg.recovery_kit and not self.cfg.whatif:
+            missing.append("Recovery Kit")
+        if not self.cfg.kit_passphrase and not self.cfg.whatif:
+            missing.append("passphrase")
+        if not self.cfg.public_hostname:
+            missing.append("nome pubblico")
+        if self.cfg.sql_version not in ("2022", "2025"):
+            missing.append("versione SQL (2022 o 2025)")
+        if missing:
+            messagebox.showwarning("Dati mancanti", "Completa: " + ", ".join(missing)); return False
+        return True
+
+
+class RestoreRunPage(Page):
+    def __init__(self, parent, cfg, on_done):
+        super().__init__(parent, "Ripristino in corso", "")
+        self.cfg = cfg; self._on_done = on_done; self._running = False
+        self.exit_code = None
+        b = self.body
+        frame(b, height=8).pack()
+        self._step_var = tk.StringVar(value="Pronto")
+        tk.Label(b, textvariable=self._step_var, font=(SF, 10, "bold"), fg=BRAND, bg="white").pack(anchor="w", padx=32)
+        frame(b, height=6).pack()
+        self._pb_frame = frame(b, bg=GRAY100, height=8); self._pb_frame.pack(fill="x", padx=32)
+        self._pb_fill = frame(self._pb_frame, bg=BRAND, height=8); self._pb_fill.place(x=0, y=0, relheight=1, width=0)
+        self._pb_pct = tk.StringVar(value="0%")
+        tk.Label(b, textvariable=self._pb_pct, font=FSM, fg=GRAY400, bg="white").pack(anchor="e", padx=32, pady=(3, 6))
+        wrap = frame(b, bg=CODE_BG); wrap.pack(fill="both", expand=True, padx=32, pady=(0, 4))
+        sb = tk.Scrollbar(wrap); sb.pack(side="right", fill="y")
+        self._log = tk.Text(wrap, font=FMO, bg=CODE_BG, fg=CODE_FG, relief="flat", state="disabled", height=20,
+                            yscrollcommand=sb.set, padx=12, pady=8)
+        self._log.pack(fill="both", expand=True); sb.config(command=self._log.yview)
+        for tag, col in (("ok", "#7ee787"), ("err", "#f85149"), ("warn", "#fbbf24"), ("step", "#58a6ff")):
+            self._log.tag_configure(tag, foreground=col)
+        self._actions = frame(b); self._actions.pack(fill="x", padx=32, pady=(4, 0))
+        self._btn_resume = SecondaryButton(self._actions, "  ⟳ Riprendi dal punto interrotto  ", self._resume)
+        self._btn_real = PrimaryButton(self._actions, "▶  Esegui il ripristino reale", self._run_real, bg=RED)
+
+    def on_enter(self):
+        if not self._running and self.exit_code is None:
+            self._start(resume=self.cfg.resume)
+
+    def _line(self, text, tag=""):
+        def _do():
+            self._log.configure(state="normal"); self._log.insert("end", text + "\n", tag)
+            self._log.see("end"); self._log.configure(state="disabled")
+        self._log.after(0, _do)
+
+    def _progress(self, phase, label):
+        pct = int(min(phase + 1, RESTORE_PHASE_COUNT) / RESTORE_PHASE_COUNT * 100)
+        def _do():
+            self._step_var.set(label); self._pb_pct.set(f"{pct}%")
+            self._pb_frame.update_idletasks()
+            self._pb_fill.place(width=int(self._pb_frame.winfo_width() * pct / 100))
+        self._log.after(0, _do)
+
+    def _command(self, resume):
+        cfg = self.cfg
+        script = _prepare_restore_tool(cfg.base_dir)
+        args = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script),
+                "-Environment", cfg.environment, "-BackupTarget", cfg.backup_target,
+                "-PublicHostname", cfg.public_hostname, "-AppPoolIdentity", cfg.pool_identity,
+                "-SqlInstance", cfg.sql_instance, "-SqlMajorVersion", cfg.sql_version, "-SecretsFromStdin", "-Force"]
+        alts = [a.strip() for a in cfg.alt_hostnames.split(",") if a.strip()]
+        if alts:
+            args += ["-AltHostnames"] + [",".join(alts)]
+        if cfg.recovery_kit:
+            args += ["-RecoveryKit", cfg.recovery_kit]
+        if cfg.plan:
+            # il piano già mostrato all'operatore: restore-host non deve ricalcolarlo (né avere già Python)
+            plan_file = Path(cfg.base_dir) / "shared" / "recovery" / "wizard-plan.json"
+            plan_file.parent.mkdir(parents=True, exist_ok=True)
+            plan_file.write_text(json.dumps(cfg.plan, ensure_ascii=False, indent=2), encoding="utf-8")
+            args += ["-PlanFile", str(plan_file)]
+        elif cfg.target_time:
+            args += ["-TargetTime", cfg.target_time]
+        if cfg.task_user.endswith("$"):
+            args += ["-TaskGmsa", cfg.task_user]
+        if cfg.skip_entra:
+            args.append("-SkipEntra")
+        if cfg.entra_tenant:
+            args += ["-EntraTenantId", cfg.entra_tenant]
+        if resume:
+            args.append("-Resume")
+        if cfg.whatif:
+            args.append("-WhatIf")
+        return args
+
+    def _start(self, resume=False):
+        self._running = True
+        self._btn_resume.pack_forget(); self._btn_real.pack_forget()
+        mode = "SIMULAZIONE" if self.cfg.whatif else "RIPRISTINO"
+        self._line(f"── {mode} {'(ripresa)' if resume else ''} ─────────────────────────", "step")
+        threading.Thread(target=self._run, args=(resume,), daemon=True).start()
+
+    def _run(self, resume):
+        cfg = self.cfg
+        secrets_line = json.dumps({
+            "kit_passphrase": cfg.kit_passphrase,
+            "task_user": "" if cfg.task_user.endswith("$") else cfg.task_user,
+            "task_password": cfg.task_password,
+            "pool_password": cfg.pool_password,
+        })
+        try:
+            proc = subprocess.Popen(self._command(resume), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                                    creationflags=subprocess.CREATE_NO_WINDOW)
+            proc.stdin.write(secrets_line + "\n"); proc.stdin.close()
+            secrets_line = None
+            phase_re = re.compile(r"Fase (\d+) \S (.+?)( \[WhatIf\])?$")   # \S: separatore anche se mal codificato
+            for raw in proc.stdout:
+                line = raw.rstrip()
+                if not line:
+                    continue
+                m = phase_re.search(line)
+                if m:
+                    self._progress(int(m.group(1)), f"Fase {m.group(1)}/{RESTORE_PHASE_COUNT - 1} · {m.group(2)}")
+                tag = "err" if "[ERROR]" in line else "warn" if "[WARN]" in line else "ok" if "[SUCCESS]" in line else \
+                    "step" if "[STEP]" in line else ""
+                self._line(line, tag)
+            self.exit_code = proc.wait()
+        except Exception as e:
+            self._line(f"✗ Avvio non riuscito: {e}", "err")
+            self.exit_code = 1
+        finally:
+            self._running = False
+        self._log.after(0, self._finished)
+
+    def _finished(self):
+        if self.exit_code == 0 and self.cfg.whatif:
+            self._step_var.set("Simulazione completata: controlla il log, poi esegui il ripristino reale")
+            self._btn_real.pack(side="left")
+        elif self.exit_code == 0:
+            self._step_var.set("Ripristino completato")
+            self._on_done()
+        else:
+            self._step_var.set("Interrotto: correggi il problema indicato nel log e riprendi")
+            self._btn_resume.pack(side="left")
+
+    def _run_real(self):
+        if not self.cfg.recovery_kit or not self.cfg.kit_passphrase:
+            messagebox.showwarning("Dati mancanti", "Per il ripristino reale servono Recovery Kit e passphrase (torna indietro)."); return
+        if not messagebox.askyesno("Ripristino reale", "Avviare il ripristino reale su questa macchina?\n\n"
+                                   "Installa programmi, ripristina il database, configura IIS e i task."):
+            return
+        self.cfg.whatif = False
+        self.exit_code = None
+        self._start(resume=False)
+
+    def _resume(self):
+        self.exit_code = None
+        self._start(resume=True)
+
+
+class RestoreDonePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Ripristino completato", "")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=16).pack()
+        self._msg = tk.Label(b, text="", font=(SF, 13, "bold"), fg=GRAY700, bg="white", wraplength=560, justify="left")
+        self._msg.pack(padx=32, anchor="w")
+        frame(b, bg=GRAY100, height=1).pack(fill="x", padx=32, pady=12)
+        self._list = frame(b); self._list.pack(fill="x", padx=32)
+        frame(b, height=10).pack()
+        self._btn = PrimaryButton(b, "📄  Apri il report", self._open)
+        self._btn.pack(anchor="w", padx=32)
+        self._report = None
+
+    def on_enter(self):
+        for w in self._list.winfo_children(): w.destroy()
+        rec = Path(self.cfg.base_dir) / "shared" / "recovery"
+        reports = sorted(rec.glob("recovery-report-*.html"))
+        self._report = reports[-1] if reports else None
+        state = {}
+        try:
+            state = json.loads((rec / "state.json").read_text(encoding="utf-8-sig"))
+        except Exception:
+            pass
+        rto = None
+        jsons = sorted(rec.glob("recovery-report-*.json"))
+        if jsons:
+            try:
+                rto = json.loads(jsons[-1].read_text(encoding="utf-8-sig")).get("rto_minutes")
+            except Exception:
+                pass
+        self._msg.configure(text=f"NOVICROM HUB ripristinato ({self.cfg.environment.upper()})"
+                                 + (f" · RTO {rto} minuti" if rto is not None else ""))
+        tk.Label(self._list, text="Azioni manuali rimaste:", font=FNB, fg=GRAY700, bg="white").pack(anchor="w")
+        actions = state.get("manual_actions") or []
+        for a in actions or ["Nessuna"]:
+            tk.Label(self._list, text=f"• {a}", font=FSM, fg=GRAY600, bg="white", wraplength=560,
+                     justify="left").pack(anchor="w", pady=1)
+
+    def _open(self):
+        if self._report and self._report.exists():
+            os.startfile(str(self._report))
+        else:
+            messagebox.showinfo("Report", "Report non trovato in C:\\PortaleNovicrom\\shared\\recovery.")
+
+
+class RestoreApp:
+    def __init__(self):
+        self.cfg = RestoreConfig()
+        self._idx = 0
+        self.root = tk.Tk()
+        self.root.title("Portale Novicrom — Ripristina da backup")
+        self.root.geometry(f"{WIN_W}x{WIN_H}")
+        self.root.resizable(False, False)
+        self.root.configure(bg="white")
+        self.root.protocol("WM_DELETE_WINDOW", self._close)
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth() - WIN_W) // 2
+        y = (self.root.winfo_screenheight() - WIN_H) // 2 - 20
+        self.root.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
+        self._build()
+        self._show(0)
+        self.root.mainloop()
+
+    def _build(self):
+        main = frame(self.root); main.pack(fill="both", expand=True)
+        self.sidebar = Sidebar(main, steps=STEPS_RESTORE, subtitle="Ripristino")
+        self.sidebar.pack(side="left", fill="y")
+        right = frame(main); right.pack(side="left", fill="both", expand=True)
+        self.container = frame(right); self.container.pack(fill="both", expand=True)
+        (self.btn_back, self.btn_cancel, self.btn_next, self.btn_finish) = _build_bottom_bar(
+            right, self._back, self._cancel, self._next, self._close, finish_bg=GRAY700)
+        self._pages = [RestoreSourcePage(self.container, self.cfg), RestoreOptionsPage(self.container, self.cfg),
+                       RestoreRunPage(self.container, self.cfg, self._on_done), RestoreDonePage(self.container, self.cfg)]
+
+    def _show(self, idx):
+        for p in self._pages: p.place_forget()
+        self._pages[idx].place(x=0, y=0, relwidth=1, relheight=1)
+        self._pages[idx].on_enter()
+        self.sidebar.set(idx)
+        self._idx = idx
+        if idx == 3:
+            self.btn_next.pack_forget(); self.btn_finish.pack(side="right")
+            self.btn_back.set_enabled(False); self.btn_cancel.set_enabled(False)
+        elif idx == 2:
+            self.btn_next.pack_forget(); self.btn_finish.pack(side="right")
+            self.btn_back.set_enabled(True); self.btn_cancel.set_enabled(True)
+        else:
+            self.btn_finish.pack_forget(); self.btn_next.pack(side="right")
+            self.btn_next.configure_text("▶  Avvia (simulazione o ripristino)" if idx == 1 else "Avanti  ▶")
+            self.btn_back.set_enabled(idx > 0); self.btn_cancel.set_enabled(True)
+
+    def _next(self):
+        if self._pages[self._idx].validate():
+            self._pages[self._idx].on_leave()
+            if self._idx == 1:
+                self._pages[2].exit_code = None
+            self._show(self._idx + 1)
+
+    def _back(self):
+        run = self._pages[2]
+        if self._idx == 2 and run._running:
+            messagebox.showinfo("In corso", "Attendi la fine dell'esecuzione."); return
+        if self._idx > 0: self._show(self._idx - 1)
+
+    def _close(self):
+        if self._idx == 2 and self._pages[2]._running:
+            if not messagebox.askyesno("In corso", "Il ripristino è in corso: chiudendo la finestra continua in background "
+                                       "e si potrà riprendere con -Resume. Chiudere?"):
+                return
+        try: self.root.quit()
+        except Exception: pass
+        try: self.root.destroy()
+        except Exception: pass
+
+    def _cancel(self):
+        if messagebox.askyesno("Annulla", "Uscire?"): self._close()
+
+    def _on_done(self):
+        self._show(3)
+
+
+# ─────────────────────────────────────────────────────────────
 # SERVER DASHBOARD — pannello di controllo offline
 # ─────────────────────────────────────────────────────────────
 
@@ -9653,7 +10160,7 @@ class LauncherApp:
         root.configure(bg="white")
         root.resizable(False, False)
 
-        W, H = 640, 500
+        W, H = 640, 590
         sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
         root.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2}")
 
@@ -9687,6 +10194,10 @@ class LauncherApp:
              "Crea/promuovi una release completa, oppure crea e applica un hotfix "
              "leggero dei soli file modificati",
              GREEN_BG, GREEN_BD, "#166534"),
+            ("restore",
+             "♻  Ripristina da backup",
+             "Ricostruisce il portale su questa macchina dai backup verificati (piano, Recovery Kit, report con RTO)",
+             BLUE_BG, BLUE_BD, "#1d4ed8"),
             ("uninstall",
              "🗑  Disinstalla ambiente",
              "Rimuove il sito IIS e l'App Pool di un ambiente (TEST o PROD)",
@@ -9776,6 +10287,10 @@ def main():
         _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
         UninstallApp(); return
 
+    if mode == "restore":
+        _ensure_admin("Il ripristino richiede diritti di Amministratore.")
+        RestoreApp(); return
+
     _release_modes = ("create", "promote", "hotfix-create", "hotfix-apply")
     if mode in ("release", *_release_modes):
         ReleaseApp(initial_mode=mode if mode in _release_modes else None); return
@@ -9814,6 +10329,10 @@ def main():
         elif choice == "uninstall":
             _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
             UninstallApp()
+
+        elif choice == "restore":
+            _ensure_admin("Il ripristino richiede diritti di Amministratore.")
+            RestoreApp()
 
 if __name__ == "__main__":
     main()

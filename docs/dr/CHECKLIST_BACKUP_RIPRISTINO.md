@@ -90,5 +90,13 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 
 ## R4 — Wizard "Ripristina da backup" + runbook
 
-- [ ] Modalità nel SetupWizard + rigenerazione exe
-- [ ] `RUNBOOK_RIPRISTINO.md`, `DR_PLAN.md`, `RECOVERY_KIT.md`
+- [x] Worktree `C:\Dev\pn-recovery-wizard`, branch `feature/recovery-wizard` (sopra `feature/recovery-tool`)
+- [x] Modalità «♻ Ripristina da backup» nel SetupWizard (4 pagine: piano dai manifest, segreti e macchina, esecuzione con barra per fase e ripresa, report) — tutta l'esecuzione in `restore-host.ps1`, segreti su stdin
+- [x] Verifica: widget reali (anteprima piano, validazioni, comando senza passphrase) + simulazione completa dalla pagina di esecuzione (fasi 0–11, exit 0); corretto bug di caricamento di `restore_plan.py`. Screenshot non possibile in questa sessione (cattura schermo non disponibile)
+- [x] `SetupWizard.exe` rigenerato (23,6 MB), bundle verificato (script e `backup_engine` presenti, nessun `.env`)
+- [x] `hub_restore_drill --keep` per il recupero selettivo
+- [x] `RUNBOOK_RIPRISTINO.md` + `deployment/RUNBOOK_RIPRISTINO.pdf` (generatore reportlab), `DR_PLAN.md`; `RECOVERY_KIT.md` (fatto in R3)
+- [x] Commit e push su `feature/recovery-wizard`
+- [ ] PR: da aprire a mano dopo R0→R3 (oppure con base `feature/recovery-tool`) — compare `main...feature/recovery-wizard`; testo nello scratchpad `pr_r4.md`
+- [B] Stampare il runbook per la Direzione, copiare il PDF sul NAS, compilare i contatti nella copia stampata
+- [B] Prima prova di ripristino completo su VM isolata (trimestrale) con il kit custodito

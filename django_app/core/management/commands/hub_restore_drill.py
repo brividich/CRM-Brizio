@@ -30,6 +30,8 @@ class Command(BaseCommand):
         parser.add_argument("--samples", type=int, default=None, help="File privati da decifrare per radice.")
         parser.add_argument("--json", action="store_true")
         parser.add_argument("--no-exit-code", action="store_true")
+        parser.add_argument("--keep", action="store_true",
+                            help="Recupero selettivo: lascia la copia <db>_drill (da eliminare a mano dopo).")
 
     def handle(self, *args, **opts):
         cfg = load_config(opts["env"], opts["target"])
@@ -39,7 +41,11 @@ class Command(BaseCommand):
                 stopat = datetime.strptime(opts["stopat"], "%Y-%m-%d %H:%M")
             except ValueError as exc:
                 raise CommandError("--stopat atteso nel formato YYYY-MM-DD HH:MM") from exc
-        res = run_drill(cfg, stopat=stopat, samples=opts["samples"])
+        res = run_drill(cfg, stopat=stopat, samples=opts["samples"], keep=opts["keep"])
+        for name in res.get("kept_databases", []):
+            self.stdout.write(self.style.WARNING(
+                f"Copia {name} lasciata sull'istanza per il recupero selettivo: eliminarla a mano "
+                f"(ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}])."))
         if opts["json"]:
             self.stdout.write(json.dumps(res, ensure_ascii=False, indent=2, default=str))
         else:
