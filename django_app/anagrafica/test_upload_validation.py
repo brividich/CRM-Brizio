@@ -6,7 +6,6 @@ from unittest.mock import patch
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
 
-from core.upload_mime import UploadMimeValidationError
 
 from fornitori.forms import FornitoreDocumentoForm
 

@@ -16,7 +16,6 @@ from werkzeug.security import generate_password_hash
 from core.accounts.forms import LegacyAuthenticationForm, LegacyChangePasswordForm
 from core.accounts.redirects import get_safe_redirect_target
 from core.branding import get_portal_branding
-from core.legacy_models import UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
 
 logger = logging.getLogger(__name__)

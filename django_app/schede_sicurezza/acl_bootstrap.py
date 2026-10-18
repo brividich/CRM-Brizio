@@ -79,7 +79,7 @@ def _norm(value: str) -> str:
 def _bootstrap_canonical() -> bool:
     from core.legacy_models import Permesso, Ruolo
     from core.models import (
-        NavigationItem, NavigationRoleAccess, PermissionDefinition,
+        NavigationRoleAccess, PermissionDefinition,
         RolePermissionGrant, RoutePermissionBinding,
     )
     from core.navigation_registry import bump_navigation_registry_version

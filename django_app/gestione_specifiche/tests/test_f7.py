@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from gestione_specifiche import constants as C
-from gestione_specifiche.models import MOD133, Specifica
+from gestione_specifiche.models import Specifica
 
 User = get_user_model()
 API = "/gestione-specifiche/api"

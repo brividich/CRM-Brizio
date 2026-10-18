@@ -943,7 +943,6 @@ from .models import (
     VisitaMedica,
 )
 from .services.visite import (
-    STATO_IN_SCADENZA,
     STATO_MANCANTE,
     STATO_SCADUTA,
     STATO_VALIDA,
@@ -1670,7 +1669,7 @@ class VisiteMedicheDashboardTests(TestCase):
 
 class DPIIngressoServiceTests(TestCase):
     def test_crea_consegne_iniziali_crea_richiesta_e_consegna(self):
-        from dpi.models import CategoriaDPI, ConsegnaDPI, RichiestaDPI, StatoRichiesta
+        from dpi.models import CategoriaDPI, ConsegnaDPI, StatoRichiesta
         from .services.dpi_ingresso import RigaConsegnaIniziale, crea_consegne_iniziali
 
         cat = CategoriaDPI.objects.create(
@@ -3945,7 +3944,7 @@ class OnboardingServiceTests(TestCase):
         self.assertEqual(stato, OnboardingPratica.STATO_CHIUSA)
 
     def test_chiusura_con_task_aperti_da_eccezioni(self):
-        from .models import OnboardingPratica, OnboardingTask
+        from .models import OnboardingPratica
         from .services import onboarding
         pratica = onboarding.avvia_onboarding(legacy_id=805, dipendente_nome="Y")
         # lascia tutti i task DA_FARE

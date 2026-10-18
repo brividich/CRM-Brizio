@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from django.core.cache import cache
-from django.db import DatabaseError, transaction
+from django.db import transaction
 
 from core.acl_bootstrap_base import set_ui_meta, should_skip_runtime_bootstrap, upsert_pulsante
 from core.legacy_cache import bump_legacy_cache_version

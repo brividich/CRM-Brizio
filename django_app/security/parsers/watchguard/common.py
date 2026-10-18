@@ -1,7 +1,6 @@
 import csv
 import hashlib
 import re
-from collections import Counter
 from decimal import Decimal
 from datetime import datetime
 from io import StringIO

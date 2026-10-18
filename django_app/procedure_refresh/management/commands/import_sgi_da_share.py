@@ -77,7 +77,7 @@ def _safe_code(text: str) -> str:
     code = re.sub(r"\.\s+", ".", _norm_spaces(text))  # "MOD. 093" -> "MOD.093"
     if len(code) <= 50:
         return code
-    suffix = "~" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:6]
+    suffix = "~" + hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:6]
     return code[: 50 - len(suffix)].rstrip() + suffix
 
 

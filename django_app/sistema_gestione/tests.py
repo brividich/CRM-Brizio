@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from .acl_bootstrap import PERM_SOA_APPROVA, PERM_SOA_EDIT, PERM_SOA_VIEW, PERM_VIEW, _bootstrap_canonical
 from .forms import SoaVoceForm
-from .models import ControlloIso27002, SoaRevisione, SoaVoce, ThreatIntelligence
+from .models import ControlloIso27002, SoaRevisione, ThreatIntelligence
 from .services import soa
 from .services.mod165_import import _intero, _separa_obblighi, leggi_control_matrix
 

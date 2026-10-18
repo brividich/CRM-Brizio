@@ -18,7 +18,6 @@ import logging
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, TableStyle

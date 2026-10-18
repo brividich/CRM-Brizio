@@ -1,8 +1,7 @@
 """Automatismi deterministici: preparano dati e motivazioni, mai esiti o firme."""
 from calendar import monthrange
 from datetime import timedelta
-from django.db import transaction
-from django.db.models import Max, Prefetch
+from django.db.models import Prefetch
 from django.utils import timezone
 from ..models import Audit, AuditEsito, ChecklistProcesso, ProcessoRevisione
 

@@ -172,7 +172,7 @@ class Command(BaseCommand):
             raise CommandError("LDAP_USER_FILTER non configurato.")
 
         try:
-            from ldap3 import NONE, NTLM, SIMPLE, SUBTREE, Connection, Server
+            from ldap3 import NTLM, SIMPLE, SUBTREE, Connection
             from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
         except Exception as exc:
             raise CommandError(f"ldap3 non disponibile: {exc}") from exc

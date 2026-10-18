@@ -6,7 +6,6 @@ import hashlib
 import html as _html
 import ipaddress
 import logging
-import os
 import secrets
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -15,8 +14,7 @@ from django.conf import settings
 from django.utils import timezone
 
 if TYPE_CHECKING:
-    from django.contrib.auth.models import User
-    from django.http import HttpRequest
+    pass
 
 logger = logging.getLogger(__name__)
 

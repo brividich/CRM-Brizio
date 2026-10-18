@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
 
 from django.core.management.base import BaseCommand
 from django.urls import get_resolver

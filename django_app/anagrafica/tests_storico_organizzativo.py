@@ -9,15 +9,11 @@ from __future__ import annotations
 import datetime
 
 from django.contrib.auth import get_user_model
-from django.db import connection
 from django.test import TestCase, override_settings
-from django.urls import reverse
 
 from .models import (
-    AreaAziendale, DipendenteAnagraficaAziendale, DipendenteCambiamentoOrganizzativo,
-    Reparto, RuoloAziendale,
+    DipendenteCambiamentoOrganizzativo,
 )
-from .tests import _ensure_anagrafica_table
 
 User = get_user_model()
 

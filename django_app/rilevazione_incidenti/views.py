@@ -1300,7 +1300,6 @@ def impostazioni(request):
 
 @login_required
 def export_csv(request):
-    import csv as csv_module
     from django.http import HttpResponse
 
     if sistema_ruoli_attivo():
@@ -1388,7 +1387,7 @@ def export_pdf(request, sp_id):
     from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
     from core.pdf import (
-        PdfTheme, build_styles, data_table, header_footer_callback,
+        PdfTheme, build_styles, header_footer_callback,
         make_document, section_heading,
     )
 

@@ -19,7 +19,6 @@ from __future__ import annotations
 import hmac
 import ipaddress
 import logging
-from datetime import datetime
 from typing import Any, List
 
 from django.conf import settings

@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import TestCase
 
-from tasks.models import Project, ProjectPhase, VRFDocStatus
+from tasks.models import ProjectPhase, VRFDocStatus
 from .tests_utils import make_project
 from tasks.project_alerts import project_recipients, send_project_alert
 

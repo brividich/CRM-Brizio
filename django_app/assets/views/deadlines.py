@@ -24,11 +24,6 @@ from django.utils import timezone
 
 from core.audit import log_action
 
-# Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
-# `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
-# stringa sparsa perche' un refuso qui non romperebbe nulla — semplicemente la
-# voce non comparirebbe mai nello storico, e non se ne accorgerebbe nessuno.
-AUDIT_OGGETTO_ASSET = "assets.asset"
 from core.legacy_models import AnagraficaDipendente
 from ..forms import (
     AssistanceContractForm,

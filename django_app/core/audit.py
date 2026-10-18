@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 
-from django.conf import settings
 
 from core.impersonation import display_name_for_user
 

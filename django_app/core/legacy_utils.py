@@ -159,7 +159,7 @@ def resolve_ldap_identity(
             return preferred_upn, full_name
 
         try:
-            from ldap3 import Connection, NONE, NTLM, SIMPLE, Server
+            from ldap3 import Connection, NTLM, SIMPLE
             from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
         except Exception as exc:
             logger.warning("resolve_ldap_identity: ldap3 unavailable: %s", exc)

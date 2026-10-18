@@ -4,12 +4,9 @@ Tests for rule simulation functionality.
 Tests cover non-destructive rule simulation against historical data.
 """
 from django.test import TestCase
-from django.utils import timezone
-from datetime import timedelta
 
 from security.models import (
     SecurityAlert,
-    SecurityAlertRuleConfig,
     SecurityEventRecord,
     SecurityReport,
     SecurityReportMetric,

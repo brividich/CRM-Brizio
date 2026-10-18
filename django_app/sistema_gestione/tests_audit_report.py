@@ -1,5 +1,5 @@
 """Cruscotto, export rilievi, allegato del rapporto e «I miei rilievi» (prompt 08, fasi 6-7)."""
-from datetime import date, timedelta
+from datetime import date
 from io import BytesIO
 from unittest.mock import patch
 
