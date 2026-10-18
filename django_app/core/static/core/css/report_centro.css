@@ -1,0 +1,96 @@
+/* Centro report (Amministrazione). Solo token di theme.css: tema chiaro e scuro seguono da soli. */
+
+/* Le regole display delle classi rc-* non devono battere l'attributo hidden (filtri, campi alternativi). */
+[class^="rc-"][hidden], [class*=" rc-"][hidden], .rc-form [hidden], #rc-catalogo [hidden] { display: none !important; }
+
+.rc-page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+
+.rc-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; align-items: center; }
+.rc-tabs .rc-guida { margin-left: auto; }
+
+.rc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.rc-kpi { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--surface); }
+.rc-kpi strong { display: block; font-size: var(--fs-xl, 20px); color: var(--text); }
+.rc-kpi span { font-size: 12px; color: var(--text-mid); }
+
+.rc-cerca-box { margin-bottom: 14px; }
+.rc-cerca-box .card-body { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.rc-cerca { display: grid; gap: 4px; flex: 1 1 320px; }
+.rc-cerca input { width: 100%; min-height: var(--control-h, 36px); }
+
+.rc-modulo { margin-bottom: 14px; }
+.rc-modulo > .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.rc-table-wrap { overflow-x: auto; }
+.rc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rc-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  background: var(--thead-bg, transparent);
+}
+.rc-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+.rc-table tr:last-child td { border-bottom: 0; }
+
+.rc-nome { font-weight: 600; color: var(--text); }
+.rc-muted { font-size: 12px; color: var(--text-mid); }
+.rc-code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--text-mid); overflow-wrap: anywhere; }
+
+.rc-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  margin: 0 4px 4px 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-mid);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rc-chip.gdpr { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+.rc-chip.ok { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+.rc-chip.norma { border-style: dashed; }
+.rc-chip.fmt { text-transform: uppercase; }
+
+.rc-filtri { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 12px; }
+.rc-filtri label { display: grid; gap: 4px; font-size: 12px; color: var(--text-mid); }
+.rc-filtri input[type="text"], .rc-filtri select { min-height: var(--control-h, 34px); }
+.rc-filtri .rc-check { display: flex; align-items: center; gap: 6px; min-height: var(--control-h, 34px); color: var(--text); }
+
+.rc-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.rc-empty { padding: 24px; text-align: center; color: var(--text-mid); }
+
+.rc-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 900px) { .rc-grid-2 { grid-template-columns: 1fr; } }
+
+.rc-form { display: grid; gap: 10px; }
+.rc-form label { display: grid; gap: 4px; font-size: 13px; color: var(--text); }
+.rc-form label small { color: var(--text-mid); font-size: 12px; }
+.rc-form .rc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rc-form .rc-check { display: flex; align-items: center; gap: 8px; }
+.rc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.rc-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: -2px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.rc-assegna td:first-child { min-width: 220px; }
+.rc-assegna select { min-width: 200px; }
+.rc-assegna .rc-voce td:first-child { padding-left: 28px; }
+
+.rc-guida-testo h3 { margin: 18px 0 6px; font-size: var(--fs-md, 15px); color: var(--text); }
+.rc-guida-testo h3:first-child { margin-top: 0; }
+.rc-guida-testo p, .rc-guida-testo li { font-size: 14px; line-height: 1.55; color: var(--text); }

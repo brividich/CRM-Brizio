@@ -15,7 +15,6 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -131,7 +130,7 @@ class Command(BaseCommand):
         body_html = _build_body_html(non_salvate, non_inviate, giorni)
 
         try:
-            from core.email_utils import render_hub_email_html, send_hub_mail
+            from core.email_utils import render_hub_email_html
             wrapped_html = render_hub_email_html(
                 body_html,
                 email_type="RENTRI",

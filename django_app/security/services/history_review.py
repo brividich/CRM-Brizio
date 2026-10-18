@@ -14,7 +14,7 @@ from django.utils import timezone
 from security.models import SecurityAlert, SecurityAlertSuppressionRule, SecurityEventRecord, SecurityRemediationTicket, Status
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.cases import ACTIVE_CASE_STATUSES
-from security.services.investigation import PLAYBOOKS, STATUS_LABELS, alert_kind, status_label
+from security.services.investigation import PLAYBOOKS, alert_kind, status_label
 
 CLOSED = {Status.CLOSED, Status.RESOLVED, Status.FALSE_POSITIVE, Status.SUPPRESSED, Status.MUTED}
 

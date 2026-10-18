@@ -4,7 +4,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count
 from django.utils import timezone
 
-from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity, Status
+from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.auto_resolution import resolve_backup_recovered, resolve_vulnerability_cleared
 from security.services.evidence_builder import build_evidence_container

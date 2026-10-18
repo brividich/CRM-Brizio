@@ -433,7 +433,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
       <tbody>
       {% for r in annullati %}
         <tr><td>{{ r.nome_dip }}</td><td>{{ r.data_completamento|date:"d-m-Y" }}</td>
-            <td>{{ r.annullato_il|date:"d-m-Y H:i" }}</td><td>{{ r.annullato_da_nome|default:"—" }}</td>
+            <td>{{ r.annullato_il|date:"d-m-Y H:i" }}</td><td>{{ r.annullato_da_nome|upper|default:"—" }}</td>
             <td>{{ r.annullato_motivo }}</td></tr>
       {% endfor %}
       </tbody>

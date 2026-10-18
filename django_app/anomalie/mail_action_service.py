@@ -28,7 +28,6 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.safestring import mark_safe
 
 logger = logging.getLogger(__name__)
 

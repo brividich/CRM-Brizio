@@ -355,7 +355,7 @@
                 {% if r.area %}<span class="muted">Area:</span> {{ r.area.nome }}{% endif %}
                 {% if r.ruolo_operativo %}<span class="muted">Ruolo:</span> {{ r.ruolo_operativo.nome }}{% endif %}
                 {% if r.legacy_anagrafica_id %}
-                  <span class="muted">Dip.</span> {% if r.dipendente_nome %}{{ r.dipendente_nome }}{% else %}#{{ r.legacy_anagrafica_id }}{% endif %}
+                  <span class="muted">Dip.</span> {% if r.dipendente_nome %}{{ r.dipendente_nome|upper }}{% else %}#{{ r.legacy_anagrafica_id }}{% endif %}
                 {% endif %}
               </td>
               <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -431,7 +431,7 @@
           </td>
           <td class="muted">{{ a.get_tipo_display }}</td>
           <td class="nowrap muted">{% if a.proponi_a_nuova_edizione %}Proposto{% else %}—{% endif %}</td>
-          <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+          <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display|upper }}{% endif %}</td>
           <td class="nowrap">
             {% if is_editor %}
             <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"

@@ -15,7 +15,6 @@ from ....models import AIKnowledgeDocument, AIKnowledgeEmbedding
 from .document_indexer import index_document
 from .embedding_indexer import rebuild_embeddings
 from .embedding_provider import get_embedding_provider
-from .query_normalizer import normalize_query
 from .retriever import retrieve_chunks_with_diagnostics
 from .vector_backend import retrieve_python_vector_candidates
 

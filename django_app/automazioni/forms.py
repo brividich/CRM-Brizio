@@ -8,7 +8,6 @@ from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from core.upload_mime import (
     UploadMimeValidationError,
-    safe_filename,
     validate_filename,
 )
 
@@ -35,7 +34,6 @@ from .source_registry import (
     get_condition_fields,
     get_source_choices,
     get_source_definition,
-    get_source_fields,
     get_trigger_fields,
 )
 

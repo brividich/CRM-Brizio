@@ -1,0 +1,157 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}I miei report | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/report_centro.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="page-header rc-page-head">
+    <div>
+      <div class="page-h">I miei report</div>
+      <div class="page-sub">I report che puoi generare, raccolti da tutti i moduli. «Apri» porta alla pagina del modulo da cui si scaricano.</div>
+    </div>
+    <a class="btn btn-secondary" href="?guida=1">? Guida</a>
+  </div>
+
+  <div class="card rc-cerca-box">
+    <div class="card-body">
+      <label class="rc-cerca">
+        <span class="rc-muted">Cerca tra i tuoi report</span>
+        <input type="text" id="rc-cerca" placeholder="Nome del report, modulo, formato…" autocomplete="off">
+      </label>
+      <span class="rc-muted" id="rc-cerca-esito" aria-live="polite">{{ totale_voci }} report disponibili</span>
+    </div>
+  </div>
+
+  {% if gruppi %}
+    <div id="rc-catalogo" data-fm-hide-controls="1">
+      {% for g in gruppi %}
+        <section class="card rc-modulo" data-rc-modulo="{{ g.modulo.etichetta|lower }}">
+          <div class="card-head">
+            <div class="card-title">{{ g.modulo.etichetta }}</div>
+            <span class="rc-muted">{{ g.righe|length }} report</span>
+          </div>
+          <div class="card-body rc-table-wrap">
+            <table class="rc-table">
+              <thead><tr><th>Report</th><th>Formati</th><th></th></tr></thead>
+              <tbody>
+                {% for r in g.righe %}
+                  <tr>
+                    <td>
+                      <div class="rc-nome">{{ r.voce.nome }}</div>
+                      <div class="rc-muted">{{ r.voce.descrizione }}</div>
+                      {% if r.voce.dati_personali or r.voce.norma %}
+                        <div style="margin-top:4px;">
+                          {% if r.voce.dati_personali %}<span class="rc-chip gdpr" title="Contiene dati personali: trattalo con riservatezza, ogni scaricamento è registrato">Dati personali</span>{% endif %}
+                          {% if r.voce.norma %}<span class="rc-chip norma">{{ r.voce.norma }}</span>{% endif %}
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td>{% for f in r.voce.formati %}<span class="rc-chip fmt">{% if f == "html" %}a video{% else %}{{ f }}{% endif %}</span>{% endfor %}</td>
+                    <td style="white-space:nowrap;"><a class="btn btn-secondary" href="{{ r.url }}">Apri</a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endfor %}
+      <div class="rc-empty card" id="rc-cerca-vuoto" hidden>Nessun report corrisponde alla ricerca.</div>
+    </div>
+  {% else %}
+    <div class="card"><div class="rc-empty">Con i tuoi permessi attuali non ci sono report da generare. Se te ne serve uno, chiedi all'amministratore del portale.</div></div>
+  {% endif %}
+
+  {% if ricevuti %}
+    <section class="card rc-modulo">
+      <div class="card-head">
+        <div class="card-title">Ricevi per mail</div>
+        <span class="rc-muted">Report che ti arrivano da soli</span>
+      </div>
+      <div class="card-body rc-table-wrap">
+        <table class="rc-table">
+          <thead><tr><th>Report</th><th>Quando</th></tr></thead>
+          <tbody>
+            {% for r in ricevuti %}
+              <tr>
+                <td>
+                  <div class="rc-nome">{% if r.voce %}{{ r.voce.nome }}{% else %}{{ r.p.nome }}{% endif %}</div>
+                  <div class="rc-muted">{% if r.variante %}{{ r.variante.etichetta }} · {% endif %}pianificazione «{{ r.p.nome }}»</div>
+                </td>
+                <td>
+                  <div>{{ r.frequenza }}</div>
+                  {% if r.p.prossima_esecuzione %}<div class="rc-muted">prossimo {{ r.p.prossima_esecuzione|date:"d/m/Y H:i" }}</div>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="card rc-modulo">
+    <div class="card-head">
+      <div class="card-title">I miei scaricamenti</div>
+      <span class="rc-muted">Ultimi {{ giorni_storico }} giorni</span>
+    </div>
+    <div class="card-body">
+      {% if scaricamenti %}
+        <div class="rc-table-wrap">
+          <table class="rc-table">
+            <thead><tr><th>Quando</th><th>Report</th><th>File</th></tr></thead>
+            <tbody>
+              {% for s in scaricamenti %}
+                <tr>
+                  <td style="white-space:nowrap;">{{ s.e.created_at|date:"d/m/Y H:i" }}</td>
+                  <td>
+                    <div class="rc-nome">{{ s.e.titolo|default:"—" }}</div>
+                    {% if s.voce %}<div class="rc-muted">{{ s.voce.modulo_etichetta }}</div>{% endif %}
+                  </td>
+                  <td>
+                    <span class="rc-chip fmt">{{ s.e.formato }}</span>
+                    <span>{{ s.e.nome_file|default:"" }}</span>
+                    {% if s.e.dimensione_byte is not None %}<span class="rc-muted">· {{ s.e.dimensione_byte|filesizeformat }}</span>{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="rc-empty">Nessun report scaricato negli ultimi {{ giorni_storico }} giorni.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      var input = document.getElementById("rc-cerca");
+      var esito = document.getElementById("rc-cerca-esito");
+      var vuoto = document.getElementById("rc-cerca-vuoto");
+      if (!input || !vuoto) return;
+      var sezioni = Array.prototype.slice.call(document.querySelectorAll("#rc-catalogo .rc-modulo"));
+      var iniziale = esito.textContent;
+      input.addEventListener("input", function () {
+        var q = input.value.trim().toLowerCase();
+        var visibili = 0;
+        sezioni.forEach(function (sez) {
+          var modulo = sez.getAttribute("data-rc-modulo") || "";
+          var n = 0;
+          sez.querySelectorAll("tbody tr").forEach(function (tr) {
+            var ok = !q || modulo.indexOf(q) !== -1 || tr.textContent.toLowerCase().indexOf(q) !== -1;
+            tr.hidden = !ok;
+            if (ok) n += 1;
+          });
+          sez.hidden = n === 0;
+          visibili += n;
+        });
+        esito.textContent = q ? visibili + " report trovati" : iniziale;
+        vuoto.hidden = visibili !== 0;
+      });
+    })();
+  </script>
+{% endblock %}

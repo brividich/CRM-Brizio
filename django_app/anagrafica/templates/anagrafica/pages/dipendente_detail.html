@@ -2755,7 +2755,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                   <td class="dp-td-mid" style="padding:6px 8px;font-size:12px;">
                     {% if d.descrizione %}<span class="dp-td-mid">{{ d.descrizione }}</span> · {% endif %}
                     {{ d.created_at|date:"d-m-Y" }}
-                    {% if d.created_by_display %} · {{ d.created_by_display }}{% endif %}
+                    {% if d.created_by_display %} · {{ d.created_by_display|upper }}{% endif %}
                   </td>
                   <td style="padding:6px 8px;color:#94a3b8;font-size:11px;white-space:nowrap;">
                     {% if d.dimensione_bytes %}{{ d.dimensione_bytes|filesizeformat }}{% endif %}

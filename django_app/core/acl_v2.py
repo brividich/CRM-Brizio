@@ -757,7 +757,7 @@ def resolve_acl_access(
         return result
 
     if binding is not None:
-        from core.acl_resolver import LEVEL_GROUP_GRANT, resolve_permission_decision
+        from core.acl_resolver import resolve_permission_decision
 
         decision = resolve_permission_decision(
             permission_code=permission.code,

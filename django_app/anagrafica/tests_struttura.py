@@ -270,7 +270,7 @@ class EditorTests(_Base):
     def test_non_admin_non_entra(self):
         from unittest.mock import patch
 
-        with patch("anagrafica.views._is_anagrafica_admin", return_value=False):
+        with patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=False):
             r = self.client.get(reverse("anagrafica:mansionario_struttura"))
             self.assertEqual(r.status_code, 302)
             r = self.client.post(reverse("anagrafica:mansionario_struttura_mansione", args=[self.processo.pk]), {})

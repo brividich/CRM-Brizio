@@ -8,16 +8,13 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from django.db.models import Count, Q
 from django.utils import timezone
 
-from ..services.ai_gateway import chat_completion
 from ..services.redaction import redact_ai_context, redact_text
 from ...models import (
     SecurityAlertRuleConfig,
     SecurityAlertSuppressionRule,
     SecurityMailboxSource,
-    SecurityParserConfig,
     SecuritySourceConfig,
 )
 from ...parsers import parser_registry

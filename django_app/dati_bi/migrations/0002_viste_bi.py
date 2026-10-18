@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
         ("assets", "0142_ricambi_acl_menu"),
         ("tickets", "0012_allegato_validazione"),
         ("dpi", "0011_magazzino_movimenti"),
-        ("core", "0083_notifiche_canali_push"),
+        ("core", "0085_notifiche_canali_push"),
         ("anagrafica", "0185_struttura_mansionario_acl"),
     ]
 

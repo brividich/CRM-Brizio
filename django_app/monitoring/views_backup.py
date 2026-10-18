@@ -39,7 +39,7 @@ def _config():
 @legacy_admin_or_acl_required("monitoring", "backup_status")
 def backup_status(request):
     from core import db_diagnostics
-    from core.backup_engine import doctor, status
+    from core.backup_engine import status
     from core.backup_engine.restore_plan import latest_restore_point
 
     from .health import run_backup_checks

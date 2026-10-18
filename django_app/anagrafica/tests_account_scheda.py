@@ -131,7 +131,7 @@ class PrivilegiatoDaSchedaTests(AccountSchedaBase):
     def test_admin_non_superuser_non_puo_confermare(self):
         operatore = User.objects.create_user("hr_operatore", "hr@example.invalid", "x")
         self.client.force_login(operatore)
-        with patch("anagrafica.views._is_anagrafica_admin", return_value=True):
+        with patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=True):
             self._collega(account_scelta="collega", account_collega_id=str(self.legacy.id), account_conferma_privilegiato="1")
         self.assertIsNone(self._utente_id())
 

@@ -21,7 +21,6 @@ from tasks.models import (
     MeetingIssueStatus,
     MeetingStatus,
     Project,
-    Task,
 )
 from tasks.tests_utils import (
     TasksBaseTestCase,

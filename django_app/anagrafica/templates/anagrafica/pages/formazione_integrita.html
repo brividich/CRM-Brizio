@@ -79,7 +79,7 @@ body.theme-dark .fint-bassa{ background:rgba(224,242,254,.12); color:#7dd3fc; }
         {% for r in annullati %}
           <tr><td>{{ r.course_code_snapshot|default:r.corso.codice }} — {{ r.course_title_snapshot|default:r.corso.titolo }}</td>
               <td>{{ r.legacy_anagrafica_id }}</td><td>{{ r.data_completamento|date:"d/m/Y" }}</td>
-              <td>{{ r.annullato_il|date:"d/m/Y H:i" }}</td><td>{{ r.annullato_da_nome|default:"—" }}</td><td>{{ r.annullato_motivo }}</td></tr>
+              <td>{{ r.annullato_il|date:"d/m/Y H:i" }}</td><td>{{ r.annullato_da_nome|upper|default:"—" }}</td><td>{{ r.annullato_motivo }}</td></tr>
         {% endfor %}
         </tbody>
       </table>

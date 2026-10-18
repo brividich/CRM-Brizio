@@ -22,6 +22,8 @@ from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from core import naming
+
 from .quality_models import AnomaliaNC as NC
 from .quality_models import AnomaliaNCAllegato, AnomaliaNCAzione, AnomaliaNCEvento
 from .quality_models import AnomaliaSchedaQualita as Scheda
@@ -308,7 +310,7 @@ def responsabili_proposti(nc) -> list[dict]:
         ruoli = {v: k for k, v in (("CC", nc.capocommessa), ("CAR", nc.car)) if v}
         for uid, display in _resolve_op_cc_car_legacy_ids(nc.op_titolo):
             etichetta = ruoli.get(display, "")
-            out.append({"id": uid, "nome": display, "ruolo": etichetta or "OP"})
+            out.append({"id": uid, "nome": naming.normalizza_parte(display), "ruolo": etichetta or "OP"})
             visti.add(uid)
     except Exception:
         logger.debug("nc: CC/CAR non risolti op=%s", nc.op_titolo, exc_info=True)
@@ -317,7 +319,7 @@ def responsabili_proposti(nc) -> list[dict]:
 
         for u in UtenteLegacy.objects.filter(attivo=True).order_by("nome").only("id", "nome"):
             if u.id not in visti and (u.nome or "").strip():
-                out.append({"id": u.id, "nome": u.nome.strip(), "ruolo": ""})
+                out.append({"id": u.id, "nome": naming.normalizza_parte(u.nome), "ruolo": ""})
     except Exception:
         logger.debug("nc: utenti legacy non disponibili", exc_info=True)
     return out

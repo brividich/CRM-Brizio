@@ -298,7 +298,7 @@ def _documenti_rows(request: HttpRequest, scope: str) -> list[dict]:
             "file": d.nome_originale or "",
             "descrizione": d.descrizione or "",
             "caricato": _d(d.created_at),
-            "caricato_da": d.created_by_display or "",
+            "caricato_da": (d.created_by_display or "").upper(),
             "retention": _d(d.retention_until),
         }
         for d in documenti
@@ -378,7 +378,7 @@ def _onboarding_rows(request: HttpRequest, scope: str) -> list[dict]:
         if eccezioni:
             avanzamento += f" · {eccezioni} eccezioni"
         rows.append({
-            "dipendente": p.dipendente_nome or str(p.legacy_anagrafica_id),
+            "dipendente": (p.dipendente_nome or "").upper() or str(p.legacy_anagrafica_id),
             "reparto": p.reparto or "",
             "data_assunzione": _d(p.data_assunzione),
             "stato": p.get_stato_display(),

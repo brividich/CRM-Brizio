@@ -117,7 +117,7 @@ def esito_account(scelta_tipo: str, utente_id: int | None) -> tuple[str, bool]:
     """(testo, account_da_creare) dall'esito di ``account_portale.applica_scelta``."""
     from core.legacy_models import UtenteLegacy
 
-    from .account_portale import SCELTA_AD, SCELTA_COLLEGA, SCELTA_LOCALE, SCELTA_NESSUNO
+    from .account_portale import SCELTA_AD, SCELTA_LOCALE, SCELTA_NESSUNO
 
     if utente_id:
         login = (UtenteLegacy.objects.filter(pk=utente_id).values_list("email", flat=True).first() or "").strip()

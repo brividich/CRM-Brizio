@@ -509,7 +509,7 @@
           {% for row in voci %}
             <tr>
               <td>{{ row.voce.created_at|date:"d/m/Y H:i" }}</td>
-              <td>{{ row.voce.utente_display|default:"—" }}</td>
+              <td>{{ row.voce.utente_display|upper|default:"—" }}</td>
               <td>{{ row.titolo }}</td>
               <td class="acl-muted">{{ row.descrizione }}</td>
             </tr>

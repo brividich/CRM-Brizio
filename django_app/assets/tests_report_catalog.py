@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone as dt_tz
-from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -11,7 +10,6 @@ from django.template import Context, Template
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from openpyxl import load_workbook
 
 from contatori.models import LetturaConsumabile, LetturaMensileContatori, Macchina
 from core.models import UserOnboarding

@@ -125,7 +125,7 @@ def run(request: HttpRequest, code: str) -> HttpResponse:
         puo_modificare_salvato=bool(salvato and salvato.owner_id == request.user.id),
         destinatari_ids=set(salvato.destinatari.values_list("pk", flat=True)) if salvato else set(),
         can_schedule=can_schedule_email(request),
-        utenti=User.objects.filter(is_active=True).exclude(email="").order_by("last_name", "first_name", "username")[:500]
+        utenti=User.objects.filter(is_active=True).exclude(email="").order_by("first_name", "last_name", "username")[:500]
         if can_schedule_email(request) else [],
         freq_choices=AssetSavedReport.FREQ_CHOICES,
         format_choices=AssetSavedReport.FORMAT_CHOICES,

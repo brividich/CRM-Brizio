@@ -3,7 +3,7 @@ from django.test import TestCase, RequestFactory
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.backends.db import SessionStore
 from anagrafica.models import (
-    AreaAziendale, DipendenteAnagraficaAziendale, Reparto,
+    AreaAziendale, Reparto,
 )
 
 User = get_user_model()

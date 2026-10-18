@@ -1183,7 +1183,6 @@ def _board_data_assenze_future(legacy_user: Any, params: dict) -> list[dict]:
     if not legacy_user:
         return []
     try:
-        from datetime import date
         from django.db import connections
         from core.legacy_utils import legacy_table_columns
 
@@ -1488,7 +1487,7 @@ def _board_data_assets(legacy_user_id: int | None, params: dict) -> dict:
     if not legacy_user_id:
         return {"items": [], "stats": {"assigned": 0, "in_use": 0, "in_repair": 0, "deadlines": 0}}
     try:
-        from assets.models import Asset, AssetAdministrativeDeadline
+        from assets.models import Asset
 
         max_items = min(int(params.get("max_items") or 6), MAX_BOARD_WIDGET_ITEMS)
         show_deadlines = bool(params.get("show_deadlines", True))
@@ -2150,7 +2149,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
 
     # ── Scadenze imminenti asset ──
     try:
-        from assets.models import AssetAdministrativeDeadline, PeriodicVerification
+        from assets.models import PeriodicVerification
         import datetime
         horizon = today + datetime.timedelta(days=30)
         from assets.services import deadline_feed

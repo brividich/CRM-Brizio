@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 72
+**Totale automazioni disponibili:** 74
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -345,6 +345,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 02:30
 - **Task eseguito:** `core.tasks.run_notifiche_archivio`
 - **Cosa fa:** CORE — archivio automatico notifiche in-app: archivia le non lette e le lette oltre soglia, elimina le archiviate oltre la conservazione. Soglie in SiteConfig (Admin portale → Gestione notifiche); 0 = mai.
+
+### `report_emissioni_pulizia`
+
+- **Quando gira:** ogni giorno, alle 02:45
+- **Task eseguito:** `core.tasks.run_report_emissioni_pulizia`
+- **Cosa fa:** CORE — Centro report: elimina dal registro emissioni le righe oltre la conservazione (SiteConfig, Admin portale → Centro report; 0 = mai).
+
+### `report_pianificati`
+
+- **Quando gira:** ogni giorno, ogni ora al minuto 5
+- **Task eseguito:** `core.tasks.run_report_pianificati`
+- **Cosa fa:** CORE — Centro report: genera e invia per mail i report pianificati arrivati a scadenza (Admin portale → Centro report → Pianificazioni). Fail-safe: senza pianificazioni attive non fa nulla.
 
 ## Motore automazioni
 

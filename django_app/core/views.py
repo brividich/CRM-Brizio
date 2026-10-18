@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from core import naming
 from core.audit import log_action
 from core.context_processors import (
     _UI_PREFS_DEFAULTS,
@@ -595,7 +596,7 @@ def gestione_reparto(request):
     try:
         utenti_qs = UtenteLegacy.objects.filter(attivo=True)
         if q:
-            utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q))
+            utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome"))
         utenti = list(utenti_qs.order_by("nome", "email", "id")[:200])
         user_ids = [int(u.id) for u in utenti]
         extra_map = {int(obj.legacy_user_id): obj for obj in UserExtraInfo.objects.filter(legacy_user_id__in=user_ids)}
@@ -1564,6 +1565,7 @@ def api_global_search(request):
         dips = AnagraficaDipendente.objects.filter(
             Q(nome__icontains=q)
             | Q(cognome__icontains=q)
+            | naming.q_persona(q, "nome", "cognome")
             | Q(aliasusername__icontains=q)
             | Q(email__icontains=q)
             | Q(mansione__icontains=q)
@@ -1730,7 +1732,7 @@ def api_global_search(request):
             results.append({
                 "tipo": "dpi",
                 "label": r.numero or str(r),
-                "sub": f"{r.richiedente_nome} - {r.label_stato}",
+                "sub": f"{(r.richiedente_nome or '').upper()} - {r.label_stato}",
                 "preview": " - ".join(filter(None, [
                     r.categoria.nome if r.categoria_id else "",
                     r.richiedente_reparto,

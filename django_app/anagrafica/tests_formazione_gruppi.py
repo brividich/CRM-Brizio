@@ -29,7 +29,6 @@ from .models_formazione import (
     TrainingCourse,
     TrainingEnrollment,
     TrainingEnrollmentLesson,
-    TrainingLesson,
     TrainingLessonAttendance,
     TrainingPlan,
     TrainingSession,

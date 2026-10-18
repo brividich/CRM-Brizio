@@ -18,7 +18,6 @@ from __future__ import annotations
 from collections import defaultdict
 
 from django.core.management.base import BaseCommand
-from django.db import transaction
 
 
 def _norm(value) -> str:

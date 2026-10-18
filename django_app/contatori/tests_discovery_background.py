@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from . import discovery_jobs as jobs, services
 from .credential_crypto import cifra, decifra
-from .forms import CommunitySNMPForm, DiscoveryBackgroundForm
+from .forms import CommunitySNMPForm
 from .models import CommunitySNMP, DiscoverySNMP, DispositivoSNMP, ImpostazioniSNMP
 from .snmp import EsitoDiscovery
 from .tests import _AuthedClientMixin

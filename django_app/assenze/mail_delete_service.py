@@ -106,7 +106,7 @@ def send_assenza_deleted_notification(
     (nessun destinatario valido o errore SMTP). Non solleva mai.
     """
     dipendente_email = str(record.get("email_esterna") or "").strip()
-    dipendente_nome = str(record.get("copia_nome") or "").strip() or "Dipendente"
+    dipendente_nome = str(record.get("copia_nome") or "").strip().upper() or "Dipendente"
 
     to_list = _dedup_recipients(
         [capo_email, dipendente_email, _hr_mailbox(), deleted_by_email]

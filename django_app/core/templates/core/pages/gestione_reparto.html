@@ -112,10 +112,10 @@
                       <select class="input gr-input js-caporeparto">
                         <option value="">-- Caporeparto --</option>
                         {% if row.caporeparto_attuale and not row.caporeparto_in_options %}
-                          <option value="{{ row.caporeparto_attuale }}" selected>{{ row.caporeparto_attuale }}</option>
+                          <option value="{{ row.caporeparto_attuale }}" selected>{{ row.caporeparto_attuale|upper }}</option>
                         {% endif %}
                         {% for capo in caporeparto_options %}
-                          <option value="{{ capo }}" {% if capo == row.caporeparto_attuale %}selected{% endif %}>{{ capo }}</option>
+                          <option value="{{ capo }}" {% if capo == row.caporeparto_attuale %}selected{% endif %}>{{ capo|upper }}</option>
                         {% endfor %}
                       </select>
                     {% else %}

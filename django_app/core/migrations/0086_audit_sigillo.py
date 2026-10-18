@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0083_notifiche_canali_push'),
+        ('core', '0085_notifiche_canali_push'),
     ]
 
     operations = [

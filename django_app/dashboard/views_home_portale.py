@@ -35,7 +35,6 @@ from dashboard.views import (
     _board_related_tickets_queryset,
     _module_card_image_lookup,
     _module_image_url_for,
-    _pulsanti_ui_meta_map,
     _visible_pulsanti_for_request,
 )
 

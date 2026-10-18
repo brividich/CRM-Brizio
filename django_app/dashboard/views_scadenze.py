@@ -7,7 +7,6 @@ del proprio modulo (gating dentro il provider).
 """
 from __future__ import annotations
 
-import csv
 from typing import Any
 
 from django.contrib.auth.decorators import login_required

@@ -5,7 +5,6 @@ import io
 import json
 import logging
 import mimetypes
-import os
 from io import BytesIO
 from datetime import datetime, timedelta, timezone as dt_timezone
 from functools import wraps
@@ -19,13 +18,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.timezone import now as tz_now
 from django.views.decorators.http import require_POST
-from reportlab.lib.colors import HexColor, white, black
+from reportlab.lib.colors import HexColor, white
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT
 
 from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
 
@@ -35,8 +31,6 @@ from core.audit import log_action
 from core.permessi import puo_fare, sistema_ruoli_attivo, utenti_visibili
 
 from .models import (
-    CATEGORIE_IT,
-    CATEGORIE_MAN,
     CategoriaTicket,
     EsitoIntervento,
     PrioritaTicket,
@@ -115,7 +109,7 @@ def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
     feed.append({
         "kind": "opened",
         "created_at": ticket.created_at,
-        "actor": ticket.richiedente_nome or "Sistema",
+        "actor": (ticket.richiedente_nome or "").upper() or "Sistema",
         "title": "Ticket aperto",
         "summary": " | ".join(part for part in opened_meta if part),
         "body": "",
@@ -129,7 +123,7 @@ def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
         feed.append({
             "kind": "comment",
             "created_at": commento.created_at,
-            "actor": commento.autore_nome or "Utente",
+            "actor": (commento.autore_nome or "").upper() or "Utente",
             "title": "Nota interna" if commento.is_interno else "Commento",
             "summary": "",
             "body": commento.testo or "",
@@ -144,7 +138,7 @@ def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
         feed.append({
             "kind": "state",
             "created_at": log.created_at,
-            "actor": log.utente_nome or "Utente",
+            "actor": (log.utente_nome or "").upper() or "Utente",
             "title": "Stato aggiornato",
             "summary": summary,
             "body": log.nota or "",
@@ -175,7 +169,7 @@ def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
         feed.append({
             "kind": "intervento",
             "created_at": intervento.data_inizio or intervento.created_at,
-            "actor": intervento.tecnico_nome or "Tecnico",
+            "actor": (intervento.tecnico_nome or "").upper() or "Tecnico",
             "title": "Intervento registrato",
             "summary": intervento.label_esito,
             "body": "\n".join(detail_lines),
@@ -747,8 +741,8 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
     items_right = [
         ("Data apertura",  ticket.created_at.strftime("%d-%m-%Y %H:%M") if ticket.created_at else "-"),
         ("Data chiusura",  ticket.closed_at.strftime("%d-%m-%Y %H:%M") if ticket.closed_at else "-"),
-        ("Richiedente",    ticket.richiedente_nome or "-"),
-        ("Assegnato a",    ticket.assegnato_a or "-"),
+        ("Richiedente",    (ticket.richiedente_nome or "").upper() or "-"),
+        ("Assegnato a",    (ticket.assegnato_a or "").upper() or "-"),
         ("Asset / Macch.", asset_label[:45]),
     ]
     y = _pdf_info_grid(pdf, items_left, items_right, mx, y, bw, accent)
@@ -814,7 +808,7 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
             pdf.setFont("Helvetica-Bold", 8)
             date_str = c.created_at.strftime("%d-%m-%Y %H:%M") if c.created_at else ""
             label_int = "  [NOTA INTERNA]" if is_int else ""
-            pdf.drawString(mx + 3 * mm, y - 4.5 * mm, f"{c.autore_nome}{label_int}")
+            pdf.drawString(mx + 3 * mm, y - 4.5 * mm, f"{(c.autore_nome or '').upper()}{label_int}")
             pdf.setFont("Helvetica", 7.5)
             pdf.setFillColor(_PDF_COLOR_GRAY)
             pdf.drawRightString(mx + bw - 3 * mm, y - 4.5 * mm, date_str)
@@ -837,8 +831,8 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
     y -= 5 * mm
     col_w3 = (bw - 8 * mm) / 3
     for i, (lbl, name) in enumerate([
-        ("Richiedente", ticket.richiedente_nome or ""),
-        ("Tecnico / Assegnato", ticket.assegnato_a or ""),
+        ("Richiedente", (ticket.richiedente_nome or "").upper()),
+        ("Tecnico / Assegnato", (ticket.assegnato_a or "").upper()),
         ("Responsabile", ""),
     ]):
         fx = mx + i * (col_w3 + 4 * mm)
@@ -2193,12 +2187,12 @@ def api_cerca_utenti(request):
 
     results = []
     try:
-        from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+        from core.legacy_models import AnagraficaDipendente
         from django.db.models import Q
 
         # Cerca in anagrafica_dipendenti (nome + cognome) e utenti (email/UPN)
         qs = AnagraficaDipendente.objects.filter(
-            Q(nome__icontains=q) | Q(cognome__icontains=q) |
+            Q(nome__icontains=q) | Q(cognome__icontains=q) | naming.q_persona(q, "nome", "cognome") |
             Q(email__icontains=q) | Q(aliasusername__icontains=q) |
             Q(email_notifica__icontains=q)
         ).select_related("utente").order_by("cognome", "nome")[:20]
@@ -2221,7 +2215,7 @@ def api_cerca_utenti(request):
         User = get_user_model()
         qs = User.objects.filter(
             username__icontains=q
-        ).order_by("last_name", "first_name")[:20]
+        ).order_by("first_name", "last_name")[:20]
         for u in qs:
             nome = u.get_full_name() or u.username
             results.append({
@@ -2255,7 +2249,6 @@ def api_test_sp(request):
         return _json_err("List ID vuoto")
 
     try:
-        import os
         from core.graph_utils import acquire_graph_token, is_placeholder_value
         from config.env_config import get_first_env_value
 

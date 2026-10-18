@@ -3,7 +3,6 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import TestCase
 from django.urls import reverse
 
 from ai_assistant.models import AiProposta

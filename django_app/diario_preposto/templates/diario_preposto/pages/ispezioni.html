@@ -103,7 +103,7 @@ body.theme-dark .dpi-section-sub, body.theme-dark .dpi-kpi-lbl { color:var(--tex
             <td style="white-space:nowrap;">{{ e.data_esecuzione|date:"d-m-Y H:i" }}</td>
             <td>{{ e.meta.area|default:e.utente_nome|default:"-" }}</td>
             <td>{{ e.meta.macchina|default:"-" }}</td>
-            <td>{{ e.eseguita_da_nome|default:"-" }}</td>
+            <td>{{ e.eseguita_da_nome|upper|default:"-" }}</td>
             <td>
               <span class="dpi-pill dpi-pill-ok">{{ e.ok_count }} OK</span>
               {% if e.ko_count %}

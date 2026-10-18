@@ -144,7 +144,7 @@ def _build_source_key(sheet_name: str, reparto: str, name: str, year: int | None
     else:
         parts.extend([f"X={x_mm or ''}", f"Y={y_mm or ''}", f"Z={z_mm or ''}"])
     raw = "|".join(parts)
-    return hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()
+    return hashlib.sha1(raw.encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()
 
 
 class Command(BaseCommand):

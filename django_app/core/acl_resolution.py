@@ -321,7 +321,7 @@ def record_denial(request, decision: dict | None) -> None:
         return
     dedup_key = (f"perm:{code}" if code else f"path:{path}")[:300]
 
-    digest = hashlib.sha1(f"{legacy_user_id}|{dedup_key}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha1(f"{legacy_user_id}|{dedup_key}".encode("utf-8"), usedforsecurity=False).hexdigest()
     try:
         if not cache.add(f"acl_denial:{digest}", 1, DENIAL_THROTTLE_SECONDS):
             return

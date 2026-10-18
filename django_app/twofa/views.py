@@ -20,7 +20,6 @@ from twofa.utils import (
     generate_totp_secret,
     get_client_ip,
     get_totp_uri,
-    initiate_2fa,
     is_2fa_verified,
     mark_2fa_verified,
     needs_totp_setup,

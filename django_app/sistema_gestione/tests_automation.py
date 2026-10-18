@@ -1,4 +1,3 @@
-import io
 import json
 import tempfile
 from datetime import timedelta
@@ -10,12 +9,12 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.http import Http404, HttpResponseForbidden
+from django.http import Http404
 from django.test import override_settings
 from django.utils import timezone
 
 from .tests_audit import AuditBase, _request
-from .models import (Audit, AuditEsito, AuditAllegato, AuditVerificaEfficacia, AuditRapportoVersione,
+from .models import (Audit, AuditEsito, AuditAllegato, AuditRapportoVersione,
                      ChecklistProcesso, Processo, ProgrammaAudit)
 from .services import audit as service
 from .services import audit_automation as automation
