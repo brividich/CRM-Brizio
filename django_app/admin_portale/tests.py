@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import shutil
@@ -710,7 +710,7 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views.get_connection", return_value=connection_mock) as connection_factory, patch(
+        ), patch("admin_portale.views.utenti.get_connection", return_value=connection_mock) as connection_factory, patch(
             "admin_portale.views.EmailMultiAlternatives",
             return_value=message_mock,
         ) as email_factory:
@@ -758,7 +758,7 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views.get_connection") as connection_factory, patch(
+        ), patch("admin_portale.views.utenti.get_connection") as connection_factory, patch(
             "admin_portale.views.EmailMultiAlternatives",
         ) as email_factory:
             response = self.client.post(
@@ -787,7 +787,7 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views.run_approval_imap_poll_now") as poll_runner:
+        ), patch("admin_portale.views.utenti.run_approval_imap_poll_now") as poll_runner:
             poll_runner.return_value = {
                 "ok": True,
                 "message": "Polling mailbox completato: 1 processate, 1 approvate, 0 rifiutate, 0 ignorate, 0 errori.",
@@ -812,7 +812,7 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views.save_approval_imap_settings") as save_imap:
+        ), patch("admin_portale.views.utenti.save_approval_imap_settings") as save_imap:
             save_imap.return_value = (
                 True,
                 "Configurazione IMAP salvata in .env e aggiornata nel runtime corrente.",
@@ -877,7 +877,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+            ), patch("admin_portale.views._helpers._dotenv_path", return_value=env_path), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
@@ -1007,7 +1007,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views.build_runtime_context", return_value=mocked_context):
+        ), patch("admin_portale.views.configurazione.build_runtime_context", return_value=mocked_context):
             response = self.client.post(
                 reverse("admin_portale:ai_settings"),
                 {
@@ -1038,7 +1038,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views.clear_knowledge_cache") as mocked_clear:
+        ), patch("admin_portale.views.configurazione.clear_knowledge_cache") as mocked_clear:
             response = self.client.post(
                 reverse("admin_portale:ai_settings"),
                 {"action": "clear_ai_runtime_cache", "tab": "tools"},
@@ -1202,7 +1202,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+            ), patch("admin_portale.views._helpers._dotenv_path", return_value=env_path), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
@@ -1262,7 +1262,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+            ), patch("admin_portale.views._helpers._dotenv_path", return_value=env_path), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
@@ -1312,7 +1312,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+            ), patch("admin_portale.views._helpers._dotenv_path", return_value=env_path), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
@@ -1350,7 +1350,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+            ), patch("admin_portale.views._helpers._dotenv_path", return_value=env_path), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
@@ -1393,7 +1393,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+            ), patch("admin_portale.views._helpers._dotenv_path", return_value=env_path), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
@@ -1431,7 +1431,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views._ollama_json_get") as json_get:
+        ), patch("admin_portale.views._helpers._ollama_json_get") as json_get:
             json_get.side_effect = [
                 {"version": "0.5.7"},
                 {"models": [{"name": "llama3.1:latest"}]},
@@ -1462,7 +1462,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views._ollama_json_get") as json_get:
+        ), patch("admin_portale.views._helpers._ollama_json_get") as json_get:
             json_get.side_effect = [
                 {"version": "0.9.5"},
                 json.JSONDecodeError("Expecting value", "", 0),
@@ -1493,7 +1493,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views._ollama_json_get") as json_get:
+        ), patch("admin_portale.views._helpers._ollama_json_get") as json_get:
             json_get.return_value = {"data": [{"id": "llama3.1"}]}
             response = self.client.post(
                 self.url,
@@ -1538,7 +1538,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views._ollama_json_get", side_effect=http_error):
+        ), patch("admin_portale.views._helpers._ollama_json_get", side_effect=http_error):
             response = self.client.post(
                 reverse("admin_portale:ai_settings"),
                 {
@@ -1573,7 +1573,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views._ollama_json_get", side_effect=urllib.error.URLError("no route")):
+        ), patch("admin_portale.views._helpers._ollama_json_get", side_effect=urllib.error.URLError("no route")):
             response = self.client.post(
                 self.url,
                 {
@@ -1605,7 +1605,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
-        ), patch("admin_portale.views._ollama_json_get", side_effect=http_error):
+        ), patch("admin_portale.views._helpers._ollama_json_get", side_effect=http_error):
             response = self.client.post(
                 self.url,
                 {
@@ -1728,7 +1728,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._dotenv_path",
+                "admin_portale.views._helpers._dotenv_path",
                 return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
@@ -1794,7 +1794,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._dotenv_path",
+                "admin_portale.views._helpers._dotenv_path",
                 return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
@@ -1829,14 +1829,14 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._dotenv_path",
+                "admin_portale.views._helpers._dotenv_path",
                 return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
             ), patch(
-                "admin_portale.views._ldap_test_connect",
+                "admin_portale.views.utenti._ldap_test_connect",
                 return_value=(True, "Connessione LDAP riuscita."),
             ) as mocked_test_connect:
                 response = self.client.post(self.url, {"action": "test_connect"})
@@ -1892,14 +1892,14 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._dotenv_path",
+                "admin_portale.views._helpers._dotenv_path",
                 return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
                 clear=True,
             ), patch(
-                "admin_portale.views.call_command",
+                "admin_portale.views.utenti.call_command",
             ) as mocked_call:
                 response = self.client.post(
                     self.url,
@@ -1954,7 +1954,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._dotenv_path",
+                "admin_portale.views._helpers._dotenv_path",
                 return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
@@ -2043,7 +2043,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._dotenv_path",
+                "admin_portale.views._helpers._dotenv_path",
                 return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
@@ -2184,7 +2184,7 @@ class AdminPortaleReleaseOpsTests(TestCase):
         deploy_root = self._deploy_tree()
         try:
             with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
-                "admin_portale.views._release_deploy_base_dir",
+                "admin_portale.views.release._release_deploy_base_dir",
                 return_value=deploy_root,
             ):
                 response = self.client.get(reverse("admin_portale:crea_release"))
@@ -2203,7 +2203,7 @@ class AdminPortaleReleaseOpsTests(TestCase):
         try:
             url = reverse("admin_portale:api_release_terminal_command")
             with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
-                "admin_portale.views._release_deploy_base_dir",
+                "admin_portale.views.release._release_deploy_base_dir",
                 return_value=deploy_root,
             ), patch(
                 "admin_portale.views.subprocess.run",
@@ -2284,7 +2284,7 @@ class AdminPortaleReleaseOpsTests(TestCase):
             "admin_portale.views.subprocess.run",
             side_effect=PermissionError("[WinError 5] Accesso negato"),
         ), patch(
-            "admin_portale.views._release_schedule_process_restart",
+            "admin_portale.views._helpers._release_schedule_process_restart",
             return_value=True,
         ) as mocked_restart:
             response = self.client.post(
@@ -4283,7 +4283,7 @@ class GuestPortalSsoHardeningTests(TestCase):
             patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy),
             patch("admin_portale.decorators.is_legacy_admin", return_value=True),
             patch(
-                "admin_portale.views._read_guestportal_config",
+                "admin_portale.views.configurazione._read_guestportal_config",
                 return_value={
                     "url": "https://guest.example/login",
                     "field_username": "username",
@@ -4291,7 +4291,7 @@ class GuestPortalSsoHardeningTests(TestCase):
                     "username_format": "alias",
                 },
             ),
-            patch("admin_portale.views._build_guestportal_username", return_value="guest.user"),
+            patch("admin_portale.views.configurazione._build_guestportal_username", return_value="guest.user"),
         ):
             response = self.client.get(reverse("admin_portale:guestportal_sso"))
 
