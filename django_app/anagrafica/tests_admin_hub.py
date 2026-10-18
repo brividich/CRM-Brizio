@@ -76,7 +76,7 @@ class AdminHubTests(TestCase):
     def test_storico_hr_e_scarti_riservati_al_permesso_hr(self):
         imp = ImportazioneRetributiva.objects.create(data_competenza="2026-09-01", file_nome="riservato.csv",
                                                      scarti=[{"riga": 2, "chiave": "X", "motivo": "m"}])
-        with patch("anagrafica.views._check_hr_permission", return_value=False):
+        with patch("anagrafica.views._helpers._check_hr_permission", return_value=False):
             html = self.client.get(reverse("anagrafica:amministrazione_hub"), {"scheda": "import"}).content.decode()
             self.assertNotIn("riservato.csv", html)
             r = self.client.get(reverse("anagrafica:import_scarti_export", args=["retribuzioni", imp.pk]))

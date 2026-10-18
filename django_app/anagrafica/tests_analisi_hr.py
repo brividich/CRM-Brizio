@@ -140,7 +140,7 @@ class ExportScadenzePrescrizioniTests(TestCase):
         self.assertIn("PRESCRIZIONE-SINTETICA", celle)
 
     def test_senza_permesso_referti_le_prescrizioni_non_escono(self):
-        with mock.patch("anagrafica.views._can_view_referti", return_value=False):
+        with mock.patch("anagrafica.views._helpers._can_view_referti", return_value=False):
             celle = self._celle()
         self.assertNotIn("Prescrizioni", celle)
         self.assertNotIn("PRESCRIZIONE-SINTETICA", celle)
@@ -267,14 +267,14 @@ class MioTeamTests(TestCase):
 
     def test_pagina_senza_collegamento_mostra_stato_vuoto(self):
         self.client.force_login(self._utente("capo_team_test"))
-        with mock.patch("anagrafica.views._current_legacy_anagrafica_id", return_value=None):
+        with mock.patch("anagrafica.views._helpers._current_legacy_anagrafica_id", return_value=None):
             resp = self.client.get(reverse("anagrafica:mio_team"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Account non collegato")
 
     def test_pagina_del_capo_elenca_il_team_senza_dati_sanitari(self):
         self.client.force_login(self._utente("capo_team_test2"))
-        with mock.patch("anagrafica.views._current_legacy_anagrafica_id", return_value=self.capo.id):
+        with mock.patch("anagrafica.views._helpers._current_legacy_anagrafica_id", return_value=self.capo.id):
             resp = self.client.get(reverse("anagrafica:mio_team"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "MEMBRO")

@@ -38,7 +38,7 @@ class SafetySubnavTests(TestCase):
         return {v["chiave"]: v for g in gruppi for v in g["voci"]}
 
     def test_conteggi_delle_scadenze_su_scadenzario_e_visite(self):
-        with patch("anagrafica.views._build_scadenzario_voci", return_value=VOCI_SCADUTE) as build:
+        with patch("anagrafica.views._helpers._build_scadenzario_voci", return_value=VOCI_SCADUTE) as build:
             voci = self._voci(self._gruppi(reverse("anagrafica:scadenzario")))
             self._gruppi(reverse("anagrafica:scadenzario"))  # seconda pagina: dalla cache
         self.assertEqual(voci["scadenzario"]["n"], 3)
@@ -46,13 +46,13 @@ class SafetySubnavTests(TestCase):
         self.assertEqual(build.call_count, 1)
 
     def test_voce_accesa_anche_nelle_sottopagine(self):
-        with patch("anagrafica.views._build_scadenzario_voci", return_value=[]):
+        with patch("anagrafica.views._helpers._build_scadenzario_voci", return_value=[]):
             voci = self._voci(self._gruppi(reverse("anagrafica:visite_mediche_sessioni")))
         self.assertTrue(voci["visite"]["active"])
         self.assertFalse(voci["scadenzario"]["active"])
 
     def test_due_livelli_sezione_accesa_e_totale(self):
-        with patch("anagrafica.views._build_scadenzario_voci", return_value=VOCI_SCADUTE):
+        with patch("anagrafica.views._helpers._build_scadenzario_voci", return_value=VOCI_SCADUTE):
             gruppi = self._gruppi(reverse("anagrafica:visite_mediche_sessioni"))
         accese = [g["titolo"] for g in gruppi if g["active"]]
         self.assertEqual(accese, ["Sorveglianza sanitaria"])
@@ -61,7 +61,7 @@ class SafetySubnavTests(TestCase):
         self.assertEqual(sanitaria["n"], 1)
 
     def test_pagina_non_mappata_apre_la_prima_sezione(self):
-        with patch("anagrafica.views._build_scadenzario_voci", return_value=[]):
+        with patch("anagrafica.views._helpers._build_scadenzario_voci", return_value=[]):
             gruppi = self._gruppi(reverse("anagrafica:index"))
         self.assertEqual([g["active"] for g in gruppi][0], True)
         self.assertEqual(sum(g["active"] for g in gruppi), 1)
@@ -69,7 +69,7 @@ class SafetySubnavTests(TestCase):
     def test_voci_negate_dall_acl_non_compaiono_e_gruppo_vuoto_sparisce(self):
         sanitarie = {reverse(n) for n in ("anagrafica:visite_mediche_dashboard", "anagrafica:referti_coda",
                                           "anagrafica:libretto_sanitario_generale")}
-        with patch("anagrafica.views._build_scadenzario_voci", return_value=[]), \
+        with patch("anagrafica.views._helpers._build_scadenzario_voci", return_value=[]), \
                 patch("core.middleware.acl_allows_path", side_effect=lambda path, **kw: path not in sanitarie):
             gruppi = self._gruppi(reverse("anagrafica:scadenzario"))
         titoli = [g["titolo"] for g in gruppi]
@@ -78,7 +78,7 @@ class SafetySubnavTests(TestCase):
 
     def test_pagine_salute_mostrano_la_subnav(self):
         self.client.force_login(self.admin)
-        with patch("anagrafica.views._build_scadenzario_voci", return_value=[]):
+        with patch("anagrafica.views._helpers._build_scadenzario_voci", return_value=[]):
             for nome in ("anagrafica:scadenzario", "anagrafica:visite_mediche_sessioni", "anagrafica:referti_registro"):
                 with self.subTest(pagina=nome):
                     r = self.client.get(reverse(nome))

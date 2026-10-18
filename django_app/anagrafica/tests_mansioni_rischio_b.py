@@ -451,7 +451,7 @@ class PagineMansioniRischioTests(_Base):
         from unittest import mock
         self.client.force_login(self.admin)
         # Chi apre la scheda ma non ha il permesso visite: vede lo stato, non il perché.
-        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
+        with mock.patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=False):
             r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
         self.assertContains(r, "Non può operare: verificare con HR/RSPP")
         self.assertNotContains(r, "Non idoneo a operare")
@@ -568,7 +568,7 @@ class RegressioniReviewTests(_Base):
         self.client.force_login(self.admin)
         url = reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid])
         self.assertContains(self.client.get(url), "Otoprotettori sempre")
-        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
+        with mock.patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=False):
             self.assertNotContains(self.client.get(url), "Otoprotettori sempre")
 
 
@@ -613,7 +613,7 @@ class DecisioniDerogaEProtocolloTests(_Base):
         self.client.force_login(self.admin)
         url = reverse("anagrafica:mansione_requisiti", args=[self.saldatore.pk])
         dati = {"livello_rischio": "M", "visite_richieste": [self.audiometria.pk]}
-        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
+        with mock.patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=False):
             r = self.client.get(url)
             self.assertNotContains(r, 'name="visite_richieste"')
             self.client.post(url, dati)
