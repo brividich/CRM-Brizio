@@ -40,17 +40,12 @@ jobs:
         shell: pwsh
         run: python django_app/manage.py makemigrations --check --dry-run --settings=config.settings.test
 
-      # Errori bloccanti (nomi non definiti, ridefinizioni, except nudi) sui soli file
-      # Python modificati: il debito preesistente non tiene il gate sempre rosso.
+      # Errori bloccanti (nomi non definiti, ridefinizioni, except nudi, import inutili)
+      # su tutto django_app: dal 18/10 il debito su queste regole e' zero, va tenuto tale.
       # Regole complete in pyproject.toml (pre-commit).
-      - name: Ruff (file modificati)
+      - name: Ruff
         shell: pwsh
-        run: |
-          $base = "${{ github.event.pull_request.base.sha }}"
-          $files = @(git -c core.quotepath=off diff --name-only --diff-filter=ACMR "$base...HEAD" -- "django_app/*.py" |
-            Where-Object { $_ -notmatch '/migrations/' })
-          if (-not $files) { Write-Host "Nessun file Python modificato."; exit 0 }
-          ruff check --select F821,F811,E722 @files
+        run: ruff check django_app --select F821,F811,E722,F401
 
       - name: Test delle app toccate
         shell: pwsh

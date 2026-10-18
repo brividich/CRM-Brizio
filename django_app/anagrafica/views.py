@@ -13422,7 +13422,7 @@ def visite_mediche_export_scadenze(request):
 
     try:
         import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.styles import Font, PatternFill
     except ImportError:
         return HttpResponse("openpyxl non installato.", status=500)
 
