@@ -213,7 +213,7 @@ Questo si applica anche a dict arbitrari passati al template (es. campi SharePoi
 
 ## Strumenti di qualità locali (igiene repo 18/10)
 
-- `pyproject.toml` (radice): ruff `py311`, riga 120, regole `E,F,B,DJ`, `E501` ignorata, `F401` ignorata in `migrations/` e `__init__.py`; esclusi `.tmp_tests`, `staticfiles`, `powerautomate-to-django-automations`. Il debito F821/F811/E722 al 18/10 è di 26 segnalazioni preesistenti.
+- `pyproject.toml` (radice): ruff `py311`, riga 120, regole `E,F,B,DJ`, `E501` ignorata, `F401` ignorata in `migrations/` e `__init__.py`; esclusi `.tmp_tests`, `staticfiles`, `powerautomate-to-django-automations`. Debito F821/F811/E722 dopo la pulizia audit fase 1 (18/10): 7 F821 solo in annotazioni di tipo (con `from __future__ import annotations`, nessun errore a runtime) e 1 `except` nudo in `diario_preposto/views.py`.
 - `.pre-commit-config.yaml`: ruff check + `ruff format --check`, `end-of-file-fixer`, `check-added-large-files` (5 MB). Attivazione: `pip install -r django_app/requirements-dev.txt; pre-commit install`. Gli hook girano sui soli file in staging: un file vecchio toccato può emergere con segnalazioni preesistenti.
 - `tools/pulizia_root.ps1 [-IncludeIgnored]`: elenca i non tracciati in radice, non cancella nulla.
 - `config.test_runner.NovicromDiscoverRunner` rimuove in `teardown_test_environment` le cartelle orfane `django_app/.tmp_tests/tasks_test_media_*`.
