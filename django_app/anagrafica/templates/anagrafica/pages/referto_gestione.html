@@ -83,7 +83,7 @@ body.theme-dark .vm-detail-danger h3 { color:#fca5a5; }
             <div class="vm-detail-field"><dt>Tipo file</dt><dd>{{ doc.tipo_mime|default:"—" }}</dd></div>
             <div class="vm-detail-field"><dt>Dimensione</dt><dd>{{ doc.dimensione_bytes|filesizeformat }}</dd></div>
             <div class="vm-detail-field"><dt>Caricato il</dt><dd>{{ doc.created_at|date:"d/m/Y H:i" }}</dd></div>
-            <div class="vm-detail-field"><dt>Caricato da</dt><dd>{% if doc.created_by %}{{ doc.created_by.get_full_name|default:doc.created_by.username }}{% elif doc.created_by_display %}{{ doc.created_by_display }}{% else %}Import o origine non tracciata{% endif %}</dd></div>
+            <div class="vm-detail-field"><dt>Caricato da</dt><dd>{% if doc.created_by %}{{ doc.created_by.get_full_name|default:doc.created_by.username }}{% elif doc.created_by_display %}{{ doc.created_by_display|upper }}{% else %}Import o origine non tracciata{% endif %}</dd></div>
             <div class="vm-detail-field"><dt>Conservare fino al</dt><dd>{{ doc.retention_until|date:"d/m/Y"|default:"Non impostata" }}</dd></div>
             <div class="vm-detail-field"><dt>Cartella</dt><dd>{% if doc.cartella %}{{ doc.cartella.nome }}{% else %}Documento di sistema{% endif %}</dd></div>
             <div class="vm-detail-field vm-detail-wide"><dt>Descrizione</dt><dd>{{ doc.descrizione|default:"—" }}</dd></div>
@@ -99,7 +99,7 @@ body.theme-dark .vm-detail-danger h3 { color:#fca5a5; }
               <ul class="vm-detail-accessi">
                 {% for voce in accessi %}
                   <li>
-                    <span class="vm-detail-accesso-chi">{{ voce.utente_display|default:"Utente non identificato" }}</span>
+                    <span class="vm-detail-accesso-chi">{{ voce.utente_display|upper|default:"Utente non identificato" }}</span>
                     <span class="vm-detail-accesso-quando">{{ voce.created_at|date:"d/m/Y H:i" }}{% if voce.ip_address %} · {{ voce.ip_address }}{% endif %}</span>
                   </li>
                 {% endfor %}

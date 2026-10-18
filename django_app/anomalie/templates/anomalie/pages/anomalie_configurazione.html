@@ -886,7 +886,7 @@
       {% for entry in audit_entries %}
       <div class="log-row">
         <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
-        <span>{{ entry.utente_display|default:"&mdash;" }}</span>
+        <span>{{ entry.utente_display|upper|default:"&mdash;" }}</span>
         <span title="{{ entry.azione }}">{{ entry.azione_label }}</span>
         <span class="log-detail">{% for label, value in entry.dettaglio_items %}<span class="log-kv">{% if label %}<b>{{ label }}</b> {% endif %}{{ value }}</span>{% empty %}<span class="cell-muted">&mdash;</span>{% endfor %}</span>
       </div>

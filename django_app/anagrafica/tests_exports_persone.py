@@ -253,13 +253,13 @@ class ExportPersoneTests(TestCase):
         n = self._assert_xlsx_and_pdf("onboarding", scope="filtered")
         self.assertEqual(n, 2)
         rows = {r["dipendente"]: r for r in self._rows("onboarding")}
-        self.assertEqual(rows["Bianchi Anna"]["stato"], "In corso")
-        self.assertEqual(rows["Bianchi Anna"]["avanzamento"], "1/2 completati")
-        self.assertEqual(rows["Bianchi Anna"]["data_assunzione"], "01-06-2026")
+        self.assertEqual(rows["BIANCHI ANNA"]["stato"], "In corso")
+        self.assertEqual(rows["BIANCHI ANNA"]["avanzamento"], "1/2 completati")
+        self.assertEqual(rows["BIANCHI ANNA"]["data_assunzione"], "01-06-2026")
 
     def test_onboarding_filtro_stato(self):
         rows = self._rows("onboarding", scope="filtered", stato="IN_CORSO")
-        self.assertEqual([r["dipendente"] for r in rows], ["Bianchi Anna"])
+        self.assertEqual([r["dipendente"] for r in rows], ["BIANCHI ANNA"])
         self.assertEqual(len(self._rows("onboarding", scope="full", stato="IN_CORSO")), 2)
 
     # -- scadenzario ----------------------------------------------------------

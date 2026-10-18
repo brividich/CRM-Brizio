@@ -123,7 +123,7 @@ def build_mod040_pdf_bytes(sessione) -> bytes:
     dovuta = sessione.verifica_nc_dovuta_dal
     if sessione.verifica_nc_esito:
         riga = (f"{sessione.get_verifica_nc_esito_display()} - registrata il {sessione.verifica_nc_il:%d/%m/%Y} "
-                f"da {sessione.verifica_nc_da_nome or '-'}")
+                f"da {(sessione.verifica_nc_da_nome or '').upper() or '-'}")
         story.append(P(riga, styles["body"]))
         if sessione.verifica_nc_note:
             story.append(P("Esito: " + sessione.verifica_nc_note, styles["body"]))
@@ -135,7 +135,7 @@ def build_mod040_pdf_bytes(sessione) -> bytes:
 
     story += section_heading("Approvazione finale", theme, styles)
     if sessione.is_approvata:
-        story.append(P(f"Approvato da {sessione.approvata_da_nome or '-'} (MSM/MSO) il "
+        story.append(P(f"Approvato da {(sessione.approvata_da_nome or '').upper() or '-'} (MSM/MSO) il "
                        f"{sessione.approvata_il:%d/%m/%Y} con verifica formale nel portale.", styles["body"]))
         if sessione.approvazione_note:
             story.append(P(sessione.approvazione_note, styles["body"]))

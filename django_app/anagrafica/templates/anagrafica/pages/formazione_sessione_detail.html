@@ -510,7 +510,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
           <tr>
             <td><a class="fm-link" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}">{{ a.nome_originale }}</a></td>
             <td class="muted">{{ a.get_tipo_display }}</td>
-            <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+            <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display|upper }}{% endif %}</td>
             <td class="nowrap">
               {% if is_editor %}
               <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"

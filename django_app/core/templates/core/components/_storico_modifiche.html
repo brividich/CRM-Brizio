@@ -26,7 +26,7 @@ mostrato quando non c'e' nulla). Nessuno stile nuovo: usa i token del tema
             <span class="audit-storico-quando">{{ voce.created_at|date:"d/m/Y H:i" }}</span>
           </div>
           <div class="audit-storico-meta">
-            {{ voce.utente_display|default:"—" }}
+            {{ voce.utente_display|upper|default:"—" }}
             {% if voce.modulo %} · {{ voce.modulo }}{% endif %}
           </div>
           {% if voce.dettaglio %}

@@ -1097,7 +1097,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Audit Tickets User")
+        self.assertContains(response, "AUDIT TICKETS USER")
         self.assertContains(response, "tickets_summary")
         self.assertContains(response, "321 char")
         self.assertNotContains(response, "Audit Tasks User")

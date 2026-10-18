@@ -119,7 +119,7 @@ def _licenze(params: ReportParams) -> ReportResult:
                 stato, tone = "Posti oltre il licenziato", TONE_DANGER
         result.add_row(
             [" ".join(x for x in (lic.product_name, lic.edition) if x), lic.vendor, lic.get_category_display(),
-             lic.assigned_to_display or lic.assigned_reparto, posti, d(lic.renewal_date), d(lic.expiry_date),
+             (lic.assigned_to_display or "").upper() or lic.assigned_reparto, posti, d(lic.renewal_date), d(lic.expiry_date),
              yes_no(lic.auto_renew), stato],
             tone, source=lic
         )

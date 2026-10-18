@@ -56,7 +56,7 @@
             {% for t in coda %}
             <tr>
               <td><b>{{ t.titolo }}</b></td>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' t.pratica_id %}">{{ t.pratica.dipendente_nome|default:t.pratica.legacy_anagrafica_id }}</a></td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' t.pratica_id %}">{{ t.pratica.dipendente_nome|upper|default:t.pratica.legacy_anagrafica_id }}</a></td>
               <td class="fmd-muted">{{ t.get_fase_display }}</td>
               <td><span class="obd-cat">{{ t.get_categoria_display }}</span></td>
               <td class="fmd-nowrap">{% if t.scadenza %}{% if t.scadenza < oggi %}<span class="fmd-badge fmd-b-red">{{ t.scadenza|date:"d/m/Y" }}</span>{% else %}{{ t.scadenza|date:"d/m/Y" }}{% endif %}{% else %}<span class="fmd-muted">da definire</span>{% endif %}</td>
@@ -102,7 +102,7 @@
             {% for p in page_obj.object_list %}
             <tr>
               <td>
-                <a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.id %}">{{ p.dipendente_nome|default:p.legacy_anagrafica_id }}</a>
+                <a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.id %}">{{ p.dipendente_nome|upper|default:p.legacy_anagrafica_id }}</a>
                 <div class="fmd-cell-sub">{{ p.mansione|default:"" }}{% if p.reparto %} · {{ p.reparto }}{% endif %}</div>
               </td>
               <td class="fmd-nowrap">{{ p.data_assunzione|date:"d/m/Y"|default:"—" }}{% if p.in_pre_ingresso %}<div><span class="fmd-badge fmd-b-amber">Pre-ingresso</span></div>{% endif %}</td>

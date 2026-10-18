@@ -1218,7 +1218,7 @@ def api_acl_legacy_user_search(request):
     try:
         qs = list(
             UtenteLegacy.objects.filter(
-                Q(nome__icontains=q) | Q(email__icontains=q)
+                Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome")
             ).order_by("nome", "id")[:30]
         )
         user_ids = [u.id for u in qs]

@@ -97,7 +97,7 @@
               <td><svg class="fmd-ico" style="display:inline-block;vertical-align:-2px;color:var(--fmd-muted-2);"><use href="#i-doc"/></svg> {{ d.nome_originale }}</td>
               <td class="fmd-muted">{{ d.descrizione|default:"—" }}</td>
               <td class="fmd-nowrap fmd-muted" data-sort-value="{{ d.created_at|date:'Y-m-d' }}">
-                {{ d.created_at|date:"d-m-Y" }}{% if d.created_by_display %}<div class="fmd-cell-sub">{{ d.created_by_display }}</div>{% endif %}
+                {{ d.created_at|date:"d-m-Y" }}{% if d.created_by_display %}<div class="fmd-cell-sub">{{ d.created_by_display|upper }}</div>{% endif %}
               </td>
               <td class="fmd-c fmd-nowrap" data-sort-value="{{ d.retention_until|date:'Y-m-d'|default:'' }}">
                 {% if d.retention_until %}

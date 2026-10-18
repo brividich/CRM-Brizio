@@ -5577,7 +5577,7 @@ def utenti_list(request):
 
     utenti_qs = UtenteLegacy.objects.all().order_by("id")
     if q:
-        utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q))
+        utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome"))
     if attivo_filter in {"0", "1"}:
         utenti_qs = utenti_qs.filter(attivo=bool(int(attivo_filter)))
     if ruolo_filter.isdigit():
@@ -9460,7 +9460,7 @@ def audit_log_view(request):
             rows=qs.order_by("-created_at"),
             columns=[
                 ("Data/Ora", "created_at"),
-                ("Utente", "utente_display"),
+                ("Utente", lambda e: (e.utente_display or "").upper()),
                 ("Legacy user ID", "legacy_user_id"),
                 ("Modulo", "modulo"),
                 ("Azione", "azione"),
@@ -9675,7 +9675,7 @@ def user_activity_view(request):
             rows=qs.order_by("-created_at"),
             columns=[
                 ("Data/Ora", "created_at"),
-                ("Utente", "utente_display"),
+                ("Utente", lambda e: (e.utente_display or "").upper()),
                 ("Legacy user ID", "legacy_user_id"),
                 ("Modulo", "modulo"),
                 ("Azione", "azione"),

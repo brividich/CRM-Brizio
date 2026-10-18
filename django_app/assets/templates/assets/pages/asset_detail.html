@@ -1749,9 +1749,9 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
                       <td style="white-space:nowrap;">{% if row.license.expiry_date %}{{ row.license.expiry_date|date:"d-m-Y" }}{% endif %}</td>
                       <td>
                         {% if row.employee_url %}
-                          <a href="{{ row.employee_url }}" style="color:#2563eb;text-decoration:none;" title="Scheda dipendente">{{ row.license.assigned_to_display|default:"Scheda dipendente" }}</a>
+                          <a href="{{ row.employee_url }}" style="color:#2563eb;text-decoration:none;" title="Scheda dipendente">{{ row.license.assigned_to_display|upper|default:"Scheda dipendente" }}</a>
                         {% else %}
-                          {{ row.license.assigned_to_display|default:"" }}
+                          {{ row.license.assigned_to_display|upper|default:"" }}
                         {% endif %}
                       </td>
                       <td><span class="as-badge as-badge--{{ row.state.badge_class }}">{{ row.state.label }}</span></td>

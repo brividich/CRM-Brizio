@@ -63,7 +63,7 @@
         {% if form.dipendente.errors %}<div class="mpqf-err">{{ form.dipendente.errors }}</div>{% endif %}
 
         <label class="mpqf-lbl" for="{{ form.nominativo_esterno.id_for_label }}">Qualificatore esterno (nominativo)</label>
-        {{ form.nominativo_esterno }}
+        {{ form.nominativo_esterno|upper }}
         {% if form.nominativo_esterno.errors %}<div class="mpqf-err">{{ form.nominativo_esterno.errors }}</div>{% endif %}
 
         <label class="mpqf-lbl">Ruoli sul processo</label>

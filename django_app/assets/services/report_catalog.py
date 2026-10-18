@@ -309,7 +309,7 @@ def _modifiche(filtri: dict) -> RisultatoReport:
     righe = [
         [timezone.localtime(h.cambiato_il).strftime("%d/%m/%Y %H:%M"), h.asset.asset_tag, h.asset.name,
          ETICHETTE.get(h.campo, h.campo), h.endpoint_label, _visualizza(h.campo, h.valore_prima),
-         _visualizza(h.campo, h.valore_dopo), h.autore_display, fonti.get(h.fonte, h.fonte)]
+         _visualizza(h.campo, h.valore_dopo), (h.autore_display or "").upper(), fonti.get(h.fonte, h.fonte)]
         for h in qs.select_related("asset").order_by("-cambiato_il", "-id")[:MAX_RIGHE]
     ]
     asset_distinti = len({r[1] for r in righe})

@@ -214,7 +214,7 @@
         {% for a in azioni %}
           <tr>
             <td>{{ a.descrizione|linebreaksbr }}<div class="nc-sub">{{ a.get_tipo_display }}{% if a.completata_il %} &middot; fatta il {{ a.completata_il|date:"d/m/Y" }}{% endif %}</div></td>
-            <td>{{ a.responsabile_nome|default:"—" }}</td>
+            <td>{{ a.responsabile_nome|upper|default:"—" }}</td>
             <td>{% if a.scadenza %}<span class="{% if a.aperta and a.scadenza < oggi %}nc-late{% endif %}">{{ a.scadenza|date:"d/m/Y" }}</span>{% else %}—{% endif %}</td>
             <td>
               <form method="post" class="nc-azione-form">{% csrf_token %}

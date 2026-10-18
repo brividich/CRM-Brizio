@@ -13225,7 +13225,7 @@ def visite_mediche_api_cerca_dipendente(request):
 
     qs = (
         AnagraficaDipendente.objects
-        .filter(Q(cognome__icontains=q) | Q(nome__icontains=q))
+        .filter(Q(cognome__icontains=q) | Q(nome__icontains=q) | naming.q_persona(q, "nome", "cognome"))
         .exclude(id__in=exclude_ids)
         .order_by("cognome", "nome")[:25]
     )
