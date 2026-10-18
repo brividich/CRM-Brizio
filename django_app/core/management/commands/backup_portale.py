@@ -59,6 +59,35 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Wrapper compatibile del motore verificabile (BUILD_SPEC R1 §3.3).
+
+        Il task ``PortaleNovicrom-Backup-<ENV>`` creato dal wizard continua a funzionare:
+        esegue ``hub_backup --type all`` (FULL con CHECKSUM e verifica, file incrementali,
+        fotografia della macchina) e poi la retention GFS. ``--include-media`` e
+        ``--retention`` sono accettati per compatibilità (i file sono sempre inclusi,
+        la retention è quella GFS di BACKUP_KEEP_*). Il percorso storico resta disponibile
+        con ``BACKUP_LEGACY_MODE=True``.
+        """
+        if getattr(settings, "BACKUP_LEGACY_MODE", False):
+            return self._legacy_handle(*args, **options)
+        from django.core.management import call_command
+
+        self.stdout.write(self.style.WARNING(
+            "backup_portale è deprecato: delega a hub_backup --type all (+ retention). "
+            "Registrare i task dedicati con deployment\\scripts\\register-backup-tasks.ps1."
+        ))
+        if options.get("retention") is not None:
+            self.stdout.write("  --retention ignorato: vale la retention GFS (BACKUP_KEEP_DAILY/WEEKLY/MONTHLY).")
+        worst = 0
+        for args_ in (["--type", "all"], ["--type", "retention", "--apply"]):
+            try:
+                call_command("hub_backup", *args_, stdout=self.stdout, stderr=self.stderr)
+            except SystemExit as exc:
+                worst = max(worst, int(exc.code or 0))
+        if worst:
+            sys.exit(worst)
+
+    def _legacy_handle(self, *args, **options):
         ts = timezone.localtime().strftime("%Y%m%d_%H%M%S")
         configured_retention = int(getattr(settings, "BACKUP_RETENTION", 10) or 10)
         retention = options["retention"] if options["retention"] is not None else configured_retention

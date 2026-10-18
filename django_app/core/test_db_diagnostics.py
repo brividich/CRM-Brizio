@@ -51,10 +51,10 @@ class DiagnosticaTests(TestCase):
 
     def test_doctor_testo_e_json(self):
         out = io.StringIO()
-        call_command("hub_backup_doctor", stdout=out)
+        call_command("hub_backup_doctor", "--offline", "--no-exit-code", stdout=out)
         self.assertIn("Audit (politica v1)", out.getvalue())
         out = io.StringIO()
-        call_command("hub_backup_doctor", "--json", stdout=out)
+        call_command("hub_backup_doctor", "--json", "--offline", "--no-exit-code", stdout=out)
         data = json.loads(out.getvalue())
         self.assertIn("audit", data)
         self.assertFalse(data["capacity"]["supported"])

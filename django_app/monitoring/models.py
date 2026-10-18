@@ -250,3 +250,78 @@ class ScheduleControl(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} [{'on' if self.enabled else 'off'}]"
+
+
+class BackupRun(models.Model):
+    """Esito di un'esecuzione del motore di backup (``manage.py hub_backup``) e
+    dei lavori collegati (verifica, retention, archivio audit). Il dettaglio
+    completo sta nel ``manifest.json`` del set; qui un riassunto senza segreti
+    e con percorsi relativi al target."""
+
+    class Kind(models.TextChoices):
+        FULL = "full", "Database completo"
+        LOG = "log", "Log delle transazioni"
+        FILES = "files", "File (media e radici private)"
+        HOST = "host", "Fotografia della macchina"
+        RETENTION = "retention", "Retention"
+        VERIFY = "verify", "Verifica"
+        AUDIT_ARCHIVE = "audit_archive", "Archivio audit"
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "In corso"
+        OK = "ok", "OK"
+        WARNING = "warning", "Con avvisi"
+        FAILED = "failed", "Fallito"
+
+    env = models.CharField(max_length=20, db_index=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices, db_index=True)
+    database = models.CharField(max_length=128, blank=True, default="")
+    started_at = models.DateTimeField(default=timezone.now, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.RUNNING, db_index=True)
+    set_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    target = models.CharField(max_length=500, blank=True, default="")
+    bytes = models.BigIntegerField(default=0)
+    sha256 = models.CharField(max_length=64, blank=True, default="")
+    verify_status = models.CharField(max_length=20, blank=True, default="")
+    error = models.TextField(blank=True, default="")
+    manifest = models.JSONField(default=dict, blank=True)
+    host = models.CharField(max_length=128, blank=True, default="")
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+        indexes = [models.Index(fields=["env", "kind", "-started_at"])]
+        verbose_name = "esecuzione backup"
+        verbose_name_plural = "esecuzioni backup"
+
+    def __str__(self) -> str:
+        return f"{self.env} {self.kind} {self.status} {self.started_at:%Y-%m-%d %H:%M}"
+
+
+class RestoreDrill(models.Model):
+    """Prova di ripristino automatica (``manage.py hub_restore_drill``)."""
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "In corso"
+        OK = "ok", "OK"
+        WARNING = "warning", "Con avvisi"
+        FAILED = "failed", "Fallito"
+
+    env = models.CharField(max_length=20, db_index=True, default="")
+    started_at = models.DateTimeField(default=timezone.now, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.RUNNING, db_index=True)
+    full_set_id = models.CharField(max_length=64, blank=True, default="")
+    last_log_set_id = models.CharField(max_length=64, blank=True, default="")
+    point_in_time = models.DateTimeField(null=True, blank=True)
+    rto_seconds = models.PositiveIntegerField(null=True, blank=True)
+    checks = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+        verbose_name = "prova di ripristino"
+        verbose_name_plural = "prove di ripristino"
+
+    def __str__(self) -> str:
+        return f"drill {self.status} {self.started_at:%Y-%m-%d %H:%M}"

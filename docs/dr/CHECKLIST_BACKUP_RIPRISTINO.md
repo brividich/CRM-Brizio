@@ -47,11 +47,18 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 
 ## R1 — Motore di backup verificabile
 
-- [ ] Package `core/backup/` (config, sqlserver, transfer, files, host_manifest, manifest, retention, status)
-- [ ] Modelli `BackupRun`, `RestoreDrill`
-- [ ] Comandi `hub_backup`, `hub_backup_verify`, `hub_backup_doctor`, `hub_backup_set_recovery`; `backup_portale` wrapper
-- [ ] `register-backup-tasks.ps1`; `backup-environment.ps1` senza `.env`
-- [ ] Test R1
+- [x] Worktree `C:\Dev\pn-backup`, branch `feature/backup-motore` (sopra `feature/sql2025-istanza`)
+- [x] Package `core/backup_engine/` (config, sqlserver, transfer, files, host_manifest, manifest + schema JSON v1, retention, status, doctor, engine) — nome `backup_engine` perché `.gitignore` esclude le cartelle `backup/`
+- [x] Modelli `BackupRun`, `RestoreDrill` (migrazione `monitoring 0003`, nessuna collisione con altri branch)
+- [x] Comandi `hub_backup` (full/log/files/host/retention/all, exit 0/1/2), `hub_backup_verify`, `hub_backup_set_recovery`, `hub_backup_doctor` esteso; `backup_portale` wrapper compatibile
+- [x] `BACKUP_EXTRA_DATABASES` (DLM/CNGAUGE), `HUB_PUBLIC_HOSTNAME`/`HUB_ALT_HOSTNAMES` con controlli ALLOWED_HOSTS/CSRF/DNS/SPN
+- [x] `register-backup-tasks.ps1` (dry-run verificato su PS 5.1); `backup-environment.ps1` senza `.env` + `-UseHubBackup`
+- [x] Test: 38 nuovi (sqlcmd simulato, copia verificata, file incrementali, GFS, manifest senza segreti, end-to-end SQLite, riconciliazione); regressione core+monitoring+hub_tools 968 test, solo i 2 preesistenti
+- [x] Prova reale su SQL Server 2025 (copia del DB di sviluppo, poi eliminata): FULL 280 MB verificato, catena log dopo `hub_backup_set_recovery --full --confirm`, manomissione → FAILED, retention, wrapper; corretto un difetto della retention emerso dalla prova
+- [x] `docs/dr/BACKUP_MOTORE.md`, CHANGELOG, `docs/moduli/core.md`, `monitoring.md`, guide Centro guide (amministrazione, emergenza), `schema_db.py` (share dei backup)
+- [x] Commit e push su `feature/backup-motore` (`1bb94717`)
+- [ ] PR: da aprire a mano dopo R0 e S1 (oppure con base `feature/sql2025-istanza`) — https://github.com/brividich/CRM-Brizio/compare/main...feature/backup-motore?expand=1 ; testo nello scratchpad `pr_r1.md`
+- [B] `.env` prod: `BACKUP_TARGET` (share NAS), `BACKUP_ENV_DIR`, nomi del portale → `hub_backup_doctor` → `hub_backup --type all` → `register-backup-tasks.ps1`
 
 ## R2 — Osservabilità e drill
 

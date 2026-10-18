@@ -697,6 +697,37 @@ DEV_SERVE_STATIC_AND_MEDIA = False
 BACKUP_DIR = Path(env("BACKUP_DIR", str(BASE_DIR.parent / "backups")))
 # BACKUP_RETENTION: quanti backup mantenere (i più vecchi vengono eliminati)
 BACKUP_RETENTION = int(env("BACKUP_RETENTION", "10") or "10")
+# Cartella SEPARATA (altra share/ACL) per la copia del .env completo (audit M10). Vuota = non copiato.
+BACKUP_ENV_DIR = env("BACKUP_ENV_DIR", "").strip()
+
+# Motore di backup verificabile (core/backup, comando hub_backup). Vedi docs/dr/.
+# BACKUP_TARGET: radice dei backup set (UNC in produzione, es. \\nas\hub-backup); sotto, una
+# cartella per ambiente. Default locale, segnalato da hub_backup_doctor.
+BACKUP_TARGET = env("BACKUP_TARGET", str(BACKUP_DIR.parent / "hub")).strip()
+BACKUP_TARGET_SECONDARY = env("BACKUP_TARGET_SECONDARY", "").strip()
+# Staging locale: SQL Server scrive qui (il servizio potrebbe non accedere alla share), poi copia verificata.
+BACKUP_STAGING_DIR = env("BACKUP_STAGING_DIR", r"C:\PortaleNovicrom\shared\backup-staging").strip()
+BACKUP_SQL_TIMEOUT_S = int(env("BACKUP_SQL_TIMEOUT_S", "3600") or "3600")
+BACKUP_LOG_WINDOW = env("BACKUP_LOG_WINDOW", "07-21").strip()   # ore in cui gira il backup del log
+BACKUP_KEEP_DAILY = int(env("BACKUP_KEEP_DAILY", "14") or "14")
+BACKUP_KEEP_WEEKLY = int(env("BACKUP_KEEP_WEEKLY", "8") or "8")
+BACKUP_KEEP_MONTHLY = int(env("BACKUP_KEEP_MONTHLY", "12") or "12")
+BACKUP_KEEP_LOG_DAYS = int(env("BACKUP_KEEP_LOG_DAYS", "14") or "14")
+# Altri DB della stessa istanza da includere (es. DLM,CNGAUGE quando saranno sulla nuova istanza):
+# FULL/LOG/verifica/manifest come l'HUB, recovery model mai cambiato dal motore.
+BACKUP_EXTRA_DATABASES = env_list("BACKUP_EXTRA_DATABASES", [])
+# True = backup_portale usa il percorso storico (copia in BACKUP_DIR senza verifica): solo emergenza.
+BACKUP_LEGACY_MODE = env_bool("BACKUP_LEGACY_MODE", False)
+# Tabelle di cui contare le righe nel manifest (confronto nella prova di ripristino).
+BACKUP_DRILL_TABLES = env_list(
+    "BACKUP_DRILL_TABLES",
+    ["utenti", "anagrafica_dipendenti", "assets_asset", "tickets_ticket", "anagrafica_visitamedica"],
+)
+# Nome ambiente nei percorsi dei backup (prod/test); vuoto = dedotto dal modulo settings.
+BACKUP_ENV_NAME = env("BACKUP_ENV_NAME", "").strip().lower()
+# Nomi del portale (decisione 16/10/2026): canonico pubblico + alternativi interni.
+HUB_PUBLIC_HOSTNAME = env("HUB_PUBLIC_HOSTNAME", "").strip().lower()
+HUB_ALT_HOSTNAMES = [h.lower() for h in env_list("HUB_ALT_HOSTNAMES", [])]
 
 # Immagini timbri/firme: cartella privata, MAI servita dal web server.
 # Il web server (IIS/nginx) non deve avere accesso a questa directory.
