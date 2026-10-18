@@ -116,7 +116,7 @@
               <tbody>
                 {% for p in onboarding_aperti %}
                 <tr>
-                  <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.pk %}">{{ p.dipendente_nome|default:"—" }}</a>{% if p.mansione %}<div class="fmd-cell-sub">{{ p.mansione }}</div>{% endif %}</td>
+                  <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.pk %}">{{ p.dipendente_nome|upper|default:"—" }}</a>{% if p.mansione %}<div class="fmd-cell-sub">{{ p.mansione }}</div>{% endif %}</td>
                   <td class="fmd-muted">{{ p.reparto|default:"—" }}</td>
                   <td class="fmd-nowrap fmd-muted">{{ p.data_assunzione|date:"d-m-Y"|default:"—" }}</td>
                   <td class="fmd-r fmd-num">{{ p.counts.completati|add:p.counts.eccezioni }}/{{ p.counts.totale }}</td>

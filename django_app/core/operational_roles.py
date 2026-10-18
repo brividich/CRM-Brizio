@@ -130,7 +130,7 @@ def get_users_for_role(ruolo_id: int):
 
     return User.objects.filter(
         profile__legacy_user_id__in=legacy_user_ids
-    ).order_by("last_name", "first_name", "username")
+    ).order_by("first_name", "last_name", "username")
 
 
 def get_roster_by_role():

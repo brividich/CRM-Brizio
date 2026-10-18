@@ -109,8 +109,8 @@ class FlussoViewTests(TestCase):
         )
         with self._come_capo():
             page = self.client.get(reverse("dpi:gestione_list"))
-            self.assertContains(page, "Mario Rossi")
-            self.assertNotContains(page, "Altro Reparto")
+            self.assertContains(page, "MARIO ROSSI")
+            self.assertNotContains(page, "ALTRO REPARTO")
             self.assertEqual(self.client.get(reverse("dpi:gestione_detail", args=[altra.pk])).status_code, 302)
             detail = self.client.get(reverse("dpi:gestione_detail", args=[self.richiesta.pk]))
             self.assertContains(detail, "Approva richiesta")

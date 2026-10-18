@@ -22,6 +22,10 @@ class WizardBundleRulesTests(SimpleTestCase):
         for name in ("media", "media_private", "logs", ".tmp_tests", ".claude", ".venv", "venv"):
             self.assertIn(name, dirs)
 
+    def test_repo_annidato_powerautomate_escluso(self):
+        # Gitlink con .venv propria e Flask debug=True (docs/ai/06): mai nell'exe.
+        self.assertIn("powerautomate-to-django-automations", set(self.rules["exclude_dir_names"]))
+
     def test_file_sensibili_esclusi(self):
         patterns = set(self.rules["exclude_file_patterns"])
         for pattern in (".env", "*.sqlite3", "DIPENDENTI.csv", "medical-examinations-people.xlsx", "*.bak"):

@@ -214,7 +214,7 @@ Questo si applica anche a dict arbitrari passati al template (es. campi SharePoi
 ## Strumenti di qualità locali (igiene repo 18/10)
 
 - `pyproject.toml` (radice): ruff `py311`, riga 120, regole `E,F,B,DJ`, `E501` ignorata, `F401` ignorata in `migrations/` e `__init__.py`; esclusi `.tmp_tests`, `staticfiles`, `powerautomate-to-django-automations`. Dal 18/10 `ruff check django_app --select F821,F811,E722,F401` è a zero: va tenuto così (i tipi usati solo nelle annotazioni si importano sotto `if TYPE_CHECKING:`).
-- `.pre-commit-config.yaml`: ruff check + `ruff format --check`, `end-of-file-fixer`, `check-added-large-files` (5 MB). Attivazione: `pip install -r django_app/requirements-dev.txt; pre-commit install`. Gli hook girano sui soli file in staging: un file vecchio toccato può emergere con segnalazioni preesistenti.
+- `.pre-commit-config.yaml`: al commit ruff con le sole regole a debito zero (`F821,F811,E722,F401`, come il PR check), `end-of-file-fixer`, `check-added-large-files` (5 MB). Regole complete e `ruff format --check` solo a richiesta (`pre-commit run --hook-stage manual --files <file>`): il codice non è mai stato formattato e ha ~900 segnalazioni preesistenti, bloccherebbero quasi ogni commit. Attivazione: `pip install -r django_app/requirements-dev.txt; pre-commit install`.
 - `tools/pulizia_root.ps1 [-IncludeIgnored]`: elenca i non tracciati in radice, non cancella nulla.
 - `config.test_runner.NovicromDiscoverRunner` rimuove in `teardown_test_environment` le cartelle orfane `django_app/.tmp_tests/tasks_test_media_*`.
 
@@ -225,6 +225,7 @@ I test girano su SQLite: certi errori del dialetto SQL Server escono solo al `mi
 ```powershell
 .\tools\migration_dryrun.ps1                      # default --settings=config.settings.prod_readonly
 .\tools\migration_dryrun.ps1 -App anagrafica,assets
+.\tools\migration_dryrun.ps1 -RepoPath C:\Dev\pn-release   # migrazioni di un altro checkout (es. release/prod)
 ```
 
 Lo script prende le righe `[ ]` di `showmigrations --plan`, salva l'SQL di `sqlmigrate` per ciascuna in `deployment/dryrun/<data>/` (ignorata da git) con `_report.txt`, ed esce con 1 se trova:
@@ -236,7 +237,7 @@ Le operazioni `RunPython` sono elencate come «da rivedere a mano» (sqlmigrate 
 
 ## Repo annidato `django_app/powerautomate-to-django-automations`
 
-È un **gitlink** (mode 160000) senza `.gitmodules`: git ne registra solo il commit, un clone o un worktree lo vede come cartella vuota. Nel checkout di sviluppo contiene un repo git proprio con una **`.venv`** dentro e un'app Flask (`app/webapp.py`) avviata con **`debug=True`** (debugger Werkzeug = esecuzione di codice remoto se esposto). Non fa parte del portale: è escluso dal packager (`$excludeDirs` in `deployment/scripts/package-release.ps1`, oltre all'allowlist) e da ruff (`pyproject.toml`). Non avviarlo su interfacce raggiungibili da rete; non aggiungerlo a `INSTALLED_APPS` né al bundle del SetupWizard.
+È un **gitlink** (mode 160000) senza `.gitmodules`: git ne registra solo il commit, un clone o un worktree lo vede come cartella vuota. Nel checkout di sviluppo contiene un repo git proprio con una **`.venv`** dentro e un'app Flask (`app/webapp.py`) avviata con **`debug=True`** (debugger Werkzeug = esecuzione di codice remoto se esposto). Non fa parte del portale: è escluso dal packager (`$excludeDirs` in `deployment/scripts/package-release.ps1`, oltre all'allowlist), dal bundle di `SetupWizard.exe` (`exclude_dir_names` in `deployment/setup_wizard_bundle_rules.json`, test `core.test_wizard_bundle_rules`) e da ruff (`pyproject.toml`). Un exe costruito dal checkout prima del 18/10 può contenerlo (con la sua `.venv`): va ricostruito. Non avviarlo su interfacce raggiungibili da rete; non aggiungerlo a `INSTALLED_APPS`.
 
 ---
 

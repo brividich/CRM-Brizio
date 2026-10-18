@@ -622,7 +622,7 @@ body.theme-dark .ai-faq-title {
               {% for row in runtime_audit_rows %}
                 <tr>
                   <td>{{ row.created_at|date:"d-m-Y H:i" }}</td>
-                  <td>{{ row.utente_display }}</td>
+                  <td>{{ row.utente_display|upper }}</td>
                   <td><code>{{ row.azione }}</code></td>
                   <td>{{ row.tools|join:", " }}</td>
                   <td><span class="ai-badge{% if row.outcome == 'allowed' %} ok{% elif row.outcome == 'error' %} warn{% else %} blue{% endif %}">{{ row.outcome }}</span></td>

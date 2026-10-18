@@ -20,7 +20,7 @@ class GuidaPersoneTests(TestCase):
         # Un utente senza profilo legacy finirebbe sull'onboarding del portale: si simula l'assenza
         # del permesso di gestione dell'anagrafica.
         self.client.force_login(User.objects.create_superuser("guida.base", "guida.base@example.invalid", "x"))
-        with patch("anagrafica.views._is_anagrafica_admin", return_value=False):
+        with patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=False):
             r = self.client.get(reverse(URL))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'id="elenco"')

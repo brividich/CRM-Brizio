@@ -64,9 +64,9 @@ class SubnavAclFilterTests(TestCase):
         )
         # I cancelli sono letti dal sorgente delle view: si patchano gli helper veri.
         with mock.patch("core.middleware.acl_allows_path", return_value=True), \
-                mock.patch("anagrafica.views._can_view_formazione", return_value=False), \
+                mock.patch("anagrafica.views._helpers._can_view_formazione", return_value=False), \
                 mock.patch("anagrafica.views_recruiting._can_view_recruiting", return_value=False), \
-                mock.patch("anagrafica.views._is_anagrafica_admin", return_value=True):
+                mock.patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=True):
             nav = subnav_anagrafica({"request": self.request})
         labels = self._labels(nav)
         self.assertIn("Dipendenti", labels)

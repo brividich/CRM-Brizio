@@ -14,7 +14,7 @@
         {% for entry in audit_entries %}
           <div class="admin-log-row">
             <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
-            <span>{{ entry.utente_display|default:"-" }}</span>
+            <span>{{ entry.utente_display|upper|default:"-" }}</span>
             <span>{{ entry.azione }}</span>
             <span style="color:var(--text-light);">{{ entry.dettaglio }}</span>
           </div>

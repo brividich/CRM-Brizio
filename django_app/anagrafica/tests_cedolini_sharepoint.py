@@ -131,7 +131,7 @@ class TaskImportCedoliniTests(TestCase):
         self.assertEqual(spec["cron"], "0 0 1 * *")
 
 
-@mock.patch("anagrafica.views._is_anagrafica_admin", return_value=True)
+@mock.patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=True)
 class CedoliniImportViewSharepointTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_superuser("hr_admin", "hr@example.test", "x")

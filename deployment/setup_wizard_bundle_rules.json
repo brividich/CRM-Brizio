@@ -16,6 +16,7 @@
     "media",
     "media_private",
     "node_modules",
+    "powerautomate-to-django-automations",
     "releases",
     "staticfiles",
     "tests",

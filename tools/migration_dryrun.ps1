@@ -34,21 +34,29 @@
 .PARAMETER OutRoot
     Cartella radice dell'output (default deployment/dryrun nel repo).
 
+.PARAMETER RepoPath
+    Checkout di cui verificare le migrazioni (default: quello che contiene lo
+    script). Serve per controllare un altro branch, es. un worktree di release/prod.
+    `.env.prod_readonly` si cerca nella radice di quel checkout; altrimenti
+    impostare PROD_READONLY_ENV_FILE.
+
 .EXAMPLE
     .\tools\migration_dryrun.ps1
     .\tools\migration_dryrun.ps1 -App anagrafica,assets
     .\tools\migration_dryrun.ps1 -Settings config.settings.dev
+    .\tools\migration_dryrun.ps1 -RepoPath C:\Dev\pn-release -Python C:\Dev\Portale` Novicrom\.venv\Scripts\python.exe
 #>
 [CmdletBinding()]
 param(
     [string]$Settings = "config.settings.prod_readonly",
     [string[]]$App = @(),
     [string]$OutRoot = "",
-    [string]$Python = ""
+    [string]$Python = "",
+    [string]$RepoPath = $PSScriptRoot
 )
 
 $ErrorActionPreference = "Stop"
-$repoRoot = (git -C $PSScriptRoot rev-parse --show-toplevel).Trim()
+$repoRoot = (git -C $RepoPath rev-parse --show-toplevel).Trim()
 $djangoDir = Join-Path $repoRoot "django_app"
 
 if (-not $Python) {

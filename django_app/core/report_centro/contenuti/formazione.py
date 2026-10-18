@@ -1,0 +1,42 @@
+from core.report_centro.catalogo import LAYOUT_DATI, LAYOUT_STAMPA, LAYOUT_SU_MISURA, voce
+
+MODULO = "formazione"
+ETICHETTA = "Formazione"
+
+VOCI = [
+    voce("attestato", "Attestato di formazione",
+         "Attestato della singola partecipazione, dalla gestione formazione o dalla «Mia scheda».",
+         "pdf", route=("anagrafica:attestato_formazione", "anagrafica:mio_attestato"),
+         pagina="anagrafica:formazione_dashboard", dati_personali=True, layout=LAYOUT_SU_MISURA),
+    voce("attestati_sessione", "Attestati di una sessione",
+         "Tutti gli attestati di una sessione o di un corso, in un unico file.",
+         ("pdf", "zip"), route=("anagrafica:formazione_sessione_attestati", "anagrafica:formazione_corso_attestati_zip"),
+         pagina="anagrafica:formazione_sessioni_list", dati_personali=True, layout=LAYOUT_SU_MISURA),
+    voce("registro_firme", "Registro presenze / foglio firme",
+         "Foglio firme A4 della lezione, anche tracciato con QR per l'acquisizione automatica.",
+         "pdf", route=("anagrafica:formazione_lezione_registro", "anagrafica:formazione_lezione_registro_qr",
+                       "anagrafica:formazione_corso_registri_pdf"),
+         pagina="anagrafica:formazione_sessioni_list", dati_personali=True, layout=LAYOUT_SU_MISURA),
+    voce("fascicolo", "Fascicolo di sessione",
+         "Fascicolo completo della sessione formativa (programma, presenze, esiti).",
+         "pdf", route="anagrafica:formazione_sessione_fascicolo", pagina="anagrafica:formazione_sessioni_list",
+         dati_personali=True, layout=LAYOUT_SU_MISURA),
+    voce("mod040", "MOD.040 Verbale di formazione",
+         "Modulo di registrazione della formazione erogata, conforme al sistema di gestione.",
+         "pdf", route="anagrafica:formazione_sessione_mod040", pagina="anagrafica:formazione_sessioni_list",
+         dati_personali=True, layout=LAYOUT_SU_MISURA, norma="MOD.040"),
+    voce("iscritti", "Iscritti a un corso",
+         "CSV degli iscritti a un corso d'aula o e-learning.",
+         "csv", route=("anagrafica:formazione_corso_report_iscritti_csv", "anagrafica:formazione_elearning_iscritti_csv"),
+         pagina="anagrafica:formazione_corsi_list", dati_personali=True, layout=LAYOUT_DATI),
+    voce("attestati_emessi", "Elenco attestati emessi",
+         "CSV degli attestati emessi con codice di verifica.",
+         "csv", route="anagrafica:attestato_report_export", pagina="anagrafica:formazione_dashboard",
+         dati_personali=True, layout=LAYOUT_DATI),
+    voce("enti", "Report aziende formative",
+         "Riepilogo degli enti formativi, dei corsi erogati e dei documenti.",
+         "html", pagina="anagrafica:formazione_enti_report", layout=LAYOUT_STAMPA),
+    voce("elearning_registro", "Registro e-learning",
+         "Registro delle fruizioni dei corsi online.",
+         "html", pagina="anagrafica:elearning_registro", dati_personali=True, layout=LAYOUT_STAMPA),
+]

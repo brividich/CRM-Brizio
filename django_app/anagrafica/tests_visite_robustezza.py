@@ -108,7 +108,7 @@ class RefertoSostituitoTests(_Base):
 
 class RegistrazioneAtomicaTests(_Base):
     def test_errore_sul_referto_non_lascia_visite_orfane(self):
-        with patch("anagrafica.views._salva_referto_visita", side_effect=RuntimeError("storage giù")):
+        with patch("anagrafica.views._helpers._salva_referto_visita", side_effect=RuntimeError("storage giù")):
             self.client.post(
                 reverse("anagrafica:dipendente_visita_add", args=[9101]),
                 {"tipo": self.tipo.pk, "data_svolgimento": self.oggi.isoformat(),
@@ -221,8 +221,8 @@ class PermessoModificaTests(TestCase):
     def test_default_storico_chi_vede_modifica(self):
         from .views import _can_edit_visite_mediche
 
-        with patch("anagrafica.views._can_view_visite_mediche", return_value=True), \
-                patch("anagrafica.views._has_canonical_grant", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=True), \
+                patch("anagrafica.views._helpers._has_canonical_grant", return_value=False):
             self.assertTrue(_can_edit_visite_mediche(self._req()))
 
     def test_con_permesso_separato_serve_il_grant(self):
@@ -231,17 +231,17 @@ class PermessoModificaTests(TestCase):
         perm = AnagraficaVisiteMedichePermission.get_instance()
         perm.richiedi_permesso_modifica = True
         perm.save()
-        with patch("anagrafica.views._can_view_visite_mediche", return_value=True), \
-                patch("anagrafica.views._has_canonical_grant", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=True), \
+                patch("anagrafica.views._helpers._has_canonical_grant", return_value=False):
             self.assertFalse(_can_edit_visite_mediche(self._req()))
-        with patch("anagrafica.views._can_view_visite_mediche", return_value=True), \
-                patch("anagrafica.views._has_canonical_grant", return_value=True):
+        with patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=True), \
+                patch("anagrafica.views._helpers._has_canonical_grant", return_value=True):
             self.assertTrue(_can_edit_visite_mediche(self._req()))
 
     def test_senza_accesso_niente_modifica(self):
         from .views import _can_edit_visite_mediche
 
-        with patch("anagrafica.views._can_view_visite_mediche", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=False):
             self.assertFalse(_can_edit_visite_mediche(self._req()))
 
 

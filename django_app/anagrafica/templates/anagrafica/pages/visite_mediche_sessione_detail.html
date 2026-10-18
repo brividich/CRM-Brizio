@@ -15,7 +15,7 @@
       <thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;"><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Dipendente</th><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Tipo</th><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Esito</th><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Scadenza</th></tr></thead>
       <tbody>
         {% for v in visite %}
-        <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px;font-weight:600;">{{ v.dipendente_nome }}</td><td style="padding:8px;">{{ v.tipo.nome }}</td><td style="padding:8px;color:#475569;">{{ v.get_esito_display }}</td><td style="padding:8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td></tr>
+        <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px;font-weight:600;">{{ v.dipendente_nome|upper }}</td><td style="padding:8px;">{{ v.tipo.nome }}</td><td style="padding:8px;color:#475569;">{{ v.get_esito_display }}</td><td style="padding:8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td></tr>
         {% empty %}
         <tr><td colspan="4" style="padding:14px;text-align:center;color:#94a3b8;">Nessuna visita in questa giornata.</td></tr>
         {% endfor %}

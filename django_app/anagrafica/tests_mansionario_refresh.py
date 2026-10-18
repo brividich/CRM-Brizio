@@ -114,8 +114,8 @@ class RefreshMansionarioTests(TestCase):
         req = RequestFactory().get("/")
         req.user = User.objects.create_user("rf4_car", "car@example.invalid", "x")
         req.session = {}
-        with mock.patch("anagrafica.views._is_anagrafica_admin", return_value=False):
-            with mock.patch("anagrafica.views._check_skm_permission", return_value=True):
+        with mock.patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=False):
+            with mock.patch("anagrafica.views.qualifiche._check_skm_permission", return_value=True):
                 self.assertTrue(vm._puo_valutare(req))
-            with mock.patch("anagrafica.views._check_skm_permission", return_value=False):
+            with mock.patch("anagrafica.views.qualifiche._check_skm_permission", return_value=False):
                 self.assertFalse(vm._puo_valutare(req))
