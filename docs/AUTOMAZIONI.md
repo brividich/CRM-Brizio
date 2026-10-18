@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 67
+**Totale automazioni disponibili:** 69
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -17,6 +17,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 00:40
 - **Task eseguito:** `anagrafica.tasks.run_integrita_sicurezza`
 - **Cosa fa:** ANAGRAFICA HR — controllo di integrita' requisiti/adempimenti/visite: il report finisce in monitoring (vedi anagrafica.services.integrita_scadenze).
+
+### `anagrafica_report_retention`
+
+- **Quando gira:** ogni lun, alle 06:30
+- **Task eseguito:** `anagrafica.tasks.run_report_retention`
+- **Cosa fa:** ANAGRAFICA HR — retention GDPR in SOLA LETTURA: conta documenti e candidati oltre la conservazione e apre/risolve una Issue in monitoring. Non cancella: la cancellazione resta il comando cleanup_expired_documents --apply.
 
 ### `anagrafica_ricalcolo_scadenze`
 
@@ -261,6 +267,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 15 minuti
 - **Task eseguito:** `monitoring.tasks.run_ai_readiness_alert`
 - **Cosa fa:** Health-check AI (Ollama/TEI) + servizi readyz, con alert email su degrado. Riusa i destinatari/rate-limit del monitoring; invia solo al cambio di stato (no spam). Fail-safe: ogni check cattura le proprie eccezioni e l'AI è comunque fail-safe (degrada a BM25), quindi un suo problema = WARN/FAIL solo informativo, mai un blocco. Cadenza frequente: pochi probe di rete.
+
+### `backup_health_alert`
+
+- **Quando gira:** ogni 30 minuti
+- **Task eseguito:** `monitoring.tasks.run_backup_health_alert`
+- **Cosa fa:** Backup e ripristino (BUILD_SPEC R2): età dell'ultimo FULL, catena dei log, prova di ripristino, Recovery Kit, capacità del DB. Issue nella centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). I backup veri girano da Task Scheduler (register-backup-tasks.ps1), non da qui: questo solo controlla.
 
 ### `system_digest`
 

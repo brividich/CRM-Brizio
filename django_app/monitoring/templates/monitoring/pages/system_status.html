@@ -43,6 +43,7 @@
         <button type="submit" class="ss-btn{% if value == 'register_schedules' %} secondary{% endif %}">{{ label }}</button>
       </form>
     {% endfor %}
+    <a class="ss-btn secondary" style="text-decoration:none" href="{% url 'monitoring_admin:backup_status' %}">💾 Backup e ripristino</a>
   </div>
   <p class="ss-note">Le azioni lente (verifica/re-index/qualità) si <strong>accodano</strong> al cluster django-q: l'esito appare al refresh. Avvio/arresto del cluster resta nel Server Dashboard.</p>
 

@@ -737,9 +737,12 @@ def database(request):
                     "size": f"{f.stat().st_size / 1024:.1f} KB",
                     "date": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d-%m-%Y %H:%M"),
                 })
+    from django.conf import settings as _settings
+
     return render(request, "hub_tools/database.html", {
         "engine": engine,
         "backups": backups,
+        "restore_enabled": bool(getattr(_settings, "HUB_TOOLS_DB_RESTORE_ENABLED", False)),
     })
 
 
@@ -945,7 +948,22 @@ def api_db_optimize(request):
 @legacy_admin_or_acl_required("hub_tools", "api_db_restore")
 @require_POST
 def api_db_restore(request):
-    """Ripristino database da file di backup."""
+    """Ripristino database da file di backup.
+
+    Disattivato per default (``HUB_TOOLS_DB_RESTORE_ENABLED=False``, decisione del
+    16/10/2026): un ``RESTORE … WITH REPLACE`` lanciato dall'applicazione connessa allo
+    stesso DB è fragile e non tracciabile. Il ripristino si fa con il tool dedicato
+    (``deployment/scripts/restore-host.ps1``, runbook ``docs/dr/RUNBOOK_RIPRISTINO.md``).
+    """
+    from django.conf import settings as _settings
+
+    if not getattr(_settings, "HUB_TOOLS_DB_RESTORE_ENABLED", False):
+        return JsonResponse({
+            "ok": False,
+            "reason": "restore_disabled",
+            "error": "Ripristino dall'applicazione disattivato. Usa il tool di ripristino "
+                     "(deployment\\scripts\\restore-host.ps1, vedi docs/dr/RUNBOOK_RIPRISTINO.md).",
+        }, status=403)
     engine = _get_db_engine()
     try:
         data = json.loads(request.body)

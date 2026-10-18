@@ -62,11 +62,17 @@ Ordine: R0 → R0.3 plan/revisione/run → S1 → recovery FULL + log orario →
 
 ## R2 — Osservabilità e drill
 
-- [ ] Check health backup/log/drill/kit/capacità
-- [ ] Pagina "Backup e ripristino" nella Centrale di comando
-- [ ] `hub_restore_drill`
-- [ ] `HUB_TOOLS_DB_RESTORE_ENABLED=False` (restore in-app disattivato)
-- [ ] Test R2
+- [x] Worktree `C:\Dev\pn-backup-mon`, branch `feature/backup-monitoraggio` (sopra `feature/backup-motore`)
+- [x] Check `backup_full`, `backup_log`, `restore_drill`, `recovery_kit`, `db_capacity` in readyz (mai critical), esclusi dall'alert AI; schedule `backup_health_alert` (30 min, email solo per i FAIL)
+- [x] Pagina «Backup e ripristino» (riquadri RPO/FULL/log/drill/capacità/kit, «Verifica ora», piano scaricabile, esecuzioni, dettaglio set) — verificata a video: chiaro, scuro, 390 px
+- [x] `hub_restore_drill` (guardie `_drill`, DROP in finally, CHECKDB, migrazioni, conteggi, decifratura campioni) — prova reale su SQL 2025: tutto OK, RTO 10 s; trovato e corretto bug `-h 1` di sqlcmd
+- [x] `hub_restore_plan` + `restore_plan.py` senza Django (anticipato da R3 §5.2)
+- [x] `HUB_TOOLS_DB_RESTORE_ENABLED=False`: endpoint 403 JSON, pulsante sostituito da rimando, test aggiornati
+- [x] Test: nuovi in `core.test_backup_drill`, `monitoring.test_backup_page`; monitoring + hub_tools + backup 183 verdi; schedule/doc automazioni verdi
+- [x] Guida in-app (Centro guide → Amministrazione «Backup e ripristino», emergenza), `docs/dr/BACKUP_MOTORE.md`, CHANGELOG, `docs/moduli/monitoring.md`, `hub_tools.md`, `docs/AUTOMAZIONI.md` rigenerato
+- [x] Commit e push su `feature/backup-monitoraggio` (`7216eff0`)
+- [ ] PR: da aprire a mano dopo R0, S1, R1 (oppure con base `feature/backup-motore`) — compare `main...feature/backup-monitoraggio`; testo nello scratchpad `pr_r2.md`
+- [B] Dopo il deploy: `setup_q_schedules` (nuovo `backup_health_alert`), `register-backup-tasks.ps1 … -IncludeDrill`
 
 ## R3 — Recovery Kit e restore headless
 

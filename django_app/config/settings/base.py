@@ -716,6 +716,13 @@ BACKUP_KEEP_LOG_DAYS = int(env("BACKUP_KEEP_LOG_DAYS", "14") or "14")
 # Altri DB della stessa istanza da includere (es. DLM,CNGAUGE quando saranno sulla nuova istanza):
 # FULL/LOG/verifica/manifest come l'HUB, recovery model mai cambiato dal motore.
 BACKUP_EXTRA_DATABASES = env_list("BACKUP_EXTRA_DATABASES", [])
+# Ripristino del DB dall'applicazione (Hub → Database): disattivato (decisione 16/10/2026).
+# L'app non deve sovrascrivere il DB a cui è connessa: si usa il tool di ripristino (restore-host.ps1).
+HUB_TOOLS_DB_RESTORE_ENABLED = env_bool("HUB_TOOLS_DB_RESTORE_ENABLED", False)
+# Prova di ripristino (hub_restore_drill): CHECKDB physical|full, tolleranza sui conteggi, campioni decifrati.
+BACKUP_DRILL_CHECKDB_MODE = env("BACKUP_DRILL_CHECKDB_MODE", "physical").strip().lower()
+BACKUP_DRILL_ROW_TOLERANCE_PCT = float(env("BACKUP_DRILL_ROW_TOLERANCE_PCT", "5") or "5")
+BACKUP_DRILL_DECRYPT_SAMPLES = int(env("BACKUP_DRILL_DECRYPT_SAMPLES", "5") or "5")
 # True = backup_portale usa il percorso storico (copia in BACKUP_DIR senza verifica): solo emergenza.
 BACKUP_LEGACY_MODE = env_bool("BACKUP_LEGACY_MODE", False)
 # Tabelle di cui contare le righe nel manifest (confronto nella prova di ripristino).
