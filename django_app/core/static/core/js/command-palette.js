@@ -3,7 +3,11 @@
  * Un solo overlay (#gs-overlay in core/base.html) con tre sezioni:
  *  - «Recenti»: ultime pagine aperte dall'utente (localStorage, solo per questo browser);
  *  - «Vai a…»: pagine di navigazione, gia' ACL-filtrate lato server in `command-palette-data`;
- *  - risultati dati (dipendenti, asset, ticket, …) dall'API di ricerca globale (`data-api-url`).
+ *  - risultati dati (dipendenti, asset, ticket, …) dall'API di ricerca globale (`data-api-url`);
+ *  - «Dalle guide e procedure»: capitoli trovati dall'indice dell'assistente (`data-docs-url`,
+ *    solo recupero, niente AI generativa: risponde in pochi millisecondi);
+ *  - «Chiedi all'Assistente»: apre la chat con la frase già inviata (`data-ai-url?q=`), in cima
+ *    se la frase sembra una domanda («chi ha la visita in scadenza?»), in fondo altrimenti.
  * Vanilla, nessuna dipendenza.
  */
 (function () {
@@ -16,6 +20,14 @@
   if (!overlay || !input || !results) return;
 
   var API_URL = overlay.getAttribute("data-api-url") || "";
+  var DOCS_URL = overlay.getAttribute("data-docs-url") || "";
+  var AI_URL = overlay.getAttribute("data-ai-url") || "";
+  var QUESTION_RE = /^(chi|come|cosa|che|dove|quando|quale|quali|quanti|quante|quanto|perch[eé]|posso|devo|si pu[oò]|mi serve|mostrami|elenca|dammi)\b/i;
+  function isQuestion(q) {
+    var words = q.trim().split(/\s+/).filter(Boolean);
+    return /\?\s*$/.test(q) || (words.length >= 3 && QUESTION_RE.test(q.trim())) || words.length >= 5;
+  }
+  function askUrl(q) { return AI_URL + (AI_URL.indexOf("?") === -1 ? "?" : "&") + "q=" + encodeURIComponent(q); }
   var RECENT_KEY = "nhub.recent-pages";
   var RECENT_MAX = 6;
 
@@ -34,7 +46,9 @@
     kickoff: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
     task: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>',
     procedura: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>',
-    dpi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>'
+    dpi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>',
+    ai: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'
   };
   var LABELS = {
     dipendente: "Dipendenti", asset: "Asset", ticket: "Ticket",
@@ -42,7 +56,7 @@
   };
 
   var timer = null, seq = 0, sel = -1, nodes = [];
-  var lastPages = [], lastData = null;
+  var lastPages = [], lastData = null, lastDocs = null;
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -128,6 +142,14 @@
         html = '<div class="gs-empty">Digita il nome di una pagina, di un dipendente, di un asset, di un ticket…</div>';
       }
     } else {
+      var ask = AI_URL && q.length >= 3
+        ? { kind: "ai", label: "Chiedi all'Assistente: «" + q + "»", sub: "Risponde con i dati del portale e le guide che puoi vedere", url: askUrl(q) }
+        : null;
+      var askFirst = ask && isQuestion(q);
+      if (askFirst) {
+        html += sectionHtml("Assistente AI");
+        html += itemHtml(ask);
+      }
       if (lastPages.length) {
         html += sectionHtml("Vai a…");
         lastPages.forEach(function (d) { html += itemHtml(pageItem(d, false)); });
@@ -145,6 +167,17 @@
             html += itemHtml({ kind: r.tipo, label: r.label, sub: r.sub, preview: r.preview, module: r.module, url: r.url });
           });
         });
+      }
+      if (lastDocs && lastDocs.results && lastDocs.results.length) {
+        html += sectionHtml("Dalle guide e procedure");
+        lastDocs.results.forEach(function (r) {
+          // Capitoli senza una pagina propria (procedure, schede): si apre l'assistente sulla stessa frase.
+          html += itemHtml({ kind: "doc", label: r.label, module: r.tipo, preview: r.preview, url: r.url || askUrl(q) });
+        });
+      }
+      if (ask && !askFirst) {
+        html += sectionHtml("Assistente AI");
+        html += itemHtml(ask);
       }
       if (!html) {
         html = q.length < 2
@@ -183,6 +216,21 @@
         if (keep) nodes.forEach(function (n, i) { if (n.getAttribute("href") === keep) setSelected(i); });
       })
       .catch(function () { if (my === seq) { lastData = { results: [] }; render(q); } });
+    searchDocs(q, my);
+  }
+
+  function searchDocs(q, my) {
+    if (!DOCS_URL || q.length < 3) { lastDocs = null; return; }
+    fetch(DOCS_URL + "?q=" + encodeURIComponent(q), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (my !== seq || input.value.trim() !== q) return;
+        lastDocs = data && data.results ? data : null;
+        var keep = sel >= 0 && nodes[sel] ? nodes[sel].getAttribute("href") : null;
+        render(q);
+        if (keep) nodes.forEach(function (n, i) { if (n.getAttribute("href") === keep) setSelected(i); });
+      })
+      .catch(function () { /* senza documenti restano gli altri risultati */ });
   }
 
   function remember(node) {
@@ -201,7 +249,7 @@
     lastFocus = document.activeElement;
     overlay.classList.add("gs-open");
     input.value = "";
-    seq++; lastPages = []; lastData = null;
+    seq++; lastPages = []; lastData = null; lastDocs = null;
     render("");
     input.focus();
   }
@@ -222,6 +270,7 @@
     if (!q) { render(""); return; }
     lastPages = matchPages(q);
     lastData = null;
+    lastDocs = null;
     render(q);
     timer = setTimeout(function () { search(q); }, 200);
   });

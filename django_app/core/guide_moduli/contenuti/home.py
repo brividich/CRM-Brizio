@@ -33,6 +33,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "cerca-domande",
+            "titolo": "Cercare scrivendo una domanda",
+            "blocchi": [
+                ("p", "In «Cerca o vai a…» puoi scrivere anche una frase intera, per esempio «come chiedo un DPI?» o «chi ha la visita in scadenza?»."),
+                ("def", [
+                    ("Dalle guide e procedure", "i capitoli delle guide, delle procedure e delle schede di sicurezza che parlano di quello che hai scritto. "
+                                                "Vedi solo quelli che puoi aprire; la guida si apre al suo capitolo."),
+                    ("Chiedi all'Assistente", "apre l'Assistente AI con la tua frase già inviata: risponde con i dati del portale che puoi vedere. "
+                                              "Compare in cima quando la frase sembra una domanda (comincia con chi, come, dove, quando… o finisce con «?»)."),
+                ]),
+                ("nota", "Subito dopo un riavvio del portale «Dalle guide e procedure» può non comparire: l'indice dei documenti si sta caricando, riprova tra poco."),
+            ],
+        },
+        {
             "id": "icone",
             "titolo": "Le icone in alto a destra",
             "blocchi": [

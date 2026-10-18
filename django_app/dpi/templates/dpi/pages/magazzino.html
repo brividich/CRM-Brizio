@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load dpi_extras %}
+{% load dpi_extras static %}
 
 {% block title %}Magazzino DPI | Portale Applicativo{% endblock %}
 
@@ -125,11 +125,34 @@ body.theme-dark .dpi-neg { color:#fca5a5; }
 
   <div class="dpi-card">
     <div class="dpi-card-title">Registra un movimento</div>
-    <div class="dpi-card-sub">Per ora i valori si inseriscono a mano, dal DDT o dall'inventario.</div>
+    <div class="dpi-card-sub">A mano, dal DDT o dall'inventario; oppure «Leggi un DDT»: carichi il PDF o la foto e il portale propone le righe.</div>
     <div class="dpi-tabs" role="tablist">
       <button type="button" class="dpi-tab is-on" data-pane="carico">Carico da DDT</button>
+      <button type="button" class="dpi-tab" data-pane="leggi-ddt">Leggi un DDT</button>
       <button type="button" class="dpi-tab" data-pane="rettifica">Rettifica inventario</button>
     </div>
+
+    <form method="post" class="dpi-pane" id="pane-leggi-ddt" enctype="multipart/form-data" action="{% url 'dpi:magazzino' %}">
+      {% csrf_token %}<input type="hidden" name="azione" value="carico_ddt">
+      <div class="dpi-mov-form">
+        <div class="dpi-field span2"><label>DDT (PDF o foto)</label><input type="file" name="file" id="ddt-file" accept=".pdf,.jpg,.jpeg,.png,.webp"></div>
+        <div class="dpi-field"><label>&nbsp;</label><button type="button" class="dpi-btn" id="ddt-leggi">Leggi il DDT</button></div>
+        <div class="dpi-field"><label>&nbsp;</label><span class="dpi-muted" id="ddt-stato" role="status"></span></div>
+        <div class="dpi-field"><label>N° DDT</label><input type="text" name="ddt_numero" id="ddt-numero" maxlength="60"></div>
+        <div class="dpi-field"><label>Data DDT</label><input type="date" name="data" id="ddt-data" value="{{ oggi|date:'Y-m-d' }}"></div>
+        <div class="dpi-field span2"><label>Fornitore</label><input type="text" name="fornitore" id="ddt-fornitore" maxlength="150"></div>
+        <div class="full dpi-muted" id="ddt-avvisi"></div>
+        <div class="full" id="ddt-righe" hidden>
+          <div class="dpi-table-wrap">
+            <table class="dpi-table" data-fm-table-skip="1">
+              <thead><tr><th>Carica</th><th>DPI</th><th>Quantità</th><th>Letto nel DDT</th></tr></thead>
+              <tbody id="ddt-righe-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="full"><button type="submit" class="dpi-btn dpi-btn-green" id="ddt-carica" disabled>Carica le righe spuntate</button></div>
+      </div>
+    </form>
 
     <form method="post" class="dpi-pane is-on" id="pane-carico">
       {% csrf_token %}<input type="hidden" name="azione" value="carico">
@@ -223,4 +246,5 @@ body.theme-dark .dpi-neg { color:#fca5a5; }
   });
 })();
 </script>
+<script src="{% static 'dpi/js/leggi_ddt.js' %}" defer></script>
 {% endblock %}

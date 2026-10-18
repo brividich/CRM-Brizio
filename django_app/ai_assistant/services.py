@@ -2161,6 +2161,89 @@ def build_knowledge_context(
     return KnowledgeContext(text="\n\n".join(blocks).strip(), sources=tuple(sources))
 
 
+_FONTE_ETICHETTE = (
+    (guide_portale.SOURCE_PREFIX, "Guida"),
+    ("glossario:", "Glossario"),
+    ("spec:", "Specifica"),
+    ("proc:", "Procedura"),
+    ("sds:", "Scheda di sicurezza"),
+)
+_URL_GUIDA_RE = re.compile(r"Guida completa nel portale:\s*(/\S*)")
+
+
+def _etichetta_fonte(source: str) -> str:
+    for prefisso, etichetta in _FONTE_ETICHETTE:
+        if source.startswith(prefisso):
+            return etichetta
+    return "Documento"
+
+
+def _estratto(content: str, query_tokens: Counter[str], *, limite: int = 180) -> str:
+    """La riga più pertinente del chunk (più token della domanda), accorciata."""
+    migliore, punteggio = "", -1
+    for riga in content.splitlines():
+        riga = riga.strip(" -#*\t")
+        if len(riga) < 12 or riga.startswith("Guida completa nel portale:"):
+            continue
+        p = sum(1 for t in _tokenize(riga) if t in query_tokens)
+        if p > punteggio:
+            migliore, punteggio = riga, p
+    return migliore if len(migliore) <= limite else migliore[: limite - 1].rstrip() + "…"
+
+
+def cerca_documenti(
+    prompt: str,
+    *,
+    allow_specifiche: bool = False,
+    allow_procedure: bool = False,
+    allowed_guides: frozenset[str] | None = None,
+    limit: int = 5,
+) -> tuple[str, list[dict[str, str]]]:
+    """Ricerca veloce nei documenti dell'assistente, per la barra «Cerca o vai a…».
+
+    Solo BM25 sull'indice già in memoria: niente LLM, niente embedding, niente
+    costruzione sincrona dell'indice (a freddo la prepara in background e risponde
+    ``in_preparazione``). Stessi filtri ACL di ``build_knowledge_context``.
+
+    Ritorna ``(stato, risultati)``: stato ``pronto`` / ``in_preparazione`` / ``spento``;
+    ogni risultato ha ``label``, ``tipo`` (Guida, Procedura…), ``preview`` e ``url``
+    (la guida, se il capitolo ne ha una; altrimenti vuoto).
+    """
+    if not bool(getattr(settings, "OLLAMA_RAG_ENABLED", True)):
+        return "spento", []
+    index = _KNOWLEDGE_CACHE.get("index")
+    if not isinstance(index, KnowledgeIndex) or not index.chunks:
+        prewarm_async()
+        return "in_preparazione", []
+    query_tokens = Counter(_tokenize(prompt))
+    if not query_tokens:
+        return "pronto", []
+    ranked = _senza_guide_admin_fuori_tema(prompt, query_tokens, index, _bm25_ranking(query_tokens, index))
+    risultati: list[dict[str, str]] = []
+    visti: set[tuple[str, str]] = set()
+    for i in ranked:
+        chunk = index.chunks[i]
+        if not (
+            _sgi_chunk_allowed(chunk, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure)
+            and _guide_chunk_allowed(chunk, allowed_guides)
+        ):
+            continue
+        chiave = (chunk.source.split("#", 1)[0], chunk.title)
+        if chiave in visti:
+            continue
+        visti.add(chiave)
+        url = _URL_GUIDA_RE.search(chunk.content or "")
+        risultati.append({
+            "label": chunk.title,
+            "tipo": _etichetta_fonte(chunk.source),
+            "preview": _estratto(chunk.content or "", query_tokens),
+            "url": url.group(1) if url and url.group(1).startswith("/") and not url.group(1).startswith("//") else "",
+        })
+        if len(risultati) >= limit:
+            break
+    return "pronto", risultati
+
+
 # Domande su COME si fa una cosa nel portale: anche quando risponde un tool live
 # (es. il catalogo moduli) la guida del modulo resta la fonte giusta per i passi.
 _HOWTO_INTENT_RE = re.compile(

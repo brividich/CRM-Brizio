@@ -13685,6 +13685,12 @@ def formazione_dashboard(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
         return redirect("anagrafica:index")
 
+    # «Leggi un attestato»: stessa rotta (e stesso ACL) della dashboard.
+    if request.GET.get("vista") == "leggi-attestato" or request.POST.get("azione") in ("leggi_attestato", "registra_attestato"):
+        from .views_lettura_attestati import gestisci
+
+        return gestisci(request)
+
     from django.utils import timezone as _tz
 
     oggi = _tz.localdate()

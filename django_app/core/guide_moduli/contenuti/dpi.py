@@ -89,6 +89,10 @@ GUIDA = {
                 ("ul", [
                     "«Magazzino»: la giacenza di ogni modello è la somma dei movimenti. «Carica a magazzino» registra un arrivo (DDT); "
                     "la consegna scarica da sola; «Imposta giacenza» corregge dopo un inventario.",
+                    "«Leggi un DDT»: scegli il PDF o la foto del DDT e premi «Leggi il DDT». Il portale propone numero, data e fornitore "
+                    "e una riga per ogni codice DPI del catalogo che trova nel documento, con la quantità letta sulla stessa riga "
+                    "(«da controllare» se non l'ha letta con sicurezza). Spunta le righe giuste, correggi le quantità e premi "
+                    "«Carica le righe spuntate». I codici che non sono nel catalogo non vengono proposti: caricali a mano.",
                     "Con la scorta minima il modello diventa «Da riordinare» o «Esaurito».",
                     "«Report e consumi» mostra i consumi per mese, reparto e modello e la quantità suggerita da riordinare; «Esporta movimenti (CSV)».",
                 ]),

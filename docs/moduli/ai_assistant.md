@@ -67,6 +67,12 @@ Dalle valutazioni negative in produzione (6 su 9): due erano elenchi parziali pr
 - **Preriscaldamento all'apertura della chat** (`AI_PREWARM_ON_PAGE_OPEN`, default on): aprendo `/assistente-ai/` un thread prepara indice RAG, vettori del routing e modello chat (warmup Ollama al massimo ogni 10 minuti), mentre l'utente scrive.
 - **Titolo del documento nei chunk SGI attivo di default** (`OLLAMA_RAG_SGI_CHUNK_TITLE=True`): misurato SGI recall 27→31/32, MRR 0,623→0,772. Dopo il deploy serve `index_sgi_documents` (embeddings da ricalcolare).
 
+## Ricerca dalla barra «Cerca o vai a…» (18/10/2026)
+
+- `services.cerca_documenti`: solo BM25 sull'indice già in memoria (niente LLM, niente embedding), stessi filtri ACL di `build_knowledge_context` (`sgi_rag_access`, `guide_consentite`). A freddo non costruisce l'indice in modo sincrono: avvia `prewarm_async` e risponde `in_preparazione`. Link solo per i capitoli delle guide (riga «Guida completa nel portale: …»).
+- API `GET /assistente-ai/api/cerca-documenti/?q=` (≥ 3 caratteri, JSON, 401 senza sessione), rotta condivisa ACL come le altre API dell'assistente.
+- Palette (`core/static/core/js/command-palette.js`): sezione «Dalle guide e procedure» e voce «Chiedi all'Assistente», in cima se la frase sembra una domanda. La chat accetta `?q=`: scrive e invia la domanda una volta sola e toglie `q` dall'indirizzo.
+
 ## Hardening ottobre 2026
 
 - Al massimo `OLLAMA_MAX_CONCURRENT_REQUESTS` (default 3) chiamate al modello contemporanee per processo: oltre il limite l'utente riceve subito «assistente occupato» invece di occupare un thread del server web.

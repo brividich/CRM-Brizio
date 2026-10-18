@@ -84,6 +84,9 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "ai_assistant:api_chat",
     "ai_assistant:api_chat_stream",
     "ai_assistant:api_daily_brief",
+    # Ricerca nei documenti dalla barra «Cerca o vai a…»: stessi filtri per fonte
+    # della chat (guide consentite, specifiche/procedure secondo il modulo).
+    "ai_assistant:api_cerca_documenti",
     # Storico chat: ogni utente vede e cancella solo le proprie (filtro in-view).
     "ai_assistant:api_conversazioni",
     "ai_assistant:api_conversazione",

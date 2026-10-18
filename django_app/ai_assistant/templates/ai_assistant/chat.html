@@ -1917,6 +1917,20 @@ body.theme-dark .ai-history-del:hover { background: rgba(185,28,28,.25); color: 
     } catch (_) { /* nessuna conversazione da riaprire */ }
   }
 
+  /* Domanda arrivata dalla barra «Cerca o vai a…» (?q=): si scrive e si invia una
+     volta sola, poi si toglie dall'indirizzo così un ricaricamento non la rimanda. */
+  try {
+    var pageUrl = new URL(window.location.href);
+    var askedFromSearch = (pageUrl.searchParams.get("q") || "").trim();
+    if (askedFromSearch && form && input && !input.disabled) {
+      pageUrl.searchParams.delete("q");
+      window.history.replaceState(null, "", pageUrl.pathname + pageUrl.search + pageUrl.hash);
+      input.value = askedFromSearch.slice(0, parseInt(input.getAttribute("maxlength") || "4000", 10));
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event("submit", { cancelable: true }));
+    }
+  } catch (_) { /* nessuna domanda da inviare */ }
+
   /* ── Save to FAQ ────────────────────────────────────────────── */
   learnBtn && learnBtn.addEventListener("click", async function () {
     if (!lastPair || learnBtn.disabled) return;
