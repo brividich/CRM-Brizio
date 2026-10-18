@@ -29,7 +29,7 @@ def read(cfg: BackupConfig) -> dict:
     for p in _paths(cfg):
         try:
             if p.exists():
-                return json.loads(p.read_text(encoding="utf-8"))
+                return json.loads(p.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             logger.warning("stato backup illeggibile: %s", p)
     return {"env": cfg.env, "last": {}, "pending_db": []}

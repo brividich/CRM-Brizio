@@ -101,6 +101,13 @@ GUIDA = {
                     "«Scarica il piano di ripristino»: scegli data e ora (vuoto = il momento più recente) e scarichi restore-plan.json, che dice quali backup usare. Serve al tool di ripristino.",
                     "Clic su un set nella tabella: manifest leggibile, file con impronta SHA-256 e pulsante per verificare solo quel backup.",
                 ]),
+                ("ul", [
+                    "Recovery Kit (dal terminale): manage.py hub_recovery_kit export --out <file.hubkit> crea il file cifrato con .env e certificato; "
+                    "la passphrase (almeno 5 parole) si digita a mano e va custodita in busta in Direzione, separata dal file. "
+                    "manage.py hub_recovery_kit verify <file> controlla che il kit apra i documenti, senza scrivere nulla.",
+                    "Macchina nuova: deployment\\scripts\\restore-host.ps1 ricostruisce tutto dai backup (prima con -WhatIf) e lascia un report con il tempo impiegato. "
+                    "Istruzioni in docs/dr/RIPRISTINO_HOST.md.",
+                ]),
                 ("nota", "I controlli girano da soli ogni 30 minuti: se uno diventa rosso si apre una segnalazione e parte una mail agli amministratori. "
                          "Il ripristino da Hub → «Database» è disattivato: si fa solo con il tool dedicato, dopo aver parlato con la Direzione."),
             ],
