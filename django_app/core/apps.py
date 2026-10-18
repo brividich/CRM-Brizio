@@ -30,8 +30,12 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         from . import signals  # noqa: F401
-        from . import audit_signals  # noqa: F401
+        from . import audit_signals
         from . import checks  # noqa: F401  (registra i system check di igiene runtime)
+
+        # Audit automatico collegato per modello secondo core.audit_policy
+        # (i modelli tecnici esclusi non hanno listener: fast-delete possibile).
+        audit_signals.connect_audit_signals()
 
         post_migrate.connect(_ensure_legacy_anagrafica_columns, sender=self)
         _install_user_full_name()
