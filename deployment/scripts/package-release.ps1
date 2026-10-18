@@ -639,6 +639,7 @@ $excludeDirs = @(
     ".venv",          # virtual environment Python
     "venv",           # virtual environment alternativo
     "node_modules",   # dipendenze JS
+    "powerautomate-to-django-automations",  # repo annidato (gitlink) con .venv e Flask debug=True: mai in prod
     "__pycache__",    # cache Python
     "logs",           # log applicazione
     "media",          # media locale (upload runtime, dati personali)
