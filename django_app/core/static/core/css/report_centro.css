@@ -1,5 +1,10 @@
 /* Centro report (Amministrazione). Solo token di theme.css: tema chiaro e scuro seguono da soli. */
 
+/* Le regole display delle classi rc-* non devono battere l'attributo hidden (filtri, campi alternativi). */
+[class^="rc-"][hidden], [class*=" rc-"][hidden], .rc-form [hidden], #rc-catalogo [hidden] { display: none !important; }
+
+.rc-page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+
 .rc-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; align-items: center; }
 .rc-tabs .rc-guida { margin-left: auto; }
 

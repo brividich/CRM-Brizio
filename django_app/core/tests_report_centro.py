@@ -263,6 +263,16 @@ class PaginaCentroReportTests(_AdminClientMixin, TestCase):
         self.assertContains(resp, "#RRGGBB")
         self.assertFalse(ReportProfiloLayout.objects.exists())
 
+    def test_registro_collega_archivio_hr(self):
+        from anagrafica.models_reportistica import ReportGenerato
+
+        impronta = "e" * 64
+        ReportGenerato.objects.create(titolo="Organico", formato="pdf", nome_file="org.pdf", contenuto=b"x", sha256=impronta)
+        ReportEmissione.objects.create(titolo="Organico", formato="pdf", sha256=impronta, report_chiave="anagrafica.reportistica")
+        ReportEmissione.objects.create(titolo="Altro", formato="pdf", sha256="f" * 64)
+        resp = self.client.get(reverse(self.url), {"tab": "registro"})
+        self.assertContains(resp, "Copia in archivio HR", count=1)
+
     def test_conservazione(self):
         self.client.post(reverse("admin_portale:centro_report_azione"), {"azione": "conservazione", "giorni": "99999"})
         self.assertEqual(SiteConfig.get(registro.RETENTION_KEY), str(registro.MAX_GIORNI))
@@ -272,3 +282,223 @@ class PaginaCentroReportTests(_AdminClientMixin, TestCase):
         self.client.force_login(utente)
         resp = self.client.get(reverse(self.url))
         self.assertNotEqual(resp.status_code, 200)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MieiReportTests(TestCase):
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.utente = User.objects.create_user(username="dipendente-rc", password="pass12345")
+        UserOnboarding.objects.create(user=self.utente, completed=True)
+        self.client.force_login(self.utente)
+
+    def _get(self, consentiti=("/tickets/",), legacy_id=77, **params):
+        legacy = type("L", (), {"id": legacy_id})()
+
+        def finto_acl(path, **kwargs):
+            return path in consentiti
+
+        with patch("core.middleware.acl_allows_path", side_effect=finto_acl), patch(
+            "core.legacy_utils.get_legacy_user", return_value=legacy
+        ):
+            return self.client.get(reverse("miei_report"), params)
+
+    def test_mostra_solo_i_report_delle_pagine_accessibili(self):
+        resp = self._get()
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Scheda ticket")
+        self.assertNotContains(resp, "MOD.040 Verbale di formazione")
+        self.assertEqual(resp.context["totale_voci"], 1)
+
+    def test_nessun_permesso(self):
+        resp = self._get(consentiti=())
+        self.assertContains(resp, "non ci sono report da generare")
+
+    def test_solo_i_propri_scaricamenti(self):
+        ReportEmissione.objects.create(legacy_user_id=77, titolo="Mio ticket", formato="pdf", report_chiave="tickets.ticket")
+        ReportEmissione.objects.create(legacy_user_id=88, titolo="Di un altro", formato="pdf")
+        resp = self._get()
+        self.assertContains(resp, "Mio ticket")
+        self.assertNotContains(resp, "Di un altro")
+
+    def test_guida_e_rotta_condivisa(self):
+        from core.middleware import is_acl_shared_path
+
+        self.assertTrue(is_acl_shared_path(reverse("miei_report")))
+        resp = self._get(guida="1")
+        self.assertContains(resp, 'id="guida-dati"')
+
+    def test_link_nel_menu_utente(self):
+        resp = self._get()
+        self.assertContains(resp, f'href="{reverse("miei_report")}"')
+
+
+
+class CalendarioPianificazioneTests(SimpleTestCase):
+    def _p(self, **kw):
+        from core.models import ReportPianificazione
+
+        return ReportPianificazione(**{"frequenza": "mensile", "giorno_mese": 1, "giorno_settimana": 0, "ora": 7, **kw})
+
+    def test_settimanale(self):
+        from datetime import datetime
+
+        from core.report_centro.pianificazione import calcola_prossima
+
+        tz = timezone.get_current_timezone()
+        mercoledi = datetime(2026, 10, 14, 9, 0, tzinfo=tz)
+        p = self._p(frequenza="settimanale", giorno_settimana=0, ora=7)
+        self.assertEqual(timezone.localtime(calcola_prossima(p, mercoledi)).date().isoformat(), "2026-10-19")
+        p = self._p(frequenza="settimanale", giorno_settimana=2, ora=10)
+        self.assertEqual(timezone.localtime(calcola_prossima(p, mercoledi)).strftime("%Y-%m-%d %H"), "2026-10-14 10")
+        p = self._p(frequenza="settimanale", giorno_settimana=2, ora=8)
+        self.assertEqual(timezone.localtime(calcola_prossima(p, mercoledi)).date().isoformat(), "2026-10-21")
+
+    def test_mensile_e_fine_anno(self):
+        from datetime import datetime
+
+        from core.report_centro.pianificazione import calcola_prossima
+
+        tz = timezone.get_current_timezone()
+        p = self._p(giorno_mese=5, ora=6)
+        self.assertEqual(timezone.localtime(calcola_prossima(p, datetime(2026, 10, 3, tzinfo=tz))).date().isoformat(), "2026-10-05")
+        self.assertEqual(timezone.localtime(calcola_prossima(p, datetime(2026, 12, 20, tzinfo=tz))).date().isoformat(), "2027-01-05")
+
+    def test_varianti_del_catalogo_valide(self):
+        varianti = catalogo.varianti_pianificabili()
+        self.assertGreaterEqual(len(varianti), 8)
+        for voce, var in varianti:
+            reverse(var.route)
+            self.assertIn(var.route, voce.route, voce.chiave)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False,
+                   EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", DEFAULT_FROM_EMAIL="hub@example.com")
+class PianificazioneTests(TestCase):
+    def setUp(self):
+        from core.models import ReportPianificazione
+
+        self.proprietario = User.objects.create_superuser(username="proprietario", email="prop@example.com", password="x")
+        self.ammesso = User.objects.create_user(username="ammesso", email="ammesso@example.com", first_name="Anna", last_name="Neri")
+        self.escluso = User.objects.create_user(username="escluso", email="escluso@example.com")
+        self.voce = catalogo.ReportVoce(
+            chiave="admin_portale.registro_emissioni", nome="Registro emissioni report", descrizione="",
+            formati=("csv",), route=("admin_portale:centro_report_registro_csv",), dati_personali=True,
+            modulo="admin_portale", modulo_etichetta="Amministrazione",
+            varianti=(catalogo.Variante("tutto", "Tutto il registro", "admin_portale:centro_report_registro_csv"),),
+        )
+        self.p = ReportPianificazione.objects.create(
+            nome="Registro settimanale", voce_chiave=self.voce.chiave, variante="tutto",
+            frequenza="settimanale", proprietario=self.proprietario,
+        )
+        self.p.destinatari.set([self.ammesso, self.escluso])
+
+    def _patch(self):
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        stack.enter_context(patch("core.report_centro.pianificazione.catalogo.voce_per_chiave", return_value=self.voce))
+        stack.enter_context(patch(
+            "core.middleware.acl_allows_path",
+            side_effect=lambda path, django_user=None, **kw: getattr(django_user, "username", "") != "escluso",
+        ))
+        return stack
+
+    def test_genera_invia_e_registra(self):
+        from django.core import mail
+
+        from core.report_centro.pianificazione import esegui
+
+        with self._patch():
+            esito = esegui(self.p, manuale=True)
+        self.assertEqual(esito.esito, "parziale", esito.messaggio)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["ammesso@example.com"])
+        nome, contenuto, tipo = mail.outbox[0].attachments[0]
+        self.assertEqual(nome, "registro-emissioni-report.csv")
+        self.assertEqual(tipo, "text/csv")
+        e = ReportEmissione.objects.get(route_name=f"pianificazione:{self.p.pk}")
+        self.assertEqual(e.parametri["destinatari"], 1)
+        self.assertEqual(e.parametri["esclusi"], 1)
+        self.p.refresh_from_db()
+        self.assertEqual(self.p.ultimo_esito, "parziale")
+        self.assertIsNotNone(self.p.prossima_esecuzione)
+
+    def test_proprietario_senza_permessi_errore(self):
+        from django.core import mail
+
+        from core.report_centro.pianificazione import esegui
+
+        self.p.proprietario = self.ammesso
+        self.p.save()
+        with self._patch():
+            esito = esegui(self.p)
+        self.assertEqual(esito.esito, "errore")
+        self.assertIn("403", esito.messaggio)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_esegui_scadute_solo_attive_e_dovute(self):
+        from core.models import ReportPianificazione
+        from core.report_centro.pianificazione import esegui_scadute
+
+        ReportPianificazione.objects.filter(pk=self.p.pk).update(prossima_esecuzione=timezone.now() - timedelta(minutes=5))
+        futura = ReportPianificazione.objects.create(
+            nome="Futura", voce_chiave=self.voce.chiave, variante="tutto", proprietario=self.proprietario,
+            prossima_esecuzione=timezone.now() + timedelta(days=1))
+        sospesa = ReportPianificazione.objects.create(
+            nome="Sospesa", voce_chiave=self.voce.chiave, variante="tutto", proprietario=self.proprietario,
+            attiva=False, prossima_esecuzione=timezone.now() - timedelta(days=1))
+        with self._patch():
+            conteggi = esegui_scadute()
+        self.assertEqual(conteggi["eseguite"], 1)
+        futura.refresh_from_db()
+        sospesa.refresh_from_db()
+        self.assertIsNone(futura.ultima_esecuzione)
+        self.assertIsNone(sospesa.ultima_esecuzione)
+
+    def test_schedule_orario(self):
+        from automazioni.schedules import SCHEDULES
+
+        self.assertIn("core.tasks.run_report_pianificati", {s["func"] for s in SCHEDULES})
+
+    def test_pagina_admin_e_salvataggio(self):
+        from core.models import ReportPianificazione
+
+        self.client.force_login(self.proprietario)
+        resp = self.client.get(reverse("admin_portale:centro_report"), {"tab": "pianificazioni"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Registro settimanale")
+        self.assertContains(resp, "NERI ANNA")
+        resp = self.client.post(reverse("admin_portale:centro_report_azione"), {
+            "azione": "pianificazione_salva", "nome": "Visite HR", "variante": "visite.scadenze|prossimo",
+            "frequenza": "mensile", "giorno_mese": "3", "ora": "8", "destinatari": [str(self.ammesso.pk)], "attiva": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        nuova = ReportPianificazione.objects.get(nome="Visite HR")
+        self.assertEqual(list(nuova.destinatari.all()), [self.ammesso])
+        self.assertEqual(timezone.localtime(nuova.prossima_esecuzione).day, 3)
+        self.client.post(reverse("admin_portale:centro_report_azione"),
+                         {"azione": "pianificazione_attiva", "pianificazione_id": nuova.pk})
+        nuova.refresh_from_db()
+        self.assertFalse(nuova.attiva)
+
+    def test_variante_non_valida_rifiutata(self):
+        from core.models import ReportPianificazione
+
+        self.client.force_login(self.proprietario)
+        self.client.post(reverse("admin_portale:centro_report_azione"), {
+            "azione": "pianificazione_salva", "nome": "X", "variante": "tickets.ticket|tutto",
+            "frequenza": "mensile", "destinatari": [str(self.ammesso.pk)],
+        })
+        self.assertFalse(ReportPianificazione.objects.filter(nome="X").exists())
+
+    def test_ricevuti_in_i_miei_report(self):
+        from core.models import UserOnboarding
+
+        UserOnboarding.objects.create(user=self.ammesso, completed=True)
+        self.client.force_login(self.ammesso)
+        with patch("core.middleware.acl_allows_path", return_value=False):
+            resp = self.client.get(reverse("miei_report"))
+        self.assertContains(resp, "Ricevi per mail")
+        self.assertContains(resp, "Registro settimanale")

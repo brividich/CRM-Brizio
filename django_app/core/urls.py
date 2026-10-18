@@ -4,6 +4,7 @@ from . import legacy_flask_views
 from . import views
 from . import views_capa
 from . import views_guide
+from . import views_report
 from .accounts.views import LegacyLoginView, cambia_password, logout_view
 from .accounts.windows_sso import windows_sso_view
 
@@ -46,6 +47,7 @@ urlpatterns = [
     path("cambia-password", cambia_password, name="cambia_password_legacy_noslash"),
     path("cambia-password/", cambia_password, name="cambia_password"),
     path("profilo/", views.profilo, name="profilo"),
+    path("report/", views_report.miei_report, name="miei_report"),
     path("gestione-reparto/", views.gestione_reparto, name="gestione_reparto"),
     path("rubrica/", views.rubrica, name="rubrica"),
     path("organigramma/", views.organigramma, name="organigramma"),

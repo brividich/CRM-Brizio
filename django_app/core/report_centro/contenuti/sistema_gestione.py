@@ -15,5 +15,6 @@ VOCI = [
     voce("rilievi", "Rilievi di audit",
          "Excel dei rilievi aperti e chiusi.",
          "xlsx", route="sistema_gestione:audit_rilievi_export", pagina="sistema_gestione:audit_index",
-         layout=LAYOUT_EXCEL),
+         layout=LAYOUT_EXCEL,
+         pianificabile=(("tutti", "Tutti i rilievi", "sistema_gestione:audit_rilievi_export", {}),)),
 ]

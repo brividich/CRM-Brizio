@@ -17,6 +17,7 @@
   <li><strong>Il file non viene conservato.</strong> Si conserva solo la sua impronta SHA-256: incollandola in «Cerca» si scopre se un file in circolazione è uscito dal portale, quando e a chi.</li>
   <li>I filtri «Periodo» (7, 30, 90 o 365 giorni), «Modulo», «Formato», «Cerca» (persona, nome del file o impronta) e «Solo con dati personali» si combinano; «Esporta CSV» scarica le stesse righe (al massimo 20.000), e anche questo scaricamento finisce nel registro.</li>
   <li><strong>Conservazione del registro</strong>: le registrazioni più vecchie della soglia (predefinita 730 giorni, massimo 3650) vengono eliminate ogni notte alle 02:45. Con 0 si conservano per sempre.</li>
+  <li>Le righe con <strong>«Copia in archivio HR»</strong> corrispondono a un file conservato nell'archivio della Reportistica HR (stessa impronta): da lì si può riscaricare l'originale. È l'unico archivio che conserva i file; il registro non lo fa.</li>
   <li>Gli allegati caricati dagli utenti (documenti, referti, allegati di ticket…) non sono report e restano fuori dal registro.</li>
 </ul>
 
@@ -30,9 +31,20 @@
   <li>I modelli su misura (attestati, MOD.040, fogli firme, etichette) e le esportazioni di soli dati hanno una veste propria e non cambiano con i profili.</li>
 </ul>
 
+<h3 id="guida-pianificazioni">Pianificazioni</h3>
+<ul>
+  <li>Una <strong>pianificazione</strong> genera un report da sola e lo invia per mail, come allegato, «Ogni settimana» (giorno della settimana e ora) o «Ogni mese» (giorno da 1 a 28 e ora). Il portale controlla ogni ora, al minuto 5, se c'è qualcosa da inviare.</li>
+  <li>Si possono pianificare solo i report con l'etichetta <strong>«Pianificabile»</strong> nel Catalogo; per alcuni si sceglie anche il contenuto (es. visite «Scadute e in scadenza entro 60 giorni», «In scadenza nel mese corrente», «In scadenza il mese prossimo»).</li>
+  <li>Il report si genera <strong>con i permessi di chi ha creato la pianificazione</strong>, esattamente come se lo scaricasse lui dalla pagina del modulo.</li>
+  <li>I destinatari si scelgono tra le persone del portale con email («Filtra per nome o email…», Ctrl+clic per sceglierne più di uno). Ognuno riceve una mail separata e <strong>solo se può aprire lo stesso report</strong>: chi non ha accesso o non ha email viene saltato, e al salvataggio un avviso lo segnala.</li>
+  <li>«Invia ora» genera e spedisce subito, senza spostare il prossimo invio; «Sospendi» ferma gli invii finché non premi «Riattiva». In «Ultimo invio» trovi l'esito: «Inviato», «Inviato in parte» (qualcuno è stato saltato) o «Errore» con il motivo.</li>
+  <li>Ogni invio finisce nel <strong>Registro emissioni</strong> come «Pianificazione «nome»», con il numero di destinatari. Gli allegati oltre i 10 MB non vengono spediti.</li>
+</ul>
+
 <h3 id="guida-problemi">Se qualcosa non torna</h3>
 <ul>
   <li><strong>Un report scaricato non compare nel registro</strong>: è una pagina a video, un allegato caricato, oppure il download è fallito (si registrano solo i file consegnati con successo).</li>
   <li><strong>Il profilo non cambia il PDF</strong>: verifica che sia «Attivo», che il report sia tra quelli elencati in «Chi usa quale profilo» e che non abbia un'assegnazione propria che vince su quella del modulo. Nel registro, la colonna del report mostra il profilo effettivamente applicato.</li>
+  <li><strong>Una pianificazione dà «Errore»</strong>: leggi il motivo in «Ultimo invio». «Il proprietario non ha più accesso» o «non esiste più» → ricreala con un altro utente; «Nessun destinatario può ricevere» → controlla email e permessi dei destinatari.</li>
   <li><strong>Il logo non compare</strong>: deve essere un PNG o JPG sotto /media/; SVG e WebP non sono supportati e al loro posto si vede il monogramma.</li>
 </ul>
