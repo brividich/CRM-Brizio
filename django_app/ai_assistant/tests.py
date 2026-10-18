@@ -807,7 +807,7 @@ class AiAssistantTests(TestCase):
         from ai_assistant import tools
 
         req = SimpleNamespace(user=self.user, path="/assistente-ai/")
-        with patch("anagrafica.views._can_view_formazione", return_value=False):
+        with patch("anagrafica.views._helpers._can_view_formazione", return_value=False):
             ctx = tools._rischi_mansione_context(req, "rischi della mansione saldatore")
         self.assertIn("tool:rischi:accesso-negato", ctx.sources)
         self.assertFalse(ctx.audit.get("allowed"))
@@ -825,7 +825,7 @@ class AiAssistantTests(TestCase):
         EsposizioneRischio.objects.create(fattore=fattore, mansione=mansione)
 
         req = SimpleNamespace(user=self.user, path="/assistente-ai/")
-        with patch("anagrafica.views._can_view_formazione", return_value=True):
+        with patch("anagrafica.views._helpers._can_view_formazione", return_value=True):
             ctx = tools._rischi_mansione_context(req, "a quali rischi e' esposto il saldatore?")
 
         self.assertTrue(ctx.audit.get("allowed"))
