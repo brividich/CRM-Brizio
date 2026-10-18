@@ -9500,7 +9500,7 @@ def _notifiche_display_names(legacy_ids) -> dict:
         from core.legacy_models import UtenteLegacy
 
         for row in UtenteLegacy.objects.filter(id__in=ids).values("id", "nome"):
-            names[row["id"]] = (row["nome"] or "").strip() or f"#{row['id']}"
+            names[row["id"]] = naming.normalizza_parte(row["nome"]) or f"#{row['id']}"
     except Exception:
         pass
     return names

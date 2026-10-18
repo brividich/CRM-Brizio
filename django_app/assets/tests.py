@@ -6963,7 +6963,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
         self.assertContains(page_response, "Evento Outlook")
-        self.assertContains(page_response, "Giulia Verdi")
+        self.assertContains(page_response, "GIULIA VERDI")
 
     def test_periodic_verification_list_creates_outlook_event_for_selected_asset_context(self):
         target_user = UtenteLegacy.objects.create(
@@ -7025,7 +7025,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
         self.assertContains(page_response, "Evento Outlook")
-        self.assertContains(page_response, "Paolo Neri")
+        self.assertContains(page_response, "PAOLO NERI")
 
     def test_assistance_contract_list_creates_outlook_event_for_selected_asset_context(self):
         target_user = UtenteLegacy.objects.create(
@@ -7093,7 +7093,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
         self.assertContains(page_response, "Evento Outlook")
-        self.assertContains(page_response, "Sara Blu")
+        self.assertContains(page_response, "SARA BLU")
 
     def test_assistance_contract_list_creates_contract_for_selected_asset(self):
         supplier = Fornitore.objects.create(

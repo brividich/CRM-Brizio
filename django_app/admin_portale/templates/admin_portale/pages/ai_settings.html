@@ -530,7 +530,7 @@ body.theme-dark .ai-faq-title {
               <select class="input" name="runtime_simulated_user">
                 <option value="">Admin corrente</option>
                 {% for sim_user in runtime_simulated_users %}
-                  <option value="{{ sim_user.pk }}">{{ sim_user.username }}</option>
+                  <option value="{{ sim_user.pk }}">{{ sim_user.get_full_name|default:sim_user.username }} ({{ sim_user.username }})</option>
                 {% endfor %}
               </select>
             </div>

@@ -3,6 +3,7 @@ from __future__ import annotations
 from django import forms
 from django.contrib.auth import get_user_model
 
+from core.form_fields import user_display_label
 from core.upload_mime import (
     UploadMimeValidationError,
     safe_filename,
@@ -88,6 +89,7 @@ class AttrezzaturaTaskForm(forms.ModelForm):
         self.fields["attrezzatura"].required = False
         self.fields["assegnato_a"].required = False
         self.fields["assegnato_a"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        self.fields["assegnato_a"].label_from_instance = user_display_label
         self.fields["attrezzatura"].queryset = Attrezzatura.objects.order_by("codice", "part_number", "id")
 
 
