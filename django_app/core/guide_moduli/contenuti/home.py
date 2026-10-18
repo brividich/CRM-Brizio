@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "accesso login password home menu notifiche push telefono cerca profilo scadenzario",
+    "parole": "accesso login password home menu notifiche push telefono cerca profilo scadenzario preferiti personalizza tour tabelle viste colonne filtri",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
@@ -88,6 +88,26 @@ GUIDA = {
             "blocchi": [
                 ("p", "La home ti mostra cosa devi fare oggi (richieste da approvare, scadenze, letture), i documenti utili e i collegamenti ai moduli. "
                       "La guida completa della home è nel collegamento qui sopra."),
+                ("ul", [
+                    "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali) e «Rifai il tour».",
+                    "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
+                    "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",
+                ]),
+            ],
+        },
+        {
+            "id": "tabelle-viste",
+            "titolo": "Tabelle: colonne e viste salvate",
+            "blocchi": [
+                ("p", "Sopra molte tabelle del portale c'è una barra con «Cerca…», «Colonne ▾», «Viste ▾» e «Reset»."),
+                ("def", [
+                    ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo."),
+                    ("Viste ▾", "«＋ Salva la vista attuale…» dà un nome a colonne, filtri, ricerca e ordinamento di adesso; "
+                     "un clic sul nome la richiama, × la elimina. Fino a 12 viste per tabella, solo tue. "
+                     "Quando una vista è attiva il pulsante dice «Vista: nome»."),
+                    ("Reset", "torna alle colonne di partenza della tabella. Le viste salvate restano."),
+                ]),
+                ("nota", "Senza una vista, filtri e ricerca valgono solo finché resti sulla pagina: ricaricando la tabella torna completa."),
             ],
         },
         {
@@ -160,6 +180,21 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una vista salvata non mostra quello che mi aspettavo",
+            "fare": [
+                "Le viste sono legate a quella tabella di quella pagina: su un'altra pagina non compaiono.",
+                "Se la tabella ha cambiato colonne, le colonne nuove compaiono comunque e quelle tolte vengono ignorate: risalva la vista.",
+                "«Vista non salvata»: troppi filtri lunghi o connessione assente. Riprova con meno filtri.",
+            ],
+        },
+        {
+            "sintomo": "La home non si apre sulla stanza scelta",
+            "fare": [
+                "Un indirizzo che finisce con #oggi, #sapere, #persone o #moduli ha la precedenza: apri la home dal logo o dal menu.",
+                "Controlla in «⚙ Personalizza» la voce «Stanza di apertura» e premi «Salva».",
+            ],
+        },
         {
             "sintomo": "Una persona non riesce a entrare",
             "fare": [

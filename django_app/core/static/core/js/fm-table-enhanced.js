@@ -449,6 +449,156 @@
     } catch (e) { /* no-op */ }
   }
 
+  // ─── Viste salvate ────────────────────────────────────────────────────────
+  // Una vista = colonne, ordine, ordinamento, filtri e ricerca con un nome.
+  // Stesso endpoint e stesso modello delle preferenze, record a parte
+  // `<table_id>::viste` (così il salvataggio automatico non le cancella).
+  // Applicare una vista ricarica la pagina: lo stato passa in sessionStorage e
+  // initTable lo usa al posto delle preferenze, filtri e ricerca compresi.
+  const VIEWS_MAX = 12;
+  const VIEWS_PENDING = "fm-tbl-vista:";
+
+  function viewsId(tableId) {
+    const base = tableId.length > 93 ? tableId.slice(0, 84) + "~" + shortHash(tableId) : tableId;
+    return base + "::viste";
+  }
+
+  async function fetchViews(tableId) {
+    const st = await fetchPrefs(viewsId(tableId));
+    return Array.isArray(st.viste) ? st.viste.filter(v => v && typeof v.nome === "string" && v.stato) : [];
+  }
+
+  async function saveViews(tableId, viste) {
+    try {
+      const r = await fetch(API_BASE + encodeURIComponent(viewsId(tableId)) + "/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: JSON.stringify({ state: { viste: viste } }),
+      });
+      return r.ok;
+    } catch (e) { return false; }
+  }
+
+  function takePendingView(tableId) {
+    try {
+      const raw = sessionStorage.getItem(VIEWS_PENDING + tableId);
+      if (!raw) return null;
+      sessionStorage.removeItem(VIEWS_PENDING + tableId);
+      const v = JSON.parse(raw);
+      return v && v.stato ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function buildViewsMenu(table, state, statusEl) {
+    const tableId = table.dataset.tableId;
+    const menu = document.createElement("div");
+    menu.className = "fm-tbl-menu fm-tbl-views";
+    let viste = null;
+
+    function snapshot() {
+      return {
+        visible: state.visible.slice(),
+        order: state.order.slice(),
+        sort: state.sort.map(s => s.slice()),
+        filters: Object.assign({}, state.filters),
+        q: state.q || "",
+      };
+    }
+
+    function render() {
+      menu.innerHTML = "";
+      const title = document.createElement("div");
+      title.className = "fm-tbl-views-title";
+      title.textContent = "Viste salvate";
+      menu.appendChild(title);
+      if (viste === null) {
+        const p = document.createElement("div");
+        p.className = "fm-tbl-views-empty";
+        p.textContent = "Caricamento…";
+        menu.appendChild(p);
+        return;
+      }
+      if (!viste.length) {
+        const p = document.createElement("div");
+        p.className = "fm-tbl-views-empty";
+        p.textContent = "Nessuna vista salvata. Imposta colonne, filtri e ordinamento, poi salvala qui sotto.";
+        menu.appendChild(p);
+      }
+      const ul = document.createElement("ul");
+      ul.className = "fm-tbl-col-list";
+      viste.forEach((v, i) => {
+        const li = document.createElement("li");
+        li.className = "fm-tbl-views-item";
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.className = "fm-tbl-views-apply";
+        apply.textContent = v.nome;
+        apply.title = "Applica la vista «" + v.nome + "»";
+        apply.addEventListener("click", () => {
+          try { sessionStorage.setItem(VIEWS_PENDING + tableId, JSON.stringify(v)); } catch (e) { return; }
+          location.reload();
+        });
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "fm-tbl-views-del";
+        del.textContent = "×";
+        del.title = "Elimina la vista «" + v.nome + "»";
+        del.setAttribute("aria-label", del.title);
+        del.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (!confirm("Eliminare la vista «" + v.nome + "»?")) return;
+          const next = viste.filter((_, j) => j !== i);
+          if (await saveViews(tableId, next)) { viste = next; render(); }
+          else if (statusEl) statusEl.textContent = "⚠ Errore salvataggio";
+        });
+        li.appendChild(apply);
+        li.appendChild(del);
+        ul.appendChild(li);
+      });
+      menu.appendChild(ul);
+
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "fm-tbl-views-add";
+      add.textContent = "＋ Salva la vista attuale…";
+      add.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const nome = cleanText(prompt("Nome della vista (colonne, filtri, ricerca e ordinamento di adesso):") || "").slice(0, 60);
+        if (!nome) return;
+        const idx = viste.findIndex(v => v.nome.toLowerCase() === nome.toLowerCase());
+        if (idx >= 0 && !confirm("Esiste già una vista «" + viste[idx].nome + "»: sostituirla?")) return;
+        if (idx < 0 && viste.length >= VIEWS_MAX) {
+          alert("Puoi salvare al massimo " + VIEWS_MAX + " viste per tabella: eliminane una.");
+          return;
+        }
+        const next = viste.slice();
+        const item = { nome: nome, stato: snapshot() };
+        if (idx >= 0) next[idx] = item; else next.push(item);
+        if (await saveViews(tableId, next)) {
+          viste = next;
+          render();
+          if (statusEl) {
+            statusEl.textContent = "✓ Vista «" + nome + "» salvata";
+            setTimeout(() => { statusEl.textContent = ""; }, 2200);
+          }
+        } else {
+          alert("Vista non salvata: troppi filtri o connessione assente.");
+        }
+      });
+      menu.appendChild(add);
+    }
+
+    menu._fmOpen = async function () {
+      if (viste === null) {
+        render();
+        viste = await fetchViews(tableId);
+      }
+      render();
+    };
+    return menu;
+  }
+
   // ─── Parsing colonne ──────────────────────────────────────────────────────
 
   function parseColumns(table) {
@@ -560,6 +710,30 @@
     colsWrap.appendChild(colsBtn);
     colsWrap.appendChild(colsMenu);
     bar.appendChild(colsWrap);
+
+    // Viste ▾ (salvate per utente, con nome)
+    const viewsBtn = document.createElement("button");
+    viewsBtn.type = "button";
+    viewsBtn.className = "fm-tbl-btn";
+    viewsBtn.textContent = table._fmViewName ? "Vista: " + table._fmViewName + " ▾" : "Viste ▾";
+    viewsBtn.title = "Viste salvate: richiama colonne, filtri e ordinamento con un clic";
+    const viewsMenu = buildViewsMenu(table, state, statusEl);
+    viewsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      colsMenu.classList.remove("fm-tbl-menu-open");
+      const open = viewsMenu.classList.toggle("fm-tbl-menu-open");
+      if (open) viewsMenu._fmOpen();
+    });
+    document.addEventListener("click", (e) => {
+      if (!viewsMenu.contains(e.target) && e.target !== viewsBtn) {
+        viewsMenu.classList.remove("fm-tbl-menu-open");
+      }
+    });
+    const viewsWrap = document.createElement("div");
+    viewsWrap.className = "fm-tbl-menu-wrap";
+    viewsWrap.appendChild(viewsBtn);
+    viewsWrap.appendChild(viewsMenu);
+    bar.appendChild(viewsWrap);
 
     // Reset
     const resetBtn = document.createElement("button");
@@ -1333,13 +1507,20 @@
     table.dataset.fmTblInited = "1";
 
     const defaults = defaultState(cols);
-    const saved = await fetchPrefs(tableId);
+    let saved = await fetchPrefs(tableId);
     const persistOpts = buildPersistOpts(table);
     // I filtri/ricerca sono per default transitori: scartiamo dallo stato
     // salvato qualsiasi residuo (anche entry storiche da quando la persistenza
     // era totale) così la tabella si apre sempre pulita.
     if (!persistOpts.persistFilters) saved.filters = {};
     if (!persistOpts.persistSearch)  saved.q = "";
+    // Vista scelta dal menu «Viste ▾» prima del ricaricamento: vale tutta,
+    // filtri e ricerca compresi.
+    const pendingView = takePendingView(tableId);
+    if (pendingView) {
+      saved = pendingView.stato;
+      table._fmViewName = pendingView.nome;
+    }
     const state = mergeState(defaults, saved);
 
     const statusEl = document.createElement("span");
@@ -1415,6 +1596,8 @@
     // primo render rifletta la filtro su tutti i record e non solo sulla pagina.
     applyState(table, cols, state);
     maybeLoadAll();
+    // Colonne e ordinamento della vista diventano le preferenze correnti.
+    if (pendingView) schedulePrefsSave(tableId, state, statusEl, persistOpts);
 
     // initTable è async (fetchPrefs): chi vuole pilotare la tabella dall'esterno
     // non può sapere quando è pronta se non glielo diciamo.

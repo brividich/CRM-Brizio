@@ -913,6 +913,9 @@ class UserUiPreference(models.Model):
         blank=True,
         help_text="Ordine personalizzato delle azioni rapide nel footer della sidebar. Null = ordine predefinito.",
     )
+    # Home personalizzata (dashboard/views_home_portale.py): moduli preferiti,
+    # stanza di apertura, riquadri nascosti, tour di benvenuto già visto.
+    home_prefs = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "core_useruipreference"

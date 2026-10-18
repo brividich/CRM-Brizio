@@ -78,6 +78,38 @@
 .hs-guide{ margin-bottom:12px; padding:5px 11px; border-radius:999px; border:1px solid var(--border);
            font-size:12px; font-weight:700; color:var(--text-mid) !important; text-decoration:none; white-space:nowrap }
 .hs-guide:hover{ border-color:var(--accent); color:var(--accent) !important }
+button.hs-guide{ background:none; cursor:pointer; font-family:inherit; line-height:inherit }
+
+/* ── Personalizza la home ─────────────────────────────────────────── */
+.hs-tools{ position:relative; display:flex; gap:6px; align-items:flex-end; flex:none }
+.hs-pers{ position:absolute; top:calc(100% - 4px); right:0; z-index:60; width:min(320px, calc(100vw - 32px));
+          background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:12px;
+          box-shadow:0 18px 40px -12px rgba(15,23,42,.35); padding:14px; display:flex; flex-direction:column; gap:10px }
+.hs-pers[hidden]{ display:none }
+.hs-pers-h{ font-weight:800; font-size:14px }
+.hs-pers-f{ display:flex; flex-direction:column; gap:5px; font-size:12.5px; font-weight:600; border:0; margin:0; padding:0 }
+.hs-pers-f legend{ padding:0; margin-bottom:4px; font-weight:600 }
+.hs-pers-c{ display:flex; align-items:center; gap:7px; font-weight:500 }
+.hs-pers-n{ margin:0; font-size:11.5px; color:var(--text-light) }
+.hs-pers-a{ display:flex; gap:8px; flex-wrap:wrap }
+
+/* ── Preferiti ────────────────────────────────────────────────────── */
+.hs-fav-list{ display:flex; flex-direction:column; gap:4px }
+.hs-fav-a{ display:block; padding:6px 10px; border-radius:8px; font-size:12.5px; font-weight:600;
+           color:#fff !important; text-decoration:none; background:rgba(255,255,255,.08);
+           border-left:3px solid rgba(255,255,255,.35) }
+.hs-fav-a:hover{ background:rgba(255,255,255,.15) }
+.hs-fav-a.hp-tone-danger{ border-left-color:#ff9b9b }
+.hs-fav-a.hp-tone-warning{ border-left-color:#ffc27a }
+.hs-fav-a.hp-tone-info{ border-left-color:#9cc8f5 }
+.hs-fav-a.hp-tone-success{ border-left-color:#9be7b8 }
+.hs-fav-empty{ margin:0; font-size:11.5px; line-height:1.4; color:rgba(255,255,255,.6) }
+.hs .hp-tile-wrap{ position:relative }
+.hs .hp-tile-wrap .hp-tile{ padding-right:42px }
+.hp-star{ position:absolute; top:36px; right:8px; transform:translateY(-50%); z-index:2; width:28px; height:28px; border-radius:999px;
+          border:0; background:transparent; color:var(--text-light); font-size:17px; line-height:1; cursor:pointer }
+.hp-star:hover, .hp-star:focus-visible{ color:#ff6b00; background:rgba(255,107,0,.1) }
+.hp-star[aria-pressed="true"]{ color:#ff6b00 }
 
 .hs-room{ padding:18px 22px; display:flex; flex-direction:column; gap:14px }
 .hs-room[hidden]{ display:none }
@@ -186,6 +218,8 @@ body.theme-dark .hs .hp-tile-panel{ border-color:var(--border) }
   .hs-qa{ flex-direction:row; overflow-x:auto; gap:6px; padding-bottom:2px }
   .hs-qa .hs-lbl{ display:none }
   .hs-qa-a{ white-space:nowrap; flex:none }
+  .hs-fav-list{ flex-direction:row; overflow-x:auto; gap:6px; padding-bottom:2px }
+  .hs-fav-a{ white-space:nowrap; flex:none }
   .hs-sos{ margin-top:0; padding:8px 10px }
   .hs-rooms-bar{ padding:0 12px }
   .hs-rooms button{ font-size:17px; padding:12px 10px 9px }
