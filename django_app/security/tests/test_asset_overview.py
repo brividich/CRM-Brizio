@@ -3,7 +3,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from assets.models import Asset
@@ -68,13 +70,24 @@ class AssetOverviewTests(TestCase):
             data = security_asset_it_overview({"request": SimpleNamespace(user=user)}, self.hub)
         self.assertEqual(data, {"show": False})
 
-    def test_projection_query_count_independent_of_rows(self):
-        for i in range(15):
-            self.signal(f"job-{i}")
-        with self.assertNumQueries(4):
+    def _overview_query_count(self):
+        with CaptureQueriesContext(connection) as ctx:
             data = overview_for_hub_asset(self.hub)
             for row in data["backup_rows"]:
                 str(row["latest"].source.name)
                 str(row["latest"].asset.hostname)
+        return len(ctx), data
+
+    def test_projection_query_count_independent_of_rows(self):
+        # Il numero assoluto cresce con le sezioni della panoramica (backup,
+        # vulnerabilita', eventi, alert): conta che NON cresca con le righe.
+        for i in range(3):
+            self.signal(f"few-{i}")
+        poche, _ = self._overview_query_count()
+        for i in range(15):
+            self.signal(f"job-{i}")
+        molte, data = self._overview_query_count()
+        self.assertEqual(molte, poche)
+        self.assertLessEqual(molte, 7)
         self.assertTrue(data["backup_jobs_limited"])
         self.assertEqual(len(data["backup_rows"]), 12)

@@ -577,8 +577,9 @@ class AdminPortaleUserAnagraficaSyncTests(TestCase):
             row = cursor.fetchone()
 
         self.assertIsNotNone(row)
-        self.assertEqual(row[0], "Andrea")
-        self.assertEqual(row[1], "Badalassi")
+        # Nominativi sempre in maiuscolo (core.naming).
+        self.assertEqual(row[0], "ANDREA")
+        self.assertEqual(row[1], "BADALASSI")
         self.assertEqual(int(row[2] or 0), 0)
         self.assertIsNone(row[3])
 
@@ -704,16 +705,16 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
     def test_config_srv_can_send_test_email(self):
         self.client.force_login(self.admin_user)
         connection_mock = MagicMock()
-        message_mock = MagicMock()
-        message_mock.send.return_value = 1
 
+        # L'invio passa da core.email_utils.send_hub_mail (mail con la grafica del
+        # portale), importata dentro _smtp_send_test_email.
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
         ), patch("admin_portale.views.utenti.get_connection", return_value=connection_mock) as connection_factory, patch(
-            "admin_portale.views.EmailMultiAlternatives",
-            return_value=message_mock,
-        ) as email_factory:
+            "core.email_utils.send_hub_mail",
+            return_value=1,
+        ) as send_factory:
             response = self.client.post(
                 self.url,
                 {
@@ -742,14 +743,16 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
             timeout=10,
             fail_silently=False,
         )
-        email_factory.assert_called_once_with(
-            subject="Test SMTP Portale Applicativo",
-            body=ANY,
+        send_factory.assert_called_once_with(
+            "Test SMTP Portale Applicativo",
+            ANY,
+            ["dest@test.local"],
+            email_type="Config SRV",
+            title="Test SMTP",
             from_email="noreply@test.local",
-            to=["dest@test.local"],
             connection=connection_mock,
+            fail_silently=False,
         )
-        message_mock.send.assert_called_once_with(fail_silently=False)
         connection_mock.close.assert_called_once()
 
     def test_config_srv_rejects_invalid_test_recipient(self):
@@ -759,7 +762,7 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
         ), patch("admin_portale.views.utenti.get_connection") as connection_factory, patch(
-            "admin_portale.views.EmailMultiAlternatives",
+            "core.email_utils.send_hub_mail",
         ) as email_factory:
             response = self.client.post(
                 self.url,
@@ -3147,8 +3150,9 @@ class AdminPortaleSimpleAccessTests(TestCase):
         response = self._as_admin_get(reverse("admin_portale:accessi"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Nuovo gruppo", html=False)
-        self.assertContains(response, 'name="all_codes"', html=False)
+        self.assertTemplateUsed(response, "admin_portale/pages/accessi_unificati.html")
+        self.assertContains(response, "Crea un gruppo", html=False)
+        self.assertContains(response, 'value="group_create"', html=False)
 
     def test_pannello_semplificato_resta_consultabile(self):
         response = self._as_admin_get(
