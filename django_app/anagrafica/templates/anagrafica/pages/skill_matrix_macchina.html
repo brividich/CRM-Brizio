@@ -49,6 +49,31 @@
 .sm-table td.name.sm-row-dub { box-shadow:inset 3px 0 0 #f59e0b; }
 .sm-empty { text-align:center; padding:46px 16px; color:#475569; }
 body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { background:var(--surface); color:var(--text-light); }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .sm-kpi{border-color:var(--border);background:var(--surface)}
+body.theme-dark .sm-kpi .v{color:var(--text)}
+body.theme-dark .sm-kpi .l{color:var(--text-light)}
+body.theme-dark .sm-kpi.warn{background:rgba(214,158,46,.16)}
+body.theme-dark .sm-kpi.warn .v{color:#fcd34d}
+body.theme-dark .sm-kpi.bad{background:rgba(229,62,62,.16)}
+body.theme-dark .sm-kpi.bad .v{color:#fca5a5}
+body.theme-dark .sm-tabs{border-color:var(--border)}
+body.theme-dark .sm-tab{color:var(--text-light)}
+body.theme-dark .sm-tab.active{color:var(--text)}
+body.theme-dark .sm-toolbar select{border-color:var(--border)}
+body.theme-dark .sm-legend{color:var(--text-mid)}
+body.theme-dark .sm-legend b{color:var(--text)}
+body.theme-dark .sm-wrap{border-color:var(--border)}
+body.theme-dark .sm-table th,body.theme-dark .sm-table td{border-color:var(--border)}
+body.theme-dark .sm-table tbody tr:hover td{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .sm-table tbody tr:hover td.name{background:rgba(59,130,246,.18)}
+body.theme-dark .sm-cell.I{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .sm-cell.L{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .sm-cell.U{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .sm-disp.ass{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .sm-disp.dub{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .sm-empty{color:var(--text-mid)}
 </style>
 {% endblock %}
 

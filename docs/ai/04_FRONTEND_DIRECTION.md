@@ -11,6 +11,16 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 - **Layout shared:** `core/base.html` + `core/static/core/css/theme.css` fungono da shell viewport-aware; i root wrapper di modulo/dashboard devono riempire l'altezza disponibile ed evitare sidebar/grid con `align-self: start` o `align-items: start` se questo crea vuoti verticali visibili
 - **Integrazioni:** Microsoft Graph/SharePoint/Outlook Calendar (MSAL), LDAP/AD, SMTP
 
+## Tema scuro (regole, ottobre 2026)
+
+Il tema scuro e' la classe `body.theme-dark` (preferenza utente) + i token di `theme.css`. Tre livelli di difesa, dal piu' pulito al piu' grezzo:
+
+1. **Token** — nel CSS e nei template nuovi i colori si scrivono SOLO come token: `var(--text)`, `--text-mid`, `--text-light`, `--surface`, `--border`, `--success/--warning/--danger(-bg)`. `--surface-alt`, `--thead-bg`, `--tbody-hover`, `--hover-bg` esistono SOLO in tema scuro: sempre con fallback (`var(--surface-alt,#f8fafc)`). Mai colori inline (`style="color:#0f172a"`).
+2. **Gemello `body.theme-dark`** — per i `<style>` di pagina e i CSS di modulo che hardcodano colori chiari, `tools/gen_dark_block.py <file>... [--apply]` genera e accoda il blocco gemello (marcatore `/* ── Tema scuro: gemello generato ... */`); salta i selettori gia' coperti a mano e le regole dentro `@media`. Rilanciarlo dopo aver aggiunto regole chiare a una pagina: aggiunge solo cio' che manca.
+3. **Rete di sicurezza `core/static/core/css/dark-safety.css`** — generato da `tools/gen_dark_safety.py` (test `core.test_dark_safety` fallisce se non e' allineato): selettori di attributo `[style*="color:#0f172a" i]` + `!important` che ribaltano i colori inline piu' diffusi (testo scuro → token, sfondi chiari → superficie/tinta traslucida, bordi chiari → `--border`). Copre il debito esistente, non autorizza nuovo codice inline. Per aggiungere un colore: mappa nel generatore, rigenerare il CSS, mai modificare il CSS a mano.
+
+Verifica: `runserver` dal worktree (SQLite) + Playwright headless con `document.body.classList.add('theme-dark')` e un controllo del contrasto testo/sfondo (< 3:1 con testo scuro = illeggibile); le pagine pubbliche/standalone (`base_public.html`, stampe, email) restano chiare per scelta.
+
 ## Navigation Rendering And Layout
 
 ### 3. Navigation Registry (visibilita menu, non sicurezza)

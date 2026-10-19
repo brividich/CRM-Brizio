@@ -226,3 +226,13 @@
   }
 }
 
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .assets-hero .btn-secondary{background:rgba(255,255,255,.06)}
+body.theme-dark .assets-stat-card{background:var(--surface)}
+body.theme-dark .assets-card{background:var(--surface)}
+body.theme-dark .assets-card-soft{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .assets-table .assets-row-link:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .assets-message{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .assets-message-success{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .assets-message-error,body.theme-dark .assets-message-danger{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .assets-message-warning{background:rgba(214,158,46,.16);color:#fcd34d}

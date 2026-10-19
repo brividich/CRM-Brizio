@@ -52,6 +52,33 @@
   .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
   .auto-actions form { margin:0; }
   .auto-preline { white-space:pre-line; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .auto-table th,body.theme-dark .auto-table td{border-color:var(--border)}
+body.theme-dark .auto-table th{color:var(--text-light);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-field label{color:var(--text-mid)}
+body.theme-dark .auto-field input,body.theme-dark .auto-field select{border-color:var(--border);background:var(--surface)}
+body.theme-dark .auto-stat{border-color:var(--border);background:var(--surface)}
+body.theme-dark .auto-stat::before{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-stat:hover{border-color:var(--border)}
+body.theme-dark .auto-stat-label{color:var(--text-light)}
+body.theme-dark .auto-stat.is-pending .auto-stat-label-icon{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-stat.is-processing .auto-stat-label-icon{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-stat.is-done .auto-stat-label-icon{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-stat.is-error .auto-stat-label-icon{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-stat-value{color:var(--text)}
+body.theme-dark .auto-badge-pending{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-badge-processing{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .auto-badge-done{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-badge-error{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-poller{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .auto-poller-badge-healthy{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .auto-poller-badge-warning{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .auto-poller-badge-error{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .auto-poller-box{background:var(--surface)}
+body.theme-dark .auto-poller-label{color:var(--text-light)}
+body.theme-dark .auto-poller-value{color:var(--text)}
+body.theme-dark .auto-poller-meta{color:var(--text-mid)}
 </style>
 {% endblock %}
 

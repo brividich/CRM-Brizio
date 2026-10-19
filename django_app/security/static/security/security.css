@@ -899,3 +899,10 @@ body.theme-dark .soc-module .sec-panel a.pc-area { color: var(--text); }
 .soc-module .mw-free { display: flex; flex-wrap: wrap; gap: 8px; }
 .soc-module .sr-grid { columns: 3 300px; column-gap: 12px; margin-top: 12px; }
 .soc-module .sr-grid > section { break-inside: avoid; margin-bottom: 12px; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .soc-module a{color:#93c5fd}
+body.theme-dark .soc-module a:hover{color:#93c5fd}
+body.theme-dark .soc-module button:hover,body.theme-dark .soc-module .button:hover,body.theme-dark .soc-module .sec-button:hover{color:#93c5fd}
+body.theme-dark .soc-module .sec-btn-link{color:#93c5fd}
+body.theme-dark .soc-module .sec-btn-link:hover{color:#93c5fd}

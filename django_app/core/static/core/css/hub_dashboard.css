@@ -949,3 +949,10 @@ body.theme-dark .hub-page .hd-admin-btn:hover {
   gap: 14px;
   flex-wrap: wrap;
 }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .hub-page{--hub-bg:var(--surface);--hub-card:var(--surface);--hub-ink:var(--text);--hub-muted:var(--text-light);--hub-line:var(--border)}
+body.theme-dark .hub-page .hd-hero::after{background:rgba(255,255,255,.06)}
+body.theme-dark .hub-page .hd-hero-decoration{background:rgba(255,255,255,.06)}
+body.theme-dark .hub-page .hd-hero-logo{background:rgba(255,255,255,.06)}
+body.theme-dark .hub-page .hd-footer{background:var(--surface)}

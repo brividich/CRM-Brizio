@@ -17,6 +17,13 @@
   .devgit-panel li{margin:1px 0}
   .devgit-panel .devgit-hint{margin:0;padding-top:8px;border-top:1px solid #e2e8f0;color:#64748b;font-weight:500}
   @media print{.devgit{display:none}}
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .devgit summary{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .devgit.is-alert summary{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .devgit-panel{border-color:var(--border);background:var(--surface);color:var(--text)}
+body.theme-dark .devgit-panel h4{color:var(--text-light)}
+body.theme-dark .devgit-panel .devgit-hint{border-color:var(--border);color:var(--text-light)}
 </style>
 <div class="devgit{% if dev_git.alert %} is-alert{% endif %}">
   <details>

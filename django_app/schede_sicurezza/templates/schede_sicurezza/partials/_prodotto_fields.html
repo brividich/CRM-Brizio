@@ -36,6 +36,13 @@ includono entrambi, quindi non possono piu' divergere.
 body.theme-dark .pc-sez { background:var(--surface); border-color:var(--border); }
 body.theme-dark .pc-input, body.theme-dark .pc-campo select, body.theme-dark .pc-chips label { background:var(--surface); border-color:var(--border); color:var(--text); }
 body.theme-dark .pc-campo > label, body.theme-dark .pc-flag { color:var(--text-mid); }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .pc-flat .pc-sez + .pc-sez{border-color:var(--border)}
+body.theme-dark .pc-sez-tit{color:var(--text-light)}
+body.theme-dark .pc-req{color:#fca5a5}
+body.theme-dark .pc-errore{color:#fca5a5}
+body.theme-dark .pc-avviso{background:rgba(214,158,46,.16);color:#fcd34d}
 </style>
 
 {% if pcform.non_field_errors %}

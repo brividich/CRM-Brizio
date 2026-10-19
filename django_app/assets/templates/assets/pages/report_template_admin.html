@@ -110,6 +110,20 @@
 @media (max-width: 720px) {
   .rta-form-grid { grid-template-columns: 1fr; }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .rta-card{background:var(--surface)}
+body.theme-dark .rta-head h2,body.theme-dark .rta-head h3{color:var(--text)}
+body.theme-dark .rta-head p{color:var(--text-light)}
+body.theme-dark .rta-form-grid label{color:var(--text)}
+body.theme-dark .rta-form-grid input,body.theme-dark .rta-form-grid select,body.theme-dark .rta-form-grid textarea{background:var(--surface)}
+body.theme-dark .rta-checkline{color:var(--text)}
+body.theme-dark .rta-muted{color:var(--text-light)}
+body.theme-dark .rta-template{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .rta-template-title{color:var(--text)}
+body.theme-dark .rta-chip.active{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .rta-chip.idle{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .rta-form-actions{border-color:var(--border)}
 </style>
 {% endblock %}
 

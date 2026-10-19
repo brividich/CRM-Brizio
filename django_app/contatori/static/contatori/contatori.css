@@ -332,3 +332,7 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .kpi-flotta{grid-column:auto}
 @media(max-width:1599px){.contatori-module .centrale-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:span 2}}
 @media(max-width:640px){.contatori-module .centrale-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:1/-1}.contatori-module .centrale-kpi{grid-auto-flow:row dense}.contatori-module .centrale-kpi>:last-child{grid-column:1/-1}}
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .contatori-module{--cm-surface:var(--surface);--cm-text:var(--text);--cm-muted:var(--text-light);--cm-border:var(--border)}
+body.theme-dark .contatori-module .btn.ghost.on-hero:hover{background:rgba(255,255,255,.06)}

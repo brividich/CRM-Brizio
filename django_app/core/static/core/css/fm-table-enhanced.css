@@ -176,3 +176,11 @@ body.theme-dark .fm-th-filter.active{color:#93c5fd}
 .fmd-export-menu a:hover{background:#f1f5f9}
 body.theme-dark .fmd-export-menu{background:#0f172a;border-color:#334155;color:#e2e8f0;box-shadow:0 18px 44px -8px rgba(0,0,0,.6)}
 body.theme-dark .fmd-export-menu a:hover{background:rgba(148,163,184,.08)}
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .fm-tbl-col-item.fm-tbl-col-dragging{background:rgba(139,92,246,.2)}
+body.theme-dark .fm-tbl-views-add{border-color:var(--border)}
+body.theme-dark .fm-tbl-status{color:var(--text-light)}
+body.theme-dark .fm-tbl-status-saving{color:#93c5fd}
+body.theme-dark .fm-th-filter-pop-title{border-color:var(--border)}
+body.theme-dark .fm-th-filter-actions{border-color:var(--border)}

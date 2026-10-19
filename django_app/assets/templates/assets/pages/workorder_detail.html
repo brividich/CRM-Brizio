@@ -48,7 +48,27 @@
     body.theme-dark .wod-cl-item--blocking{background:rgba(220,38,38,.10);border-color:#7f1d1d}
     body.theme-dark .wod-cl-type{background:rgba(255,255,255,.08);color:var(--text-light)}
     body.theme-dark .wod-cl-value-form input,body.theme-dark .wod-cl-value-form textarea{background:var(--surface);border-color:var(--border);color:var(--text)}
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .wod-cl-badge--done{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .wod-cl-badge--partial{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .wod-cl-item--done{background:rgba(56,161,105,.18)}
+body.theme-dark .wod-cl-num{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .wod-cl-item--done .wod-cl-num{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .wod-cl-item--done .wod-cl-desc{color:var(--text-light)}
+body.theme-dark .wod-cl-toggle:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .wod-cl-del:hover{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .wod-cl-add-input{border-color:var(--border)}
+body.theme-dark .wo2-note-form textarea{border-color:var(--border)}
+body.theme-dark .wo2-qa summary{color:#93c5fd}
+body.theme-dark .wo2-wait-form label{color:var(--text-light)}
+body.theme-dark .wod-cl-mandatory{color:#fca5a5}
+body.theme-dark .wod-cl-outrange{color:#fca5a5}
+body.theme-dark .wod-cl-outrange-badge{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .wod-cl-skipped{color:#fcd34d}
+body.theme-dark .wod-cl-unskip{color:#93c5fd}
+body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
+</style>
 {% endblock %}
 
 {% block assets_shell_title %}Intervento #{{ workorder.display_number }}{% endblock %}

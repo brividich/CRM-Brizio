@@ -63,6 +63,31 @@
 @media (max-width: 860px) {
   .plx-form-grid { grid-template-columns:1fr; }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .plx-card{background:var(--surface)}
+body.theme-dark .plx-card-head{border-color:var(--border)}
+body.theme-dark .plx-card-head h2{color:var(--text)}
+body.theme-dark .plx-card-head p{color:var(--text-light)}
+body.theme-dark .plx-field-note{color:var(--text-light)}
+body.theme-dark .plx-errors{color:#fca5a5}
+body.theme-dark .plx-layout-link{color:var(--text)}
+body.theme-dark .plx-layout-link.active{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .plx-layout-meta{color:var(--text-light)}
+body.theme-dark .plx-layout-badge{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .plx-stage-wrap{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .plx-stage-status{color:var(--text-mid)}
+body.theme-dark .plx-empty-stage{color:var(--text-light)}
+body.theme-dark .plx-marker::after{background:var(--surface)}
+body.theme-dark .plx-item{background:var(--surface)}
+body.theme-dark .plx-item.is-selected{background:rgba(59,130,246,.18)}
+body.theme-dark .plx-item-title{color:var(--text)}
+body.theme-dark .plx-item-sub{color:var(--text-light)}
+body.theme-dark .plx-inline-note{color:var(--text-light)}
+body.theme-dark .plx-machine-chip{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .plx-machine-chip strong{color:var(--text)}
+body.theme-dark .plx-machine-chip span{color:var(--text-light)}
+body.theme-dark .plx-footer-meta{color:var(--text-light)}
 </style>
 {% endblock %}
 
