@@ -79,6 +79,18 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "notifica_msm_sospensioni (via propaga_sospensioni)",
     },
     {
+        "code": "part145_attrezzatura_stato",
+        "label": "Attrezzature PART 145 che cambiano stato",
+        "module": "Asset",
+        "trigger": (
+            "Un'attrezzatura PART 145 o collegata a un processo qualificato MOD.128 cambia stato "
+            "(in riparazione, dismessa, di nuovo in uso...): una mail per salvataggio o import."
+        ),
+        "destinatari": "Destinatari MOD.128 configurati nel servizio (gli stessi dei timbri sospesi)",
+        "source": "assets/services/part145.py",
+        "func": "notifica_cambio_stato",
+    },
+    {
         "code": "skillmatrix_refresh_car",
         "label": "Refresh abilitazioni macchina — notifica CAR",
         "module": "Anagrafica HR",

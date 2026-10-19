@@ -171,138 +171,28 @@ def render_asset_report_pdf(asset: Asset, snapshot: dict[str, object], *, templa
     return buf.getvalue()
 
 
-def _part_145_export_dataset() -> tuple[list[str], list[list[str]]]:
-    """Header + righe (stringhe) per l'export PART 145; stesso ordine della lista."""
-    assets = (
-        Asset.objects.filter(part_145=True)
-        .select_related("asset_category")
-        .order_by("name", "asset_tag", "id")
-    )
-    headers = ["Asset", "Tag", "Stato", "Categoria", "Reparto", "Produttore", "Modello", "Seriale"]
-    rows = [
-        [
-            a.name or "",
-            a.asset_tag or "",
-            a.get_status_display(),
-            a.category_label or "",
-            a.reparto or "",
-            a.manufacturer or "",
-            a.model or "",
-            a.serial_number or "",
-        ]
-        for a in assets
-    ]
-    return headers, rows
-
-
 @login_required
 def asset_part_145_export_pdf(request: HttpRequest) -> HttpResponse:
-    """Esporta l'elenco PART 145 in PDF (report tabellare standard)."""
-    headers, rows = _part_145_export_dataset()
-    today = timezone.localdate().strftime("%Y%m%d")
-    pdf_bytes = _report_table_pdf(title="Asset PART 145", headers=headers, rows=rows)
-    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
-    resp["Content-Disposition"] = f'attachment; filename="asset_part145_{today}.pdf"'
+    """Dossier PART 145 in PDF: le stesse sezioni della pagina."""
+    from ..services import part145_dossier
+
+    dati = part145_dossier.costruisci(con_personale=part145_dossier.puo_vedere_personale(request))
+    data, nome = part145_dossier.esporta_pdf(dati, request.user)
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
     return resp
 
 
 @login_required
 def asset_part_145_export_excel(request: HttpRequest) -> HttpResponse:
-    """Esporta l'elenco PART 145 in Excel (.xlsx)."""
-    import io
+    """Dossier PART 145 in Excel: un foglio di riepilogo e uno per sezione."""
+    from ..services import part145_dossier
 
-    import openpyxl
-    from openpyxl.styles import Alignment, Font, PatternFill
-
-    from core.excel_export import write_cell, write_row
-
-    headers, rows = _part_145_export_dataset()
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Asset PART 145"
-
-    header_fill = PatternFill(fill_type="solid", fgColor="DC2626")
-    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
-    for col_idx, header in enumerate(headers, 1):
-        cell = write_cell(ws, 1, col_idx, header)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 20
-
-    for row_idx, values in enumerate(rows, 2):
-        write_row(ws, row_idx, values)
-
-    for col in ws.columns:
-        max_len = max((len(str(cell.value or "")) for cell in col), default=0)
-        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 3, 10), 45)
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    today_str = timezone.localdate().strftime("%Y%m%d")
-    resp = HttpResponse(
-        buf.read(),
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-    resp["Content-Disposition"] = f'attachment; filename="asset_part145_{today_str}.xlsx"'
+    dati = part145_dossier.costruisci(con_personale=part145_dossier.puo_vedere_personale(request))
+    data, nome = part145_dossier.esporta_xlsx(dati, request.user)
+    resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
     return resp
-
-
-def _apply_asset_export_filters(get_params) -> "QuerySet[Asset]":
-    form = AssetFilterForm(get_params or None)
-    qs = Asset.objects.select_related("asset_category").prefetch_related("endpoints")
-    if form.is_valid():
-        q = _clean_string(form.cleaned_data.get("q"))
-        asset_type = _clean_string(form.cleaned_data.get("asset_type"))
-        asset_category = form.cleaned_data.get("asset_category")
-        reparto = _clean_string(form.cleaned_data.get("reparto"))
-        vlan = form.cleaned_data.get("vlan")
-        ip = _clean_string(form.cleaned_data.get("ip"))
-        if q:
-            qs = qs.filter(
-                Q(asset_tag__icontains=q) | Q(name__icontains=q) | Q(serial_number__icontains=q)
-                | Q(manufacturer__icontains=q) | Q(model__icontains=q)
-                | Q(endpoints__endpoint_name__icontains=q) | Q(endpoints__ip__icontains=q)
-            )
-        if asset_type:
-            qs = qs.filter(asset_type=asset_type)
-        if asset_category:
-            qs = qs.filter(asset_category_id__in=_category_subtree_ids(asset_category))
-        if reparto:
-            qs = qs.filter(reparto__icontains=reparto)
-        if vlan is not None:
-            qs = qs.filter(endpoints__vlan=vlan)
-        if ip:
-            qs = qs.filter(endpoints__ip__icontains=ip)
-    return qs.distinct().order_by("name", "asset_tag")
-
-
-# ---------------------------------------------------------------------------
-# EXPORT: asset list
-# ---------------------------------------------------------------------------
-
-_ASSET_EXPORT_HEADERS = [
-    "Tag", "Nome", "Tipo", "Categoria", "Reparto", "Stato",
-    "Produttore", "Modello", "Matricola", "Assegnato a", "Posizione", "Note",
-]
-
-
-def _asset_export_row(a: "Asset") -> list:
-    return [
-        a.asset_tag or "",
-        a.name or "",
-        a.get_asset_type_display(),
-        a.asset_category.label if a.asset_category_id else "",
-        a.reparto or "",
-        a.get_status_display(),
-        a.manufacturer or "",
-        a.model or "",
-        a.serial_number or "",
-        a.assignment_to or "",
-        a.assignment_location or "",
-        a.notes or "",
-    ]
 
 
 @login_required

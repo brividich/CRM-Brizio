@@ -16,6 +16,7 @@ Gli avvisi partono verso i **canali** (mail o Teams) definiti in **Configurazion
 | Soppressione appresa | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#soppressione-appresa) | Accesa |
 | Impatto CVE sugli asset | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#impatto-cve-sugli-asset) | Arricchimento spento |
 | Alert di Microsoft Defender | Vedi [Alert di Microsoft Defender](#alert-di-microsoft-defender) qui sotto | Spenta, severità minima Media |
+| Microsoft Entra ID (account e modifiche amministrative) | Vedi [Microsoft Entra ID](#microsoft-entra-id) qui sotto | Entrambi spenti, primo giro 7 giorni |
 
 ## Alert di Microsoft Defender
 
@@ -28,6 +29,15 @@ Con **Leggi gli alert di Defender** acceso, ogni 15 minuti il SOC chiede a Micro
 - Si tengono titolo, severità, stato, categoria, tecniche MITRE, i nomi dei **dispositivi** e il link all'alert nel portale Defender. Degli **utenti** coinvolti solo il numero: i dettagli si leggono in Defender.
 
 Serve il permesso applicativo **SecurityAlert.Read.All** (Microsoft Graph, con consenso amministratore) sull'app del portale. Prova dal terminale del server: `manage.py defender_alerts --prova`. L'esito dell'ultimo giro: `manage.py defender_alerts`. Se manca il permesso, il giro registra «Graph ha risposto 403» e il resto del ciclo SOC prosegue.
+
+## Microsoft Entra ID
+
+Due controlli su Microsoft 365, ciascuno con il suo interruttore nella sezione **«Microsoft Entra ID (account e modifiche amministrative)»**. Gli eventi hanno la sorgente **Microsoft Entra ID (Graph)**.
+
+- **Controlla gli account degli ex dipendenti**: ogni 6 ore il SOC confronta gli account di Microsoft 365 con l'anagrafica (per email aziendale o di notifica e per nome di accesso). Per ogni account **ancora abilitato** di una persona con **data di cessazione passata** nasce un alert alto «Account Microsoft 365 attivo di un ex dipendente: <nome>». Quando l'account viene disattivato in Active Directory / Entra, l'alert si chiude da solo («Account disattivato in Microsoft 365»). Lo stesso elenco, con anche gli account inattivi e quelli non collegati, è in Amministrazione › Ruoli e permessi › «Account Microsoft 365».
+- **Leggi le modifiche amministrative di Entra**: ogni 15 minuti il SOC legge l'audit di Entra dal giro precedente (la prima volta: i giorni di **Primo giro dell'audit**, default 7) e apre un alert solo per le attività sensibili: autenticazione o federazione di un dominio (critico), ruoli di amministratore assegnati, criteri di accesso condizionale, credenziali/segreti delle app, MFA disattivata (alto), consensi e permessi concessi alle app, proprietari delle app, metodi MFA modificati (medio). Titolo: «Entra: <attività> (<su chi>) da <chi>». Le altre righe dell'audit non vengono salvate.
+
+Servono i permessi applicativi **User.Read.All** e **AuditLog.Read.All** (Microsoft Graph, con consenso amministratore). Prova dal terminale del server: `manage.py entra_signals --prova` (conta gli account, dice se l'ultimo accesso è leggibile e quante righe di audit sensibili ci sono nelle ultime 24 ore). L'esito dell'ultimo giro: `manage.py entra_signals`.
 
 Come si comportano:
 

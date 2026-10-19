@@ -22,6 +22,34 @@ def _intestazioni(ws, titoli: list[str]) -> None:
     ws.freeze_panes = "A2"
 
 
+def _foglio_account_m365(wb) -> None:
+    """Gli account di Entra con l'esito del confronto. Se Graph non risponde il foglio lo dice."""
+    from core import account_m365, m365_graph
+
+    ws = wb.create_sheet("Account Microsoft 365")
+    if not m365_graph.configurato():
+        write_cell(ws, 1, 1, "Microsoft Graph non configurato: confronto con Microsoft 365 non disponibile.")
+        return
+    try:
+        dati = account_m365.esegui()
+    except m365_graph.GraphError as exc:
+        write_cell(ws, 1, 1, f"Confronto con Microsoft 365 non disponibile: {exc}")
+        return
+    _intestazioni(ws, ["Esito", "Persona in anagrafica", "Cessato il", "Account", "UPN", "Stato",
+                       "Ultimo accesso", "Licenze", "Note", "Decisione (conferma / disattiva)"])
+    for r, riga in enumerate(dati["righe"], start=2):
+        valori = [
+            account_m365.ESITI.get(riga["esito"], riga["esito"]), riga["persona"], riga["cessato_il"],
+            riga["nome_account"], riga["upn"], "Abilitato" if riga["abilitato"] else "Disattivato",
+            riga["ultimo_accesso"][:10] if riga["ultimo_accesso"] else ("mai" if dati["con_accessi"] else "n/d"),
+            riga["licenze"], ", ".join(riga["note"]), "",
+        ]
+        for c, valore in enumerate(valori, start=1):
+            write_cell(ws, r, c, valore)
+    for col, larghezza in zip("ABCDEFGHIJ", (30, 30, 12, 30, 38, 12, 14, 9, 26, 30)):
+        ws.column_dimensions[col].width = larghezza
+
+
 def genera_riesame_xlsx(*, preparato_da: str, sistema_attivo: bool) -> bytes:
     from openpyxl import Workbook
 
@@ -131,6 +159,9 @@ def genera_riesame_xlsx(*, preparato_da: str, sistema_attivo: bool) -> bytes:
         r += 1
     for col, larghezza in zip("ABCD", (34, 40, 26, 14)):
         ws.column_dimensions[col].width = larghezza
+
+    # 5. Account Microsoft 365 confrontati con l'anagrafica (core.account_m365).
+    _foglio_account_m365(wb)
 
     buffer = BytesIO()
     wb.save(buffer)

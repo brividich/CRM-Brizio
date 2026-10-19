@@ -179,3 +179,8 @@
 .rp-effetto-table tr.rp-perde td { background: var(--danger-bg); }
 .rp-effetto-table tr.rp-diverso td { background: var(--warning-bg, rgba(245, 158, 11, .12)); }
 @media (max-width: 640px) { .rp-prova select { min-width: 0; width: 100%; } .rp-prova label { flex: 1 1 100%; } }
+
+/* Account Microsoft 365 (scheda m365) */
+.rp-m365-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.rp-m365-kpi { margin-bottom: 12px; }
+.rp-m365-row-cessato_attivo td { background: var(--danger-bg); }
