@@ -32,7 +32,6 @@ from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
 from core.module_registry import get_registered_modules, resolve_module_label
 from core.models import OptioneConfig, UserExtraInfo, UserUiPreference
-from . import naming
 
 
 _SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}

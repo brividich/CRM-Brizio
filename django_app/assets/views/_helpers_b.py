@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Solo per le annotazioni di tipo (nessun import a runtime).
+    from ..models import AssetITDetails
+
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit

@@ -206,6 +206,38 @@ Questo si applica anche a dict arbitrari passati al template (es. campi SharePoi
 - **Security Gate** (push/PR su `main`): `pip-audit` per primo (eccezioni solo con `--ignore-vuln <ID>` commentato e con scadenza), `check`, drift migrazioni, `validate_deployment`, test sentinella e test di regressione dell'audit. Job `diff-scan`: gitleaks sui commit nuovi, bandit solo sui problemi introdotti nei file modificati, ruff `BLE001`/`S110` sui file Python nuovi (niente `except Exception: pass` nel codice nuovo).
 - **Nightly full test suite**: tutta la suite (`manage.py test .` da `django_app/`, `--parallel auto`), inclusi i guardrail lenti di `core.test_security_audit_fase3` (route esenti dal login aperte agli anonimi, IDOR generico sulle route con id). Una nuova route pubblica va aggiunta a `PUBLIC_VIEWS` con il motivo.
 - Senza etichette `manage.py test` esegue solo `DEFAULT_TEST_LABELS` (core, tasks, attrezzature).
+- **PR check** (`.github/workflows/pr-check.yml`, PR verso `main` e `release/prod`, igiene repo 18/10): `check`, drift migrazioni, ruff `F821,F811,E722,F401` su tutto `django_app` (debito a zero dal 18/10), test delle sole app toccate dal diff (`tools/apps_dal_diff.ps1 -BaseRef <sha>`: cartelle dirette di `django_app/` con `apps.py`, `config/` esclusa).
+- **Coverage notturna**: la suite notturna gira sotto `coverage run` (config `[tool.coverage.*]` in `pyproject.toml`, lanciata da `django_app/` con `--rcfile=../pyproject.toml`); tabella per app nel riepilogo del run e artifact `coverage-report` (json + html, 14 giorni). Nessuna soglia bloccante.
+
+---
+
+## Strumenti di qualità locali (igiene repo 18/10)
+
+- `pyproject.toml` (radice): ruff `py311`, riga 120, regole `E,F,B,DJ`, `E501` ignorata, `F401` ignorata in `migrations/` e `__init__.py`; esclusi `.tmp_tests`, `staticfiles`, `powerautomate-to-django-automations`. Dal 18/10 `ruff check django_app --select F821,F811,E722,F401` è a zero: va tenuto così (i tipi usati solo nelle annotazioni si importano sotto `if TYPE_CHECKING:`).
+- `.pre-commit-config.yaml`: al commit ruff con le sole regole a debito zero (`F821,F811,E722,F401`, come il PR check), `end-of-file-fixer`, `check-added-large-files` (5 MB). Regole complete e `ruff format --check` solo a richiesta (`pre-commit run --hook-stage manual --files <file>`): il codice non è mai stato formattato e ha ~900 segnalazioni preesistenti, bloccherebbero quasi ogni commit. Attivazione: `pip install -r django_app/requirements-dev.txt; pre-commit install`.
+- `tools/pulizia_root.ps1 [-IncludeIgnored]`: elenca i non tracciati in radice, non cancella nulla.
+- `config.test_runner.NovicromDiscoverRunner` rimuove in `teardown_test_environment` le cartelle orfane `django_app/.tmp_tests/tasks_test_media_*`.
+
+## Dry-run migrazioni su SQL Server (`tools/migration_dryrun.ps1`)
+
+I test girano su SQLite: certi errori del dialetto SQL Server escono solo al `migrate` del deploy, che fallisce e lascia la release **non attivata** (`release_promote_*.log`). Prima di un rilascio con migrazioni:
+
+```powershell
+.\tools\migration_dryrun.ps1                      # default --settings=config.settings.prod_readonly
+.\tools\migration_dryrun.ps1 -App anagrafica,assets
+.\tools\migration_dryrun.ps1 -RepoPath C:\Dev\pn-release   # migrazioni di un altro checkout (es. release/prod)
+```
+
+Lo script prende le righe `[ ]` di `showmigrations --plan`, salva l'SQL di `sqlmigrate` per ciascuna in `deployment/dryrun/<data>/` (ignorata da git) con `_report.txt`, ed esce con 1 se trova:
+
+- **Indice filtrato con `NOT`/`OR`/`LIKE`**: SQL Server li rifiuta (errore 156). Tipico di `UniqueConstraint(condition=~Q(campo=""))` → usare `Q(campo__gt="")`; ammessi `=`, `>`, `IS NULL`, `IS NOT NULL`, `AND`.
+- **INSERT a batch dentro savepoint** (`DECLARE @t TABLE` / `OUTPUT INSERTED` dopo `SAVE TRANSACTION`): al primo scarto lascia result set pendenti sul cursore pyodbc, `savepoint_rollback` fallisce e tutta la transazione si invalida (`TransactionManagementError` a cascata). In un loop riga-per-riga con `atomic()` annidato usare una `INSERT ... VALUES` semplice.
+
+Le operazioni `RunPython` sono elencate come «da rivedere a mano» (sqlmigrate non ne mostra l'SQL) ma non bloccano. Il profilo `prod_readonly` ha un router che nega le migrazioni e svuoterebbe l'SQL: lo script esegue `sqlmigrate` con i router disattivati, mentre la barriera di sola lettura sulle query (execute_wrapper + grant `db_datareader`) resta attiva.
+
+## Repo annidato `django_app/powerautomate-to-django-automations`
+
+È un **gitlink** (mode 160000) senza `.gitmodules`: git ne registra solo il commit, un clone o un worktree lo vede come cartella vuota. Nel checkout di sviluppo contiene un repo git proprio con una **`.venv`** dentro e un'app Flask (`app/webapp.py`) avviata con **`debug=True`** (debugger Werkzeug = esecuzione di codice remoto se esposto). Non fa parte del portale: è escluso dal packager (`$excludeDirs` in `deployment/scripts/package-release.ps1`, oltre all'allowlist), dal bundle di `SetupWizard.exe` (`exclude_dir_names` in `deployment/setup_wizard_bundle_rules.json`, test `core.test_wizard_bundle_rules`) e da ruff (`pyproject.toml`). Un exe costruito dal checkout prima del 18/10 può contenerlo (con la sua `.venv`): va ricostruito. Non avviarlo su interfacce raggiungibili da rete; non aggiungerlo a `INSTALLED_APPS`.
 
 ---
 

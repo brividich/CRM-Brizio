@@ -1,0 +1,30 @@
+# Hook locali (igiene repo, 18/10/2026). Installazione una tantum:
+#   pip install -r django_app/requirements-dev.txt
+#   pre-commit install
+# Configurazione ruff in pyproject.toml. Gli hook girano solo sui file in staging.
+#
+# Al commit ruff blocca solo le regole a debito zero (le stesse del PR check):
+# con il set completo E/F/B/DJ e il formatter quasi ogni file vecchio toccato
+# fermerebbe il commit (codice mai formattato, ~900 segnalazioni preesistenti).
+# Set completo e formatter restano a richiesta:
+#   pre-commit run --hook-stage manual --files <file>
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.7  # allineato a ruff==0.16.7 in django_app/requirements-dev.txt
+    hooks:
+      - id: ruff-check
+        name: ruff check (gate F821/F811/E722/F401)
+        args: [--select, "F821,F811,E722,F401"]
+      - id: ruff-check
+        name: ruff check (regole complete, manuale)
+        stages: [manual]
+      - id: ruff-format
+        args: [--check]
+        stages: [manual]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=5120]

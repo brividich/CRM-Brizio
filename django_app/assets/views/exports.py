@@ -5,6 +5,12 @@ Estratto meccanicamente da assets/views.py (refactor C4): nessun cambio di compo
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Solo per le annotazioni di tipo (nessun import a runtime).
+    from django.db.models import QuerySet
+
 import io
 
 from django.contrib.auth.decorators import login_required
