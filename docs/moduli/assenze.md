@@ -39,6 +39,10 @@ Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`
 
 ## Note di rilascio
 
+#### Una sola mail di approvazione (fix, dopo la 1.6.8)
+
+La migrazione `automazioni 0030` unisce le due regole di approvazione che partivano insieme: il caporeparto riceve solo la mail dettagliata e, alla sua decisione, la richiesta passa ad approvata/rifiutata (con righe giornaliere e avviso ad `assenza@costruzioninovicrom.it`). Le ferie oltre 10 giorni hanno come secondo approvatore `assenza@costruzioninovicrom.it`. Le richieste approvate prima della correzione vanno approvate a mano da «Gestione admin».
+
 #### Assenze del reparto
 
 Card di consultazione per chi vede reparto/azienda, assegnazione corrente da anagrafica e storico paginato con filtri passate/in corso e future. L'accesso in lettura non concede approvazioni o dettagli riservati.
