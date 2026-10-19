@@ -7,7 +7,7 @@ ROTTE = {
     "anagrafica:mpq_attrezzatura_add": "anagrafica:mpq_requisito_add",
     "anagrafica:mpq_attrezzatura_remove": "anagrafica:mpq_requisito_add",
 }
-NOTA = "[MPQ_0186] copiato da {}"
+NOTA = "[MPQ_0187] copiato da {}"
 
 
 def avanti(apps, schema_editor):
@@ -34,7 +34,7 @@ def indietro(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0185_struttura_mansionario_acl"),
+        ("anagrafica", "0186_mansionario_regole_acl"),
     ]
 
     operations = [
