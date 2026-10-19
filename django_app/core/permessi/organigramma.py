@@ -137,5 +137,5 @@ def profili_da_organigramma(legacy_user_id: int | None) -> list[int]:
     try:
         cache.set(chiave, ids, _CACHE_TTL)
     except Exception:
-        pass
+        logger.debug("permessi: cache non scrivibile (organigramma)", exc_info=True)
     return ids
