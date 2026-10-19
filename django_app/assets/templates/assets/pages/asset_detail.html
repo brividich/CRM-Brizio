@@ -794,6 +794,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
       <div class="af-sub">
         {% asset_status_badge asset %}
         {% if asset.part_145 %}<span class="af-pill af-pill--part145" title="Rientra nel regolamento aeronautico PART 145">PART 145</span>{% endif %}
+        {% for p in processi_qualificati_asset %}<a class="af-pill" href="{% url 'anagrafica:mpq_processo_detail' p.id %}" title="Attrezzatura del processo qualificato MOD.128">{{ p.nome }}</a>{% endfor %}
         {% if asset_completeness %}
           <span class="af-pill {% if asset_completeness.pct >= 90 %}af-pill--ok{% elif asset_completeness.pct >= 60 %}af-pill--warn{% else %}af-pill--danger{% endif %}"
                 {% if asset_completeness.missing %}title="Dati mancanti: {{ asset_completeness.missing|join:', ' }}"{% endif %}>
