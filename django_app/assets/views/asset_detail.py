@@ -1318,6 +1318,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
 
             it_monitoring["identity_diffs"] = snmp_identity_diffs(asset)
             it_monitoring["can_apply_identity"] = _can_edit_asset(request, asset.id)
+    it_intune = []
+    if it_presentation is not None:
+        from ..services.intune import per_asset as _intune_per_asset
+
+        it_intune = _intune_per_asset(asset)
     from ..services.asset_kpis import device_kpis as _device_kpis
 
     device_kpis = _device_kpis(request, asset, it_presentation)
@@ -1364,6 +1369,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "switch_mappa": switch_mappa,
             "processi_qualificati_asset": _processi_qualificati(asset),
             "it_monitoring": it_monitoring,
+            "it_intune": it_intune,
             "device_kpis": device_kpis,
             "it_ticket_create_url": it_ticket_create_url,
             "asset_status_band": asset_status_band,

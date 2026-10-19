@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 74
+**Totale automazioni disponibili:** 75
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -163,6 +163,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 2 minuti
 - **Task eseguito:** `assets.tasks.run_periodic_check_intake`
 - **Cosa fa:** Fogli delle verifiche periodiche (luci di emergenza, differenziali...) depositati dallo scanner nella cartella di pescaggio: il QR dice a quale verifica appartengono, i punti segnati restano da confermare. Spento finche' non lo si accende da Verifiche periodiche > Cartella scansioni; no-op se la share non risponde.
+
+### `intune_sync`
+
+- **Quando gira:** ogni giorno, alle 06:45
+- **Task eseguito:** `assets.tasks.run_intune_sync`
+- **Cosa fa:** Microsoft Intune — dispositivi gestiti (conformità, cifratura, ultima sync): prima degli avvisi IT delle 07:15, che ne riportano i problemi. Serve il permesso Graph DeviceManagementManagedDevices.Read.All.
 
 ## DPI · Sicurezza
 
