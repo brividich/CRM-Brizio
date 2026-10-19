@@ -175,7 +175,8 @@
     .dest-chip button:hover { color: var(--danger); }
     .dest-add { position: relative; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .dest-add .text-input { width: 300px; max-width: 100%; padding: 6px 10px; }
-    .dest-sug { position: absolute; top: 100%; left: 0; z-index: 40; margin-top: 4px; width: 360px; max-width: 90vw; max-height: 260px; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+    .dest-sug { flex: 1 1 100%; width: 100%; max-width: 460px; max-height: 300px; overflow-y: auto; list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.10); }
+    .dest-mail__note { font-size: var(--fs-xs); color: var(--text-mid); font-weight: 500; }
     .dest-sug li button { display: grid; width: 100%; text-align: left; gap: 1px; border: 0; background: none; padding: 8px 12px; cursor: pointer; font: inherit; color: var(--text); min-height: 0; }
     .dest-sug li button:hover, .dest-sug li button.is-hi { background: var(--accent-light); }
     .dest-sug li button small { color: var(--text-mid); }
@@ -1205,7 +1206,7 @@
         else if (aperto === 'persona' && q.includes('@')) setMsg('Nessuna persona in anagrafica con questo indirizzo: si possono aggiungere solo persone collegate a un utente.');
       }
     };
-    const chip = (nome, email) => <span className="dest-chip" title={email}>{nome}</span>;
+    const chip = (nome, email, key) => <span key={key} className="dest-chip" title={email}>{nome}</span>;
     return (
       <div className={`dest-mail${compact ? ' dest-mail--compact' : ''}`} aria-label="Destinatari della mail">
         <div className="dest-mail__row">
@@ -1231,6 +1232,20 @@
             </>
           )}
         </div>
+        {destinatari && (destinatari.riepilogo || []).length > 0 && (
+          <div className="dest-mail__row" title="Lista «Riepilogo modifiche» di Configurazione → Notifiche">
+            <span className="dest-mail__lbl">Riepilogo</span>
+            {destinatari.riepilogo.map(d => chip(d.nome || d.email, d.email, d.email))}
+            <span className="dest-mail__note">riepilogo senza link, da Configurazione</span>
+          </div>
+        )}
+        {destinatari && (destinatari.riepilogo_rdc || []).length > 0 && (
+          <div className="dest-mail__row" title="Lista «RDC / segnalazione cliente» di Configurazione → Notifiche">
+            <span className="dest-mail__lbl">Se RDC</span>
+            {destinatari.riepilogo_rdc.map(d => chip(d.nome || d.email, d.email, d.email))}
+            <span className="dest-mail__note">solo se un’anomalia è da aprire RDC o da segnalare al cliente</span>
+          </div>
+        )}
         {aperto && !disabled && (
           <div className="dest-add">
             <input className="text-input" type="text" autoFocus value={q}
@@ -1258,7 +1273,7 @@
     );
   };
 
-  const RiepilogoControllo = ({ op, controllo, destinatari }) => {
+  const RiepilogoControllo = ({ op, controllo, destinatari, onChangeExtra }) => {
     const blocchi = controllo.blocchi || [];
     const pezzi = new Set();
     blocchi.forEach(b => tokensOf(b.seriali).forEach(t => pezzi.add(t.toLowerCase())));
@@ -1277,12 +1292,11 @@
         </div>
         <div className="riep-mail">
           <div><strong>OP {op.id}</strong> · fase <strong>{controllo.fase}</strong>{controllo.operatore ? <> · operatore {controllo.operatore}</> : null}</div>
-          {destinatari && destinatari.to
-            ? <div>Mail con il link di decisione a <strong>{destinatari.to}</strong>{(() => {
-                const copia = [destinatari.cc, ...(controllo.destinatari_extra || []).map(d => d.nome || d.email)].filter(Boolean);
-                return copia.length ? <> · in copia {copia.join(', ')}</> : null;
-              })()}</div>
-            : <div className="copilot-err">Capocommessa e CAR dell’OP senza indirizzo email: la mail non potrà partire, avvisa l’ufficio.</div>}
+        </div>
+        <div className="field-group">
+          <span className="field-label">Mail al capocommessa con il link di decisione</span>
+          <DestinatariMail destinatari={destinatari} extra={controllo.destinatari_extra || []}
+            onChange={onChangeExtra || (() => {})} disabled={!onChangeExtra} />
         </div>
         {ripetuti.length > 0 && (
           <div className="riep-warn">S/N in più blocchi (confermato in inserimento): {ripetuti.slice(0, 10).map(r => `${r.token} → blocchi ${r.blocchi.join(', ')}`).join(' · ')}{ripetuti.length > 10 ? '…' : ''}</div>
@@ -1780,7 +1794,8 @@
           <div className="form-body">
             <div className="field-hint">Controlla blocchi, stato superficie e anomalie. Con «Conferma e termina» il controllo si chiude{controllo.da_notificare ? ' e parte la mail al capocommessa' : ''}.</div>
             {blocchi.length === 0 && <div className="info-msg">Nessun blocco salvato: il controllo si chiude senza anomalie.</div>}
-            <RiepilogoControllo op={op} controllo={controllo} destinatari={destinatari} />
+            <RiepilogoControllo op={op} controllo={controllo} destinatari={destinatari}
+              onChangeExtra={saving ? null : (lista => salvaImpostazioni({ destinatari_extra: lista }))} />
             {error && <div className="error-msg">{error}</div>}
             <div className="riep-actions">
               <button className="btn-secondary" onClick={() => setRiepilogo(false)} disabled={saving}>← Torna al controllo</button>

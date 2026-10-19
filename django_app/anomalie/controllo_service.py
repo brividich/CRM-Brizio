@@ -347,15 +347,40 @@ def _destinatari(op_id: str) -> tuple[dict | None, dict | None]:
     return primary, secondary
 
 
+def _lista_config_persone(key: str) -> list[dict]:
+    """Indirizzi di una lista di Configurazione → Notifiche, col nome se in anagrafica."""
+    try:
+        from .mail_action_service import _resolve_lista_config
+
+        emails = _resolve_lista_config(key)
+    except Exception:
+        logger.warning("controllo: lista %s non leggibile", key, exc_info=True)
+        return []
+    out, visti = [], set()
+    for email in emails:
+        if email.lower() in visti:
+            continue
+        visti.add(email.lower())
+        persona = persona_da_email(email)
+        out.append({"email": email, "nome": persona["nome"] if persona else email})
+    return out
+
+
 def destinatari_display(op_id: str, extra: list | None = None) -> dict:
-    """Chi riceverà la mail del controllo, per l'operatore: capocommessa/CAR
-    risolti dall'OP più le persone aggiunte a mano (in copia)."""
+    """Chi riceverà le mail del controllo, per l'operatore: capocommessa/CAR
+    risolti dall'OP più le persone aggiunte a mano (mail con il link), e le liste
+    fisse di Configurazione → Notifiche che ricevono il riepilogo senza link
+    (sempre «Riepilogo modifiche»; «RDC / segnalazione cliente» solo se serve)."""
     extra_out = [{"email": d.get("email", ""), "nome": d.get("nome", "")} for d in (extra or []) if isinstance(d, dict)]
+    liste = {
+        "riepilogo": _lista_config_persone("conferma_aggiornamenti"),
+        "riepilogo_rdc": _lista_config_persone("rdc_segnalazione"),
+    }
     try:
         primary, secondary = _destinatari(op_id)
     except Exception:
         logger.warning("controllo: destinatari non risolti op=%s", op_id, exc_info=True)
-        return {"to": "", "cc": "", "to_email": "", "cc_email": "", "extra": extra_out}
+        return {"to": "", "cc": "", "to_email": "", "cc_email": "", "extra": extra_out, **liste}
     nome = lambda rec: (rec.get("display") or rec.get("email") or "") if rec else ""  # noqa: E731
     return {
         "to": nome(primary),
@@ -363,6 +388,7 @@ def destinatari_display(op_id: str, extra: list | None = None) -> dict:
         "to_email": primary.get("email", "") if primary else "",
         "cc_email": secondary.get("email", "") if secondary else "",
         "extra": extra_out,
+        **liste,
     }
 
 

@@ -98,6 +98,10 @@ SEZIONI: list[dict] = [
                 "(il CAR per i collaudi di benestare), «In copia» l'altro.",
                 "Per mettere in copia un altro capocommessa premi «+ Aggiungi altro capocommessa» e sceglilo dall'elenco; "
                 "per qualunque altro collega «+ Aggiungi persona» e cercalo per nome, cognome o email. La × lo toglie.",
+                "Nelle righe «Riepilogo» e «Se RDC» vedi anche chi riceve il riepilogo senza link, dalle liste di "
+                "Configurazione → Notifiche («Riepilogo modifiche» sempre, «RDC / segnalazione cliente» solo se "
+                "un'anomalia è da aprire RDC o da segnalare al cliente). Lo stesso riquadro torna nel «Riepilogo del "
+                "controllo», dove puoi ancora aggiungere o togliere persone prima di «Conferma e termina».",
                 "Premi «Inizia controllo».",
             ]),
             ("p", "Si possono aggiungere solo persone dell'anagrafica con un'email di notifica (al massimo 10): ricevono la "
