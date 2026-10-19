@@ -11,6 +11,7 @@ from django.db import DatabaseError, transaction
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from core import naming
@@ -39,7 +40,7 @@ from core.permessi.sync import (
 
 from .decorators import legacy_admin_required
 
-TABS = ("persone", "matrice", "modulo", "anteprima", "confronta", "registro", "sistema", "guida")
+TABS = ("persone", "matrice", "modulo", "anteprima", "confronta", "m365", "registro", "sistema", "guida")
 VALORE_NO = "no"
 MODULO_AUDIT = "permessi"
 
@@ -136,6 +137,7 @@ def ruoli_portale(request):
         "modulo": _ctx_modulo,
         "anteprima": _ctx_anteprima,
         "confronta": _ctx_confronta,
+        "m365": _ctx_m365,
         "registro": _ctx_registro,
         "sistema": _ctx_sistema,
         "guida": lambda request: {},
@@ -725,6 +727,43 @@ def _ctx_confronta(request) -> dict:
     ctx = {"ruoli_tutti": ruoli, "ruolo_a": a, "ruolo_b": b}
     if a and b:
         ctx["confronto"] = confronta_ruoli(a, b)
+    return ctx
+
+
+# ── Account Microsoft 365 ─────────────────────────────────────────────────────
+
+
+def _data_it(valore: str) -> str:
+    """'2026-10-19…' → '19/10/2026' ('' resta '')."""
+    valore = str(valore or "")
+    return f"{valore[8:10]}/{valore[5:7]}/{valore[:4]}" if len(valore) >= 10 else ""
+
+
+def _ctx_m365(request) -> dict:
+    """Account di Entra confrontati con l'anagrafica (core.account_m365). Sola lettura."""
+    from core import account_m365, m365_graph
+
+    ctx = {"m365_esiti": account_m365.ESITI, "m365_filtro": str(request.GET.get("esito") or "")}
+    if not m365_graph.configurato():
+        ctx["m365_errore"] = "Credenziali Microsoft Graph non configurate (GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET)."
+        return ctx
+    aggiorna = request.GET.get("aggiorna") == "1"
+    try:
+        dati = account_m365.esegui(forza=aggiorna)
+    except m365_graph.GraphError as exc:
+        ctx["m365_errore"] = str(exc)
+        return ctx
+    if aggiorna:
+        log_action(request, "account_m365_letti", MODULO_AUDIT, {"conteggi": dati["conteggi"]})
+    righe = dati["righe"]
+    righe = [{**r, "ultimo_accesso_label": _data_it(r["ultimo_accesso"]), "cessato_il_label": _data_it(r["cessato_il"])}
+             for r in righe]
+    if ctx["m365_filtro"] in account_m365.ESITI:
+        righe = [r for r in righe if r["esito"] == ctx["m365_filtro"]]
+    from django.utils import timezone
+
+    letto = parse_datetime(dati["letto_alle"])
+    ctx.update({"m365": dati, "m365_righe": righe, "m365_letto_alle": timezone.localtime(letto) if letto else None})
     return ctx
 
 

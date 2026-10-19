@@ -37,6 +37,9 @@ GUIDA = {
                     "Regole, soglie e AI si configurano nelle Impostazioni del Security Center (capitolo «Impostazioni e AI» della guida completa).",
                     "Alert di Microsoft Defender: Impostazioni › «Alert di Microsoft Defender». Serve il permesso Graph SecurityAlert.Read.All "
                     "con consenso amministratore sull'app del portale; prova con manage.py defender_alerts --prova.",
+                    "Microsoft Entra ID: Impostazioni › «Microsoft Entra ID». Due interruttori: account degli ex dipendenti ancora attivi "
+                    "(alert che si chiude quando l'account viene disattivato) e modifiche amministrative sensibili. Permessi User.Read.All e "
+                    "AuditLog.Read.All; prova con manage.py entra_signals --prova.",
                 ]),
             ],
         },
@@ -50,6 +53,15 @@ GUIDA = {
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_cycle».",
                 "Se la lettura della casella dà 401/403 il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard.",
                 "Altri casi: capitolo «Risoluzione problemi» della guida completa.",
+            ],
+        },
+        {
+            "sintomo": "Alert «Account Microsoft 365 attivo di un ex dipendente»",
+            "fare": [
+                "La persona ha una data di cessazione passata in anagrafica ma il suo account Microsoft 365 è ancora abilitato.",
+                "Disattiva l'account in Active Directory (o in Entra): al controllo successivo, entro 6 ore, l'alert si chiude da solo.",
+                "Se la persona è ancora in forza, correggi la data di cessazione in Anagrafica: l'alert va chiuso a mano.",
+                "Elenco completo: Amministrazione › Ruoli e permessi › «Account Microsoft 365».",
             ],
         },
         {
