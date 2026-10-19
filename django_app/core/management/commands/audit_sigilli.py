@@ -5,6 +5,7 @@
     python manage.py audit_sigilli --verifica     # ricalcola righe e catena (exit 1 se rotta)
     python manage.py audit_sigilli --esporta      # carica su SharePoint i sigilli non esportati
     python manage.py audit_sigilli --file 2026-09 --out C:\\tmp   # salva i due file di un mese in locale
+    python manage.py audit_sigilli --cartella-sharepoint "<link della cartella>"   # imposta la destinazione dell'export
 """
 from __future__ import annotations
 
@@ -25,8 +26,25 @@ class Command(BaseCommand):
         parser.add_argument("--esporta", action="store_true")
         parser.add_argument("--file", default="", help="Mese AAAA-MM di cui salvare i file di export in locale.")
         parser.add_argument("--out", default="", help="Cartella per --file.")
+        parser.add_argument(
+            "--cartella-sharepoint", default="",
+            help="Link della cartella SharePoint (barra degli indirizzi o «Copia collegamento»): "
+                 "ricava raccolta e percorso, prova a scrivere il LEGGIMI e salva la destinazione.",
+        )
 
     def handle(self, *args, **opts):
+        if opts["cartella_sharepoint"]:
+            from core.sharepoint_upload import SharePointUploadError, configura_da_link
+
+            try:
+                esito = configura_da_link(opts["cartella_sharepoint"])
+            except SharePointUploadError as exc:
+                raise CommandError(f"Cartella non impostata: {exc}")
+            self.stdout.write(self.style.SUCCESS(
+                f"Cartella impostata: {esito['cartella']} (LEGGIMI {esito['leggimi']}).\n  {esito['web_url']}\n"
+                "  Ora: audit_sigilli --esporta per caricare i mesi in attesa."
+            ))
+            return
         if opts["sigilla"]:
             creati = svc.sigilla_mancanti()
             self.stdout.write(self.style.SUCCESS(f"Sigillati: {', '.join(s.mese for s in creati) or 'nessun mese nuovo'}"))
@@ -51,6 +69,10 @@ class Command(BaseCommand):
             (out / f"audit-{s.mese}.sigillo.json").write_bytes(meta)
             self.stdout.write(self.style.SUCCESS(f"Scritti in {out}"))
         if not any(opts[k] for k in ("sigilla", "verifica", "esporta", "file")):
+            from core.sharepoint_upload import destinazione
+
+            _drive, cartella = destinazione()
+            self.stdout.write(f"Destinazione export: {cartella or 'non impostata (usa --cartella-sharepoint)'}")
             for s in AuditSigillo.objects.order_by("mese"):
                 verifica = {None: "mai verificato", True: "verificato", False: "ROTTO"}[s.verifica_ok]
                 export = "esportato" if s.export_ok else f"da esportare ({s.export_errore or '-'})"
