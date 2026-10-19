@@ -8313,6 +8313,8 @@ class CategorySidebarTests(TestCase):
 
     def test_rebuild_ripristina_voce_part_145(self):
         """In produzione la voce PART 145 era sparita: il rebuild la ricrea se manca."""
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+
         AssetSidebarButton.objects.filter(code="part_145_list").delete()
         rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
         voce = AssetSidebarButton.objects.get(code="part_145_list")
