@@ -97,6 +97,15 @@ INBOX_ALLOWED_EXTENSIONS = {".pdf", ".csv", ".txt", ".eml", ".log"}
 INBOX_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
+def _secure_score():
+    try:
+        from .services.secure_score import per_panoramica
+
+        return per_panoramica()
+    except Exception:  # noqa: BLE001 - la Panoramica non si rompe per un riquadro facoltativo
+        return None
+
+
 @ensure_csrf_cookie
 def dashboard(request):
     today = timezone.localdate()
@@ -116,6 +125,7 @@ def dashboard(request):
         "latest_alerts": _decorate_alerts(SecurityAlert.objects.select_related("source", "event").order_by("-updated_at")[:10]),
         "last_pipeline_run": request.session.get("last_pipeline_run"),
         "posture": build_posture(),
+        "secure_score": _secure_score(),
         "trend": build_trend(today=today),
         "source_rows": source_status_rows(),
         "vpn_week": vpn_recent_stats(),

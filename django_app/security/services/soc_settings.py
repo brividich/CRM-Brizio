@@ -130,6 +130,16 @@ SECTIONS = [
                    "Sotto questa soglia l'alert di Defender resta un evento (conta nei KPI, non apre alert).", "choice",
                    choices=((Severity.LOW, "Bassa"), (Severity.MEDIUM, "Media"), (Severity.HIGH, "Alta"))),
             Option("defender.primo_giro_giorni", 7, "Primo giro", "Giorni di storico letti la prima volta.", "int", min_value=1, max_value=30),
+            Option("defender.incidenti.attivo", False, "Raggruppa per incidente",
+                   "Un solo alert del SOC per incidente di Defender (alert correlati da Defender), chiuso quando Defender "
+                   "risolve l'incidente; gli alert singoli dello stesso incidente restano eventi. Serve SecurityIncident.Read.All."),
+            Option("defender.software.attivo", False, "Leggi il software dei PC",
+                   "Ogni mattina alle 06:20 il software installato sui PC collegati a Defender entra nell'inventario del SOC "
+                   "(fonte «Microsoft Defender for Endpoint»): CVE e impatti si aggiornano da soli. Serve Software.Read.All "
+                   "dell'API WindowsDefenderATP."),
+            Option("defender.secure_score.attivo", False, "Mostra il Secure Score",
+                   "Punteggio di Microsoft Secure Score, andamento e le 5 azioni che valgono di più, nella Panoramica. "
+                   "Letto ogni 12 ore. Serve SecurityEvents.Read.All."),
         ],
     },
     {

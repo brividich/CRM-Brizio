@@ -718,6 +718,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SOC — software installato sui PC collegati a Microsoft Defender for Endpoint nell'inventario
+        # (CVE e impatti). Gira solo con «Leggi il software dei PC» acceso in /soc/impostazioni/.
+        "name": "defender_software_sync",
+        "func": "security.tasks.run_defender_software_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "20 6 * * *",       # ogni mattina alle 06:20
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Microsoft 365 — abbonamenti (posti, stato, rinnovo) nel modulo Licenze software.
         # Serve il permesso Graph Organization.Read.All (+ LicenseAssignment.Read.All per le date).
         "name": "m365_licenze_sync",

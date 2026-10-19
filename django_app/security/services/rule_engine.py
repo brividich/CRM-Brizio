@@ -324,6 +324,12 @@ def _evaluate_defender_alert(event):
                                 "severity": event.severity}
         event.save(update_fields=["decision_trace"])
         return
+    if payload.get("incident_id") and soc_settings_value("defender.incidenti.attivo"):
+        # Raggruppamento per incidente: l'alert del SOC è quello dell'incidente (defender_incident).
+        event.decision_trace = {"decision": "kpi_only", "reason": "Raggruppato nell'incidente di Defender",
+                                "incident_id": payload.get("incident_id")}
+        event.save(update_fields=["decision_trace"])
+        return
     devices = payload.get("devices") or []
     trace = {
         "decision": "alert",
@@ -368,6 +374,39 @@ def _alert_da_evento(event, title, severity, trace):
     SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
     if alert_created:
         notify_alert_created(alert)
+
+
+def soc_settings_value(key):
+    from security.services import soc_settings
+
+    return soc_settings.value(key)
+
+
+def _evaluate_defender_incident(event):
+    """Incidente di Microsoft Defender (alert correlati): un alert del SOC per incidente."""
+    from security.services import defender_alerts
+    from security.services.auto_resolution import resolve_alert
+
+    payload = event.payload or {}
+    if payload.get("status_defender") in defender_alerts.RESOLVED_STATUSES:
+        alert = _active_alert(event.source, event.dedup_hash)
+        trace = {"decision": "resolved_upstream", "reason": "Incidente risolto in Microsoft Defender"}
+        if alert:
+            resolve_alert(alert, "Incidente risolto in Microsoft Defender", evidence_event=event,
+                          rule_code=defender_alerts.EVENT_INCIDENT)
+            trace["alert_id"] = alert.pk
+        event.decision_trace = trace
+        event.save(update_fields=["decision_trace"])
+        return
+    if not defender_alerts.meets_threshold(event.severity):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Sotto la severità minima scelta per Defender",
+                                "severity": event.severity}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {"decision": "alert", "rule": "Microsoft Defender: incidente sopra la severità minima => alert",
+             "incident_id": payload.get("incident_id"), "status_defender": payload.get("status_defender"),
+             "web_url": payload.get("web_url")}
+    _alert_da_evento(event, f"Defender: incidente «{payload.get('title')}»", event.severity, trace)
 
 
 def _evaluate_m365_account_cessato(event):
@@ -767,6 +806,7 @@ _HANDLERS = {
     "cve_impact_confirmed": _evaluate_cve_impact,
     "software_policy": _evaluate_software_policy,
     "defender_alert": _evaluate_defender_alert,
+    "defender_incident": _evaluate_defender_incident,
     "m365_account_cessato": _evaluate_m365_account_cessato,
     "entra_audit": _evaluate_entra_audit,
     "entra_accesso": _evaluate_entra_accesso,

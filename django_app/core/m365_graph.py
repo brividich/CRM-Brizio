@@ -20,6 +20,12 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 GRAPH = "https://graph.microsoft.com/v1.0"
+# API di Microsoft Defender for Endpoint (inventario software, vulnerabilità): non è Graph,
+# vuole un token con la sua risorsa e i permessi dell'app «WindowsDefenderATP».
+DEFENDER_API = "https://api.securitycenter.microsoft.com/api"
+_SCOPE_DEFENDER = "https://api.securitycenter.microsoft.com/.default"
+_HOST_AMMESSI = ("https://graph.microsoft.com/", "https://api.securitycenter.microsoft.com/",
+                 "https://api.security.microsoft.com/")
 TIMEOUT = 30
 MAX_PAGES = 50
 
@@ -70,6 +76,38 @@ def token() -> str:
     return acquire_graph_token(cfg["tenant_id"], cfg["client_id"], cfg["client_secret"])
 
 
+def token_defender() -> str:
+    """Token per l'API di Defender for Endpoint (cache in memoria fino a 5 minuti dalla scadenza)."""
+    import time
+
+    import msal
+
+    cfg = credenziali()
+    if not configurato():
+        raise GraphError("Credenziali Graph non configurate (GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET).")
+    chiave = (cfg["tenant_id"], cfg["client_id"])
+    salvato = _TOKEN_DEFENDER.get(chiave)
+    if salvato and salvato[1] - 300 > time.time():
+        return salvato[0]
+    app = msal.ConfidentialClientApplication(
+        cfg["client_id"], authority=f"https://login.microsoftonline.com/{cfg['tenant_id']}",
+        client_credential=cfg["client_secret"],
+    )
+    risultato = app.acquire_token_for_client(scopes=[_SCOPE_DEFENDER])
+    tok = risultato.get("access_token")
+    if not tok:
+        raise GraphError(f"Token per Defender for Endpoint non ottenuto: {risultato.get('error') or 'errore'}.")
+    _TOKEN_DEFENDER[chiave] = (tok, time.time() + int(risultato.get("expires_in", 3600)))
+    return tok
+
+
+_TOKEN_DEFENDER: dict = {}
+
+
+def _token_per(url: str) -> str:
+    return token() if url.startswith("https://graph.microsoft.com/") else token_defender()
+
+
 def _invalida_token() -> None:
     try:
         from core.graph_utils import invalidate_graph_token_cache
@@ -83,14 +121,17 @@ def _invalida_token() -> None:
 def get(url: str, *, permesso: str, params: dict | None = None, tok: str | None = None) -> dict:
     import requests
 
-    if not url.startswith(GRAPH + "/"):
+    if not url.startswith(_HOST_AMMESSI):
         raise GraphError("Indirizzo Graph non ammesso.")
     resp = requests.get(
         url, params=params, timeout=TIMEOUT,
-        headers={"Authorization": f"Bearer {tok or token()}", "Accept": "application/json"},
+        headers={"Authorization": f"Bearer {tok or _token_per(url)}", "Accept": "application/json"},
     )
     if resp.status_code in (401, 403):
-        _invalida_token()
+        if url.startswith("https://graph.microsoft.com/"):
+            _invalida_token()
+        else:
+            _TOKEN_DEFENDER.clear()
         raise GraphError(
             f"Graph ha risposto {resp.status_code}: manca il permesso «{permesso}» (applicazione, con consenso "
             "amministratore) sull'app del portale, oppure le credenziali non sono valide.",
@@ -108,7 +149,7 @@ def get(url: str, *, permesso: str, params: dict | None = None, tok: str | None 
 
 def get_all(url: str, *, permesso: str, params: dict | None = None, max_pages: int = MAX_PAGES) -> list[dict]:
     """Tutte le pagine di una collezione (``value`` + ``@odata.nextLink``)."""
-    tok = token()
+    tok = _token_per(url)
     out: list[dict] = []
     for _ in range(max_pages):
         data = get(url, permesso=permesso, params=params, tok=tok)
