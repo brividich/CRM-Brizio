@@ -619,7 +619,7 @@ def run_backup_health_alert(*, force_email: bool = False) -> dict[str, Any]:
 
 # Controlli dell'infrastruttura (monitoring.infra_checks): nel registro come attributi
 # di questo modulo, così Centrale di comando e /readyz li vedono e i test li patchano.
-from monitoring.infra_checks import (  # noqa: E402
+from monitoring.infra_checks import (  # noqa: E402, F401
     check_disk_space,
     check_qcluster,
     check_qcluster_coda,
