@@ -195,6 +195,62 @@ def asset_part_145_export_excel(request: HttpRequest) -> HttpResponse:
     return resp
 
 
+def _apply_asset_export_filters(get_params) -> "QuerySet[Asset]":
+    form = AssetFilterForm(get_params or None)
+    qs = Asset.objects.select_related("asset_category").prefetch_related("endpoints")
+    if form.is_valid():
+        q = _clean_string(form.cleaned_data.get("q"))
+        asset_type = _clean_string(form.cleaned_data.get("asset_type"))
+        asset_category = form.cleaned_data.get("asset_category")
+        reparto = _clean_string(form.cleaned_data.get("reparto"))
+        vlan = form.cleaned_data.get("vlan")
+        ip = _clean_string(form.cleaned_data.get("ip"))
+        if q:
+            qs = qs.filter(
+                Q(asset_tag__icontains=q) | Q(name__icontains=q) | Q(serial_number__icontains=q)
+                | Q(manufacturer__icontains=q) | Q(model__icontains=q)
+                | Q(endpoints__endpoint_name__icontains=q) | Q(endpoints__ip__icontains=q)
+            )
+        if asset_type:
+            qs = qs.filter(asset_type=asset_type)
+        if asset_category:
+            qs = qs.filter(asset_category_id__in=_category_subtree_ids(asset_category))
+        if reparto:
+            qs = qs.filter(reparto__icontains=reparto)
+        if vlan is not None:
+            qs = qs.filter(endpoints__vlan=vlan)
+        if ip:
+            qs = qs.filter(endpoints__ip__icontains=ip)
+    return qs.distinct().order_by("name", "asset_tag")
+
+
+# ---------------------------------------------------------------------------
+# EXPORT: asset list
+# ---------------------------------------------------------------------------
+
+_ASSET_EXPORT_HEADERS = [
+    "Tag", "Nome", "Tipo", "Categoria", "Reparto", "Stato",
+    "Produttore", "Modello", "Matricola", "Assegnato a", "Posizione", "Note",
+]
+
+
+def _asset_export_row(a: "Asset") -> list:
+    return [
+        a.asset_tag or "",
+        a.name or "",
+        a.get_asset_type_display(),
+        a.asset_category.label if a.asset_category_id else "",
+        a.reparto or "",
+        a.get_status_display(),
+        a.manufacturer or "",
+        a.model or "",
+        a.serial_number or "",
+        a.assignment_to or "",
+        a.assignment_location or "",
+        a.notes or "",
+    ]
+
+
 @login_required
 def asset_list_export(request: HttpRequest) -> HttpResponse:
     scope = request.GET.get("scope", "filtered")
