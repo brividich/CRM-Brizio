@@ -8311,6 +8311,14 @@ class CategorySidebarTests(TestCase):
         # I report restano raggiungibili.
         self.assertTrue(AssetSidebarButton.objects.filter(code="report_asset").exists())
 
+    def test_rebuild_ripristina_voce_part_145(self):
+        """In produzione la voce PART 145 era sparita: il rebuild la ricrea se manca."""
+        AssetSidebarButton.objects.filter(code="part_145_list").delete()
+        rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+        voce = AssetSidebarButton.objects.get(code="part_145_list")
+        self.assertEqual(voce.target_url, "django:assets:part_145_list")
+        self.assertTrue(voce.is_visible)
+
     def test_radici_raggruppate_per_area(self):
         """Le radici note finiscono sotto la loro area; le altre restano a se'."""
         from assets.services.sidebar_categories import rebuild_category_sidebar
