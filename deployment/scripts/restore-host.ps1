@@ -222,7 +222,7 @@ $phaseBodies["preflight"] = {
     $notes += "Python del backup: $($facts.python_minor) · SQL di destinazione: $SqlMajorVersion · identità del pool: $AppPoolIdentity"
     if (-not $dryRun -and -not $Force -and -not $Resume) {
         $notes | ForEach-Object { Write-Log $_ "INFO" }
-        if (-not $PSCmdlet.ShouldContinue("Ricostruire NOVICROM HUB ($Environment) su $env:COMPUTERNAME dai backup in $envRoot?", "Conferma")) {
+        if (-not $PSCmdlet.ShouldContinue("Ricostruire NOVICROM HUB ($Environment) su $env:COMPUTERNAME dai backup in ${envRoot}?", "Conferma")) {
             throw "Annullato dall'operatore."
         }
     }
