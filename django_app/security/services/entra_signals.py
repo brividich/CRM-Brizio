@@ -12,6 +12,11 @@ accendono separatamente da ``/soc/impostazioni/``:
    amministratore, consensi e credenziali delle app, accesso condizionale,
    metodi MFA, federazione dei domini) diventano un evento ``entra_audit`` e un
    alert; le altre righe dell'audit non vengono salvate.
+3. **Accessi sospetti** (``auditLogs/signIns``, dal giro precedente): tentativi
+   falliti a raffica sullo stesso account, accessi riusciti da Paesi non ammessi,
+   accessi riusciti con protocolli vecchi (IMAP, POP, SMTP autenticato, ActiveSync,
+   altri client). Nasce un evento ``entra_accesso`` per anomalia, al massimo uno al
+   giorno per account e motivo; i singoli accessi non vengono salvati.
 
 Dati minimi: chi ha fatto la modifica, su cosa, quando, esito. Permessi
 applicativi: ``User.Read.All`` e ``AuditLog.Read.All`` (consenso amministratore).
@@ -34,7 +39,14 @@ logger = logging.getLogger(__name__)
 SOURCE_NAME = "Microsoft Entra ID (Graph)"
 EVENT_ACCOUNT = "m365_account_cessato"
 EVENT_AUDIT = "entra_audit"
+EVENT_ACCESSO = "entra_accesso"
 AUDIT_URL = "https://graph.microsoft.com/v1.0/auditLogs/directoryAudits"
+SIGNINS_URL = "https://graph.microsoft.com/v1.0/auditLogs/signIns"
+CURSOR_ACCESSI_KEY = "entra.cursore_accessi"
+# clientAppUsed dei protocolli senza autenticazione moderna (niente MFA).
+PROTOCOLLI_VECCHI = {"imap4", "pop3", "authenticated smtp", "exchange activesync", "other clients",
+                     "autodiscover", "exchange online powershell", "offline address book",
+                     "outlook anywhere (rpc over http)", "exchange web services"}
 ACCOUNT_OGNI_ORE = 6
 
 CURSOR_KEY = "entra.cursore_audit"
@@ -214,6 +226,92 @@ def leggi_audit(now: datetime) -> dict:
     return {"lette": len(righe), "eventi": eventi}
 
 
+# ── 3. Accessi sospetti ──────────────────────────────────────────────────────
+
+
+def _paesi_ammessi() -> set[str]:
+    grezzo = str(soc_settings.value("entra.paesi_ammessi") or "IT")
+    return {p.strip().upper() for p in grezzo.replace(";", ",").split(",") if p.strip()}
+
+
+def anomalie_accessi(righe: list[dict], *, soglia_falliti: int, paesi: set[str]) -> list[dict]:
+    """Dagli accessi grezzi le anomalie: ``[{motivo, upn, severita, dettaglio, quando, app, ip}]``."""
+    falliti: dict[str, list[dict]] = {}
+    out: list[dict] = []
+    visti: set[tuple] = set()
+    for r in righe:
+        upn = str(r.get("userPrincipalName") or "").lower()
+        if not upn:
+            continue
+        stato = r.get("status") or {}
+        riuscito = int(stato.get("errorCode") or 0) == 0
+        luogo = r.get("location") or {}
+        paese = str(luogo.get("countryOrRegion") or "").upper()
+        app = str(r.get("clientAppUsed") or "")
+        quando = str(r.get("createdDateTime") or "")
+        if not riuscito:
+            falliti.setdefault(upn, []).append(r)
+            continue
+        if paese and paesi and paese not in paesi and (upn, "estero", paese) not in visti:
+            visti.add((upn, "estero", paese))
+            out.append({"motivo": "estero", "upn": upn, "severita": Severity.HIGH, "quando": quando,
+                        "dettaglio": paese + (f" ({luogo.get('city')})" if luogo.get("city") else ""),
+                        "app": str(r.get("appDisplayName") or "")[:80], "ip": str(r.get("ipAddress") or "")[:60]})
+        if app.lower() in PROTOCOLLI_VECCHI and (upn, "protocollo", app.lower()) not in visti:
+            visti.add((upn, "protocollo", app.lower()))
+            out.append({"motivo": "protocollo", "upn": upn, "severita": Severity.MEDIUM, "quando": quando,
+                        "dettaglio": app[:60], "app": str(r.get("appDisplayName") or "")[:80],
+                        "ip": str(r.get("ipAddress") or "")[:60]})
+    for upn, lista in falliti.items():
+        if len(lista) >= soglia_falliti:
+            ips = sorted({str(x.get("ipAddress") or "") for x in lista if x.get("ipAddress")})
+            out.append({"motivo": "falliti", "upn": upn, "severita": Severity.MEDIUM,
+                        "quando": max(str(x.get("createdDateTime") or "") for x in lista),
+                        "dettaglio": f"{len(lista)} tentativi falliti", "app": "", "ip": ", ".join(ips[:5])})
+    return out
+
+
+MOTIVI = {
+    "falliti": "Tentativi di accesso falliti a raffica",
+    "estero": "Accesso a Microsoft 365 da un Paese non ammesso",
+    "protocollo": "Accesso con un protocollo vecchio (senza MFA)",
+}
+
+
+def leggi_accessi(now: datetime) -> dict:
+    from core import m365_graph
+
+    parsed = parse_datetime(str(_state(CURSOR_ACCESSI_KEY, "") or ""))
+    inizio = parsed - timedelta(minutes=1) if parsed else now - timedelta(hours=1)
+    since = inizio.astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    righe = m365_graph.get_all(
+        SIGNINS_URL, permesso="AuditLog.Read.All",
+        params={"$filter": f"createdDateTime ge {since}", "$top": "1000"}, max_pages=20,
+    )
+    anomalie = anomalie_accessi(righe, soglia_falliti=int(soc_settings.value("entra.falliti_soglia")),
+                                paesi=_paesi_ammessi())
+    source = entra_source()
+    giorno = timezone.localdate(now).isoformat()
+    eventi = 0
+    for a in anomalie:
+        # Uno al giorno per account, motivo e dettaglio (Paese o protocollo).
+        chiave = a["dettaglio"] if a["motivo"] != "falliti" else ""
+        dedup = make_hash(source.pk, EVENT_ACCESSO, a["upn"], a["motivo"], chiave, giorno)
+        if SecurityEventRecord.objects.filter(source=source, event_type=EVENT_ACCESSO, dedup_hash=dedup).exists():
+            continue
+        quando = parse_datetime(a["quando"]) or now
+        if timezone.is_naive(quando):
+            quando = timezone.make_aware(quando, dt_timezone.utc)
+        SecurityEventRecord.objects.create(
+            source=source, event_type=EVENT_ACCESSO, severity=a["severita"], occurred_at=quando,
+            fingerprint=dedup, dedup_hash=dedup,
+            payload={**a, "etichetta": MOTIVI[a["motivo"]], "alert_candidate": True},
+        )
+        eventi += 1
+    _save_state(CURSOR_ACCESSI_KEY, now.isoformat())
+    return {"letti": len(righe), "anomalie": len(anomalie), "eventi": eventi}
+
+
 # ── Giro ─────────────────────────────────────────────────────────────────────
 
 
@@ -221,12 +319,14 @@ def run(now: datetime | None = None) -> dict:
     """Passo del ciclo SOC. Non solleva: l'esito finisce in ``entra.ultimo_giro``."""
     account_on = soc_settings.value("entra.account_cessati.attivo")
     audit_on = soc_settings.value("entra.audit.attivo")
-    if not (account_on or audit_on):
+    accessi_on = soc_settings.value("entra.accessi.attivo")
+    if not (account_on or audit_on or accessi_on):
         return {"attivo": False}
     now = now or timezone.now()
     esito: dict = {"attivo": True, "at": now.isoformat()}
     nuovi = False
-    for nome, acceso, passo in (("account", account_on, controlla_account), ("audit", audit_on, leggi_audit)):
+    for nome, acceso, passo in (("account", account_on, controlla_account), ("audit", audit_on, leggi_audit),
+                                ("accessi", accessi_on, leggi_accessi)):
         if not acceso:
             continue
         try:

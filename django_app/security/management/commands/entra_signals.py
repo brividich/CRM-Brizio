@@ -1,6 +1,6 @@
 """Segnali di Microsoft Entra ID per il SOC (``security.services.entra_signals``).
 
-    python manage.py entra_signals --prova    # verifica i permessi: utenti, ultimo accesso, audit dell'ultimo giorno
+    python manage.py entra_signals --prova    # verifica i permessi: utenti, ultimo accesso, audit e accessi recenti
     python manage.py entra_signals --esegui   # un giro completo (servono gli interruttori accesi)
     python manage.py entra_signals            # esito dell'ultimo giro
 """
@@ -60,6 +60,19 @@ class Command(BaseCommand):
         sensibili = sum(1 for r in righe if classifica(str(r.get("activityDisplayName") or "")))
         self.stdout.write(self.style.SUCCESS(
             f"Audit OK: {len(righe)} righe nelle ultime 24 ore, di cui {sensibili} sorvegliate."
+        ))
+        from security.services.entra_signals import SIGNINS_URL, _paesi_ammessi, anomalie_accessi
+
+        since_ora = (timezone.now() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            accessi = m365_graph.get_all(SIGNINS_URL, permesso="AuditLog.Read.All",
+                                         params={"$filter": f"createdDateTime ge {since_ora}", "$top": "1000"}, max_pages=5)
+        except m365_graph.GraphError as exc:
+            self.stdout.write(self.style.ERROR(f"Accessi: {exc}"))
+            return
+        anomalie = anomalie_accessi(accessi, soglia_falliti=10, paesi=_paesi_ammessi())
+        self.stdout.write(self.style.SUCCESS(
+            f"Accessi OK: {len(accessi)} accessi nell'ultima ora, {len(anomalie)} anomalie con le impostazioni attuali."
         ))
 
 

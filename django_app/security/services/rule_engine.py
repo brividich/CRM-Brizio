@@ -399,6 +399,21 @@ def _evaluate_entra_audit(event):
     _alert_da_evento(event, title, event.severity, trace)
 
 
+def _evaluate_entra_accesso(event):
+    """Accesso sospetto a Microsoft 365 (``entra_signals``): un alert per anomalia (dedup giornaliero)."""
+    payload = event.payload or {}
+    trace = {
+        "decision": "alert",
+        "rule": "Entra ID: accesso sospetto (falliti a raffica, Paese non ammesso, protocollo vecchio) => alert",
+        "motivo": payload.get("motivo"),
+        "upn": payload.get("upn"),
+        "dettaglio": payload.get("dettaglio"),
+        "ip": payload.get("ip"),
+    }
+    title = f"{payload.get('etichetta')}: {payload.get('upn')} ({payload.get('dettaglio')})"
+    _alert_da_evento(event, title, event.severity, trace)
+
+
 def _ticket_for_cve_impact(event, alert, evidence, payload, cve):
     from security.models import SecurityRemediationTicket
     from security.services.ticketing import ACTIVE_TICKET_STATUSES
@@ -754,4 +769,5 @@ _HANDLERS = {
     "defender_alert": _evaluate_defender_alert,
     "m365_account_cessato": _evaluate_m365_account_cessato,
     "entra_audit": _evaluate_entra_audit,
+    "entra_accesso": _evaluate_entra_accesso,
 }
