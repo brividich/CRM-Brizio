@@ -130,7 +130,9 @@ function Get-VerifiedInstaller($Item, [string]$CacheDir, [switch]$NoDownload) {
     if ($NoDownload) { throw "'$($Item.name)' non è nella cache e il download non è consentito." }
     $url = [string]$Item.url_resolved
     if ($url -notmatch '^https://') { throw "URL non https per '$($Item.name)': $url" }
-    $tmp = Join-Path $env:TEMP ("pn-prereq-" + [guid]::NewGuid().ToString("N"))
+    # l'estensione serve: Start-Process non avvia un file senza .exe ("informazioni necessarie" non trovate)
+    $ext = [IO.Path]::GetExtension($(if ($cached) { $cached } else { $url.Split("?")[0] }))
+    $tmp = Join-Path $env:TEMP ("pn-prereq-" + [guid]::NewGuid().ToString("N") + $ext)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
     $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $tmp).Hash.ToLowerInvariant()
