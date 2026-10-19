@@ -1904,8 +1904,10 @@ class ScadenzarioEstesoTests(TestCase):
         )
         resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "contratto"})
         content = resp.content.decode()
+        # «Fine periodo di prova» compare due volte: intestazione del gruppo + riga.
         self.assertIn("Fine periodo di prova", content)
-        self.assertEqual(content.count("Fine periodo di prova"), 1)
+        self.assertIn('href="/anagrafica/dipendenti/204/"', content)
+        self.assertNotIn('href="/anagrafica/dipendenti/205/"', content)
 
     def test_contratti_nascosti_senza_permesso_hr(self):
         from datetime import timedelta

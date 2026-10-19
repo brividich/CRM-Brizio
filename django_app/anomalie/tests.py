@@ -19,6 +19,13 @@ from anomalie.models import (
 )
 from anagrafica.models import RuoloOperativo
 from core.legacy_models import Ruolo
+from core.models import UserOnboarding
+
+
+def _onboarding_completato(user):
+    """Senza onboarding completato l'OnboardingMiddleware manda le pagine su
+    /onboarding/ (302) e gli endpoint JSON in 403 «onboarding_required»."""
+    UserOnboarding.objects.create(user=user, completed=True)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -26,6 +33,7 @@ class AnomalieOrdiniApiTests(TestCase):
     def setUp(self):
         super().setUp()
         self.user = get_user_model().objects.create_user(username="anom-api-user", password="pass12345")
+        _onboarding_completato(self.user)
         self.factory = RequestFactory()
 
     def test_api_db_ordini_includes_open_count(self):
@@ -82,7 +90,10 @@ class AnomalieOrdiniApiTests(TestCase):
             patch("anomalie.views.get_legacy_user", return_value=None),
             patch("anomalie.views._has_table", return_value=True),
             patch("anomalie.views._load_anomalie_lists", return_value={}),
-            patch("anomalie.views._current_user_identity", return_value={"name": "", "email": ""}),
+            patch(
+                "anomalie.views._current_user_identity",
+                return_value={"name": "", "email": "", "name_norm": ""},
+            ),
         ):
             response = self.client.get(reverse("gestione_anomalie_page") + "?filter=in_carico")
 
@@ -274,6 +285,9 @@ class AnomalieReportTests(TestCase):
         request = self.factory.get(reverse("anomalie_report_segnalazione"), {"op_item_id": "157"})
         request.user = self.user
         request.legacy_user = None
+        # RequestFactory non passa dal SessionMiddleware: il context processor
+        # legacy_nav legge le preferenze UI dalla sessione.
+        request.session = self.client.session
 
         op_row = [
             {
@@ -363,6 +377,7 @@ class AnomalieReportTests(TestCase):
         request = self.factory.get(reverse("anomalie_report_segnalazione"), {"id": "12"})
         request.user = self.user
         request.legacy_user = None
+        request.session = self.client.session
 
         focus_row = [{"id": 12, "op_lookup_id": 157, "ex_op_nominativo": "OP/2026/123"}]
         op_row = [
@@ -464,6 +479,7 @@ class AnomalieCsvExportAuditTests(TestCase):
     def setUp(self):
         super().setUp()
         self.user = get_user_model().objects.create_user(username="anom-export-user", password="pass12345")
+        _onboarding_completato(self.user)
         # L'export massivo è gated su EDIT_ALL (vedi AnomalieExportPermissionTests):
         # questo utente ha la regola di accesso piena per testare l'audit log.
         AnomalieUserAccessRule.objects.create(user=self.user, access_level=AnomalieAccessLevel.EDIT_ALL)
@@ -825,6 +841,7 @@ class AnomalieExportPermissionTests(TestCase):
     def setUp(self):
         super().setUp()
         self.user = get_user_model().objects.create_user(username="anom-noexport-user", password="pass12345")
+        _onboarding_completato(self.user)
         self.client.force_login(self.user)
 
     def test_export_csv_forbidden_without_edit_all(self):

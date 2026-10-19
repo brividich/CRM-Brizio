@@ -213,11 +213,15 @@ class IntegritaSessioneTests(TestCase):
 
     def test_data_odierna_dal_fuso_del_progetto(self):
         """Le date di servizio nascono da timezone.localdate(), non da date.today()."""
+        oggi = timezone.localdate()
+        # La sessione salta il weekend: di sabato/domenica si parte dal lunedì dopo,
+        # altrimenti il test fallisce nei giorni festivi.
+        giorno = oggi + timedelta(days=7 - oggi.weekday()) if oggi.weekday() >= 5 else oggi
         sess = crea_sessione_unica(
-            self.corso, data_inizio=timezone.localdate(),
+            self.corso, data_inizio=giorno,
             ora_inizio=time(8, 0), ora_fine=time(17, 0), pausa_minuti=60,
         )
-        self.assertEqual(sess.data_inizio, timezone.localdate())
+        self.assertEqual(sess.data_inizio, giorno)
         self.assertEqual(sess.lezioni.count(), 1)
 
 
