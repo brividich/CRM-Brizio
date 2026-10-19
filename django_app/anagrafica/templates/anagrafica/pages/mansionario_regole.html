@@ -1,0 +1,180 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Regole del Mansionario | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">Regole</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-gear"/></svg>Regole del Mansionario</h1>
+        <p class="fmd-ph-sub">Quando una persona è operativa su una mansione e come si calcola il suo livello dalle competenze. Valgono per tutto il Mansionario, per la skill matrix e per il pool capacità.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    <div class="mns-stats" aria-label="Regole in vigore">
+      <div class="mns-stat"><b>{{ config.soglia_operativa }}</b><span>operativo da · {{ config.get_soglia_operativa_display|lower }}</span></div>
+      <div class="mns-stat"><b>{{ config.soglia_uomo_solo }}</b><span>operativi minimi per mansione</span></div>
+      <div class="mns-stat mns-stat-largo"><span>{{ config.get_regola_multivoce_display }}</span></div>
+    </div>
+
+    <form method="post" class="fmd-panel fmd-block mns-set" data-reg-form>
+      {% csrf_token %}
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-edit"/></svg>Cambia le regole</div>
+        <div class="fmd-block-aside">«Prova» non salva niente</div>
+      </div>
+
+      <fieldset class="mns-set-sez">
+        <legend><span class="mns-set-n">1</span>Da che livello si è operativi</legend>
+        <div class="mns-scala" role="radiogroup" aria-label="Soglia operativa">
+          {% for codice, etichetta in livelli_label %}
+          <label class="mns-scala-i"><input type="radio" name="soglia" value="{{ codice }}"{% if codice == scelta.soglia %} checked{% endif %} data-reg-soglia>
+            <span class="mns-lv mns-lv-{{ codice }}"><b>{{ codice }}</b>{{ etichetta }}</span></label>
+          {% endfor %}
+        </div>
+        <div class="fm-help">Chi arriva a questo livello conta tra gli operativi della mansione e nel pool capacità. Sotto, è in addestramento.</div>
+      </fieldset>
+
+      <fieldset class="mns-set-sez">
+        <legend><span class="mns-set-n">2</span>Come si calcola il livello dalle competenze</legend>
+        <div class="mns-regole">
+          {% for codice, etichetta in regole_opts %}
+          <label class="mns-regola"><input type="radio" name="regola" value="{{ codice }}"{% if codice == scelta.regola %} checked{% endif %} data-reg-regola>
+            <span><b>{{ etichetta }}</b>
+              <small>{% if codice == "MEDIA_TETTO" %}Le competenze si compensano, ma una bloccante bassa fa da tetto. È la regola decisa per il Mansionario.{% elif codice == "MIN" %}Conta la competenza più debole: basta una competenza bassa per abbassare tutto.{% elif codice == "MEDIA" %}Le competenze si compensano sempre, anche le bloccanti.{% else %}Contano solo le bloccanti; se non ce ne sono, la più debole.{% endif %}</small></span></label>
+          {% endfor %}
+        </div>
+        <div class="fm-help">Vale solo per le mansioni con le competenze definite; dove non ci sono resta il livello messo a mano. Se manca un requisito formale la persona resta comunque non abilitata.</div>
+
+        <div class="mns-sim" aria-label="Prova del calcolo">
+          <div class="mns-sim-h">Prova il calcolo su un esempio</div>
+          <div class="mns-sim-righe">
+            {% for n in "123" %}
+            <div class="mns-sim-r">
+              <span>Competenza {{ n }}</span>
+              <select data-sim-lv aria-label="Livello della competenza {{ n }}">
+                <option value="0">nessuno</option>
+                {% for codice, etichetta in livelli_label %}<option value="{{ forloop.counter }}">{{ codice }} · {{ etichetta }}</option>{% endfor %}
+              </select>
+              <label class="mns-check"><input type="checkbox" data-sim-bl> bloccante</label>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mns-sim-out" data-sim-out aria-live="polite"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="mns-set-sez">
+        <legend><span class="mns-set-n">3</span>Rischio «uomo solo»</legend>
+        <div class="fm-form-field" style="max-width:280px;"><label for="reg-uomo">Operativi minimi per mansione</label>
+          <input id="reg-uomo" type="number" name="uomo_solo" class="fm-input" min="1" max="20" value="{{ scelta.uomo_solo }}" required></div>
+        <div class="fm-help">Una mansione con meno operativi di così è segnalata come «uomo solo» (MT CN 06 §8.2.2).</div>
+      </fieldset>
+
+      <div class="mns-set-foot">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario' %}">Torna al Mansionario</a>
+        <button type="submit" name="azione" value="prova" class="fmd-btn fmd-btn-primary">Prova</button>
+      </div>
+    </form>
+
+    {% if impatto %}
+    <section class="fmd-panel fmd-block" id="impatto" aria-label="Effetto delle nuove regole">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Cosa cambierebbe</div>
+        <div class="fmd-block-aside">Prova: niente è stato salvato</div>
+      </div>
+      <div class="mns-stats">
+        <div class="mns-stat"><b>{{ impatto.operativi_prima }} → {{ impatto.operativi_dopo }}</b><span>persone operative</span></div>
+        <div class="mns-stat{% if impatto.scoperte_dopo > impatto.scoperte_prima %} mns-ko{% endif %}"><b>{{ impatto.scoperte_prima }} → {{ impatto.scoperte_dopo }}</b><span>mansioni senza operativi</span></div>
+        <div class="mns-stat{% if impatto.uomo_solo_dopo > impatto.uomo_solo_prima %} mns-mid{% endif %}"><b>{{ impatto.uomo_solo_prima }} → {{ impatto.uomo_solo_dopo }}</b><span>mansioni a rischio uomo solo</span></div>
+        <div class="mns-stat"><b>{{ impatto.n_cambi }}</b><span>person{{ impatto.n_cambi|pluralize:"a,e" }} con livello o esito diverso</span></div>
+      </div>
+      {% if impatto.cambi %}
+      <div class="fmd-tablewrap mst-scroll" style="max-height:420px;">
+        <table class="fmd-table">
+          <thead><tr><th>Persona</th><th>Mansione</th><th>Livello</th><th>Esito</th></tr></thead>
+          <tbody>
+          {% for c in impatto.cambi %}
+            <tr>
+              <td>{{ c.nome }}</td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' c.mansione.pk %}">{{ c.mansione.nome }}</a></td>
+              <td class="fmd-nowrap"><span class="mns-lv mns-lv-{{ c.livello_prima }}"><b>{{ c.livello_prima|default:"—" }}</b></span> → <span class="mns-lv mns-lv-{{ c.livello_dopo }}"><b>{{ c.livello_dopo|default:"—" }}</b></span> <span class="{% if c.sale %}fmd-c-ok{% else %}fmd-c-ko{% endif %}">{% if c.livello_prima != c.livello_dopo %}{% if c.sale %}▲{% else %}▼{% endif %}{% endif %}</span></td>
+              <td>{% if c.esito_prima != c.esito_dopo %}{{ c.esito_prima }} → <b>{{ c.esito_dopo }}</b>{% else %}<span class="fmd-muted">{{ c.esito_dopo }}</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if impatto.n_cambi > max_righe %}<p class="mst-nota">Mostrate le prime {{ max_righe }} su {{ impatto.n_cambi }}.</p>{% endif %}
+      {% else %}
+      <p class="mst-nota">Nessuna persona cambia livello o esito.</p>
+      {% endif %}
+      {% if cambia_qualcosa %}
+      <form method="post" class="mst-applica">
+        {% csrf_token %}
+        <input type="hidden" name="soglia" value="{{ scelta.soglia }}">
+        <input type="hidden" name="regola" value="{{ scelta.regola }}">
+        <input type="hidden" name="uomo_solo" value="{{ scelta.uomo_solo }}">
+        <button type="submit" name="azione" value="applica" class="fmd-btn fmd-btn-navy">Applica le regole{% if impatto.n_cambi %} e ricalcola i livelli{% endif %}</button>
+        <span class="mst-nota">Il ricalcolo resta nello storico delle abilitazioni.</span>
+      </form>
+      {% else %}
+      <p class="mst-nota">Sono le regole già in vigore: non c'è niente da applicare.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var form=document.querySelector('[data-reg-form]');if(!form)return;
+  var out=form.querySelector('[data-sim-out]'),nomi=['—','I','L','U','O'];
+  var etichette={'MEDIA_TETTO':'media con tetto','MIN':'minimo','MEDIA':'media','BLOCCANTI':'minimo sulle bloccanti'};
+  // Stesso calcolo di services/mansionario_competenze.livello_calcolato.
+  function calcola(regola,voci){
+    var tutti=voci.map(function(v){return v.lv;}),bl=voci.filter(function(v){return v.bl;}).map(function(v){return v.lv;});
+    var min=function(a){return Math.min.apply(null,a);},media=Math.floor(tutti.reduce(function(s,x){return s+x;},0)/tutti.length),val;
+    if(regola==='MIN')val=min(tutti);else if(regola==='MEDIA')val=media;
+    else if(regola==='BLOCCANTI')val=bl.length?min(bl):min(tutti);
+    else val=bl.length?Math.min(media,min(bl)):media;
+    return val;
+  }
+  function aggiorna(){
+    var lv=form.querySelectorAll('[data-sim-lv]'),bl=form.querySelectorAll('[data-sim-bl]'),voci=[];
+    lv.forEach(function(s,i){voci.push({lv:parseInt(s.value,10)||0,bl:bl[i].checked});});
+    var r=form.querySelector('[data-reg-regola]:checked'),s=form.querySelector('[data-reg-soglia]:checked');
+    var regola=r?r.value:'MEDIA_TETTO',soglia=s?nomi.indexOf(s.value):3,val=calcola(regola,voci);
+    var op=val>=soglia;
+    out.innerHTML='';
+    var b=document.createElement('span');b.className='mns-lv mns-lv-'+nomi[val];b.innerHTML='<b>'+nomi[val]+'</b>';
+    var t=document.createElement('span');t.textContent=' livello sulla mansione con «'+etichette[regola]+'» → '+(op?'operativo':'in addestramento');
+    t.className=op?'fmd-c-ok':'fmd-c-s30';out.appendChild(b);out.appendChild(t);
+  }
+  var def=[3,2,1];form.querySelectorAll('[data-sim-lv]').forEach(function(s,i){s.value=String(def[i]||0);});
+  var b1=form.querySelector('[data-sim-bl]');if(b1)b1.checked=true;
+  form.addEventListener('change',aggiorna);aggiorna();
+  if(document.getElementById('impatto'))document.getElementById('impatto').scrollIntoView({block:'start'});
+})();
+</script>
+{% endblock %}

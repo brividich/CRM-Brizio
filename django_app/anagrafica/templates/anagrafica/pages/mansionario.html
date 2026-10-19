@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -28,7 +28,9 @@
           <div class="fmd-hero-actions">
             <a class="fmd-btn-template" href="{% url 'anagrafica:skill_matrix_macchina' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Skill matrix</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:skm_scadenzario' %}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Refresh caporeparto</a>
-            {% if is_admin %}<a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_struttura' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Struttura e import</a>{% endif %}
+            {% if is_admin %}<a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_struttura_nuova' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_struttura' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Struttura e import</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_regole' %}"><svg class="fmd-ico"><use href="#i-gear"/></svg>Regole</a>{% endif %}
             <a class="fmd-btn-template" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
           </div>
         </div>

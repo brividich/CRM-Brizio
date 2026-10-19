@@ -262,9 +262,10 @@ class EditorTests(_Base):
         r = self.client.post(reverse("anagrafica:mansionario_struttura_nuova"),
                              {"nome": "Imballo T", "ruoli": self.ruolo.pk})
         m = CompetenzaSkm.objects.get(display="Imballo T")
-        self.assertRedirects(r, f"{reverse('anagrafica:mansionario_struttura')}?apri={m.pk}#m{m.pk}",
+        self.assertRedirects(r, reverse("anagrafica:mansionario_mansione", args=[m.pk]),
                              fetch_redirect_response=False)
         r = self.client.post(reverse("anagrafica:mansionario_struttura_nuova"), {"nome": "imballo t"})
+        self.assertContains(r, "Esiste già una mansione")
         self.assertEqual(CompetenzaSkm.objects.filter(display__iexact="imballo t").count(), 1)
 
     def test_non_admin_non_entra(self):

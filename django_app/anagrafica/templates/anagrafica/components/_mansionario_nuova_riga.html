@@ -1,0 +1,15 @@
+{% comment %}Riga competenza del wizard «Nuova mansione». i = indice; riga = dict o None.{% endcomment %}
+<tr data-mnw-riga>
+  <td><input type="text" name="r{{ i }}_nome" value="{{ riga.nome|default:'' }}" maxlength="150" placeholder="Es. Lettura del disegno" aria-label="Nome della competenza" data-c="nome"></td>
+  <td><select name="r{{ i }}_livello_minimo" aria-label="Livello minimo" data-c="min">
+    {% for codice, etichetta in livelli_label %}<option value="{{ codice }}"{% if riga and codice == riga.livello_minimo or not riga and codice == "U" %} selected{% endif %}>{{ codice }} · {{ etichetta }}</option>{% endfor %}
+  </select></td>
+  <td class="mst-c"><input type="checkbox" name="r{{ i }}_bloccante"{% if riga.bloccante %} checked{% endif %} aria-label="Bloccante" data-c="bl"></td>
+  <td><select name="r{{ i }}_requisito" aria-label="Requisito formale" data-c="req">
+    <option value="">solo esperienza</option>
+    {% if corsi_opts %}<optgroup label="Corso valido">{% for c in corsi_opts %}<option value="corso:{{ c.id }}"{% if riga.corso_id == c.id %} selected{% endif %}>{{ c.titolo|truncatechars:60 }}</option>{% endfor %}</optgroup>{% endif %}
+    {% if qualifiche_opts %}<optgroup label="Qualifica / patentino">{% for q in qualifiche_opts %}<option value="qualifica:{{ q.pk }}"{% if riga.qualifica_id == q.pk %} selected{% endif %}>{{ q.nome }}</option>{% endfor %}</optgroup>{% endif %}
+    {% if processi_opts %}<optgroup label="Abilitazione MOD.128">{% for p in processi_opts %}<option value="mpq:{{ p.id }}"{% if riga.processo_id == p.id %} selected{% endif %}>{{ p.nome|truncatechars:50 }}</option>{% endfor %}</optgroup>{% endif %}
+  </select></td>
+  <td class="mst-c"><button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mnw-togli aria-label="Togli la riga">×</button></td>
+</tr>

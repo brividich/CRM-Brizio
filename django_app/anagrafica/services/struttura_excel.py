@@ -400,13 +400,22 @@ class _Mansioni:
     def __init__(self):
         self.per_chiave: dict[str, CompetenzaSkm] = {}
         self.per_nome: dict[str, list[CompetenzaSkm]] = {}
+        self.per_alias: dict[str, list[CompetenzaSkm]] = {}
         for m in CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE).select_related("asset", "reparto"):
             self.registra(m)
 
     def registra(self, m):
+        from .mansionario_struttura import nomi_precedenti
+
         self.per_chiave[m.competenza_key.casefold()] = m
         for nome in {m.nome.strip().casefold(), m.competenza_key.casefold()}:
             lista = self.per_nome.setdefault(nome, [])
+            if m not in lista:
+                lista.append(m)
+        # Nomi precedenti a parte: un file preparato prima di una rinomina si abbina
+        # ancora, ma un nome attuale vince sempre su un vecchio nome.
+        for nome in {a.casefold() for a in nomi_precedenti(m)}:
+            lista = self.per_alias.setdefault(nome, [])
             if m not in lista:
                 lista.append(m)
 
@@ -416,7 +425,7 @@ class _Mansioni:
             if m is None:
                 raise ErroreRiga(f"nessuna mansione con chiave «{chiave}»")
             return m
-        trovate = self.per_nome.get(nome.casefold(), [])
+        trovate = self.per_nome.get(nome.casefold()) or self.per_alias.get(nome.casefold(), [])
         if len(trovate) > 1:
             raise ErroreRiga(f"più mansioni si chiamano «{nome}»: indica la chiave")
         return trovate[0] if trovate else None
@@ -450,8 +459,14 @@ def _importa_mansioni(righe, cat: _Cataloghi, mans: _Mansioni, esito: Esito):
                     if tipo and tipo != m.tipo:
                         raise ErroreRiga(f"la mansione è di tipo {m.tipo}: il tipo non si cambia da qui")
                     if nome and chiave and nome != m.nome:
-                        m.display = nome
-                        cambi.append("nome")
+                        from .mansionario_struttura import rinomina
+                        try:
+                            prima = rinomina(m, nome, salva=False)
+                        except ValueError as exc:
+                            raise ErroreRiga(str(exc)) from exc
+                        if prima:
+                            cambi.append(f"nome (prima «{prima}»)")
+                            mans.registra(m)
                 reparto = _testo(r.get("Reparto"))
                 if reparto:
                     if m.asset_id:
