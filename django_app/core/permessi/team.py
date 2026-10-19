@@ -46,7 +46,7 @@ def invalida_cache_team() -> None:
     try:
         cache.set(_CACHE_VERSION_KEY, _versione() + 1, None)
     except Exception:
-        pass
+        logger.warning("permessi.team: impossibile invalidare la cache dei team", exc_info=True)
 
 
 def _assegnazioni_attive():
@@ -172,5 +172,5 @@ def team_di(legacy_user_id: int | None) -> frozenset[int]:
     try:
         cache.set(chiave, sorted(team), _CACHE_TTL)
     except Exception:
-        pass
+        logger.debug("permessi.team: cache non scrivibile", exc_info=True)
     return team

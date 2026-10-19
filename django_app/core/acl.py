@@ -80,7 +80,7 @@ def _log_once_warning(cache_key: str, message: str, **extra) -> None:
         if not cache.add(key, 1, timeout=_ACL_LOG_ONCE_TTL_SECONDS):
             return
     except Exception:
-        pass
+        logger.debug("ACL: cache non disponibile per il throttling dei log", exc_info=True)
     logger.warning(message, extra=extra)
 
 

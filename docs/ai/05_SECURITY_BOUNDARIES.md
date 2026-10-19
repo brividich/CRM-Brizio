@@ -201,6 +201,20 @@ Pattern: `AppConfig.ready()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ chiama `b
 
 ---
 
+## SQL grezzo (censimento 19/10/2026)
+
+Il portale interroga tabelle legacy SQL Server con `cursor.execute` (~660 chiamate; le più numerose in `anagrafica`, `core`, `admin_portale`, `assenze`, `automazioni`, `anomalie`). Regole:
+
+- I **valori** (filtri, id, testo cercato, date) passano sempre come parametri (`%s`), mai nella stringa.
+- Gli **identificatori** (tabella, colonna, alias) entrano nella stringa solo se vengono da un registro o da una costante: `Model._meta.db_table`, `legacy_table_columns(...)`, `source_registry` (automazioni), liste `_LEGACY_COLS`, oppure `connection.ops.quote_name(...)` dopo validazione (`core/db_diagnostics.py`).
+- Le clausole composte (`" OR ".join(clauses)`, `",".join(["%s"] * n)`) contengono solo frammenti costanti e segnaposto.
+
+`ruff --select S608` segnala 214 siti costruiti con f-string/format (53 file): il censimento li ha riesaminati tutti e nessuno interpola dati utente. `core/test_sql_census.py` tiene quel conteggio per file in `core/sql_grezzo_baseline.json`: una query nuova costruita con stringhe fa fallire il test finché non usa un parametro o finché il sito non viene riesaminato e aggiunto alla linea di base nello stesso commit.
+
+## Content-Security-Policy e nonce
+
+La CSP globale è `CSP_POLICY` (middleware `ContentSecurityPolicyMiddleware`, nessun host esterno, `'unsafe-inline'` su script e stile perché i template SSR hanno ancora ~265 `<script>` inline e ~230 handler `on*=`). Il nonce è pronto ma spento: `CSP_NONCE_ENABLED=1` passa a `CSP_POLICY_NONCE` (`script-src 'self' 'nonce-{nonce}'`, stile invariato) con `{nonce}` sostituito a ogni richiesta; il valore è in `request.csp_nonce` e nei template come `{{ csp_nonce }}` (context processor `core.context_processors.csp`, sempre presente). Prerequisito per accenderlo: ogni `<script>` inline con `nonce="{{ csp_nonce }}"` e nessun handler `on*=` (con un nonce i browser ignorano `'unsafe-inline'`). Rollout: prima `CSP_REPORT_ONLY=1`. Test: `core/test_csp_nonce.py`.
+
 ## Politica di audit (`core/audit_policy.py`)
 
 L'audit automatico di insert/update/delete (`core/audit_signals.py`) segue una politica dichiarativa e versionata. Dettaglio e motivazioni: [docs/dr/AUDIT_POLICY.md](../dr/AUDIT_POLICY.md).

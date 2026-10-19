@@ -69,7 +69,7 @@ def sistema_ruoli_attivo() -> bool:
     try:
         cache.set(chiave, attivo, 60)
     except Exception:
-        pass
+        logger.debug("permessi: cache non scrivibile (sistema attivo)", exc_info=True)
     return attivo
 
 
@@ -95,7 +95,7 @@ def id_ruolo_base() -> int | None:
     try:
         cache.set(chiave, valore, 300)
     except Exception:
-        pass
+        logger.debug("permessi: cache non scrivibile (gruppo)", exc_info=True)
     return valore or None
 
 
@@ -246,8 +246,8 @@ def contesto_per(soggetto) -> ContestoPermessi:
     if user is not None:
         try:
             user._permessi_contesto = ctx
-        except Exception:
-            pass
+        except AttributeError:
+            pass  # oggetto utente senza __dict__ (es. SimpleNamespace con slots)
     return ctx
 
 
@@ -255,7 +255,7 @@ def invalida_contesto(user) -> None:
     if user is not None and hasattr(user, "_permessi_contesto"):
         try:
             del user._permessi_contesto
-        except Exception:
+        except AttributeError:
             pass
 
 
