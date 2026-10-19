@@ -133,7 +133,13 @@ class LoadEventsScopeSqlTests(SimpleTestCase):
             "assenze.views._helpers._legacy_capi_table_exists", return_value=False
         ), patch(
             "assenze.views._helpers.legacy_table_columns", return_value={"capo_reparto_id"}
-        ), patch("assenze.views.eventi._load_colors", return_value={}):
+        ), patch("assenze.views.eventi._load_colors", return_value={}), patch(
+            # Il perimetro canonico (organigramma HR) legge le colonne con il vero
+            # legacy_table_columns, la cui cache dipende dai test girati prima:
+            # qui si misura solo la clausola del capo, quindi va escluso.
+            "assenze.team_scope.canonical_team_predicates",
+            return_value=("", "", []),
+        ):
             _load_events(**kwargs)
         return catturato
 
