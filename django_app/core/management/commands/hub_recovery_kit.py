@@ -30,7 +30,10 @@ from core.backup_engine.doctor import RECOVERY_KIT_STATUS, env_file_sha256
 
 
 def _env_path() -> Path:
-    for candidate in (Path(settings.BASE_DIR).parent / "config" / ".env", Path(settings.BASE_DIR) / ".env"):
+    # stesso ordine del runtime: prima <env>\config\.env (persistente), poi la copia nella release
+    from config.env_config import iter_runtime_env_paths
+
+    for candidate in iter_runtime_env_paths(Path(settings.BASE_DIR)):
         if candidate.exists():
             return candidate
     raise CommandError("File .env non trovato (config\\.env o django_app\\.env).")
@@ -49,7 +52,8 @@ def _export_pfx(thumbprint: str) -> tuple[bytes, str]:
         )
         env = dict(os.environ, HUBKIT_PFX_PW=password)   # mai sulla riga di comando
         proc = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-                              capture_output=True, text=True, env=env, timeout=60)
+                              capture_output=True, text=True, encoding="oem" if os.name == "nt" else None, errors="replace",
+                              env=env, timeout=60)   # messaggi di Windows nella codepage della console
         if proc.returncode != 0 or not out.exists():
             raise CommandError(f"Esportazione del certificato non riuscita: {(proc.stderr or proc.stdout).strip()[:300]}")
         return out.read_bytes(), password
