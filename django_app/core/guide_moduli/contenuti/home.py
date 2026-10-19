@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "accesso login password home menu notifiche push telefono cerca profilo scadenzario preferiti personalizza tour tabelle viste colonne filtri",
+    "parole": "accesso login password home menu notifiche push telefono cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
@@ -77,6 +77,9 @@ GUIDA = {
                     "Ogni dispositivo si attiva a parte; l'elenco «Dispositivi attivi» mostra dove sono attive, «Togli» le spegne.",
                     "Su iPhone serve prima «Condividi → Aggiungi alla schermata Home» e aprire il portale da lì (iOS 16.4 o successivo).",
                     "Fuori dalla rete aziendale la push arriva lo stesso ma mostra un testo generico: il dettaglio si legge aprendo il portale.",
+                    "«Le mie scadenze nel calendario Outlook»: ogni mattina alle 6:30 il portale aggiorna nel tuo Outlook il calendario "
+                    "«Scadenze NOVICROM HUB» (scadute e prossimi 90 giorni). Se cancelli un evento in Outlook non viene rimesso, "
+                    "a meno che la scadenza cambi data; togliendo la spunta il calendario si svuota la mattina dopo.",
                     "«Riepilogo scadenze via mail»: ogni mattina dei giorni feriali alle 7:30 le scadenze dello Scadenzario globale che puoi vedere "
                     "(scadute e prossimi 7 o 30 giorni). Se non c'è niente non parte; al massimo una al giorno.",
                 ]),
@@ -127,6 +130,9 @@ GUIDA = {
                 ("ul", [
                     "Vedi solo le fonti che puoi aprire: se non hai accesso alle visite mediche, le visite non compaiono.",
                     "Filtri: Sorgente, Stato (Scadute, Entro 30, 60 o 90 giorni) e Reparto; «⬇ CSV» scarica le righe filtrate.",
+                    "«⬇ Calendario (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
+                    "e ogni scadenza diventa un evento di un giorno con promemoria il giorno prima alle 9. È una copia: non si aggiorna da sola.",
+                    "Per averle sempre aggiornate in Outlook: Impostazioni notifiche → «Le mie scadenze nel calendario Outlook».",
                     "Il nome nella colonna Soggetto apre la pagina dove la scadenza si gestisce. Qui si guarda soltanto: niente si modifica.",
                 ]),
             ],
@@ -174,6 +180,9 @@ GUIDA = {
                     "*.notify.windows.com e *.push.apple.com. Il traffico contiene solo il segnale, mai il testo della notifica.",
                     "Gli invii partono dal qcluster (django-q): senza qcluster attivo le push non partono, la campanella sì.",
                     "Il riepilogo scadenze è il task «scadenze_digest_personale» (lun-ven 7:30), disattivabile dalla Centrale di comando.",
+                    "Il calendario Outlook delle scadenze è il task «scadenze_outlook_sync» (ogni giorno 6:30): scrive nelle caselle con il "
+                    "permesso Graph Calendars.ReadWrite (applicazione), lo stesso degli incontri KICK-OFF. L'ultimo errore di ogni persona "
+                    "compare nella sua pagina Impostazioni notifiche.",
                     "Cambiare la chiave spegne le push già attivate: ogni utente deve riattivarle.",
                 ]),
             ],

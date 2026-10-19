@@ -18,3 +18,10 @@ def run_scadenze_digest() -> dict:
     except Exception:
         logger.exception("run_scadenze_digest fallito")
         return {"ok": False}
+
+
+def run_scadenze_outlook() -> dict:
+    """Allinea il calendario «Scadenze NOVICROM HUB» di chi l'ha scelto (``dashboard.scadenze_calendario``)."""
+    from dashboard.scadenze_calendario import sincronizza_tutti
+
+    return sincronizza_tutti()

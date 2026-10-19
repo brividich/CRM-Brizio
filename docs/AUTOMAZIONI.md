@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 77
+**Totale automazioni disponibili:** 78
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -461,6 +461,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** da lun a ven, alle 07:30
 - **Task eseguito:** `dashboard.tasks.run_scadenze_digest`
 - **Cosa fa:** DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op altrimenti); giorni feriali, una mail al giorno al massimo.
+
+### `scadenze_outlook_sync`
+
+- **Quando gira:** ogni giorno, alle 06:30
+- **Task eseguito:** `dashboard.tasks.run_scadenze_outlook`
+- **Cosa fa:** Scadenzario → calendario Outlook personale («Scadenze NOVICROM HUB») di chi l'ha scelto in Impostazioni notifiche. Graph Calendars.ReadWrite (applicazione).
 
 ### `security_ai_lettura`
 
