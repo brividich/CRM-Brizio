@@ -335,9 +335,9 @@ class TriggerGeneratorAuditTests(TestCase):
 
         self.client.force_login(self.admin)
         with (
-            patch("automazioni.views._get_trigger_sources", return_value=[self._source()]),
-            patch("automazioni.views._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
-            patch("automazioni.views._apply_trigger_sql") as mocked_apply,
+            patch("automazioni.views.regole._get_trigger_sources", return_value=[self._source()]),
+            patch("automazioni.views.regole._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
+            patch("automazioni.views.regole._apply_trigger_sql") as mocked_apply,
         ):
             response = self.client.post(
                 reverse("automazioni:automazioni_trigger_generator"),
@@ -358,10 +358,10 @@ class TriggerGeneratorAuditTests(TestCase):
 
         self.client.force_login(self.admin)
         with (
-            patch("automazioni.views._get_trigger_sources", return_value=[self._source()]),
-            patch("automazioni.views._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
+            patch("automazioni.views.regole._get_trigger_sources", return_value=[self._source()]),
+            patch("automazioni.views.regole._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
             patch(
-                "automazioni.views._apply_trigger_sql",
+                "automazioni.views.regole._apply_trigger_sql",
                 return_value={"ok": True, "trigger_name": "trg_audit", "target_table": "dbo.audit_table"},
             ) as mocked_apply,
         ):
@@ -394,10 +394,10 @@ class TriggerGeneratorAuditTests(TestCase):
 
         self.client.force_login(self.admin)
         with (
-            patch("automazioni.views._get_trigger_sources", return_value=[self._source()]),
-            patch("automazioni.views._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
+            patch("automazioni.views.regole._get_trigger_sources", return_value=[self._source()]),
+            patch("automazioni.views.regole._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
             patch(
-                "automazioni.views._apply_trigger_sql",
+                "automazioni.views.regole._apply_trigger_sql",
                 return_value={"ok": False, "message": "permesso negato"},
             ),
         ):
@@ -612,7 +612,7 @@ class AutomazioniAdminPageTests(TestCase):
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
-    @patch("automazioni.views.run_approval_imap_poll_now")
+    @patch("automazioni.views.configurazione.run_approval_imap_poll_now")
     def test_settings_page_can_run_imap_poll(self, mock_run_poll, mock_get_legacy_user, _mock_is_admin):
         mock_get_legacy_user.return_value = self.legacy_admin
         mock_run_poll.return_value = {
@@ -649,7 +649,7 @@ class AutomazioniAdminPageTests(TestCase):
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
-    @patch("automazioni.views.save_approval_imap_settings")
+    @patch("automazioni.views.configurazione.save_approval_imap_settings")
     def test_settings_page_can_save_imap_config(self, mock_save_imap, mock_get_legacy_user, _mock_is_admin):
         mock_get_legacy_user.return_value = self.legacy_admin
         mock_save_imap.return_value = (
@@ -848,7 +848,7 @@ class AutomazioniAdminPageTests(TestCase):
             ["Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"],
         )
 
-    @patch("automazioni.views._fetch_source_field_distinct_values")
+    @patch("automazioni.views.regole._fetch_source_field_distinct_values")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_api_source_field_values_returns_known_and_distinct_values(
@@ -1236,7 +1236,7 @@ class AutomazioniAdminPageTests(TestCase):
             is_active=True,
         )
 
-        with patch("automazioni.views.list_teams_flow_endpoints", return_value=([], True)):
+        with patch("automazioni.views._helpers.list_teams_flow_endpoints", return_value=([], True)):
             response = self.client.get(reverse("admin_portale:automazioni_teams_presets"))
 
         self.assertEqual(response.status_code, 200)
@@ -1448,10 +1448,10 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, 'data-json-builder="payload_json"', html=False)
         self.assertContains(response, "Ticket di esempio")
 
-    @patch("automazioni.views.count_queue_by_status")
-    @patch("automazioni.views.list_queue_events")
-    @patch("automazioni.views._build_queue_poller_health_snapshot")
-    @patch("automazioni.views._queue_table_exists", return_value=True)
+    @patch("automazioni.views.coda.count_queue_by_status")
+    @patch("automazioni.views.coda.list_queue_events")
+    @patch("automazioni.views.coda._build_queue_poller_health_snapshot")
+    @patch("automazioni.views.coda._queue_table_exists", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_list_page_renders_with_filters(
@@ -1520,10 +1520,10 @@ class AutomazioniAdminPageTests(TestCase):
         )
         mock_count_queue_by_status.assert_called_once_with(source_code="assenze", operation_type="update")
 
-    @patch("automazioni.views.count_queue_by_status")
-    @patch("automazioni.views.list_queue_events")
-    @patch("automazioni.views._build_queue_poller_health_snapshot")
-    @patch("automazioni.views._queue_table_exists", return_value=True)
+    @patch("automazioni.views.coda.count_queue_by_status")
+    @patch("automazioni.views.coda.list_queue_events")
+    @patch("automazioni.views.coda._build_queue_poller_health_snapshot")
+    @patch("automazioni.views.coda._queue_table_exists", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_list_page_shows_stop_and_delete_for_pending_events_without_logs(
@@ -1561,8 +1561,8 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, reverse("admin_portale:automazioni_queue_stop", args=[102]))
         self.assertContains(response, reverse("admin_portale:automazioni_queue_delete", args=[102]))
 
-    @patch("automazioni.views.get_queue_event_detail")
-    @patch("automazioni.views._build_queue_poller_health_snapshot")
+    @patch("automazioni.views.coda.get_queue_event_detail")
+    @patch("automazioni.views.coda._build_queue_poller_health_snapshot")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_detail_page_renders_payload_and_linked_logs(
@@ -1636,8 +1636,8 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Action OK")
         self.assertContains(response, "runtime error")
 
-    @patch("automazioni.views.get_queue_event_detail")
-    @patch("automazioni.views._build_queue_poller_health_snapshot")
+    @patch("automazioni.views.coda.get_queue_event_detail")
+    @patch("automazioni.views.coda._build_queue_poller_health_snapshot")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_detail_page_shows_stop_and_delete_for_pending_event_without_logs(
@@ -1673,7 +1673,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, reverse("admin_portale:automazioni_queue_stop", args=[78]))
         self.assertContains(response, reverse("admin_portale:automazioni_queue_delete", args=[78]))
 
-    @patch("automazioni.views.reset_queue_event_to_pending", return_value=True)
+    @patch("automazioni.views.coda.reset_queue_event_to_pending", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_reset_view_resets_error_event(
@@ -1690,7 +1690,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[88]))
         mock_reset_queue_event_to_pending.assert_called_once_with(88)
 
-    @patch("automazioni.views.reset_queue_event_to_pending", return_value=False)
+    @patch("automazioni.views.coda.reset_queue_event_to_pending", return_value=False)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_reset_view_handles_incompatible_status(
@@ -1707,7 +1707,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[89]))
         mock_reset_queue_event_to_pending.assert_called_once_with(89)
 
-    @patch("automazioni.views.process_single_queue_event_by_id")
+    @patch("automazioni.views.coda.process_single_queue_event_by_id")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_retry_view_runs_single_event(
@@ -1730,7 +1730,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[90]))
         mock_process_single_queue_event_by_id.assert_called_once_with(90)
 
-    @patch("automazioni.views.process_single_queue_event_by_id")
+    @patch("automazioni.views.coda.process_single_queue_event_by_id")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_retry_view_handles_worker_error(
@@ -1753,8 +1753,8 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[91]))
         mock_process_single_queue_event_by_id.assert_called_once_with(91)
 
-    @patch("automazioni.views.log_action")
-    @patch("automazioni.views.stop_queue_event", return_value=True)
+    @patch("automazioni.views._helpers.log_action")
+    @patch("automazioni.views.coda.stop_queue_event", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_stop_view_stops_pending_event(
@@ -1773,8 +1773,8 @@ class AutomazioniAdminPageTests(TestCase):
         mock_stop_queue_event.assert_called_once_with(92)
         mock_log_action.assert_called_once()
 
-    @patch("automazioni.views.log_action")
-    @patch("automazioni.views.stop_queue_event", return_value=False)
+    @patch("automazioni.views._helpers.log_action")
+    @patch("automazioni.views.coda.stop_queue_event", return_value=False)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_stop_view_handles_incompatible_status(
@@ -1793,8 +1793,8 @@ class AutomazioniAdminPageTests(TestCase):
         mock_stop_queue_event.assert_called_once_with(93)
         mock_log_action.assert_not_called()
 
-    @patch("automazioni.views.log_action")
-    @patch("automazioni.views.delete_queue_event", return_value=True)
+    @patch("automazioni.views._helpers.log_action")
+    @patch("automazioni.views.coda.delete_queue_event", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_delete_view_removes_pending_event_without_logs(
@@ -1813,8 +1813,8 @@ class AutomazioniAdminPageTests(TestCase):
         mock_delete_queue_event.assert_called_once_with(94)
         mock_log_action.assert_called_once()
 
-    @patch("automazioni.views.log_action")
-    @patch("automazioni.views.delete_queue_event", return_value=False)
+    @patch("automazioni.views._helpers.log_action")
+    @patch("automazioni.views.coda.delete_queue_event", return_value=False)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_delete_view_blocks_events_with_logs_or_invalid_status(
@@ -1889,7 +1889,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, f"#{matching_run.id}")
         self.assertNotContains(response, reverse("admin_portale:automazioni_run_log_detail", args=[other_run.id]))
 
-    @patch("automazioni.views.get_queue_event_detail")
+    @patch("automazioni.views.coda.get_queue_event_detail")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_run_log_detail_page_shows_payload_and_action_logs(
@@ -2181,8 +2181,8 @@ class AutomationPackageImportTests(TestCase):
         self.assertContains(response, "Analizza flow")
         self.assertContains(response, "Template approvazione")
 
-    @patch("automazioni.views.analyze_package_dict")
-    @patch("automazioni.views.analyze_power_automate_flow_upload")
+    @patch("automazioni.views.regole.analyze_package_dict")
+    @patch("automazioni.views.regole.analyze_power_automate_flow_upload")
     def test_power_automate_converter_analyze_flow_stores_state(
         self,
         mock_analyze_flow_upload,

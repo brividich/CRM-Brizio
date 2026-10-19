@@ -24,8 +24,8 @@ class OutboxEnqueueTests(TestCase):
     def setUp(self):
         cache.clear()
 
-    @patch("assenze.views._sp_kick_push")
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._sp_kick_push")
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_upsert_creates_one_row_and_bumps_version(self, _cfg, mock_kick):
         self.assertEqual(views._sp_enqueue_upsert(7), {"ok": True, "queued": True})
         views._sp_enqueue_upsert(7)
@@ -35,21 +35,21 @@ class OutboxEnqueueTests(TestCase):
         self.assertEqual(entry.versione, 2)
         self.assertEqual(mock_kick.call_count, 2)
 
-    @patch("assenze.views._sp_kick_push")
-    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._sp_kick_push")
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
     def test_nothing_is_queued_when_sharepoint_is_not_configured(self, _cfg, mock_kick):
         self.assertEqual(views._sp_enqueue_upsert(7)["reason"], "not_configured")
         self.assertFalse(Outbox.objects.exists())
         mock_kick.assert_not_called()
 
-    @patch("assenze.views._sp_kick_push")
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._sp_kick_push")
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_delete_of_record_never_sent_needs_no_queue(self, _cfg, _kick):
         self.assertEqual(views._sp_enqueue_delete(7, ""), {"ok": True, "queued": False})
         self.assertFalse(Outbox.objects.exists())
 
-    @patch("assenze.views._sp_kick_push")
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._sp_kick_push")
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_delete_replaces_pending_upsert(self, _cfg, _kick):
         views._sp_enqueue_upsert(7)
         views._sp_enqueue_delete(7, "501")
@@ -61,13 +61,13 @@ class OutboxEnqueueTests(TestCase):
 
 
 @override_settings(CACHES=_LOCMEM)
-@patch("assenze.views._graph_configured", return_value=True)
+@patch("assenze.views._helpers._graph_configured", return_value=True)
 class OutboxPushTests(TestCase):
     def setUp(self):
         cache.clear()
 
-    @patch("assenze.views._sync_one_to_sharepoint", return_value={"ok": True, "action": "create", "sharepoint_item_id": "55"})
-    @patch("assenze.views._get_assenza", return_value={"id": 7})
+    @patch("assenze.views._helpers._sync_one_to_sharepoint", return_value={"ok": True, "action": "create", "sharepoint_item_id": "55"})
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 7})
     def test_sent_record_leaves_the_queue(self, _get, mock_sync, _cfg):
         Outbox.objects.create(assenza_id=7)
 
@@ -77,8 +77,8 @@ class OutboxPushTests(TestCase):
         self.assertEqual(result["totals"]["created"], 1)
         self.assertEqual(result["pending"], 0)
 
-    @patch("assenze.views._sync_one_to_sharepoint", return_value={"ok": False, "error": "Graph 503"})
-    @patch("assenze.views._get_assenza", return_value={"id": 7})
+    @patch("assenze.views._helpers._sync_one_to_sharepoint", return_value={"ok": False, "error": "Graph 503"})
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 7})
     def test_failed_send_stays_queued_with_error(self, _get, _sync, _cfg):
         Outbox.objects.create(assenza_id=7)
 
@@ -89,7 +89,7 @@ class OutboxPushTests(TestCase):
         self.assertEqual(entry.tentativi, 1)
         self.assertIn("Graph 503", entry.ultimo_errore)
 
-    @patch("assenze.views._get_assenza", return_value={"id": 7})
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 7})
     def test_change_arrived_during_send_is_not_lost(self, _get, _cfg):
         Outbox.objects.create(assenza_id=7)
 
@@ -97,12 +97,12 @@ class OutboxPushTests(TestCase):
             Outbox.objects.filter(assenza_id=item_id).update(versione=2)
             return {"ok": True, "action": "update", "sharepoint_item_id": "55"}
 
-        with patch("assenze.views._sync_one_to_sharepoint", side_effect=_sync_and_edit_meanwhile):
+        with patch("assenze.views._helpers._sync_one_to_sharepoint", side_effect=_sync_and_edit_meanwhile):
             views._sp_push_outbox()
 
         self.assertTrue(Outbox.objects.filter(assenza_id=7, versione=2).exists())
 
-    @patch("assenze.views._graph_delete", return_value=(True, ""))
+    @patch("assenze.views._helpers._graph_delete", return_value=(True, ""))
     def test_queued_delete_removes_sharepoint_item(self, mock_delete, _cfg):
         Outbox.objects.create(assenza_id=7, azione=Outbox.AZIONE_DELETE, sharepoint_item_id="501")
 
@@ -112,7 +112,7 @@ class OutboxPushTests(TestCase):
         self.assertEqual(result["totals"]["deleted"], 1)
         self.assertFalse(Outbox.objects.exists())
 
-    @patch("assenze.views._sync_one_to_sharepoint")
+    @patch("assenze.views._helpers._sync_one_to_sharepoint")
     def test_second_concurrent_push_is_skipped(self, mock_sync, _cfg):
         Outbox.objects.create(assenza_id=7)
         cache.add(views._SP_PUSH_LOCK_KEY, "1", timeout=60)
@@ -124,20 +124,20 @@ class OutboxPushTests(TestCase):
 
 
 @override_settings(CACHES=_LOCMEM)
-@patch("assenze.views._table_exists", return_value=True)
-@patch("assenze.views.legacy_table_columns", return_value=set())
-@patch("assenze.views._graph_configured", return_value=True)
+@patch("assenze.views._helpers._table_exists", return_value=True)
+@patch("assenze.views._helpers.legacy_table_columns", return_value=set())
+@patch("assenze.views._helpers._graph_configured", return_value=True)
 class DeltaPullTests(TestCase):
     def setUp(self):
         cache.clear()
 
     def _run(self, items, local_ids, *, apply_result="updated", duplicate_id=None):
-        with patch("assenze.views._graph_delta_changes", return_value=(items, "https://graph.example/delta?token=B")), \
-                patch("assenze.views._find_assenza_id_by_sp_id", side_effect=lambda sp_id: local_ids.get(sp_id)), \
-                patch("assenze.views._find_duplicate_assenza_id", return_value=duplicate_id), \
-                patch("assenze.views._apply_sp_item_to_local", return_value=apply_result) as mock_apply, \
-                patch("assenze.views._delete_assenza", return_value=True) as mock_delete, \
-                patch("assenze.views._graph_get_item", return_value=None):
+        with patch("assenze.views._helpers._graph_delta_changes", return_value=(items, "https://graph.example/delta?token=B")), \
+                patch("assenze.views._helpers._find_assenza_id_by_sp_id", side_effect=lambda sp_id: local_ids.get(sp_id)), \
+                patch("assenze.views._helpers._find_duplicate_assenza_id", return_value=duplicate_id), \
+                patch("assenze.views._helpers._apply_sp_item_to_local", return_value=apply_result) as mock_apply, \
+                patch("assenze.views._helpers._delete_assenza", return_value=True) as mock_delete, \
+                patch("assenze.views._helpers._graph_get_item", return_value=None):
             result = views._sync_pull_from_sharepoint()
         return result, mock_apply, mock_delete
 
@@ -198,9 +198,9 @@ class DeltaPullTests(TestCase):
 
     def test_delta_token_does_not_advance_on_errors(self, *_):
         cache.set(views._SP_DELTA_LINK_KEY, "https://graph.example/delta?token=A")
-        with patch("assenze.views._graph_delta_changes", return_value=([{"id": "3", "fields": {"x": 1}}], "https://graph.example/delta?token=B")), \
-                patch("assenze.views._find_assenza_id_by_sp_id", return_value=None), \
-                patch("assenze.views._apply_sp_item_to_local", side_effect=RuntimeError("boom")):
+        with patch("assenze.views._helpers._graph_delta_changes", return_value=([{"id": "3", "fields": {"x": 1}}], "https://graph.example/delta?token=B")), \
+                patch("assenze.views._helpers._find_assenza_id_by_sp_id", return_value=None), \
+                patch("assenze.views._helpers._apply_sp_item_to_local", side_effect=RuntimeError("boom")):
             result = views._sync_pull_from_sharepoint()
 
         self.assertFalse(result["ok"])
@@ -217,7 +217,7 @@ class DuplicateKeyTests(TestCase):
         data.update(over)
         return data
 
-    @patch("assenze.views._fetch_all_dict")
+    @patch("assenze.views._helpers._fetch_all_dict")
     def test_same_person_same_days_different_hours_is_a_duplicate(self, mock_fetch):
         from datetime import datetime
 
@@ -227,7 +227,7 @@ class DuplicateKeyTests(TestCase):
         day_start, day_end = mock_fetch.call_args.args[1]
         self.assertEqual((day_start, day_end), (datetime(2026, 9, 14), datetime(2026, 9, 15)))
 
-    @patch("assenze.views._fetch_all_dict")
+    @patch("assenze.views._helpers._fetch_all_dict")
     def test_other_person_or_other_end_day_is_not_a_duplicate(self, mock_fetch):
         from datetime import datetime
 
@@ -238,15 +238,15 @@ class DuplicateKeyTests(TestCase):
 
         self.assertIsNone(views._find_duplicate_assenza_id(self._payload()))
 
-    @patch("assenze.views._fetch_all_dict")
+    @patch("assenze.views._helpers._fetch_all_dict")
     def test_missing_dates_or_name_never_match(self, mock_fetch):
         self.assertIsNone(views._find_duplicate_assenza_id(self._payload(data_inizio=None)))
         self.assertIsNone(views._find_duplicate_assenza_id(self._payload(copia_nome="")))
         mock_fetch.assert_not_called()
 
 
-@patch("assenze.views._graph_headers", return_value={})
-@patch("assenze.views._graph_base_url", return_value="https://graph.example/items")
+@patch("assenze.views._helpers._graph_headers", return_value={})
+@patch("assenze.views._helpers._graph_base_url", return_value="https://graph.example/items")
 class GraphDeltaChangesTests(TestCase):
     @patch("assenze.views.requests.get")
     def test_follows_next_links_and_returns_delta_link(self, mock_get, *_):
@@ -280,25 +280,25 @@ class SyncJobTests(TestCase):
     def setUp(self):
         cache.clear()
 
-    @patch("assenze.views._sp_push_outbox")
-    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._sp_push_outbox")
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
     def test_job_is_a_noop_without_sharepoint(self, _cfg, mock_push):
         self.assertIn("skipped", tasks.run_assenze_sharepoint_sync())
         mock_push.assert_not_called()
 
-    @patch("assenze.views._sp_refresh_motivazioni")
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._sp_refresh_motivazioni")
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_job_sends_queue_before_reading_sharepoint(self, _cfg, _motiv):
         order = []
-        with patch("assenze.views._sp_push_outbox", side_effect=lambda: order.append("push") or {}), \
-                patch("assenze.views._maybe_pull", side_effect=lambda force: order.append("pull") or {}):
+        with patch("assenze.views._helpers._sp_push_outbox", side_effect=lambda: order.append("push") or {}), \
+                patch("assenze.views.sharepoint._maybe_pull", side_effect=lambda force: order.append("pull") or {}):
             tasks.run_assenze_sharepoint_sync()
 
         self.assertEqual(order, ["push", "pull"])
 
-    @patch("assenze.views._load_motivazioni_local", return_value=["Visita"])
+    @patch("assenze.views._helpers._load_motivazioni_local", return_value=["Visita"])
     def test_form_motivazioni_come_from_cache_or_local_never_graph(self, _local):
-        with patch("assenze.views._graph_get_motivazioni") as mock_graph:
+        with patch("assenze.views._helpers._graph_get_motivazioni") as mock_graph:
             self.assertEqual(views._motivazioni_options(), ["Visita"])
             cache.set(views._SP_MOTIVAZIONI_CACHE_KEY, ["Ferie", "Permesso"])
             self.assertEqual(views._motivazioni_options(), ["Ferie", "Permesso"])
@@ -307,12 +307,12 @@ class SyncJobTests(TestCase):
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False, CACHES=_LOCMEM)
 class PagesDoNotCallGraphTests(TestCase):
-    @patch("assenze.views._template_perm_context", return_value={})
-    @patch("assenze.views._load_personal", return_value=[])
-    @patch("assenze.views._load_pending_for_manager", return_value=[{"id": 5, "stato": "In attesa"}])
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.local", 77))
-    @patch("assenze.views._graph_configured", return_value=True)
-    @patch("assenze.views.requests")
+    @patch("assenze.views._helpers._template_perm_context", return_value={})
+    @patch("assenze.views._helpers._load_personal", return_value=[])
+    @patch("assenze.views._helpers._load_pending_for_manager", return_value=[{"id": 5, "stato": "In attesa"}])
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.local", 77))
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
+    @patch("assenze.views._helpers.requests")
     def test_gestione_page_makes_no_graph_request(self, mock_requests, *_):
         user = get_user_model().objects.create_superuser(
             username="assenze-nograph", email="nograph@example.local", password="pass12345"
@@ -348,7 +348,7 @@ class OrigineSharePointTests(TestCase):
         views._record_sp_origin(8, "502", creata_su_sharepoint=False, overwrite=True)
         self.assertFalse(Origine.objects.get(assenza_id=8).creata_su_sharepoint)
 
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_rows_are_marked_only_when_born_on_sharepoint(self, _cfg):
         Origine.objects.create(assenza_id=1, creata_su_sharepoint=True)
         Origine.objects.create(assenza_id=2, creata_su_sharepoint=False)
@@ -358,7 +358,7 @@ class OrigineSharePointTests(TestCase):
 
         self.assertEqual([r["gestita_sp"] for r in rows], [True, False, False])
 
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_many_ids_are_queried_in_chunks(self, _cfg):
         Origine.objects.create(assenza_id=2500, creata_su_sharepoint=True)
 
@@ -367,16 +367,16 @@ class OrigineSharePointTests(TestCase):
 
         self.assertEqual(managed, {2500})
 
-    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
     def test_nothing_is_read_only_without_sharepoint(self, _cfg):
         Origine.objects.create(assenza_id=1, creata_su_sharepoint=True)
         self.assertEqual(views._sharepoint_managed_ids([1]), set())
 
-    @patch("assenze.views._fill_sp_lookups", return_value=[])
-    @patch("assenze.views._update_assenza", return_value=True)
-    @patch("assenze.views._graph_create", return_value=(True, {"id": "900"}))
-    @patch("assenze.views._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._fill_sp_lookups", return_value=[])
+    @patch("assenze.views._helpers._update_assenza", return_value=True)
+    @patch("assenze.views._helpers._graph_create", return_value=(True, {"id": "900"}))
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_request_sent_by_the_portal_is_recorded_as_portal(self, *_):
         result = views._sync_one_to_sharepoint(7, force_update=True)
 
@@ -388,13 +388,13 @@ class OrigineSharePointTests(TestCase):
 
 class AutomationQueueSkipTests(TestCase):
     def test_sqlite_has_no_triggers_nothing_to_do(self):
-        with patch("assenze.views._db_vendor", return_value="sqlite"), patch("assenze.views.connections") as conns:
+        with patch("assenze.views._helpers._db_vendor", return_value="sqlite"), patch("assenze.views._helpers.connections") as conns:
             views._set_automation_queue_skip(True)
         conns.__getitem__.assert_not_called()
 
     def test_sql_server_sets_and_clears_the_session_flag(self):
         cursor = MagicMock()
-        with patch("assenze.views._db_vendor", return_value="microsoft"), patch("assenze.views.connections") as conns:
+        with patch("assenze.views._helpers._db_vendor", return_value="microsoft"), patch("assenze.views._helpers.connections") as conns:
             conns.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
             views._set_automation_queue_skip(True)
             views._set_automation_queue_skip(False)
@@ -414,34 +414,34 @@ class AutomationQueueSkipTests(TestCase):
 
 
 @override_settings(CACHES=_LOCMEM)
-@patch("assenze.views._table_exists", return_value=True)
-@patch("assenze.views.legacy_table_columns", return_value=set())
-@patch("assenze.views._graph_configured", return_value=True)
+@patch("assenze.views._helpers._table_exists", return_value=True)
+@patch("assenze.views._helpers.legacy_table_columns", return_value=set())
+@patch("assenze.views._helpers._graph_configured", return_value=True)
 class SyncWritesSkipAutomationTests(TestCase):
     def setUp(self):
         cache.clear()
 
     def test_pull_turns_the_flag_on_and_always_off(self, *_):
-        with patch("assenze.views._graph_delta_changes", return_value=([{"id": "3", "fields": {"x": 1}}], "")), \
-                patch("assenze.views._find_assenza_id_by_sp_id", return_value=30), \
-                patch("assenze.views._apply_sp_item_to_local", side_effect=RuntimeError("boom")), \
-                patch("assenze.views._set_automation_queue_skip") as mock_skip:
+        with patch("assenze.views._helpers._graph_delta_changes", return_value=([{"id": "3", "fields": {"x": 1}}], "")), \
+                patch("assenze.views._helpers._find_assenza_id_by_sp_id", return_value=30), \
+                patch("assenze.views._helpers._apply_sp_item_to_local", side_effect=RuntimeError("boom")), \
+                patch("assenze.views._helpers._set_automation_queue_skip") as mock_skip:
             views._sync_pull_from_sharepoint()
 
         self.assertEqual([c.args[0] for c in mock_skip.call_args_list], [True, False])
 
     def test_push_turns_the_flag_on_and_off(self, *_):
         Outbox.objects.create(assenza_id=7)
-        with patch("assenze.views._get_assenza", return_value={"id": 7}), \
-                patch("assenze.views._sync_one_to_sharepoint", return_value={"ok": True, "action": "update"}), \
-                patch("assenze.views._set_automation_queue_skip") as mock_skip:
+        with patch("assenze.views._helpers._get_assenza", return_value={"id": 7}), \
+                patch("assenze.views._helpers._sync_one_to_sharepoint", return_value={"ok": True, "action": "update"}), \
+                patch("assenze.views._helpers._set_automation_queue_skip") as mock_skip:
             views._sp_push_outbox()
 
         self.assertEqual([c.args[0] for c in mock_skip.call_args_list], [True, False])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False, CACHES=_LOCMEM)
-@patch("assenze.views._graph_configured", return_value=True)
+@patch("assenze.views._helpers._graph_configured", return_value=True)
 class ReadOnlyOnPortalTests(TestCase):
     def setUp(self):
         cache.clear()
@@ -451,10 +451,10 @@ class ReadOnlyOnPortalTests(TestCase):
         )
         self.client.force_login(user)
 
-    @patch("assenze.views._update_assenza")
-    @patch("assenze.views._can_manage_record", return_value=True)
-    @patch("assenze.views._get_assenza", return_value={"id": 42, "consenso": "In attesa"})
-    @patch("assenze.views._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": True})
+    @patch("assenze.views._helpers._update_assenza")
+    @patch("assenze.views._helpers._can_manage_record", return_value=True)
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 42, "consenso": "In attesa"})
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": True})
     def test_capo_cannot_approve_a_request_born_on_sharepoint(self, _perms, _get, _can, mock_update, _cfg):
         response = self.client.post(
             reverse("assenze_api_car_consenso", args=[42]),
@@ -465,9 +465,9 @@ class ReadOnlyOnPortalTests(TestCase):
         self.assertEqual(response.status_code, 409)
         mock_update.assert_not_called()
 
-    @patch("assenze.views._delete_assenza")
-    @patch("assenze.views._get_assenza", return_value={"id": 42, "sharepoint_item_id": "501"})
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    @patch("assenze.views._helpers._delete_assenza")
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 42, "sharepoint_item_id": "501"})
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
     def test_delete_is_refused_and_nothing_is_queued(self, _perms, _get, mock_delete, _cfg):
         response = self.client.post(reverse("assenze_api_evento_delete", args=[42]), data="{}", content_type="application/json")
 
@@ -475,11 +475,11 @@ class ReadOnlyOnPortalTests(TestCase):
         mock_delete.assert_not_called()
         self.assertFalse(Outbox.objects.exists())
 
-    @patch("assenze.views._update_assenza", return_value=True)
-    @patch("assenze.views._sp_kick_push")
-    @patch("assenze.views._can_manage_record", return_value=True)
-    @patch("assenze.views._get_assenza", return_value={"id": 43, "consenso": "In attesa"})
-    @patch("assenze.views._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": True})
+    @patch("assenze.views._helpers._update_assenza", return_value=True)
+    @patch("assenze.views._helpers._sp_kick_push")
+    @patch("assenze.views._helpers._can_manage_record", return_value=True)
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 43, "consenso": "In attesa"})
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": True})
     def test_request_born_on_the_portal_is_still_approved_here(self, _perms, _get, _can, _kick, mock_update, _cfg):
         response = self.client.post(
             reverse("assenze_api_car_consenso", args=[43]),
@@ -518,8 +518,8 @@ class SharePointLookupTests(TestCase):
     def setUp(self):
         cache.clear()
 
-    @patch("assenze.views._graph_headers", return_value={})
-    @patch("assenze.views._graph_settings", return_value={"site_id": "S", "list_id_assenze": "A"})
+    @patch("assenze.views._helpers._graph_headers", return_value={})
+    @patch("assenze.views._helpers._graph_settings", return_value={"site_id": "S", "list_id_assenze": "A"})
     @patch("assenze.views.requests.get")
     def test_maps_are_read_from_the_lists_pointed_by_the_lookup_columns(self, mock_get, *_):
         responses = {
@@ -552,7 +552,7 @@ class SharePointLookupTests(TestCase):
         views._sp_lookup_maps()
         self.assertEqual(mock_get.call_count, calls)  # la seconda volta dalla cache
 
-    @patch("assenze.views._capo_email_for_row", return_value="capo.uno@example.local")
+    @patch("assenze.views._helpers._capo_email_for_row", return_value="capo.uno@example.local")
     def test_person_by_username_email_or_name_capo_by_email(self, _capo):
         maps = {
             "capi_email": {"capo.uno@example.local": 11},
@@ -566,8 +566,8 @@ class SharePointLookupTests(TestCase):
         self.assertEqual(views._sp_lookup_ids_for_row({"copia_nome": "giallo  anna"}, maps), (23, 11))
         self.assertEqual(views._sp_lookup_ids_for_row({"copia_nome": "Nessuno"}, maps), (None, 11))
 
-    @patch("assenze.views._effective_capo_option", return_value=("Capo.Area@Example.local", False))
-    @patch("assenze.views._load_capi_options", return_value=[])
+    @patch("assenze.views._helpers._effective_capo_option", return_value=("Capo.Area@Example.local", False))
+    @patch("assenze.views._helpers._load_capi_options", return_value=[])
     def test_capo_email_uses_the_same_rule_as_the_form(self, _capi, mock_effective):
         from datetime import datetime
 
@@ -578,18 +578,18 @@ class SharePointLookupTests(TestCase):
         self.assertEqual(email, "capo.area@example.local")
         self.assertEqual(mock_effective.call_args.kwargs["request_day"].isoformat(), "2026-09-23")
 
-    @patch("assenze.views._update_assenza", return_value=True)
-    @patch("assenze.views._graph_create", return_value=(True, {"id": "900"}))
+    @patch("assenze.views._helpers._update_assenza", return_value=True)
+    @patch("assenze.views._helpers._graph_create", return_value=(True, {"id": "900"}))
     @patch(
-        "assenze.views._sp_lookup_maps",
+        "assenze.views._helpers._sp_lookup_maps",
         return_value={"capi_email": {"capo.uno@example.local": 11}, "dip_username": {"m.rossi": 21}, "dip_nome": {}},
     )
-    @patch("assenze.views._capo_email_for_row", return_value="capo.uno@example.local")
+    @patch("assenze.views._helpers._capo_email_for_row", return_value="capo.uno@example.local")
     @patch(
-        "assenze.views._get_assenza",
+        "assenze.views._helpers._get_assenza",
         return_value={"id": 7, "sharepoint_item_id": "", "aliasusername": "m.rossi", "capo_reparto_lookup_id": 5},
     )
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_request_is_sent_with_person_and_capo_filled(self, _cfg, _get, _capo, _maps, mock_create, mock_update):
         result = views._sync_one_to_sharepoint(7, force_update=True)
 
@@ -599,10 +599,10 @@ class SharePointLookupTests(TestCase):
         self.assertEqual(result["lookup_missing"], [])
         self.assertEqual(mock_update.call_args_list[0].args[1], {"nome_lookup_id": 21, "capo_reparto_lookup_id": 11})
 
-    @patch("assenze.views._sp_lookup_maps", side_effect=RuntimeError("Graph GET 503"))
-    @patch("assenze.views._graph_create")
-    @patch("assenze.views._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._sp_lookup_maps", side_effect=RuntimeError("Graph GET 503"))
+    @patch("assenze.views._helpers._graph_create")
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_graph_error_on_lookups_keeps_the_request_queued(self, _cfg, _get, mock_create, _maps):
         Outbox.objects.create(assenza_id=7)
 
@@ -612,13 +612,13 @@ class SharePointLookupTests(TestCase):
         self.assertEqual(result["totals"]["failed"], 1)
         self.assertTrue(Outbox.objects.filter(assenza_id=7).exists())
 
-    @patch("assenze.views._get_assenza", return_value={"id": 7})
-    @patch("assenze.views._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._get_assenza", return_value={"id": 7})
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
     def test_push_counts_requests_sent_without_capo(self, *_):
         Outbox.objects.create(assenza_id=7)
         sent = {"ok": True, "action": "create", "sharepoint_item_id": "9", "lookup_missing": ["capo"]}
 
-        with patch("assenze.views._sync_one_to_sharepoint", return_value=sent):
+        with patch("assenze.views._helpers._sync_one_to_sharepoint", return_value=sent):
             result = views._sp_push_outbox()
 
         self.assertEqual(result["totals"]["senza_capo"], 1)

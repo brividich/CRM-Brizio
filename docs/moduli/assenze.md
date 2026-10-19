@@ -12,6 +12,8 @@ Richieste, gestione, calendario, certificazione presenza, **riconciliazione pres
 
 Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`.
 
+- **Viste in package `assenze/views/`** (18/10/2026, nessuna migrazione): il monolite `views.py` (6.700 righe, 214 funzioni) è spezzato per area — `eventi` (menu, calendario, API eventi e colori, conflitti con i corsi, capo predefinito; `calendario` resta il nome della view), `richieste` (richiesta, le mie richieste, invio e consenso, CAR, certificazione presenza), `amministrazione` (gestione, impostazioni, export CSV, riconciliazione), `sharepoint` (push/pull) — più `_helpers` con le funzioni condivise anche da `htmx_views.py`, `riconciliazione.py`, `ai_assistant` e dashboard (Graph/SharePoint `_graph_*`/`_sp_*`, permessi `_assenze_permissions`, identità legacy, query `_fetch_all_dict`, conversioni tipo/consenso). `__init__.py` lega le 25 view di `urls.py` e legge il resto via `__getattr__`: `urls.py`, gli altri moduli e `from assenze.views import …` non cambiano. Nei test `mock.patch` va su `assenze.views._helpers.nome` — anche per `render`, `connections`, `log_action`, `get_legacy_user`, `legacy_table_columns`, `user_can_modulo_action`, che le aree chiamano come `_helpers.X` — oppure su `assenze.views.<area>.nome` per le funzioni dell'area.
+
 - **1 modello Django**: `CertificazionePresenza` (+ tabelle legacy managed)
 - **Workflow completo**: richiesta → approvazione capo reparto → notifica → calendario
 - **Calendario** con vista mensile/settimanale e colori per tipo, **a tutta larghezza** della finestra
