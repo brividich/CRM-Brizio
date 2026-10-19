@@ -149,11 +149,12 @@ def run_security_cycle_task():
 
     logger = logging.getLogger(__name__)
     result = {}
-    from security.services import defender_alerts
+    from security.services import defender_alerts, entra_signals
 
     steps = (
         ("mailboxes", ingest_security_mailboxes_task),
         ("defender", defender_alerts.run),
+        ("entra", entra_signals.run),
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),

@@ -215,17 +215,13 @@ def check_graph_token() -> CheckResult:
     Se l'integrazione non è configurata, ritorna SKIPPED senza errore.
     """
     name = "graph_token"
-    tenant = (
-        getattr(settings, "GRAPH_TENANT_ID", "") or getattr(settings, "AZURE_TENANT_ID", "") or ""
-    ).strip()
-    client_id = (
-        getattr(settings, "GRAPH_CLIENT_ID", "") or getattr(settings, "AZURE_CLIENT_ID", "") or ""
-    ).strip()
-    client_secret = (
-        getattr(settings, "GRAPH_CLIENT_SECRET", "")
-        or getattr(settings, "AZURE_CLIENT_SECRET", "")
-        or ""
-    ).strip()
+    # Stessa ricerca del resto del portale (settings → .env → impostazioni SOC): prima
+    # leggeva solo i settings e in produzione, dove le credenziali stanno nel .env,
+    # il controllo risultava sempre «non configurato».
+    from core.m365_graph import credenziali
+
+    cfg = credenziali()
+    tenant, client_id, client_secret = cfg["tenant_id"], cfg["client_id"], cfg["client_secret"]
 
     if not (tenant and client_id and client_secret):
         return CheckResult(
