@@ -157,7 +157,7 @@ class LegacyLoginView(LoginView):
                         if module and module.get("home_url"):
                             return module["home_url"]
         except Exception:
-            pass
+            logger.debug("Redirect post-login: destinazione non risolta, uso la home", exc_info=True)
         return reverse("dashboard_home")
 
 

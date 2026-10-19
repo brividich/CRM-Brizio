@@ -210,7 +210,7 @@ class LDAPBackend:
                 try:
                     candidate.unbind()
                 except Exception:
-                    pass
+                    logger.debug("LDAP: unbind del candidato fallito", exc_info=True)
             if conn is None:
                 return None
             groups: list[str] = []
@@ -222,7 +222,7 @@ class LDAPBackend:
                 try:
                     conn.unbind()
                 except Exception:
-                    pass
+                    logger.debug("LDAP: unbind fallito", exc_info=True)
         except (LDAPSocketOpenError, LDAPException, socket.error, OSError, ValueError) as exc:
             logger.warning("LDAP auth failed/unavailable: %s", exc)
             return None
