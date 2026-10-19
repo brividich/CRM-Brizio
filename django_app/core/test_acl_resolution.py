@@ -266,7 +266,7 @@ class AccessiNegatiTest(TestCase):
         response = self.client.get(self.panel_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Mario Rossi")
+        self.assertContains(response, "MARIO ROSSI")  # nominativi in maiuscolo (core.naming)
         self.assertContains(response, "Admin Portale › Utenti")
         self.assertContains(response, "Negato esplicitamente")
         self.assertContains(response, "Da decidere (1)")
