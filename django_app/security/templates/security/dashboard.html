@@ -71,6 +71,28 @@
   {% endfor %}
 </section>
 
+{% if secure_score %}
+<section class="sec-panel sec-secure-score" style="margin-top: 12px;" aria-labelledby="sec-ss-title">
+  <div class="sec-section-head"><h2 id="sec-ss-title">Microsoft Secure Score</h2><span class="sec-muted">al {{ secure_score.data_label }}</span></div>
+  <div class="sec-ss-body">
+    <div class="sec-ss-score">
+      <strong>{{ secure_score.percentuale }}%</strong>
+      <span>{{ secure_score.punteggio }} su {{ secure_score.massimo }} punti</span>
+      <span class="sec-muted">{% if secure_score.variazione_30gg > 0 %}+{% endif %}{{ secure_score.variazione_30gg }} punti % in 30 giorni</span>
+      {% if secure_score.spark %}<svg class="ov-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ secure_score.spark }}"></polyline></svg>{% endif %}
+    </div>
+    <div class="sec-ss-azioni">
+      <h3>Le azioni che valgono di più</h3>
+      <ul class="sec-mini-list">
+        {% for a in secure_score.azioni %}
+          <li><span>{% if a.url %}<a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titolo }}</a>{% else %}{{ a.titolo }}{% endif %}<small class="sec-muted" style="display:block;">{{ a.categoria }}</small></span><span class="sec-badge info">+{{ a.punti }}</span></li>
+        {% empty %}<li><span class="sec-muted">Nessuna azione aperta.</span></li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <section class="sec-grid sec-two-col sec-dash-cols" style="margin-top: 12px;">
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Eventi e alert</h2><span class="sec-badge">Ultimi {{ trend.days|length }} giorni</span></div>

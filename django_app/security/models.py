@@ -1295,6 +1295,7 @@ class SoftwareSourceKind(models.TextChoices):
     BUSINESSLOG = "businesslog", "BusinessLog"
     OTHER = "other", "Altro export"
     SNMP_FIRMWARE = "snmp_firmware", "Firmware da monitoraggio SNMP"
+    DEFENDER = "defender", "Microsoft Defender for Endpoint"
 
 
 class SoftwareImportPreset(models.Model):

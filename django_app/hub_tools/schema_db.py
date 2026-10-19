@@ -114,7 +114,8 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Microsoft Graph (Microsoft 365)",
         "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
         "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
-               "alert di Microsoft Defender con SecurityAlert.Read.All; Microsoft Entra ID: account degli ex dipendenti e audit "
+               "alert di Microsoft Defender con SecurityAlert.Read.All, incidenti con SecurityIncident.Read.All, Secure Score con "
+               "SecurityEvents.Read.All, software dei PC dall'API di Defender for Endpoint con Software.Read.All; Microsoft Entra ID: account degli ex dipendenti e audit "
                "amministrativo con User.Read.All e AuditLog.Read.All), Ruoli e permessi (scheda «Account Microsoft 365»), Centrale di comando (stato dei servizi Microsoft 365 con ServiceHealth.Read.All), Licenze software (abbonamenti "
                "Microsoft 365 con Organization.Read.All e LicenseAssignment.Read.All), Asset IT (PC gestiti da Microsoft Intune con "
                "DeviceManagementManagedDevices.Read.All, tabella assets_dispositivointune), "
