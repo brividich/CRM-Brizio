@@ -718,6 +718,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Microsoft Intune — dispositivi gestiti (conformità, cifratura, ultima sync):
+        # prima degli avvisi IT delle 07:15, che ne riportano i problemi.
+        # Serve il permesso Graph DeviceManagementManagedDevices.Read.All.
+        "name": "intune_sync",
+        "func": "assets.tasks.run_intune_sync",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "45 6 * * *",       # ogni mattina alle 06:45
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # DPI — promemoria DPI scaduti / in scadenza (+ notifica in-app). Destinatari
         # da impostazioni DPI/SiteConfig con fallback ADMINS/superuser (non no-op
         # puro): disattivabile dalla Centrale di comando.
