@@ -132,3 +132,46 @@ class AllarmeTests(TestCase):
     def test_registro_readyz_contiene_i_controlli_mai_critici(self):
         for nome in health.INFRA_CHECK_NAMES:
             self.assertIn(nome, health.available_checks())
+
+
+class M365ServiziTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.delete("monitoring:m365_servizi")
+
+    def _check(self, servizi=None, errore=None):
+        from unittest.mock import patch
+
+        from monitoring.infra_checks import check_m365_servizi
+
+        effetto = {"side_effect": errore} if errore else {"return_value": servizi or []}
+        with patch("core.m365_graph.configurato", return_value=True), patch("core.m365_graph.get_all", **effetto):
+            return check_m365_servizi()
+
+    def test_tutto_operativo(self):
+        r = self._check([{"service": "Exchange Online", "status": "serviceOperational"}])
+        self.assertEqual(r.status, "ok")
+        self.assertFalse(r.critical)
+
+    def test_servizio_degradato_e_avviso_non_guasto(self):
+        r = self._check([{"service": "Exchange Online", "status": "serviceDegradation"},
+                         {"service": "Dynamics 365", "status": "serviceInterruption"}])
+        self.assertEqual(r.status, "warn")
+        self.assertIn("Exchange Online", r.message)
+        self.assertNotIn("Dynamics", r.message)  # servizio non usato dal portale
+
+    def test_permesso_mancante(self):
+        from core.m365_graph import GraphError
+
+        r = self._check(errore=GraphError("manca il permesso «ServiceHealth.Read.All»", 403))
+        self.assertEqual(r.status, "warn")
+        self.assertIn("ServiceHealth.Read.All", r.message)
+
+    def test_non_configurato(self):
+        from unittest.mock import patch
+
+        from monitoring.infra_checks import check_m365_servizi
+
+        with patch("core.m365_graph.configurato", return_value=False):
+            self.assertEqual(check_m365_servizi().status, "skipped")
