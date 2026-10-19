@@ -1093,6 +1093,73 @@ class Sidebar(tk.Frame):
 # BASE PAGE
 # ─────────────────────────────────────────────────────────────
 
+
+def qcluster_sync_after_deploy(page, ep: Path, env: str, errors: list) -> None:
+    """Dopo l'attivazione (installazione, promozione, Server Dashboard): aggiorna gli script qcluster in shared\\scripts e riavvia il worker.
+
+    Il task e il watchdog eseguono le copie in shared\\scripts, non la release:
+    senza questo passo restano alla versione dell'ultima installazione manuale.
+    Si aggiornano solo gli script gia' installati (task/watchdog esistenti).
+    Il riavvio carica il codice e i modelli della nuova release.
+    """
+    ep = Path(ep)
+    src_dir = ep / "current" / "deployment"
+    # ep = <base>\<env>: la cartella base è il genitore (vale per tutte le schermate).
+    dest_dir = ep.parent / "shared" / "scripts"
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    for name in ("start_qcluster.ps1", "watch_qcluster.ps1"):
+        src, dest = src_dir / name, dest_dir / name
+        if not src.exists() or not dest.exists():
+            page._log_line(f"  · {name}: non installato, nessuna copia", "dim")
+            continue
+        try:
+            if src.read_bytes() == dest.read_bytes():
+                page._log_line(f"  ✓ {name} già aggiornato", "ok")
+                continue
+            shutil.copy2(str(dest), str(dest_dir / f"{name}.{stamp}.bak"))
+            shutil.copy2(str(src), str(dest))
+            page._log_line(f"  ✓ {name} aggiornato in shared\\scripts", "ok")
+        except Exception as e:
+            page._append_error(errors, f"copia {name}")
+            page._log_line(f"  ✗ {name}: {e}", "err")
+
+    task_name = f"QCluster_{env.upper()}"
+    # Il launcher nuovo chiude da solo eventuali python residui del precedente.
+    ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+$t = Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+if (-not $t) {{ Write-Output 'NOTASK'; return }}
+if ($t.State -eq 'Disabled') {{ Write-Output 'DISABLED'; return }}
+Stop-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+for ($i = 0; $i -lt 20 -and (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State -eq 'Running'; $i++) {{ Start-Sleep -Seconds 1 }}
+Start-Sleep -Seconds 2
+Start-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+Start-Sleep -Seconds 5
+Write-Output ('STATE:' + (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State)
+}} catch {{
+Write-Output "ERR:$_"
+}}
+"""
+    try:
+        r = subprocess.run(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+        out = (r.stdout or "").strip()
+    except Exception as exc:
+        out = f"ERR:{exc}"
+    if out == "NOTASK":
+        page._log_line(f"  · Task {task_name} non registrato: qcluster non riavviato", "warn")
+    elif out == "DISABLED":
+        page._log_line(f"  · Task {task_name} disabilitato (manutenzione): non riavviato", "warn")
+    elif out == "STATE:Running":
+        page._log_line(f"  ✓ qcluster riavviato con la nuova release ({task_name})", "ok")
+    else:
+        page._append_error(errors, "riavvio qcluster")
+        page._log_line(f"  ✗ Riavvio qcluster: {out[:200] or 'output vuoto'}", "err")
+
+
 class Page(tk.Frame):
     def __init__(self, parent, title, subtitle=""):
         super().__init__(parent, bg="white")
@@ -2968,6 +3035,10 @@ class InstallPage(Page):
             w = self._pb_frame.winfo_width()
             self._pb_fill.place(width=int(w * pct / 100))
         self._log.after(0, _do)
+
+    def _q_sync_after_deploy(self, ep: Path, env: str, errors: list) -> None:
+        """Aggiorna gli script del qcluster e riavvia il worker (funzione di modulo condivisa)."""
+        qcluster_sync_after_deploy(self, ep, env, errors)
 
     @staticmethod
     def _append_error(errors, entry):
@@ -5322,6 +5393,10 @@ class ReleaseRunPage(Page):
             w = self._pb_frame.winfo_width()
             self._pb_fill.place(width=int(w * pct / 100))
         self._log.after(0, _do)
+
+    def _q_sync_after_deploy(self, ep: Path, env: str, errors: list) -> None:
+        """Aggiorna gli script del qcluster e riavvia il worker (funzione di modulo condivisa)."""
+        qcluster_sync_after_deploy(self, ep, env, errors)
 
     @staticmethod
     def _append_error(errors, entry):
@@ -9584,67 +9659,7 @@ if ($t) {{
         return dest if dest.exists() else src
 
     def _q_sync_after_deploy(self, ep: Path, env: str, errors: list) -> None:
-        """Dopo l'attivazione: aggiorna gli script qcluster in shared\\scripts e riavvia il worker.
-
-        Il task e il watchdog eseguono le copie in shared\\scripts, non la release:
-        senza questo passo restano alla versione dell'ultima installazione manuale.
-        Si aggiornano solo gli script gia' installati (task/watchdog esistenti).
-        Il riavvio carica il codice e i modelli della nuova release.
-        """
-        src_dir = ep / "current" / "deployment"
-        dest_dir = Path(self.BASE_DIR) / "shared" / "scripts"
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        for name in ("start_qcluster.ps1", "watch_qcluster.ps1"):
-            src, dest = src_dir / name, dest_dir / name
-            if not src.exists() or not dest.exists():
-                self._log_line(f"  · {name}: non installato, nessuna copia", "dim")
-                continue
-            try:
-                if src.read_bytes() == dest.read_bytes():
-                    self._log_line(f"  ✓ {name} già aggiornato", "ok")
-                    continue
-                shutil.copy2(str(dest), str(dest_dir / f"{name}.{stamp}.bak"))
-                shutil.copy2(str(src), str(dest))
-                self._log_line(f"  ✓ {name} aggiornato in shared\\scripts", "ok")
-            except Exception as e:
-                self._append_error(errors, f"copia {name}")
-                self._log_line(f"  ✗ {name}: {e}", "err")
-
-        task_name = self._q_task_name(env)
-        # Il launcher nuovo chiude da solo eventuali python residui del precedente.
-        ps = f"""
-$ErrorActionPreference = 'Stop'
-try {{
-    $t = Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
-    if (-not $t) {{ Write-Output 'NOTASK'; return }}
-    if ($t.State -eq 'Disabled') {{ Write-Output 'DISABLED'; return }}
-    Stop-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
-    for ($i = 0; $i -lt 20 -and (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State -eq 'Running'; $i++) {{ Start-Sleep -Seconds 1 }}
-    Start-Sleep -Seconds 2
-    Start-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
-    Start-Sleep -Seconds 5
-    Write-Output ('STATE:' + (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State)
-}} catch {{
-    Write-Output "ERR:$_"
-}}
-"""
-        try:
-            r = subprocess.run(
-                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
-            out = (r.stdout or "").strip()
-        except Exception as exc:
-            out = f"ERR:{exc}"
-        if out == "NOTASK":
-            self._log_line(f"  · Task {task_name} non registrato: qcluster non riavviato", "warn")
-        elif out == "DISABLED":
-            self._log_line(f"  · Task {task_name} disabilitato (manutenzione): non riavviato", "warn")
-        elif out == "STATE:Running":
-            self._log_line(f"  ✓ qcluster riavviato con la nuova release ({task_name})", "ok")
-        else:
-            self._append_error(errors, "riavvio qcluster")
-            self._log_line(f"  ✗ Riavvio qcluster: {out[:200] or 'output vuoto'}", "err")
+        qcluster_sync_after_deploy(self, ep, env, errors)
 
     def _q_register_ps(self, env: str, script_path, task_name: str) -> str:
         """Script PowerShell che (ri)registra il task qcluster. Emette OK / ERR:.
