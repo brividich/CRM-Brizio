@@ -233,5 +233,19 @@ def rebuild_category_sidebar(AssetCategory, AssetSidebarButton) -> tuple[int, in
             "is_visible": True,
         },
     )
+    # Stessa garanzia per la sezione PART 145: in produzione la voce era sparita.
+    AssetSidebarButton.objects.get_or_create(
+        code="part_145_list",
+        defaults={
+            "section": "OPERATIONS",
+            "parent": None,
+            "label": "PART 145",
+            "target_url": "django:assets:part_145_list",
+            "active_match": "/assets/part-145/",
+            "is_subitem": False,
+            "sort_order": 70,
+            "is_visible": True,
+        },
+    )
 
     return groups, items

@@ -41,6 +41,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#storico">Storico delle modifiche</a>
     <a href="#software">Software installati e licenze</a>
     <a href="#catalogo">Catalogo software</a>
+    <a href="#part145">PART 145</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
     <a href="#permessi">Permessi</a>
@@ -310,6 +311,12 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Solo gli amministratori del modulo Asset possono cambiare la decisione; gli altri la vedono.</p>
       <h3>Cosa succede nel SOC</h3>
       <p>Dopo ogni salvataggio e ogni import dell'inventario il SOC controlla il catalogo: se nuovi PC hanno un software <em>Non autorizzato</em> o <em>Da rimuovere</em>, o una versione sotto la minima, nasce un alert (uno per software, che si aggiorna se altri PC si aggiungono). Il riepilogo è nella pagina Vulnerabilità del SOC, riquadro «Software non conforme».</p>
+    </section>
+
+    <section class="ag-sec" id="part145">
+      <h2>PART 145</h2>
+      <p>Le attrezzature che rientrano nel regolamento aeronautico PART 145 si marcano con la casella <strong>«Rientra in PART 145»</strong> nel form dell'asset o della macchina. La scheda mostra il badge rosso <strong>PART 145</strong> e la scheda PDF lo riporta in testa.</p>
+      <p>La voce <strong>PART 145</strong> del menu del modulo apre <a href="{% url 'assets:part_145_list' %}">l'elenco delle attrezzature PART 145</a>, scaricabile in Excel e PDF.</p>
     </section>
 
     <section class="ag-sec" id="report">
