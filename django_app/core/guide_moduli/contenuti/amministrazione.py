@@ -29,7 +29,7 @@ GUIDA = {
                 ("def", [
                     ("Utenti", "elenco account, disattivazione, impersonazione («vedi come»), import da Active Directory (Import Utenti LDAP)."),
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
-                    ("Ruoli e permessi", "il sistema unico: matrice ruolo × modulo × azione. Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo. Ha la sua guida."),
+                    ("Ruoli e permessi", "il sistema unico: matrice ruolo × modulo × azione. Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo. Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
                     ("Navigation Builder", "le voci dei menu."),
                     ("Branding", "logo, favicon, nome e colori."),
