@@ -16,7 +16,7 @@ Gli avvisi partono verso i **canali** (mail o Teams) definiti in **Configurazion
 | Soppressione appresa | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#soppressione-appresa) | Accesa |
 | Impatto CVE sugli asset | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#impatto-cve-sugli-asset) | Arricchimento spento |
 | Alert di Microsoft Defender | Vedi [Alert di Microsoft Defender](#alert-di-microsoft-defender) qui sotto | Spenta, severità minima Media |
-| Microsoft Entra ID (account e modifiche amministrative) | Vedi [Microsoft Entra ID](#microsoft-entra-id) qui sotto | Entrambi spenti, primo giro 7 giorni |
+| Microsoft Entra ID (account, modifiche amministrative, accessi) | Vedi [Microsoft Entra ID](#microsoft-entra-id) qui sotto | Tutti spenti, primo giro 7 giorni, Paesi ammessi IT, 10 tentativi falliti |
 
 ## Alert di Microsoft Defender
 
@@ -32,12 +32,14 @@ Serve il permesso applicativo **SecurityAlert.Read.All** (Microsoft Graph, con c
 
 ## Microsoft Entra ID
 
-Due controlli su Microsoft 365, ciascuno con il suo interruttore nella sezione **«Microsoft Entra ID (account e modifiche amministrative)»**. Gli eventi hanno la sorgente **Microsoft Entra ID (Graph)**.
+Tre controlli su Microsoft 365, ciascuno con il suo interruttore nella sezione **«Microsoft Entra ID (account, modifiche amministrative, accessi)»**. Gli eventi hanno la sorgente **Microsoft Entra ID (Graph)**.
 
 - **Controlla gli account degli ex dipendenti**: ogni 6 ore il SOC confronta gli account di Microsoft 365 con l'anagrafica (per email aziendale o di notifica e per nome di accesso). Per ogni account **ancora abilitato** di una persona con **data di cessazione passata** nasce un alert alto «Account Microsoft 365 attivo di un ex dipendente: <nome>». Quando l'account viene disattivato in Active Directory / Entra, l'alert si chiude da solo («Account disattivato in Microsoft 365»). Lo stesso elenco, con anche gli account inattivi e quelli non collegati, è in Amministrazione › Ruoli e permessi › «Account Microsoft 365».
 - **Leggi le modifiche amministrative di Entra**: ogni 15 minuti il SOC legge l'audit di Entra dal giro precedente (la prima volta: i giorni di **Primo giro dell'audit**, default 7) e apre un alert solo per le attività sensibili: autenticazione o federazione di un dominio (critico), ruoli di amministratore assegnati, criteri di accesso condizionale, credenziali/segreti delle app, MFA disattivata (alto), consensi e permessi concessi alle app, proprietari delle app, metodi MFA modificati (medio). Titolo: «Entra: <attività> (<su chi>) da <chi>». Le altre righe dell'audit non vengono salvate.
 
-Servono i permessi applicativi **User.Read.All** e **AuditLog.Read.All** (Microsoft Graph, con consenso amministratore). Prova dal terminale del server: `manage.py entra_signals --prova` (conta gli account, dice se l'ultimo accesso è leggibile e quante righe di audit sensibili ci sono nelle ultime 24 ore). L'esito dell'ultimo giro: `manage.py entra_signals`.
+- **Segnala gli accessi sospetti a Microsoft 365**: ogni 15 minuti il SOC legge gli accessi dal giro precedente e apre un alert per: **tentativi falliti a raffica** sullo stesso account (almeno **Tentativi falliti**, default 10, in un giro; medio), **accesso riuscito da un Paese non ammesso** (**Paesi ammessi**, codici a due lettere separati da virgole, default IT; alto), **accesso riuscito con un protocollo vecchio** senza MFA (IMAP4, POP3, SMTP autenticato, Exchange ActiveSync, altri client; medio). Al massimo un alert al giorno per account e motivo. I singoli accessi non vengono salvati nel portale: si guardano in Entra.
+
+Servono i permessi applicativi **User.Read.All** e **AuditLog.Read.All** (Microsoft Graph, con consenso amministratore). Prova dal terminale del server: `manage.py entra_signals --prova` (conta gli account, dice se l'ultimo accesso è leggibile, quante righe di audit sensibili ci sono nelle ultime 24 ore e quante anomalie di accesso nell'ultima ora). L'esito dell'ultimo giro: `manage.py entra_signals`.
 
 Come si comportano:
 

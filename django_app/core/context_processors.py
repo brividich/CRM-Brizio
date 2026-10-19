@@ -943,6 +943,16 @@ def dev_git_badge(_request):
     return {"dev_git": state} if state else {}
 
 
+def csp(request):
+    """``csp_nonce`` per gli script inline: ``<script nonce="{{ csp_nonce }}">``.
+
+    Il valore nasce in ``core.middleware.ContentSecurityPolicyMiddleware`` a ogni
+    richiesta; e' sempre presente (anche a nonce spento) così i template possono
+    portarlo già prima dell'attivazione di CSP_NONCE_ENABLED.
+    """
+    return {"csp_nonce": str(getattr(request, "csp_nonce", "") or "")}
+
+
 def app_meta(_request):
     current_release = get_current_release()
     return {

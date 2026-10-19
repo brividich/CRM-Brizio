@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta
 
-from .assenze_flow_merge import LEGACY, BRANCHED, MERGED, combined_config, merge_flows
+from .assenze_flow_merge import LEGACY, BRANCHED, MERGED, HR_PLACEHOLDER, combined_config, merge_flows
 from .models import AutomationRule, AutomationAction, AutomationCondition, AutomationApproval, AutomationRunLog
 from .services import process_approval_decision
 
@@ -51,6 +51,28 @@ class AbsenceFlowMergeTests(TestCase):
         self.assertEqual(first["rejected_actions"][0]["action_type"], "update_trigger_record")
         self.assertEqual(merged["else_actions"][0]["config_json"], self.legacy)
         self.assertEqual(self.branched["else_actions"], [])
+
+    def test_hr_placeholder_replaced_only_in_merged_rule(self):
+        branch = AutomationRule.objects.get(code=BRANCHED)
+        config = deepcopy(self.branched)
+        config["then_actions"][0]["approved_actions"][0]["to_template"] = HR_PLACEHOLDER
+        branch.actions.update(config_json=config)
+        merge_flows(apply=True, hr_recipient="assenze@example.com")
+        merged = AutomationAction.objects.get(rule__code=MERGED).config_json
+        self.assertEqual(merged["then_actions"][0]["approved_actions"][0]["to_template"], "assenze@example.com")
+        self.assertNotIn(HR_PLACEHOLDER, str(merged))
+        self.assertIn(HR_PLACEHOLDER, str(AutomationAction.objects.get(rule__code=BRANCHED).config_json))
+
+    def test_data_migration_merges_with_historical_models_and_skips_unknown_state(self):
+        from django.apps import apps as global_apps
+        from importlib import import_module
+        migration = import_module("automazioni.migrations.0030_unisci_flussi_assenze")
+        migration.unisci(global_apps, None)
+        self.assertEqual(list(AutomationRule.objects.filter(is_active=True).values_list("code", flat=True)), [MERGED])
+        # Second run (or unknown state) must not raise nor change anything.
+        AutomationRule.objects.filter(code=LEGACY).update(is_active=True)
+        migration.unisci(global_apps, None)
+        self.assertEqual(AutomationRule.objects.filter(is_active=True).count(), 2)
 
     def test_unknown_customizations_fail_without_mutations(self):
         branch = AutomationRule.objects.get(code=BRANCHED)

@@ -121,8 +121,34 @@ GUIDA = {
                 ("p", "Tutti i dettagli sono nella guida completa (collegamento in cima)."),
             ],
         },
+        {
+            "id": "intune",
+            "titolo": "PC gestiti da Microsoft Intune",
+            "blocchi": [
+                ("p", "Ogni mattina alle 06:45 il portale legge da Microsoft Intune i PC gestiti: nome, seriale, produttore, modello, "
+                      "Windows e versione, conformità ai criteri, cifratura del disco (BitLocker), ultima sincronizzazione, utente principale."),
+                ("ul", [
+                    "Collegamento all'asset: Asset → «Riconciliazione dispositivi», righe «Intune». La proposta viene dal numero di serie, poi dal nome; "
+                    "si conferma con il permesso di modificare quell'asset.",
+                    "Sull'asset collegato compare il riquadro «Microsoft Intune» (scheda Panoramica). Produttore, modello, seriale e sistema operativo "
+                    "vuoti vengono completati da Intune; quelli già scritti non si toccano.",
+                    "Gli avvisi IT del mattino (07:15) riportano i PC non cifrati, non conformi o che non si sincronizzano da oltre 30 giorni; "
+                    "la notifica in app arriva solo per i problemi nuovi.",
+                    "Serve il permesso Graph «DeviceManagementManagedDevices.Read.All» (applicazione, consenso amministratore). "
+                    "Prova dal terminale: intune_sync --prova; sincronizza subito: intune_sync.",
+                ]),
+            ],
+        },
     ],
     "problemi": [
+        {
+            "sintomo": "Un PC di Intune non viene proposto per nessun asset",
+            "fare": [
+                "La proposta usa il numero di serie dell'asset, poi il nome: controlla che l'asset abbia il seriale giusto (o lo stesso nome del PC).",
+                "Seriali di comodo come «To be filled by O.E.M.» non vengono usati: in quel caso conta solo il nome.",
+                "Se due asset hanno lo stesso seriale o nome, la riga resta «ambigua»: correggi il doppione.",
+            ],
+        },
         {
             "sintomo": "La mappa porte dello switch è vuota",
             "fare": [

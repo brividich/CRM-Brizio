@@ -1,4 +1,4 @@
-"""Avvisi proattivi dal monitoraggio IT: dispositivi che non rispondono e consumabili bassi.
+"""Avvisi proattivi dal monitoraggio IT: dispositivi che non rispondono, consumabili bassi e PC Intune con problemi.
 
 Pensato per girare una volta al giorno (django-q). Due canali:
 
@@ -83,6 +83,10 @@ def collect_problems(now=None) -> list[dict]:
             "detail": "", "url": reverse("contatori:macchina", args=[current.macchina_id]),
             "new": previous is None or previous.pct is None or previous.pct > LOW_TONER_PCT,
         })
+    # PC gestiti da Microsoft Intune: non cifrati, non conformi, che non si sincronizzano.
+    from assets.services.intune import problemi_aperti
+
+    problems.extend(problemi_aperti(now))
     return problems
 
 

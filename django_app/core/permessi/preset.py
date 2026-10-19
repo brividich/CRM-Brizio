@@ -22,8 +22,19 @@ P, T, A = "propri", "team", "tutti"
 TUTTE = AZIONI_STANDARD
 
 
+# Dotazione base di ogni preset: login/logout, home e dashboard, profilo,
+# preferenze, notifiche, rubrica, organigramma, cambio password (modulo
+# «bacheca») e lettura delle notizie. Un ruolo assegnato da solo deve gia'
+# far entrare la persona nel portale, senza dipendere dal ruolo base.
+_DOTAZIONE_BASE = {"bacheca": {"vedere": P, "creare": P, "modificare": P}, "notizie": {"vedere": A}}
+
+
 def _celle(**moduli) -> dict[str, dict[str, str]]:
-    return {modulo: dict(azioni) for modulo, azioni in moduli.items()}
+    """Celle di un preset: la dotazione base, poi le sue (che vincono)."""
+    celle = {modulo: dict(azioni) for modulo, azioni in _DOTAZIONE_BASE.items()}
+    for modulo, azioni in moduli.items():
+        celle[modulo] = {**celle.get(modulo, {}), **azioni}
+    return celle
 
 
 def _tutte(ambito: str = A, *, senza: tuple[str, ...] = ()) -> dict[str, str]:
@@ -40,8 +51,8 @@ _DOTAZIONE_POSIZIONE = {"ticket_it": {"vedere": P, "creare": P}, "assistente_ai"
 
 
 def _posizione(**moduli) -> dict[str, dict[str, str]]:
-    """Celle di una posizione: la dotazione comune, poi le sue (che vincono)."""
-    celle = {modulo: dict(azioni) for modulo, azioni in _DOTAZIONE_POSIZIONE.items()}
+    """Celle di una posizione: base e dotazione comune, poi le sue (che vincono)."""
+    celle = _celle(**_DOTAZIONE_POSIZIONE)
     for modulo, azioni in moduli.items():
         celle[modulo] = {**celle.get(modulo, {}), **azioni}
     return celle
@@ -81,7 +92,8 @@ PRESETS: tuple[Preset, ...] = (
     Preset(
         "direzione", "Direzione", 800,
         "Vede ed esporta i dati di tutti i moduli, presenti e futuri. Approva i documenti del riesame.",
-        celle=_celle(sistema_gestione={"approvare": A}, ticket_it={"creare": P}),
+        # «bacheca vedere» a «tutti»: una cella esplicita vince su «vede tutto» e non deve restringerlo.
+        celle=_celle(bacheca={"vedere": A}, sistema_gestione={"approvare": A}, ticket_it={"creare": P}),
         vede_tutto=True,
     ),
     Preset(
@@ -310,9 +322,7 @@ PRESETS: tuple[Preset, ...] = (
         "Ruolo base di chiunque abbia un account: proprie assenze, notizie, schede di sicurezza; "
         "segnala incidenti, anomalie e guasti, chiede DPI, prende visione delle procedure.",
         celle=_celle(
-            bacheca={"vedere": P, "creare": P, "modificare": P},
             assenze={"vedere": P, "creare": P, "modificare": P},
-            notizie={"vedere": A},
             schede_sicurezza={"vedere": P},
             rilevazione_incidenti={"vedere": P, "creare": P},
             dpi={"vedere": P, "creare": P},

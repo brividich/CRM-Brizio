@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -270,7 +271,7 @@ def _log_acl_once(level: str, cache_key: str, message: str, **extra) -> None:
         if not cache.add(throttle_key, 1, timeout=_ACL_MIDDLEWARE_LOG_TTL_SECONDS):
             return
     except Exception:
-        pass
+        logger.debug("ACL middleware: cache non disponibile per il throttling dei log", exc_info=True)
     log_fn = getattr(logger, level, logger.info)
     log_fn(message, extra=extra)
 
@@ -305,7 +306,16 @@ class ContentSecurityPolicyMiddleware:
     env CSP_POLICY; kill-switch CSP_ENABLED=0; rollout osservativo con
     CSP_REPORT_ONLY=1 (header Report-Only, nessun blocco).
     Una view puo' impostare il proprio header CSP: non viene sovrascritto.
+
+    Nonce (CSP_NONCE_ENABLED=1): ogni richiesta riceve ``request.csp_nonce`` e la
+    policy usata e' CSP_POLICY_NONCE con ``{nonce}`` sostituito; i template la
+    leggono come ``{{ csp_nonce }}`` (context processor ``core.context_processors.csp``).
+    Attenzione: con un nonce in script-src i browser ignorano 'unsafe-inline', quindi
+    va acceso solo quando ogni ``<script>`` inline porta ``nonce="{{ csp_nonce }}"`` e
+    non restano handler ``on*=`` nei template; prima in Report-Only per osservare.
     """
+
+    NONCE_PLACEHOLDER = "{nonce}"
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -314,15 +324,25 @@ class ContentSecurityPolicyMiddleware:
         self.header_name = (
             "Content-Security-Policy-Report-Only" if report_only else "Content-Security-Policy"
         )
-        self.policy = str(getattr(settings, "CSP_POLICY", "") or "").strip()
+        self.nonce_enabled = bool(getattr(settings, "CSP_NONCE_ENABLED", False))
+        policy_key = "CSP_POLICY_NONCE" if self.nonce_enabled else "CSP_POLICY"
+        self.policy = str(getattr(settings, policy_key, "") or "").strip()
+
+    @staticmethod
+    def new_nonce() -> str:
+        return secrets.token_urlsafe(18)
 
     def __call__(self, request):
+        request.csp_nonce = self.new_nonce()
         response = self.get_response(request)
         if not self.enabled or not self.policy:
             return response
         if "Content-Security-Policy" in response or "Content-Security-Policy-Report-Only" in response:
             return response
-        response[self.header_name] = self.policy
+        policy = self.policy
+        if self.nonce_enabled:
+            policy = policy.replace(self.NONCE_PLACEHOLDER, request.csp_nonce)
+        response[self.header_name] = policy
         return response
 
 

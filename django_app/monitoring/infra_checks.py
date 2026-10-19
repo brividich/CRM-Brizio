@@ -190,3 +190,57 @@ def check_tls_cert():
 
     cache.set(_TLS_CACHE_KEY, asdict(result), 6 * 3600)
     return result
+
+
+# ── Stato dei servizi Microsoft 365 ──────────────────────────────────────────
+
+_M365_CACHE_KEY = "monitoring:m365_servizi"
+_M365_CACHE_SECONDI = 15 * 60
+# Servizi da cui dipende il portale (lettura caselle, SharePoint, calendari, Entra).
+M365_SERVIZI = {"Exchange Online", "SharePoint Online", "OneDrive for Business", "Microsoft Teams",
+                "Microsoft Entra", "Microsoft Intune", "Microsoft Defender XDR", "Microsoft 365 suite"}
+# Stati che dicono «funziona» o «già risolto»: tutto il resto è un problema in corso.
+_M365_OK = {"serviceoperational", "servicerestored", "postincidentreviewpublished", "falsepositive",
+            "resolved", "resolvedexternal", "mitigated", "mitigatedexternal", "investigationsuspended"}
+
+
+def check_m365_servizi():
+    """Servizi Microsoft 365 degradati (Graph ``admin/serviceAnnouncement/healthOverviews``).
+
+    Mai FAIL: un disservizio di Microsoft non è un guasto del portale, ma spiega
+    perché caselle, SharePoint o calendari non rispondono. Cache 15 minuti.
+    Permesso Graph applicativo ``ServiceHealth.Read.All``.
+    """
+    from dataclasses import asdict
+
+    from monitoring.health import CheckResult, STATUS_OK, STATUS_SKIPPED, STATUS_WARN
+
+    name = "m365_servizi"
+    cached = cache.get(_M365_CACHE_KEY)
+    if isinstance(cached, dict):
+        return CheckResult(**cached)
+    from core import m365_graph
+
+    if not m365_graph.configurato():
+        return _result(name, STATUS_SKIPPED, "Microsoft Graph non configurato.")
+    try:
+        servizi = m365_graph.get_all(
+            f"{m365_graph.GRAPH}/admin/serviceAnnouncement/healthOverviews",
+            permesso="ServiceHealth.Read.All", max_pages=3,
+        )
+    except m365_graph.GraphError as exc:
+        result = _result(name, STATUS_WARN, f"Stato dei servizi non leggibile: {exc}"[:300])
+        cache.set(_M365_CACHE_KEY, asdict(result), _M365_CACHE_SECONDI)
+        return result
+    problemi = [
+        {"servizio": str(s.get("service") or ""), "stato": str(s.get("status") or "")}
+        for s in servizi
+        if str(s.get("service") or "") in M365_SERVIZI and str(s.get("status") or "").lower() not in _M365_OK
+    ]
+    if problemi:
+        elenco = ", ".join(f"{p['servizio']} ({p['stato']})" for p in problemi)
+        result = _result(name, STATUS_WARN, f"Microsoft segnala problemi su: {elenco}.", {"servizi": problemi})
+    else:
+        result = _result(name, STATUS_OK, "Servizi Microsoft 365 usati dal portale operativi.")
+    cache.set(_M365_CACHE_KEY, asdict(result), _M365_CACHE_SECONDI)
+    return result

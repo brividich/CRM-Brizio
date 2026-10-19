@@ -1,0 +1,18 @@
+{# Dispositivi Microsoft Intune collegati all'asset (assets.services.intune, letti ogni mattina). #}
+<section class="af-card af-it-intune" aria-labelledby="asset-it-intune-title" data-af-tab="Panoramica">
+  <div class="af-card-head"><div><div class="af-card-kicker">MICROSOFT INTUNE</div><h2 class="af-card-title" id="asset-it-intune-title">Gestione del dispositivo</h2></div></div>
+  <div class="af-it-body">
+    {% for d in it_intune %}
+      <div class="af-it-summary">
+        <div><span class="af-it-label">Dispositivo</span><strong>{{ d.nome|default:"—" }}</strong><span>{{ d.produttore }} {{ d.modello }}{% if d.seriale %} · S/N {{ d.seriale }}{% endif %}</span></div>
+        <div><span class="af-it-label">Sistema</span><strong>{{ d.sistema|default:"—" }}</strong><span>{{ d.versione_sistema }}</span></div>
+        <div><span class="af-it-label">Utente principale</span><strong>{{ d.utente_nome|default:"—" }}</strong><span>{{ d.utente_upn }}</span></div>
+        <div><span class="af-it-label">Conformità</span><strong>{% if d.conformita == "compliant" %}Conforme{% elif d.conformita == "noncompliant" %}Non conforme{% elif d.conformita == "inGracePeriod" %}In periodo di tolleranza{% else %}{{ d.conformita|default:"Non nota" }}{% endif %}</strong><span>ai criteri Intune</span></div>
+        <div><span class="af-it-label">Disco cifrato</span><strong>{% if d.cifrato is True %}Sì (BitLocker){% elif d.cifrato is False %}No{% else %}Non noto{% endif %}</strong><span></span></div>
+        <div><span class="af-it-label">Ultima sincronizzazione</span><strong>{{ d.ultima_sync|date:"d/m/Y H:i"|default:"mai" }}</strong><span>{% if not d.presente %}non più presente in Intune{% endif %}</span></div>
+      </div>
+      {% if d.problemi %}<p class="af-note af-it-intune-problemi"><strong>Da sistemare:</strong> {{ d.problemi_label|join:", " }}.</p>{% endif %}
+    {% endfor %}
+    <p class="af-note">Letto ogni mattina da Microsoft Intune: i dati si cambiano in Intune, non qui. I campi di inventario vuoti (produttore, modello, seriale, sistema operativo) vengono completati da Intune; quelli già scritti non vengono toccati.</p>
+  </div>
+</section>

@@ -258,6 +258,16 @@ CSP_POLICY = env(
         ]
     ),
 )
+# Nonce per gli script inline (prerequisito: nessun handler on*= e ogni <script>
+# inline con nonce="{{ csp_nonce }}"). CSP_NONCE_ENABLED=1 usa CSP_POLICY_NONCE,
+# in cui {nonce} viene sostituito a ogni richiesta dal middleware; il valore e'
+# in request.csp_nonce e nel contesto dei template come csp_nonce.
+# Rollout consigliato: CSP_NONCE_ENABLED=1 + CSP_REPORT_ONLY=1 per osservare.
+CSP_NONCE_ENABLED = env_bool("CSP_NONCE_ENABLED", False)
+CSP_POLICY_NONCE = env(
+    "CSP_POLICY_NONCE",
+    CSP_POLICY.replace("script-src 'self' 'unsafe-inline'", "script-src 'self' 'nonce-{nonce}'"),
+)
 
 # Liveness/readiness endpoints (monitoring/health.py).
 # HEALTHZ_ALLOWED_IPS: client IP autorizzati a chiamare /healthz e /readyz.
@@ -608,6 +618,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.legacy_nav",
                 "core.context_processors.app_meta",
+                "core.context_processors.csp",
                 "core.context_processors.ui_prefs_context",
                 "core.context_processors.dev_git_badge",
                 "monitoring.context_processors.monitoring_ui",

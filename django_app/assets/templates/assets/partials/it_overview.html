@@ -18,6 +18,7 @@
   {% security_asset_it_overview asset %}
   {% include "assets/partials/it_monitoring.html" %}
 {% endif %}
+{% if it_intune %}{% include "assets/partials/it_intune.html" %}{% endif %}
 <div data-af-tab="Panoramica">{% security_asset_vulns asset %}</div>
 <nav class="af-it-nav" aria-label="Approfondimenti asset IT" data-af-tabs-hide>
   <a href="#asset-it-technical">Tecnica e rete</a>

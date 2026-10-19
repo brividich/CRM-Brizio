@@ -1,6 +1,7 @@
 """Utility per 2FA: TOTP, OTP email, detection rete interna, crittografia secret."""
 from __future__ import annotations
 
+from django.core.exceptions import ObjectDoesNotExist
 import base64
 import hashlib
 import html as _html
@@ -363,7 +364,7 @@ def should_require_2fa(request, user) -> bool:
         u2f = user.twofa
         if not u2f.is_active:
             return False
-    except Exception:
+    except (ObjectDoesNotExist, AttributeError):
         pass  # utente senza record UserTwoFactor → deve configurare
 
     # Controlla rete interna
@@ -387,8 +388,8 @@ def is_2fa_verified(request) -> bool:
         dt = parse_datetime(verified_until)
         if dt and timezone.now() < dt:
             return True
-    except Exception:
-        pass
+    except (TypeError, ValueError):
+        logger.debug("2FA: timestamp di verifica in sessione non valido", exc_info=True)
     # scaduta o invalida — pulisci
     request.session.pop("twofa_verified_until", None)
     return False
@@ -415,8 +416,8 @@ def needs_totp_setup(user) -> bool:
             return True
         if u2f.method == "totp" and not u2f.totp_confirmed:
             return True
-    except Exception:
-        pass
+    except (ObjectDoesNotExist, AttributeError):
+        pass  # utente senza record UserTwoFactor
     return False
 
 
@@ -431,6 +432,6 @@ def initiate_2fa(request, user) -> None:
             code = generate_email_otp(user, get_client_ip(request))
             send_otp_email(user, code)
     except Exception:
-        pass
+        logger.warning("2FA: invio automatico del codice via email fallito per l'utente %s", getattr(user, "pk", None), exc_info=True)
     request.session["twofa_pending"] = True
     request.session.modified = True

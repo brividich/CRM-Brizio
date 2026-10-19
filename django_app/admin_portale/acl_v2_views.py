@@ -997,8 +997,8 @@ def acl_canonico(request):
             if getattr(nav_ov_user, "ruolo_id", None):
                 try:
                     role_id_for_nav_ov = int(nav_ov_user.ruolo_id)
-                except Exception:
-                    pass
+                except (TypeError, ValueError):
+                    role_id_for_nav_ov = None
             role_grants_map: dict[str, bool] = {}
             if role_id_for_nav_ov is not None:
                 role_grants_map = {
