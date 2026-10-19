@@ -37,6 +37,7 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
     filtro_stato = request.GET.get("stato", "").strip()          # scaduta/30/60/90/""
     filtro_reparto = request.GET.get("reparto", "").strip()
     export_csv = request.GET.get("format") == "csv"
+    export_ics = request.GET.get("format") == "ics"
 
     # Sorgenti da interrogare: solo quella selezionata, altrimenti tutte.
     if filtro_sorgente in PROVIDERS:
@@ -59,6 +60,13 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
     # Export CSV (prima della paginazione: esporta il set filtrato completo).
     if export_csv:
         return _export_csv(voci)
+    if export_ics:
+        from .scadenze_calendario import genera_ics
+
+        resp = HttpResponse(genera_ics(voci, base_url=request.build_absolute_uri("/")),
+                            content_type="text/calendar; charset=utf-8")
+        resp["Content-Disposition"] = 'attachment; filename="scadenzario.ics"'
+        return resp
 
     # KPI di sintesi.
     n_scadute = sum(1 for v in voci if v.scaduta)

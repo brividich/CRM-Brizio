@@ -772,6 +772,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Scadenzario → calendario Outlook personale («Scadenze NOVICROM HUB») di chi l'ha
+        # scelto in Impostazioni notifiche. Graph Calendars.ReadWrite (applicazione).
+        "name": "scadenze_outlook_sync",
+        "func": "dashboard.tasks.run_scadenze_outlook",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 6 * * *",       # ogni mattina alle 06:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo
         # agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op
         # altrimenti); giorni feriali, una mail al giorno al massimo.

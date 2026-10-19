@@ -485,6 +485,12 @@ class NotificaCanali(models.Model):
     digest_scadenze = models.BooleanField(default=False)
     digest_giorni = models.PositiveSmallIntegerField(default=7, choices=DIGEST_GIORNI_CHOICES)
     digest_ultimo_invio = models.DateField(null=True, blank=True)
+    # Le scadenze dello Scadenzario in un calendario Outlook della persona
+    # (dashboard/scadenze_outlook.py): id del calendario, ultimo allineamento, ultimo errore.
+    outlook_scadenze = models.BooleanField(default=False)
+    outlook_calendario_id = models.CharField(max_length=255, blank=True, default="")
+    outlook_ultimo_sync = models.DateTimeField(null=True, blank=True)
+    outlook_errore = models.CharField(max_length=300, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -498,6 +504,33 @@ class NotificaCanali(models.Model):
     def push_per_categoria(self, categoria: str) -> bool:
         cats = self.push_categorie if isinstance(self.push_categorie, list) else []
         return str(categoria or "") in cats
+
+
+class ScadenzaOutlook(models.Model):
+    """Una scadenza dello Scadenzario copiata come evento nel calendario Outlook di una persona.
+
+    ``chiave`` identifica la voce (fonte, tipo, soggetto, titolo, link) senza la data:
+    una scadenza spostata aggiorna lo stesso evento. ``impronta`` dice se l'evento va
+    riscritto. ``rimosso_da_utente``: la persona l'ha cancellato in Outlook, quindi il
+    portale non lo ricrea (si riazzera se la scadenza cambia data).
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="scadenze_outlook")
+    chiave = models.CharField(max_length=64)
+    event_id = models.CharField(max_length=512, blank=True, default="")
+    data_scadenza = models.DateField()
+    impronta = models.CharField(max_length=64, blank=True, default="")
+    rimosso_da_utente = models.BooleanField(default=False)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_scadenzaoutlook"
+        constraints = [models.UniqueConstraint(fields=["user", "chiave"], name="uniq_scadenza_outlook_user_chiave")]
+        verbose_name = "Scadenza nel calendario Outlook"
+        verbose_name_plural = "Scadenze nel calendario Outlook"
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.chiave[:12]}"
 
 
 class PushIscrizione(models.Model):

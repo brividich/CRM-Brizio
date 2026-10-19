@@ -129,6 +129,23 @@ body.theme-dark .ni-dev button{color:#fca5a5}
       </div>
     </div>
 
+    <div class="card ni-card">
+      <div class="card-head"><div class="card-title">🗓️ Le mie scadenze nel calendario Outlook</div></div>
+      <div class="ni-body">
+        <p>Ogni mattina (alle 6:30) il portale tiene allineato un calendario «Scadenze NOVICROM HUB» nel tuo Outlook con le scadenze dello <a href="{% url 'scadenze_globali' %}">Scadenzario globale</a> che puoi vedere: scadute e prossimi 90 giorni, promemoria il giorno prima alle 9. Le scadenze nuove compaiono, quelle chiuse spariscono. Se cancelli un evento in Outlook, il portale non lo rimette (a meno che la scadenza cambi data). Per un file da importare una volta sola usa «⬇ Calendario (.ics)» nello Scadenzario.</p>
+        {% if outlook_disponibile %}
+          <div class="ni-actions" style="align-items:center;">
+            <label class="ni-check"><input type="checkbox" name="outlook_scadenze" value="1" {% if outlook_scadenze %}checked{% endif %}> Metti le mie scadenze nel calendario Outlook</label>
+          </div>
+          {% if outlook_scadenze %}
+            <p class="ni-muted" style="margin-top:8px;">{% if outlook_ultimo_sync %}Ultimo allineamento: {{ outlook_ultimo_sync|date:"d/m/Y H:i" }}.{% else %}Il primo allineamento avviene domattina.{% endif %}{% if outlook_errore %} <strong>Ultimo errore:</strong> {{ outlook_errore }}{% endif %}</p>
+          {% endif %}
+        {% else %}
+          <p class="ni-muted">Il collegamento con Microsoft 365 non è configurato sul server.</p>
+        {% endif %}
+      </div>
+    </div>
+
     <div style="padding:16px 0;display:flex;gap:12px;align-items:center;">
       <button type="submit" class="ni-btn">Salva preferenze</button>
       <a href="{% url 'notifiche' %}" style="font-size:13px;color:#2563eb;text-decoration:none;">← Torna alle notifiche</a>

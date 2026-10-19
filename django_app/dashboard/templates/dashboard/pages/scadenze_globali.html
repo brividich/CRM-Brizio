@@ -131,6 +131,7 @@ body.theme-dark .sg-when.soon{color:#fdba74}
     </label>
     <button type="submit" class="sg-btn">Filtra</button>
     <a class="sg-btn ghost" href="?{% if filtro_sorgente %}sorgente={{ filtro_sorgente }}&{% endif %}{% if filtro_stato %}stato={{ filtro_stato }}&{% endif %}{% if filtro_reparto %}reparto={{ filtro_reparto }}&{% endif %}format=csv">⬇ CSV</a>
+    <a class="sg-btn ghost" title="File da aprire con Outlook o con un altro calendario: una voce per scadenza, promemoria il giorno prima" href="?{% if filtro_sorgente %}sorgente={{ filtro_sorgente }}&{% endif %}{% if filtro_stato %}stato={{ filtro_stato }}&{% endif %}{% if filtro_reparto %}reparto={{ filtro_reparto }}&{% endif %}format=ics">⬇ Calendario (.ics)</a>
   </form>
 
   <div class="sg-scroll">

@@ -981,6 +981,7 @@ def notifiche_impostazioni(request):
         canali.push_categorie = push_categorie
         canali.digest_scadenze = request.POST.get("digest_scadenze") == "1"
         canali.digest_giorni = digest_giorni
+        canali.outlook_scadenze = request.POST.get("outlook_scadenze") == "1"
         canali.save()
         messages.success(request, "Preferenze notifiche salvate.")
         return redirect("notifiche_impostazioni")
@@ -1006,7 +1007,17 @@ def notifiche_impostazioni(request):
         "digest_scadenze": bool(canali and canali.digest_scadenze),
         "digest_giorni": int(canali.digest_giorni) if canali else 7,
         "digest_giorni_choices": NotificaCanali.DIGEST_GIORNI_CHOICES,
+        "outlook_scadenze": bool(canali and canali.outlook_scadenze),
+        "outlook_ultimo_sync": canali.outlook_ultimo_sync if canali else None,
+        "outlook_errore": canali.outlook_errore if canali else "",
+        "outlook_disponibile": _graph_configurato(),
     })
+
+
+def _graph_configurato() -> bool:
+    from core import m365_graph
+
+    return m365_graph.configurato()
 
 
 @login_required
