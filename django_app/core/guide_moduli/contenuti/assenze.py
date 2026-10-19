@@ -160,6 +160,17 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Il capo riceve due mail per la stessa richiesta, o dopo l'approvazione la mailbox assenza@ non riceve nulla",
+            "perche": "due regole di approvazione Assenze erano accese insieme; dalla versione successiva alla 1.6.8 "
+                      "l'aggiornamento le unisce da solo nella regola «Assenze — approvazione unificata».",
+            "fare": [
+                "Apri Automazioni → Regole, sorgente Assenze: sull'inserimento deve essere attiva solo «Assenze — approvazione unificata».",
+                "Se sono ancora attive «assenze-pa-richiesta-approvazione-caporeparto» e «au-assenze-unico-branch-per-tipo», "
+                "lancia sul server merge_assenze_flows (anteprima) e poi con --apply --workers-stopped.",
+                "Le richieste approvate prima della correzione possono essere rimaste «In attesa»: approvale da «Gestione admin».",
+            ],
+        },
+        {
             "sintomo": "Un capo non vede le richieste dei suoi dipendenti",
             "fare": [
                 "Controlla in Anagrafica che sia il capo del dipendente (Organigramma → Coerenza capi).",
