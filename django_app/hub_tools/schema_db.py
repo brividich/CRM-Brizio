@@ -115,7 +115,8 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
         "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
                "alert di Microsoft Defender con SecurityAlert.Read.All; Microsoft Entra ID: account degli ex dipendenti e audit "
-               "amministrativo con User.Read.All e AuditLog.Read.All), Ruoli e permessi (scheda «Account Microsoft 365»), Centrale di comando (stato dei servizi Microsoft 365 con ServiceHealth.Read.All), Asset IT (PC gestiti da Microsoft Intune con "
+               "amministrativo con User.Read.All e AuditLog.Read.All), Ruoli e permessi (scheda «Account Microsoft 365»), Centrale di comando (stato dei servizi Microsoft 365 con ServiceHealth.Read.All), Licenze software (abbonamenti "
+               "Microsoft 365 con Organization.Read.All e LicenseAssignment.Read.All), Asset IT (PC gestiti da Microsoft Intune con "
                "DeviceManagementManagedDevices.Read.All, tabella assets_dispositivointune), "
                "Automazioni (lettura risposte di approvazione), "
                "Audit sigillato (export mensile su SharePoint: SiteConfig audit_export_sp_drive_id / audit_export_sp_cartella).",

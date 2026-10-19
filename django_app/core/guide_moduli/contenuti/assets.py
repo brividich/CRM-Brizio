@@ -122,6 +122,17 @@ GUIDA = {
             ],
         },
         {
+            "id": "licenze-m365",
+            "titolo": "Abbonamenti Microsoft 365 nelle licenze",
+            "blocchi": [
+                ("p", "Ogni mattina alle 06:40 il portale legge gli abbonamenti Microsoft 365 e tiene una licenza per abbonamento in "
+                      "«Licenze software» (categoria Office, riferimento m365:…): posti acquistati, posti usati, stato e, se Microsoft la "
+                      "fornisce, la scadenza. Nome, assegnatario e note restano quelli scritti nel portale; le licenze inserite a mano non "
+                      "vengono toccate. Permessi Graph Organization.Read.All e, per le date, LicenseAssignment.Read.All. "
+                      "Prova dal terminale: m365_licenze --prova."),
+            ],
+        },
+        {
             "id": "intune",
             "titolo": "PC gestiti da Microsoft Intune",
             "blocchi": [

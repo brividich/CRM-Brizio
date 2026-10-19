@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 75
+**Totale automazioni disponibili:** 76
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -169,6 +169,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 06:45
 - **Task eseguito:** `assets.tasks.run_intune_sync`
 - **Cosa fa:** Microsoft Intune — dispositivi gestiti (conformità, cifratura, ultima sync): prima degli avvisi IT delle 07:15, che ne riportano i problemi. Serve il permesso Graph DeviceManagementManagedDevices.Read.All.
+
+### `m365_licenze_sync`
+
+- **Quando gira:** ogni giorno, alle 06:40
+- **Task eseguito:** `assets.tasks.run_m365_licenze_sync`
+- **Cosa fa:** Microsoft 365 — abbonamenti (posti, stato, rinnovo) nel modulo Licenze software. Serve il permesso Graph Organization.Read.All (+ LicenseAssignment.Read.All per le date).
 
 ## DPI · Sicurezza
 

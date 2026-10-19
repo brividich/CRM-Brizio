@@ -62,6 +62,23 @@ def run_intune_sync() -> dict:
         return {"ok": False, "errore": str(exc)[:300]}
 
 
+def run_m365_licenze_sync() -> dict:
+    """Abbonamenti Microsoft 365 nel modulo Licenze (``assets.services.m365_licenze``).
+
+    Come ``run_intune_sync``: un permesso mancante viene registrato, il task non fallisce.
+    """
+    from assets.services.m365_licenze import sincronizza
+    from core import m365_graph
+
+    if not m365_graph.configurato():
+        return {"ok": False, "motivo": "Graph non configurato"}
+    try:
+        return {"ok": True, **sincronizza()}
+    except m365_graph.GraphError as exc:
+        logger.warning("run_m365_licenze_sync: %s", exc)
+        return {"ok": False, "errore": str(exc)[:300]}
+
+
 def run_maintenance_reminders() -> dict:
     """Promemoria email scadenze manutenzione/verifiche periodiche + OdL scaduti.
 
