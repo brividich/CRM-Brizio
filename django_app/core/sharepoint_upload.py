@@ -4,6 +4,8 @@ Usato dall'export mensile dell'audit sigillato (``core.audit_sigilli``). Destina
 in SiteConfig: ``audit_export_sp_drive_id`` (id della raccolta documenti) e
 ``audit_export_sp_cartella`` (percorso dentro la raccolta). Permesso applicativo:
 ``Sites.Selected`` con grant ``write`` sul sito (consigliato) o ``Sites.ReadWrite.All``.
+La destinazione si imposta dal link della cartella: ``audit_sigilli --cartella-sharepoint``
+(``configura_da_link``: API ``/shares`` di Graph + scrittura di prova del LEGGIMI).
 
 File fino a 4 MB con un PUT; oltre, sessione di upload a blocchi. Il file non viene
 mai sovrascritto (``@microsoft.graph.conflictBehavior=fail``): un export già
@@ -96,6 +98,84 @@ def carica(nome_file: str, contenuto: bytes, *, drive_id: str | None = None, car
         if resp.status_code not in (200, 201, 202):
             raise SharePointUploadError(_errore(resp))
     return str(resp.json().get("webUrl") or path) if resp is not None else path
+
+
+LEGGIMI = "LEGGIMI-portale-audit.txt"
+LEGGIMI_TESTO = (
+    "Cartella dell'audit sigillato di NOVICROM HUB.\n"
+    "Ogni mese il portale carica qui due file: audit-AAAA-MM.jsonl.gz (le azioni registrate) e\n"
+    "audit-AAAA-MM.sigillo.json (l'impronta SHA-256 del mese, legata a quella del mese prima).\n"
+    "Non modificare né cancellare i file: servono a dimostrare che il registro non è stato alterato.\n"
+)
+
+
+def _link_diretto(link: str) -> str:
+    """Il link della barra degli indirizzi di una raccolta («…/Forms/AllItems.aspx?id=/sites/…/Cartella»)
+    diventa l'indirizzo diretto della cartella; gli altri link restano come sono."""
+    from urllib.parse import parse_qs, unquote, urlsplit
+
+    parti = urlsplit(link)
+    if parti.path.lower().endswith(".aspx"):
+        ids = parse_qs(parti.query).get("id") or parse_qs(parti.query).get("RootFolder") or []
+        if ids and ids[0].startswith("/"):
+            return f"{parti.scheme}://{parti.netloc}{unquote(ids[0])}"
+    return link
+
+
+def risolvi_link(link: str) -> tuple[str, str, str]:
+    """Da un link di cartella SharePoint (barra degli indirizzi o «Copia collegamento») ricava
+    ``(drive_id, cartella, webUrl)`` con l'API ``/shares`` di Graph."""
+    import base64
+    from urllib.parse import urlsplit
+
+    import requests
+
+    link = (link or "").strip()
+    host = urlsplit(link).hostname or ""
+    if not link.startswith("https://") or not host.endswith(".sharepoint.com"):
+        raise SharePointUploadError("Serve un link https://<azienda>.sharepoint.com/… di una cartella.")
+    diretto = _link_diretto(link)
+    codice = "u!" + base64.urlsafe_b64encode(diretto.encode("utf-8")).decode("ascii").rstrip("=")
+    resp = requests.get(
+        f"{GRAPH}/shares/{codice}/driveItem",
+        headers={"Authorization": f"Bearer {_token()}"}, timeout=TIMEOUT,
+    )
+    if resp.status_code == 404:
+        raise SharePointUploadError("Cartella non trovata: controlla il link (o l'app Graph non vede quel sito).")
+    if resp.status_code != 200:
+        raise SharePointUploadError(_errore(resp))
+    item = resp.json()
+    if "folder" not in item:
+        raise SharePointUploadError("Il link non porta a una cartella.")
+    if "root" in item:
+        raise SharePointUploadError("Il link porta alla raccolta intera: crea e indica una cartella dentro la raccolta.")
+    parent = item.get("parentReference") or {}
+    drive_id = str(parent.get("driveId") or "")
+    relativo = str(parent.get("path") or "").split("root:", 1)[-1] if "root:" in str(parent.get("path") or "") else ""
+    cartella = f"{relativo.strip('/')}/{item.get('name') or ''}".strip("/")
+    if not drive_id or not cartella:
+        raise SharePointUploadError("Risposta di SharePoint incompleta: raccolta o percorso mancanti.")
+    from urllib.parse import unquote
+
+    return drive_id, unquote(cartella), str(item.get("webUrl") or "")
+
+
+def configura_da_link(link: str) -> dict:
+    """Ricava raccolta e cartella dal link, prova a scrivere il LEGGIMI (verifica il
+    permesso di scrittura) e solo allora salva la destinazione in SiteConfig."""
+    from core.models import SiteConfig
+
+    drive_id, cartella, web_url = risolvi_link(link)
+    try:
+        carica(LEGGIMI, LEGGIMI_TESTO.encode("utf-8"), drive_id=drive_id, cartella=cartella)
+        leggimi = "creato"
+    except SharePointUploadError as exc:
+        if "esiste già" not in str(exc):
+            raise
+        leggimi = "già presente"
+    SiteConfig.set("audit_export_sp_drive_id", drive_id, "Audit sigillato: id della raccolta SharePoint")
+    SiteConfig.set("audit_export_sp_cartella", cartella, "Audit sigillato: cartella dentro la raccolta")
+    return {"drive_id": drive_id, "cartella": cartella, "web_url": web_url, "leggimi": leggimi}
 
 
 def _errore(resp) -> str:
