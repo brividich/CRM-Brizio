@@ -316,7 +316,19 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <section class="ag-sec" id="part145">
       <h2>PART 145</h2>
       <p>Le attrezzature che rientrano nel regolamento aeronautico PART 145 si marcano con la casella <strong>«Rientra in PART 145»</strong> nel form dell'asset o della macchina. La scheda mostra il badge rosso <strong>PART 145</strong> e la scheda PDF lo riporta in testa.</p>
-      <p>La voce <strong>PART 145</strong> del menu del modulo apre <a href="{% url 'assets:part_145_list' %}">l'elenco delle attrezzature PART 145</a>, scaricabile in Excel e PDF.</p>
+      <p>La voce <strong>PART 145</strong> del menu apre il <a href="{% url 'assets:part_145_list' %}"><strong>Dossier PART 145</strong></a>, pronto per l'audit. In testa ci sono i riquadri di riepilogo (processi, attrezzature, in uso, persone abilitate, scadenze a 90 giorni, situazioni aperte) e poi queste sezioni:</p>
+      <ul>
+        <li><strong>Processi PART 145</strong>: i processi MOD.128 in regime «EASA Part 145», con stato, scadenza, persone abilitate e attrezzature collegate.</li>
+        <li><strong>Attrezzature</strong>: gli asset con «Rientra in PART 145» più quelli collegati a un processo PART 145, con stato, seriale, processi, ultimo intervento chiuso, OdL aperti, prossima manutenzione e numero di documenti.</li>
+        <li><strong>Personale abilitato</strong>: le abilitazioni MOD.128 con ruolo «Part 145» o su un processo PART 145, con ruoli, stato, certificazioni, idoneità ai requisiti del processo e timbro (attivo o sospeso). Questa sezione la vede solo chi ha accesso ai processi qualificati MOD.128.</li>
+        <li><strong>Scadenze</strong> entro 90 giorni, e quelle già scadute: processo, manutenzioni delle attrezzature, certificazioni del personale.</li>
+        <li><strong>Situazioni aperte</strong>: processo scaduto o non attivo, processo senza persone abilitate, attrezzature in riparazione o senza seriale/reparto, OdL aperti, abilitazioni sospese, timbri sospesi.</li>
+      </ul>
+      <p><span class="ag-btn">Excel</span> scarica un foglio di riepilogo più un foglio per sezione; <span class="ag-btn">PDF</span> tutte le sezioni in un documento. Il dossier è anche nel Catalogo report, area «Qualità e PART 145».</p>
+      <h3>Attrezzature dei processi qualificati</h3>
+      <p>Oltre al flag, un asset si può collegare a qualsiasi processo qualificato (PART 145, NADCAP, cliente…) dal dettaglio del processo in MOD.128, sezione <strong>«Attrezzature»</strong>: scrivi il tag o il numero interno e premi <span class="ag-btn">＋ Collega attrezzatura</span>. Serve il permesso di gestione MOD.128. Per un processo PART 145 la sezione mostra anche tutti gli asset con il flag. La scheda dell'asset elenca i suoi processi accanto al badge.</p>
+      <h3>Avviso a Qualità</h3>
+      <p>Quando un'attrezzatura PART 145 o collegata a un processo cambia stato (in riparazione, dismessa, di nuovo in uso…) arriva una mail agli stessi destinatari MOD.128 dei timbri sospesi: una sola mail per salvataggio o import. L'avviso si accende o si spegne da Automazioni › Notifiche («Attrezzature PART 145 che cambiano stato»).</p>
     </section>
 
     <section class="ag-sec" id="report">

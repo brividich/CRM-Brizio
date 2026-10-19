@@ -1,7 +1,10 @@
 """Versione delle cache dei permessi: una modifica a ruoli o matrice le azzera tutte."""
 from __future__ import annotations
 
+import logging
 from django.core.cache import cache
+
+logger = logging.getLogger(__name__)
 
 _VERSION_KEY = "permessi:version"
 _ADMIN_TTL = 120
@@ -23,19 +26,19 @@ def invalida_permessi() -> None:
     try:
         cache.set(_VERSION_KEY, versione_permessi() + 1, None)
     except Exception:
-        pass
+        logger.warning("permessi: impossibile aggiornare la versione in cache", exc_info=True)
     try:
         from core.navigation_registry import bump_navigation_registry_version
 
         bump_navigation_registry_version()
     except Exception:
-        pass
+        logger.warning("permessi: impossibile invalidare il registro di navigazione", exc_info=True)
     try:
         from core.permessi.team import invalida_cache_team
 
         invalida_cache_team()
     except Exception:
-        pass
+        logger.warning("permessi: impossibile invalidare la cache dei team", exc_info=True)
 
 
 def utenti_amministratori_da_ruolo() -> frozenset[int]:
@@ -65,5 +68,5 @@ def utenti_amministratori_da_ruolo() -> frozenset[int]:
     try:
         cache.set(chiave, ids, _ADMIN_TTL)
     except Exception:
-        pass
+        logger.debug("permessi: cache non scrivibile (amministratori)", exc_info=True)
     return frozenset(int(i) for i in ids)

@@ -132,6 +132,15 @@ class Asset(models.Model):
         verbose_name="Rientra in PART 145",
         help_text="Indica se l'asset rientra nel regolamento aeronautico PART 145.",
     )
+    # Attrezzature dei processi qualificati MOD.128 (gestite dal dettaglio processo).
+    # Con part_145 l'asset e' comunque attrezzatura dei processi in regime PART145
+    # (services/part145.py), anche senza riga qui.
+    processi_qualificati = models.ManyToManyField(
+        "anagrafica.ProcessoQualificato",
+        blank=True,
+        related_name="attrezzature",
+        verbose_name="Processi qualificati",
+    )
     public_qr_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     # Link pubblico del QR opt-in (audit B3): nasce spento e senza token; lo
     # abilita solo un utente con permesso (services/asset_qr.abilita_link_pubblico).
@@ -5210,3 +5219,54 @@ class PeriodicCheckMeasureField(models.Model):
         return (self.min_value is not None and value < self.min_value) or (
             self.max_value is not None and value > self.max_value
         )
+
+
+class DispositivoIntune(models.Model):
+    """Un PC/dispositivo gestito da Microsoft Intune, letto ogni giorno da Graph.
+
+    Istantanea in sola lettura (``assets.services.intune``): la fonte resta Intune.
+    Il collegamento all'asset si conferma dalla riconciliazione dispositivi IT,
+    come per SNMP, MFC e SOC. ``problemi`` sono i codici aperti (non cifrato, non
+    conforme, non sincronizza) e ``problemi_dal`` quando l'insieme è cambiato:
+    gli avvisi IT notificano solo i problemi nuovi.
+    """
+
+    PROBLEMA_NON_CIFRATO = "non_cifrato"
+    PROBLEMA_NON_CONFORME = "non_conforme"
+    PROBLEMA_NON_SINCRONIZZA = "non_sincronizza"
+    PROBLEMI_LABEL = {
+        PROBLEMA_NON_CIFRATO: "disco non cifrato (BitLocker)",
+        PROBLEMA_NON_CONFORME: "non conforme ai criteri Intune",
+        PROBLEMA_NON_SINCRONIZZA: "non si sincronizza con Intune",
+    }
+
+    intune_id = models.CharField(max_length=64, unique=True)
+    nome = models.CharField(max_length=200, blank=True, default="")
+    seriale = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    produttore = models.CharField(max_length=120, blank=True, default="")
+    modello = models.CharField(max_length=120, blank=True, default="")
+    sistema = models.CharField(max_length=60, blank=True, default="")
+    versione_sistema = models.CharField(max_length=60, blank=True, default="")
+    conformita = models.CharField(max_length=30, blank=True, default="")
+    cifrato = models.BooleanField(null=True, blank=True)
+    ultima_sync = models.DateTimeField(null=True, blank=True)
+    registrato_il = models.DateTimeField(null=True, blank=True)
+    utente_upn = models.CharField(max_length=200, blank=True, default="")
+    utente_nome = models.CharField(max_length=200, blank=True, default="")
+    presente = models.BooleanField(default=True, help_text="Ancora presente in Intune all'ultima lettura.")
+    problemi = models.JSONField(default=list, blank=True)
+    problemi_dal = models.DateTimeField(null=True, blank=True)
+    asset = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.SET_NULL, related_name="dispositivi_intune")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Dispositivo Intune"
+        verbose_name_plural = "Dispositivi Intune"
+
+    def __str__(self) -> str:
+        return self.nome or self.seriale or self.intune_id
+
+    @property
+    def problemi_label(self) -> list[str]:
+        return [self.PROBLEMI_LABEL.get(p, p) for p in (self.problemi or [])]

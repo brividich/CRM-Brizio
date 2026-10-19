@@ -354,6 +354,66 @@ def _evaluate_defender_alert(event):
         notify_alert_created(alert)
 
 
+def _alert_da_evento(event, title, severity, trace):
+    """Apre o riusa l'alert del SOC per un evento (stesso dedup), con traccia e notifica."""
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=title[:255], severity=severity,
+        dedup_hash=event.dedup_hash, decision_trace=trace,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
+    if alert_created:
+        notify_alert_created(alert)
+
+
+def _evaluate_m365_account_cessato(event):
+    """Account Microsoft 365 abilitato di un ex dipendente (``entra_signals``): un alert per account."""
+    payload = event.payload or {}
+    trace = {
+        "decision": "alert",
+        "rule": "Account Microsoft 365 abilitato di una persona con data di cessazione passata => alert",
+        "upn": payload.get("upn"),
+        "cessato_il": payload.get("cessato_il"),
+    }
+    chi = payload.get("persona") or payload.get("account") or payload.get("upn")
+    _alert_da_evento(event, f"Account Microsoft 365 attivo di un ex dipendente: {chi}", Severity.HIGH, trace)
+
+
+def _evaluate_entra_audit(event):
+    """Modifica amministrativa sorvegliata in Entra ID (``entra_signals``): un alert per riga di audit."""
+    payload = event.payload or {}
+    trace = {
+        "decision": "alert",
+        "rule": "Entra ID: attività amministrativa sorvegliata => alert",
+        "attivita": payload.get("attivita"),
+        "autore": payload.get("autore"),
+        "target": payload.get("target"),
+        "esito": payload.get("esito"),
+    }
+    target = (payload.get("target") or [""])[0]
+    title = f"Entra: {payload.get('etichetta')}" + (f" ({target})" if target else "") + f" da {payload.get('autore')}"
+    _alert_da_evento(event, title, event.severity, trace)
+
+
+def _evaluate_entra_accesso(event):
+    """Accesso sospetto a Microsoft 365 (``entra_signals``): un alert per anomalia (dedup giornaliero)."""
+    payload = event.payload or {}
+    trace = {
+        "decision": "alert",
+        "rule": "Entra ID: accesso sospetto (falliti a raffica, Paese non ammesso, protocollo vecchio) => alert",
+        "motivo": payload.get("motivo"),
+        "upn": payload.get("upn"),
+        "dettaglio": payload.get("dettaglio"),
+        "ip": payload.get("ip"),
+    }
+    title = f"{payload.get('etichetta')}: {payload.get('upn')} ({payload.get('dettaglio')})"
+    _alert_da_evento(event, title, event.severity, trace)
+
+
 def _ticket_for_cve_impact(event, alert, evidence, payload, cve):
     from security.models import SecurityRemediationTicket
     from security.services.ticketing import ACTIVE_TICKET_STATUSES
@@ -707,4 +767,7 @@ _HANDLERS = {
     "cve_impact_confirmed": _evaluate_cve_impact,
     "software_policy": _evaluate_software_policy,
     "defender_alert": _evaluate_defender_alert,
+    "m365_account_cessato": _evaluate_m365_account_cessato,
+    "entra_audit": _evaluate_entra_audit,
+    "entra_accesso": _evaluate_entra_accesso,
 }

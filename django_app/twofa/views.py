@@ -155,7 +155,7 @@ def verify(request):
                                 from core.audit import log_action
                                 log_action(request, "2fa_totp_locked", "twofa", {"seconds": locked_for})
                             except Exception:
-                                pass
+                                logger.warning("2FA: audit 2fa_totp_locked non registrato", exc_info=True)
                         else:
                             error = f"Codice non valido. Tentativi rimanenti: {remaining}."
             else:  # email
@@ -177,7 +177,7 @@ def verify(request):
                     from core.audit import log_action
                     log_action(request, "2fa_ok", "twofa", {"method": method})
                 except Exception:
-                    pass
+                    logger.warning("2FA: audit 2fa_ok non registrato", exc_info=True)
 
                 next_url = _get_next(request)
                 request.session.pop("twofa_next", None)
@@ -219,7 +219,7 @@ def setup_totp(request):
             from core.audit import log_action
             log_action(request, "2fa_totp_setup_denied", "twofa", {"method": u2f.method})
         except Exception:
-            pass
+            logger.warning("2FA: audit 2fa_totp_setup_denied non registrato", exc_info=True)
         if is_2fa_verified(request):
             messages.info(
                 request,
@@ -260,7 +260,7 @@ def setup_totp(request):
                     from core.audit import log_action
                     log_action(request, "2fa_totp_setup", "twofa")
                 except Exception:
-                    pass
+                    logger.warning("2FA: audit 2fa_totp_setup non registrato", exc_info=True)
                 _notify_totp_enrolled(user)
 
                 messages.success(request, "Autenticazione a due fattori configurata correttamente.")

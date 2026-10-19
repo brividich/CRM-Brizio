@@ -178,6 +178,47 @@
     </section>
     {% endif %}
 
+    {# ── Attrezzature del processo (asset) ──────────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="attrezzature">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Attrezzature
+          {% if attrezzature %}<span class="fmd-count">{{ attrezzature|length }}</span>{% endif %}
+        </div>
+        <div class="fmd-block-aside">Asset usati nel processo{% if processo.regime == "PART145" %}: per un processo PART 145 ci sono anche tutti gli asset con la casella «Rientra in PART 145»{% endif %}</div>
+      </div>
+      {% if attrezzature %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Asset</th><th>Nome</th><th>Categoria</th><th>Reparto</th><th>Stato</th><th>Perché è qui</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in attrezzature %}
+            <tr>
+              <td><a href="{% url 'assets:asset_view' r.asset.id %}">{{ r.asset.asset_tag }}</a></td>
+              <td>{{ r.asset.name }}</td>
+              <td>{{ r.asset.asset_category.label|default:"—" }}</td>
+              <td>{{ r.asset.reparto|default:"—" }}</td>
+              <td>{% if r.asset.status == "IN_USE" %}<span class="fmd-badge fmd-b-green">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "IN_REPAIR" %}<span class="fmd-badge fmd-b-amber">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "RETIRED" %}<span class="fmd-badge fmd-b-red">{{ r.asset.get_status_display }}</span>{% else %}<span class="fmd-badge fmd-b-slate">{{ r.asset.get_status_display }}</span>{% endif %}</td>
+              <td>{% if r.collegata %}<span class="fmd-badge fmd-b-violet">Collegata qui</span>{% endif %} {% if r.da_flag and processo.regime == "PART145" %}<span class="fmd-badge fmd-b-red">PART 145</span>{% endif %}</td>
+              {% if can_manage %}
+              <td>{% if r.collegata %}<form method="post" action="{% url 'anagrafica:mpq_attrezzatura_remove' processo.id r.asset.id %}" style="display:inline;" onsubmit="return confirm('Scollegare {{ r.asset.asset_tag|escapejs }} dal processo?');">{% csrf_token %}<button type="submit" title="Scollega" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">Scollega</button></form>{% else %}<span class="fmd-muted" style="font-size:11px;">dal flag dell'asset</span>{% endif %}</td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessuna attrezzatura collegata.</div>{% endif %}
+      {% if can_manage %}
+      <form method="post" action="{% url 'anagrafica:mpq_attrezzatura_add' processo.id %}" style="display:flex;gap:6px;margin-top:10px;max-width:520px;">
+        {% csrf_token %}
+        <input type="text" name="asset" placeholder="Tag o numero interno dell'asset" required maxlength="64"
+               style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+        <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Collega attrezzatura</button>
+      </form>
+      <div class="fmd-muted" style="font-size:11px;margin-top:6px;">Quando un'attrezzatura del processo cambia stato (in riparazione, dismessa…) arriva una mail ai destinatari MOD.128.</div>
+      {% endif %}
+    </section>
+
     {# ── Personale abilitato ────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">

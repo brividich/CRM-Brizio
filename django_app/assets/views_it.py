@@ -1,9 +1,10 @@
-"""Riconciliazione dispositivi IT: proposte di collegamento SNMP, MFC e SOC in una pagina.
+"""Riconciliazione dispositivi IT: proposte di collegamento SNMP, MFC, SOC e Intune in una pagina.
 
 Le proposte vengono dall'abbinatore unico (``services.identity_match``). Ogni riga
 si conferma solo con il permesso del modulo che possiede il dispositivo: pagina di
 modifica della centrale SNMP per dispositivi e MFC, configurazione del Security
-Center per i dispositivi SOC. Alla conferma la proposta viene ricalcolata: si
+Center per i dispositivi SOC, modifica dell'asset di destinazione per i PC di
+Microsoft Intune. Alla conferma la proposta viene ricalcolata: si
 collega solo se punta ancora allo stesso asset.
 """
 from __future__ import annotations
@@ -42,7 +43,7 @@ def _rows(request: HttpRequest) -> tuple[list[dict], dict[str, int]]:
         rows.append({
             "key": f"{kind}:{obj.pk}:{asset.pk if asset else 0}",
             "kind": kind,
-            "module": {"snmp": "Centrale SNMP", "mfc": "MFC", "soc": "SOC"}[kind],
+            "module": {"snmp": "Centrale SNMP", "mfc": "MFC", "soc": "SOC", "intune": "Intune"}[kind],
             "label": label,
             "ident": ident,
             "asset": asset,
@@ -67,6 +68,13 @@ def _rows(request: HttpRequest) -> tuple[list[dict], dict[str, int]]:
             asset, reason = suggest_hub_asset(device)
             add("soc", device, device.hostname, device.ip_address or (device.source.name if device.source_id else ""), asset, reason,
                 reverse("security:assets"))
+    from .models import DispositivoIntune
+
+    for device in DispositivoIntune.objects.filter(asset__isnull=True, presente=True).order_by("nome")[:ROW_LIMIT]:
+        asset, reason = match_hub_asset(serial=device.seriale, hostname=device.nome)
+        ident = " · ".join(x for x in (device.seriale, device.utente_nome or device.utente_upn) if x)
+        add("intune", device, device.nome or device.seriale, ident, asset, reason,
+            reverse("assets:asset_view", args=[asset.pk]) if asset else reverse("assets:it_reconciliation"))
     rows.sort(key=lambda row: (row["asset"] is None, row["module"], row["label"].lower()))
     return rows, counts
 
@@ -85,6 +93,24 @@ def _link(request: HttpRequest, key: str) -> str | None:
         obj_id, asset_id = int(obj_id), int(asset_id)
     except ValueError:
         return None
+    if kind == "intune":
+        from .models import DispositivoIntune
+        from .services.intune import completa_asset
+        from .views import _can_edit_asset
+
+        device = DispositivoIntune.objects.filter(pk=obj_id, asset__isnull=True).first()
+        if device is None:
+            return None
+        asset, _reason = match_hub_asset(serial=device.seriale, hostname=device.nome)
+        if asset is None or asset.pk != asset_id or not _can_edit_asset(request, asset.pk):
+            return None
+        device.asset = asset
+        device.save(update_fields=["asset", "aggiornato_il"])
+        completa_asset(device)
+        log_action(request, "it_reconcile_link", "assets",
+                   {"module": "intune", "device_id": device.pk, "asset_id": asset.pk, "asset_tag": asset.asset_tag},
+                   oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.pk)
+        return str(device)
     if kind == "soc":
         device = SecurityAsset.objects.filter(pk=obj_id, hub_asset__isnull=True).first()
         if device is None or not can_manage_security_config(request.user):

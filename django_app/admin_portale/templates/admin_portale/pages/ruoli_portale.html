@@ -31,6 +31,7 @@
     <a href="?tab=modulo" class="{% if tab == 'modulo' %}active{% endif %}">Riepilogo per modulo</a>
     <a href="?tab=anteprima" class="{% if tab == 'anteprima' %}active{% endif %}">Cosa vede questa persona</a>
     <a href="?tab=confronta" class="{% if tab == 'confronta' %}active{% endif %}">Confronta due ruoli</a>
+    <a href="?tab=m365" class="{% if tab == 'm365' %}active{% endif %}">Account Microsoft 365</a>
     <a href="?tab=registro" class="{% if tab == 'registro' %}active{% endif %}">Registro modifiche</a>
     <a href="?tab=sistema" class="{% if tab == 'sistema' %}active{% endif %}">Sistema</a>
     <a href="?tab=guida" class="{% if tab == 'guida' %}active{% endif %}">Guida</a>
@@ -451,6 +452,56 @@
       {% endfor %}
     {% elif not errore %}
       <div class="acl-empty">Cerca una persona per vedere, modulo per modulo, cosa può fare e su quali dati.</div>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if tab == "m365" %}
+  <div class="card"><div class="card-body">
+    <div class="acl-muted" style="margin-bottom:10px;">
+      Gli account di Microsoft 365 (Entra ID) confrontati con l'anagrafica, per email aziendale o di notifica e per nome di accesso.
+      Sola lettura: gli account si disattivano in Active Directory / Entra. Riesame degli accessi ISO/IEC 27001 A.5.18.
+    </div>
+    {% if m365_errore %}
+      <div class="notice">{{ m365_errore }}</div>
+    {% else %}
+      <div class="rp-m365-head">
+        <span class="acl-muted">Letto da Microsoft 365 alle {{ m365_letto_alle|date:"H:i" }} del {{ m365_letto_alle|date:"d/m/Y" }}{% if not m365.con_accessi %} · <strong>senza data dell'ultimo accesso</strong> (manca il permesso AuditLog.Read.All){% endif %}</span>
+        <a class="btn btn-secondary" href="?tab=m365&aggiorna=1{% if m365_filtro %}&esito={{ m365_filtro }}{% endif %}">Aggiorna da Microsoft 365</a>
+      </div>
+      <div class="rp-chips rp-m365-kpi">
+        <a class="btn {% if not m365_filtro %}btn-primary{% else %}btn-secondary{% endif %}" href="?tab=m365">Tutti</a>
+        {% for codice, etichetta in m365_esiti.items %}
+          <a class="btn {% if m365_filtro == codice %}btn-primary{% else %}btn-secondary{% endif %} rp-m365-{{ codice }}" href="?tab=m365&esito={{ codice }}">{{ etichetta }} <strong>{% for k, n in m365.conteggi.items %}{% if k == codice %}{{ n }}{% endif %}{% endfor %}</strong></a>
+        {% endfor %}
+      </div>
+      <div class="acl-table-wrap rp-scroll-x"><table class="acl-table" data-table-id="admin.ruoli.account_m365">
+        <thead><tr>
+          <th data-col="esito" data-col-filterable="1" data-col-sortable="1">Esito</th>
+          <th data-col="persona" data-col-filterable="1" data-col-sortable="1">Persona in anagrafica</th>
+          <th data-col="account" data-col-filterable="1" data-col-sortable="1">Account</th>
+          <th data-col="stato" data-col-filterable="1" data-col-sortable="1">Stato</th>
+          <th data-col="accesso" data-col-sortable="1">Ultimo accesso</th>
+          <th data-col="licenze" data-col-sortable="1">Licenze</th>
+          <th data-col="note">Note</th>
+        </tr></thead>
+        <tbody>
+          {% for r in m365_righe %}
+          <tr class="rp-m365-row-{{ r.esito }}">
+            <td>{% for codice, etichetta in m365_esiti.items %}{% if codice == r.esito %}<span class="acl-chip {% if r.esito == 'cessato_attivo' %}deny{% elif r.esito == 'ok' %}allow{% else %}unset{% endif %}">{{ etichetta }}</span>{% endif %}{% endfor %}</td>
+            <td>{{ r.persona|default:"—" }}{% if r.cessato_il_label %}<div class="acl-muted">cessato il {{ r.cessato_il_label }}</div>{% endif %}</td>
+            <td>{{ r.nome_account }}<div class="acl-muted">{{ r.upn }}</div></td>
+            <td>{% if r.abilitato %}Abilitato{% else %}Disattivato{% endif %}</td>
+            <td>{% if r.ultimo_accesso_label %}{{ r.ultimo_accesso_label }}{% elif m365.con_accessi %}mai{% else %}—{% endif %}</td>
+            <td>{{ r.licenze }}</td>
+            <td>{{ r.note|join:", " }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="acl-muted">Nessun account con questo esito.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      <div class="acl-muted" style="margin-top:8px;">«Inattivo» = abilitato, con licenza e senza accessi da oltre {{ m365.inattivo_giorni }} giorni. «Non collegato» = abilitato con licenza ma senza una persona corrispondente: caselle condivise, account di servizio o esterni da confermare. Gli stessi dati sono nel foglio «Account Microsoft 365» del riesame degli accessi (scheda Sistema).</div>
     {% endif %}
   </div></div>
   {% endif %}

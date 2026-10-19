@@ -167,3 +167,7 @@ body.theme-dark .af-swmap-collega input, body.theme-dark .af-swmap-collega selec
 body.theme-dark .af-it-disclosure > summary::marker{color:#93c5fd}
 body.theme-dark .af-it-counters > div{border-color:var(--border)}
 body.theme-dark .af-swmap-porta.is-occ{color:var(--text)}
+
+/* Microsoft Intune (assets/partials/it_intune.html) */
+.af-it-intune .af-it-summary + .af-it-summary { margin-top: 12px; }
+.af-it-intune-problemi { color: var(--danger, #b91c1c); }

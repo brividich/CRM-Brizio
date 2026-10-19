@@ -324,7 +324,19 @@ def mpq_processo_detail(request, processo_id: int):
         "ha_requisiti": ha_requisiti,
         "abilitazioni": righe,
         "storico": list(processo.storico.select_related("registrato_da")[:50]),
+        "attrezzature": _attrezzature_processo(processo),
     })
+
+
+def _attrezzature_processo(processo) -> list[dict]:
+    """Attrezzature del processo: collegate qui o (regime PART145) col flag PART 145."""
+    from assets.services.part145 import attrezzature_processo
+
+    collegate = set(processo.attrezzature.values_list("pk", flat=True))
+    return [
+        {"asset": a, "collegata": a.pk in collegate, "da_flag": bool(a.part_145)}
+        for a in attrezzature_processo(processo).select_related("asset_category").order_by("asset_tag")
+    ]
 
 
 def _build_vista_groups(processi_qs=None):
@@ -849,6 +861,52 @@ def mpq_riferimento_delete(request, rif_id: int):
     rif.delete()
     messages.success(request, "Riferimento rimosso.")
     return redirect("anagrafica:mpq_processo_detail", processo_id=pid)
+
+
+# ── Attrezzature del processo (asset) ────────────────────────────────────────
+
+
+@login_required
+@require_POST
+def mpq_attrezzatura_add(request, processo_id: int):
+    """Collega un asset (per tag o numero interno) come attrezzatura del processo."""
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from assets.models import Asset
+
+    proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
+    codice = (request.POST.get("asset") or "").strip()[:64]
+    asset = None
+    if codice:
+        asset = (Asset.objects.filter(asset_tag__iexact=codice).first()
+                 or Asset.objects.filter(internal_number__iexact=codice).first())
+    if asset is None:
+        messages.error(request, f"Nessun asset con tag o numero interno «{codice}».")
+    elif asset.processi_qualificati.filter(pk=proc.pk).exists():
+        messages.info(request, f"{asset.asset_tag} è già un'attrezzatura del processo.")
+    else:
+        asset.processi_qualificati.add(proc)
+        _mpq_log(request, processo=proc, evento=f"Attrezzatura collegata: {asset.asset_tag}",
+                 dettaglio=asset.name)
+        messages.success(request, f"{asset.asset_tag} collegato al processo.")
+    return redirect(reverse("anagrafica:mpq_processo_detail", args=[proc.id]) + "#attrezzature")
+
+
+@login_required
+@require_POST
+def mpq_attrezzatura_remove(request, processo_id: int, asset_id: int):
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from assets.models import Asset
+
+    proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
+    asset = get_object_or_404(Asset, pk=asset_id)
+    if asset.processi_qualificati.filter(pk=proc.pk).exists():
+        asset.processi_qualificati.remove(proc)
+        _mpq_log(request, processo=proc, evento=f"Attrezzatura scollegata: {asset.asset_tag}",
+                 dettaglio=asset.name)
+        messages.success(request, f"{asset.asset_tag} scollegato dal processo.")
+    return redirect(reverse("anagrafica:mpq_processo_detail", args=[proc.id]) + "#attrezzature")
 
 
 # ── Requisiti generici tipizzati del processo (1.14) ──────────────────────────
