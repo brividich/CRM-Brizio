@@ -19,6 +19,14 @@
 .skc-check label { margin:0; }
 .ana-input { width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; box-sizing:border-box; }
 .skc-actions { display:flex; gap:10px; align-items:center; margin-top:6px; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .skc-card{border-color:var(--border);background:var(--surface)}
+body.theme-dark .skc-card h3{color:var(--text)}
+body.theme-dark .skc-card .hint{color:var(--text-light)}
+body.theme-dark .skc-field label{color:var(--text)}
+body.theme-dark .skc-field .errorlist{color:#fca5a5}
+body.theme-dark .ana-input{border-color:var(--border)}
 </style>
 {% endblock %}
 

@@ -41,6 +41,26 @@
 @media (max-width: 980px) {
   .wmf-fields, .wmf-checks, .wmf-doc-row-grid { grid-template-columns:1fr; }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .wmf-back{color:var(--text-light)}
+body.theme-dark .wmf-card{background:var(--surface)}
+body.theme-dark .wmf-card-head{border-color:var(--border)}
+body.theme-dark .wmf-card-head h2{color:var(--text)}
+body.theme-dark .wmf-card-head p{color:var(--text-light)}
+body.theme-dark .wmf-field label{color:var(--text)}
+body.theme-dark .wmf-error{color:#fca5a5}
+body.theme-dark .wmf-check{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .wmf-doc-section{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .wmf-doc-title{color:var(--text)}
+body.theme-dark .wmf-doc-row{background:var(--surface)}
+body.theme-dark .wmf-doc-row label{color:var(--text)}
+body.theme-dark .wmf-upload-item{background:var(--surface)}
+body.theme-dark .wmf-upload-meta{color:var(--text-light)}
+body.theme-dark .wmf-upload-remove{color:#fca5a5}
+body.theme-dark .wmf-doc-empty{color:var(--text-light)}
+body.theme-dark .wmf-help{color:var(--text-light)}
+body.theme-dark .wmf-inline-note{color:var(--text-light)}
 </style>
 {% endblock %}
 

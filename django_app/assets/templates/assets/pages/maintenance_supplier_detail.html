@@ -44,6 +44,15 @@ body.theme-dark .msd-link{color:#60a5fa}
 body.theme-dark .msd-chip{background:var(--surface-alt);color:var(--text)}
 @media(max-width:900px){.msd-kpis{grid-template-columns:repeat(2,1fr)}.msd-cov{grid-template-columns:1fr}.msd-cov > div{border-right:none;border-bottom:1px solid #f1f5f9}}
 @media(max-width:560px){.msd-kpis{grid-template-columns:1fr}}
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .msd-kpi span{color:var(--text-light)}
+body.theme-dark .msd-kpi.is-alert strong{color:#fca5a5}
+body.theme-dark .msd-badge{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .msd-badge.ok{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .msd-badge.warn{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .msd-badge.bad{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .msd-cov span{color:var(--text-light)}
 </style>
 {% endblock %}
 

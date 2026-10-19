@@ -113,6 +113,28 @@
 @media (max-width: 760px) {
   .rd-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .rd-kpi,body.theme-dark .rd-card{background:var(--surface)}
+body.theme-dark .rd-kpi-label{color:var(--text-light)}
+body.theme-dark .rd-kpi-value{color:var(--text)}
+body.theme-dark .rd-card-head{border-color:var(--border)}
+body.theme-dark .rd-card-head h2{color:var(--text)}
+body.theme-dark .rd-card-head p{color:var(--text-light)}
+body.theme-dark .rd-summary-meta{color:var(--text-light)}
+body.theme-dark .rd-table th{border-color:var(--border);color:var(--text-light)}
+body.theme-dark .rd-table td{border-color:var(--border);color:var(--text)}
+body.theme-dark .rd-empty{color:var(--text-light)}
+body.theme-dark .rd-tab{background:var(--surface);color:var(--text)}
+body.theme-dark .rd-tab.is-active{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .rd-period-form input{border-color:var(--border);background:var(--surface)}
+body.theme-dark .rd-meter{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .rd-health-stat{color:var(--text-light)}
+body.theme-dark .rd-health-stat strong{color:var(--text)}
+body.theme-dark .rd-budget-status.ok{color:#86efac}
+body.theme-dark .rd-budget-status.warn{color:#fcd34d}
+body.theme-dark .rd-budget-status.over{color:#fca5a5}
+body.theme-dark .rd-budget-status.missing{color:var(--text-light)}
 </style>
 {% endblock %}
 

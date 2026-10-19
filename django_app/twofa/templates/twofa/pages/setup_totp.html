@@ -46,6 +46,11 @@ body.login-page {
 .twofa-btn:hover { background:var(--primary-mid); }
 .twofa-error { background:#fff0f0; border:1px solid #fca5a5; color:#b91c1c; border-radius:7px; padding:10px 14px; font-size:.88rem; margin-bottom:14px; }
 .toggle-secret { font-size:.8rem; color:var(--primary); cursor:pointer; text-decoration:underline; display:block; text-align:center; margin-bottom:8px; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .twofa-box{background:var(--surface)}
+body.theme-dark .secret-code{background:var(--surface-alt,#0f1b2d);border-color:var(--border)}
+body.theme-dark .toggle-secret{color:#93c5fd}
 </style>
 {% endblock %}
 

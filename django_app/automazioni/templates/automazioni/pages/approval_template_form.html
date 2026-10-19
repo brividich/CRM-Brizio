@@ -40,6 +40,30 @@
   .atf-placeholder-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .atf-placeholder-chip { background:#f1f5f9; color:#334155; font-size:11px; font-family:monospace; padding:3px 7px; border-radius:5px; cursor:pointer; border:1px solid #e2e8f0; }
   .atf-placeholder-chip:hover { background:#e2e8f0; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .atf-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .atf-card-head{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .atf-card-title{color:var(--text)}
+body.theme-dark .atf-card-subtitle{color:var(--text-light)}
+body.theme-dark .atf-section-title{color:var(--text-light);border-color:var(--border)}
+body.theme-dark .atf-field label{color:var(--text-mid)}
+body.theme-dark .atf-field input[type=text],body.theme-dark .atf-field input[type=email],body.theme-dark .atf-field select,body.theme-dark .atf-field textarea{border-color:var(--border);background:var(--surface)}
+body.theme-dark .atf-field .helptext{color:var(--text-light)}
+body.theme-dark .atf-field .errorlist li{color:#fca5a5}
+body.theme-dark .atf-actions{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .atf-btn-back{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .atf-btn-back:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .atf-btn-preview{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .atf-btn-preview:hover{background:rgba(59,130,246,.18)}
+body.theme-dark .atf-btn-clone{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .atf-btn-clone:hover{background:rgba(56,161,105,.18)}
+body.theme-dark .atf-info{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .atf-info code{background:rgba(59,130,246,.18)}
+body.theme-dark .atf-warn{background:rgba(214,158,46,.16);color:#fdba74}
+body.theme-dark .mode-section{border-color:var(--border)}
+body.theme-dark .atf-placeholder-chip{background:var(--surface-alt,#0f1b2d);color:var(--text);border-color:var(--border)}
+body.theme-dark .atf-placeholder-chip:hover{background:var(--surface-alt,#0f1b2d)}
 </style>
 {% endblock %}
 

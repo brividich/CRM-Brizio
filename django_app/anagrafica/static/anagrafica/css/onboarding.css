@@ -106,3 +106,14 @@ body.theme-dark .obv-note { background: #2a2116; color: #fbbf77; }
 body.theme-dark .obd-dates-form input, body.theme-dark .obv-exc input { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
 body.theme-dark .obd-dates-form label { color: var(--text-light); }
 body.theme-dark .obv-completato .obv-title { color: var(--text-light); text-decoration: line-through; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .obd-late{color:#fdba74}
+body.theme-dark .obd-resp-chip b{color:#93c5fd}
+body.theme-dark .obd-resp-chip:hover{color:var(--text)}
+body.theme-dark .obd-resp-late b{color:#fdba74}
+body.theme-dark .obd-dates summary,body.theme-dark .obv-exc summary{color:#93c5fd}
+body.theme-dark .obf-n{color:#93c5fd}
+body.theme-dark .obv-auto{color:#93c5fd}
+body.theme-dark .obv-done-auto{color:#86efac}
+body.theme-dark .obv-done{color:var(--text-light)}

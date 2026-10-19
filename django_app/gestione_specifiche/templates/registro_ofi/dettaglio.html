@@ -38,6 +38,15 @@ body.theme-dark .ofi-dl dd{ color:var(--text); }
 .pdca-now .pdca-now-dot{ width:8px; height:8px; border-radius:50%; background:currentColor; }
 body.theme-dark .pdca-dot{ background:var(--surface,#0e1a2c); }
 body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .pdca-step::before{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .pdca-dot{border-color:var(--border)}
+body.theme-dark .pdca-lbl{color:var(--text-light)}
+body.theme-dark .pdca-step.done .pdca-lbl{color:#86efac}
+body.theme-dark .pdca-step.done .pdca-cap{color:#86efac}
+body.theme-dark .pdca-step.current .pdca-lbl{color:#fdba74}
+body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
 </style>
 {% endblock %}
 

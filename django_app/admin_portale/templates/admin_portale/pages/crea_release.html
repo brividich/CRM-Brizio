@@ -91,6 +91,23 @@
     .release-terminal-row { flex-direction:column; align-items:stretch; }
     .release-terminal-row input { min-width:0; width:100%; }
   }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .release-result.ok{background:rgba(56,161,105,.18)}
+body.theme-dark .release-result.err{background:rgba(229,62,62,.16)}
+body.theme-dark .release-result.ok  .release-result-title{color:#86efac}
+body.theme-dark .release-result.err .release-result-title{color:#fca5a5}
+body.theme-dark .pkg-item{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .pkg-item-name{color:var(--text)}
+body.theme-dark .pkg-item-meta{color:var(--text-light)}
+body.theme-dark .script-info{color:var(--text-light);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .script-missing{color:#fca5a5;background:rgba(229,62,62,.16)}
+body.theme-dark .release-env-card{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .release-env-card.is-active{background:rgba(59,130,246,.18)}
+body.theme-dark .release-env-head{color:var(--text)}
+body.theme-dark .release-env-meta{color:var(--text-light)}
+body.theme-dark .release-terminal-row select,body.theme-dark .release-terminal-row input{background:var(--surface);color:var(--text)}
+body.theme-dark .release-terminal-status{color:var(--text-light)}
 </style>
 {% endblock %}
 

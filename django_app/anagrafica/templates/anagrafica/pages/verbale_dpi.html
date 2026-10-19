@@ -36,6 +36,17 @@
   .vd-doc { border:none; padding:0; border-radius:0; }
   .vd-table th { background:#f1f5f9 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .vd-wrap{background:var(--surface);color:var(--text)}
+body.theme-dark .vd-doc{border-color:var(--border)}
+body.theme-dark .vd-brand{color:var(--text)}
+body.theme-dark .vd-modref{color:var(--text-light)}
+body.theme-dark .vd-intro{color:var(--text)}
+body.theme-dark .vd-table th,body.theme-dark .vd-table td{border-color:var(--border)}
+body.theme-dark .vd-table th{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .vd-decl{color:var(--text-mid)}
+body.theme-dark .vd-foot{border-color:var(--border)}
 </style>
 {% endblock %}
 

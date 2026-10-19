@@ -103,6 +103,14 @@ body.theme-dark .hrnav-sub-sez a.active, body.theme-dark .hrnav-sub-voci a.activ
   .hrnav-sub-sez, .hrnav-sub-voci { flex-wrap:nowrap; overflow-x:auto; width:100%; }
   .hrnav-sub-voci { padding-left:0; border-left:0; }
 }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .hrnav-tab:hover .hrnav-ico{color:#93c5fd}
+body.theme-dark .hrnav-tab.active .hrnav-ico{color:#93c5fd}
+body.theme-dark .hrnav-pill.active .hrnav-ico{color:#93c5fd}
+body.theme-dark .hrnav-dd-menu a:hover .hrnav-ico{color:#93c5fd}
+body.theme-dark .hrnav-dd-menu a.active .hrnav-ico{color:#93c5fd}
+body.theme-dark .hrnav-sub-sez a:hover{background:var(--surface-alt,#0f1b2d);color:var(--text)}
 </style>
 <div class="hrnav">
   {% for item in nav.items %}

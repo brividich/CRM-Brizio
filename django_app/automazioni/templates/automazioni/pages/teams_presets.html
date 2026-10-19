@@ -39,6 +39,28 @@
   .tp-empty { text-align:center; color:#94a3b8; padding:32px; font-size:14px; }
   .tp-help { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 16px; font-size:13px; color:#1e40af; line-height:1.6; margin-bottom:16px; }
   .tp-help code { background:#dbeafe; padding:1px 5px; border-radius:4px; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .tp-table th,body.theme-dark .tp-table td{border-color:var(--border)}
+body.theme-dark .tp-table th{color:var(--text-light);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .tp-url{color:var(--text-mid)}
+body.theme-dark .tp-badge-on{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .tp-badge-off{background:var(--surface-alt,#0f1b2d);color:var(--text-light)}
+body.theme-dark .tp-btn-edit{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .tp-btn-edit:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .tp-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .tp-btn-danger:hover{background:rgba(229,62,62,.16)}
+body.theme-dark .tp-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .tp-card-head{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .tp-card-title{color:var(--text)}
+body.theme-dark .tp-card-subtitle{color:var(--text-light)}
+body.theme-dark .form-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .form-card-title{color:var(--text)}
+body.theme-dark .form-field label{color:var(--text-mid)}
+body.theme-dark .form-field input,body.theme-dark .form-field textarea,body.theme-dark .form-field select{border-color:var(--border);background:var(--surface)}
+body.theme-dark .form-errors li{color:#fca5a5}
+body.theme-dark .tp-help{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .tp-help code{background:rgba(59,130,246,.18)}
 </style>
 {% endblock %}
 

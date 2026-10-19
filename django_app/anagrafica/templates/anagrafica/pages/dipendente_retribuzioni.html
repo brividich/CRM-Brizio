@@ -122,6 +122,32 @@
 .dr-modal .grid > .full { grid-column:1/-1; }
 .dr-modal .actions { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:16px; }
 .dr-modal .right-actions { display:flex; gap:8px; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .dr-title{color:var(--text)}
+body.theme-dark .dr-sub{color:var(--text-light)}
+body.theme-dark .dr-btn-ghost{background:var(--surface-alt,#0f1b2d);color:var(--text);border-color:var(--border)}
+body.theme-dark .dr-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .dr-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .dr-btn-danger:hover{background:rgba(229,62,62,.16)}
+body.theme-dark .dr-add-panel{background:var(--surface-alt,#0f1b2d);border-color:var(--border)}
+body.theme-dark .dr-form-label{color:var(--text-light)}
+body.theme-dark .dr-input{border-color:var(--border)}
+body.theme-dark .dr-legend{color:var(--text-light)}
+body.theme-dark .dr-pivot-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .dr-pivot thead th{background:var(--surface-alt,#0f1b2d);color:var(--text);border-color:var(--border)}
+body.theme-dark .dr-pivot thead th.dr-col-date{border-color:var(--border)}
+body.theme-dark .dr-pivot thead th.dr-col-cat-fisso{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark .dr-pivot thead th.dr-col-cat-variabile{background:rgba(214,158,46,.16);color:#fdba74}
+body.theme-dark .dr-pivot thead th.dr-col-cat-altro{background:rgba(139,92,246,.2);color:#c4b5fd}
+body.theme-dark .dr-pivot thead th.dr-col-cat-totale{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .dr-month-row td{border-color:var(--border)}
+body.theme-dark .dr-month-row td.dr-col-date{background:var(--surface);color:var(--text);border-color:var(--border)}
+body.theme-dark .dr-cell-totale{color:#86efac}
+body.theme-dark .dr-cell-ral{color:#86efac}
+body.theme-dark .dr-modal{background:var(--surface)}
+body.theme-dark .dr-modal h3{color:var(--text)}
+body.theme-dark .dr-modal .sub{color:var(--text-light)}
 </style>
 {% endblock %}
 

@@ -38,7 +38,23 @@
     body.theme-dark .sch-table th{background:var(--surface-alt,#1e293b);color:var(--text,#e2e8f0)}
     body.theme-dark .sch-table td{border-color:var(--border,#334155)}
     body.theme-dark .sch-btn{background:transparent;color:var(--text,#e2e8f0)}
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .sch-table th,body.theme-dark .sch-table td{border-color:var(--border)}
+body.theme-dark .sch-func{color:var(--text-light)}
+body.theme-dark .sch-on{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .sch-off,body.theme-dark .sch-err{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .sch-warn{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .sch-mute{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .sch-btn{border-color:var(--border)}
+body.theme-dark .sch-btn:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .sch-btn.warn{color:#fca5a5}
+body.theme-dark .sch-sum span{color:var(--text-light)}
+body.theme-dark .sch-alert{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .sch-okbar{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .sch-err-text{color:#fca5a5}
+body.theme-dark .sch-small{color:var(--text-light)}
+</style>
 
   {% if not cluster.alive %}
     <div class="sch-alert">Il cluster dei job (qcluster) sembra fermo: nessun job completato negli ultimi 20 minuti{% if cluster.last_task %} (ultimo il {{ cluster.last_task|date:"d/m/Y H:i" }}){% endif %}. Finché non riparte nessuno schedule viene eseguito.</div>

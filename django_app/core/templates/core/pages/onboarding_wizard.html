@@ -352,6 +352,12 @@
       justify-content: flex-start;
     }
   }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .onb-toggle-switch::after{background:var(--surface)}
+body.theme-dark .onb-chip{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .onb-summary-badge{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);color:var(--text-light)}
 </style>
 {% endblock %}
 

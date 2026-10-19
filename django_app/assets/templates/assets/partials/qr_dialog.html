@@ -31,6 +31,10 @@ body.theme-dark .aq-pill--pub { background:rgba(245,158,11,.18); color:#fcd34d; 
 body.theme-dark .aq-pill--int { background:rgba(34,197,94,.16); color:#86efac; }
 @media (max-width:560px) { .aq-panel-body { grid-template-columns:1fr; justify-items:center; } .aq-info { width:100%; } }
 @media print { dialog.aq-dialog { display:none; } }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .aq-thumb{background:var(--surface)}
+body.theme-dark .aq-big{background:var(--surface)}
 </style>
 <dialog class="aq-dialog" id="aqDialog" aria-label="Anteprima QR"><div id="aqDialogBody"></div></dialog>
 <script>

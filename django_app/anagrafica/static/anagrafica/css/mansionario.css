@@ -172,3 +172,13 @@ body.theme-dark .fmd .mst-msg-ok, body.theme-dark .fmd .mst-p-nuovo{ background:
 body.theme-dark .fmd .mst-msg-ko, body.theme-dark .fmd .mst-p-errore{ background:rgba(240,128,128,.14); color:#f08080; }
 body.theme-dark .fmd .mst-p-modificato{ background:rgba(31,135,205,.18); color:#7cc4f5; }
 body.theme-dark .fmd .mst-avvisi{ color:#f6ad55; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .mns-search{background:var(--surface)}
+body.theme-dark .mns-gruppo-nota{color:#fdba74}
+body.theme-dark .mns-gruppo-warn .mns-gruppo-nome{color:#fdba74}
+body.theme-dark .mns-warn-txt{color:#fdba74}
+body.theme-dark .mns-stat{background:var(--surface)}
+body.theme-dark .mns-stat.mns-ko b{color:#fca5a5}
+body.theme-dark .mns-stat.mns-mid b{color:#fdba74}
+body.theme-dark .mst-avvisi{color:#fdba74}
