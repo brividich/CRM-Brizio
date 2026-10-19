@@ -168,6 +168,9 @@ GUIDA = {
                     ("qcluster_coda", "lavori in attesa (oltre 50 = avviso) e lavori falliti nelle ultime 24 ore, con il nome."),
                     ("disk_space", "spazio libero dei dischi con log, file caricati, archivi privati e area dei backup: sotto il 15% avviso, sotto il 5% guasto."),
                     ("tls_cert", "giorni alla scadenza del certificato https del portale: 30 avviso, 7 guasto."),
+                    ("m365_servizi", "servizi Microsoft 365 da cui dipende il portale (Exchange, SharePoint, OneDrive, Teams, Entra, Intune, "
+                                     "Defender): avviso se Microsoft segnala un disservizio in corso, mai guasto. Spiega perché caselle, "
+                                     "SharePoint o calendari non rispondono. Permesso Graph ServiceHealth.Read.All; letto ogni 15 minuti."),
                 ]),
                 ("ul", [
                     "Avvisi e guasti aprono una segnalazione nella Centrale, che si chiude da sola quando torna tutto a posto.",
