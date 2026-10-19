@@ -117,6 +117,21 @@ class RegistroModuliTests(TestCase):
                     self.assertIn(azione, moduli[chiave].azioni, f"{preset.chiave}.{chiave}.{azione}")
                     self.assertIn(ambito, ("propri", "team", "tutti"))
 
+    def test_ogni_preset_concede_login_dashboard_e_notizie(self):
+        from core.permessi.registro import modulo as modulo_registrato
+
+        self.assertIn("login", modulo_registrato("bacheca").moduli_acl)
+        self.assertIn("dashboard", modulo_registrato("bacheca").moduli_acl)
+        for preset in PRESETS:
+            if preset.amministratore:
+                continue  # vede e fa tutto
+            celle = preset.celle
+            vedere = "tutti" if preset.vede_tutto else "propri"
+            self.assertEqual(
+                celle.get("bacheca"), {"vedere": vedere, "creare": "propri", "modificare": "propri"}, preset.chiave
+            )
+            self.assertIn(celle.get("notizie", {}).get("vedere"), ("tutti",), preset.chiave)
+
     def test_ordini_dei_preset_distinti(self):
         ordini = [p.ordine for p in PRESETS]
         self.assertEqual(len(ordini), len(set(ordini)))

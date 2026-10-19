@@ -1,7 +1,8 @@
 """Moduli trasversali di core nel sistema dei permessi (core.permessi).
 
 ``piattaforma`` raccoglie i permessi tecnici (setup, monitoring, BrizioHUB,
-API di servizio, login/health): resta all'Amministratore. Le pagine aperte a
+API di servizio, health): resta all'Amministratore. Login e logout stanno in
+«bacheca» (dashboard), la dotazione base che ogni preset concede. Le pagine aperte a
 ogni utente autenticato (notifiche, onboarding, ricerca, home personale) non
 passano dai permessi: sono in ``core.middleware._ACL_SHARED_ROUTE_NAMES``.
 """
@@ -34,7 +35,7 @@ registra_modulo(ModuloPermessi(
     app="core",
     moduli_acl=(
         "hub_tools", "setup_wizard", "monitoring", "monitoring_admin", "api",
-        "approval_proxy", "login", "logout", "health", "healthz", "readyz",
+        "approval_proxy", "health", "healthz", "readyz",
         "version", "check", "coming", "modifica_capo", "modifica_info_completa",
         "gestione_reparto",
     ),

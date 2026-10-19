@@ -22,6 +22,10 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   Addetto emergenze 420, Preposto 300; RSPP esterno (chiave `sicurezza`) 700; Operatore (chiave
   `dipendente`) 100. Le chiavi storiche restano per non scollegare i ruoli già creati.
   `riallinea_preset_modello()` (migrazione core 0081) aggiorna solo nomi/celle ancora uguali al preset.
+- **Dotazione base** (`_DOTAZIONE_BASE` in `core/permessi/preset.py`, 19/10/2026): ogni preset
+  (tranne Amministratore, che ha tutto) concede `bacheca` vedere/creare/modificare «propri» e
+  `notizie` vedere «tutti». `login`/`logout` stanno in `bacheca` (`dashboard/registro_permessi.py`),
+  non più in `piattaforma`. Migrazione core 0088 riallinea le celle; poi «Sincronizza i permessi delle pagine».
 - **Referti**: azione extra `referti` di `visite_mediche`; `anagrafica.views._can_view_referti`
   la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
   scheda e coda referti (`views_sorveglianza._puo`).
