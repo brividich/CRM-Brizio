@@ -12,7 +12,7 @@ from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from core.acl_v2 import request_has_permission_code
 from core.legacy_utils import get_legacy_user, is_legacy_admin
@@ -600,6 +600,30 @@ _DAILY_BRIEF_PROMPT = (
     "Una riga per punto, tono diretto e operativo, in italiano. Non inventare voci "
     "non presenti nel contesto. Se non c'e' nulla di rilevante, dillo in una riga."
 )
+
+
+@require_GET
+def api_cerca_documenti(request):
+    """Ricerca veloce in guide, procedure e schede per la barra «Cerca o vai a…».
+
+    Niente LLM: solo il recupero dell'assistente (``cerca_documenti``) con gli
+    stessi permessi della chat (guide consentite, specifiche/procedure solo a chi
+    le apre nel modulo)."""
+    from .services import cerca_documenti
+
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "unauthenticated"}, status=401)
+    q = str(request.GET.get("q") or "").strip()[:200]
+    if len(q) < 3:
+        return JsonResponse({"ok": True, "stato": "pronto", "results": []})
+    allow_specifiche, allow_procedure = sgi_rag_access(request)
+    stato, risultati = cerca_documenti(
+        q,
+        allow_specifiche=allow_specifiche,
+        allow_procedure=allow_procedure,
+        allowed_guides=guide_consentite(request),
+    )
+    return JsonResponse({"ok": True, "stato": stato, "results": risultati})
 
 
 def _seconds_until_end_of_day() -> int:

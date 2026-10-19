@@ -53,6 +53,16 @@
 .fm-tbl-col-handle{color:#94a3b8;font-size:13px;line-height:1;letter-spacing:-2px}
 .fm-tbl-col-item label{display:flex;align-items:center;gap:6px;cursor:pointer;flex:1}
 .fm-tbl-col-item input[type=checkbox]{width:14px;height:14px;accent-color:#1d4ed8;margin:0}
+.fm-tbl-views{min-width:260px}
+.fm-tbl-views-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;padding:4px 8px 6px}
+.fm-tbl-views-empty{font-size:12px;color:#64748b;padding:4px 8px 8px;line-height:1.4}
+.fm-tbl-views-item{display:flex;align-items:center;gap:4px;border-radius:4px}
+.fm-tbl-views-item:hover{background:#f1f5f9}
+.fm-tbl-views-apply{flex:1;text-align:left;background:none;border:0;padding:6px 8px;font-size:12.5px;color:#334155;cursor:pointer;font-family:inherit}
+.fm-tbl-views-apply:hover{color:#1d4ed8}
+.fm-tbl-views-del{background:none;border:0;padding:2px 8px;font-size:15px;line-height:1;color:#94a3b8;cursor:pointer;border-radius:4px}
+.fm-tbl-views-del:hover{color:#dc2626;background:rgba(220,38,38,.08)}
+.fm-tbl-views-add{display:block;width:100%;margin-top:6px;padding:7px 8px;text-align:left;font-size:12.5px;font-weight:600;color:#1d4ed8;background:none;border:0;border-top:1px solid #e2e8f0;cursor:pointer;font-family:inherit}
 .fm-tbl-status{font-size:11px;color:#64748b;font-style:italic;margin-left:auto}
 .fm-tbl-status-saving{color:#1d4ed8;font-weight:600;font-style:normal}
 .fm-tbl-count{
@@ -135,6 +145,13 @@ body.theme-dark .fm-th-filter-clear:hover{background:rgba(220,38,38,.18);border-
 body.theme-dark .fm-tbl-col-item{color:#cbd5e1}
 body.theme-dark .fm-tbl-col-item:hover{background:rgba(148,163,184,.08)}
 body.theme-dark .fm-tbl-count{background:#1e293b;color:#94a3b8}
+body.theme-dark .fm-tbl-views-title,
+body.theme-dark .fm-tbl-views-empty{color:#94a3b8}
+body.theme-dark .fm-tbl-views-item:hover{background:rgba(148,163,184,.08)}
+body.theme-dark .fm-tbl-views-apply{color:#cbd5e1}
+body.theme-dark .fm-tbl-views-apply:hover,
+body.theme-dark .fm-tbl-views-add{color:#93c5fd}
+body.theme-dark .fm-tbl-views-add{border-top-color:#334155}
 body.theme-dark .fm-th-sort,
 body.theme-dark .fm-th-filter{color:#64748b}
 body.theme-dark .fm-th-sort:hover,

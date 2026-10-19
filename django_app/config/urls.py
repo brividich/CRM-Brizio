@@ -20,10 +20,14 @@ from django.contrib.staticfiles import views as staticfiles_views
 from django.urls import include, path
 from django.urls import re_path
 from django.views.static import serve as media_serve
+from dati_bi.api import api as dati_api
 from monitoring import views as monitoring_views
 from tasks import views as task_views
 
 urlpatterns = [
+    # API dati in sola lettura per applicazioni (token + ambiti + allowlist IP):
+    # vedi dati_bi/api.py. Solo rete interna.
+    path("api/v1/", dati_api.urls),
     # Liveness/readiness — root, prima di setup_wizard cosi' restano disponibili
     # anche durante un primo avvio non finalizzato. IP allowlist via settings.
     path("healthz", monitoring_views.healthz, name="healthz"),

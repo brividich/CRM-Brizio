@@ -15,11 +15,11 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
-<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=3">
 {% endblock %}
 
 {% block content %}
-<div class="hp-wrap hs" data-screen-label="Home portale">
+<div class="hp-wrap hs" data-screen-label="Home portale" data-hs-stanza="{{ home_prefs.stanza }}" data-hs-tour="{% if home_prefs.tour_visto %}visto{% else %}nuovo{% endif %}">
 
   {# ── IL POLSO ───────────────────────────────────────────────────────── #}
   <aside class="hs-pulse" aria-label="Il tuo riepilogo">
@@ -47,7 +47,18 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
       {% endfor %}
     </div>
 
-    {% if header_actions %}
+    <div class="hs-fav" id="hs-fav">
+      <div class="hs-lbl">I miei preferiti</div>
+      <div class="hs-fav-list" data-hs-fav-list>
+        {% for mod in home_preferiti %}
+          <a class="hs-fav-a hp-tone-{{ mod.tone }}" href="{{ mod.url }}">{{ mod.label }}</a>
+        {% empty %}
+          <p class="hs-fav-empty">Nella stanza «Moduli» tocca ☆ su una tessera per averla sempre qui.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if header_actions and "azioni" not in home_nascosti %}
     <div class="hs-qa">
       <div class="hs-lbl">Azioni rapide</div>
       {% for cta in header_actions %}
@@ -75,7 +86,32 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
         <button type="button" role="tab" id="hs-tab-persone" data-room="persone" aria-controls="hs-room-persone" aria-selected="false" tabindex="-1">Persone &amp; sicurezza</button>
         <button type="button" role="tab" id="hs-tab-moduli" data-room="moduli" aria-controls="hs-room-moduli" aria-selected="false" tabindex="-1">Moduli<sup>{{ module_total }}</sup></button>
       </nav>
-      <a class="hs-guide" href="{% url 'home_portale:guida' %}" title="Guida della home">? Guida</a>
+      <div class="hs-tools">
+        <button type="button" class="hs-guide hs-pers-btn" aria-expanded="false" aria-controls="hs-pers" data-hs-pers>⚙ Personalizza</button>
+        <a class="hs-guide" href="{% url 'home_portale:guida' %}" title="Guida della home">? Guida</a>
+        <form class="hs-pers" id="hs-pers" method="post" hidden>
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="personalizza">
+          <div class="hs-pers-h">Personalizza la home</div>
+          <label class="hs-pers-f">Stanza di apertura
+            <select name="stanza" class="input">
+              <option value="">L'ultima che ho aperto</option>
+              {% for k, label in home_stanze %}<option value="{{ k }}"{% if home_prefs.stanza == k %} selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <fieldset class="hs-pers-f">
+            <legend>Riquadri da mostrare</legend>
+            {% for k, label in home_riquadri %}
+              <label class="hs-pers-c"><input type="checkbox" name="mostra" value="{{ k }}"{% if k not in home_nascosti %} checked{% endif %}> {{ label }}</label>
+            {% endfor %}
+          </fieldset>
+          <p class="hs-pers-n">I preferiti si scelgono con ☆ sulle tessere della stanza «Moduli».</p>
+          <div class="hs-pers-a">
+            <button type="submit" class="btn btn-primary btn-sm">Salva</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-hs-tour-start>Rifai il tour</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     {# ── OGGI ── #}
@@ -125,9 +161,10 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
         </div>
 
         <div class="hs-col">
-          {% if ai_daily_brief_enabled %}
+          {% if ai_daily_brief_enabled and "brief" not in home_nascosti %}
             {% include "ai_assistant/partials/daily_brief_widget.html" %}
           {% endif %}
+          {% if "news" not in home_nascosti %}
           <div class="hp-card hp-news-card">
             <header class="hp-card-h">
               <div>
@@ -153,6 +190,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
               {% endfor %}
             </ul>
           </div>
+          {% endif %}
         </div>
       </div>
     </section>
@@ -350,9 +388,13 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
   });
   var start = (location.hash || '').replace('#', '');
   if (!start || !show(start, false)) {
-    var last = null;
-    try { last = localStorage.getItem(KEY); } catch(e) {}
-    if (last) show(last, false);
+    var root = document.querySelector('.hs[data-hs-stanza]');
+    var fissa = root ? root.getAttribute('data-hs-stanza') : '';
+    if (!fissa || !show(fissa, false)) {
+      var last = null;
+      try { last = localStorage.getItem(KEY); } catch(e) {}
+      if (last) show(last, false);
+    }
   }
 })();
 
@@ -394,6 +436,111 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
     if (panel) panel.hidden = !next;
     wrap.classList.toggle('hp-tile-active', next);
   });
+})();
+/* Personalizza, preferiti (☆ sulle tessere) e tour di benvenuto.
+   Tutto passa da POST sulla home stessa (dashboard/views_home_portale.py). */
+(function(){
+  var root = document.querySelector('.hs[data-hs-tour]');
+  var pan = document.getElementById('hs-pers');
+  if (!root || !pan) return;
+  function csrf(){ var i = pan.querySelector('input[name=csrfmiddlewaretoken]'); return i ? i.value : ''; }
+  function post(fd){
+    return fetch(location.pathname, {
+      method: 'POST', body: fd, credentials: 'same-origin',
+      headers: {'X-CSRFToken': csrf(), 'Accept': 'application/json'}
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok && !!j.ok, data: j}; });
+    }).catch(function(){ return {ok: false, data: {}}; });
+  }
+  function form(obj){ var fd = new FormData(); Object.keys(obj).forEach(function(k){ fd.append(k, obj[k]); }); return fd; }
+
+  var btn = root.querySelector('[data-hs-pers]');
+  function chiudi(){ pan.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    var apri = pan.hidden;
+    pan.hidden = !apri;
+    btn.setAttribute('aria-expanded', String(apri));
+  });
+  document.addEventListener('click', function(e){ if (!pan.hidden && !pan.contains(e.target) && e.target !== btn) chiudi(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !pan.hidden) { chiudi(); btn.focus(); } });
+  pan.addEventListener('submit', function(e){
+    e.preventDefault();
+    post(new FormData(pan)).then(function(res){
+      if (res.ok) location.href = location.pathname;
+      else alert(res.data.error || 'Preferenze non salvate.');
+    });
+  });
+
+  var favList = root.querySelector('[data-hs-fav-list]');
+  function setStar(s, on){
+    var nome = '';
+    var w = s.closest('[data-tile]');
+    var l = w ? w.querySelector('.hp-tile-lbl') : null;
+    if (l) nome = l.textContent.trim();
+    s.setAttribute('aria-pressed', on ? 'true' : 'false');
+    s.textContent = on ? '★' : '☆';
+    s.title = on ? 'Togli dai preferiti' : 'Aggiungi ai preferiti';
+    s.setAttribute('aria-label', (on ? 'Togli ' : 'Aggiungi ') + nome + (on ? ' dai preferiti' : ' ai preferiti'));
+  }
+  function rebuildFav(ids){
+    favList.innerHTML = '';
+    var n = 0;
+    (ids || []).forEach(function(id){
+      var w = root.querySelector('[data-tile="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+      var go = w ? w.querySelector('.hp-tile-go') : null;
+      var lbl = w ? w.querySelector('.hp-tile-lbl') : null;
+      if (!go || !lbl) return;
+      var a = document.createElement('a');
+      var tone = (w.className.match(/hp-tone-[a-z]+/) || [''])[0];
+      a.className = 'hs-fav-a ' + tone;
+      a.href = go.getAttribute('href');
+      a.textContent = lbl.textContent.trim();
+      favList.appendChild(a);
+      n++;
+    });
+    if (!n) {
+      var p = document.createElement('p');
+      p.className = 'hs-fav-empty';
+      p.textContent = 'Nella stanza «Moduli» tocca ☆ su una tessera per averla sempre qui.';
+      favList.appendChild(p);
+    }
+  }
+  root.addEventListener('click', function(e){
+    var s = e.target.closest('[data-hs-star]');
+    if (!s) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var on = s.getAttribute('aria-pressed') !== 'true';
+    post(form({azione: 'preferito', modulo: s.getAttribute('data-hs-star'), on: on ? '1' : '0'})).then(function(res){
+      if (!res.ok) { alert(res.data.error || 'Preferito non salvato.'); return; }
+      setStar(s, on);
+      rebuildFav(res.data.prefs && res.data.prefs.preferiti);
+    });
+  });
+
+  var TOUR = [
+    {title: "Benvenuto in NOVICROM HUB", text: "Un giro di un minuto tra le cose che userai ogni giorno. Puoi chiuderlo quando vuoi e rifarlo da «⚙ Personalizza»."},
+    {selector: ".nav-search", title: "Cerca o vai a…", text: "Scrivi il nome di una pagina o una domanda: trovi pagine, guide e procedure. Scorciatoia Ctrl+K."},
+    {selector: ".nav-notify-btn", title: "Notifiche", text: "Approvazioni, scadenze e messaggi. Dal menu con il tuo nome, «Impostazioni notifiche» sceglie cosa ricevere e attiva le notifiche sul telefono."},
+    {selector: ".nav-icon-ai", title: "Assistente AI", text: "Fai una domanda su procedure e guide del portale (Alt+A)."},
+    {selector: ".nav-icon-guida", title: "? Guida", text: "In ogni pagina apre la guida del modulo in cui ti trovi. Tutte le guide sono nel Centro guide."},
+    {selector: ".hs-pulse", title: "Il tuo riepilogo", text: "Priorità, preferiti, azioni rapide e numeri di emergenza, sempre visibili."},
+    {selector: ".hs-rooms", title: "Le stanze", text: "Oggi, Sapere, Persone & sicurezza e Moduli. «Oggi» raccoglie quello che aspetta una tua azione."},
+    {selector: "#hs-fav", title: "I miei preferiti", text: "Nella stanza «Moduli» tocca ☆ su una tessera per averla qui."},
+    {selector: "[data-hs-pers]", title: "Personalizza", text: "Scegli la stanza di apertura, nascondi i riquadri che non usi e rifai questo tour."},
+    {selector: ".nav-user", title: "Il tuo menu", text: "Profilo, impostazioni delle notifiche, i tuoi report ed esci."}
+  ];
+  function avviaTour(){
+    if (!window.NHUB_startTour) return;
+    window.NHUB_startTour(TOUR, function(){
+      if (root.getAttribute('data-hs-tour') === 'visto') return;
+      root.setAttribute('data-hs-tour', 'visto');
+      post(form({azione: 'tour_visto'}));
+    });
+  }
+  pan.querySelector('[data-hs-tour-start]').addEventListener('click', function(){ chiudi(); avviaTour(); });
+  if (root.getAttribute('data-hs-tour') === 'nuovo') setTimeout(avviaTour, 800);
 })();
 </script>
 {% endblock %}

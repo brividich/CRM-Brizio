@@ -27,6 +27,9 @@
           <p class="fmd-sub">Piani formativi, corsi, sessioni e scadenze in un'unica vista. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
           <div class="fmd-hero-actions">
             {% if can_edit_formazione %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:formazione_dashboard' %}?vista=leggi-attestato" title="Carica l'attestato di un ente esterno: il portale propone dipendente, corso e date">
+              <svg class="fmd-ico"><use href="#i-search"/></svg>Leggi un attestato
+            </a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:attestato_impostazioni' %}">
               <svg class="fmd-ico"><use href="#i-award"/></svg>Template attestato
             </a>

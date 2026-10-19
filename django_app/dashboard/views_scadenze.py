@@ -16,6 +16,7 @@ from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
 from django.shortcuts import render
 
 from .scadenze_providers import (
+    ORIZZONTE_GIORNI,
     PROVIDERS,
     SOURCE_LABELS,
     collect_all,
@@ -26,13 +27,14 @@ _STATI = {
     "scaduta": lambda g: g is not None and g < 0,
     "30": lambda g: g is not None and 0 <= g <= 30,
     "60": lambda g: g is not None and 0 <= g <= 60,
+    "90": lambda g: g is not None and 0 <= g <= 90,
 }
 
 
 @login_required
 def scadenze_globali(request: HttpRequest) -> HttpResponse:
-    filtro_sorgente = request.GET.get("sorgente", "").strip()   # hr/asset/dpi/rentri/""
-    filtro_stato = request.GET.get("stato", "").strip()          # scaduta/30/60/""
+    filtro_sorgente = request.GET.get("sorgente", "").strip()   # uno dei PROVIDERS o ""
+    filtro_stato = request.GET.get("stato", "").strip()          # scaduta/30/60/90/""
     filtro_reparto = request.GET.get("reparto", "").strip()
     export_csv = request.GET.get("format") == "csv"
 
@@ -62,6 +64,7 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
     n_scadute = sum(1 for v in voci if v.scaduta)
     n_30gg = sum(1 for v in voci if not v.scaduta and v.giorni is not None and v.giorni <= 30)
     n_60gg = sum(1 for v in voci if not v.scaduta and v.giorni is not None and 30 < v.giorni <= 60)
+    n_90gg = sum(1 for v in voci if not v.scaduta and v.giorni is not None and 60 < v.giorni <= 90)
 
     reparti = sorted({v.reparto for v in voci if v.reparto})
 
@@ -75,6 +78,9 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         "n_scadute": n_scadute,
         "n_30gg": n_30gg,
         "n_60gg": n_60gg,
+        "n_90gg": n_90gg,
+        "orizzonte_giorni": ORIZZONTE_GIORNI,
+        "source_labels": SOURCE_LABELS,
         "reparti": reparti,
         "sorgenti": [(code, SOURCE_LABELS[code]) for code in PROVIDERS],
         "filtro_sorgente": filtro_sorgente,

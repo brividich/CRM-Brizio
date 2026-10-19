@@ -21,6 +21,12 @@
     {% endif %}
     <span class="hp-tile-corner" aria-hidden="true"></span>
   </button>
+  {% if home_star %}
+  <button type="button" class="hp-star" data-hs-star="{{ mod.id }}"
+          aria-pressed="{% if mod.id in home_preferiti_ids %}true{% else %}false{% endif %}"
+          title="{% if mod.id in home_preferiti_ids %}Togli dai preferiti{% else %}Aggiungi ai preferiti{% endif %}"
+          aria-label="{% if mod.id in home_preferiti_ids %}Togli {{ mod.label }} dai preferiti{% else %}Aggiungi {{ mod.label }} ai preferiti{% endif %}">{% if mod.id in home_preferiti_ids %}★{% else %}☆{% endif %}</button>
+  {% endif %}
   <div class="hp-tile-panel" id="hp-panel-{{ mod.id }}" hidden>
     <div class="hp-tile-panel-row">
       <div class="hp-tile-panel-info">

@@ -149,8 +149,11 @@ def run_security_cycle_task():
 
     logger = logging.getLogger(__name__)
     result = {}
+    from security.services import defender_alerts
+
     steps = (
         ("mailboxes", ingest_security_mailboxes_task),
+        ("defender", defender_alerts.run),
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),

@@ -20,6 +20,7 @@ from django.apps import apps
 APP_INFO: dict[str, tuple[str, str, str]] = {
     "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report"),
     "admin_portale": ("Piattaforma", "#1d4ed8", "Pannello di amministrazione"),
+    "dati_bi": ("Piattaforma", "#0369a1", "Dati per Power BI (viste SQL bi_*) e API dati in sola lettura per applicazioni"),
     "hub_tools": ("Piattaforma", "#3b82f6", "Strumenti hub: moduli, database, guide"),
     "dashboard": ("Piattaforma", "#60a5fa", "Home e cruscotti"),
     "monitoring": ("Piattaforma", "#fb923c", "Salute del portale, segnalazioni, schedule, esiti dei backup e prove di ripristino"),
@@ -112,8 +113,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "Microsoft Graph (Microsoft 365)",
         "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
-        "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report), "
-               "Automazioni (lettura risposte di approvazione).",
+        "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
+               "alert di Microsoft Defender con SecurityAlert.Read.All), Automazioni (lettura risposte di approvazione), "
+               "Audit sigillato (export mensile su SharePoint: SiteConfig audit_export_sp_drive_id / audit_export_sp_cartella).",
         "config": "GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET e gli ID delle liste (Setup Wizard → Microsoft Graph / SharePoint)",
         "controllo": "Errori 401/403/invalid_client = segreto dell'app scaduto: rinnovarlo su Entra ID.",
     },
@@ -123,6 +125,24 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "chi": "Notifiche, approvazioni, promemoria, minute degli incontri.",
         "config": "EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, DEFAULT_FROM_EMAIL (Setup Wizard → SMTP)",
         "controllo": "Mail di prova dall'Amministrazione; Log notifiche; run log automazioni.",
+    },
+    {
+        "nome": "Power BI e applicazioni esterne (lettura dati)",
+        "cosa": "Power BI legge le viste SQL bi_* con un utente SQL in sola lettura; Power BI (connettore Web), Power Automate "
+                "o un gestionale leggono l'API /api/v1/ con un token per applicazione. Nessun dato personale nominativo.",
+        "chi": "Direzione e reportistica (KPI manutenzione, scadenze, ticket, DPI, CAPA).",
+        "config": "Viste: GRANT da manage.py bi_viste --grant <login>. API: manage.py dati_api_client crea …; "
+                  "DATI_API_ALLOWED_IPS (IP o reti ammessi)",
+        "controllo": "manage.py bi_viste (righe per vista); manage.py dati_api_client elenco (ultimo accesso); GET /api/v1/stato/.",
+    },
+    {
+        "nome": "Servizi push dei browser (Web Push)",
+        "cosa": "Il segnale «c'è una notifica nuova» verso telefoni e PC, attraverso il servizio del produttore del browser "
+                "(Google, Mozilla, Microsoft, Apple). Parte solo il segnale, senza testo: il dispositivo legge la notifica dal portale.",
+        "chi": "Notifiche del portale per chi ha attivato la push (Impostazioni notifiche); invii dal qcluster.",
+        "config": "VAPID_PRIVATE_KEY, VAPID_SUBJECT (manage.py genera_chiavi_vapid); uscita https verso fcm.googleapis.com, "
+                  "*.push.services.mozilla.com, *.notify.windows.com, *.push.apple.com",
+        "controllo": "Impostazioni notifiche → «Invia una prova»; manage.py genera_chiavi_vapid --verifica.",
     },
     {
         "nome": "Entra Application Proxy",

@@ -176,6 +176,23 @@ def _ocr(png: bytes, *, lingua: str, psm: int, timeout: int) -> str:
             return ""
 
 
+def ocr_immagine(png: bytes, *, lingua: str = "ita", psm: int = 6, timeout: int = 30) -> str:
+    """OCR di un'immagine PNG con gli stessi accorgimenti dei referti.
+
+    Per chi legge altri documenti in ingresso (``core.lettura_documenti``):
+    stessa installazione di Tesseract, stessa gestione degli errori."""
+    return _ocr(png, lingua=lingua, psm=psm, timeout=timeout)
+
+
+def rasterizza_pagina(contenuto: bytes, pagina: int, dpi: int = 200) -> bytes:
+    """La pagina ``pagina`` del PDF composta in PNG (``ErroreLettura`` se non si può)."""
+    doc = _apri(contenuto)
+    try:
+        return _rasterizza(doc, pagina, dpi)
+    finally:
+        doc.close()
+
+
 def testo_pagina(contenuto: bytes, pagina: int = 0, config=None) -> str:
     """Testo di una pagina: OCR come fonte principale, layer nativo come aggiunta.
 

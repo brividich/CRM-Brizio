@@ -1,0 +1,125 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Leggi un attestato | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=9">
+<style>
+  .la-panel { padding:18px 20px; }
+  .la-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .la-field { display:flex; flex-direction:column; gap:5px; font-size:13px; }
+  .la-field label { font-weight:600; color:var(--text, #1e293b); }
+  .la-field input, .la-field select { border:1px solid var(--border, #cbd5e1); border-radius:8px; padding:8px 10px; font-size:14px;
+                                       background:var(--surface, #fff); color:var(--text, #1e293b); min-width:0; }
+  .la-hint { font-size:12px; color:var(--text-mid, #64748b); }
+  .la-hint.ok { color:#15803d; }
+  .la-hint.warn { color:#b45309; }
+  .la-avvisi { margin:12px 0 0; padding:10px 14px; border-radius:8px; background:#fffbeb; color:#92400e; font-size:13px; }
+  .la-avvisi:empty { display:none; }
+  .la-testo { white-space:pre-wrap; font-size:12px; max-height:260px; overflow:auto; background:var(--surface-alt, #f8fafc);
+              border:1px solid var(--border, #e2e8f0); border-radius:8px; padding:10px; color:var(--text, #1e293b); }
+  .la-step { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-mid, #64748b); margin:0 0 8px; }
+  .la-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px; }
+  body.theme-dark .la-avvisi { background:#3a2a0c; color:#fcd34d; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+    <div class="fmd-panel la-panel" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;">
+        <div>
+          <h1 style="margin:0 0 6px;font-size:1.4rem;">Leggi un attestato</h1>
+          <p class="la-hint" style="margin:0;">Carica l'attestato rilasciato da un ente esterno (PDF o foto). Il portale propone dipendente, corso, date e ore:
+            controlla, correggi se serve e registra. Il completamento va a libretto e nello scadenzario, il file nel box documenti del dipendente.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a class="fmd-btn" href="{% url 'anagrafica:formazione_guida' %}#leggi-attestato">? Guida</a>
+          <a class="fmd-btn" href="{% url 'anagrafica:formazione_dashboard' %}">← Formazione</a>
+        </div>
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="la-form" class="fmd-panel la-panel"
+          action="{% url 'anagrafica:formazione_dashboard' %}">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="registra_attestato">
+      <p class="la-step">1 · Il documento</p>
+      <div class="la-actions" style="margin-top:0;">
+        <input type="file" name="file" id="la-file" accept="{{ accept }}" required>
+        <button type="button" class="fmd-btn fmd-btn-primary" id="la-leggi">Leggi il documento</button>
+        <span class="la-hint" id="la-stato" role="status"></span>
+      </div>
+      <div class="la-avvisi" id="la-avvisi"></div>
+
+      <p class="la-step" style="margin-top:20px;">2 · Controlla e completa</p>
+      <div class="la-grid">
+        <div class="la-field">
+          <label for="la-dipendente">Dipendente</label>
+          <select name="dipendente" id="la-dipendente" required>
+            <option value="">— scegli —</option>
+            {% for d in dipendenti %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+          </select>
+          <span class="la-hint" id="la-dipendente-hint"></span>
+        </div>
+        <div class="la-field">
+          <label for="la-corso">Corso</label>
+          <select name="corso" id="la-corso" required>
+            <option value="">— scegli —</option>
+            {% for c in corsi %}<option value="{{ c.id }}">{{ c.codice }} · {{ c.titolo }}</option>{% endfor %}
+          </select>
+          <span class="la-hint" id="la-corso-hint"></span>
+        </div>
+        <div class="la-field">
+          <label for="la-data">Data di completamento</label>
+          <input type="date" name="data_completamento" id="la-data" required>
+          <span class="la-hint" id="la-scadenza-hint"></span>
+        </div>
+        <div class="la-field">
+          <label for="la-rilascio">Data di rilascio</label>
+          <input type="date" name="data_rilascio" id="la-rilascio">
+          <span class="la-hint">Vuota = data di completamento.</span>
+        </div>
+        <div class="la-field">
+          <label for="la-ore">Ore frequentate</label>
+          <input type="number" name="ore" id="la-ore" min="0" step="0.5">
+          <span class="la-hint">Vuoto = durata teorica del corso.</span>
+        </div>
+        <div class="la-field">
+          <label for="la-ente">Ente che lo rilascia</label>
+          <input type="text" name="ente" id="la-ente" maxlength="200">
+        </div>
+        <div class="la-field">
+          <label for="la-numero">Numero attestato</label>
+          <input type="text" name="numero" id="la-numero" maxlength="100">
+        </div>
+        <div class="la-field">
+          <label for="la-idoneo">Esito</label>
+          <select name="idoneo" id="la-idoneo">
+            <option value="1">Positivo (idoneo)</option>
+            <option value="0">Non idoneo</option>
+          </select>
+        </div>
+      </div>
+
+      <details style="margin-top:16px;" id="la-testo-box" hidden>
+        <summary class="la-hint" style="cursor:pointer;">Testo letto dal documento</summary>
+        <div class="la-testo" id="la-testo"></div>
+      </details>
+
+      <div class="la-actions">
+        <button type="submit" class="fmd-btn fmd-btn-primary">Registra il completamento</button>
+        <span class="la-hint">La scadenza la calcola il portale dalla validità del corso.</span>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="{% static 'anagrafica/js/leggi_attestato.js' %}" defer></script>
+{% endblock %}

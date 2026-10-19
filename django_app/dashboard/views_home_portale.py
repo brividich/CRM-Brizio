@@ -338,9 +338,9 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 
     # ── NOTIZIE ───────────────────────────────────────────────────────
     try:
-        from notizie.models import Notizia
-        pubblicate = Notizia.objects.filter(pubblicata=True).count()
-        nuove = Notizia.objects.filter(pubblicata=True, data_pubblicazione__gte=week_ago).count()
+        from notizie.models import STATO_PUBBLICATA, Notizia
+        pubblicate = Notizia.objects.filter(stato=STATO_PUBBLICATA).count()
+        nuove = Notizia.objects.filter(stato=STATO_PUBBLICATA, pubblicato_il__gte=week_ago).count()
         out["notizie"] = [
             {"value": pubblicate, "unit": "pubblicate", "tone": "info"},
             {"value": nuove, "unit": "ultima settimana", "tone": "success" if nuove else "info"},
@@ -425,7 +425,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 
     # ── PULSANTI (hubtools) ───────────────────────────────────────────
     try:
-        from hub_tools.models import NavigationItem
+        from core.models import NavigationItem
         out["hubtools"] = [
             {"value": NavigationItem.objects.filter(is_visible=True).count(),
              "unit": "pulsanti attivi", "tone": "info"},
@@ -560,21 +560,36 @@ def _calendar_week(request) -> list[dict]:
 
 
 def _news_items(request) -> list[dict]:
-    """Ultime notizie dal modulo notizie."""
+    """Ultime 5 notizie pubblicate che l'utente può leggere (stesso filtro
+    di pubblico della pagina Notizie)."""
     try:
-        from notizie.models import Notizia
-        qs = Notizia.objects.filter(pubblicata=True).order_by("-data_pubblicazione")[:5]
+        from notizie.views import _get_legacy_role_id, _notizie_visibili
+
+        visibili = _notizie_visibili(_get_legacy_role_id(request))
+        visibili.sort(key=lambda n: n.pubblicato_il or n.created_at, reverse=True)
         url_base = _safe_url("notizie_lista")
+        oggi = timezone.localdate()
         out = []
-        for n in qs:
+        for n in visibili[:5]:
+            quando = n.pubblicato_il or n.created_at
+            giorni = (oggi - timezone.localtime(quando).date()).days if quando else None
+            if giorni is None:
+                ago = ""
+            elif giorni <= 0:
+                ago = "oggi"
+            elif giorni == 1:
+                ago = "ieri"
+            else:
+                ago = f"{giorni} giorni fa"
             out.append({
                 "title":  str(n.titolo or ""),
-                "source": str(getattr(n, "reparto", "") or getattr(n, "autore", "") or ""),
-                "ago":    "—",
+                "source": "Obbligatoria" if n.obbligatoria else "",
+                "ago":    ago,
                 "url":    url_base,
             })
         return out
     except Exception:
+        logger.exception("Home: news non calcolate")
         return []
 
 
@@ -745,10 +760,92 @@ def _module_launcher(groups: list[dict]) -> list[dict]:
     return flat
 
 
+# ── Home personalizzata ───────────────────────────────────────────────────────
+# Preferenze in UserUiPreference.home_prefs. I preferiti sono solo id di modulo:
+# i collegamenti nascono sempre da _module_groups, quindi un modulo non più
+# accessibile sparisce dai preferiti senza bisogno di pulizia.
+
+HOME_STANZE = (("oggi", "Oggi"), ("sapere", "Sapere"), ("persone", "Persone & sicurezza"), ("moduli", "Moduli"))
+HOME_RIQUADRI = (("azioni", "Azioni rapide"), ("brief", "Il tuo brief di oggi"), ("news", "News aziendali"))
+PREFERITI_MAX = 12
+
+
+def _pulisci_home_prefs(raw: Any) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    preferiti: list[str] = []
+    for x in raw.get("preferiti") or []:
+        val = str(x).strip()[:40] if isinstance(x, (str, int)) else ""
+        if val and val not in preferiti:
+            preferiti.append(val)
+    stanze = {k for k, _ in HOME_STANZE}
+    riquadri = {k for k, _ in HOME_RIQUADRI}
+    return {
+        "preferiti": preferiti[:PREFERITI_MAX],
+        "stanza": raw.get("stanza") if raw.get("stanza") in stanze else "",
+        "nascosti": [k for k in (raw.get("nascosti") or []) if k in riquadri],
+        "tour_visto": bool(raw.get("tour_visto")),
+    }
+
+
+def _home_prefs(user) -> dict:
+    from core.models import UserUiPreference
+
+    if not getattr(user, "pk", None):
+        return _pulisci_home_prefs({})
+    pref = UserUiPreference.objects.filter(user=user).only("home_prefs").first()
+    return _pulisci_home_prefs(pref.home_prefs if pref else {})
+
+
+def _salva_home_prefs(request: HttpRequest) -> HttpResponse:
+    """POST sulla home stessa (stessa rotta, stesso ACL): JSON, solo dati dell'utente."""
+    from django.http import JsonResponse
+
+    from core.models import UserUiPreference
+
+    prefs = _home_prefs(request.user)
+    azione = request.POST.get("azione") or ""
+    if azione == "preferito":
+        modulo = (request.POST.get("modulo") or "").strip()[:40]
+        if not modulo:
+            return JsonResponse({"ok": False, "error": "Modulo mancante."}, status=400)
+        lista = [m for m in prefs["preferiti"] if m != modulo]
+        if request.POST.get("on") == "1":
+            if len(lista) >= PREFERITI_MAX:
+                return JsonResponse(
+                    {"ok": False, "error": f"Puoi avere al massimo {PREFERITI_MAX} preferiti."}, status=400
+                )
+            lista.append(modulo)
+        prefs["preferiti"] = lista
+    elif azione == "personalizza":
+        prefs["stanza"] = request.POST.get("stanza") or ""
+        mostra = set(request.POST.getlist("mostra"))
+        prefs["nascosti"] = [k for k, _ in HOME_RIQUADRI if k not in mostra]
+    elif azione == "tour_visto":
+        prefs["tour_visto"] = True
+    else:
+        return JsonResponse({"ok": False, "error": "Azione non valida."}, status=400)
+    prefs = _pulisci_home_prefs(prefs)
+    obj, _ = UserUiPreference.objects.get_or_create(user=request.user)
+    obj.home_prefs = prefs
+    obj.save(update_fields=["home_prefs"])
+    return JsonResponse({"ok": True, "prefs": prefs})
+
+
+def _preferiti(groups: list[dict], ids: list[str]) -> list[dict]:
+    per_id = {}
+    for grp in groups:
+        for mod in grp["modules"]:
+            if mod.get("accessible") and mod.get("url") and mod["url"] != "#":
+                per_id.setdefault(mod["id"], mod)
+    return [per_id[i] for i in ids if i in per_id]
+
+
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 @login_required
 def home_portale(request: HttpRequest) -> HttpResponse:
+    if getattr(request, "method", "GET") == "POST":
+        return _salva_home_prefs(request)
     now = timezone.localtime()
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
@@ -782,8 +879,16 @@ def home_portale(request: HttpRequest) -> HttpResponse:
     bacheca_groups = _documenti_collegamenti(request, sezione=HubLinkCategory.SEZIONE_DOCUMENTI)
     self_help = _risorse_self_help(request)
     sicurezza = _sicurezza(legacy_user)
+    home_prefs = _home_prefs(request.user)
 
     context: dict[str, Any] = {
+        "home_prefs":         home_prefs,
+        "home_preferiti":     _preferiti(groups, home_prefs["preferiti"]),
+        "home_preferiti_ids": home_prefs["preferiti"],
+        "home_nascosti":      home_prefs["nascosti"],
+        "home_stanze":        HOME_STANZE,
+        "home_riquadri":      HOME_RIQUADRI,
+        "home_star":          True,
         "greeting":           _greeting(now),
         "greeting_name":      display_name,
         "greeting_summary":   greeting_summary,

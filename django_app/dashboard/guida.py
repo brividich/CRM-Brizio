@@ -25,7 +25,7 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Il numero accanto al nome della stanza conta cosa c'è dentro: le attività per «Oggi», "
                 "le risorse self-help per «Sapere», i moduli disponibili per «Moduli».",
-                "La home ricorda l'ultima stanza aperta su questo browser e la riapre alla visita successiva.",
+                "La home riapre l'ultima stanza che hai usato su questo browser, oppure quella scelta in «⚙ Personalizza».",
                 "Ogni stanza ha un indirizzo diretto da salvare o condividere: aggiungi #oggi, #sapere, "
                 "#persone o #moduli all'indirizzo della home.",
                 "Con la tastiera, le frecce sinistra e destra passano da una stanza all'altra.",
@@ -43,9 +43,28 @@ SEZIONI: list[dict] = [
                  "e delle richieste in approvazione."),
                 ("Priorità", "Anomalie aperte, Ticket attivi, Task in corso e Approvazioni. "
                  "Un clic apre il modulo."),
+                ("I miei preferiti", "i moduli che hai segnato con ☆ nella stanza «Moduli», nell'ordine in cui li hai scelti. "
+                 "Al massimo 12."),
                 ("Azioni rapide", "Le mie attività, Scadenzario, Nuovo ticket, Segnala anomalia e Richiedi permesso."),
                 ("Emergenza", "il numero unico 112 e chi coordina le emergenze, preso dall'organigramma della sicurezza."),
             ]),
+        ],
+    },
+    {
+        "id": "personalizza",
+        "titolo": "Personalizzare la home",
+        "blocchi": [
+            ("p", "Pulsante «⚙ Personalizza», a destra delle stanze. Le scelte valgono per te, su qualsiasi computer o telefono."),
+            ("def", [
+                ("Stanza di apertura", "«L'ultima che ho aperto» (comportamento normale) oppure sempre Oggi, Sapere, "
+                 "Persone & sicurezza o Moduli. Un indirizzo con #stanza vince comunque."),
+                ("Riquadri da mostrare", "togli la spunta ad Azioni rapide, Il tuo brief di oggi o News aziendali per nasconderli. "
+                 "Emergenza e Priorità restano sempre visibili."),
+                ("Preferiti", "nella stanza «Moduli» tocca ☆ su una tessera: diventa ★ e il modulo compare in «I miei preferiti». "
+                 "Tocca ★ per toglierlo. Un modulo che non puoi più aprire sparisce dai preferiti da solo."),
+                ("Rifai il tour", "rivede il giro di benvenuto della barra in alto e della home."),
+            ]),
+            ("nota", "Il giro di benvenuto parte da solo la prima volta che apri la home; chiudendolo non ricompare."),
         ],
     },
     {
