@@ -460,6 +460,80 @@ class Notifica(models.Model):
         return f"Notifica<user={self.legacy_user_id} tipo={self.tipo} letta={self.letta}>"
 
 
+class NotificaCanali(models.Model):
+    """Dove recapitare le notifiche oltre alla campanella, scelto dall'utente.
+
+    La campanella (``Notifica``) resta sempre: qui l'utente aggiunge la notifica
+    push sul telefono/PC per categoria e il riepilogo mattutino delle scadenze
+    via mail. Le categorie sono ``core.notifiche_meta.CATEGORIE``: una categoria
+    spenta (dall'admin o dall'utente) non produce né campanella né push.
+    Record creato al primo salvataggio; fino ad allora tutto spento.
+    """
+
+    DIGEST_GIORNI_CHOICES = [(7, "Scadute e prossimi 7 giorni"), (30, "Scadute e prossimi 30 giorni")]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifiche_canali",
+    )
+    push_categorie = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Categorie (core.notifiche_meta.CATEGORIE) per cui inviare anche la notifica push.",
+    )
+    digest_scadenze = models.BooleanField(default=False)
+    digest_giorni = models.PositiveSmallIntegerField(default=7, choices=DIGEST_GIORNI_CHOICES)
+    digest_ultimo_invio = models.DateField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_notificacanali"
+        verbose_name = "Canali notifiche utente"
+        verbose_name_plural = "Canali notifiche utenti"
+
+    def __str__(self) -> str:
+        return f"NotificaCanali(user={self.user_id}, push={self.push_categorie}, digest={self.digest_scadenze})"
+
+    def push_per_categoria(self, categoria: str) -> bool:
+        cats = self.push_categorie if isinstance(self.push_categorie, list) else []
+        return str(categoria or "") in cats
+
+
+class PushIscrizione(models.Model):
+    """Un browser (telefono o PC) iscritto alle notifiche push di un utente.
+
+    Le push partono **senza contenuto**: il servizio del produttore del browser
+    (Google, Mozilla, Microsoft, Apple) riceve solo il segnale «c'è qualcosa»;
+    il testo lo legge il browser dal portale, con la sessione dell'utente.
+    L'``endpoint`` è accettato solo verso i servizi push noti (``core.push``).
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_iscrizioni",
+    )
+    endpoint = models.TextField()
+    # SHA-256 dell'endpoint: unico. L'endpoint (fino a ~800 caratteri) non può
+    # stare in un indice univoco su SQL Server (limite 1700 byte della chiave).
+    endpoint_hash = models.CharField(max_length=64, unique=True)
+    dispositivo = models.CharField(max_length=200, blank=True, default="")
+    attiva = models.BooleanField(default=True, db_index=True)
+    errori_consecutivi = models.PositiveSmallIntegerField(default=0)
+    ultimo_invio_ok = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_pushiscrizione"
+        ordering = ["-created_at"]
+        verbose_name = "Iscrizione push"
+        verbose_name_plural = "Iscrizioni push"
+
+    def __str__(self) -> str:
+        return f"PushIscrizione(user={self.user_id}, attiva={self.attiva}, {self.dispositivo[:40]})"
+
+
 class UserExtraInfo(models.Model):
     """Informazioni anagrafiche aggiuntive per utente (reparto, caporeparto, macchina, contatti).
 
@@ -618,6 +692,41 @@ class AuditLog(models.Model):
 
     def __str__(self) -> str:
         return f"AuditLog<{self.azione} {self.modulo} user={self.legacy_user_id}>"
+
+
+class AuditSigillo(models.Model):
+    """Sigillo mensile dell'audit: catena di hash, un anello per mese.
+
+    Copre le azioni esplicite (``log_action``, accessi, approvazioni, impostazioni),
+    non le righe tecniche ``auto_*`` che la politica di archiviazione
+    (``core.audit_archive``) può legittimamente ridurre o cancellare. Ogni sigillo
+    contiene l'hash del precedente: cambiare o togliere una riga di un mese
+    sigillato rompe quel sigillo e tutti i successivi (vedi ``core.audit_sigilli``).
+    """
+
+    mese = models.CharField(max_length=7, unique=True, help_text="AAAA-MM")
+    righe = models.PositiveIntegerField(default=0)
+    id_min = models.BigIntegerField(null=True, blank=True)
+    id_max = models.BigIntegerField(null=True, blank=True)
+    hash_righe = models.CharField(max_length=64)
+    hash_precedente = models.CharField(max_length=64)
+    hash_sigillo = models.CharField(max_length=64, unique=True)
+    versione = models.PositiveSmallIntegerField(default=1)
+    creato_il = models.DateTimeField(auto_now_add=True)
+    export_ok = models.BooleanField(default=False)
+    export_il = models.DateTimeField(null=True, blank=True)
+    export_percorso = models.CharField(max_length=500, blank=True, default="")
+    export_errore = models.CharField(max_length=500, blank=True, default="")
+    verificato_il = models.DateTimeField(null=True, blank=True)
+    verifica_ok = models.BooleanField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["mese"]
+        verbose_name = "Sigillo audit mensile"
+        verbose_name_plural = "Sigilli audit mensili"
+
+    def __str__(self) -> str:
+        return f"AuditSigillo<{self.mese} {self.righe} righe {self.hash_sigillo[:12]}>"
 
 
 # ── Anagrafica configurabile ──────────────────────────────────────────────────
@@ -804,6 +913,9 @@ class UserUiPreference(models.Model):
         blank=True,
         help_text="Ordine personalizzato delle azioni rapide nel footer della sidebar. Null = ordine predefinito.",
     )
+    # Home personalizzata (dashboard/views_home_portale.py): moduli preferiti,
+    # stanza di apertura, riquadri nascosti, tour di benvenuto già visto.
+    home_prefs = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "core_useruipreference"

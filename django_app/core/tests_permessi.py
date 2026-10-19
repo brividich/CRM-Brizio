@@ -45,6 +45,8 @@ APP_SENZA_MODULO = {
     "setup_wizard": "Wizard di installazione: permessi nel modulo «piattaforma» di core.",
     "monitoring": "Monitoring tecnico: permessi nel modulo «piattaforma» di core.",
     "hub_tools": "BrizioHUB: permessi nel modulo «piattaforma» di core.",
+    "dati_bi": "Viste SQL e API /api/v1/ per applicazioni: nessuna pagina per utenti, accesso con token e ambiti "
+               "(dati_bi.ApiClient) e permessi SQL concessi dal DBA.",
 }
 
 

@@ -126,8 +126,10 @@ Colonne senza `data-col` sono visibili-sempre e non filtrabili (es. azioni).
 Sopra la `<table>` viene inserita una barra:
 
 ```
-[ 🔍 Cerca globale… ]   [Colonne ▾]   [Reset]   [✓ Preferenze salvate]
+[ 🔍 Cerca globale… ]   [Colonne ▾]   [Viste ▾]   [Reset]   [✓ Preferenze salvate]
 ```
+
+Menu "Viste" (18/10/2026): viste con nome per utente (colonne, ordine, sort, **filtri e ricerca compresi**), massimo 12 per tabella. Salvate con lo stesso endpoint `/api/table-prefs/<id>/` nel record `<table_id>::viste` (`state = {"viste": [{"nome", "stato"}]}`; id oltre 93 caratteri accorciato con hash), così il salvataggio automatico delle preferenze non le tocca. Applicare una vista passa lo stato in `sessionStorage` (`fm-tbl-vista:<id>`) e ricarica: `initTable` lo usa al posto delle preferenze, poi salva colonne/sort come preferenze correnti. Il pulsante mostra «Vista: nome» finché la pagina non viene ricaricata. Reset non cancella le viste.
 
 Nell'header di ogni colonna `data-col-filterable` compare l'icona filtro: il click apre un popover compatto con l'input adatto al tipo colonna.
 

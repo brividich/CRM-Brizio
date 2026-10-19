@@ -173,6 +173,7 @@ sequenceDiagram
 | 25 | [`contatori`](django_app/contatori/) | SOC IT - CN | `/contatori/` | **Contatori IT**: letture e consumabili delle MFC, fatture e riconciliazione, monitor SNMP di rete/UPS/sensori, profili e discovery · [scheda](docs/moduli/contatori.md) |
 | 26 | [`security`](django_app/security/) | SOC IT - CN | `/soc/` | Security Center (SOC): Panoramica IT, alert, casi e ticket, registro incidenti NIS2/GDPR, report periodico PDF, backup per PC e per job, scheda PC unica, avvisi automatici con impostazioni, eventi da mailbox Graph e parser, KPI, spiegazioni con AI locale · [scheda](docs/moduli/security.md) |
 | 27 | [`checklist_operativa`](django_app/checklist_operativa/) | Sicurezza | `/checklist-operativa/` | **Checklist Operativa**: checklist di chiusura aziendale (ex Excel) con mansioni per reparto, responsabili e vice · [scheda](docs/moduli/checklist_operativa.md) |
+| 28 | [`dati_bi`](django_app/dati_bi/) | Core | `/api/v1/` | Viste SQL `bi_*` per Power BI e API dati in sola lettura per applicazioni, senza dati personali nominativi · [scheda](docs/moduli/dati_bi.md) |
 
 > Tutte le app sono disabilitabili dal **Module Manager** in `/admin-portale/hub/moduli/` e selezionabili in fase di setup dal wizard (step 11/14).
 > `anagrafica` e `fornitori` sono separati anche nel catalogo permessi: HR usa il modulo `anagrafica`, Fornitori usa il modulo ACL `fornitori` con route `fornitori:*`.

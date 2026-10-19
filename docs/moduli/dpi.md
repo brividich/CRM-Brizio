@@ -25,6 +25,7 @@ Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 - **Reminder scadenze** schedulabile con `python manage.py send_dpi_expiry_reminders --dry-run`
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti
+- **Leggi un DDT** (Magazzino, scheda accanto a «Carico da DDT»): PDF o foto del DDT → `core.lettura_documenti` (testo nativo, OCR Tesseract per le scansioni) → `dpi/lettura_ddt.py` propone numero, data, fornitore e una riga per ogni codice `ModelloDPI` attivo trovato nel testo, con la quantità della stessa riga (prima «PZ 24», poi «24 PZ»; «da controllare» se incerta). Il gestore spunta e corregge; `azione=carico_ddt` registra un `magazzino.carica_ddt` per riga. Stessa URL `/dpi/magazzino/` (azioni POST `leggi_ddt`, `carico_ddt`), stesso controllo `_is_gestore`; il file non resta sul server.
 
 ## Ruoli del portale
 

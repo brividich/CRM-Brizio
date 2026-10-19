@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from security.models import Severity
 from security.services.configuration import get_setting, set_setting
 
 CATEGORY = "avvisi"
@@ -116,6 +117,22 @@ SECTIONS = [
         ],
     },
     {
+        "code": "defender",
+        "title": "Alert di Microsoft Defender",
+        "intro": "Ogni 15 minuti il SOC legge da Microsoft Graph gli alert di Defender aggiornati e ne fa un alert del SOC "
+                 "(uno per alert di Defender, aggiornato se cambia, chiuso quando Defender lo dà risolto). Dei dati si tengono "
+                 "titolo, severità, stato, dispositivi e il link a Defender; degli utenti coinvolti solo il numero. "
+                 "Serve il permesso «SecurityAlert.Read.All» con consenso amministratore sull'app Graph del portale.",
+        "channels_optional": True,
+        "options": [
+            Option("defender.alert.attivo", False, "Leggi gli alert di Defender"),
+            Option("defender.severita_minima", Severity.MEDIUM, "Severità minima per l'alert",
+                   "Sotto questa soglia l'alert di Defender resta un evento (conta nei KPI, non apre alert).", "choice",
+                   choices=((Severity.LOW, "Bassa"), (Severity.MEDIUM, "Media"), (Severity.HIGH, "Alta"))),
+            Option("defender.primo_giro_giorni", 7, "Primo giro", "Giorni di storico letti la prima volta.", "int", min_value=1, max_value=30),
+        ],
+    },
+    {
         "code": "ai_sintesi",
         "title": "Sintesi del giorno già pronta",
         "intro": "L'AI locale prepara la «Sintesi del giorno» della Panoramica ogni 30 minuti nelle ore di lavoro, solo quando "
@@ -194,6 +211,8 @@ def parse_post(data):
                 continue
             values[key] = int(raw)
         elif option.kind == "choice":
+            if field_name not in data:
+                continue  # campo non inviato (form parziale): resta il valore attuale
             raw = data.get(field_name, "")
             if raw not in dict(option.choices):
                 errors.append(f"{option.label}: scelta non valida.")

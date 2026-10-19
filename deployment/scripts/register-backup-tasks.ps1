@@ -16,6 +16,7 @@
 #   PortaleNovicrom-Backup-<ENV>-DRILL      domenica 04:00      hub_restore_drill (con -IncludeDrill, blocco R2)
 #   PortaleNovicrom-Backup-<ENV>-AUDIT      domenica 05:30      audit_archive --run (con -AuditArchiveDir)
 #   PortaleNovicrom-Backup-<ENV>-AUDIT-BUSINESS  ogni 4 settimane, domenica 06:00, audit_archive --category business (con -IncludeBusinessArchive, solo dopo S1)
+#   PortaleNovicrom-Backup-<ENV>-INFRA      ogni 30 minuti      infra_health_alert (con -IncludeInfraAlert): avvisa anche quando il qcluster è fermo
 #
 # Account: serve l'accesso di rete alla share dei backup, quindi logon con password
 # (-Credential) o gMSA (-GmsaAccount). S4U non ha credenziali di rete: rifiutato.
@@ -33,6 +34,7 @@ param(
     [string]$SqlServiceAccount = "",
     [switch]$IncludeDrill,
     [switch]$IncludeBusinessArchive,
+    [switch]$IncludeInfraAlert,
     [switch]$KeepLegacyTask
 )
 
@@ -69,6 +71,10 @@ function Get-TaskDefinitions {
     } elseif ($IncludeBusinessArchive) {
         throw "-IncludeBusinessArchive richiede -AuditArchiveDir."
     }
+    if ($IncludeInfraAlert) {
+        # Fuori dal qcluster di proposito: se il qcluster è fermo, l'allarme parte da qui.
+        $defs += @{ Kind = "INFRA"; Args = "infra_health_alert"; At = "00:10"; Schedule = "HalfHourly" }
+    }
     return $defs
 }
 
@@ -82,6 +88,12 @@ function New-BackupTrigger($def) {
             $rep = (New-ScheduledTaskTrigger -Once -At $at -RepetitionInterval (New-TimeSpan -Hours 1) `
                     -RepetitionDuration (New-TimeSpan -Hours ($end - $start - 1) -Minutes 1)).Repetition
             $t.Repetition = $rep
+            return $t
+        }
+        "HalfHourly" {
+            $t = New-ScheduledTaskTrigger -Daily -At $at
+            $t.Repetition = (New-ScheduledTaskTrigger -Once -At $at -RepetitionInterval (New-TimeSpan -Minutes 30) `
+                             -RepetitionDuration (New-TimeSpan -Hours 23 -Minutes 59)).Repetition
             return $t
         }
         "Monthly" {

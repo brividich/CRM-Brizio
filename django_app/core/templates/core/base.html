@@ -200,7 +200,7 @@ window.portalReadJsonResponse = async function (response, opts) {
 
 {% if user.is_authenticated %}
 <!-- ── Ricerca unificata (Ctrl+K): pagine + recenti + dati. Logica in core/js/command-palette.js ── -->
-<div id="gs-overlay" class="gs-overlay" role="dialog" aria-modal="true" aria-label="Cerca o vai a una pagina" data-api-url="{% url 'api_global_search' %}">
+<div id="gs-overlay" class="gs-overlay" role="dialog" aria-modal="true" aria-label="Cerca o vai a una pagina" data-api-url="{% url 'api_global_search' %}" data-docs-url="{% url 'ai_assistant:api_cerca_documenti' %}" data-ai-url="{% url 'ai_assistant:chat' %}">
   <div class="gs-modal" id="gs-modal">
     <div class="gs-input-wrap">
       <svg class="gs-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>

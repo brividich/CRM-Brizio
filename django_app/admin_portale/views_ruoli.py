@@ -39,7 +39,7 @@ from core.permessi.sync import (
 
 from .decorators import legacy_admin_required
 
-TABS = ("persone", "matrice", "modulo", "anteprima", "registro", "sistema", "guida")
+TABS = ("persone", "matrice", "modulo", "anteprima", "confronta", "registro", "sistema", "guida")
 VALORE_NO = "no"
 MODULO_AUDIT = "permessi"
 
@@ -135,6 +135,7 @@ def ruoli_portale(request):
         "matrice": _ctx_matrice,
         "modulo": _ctx_modulo,
         "anteprima": _ctx_anteprima,
+        "confronta": _ctx_confronta,
         "registro": _ctx_registro,
         "sistema": _ctx_sistema,
         "guida": lambda request: {},
@@ -682,6 +683,17 @@ def _ctx_anteprima(request) -> dict:
     team = []
     if ctx.team:
         team = list(UtenteLegacy.objects.filter(id__in=list(ctx.team)).order_by("nome").values_list("nome", flat=True))
+    # «Prova un ruolo»: effetto di aggiungere/togliere un ruolo, senza salvare niente.
+    prova_aggiungi = _int(request.GET.get("prova_aggiungi"))
+    prova_togli = _int(request.GET.get("prova_togli"))
+    effetto = None
+    if prova_aggiungi or prova_togli:
+        from core.permessi.simulatore import effetto_modifica
+
+        effetto = effetto_modifica(
+            user, aggiungi=[prova_aggiungi] if prova_aggiungi else [], togli=[prova_togli] if prova_togli else [],
+        )
+    ids_persona = {r.id for r in ctx.ruoli}
     return {
         "q": q,
         "risultati": risultati,
@@ -690,7 +702,30 @@ def _ctx_anteprima(request) -> dict:
         "ruoli_persona": ctx.ruoli,
         "amministratore": ctx.amministratore or ctx.superuser,
         "team": team,
+        "ruoli_da_provare": [r for r in AccessGroup.objects.filter(is_active=True).order_by("-priority", "label")
+                             if r.id not in ids_persona],
+        "ruoli_da_togliere": [r for r in ctx.ruoli if r.label],
+        "prova_aggiungi": prova_aggiungi,
+        "prova_togli": prova_togli,
+        "effetto": effetto,
+        "prova_aggiungi_label": next((r.label for r in AccessGroup.objects.filter(id=prova_aggiungi)), "") if prova_aggiungi else "",
+        "prova_togli_label": next((r.label for r in ctx.ruoli if r.id == prova_togli), "") if prova_togli else "",
     }
+
+
+# ── Confronta due ruoli ──────────────────────────────────────────────────────
+
+
+def _ctx_confronta(request) -> dict:
+    from core.permessi.simulatore import confronta_ruoli
+
+    ruoli = list(AccessGroup.objects.order_by("-priority", "label"))
+    per_id = {r.id: r for r in ruoli}
+    a, b = per_id.get(_int(request.GET.get("a"))), per_id.get(_int(request.GET.get("b")))
+    ctx = {"ruoli_tutti": ruoli, "ruolo_a": a, "ruolo_b": b}
+    if a and b:
+        ctx["confronto"] = confronta_ruoli(a, b)
+    return ctx
 
 
 # ── Registro ─────────────────────────────────────────────────────────────────

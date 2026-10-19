@@ -158,8 +158,73 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "allarmi-server",
+            "titolo": "Allarmi del server",
+            "blocchi": [
+                ("p", "Ogni 30 minuti (lavoro «infra_health_alert») il portale controlla quattro cose e le mostra nella Centrale di comando:"),
+                ("def", [
+                    ("qcluster", "l'ultimo lavoro pianificato completato. Oltre 40 minuti senza niente = qcluster fermo: automazioni, mail e SOC non girano."),
+                    ("qcluster_coda", "lavori in attesa (oltre 50 = avviso) e lavori falliti nelle ultime 24 ore, con il nome."),
+                    ("disk_space", "spazio libero dei dischi con log, file caricati, archivi privati e area dei backup: sotto il 15% avviso, sotto il 5% guasto."),
+                    ("tls_cert", "giorni alla scadenza del certificato https del portale: 30 avviso, 7 guasto."),
+                ]),
+                ("ul", [
+                    "Avvisi e guasti aprono una segnalazione nella Centrale, che si chiude da sola quando torna tutto a posto.",
+                    "Solo i guasti mandano una mail agli amministratori, una volta per problema, mai di notte (stesse regole degli allarmi dei backup).",
+                    "Se il qcluster è fermo, l'allarme dal qcluster non parte: registra anche il comando infra_health_alert in Utilità di pianificazione "
+                    "(register-backup-tasks.ps1 -IncludeInfraAlert). Dal terminale: infra_health_alert --solo-mostra mostra lo stato senza avvisare.",
+                ]),
+            ],
+        },
+        {
+            "id": "audit-sigillo",
+            "titolo": "Audit sigillato (non modificabile)",
+            "blocchi": [
+                ("p", "Il giorno 1 di ogni mese (alle 3:40, lavoro «audit_sigilli») il portale chiude il mese appena finito con un sigillo: "
+                      "un'impronta (SHA-256) di tutte le azioni registrate quel mese, legata all'impronta del mese prima. Se qualcuno cambia, "
+                      "aggiunge o toglie una riga di un mese chiuso, il sigillo non torna più e la catena si rompe da lì in avanti."),
+                ("def", [
+                    ("Cosa copre", "le azioni esplicite: accessi, approvazioni, permessi, impostazioni, attivazioni e revoche. Le righe tecniche "
+                                   "automatiche (inserimenti/modifiche dei dati) restano fuori, perché l'archiviazione le riduce per politica."),
+                    ("Verifica", "a ogni giro tutta la catena viene ricalcolata; se è rotta parte una mail agli amministratori."),
+                    ("Export", "per ogni mese due file nella cartella SharePoint configurata: le righe (audit-AAAA-MM.jsonl.gz) e il sigillo "
+                               "(audit-AAAA-MM.sigillo.json). Un file già presente non viene mai sovrascritto."),
+                ]),
+                ("passi", [
+                    "Scegli la cartella SharePoint (meglio una raccolta con etichetta di conservazione o in sola lettura per le persone).",
+                    "Dai all'app Graph del portale il permesso di scrittura su quel sito (Sites.Selected con «write», o Sites.ReadWrite.All).",
+                    "Imposta in SiteConfig «audit_export_sp_drive_id» (id della raccolta) e «audit_export_sp_cartella» (percorso, es. Audit/Portale).",
+                    "Dal terminale: audit_sigilli --esporta carica subito i mesi in attesa; audit_sigilli senza opzioni mostra lo stato di ogni mese.",
+                ]),
+                ("nota", "audit_sigilli --verifica ricalcola tutto e segnala i mesi alterati. I mesi oltre i 5 anni, tolti dal database "
+                         "dall'archiviazione, risultano «in archivio»: si controllano sui file esportati."),
+            ],
+        },
     ],
     "problemi": [
+        {
+            "sintomo": "Mail «[SERVER CRITICO] qcluster»",
+            "fare": [
+                "Il qcluster non completa lavori da oltre 40 minuti: riavvialo (Manuale di emergenza → «qcluster»).",
+                "Dopo il riavvio la segnalazione nella Centrale si chiude da sola al giro successivo.",
+            ],
+        },
+        {
+            "sintomo": "Mail «[SERVER CRITICO] disk_space» o «tls_cert»",
+            "fare": [
+                "disk_space: la mail dice quale disco e quali cartelle. Libera spazio (log vecchi, area di lavoro dei backup) o allarga il disco.",
+                "tls_cert: il certificato https sta per scadere o è scaduto: rinnovalo e aggiornalo nel binding https di IIS.",
+            ],
+        },
+        {
+            "sintomo": "Mail «[AUDIT] Catena dei sigilli rotta»",
+            "fare": [
+                "Dal terminale: audit_sigilli --verifica dice quali mesi e perché (righe aggiunte o tolte, contenuto modificato, sigillo modificato).",
+                "Confronta con i file esportati su SharePoint di quel mese (audit_sigilli --file AAAA-MM --out <cartella> ricrea quelli attuali).",
+                "È un possibile evento di sicurezza: non correggere a mano le righe, apri un incidente nel Security Center e conserva le prove.",
+            ],
+        },
         {
             "sintomo": "«Accesso negato» per una persona che dovrebbe entrare",
             "fare": [

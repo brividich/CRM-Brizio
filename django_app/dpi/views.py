@@ -1661,12 +1661,63 @@ def _int_or_none(value) -> int | None:
         return None
 
 
+_DDT_ESTENSIONI = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+
+
+def _magazzino_ddt(request):
+    """«Leggi un DDT»: ``leggi_ddt`` risponde con la proposta (JSON, il file non resta
+    sul server); ``carico_ddt`` registra le righe confermate, un carico per riga."""
+    if request.POST.get("azione") == "leggi_ddt":
+        from anagrafica.services.upload_documenti import UploadMimeValidationError, valida_documento
+        from core.lettura_documenti import DocumentoNonLeggibile, leggi
+
+        from .lettura_ddt import proponi
+
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            return JsonResponse({"ok": False, "errore": "Scegli il file del DDT."}, status=400)
+        try:
+            valida_documento(uploaded, _DDT_ESTENSIONI, label="DDT")
+            uploaded.seek(0)
+            lettura = leggi(uploaded.read())
+        except (UploadMimeValidationError, DocumentoNonLeggibile) as exc:
+            return JsonResponse({"ok": False, "errore": str(exc)}, status=400)
+        return JsonResponse({"ok": True, **proponi(lettura)})
+
+    try:
+        data = date.fromisoformat(request.POST.get("data", "").strip()) if request.POST.get("data") else timezone.localdate()
+    except ValueError:
+        messages.error(request, "Data del DDT non valida.")
+        return redirect("dpi:magazzino")
+    ddt_numero = request.POST.get("ddt_numero", "").strip()
+    fornitore = request.POST.get("fornitore", "").strip()
+    caricati = []
+    for mid in request.POST.getlist("riga_modello"):
+        if request.POST.get(f"riga_ok_{mid}") != "1":
+            continue
+        modello = ModelloDPI.objects.filter(pk=_int_or_none(mid), is_active=True).first()
+        qta = _int_or_none(request.POST.get(f"riga_qta_{mid}"))
+        if modello is None or not qta or qta <= 0:
+            continue
+        mov = magazzino.carica_ddt(modello, qta, ddt_numero=ddt_numero, data=data, fornitore=fornitore,
+                                   note="Da «Leggi un DDT».", user=request.user)
+        caricati.append(f"{mov.quantita} × {modello.codice}")
+    if not caricati:
+        messages.warning(request, "Nessuna riga confermata: niente caricato.")
+        return redirect("dpi:magazzino")
+    log_action(request, "DPI_MAGAZZINO_CARICO_DDT", "dpi", f"DDT {ddt_numero or 's.n.'}: " + ", ".join(caricati))
+    messages.success(request, f"Caricato il DDT {ddt_numero or 's.n.'}: " + ", ".join(caricati) + ".")
+    return redirect("dpi:magazzino")
+
+
 @login_required
 def magazzino_view(request):
     if not _is_gestore(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
+    if request.method == "POST" and request.POST.get("azione") in ("leggi_ddt", "carico_ddt"):
+        return _magazzino_ddt(request)
     if request.method == "POST":
         azione = request.POST.get("azione", "")
         modello = ModelloDPI.objects.filter(pk=_int_or_none(request.POST.get("modello"))).first()

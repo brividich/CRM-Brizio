@@ -454,6 +454,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Server: qcluster, coda django-q, spazio su disco, certificato https. Issue nella
+        # centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). Il controllo
+        # «qcluster fermo» da qui non può avvisare se il qcluster è fermo: per quello
+        # c'è anche il comando infra_health_alert da Utilità di pianificazione.
+        "name": "infra_health_alert",
+        "func": "monitoring.tasks.run_infra_health_alert",
+        "schedule_type": "I",       # Schedule.MINUTES
+        "minutes": 30,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in
         # scadenza come notifiche portale (idempotente, fired flag). Porta i
         # promemoria nello scheduler centralizzato al posto del Task Windows.
@@ -713,6 +725,29 @@ SCHEDULES: list[dict] = [
         "func": "dpi.tasks.run_dpi_expiry_reminders",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "10 7 * * *",       # ogni mattina alle 07:10
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # CORE — sigillo mensile dell'audit: sigilla i mesi conclusi (catena di hash),
+        # verifica tutta la catena (mail agli ADMINS se rotta) ed esporta su SharePoint
+        # se la cartella è configurata (SiteConfig audit_export_sp_*). Il giorno 1 e il 2
+        # (riprova dell'export se il primo giro non è riuscito).
+        "name": "audit_sigilli",
+        "func": "core.tasks.run_audit_sigilli",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 3 1,2 * *",     # giorni 1 e 2 del mese alle 03:40
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo
+        # agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op
+        # altrimenti); giorni feriali, una mail al giorno al massimo.
+        "name": "scadenze_digest_personale",
+        "func": "dashboard.tasks.run_scadenze_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1-5",     # lun-ven alle 07:30
         "repeats": -1,
         "kwargs": {},
     },

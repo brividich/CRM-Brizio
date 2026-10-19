@@ -77,6 +77,34 @@
     });
   }
 
+  // Tour definito da script (es. il benvenuto della home, che passa anche dalla
+  // barra in alto): passi {selector, title, text}; i passi il cui elemento non
+  // c'è o non si vede vengono saltati. onDone parte alla chiusura del tour.
+  window.NHUB_startTour = function (defs, onDone) {
+    ensureDriver(function () {
+      var factory = window.driver && window.driver.js && window.driver.js.driver;
+      if (!factory) return;
+      var steps = (defs || []).map(function (d) {
+        var el = d.selector ? document.querySelector(d.selector) : null;
+        if (d.selector && (!el || el.offsetParent === null)) return null;
+        var step = { popover: { title: d.title || "", description: d.text || "" } };
+        if (el) step.element = el;
+        return step;
+      }).filter(Boolean);
+      if (!steps.length) return;
+      factory({
+        showProgress: true,
+        allowClose: true,
+        nextBtnText: "Avanti",
+        prevBtnText: "Indietro",
+        doneBtnText: "Fine",
+        progressText: "{{current}} / {{total}}",
+        steps: steps,
+        onDestroyed: function () { if (typeof onDone === "function") onDone(); },
+      }).drive();
+    });
+  };
+
   document.addEventListener("DOMContentLoaded", function () {
     var triggers = document.querySelectorAll("[data-tour-start]");
     if (!triggers.length) return;

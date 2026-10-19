@@ -97,6 +97,15 @@ GUIDA = {
             ],
         },
         {
+            "id": "leggi-attestato",
+            "titolo": "Registrare l'attestato di un ente esterno",
+            "blocchi": [
+                ("p", "Formazione → «Leggi un attestato» (serve il permesso di modifica della formazione): carichi il PDF o la foto, "
+                      "«Leggi il documento» propone dipendente, corso, date, ore, ente e numero; controlli e premi «Registra il completamento». "
+                      "Il corso va a libretto e nello scadenzario, il file nel box documenti. Passi e limiti nella guida «Formazione d'aula»."),
+            ],
+        },
+        {
             "id": "cercare",
             "titolo": "Trovare un dipendente",
             "blocchi": [

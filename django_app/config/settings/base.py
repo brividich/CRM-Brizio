@@ -144,6 +144,11 @@ EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
 EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10") or "10")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "") or EMAIL_HOST_USER
 SITE_URL = env("SITE_URL", "")
+# Notifiche push sul telefono/PC (Web Push, core.push). Chiave privata VAPID P-256
+# in base64url (genera con `manage.py genera_chiavi_vapid`); la pubblica si ricava.
+# Vuota = push spente. VAPID_SUBJECT = contatto per i servizi push (mailto:...).
+VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = env("VAPID_SUBJECT", "") or (f"mailto:{DEFAULT_FROM_EMAIL}" if DEFAULT_FROM_EMAIL else "")
 SESSION_IDLE_TIMEOUT_SECONDS = int(env("SESSION_IDLE_TIMEOUT_SECONDS", "3600") or "3600")
 # Throttle scrittura del timestamp di attività: il middleware idle-timeout riscrive
 # (e salva la sessione) al più una volta ogni N secondi, non a ogni richiesta. Riduce
@@ -556,6 +561,7 @@ INSTALLED_APPS = [
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
     "checklist_operativa.apps.ChecklistOperativaConfig",
+    "dati_bi.apps.DatiBiConfig",
     "django_extensions",
     "django_q",
     "django_htmx",
@@ -921,7 +927,15 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
     # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
     "/api/assets/contatori/ingest/",
+    # API dati in sola lettura per applicazioni (Power BI, Power Automate, gestionali):
+    # token per applicazione con ambiti + allowlist IP nella view (DATI_API_ALLOWED_IPS).
+    # Nessun dato personale nominativo. Solo rete interna, MAI pubblicata su Entra
+    # Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md, dati_bi/api.py).
+    "/api/v1/",
 )
+
+# API dati (dati_bi): client IP (o reti CIDR) da cui le applicazioni possono leggere.
+DATI_API_ALLOWED_IPS = env_list("DATI_API_ALLOWED_IPS", ["127.0.0.1", "::1"])
 
 # Contatori asset: ore dopo le quali una lettura e' "vecchia" (default una settimana)
 # e client IP (o reti CIDR) da cui i collector possono inviare letture.

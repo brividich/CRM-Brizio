@@ -955,18 +955,34 @@ def notifiche(request):
 def notifiche_impostazioni(request):
     """Impostazioni notifiche dell'utente: gestisci le preferenze per categoria
     anche dopo l'onboarding. Effettive ovunque via core.notifiche_prefs."""
-    from core.models import UserOnboarding
+    from core.models import NotificaCanali, PushIscrizione, UserOnboarding
     from core.notifiche_prefs import is_category_enabled_globally
+    from core.push import chiave_pubblica, push_configurato
 
     onb, _ = UserOnboarding.objects.get_or_create(user=request.user)
+    canali = NotificaCanali.objects.filter(user=request.user).first()
 
     if request.method == "POST":
         cfg = onb.notifiche_config if isinstance(onb.notifiche_config, dict) else {}
+        push_categorie = []
         for spec in _ONBOARDING_NOTIFICATION_SPECS:
             key = str(spec["key"])
             cfg[key] = request.POST.get(f"notifiche_{key}") == "1"
+            if cfg[key] and request.POST.get(f"push_{key}") == "1":
+                push_categorie.append(key)
         onb.notifiche_config = cfg
         onb.save(update_fields=["notifiche_config"])
+        try:
+            digest_giorni = int(request.POST.get("digest_giorni") or 7)
+        except (TypeError, ValueError):
+            digest_giorni = 7
+        if digest_giorni not in dict(NotificaCanali.DIGEST_GIORNI_CHOICES):
+            digest_giorni = 7
+        canali = canali or NotificaCanali(user=request.user)
+        canali.push_categorie = push_categorie
+        canali.digest_scadenze = request.POST.get("digest_scadenze") == "1"
+        canali.digest_giorni = digest_giorni
+        canali.save()
         messages.success(request, "Preferenze notifiche salvate.")
         return redirect("notifiche_impostazioni")
 
@@ -978,12 +994,19 @@ def notifiche_impostazioni(request):
             "description": str(spec["description"]),
             "enabled": bool(saved.get(str(spec["key"]), bool(spec.get("default", True)))),
             "global_off": not is_category_enabled_globally(str(spec["key"])),
+            "push": bool(canali and canali.push_per_categoria(str(spec["key"]))),
         }
         for spec in _ONBOARDING_NOTIFICATION_SPECS
     ]
     return render(request, "core/pages/notifiche_impostazioni.html", {
         "page_title": "Impostazioni notifiche",
         "options": options,
+        "push_configurato": push_configurato(),
+        "vapid_public_key": chiave_pubblica(),
+        "dispositivi": list(PushIscrizione.objects.filter(user=request.user, attiva=True)),
+        "digest_scadenze": bool(canali and canali.digest_scadenze),
+        "digest_giorni": int(canali.digest_giorni) if canali else 7,
+        "digest_giorni_choices": NotificaCanali.DIGEST_GIORNI_CHOICES,
     })
 
 

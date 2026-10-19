@@ -128,11 +128,14 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 /admin-portale/automazioni/approvazione/
 /approval-actions/           (token-based, Entra Application Proxy frontend)
 /api/assets/contatori/ingest/  (token per collector + allowlist IP, SOLO rete interna)
+/api/v1/                       (API dati sola lettura: token per applicazione + ambiti + allowlist IP, SOLO rete interna)
 ```
 
 Allineato a `config/settings/base.py` il 18/10/2026. Il middleware non applica né login né ACL su questi prefissi: la protezione dipende solo dalla view (decoratore ACL, token, allowlist). Il test `core/test_security_audit_fase3.py` elenca in `PUBLIC_VIEWS` quelle che rispondono 200 a un anonimo: una nuova esenzione va aggiunta sia a `MIDDLEWARE_EXEMPT_PREFIXES` sia lì, con motivazione.
 
 **`/api/assets/contatori/ingest/` — letture contatori dai collector** (es. OPC UA delle CNC): nessuna sessione, `Authorization: Bearer <token>` di un `MeterIngestClient` attivo (a DB solo hash SHA-256, confronto `hmac.compare_digest`), client IP in `ASSETS_METER_INGEST_ALLOWED_IPS` (IP o CIDR, default solo loopback; fuori = 403 JSON), ogni collector scrive solo sugli asset consentiti, 500 letture per chiamata. **Non pubblicare su Entra Application Proxy**: è un endpoint macchina-macchina di rete interna. Token creato da admin Django o `manage.py meter_ingest_client` (mostrato una volta sola). Contratto: `docs/moduli/assets_contatori_ingest.md`.
+
+**`/api/v1/` — API dati in sola lettura per applicazioni** (Power BI, Power Automate, gestionali): nessuna sessione, `Authorization: Bearer <token>` di un `dati_bi.ApiClient` attivo (a DB solo hash SHA-256, confronto `hmac.compare_digest`), client IP in `DATI_API_ALLOWED_IPS` (default solo loopback; fuori = 403 JSON), ogni applicazione legge solo i suoi **ambiti** (403 JSON altrimenti), solo GET, al massimo 500 righe per pagina. **Mai dati personali nominativi** né testi liberi; il personale esce solo come conteggi per reparto (ambito `personale_aggregato`). **Non pubblicare su Entra Application Proxy.** Token da `manage.py dati_api_client` (mostrato una volta sola). Le viste SQL `bi_*` seguono le stesse regole sui dati e si leggono con un utente SQL in sola lettura (`manage.py bi_viste --grant`). Contratto: `docs/moduli/dati_bi.md`.
 
 **`/approval-actions/` — Entra Application Proxy**: endpoint pensati per essere pubblicati selettivamente su Entra Application Proxy. Pubblicare **solo** `/approval-actions/*`, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
 

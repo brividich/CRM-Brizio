@@ -59,6 +59,7 @@ _MODULI = (
     "ai_assistant",
     "automazioni",
     "amministrazione",
+    "dati_bi",
     "emergenza",
 )
 

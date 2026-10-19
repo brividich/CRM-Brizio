@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 69
+**Totale automazioni disponibili:** 74
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -274,6 +274,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `monitoring.tasks.run_backup_health_alert`
 - **Cosa fa:** Backup e ripristino (BUILD_SPEC R2): età dell'ultimo FULL, catena dei log, prova di ripristino, Recovery Kit, capacità del DB. Issue nella centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). I backup veri girano da Task Scheduler (register-backup-tasks.ps1), non da qui: questo solo controlla.
 
+### `infra_health_alert`
+
+- **Quando gira:** ogni 30 minuti
+- **Task eseguito:** `monitoring.tasks.run_infra_health_alert`
+- **Cosa fa:** Server: qcluster, coda django-q, spazio su disco, certificato https. Issue nella centrale per WARN/FAIL, email solo per i FAIL (dedup + quiet hours). Il controllo «qcluster fermo» da qui non può avvisare se il qcluster è fermo: per quello c'è anche il comando infra_health_alert da Utilità di pianificazione.
+
 ### `system_digest`
 
 - **Quando gira:** ogni giorno, alle 07:00
@@ -322,6 +328,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## Trasversale (Core)
 
+### `audit_sigilli`
+
+- **Quando gira:** il giorno 1,2 del mese, alle 03:40
+- **Task eseguito:** `core.tasks.run_audit_sigilli`
+- **Cosa fa:** CORE — sigillo mensile dell'audit: sigilla i mesi conclusi (catena di hash), verifica tutta la catena (mail agli ADMINS se rotta) ed esporta su SharePoint se la cartella è configurata (SiteConfig audit_export_sp_*). Il giorno 1 e il 2 (riprova dell'export se il primo giro non è riuscito).
+
 ### `caporeparto_morning_digest`
 
 - **Quando gira:** da lun a ven, alle 07:00
@@ -333,6 +345,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 02:30
 - **Task eseguito:** `core.tasks.run_notifiche_archivio`
 - **Cosa fa:** CORE — archivio automatico notifiche in-app: archivia le non lette e le lette oltre soglia, elimina le archiviate oltre la conservazione. Soglie in SiteConfig (Admin portale → Gestione notifiche); 0 = mai.
+
+### `report_emissioni_pulizia`
+
+- **Quando gira:** ogni giorno, alle 02:45
+- **Task eseguito:** `core.tasks.run_report_emissioni_pulizia`
+- **Cosa fa:** CORE — Centro report: elimina dal registro emissioni le righe oltre la conservazione (SiteConfig, Admin portale → Centro report; 0 = mai).
+
+### `report_pianificati`
+
+- **Quando gira:** ogni giorno, ogni ora al minuto 5
+- **Task eseguito:** `core.tasks.run_report_pianificati`
+- **Cosa fa:** CORE — Centro report: genera e invia per mail i report pianificati arrivati a scadenza (Admin portale → Centro report → Pianificazioni). Fail-safe: senza pianificazioni attive non fa nulla.
 
 ## Motore automazioni
 
@@ -413,6 +437,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:40
 - **Task eseguito:** `contatori.tasks.pulisci_rilevazioni_tvcc`
 - **Cosa fa:** CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40. Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
+
+### `scadenze_digest_personale`
+
+- **Quando gira:** da lun a ven, alle 07:30
+- **Task eseguito:** `dashboard.tasks.run_scadenze_digest`
+- **Cosa fa:** DASHBOARD — riepilogo personale dello Scadenzario globale per mail, solo agli utenti che l'hanno attivato in Notifiche → Impostazioni (no-op altrimenti); giorni feriali, una mail al giorno al massimo.
 
 ### `security_ai_lettura`
 

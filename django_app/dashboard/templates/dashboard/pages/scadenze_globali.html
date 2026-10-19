@@ -16,7 +16,7 @@ Context (vedi dashboard/views_scadenze.py):
 
 {% block extra_head %}
 <style>
-  .sg-wrap { max-width: 1180px; margin: 0 auto; padding: 4px 0 32px; }
+  .sg-wrap { max-width: 1180px; min-width: 0; width: 100%; margin: 0 auto; padding: 4px 0 32px; }
   .sg-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
   .sg-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
   .sg-sub { color:#64748b; font-size:.95rem; margin:4px 0 0; }
@@ -33,6 +33,8 @@ Context (vedi dashboard/views_scadenze.py):
   .sg-filters select, .sg-filters input { border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px; font-size:.9rem; min-width:150px; }
   .sg-btn { background:#0f172a; color:#fff; border:none; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:.9rem; }
   .sg-btn.ghost { background:#fff; color:#0f172a; border:1px solid #cbd5e1; text-decoration:none; }
+  .sg-scroll { width:100%; max-width:100%; min-width:0; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
+  .sg-table { min-width:760px; }
   .sg-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
   .sg-table th { text-align:left; font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b;
                  background:#f8fafc; padding:10px 12px; border-bottom:1px solid #e2e8f0; }
@@ -42,6 +44,8 @@ Context (vedi dashboard/views_scadenze.py):
   .sg-src.asset { background:#ecfeff; color:#155e75; }
   .sg-src.dpi { background:#f0fdf4; color:#166534; }
   .sg-src.rentri { background:#fef3c7; color:#92400e; }
+  .sg-src.impianti { background:#fdf2f8; color:#9d174d; }
+  .sg-src.capa { background:#f5f3ff; color:#5b21b6; }
   .sg-when { font-weight:700; }
   .sg-when.scaduta { color:#b91c1c; }
   .sg-when.soon { color:#9a3412; }
@@ -57,6 +61,7 @@ Context (vedi dashboard/views_scadenze.py):
   body.theme-dark .sg-filters label { color: var(--text-mid); }
   body.theme-dark .sg-filters select,
   body.theme-dark .sg-filters input { background: var(--surface); color: var(--text); border-color: var(--border); }
+  body.theme-dark .sg-btn:not(.ghost) { background: #2563eb; color: #fff; }
   body.theme-dark .sg-btn.ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
   body.theme-dark .sg-table { background: var(--surface); border-color: var(--border); }
   body.theme-dark .sg-table th { color: var(--text-mid); background: var(--surface-alt, #17222f); border-bottom-color: var(--border); }
@@ -71,14 +76,16 @@ Context (vedi dashboard/views_scadenze.py):
   <div class="sg-head">
     <div>
       <h1 class="sg-title">📅 Scadenzario globale</h1>
-      <p class="sg-sub">Tutte le scadenze del portale (personale, asset, DPI, RENTRI) nei prossimi 60 giorni, in un'unica vista.</p>
+      <p class="sg-sub">Le scadenze che puoi vedere (personale, asset, verifiche impianti, DPI, RENTRI, azioni CAPA): le scadute e quelle dei prossimi {{ orizzonte_giorni }} giorni, in un'unica vista.</p>
     </div>
+    <a class="sg-btn ghost" href="{% url 'guida_modulo' 'home' %}#scadenzario">? Guida</a>
   </div>
 
   <div class="sg-kpis">
     <div class="sg-kpi danger"><b>{{ n_scadute }}</b><span>Scadute</span></div>
     <div class="sg-kpi warn"><b>{{ n_30gg }}</b><span>Entro 30 giorni</span></div>
     <div class="sg-kpi info"><b>{{ n_60gg }}</b><span>31–60 giorni</span></div>
+    <div class="sg-kpi info"><b>{{ n_90gg }}</b><span>61–90 giorni</span></div>
     <div class="sg-kpi"><b>{{ totale }}</b><span>Totale</span></div>
   </div>
 
@@ -97,6 +104,7 @@ Context (vedi dashboard/views_scadenze.py):
         <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Scadute</option>
         <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
         <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+        <option value="90" {% if filtro_stato == "90" %}selected{% endif %}>Entro 90 giorni</option>
       </select>
     </label>
     <label>Reparto
@@ -111,6 +119,7 @@ Context (vedi dashboard/views_scadenze.py):
     <a class="sg-btn ghost" href="?{% if filtro_sorgente %}sorgente={{ filtro_sorgente }}&{% endif %}{% if filtro_stato %}stato={{ filtro_stato }}&{% endif %}{% if filtro_reparto %}reparto={{ filtro_reparto }}&{% endif %}format=csv">⬇ CSV</a>
   </form>
 
+  <div class="sg-scroll">
   <table class="sg-table">
     <thead>
       <tr>
@@ -126,7 +135,7 @@ Context (vedi dashboard/views_scadenze.py):
     <tbody>
       {% for v in page_obj %}
         <tr>
-          <td><span class="sg-src {{ v.source }}">{{ v.source|upper }}</span></td>
+          <td><span class="sg-src {{ v.source }}">{{ v.source_label }}</span></td>
           <td>{{ v.kind_label }}</td>
           <td>
             {% if v.url %}<a href="{{ v.url }}">{{ v.soggetto }}</a>{% else %}{{ v.soggetto }}{% endif %}
@@ -147,6 +156,7 @@ Context (vedi dashboard/views_scadenze.py):
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
   {% if page_obj.paginator.num_pages > 1 %}
     <div class="sg-pager">
