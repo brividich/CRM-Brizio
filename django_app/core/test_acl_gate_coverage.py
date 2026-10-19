@@ -32,16 +32,25 @@ MODULES_UNDER_ACL = (
 BLIND_GATE_RE = re.compile(r"^\s*@(?:legacy_admin_required|_staff_required)\s*$", re.MULTILINE)
 
 
+def _sources(rel: str) -> list[Path]:
+    """``views.py`` oppure, se e' stato diviso, i moduli del package ``views/``."""
+    path = DJANGO_APP / rel
+    if path.exists():
+        return [path]
+    package = path.with_suffix("")
+    return sorted(package.glob("*.py")) if package.is_dir() else []
+
+
 class AclGateCoverageTest(SimpleTestCase):
     def test_i_moduli_non_usano_piu_il_gate_cieco(self):
         offenders = {}
         for rel in MODULES_UNDER_ACL:
-            path = DJANGO_APP / rel
-            if not path.exists():  # il modulo puo' essere stato rinominato
+            sources = _sources(rel)
+            if not sources:  # il modulo puo' essere stato rinominato
                 continue
-            hits = BLIND_GATE_RE.findall(path.read_text(encoding="utf-8-sig"))
+            hits = sum(len(BLIND_GATE_RE.findall(p.read_text(encoding="utf-8-sig"))) for p in sources)
             if hits:
-                offenders[rel] = len(hits)
+                offenders[rel] = hits
         self.assertEqual(
             offenders,
             {},
@@ -51,5 +60,6 @@ class AclGateCoverageTest(SimpleTestCase):
 
     def test_admin_portale_resta_riservato_per_scelta(self):
         """Non e' una svista: il pannello admin non si delega ai gruppi."""
-        path = DJANGO_APP / "admin_portale" / "views.py"
-        self.assertTrue(BLIND_GATE_RE.search(path.read_text(encoding="utf-8-sig")))
+        sources = _sources("admin_portale/views.py")
+        self.assertTrue(sources)
+        self.assertTrue(any(BLIND_GATE_RE.search(p.read_text(encoding="utf-8-sig")) for p in sources))

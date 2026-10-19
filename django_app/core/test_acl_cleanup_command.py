@@ -123,9 +123,15 @@ class AclCleanupCommandTest(TestCase):
 
     def test_sync_legacy_riallinea_il_grant_che_ignorava_il_pannello(self):
         """Il permesso e' spuntato nel pannello legacy ma il canonico dice no."""
-        permission = PermissionDefinition.objects.create(
-            code="legacy.assets.admin_assets", label="Gestione interna Assets", module="assets"
+        # Il permesso esiste gia' se le migrazioni assets (0120) sono passate.
+        permission, _ = PermissionDefinition.objects.update_or_create(
+            code="legacy.assets.admin_assets",
+            defaults={"label": "Gestione interna Assets", "module": "assets"},
         )
+        # 0120 lo lega anche al prefisso /assets/impostazioni/reportistica: governando
+        # piu' pagine finirebbe tra le divergenze «ad ampio raggio», escluse da
+        # --sync-legacy. Qui si prova il caso di pagina.
+        RoutePermissionBinding.objects.filter(permission=permission).delete()
         RolePermissionGrant.objects.create(
             legacy_role_id=RUOLO_ID, permission=permission, enabled=False
         )
