@@ -37,8 +37,8 @@ GUIDA = {
                     "Regole, soglie e AI si configurano nelle Impostazioni del Security Center (capitolo «Impostazioni e AI» della guida completa).",
                     "Alert di Microsoft Defender: Impostazioni › «Alert di Microsoft Defender». Serve il permesso Graph SecurityAlert.Read.All "
                     "con consenso amministratore sull'app del portale; prova con manage.py defender_alerts --prova.",
-                    "Microsoft Entra ID: Impostazioni › «Microsoft Entra ID». Due interruttori: account degli ex dipendenti ancora attivi "
-                    "(alert che si chiude quando l'account viene disattivato) e modifiche amministrative sensibili. Permessi User.Read.All e "
+                    "Microsoft Entra ID: Impostazioni › «Microsoft Entra ID». Tre interruttori: account degli ex dipendenti ancora attivi "
+                    "(alert che si chiude quando l'account viene disattivato), modifiche amministrative sensibili e accessi sospetti (falliti a raffica, Paesi non ammessi, protocolli vecchi). Permessi User.Read.All e "
                     "AuditLog.Read.All; prova con manage.py entra_signals --prova.",
                 ]),
             ],
@@ -53,6 +53,22 @@ GUIDA = {
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_cycle».",
                 "Se la lettura della casella dà 401/403 il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard.",
                 "Altri casi: capitolo «Risoluzione problemi» della guida completa.",
+            ],
+        },
+        {
+            "sintomo": "Alert «Accesso a Microsoft 365 da un Paese non ammesso»",
+            "fare": [
+                "Apri l'accesso in Entra (Utenti › Log di accesso) con l'IP indicato nell'alert e chiedi alla persona se era lei (viaggio, VPN).",
+                "Se non era lei: cambia la password, revoca le sessioni e verifica i metodi MFA dell'account.",
+                "Paesi frequenti e legittimi: aggiungili in Impostazioni › «Paesi ammessi» (es. IT, CH).",
+            ],
+        },
+        {
+            "sintomo": "Alert «Accesso con un protocollo vecchio (senza MFA)»",
+            "fare": [
+                "Un programma o un dispositivo usa IMAP, POP, SMTP autenticato o ActiveSync: questi protocolli non chiedono l'MFA.",
+                "Individua il programma (stampante/scanner che manda mail, vecchio client di posta) e passalo a un metodo moderno.",
+                "Quando non serve più, blocca l'autenticazione legacy con l'accesso condizionale in Entra.",
             ],
         },
         {

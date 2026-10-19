@@ -134,12 +134,13 @@ SECTIONS = [
     },
     {
         "code": "entra",
-        "title": "Microsoft Entra ID (account e modifiche amministrative)",
+        "title": "Microsoft Entra ID (account, modifiche amministrative, accessi)",
         "intro": "Due controlli su Microsoft 365, ciascuno con il suo interruttore. «Account di ex dipendenti»: ogni 6 ore "
                  "confronta gli account di Entra con l'anagrafica e apre un alert per ogni account ancora abilitato di una "
                  "persona cessata; l'alert si chiude da solo quando l'account viene disattivato. «Modifiche amministrative»: "
                  "ogni 15 minuti legge l'audit di Entra e apre un alert solo per le attività sensibili (ruoli di amministratore, "
-                 "consensi e credenziali delle app, accesso condizionale, metodi MFA, federazione dei domini). "
+                 "consensi e credenziali delle app, accesso condizionale, metodi MFA, federazione dei domini). «Accessi sospetti»: "
+                 "ogni 15 minuti tentativi falliti a raffica, accessi da Paesi non ammessi, protocolli vecchi. "
                  "Servono i permessi «User.Read.All» e «AuditLog.Read.All» con consenso amministratore sull'app Graph del portale.",
         "channels_optional": True,
         "options": [
@@ -147,6 +148,15 @@ SECTIONS = [
             Option("entra.audit.attivo", False, "Leggi le modifiche amministrative di Entra"),
             Option("entra.primo_giro_giorni", 7, "Primo giro dell'audit", "Giorni di audit letti la prima volta.",
                    "int", min_value=1, max_value=30),
+            Option("entra.accessi.attivo", False, "Segnala gli accessi sospetti a Microsoft 365",
+                   "Tentativi falliti a raffica, accessi da Paesi non ammessi, accessi con protocolli vecchi (IMAP, POP, SMTP). "
+                   "Un alert al giorno per account e motivo; i singoli accessi non vengono salvati."),
+            Option("entra.paesi_ammessi", "IT", "Paesi ammessi",
+                   "Codici a due lettere separati da virgole (es. IT, CH). Un accesso riuscito da un altro Paese apre un alert alto.",
+                   "text"),
+            Option("entra.falliti_soglia", 10, "Tentativi falliti",
+                   "Quanti tentativi falliti sullo stesso account in un giro (15 minuti) aprono un alert.",
+                   "int", min_value=3, max_value=100),
         ],
     },
     {
