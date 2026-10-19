@@ -194,7 +194,9 @@ GUIDA = {
                 ("passi", [
                     "Scegli la cartella SharePoint (meglio una raccolta con etichetta di conservazione o in sola lettura per le persone).",
                     "Dai all'app Graph del portale il permesso di scrittura su quel sito (Sites.Selected con «write», o Sites.ReadWrite.All).",
-                    "Imposta in SiteConfig «audit_export_sp_drive_id» (id della raccolta) e «audit_export_sp_cartella» (percorso, es. Audit/Portale).",
+                    "Apri la cartella in SharePoint, copia l'indirizzo dalla barra del browser (o «Copia collegamento») e dal terminale lancia: "
+                    "audit_sigilli --cartella-sharepoint \"<link>\". Il portale ricava raccolta e percorso, scrive nella cartella "
+                    "il file LEGGIMI-portale-audit.txt (prova del permesso di scrittura) e solo allora salva la destinazione.",
                     "Dal terminale: audit_sigilli --esporta carica subito i mesi in attesa; audit_sigilli senza opzioni mostra lo stato di ogni mese.",
                 ]),
                 ("nota", "audit_sigilli --verifica ricalcola tutto e segnala i mesi alterati. I mesi oltre i 5 anni, tolti dal database "
