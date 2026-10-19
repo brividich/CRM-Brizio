@@ -195,6 +195,18 @@ GUIDA = {
             ],
         },
         {
+            "id": "mod128-attrezzature",
+            "titolo": "MOD.128: attrezzature dei processi qualificati",
+            "blocchi": [
+                ("p", "Nel dettaglio di un processo qualificato la sezione «Attrezzature» elenca gli asset usati nel "
+                      "processo. Per collegarne uno scrivi il tag o il numero interno e premi «＋ Collega "
+                      "attrezzatura»; «Scollega» lo toglie. Serve il permesso di gestione MOD.128. Per un processo "
+                      "PART 145 compaiono anche gli asset con «Rientra in PART 145» (si tolgono dal form dell'asset)."),
+                ("p", "Quando un'attrezzatura del processo cambia stato arriva una mail agli stessi destinatari dei "
+                      "timbri sospesi. Il riepilogo per l'audit è il Dossier PART 145 del modulo Asset."),
+            ],
+        },
+        {
             "id": "visite-richiamo",
             "titolo": "Visite: il richiamo scritto dal medico",
             "blocchi": [

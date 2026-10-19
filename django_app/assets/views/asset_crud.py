@@ -845,16 +845,20 @@ def _build_assets_admin_snapshot() -> dict:
 
 @login_required
 def asset_part_145_list(request: HttpRequest) -> HttpResponse:
-    """Sezione dedicata: elenco degli asset che rientrano in PART 145."""
+    """Dossier PART 145: processo, attrezzature, personale, scadenze e situazioni aperte."""
+    from ..services import part145_dossier
+
+    con_personale = part145_dossier.puo_vedere_personale(request)
     part_145_assets = (
         Asset.objects.filter(part_145=True)
         .select_related("asset_category")
         .order_by("name", "asset_tag", "id")
     )
     context = {
-        "page_title": "Asset PART 145",
+        "page_title": "Dossier PART 145",
         "part_145_assets": part_145_assets,
         "part_145_total": part_145_assets.count(),
+        "dossier": part145_dossier.costruisci(con_personale=con_personale),
         # Shell context: senza questo la sidebar del modulo asset resta vuota.
         **_assets_shell_context(request, search_action=reverse("assets:asset_list")),
     }

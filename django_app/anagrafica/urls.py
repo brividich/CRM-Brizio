@@ -308,6 +308,9 @@ urlpatterns = [
     path("mod128/<int:processo_id>/elimina/", views_mpq.mpq_processo_delete, name="mpq_processo_delete"),
     path("mod128/<int:processo_id>/abilitazione/aggiungi/", views_mpq.mpq_abilitazione_add, name="mpq_abilitazione_add"),
     path("mod128/<int:processo_id>/riferimento/aggiungi/", views_mpq.mpq_riferimento_add, name="mpq_riferimento_add"),
+    path("mod128/<int:processo_id>/attrezzature/aggiungi/", views_mpq.mpq_attrezzatura_add, name="mpq_attrezzatura_add"),
+    path("mod128/<int:processo_id>/attrezzature/<int:asset_id>/rimuovi/", views_mpq.mpq_attrezzatura_remove,
+         name="mpq_attrezzatura_remove"),
     path("mod128/<int:processo_id>/requisito/aggiungi/", views_mpq.mpq_requisito_add, name="mpq_requisito_add"),
 
     # Voci retributive — importazione CSV e storico dipendente

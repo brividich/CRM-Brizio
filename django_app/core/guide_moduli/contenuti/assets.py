@@ -89,8 +89,9 @@ GUIDA = {
                     "Dalle verifiche periodiche i rilievi si segnalano senza creare ordini di lavoro.",
                     "Dalla scheda asset, menu «Altro»: «Dismetti» toglie la macchina dagli elenchi senza perdere lo "
                     "storico (si annulla con «Riattiva»); «Elimina» cancella solo un asset creato per errore, senza storico.",
-                    "Le attrezzature PART 145 si marcano con «Rientra in PART 145» nel form dell'asset: la voce "
-                    "«PART 145» del menu le elenca, con export Excel e PDF.",
+                    "Le attrezzature PART 145 si marcano con «Rientra in PART 145» nel form dell'asset. La voce "
+                    "«PART 145» del menu apre il Dossier PART 145 (processi, attrezzature, personale, scadenze, "
+                    "situazioni aperte) con export Excel e PDF; se un'attrezzatura cambia stato Qualità riceve una mail.",
                     "Nei Documenti della scheda si caricano anche intere cartelle con sottocartelle e video .avi: "
                     "i file non ammessi vengono scartati ed elencati, gli altri entrano.",
                 ]),
