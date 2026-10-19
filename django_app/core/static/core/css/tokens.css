@@ -65,3 +65,6 @@ body.theme-dark {
   --hub-status-info-bg: rgba(31, 135, 205, .18);
   --hub-status-neutral-bg: rgba(255, 255, 255, .08);
 }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark{--hub-color-navy:#93c5fd;--hub-color-bg:var(--surface);--hub-color-surface:var(--surface);--hub-color-surface-raised:var(--surface-alt,#0f1b2d);--hub-color-border:var(--border);--hub-color-text:var(--text);--hub-color-text-muted:var(--text-mid);--hub-status-success-bg:var(--surface);--hub-status-warning-bg:var(--surface);--hub-status-danger-bg:rgba(229,62,62,.16);--hub-status-info-bg:var(--surface);--hub-status-neutral-bg:var(--surface-alt,#0f1b2d)}

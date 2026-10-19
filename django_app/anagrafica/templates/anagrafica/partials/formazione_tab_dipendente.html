@@ -309,6 +309,17 @@ function fmTogglePrevYears() {
 .fm-kpi-card{transition:box-shadow .12s,transform .12s;}
 .fm-kpi-card:hover{box-shadow:0 1px 6px rgba(15,23,42,.12);}
 .fm-kpi-active{outline:2px solid #2563eb;outline-offset:1px;}
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .fm-pill-valid{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .fm-pill-missing{background:var(--surface-alt,#0f1b2d);color:var(--text-light);border-color:var(--border)}
+body.theme-dark .fm-pill-expired{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .fm-pill-warning{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .fm-pill-enrolled{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .fm-toggle-btn{color:var(--text-mid)}
+body.theme-dark .fm-expand-inner{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .fm-mini-grid th{background:var(--surface-alt,#0f1b2d);color:var(--text-mid);border-color:var(--border)}
+body.theme-dark .fm-mini-grid td{border-color:var(--border);color:var(--text)}
 </style>
 
 {% else %}

@@ -53,6 +53,10 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 
 Sopra i 3000px di larghezza (monitor/TV 4K a scala 100%) `theme.css` applica `zoom:1.5` a tutto il portale: la pagina si impagina come su 2560px, contenuto fino a 2280px. Con lo zoom le unità `vh` valgono 1,5 schermi, quindi **nel codice nuovo non usare `Nvh` ma `calc(N * var(--vh, 1vh))`** (`--vh` è definita solo sotto zoom; il fallback `1vh` lascia invariati gli schermi normali). Le unità `vw` vanno bene dentro `min()`/`clamp()`. La barra admin (`.subnav.subnav-wrap`) va a capo sopra i 700px invece di uscire dalla pagina.
 
+## Tema scuro leggibile ovunque (ottobre 2026)
+
+Con il tema scuro capitava di trovare scritte scure su sfondo scuro: colori «chiari» scritti a mano nei template (inline `style="color:#0f172a"` o nei `<style>` di pagina) che il tema non poteva ribaltare. Due rimedi, entrambi solo sotto `body.theme-dark` (il tema chiaro non cambia): `core/static/core/css/dark-safety.css` (generato da `tools/gen_dark_safety.py`) intercetta i colori inline più diffusi e li porta ai token del tema; `tools/gen_dark_block.py` ha accodato a ~250 pagine e CSS di modulo il blocco gemello scuro per le regole che mancavano. Regole per gli sviluppatori: `docs/ai/04_FRONTEND_DIRECTION.md` («Tema scuro»); test di allineamento `core.test_dark_safety`.
+
 ## Politica dell'audit automatico (ottobre 2026)
 
 L'audit automatico di insert/update/delete segue `core/audit_policy.py` (versione 1): classe A (default) audit completo; classe B (registri tecnici: `AutomationRunLog`, `AutomationExecution`, `SecurityCveImpact`, `RilevazioneSNMP`…) esclusa, senza listener; classe C (`SecuritySourceFile`, `SecurityMailboxMessage`, `SecurityReport`, `SgiTestoEstratto`) solo metadati e nomi dei campi; classe D (`AutomationRule`, `ManagedFlow`, `DispositivoSNMP`, `SecurityCveRecord`, `Notifica`) senza righe quando cambiano solo campi tecnici. Nessuna riga per update senza modifiche reali, valori oltre 500 caratteri troncati con lunghezza e impronta SHA-256. `log_action` e `login_fallito` invariati. Check `core.W002`/`core.W003` su chiavi e campi della politica.

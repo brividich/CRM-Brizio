@@ -18,6 +18,12 @@
 .rp .rp-scroll{max-height:calc(70 * var(--vh, 1vh))}.rp .rp-dati thead th{position:sticky;top:0;background:var(--rp-surface);z-index:1}.rp .rp-dati .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.rp .rp-dati tbody tr:hover{background:color-mix(in srgb,#2563eb 6%,transparent)}
 .rp .rp-ordina{color:inherit!important;text-decoration:none}.rp .rp-ordina:hover{text-decoration:underline}.rp .rp-totali th{color:var(--rp-text);font-size:13px;text-transform:none;letter-spacing:0;border-top:2px solid var(--rp-border);position:sticky;bottom:0;background:var(--rp-surface)}
 @media(max-width:760px){.rp .rp-grid{grid-template-columns:1fr}.rp .rp-barra{grid-template-columns:minmax(70px,120px) 1fr auto}.rp .rp-spacer{display:none}.rp .rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rp .rp-panel{padding:16px}.rp .rp-hero{padding:20px}}
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .rp{--rp-surface:var(--surface);--rp-border:var(--border);--rp-text:var(--text)}
+body.theme-dark .rp .errorlist{color:#fca5a5}
+body.theme-dark .rp .rp-badge.DONE{color:#86efac;background:rgba(56,161,105,.18)}
+body.theme-dark .rp .rp-badge.ERROR{color:#fca5a5;background:rgba(229,62,62,.16)}
 </style>
 {% endblock %}
 {% block assets_shell_title %}Reportistica Asset{% endblock %}

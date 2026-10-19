@@ -34,6 +34,12 @@ body.theme-dark .dpi-field input, body.theme-dark .dpi-field select, body.theme-
 body.theme-dark .dpi-check-row { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .dpi-check-meta { color:var(--text-light); }
 @media (max-width:720px) { .dpi-grid { grid-template-columns:1fr; } }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .dpi-field input[type=text],body.theme-dark .dpi-field input[type=date],body.theme-dark .dpi-field select,body.theme-dark .dpi-field textarea{border-color:var(--border)}
+body.theme-dark .dpi-section-title{color:var(--text-light)}
+body.theme-dark .dpi-btn-secondary{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
+body.theme-dark .dpi-errors{background:rgba(229,62,62,.16);color:#fca5a5}
 </style>
 {% endblock %}
 

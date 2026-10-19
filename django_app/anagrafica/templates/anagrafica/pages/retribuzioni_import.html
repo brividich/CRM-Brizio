@@ -48,6 +48,26 @@
 .ri-alert { display:flex; gap:10px; padding:12px 16px; border-radius:10px; font-size:13px; }
 .ri-alert-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
 .ri-alert-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .ri-title{color:var(--text)}
+body.theme-dark .ri-btn-ghost{background:var(--surface-alt,#0f1b2d);color:var(--text);border-color:var(--border)}
+body.theme-dark .ri-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .ri-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .ri-card-head{border-color:var(--border)}
+body.theme-dark .ri-card-title{color:var(--text)}
+body.theme-dark .ri-upload-zone{border-color:var(--border);background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .ri-upload-zone:hover{background:rgba(59,130,246,.18)}
+body.theme-dark .ri-upload-label{color:var(--text)}
+body.theme-dark .ri-upload-selected{color:#93c5fd}
+body.theme-dark .ri-spec-item{background:var(--surface-alt,#0f1b2d);border-color:var(--border)}
+body.theme-dark .ri-spec-value{color:var(--text)}
+body.theme-dark .ri-table th{background:var(--surface-alt,#0f1b2d);color:var(--text-light);border-color:var(--border)}
+body.theme-dark .ri-table td{border-color:var(--border);color:var(--text)}
+body.theme-dark .ri-table tr:hover td{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .ri-changed-badge{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .ri-alert-info{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .ri-alert-warn{background:rgba(214,158,46,.16);color:#fcd34d}
 </style>
 {% endblock %}
 

@@ -104,3 +104,6 @@ body.theme-dark .soc-drawer a:not(.sec-button):not(.sec-button-primary) { color:
 .soc-module form[data-bulk]:not(.has-selection) .sec-bulk-bar > :not(.sec-bulk-count) { display: none; }
 .soc-module form[data-bulk]:not(.has-selection) .sec-bulk-count::after { content: " \00B7  seleziona le righe per agire su più elementi insieme"; color: var(--text-light); }
 .soc-module .soc-hint > span:first-child { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--primary-mid); color: #fff; font-size: 11px; font-weight: 700; text-align: center; line-height: 18px; font-style: italic; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .soc-drawer a{color:#93c5fd}

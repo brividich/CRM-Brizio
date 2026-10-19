@@ -219,3 +219,10 @@ body.theme-dark .rcr-posti-n { color: var(--text); }
 .rcr-esito-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 12px; }
 a.rcr-card-name { display: block; text-decoration: none; }
 a.rcr-card-name:hover { color: #1f87cd; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .rcr-tab.on .fmd-ico{color:#93c5fd}
+body.theme-dark .rcr-tab-link{color:#93c5fd}
+body.theme-dark .rcr-card-sub{color:var(--text-light)}
+body.theme-dark .rcr-card-score{color:#93c5fd}
+body.theme-dark a.rcr-card-name:hover{color:#93c5fd}

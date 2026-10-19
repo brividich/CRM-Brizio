@@ -11,6 +11,10 @@
   .gs-riga-summary__arg{font-size:12.5px;color:#5b6b82;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%;}
   .gs-riga-caret{font-size:10px;color:#7c8aa2;transition:transform .15s;display:inline-block;}
   .gs-riga.is-collapsed .gs-riga-caret{transform:rotate(-90deg);}
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .gs-riga-summary__arg{color:var(--text-mid)}
+body.theme-dark .gs-riga-caret{color:var(--text-light)}
 </style>
 {% endblock %}
 

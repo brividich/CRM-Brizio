@@ -47,7 +47,15 @@
     @media (prefers-color-scheme: dark) {
       .am-meter-card { background: #1e2229; border-color: #333; }
     }
-  </style>
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .am-meter-card .am-label{color:var(--text-light)}
+body.theme-dark .am-meter-card .am-unit{color:var(--text-mid)}
+body.theme-dark .am-history{color:var(--text-mid)}
+body.theme-dark .am-history summary{color:var(--text-mid)}
+body.theme-dark .am-reset{color:var(--text-mid)}
+body.theme-dark .am-reset input[type=text]{border-color:var(--border)}
+</style>
 
   <h4>Contatori</h4>
 

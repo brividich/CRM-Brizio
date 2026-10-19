@@ -115,6 +115,22 @@ body.theme-dark .at-pn-chip:hover { background:rgba(15,118,110,.28); }
 @media (max-width:1200px){ .at-kpis{grid-template-columns:repeat(4,minmax(0,1fr));} }
 @media (max-width:900px){ .at-kpis{grid-template-columns:repeat(2,minmax(0,1fr));} .at-grid-2,.at-grid-3,.at-form-grid,.at-detail-list{grid-template-columns:1fr;} .at-hero{padding:22px;} .at-hero-title{font-size:22px;} }
 @media (max-width:680px){ .at-filter{flex-direction:column; align-items:stretch;} #at-root .input,#at-root input:not([type=checkbox]),#at-root select,#at-root textarea{width:100%; min-width:0;} .at-row-actions{min-width:0;} }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark #at-root .input,body.theme-dark #at-root input[type=text],body.theme-dark #at-root input[type=number],body.theme-dark #at-root input[type=date],body.theme-dark #at-root input[type=file],body.theme-dark #at-root select,body.theme-dark #at-root textarea{border-color:var(--border);background:var(--surface);color:var(--text)}
+body.theme-dark #at-root .btn.secondary{background:var(--surface);color:#86efac}
+body.theme-dark #at-root .btn.secondary:hover{background:rgba(56,161,105,.18)}
+body.theme-dark #at-root .badge{background:var(--surface-alt,#0f1b2d);color:var(--text)}
+body.theme-dark #at-root .badge.ok{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark #at-root .badge.warn{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark #at-root .badge.danger{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark #at-root .badge.info{background:rgba(59,130,246,.18);color:#93c5fd}
+body.theme-dark .at-detail-item > span:first-child{color:var(--text-light)}
+body.theme-dark .at-form-grid .helptext{color:var(--text-light)}
+body.theme-dark .at-form-grid .errorlist{color:#fca5a5}
+body.theme-dark .at-messages .success,body.theme-dark .at-messages .info{background:rgba(56,161,105,.18);color:#86efac}
+body.theme-dark .at-messages .error,body.theme-dark .at-messages .warning{background:rgba(214,158,46,.16);color:#fcd34d}
+body.theme-dark .at-suggestions li::marker{color:#86efac}
 </style>
 {% block attrezzature_extra_head %}{% endblock %}
 {% endblock %}

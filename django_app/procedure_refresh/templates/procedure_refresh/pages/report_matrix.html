@@ -50,6 +50,12 @@ body.theme-dark .pr-filter-row select { background:var(--surface); border-color:
 body.theme-dark .pr-table th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .pr-table td { border-color:var(--border); }
 body.theme-dark .pr-muted, body.theme-dark .pr-kpi-lbl, body.theme-dark .pr-empty { color:var(--text-light); }
+  
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .pr-subnav-link:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .pr-tab:hover{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
+body.theme-dark .pr-pct-bar{background:var(--surface-alt,#0f1b2d)}
 </style>
 {% include "procedure_refresh/components/workspace_styles.html" %}
 {% endblock %}
