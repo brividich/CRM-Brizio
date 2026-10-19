@@ -31,7 +31,7 @@ from .views_mansionario import LIVELLO_LABEL, _ids, _int_o_none, _nega, _opzioni
 MODULE = "anagrafica"
 SESSIONE_IMPORT = "struttura_import_file"
 MAX_FILE = 5 * 1024 * 1024
-RIGHE_NUOVE = 3
+RIGHE_NUOVE = 1  # altre righe con «Aggiungi competenza»
 
 
 def _is_admin(request) -> bool:
@@ -127,10 +127,11 @@ def _righe_da_post(request) -> list[dict]:
 def _render_editor(request, mansione, *, righe=None, config=None, errore="", salvato=""):
     if righe is None:
         righe = _righe_da_db(mansione)
+    vuota = {"id": None, "nome": "", "livello_minimo": "U", "bloccante": False, "corso_id": None,
+             "qualifica_id": None, "processo_id": None, "ordine": 0, "togli": False}
     righe = [r for r in righe if r.get("id") or r.get("nome")]
-    righe += [{"id": None, "nome": "", "livello_minimo": "U", "bloccante": False, "corso_id": None,
-               "qualifica_id": None, "processo_id": None, "ordine": 0, "togli": False}
-              for _ in range(RIGHE_NUOVE)]
+    n_salvate = sum(1 for r in righe if r.get("id") and not r.get("togli"))
+    righe += [dict(vuota) for _ in range(RIGHE_NUOVE)]
     for i, r in enumerate(righe):
         r["i"] = i
     config = config or {
@@ -142,7 +143,12 @@ def _render_editor(request, mansione, *, righe=None, config=None, errore="", sal
     }
     return render(request, "anagrafica/partials/_struttura_mansione.html", {
         "mansione": mansione, "righe": righe, "n_righe": len(righe), "config": config,
+        "riga_vuota": {**vuota, "i": "__I__"},
         "errore": errore, "salvato": salvato,
+        "nomi_precedenti": svc.nomi_precedenti(mansione),
+        "completezza": svc.completezza(mansione, n_competenze=n_salvate,
+                                       n_persone=mansione.abilitazioni.filter(in_lista=True).count()),
+        "regole": svc.regole_correnti(),
         "livelli_label": list(LIVELLO_LABEL.items()),
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
         "rischi_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
@@ -179,28 +185,92 @@ def struttura_mansione(request, mansione_id: int):
         return _render_editor(request, mansione, righe=righe, config=config, errore=f"Niente salvato. {exc}")
     log_action(request, "mansionario_struttura_salva", MODULE, {
         "mansione": mansione.pk, "ruoli": sorted(config["ruoli"]), "mansioni_rischio": sorted(config["rischi"]),
-        "attiva": config["attiva"], **conta,
+        "attiva": config["attiva"], **conta, "nome": mansione.nome,
     }, oggetto=mansione)
     mansione.refresh_from_db()
     parti = [f"{conta['nuove']} nuove" if conta["nuove"] else "", f"{conta['tolte']} tolte" if conta["tolte"] else ""]
     return _render_editor(request, mansione, salvato="Salvato." + (
+        f" Rinominata: prima «{conta['nome_prima']}»." if conta["nome_prima"] else "") + (
         " Competenze: " + ", ".join(p for p in parti if p) + "." if any(parti) else ""))
 
 
+def _righe_wizard(request) -> list[dict]:
+    """Competenze dal wizard: un solo requisito formale per riga, «corso:12», «qualifica:3», «mpq:5»."""
+    righe = []
+    for i in range(min(int(_int_o_none(request.POST.get("n_righe")) or 0), 60)):
+        p = f"r{i}_"
+        nome = (request.POST.get(p + "nome") or "").strip()
+        if not nome:
+            continue
+        tipo, _, rid = (request.POST.get(p + "requisito") or "").partition(":")
+        rid = _int_o_none(rid)
+        righe.append({
+            "id": None, "nome": nome,
+            "livello_minimo": (request.POST.get(p + "livello_minimo") or "U").strip().upper(),
+            "bloccante": request.POST.get(p + "bloccante") == "on",
+            "corso_id": rid if tipo == "corso" else None,
+            "qualifica_id": rid if tipo == "qualifica" else None,
+            "processo_id": rid if tipo == "mpq" else None,
+            "requisito": request.POST.get(p + "requisito") or "",
+            "ordine": (len(righe) + 1) * 10, "togli": False,
+        })
+    return righe
+
+
+def _render_wizard(request, *, dati=None, errore="", passo=1):
+    dati = dati or {"nome": "", "ruoli": set(), "reparto": None, "rischi": set(), "righe": []}
+    esistenti = list(CompetenzaSkm.objects.filter(tipo__in=svc.TIPI_MANSIONE).values_list("display", flat=True))
+    return render(request, "anagrafica/pages/mansionario_nuova.html", {
+        "page_title": "Nuova mansione",
+        "dati": dati, "errore": errore, "passo": passo,
+        "nomi_esistenti": sorted({n.strip() for n in esistenti if n}),
+        "livelli_label": list(LIVELLO_LABEL.items()),
+        "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
+        "rischi_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
+        "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
+        "regole": svc.regole_correnti(),
+        **_opzioni_requisiti(),
+    })
+
+
 @login_required
-@require_POST
 def struttura_nuova(request):
+    """Wizard «Nuova mansione»: nome → ruoli e reparto → rischio → competenze → riepilogo.
+
+    Un solo POST alla fine; si crea tutto o niente (mansione di tipo processo:
+    le macchine nascono dalla skill matrix).
+    """
     if not _is_admin(request):
         return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    if request.method != "POST":
+        return _render_wizard(request)
+    from django.db import transaction
+
+    righe = _righe_wizard(request)
+    dati = {
+        "nome": (request.POST.get("nome") or "").strip(),
+        "ruoli": set(_ids(request, "ruoli")),
+        "reparto": _int_o_none(request.POST.get("reparto")),
+        "rischi": set(_ids(request, "mansioni_rischio")),
+        "righe": righe,
+    }
+    passo = 1
     try:
-        m = svc.crea_processo(request.POST.get("nome"), reparto_id=_int_o_none(request.POST.get("reparto")),
-                              ruoli_ids=_ids(request, "ruoli"))
+        with transaction.atomic():
+            m = svc.crea_processo(dati["nome"], reparto_id=dati["reparto"], ruoli_ids=dati["ruoli"])
+            passo = 4
+            conta = svc.salva_editor(m, nome=m.nome, ruoli_ids=dati["ruoli"], rischi_ids=dati["rischi"],
+                                     reparto_id=dati["reparto"], attiva=True, righe=righe)
     except ValueError as exc:
-        messages.error(request, str(exc))
-        return redirect("anagrafica:mansionario_struttura")
-    log_action(request, "mansionario_struttura_nuova", MODULE, {"mansione": m.pk, "nome": m.nome}, oggetto=m)
-    messages.success(request, f"Mansione «{m.nome}» creata: aggiungi le competenze.")
-    return redirect(f"{reverse('anagrafica:mansionario_struttura')}?apri={m.pk}#m{m.pk}")
+        return _render_wizard(request, dati=dati, errore=f"Niente creato. {exc}", passo=passo)
+    log_action(request, "mansionario_struttura_nuova", MODULE, {
+        "mansione": m.pk, "nome": m.nome, "ruoli": sorted(dati["ruoli"]), "reparto": dati["reparto"],
+        "mansioni_rischio": sorted(dati["rischi"]), "competenze": conta["nuove"], "da": "wizard",
+    }, oggetto=m)
+    messages.success(request, f"Mansione «{m.nome}» creata"
+                              + (f" con {conta['nuove']} competenz{'a' if conta['nuove'] == 1 else 'e'}" if conta["nuove"] else "")
+                              + ": ora aggiungi le persone.")
+    return redirect("anagrafica:mansionario_mansione", mansione_id=m.pk)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

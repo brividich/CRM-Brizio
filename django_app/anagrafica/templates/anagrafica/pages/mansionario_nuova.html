@@ -1,0 +1,196 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Nuova mansione · Mansionario | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+{% include "anagrafica/components/_multiselect_picker.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_struttura' %}">Struttura</a><span class="fmd-sep"> / </span><span class="fmd-cur">Nuova mansione</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-plus"/></svg>Nuova mansione</h1>
+        <p class="fmd-ph-sub">Cinque passi: il nome, dove sta, i rischi, le competenze richieste e il riepilogo. Si crea solo alla fine; tutto resta modificabile dopo.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-mansionario" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    {% if errore %}<div class="mst-msg mst-msg-ko" role="alert">{{ errore }}</div>{% endif %}
+
+    <form method="post" class="fmd-panel fmd-block mnw" data-mnw data-passo="{{ passo }}" novalidate>
+      {% csrf_token %}
+      <ol class="mnw-steps" aria-label="Passi">
+        <li><button type="button" data-mnw-vai="1"><span>1</span>Nome</button></li>
+        <li><button type="button" data-mnw-vai="2"><span>2</span>Ruoli e reparto</button></li>
+        <li><button type="button" data-mnw-vai="3"><span>3</span>Rischio</button></li>
+        <li><button type="button" data-mnw-vai="4"><span>4</span>Competenze</button></li>
+        <li><button type="button" data-mnw-vai="5"><span>5</span>Riepilogo</button></li>
+      </ol>
+
+      {# ── 1. Nome ── #}
+      <section class="mnw-passo" data-mnw-passo="1" aria-labelledby="mnw-t1">
+        <h2 id="mnw-t1">Come si chiama la mansione?</h2>
+        <p class="mnw-intro">Una mansione è una macchina o un processo su cui una persona viene abilitata. Qui si creano i <b>processi</b>; le macchine nascono dalla skill matrix MOD.187 e si collegano dalla Struttura.</p>
+        <div class="fm-form-field" style="max-width:560px;"><label for="mnw-nome">Nome</label>
+          <input id="mnw-nome" type="text" name="nome" class="fm-input" value="{{ dati.nome }}" maxlength="255" required autocomplete="off" placeholder="Es. Collaudo dimensionale" data-mnw-nome>
+          <div class="mnw-avviso" data-mnw-doppio hidden>Esiste già una mansione con questo nome.</div>
+          <div class="fm-help">Il nome si potrà cambiare in seguito senza perdere persone, competenze o rischi.</div>
+        </div>
+        {{ nomi_esistenti|json_script:"mnw-nomi" }}
+      </section>
+
+      {# ── 2. Ruoli e reparto ── #}
+      <section class="mnw-passo" data-mnw-passo="2" aria-labelledby="mnw-t2">
+        <h2 id="mnw-t2">Sotto quale ruolo e in quale reparto?</h2>
+        <div class="fm-form-grid-2">
+          <div class="fm-form-field"><label for="mnw-ruoli">Ruoli</label>
+            <select id="mnw-ruoli" name="ruoli" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca ruolo…" data-mnw-ruoli>
+              {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in dati.ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
+            </select>
+            <div class="fm-help">Di norma uno. Senza ruolo la mansione finisce in «Da collegare a un ruolo».</div></div>
+          <div class="fm-form-field"><label for="mnw-reparto">Reparto</label>
+            <select id="mnw-reparto" name="reparto" class="fm-input fm-select" data-mnw-reparto>
+              <option value="">— nessuno —</option>
+              {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == dati.reparto %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+            </select>
+            <div class="fm-help">Serve al refresh del caporeparto e al reparto principale della persona.</div></div>
+        </div>
+      </section>
+
+      {# ── 3. Rischio ── #}
+      <section class="mnw-passo" data-mnw-passo="3" aria-labelledby="mnw-t3">
+        <h2 id="mnw-t3">Quali mansioni di rischio comporta?</h2>
+        <p class="mnw-intro">Chi viene messo in lista su questa mansione eredita DPI, visite mediche e schede di sicurezza delle mansioni di rischio scelte qui, a qualsiasi livello.</p>
+        <div class="fm-form-field" style="max-width:640px;"><label for="mnw-rischi">Mansioni di rischio</label>
+          <select id="mnw-rischi" name="mansioni_rischio" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione di rischio…" data-mnw-rischi>
+            {% for m in rischi_opts %}<option value="{{ m.pk }}"{% if m.pk in dati.rischi %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+          </select>
+          <div class="fm-help">Se non ne comporta nessuna lascia vuoto: la mansione resterà segnalata come «senza mansione di rischio».</div></div>
+      </section>
+
+      {# ── 4. Competenze ── #}
+      <section class="mnw-passo" data-mnw-passo="4" aria-labelledby="mnw-t4">
+        <h2 id="mnw-t4">Quali competenze servono?</h2>
+        <p class="mnw-intro">Il livello della persona sulla mansione si calcola da queste competenze ({{ regole.regola_label|lower }}); è operativa da <b>{{ regole.soglia }}</b>. Una competenza <b>bloccante</b> sotto il minimo rende la persona non abilitata. Puoi anche lasciarle per dopo.</p>
+        <input type="hidden" name="n_righe" value="{{ dati.righe|length|add:3 }}" data-mnw-n>
+        <div class="mst-scroll">
+          <table class="fmd-table mnw-comp" data-fm-table-skip="1">
+            <thead><tr><th>Competenza</th><th>Livello minimo</th><th>Bloccante</th><th>Requisito formale</th><th class="mst-c"><span class="fmd-sr">Togli</span></th></tr></thead>
+            <tbody data-mnw-righe>
+            {% for r in dati.righe %}{% include "anagrafica/components/_mansionario_nuova_riga.html" with i=forloop.counter0 riga=r %}{% endfor %}
+            {% with n=dati.righe|length %}
+            {% include "anagrafica/components/_mansionario_nuova_riga.html" with i=n riga=None %}
+            {% include "anagrafica/components/_mansionario_nuova_riga.html" with i=n|add:1 riga=None %}
+            {% include "anagrafica/components/_mansionario_nuova_riga.html" with i=n|add:2 riga=None %}
+            {% endwith %}
+            </tbody>
+          </table>
+        </div>
+        <template data-mnw-modello>{% include "anagrafica/components/_mansionario_nuova_riga.html" with i="__I__" riga=None %}</template>
+        <button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mnw-aggiungi><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi competenza</button>
+      </section>
+
+      {# ── 5. Riepilogo ── #}
+      <section class="mnw-passo" data-mnw-passo="5" aria-labelledby="mnw-t5">
+        <h2 id="mnw-t5">Controlla e crea</h2>
+        <dl class="mnw-riep" data-mnw-riep>
+          <div><dt>Nome</dt><dd data-r="nome">—</dd></div>
+          <div><dt>Ruoli</dt><dd data-r="ruoli">—</dd></div>
+          <div><dt>Reparto</dt><dd data-r="reparto">—</dd></div>
+          <div><dt>Mansioni di rischio</dt><dd data-r="rischi">—</dd></div>
+          <div><dt>Competenze</dt><dd data-r="competenze">—</dd></div>
+        </dl>
+        <ul class="mnw-mancano" data-mnw-mancano></ul>
+        <p class="mnw-intro">Dopo la creazione si apre la scheda della mansione per aggiungere le persone.</p>
+      </section>
+
+      <div class="mnw-foot">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_struttura' %}">Annulla</a>
+        <span class="mnw-foot-r">
+          <button type="button" class="fmd-btn fmd-btn-ghost" data-mnw-indietro>Indietro</button>
+          <button type="button" class="fmd-btn fmd-btn-primary" data-mnw-avanti>Avanti</button>
+          <button type="submit" class="fmd-btn fmd-btn-navy" data-mnw-crea>Crea la mansione</button>
+        </span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  var f=document.querySelector('[data-mnw]');if(!f)return;
+  f.classList.add('mnw-js');
+  var passi=f.querySelectorAll('[data-mnw-passo]'),tot=passi.length,ora=parseInt(f.dataset.passo,10)||1;
+  var nome=f.querySelector('[data-mnw-nome]'),doppio=f.querySelector('[data-mnw-doppio]');
+  var esistenti=JSON.parse(document.getElementById('mnw-nomi').textContent).map(function(n){return n.toLowerCase();});
+  function eDoppio(){var v=nome.value.trim().toLowerCase();return !!v&&esistenti.indexOf(v)>=0;}
+  function scelti(sel){return Array.prototype.filter.call(sel.options,function(o){return o.selected&&o.value;}).map(function(o){return o.textContent.trim();});}
+  function righe(){
+    return Array.prototype.map.call(f.querySelectorAll('[data-mnw-riga]'),function(tr){
+      var n=tr.querySelector('[data-c=nome]').value.trim();if(!n)return null;
+      var req=tr.querySelector('[data-c=req]');
+      return {nome:n,min:tr.querySelector('[data-c=min]').value,bl:tr.querySelector('[data-c=bl]').checked,
+              req:req.value?req.options[req.selectedIndex].textContent.trim():''};
+    }).filter(Boolean);
+  }
+  function riepilogo(){
+    var r=f.querySelector('[data-mnw-riep]'),rep=f.querySelector('[data-mnw-reparto]');
+    var ru=scelti(f.querySelector('[data-mnw-ruoli]')),ri=scelti(f.querySelector('[data-mnw-rischi]')),co=righe();
+    function put(k,t){r.querySelector('[data-r='+k+']').textContent=t;}
+    put('nome',nome.value.trim()||'—');put('ruoli',ru.join(', ')||'nessuno');
+    put('reparto',rep.value?rep.options[rep.selectedIndex].textContent.trim():'nessuno');put('rischi',ri.join(', ')||'nessuna');
+    var dd=r.querySelector('[data-r=competenze]');dd.textContent='';
+    if(!co.length){dd.textContent='nessuna (le aggiungi dopo)';}
+    else{var ul=document.createElement('ul');co.forEach(function(c){var li=document.createElement('li');
+      li.textContent=c.nome+' · minimo '+c.min+(c.bl?' · bloccante':'')+(c.req?' · '+c.req:'');ul.appendChild(li);});dd.appendChild(ul);}
+    var m=f.querySelector('[data-mnw-mancano]');m.textContent='';
+    [[!ru.length,'Senza ruolo: finirà in «Da collegare a un ruolo».'],[!rep.value,'Senza reparto: il refresh del caporeparto non la vede.'],
+     [!ri.length,'Senza mansione di rischio: DPI, visite e schede di sicurezza non si ricavano.'],[!co.length,'Senza competenze: varrà il livello messo a mano.']]
+      .forEach(function(x){if(x[0]){var li=document.createElement('li');li.textContent=x[1];m.appendChild(li);}});
+  }
+  function mostra(n){
+    if(n>1&&(!nome.value.trim()||eDoppio())){n=1;doppio.hidden=!eDoppio();nome.focus();if(!nome.value.trim())nome.reportValidity&&nome.reportValidity();}
+    ora=Math.max(1,Math.min(tot,n));
+    passi.forEach(function(p){p.hidden=parseInt(p.dataset.mnwPasso,10)!==ora;});
+    f.querySelectorAll('[data-mnw-vai]').forEach(function(b){var k=parseInt(b.dataset.mnwVai,10);
+      b.classList.toggle('mnw-on',k===ora);b.classList.toggle('mnw-fatto',k<ora);b.setAttribute('aria-current',k===ora?'step':'false');});
+    f.querySelector('[data-mnw-indietro]').hidden=ora===1;
+    f.querySelector('[data-mnw-avanti]').hidden=ora===tot;
+    f.querySelector('[data-mnw-crea]').hidden=ora!==tot;
+    if(ora===tot)riepilogo();
+  }
+  nome.addEventListener('input',function(){doppio.hidden=!eDoppio();});
+  nome.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();mostra(ora+1);}});
+  f.addEventListener('click',function(e){
+    var v=e.target.closest('[data-mnw-vai]');if(v){mostra(parseInt(v.dataset.mnwVai,10));return;}
+    if(e.target.closest('[data-mnw-avanti]')){mostra(ora+1);return;}
+    if(e.target.closest('[data-mnw-indietro]')){mostra(ora-1);return;}
+    var t=e.target.closest('[data-mnw-togli]');if(t){var tr=t.closest('[data-mnw-riga]');tr.querySelectorAll('input[type=text]').forEach(function(i){i.value='';});tr.remove();return;}
+    if(e.target.closest('[data-mnw-aggiungi]')){
+      var n=f.querySelector('[data-mnw-n]'),i=parseInt(n.value,10)||0;
+      var html=f.querySelector('[data-mnw-modello]').innerHTML.replace(/__I__/g,String(i));
+      var tb=f.querySelector('[data-mnw-righe]');tb.insertAdjacentHTML('beforeend',html);n.value=String(i+1);
+      var ultimo=tb.lastElementChild.querySelector('[data-c=nome]');if(ultimo)ultimo.focus();
+    }
+  });
+  f.addEventListener('submit',function(e){if(!nome.value.trim()||eDoppio()){e.preventDefault();mostra(1);}});
+  mostra(ora);
+})();
+</script>
+{% endblock %}

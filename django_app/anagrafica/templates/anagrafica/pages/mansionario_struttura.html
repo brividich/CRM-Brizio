@@ -6,7 +6,8 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+{% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -28,6 +29,7 @@
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_struttura_export' %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica Excel</a>
         <a class="fmd-btn fmd-btn-ghost" href="#importa"><svg class="fmd-ico"><use href="#i-plus"/></svg>Importa</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:ruoli_in_blocco' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Cambio ruoli in blocco</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_regole' %}"><svg class="fmd-ico"><use href="#i-gear"/></svg>Regole</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-mansionario" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
@@ -91,21 +93,10 @@
         <div class="fmd-block-aside">Clic su una mansione per modificarla qui</div>
       </div>
 
-      <form method="post" action="{% url 'anagrafica:mansionario_struttura_nuova' %}" class="mst-nuova">
-        {% csrf_token %}
-        <strong>Nuova mansione (processo)</strong>
-        <input type="text" name="nome" placeholder="Nome della mansione" required maxlength="255" aria-label="Nome della nuova mansione">
-        <select name="ruoli" aria-label="Ruolo">
-          <option value="">— ruolo —</option>
-          {% for r in ruoli_opts %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}
-        </select>
-        <select name="reparto" aria-label="Reparto">
-          <option value="">— reparto —</option>
-          {% for r in reparti_opts %}<option value="{{ r.pk }}">{{ r.nome }}</option>{% endfor %}
-        </select>
-        <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Crea</button>
-        <span class="mst-nota">Le macchine nascono dalla skill matrix.</span>
-      </form>
+      <div class="mst-nuova">
+        <a class="fmd-btn fmd-btn-navy fmd-btn-mini" href="{% url 'anagrafica:mansionario_struttura_nuova' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</a>
+        <span class="mst-nota">Procedura guidata: nome, ruolo e reparto, rischio, competenze. Le macchine nascono dalla skill matrix.</span>
+      </div>
 
       <div class="mns-tools">
         <label class="mns-search"><svg class="fmd-ico" aria-hidden="true"><use href="#i-search"/></svg>
@@ -195,9 +186,29 @@
     var b=e.target.closest('[data-mst-espandi]');if(!b)return;
     var apri=b.dataset.mstEspandi==='1';box.querySelectorAll('[data-mst-gruppo]').forEach(function(g){g.open=apri;});
   });
+  // Editor in linea (caricato via HTMX): righe nuove, avviso di rinomina, modifiche non salvate.
+  box.addEventListener('click',function(e){
+    var b=e.target.closest('[data-mst-aggiungi]');if(!b)return;
+    var f=b.closest('[data-mst-editor]'),n=f.querySelector('[data-mst-n]'),i=parseInt(n.value,10)||0;
+    var tb=f.querySelector('[data-mst-righe]');
+    tb.insertAdjacentHTML('beforeend',f.querySelector('[data-mst-modello]').innerHTML.replace(/__I__/g,String(i)));
+    n.value=String(i+1);var nuovo=tb.lastElementChild.querySelector('input[type=text]');if(nuovo)nuovo.focus();
+  });
+  function sporco(e){
+    var f=e.target.closest&&e.target.closest('[data-mst-editor]');if(!f)return;
+    var s=f.querySelector('[data-mst-sporco]');if(s)s.hidden=false;
+    var m=f.closest('.mst-m');if(m)m.classList.add('mst-m-sporca');
+    var nome=f.querySelector('[data-mst-nome]'),avv=f.querySelector('[data-mst-rinomina]');
+    if(nome&&avv)avv.hidden=nome.value.trim()===nome.dataset.originale;
+  }
+  box.addEventListener('input',sporco);box.addEventListener('change',sporco);
+  document.body.addEventListener('htmx:afterSettle',function(){
+    box.querySelectorAll('.mst-m-sporca').forEach(function(m){if(m.querySelector('.mst-msg-ok'))m.classList.remove('mst-m-sporca');});
+  });
   // ?apri=<id>: la mansione appena creata si apre già nell'editor.
+  // Dopo il «load»: htmx deve aver già agganciato il trigger «toggle» del riquadro.
   var apri=new URLSearchParams(location.search).get('apri');
-  if(apri){var m=box.querySelector('.mst-m[data-mansione="'+apri+'"]');if(m){m.closest('[data-mst-gruppo]').open=true;m.open=true;m.scrollIntoView({block:'start'});}}
+  if(apri)window.addEventListener('load',function(){var m=box.querySelector('.mst-m[data-mansione="'+apri+'"]');if(m){m.closest('[data-mst-gruppo]').open=true;m.open=true;m.scrollIntoView({block:'start'});}});
 })();
 </script>
 {% endblock %}

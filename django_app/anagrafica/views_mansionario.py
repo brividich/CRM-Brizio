@@ -193,16 +193,26 @@ def mansionario_mansione(request, mansione_id: int):
     if request.method == "POST":
         if not is_admin:
             return _nega(request, "Non hai i permessi per modificare il Mansionario.")
-        svc.salva_configurazione(
-            mansione, ruoli_ids=_ids(request, "ruoli"), rischi_ids=_ids(request, "mansioni_rischio"),
-            reparto_id=_int_o_none(request.POST.get("reparto")),
-            attiva=request.POST.get("attiva") == "on",
-        )
+        from django.db import transaction
+
+        try:
+            with transaction.atomic():
+                nome_prima = svc.rinomina(mansione, request.POST.get("nome")) if "nome" in request.POST else None
+                svc.salva_configurazione(
+                    mansione, ruoli_ids=_ids(request, "ruoli"), rischi_ids=_ids(request, "mansioni_rischio"),
+                    reparto_id=_int_o_none(request.POST.get("reparto")),
+                    attiva=request.POST.get("attiva") == "on",
+                )
+        except ValueError as exc:
+            messages.error(request, f"Niente salvato. {exc}")
+            return _alla_scheda(mansione.pk, "impostazioni")
         log_action(request, "mansionario_configurazione", MODULE, {
             "mansione": mansione.pk, "ruoli": _ids(request, "ruoli"),
             "mansioni_rischio": _ids(request, "mansioni_rischio"), "attiva": mansione.attiva,
+            "nome": mansione.nome, "nome_prima": nome_prima,
         }, oggetto=mansione)
-        messages.success(request, f"Mansione «{mansione.nome}» salvata.")
+        messages.success(request, f"Mansione «{mansione.nome}» salvata." + (
+            f" Prima si chiamava «{nome_prima}»: persone, competenze e rischi restano collegati." if nome_prima else ""))
         return _alla_scheda(mansione.pk, "impostazioni")
 
     from core.legacy_anagrafica import fetch_anagrafica_rows
@@ -255,6 +265,9 @@ def mansionario_mansione(request, mansione_id: int):
         "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
         "sel_ruoli": {r.pk for r in mansione.ruoli.all()},
         "sel_rischi": {m.pk for m in mansione.mansioni_rischio.all()},
+        "nomi_precedenti": svc.nomi_precedenti(mansione),
+        "completezza": svc.completezza(mansione, n_competenze=len(competenze), n_persone=len(persone)),
+        "regole": svc.regole_correnti(),
         "is_admin": is_admin,
     })
 
@@ -397,6 +410,50 @@ def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
         "livelli": svc.LIVELLI,
         "da": "refresh" if request.GET.get("da") == "refresh" else "",
         "reparto_refresh": (request.GET.get("reparto") or "").strip(),
+    })
+
+
+@login_required
+def mansionario_regole(request):
+    """Soglia operativa, regola multi-competenza e minimo uomo solo, con prova d'impatto.
+
+    Stessi valori della configurazione skill matrix: li cambia chi amministra
+    l'anagrafica o gestisce la skill matrix. «Prova» non salva; «Applica»
+    salva e ricalcola i livelli scritti.
+    """
+    if not _puo_valutare(request):
+        return _nega(request, "Le regole del Mansionario le cambia l'amministrazione dell'anagrafica o della skill matrix.")
+    from .models import SkillMatrixConfig
+    from .services import mansionario_regole as regole_svc
+
+    config = SkillMatrixConfig.get_instance()
+    scelta = {"soglia": config.soglia_operativa, "regola": config.regola_multivoce, "uomo_solo": config.soglia_uomo_solo}
+    impatto = None
+    if request.method == "POST":
+        scelta = {"soglia": request.POST.get("soglia") or "", "regola": request.POST.get("regola") or "",
+                  "uomo_solo": request.POST.get("uomo_solo") or ""}
+        try:
+            if request.POST.get("azione") == "applica":
+                esito = regole_svc.applica(scelta["soglia"], scelta["regola"], scelta["uomo_solo"], user=request.user)
+                log_action(request, "mansionario_regole", MODULE, esito, oggetto=config)
+                messages.success(request, "Regole salvate" + (
+                    f": ricalcolato il livello di {esito['ricalcolati']} person{'a' if esito['ricalcolati'] == 1 else 'e'}."
+                    if esito["ricalcolati"] else "."))
+                return redirect("anagrafica:mansionario_regole")
+            impatto = regole_svc.simula(scelta["soglia"], scelta["regola"], scelta["uomo_solo"])
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return render(request, "anagrafica/pages/mansionario_regole.html", {
+        "page_title": "Regole del Mansionario",
+        "config": config,
+        "scelta": scelta,
+        "impatto": impatto,
+        "cambia_qualcosa": impatto is not None and (
+            scelta["soglia"] != config.soglia_operativa or scelta["regola"] != config.regola_multivoce
+            or str(scelta["uomo_solo"]) != str(config.soglia_uomo_solo) or impatto.n_cambi),
+        "livelli_label": list(LIVELLO_LABEL.items()),
+        "regole_opts": SkillMatrixConfig.REGOLA_MULTIVOCE_CHOICES,
+        "max_righe": regole_svc.MAX_RIGHE,
     })
 
 

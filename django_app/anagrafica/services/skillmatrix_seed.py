@@ -51,9 +51,17 @@ def sincronizza_catalogo(*, catalogo=None, dry_run: bool = False) -> dict:
         created = obj is None
         if obj is None:
             obj = CompetenzaSkm(competenza_key=key)
-        obj.display = (c.get("display") or "").strip()
+        # Nome e alias si scrivono solo alla nascita (o se vuoti): una mansione
+        # rinominata nel Mansionario non deve tornare al nome del foglio MOD.187
+        # a ogni nuovo seed/import. Gli alias del catalogo si aggiungono.
+        if created or not (obj.display or "").strip():
+            obj.display = (c.get("display") or "").strip()
+        alias = [a for a in (obj.alias_storici or "").splitlines() if a.strip()]
+        for a in (c.get("alias_storici") or "").splitlines():
+            if a.strip() and a.strip().casefold() not in {x.strip().casefold() for x in alias}:
+                alias.append(a.strip())
+        obj.alias_storici = "\n".join(alias)
         obj.tipo = tipo or CompetenzaSkm.TIPO_MACCHINA
-        obj.alias_storici = (c.get("alias_storici") or "").strip()
         obj.note = (c.get("note") or "").strip()
 
         if tipo == CompetenzaSkm.TIPO_MACCHINA:

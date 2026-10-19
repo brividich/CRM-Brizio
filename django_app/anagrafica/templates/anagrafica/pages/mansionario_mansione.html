@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -117,7 +117,7 @@
 
       {# ── Competenze ───────────────────────────────────────────────────── #}
       <div class="mns-pane" id="competenze" role="tabpanel" aria-labelledby="tab-competenze">
-        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Il livello sulla mansione è la media delle competenze, mai sopra la bloccante più bassa. Senza il requisito formale (corso, qualifica, MOD.128) la persona non supera «I – in formazione» su quella competenza.</p>
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Livello sulla mansione: {{ regole.regola_label|lower }}; operativo da {{ regole.soglia }}{% if is_admin %} (<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_regole' %}">regole</a>){% endif %}. Senza il requisito formale (corso, qualifica, MOD.128) la persona non supera «I – in formazione» su quella competenza.</p>
         {% if competenze %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">
@@ -165,36 +165,78 @@
       {# ── Impostazioni ─────────────────────────────────────────────────── #}
       {% if is_admin %}
       <div class="mns-pane" id="impostazioni" role="tabpanel" aria-labelledby="tab-impostazioni">
-        <form method="post">
+        <ul class="mns-check-list" aria-label="Completezza della mansione">
+          {% for c in completezza %}
+          <li class="{% if c.ok %}mns-ck-ok{% else %}mns-ck-ko{% endif %}"><span class="mns-ck-ic" aria-hidden="true">{% if c.ok %}✓{% else %}!{% endif %}</span><span><b>{{ c.titolo }}</b><small>{{ c.testo }}</small></span></li>
+          {% endfor %}
+        </ul>
+
+        <form method="post" class="mns-set" data-mns-set>
           {% csrf_token %}
-          <div class="fm-form-grid-2">
-            <div class="fm-form-field"><label for="mm-ruoli">Ruoli</label>
-              <select id="mm-ruoli" name="ruoli" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca ruolo…">
-                {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in sel_ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
-              </select>
-              <div class="fm-help">Di norma un ruolo; più ruoli solo se la mansione serve davvero a entrambi.</div></div>
+          <fieldset class="mns-set-sez">
+            <legend><span class="mns-set-n">1</span>Identità</legend>
+            <div class="fm-form-grid-2">
+              <div class="fm-form-field"><label for="mm-nome">Nome della mansione</label>
+                <input id="mm-nome" type="text" name="nome" class="fm-input" value="{{ mansione.nome }}" maxlength="255" required data-mns-nome data-originale="{{ mansione.nome }}">
+                <div class="fm-help">Si può cambiare senza rompere nulla: persone, competenze, rischi e permessi sono legati alla mansione, non al nome.</div>
+                <div class="mns-rinomina" data-mns-rinomina hidden>Stai rinominando «{{ mansione.nome }}». Il vecchio nome resta tra i nomi precedenti e l'import Excel lo riconosce ancora.</div>
+              </div>
+              <div class="fm-form-field"><label>Tipo e chiave</label>
+                <div class="mns-ro">{{ mansione.get_tipo_display }} · <code>{{ mansione.competenza_key }}</code></div>
+                <div class="fm-help">La chiave non cambia mai: è quella che usa il file Excel.</div>
+                {% if nomi_precedenti %}<div class="mns-ro mns-ro-alias">Nomi precedenti: {{ nomi_precedenti|join:" · " }}</div>{% endif %}
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="mns-set-sez">
+            <legend><span class="mns-set-n">2</span>Dove sta nell'organizzazione</legend>
+            <div class="fm-form-grid-2">
+              <div class="fm-form-field"><label for="mm-ruoli">Ruoli</label>
+                <select id="mm-ruoli" name="ruoli" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca ruolo…">
+                  {% for r in ruoli_opts %}<option value="{{ r.pk }}"{% if r.pk in sel_ruoli %} selected{% endif %}>{{ r.nome }}{% if r.ambito %} · {{ r.ambito.nome }}{% endif %}</option>{% endfor %}
+                </select>
+                <div class="fm-help">Di norma un ruolo; più ruoli solo se la mansione serve davvero a entrambi.</div></div>
+              <div class="fm-form-field"><label for="mm-reparto">Reparto</label>
+                {% if mansione.asset_id %}
+                <div class="mns-ro">{{ mansione.reparto_effettivo|default:"non indicato sull'asset" }}</div>
+                <div class="fm-help">Viene dalla macchina {{ mansione.asset.asset_tag|default:mansione.asset.name }}: si cambia dalla sua scheda.</div>
+                {% else %}
+                <select id="mm-reparto" name="reparto" class="fm-input fm-select">
+                  <option value="">— nessuno —</option>
+                  {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == mansione.reparto_id %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+                </select>
+                <div class="fm-help">Serve al refresh del caporeparto e a calcolare il reparto principale della persona.</div>
+                {% endif %}
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="mns-set-sez">
+            <legend><span class="mns-set-n">3</span>Sicurezza</legend>
             <div class="fm-form-field"><label for="mm-rischi">Mansioni di rischio</label>
               <select id="mm-rischi" name="mansioni_rischio" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione di rischio…">
                 {% for m in rischi_opts %}<option value="{{ m.pk }}"{% if m.pk in sel_rischi %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
               </select>
-              <div class="fm-help">Chi svolge questa mansione eredita DPI, visite e schede di sicurezza di queste mansioni di rischio.</div></div>
-          </div>
-          <div class="fm-form-grid-2" style="margin-top:8px;">
-            <div class="fm-form-field"><label for="mm-reparto">Reparto</label>
-              {% if mansione.asset_id %}
-              <div class="fmd-muted">{{ mansione.reparto_effettivo|default:"non indicato sull'asset" }} — viene dall'asset: si cambia dalla scheda della macchina.</div>
-              {% else %}
-              <select id="mm-reparto" name="reparto" class="fm-input fm-select">
-                <option value="">— nessuno —</option>
-                {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == mansione.reparto_id %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
-              </select>
-              {% endif %}
+              <div class="fm-help">Chi è in lista su questa mansione eredita DPI, visite e schede di sicurezza di queste mansioni di rischio, a qualsiasi livello.</div></div>
+          </fieldset>
+
+          <fieldset class="mns-set-sez">
+            <legend><span class="mns-set-n">4</span>Stato e regole</legend>
+            <div class="fm-form-grid-2">
+              <div class="fm-form-field"><label for="mm-attiva">Stato</label>
+                <label class="mns-switch"><input id="mm-attiva" type="checkbox" name="attiva"{% if mansione.attiva %} checked{% endif %} data-mns-attiva><span>Mansione attiva</span></label>
+                <div class="fm-help">Spenta, sparisce dal Mansionario e non genera più mansioni di rischio; persone e livelli restano.</div>
+                {% if persone %}<div class="mns-rinomina" data-mns-spegni hidden>Ci sono {{ persone|length }} person{{ persone|length|pluralize:"a,e" }} in lista: spegnendola non erediteranno più i rischi di questa mansione.</div>{% endif %}
+              </div>
+              <div class="fm-form-field"><label>Regole di calcolo (per tutto il Mansionario)</label>
+                <div class="mns-ro">Operativo da <b>{{ regole.soglia }}</b> ({{ regole.soglia_label|lower }}) · {{ regole.regola_label }}</div>
+                <div class="fm-help"><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_regole' %}">Vedi e cambia le regole →</a></div>
+              </div>
             </div>
-            <div class="fm-form-field"><label for="mm-attiva">Stato</label>
-              <div style="display:flex;gap:8px;align-items:center;"><input id="mm-attiva" type="checkbox" name="attiva"{% if mansione.attiva %} checked{% endif %}><span>Mansione attiva</span></div>
-              <div class="fm-help">Una mansione non attiva sparisce dal Mansionario; le abilitazioni restano.</div></div>
-          </div>
-          <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;">
+          </fieldset>
+
+          <div class="mns-set-foot">
             <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario' %}">Torna al Mansionario</a>
             <button type="submit" class="fmd-btn fmd-btn-primary">Salva impostazioni</button>
           </div>
@@ -225,6 +267,11 @@
     var ed=e.target.closest('[data-mns-edit]');
     if(ed){var r=document.getElementById(ed.dataset.mnsEdit);r.hidden=!r.hidden;ed.setAttribute('aria-expanded',String(!r.hidden));if(!r.hidden){var i=r.querySelector('input[name=nome]');if(i)i.focus();}}
   });
+  // Impostazioni: avvisi su rinomina e spegnimento mentre si compila.
+  var nome=document.querySelector('[data-mns-nome]'),avvRin=document.querySelector('[data-mns-rinomina]');
+  if(nome&&avvRin)nome.addEventListener('input',function(){avvRin.hidden=nome.value.trim()===nome.dataset.originale;});
+  var att=document.querySelector('[data-mns-attiva]'),avvSp=document.querySelector('[data-mns-spegni]');
+  if(att&&avvSp)att.addEventListener('change',function(){avvSp.hidden=att.checked;});
   // Ricerca nella tendina delle persone: filtra le voci mentre si scrive.
   document.querySelectorAll('[data-mns-filtra]').forEach(function(inp){
     var sel=document.getElementById(inp.dataset.mnsFiltra);if(!sel)return;
