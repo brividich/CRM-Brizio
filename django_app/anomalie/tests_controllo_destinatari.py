@@ -131,6 +131,17 @@ class DestinatariApiTests(AnagraficaMixin, LegacyTableMixin, TestCase):
         self.assertEqual(r.json()["destinatari"]["to"], "Capocommessa Test")
         self.assertEqual(r.json()["destinatari"]["cc_email"], "car@example.local")
 
+    def test_anteprima_mostra_le_liste_di_configurazione(self):
+        liste = {"conferma_aggiornamenti": ["anna.verdi@example.local", "qualita@example.local"],
+                 "rdc_segnalazione": ["rdc@example.local"]}
+        with patch("anomalie.mail_action_service._resolve_lista_config", side_effect=lambda k: liste.get(k, [])):
+            d = self.client.get(reverse("api_anomalie_controllo_destinatari"), {"op_id": OP}).json()["destinatari"]
+        self.assertEqual(d["riepilogo"], [
+            {"email": "anna.verdi@example.local", "nome": "VERDI ANNA"},
+            {"email": "qualita@example.local", "nome": "qualita@example.local"},
+        ])
+        self.assertEqual(d["riepilogo_rdc"], [{"email": "rdc@example.local", "nome": "rdc@example.local"}])
+
     def test_anteprima_negata_senza_permesso_sull_op(self):
         with patch("anomalie.views._can_edit_anomalie_for_op", return_value=False):
             r = self.client.get(reverse("api_anomalie_controllo_destinatari"), {"op_id": OP})
