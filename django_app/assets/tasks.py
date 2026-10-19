@@ -43,6 +43,25 @@ def run_it_monitoring_alerts() -> dict:
         raise
 
 
+def run_intune_sync() -> dict:
+    """Legge i dispositivi da Microsoft Intune (``assets.services.intune``).
+
+    Non solleva sugli errori di Graph (permesso mancante, rete): li registra e
+    ritorna l'esito, così il task non risulta fallito ogni giorno finché il
+    permesso non è dato.
+    """
+    from assets.services.intune import sincronizza
+    from core import m365_graph
+
+    if not m365_graph.configurato():
+        return {"ok": False, "motivo": "Graph non configurato"}
+    try:
+        return {"ok": True, **sincronizza()}
+    except m365_graph.GraphError as exc:
+        logger.warning("run_intune_sync: %s", exc)
+        return {"ok": False, "errore": str(exc)[:300]}
+
+
 def run_maintenance_reminders() -> dict:
     """Promemoria email scadenze manutenzione/verifiche periodiche + OdL scaduti.
 
