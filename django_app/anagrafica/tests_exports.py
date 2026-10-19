@@ -6,7 +6,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from anagrafica.acl_bootstrap import PERM_EXPORT
-from anagrafica.exports import EXPORT_SPECS, ExportSpec, acl_gate
+from anagrafica.exports import EXPORT_SPECS, ExportSpec
 from anagrafica.models import Mansione
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso, Pulsante, UtenteLegacy

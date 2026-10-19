@@ -245,7 +245,7 @@
             <tr>
               <td>
                 <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_anagrafica_id %}"
-                   title="Vai alla scheda dipendente">{{ d.dipendente_nome }}</a>
+                   title="Vai alla scheda dipendente">{{ d.dipendente_nome|upper }}</a>
               </td>
               <td>
                 <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' d.corso.pk %}"

@@ -40,7 +40,6 @@ from assets.models import (
     AssetGroup,
     AssetGroupMembership,
     AssetMaintenanceRuleState,
-    MaintenanceInterventionTemplate,
     MaintenanceOccurrence,
     MaintenancePlanAssignment,
     MaintenanceRule,

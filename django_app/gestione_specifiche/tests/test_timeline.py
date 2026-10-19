@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from gestione_specifiche import constants as C
 from gestione_specifiche.models import AutoApprovazioneConfig, MOD133, Specifica
 from gestione_specifiche.timeline import eventi_umanizzati
 

@@ -930,7 +930,7 @@ body.theme-dark .news-settings-message.is-error{color:#fca5a5;background:rgba(22
             {% for entry in audit_entries %}
               <div class="news-settings-log-row">
                 <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
-                <span>{{ entry.utente_display|default:"-" }}</span>
+                <span>{{ entry.utente_display|upper|default:"-" }}</span>
                 <span>{{ entry.azione }}</span>
                 <span class="news-settings-log-detail">{{ entry.dettaglio }}</span>
               </div>

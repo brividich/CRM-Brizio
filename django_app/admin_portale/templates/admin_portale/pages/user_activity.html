@@ -25,7 +25,7 @@
           <select name="legacy_user_id" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;min-width:220px;">
             <option value="">Tutti</option>
             {% for u in users %}
-              <option value="{{ u.legacy_user_id }}" {% if legacy_user_id == u.legacy_user_id|stringformat:"s" %}selected{% endif %}>{{ u.utente_display|default:u.legacy_user_id }} ({{ u.total }})</option>
+              <option value="{{ u.legacy_user_id }}" {% if legacy_user_id == u.legacy_user_id|stringformat:"s" %}selected{% endif %}>{{ u.utente_display|upper|default:u.legacy_user_id }} ({{ u.total }})</option>
             {% endfor %}
           </select>
         </div>
@@ -78,7 +78,7 @@
             {% for log in page_obj %}
               <tr style="border-bottom:1px solid var(--border,#f1f5f9);">
                 <td style="padding:9px 14px;font-size:12px;color:var(--text-mid,#64748b);white-space:nowrap;">{{ log.created_at|date:"d-m-Y H:i:s" }}</td>
-                <td style="padding:9px 14px;font-size:13px;font-weight:600;color:var(--text,#1e293b);">{{ log.utente_display|default:"-" }}</td>
+                <td style="padding:9px 14px;font-size:13px;font-weight:600;color:var(--text,#1e293b);">{{ log.utente_display|upper|default:"-" }}</td>
                 <td style="padding:9px 14px;font-size:13px;color:var(--text-mid,#475569);">{{ log.modulo }}</td>
                 <td style="padding:9px 14px;font-size:13px;color:var(--text-mid,#475569);font-family:monospace;">{{ log.azione }}</td>
                 <td style="padding:9px 14px;font-size:12px;color:#94a3b8;font-family:monospace;">{{ log.ip_address|default:"-" }}</td>

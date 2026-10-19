@@ -142,7 +142,7 @@ sequenceDiagram
 | 1b | [`twofa`](django_app/twofa/) | Core | `/2fa/` | **2FA**: TOTP app authenticator e OTP email, policy per ruolo/rete interna, setup self-service con QR code, reset/toggle admin, pannello `/admin-portale/2fa/` |
 | 2 | [`dashboard`](django_app/dashboard/) | Core | `/` | Home a stanze: Oggi, Sapere (self-help e documenti), Persone & sicurezza, Moduli · [scheda](docs/moduli/dashboard.md) |
 | 2b | [`ai_assistant`](django_app/ai_assistant/) | Core | `/assistente-ai/` | Chatbot interno autenticato con console admin AI e backend Ollama/Open WebUI configurabile · [scheda](docs/moduli/ai_assistant.md) |
-| 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attivita utente, log e archiviazione notifiche, branding e template PDF · [scheda](docs/moduli/admin_portale.md) |
+| 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attivita utente, log e archiviazione notifiche, branding e template PDF, centro report · [scheda](docs/moduli/admin_portale.md) |
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema DB generato dal codice con connessioni, Homepage builder, Guide · [scheda](docs/moduli/hub_tools.md) |
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) · [scheda](docs/moduli/setup_wizard.md) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni · [scheda](docs/moduli/monitoring.md) |

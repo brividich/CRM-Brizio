@@ -274,7 +274,7 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
               {% for entry in audit_entries %}
                 <tr>
                   <td class="fmd-nowrap fmd-muted" data-sort-value="{{ entry.created_at|date:'Y-m-d H:i:s' }}">{{ entry.created_at|date:"d/m/Y H:i" }}</td>
-                  <td class="fmd-cell-main">{{ entry.utente_display|default:"—" }}</td>
+                  <td class="fmd-cell-main">{{ entry.utente_display|upper|default:"—" }}</td>
                   <td>
                     {% with act=entry.azione %}
                       {% if "denied" in act or "forbidden" in act %}<span class="tim-pill tim-pill-bad">{{ act }}</span>

@@ -276,13 +276,13 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         </div>
         <ul class="hrg-righe">
           {% for p in cruscotto.assunti_30 %}
-          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' p.id %}"><span>{{ p.nominativo }}<small>Assunzione · {{ p.mansione|default:"mansione da definire" }}</small></span><span class="hrg-pill hrg-pill-ok">{{ p.data_assunzione|date:"d/m" }}</span></a></li>
+          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' p.id %}"><span>{{ p.nominativo|upper }}<small>Assunzione · {{ p.mansione|default:"mansione da definire" }}</small></span><span class="hrg-pill hrg-pill-ok">{{ p.data_assunzione|date:"d/m" }}</span></a></li>
           {% endfor %}
           {% for p in cruscotto.cessati_30 %}
-          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' p.id %}"><span>{{ p.nominativo }}<small>Cessazione</small></span><span class="hrg-pill">{{ p.data_cessazione|date:"d/m" }}</span></a></li>
+          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' p.id %}"><span>{{ p.nominativo|upper }}<small>Cessazione</small></span><span class="hrg-pill">{{ p.data_cessazione|date:"d/m" }}</span></a></li>
           {% endfor %}
           {% for a in cruscotto.programmati %}
-          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' a.legacy_anagrafica_id %}"><span>{{ a.nominativo }}<small>Spostamento programmato · {{ a.mansione|default:a.reparto }}</small></span><span class="hrg-pill hrg-pill-warn">{{ a.data_inizio|date:"d/m" }}</span></a></li>
+          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' a.legacy_anagrafica_id %}"><span>{{ a.nominativo|upper }}<small>Spostamento programmato · {{ a.mansione|default:a.reparto }}</small></span><span class="hrg-pill hrg-pill-warn">{{ a.data_inizio|date:"d/m" }}</span></a></li>
           {% endfor %}
           {% if not cruscotto.assunti_30 and not cruscotto.cessati_30 and not cruscotto.programmati %}
           <li class="hrg-vuoto">Nessun ingresso, uscita o spostamento negli ultimi 30 giorni.</li>

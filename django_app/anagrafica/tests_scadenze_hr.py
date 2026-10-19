@@ -150,7 +150,7 @@ class VisiteTest(_Base):
         scadenze.ricalcola_visite()
         admin = get_user_model().objects.create_superuser("vm_admin", "vm@example.test", "x")
         self.client.force_login(admin)
-        with patch("anagrafica.views._can_view_visite_mediche", return_value=True):
+        with patch("anagrafica.views._helpers._can_view_visite_mediche", return_value=True):
             resp = self.client.get(reverse("anagrafica:visita_medica_dettaglio", args=[v.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Scadenza anticipata")

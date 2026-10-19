@@ -14,7 +14,6 @@ from django.test import TestCase, override_settings
 
 from anomalie import automazioni_service as auto
 from anomalie import mail_action_service as svc
-from anomalie.automation_models import AnomalieAutomazioneMarker
 from core.models import Notifica
 
 COLS = {

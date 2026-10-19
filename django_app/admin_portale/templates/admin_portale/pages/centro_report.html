@@ -1,0 +1,570 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Centro report | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/report_centro.css' %}">
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Centro report" page_subtitle="Tutti i report del portale in un posto: cosa esiste, chi ha scaricato cosa, con quale veste grafica. I report si generano sempre dal loro modulo." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <nav class="rc-tabs" aria-label="Sezioni del Centro report">
+    <a class="btn{% if scheda != 'catalogo' %} btn-secondary{% endif %}" href="?tab=catalogo">Catalogo</a>
+    <a class="btn{% if scheda != 'registro' %} btn-secondary{% endif %}" href="?tab=registro">Registro emissioni</a>
+    <a class="btn{% if scheda != 'layout' %} btn-secondary{% endif %}" href="?tab=layout">Layout</a>
+    <a class="btn{% if scheda != 'pianificazioni' %} btn-secondary{% endif %}" href="?tab=pianificazioni">Pianificazioni</a>
+    <a class="btn rc-guida{% if scheda != 'guida' %} btn-secondary{% endif %}" href="?tab=guida">? Guida</a>
+  </nav>
+
+  {% if scheda == "catalogo" %}
+    <div class="rc-kpis">
+      <div class="rc-kpi"><strong>{{ totale_voci }}</strong><span>report a catalogo</span></div>
+      <div class="rc-kpi"><strong>{{ totale_moduli }}</strong><span>moduli</span></div>
+      <div class="rc-kpi"><strong>{{ totale_personali }}</strong><span>con dati personali</span></div>
+      <div class="rc-kpi"><strong>{{ da_catalogare|length }}</strong><span>route da catalogare</span></div>
+    </div>
+
+    <div class="card rc-cerca-box">
+      <div class="card-body">
+        <label class="rc-cerca">
+          <span class="rc-muted">Cerca nel catalogo</span>
+          <input type="text" id="rc-cerca" placeholder="Nome del report, modulo, formato, norma…" autocomplete="off">
+        </label>
+        <span class="rc-muted" id="rc-cerca-esito" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div id="rc-catalogo" data-fm-hide-controls="1">
+    {% for g in gruppi %}
+      <section class="card rc-modulo" id="modulo-{{ g.modulo.chiave }}" data-rc-modulo="{{ g.modulo.etichetta|lower }}">
+        <div class="card-head">
+          <div class="card-title">{{ g.modulo.etichetta }}</div>
+          <span class="rc-muted">{{ g.righe|length }} report</span>
+        </div>
+        <div class="card-body rc-table-wrap">
+          <table class="rc-table">
+            <thead>
+              <tr>
+                <th>Report</th>
+                <th>Formati</th>
+                <th>Veste</th>
+                <th>Ultimi 30 giorni</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in g.righe %}
+                <tr>
+                  <td>
+                    <div class="rc-nome">{{ r.voce.nome }}</div>
+                    <div class="rc-muted">{{ r.voce.descrizione }}</div>
+                    <div style="margin-top:4px;">
+                      {% if r.voce.dati_personali %}<span class="rc-chip gdpr" title="Il file contiene dati personali: ogni scaricamento è registrato">Dati personali</span>{% endif %}
+                      {% if r.voce.norma %}<span class="rc-chip norma">{{ r.voce.norma }}</span>{% endif %}
+                      {% if r.voce.pianificabile %}<a class="rc-chip ok" href="?tab=pianificazioni" title="Si può inviare per mail a intervalli regolari">Pianificabile</a>{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% for f in r.voce.formati %}<span class="rc-chip fmt">{{ f }}</span>{% endfor %}
+                  </td>
+                  <td>
+                    <div>{{ r.voce.layout_etichetta }}</div>
+                    {% if r.profilo %}<div class="rc-muted">Profilo «{{ r.profilo.nome }}»</div>{% elif r.voce.accetta_profilo %}<div class="rc-muted">Template globale</div>{% endif %}
+                  </td>
+                  <td>
+                    {% if not r.voce.tracciato %}
+                      <span class="rc-muted">Pagina a video, non tracciata</span>
+                    {% elif r.ultima %}
+                      <div>{{ r.recenti }} scaricament{{ r.recenti|pluralize:"o,i" }}</div>
+                      <div class="rc-muted">ultimo {{ r.ultima|date:"d/m/Y H:i" }}</div>
+                    {% else %}
+                      <span class="rc-muted">Mai scaricato</span>
+                    {% endif %}
+                  </td>
+                  <td style="white-space:nowrap;">
+                    {% if r.url %}<a class="btn btn-secondary" href="{{ r.url }}">Apri</a>{% endif %}
+                    {% if r.voce.tracciato %}<a class="btn btn-secondary" href="?tab=registro&amp;voce={{ r.voce.chiave|urlencode }}&amp;giorni=365">Registro</a>{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endfor %}
+    <div class="rc-empty card" id="rc-cerca-vuoto" hidden>Nessun report corrisponde alla ricerca.</div>
+    </div>
+    <script>
+      (function () {
+        var input = document.getElementById("rc-cerca");
+        var esito = document.getElementById("rc-cerca-esito");
+        var vuoto = document.getElementById("rc-cerca-vuoto");
+        if (!input) return;
+        var sezioni = Array.prototype.slice.call(document.querySelectorAll("#rc-catalogo .rc-modulo"));
+        function filtra() {
+          var q = input.value.trim().toLowerCase();
+          var visibili = 0;
+          sezioni.forEach(function (sez) {
+            var modulo = sez.getAttribute("data-rc-modulo") || "";
+            var righe = sez.querySelectorAll("tbody tr");
+            var nellaSezione = 0;
+            righe.forEach(function (tr) {
+              var ok = !q || modulo.indexOf(q) !== -1 || tr.textContent.toLowerCase().indexOf(q) !== -1;
+              tr.hidden = !ok;
+              if (ok) nellaSezione += 1;
+            });
+            sez.hidden = nellaSezione === 0;
+            visibili += nellaSezione;
+          });
+          esito.textContent = q ? visibili + " report trovati" : "";
+          vuoto.hidden = visibili !== 0;
+        }
+        input.addEventListener("input", filtra);
+      })();
+    </script>
+
+    <section class="card rc-modulo">
+      <div class="card-head">
+        <div class="card-title">Route da catalogare</div>
+        <span class="rc-muted">File generati da route che il catalogo non conosce ancora</span>
+      </div>
+      <div class="card-body">
+        {% if da_catalogare %}
+          <div class="rc-table-wrap">
+            <table class="rc-table">
+              <thead><tr><th>Route</th><th>Scaricamenti</th><th>Ultimo</th><th></th></tr></thead>
+              <tbody>
+                {% for d in da_catalogare %}
+                  <tr>
+                    <td><span class="rc-code">{{ d.route_name|default:"(senza nome)" }}</span></td>
+                    <td>{{ d.n }}</td>
+                    <td>{{ d.ultima|date:"d/m/Y H:i" }}</td>
+                    <td><a class="btn btn-secondary" href="?tab=registro&amp;giorni=365&amp;q={{ d.route_name|urlencode }}">Registro</a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="rc-muted" style="margin:10px 0 0;">Vanno aggiunte al catalogo in <span class="rc-code">core/report_centro/contenuti/</span>: finché non ci sono, gli scaricamenti si registrano lo stesso ma senza nome del report né indicazione dei dati personali.</p>
+        {% else %}
+          <div class="rc-empty">Nessuna: tutti i file scaricati finora provengono da report a catalogo.</div>
+        {% endif %}
+      </div>
+    </section>
+
+  {% elif scheda == "registro" %}
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-body">
+        <form method="get" class="rc-filtri">
+          <input type="hidden" name="tab" value="registro">
+          <label>Periodo
+            <select name="giorni">
+              {% for g in finestre %}<option value="{{ g }}"{% if g == filtri.giorni %} selected{% endif %}>Ultimi {{ g }} giorni</option>{% endfor %}
+            </select>
+          </label>
+          <label>Modulo
+            <select name="modulo">
+              <option value="">Tutti</option>
+              {% for m in moduli %}<option value="{{ m.chiave }}"{% if m.chiave == filtri.modulo %} selected{% endif %}>{{ m.etichetta }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Formato
+            <select name="formato">
+              <option value="">Tutti</option>
+              {% for codice, etichetta in formati %}<option value="{{ codice }}"{% if codice == filtri.formato %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Cerca
+            <input type="text" name="q" value="{{ filtri.q }}" placeholder="Persona, file o impronta SHA-256">
+          </label>
+          <label class="rc-check"><input type="checkbox" name="personali" value="1"{% if filtri.personali %} checked{% endif %}> Solo con dati personali</label>
+          {% if filtri.voce %}<input type="hidden" name="voce" value="{{ filtri.voce }}">{% endif %}
+          <button class="btn" type="submit">Filtra</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:centro_report_registro_csv' %}?{{ querystring }}">Esporta CSV</a>
+        </form>
+        {% if filtri.voce %}
+          <p class="rc-muted" style="margin:0;">Solo il report <span class="rc-code">{{ filtri.voce }}</span> · <a href="?tab=registro&amp;giorni={{ filtri.giorni }}">togli il filtro</a></p>
+        {% endif %}
+        <p class="rc-muted" style="margin:8px 0 0;">{{ totale }} scaricament{{ totale|pluralize:"o,i" }} nel periodo, {{ totale_personali }} con dati personali.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-body">
+        {% if righe %}
+          <div class="rc-table-wrap">
+            <table class="rc-table">
+              <thead>
+                <tr><th>Quando</th><th>Chi</th><th>Report</th><th>File</th><th>Filtri</th></tr>
+              </thead>
+              <tbody>
+                {% for r in righe %}
+                  {% with e=r.e %}
+                  <tr>
+                    <td style="white-space:nowrap;">{{ e.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>
+                      <div>{{ e.utente_display|default:"—" }}</div>
+                      {% if e.impersonato_display %}<div class="rc-muted">impersonando {{ e.impersonato_display }}</div>{% endif %}
+                      {% if e.ip_address %}<div class="rc-code">{{ e.ip_address }}</div>{% endif %}
+                    </td>
+                    <td>
+                      <div class="rc-nome">{{ e.titolo|default:"—" }}</div>
+                      {% if r.voce %}<div class="rc-muted">{{ r.voce.modulo_etichetta }}</div>{% else %}<div class="rc-code">{{ e.route_name }}</div>{% endif %}
+                      <div style="margin-top:4px;">
+                        <span class="rc-chip fmt">{{ e.formato }}</span>
+                        {% if e.dati_personali %}<span class="rc-chip gdpr">Dati personali</span>{% endif %}
+                        {% if e.profilo_layout %}<span class="rc-chip">{{ e.profilo_layout }}</span>{% endif %}
+                        {% if r.in_archivio_hr %}<a class="rc-chip ok" href="{% url 'anagrafica:reportistica_index' %}" title="Lo stesso file (stessa impronta) è conservato nell'archivio della Reportistica HR">Copia in archivio HR</a>{% endif %}
+                      </div>
+                    </td>
+                    <td>
+                      <div>{{ e.nome_file|default:"—" }}</div>
+                      {% if e.dimensione_byte is not None %}<div class="rc-muted">{{ e.dimensione_byte|filesizeformat }}</div>{% endif %}
+                      {% if e.sha256 %}<div class="rc-code" title="Impronta SHA-256 del file">{{ e.sha256|slice:":16" }}…</div>{% endif %}
+                    </td>
+                    <td>
+                      {% for p in r.parametri %}<div class="rc-code">{{ p }}</div>{% empty %}<span class="rc-muted">—</span>{% endfor %}
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if page.has_other_pages %}
+            <div class="rc-pager">
+              <span class="rc-muted">Pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>
+              <div class="rc-actions">
+                {% if page.has_previous %}<a class="btn btn-secondary" href="?{{ querystring }}&amp;page={{ page.previous_page_number }}">← Precedenti</a>{% endif %}
+                {% if page.has_next %}<a class="btn btn-secondary" href="?{{ querystring }}&amp;page={{ page.next_page_number }}">Successivi →</a>{% endif %}
+              </div>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="rc-empty">Nessun report scaricato con questi filtri.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Conservazione del registro</div></div>
+      <div class="card-body">
+        <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="conservazione">
+          <label class="rc-muted" for="rc-giorni">Elimina le registrazioni più vecchie di</label>
+          <input id="rc-giorni" type="number" name="giorni" min="0" max="{{ conservazione_max }}" value="{{ conservazione_giorni }}" style="width:110px;">
+          <span class="rc-muted">giorni (0 = conserva sempre). La pulizia gira ogni notte.</span>
+          <button class="btn" type="submit">Salva</button>
+        </form>
+      </div>
+    </div>
+
+  {% elif scheda == "layout" %}
+    <div class="rc-grid-2">
+      <section class="card">
+        <div class="card-head"><div class="card-title">Profili di layout</div></div>
+        <div class="card-body">
+          {% if profili %}
+            <div class="rc-table-wrap">
+              <table class="rc-table">
+                <thead><tr><th>Profilo</th><th>Veste</th><th>Usato da</th><th></th></tr></thead>
+                <tbody>
+                  {% for p in profili %}
+                    <tr>
+                      <td>
+                        <div class="rc-nome">{{ p.nome }}</div>
+                        {% if p.descrizione %}<div class="rc-muted">{{ p.descrizione }}</div>{% endif %}
+                        {% if not p.is_active %}<span class="rc-chip">Disattivato</span>{% endif %}
+                      </td>
+                      <td>
+                        {% if p.colore_primario %}<span class="rc-swatch" style="background:{{ p.colore_primario }}" title="Primario {{ p.colore_primario }}"></span>{% endif %}
+                        {% if p.colore_accento %}<span class="rc-swatch" style="background:{{ p.colore_accento }}" title="Accento {{ p.colore_accento }}"></span>{% endif %}
+                        {% if p.filigrana %}<div class="rc-muted">Filigrana «{{ p.filigrana }}»</div>{% endif %}
+                        {% if p.logo_url %}<div class="rc-muted">Logo proprio</div>{% endif %}
+                      </td>
+                      <td>{{ p.n_assegnazioni }} assegnazion{{ p.n_assegnazioni|pluralize:"e,i" }}</td>
+                      <td style="white-space:nowrap;">
+                        <a class="btn btn-secondary" href="?tab=layout&amp;profilo={{ p.pk }}">Modifica</a>
+                        <a class="btn btn-secondary" href="{% url 'admin_portale:centro_report_anteprima' p.pk %}" target="_blank" rel="noopener">Anteprima PDF</a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="rc-empty">Nessun profilo: tutti i report usano il <a href="{% url 'admin_portale:pdf_template_config' %}">Template PDF</a> globale.</div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">{% if profilo_modifica %}Modifica «{{ profilo_modifica.nome }}»{% else %}Nuovo profilo{% endif %}</div>
+          {% if profilo_modifica %}<a class="rc-muted" href="?tab=layout">Nuovo profilo</a>{% endif %}
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-form">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="profilo_salva">
+            {% if profilo_modifica %}<input type="hidden" name="profilo_id" value="{{ profilo_modifica.pk }}">{% endif %}
+            <label>Nome
+              <input type="text" name="nome" maxlength="100" required value="{% if profilo_modifica %}{{ profilo_modifica.nome }}{% endif %}">
+            </label>
+            <label>Descrizione
+              <input type="text" name="descrizione" maxlength="300" value="{% if profilo_modifica %}{{ profilo_modifica.descrizione }}{% endif %}">
+            </label>
+            <div class="rc-row">
+              <label>Colore primario <small>#RRGGBB, vuoto = globale</small>
+                <input type="text" name="colore_primario" maxlength="7" placeholder="#0c2545" value="{% if profilo_modifica %}{{ profilo_modifica.colore_primario }}{% endif %}">
+              </label>
+              <label>Colore accento <small>#RRGGBB, vuoto = globale</small>
+                <input type="text" name="colore_accento" maxlength="7" placeholder="#2563eb" value="{% if profilo_modifica %}{{ profilo_modifica.colore_accento }}{% endif %}">
+              </label>
+            </div>
+            <label>Logo <small>percorso /media/… di un PNG o JPG, vuoto = globale</small>
+              <input type="text" name="logo_url" maxlength="300" value="{% if profilo_modifica %}{{ profilo_modifica.logo_url }}{% endif %}">
+            </label>
+            <label>Piè di pagina <small>vuoto = globale</small>
+              <input type="text" name="piede_pagina" maxlength="200" value="{% if profilo_modifica %}{{ profilo_modifica.piede_pagina }}{% endif %}">
+            </label>
+            <label>Filigrana <small>testo in diagonale su ogni pagina, es. BOZZA o COPIA NON CONTROLLATA</small>
+              <input type="text" name="filigrana" maxlength="40" value="{% if profilo_modifica %}{{ profilo_modifica.filigrana }}{% endif %}">
+            </label>
+            <label class="rc-check"><input type="checkbox" name="mostra_data_generazione" value="1"{% if not profilo_modifica or profilo_modifica.mostra_data_generazione %} checked{% endif %}> Data e ora di generazione nell'intestazione</label>
+            <label class="rc-check"><input type="checkbox" name="mostra_numero_pagina" value="1"{% if not profilo_modifica or profilo_modifica.mostra_numero_pagina %} checked{% endif %}> Numero di pagina nel piè di pagina</label>
+            <label class="rc-check"><input type="checkbox" name="is_active" value="1"{% if not profilo_modifica or profilo_modifica.is_active %} checked{% endif %}> Attivo</label>
+            <div class="rc-actions">
+              <button class="btn" type="submit">Salva profilo</button>
+            </div>
+          </form>
+          {% if profilo_modifica %}
+            <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" onsubmit="return confirm('Eliminare il profilo? I report assegnati tornano al template globale.');">
+              {% csrf_token %}
+              <input type="hidden" name="azione" value="profilo_elimina">
+              <input type="hidden" name="profilo_id" value="{{ profilo_modifica.pk }}">
+              <button class="btn btn-secondary" type="submit">Elimina profilo</button>
+            </form>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:14px;">
+      <div class="card-head">
+        <div class="card-title">Chi usa quale profilo</div>
+        <span class="rc-muted">Il singolo report vince sul modulo; senza assegnazione vale il Template PDF globale</span>
+      </div>
+      <div class="card-body">
+        {% if profili %}
+          <form method="post" action="{% url 'admin_portale:centro_report_azione' %}">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="assegnazioni_salva">
+            <div class="rc-table-wrap">
+              <table class="rc-table rc-assegna">
+                <thead><tr><th>Modulo / report</th><th>Profilo</th></tr></thead>
+                <tbody>
+                  {% for m in moduli_layout %}
+                    <tr>
+                      <td><div class="rc-nome">{{ m.modulo.etichetta }}</div></td>
+                      <td>
+                        <select name="modulo__{{ m.modulo.chiave }}" aria-label="Profilo del modulo {{ m.modulo.etichetta }}">
+                          <option value="">— template globale —</option>
+                          {% for p in profili %}<option value="{{ p.pk }}"{% if m.profilo and m.profilo.pk == p.pk %} selected{% endif %}>{{ p.nome }}{% if not p.is_active %} (disattivato){% endif %}</option>{% endfor %}
+                        </select>
+                      </td>
+                    </tr>
+                    {% for v in m.voci %}
+                      <tr class="rc-voce">
+                        <td><span class="rc-muted">{{ v.voce.nome }}</span></td>
+                        <td>
+                          <select name="voce__{{ v.voce.chiave }}" aria-label="Profilo del report {{ v.voce.nome }}">
+                            <option value="">— come il modulo —</option>
+                            {% for p in profili %}<option value="{{ p.pk }}"{% if v.profilo and v.profilo.pk == p.pk %} selected{% endif %}>{{ p.nome }}{% if not p.is_active %} (disattivato){% endif %}</option>{% endfor %}
+                          </select>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="rc-actions" style="margin-top:12px;"><button class="btn" type="submit">Salva assegnazioni</button></div>
+          </form>
+          <p class="rc-muted" style="margin:10px 0 0;">Sono elencati solo i report che usano il template del portale. Quelli «su misura» (attestati, MOD.040, etichette…) e le esportazioni di soli dati hanno una veste propria e non cambiano.</p>
+        {% else %}
+          <div class="rc-empty">Crea prima un profilo.</div>
+        {% endif %}
+      </div>
+    </section>
+
+  {% elif scheda == "pianificazioni" %}
+    <section class="card rc-modulo">
+      <div class="card-head">
+        <div class="card-title">Report pianificati</div>
+        <span class="rc-muted">Generati da soli e inviati per mail; controllo ogni ora</span>
+      </div>
+      <div class="card-body">
+        {% if pianificazioni %}
+          <div class="rc-table-wrap">
+            <table class="rc-table">
+              <thead><tr><th>Pianificazione</th><th>Quando</th><th>Destinatari</th><th>Ultimo invio</th><th></th></tr></thead>
+              <tbody>
+                {% for r in pianificazioni %}
+                  {% with p=r.p %}
+                  <tr>
+                    <td>
+                      <div class="rc-nome">{{ p.nome }}</div>
+                      {% if r.voce %}
+                        <div class="rc-muted">{{ r.voce.nome }}{% if r.variante %} · {{ r.variante.etichetta }}{% endif %}</div>
+                        {% if r.voce.dati_personali %}<span class="rc-chip gdpr">Dati personali</span>{% endif %}
+                      {% else %}
+                        <span class="rc-chip gdpr">Report non più a catalogo</span>
+                      {% endif %}
+                      {% if not p.attiva %}<span class="rc-chip">Sospesa</span>{% endif %}
+                      <div class="rc-muted">Generato come {{ r.proprietario|default:"— (proprietario assente)" }}</div>
+                    </td>
+                    <td>
+                      <div>{{ r.frequenza }}</div>
+                      {% if p.attiva and p.prossima_esecuzione %}<div class="rc-muted">prossimo {{ p.prossima_esecuzione|date:"d/m/Y H:i" }}</div>{% endif %}
+                    </td>
+                    <td>
+                      {% for d in r.destinatari %}<div>{{ d }}</div>{% empty %}<span class="rc-muted">—</span>{% endfor %}
+                    </td>
+                    <td>
+                      {% if p.ultima_esecuzione %}
+                        <span class="rc-chip{% if p.ultimo_esito == 'ok' %} ok{% elif p.ultimo_esito %} gdpr{% endif %}">{{ p.get_ultimo_esito_display }}</span>
+                        <div class="rc-muted">{{ p.ultima_esecuzione|date:"d/m/Y H:i" }}</div>
+                        {% if p.ultimo_messaggio %}<div class="rc-muted">{{ p.ultimo_messaggio }}</div>{% endif %}
+                      {% else %}
+                        <span class="rc-muted">Mai inviato</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="rc-actions">
+                        <a class="btn btn-secondary" href="?tab=pianificazioni&amp;pianificazione={{ p.pk }}">Modifica</a>
+                        <form method="post" action="{% url 'admin_portale:centro_report_azione' %}">
+                          {% csrf_token %}
+                          <input type="hidden" name="pianificazione_id" value="{{ p.pk }}">
+                          <button class="btn btn-secondary" type="submit" name="azione" value="pianificazione_esegui">Invia ora</button>
+                          <button class="btn btn-secondary" type="submit" name="azione" value="pianificazione_attiva">{% if p.attiva %}Sospendi{% else %}Riattiva{% endif %}</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="rc-empty">Nessun report pianificato.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title">{% if pianificazione_modifica %}Modifica «{{ pianificazione_modifica.nome }}»{% else %}Nuova pianificazione{% endif %}</div>
+        {% if pianificazione_modifica %}<a class="rc-muted" href="?tab=pianificazioni">Nuova pianificazione</a>{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-form">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="pianificazione_salva">
+          {% if pianificazione_modifica %}<input type="hidden" name="pianificazione_id" value="{{ pianificazione_modifica.pk }}">{% endif %}
+          <div class="rc-row">
+            <label>Nome
+              <input type="text" name="nome" maxlength="120" required value="{% if pianificazione_modifica %}{{ pianificazione_modifica.nome }}{% endif %}" placeholder="Es. Visite in scadenza per HR">
+            </label>
+            <label>Report
+              <select name="variante" required>
+                <option value="">— scegli —</option>
+                {% for v in varianti %}
+                  <option value="{{ v.valore }}"{% if v.valore == variante_scelta %} selected{% endif %}>{{ v.voce.modulo_etichetta }} · {{ v.voce.nome }} — {{ v.variante.etichetta }}{% if v.voce.dati_personali %} (dati personali){% endif %}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="rc-row">
+            <label>Frequenza
+              <select name="frequenza" id="rc-frequenza">
+                <option value="mensile"{% if not pianificazione_modifica or pianificazione_modifica.frequenza == "mensile" %} selected{% endif %}>Ogni mese</option>
+                <option value="settimanale"{% if pianificazione_modifica and pianificazione_modifica.frequenza == "settimanale" %} selected{% endif %}>Ogni settimana</option>
+              </select>
+            </label>
+            <label>Ora
+              <select name="ora">
+                {% for h in ore %}<option value="{{ h }}"{% if pianificazione_modifica and pianificazione_modifica.ora == h %} selected{% elif not pianificazione_modifica and h == 7 %} selected{% endif %}>{{ h|stringformat:"02d" }}:00</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="rc-row">
+            <label data-rc-freq="mensile">Giorno del mese
+              <select name="giorno_mese">
+                {% for g in giorni_mese %}<option value="{{ g }}"{% if pianificazione_modifica and pianificazione_modifica.giorno_mese == g %} selected{% endif %}>{{ g }}</option>{% endfor %}
+              </select>
+            </label>
+            <label data-rc-freq="settimanale">Giorno della settimana
+              <select name="giorno_settimana">
+                {% for n, g in giorni_settimana %}<option value="{{ n }}"{% if pianificazione_modifica and pianificazione_modifica.giorno_settimana == n %} selected{% endif %}>{{ g }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <label>Destinatari <small>solo persone del portale con email; chi non può aprire il report viene saltato</small>
+            <input type="text" id="rc-dest-cerca" placeholder="Filtra per nome o email…" autocomplete="off">
+            <select name="destinatari" id="rc-destinatari" multiple size="8" required>
+              {% for u in utenti %}<option value="{{ u.id }}"{% if u.id in destinatari_scelti %} selected{% endif %}>{{ u.nome }} · {{ u.email }}</option>{% endfor %}
+            </select>
+            <small>Ctrl+clic per sceglierne più di uno.</small>
+          </label>
+          <label class="rc-check"><input type="checkbox" name="attiva" value="1"{% if not pianificazione_modifica or pianificazione_modifica.attiva %} checked{% endif %}> Attiva</label>
+          <div class="rc-actions"><button class="btn" type="submit">Salva pianificazione</button></div>
+        </form>
+        {% if pianificazione_modifica %}
+          <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" onsubmit="return confirm('Eliminare la pianificazione?');">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="pianificazione_elimina">
+            <input type="hidden" name="pianificazione_id" value="{{ pianificazione_modifica.pk }}">
+            <button class="btn btn-secondary" type="submit">Elimina pianificazione</button>
+          </form>
+        {% endif %}
+        <p class="rc-muted" style="margin:12px 0 0;">Il report si genera con i permessi di chi ha creato la pianificazione e arriva come allegato (massimo 10 MB). Ogni invio finisce nel registro emissioni.</p>
+      </div>
+    </section>
+    <script>
+      (function () {
+        var freq = document.getElementById("rc-frequenza");
+        function aggiorna() {
+          document.querySelectorAll("[data-rc-freq]").forEach(function (el) {
+            el.hidden = el.getAttribute("data-rc-freq") !== freq.value;
+          });
+        }
+        if (freq) { freq.addEventListener("change", aggiorna); aggiorna(); }
+        var cerca = document.getElementById("rc-dest-cerca");
+        var lista = document.getElementById("rc-destinatari");
+        if (cerca && lista) {
+          cerca.addEventListener("input", function () {
+            var q = cerca.value.trim().toLowerCase();
+            Array.prototype.forEach.call(lista.options, function (o) {
+              o.hidden = !!q && !o.selected && o.textContent.toLowerCase().indexOf(q) === -1;
+            });
+          });
+        }
+      })();
+    </script>
+
+  {% else %}
+    <div class="card"><div class="card-body rc-guida-testo">
+      {% include "admin_portale/components/centro_report_guida.html" %}
+    </div></div>
+  {% endif %}
+{% endblock %}

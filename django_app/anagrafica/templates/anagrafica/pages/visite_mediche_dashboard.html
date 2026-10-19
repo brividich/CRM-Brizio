@@ -189,7 +189,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
             <tr class="hr-table-group-sep"><td colspan="6">📅 {{ mese_group.grouper }}</td></tr>
             {% for v in mese_group.list %}
             <tr>
-              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
+              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome|upper }}</a></td>
               <td>{{ v.tipo.nome }}{% if v.scadenza_nota %}<div style="margin-top:3px;font-size:11.5px;color:{% if v.scadenza_nota|slice:':19' == 'Tipologia cambiata:' %}#9a3412{% else %}#64748b{% endif %};">{% if v.scadenza_nota|slice:':19' == 'Tipologia cambiata:' %}↻ {% endif %}{{ v.scadenza_nota }}</div>{% endif %}</td>
               <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
               <td data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
@@ -311,7 +311,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
                       </div>
                       {% for s in row.sessioni %}{% if s.data_scadenza and s.giorni_a_scadenza < 0 %}
                       <div class="tipo-detail-dip">
-                        <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome }}</a>
+                        <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome|upper }}</a>
                         <span class="hr-pill danger" style="font-size:10px;white-space:nowrap;">{{ s.data_scadenza|date:"d-m-Y" }}</span>
                       </div>
                       {% endif %}{% endfor %}
@@ -326,7 +326,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
                       </div>
                       {% for s in row.sessioni %}{% if s.data_scadenza and s.giorni_a_scadenza >= 0 and s.giorni_a_scadenza <= 60 %}
                       <div class="tipo-detail-dip">
-                        <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome }}</a>
+                        <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome|upper }}</a>
                         <span class="hr-pill warning" style="font-size:10px;white-space:nowrap;">Tra {{ s.giorni_a_scadenza }}g</span>
                       </div>
                       {% endif %}{% endfor %}
@@ -341,7 +341,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
                       </div>
                       {% for s in row.sessioni %}{% if s.data_scadenza and s.giorni_a_scadenza > 60 %}
                       <div class="tipo-detail-dip">
-                        <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome }}</a>
+                        <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome|upper }}</a>
                         <span style="font-size:11px;color:#64748b;white-space:nowrap;">{{ s.data_scadenza|date:"d-m-Y" }}</span>
                       </div>
                       {% endif %}{% endfor %}
@@ -395,7 +395,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
             {% for v in mese_group.list %}
             <tr>
               <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}"><a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}">{{ v.data_svolgimento|date:"d-m-Y" }}</a></td>
-              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
+              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome|upper }}</a></td>
               <td>{{ v.tipo.nome }}</td>
               <td>{{ v.get_esito_display }}</td>
               <td>

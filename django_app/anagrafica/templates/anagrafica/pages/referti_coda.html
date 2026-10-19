@@ -151,7 +151,7 @@ body.theme-dark .rf-azioni{border-color:var(--border)}
                data-pronto="{% if riga.pronto %}1{% else %}0{% endif %}"
                aria-label="Seleziona il referto di {{ riga.letto_nominativo|default:riga.nome_file }}">
         <div class="rf-intesta">
-          <div class="rf-nome">{{ riga.letto_nominativo|default:"— nominativo non letto —" }}</div>
+          <div class="rf-nome">{{ riga.letto_nominativo|upper|default:"— nominativo non letto —" }}</div>
           <div class="rf-file">{{ riga.nome_file }}{% if riga.pagina > 1 %} · pagina {{ riga.pagina }}{% endif %}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
@@ -179,7 +179,7 @@ body.theme-dark .rf-azioni{border-color:var(--border)}
           {% if riga.e_esami %}
           <div>
             <div class="rf-et">Paziente letto</div>
-            <div class="rf-val">{{ riga.letto_nominativo|default:"—" }}{% if riga.letto_data_nascita %} · nato il {{ riga.letto_data_nascita|date:"d/m/Y" }}{% if riga.data_nascita_conferma %} <span class="rf-tag rf-si">coincide</span>{% endif %}{% endif %}</div>
+            <div class="rf-val">{{ riga.letto_nominativo|upper|default:"—" }}{% if riga.letto_data_nascita %} · nato il {{ riga.letto_data_nascita|date:"d/m/Y" }}{% if riga.data_nascita_conferma %} <span class="rf-tag rf-si">coincide</span>{% endif %}{% endif %}</div>
           </div>
           {% endif %}
           <div>
@@ -287,7 +287,7 @@ body.theme-dark .rf-azioni{border-color:var(--border)}
             {% for c in riga.candidati %}
               {% if c.legacy_id != riga.legacy_anagrafica_id_proposto %}
               <option value="{{ c.legacy_id }}">
-                {{ c.nominativo }} — {{ c.punteggio }}%{% if c.cessato %} (cessato){% endif %}
+                {{ c.nominativo|upper }} — {{ c.punteggio }}%{% if c.cessato %} (cessato){% endif %}
               </option>
               {% endif %}
             {% endfor %}

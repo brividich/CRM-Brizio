@@ -10,7 +10,7 @@ from django.db import DatabaseError, connections
 from werkzeug.security import check_password_hash
 
 from core.ldap_conn import build_ldap_server, ldap_receive_timeout
-from core.legacy_models import Ruolo, UtenteLegacy
+from core.legacy_models import UtenteLegacy
 from core.legacy_utils import (
     canonicalize_ldap_upn,
     extract_identity_alias,
@@ -142,7 +142,7 @@ class LDAPBackend:
             return None
 
         try:
-            from ldap3 import Connection, NONE, NTLM, SIMPLE, Server
+            from ldap3 import Connection, NTLM, SIMPLE
             from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
         except Exception as exc:
             logger.warning("ldap3 unavailable: %s", exc)

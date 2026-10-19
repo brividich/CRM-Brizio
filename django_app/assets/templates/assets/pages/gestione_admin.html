@@ -1923,7 +1923,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
       {% for entry in audit_entries %}
       <div class="log-row">
         <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
-        <span>{{ entry.utente_display|default:"—" }}</span>
+        <span>{{ entry.utente_display|upper|default:"—" }}</span>
         <span>{{ entry.azione }}</span>
         <span class="text-xs" style="color:#64748b;">{{ entry.dettaglio }}</span>
       </div>

@@ -33,7 +33,6 @@ from security.models import (
     SecurityAlert,
     SecurityEvidenceContainer,
     SecurityEvidenceItem,
-    SecurityEventRecord,
     SecuritySource,
 )
 

@@ -115,7 +115,7 @@ body.theme-dark .reg{--r-navy:var(--text)}
       {% for a in azioni %}
         <tr>
           <td class="reg-when">{{ a.created_at|date:"d/m/Y H:i" }}</td>
-          <td class="reg-user">{{ a.utente_nome|default:"—" }}</td>
+          <td class="reg-user">{{ a.utente_nome|upper|default:"—" }}</td>
           <td><span class="reg-badge reg-{{ a.azione }}">{{ a.get_azione_display }}</span></td>
           <td class="reg-mac">{{ a.macchina_cod|default:"—" }}</td>
           <td>{{ a.descrizione|default:"" }}</td>

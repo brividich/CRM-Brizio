@@ -27,6 +27,7 @@ from core.acl_resolution import (
     ignore_denial,
     unresolvable_reason,
 )
+from core import naming
 from core.legacy_models import UtenteLegacy
 from core.models import AclDenialEvent
 
@@ -76,7 +77,7 @@ def accessi_negati(request):
     rows = []
     for event in events:
         person = users.get(int(event.legacy_user_id))
-        name = str(getattr(person, "nome", "") or "").strip() or f"Utente #{event.legacy_user_id}"
+        name = naming.normalizza_parte(getattr(person, "nome", "")) or f"Utente #{event.legacy_user_id}"
         access = None
         unresolvable = ""
         if person is None:

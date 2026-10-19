@@ -1999,7 +1999,7 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
               <label class="imp-label" for="avviso_it_utenti">Utenti IT da notificare nel portale (campanella)</label>
               <select class="imp-select" id="avviso_it_utenti" name="avviso_it_utenti" multiple size="6">
                 {% for u in utenti_acl %}
-                  <option value="{{ u.id }}" {% if u.id in avviso_it.utenti_ids %}selected{% endif %}>{{ u.nome|default:u.email }}{% if u.email %} — {{ u.email }}{% endif %}</option>
+                  <option value="{{ u.id }}" {% if u.id in avviso_it.utenti_ids %}selected{% endif %}>{{ u.nome|upper|default:u.email }}{% if u.email %} — {{ u.email }}{% endif %}</option>
                 {% endfor %}
               </select>
               <div class="imp-card-sub">Ctrl+clic per selezionarne più di uno.</div>
@@ -2239,7 +2239,7 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
               {% csrf_token %}
               <select name="legacy_user_id" class="imp-select" required>
                 <option value="">— scegli utente —</option>
-                {% for u in utenti_acl %}<option value="{{ u.id }}">{{ u.nome|default:u.email }}</option>{% endfor %}
+                {% for u in utenti_acl %}<option value="{{ u.id }}">{{ u.nome|upper|default:u.email }}</option>{% endfor %}
               </select>
               <div class="imp-acl-ov-perms">
                 {% for p in acl_perms %}

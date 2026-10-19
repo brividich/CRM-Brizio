@@ -13,6 +13,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from core import naming
 from core.audit import log_action
 from core.legacy_models import UtenteLegacy
 from core.models import AccessGroup, AccessGroupMembership, AuditLog, RuoloPermessoModulo, SiteConfig
@@ -150,7 +151,7 @@ def _ctx_persone(request) -> dict:
     solo_con_ruoli = request.GET.get("con_ruoli") == "1"
     persone = UtenteLegacy.objects.filter(attivo=True)
     if q:
-        persone = persone.filter(Q(nome__icontains=q) | Q(email__icontains=q))
+        persone = persone.filter(Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome"))
     if solo_con_ruoli:
         persone = persone.filter(id__in=AccessGroupMembership.objects.values("legacy_user_id"))
     persone = list(persone.order_by("nome", "id")[:200])

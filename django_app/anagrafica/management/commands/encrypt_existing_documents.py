@@ -16,12 +16,11 @@ Utilizzo:
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from core.encrypted_storage import _MAGIC, encrypt_bytes, is_encrypted
+from core.encrypted_storage import encrypt_bytes, is_encrypted
 
 
 # Tutte le radici degli storage con EncryptedStorageMixin (audit M12: prima 5 su 10).

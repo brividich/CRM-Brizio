@@ -103,7 +103,7 @@
               {% for n in page_obj.object_list %}
                 <tr style="border-bottom:1px solid #f1f5f9;">
                   <td style="padding:10px 14px;font-size:12px;color:#64748b;white-space:nowrap;">{{ n.created_at|date:"d-m-Y H:i" }}</td>
-                  <td style="padding:10px 14px;font-size:13px;color:#1e293b;">{{ n.utente_display }}<span style="color:#cbd5e1;font-size:11px;"> · #{{ n.legacy_user_id }}</span></td>
+                  <td style="padding:10px 14px;font-size:13px;color:#1e293b;">{{ n.utente_display|upper }}<span style="color:#cbd5e1;font-size:11px;"> · #{{ n.legacy_user_id }}</span></td>
                   <td style="padding:10px 14px;font-size:13px;white-space:nowrap;"><span aria-hidden="true">{{ n.meta.icona }}</span> {{ n.meta.label }}</td>
                   <td style="padding:10px 14px;font-size:13px;color:#334155;">{{ n.messaggio }}{% if n.url_azione %}<br><a href="{{ n.url_azione }}" style="font-size:11px;color:#2563eb;text-decoration:none;">{{ n.url_azione }}</a>{% endif %}</td>
                   <td style="padding:10px 14px;text-align:center;">{% if n.letta %}<span style="color:#16a34a;">✓</span>{% else %}<span style="color:#f59e0b;font-weight:600;">•</span>{% endif %}{% if n.archiviata %} <span title="Archiviata il {{ n.archiviata_il|date:'d-m-Y' }} · {{ n.get_archiviata_motivo_display }}">🗄️</span>{% endif %}</td>

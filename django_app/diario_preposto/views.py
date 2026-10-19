@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import json
 import mimetypes
-import os
 from datetime import timedelta
 from functools import wraps
 from io import BytesIO
@@ -989,7 +988,7 @@ def api_cerca_utenti(request):
         from core.legacy_models import AnagraficaDipendente
 
         qs = AnagraficaDipendente.objects.filter(
-            Q(nome__icontains=q) | Q(cognome__icontains=q) |
+            Q(nome__icontains=q) | Q(cognome__icontains=q) | naming.q_persona(q, "nome", "cognome") |
             Q(email__icontains=q) | Q(aliasusername__icontains=q)
         ).order_by("cognome", "nome")[:20]
 
@@ -1006,7 +1005,7 @@ def api_cerca_utenti(request):
     except Exception:
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        qs = User.objects.filter(username__icontains=q).order_by("last_name", "first_name")[:20]
+        qs = User.objects.filter(username__icontains=q).order_by("first_name", "last_name")[:20]
         for u in qs:
             nome = u.get_full_name() or u.username
             results.append({

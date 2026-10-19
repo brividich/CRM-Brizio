@@ -2,7 +2,7 @@
 riapertura e annullamento motivati, controlli di integrità (MT CN 06 §9, MT CN 08 §7.3)."""
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+from datetime import time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model

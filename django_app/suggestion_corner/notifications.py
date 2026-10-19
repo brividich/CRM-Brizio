@@ -11,7 +11,7 @@ from django.contrib.auth.models import Group
 
 from core.email_utils import send_hub_mail
 
-from .models import SuggestionCorner, SuggestionCornerConfig
+from .models import SuggestionCornerConfig
 
 EMAIL_TYPE = "Suggestion Corner"
 

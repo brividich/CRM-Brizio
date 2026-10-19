@@ -362,10 +362,10 @@ body.theme-dark .ac-empty{color:var(--text-light)}
                           {% for event_row in row.calendar_event_rows %}
                             {% if event_row.graph_event_web_link %}
                               <a href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
-                                Evento Outlook | {{ event_row.target_display_name|default:event_row.target_email }}
+                                Evento Outlook | {{ event_row.target_display_name|upper|default:event_row.target_email }}
                               </a>
                             {% else %}
-                              <span class="ac-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                              <span class="ac-inline-note">Evento registrato | {{ event_row.target_display_name|upper|default:event_row.target_email }}</span>
                             {% endif %}
                             <div class="ac-inline-note">Scadenza {{ event_row.due_date|date:"d-m-Y" }} | creato il {{ event_row.created_at|date:"d-m-Y H:i" }}</div>
                           {% endfor %}

@@ -163,7 +163,7 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
           <dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
           {% if consegna.consegnato_da_nome %}
           <dt>Consegnato da</dt>
-          <dd>{{ consegna.consegnato_da_nome }}</dd>
+          <dd>{{ consegna.consegnato_da_nome|upper }}</dd>
           {% endif %}
           {% if consegna.data_scadenza_stimata %}
           <dt>Scadenza stimata</dt>
@@ -195,7 +195,7 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
           <div class="dpi-timeline-dot"></div>
           <div>
             <div class="dpi-timeline-body">
-              <strong>{{ c.autore_nome }}</strong>: {{ c.testo }}
+              <strong>{{ c.autore_nome|upper }}</strong>: {{ c.testo }}
             </div>
             <div class="dpi-timeline-time">{{ c.created_at|date:"d-m-Y H:i" }}</div>
           </div>

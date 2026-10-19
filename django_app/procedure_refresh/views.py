@@ -11,7 +11,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -1099,7 +1098,7 @@ def campaign_detail(request, pk: int):
         .order_by("document__document_type", "document__code", "-revision_date")
     )
 
-    users = User.objects.filter(is_active=True).order_by("last_name", "first_name")
+    users = User.objects.filter(is_active=True).order_by("first_name", "last_name")
     # Assegnazione «per reparto + lista + cerca»: raggruppa gli utenti per reparto
     # così il template può offrire optgroup per reparto, ricerca e «seleziona tutto
     # il reparto». Il backend (`assign_users`) accetta già più `user_ids`.
@@ -1598,7 +1597,7 @@ def report_user(request):
         return redirect("procedure_refresh:my_assignments")
 
     user_id = request.GET.get("user_id", "")
-    users = User.objects.filter(is_active=True).order_by("last_name", "first_name")
+    users = User.objects.filter(is_active=True).order_by("first_name", "last_name")
 
     assignments = []
     selected_user = None

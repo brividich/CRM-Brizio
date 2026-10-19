@@ -4,7 +4,6 @@ from anomalie.guida import con_guida
 import json
 import logging
 import mimetypes
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +40,6 @@ from core.operational_roles import (
     get_anagrafica_ids_for_role,
     get_role_ids_for_user,
     get_roster_by_role,
-    get_users_for_role,
 )
 
 from .models import (
@@ -2828,7 +2826,7 @@ def api_salva(request):
     if local_id is not None:
         try:
             from anomalie.qualita_service import sync_da_anomalia
-            from anomalie.quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+            from anomalie.quality_models import AnomaliaSegnalazioneMeta
             with transaction.atomic():
                 scheda = sync_da_anomalia(local_id)
                 meta = AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=local_id).first()

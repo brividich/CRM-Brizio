@@ -581,6 +581,7 @@ MIDDLEWARE = [
     "twofa.middleware.TwoFactorMiddleware",
     "core.session_middleware.ForcedPasswordChangeMiddleware",  # audit B2
     "core.middleware.ACLMiddleware",
+    "core.report_centro.registro.ReportEmissioneMiddleware",  # dopo ACL: legacy_user già risolto
     "notizie.mandatory_middleware.NotizieMandatoryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "core.flash_messages.FlashMessagesDeliveryMiddleware",  # dopo MessageMiddleware

@@ -187,7 +187,7 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
           <div class="tkt-commento{% if c.is_interno %} interno{% endif %}">
             <div class="tkt-commento-header">
               <span class="tkt-commento-autore">
-                {{ c.autore_nome }}
+                {{ c.autore_nome|upper }}
                 {% if c.is_interno %}<span class="tkt-interno-badge">Nota interna</span>{% endif %}
               </span>
               <span class="tkt-commento-date">{{ c.created_at|date:"d-m-Y H:i" }}</span>
@@ -237,12 +237,12 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
         </div>
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Richiedente</span>
-          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome }}</a>{% else %}{{ ticket.richiedente_nome }}{% endif %}</span>
+          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome|upper }}</a>{% else %}{{ ticket.richiedente_nome|upper }}{% endif %}</span>
         </div>
         {% if ticket.assegnato_a %}
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Assegnato a</span>
-          <span class="tkt-meta-val">{{ ticket.assegnato_a }}</span>
+          <span class="tkt-meta-val">{{ ticket.assegnato_a|upper }}</span>
         </div>
         {% endif %}
         {% if ticket.delegato_fornitore %}

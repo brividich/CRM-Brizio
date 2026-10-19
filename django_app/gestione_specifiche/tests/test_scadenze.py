@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from gestione_specifiche import constants as C
-from gestione_specifiche.models import EventoSpecifica, MOD133, Specifica
+from gestione_specifiche.models import MOD133, Specifica
 from gestione_specifiche.scadenze import (
     esegui_verifica_periodica, invia_escalation_mod133, invia_reminder_mod133,
 )

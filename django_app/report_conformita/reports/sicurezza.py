@@ -129,7 +129,7 @@ def _dpi(params: ReportParams) -> ReportResult:
         if not cons.firmato_ricevuta:
             senza_firma += 1
         result.add_row(
-            [r.numero, r.richiedente_nome, r.richiedente_reparto, str(r.categoria or ""), str(r.tipo_dpi or ""),
+            [r.numero, (r.richiedente_nome or "").upper(), r.richiedente_reparto, str(r.categoria or ""), str(r.tipo_dpi or ""),
              d(cons.data_consegna), yes_no(cons.firmato_ricevuta), d(cons.data_scadenza_stimata), stato],
             tone, source=cons
         )

@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from gestione_specifiche import constants as C
-from gestione_specifiche.models import AzioneOFI, MOD133, RigaMOD133, Specifica
+from gestione_specifiche.models import AzioneOFI, RigaMOD133, Specifica
 from gestione_specifiche.ofi import approva_azione_ofi, crea_ofi_da_riga
 
 User = get_user_model()

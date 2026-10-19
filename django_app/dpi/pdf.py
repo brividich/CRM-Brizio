@@ -82,7 +82,7 @@ def _info_dipendente_paragraphs(
 ) -> list[Paragraph]:
     r = consegna.richiesta
     rows = [
-        ("Nome", r.richiedente_nome or "—"),
+        ("Nome", (r.richiedente_nome or "").upper() or "—"),
         ("ID anagrafica", str(r.richiedente_legacy_id or "—")),
         ("Reparto", r.richiedente_reparto or "—"),
         ("Email", r.richiedente_email or "—"),
@@ -95,7 +95,7 @@ def _info_consegna_paragraphs(
 ) -> list[Paragraph]:
     rows = [
         ("Data consegna", consegna.data_consegna.strftime("%d-%m-%Y") if consegna.data_consegna else "—"),
-        ("Consegnato da", consegna.consegnato_da_nome or "—"),
+        ("Consegnato da", (consegna.consegnato_da_nome or "").upper() or "—"),
         ("Firma ricevuta", "Sì" if consegna.firmato_ricevuta else "No"),
     ]
     items = [Paragraph(f"<b>{k}:</b> {v}", body_style) for k, v in rows]
@@ -171,7 +171,7 @@ def render_modulo_consegna_dpi_multipla(consegne: Iterable[ConsegnaDPI]) -> byte
         c0 = consegne_list[0]
         rows = [
             ("Data consegna", c0.data_consegna.strftime("%d-%m-%Y") if c0.data_consegna else "—"),
-            ("Consegnato da", c0.consegnato_da_nome or "—"),
+            ("Consegnato da", (c0.consegnato_da_nome or "").upper() or "—"),
             ("Numero articoli", str(len(consegne_list))),
         ]
         flow.extend([Paragraph(f"<b>{k}:</b> {v}", body_style) for k, v in rows])

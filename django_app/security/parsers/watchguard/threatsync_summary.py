@@ -1,7 +1,6 @@
 import re
-from collections import Counter
 
-from .common import alert_candidate, base_result, concentration_candidates, finalize_result, find_period, parse_number
+from .common import alert_candidate, base_result, finalize_result, find_period, parse_number
 
 
 def parse_watchguard_threatsync_summary(text, *, source_name=None, received_at=None):

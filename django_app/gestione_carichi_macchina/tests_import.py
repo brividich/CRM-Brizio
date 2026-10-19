@@ -9,7 +9,6 @@ from assets.models import Asset
 
 from .importer import Voce, fondi_edizioni, importa, leggi_workbook
 from .models import (
-    FamigliaPezzo,
     Macchina,
     MacchinaAlias,
     MacchinaFamigliaAffinita,
@@ -94,7 +93,7 @@ class ImportAlgoritmoTest(TestCase):
         self.assertEqual(Pianificazione.objects.count(), 0)
 
     def test_backlog_e_cicli(self):
-        from .models import CicloStandard, Commessa, Operazione
+        from .models import Commessa, Operazione
 
         backlog = ["6 ragni ferrari", "Riordino APRILIA 1000"]
         cicli = ["CICLI APRILIA:", "* BAS SUP", "op1 DM3 = 550 cent/cad"]

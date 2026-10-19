@@ -23,7 +23,6 @@ from security.models import (
     SourceType,
     Status,
 )
-from security.services import notifications
 from security.services.notifications import (
     notify_alert_created,
     parse_recipients,

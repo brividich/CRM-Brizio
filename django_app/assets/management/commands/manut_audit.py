@@ -48,10 +48,9 @@ sviluppo produce numeri di sviluppo, non di produzione.
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any
 
 from django.core.management.base import BaseCommand
-from django.db.models import Count, F, Max, Min, Q
+from django.db.models import Count, Max, Min, Q
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 

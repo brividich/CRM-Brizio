@@ -91,10 +91,10 @@ class DipendentiListRuoliRenderTests(TestCase):
             "aliasusername": "d.aksoy", "email_notifica": "", "attivo": True,
         }]
         patches = (
-            mock.patch("anagrafica.views._dipendenti_base_rows", return_value=righe),
-            mock.patch("anagrafica.views._cessati_legacy_ids", return_value=set()),
+            mock.patch("anagrafica.views.dipendenti._dipendenti_base_rows", return_value=righe),
+            mock.patch("anagrafica.views._helpers._cessati_legacy_ids", return_value=set()),
             mock.patch(
-                "anagrafica.views.count_anagrafica_statuses",
+                "anagrafica.views.dipendenti.count_anagrafica_statuses",
                 return_value={"active": 1, "inactive": 0},
             ),
         )

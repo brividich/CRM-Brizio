@@ -26,7 +26,7 @@ import ntpath
 import os
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from django.conf import settings
 from django.utils import timezone

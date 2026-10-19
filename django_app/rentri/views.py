@@ -7,7 +7,6 @@ from __future__ import annotations
 import csv
 import io
 import json
-import os
 import re
 from datetime import date, datetime
 from datetime import timezone as dt_timezone
@@ -29,7 +28,7 @@ from core.audit import log_action
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
-from core.upload_mime import safe_filename, validate_filename, validate_extension_and_mime, UploadMimeValidationError
+from core.upload_mime import validate_filename, validate_extension_and_mime, UploadMimeValidationError
 
 from .acl_bootstrap import PERM_RENTRI_MANAGE
 from core.upload_limits import DOCUMENT_MAX_BYTES
@@ -1285,7 +1284,8 @@ def export_pdf(request):
 
     from django.http import HttpResponse
     from reportlab.lib import colors
-    from reportlab.lib.units import cm
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import cm, mm
     from reportlab.platypus import Paragraph, Table, TableStyle
 
     from core.pdf import (

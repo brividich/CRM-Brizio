@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{{ candidato.nominativo }} | Recruiting{% endblock %}
+{% block title %}{{ candidato.nominativo|upper }} | Recruiting{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -311,7 +311,7 @@
             <b>{{ riga.campo }}</b>:
             {{ riga.valore_prima|default:"—" }}<span class="rcr-log-arrow">→</span>{{ riga.valore_dopo|default:"—" }}
             {% if riga.note %}<div class="rcr-log-who">{{ riga.note }}</div>{% endif %}
-            <div class="rcr-log-who">{{ riga.user_display|default:"utente non registrato" }}</div>
+            <div class="rcr-log-who">{{ riga.user_display|upper|default:"utente non registrato" }}</div>
           </span>
         </div>
         {% endfor %}

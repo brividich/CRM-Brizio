@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 from unittest import mock
 
@@ -63,14 +64,17 @@ class GateAdditivoTests(TestCase):
         singleton.accesso = perm_model.ACCESSO_ADMIN  # ramo più restrittivo
         singleton.utente_ids = [42]
         singleton.save()
+        # Il gate risolve get_legacy_user/is_legacy_admin nel SUO modulo
+        # (anagrafica.views._helpers o un pilastro), non nel package.
+        mod = sys.modules[gate_fn.__module__]
         legacy_user = SimpleNamespace(id=42, ruolo_id=None)
-        with mock.patch.object(av, "get_legacy_user", return_value=legacy_user), \
-             mock.patch.object(av, "is_legacy_admin", return_value=False):
+        with mock.patch.object(mod, "get_legacy_user", return_value=legacy_user), \
+             mock.patch.object(mod, "is_legacy_admin", return_value=False):
             allowed_in = gate_fn(self._request())
         # utente fuori lista → resta negato (accesso=ADMIN, non admin)
         other = SimpleNamespace(id=7, ruolo_id=None)
-        with mock.patch.object(av, "get_legacy_user", return_value=other), \
-             mock.patch.object(av, "is_legacy_admin", return_value=False):
+        with mock.patch.object(mod, "get_legacy_user", return_value=other), \
+             mock.patch.object(mod, "is_legacy_admin", return_value=False):
             allowed_out = gate_fn(self._request())
         return allowed_in, allowed_out
 

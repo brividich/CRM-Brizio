@@ -187,7 +187,7 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
           <dt>Taglia</dt>
           <dd>{% if richiesta.taglia_dpi %}{{ richiesta.taglia_dpi.valore }}{% else %}-{% endif %}</dd>
           <dt>Richiedente</dt>
-          <dd>{{ richiesta.richiedente_nome }}{% if richiesta.richiedente_reparto %} — {{ richiesta.richiedente_reparto }}{% endif %}</dd>
+          <dd>{{ richiesta.richiedente_nome|upper }}{% if richiesta.richiedente_reparto %} — {{ richiesta.richiedente_reparto }}{% endif %}</dd>
           {% if richiesta.richiedente_email %}
           <dt>Email</dt>
           <dd>{{ richiesta.richiedente_email }}</dd>
@@ -215,7 +215,7 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
         <dl class="dpi-consegna-box">
           <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d-m-Y" }}</dd>
           <dt>DPI</dt><dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
-          {% if consegna.consegnato_da_nome %}<dt>Da</dt><dd>{{ consegna.consegnato_da_nome }}</dd>{% endif %}
+          {% if consegna.consegnato_da_nome %}<dt>Da</dt><dd>{{ consegna.consegnato_da_nome|upper }}</dd>{% endif %}
           {% if consegna.scadenza_calcolata %}
           <dt>Scadenza</dt>
           <dd>
@@ -340,7 +340,7 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
             <div class="dpi-timeline-dot{% if c.is_interno %} interno{% endif %}"></div>
             <div>
               <div class="dpi-timeline-body">
-                <strong>{{ c.autore_nome }}</strong>
+                <strong>{{ c.autore_nome|upper }}</strong>
                 {% if c.is_interno %}<span class="dpi-interno-badge">INTERNO</span>{% endif %}
                 <br>{{ c.testo }}
               </div>

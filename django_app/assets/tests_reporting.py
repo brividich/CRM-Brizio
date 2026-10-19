@@ -4,7 +4,6 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
-from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -13,7 +12,6 @@ from openpyxl import load_workbook
 from assets.models import Asset, AssetReportRun, AssetReportSchedule
 from assets.reporting_forms import AssetReportScheduleForm
 from assets.services import reporting
-from assets.services.reporting_exports import export_excel
 
 
 class ReportingTests(TestCase):

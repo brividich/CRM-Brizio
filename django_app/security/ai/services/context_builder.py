@@ -11,15 +11,12 @@ from django.utils import timezone
 from ..services.redaction import redact_ai_context, redact_text
 from ...models import (
     SecurityAlert,
-    SecurityAlertActionLog,
     SecurityEvidenceContainer,
     SecurityEvidenceItem,
     SecurityRemediationTicket,
     SecurityReport,
     SecurityVulnerabilityFinding,
     SecurityEventRecord,
-    SecuritySourceFile,
-    SecurityMailboxMessage,
 )
 from ...permissions import can_view_security_center
 
@@ -735,7 +732,6 @@ def get_evidence_context(evidence_id: str) -> Dict[str, Any]:
 def get_dashboard_context() -> Dict[str, Any]:
     """Get synthetic dashboard overview context"""
     try:
-        from django.db.models import Count, Q
 
         now = timezone.now()
 

@@ -57,6 +57,28 @@ def chiave_testo(valore: str | None) -> str:
     return " ".join(testo.split()).upper()
 
 
+def q_persona(testo: str | None, *campi: str):
+    """Filtro di RICERCA di una persona da testo libero, in qualunque ordine.
+
+    Ogni parola deve comparire in almeno uno dei ``campi``: «rossi mario»,
+    «Mario Rossi» e «ROSSI» trovano tutti ROSSI MARIO, sia con ``nome`` e
+    ``cognome`` separati sia con il nominativo in un solo campo (``utenti.nome``).
+    Testo vuoto → filtro che non trova nulla.
+    """
+    from django.db.models import Q
+
+    parole = str(testo or "").split()
+    if not parole or not campi:
+        return Q(pk__in=[])
+    filtro = Q()
+    for parola in parole:
+        alternativa = Q()
+        for campo in campi:
+            alternativa |= Q(**{f"{campo}__icontains": parola})
+        filtro &= alternativa
+    return filtro
+
+
 def chiavi_confronto(nome: str | None, cognome: str | None) -> set[str]:
     """Chiavi di confronto di una persona in entrambi gli ordini
     (``COGNOME NOME`` e ``NOME COGNOME``): i testi delle altre tabelle usano l'uno o l'altro."""

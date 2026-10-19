@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida · I miei report | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/report_centro.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="page-header rc-page-head">
+    <div>
+      <div class="page-h">Guida · I miei report</div>
+      <div class="page-sub">Dove trovare i report che puoi generare e cosa resta registrato.</div>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'miei_report' %}">← Torna a I miei report</a>
+  </div>
+  <div class="card"><div class="card-body rc-guida-testo">
+    <h3 id="guida-cosa">A cosa serve</h3>
+    <p>Raccoglie in un'unica pagina i report che puoi generare nei vari moduli: elenchi, schede, registri, attestati, esportazioni. Si apre dal menu con il tuo nome, voce <strong>«I miei report»</strong>.</p>
+
+    <h3 id="guida-elenco">Quali report vedi</h3>
+    <ul>
+      <li>Vedi solo i report dei moduli che puoi già aprire: l'elenco segue i tuoi permessi e cambia quando cambiano.</li>
+      <li>«Apri» porta alla pagina del modulo da cui il report si genera; lì scegli filtri e formato.</li>
+      <li>«Cerca tra i tuoi report» filtra mentre scrivi, su nome, descrizione, modulo e formato.</li>
+      <li>I formati indicano cosa si ottiene: PDF, XLSX (Excel), CSV, DOCX (Word), ZIP; «a video» è una pagina da consultare o stampare dal browser.</li>
+    </ul>
+
+    <h3 id="guida-dati">Report con dati personali</h3>
+    <p>L'etichetta <strong>«Dati personali»</strong> segna i report che contengono dati di colleghi (nomi, visite, formazione, retribuzioni…). Scaricali solo per il tuo lavoro, non inoltrarli fuori dall'azienda e cancellali quando non servono più.</p>
+
+    <h3 id="guida-scaricamenti">I miei scaricamenti</h3>
+    <ul>
+      <li>Ogni file di report scaricato dal portale viene registrato: data, report, nome e dimensione del file. Il file non viene conservato.</li>
+      <li>In fondo alla pagina trovi i tuoi ultimi 30 scaricamenti degli ultimi 90 giorni. Il registro completo lo consultano gli amministratori.</li>
+    </ul>
+
+    <h3 id="guida-mail">Report che ricevi per mail</h3>
+    <p>Se un amministratore ti ha inserito tra i destinatari di un report pianificato, lo trovi nel riquadro «Ricevi per mail» con la frequenza e il prossimo invio. Per non riceverlo più chiedi all'amministratore del portale.</p>
+
+    <h3 id="guida-problemi">Se manca un report</h3>
+    <p>Se un report che ti serve non compare, non hai accesso alla pagina del modulo che lo genera: chiedilo all'amministratore del portale.</p>
+  </div></div>
+{% endblock %}

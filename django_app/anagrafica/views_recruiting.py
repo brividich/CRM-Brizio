@@ -27,6 +27,7 @@ from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from core import naming
 from core.audit import log_action
 
 from django.http import JsonResponse
@@ -41,7 +42,6 @@ from .forms_recruiting import (
 )
 from .models_recruiting import (
     Candidato,
-    CandidatoLog,
     CandidatoPunteggio,
     PosizioneAperta,
     RecruitingCriterio,
@@ -134,6 +134,7 @@ def _filtra_candidati(request):
             Q(cognome__icontains=q) | Q(nome__icontains=q)
             | Q(mansione_cercata__icontains=q) | Q(azienda_attuale__icontains=q)
             | Q(localita__icontains=q) | Q(note__icontains=q)
+            | naming.q_persona(q, "nome", "cognome")
         )
 
     stato = (request.GET.get("stato") or "").strip()

@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from anagrafica.models import Fornitore, FornitoreDocumento, Reparto
+from anagrafica.models import Fornitore, FornitoreDocumento
 from core.form_fields import user_display_label
 from schede_sicurezza.forms import ProdottoChimicoForm
 from schede_sicurezza.models import ProdottoChimico

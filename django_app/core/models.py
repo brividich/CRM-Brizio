@@ -1438,3 +1438,168 @@ class PresetPermessiModulo(models.Model):
         except ValueError:
             return []
         return [str(c) for c in dati] if isinstance(dati, list) else []
+
+
+# ── Centro report ─────────────────────────────────────────────────────────────
+
+class ReportEmissione(models.Model):
+    """Un file di report scaricato dal portale (registro trasversale).
+
+    Lo scrive :class:`core.report_centro.registro.ReportEmissioneMiddleware` per
+    ogni risposta che porta un documento generato. Conserva solo metadati e
+    impronta SHA-256: il file non viene mai salvato qui, quindi il registro non
+    diventa una seconda copia dei dati personali. L'impronta permette comunque
+    di riconoscere, a posteriori, se un file in circolazione è uscito dal portale.
+    """
+
+    FORMATO_CHOICES = [
+        ("pdf", "PDF"),
+        ("xlsx", "Excel"),
+        ("csv", "CSV"),
+        ("docx", "Word"),
+        ("zip", "ZIP"),
+        ("altro", "Altro"),
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    legacy_user_id = models.IntegerField(null=True, blank=True, db_index=True)
+    utente_display = models.CharField(max_length=200, blank=True, default="")
+    impersonato_display = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Persona impersonata al momento dello scaricamento (chi agiva è utente_display).",
+    )
+    report_chiave = models.CharField(
+        max_length=120, blank=True, default="", db_index=True,
+        help_text="Chiave della voce di catalogo; vuota = route non ancora catalogata.",
+    )
+    modulo = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    titolo = models.CharField(max_length=200, blank=True, default="")
+    route_name = models.CharField(max_length=160, blank=True, default="", db_index=True)
+    path = models.CharField(max_length=500, blank=True, default="")
+    formato = models.CharField(max_length=10, choices=FORMATO_CHOICES, default="altro", db_index=True)
+    nome_file = models.CharField(max_length=255, blank=True, default="")
+    dimensione_byte = models.BigIntegerField(null=True, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    parametri = models.JSONField(default=dict, blank=True)
+    dati_personali = models.BooleanField(default=False, db_index=True)
+    profilo_layout = models.CharField(max_length=100, blank=True, default="")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Emissione report"
+        verbose_name_plural = "Emissioni report"
+        indexes = [
+            models.Index(fields=["report_chiave", "-created_at"], name="core_reportem_chiave_recenti"),
+        ]
+
+    def __str__(self) -> str:
+        return f"ReportEmissione<{self.report_chiave or self.route_name} {self.formato}>"
+
+
+class ReportProfiloLayout(models.Model):
+    """Profilo di stampa riutilizzabile per i PDF/Excel costruiti con ``core.pdf``.
+
+    I campi vuoti ereditano il template PDF globale (Amministrazione → Template
+    PDF). Un profilo si applica a un intero modulo o a una singola voce del
+    catalogo tramite :class:`ReportAssegnazioneLayout`.
+    """
+
+    hex_validator = RegexValidator(r"^(#[0-9A-Fa-f]{6})?$", "Colore nel formato #RRGGBB.")
+
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.CharField(max_length=300, blank=True, default="")
+    logo_url = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="Percorso /media/… di un PNG o JPG; vuoto = logo del template globale.",
+    )
+    colore_primario = models.CharField(max_length=7, blank=True, default="", validators=[hex_validator])
+    colore_accento = models.CharField(max_length=7, blank=True, default="", validators=[hex_validator])
+    piede_pagina = models.CharField(max_length=200, blank=True, default="")
+    filigrana = models.CharField(
+        max_length=40, blank=True, default="",
+        help_text="Testo in diagonale su ogni pagina, es. BOZZA o COPIA NON CONTROLLATA.",
+    )
+    mostra_data_generazione = models.BooleanField(default=True)
+    mostra_numero_pagina = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Profilo layout report"
+        verbose_name_plural = "Profili layout report"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class ReportAssegnazioneLayout(models.Model):
+    """Lega un profilo a un modulo o a una voce del catalogo (la voce vince)."""
+
+    AMBITO_MODULO = "modulo"
+    AMBITO_VOCE = "voce"
+    AMBITO_CHOICES = [(AMBITO_MODULO, "Modulo"), (AMBITO_VOCE, "Singolo report")]
+
+    ambito = models.CharField(max_length=10, choices=AMBITO_CHOICES)
+    chiave = models.CharField(max_length=120)
+    profilo = models.ForeignKey(ReportProfiloLayout, on_delete=models.CASCADE, related_name="assegnazioni")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ambito", "chiave"]
+        verbose_name = "Assegnazione layout report"
+        verbose_name_plural = "Assegnazioni layout report"
+        constraints = [
+            models.UniqueConstraint(fields=["ambito", "chiave"], name="uniq_report_layout_ambito_chiave"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ambito}:{self.chiave} → {self.profilo_id}"
+
+
+class ReportPianificazione(models.Model):
+    """Report del catalogo generato e inviato per mail a intervalli regolari.
+
+    Il file si genera eseguendo la route della variante **per conto del
+    proprietario** (i controlli della vista e dell'ACL valgono come se lo
+    scaricasse lui); ogni destinatario lo riceve solo se può aprire lo stesso
+    report. Motore in :mod:`core.report_centro.pianificazione`.
+    """
+
+    FREQ_SETTIMANALE = "settimanale"
+    FREQ_MENSILE = "mensile"
+    FREQ_CHOICES = [(FREQ_SETTIMANALE, "Ogni settimana"), (FREQ_MENSILE, "Ogni mese")]
+
+    ESITO_OK = "ok"
+    ESITO_PARZIALE = "parziale"
+    ESITO_ERRORE = "errore"
+    ESITO_CHOICES = [(ESITO_OK, "Inviato"), (ESITO_PARZIALE, "Inviato in parte"), (ESITO_ERRORE, "Errore")]
+
+    nome = models.CharField(max_length=120)
+    voce_chiave = models.CharField(max_length=120, db_index=True)
+    variante = models.CharField(max_length=40)
+    frequenza = models.CharField(max_length=12, choices=FREQ_CHOICES, default=FREQ_MENSILE)
+    giorno_settimana = models.PositiveSmallIntegerField(default=0, help_text="0 = lunedì … 6 = domenica")
+    giorno_mese = models.PositiveSmallIntegerField(default=1, help_text="1–28")
+    ora = models.PositiveSmallIntegerField(default=7, help_text="0–23")
+    proprietario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    destinatari = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="+")
+    attiva = models.BooleanField(default=True, db_index=True)
+    prossima_esecuzione = models.DateTimeField(null=True, blank=True, db_index=True)
+    ultima_esecuzione = models.DateTimeField(null=True, blank=True)
+    ultimo_esito = models.CharField(max_length=10, choices=ESITO_CHOICES, blank=True, default="")
+    ultimo_messaggio = models.CharField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nome", "id"]
+        verbose_name = "Report pianificato"
+        verbose_name_plural = "Report pianificati"
+
+    def __str__(self) -> str:
+        return self.nome

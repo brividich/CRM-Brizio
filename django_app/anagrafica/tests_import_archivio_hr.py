@@ -240,10 +240,10 @@ class CartelleRiservateTests(TestCase):
         request = RequestFactory().get(f"/anagrafica/documenti/{doc.pk}/download")
         request.user = user
         with ExitStack() as stack:
-            stack.enter_context(patch("anagrafica.views._check_hr_permission", return_value=True))
+            stack.enter_context(patch("anagrafica.views._helpers._check_hr_permission", return_value=True))
             if riservati is not None:
                 stack.enter_context(
-                    patch("anagrafica.views._can_view_documenti_riservati", return_value=riservati)
+                    patch("anagrafica.views._helpers._can_view_documenti_riservati", return_value=riservati)
                 )
             return documento_dipendente_download(request, doc_id=doc.pk)
 
@@ -270,7 +270,7 @@ class CartelleRiservateTests(TestCase):
             request.user = user
             request.session = SessionStore()
             request._messages = FallbackStorage(request)
-            with patch("anagrafica.views.render") as render:
+            with patch("anagrafica.views.dipendenti.render") as render:
                 dipendente_detail(request, legacy_id=self.legacy_id)
             if not render.called:
                 return None
@@ -282,14 +282,14 @@ class CartelleRiservateTests(TestCase):
         )
         self.hr.is_staff = True
         self.hr.save()
-        with patch("anagrafica.views._check_hr_permission", return_value=True), \
-                patch("anagrafica.views._is_anagrafica_admin", return_value=True):
+        with patch("anagrafica.views._helpers._check_hr_permission", return_value=True), \
+                patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=True):
             visibili = nomi_visibili(self.hr)
         self.assertIsNotNone(visibili, "la scheda non è stata renderizzata per l'utente HR")
         self.assertEqual(visibili, {"contratto_sintetico.pdf"})
 
-        with patch("anagrafica.views._check_hr_permission", return_value=True), \
-                patch("anagrafica.views._is_anagrafica_admin", return_value=True), \
-                patch("anagrafica.views._can_view_documenti_riservati", return_value=True):
+        with patch("anagrafica.views._helpers._check_hr_permission", return_value=True), \
+                patch("anagrafica.views._helpers._is_anagrafica_admin", return_value=True), \
+                patch("anagrafica.views._helpers._can_view_documenti_riservati", return_value=True):
             visibili = nomi_visibili(self.hr)
         self.assertEqual(visibili, {"richiamo_sintetico.pdf", "contratto_sintetico.pdf"})

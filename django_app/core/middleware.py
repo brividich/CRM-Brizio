@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -57,6 +56,9 @@ _ACL_ONBOARDING_SHARED_PREFIXES = (
 _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "root",
     "profilo",
+    # «I miei report»: elenca solo le voci le cui pagine l'utente può già aprire
+    # (filtro in-view con acl_allows_path) e i suoi scaricamenti.
+    "miei_report",
     "gestione_reparto",
     "rubrica",
     "organigramma",

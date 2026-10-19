@@ -686,7 +686,7 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                   {% if assenze_can_insert_for_others %}
                     <label for="dipendente_id">Dipendente</label>
                     <select id="dipendente_id" name="dipendente_id" class="abs-select">
-                      <option value="">{{ nome }} (tu)</option>
+                      <option value="">{{ nome|upper }} (tu)</option>
                       {% for d in dipendenti %}
                         <option value="{{ d.id }}"{% if form_data.dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.full_name }}</option>
                       {% endfor %}
@@ -709,7 +709,7 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                     <option value="">-- Assegnato automaticamente --</option>
                     {% for capo in capi %}
                       {% with option_value=capo.Email|default:capo.LookupId %}
-                        <option value="{{ option_value }}"{% if form_data.caporeparto == option_value %} selected{% endif %}>{{ capo.Value }}{% if capo.Email %} - {{ capo.Email }}{% endif %}</option>
+                        <option value="{{ option_value }}"{% if form_data.caporeparto == option_value %} selected{% endif %}>{{ capo.Value|upper }}{% if capo.Email %} - {{ capo.Email }}{% endif %}</option>
                       {% endwith %}
                     {% endfor %}
                   </select>

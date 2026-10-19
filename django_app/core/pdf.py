@@ -97,6 +97,23 @@ def _resolve_logo_path(brand_logo_full: str) -> str | None:
 # Palette / tema
 # ---------------------------------------------------------------------------
 
+def _applica_profilo(pdf_values: dict[str, str], profilo) -> dict[str, str]:
+    """Sovrappone i campi non vuoti di un ``ReportProfiloLayout`` al template globale."""
+    valori = dict(pdf_values)
+    for chiave, attributo in (
+        ("pdf_template_logo_url", "logo_url"),
+        ("pdf_template_primary_color", "colore_primario"),
+        ("pdf_template_accent_color", "colore_accento"),
+        ("pdf_template_footer_text", "piede_pagina"),
+    ):
+        valore = str(getattr(profilo, attributo, "") or "").strip()
+        if valore:
+            valori[chiave] = valore
+    valori["pdf_template_show_generated_at"] = "1" if profilo.mostra_data_generazione else "0"
+    valori["pdf_template_show_page_number"] = "1" if profilo.mostra_numero_pagina else "0"
+    return valori
+
+
 @dataclass(frozen=True)
 class PdfTheme:
     """Palette e metadati grafici condivisi dai PDF del portale."""
@@ -116,12 +133,28 @@ class PdfTheme:
     logo_path: str | None
     show_generated_at: bool
     show_page_number: bool
+    watermark: str = ""
+    profile_name: str = ""
 
     @classmethod
-    def from_branding(cls) -> "PdfTheme":
-        """Costruisce il tema dal branding portale (una sola query)."""
+    def from_branding(cls, *, voce: str | None = None) -> "PdfTheme":
+        """Costruisce il tema dal branding portale e dal profilo di layout.
+
+        Il profilo (Amministrazione → Centro report → Layout) si ricava dalla
+        route della richiesta in corso; ``voce`` lo forza per chiave di catalogo
+        (es. nei task pianificati, che non hanno una richiesta).
+        """
         b = get_portal_branding()
         pdf_values = SiteConfig.get_many(PDF_TEMPLATE_DEFAULTS)
+        profilo = None
+        try:
+            from core.report_centro.layout import profilo_corrente
+
+            profilo = profilo_corrente(voce)
+        except Exception:
+            logger.warning("Profilo layout report non risolto: uso il template globale.", exc_info=True)
+        if profilo is not None:
+            pdf_values = _applica_profilo(pdf_values, profilo)
         portal_name = (b.portal_name or "").strip() or getattr(
             settings, "INSTANCE_NAME", "NOVICROM HUB"
         )
@@ -157,6 +190,8 @@ class PdfTheme:
                 pdf_values.get("pdf_template_show_page_number", "1"),
                 True,
             ),
+            watermark=(getattr(profilo, "filigrana", "") or "").strip(),
+            profile_name=getattr(profilo, "nome", "") or "",
         )
 
     # Scorciatoie a ``colors.HexColor`` per i punti che lavorano con reportlab.
@@ -280,6 +315,42 @@ def make_document(
     )
 
 
+def draw_watermark(canv, *, theme: PdfTheme, page_width: float, page_height: float) -> None:
+    """Filigrana del profilo di layout: testo grigio chiaro in diagonale.
+
+    È disegnata con l'intestazione, prima del contenuto della pagina, così
+    resta sotto testo e tabelle.
+    """
+    text = (theme.watermark or "").strip()
+    if not text:
+        return
+    canv.saveState()
+    try:
+        canv.setFillColor(colors.HexColor("#cbd5e1"))
+        if hasattr(canv, "setFillAlpha"):
+            canv.setFillAlpha(0.35)
+        import math
+
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+
+        text = text.upper()
+        angle = 35
+        unit = stringWidth(text, "Helvetica-Bold", 1) or 1
+        # Il testo ruotato deve stare nell'85% della pagina in entrambe le direzioni.
+        size = min(
+            96.0,
+            0.85 * page_width / (unit * math.cos(math.radians(angle))),
+            0.85 * page_height / (unit * math.sin(math.radians(angle))),
+        )
+        size = max(14.0, size)
+        canv.setFont("Helvetica-Bold", size)
+        canv.translate(page_width / 2, page_height / 2)
+        canv.rotate(angle)
+        canv.drawCentredString(0, -size / 3, text)
+    finally:
+        canv.restoreState()
+
+
 def draw_canvas_header(
     canv,
     *,
@@ -298,6 +369,8 @@ def draw_canvas_header(
     Returns the suggested Y coordinate where page content can start.
     """
     right = page_width - right_margin
+    if theme.watermark:
+        draw_watermark(canv, theme=theme, page_width=page_width, page_height=page_height)
     box = 12 * mm
     box_top = page_height - 12 * mm
     box_y = box_top - box
