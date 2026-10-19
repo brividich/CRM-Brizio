@@ -111,3 +111,52 @@ class SpentoTests(TestCase):
             self.assertEqual(svc.run(now=ORA), {"attivo": False})
         get_all.assert_not_called()
         esegui.assert_not_called()
+
+
+
+def _accesso(upn="mario.sintetico@example.com", codice=0, paese="IT", app="Browser", quando="2026-10-19T09:40:00Z",
+             ip="203.0.113.10"):
+    return {"userPrincipalName": upn, "status": {"errorCode": codice}, "location": {"countryOrRegion": paese, "city": "Città"},
+            "clientAppUsed": app, "createdDateTime": quando, "ipAddress": ip, "appDisplayName": "Office 365 Exchange Online"}
+
+
+class AccessiSospettiTests(TestCase):
+    def test_anomalie(self):
+        righe = [_accesso(codice=50126) for _ in range(10)] + [
+            _accesso("anna.sintetica@example.com", paese="RU"),
+            _accesso("anna.sintetica@example.com", paese="RU"),
+            _accesso("luca.sintetico@example.com", app="IMAP4"),
+            _accesso("ok.sintetico@example.com"),
+            _accesso("pochi.falliti@example.com", codice=50126),
+        ]
+        anomalie = svc.anomalie_accessi(righe, soglia_falliti=10, paesi={"IT"})
+        motivi = sorted((a["motivo"], a["upn"]) for a in anomalie)
+        self.assertEqual(motivi, [("estero", "anna.sintetica@example.com"),
+                                  ("falliti", "mario.sintetico@example.com"),
+                                  ("protocollo", "luca.sintetico@example.com")])
+        estero = next(a for a in anomalie if a["motivo"] == "estero")
+        self.assertEqual(estero["severita"], Severity.HIGH)
+
+    def test_paese_ammesso_non_segnalato(self):
+        self.assertEqual(svc.anomalie_accessi([_accesso(paese="CH")], soglia_falliti=10, paesi={"IT", "CH"}), [])
+
+    def test_giro_un_alert_al_giorno_per_account_e_motivo(self):
+        set_setting("entra.accessi.attivo", True)
+        righe = [_accesso("anna.sintetica@example.com", paese="RU")]
+        with patch("core.m365_graph.get_all", return_value=righe):
+            esito = svc.run(now=ORA)
+            svc.run(now=ORA + timedelta(minutes=15))
+        self.assertEqual(esito["accessi"]["eventi"], 1)
+        alert = SecurityAlert.objects.get()
+        self.assertIn("Paese non ammesso", alert.title)
+        self.assertIn("anna.sintetica@example.com", alert.title)
+        # Il giorno dopo, stessa anomalia: un nuovo evento.
+        with patch("core.m365_graph.get_all", return_value=righe):
+            esito = svc.run(now=ORA + timedelta(days=1))
+        self.assertEqual(esito["accessi"]["eventi"], 1)
+
+    def test_singoli_accessi_non_salvati(self):
+        set_setting("entra.accessi.attivo", True)
+        with patch("core.m365_graph.get_all", return_value=[_accesso() for _ in range(5)]):
+            svc.run(now=ORA)
+        self.assertEqual(SecurityEventRecord.objects.count(), 0)
