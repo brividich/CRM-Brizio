@@ -123,7 +123,7 @@ class RiesameAccessiTests(PersoneMixin, TestCase):
         risposta = self.client.get(reverse("admin_portale:ruoli_portale_riesame"))
         self.assertEqual(risposta.status_code, 200)
         wb = load_workbook(BytesIO(risposta.content))
-        self.assertEqual(wb.sheetnames, ["Riesame", "Persone", "Matrice", "Organigramma"])
+        self.assertEqual(wb.sheetnames, ["Riesame", "Persone", "Matrice", "Organigramma", "Account Microsoft 365"])
         persone = [tuple(r) for r in wb["Persone"].iter_rows(min_row=2, values_only=True)]
         self.assertTrue(any(r[0] == "RSPP ESTERNO PROVA" and r[4] == "a mano" for r in persone))
         self.assertTrue(any(r[0] == "CAPO PROVA" and "Capo reparto RIESAME" in r[4] for r in persone))

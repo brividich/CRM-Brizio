@@ -133,6 +133,23 @@ SECTIONS = [
         ],
     },
     {
+        "code": "entra",
+        "title": "Microsoft Entra ID (account e modifiche amministrative)",
+        "intro": "Due controlli su Microsoft 365, ciascuno con il suo interruttore. «Account di ex dipendenti»: ogni 6 ore "
+                 "confronta gli account di Entra con l'anagrafica e apre un alert per ogni account ancora abilitato di una "
+                 "persona cessata; l'alert si chiude da solo quando l'account viene disattivato. «Modifiche amministrative»: "
+                 "ogni 15 minuti legge l'audit di Entra e apre un alert solo per le attività sensibili (ruoli di amministratore, "
+                 "consensi e credenziali delle app, accesso condizionale, metodi MFA, federazione dei domini). "
+                 "Servono i permessi «User.Read.All» e «AuditLog.Read.All» con consenso amministratore sull'app Graph del portale.",
+        "channels_optional": True,
+        "options": [
+            Option("entra.account_cessati.attivo", False, "Controlla gli account degli ex dipendenti"),
+            Option("entra.audit.attivo", False, "Leggi le modifiche amministrative di Entra"),
+            Option("entra.primo_giro_giorni", 7, "Primo giro dell'audit", "Giorni di audit letti la prima volta.",
+                   "int", min_value=1, max_value=30),
+        ],
+    },
+    {
         "code": "ai_sintesi",
         "title": "Sintesi del giorno già pronta",
         "intro": "L'AI locale prepara la «Sintesi del giorno» della Panoramica ogni 30 minuti nelle ore di lavoro, solo quando "

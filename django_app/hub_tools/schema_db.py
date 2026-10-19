@@ -114,7 +114,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Microsoft Graph (Microsoft 365)",
         "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
         "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
-               "alert di Microsoft Defender con SecurityAlert.Read.All), Automazioni (lettura risposte di approvazione), "
+               "alert di Microsoft Defender con SecurityAlert.Read.All; Microsoft Entra ID: account degli ex dipendenti e audit "
+               "amministrativo con User.Read.All e AuditLog.Read.All), Ruoli e permessi (scheda «Account Microsoft 365»), "
+               "Automazioni (lettura risposte di approvazione), "
                "Audit sigillato (export mensile su SharePoint: SiteConfig audit_export_sp_drive_id / audit_export_sp_cartella).",
         "config": "GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET e gli ID delle liste (Setup Wizard → Microsoft Graph / SharePoint)",
         "controllo": "Errori 401/403/invalid_client = segreto dell'app scaduto: rinnovarlo su Entra ID.",
