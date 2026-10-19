@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 76
+**Totale automazioni disponibili:** 77
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -449,6 +449,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:40
 - **Task eseguito:** `contatori.tasks.pulisci_rilevazioni_tvcc`
 - **Cosa fa:** CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40. Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
+
+### `defender_software_sync`
+
+- **Quando gira:** ogni giorno, alle 06:20
+- **Task eseguito:** `security.tasks.run_defender_software_task`
+- **Cosa fa:** SOC — software installato sui PC collegati a Microsoft Defender for Endpoint nell'inventario (CVE e impatti). Gira solo con «Leggi il software dei PC» acceso in /soc/impostazioni/.
 
 ### `scadenze_digest_personale`
 

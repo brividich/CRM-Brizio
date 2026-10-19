@@ -149,12 +149,13 @@ def run_security_cycle_task():
 
     logger = logging.getLogger(__name__)
     result = {}
-    from security.services import defender_alerts, entra_signals
+    from security.services import defender_alerts, entra_signals, secure_score
 
     steps = (
         ("mailboxes", ingest_security_mailboxes_task),
         ("defender", defender_alerts.run),
         ("entra", entra_signals.run),
+        ("secure_score", secure_score.aggiorna),
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
@@ -171,3 +172,10 @@ def run_security_cycle_task():
             logger.exception("security_cycle: passo %s fallito", name)
             result[name] = f"errore: {exc}"[:300]
     return result
+
+
+def run_defender_software_task() -> dict:
+    """Software dei PC da Microsoft Defender for Endpoint (``services.defender_software``)."""
+    from security.services import defender_software
+
+    return defender_software.run()

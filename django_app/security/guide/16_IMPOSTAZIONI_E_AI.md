@@ -30,6 +30,12 @@ Con **Leggi gli alert di Defender** acceso, ogni 15 minuti il SOC chiede a Micro
 
 Serve il permesso applicativo **SecurityAlert.Read.All** (Microsoft Graph, con consenso amministratore) sull'app del portale. Prova dal terminale del server: `manage.py defender_alerts --prova`. L'esito dell'ultimo giro: `manage.py defender_alerts`. Se manca il permesso, il giro registra «Graph ha risposto 403» e il resto del ciclo SOC prosegue.
 
+Nella stessa sezione, tre interruttori in più (spenti di default):
+
+- **Raggruppa per incidente**: Defender correla gli alert dello stesso attacco in un **incidente**. Con l'interruttore acceso nasce **un solo alert del SOC per incidente** («Defender: incidente «<nome>»»), dalla stessa severità minima, chiuso da solo quando Defender risolve l'incidente; gli alert singoli dello stesso incidente restano eventi (KPI). Serve **SecurityIncident.Read.All**.
+- **Leggi il software dei PC**: ogni mattina alle 06:20 il software installato sui PC collegati a Defender entra nell'inventario del SOC come fonte **Microsoft Defender for Endpoint**, con la stessa procedura dei file caricati a mano: collegamento ai CPE, regole «non applicabile», impatti CVE e catalogo software si aggiornano da soli; il software che sparisce da un PC diventa «non più rilevato». I PC non collegati a Defender restano agli import da file. Serve **Software.Read.All** dell'API **WindowsDefenderATP** (non Graph: in Entra si trova in «API usate dall'organizzazione»).
+- **Mostra il Secure Score**: in cima alla Panoramica compare il riquadro **Microsoft Secure Score** con la percentuale, i punti, la variazione in 30 giorni e **le 5 azioni che valgono di più**, con il link alla pagina di Microsoft. Letto ogni 12 ore. Serve **SecurityEvents.Read.All**.
+
 ## Microsoft Entra ID
 
 Tre controlli su Microsoft 365, ciascuno con il suo interruttore nella sezione **«Microsoft Entra ID (account, modifiche amministrative, accessi)»**. Gli eventi hanno la sorgente **Microsoft Entra ID (Graph)**.

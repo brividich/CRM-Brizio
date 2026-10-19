@@ -36,6 +36,9 @@ from security.services.dedup import make_hash
 logger = logging.getLogger(__name__)
 
 EVENT_TYPE = "defender_alert"
+EVENT_INCIDENT = "defender_incident"
+INCIDENTS_URL = "https://graph.microsoft.com/v1.0/security/incidents"
+CURSOR_INCIDENTS_KEY = "defender.cursore_incidenti"
 SOURCE_NAME = "Microsoft Defender (Graph Security)"
 GRAPH_ALERTS_URL = "https://graph.microsoft.com/v1.0/security/alerts_v2"
 PAGE_SIZE = 100
@@ -217,6 +220,62 @@ def record_events(alerts: list[dict]) -> list[SecurityEventRecord]:
     return created
 
 
+def normalize_incident(inc: dict) -> dict:
+    web_url = str(inc.get("incidentWebUrl") or "")
+    return {
+        "incident_id": str(inc.get("id") or ""),
+        "title": str(inc.get("displayName") or "Incidente di Microsoft Defender")[:255],
+        "severity_defender": str(inc.get("severity") or "unknown").strip().lower(),
+        "status_defender": str(inc.get("status") or "").strip().lower(),
+        "classification": str(inc.get("classification") or ""),
+        "determination": str(inc.get("determination") or ""),
+        "last_update": str(inc.get("lastUpdateDateTime") or ""),
+        "web_url": web_url[:500] if web_url.startswith("https://") else "",
+        "alert_candidate": True,
+    }
+
+
+def record_incidents(incidents: list[dict]) -> list[SecurityEventRecord]:
+    """Un evento per incidente nuovo o cambiato (stato o severità), dedup sull'id dell'incidente."""
+    source = defender_source()
+    created = []
+    for raw in incidents:
+        payload = normalize_incident(raw)
+        if not payload["incident_id"]:
+            continue
+        dedup = make_hash(source.pk, EVENT_INCIDENT, payload["incident_id"])
+        prev = (SecurityEventRecord.objects.filter(source=source, event_type=EVENT_INCIDENT, dedup_hash=dedup)
+                .order_by("-occurred_at", "-id").values_list("payload", flat=True).first()) or {}
+        if not _changed(prev, payload):
+            continue
+        occurred = parse_datetime(payload["last_update"] or "") or timezone.now()
+        if timezone.is_naive(occurred):
+            occurred = timezone.make_aware(occurred, dt_timezone.utc)
+        created.append(SecurityEventRecord.objects.create(
+            source=source, event_type=EVENT_INCIDENT, occurred_at=occurred,
+            severity=SEVERITY_MAP.get(payload["severity_defender"], Severity.MEDIUM),
+            fingerprint=dedup, dedup_hash=dedup, payload=payload,
+        ))
+    return created
+
+
+def fetch_incidents(since: datetime) -> list[dict]:
+    from core import m365_graph
+
+    since_iso = since.astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return m365_graph.get_all(INCIDENTS_URL, permesso="SecurityIncident.Read.All",
+                              params={"$filter": f"lastUpdateDateTime ge {since_iso}", "$top": "50"}, max_pages=20)
+
+
+def _incidents_cursor(now: datetime) -> datetime:
+    from security.services.configuration import get_setting
+
+    parsed = parse_datetime(str(get_setting(CURSOR_INCIDENTS_KEY, "") or ""))
+    if parsed is None:
+        return now - timedelta(days=soc_settings.value("defender.primo_giro_giorni"))
+    return parsed - timedelta(minutes=1)
+
+
 def _save_state(key: str, value) -> None:
     # Scrittura diretta, non set_setting: stato tecnico del giro (ogni 15 minuti), non
     # una scelta di configurazione da tracciare nell'audit delle impostazioni.
@@ -250,6 +309,12 @@ def run(now: datetime | None = None) -> dict:
         events = record_events(alerts)
         esito.update({"ok": True, "letti": len(alerts), "eventi": len(events)})
         _save_state(CURSOR_KEY, now.isoformat())
+        if soc_settings.value("defender.incidenti.attivo"):
+            incidenti = fetch_incidents(_incidents_cursor(now))
+            nuovi = record_incidents(incidenti)
+            esito.update({"incidenti_letti": len(incidenti), "eventi_incidenti": len(nuovi)})
+            events = [*events, *nuovi]
+            _save_state(CURSOR_INCIDENTS_KEY, now.isoformat())
         if events:
             from security.services.rule_engine import evaluate_security_rules
 

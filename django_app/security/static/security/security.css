@@ -906,3 +906,12 @@ body.theme-dark .soc-module a:hover{color:#93c5fd}
 body.theme-dark .soc-module button:hover,body.theme-dark .soc-module .button:hover,body.theme-dark .soc-module .sec-button:hover{color:#93c5fd}
 body.theme-dark .soc-module .sec-btn-link{color:#93c5fd}
 body.theme-dark .soc-module .sec-btn-link:hover{color:#93c5fd}
+
+/* Microsoft Secure Score (Panoramica, services/secure_score.py) */
+.sec-secure-score .sec-ss-body { display: grid; grid-template-columns: minmax(180px, 260px) 1fr; gap: 18px; align-items: start; }
+.sec-secure-score .sec-ss-score { display: flex; flex-direction: column; gap: 4px; }
+.sec-secure-score .sec-ss-score strong { font-size: 40px; line-height: 1; }
+.sec-secure-score .sec-ss-azioni h3 { margin: 0 0 6px; font-size: 14px; }
+@media (max-width: 720px) { .sec-secure-score .sec-ss-body { grid-template-columns: 1fr; } }
+.soc-module .sec-ss-score .ov-spark { width: 160px; height: 36px; margin-top: 6px; overflow: visible; }
+.soc-module .sec-ss-score .ov-spark polyline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
