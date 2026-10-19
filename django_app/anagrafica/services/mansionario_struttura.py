@@ -175,6 +175,71 @@ def togli(abilitazione: AbilitazioneMacchina) -> None:
     )
 
 
+def completezza(mansione: CompetenzaSkm, *, n_competenze: int, n_persone: int) -> list[dict]:
+    """Cosa serve perché la mansione funzioni in tutto il portale, voce per voce."""
+    ruoli = list(mansione.ruoli.all())
+    rischi = list(mansione.mansioni_rischio.all())
+    reparto = mansione.reparto_effettivo
+    return [
+        {"chiave": "ruolo", "ok": bool(ruoli), "titolo": "Ruolo",
+         "testo": ", ".join(r.nome for r in ruoli) if ruoli else "Senza ruolo la mansione resta in «Da collegare»."},
+        {"chiave": "reparto", "ok": bool(reparto), "titolo": "Reparto",
+         "testo": reparto or "Serve al refresh del caporeparto e al reparto principale della persona."},
+        {"chiave": "rischio", "ok": bool(rischi), "titolo": "Mansione di rischio",
+         "testo": ", ".join(m.nome for m in rischi) if rischi else "Senza, DPI, visite e schede di sicurezza non si ricavano."},
+        {"chiave": "competenze", "ok": n_competenze > 0, "titolo": "Competenze",
+         "testo": f"{n_competenze} definit{'a' if n_competenze == 1 else 'e'}" if n_competenze
+         else "Senza, vale il livello messo a mano: la valutazione non è uniforme."},
+        {"chiave": "persone", "ok": n_persone > 0, "titolo": "Persone",
+         "testo": f"{n_persone} in lista" if n_persone else "Nessuno è ancora assegnato."},
+    ]
+
+
+def regole_correnti() -> dict:
+    """Soglia e regola di calcolo in vigore, con le etichette da mostrare."""
+    config = SkillMatrixConfig.get_instance()
+    return {
+        "soglia": config.soglia_operativa,
+        "soglia_label": config.get_soglia_operativa_display(),
+        "regola": config.regola_multivoce,
+        "regola_label": config.get_regola_multivoce_display(),
+        "uomo_solo": config.soglia_uomo_solo,
+    }
+
+
+def nomi_precedenti(mansione: CompetenzaSkm) -> list[str]:
+    """Nomi che la mansione ha avuto prima (una riga per nome in ``alias_storici``)."""
+    return [r.strip() for r in (mansione.alias_storici or "").splitlines() if r.strip()]
+
+
+def rinomina(mansione: CompetenzaSkm, nuovo_nome: str, *, salva: bool = True) -> str | None:
+    """Cambia il nome visibile della mansione senza rompere i collegamenti.
+
+    Persone, competenze, rischi, ruoli e permessi sono legati alla mansione per
+    id e la chiave (``competenza_key``) non cambia: il nome è solo l'etichetta.
+    Il vecchio nome resta in ``alias_storici`` così l'import Excel (righe senza
+    chiave) e le ricerche lo riconoscono ancora. Ritorna il vecchio nome, o
+    ``None`` se il nome non cambia.
+    """
+    nuovo = " ".join((nuovo_nome or "").split())[:255]
+    if not nuovo:
+        raise ValueError("Il nome della mansione non può essere vuoto.")
+    vecchio = mansione.nome
+    if nuovo == vecchio:
+        return None
+    if (CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, display__iexact=nuovo)
+            .exclude(pk=mansione.pk).exists()):
+        raise ValueError(f"Esiste già una mansione «{nuovo}».")
+    alias = [a for a in nomi_precedenti(mansione) if a.casefold() != nuovo.casefold()]
+    if vecchio and vecchio.casefold() != nuovo.casefold() and vecchio.casefold() not in {a.casefold() for a in alias}:
+        alias.append(vecchio)
+    mansione.alias_storici = "\n".join(alias)
+    mansione.display = nuovo
+    if salva:
+        mansione.save(update_fields=["display", "alias_storici", "updated_at"])
+    return vecchio
+
+
 def chiave_nuova(nome: str) -> str:
     """Chiave univoca per una mansione nata nel portale (non dal foglio MOD.187)."""
     import re
@@ -219,11 +284,9 @@ def salva_editor(mansione: CompetenzaSkm, *, nome: str, ruoli_ids, rischi_ids, r
 
     salva_configurazione(mansione, ruoli_ids=ruoli_ids, rischi_ids=rischi_ids, reparto_id=reparto_id,
                          attiva=attiva)
-    nome = (nome or "").strip()[:255]
-    if nome and nome != mansione.nome:
-        mansione.display = nome
-        mansione.save(update_fields=["display", "updated_at"])
-    conta = {"salvate": 0, "nuove": 0, "tolte": 0}
+    conta = {"salvate": 0, "nuove": 0, "tolte": 0, "nome_prima": None}
+    if (nome or "").strip():
+        conta["nome_prima"] = rinomina(mansione, nome)
     voci = {v.pk: v for v in VoceMacchinaCatalogo.objects.filter(mansione=mansione)}
     for i, r in enumerate(righe, 1):
         voce = voci.get(r.get("id")) if r.get("id") else None

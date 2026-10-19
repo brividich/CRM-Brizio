@@ -173,6 +173,127 @@ body.theme-dark .fmd .mst-msg-ko, body.theme-dark .fmd .mst-p-errore{ background
 body.theme-dark .fmd .mst-p-modificato{ background:rgba(31,135,205,.18); color:#7cc4f5; }
 body.theme-dark .fmd .mst-avvisi{ color:#f6ad55; }
 
+/* ============================================================
+   Impostazioni della mansione, editor, regole e wizard (19/10/2026)
+   ============================================================ */
+/* Completezza: una pastiglia per requisito */
+.mns-check-list{ list-style:none; display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; padding:0; }
+.mns-check-list li{ display:flex; gap:9px; align-items:flex-start; padding:8px 12px; border:1px solid var(--fmd-line); border-radius:10px; background:#fff; flex:1 1 180px; min-width:0; }
+.mns-check-list b{ display:block; font-size:12.5px; color:var(--fmd-navy); }
+.mns-check-list small{ display:block; font-size:11.5px; color:var(--fmd-muted); line-height:1.35; margin-top:2px; overflow-wrap:anywhere; }
+.mns-ck-ic{ flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; font-size:11px; font-weight:800; color:#fff; }
+.mns-ck-ok .mns-ck-ic{ background:#2f9e6b; }
+.mns-ck-ko{ border-color:#f5c99b !important; background:#fffaf4 !important; }
+.mns-ck-ko .mns-ck-ic{ background:#dd6b20; }
+.mns-check-mini{ margin-bottom:10px; }
+.mns-check-mini li{ flex:0 1 auto; padding:5px 10px; align-items:center; }
+
+/* Impostazioni a sezioni numerate */
+.mns-set-sez{ border:1px solid var(--fmd-line-soft); border-radius:11px; padding:14px 16px 6px; margin:0 0 14px; min-width:0; }
+.mns-set-sez legend{ display:flex; align-items:center; gap:8px; padding:0 6px; font-size:13px; font-weight:800; color:var(--fmd-navy); }
+.mns-set-n{ display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:var(--fmd-cyan); color:#fff; font-size:11.5px; font-weight:800; }
+.mns-set-foot{ display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; padding-top:6px; }
+.mns-ro{ font-size:13px; color:var(--fmd-ink); padding:7px 0 2px; overflow-wrap:anywhere; }
+.mns-ro code{ font-family:var(--fmd-mono); font-size:12px; }
+.mns-ro-alias{ font-size:12px; color:var(--fmd-muted); }
+.mns-rinomina{ margin-top:6px; padding:7px 10px; border-radius:8px; background:#e8f3fb; color:#1f5f99; font-size:12px; font-weight:600; }
+.mns-switch, .fm-form-field label.mns-switch{ display:flex; gap:8px; align-items:center; font-size:13px; font-weight:600; text-transform:none; letter-spacing:normal; color:var(--fmd-ink); padding:6px 0; margin:0; cursor:pointer; }
+.mns-switch input{ width:16px; height:16px; accent-color:var(--fmd-cyan); }
+.mns-stat-largo{ flex:1 1 280px; }
+.mns-stat-largo span{ font-size:13px; font-weight:700; color:var(--fmd-navy); }
+
+/* Regole: scala dei livelli, regole, simulatore */
+.mns-scala{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+.mns-scala-i{ display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--fmd-line); border-radius:9px; cursor:pointer; background:#fff; }
+.mns-scala-i:has(input:checked){ border-color:var(--fmd-cyan); box-shadow:inset 0 0 0 1px var(--fmd-cyan); }
+.mns-scala-i input, .mns-regola input{ accent-color:var(--fmd-cyan); }
+.mns-regole{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:8px; margin-bottom:8px; }
+.mns-regola{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--fmd-line); border-radius:9px; cursor:pointer; background:#fff; }
+.mns-regola:has(input:checked){ border-color:var(--fmd-cyan); box-shadow:inset 0 0 0 1px var(--fmd-cyan); }
+.mns-regola input{ margin-top:3px; }
+.mns-regola b{ display:block; font-size:13px; color:var(--fmd-navy); }
+.mns-regola small{ display:block; font-size:12px; color:var(--fmd-muted); margin-top:3px; line-height:1.4; }
+.mns-sim{ margin:12px 0 10px; padding:12px 14px; border:1px dashed #cfd9ea; border-radius:10px; background:#fbfcfe; }
+.mns-sim-h{ font-size:12.5px; font-weight:700; color:var(--fmd-navy); margin-bottom:8px; }
+.mns-sim-righe{ display:flex; flex-wrap:wrap; gap:8px 18px; }
+.mns-sim-r{ display:flex; align-items:center; gap:8px; font-size:12.5px; }
+.mns-sim-r select{ font:inherit; font-size:12.5px; padding:4px 6px; border:1px solid var(--fmd-line); border-radius:7px; background:#fff; color:var(--fmd-ink); }
+.mns-sim-r .mns-check{ padding:0; }
+.mns-sim-out{ display:flex; align-items:center; gap:4px; margin-top:10px; font-size:13px; font-weight:600; }
+
+/* Editor della Struttura */
+.mst-rinomina{ color:#1f5f99 !important; font-weight:600; }
+.mst-sporco{ font-size:12.5px; font-weight:700; color:#c2410c; }
+.mst-m-sporca > summary .mst-m-nome::after{ content:" ●"; color:#c2410c; }
+.mst-campo .msp{ font-size:13px; }
+.mst-editor .mst-config{ grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+.mst-campo .msp-foot{ flex-wrap:wrap; row-gap:2px; }
+.mst-campo .msp-foot > *{ white-space:nowrap; }
+
+/* Wizard «Nuova mansione» */
+.mnw{ padding:0; overflow:hidden; }
+.mnw-steps{ list-style:none; display:flex; margin:0; padding:0; border-bottom:1px solid var(--fmd-line); background:#fbfcfe; overflow-x:auto; }
+.mnw-steps li{ flex:1 1 0; min-width:max-content; }
+.mnw-steps button{ display:flex; align-items:center; gap:8px; width:100%; padding:13px 16px; border:0; border-bottom:3px solid transparent; background:transparent; font:inherit; font-size:13px; font-weight:700; color:var(--fmd-muted); cursor:pointer; white-space:nowrap; }
+.mnw-steps button span{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; border:2px solid #cfd9ea; font-size:12px; }
+.mnw-steps button:hover{ color:var(--fmd-navy); }
+.mnw-steps .mnw-on{ color:var(--fmd-navy); border-bottom-color:var(--fmd-cyan); }
+.mnw-steps .mnw-on span{ border-color:var(--fmd-cyan); background:var(--fmd-cyan); color:#fff; }
+.mnw-steps .mnw-fatto span{ border-color:#2f9e6b; background:#2f9e6b; color:#fff; }
+.mnw-passo{ padding:20px 22px 8px; }
+.mnw-passo + .mnw-passo{ border-top:1px solid var(--fmd-line-soft); }
+.mnw-js .mnw-passo + .mnw-passo{ border-top:0; }
+.mnw-passo[hidden]{ display:none; }
+.mnw-passo h2{ margin:0 0 6px; font-size:17px; font-weight:800; color:var(--fmd-navy); }
+.mnw-intro{ margin:0 0 14px; max-width:760px; font-size:13px; line-height:1.55; color:var(--fmd-muted); }
+.mnw-avviso{ margin-top:6px; padding:7px 10px; border-radius:8px; background:#fdecec; color:#b42318; font-size:12.5px; font-weight:600; }
+.mnw-avviso[hidden]{ display:none; }
+.mnw-comp td{ padding:5px 6px; vertical-align:middle; }
+.mnw-comp input[type=text]{ width:100%; min-width:200px; }
+.mnw-comp select{ max-width:260px; }
+.mnw-comp input[type=text], .mnw-comp select{ font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--fmd-line); border-radius:7px; background:#fff; color:var(--fmd-ink); }
+.mnw-riep{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin:0 0 12px; }
+.mnw-riep > div{ padding:10px 12px; border:1px solid var(--fmd-line); border-radius:10px; background:#fff; min-width:0; }
+.mnw-riep dt{ font-family:var(--fmd-mono); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--fmd-muted-2); }
+.mnw-riep dd{ margin:4px 0 0; font-size:13px; color:var(--fmd-ink); overflow-wrap:anywhere; }
+.mnw-riep dd ul{ margin:0; padding-left:16px; }
+.mnw-mancano{ margin:0 0 12px; padding-left:18px; font-size:12.5px; color:#9a3412; }
+.mnw-mancano:empty{ display:none; }
+.mnw-foot{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:14px 22px; border-top:1px solid var(--fmd-line-soft); background:#fbfcfe; }
+.mnw-foot-r{ display:flex; gap:8px; flex-wrap:wrap; }
+.mnw-foot [hidden]{ display:none !important; }
+@media (max-width:640px){ .mnw-passo{ padding:16px 14px 6px; } .mnw-foot{ padding:12px 14px; } .mnw-steps button{ padding:11px 10px; } }
+
+/* Tema scuro delle parti nuove */
+body.theme-dark .fmd .mns-check-list li,
+body.theme-dark .fmd .mns-scala-i,
+body.theme-dark .fmd .mns-regola,
+body.theme-dark .fmd .mnw-riep > div,
+body.theme-dark .fmd .mns-sim-r select,
+body.theme-dark .fmd .mnw-comp input[type=text],
+body.theme-dark .fmd .mnw-comp select{ background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .fmd .mns-ck-ko{ background:rgba(194,65,12,.10) !important; border-color:#7c4a1e !important; }
+body.theme-dark .fmd .mns-sim,
+body.theme-dark .fmd .mnw-steps,
+body.theme-dark .fmd .mnw-foot{ background:var(--surface-alt, #172338); border-color:var(--border); }
+body.theme-dark .fmd .mns-set-sez{ border-color:var(--border); }
+body.theme-dark .fmd .mns-check-list b,
+body.theme-dark .fmd .mns-set-sez legend,
+body.theme-dark .fmd .mns-regola b,
+body.theme-dark .fmd .mns-sim-h,
+body.theme-dark .fmd .mns-stat-largo span,
+body.theme-dark .fmd .mnw-passo h2,
+body.theme-dark .fmd .mnw-steps .mnw-on,
+body.theme-dark .fmd .mnw-steps button:hover,
+body.theme-dark .fmd .mns-ro,
+body.theme-dark .fmd .mnw-riep dd{ color:var(--text); }
+body.theme-dark .fmd .mns-rinomina{ background:rgba(31,135,205,.18); color:#7cc4f5; }
+body.theme-dark .fmd .mst-rinomina{ color:#7cc4f5 !important; }
+body.theme-dark .fmd .mnw-avviso{ background:rgba(240,128,128,.14); color:#f08080; }
+body.theme-dark .fmd .mnw-mancano,
+body.theme-dark .fmd .mst-sporco{ color:#fdba74; }
+body.theme-dark .fmd .mnw-steps button span{ border-color:var(--border); }
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .mns-search{background:var(--surface)}
 body.theme-dark .mns-gruppo-nota{color:#fdba74}
@@ -182,3 +303,12 @@ body.theme-dark .mns-stat{background:var(--surface)}
 body.theme-dark .mns-stat.mns-ko b{color:#fca5a5}
 body.theme-dark .mns-stat.mns-mid b{color:#fdba74}
 body.theme-dark .mst-avvisi{color:#fdba74}
+body.theme-dark .mns-check-list li{background:var(--surface)}
+body.theme-dark .mns-scala-i{background:var(--surface)}
+body.theme-dark .mns-regola{background:var(--surface)}
+body.theme-dark .mns-sim-r select{background:var(--surface)}
+body.theme-dark .mst-sporco{color:#fdba74}
+body.theme-dark .mst-m-sporca > summary .mst-m-nome::after{color:#fdba74}
+body.theme-dark .mnw-comp input[type=text],body.theme-dark .mnw-comp select{background:var(--surface)}
+body.theme-dark .mnw-riep > div{background:var(--surface)}
+body.theme-dark .mnw-mancano{color:#fdba74}

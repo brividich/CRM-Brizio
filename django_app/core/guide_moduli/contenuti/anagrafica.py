@@ -267,12 +267,31 @@ GUIDA = {
             "titolo": "Struttura ruoli → mansioni → competenze: editor, Excel e ruoli in blocco",
             "blocchi": [
                 ("p", "Mansionario → «Struttura e import» (amministratori dell'anagrafica) mostra ogni ruolo con le sue "
-                      "mansioni. Clic su una mansione: si apre l'editor con nome, ruoli, mansioni di rischio, reparto (solo "
-                      "per i processi; per le macchine vale quello della macchina), «Mansione attiva» e la tabella delle "
-                      "competenze (livello minimo I/L/U/O, bloccante, corso, qualifica, abilitazione MOD.128, ordine). Le "
-                      "righe vuote in fondo aggiungono competenze, «Togli» le spegne. «Salva la mansione» registra tutto "
-                      "insieme: se una riga è sbagliata non si salva niente e il messaggio dice quale. «Nuova mansione "
-                      "(processo)» crea un processo; le macchine nascono dalla skill matrix."),
+                      "mansioni. Clic su una mansione: si apre l'editor con le pastiglie di completezza (ruolo, reparto, "
+                      "mansione di rischio, competenze, persone), nome, ruoli e mansioni di rischio (elenchi con ricerca: "
+                      "si spunta, niente Ctrl+clic), reparto (solo per i processi; per le macchine vale quello della "
+                      "macchina), «Mansione attiva» e la tabella delle competenze (livello minimo I/L/U/O, bloccante, "
+                      "corso, qualifica, abilitazione MOD.128, ordine). «Aggiungi competenza» aggiunge una riga, «Togli» "
+                      "spegne. Finché non salvi compare «● modifiche non salvate». «Salva la mansione» registra tutto "
+                      "insieme: se una riga è sbagliata non si salva niente e il messaggio dice quale."),
+                ("passi", [
+                    "«Nuova mansione» (dalla Struttura o dalla home del Mansionario) apre la procedura guidata in cinque "
+                    "passi: 1 Nome (avvisa se esiste già) · 2 Ruoli e reparto · 3 Mansioni di rischio · 4 Competenze "
+                    "(nome, livello minimo, bloccante e un requisito formale: corso, qualifica o MOD.128; «Aggiungi "
+                    "competenza» per altre righe) · 5 Riepilogo, con l'elenco di cosa manca.",
+                    "«Avanti»/«Indietro» o il clic sul numero del passo spostano tra i passi; si va avanti solo con un "
+                    "nome valido. Si crea tutto insieme con «Crea la mansione»: se qualcosa non va non si crea niente e "
+                    "si torna al passo da correggere con i dati già scritti.",
+                    "Dopo la creazione si apre la scheda della mansione per aggiungere le persone. Il wizard crea "
+                    "processi: le macchine nascono dalla skill matrix.",
+                ]),
+                ("p", "Rinominare una mansione è sicuro: persone, competenze, mansioni di rischio, ruoli e permessi sono "
+                      "legati alla mansione, non al nome, e la «Chiave» non cambia. Il vecchio nome resta tra i «Nomi "
+                      "precedenti» (scheda → «Impostazioni»): un file Excel preparato prima, senza chiave, si abbina "
+                      "ancora; un nome attuale vince sempre su un vecchio nome. Due mansioni non possono avere lo stesso "
+                      "nome. Si rinomina dall'editor, da «Impostazioni» o in blocco con l'Excel (cambia la colonna "
+                      "«Mansione» e lascia la «Chiave»). Il caricamento del catalogo MOD.187 non rimette più i nomi di "
+                      "partenza."),
                 ("passi", [
                     "«Scarica Excel»: fogli Ruoli, Mansioni e Competenze con i dati di oggi, più le istruzioni.",
                     "Correggi o completa il file. Cella vuota = il dato non cambia; NO in «Attiva»/«Attivo» spegne. "
@@ -342,6 +361,12 @@ GUIDA = {
                                               "abilitati · in addestramento · non abilitati · da valutare. Sotto, tre "
                                               "schede: «Persone», «Competenze richieste» e «Impostazioni» (il pulsante "
                                               "«Modifica» porta a quest'ultima)."),
+                    ("Impostazioni", "in testa le pastiglie di completezza (verde = a posto, arancio = manca, con il "
+                                     "perché). Sotto quattro sezioni: 1 Identità (nome, tipo e chiave, nomi "
+                                     "precedenti), 2 Dove sta nell'organizzazione (ruoli e reparto), 3 Sicurezza "
+                                     "(mansioni di rischio), 4 Stato e regole («Mansione attiva» e le regole di calcolo "
+                                     "in vigore). Cambiando il nome o spegnendo una mansione con persone in lista compare "
+                                     "un avviso prima di salvare."),
                     ("Ruoli", "ruoli sotto cui sta la mansione: di norma uno. Si scelgono in «Impostazioni»."),
                     ("Reparto", "per una macchina è quello dell'asset; per un processo si sceglie in «Impostazioni»."),
                     ("Mansioni di rischio", "quelle che comporta chi la svolge: da lì vengono DPI, visite e schede di "
@@ -358,9 +383,18 @@ GUIDA = {
                                    "requisito la persona non supera «I – in formazione» su quella competenza. Nella "
                                    "scheda «Competenze richieste»: «Aggiungi competenza», «Modifica» (si corregge sulla "
                                    "riga, poi «Salva modifiche») e «Togli» (i livelli già registrati restano)."),
-                    ("Valuta", "per ogni persona si indica il livello su ogni competenza. Il livello sulla mansione è "
-                               "la media delle competenze, arrotondata per difetto, e mai sopra la competenza bloccante "
-                               "più bassa; si aggiorna da solo anche nella skill matrix."),
+                    ("Valuta", "per ogni persona si indica il livello su ogni competenza. Il livello sulla mansione si "
+                               "calcola con la regola in vigore (di base: media delle competenze, arrotondata per "
+                               "difetto, mai sopra la competenza bloccante più bassa); si aggiorna da solo anche nella "
+                               "skill matrix."),
+                    ("Regole", "Mansionario → «Regole» (amministrazione anagrafica o gestione skill matrix): «Da che "
+                               "livello si è operativi» (I/L/U/O, di base U), «Come si calcola il livello dalle "
+                               "competenze» (media con tetto sulla bloccante · minimo · media · minimo sulle bloccanti) e "
+                               "«Operativi minimi per mansione» per il rischio uomo solo (di base 2). «Prova il calcolo» "
+                               "mostra l'effetto su un esempio. «Prova» calcola senza salvare cosa cambierebbe: persone "
+                               "operative, mansioni senza operativi o a rischio uomo solo, e chi cambia livello o esito. "
+                               "«Applica le regole» salva e ricalcola i livelli, con una riga nello storico delle "
+                               "abilitazioni. Sono gli stessi valori delle impostazioni della skill matrix."),
                     ("Esito", "Abilitato (livello pari o sopra la soglia, nessuna competenza sotto il minimo, requisiti "
                               "presenti) · In addestramento (manca solo livello) · Non abilitato (manca un requisito "
                               "formale o una competenza bloccante è sotto il minimo: il livello sulla mansione resta "
