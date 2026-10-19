@@ -1362,6 +1362,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "it_presentation": it_presentation,
             **rete_ctx,
             "switch_mappa": switch_mappa,
+            "processi_qualificati_asset": _processi_qualificati(asset),
             "it_monitoring": it_monitoring,
             "device_kpis": device_kpis,
             "it_ticket_create_url": it_ticket_create_url,
@@ -1461,3 +1462,13 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25), **shell_kwargs),
         },
     )
+
+
+def _processi_qualificati(asset) -> list:
+    """Processi qualificati MOD.128 dell'asset (collegati o PART145 dal flag); fail-safe."""
+    from ..services.part145 import processi_dell_asset
+
+    try:
+        return processi_dell_asset(asset)
+    except Exception:
+        return []

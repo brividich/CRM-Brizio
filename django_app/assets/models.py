@@ -132,6 +132,15 @@ class Asset(models.Model):
         verbose_name="Rientra in PART 145",
         help_text="Indica se l'asset rientra nel regolamento aeronautico PART 145.",
     )
+    # Attrezzature dei processi qualificati MOD.128 (gestite dal dettaglio processo).
+    # Con part_145 l'asset e' comunque attrezzatura dei processi in regime PART145
+    # (services/part145.py), anche senza riga qui.
+    processi_qualificati = models.ManyToManyField(
+        "anagrafica.ProcessoQualificato",
+        blank=True,
+        related_name="attrezzature",
+        verbose_name="Processi qualificati",
+    )
     public_qr_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     # Link pubblico del QR opt-in (audit B3): nasce spento e senza token; lo
     # abilita solo un utente con permesso (services/asset_qr.abilita_link_pubblico).

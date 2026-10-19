@@ -53,7 +53,7 @@ class RisultatoReport:
 
 
 #: Aree del catalogo, nell'ordine in cui compaiono.
-AREE = ("Inventario", "IT e rete", "Manutenzione e scadenze", "Stampanti e contatori")
+AREE = ("Inventario", "IT e rete", "Manutenzione e scadenze", "Qualità e PART 145", "Stampanti e contatori")
 
 
 @dataclass
@@ -760,6 +760,10 @@ def report_esistenti() -> list[dict]:
         {"titolo": "Scadenzario manutenzione", "url": reverse("assets:maintenance_scadenze"),
          "descrizione": "Scadenze di manutenzione per finestra, piano, gruppo, fornitore.",
          "filtri": "Finestra, piano, gruppo, asset, reparto, tipo, fornitore", "output": "Pagina, Excel, PDF", "area": "Manutenzione e scadenze"},
+        {"titolo": "Dossier PART 145", "url": reverse("assets:part_145_list"),
+         "descrizione": "Processo PART 145, attrezzature, personale abilitato (MOD.128), scadenze a 90 giorni e "
+                        "situazioni aperte, pronto per l'audit.",
+         "filtri": "Nessuno", "output": "Pagina, Excel (un foglio per sezione), PDF", "area": "Qualità e PART 145"},
         {"titolo": "Export elenco asset", "url": reverse("assets:asset_list"),
          "descrizione": "Elenco asset con i filtri della lista (pulsante Esporta).",
          "filtri": "Ricerca, tipo, categoria, reparto, VLAN, IP", "output": "Excel", "area": "Inventario"},

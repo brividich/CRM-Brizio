@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Asset PART 145{% endblock %}
+{% block title %}Dossier PART 145{% endblock %}
 
 {% block assets_shell_head %}
 <style>
@@ -84,11 +84,27 @@ body.theme-dark .p145-tag{color:var(--text-light)}
 body.theme-dark .p145-empty-text{color:var(--text)}
 body.theme-dark .p145-export-dlg h3{color:#fca5a5}
 body.theme-dark .p145-export-close{background:var(--surface-alt,#0f1b2d);color:var(--text-mid);border-color:var(--border)}
+
+/* Dossier */
+.p145-table tbody tr:not([data-href]) { cursor:default; }
+.p145-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+.p145-kpi { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:12px 14px; }
+.p145-kpi span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; font-weight:800; }
+.p145-kpi b { display:block; margin-top:4px; font-size:1.6rem; color:#0f172a; }
+.p145-kpi.warn b { color:#b45309; }
+.p145-note { padding:10px 16px 0; color:#64748b; font-size:var(--fs-sm); }
+.p145-nav { display:flex; gap:6px; flex-wrap:wrap; }
+.p145-nav a { padding:6px 12px; border-radius:999px; border:1px solid #f1c9c9; background:#fff; color:#9b1c1c; font-weight:700; text-decoration:none; font-size:.85rem; }
+.p145-info { border:1px dashed #dbe1ea; border-radius:12px; padding:10px 14px; color:#475569; background:#f8fafc; }
+body.theme-dark .p145-hero, body.theme-dark .p145-card, body.theme-dark .p145-kpi, body.theme-dark .p145-nav a, body.theme-dark .p145-info { background:var(--surface,#1e293b); border-color:var(--border,#334155); }
+body.theme-dark .p145-count b, body.theme-dark .p145-kpi b, body.theme-dark .p145-name, body.theme-dark .p145-card-head h2 { color:var(--text,#e2e8f0); }
+body.theme-dark .p145-table th { background:#3b1d1d; color:#fecaca; }
+body.theme-dark .p145-table tbody tr:hover { background:rgba(220,38,38,.08); }
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Asset PART 145{% endblock %}
-{% block assets_shell_subtitle %}<p>Asset che rientrano nel regolamento aeronautico PART 145.</p>{% endblock %}
+{% block assets_shell_title %}PART 145{% endblock %}
+{% block assets_shell_subtitle %}<p>Attrezzature, personale e scadenze del regolamento aeronautico PART 145.</p>{% endblock %}
 
 {% block assets_shell_toolbar %}
 <a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario completo</a>
@@ -104,64 +120,51 @@ body.theme-dark .p145-export-close{background:var(--surface-alt,#0f1b2d);color:v
         PART 145
       </span>
       <div class="p145-count">
-        <b>{{ part_145_total }}</b>
-        <span>{% if part_145_total == 1 %}asset marcato PART 145{% else %}asset marcati PART 145{% endif %}</span>
+        <b>Dossier PART 145</b>
+        <span>Processo, attrezzature{% if dossier.con_personale %}, personale abilitato{% endif %}, scadenze e situazioni aperte · {{ dossier.oggi|date:"d/m/Y" }}</span>
       </div>
     </div>
     <div class="p145-actions">
-      <button type="button" class="btn" onclick="document.getElementById('p145ExportDlg').showModal()">&#8595; Esporta</button>
+      <a class="btn" href="{% url 'assets:part_145_export_excel' %}">&#8595; Excel</a>
+      <a class="btn" href="{% url 'assets:part_145_export_pdf' %}">&#8595; PDF</a>
+      <a class="btn btn-secondary" href="{% url 'assets:guida' %}#part145">? Guida</a>
     </div>
   </div>
 
-  <article class="p145-card">
+  <div class="p145-kpis">
+    {% for etichetta, valore in dossier.riepilogo %}<div class="p145-kpi{% if etichetta == 'Situazioni aperte' and valore %} warn{% endif %}"><span>{{ etichetta }}</span><b>{{ valore }}</b></div>{% endfor %}
+  </div>
+
+  {% if not dossier.con_personale %}<div class="p145-info">I dati del personale abilitato non sono mostrati: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}
+
+  <nav class="p145-nav" aria-label="Sezioni del dossier">
+    {% for s in dossier.sezioni %}<a href="#sez-{{ s.codice }}">{{ s.titolo }}{% if s.righe %} ({{ s.righe|length }}){% endif %}</a>{% endfor %}
+  </nav>
+
+  {% for s in dossier.sezioni %}
+  <article class="p145-card" id="sez-{{ s.codice }}">
     <div class="p145-card-head">
-      <h2>Elenco asset</h2>
-      <span class="p145-tag">Ordinati per nome</span>
+      <h2>{{ s.titolo }}</h2>
+      <span class="p145-tag">{{ s.righe|length }} righe</span>
     </div>
-    {% if part_145_assets %}
+    {% if s.nota %}<div class="p145-note">{{ s.nota }}</div>{% endif %}
+    {% if s.righe %}
     <div class="p145-table-wrap">
       <table class="p145-table">
-        <thead>
-          <tr>
-            <th>Asset</th><th>Tag</th><th>Stato</th><th>Categoria</th>
-            <th>Reparto</th><th>Produttore</th><th>Modello</th><th>Seriale</th>
-          </tr>
-        </thead>
+        <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}</tr></thead>
         <tbody>
-          {% for asset in part_145_assets %}
-          <tr data-href="{% url 'assets:asset_view' asset.id %}">
-            <td><div class="p145-name">{{ asset.name }}</div></td>
-            <td><span class="p145-tag">#{{ asset.asset_tag }}</span></td>
-            <td><span class="p145-status">{{ asset.get_status_display }}</span></td>
-            <td>{{ asset.category_label|default:"—" }}</td>
-            <td>{{ asset.reparto|default:"—" }}</td>
-            <td>{{ asset.manufacturer|default:"—" }}</td>
-            <td>{{ asset.model|default:"—" }}</td>
-            <td><span class="p145-muted">{{ asset.serial_number|default:"—" }}</span></td>
-          </tr>
-          {% endfor %}
+          {% for riga, asset_id in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <div class="p145-empty">
-      <div class="p145-empty-icon">🛩️</div>
-      <div class="p145-empty-text">Nessun asset marcato PART 145</div>
-      <div class="p145-empty-sub">Attiva «Rientra in PART 145» nella scheda o nel form di un asset per vederlo qui.</div>
-    </div>
+    <div class="p145-empty"><div class="p145-empty-sub">{{ s.vuoto }}</div></div>
     {% endif %}
   </article>
+  {% endfor %}
 
+  <p class="p145-muted">Le attrezzature si marcano con «Rientra in PART 145» nel form dell'asset, oppure si collegano al processo dal dettaglio MOD.128 (sezione «Attrezzature»).</p>
 </section>
-
-<dialog id="p145ExportDlg" class="p145-export-dlg">
-  <h3>Esporta elenco PART 145</h3>
-  <div class="p145-export-links">
-    <a class="p145-xlsx" href="{% url 'assets:part_145_export_excel' %}">&#8595; XLSX</a>
-    <a class="p145-pdf" href="{% url 'assets:part_145_export_pdf' %}">&#8595; PDF</a>
-  </div>
-  <button type="button" class="p145-export-close" onclick="document.getElementById('p145ExportDlg').close()">Chiudi</button>
-</dialog>
 {% endblock %}
 
 {% block assets_shell_scripts %}
