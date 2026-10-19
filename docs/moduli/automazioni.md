@@ -10,6 +10,8 @@ Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, import
 
 ## Dettaglio
 
+- **Viste in package `automazioni/views/`** (18/10/2026, nessuna migrazione): il monolite `views.py` (7.200 righe, 141 funzioni) è spezzato per area — `regole` (elenco, designer, test, import/export pacchetti, convertitore Power Automate, sorgenti, trigger SQL, contenuti, configurazioni tabella), `approvazioni` (pagine di decisione web e proxy Entra di `approval_proxy_urls.py`, template, canali Teams, log mailbox), `coda` (coda eventi, run log, invii pianificati), `configurazione` (impostazioni, notifiche di sistema) — più `_helpers` (contesto base, filtri, endpoint Teams, formattazione). `__init__.py` lega le view di `urls.py` e `approval_proxy_urls.py` e legge il resto dai sottomoduli via `__getattr__`: `urls.py`, `htmx_views.py` e `from automazioni.views import …` non cambiano. Nei test `mock.patch` va su `automazioni.views._helpers.nome` (condivise, più `log_action`) oppure su `automazioni.views.<area>.nome` per le funzioni dell'area e i nomi importati che l'area usa (`count_queue_by_status`, `run_approval_imap_poll_now`).
+
 Il modulo più complesso del portale: motore di automazione event-driven con designer visuale, approvazioni multi-canale e integrazione Power Automate.
 
 - **10 modelli**: AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue, AutomationApproval, TeamsWebhookPreset, AutomationDeliveryEndpoint, AutomationCooldownGroup

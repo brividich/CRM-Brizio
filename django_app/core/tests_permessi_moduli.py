@@ -322,7 +322,7 @@ class AssenzeTests(ModuliBase):
         op, op_l = self.persona("Operaio")
         self.nell_organigramma(capo_l, self.r_capo)
         self.nell_organigramma(op_l, self.r_op)
-        with patch("assenze.views._has_assenze_column", return_value=True):
+        with patch("assenze.views._helpers._has_assenze_column", return_value=True):
             where, params, _join = views._combined_manager_assignment_where_clause(legacy_user_id=capo_l.id)
         self.assertIn("utente_id IN", where)
         self.assertEqual(params, [op_l.id])

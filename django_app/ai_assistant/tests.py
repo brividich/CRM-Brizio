@@ -1021,7 +1021,7 @@ class AiAssistantTests(TestCase):
     def test_runtime_absence_context_denies_users_without_calendar_permission(self):
         request = SimpleNamespace(user=self.user)
         with patch("ai_assistant.tools.get_legacy_user", return_value=None), patch(
-            "assenze.views._assenze_permissions",
+            "assenze.views._helpers._assenze_permissions",
             return_value={"group": "UTENTI", "can_view_calendar": False},
         ):
             context = build_runtime_context(request, "chi e' assente domani?")
@@ -1033,9 +1033,9 @@ class AiAssistantTests(TestCase):
     def test_runtime_absence_context_loads_admin_period(self):
         request = SimpleNamespace(user=self.user)
         with patch(
-            "assenze.views._assenze_permissions",
+            "assenze.views._helpers._assenze_permissions",
             return_value={"group": "AMMINISTRAZIONE", "can_view_calendar": True, "can_update_any": True},
-        ), patch("assenze.views._load_all_assenze_periodo") as mocked_loader:
+        ), patch("assenze.views.richieste._load_all_assenze_periodo") as mocked_loader:
             mocked_loader.return_value = [
                 {
                     "dipendente": "Mario Rossi",
@@ -2224,7 +2224,7 @@ class AiAssistantTests(TestCase):
         request = SimpleNamespace(user=self.user, path="/assistente-ai/")
         nav_item = SimpleNamespace(label="Assenze", href="/assenze/", legacy_url="/assenze/", coming=False)
         with patch("core.context_processors.legacy_nav", return_value={"nav_items": [nav_item]}), patch(
-            "assenze.views._assenze_permissions",
+            "assenze.views._helpers._assenze_permissions",
             return_value={"group": "UTENTI", "can_view_calendar": False},
         ):
             context = build_runtime_context(request, "quali moduli ho e chi e' assente domani?")

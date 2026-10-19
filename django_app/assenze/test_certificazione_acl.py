@@ -24,8 +24,8 @@ class CertificazionePresenzaGateTests(SimpleTestCase):
         return req
 
     def test_non_admin_is_forbidden_before_any_db_access(self):
-        with patch("assenze.views.user_can_modulo_action", return_value=False), \
-             patch("assenze.views.render", return_value=HttpResponse(status=403)) as mock_render:
+        with patch("assenze.views._helpers.user_can_modulo_action", return_value=False), \
+             patch("assenze.views._helpers.render", return_value=HttpResponse(status=403)) as mock_render:
             resp = views.certificazione_presenza(self._req("get"))
         self.assertEqual(resp.status_code, 403)
         args, kwargs = mock_render.call_args
@@ -34,8 +34,8 @@ class CertificazionePresenzaGateTests(SimpleTestCase):
 
     def test_non_admin_post_is_forbidden(self):
         # Anche le mutazioni (create/update/delete) sono bloccate prima di eseguire.
-        with patch("assenze.views.user_can_modulo_action", return_value=False), \
-             patch("assenze.views.render", return_value=HttpResponse(status=403)) as mock_render:
+        with patch("assenze.views._helpers.user_can_modulo_action", return_value=False), \
+             patch("assenze.views._helpers.render", return_value=HttpResponse(status=403)) as mock_render:
             resp = views.certificazione_presenza(self._req("post"))
         self.assertEqual(resp.status_code, 403)
         self.assertTrue(mock_render.called)

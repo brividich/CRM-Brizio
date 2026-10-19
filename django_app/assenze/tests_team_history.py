@@ -39,8 +39,8 @@ class TeamHistoryTests(TestCase):
         DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=601, area_aziendale=area, caporeparto_legacy_id=502)
         self.area = area
         self.addCleanup(patch.stopall)
-        patch("assenze.views._attach_corsi_conflicts").start()
-        patch("assenze.views._mark_sharepoint_managed").start()
+        patch("assenze.views._helpers._attach_corsi_conflicts").start()
+        patch("assenze.views._helpers._mark_sharepoint_managed").start()
 
     def insert(self, id, *, user=17, capo=None, status=0, date=None, email=""):
         date = date or datetime(2026, 10, 1, 8)
@@ -100,7 +100,7 @@ class TeamHistoryTests(TestCase):
         self.insert(2, user=18)
         events = views._load_events(manager_scope={"legacy_user_id": 7}, colors={})
         self.assertEqual(len(events), 1)
-        with patch("assenze.views._assenze_permissions", return_value={
+        with patch("assenze.views._helpers._assenze_permissions", return_value={
             "can_update_owned": True, "owned_capo_local_ids": {90}, "owned_capo_lookup_ids": set(),
         }):
             self.assertFalse(views._can_manage_record(None, {"id": 1, "capo_reparto_id": None}))
@@ -119,12 +119,12 @@ class TeamAccessTests(TestCase):
     def test_personal_scope_cannot_open_dashboard_even_with_all_query(self):
         request = RequestFactory().get("/assenze/car/dashboard?scope=all")
         request.user = SimpleNamespace(is_authenticated=True)
-        with patch("assenze.views._assenze_permissions", return_value={"view_scope": "own"}):
+        with patch("assenze.views._helpers._assenze_permissions", return_value={"view_scope": "own"}):
             self.assertEqual(views.car_dashboard(request).status_code, 403)
 
     def test_read_only_does_not_expose_sensitive_fields_or_approve(self):
         row = {"id": 1, "motivo": "dettaglio sintetico", "certificato_medico": "TEST", "note_gestione": "nota"}
-        with patch("assenze.views._assenze_permissions", return_value={"can_update_owned": False}):
+        with patch("assenze.views._helpers._assenze_permissions", return_value={"can_update_owned": False}):
             views._prepare_team_rows(None, [row])
         self.assertFalse(row["can_moderate"])
         self.assertEqual([row[k] for k in ("motivo", "certificato_medico", "note_gestione")], ["", "", ""])
@@ -136,15 +136,15 @@ class TeamAccessTests(TestCase):
         request = RequestFactory().get("/assenze/car/dashboard?pagina_storico=2&periodo_storico=passate&scope=all")
         request.user = SimpleNamespace(is_authenticated=True)
         with ExitStack() as stack:
-            stack.enter_context(patch("assenze.views._assenze_permissions", return_value={
+            stack.enter_context(patch("assenze.views._helpers._assenze_permissions", return_value={
                 "view_scope": "reparto", "legacy_user_id": 7,
             }))
-            stack.enter_context(patch("assenze.views._legacy_identity", return_value=("Capo", "capo@example.test", 7)))
-            stack.enter_context(patch("assenze.views._template_perm_context", return_value={}))
-            stack.enter_context(patch("assenze.views._load_pending_for_manager", return_value=[]))
-            stack.enter_context(patch("assenze.views._load_assenze_car_periodo", return_value=[]))
-            history = stack.enter_context(patch("assenze.views._load_gestite_for_manager", return_value=[{"id": i} for i in range(31)]))
-            rendered = stack.enter_context(patch("assenze.views.render", return_value=HttpResponse()))
+            stack.enter_context(patch("assenze.views._helpers._legacy_identity", return_value=("Capo", "capo@example.test", 7)))
+            stack.enter_context(patch("assenze.views._helpers._template_perm_context", return_value={}))
+            stack.enter_context(patch("assenze.views._helpers._load_pending_for_manager", return_value=[]))
+            stack.enter_context(patch("assenze.views.richieste._load_assenze_car_periodo", return_value=[]))
+            history = stack.enter_context(patch("assenze.views.richieste._load_gestite_for_manager", return_value=[{"id": i} for i in range(31)]))
+            rendered = stack.enter_context(patch("assenze.views._helpers.render", return_value=HttpResponse()))
             self.assertEqual(views.car_dashboard(request).status_code, 200)
         self.assertEqual(history.call_args.kwargs["offset"], 30)
         self.assertEqual(history.call_args.kwargs["periodo"], "passate")

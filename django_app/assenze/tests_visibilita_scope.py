@@ -29,13 +29,13 @@ def _request():
 def _perms(roles, *, acl=()):
     """Permessi per un utente con questi ruoli legacy e queste capability ACL."""
     concesse = set(acl)
-    with patch("assenze.views._role_names", return_value=list(roles)), patch(
-        "assenze.views._legacy_capi_table_exists", return_value=False
+    with patch("assenze.views._helpers._role_names", return_value=list(roles)), patch(
+        "assenze.views._helpers._legacy_capi_table_exists", return_value=False
     ), patch(
-        "assenze.views.user_can_modulo_action",
+        "assenze.views._helpers.user_can_modulo_action",
         side_effect=lambda request, modulo, azione: azione in concesse,
     ), patch(
-        "assenze.views._owned_capo_ids_for_legacy_user", return_value=(set(), set())
+        "assenze.views._helpers._owned_capo_ids_for_legacy_user", return_value=(set(), set())
     ):
         return _assenze_permissions(_request())
 
@@ -104,12 +104,12 @@ class ViewScopeAclTests(SimpleTestCase):
 class EventsManagerScopeTests(SimpleTestCase):
     def test_scope_all_non_filtra(self):
         perms = _perms(["Amministrazione"])
-        with patch("assenze.views._assenze_permissions", return_value=perms):
+        with patch("assenze.views._helpers._assenze_permissions", return_value=perms):
             self.assertIsNone(_events_manager_scope(_request()))
 
     def test_scope_reparto_porta_l_identita_del_capo(self):
         perms = _perms(["Caporeparto"])
-        with patch("assenze.views._assenze_permissions", return_value=perms):
+        with patch("assenze.views._helpers._assenze_permissions", return_value=perms):
             scope = _events_manager_scope(_request())
         self.assertEqual(scope["legacy_user_id"], 7)
         self.assertEqual(scope["manager_name"], "Utente Uno")
@@ -127,13 +127,13 @@ class LoadEventsScopeSqlTests(SimpleTestCase):
             catturato["params"] = params
             return []
 
-        with patch("assenze.views._table_exists", return_value=True), patch(
-            "assenze.views._has_assenze_column", return_value=True
-        ), patch("assenze.views._fetch_all_dict", side_effect=_fake_fetch), patch(
-            "assenze.views._legacy_capi_table_exists", return_value=False
+        with patch("assenze.views._helpers._table_exists", return_value=True), patch(
+            "assenze.views._helpers._has_assenze_column", return_value=True
+        ), patch("assenze.views._helpers._fetch_all_dict", side_effect=_fake_fetch), patch(
+            "assenze.views._helpers._legacy_capi_table_exists", return_value=False
         ), patch(
-            "assenze.views.legacy_table_columns", return_value={"capo_reparto_id"}
-        ), patch("assenze.views._load_colors", return_value={}):
+            "assenze.views._helpers.legacy_table_columns", return_value={"capo_reparto_id"}
+        ), patch("assenze.views.eventi._load_colors", return_value={}):
             _load_events(**kwargs)
         return catturato
 
@@ -176,11 +176,11 @@ class LoadEventsScopeSqlTests(SimpleTestCase):
     def test_scope_senza_criteri_e_fail_closed(self):
         # Nessun modo di sapere di chi e' capo: non si mostra nulla, invece di
         # cadere nella query senza filtro (che sarebbe tutta l'azienda).
-        with patch("assenze.views._table_exists", return_value=True), patch(
-            "assenze.views._has_assenze_column", return_value=True
-        ), patch("assenze.views._legacy_capi_table_exists", return_value=False), patch(
-            "assenze.views.legacy_table_columns", return_value=set()
-        ), patch("assenze.views._fetch_all_dict") as fetch:
+        with patch("assenze.views._helpers._table_exists", return_value=True), patch(
+            "assenze.views._helpers._has_assenze_column", return_value=True
+        ), patch("assenze.views._helpers._legacy_capi_table_exists", return_value=False), patch(
+            "assenze.views._helpers.legacy_table_columns", return_value=set()
+        ), patch("assenze.views._helpers._fetch_all_dict") as fetch:
             eventi = _load_events(
                 manager_scope={"legacy_user_id": None, "manager_name": "", "manager_email": ""}
             )

@@ -78,8 +78,8 @@ class SharePointStatusParsingTests(SimpleTestCase):
 
 
 class SharePointDeleteTests(SimpleTestCase):
-    @patch("assenze.views._graph_headers", return_value={})
-    @patch("assenze.views._graph_base_url", return_value="https://graph.example/items")
+    @patch("assenze.views._helpers._graph_headers", return_value={})
+    @patch("assenze.views._helpers._graph_base_url", return_value="https://graph.example/items")
     @patch("assenze.views.requests.delete")
     def test_graph_delete_treats_item_not_found_as_success(
         self,
@@ -139,8 +139,8 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         conn = MagicMock()
         conn.ops.quote_name.side_effect = lambda column: column
 
-        with patch("assenze.views._db_vendor", return_value="microsoft"), patch(
-            "assenze.views.connections",
+        with patch("assenze.views._helpers._db_vendor", return_value="microsoft"), patch(
+            "assenze.views._helpers.connections",
             {"default": conn},
         ):
             result = _insert_row_and_return_id(cursor, "assenze", ["title", "consenso"], ["Richiesta", "In attesa"])
@@ -164,10 +164,10 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         connection.cursor.return_value = cursor_manager
         connection.ops.quote_name.side_effect = lambda column: column
 
-        with patch("assenze.views._db_vendor", return_value="sql_server"), patch(
-            "assenze.views._prepare_row_data",
+        with patch("assenze.views._helpers._db_vendor", return_value="sql_server"), patch(
+            "assenze.views._helpers._prepare_row_data",
             return_value={"title": "Richiesta", "consenso": "In attesa"},
-        ), patch("assenze.views.connections", {"default": connection}):
+        ), patch("assenze.views._helpers.connections", {"default": connection}):
             result = _insert_assenza({"title": "Richiesta"})
 
         self.assertEqual(result, 88)
@@ -182,12 +182,12 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         connection.cursor.return_value = cursor_manager
 
         with patch(
-            "assenze.views._prepare_row_data",
+            "assenze.views._helpers._prepare_row_data",
             return_value={"copia_nome": "Mario Rossi", "tipo_assenza": "Permesso"},
-        ), patch("assenze.views._insert_row_and_return_id", return_value=None), patch(
-            "assenze.views._find_inserted_assenza_id",
+        ), patch("assenze.views._helpers._insert_row_and_return_id", return_value=None), patch(
+            "assenze.views._helpers._find_inserted_assenza_id",
             return_value=144,
-        ) as mock_find, patch("assenze.views.connections", {"default": connection}):
+        ) as mock_find, patch("assenze.views._helpers.connections", {"default": connection}):
             result = _insert_assenza({"tipo_assenza": "Permesso"})
 
         self.assertEqual(result, 144)
@@ -202,8 +202,8 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         connection.cursor.return_value = cursor_manager
         connection.ops.quote_name.side_effect = lambda column: column
 
-        with patch("assenze.views.connections", {"default": connection}), patch(
-            "assenze.views._select_limited",
+        with patch("assenze.views._helpers.connections", {"default": connection}), patch(
+            "assenze.views._helpers._select_limited",
             side_effect=lambda base_sql, _order, _limit: base_sql,
         ):
             result = _find_inserted_assenza_id(
@@ -258,8 +258,8 @@ class AssenzeTipoMappingTests(SimpleTestCase):
         self.assertEqual(fields["Motivazionerichiesta"], "Turno mattina")
 
 class SharePointSyncDiagnosticsTests(SimpleTestCase):
-    @patch("assenze.views._graph_get_item")
-    @patch("assenze.views._get_assenza")
+    @patch("assenze.views._helpers._graph_get_item")
+    @patch("assenze.views._helpers._get_assenza")
     def test_diagnostic_flags_sharepoint_pending_conflict(self, mock_get_assenza, mock_graph_get_item):
         mock_get_assenza.return_value = {
             "id": 7,
@@ -285,8 +285,8 @@ class SharePointSyncDiagnosticsTests(SimpleTestCase):
         self.assertEqual(row["sp_resolved_status"], "Approvato")
         self.assertIn("_ModerationStatus", row["diagnostic"])
 
-    @patch("assenze.views._graph_get_item")
-    @patch("assenze.views._get_assenza")
+    @patch("assenze.views._helpers._graph_get_item")
+    @patch("assenze.views._helpers._get_assenza")
     def test_diagnostic_reports_aligned_status(self, mock_get_assenza, mock_graph_get_item):
         mock_get_assenza.return_value = {
             "id": 8,
@@ -313,8 +313,8 @@ class SharePointSyncDiagnosticsTests(SimpleTestCase):
 
 
 class CertificazionePresenzaDipendentiTests(SimpleTestCase):
-    @patch("assenze.views._fetch_all_dict")
-    @patch("assenze.views.legacy_table_columns")
+    @patch("assenze.views._helpers._fetch_all_dict")
+    @patch("assenze.views._helpers.legacy_table_columns")
     def test_employee_list_filters_to_active_when_attivo_column_exists(self, mock_columns, mock_fetch):
         mock_columns.return_value = {"nome", "cognome", "attivo"}
         mock_fetch.return_value = [
@@ -329,8 +329,8 @@ class CertificazionePresenzaDipendentiTests(SimpleTestCase):
         self.assertIn("FROM anagrafica_dipendenti", sql)
         self.assertIn("attivo = 1", sql)
 
-    @patch("assenze.views._fetch_all_dict")
-    @patch("assenze.views.legacy_table_columns")
+    @patch("assenze.views._helpers._fetch_all_dict")
+    @patch("assenze.views._helpers.legacy_table_columns")
     def test_employee_list_deduplicates_case_insensitive_display_names(self, mock_columns, mock_fetch):
         mock_columns.return_value = {"nome", "cognome", "attivo"}
         mock_fetch.return_value = [
@@ -345,9 +345,9 @@ class CertificazionePresenzaDipendentiTests(SimpleTestCase):
 
 
 class AssenzeIdentityDisplayNameTests(SimpleTestCase):
-    @patch("assenze.views._fetch_all_dict")
-    @patch("assenze.views.legacy_table_columns")
-    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._helpers._fetch_all_dict")
+    @patch("assenze.views._helpers.legacy_table_columns")
+    @patch("assenze.views._helpers._table_exists", return_value=True)
     def test_request_display_name_prefers_anagrafica_nome_cognome(self, _mock_table_exists, mock_columns, mock_fetch):
         mock_columns.return_value = {"id", "utente_id", "nome", "cognome", "email", "aliasusername"}
         mock_fetch.return_value = [{"id": 10, "nome": "Luca", "cognome": "Bova"}]
@@ -364,9 +364,9 @@ class AssenzeIdentityDisplayNameTests(SimpleTestCase):
         self.assertIn("FROM anagrafica_dipendenti", sql)
         self.assertIn("utente_id = %s", sql)
 
-    @patch("assenze.views._fetch_all_dict")
-    @patch("assenze.views.legacy_table_columns")
-    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._helpers._fetch_all_dict")
+    @patch("assenze.views._helpers.legacy_table_columns")
+    @patch("assenze.views._helpers._table_exists", return_value=True)
     def test_request_display_name_matches_alias_from_username_local_part(self, _mock_table_exists, mock_columns, mock_fetch):
         mock_columns.return_value = {"id", "nome", "cognome", "email", "aliasusername"}
         mock_fetch.return_value = [{"id": 291, "nome": "Luca", "cognome": "Bova"}]
@@ -389,13 +389,13 @@ class AssenzeSubmitTokenTests(TestCase):
         self.user = get_user_model().objects.create_user(username="assenze-token-user", password="pass12345")
         UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
 
-    @patch("assenze.views._template_perm_context", return_value={})
-    @patch("assenze.views._load_motivazioni_local", return_value=["Motivo"])
-    @patch("assenze.views._graph_get_motivazioni", return_value=[])
-    @patch("assenze.views._load_capi_options", return_value=[])
-    @patch("assenze.views._resolve_default_capo_for_user", return_value="")
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views._helpers._template_perm_context", return_value={})
+    @patch("assenze.views._helpers._load_motivazioni_local", return_value=["Motivo"])
+    @patch("assenze.views._helpers._graph_get_motivazioni", return_value=[])
+    @patch("assenze.views._helpers._load_capi_options", return_value=[])
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="")
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_richiesta_renders_submit_token(
         self,
         _mock_perms,
@@ -417,14 +417,14 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(response.context["form_data"]["date_start"], today)
         self.assertEqual(response.context["form_data"]["date_end"], today)
 
-    @patch("assenze.views._resolve_request_display_name", return_value="Luca Bova")
-    @patch("assenze.views._template_perm_context", return_value={})
-    @patch("assenze.views._load_motivazioni_local", return_value=["Motivo"])
-    @patch("assenze.views._graph_get_motivazioni", return_value=[])
-    @patch("assenze.views._load_capi_options", return_value=[])
-    @patch("assenze.views._resolve_default_capo_for_user", return_value="")
-    @patch("assenze.views._legacy_identity", return_value=("L Bova", "l.bova@example.com", 77))
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._resolve_request_display_name", return_value="Luca Bova")
+    @patch("assenze.views._helpers._template_perm_context", return_value={})
+    @patch("assenze.views._helpers._load_motivazioni_local", return_value=["Motivo"])
+    @patch("assenze.views._helpers._graph_get_motivazioni", return_value=[])
+    @patch("assenze.views._helpers._load_capi_options", return_value=[])
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="")
+    @patch("assenze.views._helpers._legacy_identity", return_value=("L Bova", "l.bova@example.com", 77))
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_richiesta_shows_full_name_in_dipendente_field(
         self,
         _mock_perms,
@@ -443,16 +443,16 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'value="Luca Bova"')
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._resolve_capo_local_id", return_value=None)
-    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
-    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
-    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views.richieste._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_enforces_csrf_and_accepts_full_form_flow(
         self,
         _mock_perms,
@@ -509,17 +509,17 @@ class AssenzeSubmitTokenTests(TestCase):
         )
         self.assertEqual(response_missing_csrf.status_code, 403)
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._resolve_capo_local_id", return_value=None)
-    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
-    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
-    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views.richieste._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views.richieste._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_saves_certificato_medico_only_for_malattia(
         self,
         _mock_perms,
@@ -566,20 +566,20 @@ class AssenzeSubmitTokenTests(TestCase):
         ]
         self.client.force_login(self.user)
         request = type("Req", (), {"user": self.user, "session": self.client.session})()
-        with patch("assenze.views._assenze_permissions", return_value=perms), \
-                patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77)), \
-                patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi"), \
-                patch("assenze.views._table_exists", return_value=True), \
-                patch("assenze.views._validate_business_rules", return_value=(None, "")), \
-                patch("assenze.views._resolve_nome_lookup_id", return_value=77), \
-                patch("assenze.views._resolve_capo_lookup_id", return_value=None), \
-                patch("assenze.views._resolve_capo_local_id", return_value=None) as mock_capo_local, \
-                patch("assenze.views._insert_assenza", return_value=1), \
-                patch("assenze.views._graph_configured", return_value=False), \
-                patch("assenze.views._render_richiesta", return_value=HttpResponse("ok")) as mock_render, \
-                patch("assenze.views._load_capi_options", return_value=capi), \
-                patch("assenze.views._resolve_default_capo_for_user", return_value="capo1@example.com"), \
-                patch("assenze.views._effective_capo_option", return_value=("capo1@example.com", False)):
+        with patch("assenze.views._helpers._assenze_permissions", return_value=perms), \
+                patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77)), \
+                patch("assenze.views.richieste._resolve_request_display_name", return_value="Mario Rossi"), \
+                patch("assenze.views._helpers._table_exists", return_value=True), \
+                patch("assenze.views._helpers._validate_business_rules", return_value=(None, "")), \
+                patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77), \
+                patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None), \
+                patch("assenze.views.richieste._resolve_capo_local_id", return_value=None) as mock_capo_local, \
+                patch("assenze.views.richieste._insert_assenza", return_value=1), \
+                patch("assenze.views._helpers._graph_configured", return_value=False), \
+                patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok")) as mock_render, \
+                patch("assenze.views._helpers._load_capi_options", return_value=capi), \
+                patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capo1@example.com"), \
+                patch("assenze.views._helpers._effective_capo_option", return_value=("capo1@example.com", False)):
             self.client.post(
                 reverse("assenze_invio"),
                 {
@@ -610,16 +610,16 @@ class AssenzeSubmitTokenTests(TestCase):
         mock_capo_local.assert_not_called()
         self.assertEqual(mock_render.call_args.kwargs.get("error"), "Caporeparto selezionato non valido.")
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._resolve_capo_local_id", return_value=None)
-    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
-    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views.richieste._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views.richieste._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_ferie_forces_full_day_times(
         self,
         _mock_perms,
@@ -657,10 +657,10 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(payload["data_inizio"].strftime("%H:%M"), "00:00")
         self.assertEqual(payload["data_fine"].strftime("%H:%M"), "23:59")
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_rejects_permesso_across_multiple_days(
         self,
         _mock_perms,
@@ -691,7 +691,7 @@ class AssenzeSubmitTokenTests(TestCase):
         mock_insert.assert_not_called()
         self.assertEqual(mock_render.call_args.kwargs["error"], "Il permesso deve iniziare e finire nello stesso giorno.")
 
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_rejects_missing_submit_token(self, _mock_perms):
         self.client.force_login(self.user)
 
@@ -714,17 +714,17 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
         UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
         self.client.force_login(self.user)
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._resolve_capo_local_id", return_value=None)
-    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
-    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
-    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views.richieste._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views.richieste._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_persists_flessibilita_as_canonical_value(
         self,
         _mock_perms,
@@ -762,17 +762,17 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
         self.assertEqual(payload["tipo_assenza"], "Flessibilità")
         self.assertEqual(payload["motivazione_richiesta"], "Recupero ore")
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._resolve_capo_local_id", return_value=None)
-    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
-    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
-    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views.richieste._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views.richieste._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_marks_certifica_presenza_without_violating_legacy_check(
         self,
         _mock_perms,
@@ -813,8 +813,8 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AssenzeCaporepartoLocalSourceTests(TestCase):
-    @patch("assenze.views._load_local_capi_options", return_value=[{"Value": "Legacy", "Email": "legacy@example.com", "LookupId": "legacy@example.com"}])
-    @patch("assenze.views._load_anagrafica_hr_capi_options", return_value=[{"Value": "HR Capo", "Email": "hr@example.com", "LookupId": "legacy_user:77", "LegacyUserId": "77"}])
+    @patch("assenze.views._helpers._load_local_capi_options", return_value=[{"Value": "Legacy", "Email": "legacy@example.com", "LookupId": "legacy@example.com"}])
+    @patch("assenze.views._helpers._load_anagrafica_hr_capi_options", return_value=[{"Value": "HR Capo", "Email": "hr@example.com", "LookupId": "legacy_user:77", "LegacyUserId": "77"}])
     def test_load_capi_options_prefers_anagrafica_hr(self, _mock_hr_options, _mock_local_options):
         options = _load_capi_options()
 
@@ -845,7 +845,7 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
 
         self.assertEqual(options[0]["LegacyUserId"], "77")
 
-    @patch("assenze.views._resolve_anagrafica_hr_effective_capo_ids", return_value=(77, 501))
+    @patch("assenze.views._helpers._resolve_anagrafica_hr_effective_capo_ids", return_value=(77, 501))
     def test_resolve_default_capo_uses_anagrafica_hr_effective_manager(self, _mock_effective_capo):
         capi = [
             {
@@ -868,7 +868,7 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
 
         self.assertEqual(resolved, "capo.hr@example.com")
 
-    @patch("assenze.views._load_anagrafica_hr_capi_options")
+    @patch("assenze.views._helpers._load_anagrafica_hr_capi_options")
     def test_resolve_capo_local_id_from_anagrafica_hr_options(self, mock_hr_options):
         mock_hr_options.return_value = [
             {
@@ -884,17 +884,17 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
         self.assertEqual(_resolve_capo_local_id_from_anagrafica_hr("capo.hr@example.com"), 77)
         self.assertEqual(_resolve_capo_local_id_from_anagrafica_hr("501"), 77)
 
-    @patch("assenze.views._legacy_capi_table_exists", return_value=False)
+    @patch("assenze.views._helpers._legacy_capi_table_exists", return_value=False)
     def test_owned_capo_ids_include_current_legacy_user_even_without_legacy_table(self, _mock_legacy_exists):
         local_ids, lookup_ids = _owned_capo_ids_for_legacy_user(77)
 
         self.assertEqual(local_ids, {77})
         self.assertEqual(lookup_ids, set())
 
-    @patch("assenze.views._find_local_capo_id_by_column")
-    @patch("assenze.views._resolve_local_capo_legacy_user")
-    @patch("assenze.views.legacy_table_columns")
-    @patch("assenze.views._legacy_capi_table_exists", return_value=True)
+    @patch("assenze.views.richieste._find_local_capo_id_by_column")
+    @patch("assenze.views._helpers._resolve_local_capo_legacy_user")
+    @patch("assenze.views._helpers.legacy_table_columns")
+    @patch("assenze.views._helpers._legacy_capi_table_exists", return_value=True)
     def test_resolve_capo_local_id_uses_capi_reparto_row_linked_to_legacy_user(
         self,
         _mock_table_exists,
@@ -917,10 +917,10 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
         self.assertEqual(resolved, 12)
         self.assertEqual(mock_find_local_capo.call_args_list[0].args, ("utente_id", 77))
 
-    @patch("assenze.views._find_local_capo_id_by_column")
-    @patch("assenze.views._resolve_local_capo_legacy_user", return_value=None)
-    @patch("assenze.views.legacy_table_columns")
-    @patch("assenze.views._legacy_capi_table_exists", return_value=True)
+    @patch("assenze.views.richieste._find_local_capo_id_by_column")
+    @patch("assenze.views._helpers._resolve_local_capo_legacy_user", return_value=None)
+    @patch("assenze.views._helpers.legacy_table_columns")
+    @patch("assenze.views._helpers._legacy_capi_table_exists", return_value=True)
     def test_resolve_capo_local_id_falls_back_to_sharepoint_lookup_id(
         self,
         _mock_table_exists,
@@ -952,10 +952,10 @@ class GestioneAssenzeDeleteUrlTests(TestCase):
             username="assenze-gestione-user", email="assenze-gestione@example.com", password="pass12345"
         )
 
-    @patch("assenze.views._template_perm_context", return_value={})
-    @patch("assenze.views._load_personal")
-    @patch("assenze.views._load_pending_for_manager", return_value=[])
-    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._helpers._template_perm_context", return_value={})
+    @patch("assenze.views._helpers._load_personal")
+    @patch("assenze.views._helpers._load_pending_for_manager", return_value=[])
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
     def test_gestione_renders_row_specific_delete_url(
         self,
         _mock_identity,
@@ -984,10 +984,10 @@ class GestioneAssenzeDeleteUrlTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-delete-url="/assenze/api/eventi/42/delete"')
 
-    @patch("assenze.views._template_perm_context", return_value={})
-    @patch("assenze.views._load_personal")
-    @patch("assenze.views._load_pending_for_manager")
-    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._helpers._template_perm_context", return_value={})
+    @patch("assenze.views._helpers._load_personal")
+    @patch("assenze.views._helpers._load_pending_for_manager")
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
     def test_gestione_exposes_summary_context(
         self,
         _mock_identity,
@@ -1044,12 +1044,12 @@ class GestioneAssenzeDeleteApiTests(TestCase):
             username=username, email=f"{username}@example.com", password="pass12345"
         )
 
-    @patch("assenze.views._delete_assenza", return_value=True)
-    @patch("assenze.views._graph_delete", return_value=(True, ""))
-    @patch("assenze.views._graph_configured", return_value=True)
-    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": False})
+    @patch("assenze.views._helpers._delete_assenza", return_value=True)
+    @patch("assenze.views._helpers._graph_delete", return_value=(True, ""))
+    @patch("assenze.views._helpers._graph_configured", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._helpers._get_assenza")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_delete_any": False})
     def test_delete_queues_sharepoint_removal_instead_of_calling_graph(
         self,
         _mock_perms,
@@ -1084,12 +1084,12 @@ class GestioneAssenzeDeleteApiTests(TestCase):
         self.assertEqual(entry.azione, AssenzaSharePointOutbox.AZIONE_DELETE)
         self.assertEqual(entry.sharepoint_item_id, "4018")
 
-    @patch("assenze.views._notify_assenza_deleted")
-    @patch("assenze.views._delete_assenza", return_value=True)
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    @patch("assenze.views._helpers._notify_assenza_deleted")
+    @patch("assenze.views._helpers._delete_assenza", return_value=True)
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._helpers._get_assenza")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
     def test_delete_approved_request_triggers_notification(
         self,
         _mock_perms,
@@ -1120,12 +1120,12 @@ class GestioneAssenzeDeleteApiTests(TestCase):
         # Il record passato alla notifica e' quello eliminato.
         self.assertEqual(mock_notify.call_args.args[1].get("id"), 7)
 
-    @patch("assenze.views._notify_assenza_deleted")
-    @patch("assenze.views._delete_assenza", return_value=True)
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    @patch("assenze.views._helpers._notify_assenza_deleted")
+    @patch("assenze.views._helpers._delete_assenza", return_value=True)
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._helpers._get_assenza")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
     def test_delete_pending_request_does_not_notify(
         self,
         _mock_perms,
@@ -1154,11 +1154,11 @@ class GestioneAssenzeDeleteApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         mock_notify.assert_not_called()
 
-    @patch("assenze.views._delete_assenza", return_value=True)
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    @patch("assenze.views._helpers._delete_assenza", return_value=True)
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._helpers._get_assenza")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
     def test_delete_succeeds_even_if_notification_raises(
         self,
         _mock_perms,
@@ -1177,7 +1177,7 @@ class GestioneAssenzeDeleteApiTests(TestCase):
         }
         self.client.force_login(self._superuser("su-delete-failopen"))
 
-        with patch("assenze.views._notify_assenza_deleted", side_effect=RuntimeError("boom")):
+        with patch("assenze.views._helpers._notify_assenza_deleted", side_effect=RuntimeError("boom")):
             response = self.client.post(
                 reverse("assenze_api_evento_delete", args=[9]),
                 content_type="application/json",
@@ -1198,11 +1198,11 @@ class AssenzeCarConsensoTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._has_assenze_column", return_value=True)
-    @patch("assenze.views._update_assenza", return_value=True)
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._assenze_permissions", return_value={"can_update_any": True, "can_update_owned": False})
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._has_assenze_column", return_value=True)
+    @patch("assenze.views._helpers._update_assenza", return_value=True)
+    @patch("assenze.views._helpers._get_assenza")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_update_any": True, "can_update_owned": False})
     def test_car_approval_stores_approval_datetime(
         self,
         _mock_perms,
@@ -1244,12 +1244,12 @@ class MiaAssenzaUpdateTests(TestCase):
             username="assenze-update-user", email="assenze-update@example.com", password="pass12345"
         )
 
-    @patch("assenze.views._graph_configured", return_value=False)
-    @patch("assenze.views._update_assenza", return_value=True)
-    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True})
+    @patch("assenze.views._helpers._graph_configured", return_value=False)
+    @patch("assenze.views._helpers._update_assenza", return_value=True)
+    @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._helpers._get_assenza")
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True})
     def test_my_update_saves_certificato_medico_for_malattia(
         self,
         _mock_perms,
@@ -1297,10 +1297,10 @@ class AssenzeCsvExportAuditTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    @patch("assenze.views.log_action")
-    @patch("assenze.views._load_gestite_for_manager", return_value=[])
+    @patch("assenze.views._helpers.log_action")
+    @patch("assenze.views.richieste._load_gestite_for_manager", return_value=[])
     @patch(
-        "assenze.views._load_pending_for_manager",
+        "assenze.views._helpers._load_pending_for_manager",
         return_value=[
             {
                 "dipendente": "Mario Rossi",
@@ -1313,8 +1313,8 @@ class AssenzeCsvExportAuditTests(TestCase):
             }
         ],
     )
-    @patch("assenze.views._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": False})
-    @patch("assenze.views.get_legacy_user", return_value=SimpleNamespace(id=77, nome="Mario CAR", email="car@example.com"))
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": False})
+    @patch("assenze.views._helpers.get_legacy_user", return_value=SimpleNamespace(id=77, nome="Mario CAR", email="car@example.com"))
     def test_car_export_logs_audit_with_rows_and_filters(
         self,
         _mock_legacy_user,
@@ -1334,9 +1334,9 @@ class AssenzeCsvExportAuditTests(TestCase):
         self.assertEqual(action_args[3]["filters"]["scope"], "owned_manager")
         self.assertEqual(action_args[3]["filters"]["legacy_user_id"], 77)
 
-    @patch("assenze.views.log_action")
+    @patch("assenze.views._helpers.log_action")
     @patch(
-        "assenze.views._load_personal",
+        "assenze.views._helpers._load_personal",
         return_value=[
             {
                 "tipo": "Permesso",
@@ -1349,7 +1349,7 @@ class AssenzeCsvExportAuditTests(TestCase):
             }
         ],
     )
-    @patch("assenze.views.get_legacy_user", return_value=SimpleNamespace(nome="Mario Rossi", email="mario@example.com"))
+    @patch("assenze.views._helpers.get_legacy_user", return_value=SimpleNamespace(nome="Mario Rossi", email="mario@example.com"))
     def test_personal_export_logs_audit_with_rows_and_filters(
         self,
         _mock_legacy_user,
@@ -1437,8 +1437,8 @@ class AssenzeInsertForOthersScopeTests(SimpleTestCase):
             ),
             legacy_user=SimpleNamespace(id=7, nome="Utente Uno", email="u@example.com"),
         )
-        with patch("assenze.views._role_names", return_value=roles), patch(
-            "assenze.views._legacy_capi_table_exists", return_value=False
+        with patch("assenze.views._helpers._role_names", return_value=roles), patch(
+            "assenze.views._helpers._legacy_capi_table_exists", return_value=False
         ):
             return _assenze_permissions(request)
 
@@ -1584,8 +1584,8 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=501, caporeparto_legacy_id=999)
         self.assertEqual(_superior_capo_option(501, self._capi()), "superb@example.com")
 
-    @patch("assenze.views._resolve_default_capo_for_user", return_value="capoa@example.com")
-    @patch("assenze.views._capo_absent_on", return_value=False)
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._helpers._capo_absent_on", return_value=False)
     def test_no_escalation_when_capo_present(self, _mock_absent, _mock_base):
         from datetime import date
         from assenze.views import _effective_capo_option
@@ -1597,8 +1597,8 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         self.assertEqual(opt, "capoa@example.com")
         self.assertFalse(escalated)
 
-    @patch("assenze.views._resolve_default_capo_for_user", return_value="capoa@example.com")
-    @patch("assenze.views._capo_absent_on", return_value=True)
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._helpers._capo_absent_on", return_value=True)
     def test_escalates_to_superior_when_capo_absent(self, _mock_absent, _mock_base):
         from datetime import date
         from anagrafica.models import DipendenteAnagraficaAziendale
@@ -1612,8 +1612,8 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         self.assertEqual(opt, "superb@example.com")
         self.assertTrue(escalated)
 
-    @patch("assenze.views._resolve_default_capo_for_user", return_value="capoa@example.com")
-    @patch("assenze.views._capo_absent_on", return_value=True)
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._helpers._capo_absent_on", return_value=True)
     def test_fallback_no_escalation_when_superior_missing(self, _mock_absent, _mock_base):
         from datetime import date
         from assenze.views import _effective_capo_option
@@ -1646,7 +1646,7 @@ class AssenzeCapoDaAreaAziendaleTests(TestCase):
     def _capo_ids(self):
         from assenze.views import _resolve_anagrafica_hr_effective_capo_ids
 
-        with patch("assenze.views._resolve_anagrafica_employee_id_for_user", return_value=100),                 patch("assenze.views._legacy_user_id_from_anagrafica_employee_id", side_effect=lambda v: v):
+        with patch("assenze.views._helpers._resolve_anagrafica_employee_id_for_user", return_value=100),                 patch("assenze.views._helpers._legacy_user_id_from_anagrafica_employee_id", side_effect=lambda v: v):
             return _resolve_anagrafica_hr_effective_capo_ids(
                 legacy_user_id=1, email="x@e.com", username="x", name="X",
             )
@@ -1691,21 +1691,21 @@ class AssenzeSelectPaginatedTests(SimpleTestCase):
     def test_sqlite(self):
         from assenze.views import _select_paginated
 
-        with patch("assenze.views._db_vendor", return_value="sqlite"):
+        with patch("assenze.views._helpers._db_vendor", return_value="sqlite"):
             sql = _select_paginated("SELECT id FROM assenze", "ORDER BY id DESC", offset=50, limit=25)
         self.assertEqual(sql, "SELECT id FROM assenze ORDER BY id DESC LIMIT 25 OFFSET 50")
 
     def test_sql_server(self):
         from assenze.views import _select_paginated
 
-        with patch("assenze.views._db_vendor", return_value="microsoft"):
+        with patch("assenze.views._helpers._db_vendor", return_value="microsoft"):
             sql = _select_paginated("SELECT id FROM assenze", "ORDER BY id DESC", offset=50, limit=25)
         self.assertIn("OFFSET 50 ROWS FETCH NEXT 25 ROWS ONLY", sql)
 
     def test_offset_negativo_azzerato(self):
         from assenze.views import _select_paginated
 
-        with patch("assenze.views._db_vendor", return_value="sqlite"):
+        with patch("assenze.views._helpers._db_vendor", return_value="sqlite"):
             self.assertIn("OFFSET 0", _select_paginated("SELECT 1", "ORDER BY 1", offset=-10, limit=25))
 
     def test_senza_order_by_rifiutato(self):
@@ -1751,7 +1751,7 @@ class AssenzeAdminOverviewFiltriTests(SimpleTestCase):
     def _overview(self, **kwargs):
         from assenze.views import _admin_assenze_overview
 
-        with patch("assenze.views._table_exists", return_value=False), patch(
+        with patch("assenze.views._helpers._table_exists", return_value=False), patch(
             "assenze.views.cache.get", return_value=None
         ), patch("assenze.models.AssenzaSharePointOutbox.objects") as outbox:
             outbox.count.return_value = 0
@@ -1829,13 +1829,13 @@ class AssenzeBulkConsensoTests(TestCase):
             "_applica_moderazione": {"queued": True},
         }
         difetti.update(patches)
-        with patch("assenze.views._assenze_permissions", return_value=difetti["_assenze_permissions"]), patch(
-            "assenze.views._get_assenza", side_effect=lambda i: difetti["_get_assenza"]
-        ), patch("assenze.views._can_manage_record", return_value=difetti["_can_manage_record"]), patch(
-            "assenze.views._sharepoint_managed_error", return_value=difetti["_sharepoint_managed_error"]
+        with patch("assenze.views._helpers._assenze_permissions", return_value=difetti["_assenze_permissions"]), patch(
+            "assenze.views._helpers._get_assenza", side_effect=lambda i: difetti["_get_assenza"]
+        ), patch("assenze.views._helpers._can_manage_record", return_value=difetti["_can_manage_record"]), patch(
+            "assenze.views._helpers._sharepoint_managed_error", return_value=difetti["_sharepoint_managed_error"]
         ), patch(
-            "assenze.views._applica_moderazione", return_value=difetti["_applica_moderazione"]
-        ) as modera, patch("assenze.views.log_action") as log:
+            "assenze.views._helpers._applica_moderazione", return_value=difetti["_applica_moderazione"]
+        ) as modera, patch("assenze.views._helpers.log_action") as log:
             response = self.client.post(self.url, data=json.dumps(body), content_type="application/json")
         return response, modera, log
 
@@ -1890,12 +1890,12 @@ class AssenzeBulkConsensoTests(TestCase):
         """Un record non gestibile viene saltato e dichiarato, non fa fallire il resto."""
         from assenze.views import api_admin_bulk_consenso  # noqa: F401
 
-        with patch("assenze.views._assenze_permissions", return_value={"can_update_any": True}), patch(
-            "assenze.views._get_assenza", side_effect=lambda i: None if i == 2 else {"id": i}
-        ), patch("assenze.views._can_manage_record", side_effect=lambda r, row, **k: row.get("id") != 3), patch(
-            "assenze.views._sharepoint_managed_error", return_value=None
-        ), patch("assenze.views._applica_moderazione", return_value={"queued": True}), patch(
-            "assenze.views.log_action"
+        with patch("assenze.views._helpers._assenze_permissions", return_value={"can_update_any": True}), patch(
+            "assenze.views._helpers._get_assenza", side_effect=lambda i: None if i == 2 else {"id": i}
+        ), patch("assenze.views._helpers._can_manage_record", side_effect=lambda r, row, **k: row.get("id") != 3), patch(
+            "assenze.views._helpers._sharepoint_managed_error", return_value=None
+        ), patch("assenze.views._helpers._applica_moderazione", return_value={"queued": True}), patch(
+            "assenze.views._helpers.log_action"
         ):
             response = self.client.post(
                 self.url,
@@ -1930,24 +1930,24 @@ class AssenzeImpostazioniFlessibilitaViewTests(TestCase):
         self.client.force_login(self.user)
 
     def _post(self, data):
-        with patch("assenze.views.user_can_modulo_action", return_value=True), patch(
-            "assenze.views._load_dipendenti_attivi_list",
+        with patch("assenze.views._helpers.user_can_modulo_action", return_value=True), patch(
+            "assenze.views._helpers._load_dipendenti_attivi_list",
             return_value=[
                 {"id": 42, "full_name": "ROSSI MARIO"},
                 {"id": 43, "full_name": "BIANCHI LUCA"},
             ],
-        ), patch("assenze.views.log_action"):
+        ), patch("assenze.views._helpers.log_action"):
             return self.client.post(reverse("assenze_impostazioni"), data)
 
     def test_pagina_mostra_la_sezione_flessibilita(self):
         from assenze.models import FlessibilitaAbilitato
 
         FlessibilitaAbilitato.objects.create(legacy_anagrafica_id=42, nominativo="ROSSI MARIO")
-        with patch("assenze.views.user_can_modulo_action", return_value=True), patch(
-            "assenze.views._load_dipendenti_attivi_list",
+        with patch("assenze.views._helpers.user_can_modulo_action", return_value=True), patch(
+            "assenze.views._helpers._load_dipendenti_attivi_list",
             return_value=[{"id": 42, "full_name": "ROSSI MARIO"}, {"id": 43, "full_name": "BIANCHI LUCA"}],
         ), patch(
-            "assenze.views._admin_assenze_overview",
+            "assenze.views.amministrazione._admin_assenze_overview",
             return_value={
                 "tabella_ok": True,
                 "stats": {"total": 0, "in_attesa": 0, "approvate": 0, "rifiutate": 0},
@@ -2044,7 +2044,7 @@ class AssenzeFlessibilitaConfigurataTests(TestCase):
     def _valida(self, *, inizio, fine, anagrafica_id=42):
         from assenze.views import _validate_business_rules
 
-        with patch("assenze.views._count_flessibilita_week", return_value=0):
+        with patch("assenze.views._helpers._count_flessibilita_week", return_value=0):
             return _validate_business_rules(
                 tipo="Flessibilità",
                 dt_start=datetime.strptime(inizio, "%Y-%m-%d %H:%M"),
@@ -2252,10 +2252,10 @@ class AssenzeInvioRegoleDurataTests(TestCase):
         request = type("Req", (), {"user": self.user, "session": session})()
         return _build_submit_token(request, "assenze_invio")
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_durata_rapida_orario_manomesso_respinto(
         self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
     ):
@@ -2275,10 +2275,10 @@ class AssenzeInvioRegoleDurataTests(TestCase):
         mock_insert.assert_not_called()
         self.assertIn("solo la data", mock_render.call_args.kwargs["error"])
 
-    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
-    @patch("assenze.views._insert_assenza", return_value=1)
-    @patch("assenze.views._table_exists", return_value=True)
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views.richieste._insert_assenza", return_value=1)
+    @patch("assenze.views._helpers._table_exists", return_value=True)
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_permesso_oltre_8h_respinto(
         self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
     ):
@@ -2305,13 +2305,13 @@ class AssenzeRichiestaShortcutRenderTests(TestCase):
         self.user = get_user_model().objects.create_user(username="assenze-ui-user", password="pass12345")
         UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
 
-    @patch("assenze.views._template_perm_context", return_value={})
-    @patch("assenze.views._load_motivazioni_local", return_value=["Motivo"])
-    @patch("assenze.views._graph_get_motivazioni", return_value=[])
-    @patch("assenze.views._load_capi_options", return_value=[])
-    @patch("assenze.views._resolve_default_capo_for_user", return_value="")
-    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
-    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    @patch("assenze.views._helpers._template_perm_context", return_value={})
+    @patch("assenze.views._helpers._load_motivazioni_local", return_value=["Motivo"])
+    @patch("assenze.views._helpers._graph_get_motivazioni", return_value=[])
+    @patch("assenze.views._helpers._load_capi_options", return_value=[])
+    @patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="")
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_form_espone_shortcut_e_campi_orario(self, *_mocks):
         self.client.force_login(self.user)
         resp = self.client.get(reverse("assenze_richiesta"))
@@ -2358,7 +2358,7 @@ class CapoSceltoTests(TestCase):
         self.assertIsNone(views._capo_scelto_legacy_user_id(501))
         self.assertIsNone(views._capo_scelto_legacy_user_id(None))
 
-    @mock.patch("assenze.views._table_exists", return_value=True)
+    @mock.patch("assenze.views._helpers._table_exists", return_value=True)
     def test_perimetro_approvazione_esclude_le_scelte_altrui(self, _table_exists):
         from assenze import views
 
@@ -2381,9 +2381,9 @@ class CapoSceltoTests(TestCase):
         AssenzaCapoScelto.objects.create(assenza_id=900, capo_legacy_user_id=42)
         row = {"id": 900, "utente_id": 10, "capo_reparto_id": 7}
         base = {"can_update_owned": True, "view_scope_source": "ruoli", "team_utenti_ids": {10}}
-        with mock.patch.object(views, "_assenze_permissions", return_value={**base, "legacy_user_id": 7}):
+        with mock.patch.object(views._helpers, "_assenze_permissions", return_value={**base, "legacy_user_id": 7}):
             self.assertFalse(views._can_manage_record(object(), row))
-        with mock.patch.object(views, "_assenze_permissions", return_value={**base, "legacy_user_id": 42}):
+        with mock.patch.object(views._helpers, "_assenze_permissions", return_value={**base, "legacy_user_id": 42}):
             self.assertTrue(views._can_manage_record(object(), row))
-        with mock.patch.object(views, "_assenze_permissions", return_value={**base, "legacy_user_id": 7, "can_update_any": True}):
+        with mock.patch.object(views._helpers, "_assenze_permissions", return_value={**base, "legacy_user_id": 7, "can_update_any": True}):
             self.assertTrue(views._can_manage_record(object(), row))

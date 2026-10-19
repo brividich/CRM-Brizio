@@ -1,33 +1,26 @@
+"""Viste del modulo Automazioni — Regole: elenco, designer, test, import/export pacchetti, Power Automate, sorgenti, trigger SQL, contenuti.
+
+Spacchettamento di ``automazioni/views.py`` (18/10/2026): le funzioni condivise stanno in
+``_helpers`` e si chiamano ``_helpers.nome`` così i test patchano un solo punto.
+"""
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-from datetime import datetime, timedelta
-from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
-from django.db.models import Count
 from django.db import connection, transaction
 from django.db.utils import OperationalError as DjangoOperationalError, ProgrammingError as DjangoProgrammingError
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_or_acl_required
-from core.audit import log_action
-from core.public_headers import risposta_pubblica, risposta_pubblica_con_form
-from monitoring.models import AutomationJob, AutomationExecution
-from monitoring.services import detect_missed_jobs, detect_stuck_jobs
 
-from .forms import (
-    ApprovalEmailTemplateForm,
-    AutomationDeliveryEndpointForm,
+from ..forms import (
     AutomationActionFormSet,
     AutomationConditionFormSet,
     AutomationPackageDryRunForm,
@@ -35,11 +28,9 @@ from .forms import (
     AutomationRuleForm,
     AutomationRuleTestForm,
     PowerAutomateFlowUploadForm,
-    TeamsWebhookPresetForm,
     _safe_json_array_length,
 )
-from .models import (
-    ApprovalEmailTemplate,
+from ..models import (
     ApprovalEmailTemplateDeliveryMode,
     APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE,
     AutomationAction,
@@ -48,47 +39,21 @@ from .models import (
     AutomationCondition,
     AutomationConditionOperator,
     AutomationConditionValueType,
-    AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
     AutomationRule,
     AutomationRuleOperationType,
     AutomationRuleTriggerScope,
     AutomationRunLog,
     AutomationRunLogStatus,
-    AutomationDeliveryEndpoint,
-    AutomationDeliveryEndpointType,
     AutomationTableConfig,
     TeamsWebhookPreset,
-    list_teams_flow_endpoints,
     list_approval_email_templates,
 )
-from .approval_mailbox_runtime import (
-    get_approval_graph_form_defaults,
-    get_approval_graph_status,
-    get_approval_imap_form_defaults,
-    get_approval_imap_status,
-    get_approval_mailbox_backend,
-    get_default_approval_mailbox_details,
-    run_approval_poll_now,
-    run_approval_imap_poll_now,
-    save_approval_graph_settings,
-    save_approval_imap_settings,
-    MAILBOX_BACKEND_GRAPH,
-    MAILBOX_BACKEND_IMAP,
-)
-from .services import (
-    count_queue_by_status,
+from ..services import (
     discover_module_tables,
     get_action_table_whitelist,
-    get_queue_event_detail,
-    list_queue_events,
-    process_approval_decision,
-    delete_queue_event,
-    process_single_queue_event_by_id,
-    reset_queue_event_to_pending,
     run_rule,
-    stop_queue_event,
 )
-from .package_importer import (
+from ..package_importer import (
     PackageImportError,
     analyze_package_dict,
     analyze_package_bytes,
@@ -100,13 +65,11 @@ from .package_importer import (
     load_source_record_payload,
     run_package_dry_run,
 )
-from .power_automate_bridge import (
+from ..power_automate_bridge import (
     analyze_power_automate_flow_upload,
     apply_power_automate_recommended_remediation,
 )
-from .source_registry import (
-    AUTOMAZIONI_ACL_ACTIONS,
-    AUTOMAZIONI_MODULE_CODE,
+from ..source_registry import (
     build_placeholder_examples,
     get_action_mapping_fields,
     get_condition_fields,
@@ -118,8 +81,10 @@ from .source_registry import (
 )
 
 
-QUEUE_STATUS_CHOICES = ("pending", "processing", "done", "error")
-QUEUE_OPERATION_CHOICES = ("insert", "update")
+
+from . import _helpers  # noqa: E402
+
+
 RULE_BOOLEAN_FILTER_CHOICES = (("true", "Si"), ("false", "No"))
 SAMPLE_VALUE_BY_TYPE = {
     "int": 101,
@@ -133,20 +98,6 @@ FIELD_DISTINCT_VALUES_LIMIT = 24
 PACKAGE_IMPORT_SESSION_KEY = "automazioni_package_import_state"
 PACKAGE_IMPORT_RESULT_SESSION_KEY = "automazioni_package_import_result"
 POWER_AUTOMATE_CONVERTER_SESSION_KEY = "automazioni_power_automate_converter_state"
-QUEUE_POLLER_JOB_CODE = "automazioni_process_queue"
-QUEUE_POLLER_TASK_NAME = "Portale Hub Polling Mail"
-QUEUE_POLLER_LOG_PATH = Path(__file__).resolve().parents[1] / "logs" / "automation_queue.log"
-
-
-def _base_context() -> dict[str, object]:
-    return {
-        "automazioni_module_code": AUTOMAZIONI_MODULE_CODE,
-        "acl_action_contract": AUTOMAZIONI_ACL_ACTIONS,
-    }
-
-
-def _get_filter_value(request, key: str) -> str:
-    return str(request.GET.get(key) or "").strip()
 
 
 def _get_default_source_code() -> str:
@@ -154,28 +105,6 @@ def _get_default_source_code() -> str:
     if not sources:
         return ""
     return str(sources[0]["code"])
-
-
-def _json_pretty(value) -> str:
-    if value is None or value == "":
-        return ""
-    if isinstance(value, dict):
-        return json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True)
-    try:
-        parsed = json.loads(value)
-        return json.dumps(parsed, indent=2, ensure_ascii=False, sort_keys=True)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return str(value)
-
-
-def _string_value(value) -> str:
-    return str(value or "").strip()
-
-
-def _bool_value(value) -> bool:
-    if isinstance(value, bool):
-        return value
-    return _string_value(value).lower() in {"1", "true", "on", "yes"}
 
 
 def _get_package_import_state(request) -> dict[str, object]:
@@ -235,8 +164,8 @@ def _build_power_automate_approval_template_state() -> dict[str, object]:
     fallback_template_code = ""
 
     for template in templates:
-        code = _string_value(getattr(template, "code", ""))
-        delivery_mode = _string_value(getattr(template, "delivery_mode", ""))
+        code = _helpers._string_value(getattr(template, "code", ""))
+        delivery_mode = _helpers._string_value(getattr(template, "delivery_mode", ""))
         if not code:
             continue
         template_choices.append(
@@ -247,7 +176,7 @@ def _build_power_automate_approval_template_state() -> dict[str, object]:
         )
         templates_by_code[code] = {
             "code": code,
-            "name": _string_value(getattr(template, "name", "")),
+            "name": _helpers._string_value(getattr(template, "name", "")),
             "delivery_mode": delivery_mode,
         }
         if not default_template_code and delivery_mode == ApprovalEmailTemplateDeliveryMode.HYBRID:
@@ -282,14 +211,14 @@ def _build_power_automate_upload_form(
         *args,
         target_table_choices=_build_power_automate_target_table_choices(),
         approval_template_choices=list(approval_state.get("choices") or []),
-        default_approval_template_code=_string_value(approval_state.get("default_code")),
-        approval_template_warning=_string_value(approval_state.get("warning_message")),
+        default_approval_template_code=_helpers._string_value(approval_state.get("default_code")),
+        approval_template_warning=_helpers._string_value(approval_state.get("warning_message")),
         **kwargs,
     )
 
 
 def _build_power_automate_target_context(table_name: str) -> dict[str, object] | None:
-    normalized_table = _string_value(table_name)
+    normalized_table = _helpers._string_value(table_name)
     if not normalized_table:
         return None
 
@@ -332,7 +261,7 @@ def _power_automate_package_filename(record: dict[str, object], *, fallback_name
     package = package if isinstance(package, dict) else {}
     input_meta = package.get("input") if isinstance(package.get("input"), dict) else {}
     input_meta = input_meta if isinstance(input_meta, dict) else {}
-    base_name = _string_value(input_meta.get("flow_slug")) or slugify(_string_value(input_meta.get("flow_name")))
+    base_name = _helpers._string_value(input_meta.get("flow_slug")) or slugify(_helpers._string_value(input_meta.get("flow_name")))
     base_name = base_name or slugify(fallback_name) or "power-automate"
     return f"{base_name}.automation_package.json"
 
@@ -394,8 +323,8 @@ def _build_dry_run_activation_state(dry_run_result: dict[str, object] | None) ->
             continue
         serialized_rules.append(
             {
-                "portal_code": _string_value(rule_result.get("portal_code")),
-                "status": _string_value(rule_result.get("status")),
+                "portal_code": _helpers._string_value(rule_result.get("portal_code")),
+                "status": _helpers._string_value(rule_result.get("status")),
                 "is_valid": bool(rule_result.get("is_valid")),
                 "fields_exist": bool(rule_result.get("fields_exist")),
                 "actions_supported": bool(rule_result.get("actions_supported")),
@@ -403,7 +332,7 @@ def _build_dry_run_activation_state(dry_run_result: dict[str, object] | None) ->
         )
 
     return {
-        "status": _string_value(dry_run_result.get("status")),
+        "status": _helpers._string_value(dry_run_result.get("status")),
         "rules": serialized_rules,
     }
 
@@ -416,7 +345,7 @@ def _dry_run_allows_activation(
         return False
 
     importable_codes = {
-        _string_value(rule.get("portal_code"))
+        _helpers._string_value(rule.get("portal_code"))
         for rule in analysis.get("rules") or []
         if isinstance(rule, dict) and rule.get("is_importable")
     }
@@ -427,13 +356,13 @@ def _dry_run_allows_activation(
     matching_rules = [
         rule
         for rule in dry_run_activation_state.get("rules") or []
-        if isinstance(rule, dict) and _string_value(rule.get("portal_code")) in importable_codes
+        if isinstance(rule, dict) and _helpers._string_value(rule.get("portal_code")) in importable_codes
     ]
     if not matching_rules:
         return False
 
     for rule in matching_rules:
-        if _string_value(rule.get("status")) == "skipped":
+        if _helpers._string_value(rule.get("status")) == "skipped":
             return False
         if not bool(rule.get("is_valid")):
             return False
@@ -445,25 +374,25 @@ def _dry_run_allows_activation(
 
 
 def _truncate_text(value, limit: int = 120) -> str:
-    text = _string_value(value)
+    text = _helpers._string_value(value)
     if len(text) <= limit:
         return text
     return f"{text[: limit - 1].rstrip()}..."
 
 
 def _quote_table_reference(table_name: str | None) -> str:
-    normalized = _string_value(table_name)
+    normalized = _helpers._string_value(table_name)
     if not normalized:
         return ""
     return ".".join(connection.ops.quote_name(part) for part in normalized.split(".") if part)
 
 
 def _get_source_field_definition(source_code: str | None, field_name: str | None) -> dict[str, object] | None:
-    normalized_field = _string_value(field_name)
+    normalized_field = _helpers._string_value(field_name)
     if not normalized_field:
         return None
     for field in get_source_fields(source_code):
-        if _string_value(field.get("name")) == normalized_field:
+        if _helpers._string_value(field.get("name")) == normalized_field:
             return field
     return None
 
@@ -483,8 +412,8 @@ def _fetch_source_field_distinct_values(
             "message": "Campo non registrato per la sorgente selezionata.",
         }
 
-    table_name = _string_value(source_definition.get("table_name"))
-    db_column = _string_value(field_definition.get("db_column"))
+    table_name = _helpers._string_value(source_definition.get("table_name"))
+    db_column = _helpers._string_value(field_definition.get("db_column"))
     if not table_name or not db_column or bool(field_definition.get("is_virtual")):
         return {
             "queryable": False,
@@ -536,7 +465,7 @@ def _fetch_source_field_distinct_values(
     seen: set[str] = set()
     for row in rows:
         raw_value = row[0] if row else None
-        text_value = _string_value(raw_value)
+        text_value = _helpers._string_value(raw_value)
         if not text_value or text_value in seen:
             continue
         seen.add(text_value)
@@ -552,7 +481,7 @@ def _fetch_source_field_distinct_values(
 
 
 def _choice_label(choice_enum, value: str) -> str:
-    normalized = _string_value(value)
+    normalized = _helpers._string_value(value)
     if not normalized:
         return "-"
     try:
@@ -563,7 +492,7 @@ def _choice_label(choice_enum, value: str) -> str:
 
 def _field_label_map(source_code: str | None) -> dict[str, str]:
     return {
-        _string_value(field.get("name")): _string_value(field.get("label")) or _string_value(field.get("name"))
+        _helpers._string_value(field.get("name")): _helpers._string_value(field.get("label")) or _helpers._string_value(field.get("name"))
         for field in get_source_fields(source_code)
     }
 
@@ -589,7 +518,7 @@ def _build_example_payload(source_code: str | None) -> str:
 
 
 def _mutate_example_value(value, data_type: str):
-    normalized_type = _string_value(data_type)
+    normalized_type = _helpers._string_value(data_type)
     if normalized_type == "bool":
         if isinstance(value, bool):
             return not value
@@ -608,7 +537,7 @@ def _mutate_example_value(value, data_type: str):
         return "2026-03-10"
     if normalized_type == "datetime":
         return "2026-03-10T08:30:00"
-    text = _string_value(value)
+    text = _helpers._string_value(value)
     return f"{text} (prima)" if text else "valore precedente"
 
 
@@ -621,11 +550,11 @@ def _build_example_old_payload(rule: AutomationRule | None) -> dict[str, object]
         return None
 
     field_map = {
-        _string_value(field.get("name")): field
+        _helpers._string_value(field.get("name")): field
         for field in get_source_fields(rule.source_code)
     }
     candidate_fields = [
-        _string_value(rule.watched_field),
+        _helpers._string_value(rule.watched_field),
         _pick_source_field(rule.source_code, ["moderation_status", "status", "stato"], fallback_index=None),
         _pick_source_field(rule.source_code, ["assigned_to_id", "assegnato_a", "priorita", "priority"], fallback_index=None),
     ]
@@ -635,9 +564,9 @@ def _build_example_old_payload(rule: AutomationRule | None) -> dict[str, object]
     for field_name in candidate_fields:
         if field_name not in payload or field_name not in field_map:
             continue
-        payload[field_name] = _mutate_example_value(payload.get(field_name), _string_value(field_map[field_name].get("data_type")))
+        payload[field_name] = _mutate_example_value(payload.get(field_name), _helpers._string_value(field_map[field_name].get("data_type")))
         changed = True
-        if _string_value(rule.watched_field):
+        if _helpers._string_value(rule.watched_field):
             break
 
     if not changed:
@@ -645,30 +574,30 @@ def _build_example_old_payload(rule: AutomationRule | None) -> dict[str, object]
         if first_field_name and first_field_name in payload:
             payload[first_field_name] = _mutate_example_value(
                 payload.get(first_field_name),
-                _string_value(field_map[first_field_name].get("data_type")),
+                _helpers._string_value(field_map[first_field_name].get("data_type")),
             )
 
     return payload
 
 
 def _serialize_source_field_detail(field: dict[str, object], *, sample_value=None) -> dict[str, object]:
-    field_name = _string_value(field.get("name"))
-    data_type = _string_value(field.get("data_type"))
-    allowed_values = [_string_value(value) for value in (field.get("allowed_values") or []) if _string_value(value)]
+    field_name = _helpers._string_value(field.get("name"))
+    data_type = _helpers._string_value(field.get("data_type"))
+    allowed_values = [_helpers._string_value(value) for value in (field.get("allowed_values") or []) if _helpers._string_value(value)]
     return {
         "name": field_name,
-        "label": _string_value(field.get("label")) or field_name,
-        "full_label": f"{_string_value(field.get('label')) or field_name} ({field_name})",
+        "label": _helpers._string_value(field.get("label")) or field_name,
+        "full_label": f"{_helpers._string_value(field.get('label')) or field_name} ({field_name})",
         "data_type": data_type,
-        "description": _string_value(field.get("description")),
+        "description": _helpers._string_value(field.get("description")),
         "placeholder": f"{{{field_name}}}",
         "sample_value": sample_value if sample_value is not None else SAMPLE_VALUE_BY_TYPE.get(data_type, "esempio"),
         "aliases": [str(alias) for alias in (field.get("aliases") or []) if str(alias).strip()],
         "allowed_values": allowed_values,
         "has_allowed_values": bool(allowed_values),
-        "value_source_label": _string_value(field.get("value_source_label")),
-        "ui_control": _string_value(field.get("ui_control")),
-        "db_column": _string_value(field.get("db_column")),
+        "value_source_label": _helpers._string_value(field.get("value_source_label")),
+        "ui_control": _helpers._string_value(field.get("ui_control")),
+        "db_column": _helpers._string_value(field.get("db_column")),
         "is_virtual": bool(field.get("is_virtual")),
         "usable_in_trigger": bool(field.get("usable_in_trigger")),
         "usable_in_condition": bool(field.get("usable_in_condition")),
@@ -678,7 +607,7 @@ def _serialize_source_field_detail(field: dict[str, object], *, sample_value=Non
 
 
 def _pick_source_field(source_code: str | None, preferred_names: list[str], *, fallback_index: int | None = None) -> str:
-    field_names = [_string_value(field.get("name")) for field in get_source_fields(source_code)]
+    field_names = [_helpers._string_value(field.get("name")) for field in get_source_fields(source_code)]
     for preferred in preferred_names:
         if preferred in field_names:
             return preferred
@@ -689,8 +618,8 @@ def _pick_source_field(source_code: str | None, preferred_names: list[str], *, f
 
 def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, object]]:
     source = get_source_definition(source_code) or {"code": source_code or "regola", "label": source_code or "Regola"}
-    source_code_value = _string_value(source.get("code")) or "regola"
-    source_label = _string_value(source.get("label")) or "Regola"
+    source_code_value = _helpers._string_value(source.get("code")) or "regola"
+    source_label = _helpers._string_value(source.get("label")) or "Regola"
     status_field = _pick_source_field(source_code, ["moderation_status", "status", "stato", "avanzamento"], fallback_index=0)
     user_field = _pick_source_field(
         source_code,
@@ -699,11 +628,11 @@ def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, ob
     )
     title_field = _pick_source_field(source_code, ["tipo_assenza", "title", "titolo", "name", "seriale"], fallback_index=0)
     source_update_fields = [
-        _string_value(field.get("name"))
+        _helpers._string_value(field.get("name"))
         for field in get_action_mapping_fields(source_code)
         if field.get("db_column") and not field.get("is_virtual")
     ]
-    source_pk_field = _string_value((source.get("pk_field") if isinstance(source, dict) else "") or "id")
+    source_pk_field = _helpers._string_value((source.get("pk_field") if isinstance(source, dict) else "") or "id")
     source_update_field = next(
         (field_name for field_name in source_update_fields if field_name and field_name != source_pk_field),
         status_field,
@@ -2603,8 +2532,8 @@ def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, ob
 
 def _build_condition_suggestions(source_code: str | None) -> dict[str, dict[str, object]]:
     source = get_source_definition(source_code) or {"code": source_code or "regola", "label": source_code or "Regola"}
-    source_code_value = _string_value(source.get("code")) or "regola"
-    source_label = _string_value(source.get("label")) or "Regola"
+    source_code_value = _helpers._string_value(source.get("code")) or "regola"
+    source_label = _helpers._string_value(source.get("label")) or "Regola"
     status_field = _pick_source_field(source_code, ["moderation_status", "status", "stato", "avanzamento"], fallback_index=0)
     title_field = _pick_source_field(source_code, ["tipo_assenza", "title", "titolo", "name", "seriale"], fallback_index=0)
     owner_field = _pick_source_field(source_code, ["capo_reparto_id", "assigned_to_id", "created_by", "richiedente_legacy_user_id"], fallback_index=0)
@@ -3356,7 +3285,7 @@ def _describe_trigger_values(
     stop_on_first_failure: bool,
 ) -> dict[str, object]:
     source = get_source_definition(source_code) or {"code": source_code, "label": source_code or "sorgente"}
-    source_label = _string_value(source.get("label")) or _string_value(source.get("code")) or "sorgente"
+    source_label = _helpers._string_value(source.get("label")) or _helpers._string_value(source.get("code")) or "sorgente"
     operation_text = {
         AutomationRuleOperationType.INSERT: "viene creato",
         AutomationRuleOperationType.UPDATE: "viene aggiornato",
@@ -3412,7 +3341,7 @@ def _describe_condition_values(
     field_label = label_map.get(field_name, field_name or "Campo")
     expected_text = _truncate_text(expected_value or "-", 90)
     summary = f"{field_name or 'campo'} {operator or 'operatore'}"
-    if _string_value(expected_value):
+    if _helpers._string_value(expected_value):
         summary = f"{summary} {expected_text}"
     badges = []
     if compare_with_old:
@@ -3459,7 +3388,7 @@ def _describe_action_values(
 
 
 def _build_action_preview_from_form(form) -> list[str]:
-    action_type = _string_value(_bound_or_instance_value(form, "action_type"))
+    action_type = _helpers._string_value(_bound_or_instance_value(form, "action_type"))
     preview_lines: list[str]
     if action_type == AutomationActionType.SEND_EMAIL:
         recipients = _truncate_text(_bound_or_instance_value(form, "email_to"), 80) or "-"
@@ -3483,8 +3412,8 @@ def _build_action_preview_from_form(form) -> list[str]:
         ]
     elif action_type == AutomationActionType.INSERT_RECORD:
         target_table = _truncate_text(_bound_or_instance_value(form, "insert_target_table"), 80) or "-"
-        mappings_text = _string_value(_bound_or_instance_value(form, "insert_field_mappings_text"))
-        mappings_count = len([line for line in mappings_text.splitlines() if _string_value(line)])
+        mappings_text = _helpers._string_value(_bound_or_instance_value(form, "insert_field_mappings_text"))
+        mappings_count = len([line for line in mappings_text.splitlines() if _helpers._string_value(line)])
         preview_lines = [
             f"Tabella: {target_table}",
             f"Field mappings: {mappings_count}",
@@ -3492,16 +3421,16 @@ def _build_action_preview_from_form(form) -> list[str]:
     elif action_type == AutomationActionType.UPDATE_RECORD:
         target_table = _truncate_text(_bound_or_instance_value(form, "update_target_table"), 80) or "-"
         where_field = _truncate_text(_bound_or_instance_value(form, "update_where_field"), 80) or "-"
-        update_fields_text = _string_value(_bound_or_instance_value(form, "update_fields_text"))
-        update_fields_count = len([line for line in update_fields_text.splitlines() if _string_value(line)])
+        update_fields_text = _helpers._string_value(_bound_or_instance_value(form, "update_fields_text"))
+        update_fields_count = len([line for line in update_fields_text.splitlines() if _helpers._string_value(line)])
         preview_lines = [
             f"Tabella: {target_table}",
             f"Where field: {where_field}",
             f"Update fields: {update_fields_count}",
         ]
     elif action_type == AutomationActionType.UPDATE_TRIGGER_RECORD:
-        update_fields_text = _string_value(_bound_or_instance_value(form, "trigger_update_fields_text"))
-        update_fields_count = len([line for line in update_fields_text.splitlines() if _string_value(line)])
+        update_fields_text = _helpers._string_value(_bound_or_instance_value(form, "trigger_update_fields_text"))
+        update_fields_count = len([line for line in update_fields_text.splitlines() if _helpers._string_value(line)])
         preview_lines = [
             "Target: record triggerante",
             f"Update fields: {update_fields_count}",
@@ -3515,10 +3444,10 @@ def _build_action_preview_from_form(form) -> list[str]:
             f"Periodo: {start_field} -> {end_field}",
             f"Max giorni creati: {max_days}",
             f"Tipo righe create: {tipo_template}",
-            f"Deduplica: {'si' if _bool_value(_bound_or_instance_value(form, 'split_dedupe')) else 'no'}",
+            f"Deduplica: {'si' if _helpers._bool_value(_bound_or_instance_value(form, 'split_dedupe')) else 'no'}",
         ]
     elif action_type == AutomationActionType.DELAY_SCHEDULE:
-        delay_mode = _string_value(_bound_or_instance_value(form, "delay_mode")) or "relative"
+        delay_mode = _helpers._string_value(_bound_or_instance_value(form, "delay_mode")) or "relative"
         if delay_mode == "until":
             preview_lines = [f"Fino a: {_truncate_text(_bound_or_instance_value(form, 'delay_until_template'), 100) or '-'}"]
         else:
@@ -3541,22 +3470,22 @@ def _build_action_preview_from_form(form) -> list[str]:
             f"Summary: {summary}",
         ]
     elif action_type == AutomationActionType.SEND_APPROVAL:
-        delivery_mode = _string_value(_bound_or_instance_value(form, "approval_delivery_mode")) or "email"
+        delivery_mode = _helpers._string_value(_bound_or_instance_value(form, "approval_delivery_mode")) or "email"
         email_to = _truncate_text(_bound_or_instance_value(form, "approval_to_template"), 80) or "-"
         teams_recipient = _truncate_text(_bound_or_instance_value(form, "approval_teams_recipient_email_template"), 80) or "-"
         subject = _truncate_text(_bound_or_instance_value(form, "approval_subject_template"), 90) or "-"
         approved_update_count = len(
             [
                 line
-                for line in _string_value(_bound_or_instance_value(form, "approval_approved_update_fields_text")).splitlines()
-                if _string_value(line)
+                for line in _helpers._string_value(_bound_or_instance_value(form, "approval_approved_update_fields_text")).splitlines()
+                if _helpers._string_value(line)
             ]
         )
         rejected_update_count = len(
             [
                 line
-                for line in _string_value(_bound_or_instance_value(form, "approval_rejected_update_fields_text")).splitlines()
-                if _string_value(line)
+                for line in _helpers._string_value(_bound_or_instance_value(form, "approval_rejected_update_fields_text")).splitlines()
+                if _helpers._string_value(line)
             ]
         )
         approved_actions_count = approved_update_count + _safe_json_array_length(
@@ -3608,7 +3537,7 @@ def _build_action_preview_from_form(form) -> list[str]:
         branch_field = _truncate_text(_bound_or_instance_value(form, "branch_condition_field"), 60) or "-"
         branch_operator = _truncate_text(_bound_or_instance_value(form, "branch_condition_operator"), 40) or "-"
         branch_value = _truncate_text(_bound_or_instance_value(form, "branch_condition_value"), 60)
-        compare_with_old = _bool_value(_bound_or_instance_value(form, "branch_compare_with_old"))
+        compare_with_old = _helpers._bool_value(_bound_or_instance_value(form, "branch_compare_with_old"))
         condition_line = f"If: {branch_field} {branch_operator}".strip()
         if branch_value:
             condition_line += f" {branch_value}"
@@ -3622,10 +3551,10 @@ def _build_action_preview_from_form(form) -> list[str]:
     else:
         preview_lines = ["Configurazione non disponibile."]
 
-    run_if_field = _string_value(_bound_or_instance_value(form, "run_if_field_name"))
-    run_if_operator = _string_value(_bound_or_instance_value(form, "run_if_operator"))
+    run_if_field = _helpers._string_value(_bound_or_instance_value(form, "run_if_field_name"))
+    run_if_operator = _helpers._string_value(_bound_or_instance_value(form, "run_if_operator"))
     run_if_expected = _truncate_text(_bound_or_instance_value(form, "run_if_expected_value"), 80)
-    run_if_negate = _bool_value(_bound_or_instance_value(form, "run_if_negate"))
+    run_if_negate = _helpers._bool_value(_bound_or_instance_value(form, "run_if_negate"))
     if any([run_if_field, run_if_operator, run_if_expected, run_if_negate]):
         branch_line = "Branch: "
         if run_if_negate:
@@ -3640,14 +3569,14 @@ def _build_action_preview_from_form(form) -> list[str]:
 def _build_condition_entries(condition_formset, *, source_code: str) -> list[dict[str, object]]:
     entries = []
     for index, form in enumerate(condition_formset.forms, start=1):
-        marked_for_delete = _bool_value(form["DELETE"].value()) if "DELETE" in form.fields else False
-        order = _string_value(_bound_or_instance_value(form, "order"))
-        field_name = _string_value(_bound_or_instance_value(form, "field_name"))
-        operator = _string_value(_bound_or_instance_value(form, "operator"))
-        expected_value = _string_value(_bound_or_instance_value(form, "expected_value"))
-        value_type = _string_value(_bound_or_instance_value(form, "value_type"))
-        compare_with_old = _bool_value(_bound_or_instance_value(form, "compare_with_old"))
-        is_enabled = _bool_value(_bound_or_instance_value(form, "is_enabled"))
+        marked_for_delete = _helpers._bool_value(form["DELETE"].value()) if "DELETE" in form.fields else False
+        order = _helpers._string_value(_bound_or_instance_value(form, "order"))
+        field_name = _helpers._string_value(_bound_or_instance_value(form, "field_name"))
+        operator = _helpers._string_value(_bound_or_instance_value(form, "operator"))
+        expected_value = _helpers._string_value(_bound_or_instance_value(form, "expected_value"))
+        value_type = _helpers._string_value(_bound_or_instance_value(form, "value_type"))
+        compare_with_old = _helpers._bool_value(_bound_or_instance_value(form, "compare_with_old"))
+        is_enabled = _helpers._bool_value(_bound_or_instance_value(form, "is_enabled"))
         descriptor = _describe_condition_values(
             source_code=source_code,
             order=order,
@@ -3685,14 +3614,14 @@ def _build_condition_entries(condition_formset, *, source_code: str) -> list[dic
 def _build_action_entries(action_formset) -> list[dict[str, object]]:
     entries = []
     for index, form in enumerate(action_formset.forms, start=1):
-        marked_for_delete = _bool_value(form["DELETE"].value()) if "DELETE" in form.fields else False
-        order = _string_value(_bound_or_instance_value(form, "order"))
-        action_type = _string_value(_bound_or_instance_value(form, "action_type"))
-        is_enabled = _bool_value(_bound_or_instance_value(form, "is_enabled"))
-        description = _string_value(_bound_or_instance_value(form, "description"))
-        run_if_field = _string_value(_bound_or_instance_value(form, "run_if_field_name"))
-        run_if_operator = _string_value(_bound_or_instance_value(form, "run_if_operator"))
-        run_if_negate = _bool_value(_bound_or_instance_value(form, "run_if_negate"))
+        marked_for_delete = _helpers._bool_value(form["DELETE"].value()) if "DELETE" in form.fields else False
+        order = _helpers._string_value(_bound_or_instance_value(form, "order"))
+        action_type = _helpers._string_value(_bound_or_instance_value(form, "action_type"))
+        is_enabled = _helpers._bool_value(_bound_or_instance_value(form, "is_enabled"))
+        description = _helpers._string_value(_bound_or_instance_value(form, "description"))
+        run_if_field = _helpers._string_value(_bound_or_instance_value(form, "run_if_field_name"))
+        run_if_operator = _helpers._string_value(_bound_or_instance_value(form, "run_if_operator"))
+        run_if_negate = _helpers._bool_value(_bound_or_instance_value(form, "run_if_negate"))
         preview_lines = _build_action_preview_from_form(form)
         descriptor = _describe_action_values(
             order=order,
@@ -3748,7 +3677,7 @@ def _build_human_rule_summary(trigger_descriptor: dict[str, object], condition_e
     active_actions = [
         entry
         for entry in action_entries
-        if _string_value(entry["descriptor"]["action_label"]) != "-" and not entry["marked_for_delete"]
+        if _helpers._string_value(entry["descriptor"]["action_label"]) != "-" and not entry["marked_for_delete"]
     ]
     if active_conditions:
         condition_line = "E tutte le condizioni risultano vere"
@@ -3779,7 +3708,7 @@ def _reorder_rule_items(*, rule: AutomationRule, model, ordered_ids: list[int]) 
 def _extract_ordered_ids(request) -> list[int]:
     raw_ids = request.POST.getlist("ordered_ids") or request.POST.getlist("ordered_ids[]")
     if not raw_ids:
-        payload = _string_value(request.POST.get("ordered_ids_json"))
+        payload = _helpers._string_value(request.POST.get("ordered_ids_json"))
         if payload:
             raw_ids = json.loads(payload)
     try:
@@ -3800,8 +3729,8 @@ def _build_all_source_fields_json() -> dict[str, object]:
         action_mapping_fields = get_action_mapping_fields(code)
         result[code] = {
             "code": code,
-            "label": _string_value(source.get("label")),
-            "description": _string_value(source.get("description")),
+            "label": _helpers._string_value(source.get("label")),
+            "description": _helpers._string_value(source.get("description")),
             "supported_operations": [str(value) for value in (source.get("supported_operations") or [])],
             "trigger": [
                 {"name": str(f["name"]), "label": f"{f['label']} ({f['name']})"}
@@ -3812,18 +3741,18 @@ def _build_all_source_fields_json() -> dict[str, object]:
                 for f in condition_fields
             ],
             "all": [
-                _serialize_source_field_detail(field, sample_value=example_payload.get(_string_value(field.get("name"))))
+                _serialize_source_field_detail(field, sample_value=example_payload.get(_helpers._string_value(field.get("name"))))
                 for field in all_fields
             ],
             "template": [
-                _serialize_source_field_detail(field, sample_value=example_payload.get(_string_value(field.get("name"))))
+                _serialize_source_field_detail(field, sample_value=example_payload.get(_helpers._string_value(field.get("name"))))
                 for field in template_fields
             ],
             "action_mapping": [
-                _serialize_source_field_detail(field, sample_value=example_payload.get(_string_value(field.get("name"))))
+                _serialize_source_field_detail(field, sample_value=example_payload.get(_helpers._string_value(field.get("name"))))
                 for field in action_mapping_fields
             ],
-            "placeholder_examples": [f"{{{_string_value(field.get('name'))}}}" for field in template_fields],
+            "placeholder_examples": [f"{{{_helpers._string_value(field.get('name'))}}}" for field in template_fields],
             "example_payload": example_payload,
         }
     return result
@@ -3864,10 +3793,10 @@ def _get_rule_source_code(request, rule: AutomationRule | None = None) -> str:
 
 def _build_rule_filters_context(request) -> dict[str, str]:
     return {
-        "source_code": _get_filter_value(request, "source_code"),
-        "operation_type": _get_filter_value(request, "operation_type"),
-        "is_active": _get_filter_value(request, "is_active"),
-        "is_draft": _get_filter_value(request, "is_draft"),
+        "source_code": _helpers._get_filter_value(request, "source_code"),
+        "operation_type": _helpers._get_filter_value(request, "operation_type"),
+        "is_active": _helpers._get_filter_value(request, "is_active"),
+        "is_draft": _helpers._get_filter_value(request, "is_draft"),
     }
 
 
@@ -3894,9 +3823,9 @@ def _build_rule_form_context(
     selected_source_code: str,
     rule: AutomationRule | None = None,
 ):
-    teams_flow_endpoints, teams_flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=True)
+    teams_flow_endpoints, teams_flow_endpoints_warning = _helpers._get_teams_flow_endpoints_context(active_only=True)
     return {
-        **_base_context(),
+        **_helpers._base_context(),
         **_build_source_catalog_context(selected_source_code),
         "rule_form": rule_form,
         "condition_formset": condition_formset,
@@ -3917,100 +3846,6 @@ def _get_active_teams_presets():
     return list(TeamsWebhookPreset.objects.filter(is_active=True).order_by("name"))
 
 
-def _get_active_teams_flow_endpoints():
-    """Restituisce la lista degli endpoint Teams Flow attivi per i template."""
-    endpoints, _warning = _get_teams_flow_endpoints_context(active_only=True)
-    return endpoints
-
-
-def _get_teams_flow_endpoints_context(*, active_only: bool | None = None) -> tuple[list[AutomationDeliveryEndpoint], str]:
-    endpoints, unavailable = list_teams_flow_endpoints(active_only=active_only)
-    return (
-        endpoints,
-        AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE if unavailable else "",
-    )
-
-
-def _build_teams_delivery_context(
-    *,
-    preset_form=None,
-    preset_form_mode: str = "",
-    edit_preset: TeamsWebhookPreset | None = None,
-    flow_form=None,
-    flow_form_mode: str = "",
-    edit_flow_endpoint: AutomationDeliveryEndpoint | None = None,
-) -> dict[str, object]:
-    flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
-    return {
-        **_base_context(),
-        "presets": list(TeamsWebhookPreset.objects.order_by("name")),
-        "flow_endpoints": flow_endpoints,
-        "flow_endpoints_warning": flow_endpoints_warning,
-        "preset_form": preset_form,
-        "preset_form_mode": preset_form_mode,
-        "edit_preset": edit_preset,
-        "flow_form": flow_form,
-        "flow_form_mode": flow_form_mode,
-        "edit_flow_endpoint": edit_flow_endpoint,
-    }
-
-
-def _safe_runlog_count() -> int | None:
-    """Numero totale di RunLog in tabella (per contesto in UI). None se non leggibile."""
-    try:
-        return AutomationRunLog.objects.count()
-    except Exception:
-        return None
-
-
-def _build_automation_settings_context(
-    *,
-    poll_result=None,
-    approval_imap_form=None,
-    approval_graph_form=None,
-) -> dict[str, object]:
-    from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY
-    from .scadenze_config import get_scadenze_config
-    from .runlog_retention import (
-        get_retention_days,
-        DEFAULT_RETENTION_DAYS,
-        RETENTION_MIN,
-        RETENTION_MAX,
-    )
-
-    mailbox_details = get_default_approval_mailbox_details()
-    active_backend = get_approval_mailbox_backend()
-    return {
-        **_base_context(),
-        # ── Retention RunLog (GDPR) ────────────────────────────────────────
-        "runlog_retention_days": get_retention_days(),
-        "runlog_retention_default": DEFAULT_RETENTION_DAYS,
-        "runlog_retention_min": RETENTION_MIN,
-        "runlog_retention_max": RETENTION_MAX,
-        "runlog_total_count": _safe_runlog_count(),
-        # ── Report scadenze (visite mediche / contratti) ──────────────────
-        "scadenze_config": get_scadenze_config(),
-        # ── Graph (nuovo backend) ──────────────────────────────────────────
-        "approval_graph_status": get_approval_graph_status(),
-        "approval_graph_form": approval_graph_form or get_approval_graph_form_defaults(),
-        # ── IMAP (retrocompat) ────────────────────────────────────────────
-        "approval_imap_status": get_approval_imap_status(),
-        "approval_imap_form": approval_imap_form or get_approval_imap_form_defaults(),
-        # ── Backend attivo ────────────────────────────────────────────────
-        "approval_mailbox_backend": active_backend,
-        "approval_mailbox_backend_is_graph": active_backend == MAILBOX_BACKEND_GRAPH,
-        "approval_mailbox_backend_is_imap": active_backend == MAILBOX_BACKEND_IMAP,
-        # ── Risultato ultimo poll ─────────────────────────────────────────
-        # Separati per evitare che il risultato di un backend appaia nel pannello dell'altro.
-        "approval_graph_result": poll_result if active_backend == MAILBOX_BACKEND_GRAPH else None,
-        "approval_imap_result": poll_result if active_backend == MAILBOX_BACKEND_IMAP else None,
-        "approval_mailbox_site_config_key": APPROVAL_MAILBOX_SITE_CONFIG_KEY,
-        "approval_mailbox_site_config_value": (
-            str(mailbox_details["value"] or "") if mailbox_details.get("source") == "site_config" else ""
-        ),
-    }
-
-
 def _build_rule_designer_context(
     *,
     rule: AutomationRule | None,
@@ -4019,33 +3854,33 @@ def _build_rule_designer_context(
     action_formset,
     selected_source_code: str,
 ):
-    source_code = _string_value(rule_form["source_code"].value() if "source_code" in rule_form.fields else selected_source_code) or selected_source_code
+    source_code = _helpers._string_value(rule_form["source_code"].value() if "source_code" in rule_form.fields else selected_source_code) or selected_source_code
     trigger_descriptor = _describe_trigger_values(
         source_code=source_code,
-        operation_type=_string_value(_bound_or_instance_value(rule_form, "operation_type")),
-        trigger_scope=_string_value(_bound_or_instance_value(rule_form, "trigger_scope")),
-        watched_field=_string_value(_bound_or_instance_value(rule_form, "watched_field")),
-        is_active=_bool_value(_bound_or_instance_value(rule_form, "is_active")),
-        is_draft=_bool_value(_bound_or_instance_value(rule_form, "is_draft")),
-        stop_on_first_failure=_bool_value(_bound_or_instance_value(rule_form, "stop_on_first_failure")),
+        operation_type=_helpers._string_value(_bound_or_instance_value(rule_form, "operation_type")),
+        trigger_scope=_helpers._string_value(_bound_or_instance_value(rule_form, "trigger_scope")),
+        watched_field=_helpers._string_value(_bound_or_instance_value(rule_form, "watched_field")),
+        is_active=_helpers._bool_value(_bound_or_instance_value(rule_form, "is_active")),
+        is_draft=_helpers._bool_value(_bound_or_instance_value(rule_form, "is_draft")),
+        stop_on_first_failure=_helpers._bool_value(_bound_or_instance_value(rule_form, "stop_on_first_failure")),
     )
     condition_entries = _build_condition_entries(condition_formset, source_code=source_code)
     action_entries = _build_action_entries(action_formset)
     binding = getattr(rule, "managed_flow", None)
     if binding:
-        from .schedules import describe_cadence
+        from ..schedules import describe_cadence
         label = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
         when = describe_cadence({"schedule_type": binding.schedule_type, "minutes": binding.minutes, "cron": binding.cron}) if binding.kind == "schedule" else rule.description
         trigger_descriptor.update(operation_label=label, trigger_scope_label=label, headline=when,
                                   natural_when="QUANDO " + when, natural_scope="SE le condizioni sono soddisfatte", scope_detail=label)
     flow_nodes = _build_flow_nodes(rule, trigger_descriptor, condition_entries, action_entries)
-    teams_flow_endpoints, teams_flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=True)
-    from .flow_forms import ManagedScheduleForm
+    teams_flow_endpoints, teams_flow_endpoints_warning = _helpers._get_teams_flow_endpoints_context(active_only=True)
+    from ..flow_forms import ManagedScheduleForm
     binding = getattr(rule, "managed_flow", None)
     if binding:
         trigger_descriptor["label"] = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
     return {
-        **_base_context(),
+        **_helpers._base_context(),
         **_build_source_catalog_context(source_code),
         "managed_binding": binding,
         "managed_schedule_form": ManagedScheduleForm(instance=binding) if binding and binding.kind == "schedule" else None,
@@ -4055,7 +3890,7 @@ def _build_rule_designer_context(
         "rule_form": rule_form,
         "condition_formset": condition_formset,
         "action_formset": action_formset,
-        "rule_name_value": _string_value(_bound_or_instance_value(rule_form, "name")) or getattr(rule, "name", "") or "Nuova regola",
+        "rule_name_value": _helpers._string_value(_bound_or_instance_value(rule_form, "name")) or getattr(rule, "name", "") or "Nuova regola",
         "trigger_descriptor": trigger_descriptor,
         "condition_entries": condition_entries,
         "action_entries": action_entries,
@@ -4310,7 +4145,7 @@ def sorgenti_page(request):
         source["operations_display"] = ", ".join(source.get("supported_operations", []))
         sources.append(source)
     context = {
-        **_base_context(),
+        **_helpers._base_context(),
         "sources": sources,
     }
     return render(request, "automazioni/pages/sorgenti.html", context)
@@ -4334,37 +4169,10 @@ def contenuti_page(request):
         )
 
     context = {
-        **_base_context(),
+        **_helpers._base_context(),
         "sources": sources,
     }
     return render(request, "automazioni/pages/contenuti.html", context)
-
-
-@legacy_admin_or_acl_required("automazioni", "event_notifications_page")
-@require_GET
-def event_notifications_page(request):
-    """Flussi su evento con collegamento al designer e stato corrente."""
-    from .event_notifications import get_event_notifications
-
-    rows = get_event_notifications()
-    context = {
-        **_base_context(),
-        "rows": rows,
-        "totale": len(rows),
-    }
-    # Mail del modulo anomalie: stesso pannello di Configurazione → Notifiche,
-    # stessi dati (nessuna copia). Un errore qui non deve rompere la pagina.
-    try:
-        from anomalie.notifiche import stato_pannello
-        from anomalie.views import _can_manage_anomalie_config
-
-        context["notifiche"] = stato_pannello()
-        context["notifiche_modificabile"] = _can_manage_anomalie_config(request)
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).warning("Pannello notifiche anomalie non disponibile", exc_info=True)
-    return render(request, "automazioni/pages/notifiche_sistema.html", context)
 
 
 @legacy_admin_or_acl_required("automazioni", "rule_list_page")
@@ -4381,7 +4189,7 @@ def rule_list_page(request):
     # Group rules by source_code preserving registry order
     from collections import defaultdict
     groups: dict[str, list] = defaultdict(list)
-    from .managed_flows import catalog
+    from ..managed_flows import catalog
     native_catalog = catalog()
     # Mini-mappa flusso (blocco 9): prefetch azioni e condizioni per evitare N+1
     # quando costruiamo l'anteprima visiva inline accanto al nome.
@@ -4430,7 +4238,7 @@ def rule_list_page(request):
             })
 
     context = {
-        **_base_context(),
+        **_helpers._base_context(),
         "rules_by_source": rules_by_source,
         "total_rules": sum(len(g["rules"]) for g in rules_by_source),
         "filters": filters,
@@ -4449,13 +4257,13 @@ def _build_power_automate_converter_context(
     analysis: dict[str, object] | None,
 ) -> dict[str, object]:
     return {
-        **_base_context(),
+        **_helpers._base_context(),
         "upload_form": upload_form,
         "converter_record": converter_record,
         "converter_diagram": _prepare_power_automate_diagram(converter_record),
         "approval_conversion": ((converter_record or {}).get("package") or {}).get("approval_conversion") if converter_record else None,
         "analysis": analysis,
-        "package_pretty": _json_pretty((converter_record or {}).get("package")) if converter_record else "",
+        "package_pretty": _helpers._json_pretty((converter_record or {}).get("package")) if converter_record else "",
         "status_label_map": {
             "ready": "Pronto all'import",
             "partial": "Import parziale",
@@ -4473,18 +4281,18 @@ def rule_power_automate_convert_page(request):
     state = _get_power_automate_converter_state(request)
     converter_record = state.get("record") if isinstance(state.get("record"), dict) else None
     analysis = state.get("analysis") if isinstance(state.get("analysis"), dict) else None
-    selected_target_table = _string_value(state.get("selected_target_table"))
-    selected_approval_template_code = _string_value(state.get("selected_approval_template_code"))
+    selected_target_table = _helpers._string_value(state.get("selected_target_table"))
+    selected_approval_template_code = _helpers._string_value(state.get("selected_approval_template_code"))
     upload_form = _build_power_automate_upload_form(
         initial={
             "target_table": selected_target_table,
-            "approval_email_template_code": selected_approval_template_code or _string_value(approval_template_state.get("default_code")),
+            "approval_email_template_code": selected_approval_template_code or _helpers._string_value(approval_template_state.get("default_code")),
         },
         approval_template_state=approval_template_state,
     )
 
     if request.method == "POST":
-        action = _string_value(request.POST.get("action"))
+        action = _helpers._string_value(request.POST.get("action"))
 
         if action == "reset":
             _clear_power_automate_converter_state(request)
@@ -4499,10 +4307,10 @@ def rule_power_automate_convert_page(request):
             )
             if upload_form.is_valid():
                 uploaded_file = upload_form.cleaned_data["flow_file"]
-                selected_target_table = _string_value(upload_form.cleaned_data.get("target_table"))
-                selected_approval_template_code = _string_value(
+                selected_target_table = _helpers._string_value(upload_form.cleaned_data.get("target_table"))
+                selected_approval_template_code = _helpers._string_value(
                     upload_form.cleaned_data.get("approval_email_template_code")
-                ) or _string_value(approval_template_state.get("default_code"))
+                ) or _helpers._string_value(approval_template_state.get("default_code"))
                 target_context = _build_power_automate_target_context(selected_target_table)
                 selected_approval_template = (
                     approval_template_state.get("templates_by_code", {}) or {}
@@ -4659,7 +4467,7 @@ def _build_package_import_context(
     dry_run_activation_state = state.get("dry_run_activation_state")
     analysis_hash = str((analysis or {}).get("package_hash") or "").strip()
     return {
-        **_base_context(),
+        **_helpers._base_context(),
         "upload_form": upload_form,
         "analysis": analysis,
         "dry_run_form": dry_run_form,
@@ -4698,7 +4506,7 @@ def rule_package_import_page(request):
     dry_run_result = None
 
     if request.method == "POST":
-        action = _string_value(request.POST.get("action"))
+        action = _helpers._string_value(request.POST.get("action"))
 
         if action == "reset":
             _clear_package_import_state(request)
@@ -4775,7 +4583,7 @@ def rule_package_import_page(request):
             if str(state.get("dry_run_completed_hash") or "") != str(analysis.get("package_hash") or ""):
                 messages.error(request, "Esegui prima il test al volo del package corrente.")
                 return redirect("admin_portale:automazioni_rule_import_package")
-            activate_after_import = _bool_value(request.POST.get("activate_after_import"))
+            activate_after_import = _helpers._bool_value(request.POST.get("activate_after_import"))
             if activate_after_import and not _dry_run_allows_activation(
                 analysis,
                 state.get("dry_run_activation_state") if isinstance(state.get("dry_run_activation_state"), dict) else {},
@@ -4827,7 +4635,7 @@ def rule_package_import_result_page(request):
         messages.info(request, "Nessun risultato import disponibile.")
         return redirect("admin_portale:automazioni_rule_import_package")
     context = {
-        **_base_context(),
+        **_helpers._base_context(),
         "result": result,
     }
     return render(request, "automazioni/pages/package_import_result.html", context)
@@ -4863,7 +4671,7 @@ def rule_detail_page(request, rule_id: int):
         {"label": rule.name, "url": None},
     ]
     context = {
-        **_base_context(),
+        **_helpers._base_context(),
         "rule": rule,
         "conditions": conditions,
         "actions": actions,
@@ -5130,7 +4938,7 @@ def rule_delete_view(request, rule_id: int):
     # Le condizioni/azioni hanno FK on_delete=CASCADE: vengono rimosse con la regola.
     rule.delete()
     try:
-        log_action(
+        _helpers.log_action(
             request,
             azione="automazione_regola_eliminata",
             modulo="automazioni",
@@ -5217,7 +5025,7 @@ def rule_test_page(request, rule_id: int):
         )
 
     context = {
-        **_base_context(),
+        **_helpers._base_context(),
         **_build_source_catalog_context(rule.source_code),
         "enable_smart_field_panel": True,
         "rule": rule,
@@ -5229,536 +5037,6 @@ def rule_test_page(request, rule_id: int):
         "sample_old_payload_json": example_old_payload_json,
     }
     return render(request, "automazioni/pages/rule_test.html", context)
-
-
-def _format_display_datetime(value) -> str:
-    if not value:
-        return "-"
-    parsed = value
-    if isinstance(value, str):
-        raw = value.strip()
-        if not raw:
-            return "-"
-        try:
-            parsed = datetime.fromisoformat(raw)
-        except ValueError:
-            return raw
-    if isinstance(parsed, datetime):
-        if parsed.year < 1901:
-            return "-"
-        current_tz = timezone.get_current_timezone()
-        if timezone.is_naive(parsed):
-            # Alcuni backend/driver restituiscono datetime naive pur usando USE_TZ.
-            # Li trattiamo come orario del progetto prima della formattazione finale.
-            parsed = timezone.make_aware(parsed, current_tz)
-        parsed = timezone.localtime(parsed, current_tz)
-        return parsed.strftime("%d-%m-%Y %H:%M:%S")
-    return str(parsed)
-
-
-def _run_powershell_json(script: str) -> dict[str, object]:
-    if os.name != "nt":
-        return {"ok": False, "error": "Task Scheduler disponibile solo su Windows."}
-    try:
-        completed = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-            capture_output=True,
-            text=True,
-            timeout=8,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"ok": False, "error": str(exc)}
-
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-    if completed.returncode != 0:
-        return {"ok": False, "error": stderr or stdout or f"exit code {completed.returncode}"}
-    if not stdout:
-        return {"ok": False, "error": "Il comando non ha restituito output JSON."}
-    try:
-        data = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        return {"ok": False, "error": f"JSON non valido dal comando PowerShell: {exc}"}
-    return {"ok": True, "data": data if isinstance(data, dict) else {}}
-
-
-def _build_queue_poller_task_snapshot() -> dict[str, object]:
-    snapshot = {
-        "task_name": QUEUE_POLLER_TASK_NAME,
-        "task_path": "\\",
-        "task_exists": False,
-        "task_state": "missing",
-        "task_state_label": "Non registrato",
-        "task_last_run_label": "-",
-        "task_next_run_label": "-",
-        "task_last_result_label": "-",
-        "task_message": "Il task Windows locale non e registrato.",
-    }
-    escaped_name = QUEUE_POLLER_TASK_NAME.replace("'", "''")
-    ps_query = f"""
-$task = Get-ScheduledTask -TaskName '{escaped_name}' -ErrorAction SilentlyContinue
-if ($null -eq $task) {{
-  [pscustomobject]@{{
-    exists = $false
-    task_name = '{escaped_name}'
-    task_path = '\\'
-    state = 'missing'
-    description = ''
-    last_run_time = ''
-    next_run_time = ''
-    last_task_result = ''
-  }} | ConvertTo-Json -Compress
-  exit 0
-}}
-$info = Get-ScheduledTaskInfo -TaskName '{escaped_name}' -ErrorAction SilentlyContinue
-[pscustomobject]@{{
-  exists = $true
-  task_name = [string]$task.TaskName
-  task_path = [string]$task.TaskPath
-  state = [string]$task.State
-  description = [string]$task.Description
-  last_run_time = $(if ($info -and $info.LastRunTime -gt [datetime]'1900-01-01') {{ $info.LastRunTime.ToString('o') }} else {{ '' }})
-  next_run_time = $(if ($info -and $info.NextRunTime -gt [datetime]'1900-01-01') {{ $info.NextRunTime.ToString('o') }} else {{ '' }})
-  last_task_result = $(if ($info) {{ [string]$info.LastTaskResult }} else {{ '' }})
-}} | ConvertTo-Json -Compress
-"""
-    ps_result = _run_powershell_json(ps_query)
-    if not ps_result.get("ok"):
-        snapshot["task_state"] = "unknown"
-        snapshot["task_state_label"] = "Stato non leggibile"
-        snapshot["task_message"] = str(ps_result.get("error") or "Impossibile interrogare Task Scheduler.")
-        return snapshot
-
-    data = ps_result.get("data") or {}
-    state_code = str(data.get("state") or "missing").strip().lower()
-    state_labels = {
-        "missing": "Non registrato",
-        "ready": "Pronto",
-        "running": "In esecuzione",
-        "queued": "In coda",
-        "disabled": "Disabilitato",
-        "unknown": "Sconosciuto",
-    }
-    last_result = str(data.get("last_task_result") or "").strip()
-    snapshot.update(
-        {
-            "task_name": str(data.get("task_name") or QUEUE_POLLER_TASK_NAME),
-            "task_path": str(data.get("task_path") or "\\"),
-            "task_exists": bool(data.get("exists")),
-            "task_state": state_code,
-            "task_state_label": state_labels.get(state_code, state_code.upper() or "Sconosciuto"),
-            "task_last_run_label": _format_display_datetime(data.get("last_run_time")),
-            "task_next_run_label": _format_display_datetime(data.get("next_run_time")),
-            "task_last_result_label": "0 (ultimo avvio ok)" if last_result == "0" else (last_result or "-"),
-        }
-    )
-    if snapshot["task_exists"]:
-        snapshot["task_message"] = (
-            "Task registrato localmente."
-            if snapshot["task_state"] in {"ready", "running", "queued"}
-            else "Task presente ma non in stato operativo."
-        )
-    return snapshot
-
-
-def _build_queue_poller_log_snapshot() -> dict[str, object]:
-    exists = QUEUE_POLLER_LOG_PATH.exists()
-    size_label = "-"
-    last_write_label = "-"
-    if exists:
-        stat = QUEUE_POLLER_LOG_PATH.stat()
-        size_kb = stat.st_size / 1024 if stat.st_size else 0
-        size_label = f"{size_kb:.1f} KB"
-        last_write_label = _format_display_datetime(datetime.fromtimestamp(stat.st_mtime))
-    return {
-        "log_path": str(QUEUE_POLLER_LOG_PATH),
-        "log_exists": exists,
-        "log_size_label": size_label,
-        "log_last_write_label": last_write_label,
-    }
-
-
-def _build_queue_poller_health_snapshot() -> dict[str, object]:
-    now = timezone.now()
-    task_snapshot = _build_queue_poller_task_snapshot()
-    log_snapshot = _build_queue_poller_log_snapshot()
-    job = AutomationJob.objects.filter(code=QUEUE_POLLER_JOB_CODE).first()
-    executions = list(job.executions.order_by("-started_at", "-id")[:10]) if job else []
-    last_execution = executions[0] if executions else None
-    consecutive_failures = 0
-    for execution in executions:
-        if execution.status != AutomationExecution.Status.FAILED:
-            break
-        consecutive_failures += 1
-
-    missing_alert = None
-    stuck_alert = None
-    next_expected_at_label = "-"
-    if job is not None:
-        missing_alert = {
-            item["job"].pk: item for item in detect_missed_jobs(now=now, create_issues=False)
-        }.get(job.pk)
-        stuck_alert = {
-            item["job"].pk: item for item in detect_stuck_jobs(now=now, create_issues=False)
-        }.get(job.pk)
-        if job.expected_max_interval_minutes:
-            reference_time = last_execution.started_at if last_execution else job.created_at
-            next_expected_at_label = _format_display_datetime(
-                reference_time + timedelta(minutes=int(job.expected_max_interval_minutes))
-            )
-
-    summary_state = "healthy"
-    summary_label = "Attivo"
-    summary_message = "Task registrato e job monitorato nei tempi attesi."
-    if not task_snapshot["task_exists"]:
-        summary_state = "error"
-        summary_label = "Task mancante"
-        summary_message = (
-            "Gli eventi possono restare pending perche il consumatore automatico non e registrato sul server."
-        )
-    elif task_snapshot["task_state"] == "disabled":
-        summary_state = "error"
-        summary_label = "Task disabilitato"
-        summary_message = "Il task Windows esiste ma e disabilitato, quindi la queue non viene consumata."
-    elif stuck_alert:
-        summary_state = "error"
-        summary_label = "Worker bloccato"
-        summary_message = "L'ultima esecuzione risulta oltre la durata massima attesa."
-    elif missing_alert:
-        overdue_minutes = int(missing_alert.get("overdue_minutes") or 0)
-        summary_state = "warning"
-        summary_label = "In ritardo"
-        summary_message = f"Il job non risulta eseguito nei tempi attesi ed e in ritardo di {overdue_minutes} minuti."
-    elif last_execution is None:
-        summary_state = "warning"
-        summary_label = "Mai eseguito"
-        summary_message = "Il task esiste ma non risultano ancora esecuzioni monitorate del queue processor."
-    elif last_execution.status == AutomationExecution.Status.FAILED:
-        summary_state = "warning"
-        summary_label = "Ultimo run fallito"
-        summary_message = "Il task parte, ma l'ultima esecuzione monitorata del queue processor e fallita."
-    elif task_snapshot["task_state"] not in {"ready", "running", "queued"}:
-        summary_state = "warning"
-        summary_label = "Stato task anomalo"
-        summary_message = "Il task esiste ma non risulta pronto o in esecuzione."
-
-    return {
-        **task_snapshot,
-        **log_snapshot,
-        "summary_state": summary_state,
-        "summary_label": summary_label,
-        "summary_message": summary_message,
-        "display_timezone_label": timezone.get_current_timezone_name(),
-        "job_exists": job is not None,
-        "job_id": getattr(job, "pk", None),
-        "job_code": QUEUE_POLLER_JOB_CODE,
-        "job_name": getattr(job, "name", "Processo queue automazioni"),
-        "job_last_execution_label": _format_display_datetime(getattr(last_execution, "started_at", None)),
-        "job_status_label": getattr(last_execution, "get_status_display", lambda: "-")(),
-        "job_status_code": str(getattr(last_execution, "status", "") or "").lower(),
-        "job_trigger_type_label": getattr(last_execution, "get_trigger_type_display", lambda: "-")(),
-        "job_message": str(getattr(last_execution, "message", "") or "").strip() or "-",
-        "job_consecutive_failures": consecutive_failures,
-        "job_next_expected_label": next_expected_at_label,
-        "job_missing_alert": bool(missing_alert),
-        "job_missing_detail": (
-            f"In ritardo di {int(missing_alert.get('overdue_minutes') or 0)} minuti."
-            if missing_alert else "-"
-        ),
-        "job_stuck_alert": bool(stuck_alert),
-        "job_stuck_detail": (
-            f"Oltre soglia di {int(stuck_alert.get('delay_seconds') or 0)} secondi."
-            if stuck_alert else "-"
-        ),
-    }
-
-
-def _queue_table_exists() -> bool:
-    try:
-        table_name = "automation_event_queue" if connection.vendor == "sqlite" else "dbo.automation_event_queue"
-        with connection.cursor() as cursor:
-            cursor.execute(f"SELECT 1 FROM {table_name} WHERE 1=0;")
-        return True
-    except (DjangoProgrammingError, DjangoOperationalError):
-        return False
-
-
-@legacy_admin_or_acl_required("automazioni", "queue_list_page")
-@require_GET
-def queue_list_page(request):
-    status = _get_filter_value(request, "status")
-    source_code = _get_filter_value(request, "source_code")
-    operation_type = _get_filter_value(request, "operation_type")
-    poller_health = _build_queue_poller_health_snapshot()
-
-    if not _queue_table_exists():
-        context = {
-            **_base_context(),
-            "queue_table_missing": True,
-            "poller_health": poller_health,
-            "queue_events": [],
-            "queue_counts": {},
-            "filters": {"status": status, "source_code": source_code, "operation_type": operation_type},
-            "queue_status_choices": QUEUE_STATUS_CHOICES,
-            "queue_operation_choices": QUEUE_OPERATION_CHOICES,
-            "source_choices": [],
-        }
-        return render(request, "automazioni/pages/queue_list.html", context)
-
-    queue_events = list_queue_events(
-        status=status or None,
-        source_code=source_code or None,
-        operation_type=operation_type or None,
-        limit=200,
-    )
-    queue_ids = [int(event["id"]) for event in queue_events]
-    run_log_counts = {
-        row["queue_event_id"]: row["total"]
-        for row in AutomationRunLog.objects.filter(queue_event_id__in=queue_ids)
-        .order_by()
-        .values("queue_event_id")
-        .annotate(total=Count("id"))
-    }
-    for event in queue_events:
-        event["run_log_count"] = int(run_log_counts.get(event["id"], 0))
-        event["error_message_short"] = str(event.get("error_message") or "")[:180]
-        event["can_reset"] = event.get("status") == "error"
-        event["can_retry"] = event.get("status") in {"error", "pending"}
-        event["can_stop"] = event.get("status") == "pending"
-        event["can_delete"] = event.get("status") in {"pending", "error"} and event["run_log_count"] == 0
-
-    context = {
-        **_base_context(),
-        "queue_table_missing": False,
-        "poller_health": poller_health,
-        "queue_events": queue_events,
-        "queue_counts": count_queue_by_status(
-            source_code=source_code or None,
-            operation_type=operation_type or None,
-        ),
-        "filters": {
-            "status": status,
-            "source_code": source_code,
-            "operation_type": operation_type,
-        },
-        "queue_status_choices": QUEUE_STATUS_CHOICES,
-        "queue_operation_choices": QUEUE_OPERATION_CHOICES,
-        "source_choices": [(source["code"], source["label"]) for source in get_registered_sources()],
-    }
-    return render(request, "automazioni/pages/queue_list.html", context)
-
-
-@legacy_admin_or_acl_required("automazioni", "queue_detail_page")
-@require_GET
-def queue_detail_page(request, queue_id: int):
-    queue_event = get_queue_event_detail(queue_id)
-    if queue_event is None:
-        raise Http404("Evento queue non trovato.")
-    poller_health = _build_queue_poller_health_snapshot()
-
-    run_logs = list(
-        AutomationRunLog.objects.filter(queue_event_id=queue_id)
-        .select_related("rule", "initiated_by")
-        .prefetch_related("action_logs__action")
-        .order_by("-started_at", "-id")
-    )
-    action_logs = list(
-        AutomationActionLog.objects.filter(run_log__queue_event_id=queue_id)
-        .select_related("action", "run_log", "run_log__rule")
-        .order_by("created_at", "id")
-    )
-
-    queue_event["payload_pretty"] = _json_pretty(queue_event.get("payload_json"))
-    queue_event["old_payload_pretty"] = _json_pretty(queue_event.get("old_payload_json"))
-    queue_event["can_reset"] = queue_event.get("status") == "error"
-    queue_event["can_retry"] = queue_event.get("status") in {"error", "pending"}
-    queue_event["run_log_count"] = len(run_logs)
-    queue_event["can_stop"] = queue_event.get("status") == "pending"
-    queue_event["can_delete"] = queue_event.get("status") in {"pending", "error"} and not run_logs
-
-    context = {
-        **_base_context(),
-        "poller_health": poller_health,
-        "queue_event": queue_event,
-        "run_logs": run_logs,
-        "action_logs": action_logs,
-    }
-    return render(request, "automazioni/pages/queue_detail.html", context)
-
-
-@legacy_admin_or_acl_required("automazioni", "queue_reset_view")
-@require_POST
-def queue_reset_view(request, queue_id: int):
-    if reset_queue_event_to_pending(queue_id):
-        messages.success(request, f"Evento queue {queue_id} riportato a pending.")
-    else:
-        messages.error(request, f"Reset non consentito per l'evento queue {queue_id}.")
-    return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
-
-
-@legacy_admin_or_acl_required("automazioni", "queue_retry_view")
-@require_POST
-def queue_retry_view(request, queue_id: int):
-    result = process_single_queue_event_by_id(queue_id)
-    if result["status"] == "done":
-        messages.success(
-            request,
-            f"Retry completato per evento queue {queue_id}. Regole eseguite: {result['rule_runs']}.",
-        )
-    else:
-        messages.error(request, f"Retry fallito per evento queue {queue_id}: {result['message']}")
-    return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
-
-
-@legacy_admin_or_acl_required("automazioni", "queue_stop_view")
-@require_POST
-def queue_stop_view(request, queue_id: int):
-    if stop_queue_event(queue_id):
-        log_action(
-            request,
-            "queue_stop",
-            "automazioni",
-            {"queue_event_id": int(queue_id), "source": "queue_admin"},
-        )
-        messages.success(request, f"Evento queue {queue_id} stoppato manualmente.")
-    else:
-        messages.error(
-            request,
-            f"Stop non consentito per l'evento queue {queue_id}. Sono stoppabili solo eventi ancora pending.",
-        )
-    return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
-
-
-@legacy_admin_or_acl_required("automazioni", "queue_delete_view")
-@require_POST
-def queue_delete_view(request, queue_id: int):
-    if delete_queue_event(queue_id):
-        log_action(
-            request,
-            "queue_delete",
-            "automazioni",
-            {"queue_event_id": int(queue_id), "source": "queue_admin"},
-        )
-        messages.success(request, f"Evento queue {queue_id} eliminato.")
-    else:
-        messages.error(
-            request,
-            (
-                f"Eliminazione non consentita per l'evento queue {queue_id}. "
-                "Puoi eliminare solo eventi pending/error senza run log collegati."
-            ),
-        )
-    return redirect("admin_portale:automazioni_queue_list")
-
-
-@legacy_admin_or_acl_required("automazioni", "run_log_list_page")
-@require_GET
-def run_log_list_page(request):
-    from datetime import timedelta
-    from django.utils import timezone as _tz
-
-    status = _get_filter_value(request, "status")
-    source_code = _get_filter_value(request, "source_code")
-    is_test = _get_filter_value(request, "is_test")
-    rule_id = _get_filter_value(request, "rule")
-    queue_event_id = _get_filter_value(request, "queue_event_id")
-    recent = _get_filter_value(request, "recent")  # "24h" o vuoto
-
-    queryset = AutomationRunLog.objects.select_related("rule", "initiated_by").order_by("-started_at", "-id")
-    if status:
-        queryset = queryset.filter(status=status)
-    if source_code:
-        queryset = queryset.filter(source_code=source_code)
-    if is_test in {"true", "false"}:
-        queryset = queryset.filter(is_test=is_test == "true")
-    if rule_id:
-        queryset = queryset.filter(rule_id=rule_id)
-    if queue_event_id:
-        queryset = queryset.filter(queue_event_id=queue_event_id)
-    if recent == "24h":
-        queryset = queryset.filter(started_at__gte=_tz.now() - timedelta(hours=24))
-
-    run_logs = list(queryset[:200])
-    # Max ms per la sparkbar (sui run mostrati). Evita divisioni per 0 sui chart.
-    max_execution_ms = max((rl.execution_ms or 0 for rl in run_logs), default=0)
-
-    # Conteggi rapidi per i chip (globali sulla queryset NON filtrata da status/is_test/recent,
-    # così i chip mostrano "quanti ce ne sarebbero" anche quando un filtro è attivo).
-    _global = AutomationRunLog.objects.all()
-    if source_code:
-        _global = _global.filter(source_code=source_code)
-    if rule_id:
-        _global = _global.filter(rule_id=rule_id)
-    if queue_event_id:
-        _global = _global.filter(queue_event_id=queue_event_id)
-    chip_counts = {
-        "errors": _global.filter(status__in=("failed", "error")).count(),
-        "tests": _global.filter(is_test=True).count(),
-        "recent_24h": _global.filter(started_at__gte=_tz.now() - timedelta(hours=24)).count(),
-    }
-
-    context = {
-        **_base_context(),
-        "run_logs": run_logs,
-        "max_execution_ms": max_execution_ms,
-        "chip_counts": chip_counts,
-        "filters": {
-            "status": status,
-            "source_code": source_code,
-            "is_test": is_test,
-            "rule": rule_id,
-            "queue_event_id": queue_event_id,
-            "recent": recent,
-        },
-        "status_choices": AutomationRunLogStatus.values,
-        "source_choices": _run_log_source_choices(),
-        "rules": list(AutomationRule.objects.filter(run_logs__isnull=False).values("id", "name").distinct().order_by("name")),
-    }
-    return render(request, "automazioni/pages/run_log_list.html", context)
-
-
-def _run_log_source_choices() -> list[tuple[str, str]]:
-    """Opzioni del filtro 'Sorgente' del Run-log: sorgenti registrate + job di sistema.
-
-    I job di sistema (task django-q tracciati con source_code 'system:<job>') non
-    sono nel source registry; vengono aggiunti dinamicamente in base ai run effettivi
-    cosi' restano filtrabili dalla UI.
-    """
-    choices = [(source["code"], source["label"]) for source in get_registered_sources()]
-    known = {c[0] for c in choices}
-    system_codes = (
-        AutomationRunLog.objects.filter(source_code__startswith="system:")
-        .values_list("source_code", flat=True)
-        .distinct()
-    )
-    for code in sorted(set(system_codes)):
-        if code in known:
-            continue
-        label = "Sistema: " + code.split(":", 1)[1].replace("_", " ")
-        choices.append((code, label))
-    return choices
-
-
-@legacy_admin_or_acl_required("automazioni", "run_log_detail_page")
-@require_GET
-def run_log_detail_page(request, run_log_id: int):
-    run_log = get_object_or_404(
-        AutomationRunLog.objects.select_related("rule", "initiated_by").prefetch_related("action_logs__action"),
-        pk=run_log_id,
-    )
-    queue_event = get_queue_event_detail(run_log.queue_event_id) if run_log.queue_event_id else None
-    action_logs = list(run_log.action_logs.select_related("action").order_by("created_at", "id"))
-
-    context = {
-        **_base_context(),
-        "run_log": run_log,
-        "queue_event": queue_event,
-        "action_logs": action_logs,
-        "payload_pretty": _json_pretty(run_log.payload_json),
-        "old_payload_pretty": _json_pretty(run_log.old_payload_json),
-    }
-    return render(request, "automazioni/pages/run_log_detail.html", context)
 
 
 # ---------------------------------------------------------------------------
@@ -5807,7 +5085,7 @@ def api_table_config_save(request):
         normalized: list[str] = []
         seen: set[str] = set()
         for raw_value in raw_values or []:
-            text = _string_value(raw_value)
+            text = _helpers._string_value(raw_value)
             if not text or text in seen:
                 continue
             normalized.append(text)
@@ -5875,22 +5153,22 @@ def api_source_field_values(request, source_code: str, field_name: str):
 
     distinct_state = _fetch_source_field_distinct_values(source_code, field_name)
     allowed_values = [
-        _string_value(value)
+        _helpers._string_value(value)
         for value in (field_definition.get("allowed_values") or [])
-        if _string_value(value)
+        if _helpers._string_value(value)
     ]
     return JsonResponse(
         {
             "ok": True,
-            "source_code": _string_value(source_code),
-            "field_name": _string_value(field_name),
-            "field_label": _string_value(field_definition.get("label")) or _string_value(field_name),
-            "ui_control": _string_value(field_definition.get("ui_control")),
-            "value_source_label": _string_value(field_definition.get("value_source_label")),
+            "source_code": _helpers._string_value(source_code),
+            "field_name": _helpers._string_value(field_name),
+            "field_label": _helpers._string_value(field_definition.get("label")) or _helpers._string_value(field_name),
+            "ui_control": _helpers._string_value(field_definition.get("ui_control")),
+            "value_source_label": _helpers._string_value(field_definition.get("value_source_label")),
             "allowed_values": allowed_values,
             "distinct_values": distinct_state["values"],
             "queryable": bool(distinct_state["queryable"]),
-            "message": _string_value(distinct_state["message"]),
+            "message": _helpers._string_value(distinct_state["message"]),
         }
     )
 
@@ -5949,441 +5227,9 @@ def api_test_rule_ajax(request, rule_id: int):
     })
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Approval Decision Views
-#
-# Due modi di decidere, entrambi con identita' certa dell'approvatore:
-#   1. link personale  /approval-actions/r/<segreto>/<approva|rifiuta>/
-#      Il segreto e' stato inviato a UN destinatario: chi lo apre decide come lui,
-#      senza login (approval_links.py). E' il link delle email.
-#   2. link della richiesta  /automazioni/approvazione/<uuid>/<approva|rifiuta>/
-#      e  /approval-actions/approve|reject/<uuid>/  (link inviati prima dei link
-#      personali, canale Teams condiviso). L'uuid identifica la richiesta ma NON
-#      chi decide: serve il login, e l'utente deve essere fra gli approvatori.
-# Nessun header HTTP di identita' viene letto: il client li puo' falsificare.
-# GET mostra sempre una conferma senza effetti (i link scanner delle mail aprono
-# i link in GET); la decisione avviene solo in POST.
-# ─────────────────────────────────────────────────────────────────────────────
-
-import logging as _logging
-
-_proxy_logger = _logging.getLogger(__name__)
-
-_DECISION_SLUGS = {"approva": "approved", "rifiuta": "rejected", "approve": "approved", "reject": "rejected"}
-
-
-def _session_approver_email(request) -> str:
-    user = getattr(request, "user", None)
-    if not user or not user.is_authenticated:
-        return ""
-    return str(getattr(user, "email", "") or getattr(user, "username", "") or "").strip()
-
-
-def _login_redirect(request):
-    from urllib.parse import urlencode
-
-    from django.urls import reverse
-
-    return redirect(f"{reverse('login')}?{urlencode({'next': request.get_full_path()})}")
-
-
-def _render_decision(request, context: dict, status: int = 200):
-    return render(request, "automazioni/pages/approval_decision.html", context, status=status)
-
-
-@risposta_pubblica
-@csrf_exempt  # il segreto nell'URL fa da protezione CSRF: un sito terzo non lo conosce
-@require_http_methods(["GET", "POST"])
-def approval_link_page(request, token: str, decision: str):
-    """Link personale delle email: GET conferma, POST decide come il destinatario del link."""
-    from .approval_links import decide_with_link, get_link
-    from .models import AutomationApproval
-
-    normalized = _DECISION_SLUGS.get(decision)
-    link = get_link(token)
-    if normalized is None or link is None:
-        return _render_decision(request, {"error": "Link di approvazione non valido."}, status=404)
-
-    approval = link.approval
-    base_context = {
-        "approval": approval,
-        "decision": normalized,
-        "token": "",
-        "link_mode": True,
-        "decider_email": link.recipient_email,
-    }
-
-    if request.method == "GET":
-        if request.GET.get("done") == "1" and approval.status != AutomationApproval.Status.PENDING:
-            return _render_decision(request, {**base_context, "just_done": True})
-        if link.used_at is not None or approval.status != AutomationApproval.Status.PENDING:
-            return _render_decision(request, {**base_context, "already_decided": True})
-        return _render_decision(request, {**base_context, "is_expired": approval.is_expired()})
-
-    result = decide_with_link(token, normalized)
-    log_action(
-        request,
-        "approval_link_decision" if result.get("ok") else "approval_link_denied",
-        "automazioni",
-        {
-            "approval_id": approval.pk,
-            "link_id": link.pk,
-            "decision": normalized,
-            "actor": link.recipient_email,
-            "ok": bool(result.get("ok")),
-            "code": result.get("code"),
-            "message": result.get("message"),
-        },
-    )
-    if result.get("ok"):
-        return redirect(request.path + "?done=1")
-    approval.refresh_from_db()
-    return _render_decision(request, {
-        **base_context,
-        "result": {k: v for k, v in result.items() if k != "link"},
-        "already_decided": result.get("code") in {"already_decided", "already_used"},
-    })
-
-
-def _decide_as_session_user(request, token: str, normalized: str, *, via: str):
-    """Decisione sul link della richiesta: solo utente loggato e fra gli approvatori."""
-    from .approval_security import validate_approval_actor
-
-    decided_by = _session_approver_email(request)
-    validation = validate_approval_actor(str(token), decided_by)
-    if not validation.allowed:
-        log_action(request, "approval_proxy_denied", "automazioni", {
-            "approval_id": validation.approval_id,
-            "decision": normalized,
-            "actor": decided_by or "(vuoto)",
-            "error_code": validation.error_code,
-            "via": via,
-        })
-        return None, validation
-
-    result = process_approval_decision(str(token), normalized, decided_by_email=decided_by)
-    log_action(request, "approval_proxy_decision", "automazioni", {
-        "approval_id": result.get("approval_id"),
-        "decision": normalized,
-        "actor": decided_by,
-        "ok": result.get("ok"),
-        "message": result.get("message"),
-        "via": via,
-    })
-    return result, validation
-
-
-@risposta_pubblica_con_form
-@require_http_methods(["GET", "POST"])
-def approval_decision_page(request, token: str, decision: str):
-    """Link della richiesta (uuid): GET conferma, POST decide solo con login da approvatore."""
-    from .models import AutomationApproval
-
-    normalized = _DECISION_SLUGS.get(decision)
-    if normalized is None:
-        return _render_decision(request, {"error": "Azione non valida.", "token": token}, status=400)
-
-    if not request.user.is_authenticated:
-        return _login_redirect(request)
-
-    try:
-        approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
-    except AutomationApproval.DoesNotExist:
-        return _render_decision(
-            request, {"error": "Richiesta di approvazione non trovata o link non valido.", "token": token}, status=404
-        )
-
-    base_context = {
-        "approval": approval,
-        "decision": normalized,
-        "decision_label": "Approvare" if normalized == "approved" else "Rifiutare",
-        "decision_verb": "approva" if normalized == "approved" else "rifiuta",
-        "token": token,
-        "decider_email": _session_approver_email(request),
-    }
-
-    if request.method == "GET":
-        already = approval.status != AutomationApproval.Status.PENDING
-        just_done = already and request.GET.get("done") == "1"
-        return _render_decision(request, {
-            **base_context,
-            "is_expired": approval.is_expired(),
-            "already_decided": already and not just_done,
-            "just_done": just_done,
-        })
-
-    result, validation = _decide_as_session_user(request, token, normalized, via="portal_link")
-    if result is None:
-        return _render_decision(request, {
-            **base_context,
-            "result": {"ok": False, "message": validation.error_message},
-            "already_decided": validation.error_code == "already_decided",
-        }, status=403)
-    if result.get("ok"):
-        return redirect(request.path + "?done=1")
-    return _render_decision(request, {
-        **base_context,
-        "result": result,
-        "already_decided": "già" in str(result.get("message") or ""),
-    })
-
-
-@risposta_pubblica
-@require_GET
-def approval_status_page(request, token: str):
-    """Stato di una richiesta: solo utenti loggati fra gli approvatori (o admin)."""
-    from .models import AutomationApproval
-
-    if not request.user.is_authenticated:
-        return _login_redirect(request)
-    try:
-        approval = AutomationApproval.objects.get(token=token)
-    except AutomationApproval.DoesNotExist:
-        return _render_decision(request, {"error": "Richiesta non trovata.", "token": token}, status=404)
-
-    from core.legacy_utils import get_legacy_user, is_legacy_admin
-    from .approval_security import normalize_actor_email
-
-    approvers = {normalize_actor_email(e) for e in (approval.approver_emails or [])}
-    me = normalize_actor_email(_session_approver_email(request))
-    if not (request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user)) or (me and me in approvers)):
-        return _render_decision(request, {"error": "Non sei fra gli approvatori di questa richiesta.", "token": token}, status=403)
-    return _render_decision(request, {"approval": approval, "token": token, "status_only": True})
-
-
-@risposta_pubblica_con_form
-@require_http_methods(["GET", "POST"])
-def approval_proxy_approve(request, token):
-    """Compat: vecchio link /approval-actions/approve/<uuid>/ — richiede login da approvatore."""
-    return _handle_approval_proxy(request, token, "approved")
-
-
-@risposta_pubblica_con_form
-@require_http_methods(["GET", "POST"])
-def approval_proxy_reject(request, token):
-    """Compat: vecchio link /approval-actions/reject/<uuid>/ — richiede login da approvatore."""
-    return _handle_approval_proxy(request, token, "rejected")
-
-
-def _handle_approval_proxy(request, token, decision: str):
-    from .approval_security import ErrorCode, validate_approval_actor
-
-    token_str = str(token)
-    if not request.user.is_authenticated:
-        return _login_redirect(request)
-
-    decided_by = _session_approver_email(request)
-    if request.method == "GET":
-        validation = validate_approval_actor(token_str, decided_by)
-        if validation.allowed:
-            return render(request, "automazioni/pages/approval_proxy_result.html", {
-                "requires_confirmation": True,
-                "decision": decision,
-                "token": token_str,
-                "decided_by": decided_by,
-                "approval_id": validation.approval_id,
-            })
-        result, validation = None, validation
-    else:
-        result, validation = _decide_as_session_user(request, token_str, decision, via="entra_proxy")
-
-    if result is None:
-        return render(request, "automazioni/pages/approval_proxy_result.html", {
-            "denied": True,
-            "error_code": validation.error_code,
-            "error_message": validation.error_message,
-            "decision": decision,
-            "token": token_str,
-            "decided_by": decided_by,
-            "is_no_identity":     validation.error_code == ErrorCode.NO_IDENTITY,
-            "is_not_found":       validation.error_code == ErrorCode.NOT_FOUND,
-            "is_already_decided": validation.error_code == ErrorCode.ALREADY_DECIDED,
-            "is_expired":         validation.error_code == ErrorCode.EXPIRED,
-            "is_unauthorized":    validation.error_code == ErrorCode.UNAUTHORIZED,
-            "is_no_approvers":    validation.error_code == ErrorCode.NO_APPROVERS,
-        })
-
-    if not result.get("ok"):
-        _proxy_logger.warning(
-            "approval_proxy: process_approval_decision ko approval=%s decision=%s reason=%s",
-            result.get("approval_id"), decision, result.get("message"),
-        )
-    return render(request, "automazioni/pages/approval_proxy_result.html", {
-        "result": result,
-        "decision": decision,
-        "token": token_str,
-        "decided_by": decided_by,
-    })
-
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Canali Teams — gestione TeamsWebhookPreset
-# ─────────────────────────────────────────────────────────────────────────────
-
-@legacy_admin_or_acl_required("automazioni", "settings_page")
-def settings_page(request):
-    from core.models import SiteConfig
-
-    poll_result = None
-    approval_imap_form = get_approval_imap_form_defaults()
-    approval_graph_form = get_approval_graph_form_defaults()
-
-    if request.method == "POST":
-        action = _string_value(request.POST.get("action"))
-
-        if action == "save_scadenze_config":
-            from .scadenze_config import save_scadenze_config
-
-            try:
-                posted_giorni = int(_string_value(request.POST.get("scadenze_giorni")) or "30")
-            except (TypeError, ValueError):
-                posted_giorni = 30
-            saved = save_scadenze_config(
-                attivo=_bool_value(request.POST.get("scadenze_attivo")),
-                giorni=posted_giorni,
-                email_visite=_string_value(request.POST.get("scadenze_email_visite")),
-                email_contratti=_string_value(request.POST.get("scadenze_email_contratti")),
-                email_qualifiche=_string_value(request.POST.get("scadenze_email_qualifiche")),
-                includi_visite=_bool_value(request.POST.get("scadenze_includi_visite")),
-                includi_contratti=_bool_value(request.POST.get("scadenze_includi_contratti")),
-                includi_qualifiche=_bool_value(request.POST.get("scadenze_includi_qualifiche")),
-            )
-            if saved:
-                messages.success(request, "Configurazione report scadenze salvata.")
-            else:
-                messages.error(request, "Impossibile salvare la configurazione report scadenze.")
-            return redirect("admin_portale:automazioni_settings")
-
-        if action == "save_runlog_retention":
-            from .runlog_retention import set_retention_days
-
-            try:
-                saved_days = set_retention_days(_string_value(request.POST.get("runlog_retention_days")))
-                messages.success(
-                    request,
-                    f"Retention RunLog impostata a {saved_days} giorni.",
-                )
-            except Exception:
-                messages.error(request, "Impossibile salvare la retention RunLog.")
-            return redirect("admin_portale:automazioni_settings")
-
-        if action == "run_runlog_cleanup":
-            from django.core.management import call_command
-            from io import StringIO
-
-            try:
-                buf = StringIO()
-                call_command("cleanup_run_logs", apply=True, stdout=buf, verbosity=1)
-                messages.success(request, "Pulizia RunLog eseguita. " + buf.getvalue().strip().splitlines()[-1])
-            except Exception as exc:
-                messages.error(request, f"Pulizia RunLog fallita: {exc}")
-            return redirect("admin_portale:automazioni_settings")
-
-        if action == "save_default_approval_mailbox":
-            from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY
-
-            mailbox_value = _string_value(request.POST.get("approval_mailbox"))
-            saved = SiteConfig.set(
-                APPROVAL_MAILBOX_SITE_CONFIG_KEY,
-                mailbox_value,
-                "Mailbox tecnica globale usata dai template approvazione mail_reply/hybrid.",
-            )
-            if saved:
-                messages.success(request, "Mailbox tecnica predefinita aggiornata.")
-            else:
-                messages.error(request, "Impossibile salvare la mailbox tecnica in SiteConfig.")
-            return redirect("admin_portale:automazioni_settings")
-
-        # ── Azioni Graph backend ──────────────────────────────────────────────
-        if action == "save_approval_graph_config":
-            try:
-                posted_page_size = max(1, min(int(_string_value(request.POST.get("approval_graph_page_size")) or "25"), 50))
-            except (TypeError, ValueError):
-                posted_page_size = 25
-
-            approval_graph_form = {
-                "mailbox": _string_value(request.POST.get("approval_graph_mailbox")),
-                "folder": _string_value(request.POST.get("approval_graph_folder")) or "Inbox",
-                "only_unread": _bool_value(request.POST.get("approval_graph_only_unread")),
-                "page_size": posted_page_size,
-                "mark_read": _bool_value(request.POST.get("approval_graph_mark_read")),
-            }
-            ok, message = save_approval_graph_settings(
-                mailbox=str(approval_graph_form["mailbox"]),
-                folder=str(approval_graph_form["folder"]),
-                only_unread=bool(approval_graph_form["only_unread"]),
-                page_size=int(approval_graph_form["page_size"]),
-                mark_read=bool(approval_graph_form["mark_read"]),
-            )
-            poll_result = {"ok": ok, "message": message, "output": "", "stats": {}}
-            if ok:
-                approval_graph_form = get_approval_graph_form_defaults()
-                messages.success(request, message)
-            else:
-                messages.error(request, message)
-
-        if action == "run_approval_graph_poll":
-            poll_result = run_approval_poll_now(limit=25)
-            if poll_result.get("ok"):
-                messages.success(request, str(poll_result.get("message") or "Polling Graph completato."))
-            else:
-                messages.error(request, str(poll_result.get("message") or "Polling Graph fallito."))
-
-        # ── Azioni IMAP backend (retrocompat) ────────────────────────────────
-        if action == "save_approval_imap_config":
-            posted_port = _string_value(request.POST.get("approval_imap_port"))
-            try:
-                parsed_port = max(int(posted_port or approval_imap_form["port"]), 1)
-            except (TypeError, ValueError):
-                parsed_port = int(approval_imap_form["port"])
-
-            approval_imap_form = {
-                "host": _string_value(request.POST.get("approval_imap_host")),
-                "port": parsed_port,
-                "user": _string_value(request.POST.get("approval_imap_user")),
-                "password": "",
-                "folder": _string_value(request.POST.get("approval_imap_folder")) or "INBOX",
-                "use_ssl": _bool_value(request.POST.get("approval_imap_use_ssl")),
-                "password_configured": bool(_string_value(request.POST.get("approval_imap_password")))
-                or bool(approval_imap_form.get("password_configured")),
-            }
-            ok, message = save_approval_imap_settings(
-                host=str(approval_imap_form["host"]),
-                port=int(approval_imap_form["port"]),
-                user=str(approval_imap_form["user"]),
-                password=_string_value(request.POST.get("approval_imap_password")),
-                use_ssl=bool(approval_imap_form["use_ssl"]),
-                folder=str(approval_imap_form["folder"]),
-            )
-            poll_result = {"ok": ok, "message": message, "output": "", "stats": {}}
-            if ok:
-                approval_imap_form = get_approval_imap_form_defaults()
-                messages.success(request, message)
-            else:
-                messages.error(request, message)
-
-        if action == "run_approval_imap_poll":
-            poll_result = run_approval_imap_poll_now()
-            if poll_result.get("ok"):
-                messages.success(request, str(poll_result.get("message") or "Polling IMAP completato."))
-            else:
-                messages.error(request, str(poll_result.get("message") or "Polling IMAP fallito."))
-
-    return render(
-        request,
-        "automazioni/pages/impostazioni.html",
-        _build_automation_settings_context(
-            poll_result=poll_result,
-            approval_imap_form=approval_imap_form,
-            approval_graph_form=approval_graph_form,
-        ),
-    )
-
-
 def _get_trigger_sources() -> list[dict]:
     """Restituisce le sorgenti con table_name definito, con campi non-virtual."""
-    from .source_registry import get_registered_sources
+    from ..source_registry import get_registered_sources
     result = []
     for src in get_registered_sources():
         table_name = src.get("table_name")
@@ -6578,14 +5424,14 @@ def trigger_generator_page(request):
     all_sources = _get_trigger_sources()
     sources_by_code = {s["code"]: s for s in all_sources}
 
-    selected_code = _string_value(request.POST.get("source_code") or request.GET.get("source_code"))
+    selected_code = _helpers._string_value(request.POST.get("source_code") or request.GET.get("source_code"))
     if selected_code not in sources_by_code:
         selected_code = all_sources[0]["code"] if all_sources else ""
 
     selected_source = sources_by_code.get(selected_code)
     generated: dict[str, str] = {}
     apply_results: dict[str, dict] = {}
-    action = _string_value(request.POST.get("action"))
+    action = _helpers._string_value(request.POST.get("action"))
 
     if request.method == "POST" and selected_source:
         selected_field_names = set(request.POST.getlist("fields"))
@@ -6618,7 +5464,7 @@ def trigger_generator_page(request):
             for op, sql in generated.items():
                 apply_results[op] = _apply_trigger_sql(sql)
                 result = apply_results[op]
-                log_action(
+                _helpers.log_action(
                     request,
                     "apply_sql_trigger",
                     "automazioni",
@@ -6648,7 +5494,7 @@ def trigger_generator_page(request):
     )
 
     return render(request, "automazioni/pages/trigger_generator.html", {
-        **_base_context(),
+        **_helpers._base_context(),
         "page_title": "Generatore Trigger SQL",
         "all_sources": all_sources,
         "selected_source": selected_source,
@@ -6657,518 +5503,3 @@ def trigger_generator_page(request):
         "is_sql_server": is_sql_server,
         "can_apply_to_db": can_apply_to_db,
     })
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_presets_page")
-def teams_presets_page(request):
-    return render(request, "automazioni/pages/teams_presets.html", _build_teams_delivery_context())
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_mailbox_log_page")
-def approval_mailbox_log_page(request):
-    """Diagnostica: ultimi messaggi letti dalla mailbox approvazioni."""
-    from .models import ApprovalMailboxMessage
-
-    page_size = 40
-    try:
-        qs = ApprovalMailboxMessage.objects.select_related("linked_approval").order_by(
-            "-received_at", "-created_at"
-        )[:page_size]
-        log_entries = list(qs)
-        table_missing = False
-    except Exception:
-        log_entries = []
-        table_missing = True
-
-    return render(
-        request,
-        "automazioni/pages/approval_mailbox_log.html",
-        {
-            **_base_context(),
-            "log_entries": log_entries,
-            "table_missing": table_missing,
-            "graph_status": None,  # lazy — caricato nella template se necessario
-        },
-    )
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_preset_create")
-def teams_preset_create(request):
-    if request.method == "POST":
-        form = TeamsWebhookPresetForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Canale Teams creato.")
-            return redirect("admin_portale:automazioni_teams_presets")
-    else:
-        form = TeamsWebhookPresetForm()
-    return render(
-        request,
-        "automazioni/pages/teams_presets.html",
-        _build_teams_delivery_context(preset_form=form, preset_form_mode="create"),
-    )
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_preset_edit")
-def teams_preset_edit(request, pk: int):
-    preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
-    if request.method == "POST":
-        form = TeamsWebhookPresetForm(request.POST, instance=preset)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f"Canale '{preset.name}' aggiornato.")
-            return redirect("admin_portale:automazioni_teams_presets")
-    else:
-        form = TeamsWebhookPresetForm(instance=preset)
-    return render(
-        request,
-        "automazioni/pages/teams_presets.html",
-        _build_teams_delivery_context(
-            preset_form=form,
-            preset_form_mode="edit",
-            edit_preset=preset,
-        ),
-    )
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_preset_delete")
-@require_POST
-def teams_preset_delete(request, pk: int):
-    preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
-    name = preset.name
-    preset.delete()
-    messages.success(request, f"Canale '{name}' eliminato.")
-    return redirect("admin_portale:automazioni_teams_presets")
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_flow_endpoint_create")
-def teams_flow_endpoint_create(request):
-    _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
-    if flow_endpoints_warning:
-        messages.warning(request, flow_endpoints_warning)
-        return redirect("admin_portale:automazioni_teams_presets")
-    if request.method == "POST":
-        form = AutomationDeliveryEndpointForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Endpoint Teams Flow creato.")
-            return redirect("admin_portale:automazioni_teams_presets")
-    else:
-        form = AutomationDeliveryEndpointForm()
-    return render(
-        request,
-        "automazioni/pages/teams_presets.html",
-        _build_teams_delivery_context(flow_form=form, flow_form_mode="create"),
-    )
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_flow_endpoint_edit")
-def teams_flow_endpoint_edit(request, pk: int):
-    _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
-    if flow_endpoints_warning:
-        messages.warning(request, flow_endpoints_warning)
-        return redirect("admin_portale:automazioni_teams_presets")
-    endpoint = get_object_or_404(
-        AutomationDeliveryEndpoint,
-        pk=pk,
-        endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
-    )
-    if request.method == "POST":
-        form = AutomationDeliveryEndpointForm(request.POST, instance=endpoint)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f"Endpoint '{endpoint.name}' aggiornato.")
-            return redirect("admin_portale:automazioni_teams_presets")
-    else:
-        form = AutomationDeliveryEndpointForm(instance=endpoint)
-    return render(
-        request,
-        "automazioni/pages/teams_presets.html",
-        _build_teams_delivery_context(
-            flow_form=form,
-            flow_form_mode="edit",
-            edit_flow_endpoint=endpoint,
-        ),
-    )
-
-
-@legacy_admin_or_acl_required("automazioni", "teams_flow_endpoint_delete")
-@require_POST
-def teams_flow_endpoint_delete(request, pk: int):
-    _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
-    if flow_endpoints_warning:
-        messages.warning(request, flow_endpoints_warning)
-        return redirect("admin_portale:automazioni_teams_presets")
-    endpoint = get_object_or_404(
-        AutomationDeliveryEndpoint,
-        pk=pk,
-        endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
-    )
-    name = endpoint.name
-    endpoint.delete()
-    messages.success(request, f"Endpoint '{name}' eliminato.")
-    return redirect("admin_portale:automazioni_teams_presets")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Template Email Approvazioni — CRUD + Preview + Clone
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _get_approval_templates_context() -> dict:
-    """Contesto comune: lista template + warning schema drift."""
-    templates, unavailable = list_approval_email_templates(enabled_only=False)
-    return {
-        "approval_templates": templates,
-        "approval_templates_unavailable": APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE if unavailable else "",
-    }
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_templates_list_page")
-def approval_templates_list_page(request):
-    ctx = _get_approval_templates_context()
-    return render(request, "automazioni/pages/approval_template_list.html", ctx)
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_template_create_page")
-def approval_template_create_page(request):
-    from .approval_email_templates import get_default_approval_mailbox
-
-    if request.method == "POST":
-        form = ApprovalEmailTemplateForm(request.POST)
-        if form.is_valid():
-            tpl = form.save(commit=False)
-            tpl.created_by = request.user
-            tpl.updated_by = request.user
-            tpl.save()
-            messages.success(request, f"Template '{tpl.name}' creato.")
-            return redirect("admin_portale:automazioni_approval_template_edit", pk=tpl.pk)
-    else:
-        form = ApprovalEmailTemplateForm(
-            initial={"mailto_mailbox": get_default_approval_mailbox()}
-        )
-
-    _placeholders = ["id", "dipendente_nome", "tipo_assenza", "data_inizio", "data_fine", "note", "reparto", "capo_email", "approval_token", "approval_id", "approve_url", "reject_url"]
-    return render(request, "automazioni/pages/approval_template_form.html", {
-        "form": form,
-        "is_create": True,
-        "page_title": "Crea template email approvazione",
-        "available_placeholders": _placeholders,
-    })
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_template_edit_page")
-def approval_template_edit_page(request, pk: int):
-    tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
-    if request.method == "POST":
-        form = ApprovalEmailTemplateForm(request.POST, instance=tpl)
-        if form.is_valid():
-            tpl = form.save(commit=False)
-            tpl.updated_by = request.user
-            tpl.save()
-            messages.success(request, f"Template '{tpl.name}' aggiornato.")
-            return redirect("admin_portale:automazioni_approval_template_edit", pk=tpl.pk)
-    else:
-        form = ApprovalEmailTemplateForm(instance=tpl)
-
-    _placeholders = ["id", "dipendente_nome", "tipo_assenza", "data_inizio", "data_fine", "note", "reparto", "capo_email", "approval_token", "approval_id", "approve_url", "reject_url"]
-    return render(request, "automazioni/pages/approval_template_form.html", {
-        "form": form,
-        "template": tpl,
-        "is_create": False,
-        "page_title": f"Modifica — {tpl.name}",
-        "available_placeholders": _placeholders,
-    })
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_template_delete_page")
-@require_POST
-def approval_template_delete_page(request, pk: int):
-    tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
-    name = tpl.name
-    tpl.delete()
-    messages.success(request, f"Template '{name}' eliminato.")
-    return redirect("admin_portale:automazioni_approval_templates")
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_template_clone_page")
-@require_POST
-def approval_template_clone_page(request, pk: int):
-    """Clona un template esistente con nuovo code/name."""
-    import uuid as _uuid
-    source = get_object_or_404(ApprovalEmailTemplate, pk=pk)
-    new_code_base = f"{source.code}-copia"
-    suffix = str(_uuid.uuid4())[:6]
-    new_code = f"{new_code_base}-{suffix}"
-
-    clone = ApprovalEmailTemplate(
-        code=new_code,
-        name=f"{source.name} (copia)",
-        description=source.description,
-        is_enabled=False,
-        delivery_mode=source.delivery_mode,
-        subject_template=source.subject_template,
-        title_template=source.title_template,
-        intro_template=source.intro_template,
-        body_template=source.body_template,
-        include_facts=source.include_facts,
-        facts_lines=source.facts_lines,
-        approval_label=source.approval_label,
-        rejection_label=source.rejection_label,
-        include_mailto_actions=source.include_mailto_actions,
-        mailto_mailbox=source.mailto_mailbox,
-        approval_mailto_subject_template=source.approval_mailto_subject_template,
-        approval_mailto_body_template=source.approval_mailto_body_template,
-        rejection_mailto_subject_template=source.rejection_mailto_subject_template,
-        rejection_mailto_body_template=source.rejection_mailto_body_template,
-        created_by=request.user,
-        updated_by=request.user,
-    )
-    clone.save()
-    messages.success(request, f"Template clonato come '{clone.name}' (disabilitato, codice: {clone.code}).")
-    return redirect("admin_portale:automazioni_approval_template_edit", pk=clone.pk)
-
-
-@legacy_admin_or_acl_required("automazioni", "approval_template_preview_page")
-def approval_template_preview_page(request, pk: int):
-    """
-    Preview HTML del template con dati mock o payload custom via GET params.
-    Supporta ?raw=1 per restituire solo il corpo HTML (iframe-friendly).
-    """
-    from .approval_email_templates import (
-        DEMO_PAYLOAD,
-        find_unresolved_placeholders,
-        render_approval_email_preview,
-    )
-
-    tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
-
-    # Payload personalizzato opzionale via query string (JSON encoded)
-    custom_payload_raw = request.GET.get("payload", "")
-    custom_payload: dict = {}
-    payload_error = ""
-    if custom_payload_raw:
-        try:
-            parsed = json.loads(custom_payload_raw)
-            if isinstance(parsed, dict):
-                custom_payload = parsed
-            else:
-                payload_error = "Il payload deve essere un oggetto JSON."
-        except Exception:
-            payload_error = "JSON non valido nel parametro 'payload'."
-
-    rendered = render_approval_email_preview(tpl, custom_payload or None)
-    unresolved = find_unresolved_placeholders(rendered["html_body"] + rendered["subject"])
-
-    if request.GET.get("raw") == "1":
-        return HttpResponse(rendered["html_body"], content_type="text/html; charset=utf-8")
-
-    return render(request, "automazioni/pages/approval_template_preview.html", {
-        "template": tpl,
-        "rendered": rendered,
-        "unresolved": unresolved,
-        "demo_payload": DEMO_PAYLOAD,
-        "custom_payload_raw": custom_payload_raw,
-        "payload_error": payload_error,
-    })
-
-
-# ── Task pianificati (schedule django-q) — riflessi nell'area automazioni ──────
-
-@legacy_admin_or_acl_required("automazioni", "pianificati_page")
-@require_GET
-def pianificati_page(request):
-    """Elenco dei task pianificati (SCHEDULES) con stato on/off e prossima esecuzione.
-
-    Riflette nell'area Automazioni i job periodici django-q che finora si vedevano
-    solo dalla Centrale di comando. Abilita/disabilita è DUREVOLE (ScheduleControl,
-    rispettato anche dopo un redeploy); la cadenza è definita nel codice.
-    """
-    from .mail_config import is_configurable
-    from .schedules import SCHEDULES, schedule_rows
-
-    rows = schedule_rows()
-    for r in rows:
-        r["configurable"] = is_configurable(r["name"])
-    enabled_n = sum(1 for r in rows if r["enabled"])
-    from .flow_health import broker_health
-    health = broker_health()
-    context = {
-        **_base_context(),
-        "rows": rows,
-        "health": health,
-        "totale": len(SCHEDULES),
-        "attivi": enabled_n,
-        "disattivi": len(rows) - enabled_n,
-    }
-    return render(request, "automazioni/pages/pianificati.html", context)
-
-
-@legacy_admin_or_acl_required("automazioni", "pianificati_action")
-@require_POST
-def pianificati_action(request):
-    """Toggle on/off durevole o 'esegui ora' di un task pianificato."""
-    from monitoring.models import ScheduleControl
-
-    from .schedules import delete_schedule, register_schedule, spec_by_name
-
-    name = (request.POST.get("name") or "").strip()
-    action = (request.POST.get("action") or "").strip()
-    spec = spec_by_name(name)
-    if not spec:
-        messages.error(request, "Task pianificato sconosciuto.")
-        return redirect("admin_portale:automazioni_pianificati")
-
-    if action == "save_schedule":
-        from .flow_forms import ManagedScheduleForm
-        from .models import ManagedFlow
-        from .managed_flows import synchronize_schedule
-        binding = get_object_or_404(ManagedFlow, code=name, kind="schedule")
-        form = ManagedScheduleForm(request.POST, instance=binding)
-        if form.is_valid():
-            with transaction.atomic():
-                binding = form.save()
-                synchronize_schedule(binding)
-            log_action(request, "automazioni_schedule_config", "automazioni", {"name": name})
-            messages.success(request, "Pianificazione salvata.")
-        else:
-            messages.error(request, "Pianificazione non valida: " + " ".join(str(e) for errors in form.errors.values() for e in errors))
-        return redirect("admin_portale:automazioni_rule_designer", rule_id=binding.rule_id)
-    if action == "toggle":
-        control, _ = ScheduleControl.objects.get_or_create(name=name)
-        control.enabled = not control.enabled
-        if hasattr(control, "updated_by"):
-            control.updated_by = request.user if request.user.is_authenticated else None
-        control.save()
-        try:
-            register_schedule(spec) if control.enabled else delete_schedule(name)
-        except Exception as exc:
-            messages.error(request, f"Applicazione non riuscita: {exc}")
-            return redirect("admin_portale:automazioni_pianificati")
-        log_action(request, "automazioni_schedule_toggle", "automazioni",
-                   {"name": name, "enabled": control.enabled})
-        messages.success(request, f"Task '{name}' {'attivato' if control.enabled else 'disattivato'}.")
-    elif action == "run_now":
-        try:
-            from django_q.tasks import async_task
-
-            from .models import ManagedFlow
-            binding = ManagedFlow.objects.filter(code=name, kind="schedule").first()
-            if binding:
-                async_task("automazioni.managed_flows.run_managed_flow", name)
-            else:
-                async_task(spec["func"], **(spec.get("kwargs") or {}))
-            log_action(request, "automazioni_schedule_run_now", "automazioni", {"name": name})
-            messages.success(request, f"'{name}' avviato ora (accodato al cluster).")
-        except Exception as exc:
-            messages.error(request, f"Avvio non riuscito (cluster django-q attivo?): {exc}")
-    else:
-        messages.error(request, "Azione non riconosciuta.")
-    return redirect("admin_portale:automazioni_pianificati")
-
-
-@legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_page")
-@require_GET
-def pianificati_mail_config_page(request, name):
-    """Configura destinatari + cornice testuale (oggetto/intro/nota) di un task mail."""
-    from .mail_config import get_recipients_raw, get_text_overrides, is_configurable, task_meta
-    from .schedules import describe_cadence, schedule_descriptions, spec_by_name
-
-    spec = spec_by_name(name)
-    if not spec or not is_configurable(name):
-        messages.error(request, "Questo task non è configurabile.")
-        return redirect("admin_portale:automazioni_pianificati")
-
-    txt = get_text_overrides(name)
-    context = {
-        **_base_context(),
-        "name": name,
-        "meta": task_meta(name),
-        "cadence": describe_cadence(spec),
-        "description": schedule_descriptions().get(name, ""),
-        "recipients": get_recipients_raw(name),
-        "subject": getattr(txt, "subject", ""),
-        "intro": getattr(txt, "intro", ""),
-        "footer": getattr(txt, "footer", ""),
-    }
-    return render(request, "automazioni/pages/pianificati_mail.html", context)
-
-
-@legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_save")
-@require_POST
-def pianificati_mail_config_save(request, name):
-    """Salva destinatari (SiteConfig) + testo (ScheduledMailText) di un task mail."""
-    from .mail_config import is_configurable, set_recipients_raw, task_meta
-    from .models import ScheduledMailText
-    from .schedules import spec_by_name
-
-    spec = spec_by_name(name)
-    if not spec or not is_configurable(name):
-        messages.error(request, "Questo task non è configurabile.")
-        return redirect("admin_portale:automazioni_pianificati")
-
-    if task_meta(name).get("config_key"):
-        set_recipients_raw(name, request.POST.get("recipients") or "")
-
-    subject = (request.POST.get("subject") or "").strip()
-    intro = (request.POST.get("intro") or "").strip()
-    footer = (request.POST.get("footer") or "").strip()
-    if subject or intro or footer:
-        obj, _ = ScheduledMailText.objects.get_or_create(task_name=name)
-        obj.subject, obj.intro, obj.footer = subject, intro, footer
-        obj.updated_by = request.user if request.user.is_authenticated else None
-        obj.save()
-    else:
-        ScheduledMailText.objects.filter(task_name=name).delete()
-
-    log_action(request, "automazioni_mail_config_save", "automazioni", {"name": name})
-    messages.success(request, f"Configurazione mail di '{name}' salvata.")
-    return redirect("admin_portale:automazioni_pianificati_mail", name=name)
-
-
-@legacy_admin_or_acl_required("automazioni", "pianificati_mail_test")
-@require_POST
-def pianificati_mail_test(request, name):
-    """Invia all'admin corrente un'ANTEPRIMA della mail del flusso (dati di esempio).
-
-    Usa la cornice reale (frame HUB + oggetto/intro/nota configurati) con righe di
-    esempio: non interroga le scadenze reali e non tocca i destinatari veri.
-    """
-    from .mail_config import apply_mail_overrides, is_configurable, task_meta
-    from .schedules import spec_by_name
-
-    spec = spec_by_name(name)
-    if not spec or not is_configurable(name):
-        messages.error(request, "Questo task non è configurabile.")
-        return redirect("admin_portale:automazioni_pianificati")
-
-    destinatario = (getattr(request.user, "email", "") or "").strip()
-    if not destinatario:
-        messages.error(request, "Il tuo utente non ha un'email: impossibile inviare l'anteprima.")
-        return redirect("admin_portale:automazioni_pianificati_mail", name=name)
-
-    from core.email_utils import email_item_cards, send_hub_mail
-
-    meta = task_meta(name)
-    esempio = email_item_cards([
-        {"title": "Dipendente #123", "subtitle": "Esempio di voce",
-         "badge": ("In scadenza", "warning"), "note": "Scadenza 31-12-2026", "accent": "#f59e0b"},
-        {"title": "Dipendente #456", "subtitle": "Esempio di voce",
-         "badge": ("Scaduto", "danger"), "note": "Scaduto il 01-01-2026", "accent": "#dc2626"},
-    ])
-    subject = f"[ANTEPRIMA] {meta.get('label', name)}"
-    body_text = ("Anteprima dell'email di questo flusso (dati di esempio).\n\n"
-                 "Le voci reali sono generate automaticamente dalle scadenze al momento dell'invio.")
-    subject, body_text, fragment, footer = apply_mail_overrides(
-        name, subject=subject, body_text=body_text, fragment=esempio)
-    try:
-        send_hub_mail(
-            subject, body_text, [destinatario],
-            email_type="Anteprima", section_label=meta.get("label", name),
-            body_html_fragment=fragment, footer_note=footer,
-            preheader="Anteprima flusso mail", fail_silently=False,
-        )
-        log_action(request, "automazioni_mail_test", "automazioni", {"name": name, "to": destinatario})
-        messages.success(request, f"Anteprima inviata a {destinatario}.")
-    except Exception as exc:
-        messages.error(request, f"Invio anteprima non riuscito: {exc}")
-    return redirect("admin_portale:automazioni_pianificati_mail", name=name)
