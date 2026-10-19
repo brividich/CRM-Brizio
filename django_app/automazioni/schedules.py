@@ -718,6 +718,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Microsoft 365 — abbonamenti (posti, stato, rinnovo) nel modulo Licenze software.
+        # Serve il permesso Graph Organization.Read.All (+ LicenseAssignment.Read.All per le date).
+        "name": "m365_licenze_sync",
+        "func": "assets.tasks.run_m365_licenze_sync",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 6 * * *",       # ogni mattina alle 06:40
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Microsoft Intune — dispositivi gestiti (conformità, cifratura, ultima sync):
         # prima degli avvisi IT delle 07:15, che ne riportano i problemi.
         # Serve il permesso Graph DeviceManagementManagedDevices.Read.All.

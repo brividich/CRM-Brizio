@@ -271,8 +271,16 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Salva. Nell'elenco licenze compare <strong>Installato su N PC su M posti</strong>.</li>
       </ol>
       <p>L'elenco avvisa con <em>Più installazioni che posti</em> se i PC con il software superano i posti acquistati, e con <em>Scaduta ma ancora installata</em> se la licenza è scaduta o disattivata ma il software è ancora sui PC.</p>
+      <h3>Abbonamenti Microsoft 365</h3>
+      <p>Ogni mattina alle 06:40 il portale legge gli abbonamenti Microsoft 365 dell'azienda (Business Premium, Exchange, Power BI…) e tiene una licenza per abbonamento in <a href="{% url 'assets:software_license_list' %}">Licenze software</a>, categoria <strong>Office</strong>, riferimento <code>m365:…</code>.</p>
+      <ul>
+        <li>Posti acquistati, posti usati e stato (attivo o sospeso) arrivano da Microsoft e si aggiornano da soli; la <strong>scadenza</strong> anche, quando Microsoft la fornisce: così l'abbonamento compare nello scadenzario e nei promemoria delle licenze.</li>
+        <li>Nome, assegnatario, note e collegamento al <strong>Software dell'inventario</strong> li puoi cambiare: non vengono sovrascritti. Collega per esempio Business Premium a «Microsoft 365 Apps» per contare su quanti PC è installato Office. Un abbonamento che sparisce da Microsoft resta in elenco come non attivo.</li>
+        <li>I piani gratuiti (con 10.000 posti finti) non vengono importati. Le licenze inserite a mano non vengono mai toccate.</li>
+        <li>Chi ha ancora una licenza ma ha lasciato l'azienda lo vedi in Amministrazione › Ruoli e permessi › «Account Microsoft 365».</li>
+      </ul>
       <h3>Riquadro «Da sistemare: licenze e software installato»</h3>
-      <p>In cima a <a href="{% url 'assets:software_license_list' %}">Licenze software</a> compare quando qualcosa non quadra con l'inventario importato nel SOC. Sono solo segnalazioni: nessuna licenza cambia da sola.</p>
+      <p>In cima a <a href="{% url 'assets:software_license_list' %}">Licenze software</a> compare quando qualcosa non quadra con l'inventario importato nel SOC. Sono solo segnalazioni: nessuna licenza cambia da sola (tranne posti, stato e scadenza degli abbonamenti Microsoft 365, vedi sopra).</p>
       <ul>
         <li><strong>Installati a pagamento senza licenza valida</strong>: prodotti marcati <em>A pagamento</em> nel catalogo software, presenti sui PC, senza una licenza valida collegata;</li>
         <li><strong>Più PC che posti</strong>: i PC con il software superano la somma dei posti delle licenze valide;</li>
