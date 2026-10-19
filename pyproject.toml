@@ -1,0 +1,43 @@
+# Configurazione degli strumenti di qualita' (igiene repo, 18/10/2026).
+# Non e' un pacchetto installabile: il progetto Django vive in django_app/.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [
+    ".tmp_tests",
+    "staticfiles",
+    # Repo annidato (gitlink senza .gitmodules) con una .venv propria: non e' codice del portale.
+    "powerautomate-to-django-automations",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "DJ"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*.py" = ["F401"]
+"__init__.py" = ["F401"]
+
+# coverage.py: usato dalla suite notturna (.github/workflows/nightly-tests.yml),
+# lanciato da django_app/ con --rcfile=../pyproject.toml. Nessuna soglia bloccante.
+[tool.coverage.run]
+source = ["."]
+branch = false
+parallel = true
+concurrency = ["multiprocessing"]
+relative_files = true
+omit = [
+    "*/migrations/*",
+    "*/tests.py",
+    "*/tests_*.py",
+    "*/test_*.py",
+    "*/tests/*",
+    ".tmp_tests/*",
+    "staticfiles/*",
+    "powerautomate-to-django-automations/*",
+    "manage.py",
+]
+
+[tool.coverage.report]
+skip_empty = true

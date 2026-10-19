@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Solo per le annotazioni di tipo (nessun import a runtime).
+    from tickets.models import Ticket
+
+    from ..models import AssetITDetails
+
 from collections import defaultdict
 from datetime import date, timedelta
 

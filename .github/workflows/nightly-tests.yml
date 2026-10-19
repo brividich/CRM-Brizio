@@ -28,12 +28,53 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r django_app/requirements.txt
+          pip install coverage==7.13.5
 
-      - name: Full test suite
+      # Igiene repo (18/10/2026): la suite gira sotto coverage.py (configurazione in
+      # pyproject.toml, [tool.coverage.*]). Solo report, nessuna soglia bloccante.
+      - name: Full test suite (con coverage)
         shell: pwsh
         working-directory: django_app
         env:
           DEFAULT_FROM_EMAIL: noreply@example.com
         # "." = discovery di tutte le app (senza etichetta il runner usa solo
         # DEFAULT_TEST_LABELS = core, tasks, attrezzature).
-        run: python manage.py test . --parallel auto --noinput --verbosity 1 --settings=config.settings.test
+        run: python -m coverage run --rcfile=../pyproject.toml manage.py test . --parallel auto --noinput --verbosity 1 --settings=config.settings.test
+
+      - name: Coverage report per app
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        working-directory: django_app
+        run: |
+          python -m coverage combine --rcfile=../pyproject.toml
+          python -m coverage report --rcfile=../pyproject.toml --format=total
+          python -m coverage json --rcfile=../pyproject.toml -o coverage.json
+          python -m coverage html --rcfile=../pyproject.toml -d htmlcov
+          # Aggregazione per app (prima cartella del percorso) nel riepilogo del run.
+          # -AsHashtable: il json di coverage ha chiavi vuote (funzioni/classi a livello modulo).
+          $data = Get-Content coverage.json -Raw | ConvertFrom-Json -AsHashtable
+          $perApp = @{}
+          foreach ($file in $data.files.Keys) {
+            $app = ($file -replace '\\', '/').Split('/')[0]
+            if (-not $perApp.ContainsKey($app)) { $perApp[$app] = @{ Stmts = 0; Covered = 0 } }
+            $perApp[$app].Stmts += $data.files[$file].summary.num_statements
+            $perApp[$app].Covered += $data.files[$file].summary.covered_lines
+          }
+          $rows = @("| App | Statement | Coperti | % |", "|---|---:|---:|---:|")
+          foreach ($app in ($perApp.Keys | Sort-Object)) {
+            $s = $perApp[$app]
+            $pct = if ($s.Stmts) { [math]::Round(100 * $s.Covered / $s.Stmts, 1) } else { 0 }
+            $rows += "| $app | $($s.Stmts) | $($s.Covered) | $pct |"
+          }
+          $total = [math]::Round($data.totals.percent_covered, 1)
+          @("## Coverage per app", "", "Totale: **$total%**", "") + $rows | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            django_app/coverage.json
+            django_app/htmlcov/
+          retention-days: 14

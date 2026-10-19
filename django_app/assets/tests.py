@@ -2351,7 +2351,8 @@ class AssetsRoutingTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         asset.refresh_from_db()
-        self.assertEqual(asset.assignment_to, "Bova Luca")
+        # Nominativi sempre in «COGNOME NOME» maiuscolo (core.naming.nome_completo).
+        self.assertEqual(asset.assignment_to, "BOVA LUCA")
         self.assertEqual(asset.assignment_reparto, "CED")
         self.assertEqual(asset.assignment_location, "CED")
         self.assertEqual(asset.assigned_legacy_user_id, legacy_user.id)
@@ -2385,7 +2386,7 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:asset_edit", args=[asset.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Test Privacy")
+        self.assertContains(response, "TEST PRIVACY")
         self.assertNotContains(response, "privacy@example.local")
         self.assertNotContains(response, "privacy@example.com")
 

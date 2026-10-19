@@ -305,3 +305,20 @@ docs/gestione_carichi_macchina/GUIDA_UTILIZZO.pdf
 # File di lavoro degli agenti: restano locali (audit sicurezza 2026-10-09)
 _AGENT_CONTROL/
 session_checkpoint.md
+
+# Igiene repo (18/10/2026): residui locali nella RADICE, mai versionare.
+# Elenco dei non tracciati in radice: tools/pulizia_root.ps1 (non cancella nulla).
+node_modules/
+/package.json
+/package-lock.json
+/audit_*.txt
+/ss
+# Markdown generati/di lavoro in radice: versionati solo quelli canonici qui sotto.
+/*.md
+!/README.md
+!/CHANGELOG.md
+!/CLAUDE.md
+!/AGENTS.md
+!/SECRET_HYGIENE.md
+# Output di tools/migration_dryrun.ps1 (SQL di produzione, resta locale)
+deployment/dryrun/

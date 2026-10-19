@@ -19,6 +19,12 @@ Uso:
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Solo per le annotazioni di tipo (nessun import a runtime).
+    from .mail_action_models import AnomaliaMailActionToken
+
 import logging
 from datetime import timedelta
 from typing import Any

@@ -7,6 +7,12 @@ con storage privato fuori webroot.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Solo per le annotazioni di tipo (nessun import a runtime).
+    from reportlab.platypus import Table
+
 import base64
 import io
 import logging

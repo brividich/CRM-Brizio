@@ -335,7 +335,8 @@ class DpiCatalogRequestTests(TestCase):
         response = self.client.get(reverse("dpi:detail", args=[richiesta.pk]))
 
         self.assertContains(response, tipo.nome)
-        self.assertContains(response, modello.codice)
+        # Il dettaglio mostra il nome del modello, non il codice (template da a7793609).
+        self.assertContains(response, modello.nome)
         self.assertContains(response, taglia.valore)
 
     def test_management_detail_renders_type_model_size(self):
@@ -353,7 +354,7 @@ class DpiCatalogRequestTests(TestCase):
         response = self.client.get(reverse("dpi:gestione_detail", args=[richiesta.pk]))
 
         self.assertContains(response, tipo.nome)
-        self.assertContains(response, modello.codice)
+        self.assertContains(response, modello.nome)
         self.assertContains(response, taglia.valore)
 
     def test_delivery_uses_model_lifetime_override(self):
