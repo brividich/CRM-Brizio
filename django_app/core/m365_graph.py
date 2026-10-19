@@ -118,3 +118,31 @@ def get_all(url: str, *, permesso: str, params: dict | None = None, max_pages: i
         if not url:
             break
     return out
+
+
+def scrivi(metodo: str, url: str, *, permesso: str, json: dict | None = None) -> tuple[int, dict]:
+    """POST/PATCH/DELETE su Graph. Ritorna ``(stato HTTP, corpo)``; 404 non è un errore
+    (l'oggetto non c'è più: lo decide il chiamante), 401/403 e gli altri 4xx/5xx sì."""
+    import requests
+
+    if not url.startswith("https://graph.microsoft.com/"):
+        raise GraphError("Indirizzo Graph non ammesso.")
+    resp = requests.request(
+        metodo, url, json=json, timeout=TIMEOUT,
+        headers={"Authorization": f"Bearer {token()}", "Accept": "application/json"},
+    )
+    if resp.status_code in (401, 403):
+        _invalida_token()
+        raise GraphError(
+            f"Graph ha risposto {resp.status_code}: manca il permesso «{permesso}» (applicazione, con consenso "
+            "amministratore) sull'app del portale, oppure le credenziali non sono valide.",
+            resp.status_code,
+        )
+    if resp.status_code == 404:
+        return 404, {}
+    if resp.status_code >= 400:
+        raise GraphError(f"Graph ha risposto {resp.status_code}.", resp.status_code)
+    try:
+        return resp.status_code, (resp.json() if resp.content else {})
+    except ValueError:
+        return resp.status_code, {}
