@@ -1,13 +1,29 @@
 """Explicit, reversible merge of the two audited absence approval flows."""
+import re
 from copy import deepcopy
 
 from django.db import transaction
-from .models import AutomationRule, AutomationAction, AutomationCondition
+from .models import AutomationRule as _Rule, AutomationAction as _Action, AutomationCondition as _Condition
 
 LEGACY = "assenze-pa-richiesta-approvazione-caporeparto"
 BRANCHED = "au-assenze-unico-branch-per-tipo"
 MERGED = "assenze-approvazione-unificata"
 MARKER = "merge-assenze-20260930"
+HR_PLACEHOLDER = "HR_DA_CONFIGURARE@costruzioninovicrom.it"
+RECIPIENT_KEYS = ("to", "to_template", "cc", "cc_template")
+
+
+def replace_recipient(node, old, new):
+    """Replace a placeholder address in every recipient field of a flow tree (in place)."""
+    if isinstance(node, list):
+        for child in node:
+            replace_recipient(child, old, new)
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            if key in RECIPIENT_KEYS and isinstance(value, str):
+                node[key] = re.sub(re.escape(old), new, value, flags=re.IGNORECASE)
+            else:
+                replace_recipient(value, old, new)
 
 
 def _config(node):
@@ -74,7 +90,10 @@ def combined_config(legacy, branched):
 
 
 @transaction.atomic
-def merge_flows(*, apply=False):
+def merge_flows(*, apply=False, hr_recipient="", models=None):
+    """Merge the two absence flows. ``models`` lets a data migration pass its historical
+    (AutomationRule, AutomationAction, AutomationCondition) classes."""
+    AutomationRule, AutomationAction, AutomationCondition = models or (_Rule, _Action, _Condition)
     rules = {r.code: r for r in AutomationRule.objects.select_for_update().filter(code__in=[LEGACY, BRANCHED, MERGED])}
     if LEGACY not in rules or BRANCHED not in rules:
         raise ValueError("Le due regole censite non sono entrambe presenti.")
@@ -103,6 +122,8 @@ def merge_flows(*, apply=False):
     if any(_condition_key(c) not in keys for c in branch.conditions.filter(is_enabled=True)):
         raise ValueError("Condizioni del flusso ramificato non compatibili con quelle legacy.")
     config = combined_config(old_actions[0].config_json, branch_actions[0].config_json)
+    if hr_recipient:
+        replace_recipient(config, HR_PLACEHOLDER, hr_recipient)
     if not apply:
         return {"created": False, "preview": True, "conditions": len(conditions)}
     merged = AutomationRule.objects.create(code=MERGED, name="Assenze — approvazione unificata",
