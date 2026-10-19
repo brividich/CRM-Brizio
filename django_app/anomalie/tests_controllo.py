@@ -411,11 +411,12 @@ class ControlloApiTests(LegacyTableMixin, TestCase):
         with patch(
             "anomalie.controllo_service._destinatari",
             return_value=({"email": "cc@example.local", "display": "Capo Commessa"}, {"email": "car@example.local"}),
-        ):
+        ), patch("anomalie.mail_action_service._resolve_lista_config", return_value=[]):
             r = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[cid]))
         self.assertEqual(r.json()["destinatari"], {
             "to": "Capo Commessa", "cc": "car@example.local",
             "to_email": "cc@example.local", "cc_email": "car@example.local", "extra": [],
+            "riepilogo": [], "riepilogo_rdc": [],
         })
         self.assertEqual(cs.controllo_di_anomalia(None), None)
 

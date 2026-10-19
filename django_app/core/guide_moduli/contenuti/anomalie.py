@@ -18,7 +18,9 @@ GUIDA = {
                     "Per ogni problema trovato aggiungi un'anomalia: descrizione e foto (trascina il file o incollalo con Ctrl+V).",
                     "Indica se l'anomalia riguarda tutti i seriali del blocco o solo alcuni.",
                     "All'avvio del controllo vedi a chi andrà la mail; con «+ Aggiungi altro capocommessa» o «+ Aggiungi "
-                    "persona» metti in copia altri colleghi presenti in anagrafica.",
+                    "persona» metti in copia altri colleghi presenti in anagrafica; nello stesso riquadro compaiono le "
+                    "liste di Configurazione → Notifiche che ricevono il riepilogo, e il riquadro torna nel riepilogo "
+                    "finale.",
                     "Invia: il capocommessa riceve la mail e decide dal portale o dal collegamento nella mail.",
                     "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
                     "di questi seriali» copia la decisione su tutto il blocco.",
