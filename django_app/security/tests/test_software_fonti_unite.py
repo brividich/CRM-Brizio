@@ -89,43 +89,149 @@ class DueFontiTests(TestCase):
 
 
 class NomiDiversiAliasTests(TestCase):
-    def setUp(self):
-        importa(WG, [("pc-01", "Microsoft", "Microsoft 365 Apps for enterprise", "16.0.1")])
-        importa(DEF, [("pc-01", "Microsoft", "microsoft 365 apps", "16.0.1")])
+    """Nomi simili ma NON equivalenti per l'abbinatore: restano due righe finché non c'è un alias."""
 
-    def test_nomi_diversi_restano_due_righe_finche_non_c_e_alias(self):
+    def setUp(self):
+        importa(WG, [("pc-01", "Contoso", "Contoso Reporting Studio", "5.1")])
+        importa(DEF, [("pc-01", "Contoso", "Contoso Reporting Studios", "5.1")])
+
+    def test_restano_due_righe_senza_alias(self):
         self.assertEqual(SoftwareInstallation.objects.count(), 2)
 
-    def test_il_comando_propone_lalias(self):
+    def test_il_comando_propone_lalias_ed_e_ascii(self):
         out = StringIO()
         call_command("software_fonti_confronto", stdout=out)
         testo = out.getvalue()
         self.assertIn("PC visti da entrambe le fonti", testo)
-        self.assertIn("microsoft 365 apps for enterprise", testo)
-        self.assertIn("≈", testo)
+        self.assertIn("contoso reporting studio", testo)
+        self.assertIn("~", testo)
+        testo.encode("cp1252")  # la console Windows di produzione non regge altro
 
     def test_alias_fonde_le_righe_e_sposta_gli_impatti(self):
         da_tenere = SoftwareInstallation.objects.get(source_kind=WG)
         da_fondere = SoftwareInstallation.objects.get(source_kind=DEF)
-        SoftwareAlias.objects.create(kind=SoftwareAlias.KIND_PRODUCT, raw="microsoft 365 apps for enterprise", canonical="microsoft 365 apps")
-        SoftwareInstallation.objects.filter(pk=da_tenere.pk).update(product="microsoft 365 apps")
-        from security.models import SecurityAsset  # noqa: F401  (assicura l'app caricata)
+        SoftwareAlias.objects.create(kind=SoftwareAlias.KIND_PRODUCT, raw="contoso reporting studios", canonical="contoso reporting studio")
+        SoftwareInstallation.objects.filter(pk=da_fondere.pk).update(product="contoso reporting studio")
 
         esito = inv.unifica_installazioni()
         self.assertEqual(esito["fuse"], 1)
         self.assertEqual(SoftwareInstallation.objects.count(), 1)
         self.assertEqual(sorted(SoftwareInstallation.objects.get().fonti), [DEF, WG])
-        self.assertFalse(SoftwareInstallation.objects.filter(pk__in=[da_tenere.pk, da_fondere.pk]).count() == 2)
-        # idempotente
-        self.assertEqual(inv.unifica_installazioni(), {"fuse": 0, "richiavate": 0})
+        self.assertEqual(SoftwareInstallation.objects.filter(pk__in=[da_tenere.pk, da_fondere.pk]).count(), 1)
+        self.assertEqual(inv.unifica_installazioni(), {"fuse": 0, "richiavate": 0})  # idempotente
 
     def test_dopo_lalias_il_reimport_non_crea_doppioni(self):
-        SoftwareAlias.objects.create(kind=SoftwareAlias.KIND_PRODUCT, raw="microsoft 365 apps for enterprise", canonical="microsoft 365 apps")
-        SoftwareInstallation.objects.filter(source_kind=WG).update(product="microsoft 365 apps")
+        SoftwareAlias.objects.create(kind=SoftwareAlias.KIND_PRODUCT, raw="contoso reporting studios", canonical="contoso reporting studio")
+        SoftwareInstallation.objects.filter(source_kind=DEF).update(product="contoso reporting studio")
         inv.unifica_installazioni()
-        importa(WG, [("pc-01", "Microsoft", "Microsoft 365 Apps for enterprise", "16.0.1")])
-        importa(DEF, [("pc-01", "Microsoft", "microsoft 365 apps", "16.0.1")])
+        importa(WG, [("pc-01", "Contoso", "Contoso Reporting Studio", "5.1")])
+        importa(DEF, [("pc-01", "Contoso", "Contoso Reporting Studios", "5.1")])
         self.assertEqual(SoftwareInstallation.objects.count(), 1)
+
+
+class AbbinamentoAutomaticoTests(TestCase):
+    """Defender usa nomi brevi («chrome»), WatchGuard quelli completi («Google Chrome»): si fondono da soli."""
+
+    def test_nome_breve_senza_il_produttore(self):
+        importa(WG, [("PC-01.local", "Google LLC", "Google Chrome", "130.0.6723.92")])
+        imp = importa(DEF, [("pc-01", "google", "chrome", "130.0.6723.92")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 1)
+        self.assertEqual(imp.rows_new, 0)
+        riga = SoftwareInstallation.objects.get()
+        self.assertEqual(sorted(riga.fonti), [DEF, WG])
+        self.assertEqual(riga.product, "google chrome")  # il nome della prima fonte non cambia
+
+    def test_funziona_anche_al_contrario(self):
+        importa(DEF, [("pc-01", "google", "chrome", "130.0.1")])
+        importa(WG, [("pc-01", "Google LLC", "Google Chrome", "130.0.1")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 1)
+
+    def test_versione_diversa_resta_riga_distinta(self):
+        importa(WG, [("pc-01", "Google LLC", "Google Chrome", "130.0.1")])
+        importa(DEF, [("pc-01", "google", "chrome", "131.0.1")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+
+    def test_prodotti_diversi_non_si_fondono(self):
+        importa(WG, [("pc-01", "Microsoft", "Microsoft Edge", "1.0")])
+        importa(DEF, [("pc-01", "microsoft", "microsoft edge webview2 runtime", "1.0")])
+        importa(DEF, [("pc-01", "microsoft", "office 2019", "1.0")])
+        importa(WG, [("pc-01", "Microsoft", "Microsoft Office", "1.0")])
+        # edge ≠ edge webview2 runtime (numero), office ≠ office 2019 (numero)
+        self.assertEqual(SoftwareInstallation.objects.filter(host="pc-01").count(), 4)
+
+    def test_produttori_diversi_non_si_fondono(self):
+        importa(WG, [("pc-01", "Acme", "Acme Tool", "1.0")])
+        importa(DEF, [("pc-01", "Globex", "tool", "1.0")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+
+    def test_due_candidati_alla_pari_non_si_indovina(self):
+        importa(WG, [("pc-01", "Acme", "Acme Tool Pro", "1.0"), ("pc-01", "Acme", "Acme Tool Max", "1.0")])
+        importa(DEF, [("pc-01", "acme", "tool", "1.0")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 3)  # ambiguo: resta una riga nuova
+
+    def test_reimport_non_crea_ne_toglie_nulla(self):
+        importa(WG, [("pc-01", "Google LLC", "Google Chrome", "130.0.1")])
+        importa(DEF, [("pc-01", "google", "chrome", "130.0.1")])
+        for _ in range(2):
+            importa(DEF, [("pc-01", "google", "chrome", "130.0.1")])
+        riga = SoftwareInstallation.objects.get()
+        self.assertEqual(SoftwareInstallation.objects.count(), 1)
+        self.assertTrue(riga.still_detected)
+        self.assertEqual(sorted(riga.fonti), [DEF, WG])
+        importa(DEF, [("pc-01", "altro", "altro", "1.0")])  # Defender non lo vede più: resta per WatchGuard
+        riga = SoftwareInstallation.objects.get(product="google chrome")
+        self.assertTrue(riga.still_detected)
+        self.assertEqual(riga.fonti, [WG])
+
+    def test_un_solo_candidato_non_serve_a_due_righe_dello_stesso_file(self):
+        importa(WG, [("pc-01", "Google LLC", "Google Chrome", "130.0.1")])
+        importa(DEF, [("pc-01", "google", "chrome", "130.0.1"), ("pc-01", "google", "chrome browser", "130.0.1")])
+        # la prima prende la riga WatchGuard, la seconda non può riusarla: due righe in tutto
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+
+
+class UnisciPerEquivalenzaTests(TestCase):
+    """Per i doppioni già in archivio (importati prima dell'abbinamento automatico)."""
+
+    def _riga(self, fonte, vendor, product, version="1.0", host="pc-01"):
+        return SoftwareInstallation.objects.create(
+            dedup_key=inv.identity_key(host, vendor, product, version), source_kind=fonte, host=host,
+            vendor=vendor, product=product, product_raw=product, version_raw=version, fonti=[fonte],
+        )
+
+    def test_anteprima_non_scrive_poi_applica(self):
+        from security.models import SecurityCveRecord
+
+        wg = self._riga(WG, "google", "google chrome")
+        df = self._riga(DEF, "google", "chrome")
+        altro = self._riga(DEF, "acme", "qualcosa")
+        cve = SecurityCveRecord.objects.create(cve_id="CVE-2026-0002")
+        SecurityCveImpact.objects.create(cve=cve, host="pc-01", installation=df, outcome=SecurityCveImpact.IMPACTS, explanation="prova")
+
+        out = StringIO()
+        call_command("software_fonti_unisci", stdout=out)
+        self.assertIn("Coppie da fondere: 1", out.getvalue())
+        self.assertEqual(SoftwareInstallation.objects.count(), 3)  # anteprima: nessuna modifica
+        out.getvalue().encode("cp1252")
+
+        out = StringIO()
+        call_command("software_fonti_unisci", "--applica", stdout=out)
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+        tenuta = SoftwareInstallation.objects.get(pk=wg.pk)  # si tiene la più vecchia
+        self.assertEqual(sorted(tenuta.fonti), [DEF, WG])
+        self.assertEqual(SecurityCveImpact.objects.get().installation_id, tenuta.pk)
+        self.assertTrue(SoftwareInstallation.objects.filter(pk=altro.pk).exists())
+        self.assertFalse(SoftwareInstallation.objects.filter(pk=df.pk).exists())
+        self.assertEqual(inv.unisci_per_equivalenza()["coppie"], [])  # idempotente
+
+    def test_ambigui_e_stessa_fonte_si_saltano(self):
+        self._riga(WG, "acme", "acme tool pro")
+        self._riga(WG, "acme", "acme tool max")
+        self._riga(DEF, "acme", "tool")
+        esito = inv.unisci_per_equivalenza(applica=True)
+        self.assertEqual(esito["fuse"], 0)
+        self.assertGreaterEqual(esito["ambigue"], 1)
+        self.assertEqual(SoftwareInstallation.objects.count(), 3)
 
 
 class FirmwareNonSiFondeTests(TestCase):
