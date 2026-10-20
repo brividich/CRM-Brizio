@@ -77,11 +77,18 @@ def find_release_zip(build_info: dict) -> Path | None:
     commit = (build_info or {}).get("commit")
     if not commit:
         return None
-    packages = Path(settings.BASE_DIR).resolve().parents[2] / "shared" / "packages" \
-        if len(Path(settings.BASE_DIR).resolve().parents) > 2 else None
-    if not packages or not packages.exists():
-        return None
-    for zp in sorted(packages.glob("portale-novicrom-v*.zip"), reverse=True):
+    # BASE_DIR = <root>\<env>\current\django_app; resolve() segue la junction fino a
+    # <root>\<env>\releases\<id>\django_app, quindi si provano entrambe le forme.
+    base = Path(settings.BASE_DIR)
+    candidates = []
+    for p, depth in ((base, 2), (base.resolve(), 3)):
+        if len(p.parents) > depth:
+            candidates.append(p.parents[depth] / "shared" / "packages")
+    zips = []
+    for packages in dict.fromkeys(candidates):
+        if packages.exists():
+            zips.extend(packages.glob("portale-novicrom-v*.zip"))
+    for zp in sorted(zips, key=lambda z: z.name, reverse=True):
         try:
             with zipfile.ZipFile(zp) as z:
                 name = next((n for n in z.namelist() if n.endswith("BUILD_INFO.json") and n.count("/") <= 1), None)
