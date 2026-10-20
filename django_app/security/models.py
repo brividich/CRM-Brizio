@@ -1368,6 +1368,9 @@ class SoftwareInstallation(models.Model):
     version_raw = models.CharField(max_length=120, blank=True)
     version_norm = models.CharField(max_length=120, blank=True)
     still_detected = models.BooleanField(default=True, db_index=True)
+    # Fonti che vedono OGGI questa installazione (es. ["watchguard", "defender"]): lo stesso software
+    # sullo stesso PC arrivato da due fonti è UNA riga, non due. ``source_kind`` resta la prima fonte.
+    fonti = models.JSONField(default=list, blank=True)
     first_import = models.ForeignKey(SoftwareInventoryImport, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     last_import = models.ForeignKey(SoftwareInventoryImport, on_delete=models.SET_NULL, null=True, blank=True, related_name="installations")
     detected_at = models.DateTimeField(null=True, blank=True)
@@ -1383,6 +1386,11 @@ class SoftwareInstallation(models.Model):
 
     def __str__(self):
         return f"{self.product_raw} {self.version_raw} @ {self.host}"
+
+    @property
+    def fonti_etichette(self) -> list[str]:
+        nomi = dict(SoftwareSourceKind.choices)
+        return [nomi.get(f, f) for f in (self.fonti or [self.source_kind])]
 
 
 class SoftwareAlias(models.Model):

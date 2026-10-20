@@ -85,6 +85,12 @@ Una regola si può **accendere solo se è stata simulata negli ultimi 7 giorni**
 
 - **Inventario software**: export dei software installati per PC, da WatchGuard EPDR (Panda) o da BusinessLog, caricato a mano in CSV o Excel.
 - **Microsoft Defender for Endpoint**: con «Leggi il software dei PC» acceso (Impostazioni › Alert di Microsoft Defender) il software dei PC collegati a Defender arriva da solo ogni mattina alle 06:20, come un import (compare nell'elenco degli import con il nome «Microsoft Defender for Endpoint (API)»). Non serve caricare file per quei PC.
+
+**Una riga sola, anche con più fonti.** Lo stesso software sullo stesso PC visto da WatchGuard e da Defender (stesso produttore, prodotto e versione) è **una riga**, non due: la scheda del PC e i conteggi non si raddoppiano. Se una fonte non lo vede più ma l'altra sì, resta «rilevato»; diventa «non più rilevato» solo quando nessuna fonte lo vede. Ogni fonte può togliere solo ciò che ha letto: un import Defender non cancella nulla sui PC che Defender non conosce.
+
+**Release diverse dello stesso prodotto.** Le versioni restano righe distinte (servono al confronto con le CVE), ma si raggruppano per prodotto: nel catalogo e nella scheda del PC il prodotto è uno, con l'elenco delle versioni e i PC per versione. Anni diversi nel nome («Office 2016», «Office 2019») sono prodotti diversi, perché hanno CVE diverse.
+
+**Nomi diversi tra le fonti.** Se le due fonti chiamano il prodotto in modo diverso («Microsoft 365 Apps for enterprise - it-it» e «microsoft 365 apps») restano due righe finché non crei un alias. Per trovarli: `manage.py software_fonti_confronto` elenca, sui PC visti da entrambe le fonti, i prodotti presenti in una sola e propone l'alias più simile; poi inseriscilo in Inventario software › Alias e le righe si fondono.
 - **Firmware da monitoraggio SNMP**: per ogni dispositivo del Monitor SNMP con produttore, modello e versione firmware letta, il portale aggiunge da solo una riga «<modello> firmware» all'inventario (fonte «Firmware da monitoraggio SNMP», host = IP del dispositivo). Non si carica a mano: si aggiorna a ogni interrogazione e una versione nuova sostituisce la precedente. Per il confronto con le CVE va collegata al CPE come gli altri software (i CPE NVD dei firmware finiscono in `_firmware`).
 - **NVD** (National Vulnerability Database): per ogni CVE, quali prodotti e quali versioni sono vulnerabili.
 - **CISA KEV**: l'elenco delle CVE sfruttate attivamente.
@@ -146,7 +152,7 @@ Per il resto:
 
 - **Cerca in NVD** propone i CPE più simili; **Conferma** quello giusto. Serve solo per i casi dubbi: non va fatto riga per riga.
 - **N/A** per i software senza CVE da seguire (driver, componenti interni): non verranno più proposti.
-- **Alias** unisce nomi diversi dello stesso produttore o prodotto (per esempio «Microsoft Corporation» e «Microsoft»).
+- **Alias** unisce nomi diversi dello stesso produttore o prodotto (per esempio «Microsoft Corporation» e «Microsoft»). Salvando un alias, le righe che diventano uguali si fondono subito in una sola, anche se arrivano da fonti diverse.
 - **Ricalcola impatti** riapplica tutte le regole dopo una serie di modifiche.
 
 Finché un software non ha il CPE confermato, le CVE che potrebbero riguardarlo risultano **da verificare**, mai «non impatta». Parti da **Da decidere**: le righe sono ordinate per numero di PC, quindi le prime sono le più importanti.
