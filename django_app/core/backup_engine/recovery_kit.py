@@ -80,7 +80,8 @@ def fingerprints_from_env(env_bytes: bytes) -> dict:
     values = parse_env(env_bytes)
     return {
         "document_encryption_key_sha256": _sha(values.get("DOCUMENT_ENCRYPTION_KEY")),
-        "secret_key_sha256": _sha(values.get("SECRET_KEY")),
+        # settings.SECRET_KEY si legge da DJANGO_SECRET_KEY (config/settings/base.py)
+        "secret_key_sha256": _sha(values.get("DJANGO_SECRET_KEY") or values.get("SECRET_KEY")),
         "env_sha256": _sha(env_bytes),
     }
 
@@ -145,8 +146,12 @@ def open_kit(kit: bytes, passphrase: str) -> tuple[dict, dict]:
     payload = json.loads(plain.decode("utf-8"))
     payload["files"] = {k: base64.b64decode(v) for k, v in payload.get("files", {}).items()}
     actual = fingerprints_from_env(payload["files"].get(".env", b""))
-    if actual != header["fingerprints"]:
+    # I kit esportati prima della lettura di DJANGO_SECRET_KEY hanno secret_key_sha256 vuota:
+    # si confrontano solo le impronte registrate, poi valgono quelle ricalcolate dal contenuto.
+    recorded = header["fingerprints"]
+    if any(v is not None and actual.get(k) != v for k, v in recorded.items()):
         raise KitError("Le impronte dell'intestazione non corrispondono al contenuto del kit.")
+    header["fingerprints"] = actual
     return header, payload
 
 

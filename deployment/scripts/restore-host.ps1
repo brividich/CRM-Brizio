@@ -117,7 +117,8 @@ function Add-Diff([string]$Text) { if ($state.diffs -notcontains $Text) { $state
 function Get-Python {
     if ($BootstrapPython) { return $BootstrapPython }
     $minor = $facts.python_minor
-    foreach ($c in @("C:\Python$($minor -replace '\.', '')\python.exe", (Join-Path $paths.Venv "Scripts\python.exe"))) {
+    # prima il venv dell'ambiente (ha cryptography dai requirements), poi il Python di sistema
+    foreach ($c in @((Join-Path $paths.Venv "Scripts\python.exe"), "C:\Python$($minor -replace '\.', '')\python.exe")) {
         if ($c -and (Test-Path $c)) { return $c }
     }
     $py = Get-Command py -ErrorAction SilentlyContinue
@@ -222,7 +223,7 @@ $phaseBodies["preflight"] = {
     $notes += "Python del backup: $($facts.python_minor) · SQL di destinazione: $SqlMajorVersion · identità del pool: $AppPoolIdentity"
     if (-not $dryRun -and -not $Force -and -not $Resume) {
         $notes | ForEach-Object { Write-Log $_ "INFO" }
-        if (-not $PSCmdlet.ShouldContinue("Ricostruire NOVICROM HUB ($Environment) su $env:COMPUTERNAME dai backup in $envRoot?", "Conferma")) {
+        if (-not $PSCmdlet.ShouldContinue("Ricostruire NOVICROM HUB ($Environment) su $env:COMPUTERNAME dai backup in ${envRoot}?", "Conferma")) {
             throw "Annullato dall'operatore."
         }
     }
@@ -400,7 +401,7 @@ $phaseBodies["secrets"] = {
     foreach ($l in $lines) { if ($l -match '^PFX_PASSWORD=(.*)$') { $script:pfxPassword = $Matches[1] } elseif ($l -match '^PFX_THUMBPRINT=(.*)$') { $script:pfxThumb = $Matches[1] } }
     $visible = ($lines | Where-Object { $_ -and $_ -notmatch '^PFX_' }) -join " "
     if ($r.ExitCode -eq 3) { throw "Impronte delle chiavi diverse dal backup: $visible — questo kit non apre i documenti. Fermato." }
-    if ($r.ExitCode -ne 0) { throw "Import del Recovery Kit fallito: $visible" }
+    if ($r.ExitCode -ne 0) { throw "Import del Recovery Kit fallito (exit $($r.ExitCode)): $visible $($r.Err.Trim())" }
     @($visible, $(if (Test-Path $pfx) { "certificato HTTPS estratto (thumbprint $script:pfxThumb)" } else { "nessun certificato nel kit" }))
 }
 
@@ -440,6 +441,11 @@ $phaseBodies["release"] = {
     New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
     $local = Join-Path $pkgDir (Split-Path $zip -Leaf)
     Copy-Item $zip $local -Force
+    # deploy-release.ps1 ricicla il pool IIS: su una macchina nuova deve già esistere (la fase IIS viene dopo)
+    Import-Module WebAdministration
+    if (-not (Test-Path "IIS:\AppPools\$appPool")) {
+        & "$PSScriptRoot\configure-iis-site.ps1" -Environment $Environment -Hostname $PublicHostname
+    }
     $out = & "$PSScriptRoot\deploy-release.ps1" -Environment $Environment -PackagePath $local -AutoActivate -AllowEnvDrift *>&1 | Out-String
     $out | Set-Content (Join-Path $stateDir "deploy-release.log") -Encoding UTF8
     $notes = @("release $($plan.release.version) ($($plan.release.commit)) attivata")
@@ -451,7 +457,17 @@ $phaseBodies["iis"] = {
     if ($dryRun) { return @("WhatIf: configure-iis-site.ps1 -Hostname $PublicHostname, identità $AppPoolIdentity, certificato e binding HTTPS") }
     & "$PSScriptRoot\configure-iis-site.ps1" -Environment $Environment -Hostname $PublicHostname
     Import-Module WebAdministration
+    # il web.config del portale definisce <handlers>: su un IIS nuovo la sezione è bloccata (errore 500.19)
+    & "$env:windir\system32\inetsrv\appcmd.exe" unlock config -section:system.webServer/handlers | Out-Null
     $poolPath = "IIS:\AppPools\$appPool"
+    # il gruppo locale IIS_IUSRS è per macchina: l'identità di dominio del pool deve esserci, altrimenti Python non scrive in logs
+    if ($AppPoolIdentity -notin @("ApplicationPoolIdentity") -and $AppPoolIdentity -match '\\') {
+        if (-not (Get-LocalGroupMember -Group IIS_IUSRS -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq $AppPoolIdentity.TrimEnd('$') })) {
+            Add-LocalGroupMember -Group IIS_IUSRS -Member $AppPoolIdentity.TrimEnd('$') -ErrorAction SilentlyContinue
+        }
+    }
+    # il processo web resta acceso: senza questo IIS lo spegne dopo 20 minuti e il primo accesso è lento (10-15 s)
+    Set-ItemProperty $poolPath -Name processModel.idleTimeout -Value ([TimeSpan]::Zero)
     if ($AppPoolIdentity -eq "ApplicationPoolIdentity") {
         Set-ItemProperty $poolPath -Name processModel.identityType -Value 4
     } elseif ($AppPoolIdentity.EndsWith('$')) {

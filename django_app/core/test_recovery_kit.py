@@ -18,7 +18,7 @@ from core.backup_engine import recovery_kit as rk
 from core.backup_engine import restore_files, restore_plan
 
 PW = "cavallo batteria graffetta corretta montagna"
-ENV = b"SECRET_KEY=sk-sintetica\nDOCUMENT_ENCRYPTION_KEY=dek-sintetica\nDB_HOST=x\n"
+ENV = b"DJANGO_SECRET_KEY=sk-sintetica\nDOCUMENT_ENCRYPTION_KEY=dek-sintetica\nDB_HOST=x\n"
 FAST = {"n": 2 ** 12}
 
 
@@ -62,6 +62,28 @@ class RecoveryKitTests(SimpleTestCase):
         self.assertEqual(rk.compare_fingerprints(header, {}), [])
         self.assertEqual(rk.compare_fingerprints(header, {"document_encryption_key_sha256": "x" * 64}),
                          ["DOCUMENT_ENCRYPTION_KEY"])
+
+    def test_impronta_secret_key_letta_da_django_secret_key(self):
+        sha = __import__("hashlib").sha256(b"sk-sintetica").hexdigest()
+        self.assertEqual(rk.fingerprints_from_env(ENV)["secret_key_sha256"], sha)
+        self.assertEqual(rk.fingerprints_from_env(b"SECRET_KEY=sk-sintetica\n")["secret_key_sha256"], sha)
+
+    def test_kit_esportato_senza_impronta_secret_key_si_apre(self):
+        # kit dei primi export: secret_key_sha256 vuota perché si cercava SECRET_KEY
+        with mock.patch.object(rk, "fingerprints_from_env",
+                               lambda b: {**self._fp(b), "secret_key_sha256": None}):
+            kit = rk.build_kit(ENV, PW, **FAST)
+        header, _ = rk.open_kit(kit, PW)
+        sha = __import__("hashlib").sha256(b"sk-sintetica").hexdigest()
+        self.assertEqual(header["fingerprints"]["secret_key_sha256"], sha)
+        self.assertEqual(rk.compare_fingerprints(header, {"secret_key_sha256": sha}), [])
+
+    @staticmethod
+    def _fp(env_bytes):
+        values = rk.parse_env(env_bytes)
+        return {"document_encryption_key_sha256": rk._sha(values.get("DOCUMENT_ENCRYPTION_KEY")),
+                "secret_key_sha256": rk._sha(values.get("DJANGO_SECRET_KEY")),
+                "env_sha256": rk._sha(env_bytes)}
 
     def test_cli_import_si_ferma_se_le_impronte_non_coincidono(self):
         tmp = Path(tempfile.mkdtemp())
@@ -121,6 +143,41 @@ class RecoveryKitCommandTests(TestCase):
                 call_command("hub_recovery_kit", "verify", str(out), "--passphrase-stdin", stdout=io.StringIO())
         with mock.patch("sys.stdin", io.StringIO(PW + "\n")), self.assertRaises(CommandError):
             call_command("hub_recovery_kit", "export", "--out", str(out), "--passphrase-stdin", stdout=io.StringIO())
+
+    def test_export_usa_il_config_env_persistente_del_deploy(self):
+        from core.management.commands import hub_recovery_kit as cmd
+
+        app = self.tmp / "prod" / "current" / "django_app"
+        app.mkdir(parents=True)
+        (app / ".env").write_bytes(b"COPIA=1\n")
+        (self.tmp / "prod" / "config").mkdir()
+        (self.tmp / "prod" / "config" / ".env").write_bytes(ENV)
+        with override_settings(BASE_DIR=app), mock.patch.dict("os.environ", {}, clear=False) as env:
+            env.pop("PORTAL_CONFIG_ENV_FILE", None)
+            self.assertEqual(cmd._env_path(), self.tmp / "prod" / "config" / ".env")
+
+
+class ReleaseZipTests(SimpleTestCase):
+    def test_zip_trovato_in_shared_packages_anche_dalla_cartella_releases(self):
+        import zipfile
+
+        from core.backup_engine import host_manifest
+
+        tmp = Path(tempfile.mkdtemp()).resolve()   # percorsi 8.3 (LB2EF~1) vs nome lungo
+        try:
+            # BASE_DIR come lo vede resolve() dietro la junction current: <root>\prod\releases\<id>\django_app
+            app = tmp / "prod" / "releases" / "20261019_123258" / "django_app"
+            app.mkdir(parents=True)
+            packages = tmp / "shared" / "packages"
+            packages.mkdir(parents=True)
+            zp = packages / "portale-novicrom-v1.6.8-20261019_122110.zip"
+            with zipfile.ZipFile(zp, "w") as z:
+                z.writestr("BUILD_INFO.json", json.dumps({"commit": "abc123"}))
+            with override_settings(BASE_DIR=app):
+                self.assertEqual(host_manifest.find_release_zip({"commit": "abc123"}), zp)
+                self.assertIsNone(host_manifest.find_release_zip({"commit": "altro"}))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class RestoreFilesTests(SimpleTestCase):

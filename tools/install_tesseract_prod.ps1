@@ -284,6 +284,17 @@ elseif ($Installer -or $Scarica) {
         # /D= DEVE restare l'ultimo argomento e senza virgolette (regola NSIS).
         $p = Start-Process -FilePath $daEseguire -ArgumentList "/S", "/D=$Destinazione" -Wait -PassThru
         if ($p.ExitCode -ne 0) { Fatale "Installer uscito con codice $($p.ExitCode)." }
+        if (-not (Test-Path (Join-Path $Destinazione 'tesseract.exe'))) {
+            # NSIS ignora /D= se l'installer si rilancia con elevazione: finisce nella cartella predefinita.
+            # Si copia da li' (exe + DLL + tessdata) invece di fermarsi.
+            $predefinita = @("$env:ProgramFiles\Tesseract-OCR", "${env:ProgramFiles(x86)}\Tesseract-OCR") |
+                Where-Object { $_ -and (Test-Path (Join-Path $_ 'tesseract.exe')) } | Select-Object -First 1
+            if (-not $predefinita) { Fatale "Eseguibile non trovato dopo l'installazione: $(Join-Path $Destinazione 'tesseract.exe')" }
+            Avviso "L'installer ha ignorato la destinazione: copio da '$predefinita' in '$Destinazione'."
+            $null = New-Item -ItemType Directory -Force -Path $Destinazione
+            & robocopy $predefinita $Destinazione /E /NFL /NDL /NJH /NJS /R:2 /W:2 | Out-Null
+            if ($LASTEXITCODE -ge 8) { Fatale "Copia fallita (robocopy $LASTEXITCODE)." }
+        }
         Ok "Installato in $Destinazione"
 
         if ($scaricati) {

@@ -123,7 +123,9 @@ foreach ($vdir in @($paths.Static, $paths.Media, $paths.MediaPrivate)) {
 
 # Virtual directory /static/
 $staticVdirPath = "IIS:\Sites\$siteName\static"
-if (-not (Test-Path -LiteralPath $staticVdirPath)) {
+# Get-WebVirtualDirectory e non Test-Path: se la cartella fisica "static" sta sotto la root del sito
+# (macchina nuova), il provider IIS la vede come figlio e Set-ItemProperty fallisce con «path null».
+if (-not (Get-WebVirtualDirectory -Site $siteName -Name "static")) {
     New-WebVirtualDirectory -Site $siteName -Name "static" -PhysicalPath $paths.Static | Out-Null
     Write-Log "Virtual directory /static/ -> $($paths.Static)" "SUCCESS"
 }
@@ -134,7 +136,7 @@ else {
 
 # Virtual directory /media/
 $mediaVdirPath = "IIS:\Sites\$siteName\media"
-if (-not (Test-Path -LiteralPath $mediaVdirPath)) {
+if (-not (Get-WebVirtualDirectory -Site $siteName -Name "media")) {
     New-WebVirtualDirectory -Site $siteName -Name "media" -PhysicalPath $paths.Media | Out-Null
     Write-Log "Virtual directory /media/ -> $($paths.Media)" "SUCCESS"
 }
