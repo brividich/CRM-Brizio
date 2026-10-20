@@ -12,6 +12,7 @@ from datetime import timedelta
 from html import escape
 
 from django.db.models import Count, Min, Q
+from django.urls import reverse
 from django.utils import timezone
 
 from .part145 import REGIME_PART145, attrezzature_processo
@@ -32,11 +33,25 @@ class Sezione:
     vuoto: str = "Niente da segnalare."
     #: Id asset per riga (link alla scheda), allineato a ``righe``; vuoto = nessun link.
     asset_ids: list = field(default_factory=list)
+    #: Azione per riga ``(testo, url)`` o None: dove si risolve, solo in pagina (non negli export).
+    azioni: list = field(default_factory=list)
+
+    def aggiungi(self, riga, azione=None, asset_id=None):
+        self.righe.append(riga)
+        self.azioni.append(azione)
+        if asset_id is not None or self.asset_ids:
+            self.asset_ids += [None] * (len(self.righe) - 1 - len(self.asset_ids))
+            self.asset_ids.append(asset_id)
+
+    @property
+    def ha_azioni(self) -> bool:
+        return any(self.azioni)
 
     @property
     def righe_link(self):
-        ids = self.asset_ids or [None] * len(self.righe)
-        return list(zip(self.righe, ids))
+        ids = self.asset_ids + [None] * (len(self.righe) - len(self.asset_ids))
+        azioni = self.azioni + [None] * (len(self.righe) - len(self.azioni))
+        return list(zip(self.righe, ids, azioni))
 
 
 def puo_vedere_personale(request) -> bool:
@@ -139,8 +154,12 @@ def costruisci(*, oggi=None, con_personale: bool = True) -> dict:
                          ["Processo", "Cliente / ente", "Livello", "Stato", "Scadenza", "Esito scadenza",
                           "Persone abilitate", "Attrezzature"],
                          vuoto="Nessun processo in regime PART 145 in MOD.128.")
+    def apri_mod128(processo):
+        return ("Apri in MOD.128", reverse("anagrafica:mpq_processo_detail", args=[processo.pk])) if con_personale else None
+
     for p in processi:
         scad = p.scadenza_effettiva
+        s_processi.azioni.append(apri_mod128(p))
         s_processi.righe.append([
             p.nome, str(p.cliente) if p.cliente_id else "", p.livello, p.get_stato_display(), _d(scad),
             _stato_scadenza(scad, oggi) if p.tipo_validita != p.VALIDITA_ILLIMITATA else "Illimitata",
@@ -215,27 +234,33 @@ def costruisci(*, oggi=None, con_personale: bool = True) -> dict:
                        vuoto="Nessuna situazione aperta.")
     for p in processi:
         if p.stato != p.STATO_ATTIVO:
-            s_aperte.righe.append(["Processo non attivo", p.nome, p.get_stato_display()])
+            s_aperte.aggiungi(["Processo non attivo", p.nome, p.get_stato_display()], apri_mod128(p))
         scad = p.scadenza_effettiva
         if scad and scad < oggi:
-            s_aperte.righe.append(["Processo scaduto", p.nome, f"scaduto il {_d(scad)}"])
+            s_aperte.aggiungi(["Processo scaduto", p.nome, f"scaduto il {_d(scad)}"], apri_mod128(p))
         if con_personale and not any(ab.processo_id == p.pk and ab.stato == ab.STATO_ATTIVA for ab in abilitazioni):
-            s_aperte.righe.append(["Processo senza persone abilitate", p.nome, "nessuna abilitazione attiva in MOD.128"])
+            s_aperte.aggiungi(["Processo senza persone abilitate", p.nome, "nessuna abilitazione attiva in MOD.128"],
+                              apri_mod128(p))
     for a in attrezzature:
+        scheda = ("Apri la scheda", reverse("assets:asset_view", args=[a.pk]))
         if a.status == a.STATUS_IN_REPAIR:
-            s_aperte.righe.append(["Attrezzatura in riparazione", f"{a.asset_tag} — {a.name}", a.reparto or ""])
+            s_aperte.aggiungi(["Attrezzatura in riparazione", f"{a.asset_tag} — {a.name}", a.reparto or ""], scheda)
         mancanti = [n for v, n in ((a.serial_number, "seriale"), (a.reparto, "reparto")) if not v]
         if mancanti and a.status != a.STATUS_RETIRED:
-            s_aperte.righe.append(["Attrezzatura con dati mancanti", f"{a.asset_tag} — {a.name}", "manca " + " e ".join(mancanti)])
+            s_aperte.aggiungi(["Attrezzatura con dati mancanti", f"{a.asset_tag} — {a.name}", "manca " + " e ".join(mancanti)],
+                              ("Completa la scheda", reverse("assets:asset_edit", args=[a.pk])))
     for wo in odl_aperti:
-        s_aperte.righe.append([f"OdL aperto ({tipi_odl.get(wo.kind, wo.kind)})", f"{wo.asset.asset_tag} — {wo.asset.name}",
-                               f"{wo.title} · aperto il {timezone.localtime(wo.opened_at):%d/%m/%Y}"])
+        s_aperte.aggiungi([f"OdL aperto ({tipi_odl.get(wo.kind, wo.kind)})", f"{wo.asset.asset_tag} — {wo.asset.name}",
+                           f"{wo.title} · aperto il {timezone.localtime(wo.opened_at):%d/%m/%Y}"],
+                          ("Apri l'OdL", reverse("assets:wo_view", args=[wo.pk])))
     for ab in abilitazioni:
         if ab.stato != ab.STATO_ATTIVA:
-            s_aperte.righe.append([f"Abilitazione {stati_ab.get(ab.stato, ab.stato).lower()}", nome_persona(ab), ab.processo.nome])
+            s_aperte.aggiungi([f"Abilitazione {stati_ab.get(ab.stato, ab.stato).lower()}", nome_persona(ab), ab.processo.nome],
+                              apri_mod128(ab.processo))
         for t in timbri.get(ab.pk, []):
             if t.is_sospeso:
-                s_aperte.righe.append(["Timbro sospeso", nome_persona(ab), t.sospeso_motivo or ab.processo.nome])
+                s_aperte.aggiungi(["Timbro sospeso", nome_persona(ab), t.sospeso_motivo or ab.processo.nome],
+                                  apri_mod128(ab.processo))
 
     sezioni = [s_processi, s_attr] + ([s_pers] if con_personale else []) + [s_scad, s_aperte]
     in_uso = sum(1 for a in attrezzature if a.status == a.STATUS_IN_USE)

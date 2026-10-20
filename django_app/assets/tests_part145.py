@@ -113,6 +113,24 @@ class Part145Tests(TestCase):
         senza = part145_dossier.costruisci(con_personale=False)
         self.assertNotIn("personale", {s.codice for s in senza["sezioni"]})
 
+    def test_situazioni_aperte_hanno_dove_si_risolve(self):
+        wo = WorkOrder.objects.create(asset=self.flag, title="Controllo sintetico", kind="CORRECTIVE")
+        Asset.objects.filter(pk=self.flag.pk).update(status=Asset.STATUS_IN_REPAIR)
+        aperte = {s.codice: s for s in part145_dossier.costruisci()["sezioni"]}["aperte"]
+        azioni = {riga[0]: azione for riga, _, azione in aperte.righe_link}
+        self.assertEqual(azioni["Attrezzatura in riparazione"][1], reverse("assets:asset_view", args=[self.flag.pk]))
+        self.assertEqual(azioni["OdL aperto (Correttiva)"][1], reverse("assets:wo_view", args=[wo.pk]))
+        self.assertEqual(azioni["Processo senza persone abilitate"][1],
+                         reverse("anagrafica:mpq_processo_detail", args=[self.p145.pk]))
+        # Senza permesso MOD.128 niente link verso MOD.128.
+        processi = {s.codice: s for s in part145_dossier.costruisci(con_personale=False)["sezioni"]}["processi"]
+        self.assertFalse(processi.ha_azioni)
+        pagina = self.client.get(reverse("assets:part_145_list"))
+        self.assertContains(pagina, "Cosa fare")
+        self.assertContains(pagina, reverse("assets:wo_view", args=[wo.pk]))
+        dettaglio = self.client.get(reverse("anagrafica:mpq_processo_detail", args=[self.p145.pk]))
+        self.assertContains(dettaglio, "Dossier PART 145")
+
     def test_pagina_ed_export_del_dossier(self):
         pagina = self.client.get(reverse("assets:part_145_list"))
         self.assertContains(pagina, "Dossier PART 145")
