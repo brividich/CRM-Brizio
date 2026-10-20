@@ -43,10 +43,12 @@
               <span class="acl-chip {{ r.group.state }}">{{ r.group.state_label }}</span>
             </div>
           {% endif %}
-          <div class="acl-state">
-            <div class="acl-state-name">Ruolo «{{ r.role.name }}»<small>{{ r.role.members }} persone attive</small></div>
-            <span class="acl-chip {{ r.role_state }}">{{ r.role_state_label }}</span>
-          </div>
+          {% if r.role_available %}
+            <div class="acl-state">
+              <div class="acl-state-name">Ruolo «{{ r.role.name }}»<small>{{ r.role.members_label }}</small></div>
+              <span class="acl-chip {{ r.role_state }}">{{ r.role_state_label }}</span>
+            </div>
+          {% endif %}
         </div>
 
         <form method="post" action="{{ r.action_url }}">
@@ -58,16 +60,19 @@
 
           <fieldset class="acl-scope">
             <legend>A chi si applica</legend>
+            {% if r.role_available %}
             <label>
-              <input type="radio" name="scope" value="role"{% if not r.role_allow_blocked_by %} checked{% endif %}>
+              <input type="radio" name="scope" value="role"{% if r.role_preselected %} checked{% endif %}>
               <span>
                 Tutto il ruolo «{{ r.role.name }}»
-                <small>{{ r.role.members }} persone attive</small>
+                <small>{{ r.role.members_label }}</small>
+                {% if r.role.base %}<small class="acl-warn">È il ruolo base: consentire qui apre la pagina a tutti.</small>{% endif %}
                 {% if r.role_allow_blocked_by %}<small class="acl-warn">Per consentire non basta: prevale {{ r.role_allow_blocked_by }}.</small>{% endif %}
               </span>
             </label>
+            {% endif %}
             <label>
-              <input type="radio" name="scope" value="user"{% if r.role_allow_blocked_by %} checked{% endif %}>
+              <input type="radio" name="scope" value="user"{% if not r.role_preselected %} checked{% endif %}>
               <span>
                 Solo {{ r.person.name }}
                 <small>Eccezione personale: non cambia nulla per gli altri.</small>
