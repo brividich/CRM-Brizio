@@ -75,6 +75,14 @@ GUIDA = {
                 ]),
                 ("ul", [
                     "Ogni dispositivo si attiva a parte; l'elenco «Dispositivi attivi» mostra dove sono attive, «Togli» le spegne.",
+                    "Le push si possono attivare già nel primo accesso al portale (passo «Preferenze notifiche»): "
+                    "«Attiva su questo dispositivo» e, per ogni categoria, «anche come notifica sul telefono o sul PC».",
+                    "«Sicurezza dell'account»: quando entri da un browser o da un PC che non avevi mai usato ti arriva l'avviso "
+                    "«🔐 Accesso da un nuovo dispositivo» (campanella, push se la scegli, mail se «Avvisami anche per mail» è acceso). "
+                    "Il primo dispositivo che usi non fa scattare avvisi.",
+                    "«I miei accessi» (in fondo alla pagina): browser e PC da cui sei entrato, con primo e ultimo accesso e IP. "
+                    "Su un accesso che non è tuo premi «Non ero io»: la sessione di quel dispositivo viene chiusa, la sicurezza IT "
+                    "riceve un allarme e tu devi cambiare subito la password.",
                     "Su iPhone serve prima «Condividi → Aggiungi alla schermata Home» e aprire il portale da lì (iOS 16.4 o successivo).",
                     "Fuori dalla rete aziendale la push arriva lo stesso ma mostra un testo generico: il dettaglio si legge aprendo il portale.",
                     "«Le mie scadenze nel calendario Outlook»: ogni mattina alle 6:30 il portale aggiorna nel tuo Outlook il calendario "
@@ -189,6 +197,13 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Mi arriva «Accesso da un nuovo dispositivo» ma ero io",
+            "fare": [
+                "Capita quando entri da un browser nuovo, dopo aver cancellato i cookie o in navigazione anonima: va bene così.",
+                "Se non eri tu: Impostazioni notifiche → «I miei accessi» → «Non ero io» su quell'accesso, poi cambia la password.",
+            ],
+        },
         {
             "sintomo": "Una vista salvata non mostra quello che mi aspettavo",
             "fare": [

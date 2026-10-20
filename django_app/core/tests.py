@@ -2302,7 +2302,7 @@ class OnboardingWizardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Preferenze interfaccia")
         visible_options = response.context["visible_notification_options"]
-        self.assertEqual([option["key"] for option in visible_options], ["assenze"])
+        self.assertEqual([option["key"] for option in visible_options], ["assenze", "sicurezza"])  # «Sicurezza dell'account» vale per tutti
         self.assertContains(response, "Assenze e presenze")
         self.assertNotContains(response, "Comunicazioni aziendali")
         self.assertNotContains(response, "Ticket e segnalazioni")
@@ -2364,7 +2364,8 @@ class OnboardingWizardTests(TestCase):
         response = self.client.get(reverse("profilo"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["onboarding_notifiche"], [("Assenze e presenze", True)])
+        self.assertEqual(response.context["onboarding_notifiche"],
+                         [("Assenze e presenze", True), ("Sicurezza dell'account", True)])
 
 
 class SidebarFooterActionsTests(SimpleTestCase):

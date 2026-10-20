@@ -146,10 +146,41 @@ body.theme-dark .ni-dev button{color:#fca5a5}
       </div>
     </div>
 
+    <div class="card ni-card" id="ni-accessi">
+      <div class="card-head"><div class="card-title">🔐 I miei accessi</div></div>
+      <div class="ni-body">
+        <p>Quando entri nel portale da un browser o da un PC che non avevi mai usato ti avvisiamo (categoria «Sicurezza dell'account» qui sopra) e lo segnaliamo alla sicurezza IT. Se un accesso non è tuo premi «Non ero io»: chiudiamo quella sessione e apriamo un allarme.</p>
+        <label class="ni-check"><input type="checkbox" name="sicurezza_mail" value="1" {% if sicurezza_mail %}checked{% endif %}> Avvisami anche per mail</label>
+        {% if accessi %}
+          <div style="margin-top:10px;">
+            {% for a in accessi %}
+              <div class="ni-dev">
+                <span><strong>{{ a.etichetta|default:"Browser" }}</strong>{% if a.questo %} <span class="ni-muted">· questo dispositivo</span>{% endif %}
+                  <span class="ni-muted">· primo accesso {{ a.primo_accesso|date:"d/m/Y H:i" }} · ultimo {{ a.ultimo_accesso|date:"d/m/Y H:i" }}{% if a.ip_ultimo %} · IP {{ a.ip_ultimo }}{% endif %}</span>
+                  {% if a.non_riconosciuto %}<span class="ni-warn">Segnalato «non ero io» il {{ a.segnalato_il|date:"d/m/Y H:i" }}</span>{% endif %}
+                </span>
+                {% if not a.questo and not a.non_riconosciuto %}
+                  <button type="submit" form="ni-form-non-ero-io-{{ a.id }}">Non ero io</button>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="ni-muted">Il primo accesso registrato comparirà qui dal prossimo login.</p>
+        {% endif %}
+      </div>
+    </div>
+
     <div style="padding:16px 0;display:flex;gap:12px;align-items:center;">
       <button type="submit" class="ni-btn">Salva preferenze</button>
       <a href="{% url 'notifiche' %}" style="font-size:13px;color:#2563eb;text-decoration:none;">← Torna alle notifiche</a>
     </div>
   </form>
+  {% for a in accessi %}{% if not a.questo and not a.non_riconosciuto %}
+    <form method="post" id="ni-form-non-ero-io-{{ a.id }}" hidden
+          onsubmit="return confirm('Chiudere la sessione di {{ a.etichetta|escapejs }} e segnalarlo alla sicurezza IT?');">
+      {% csrf_token %}<input type="hidden" name="azione" value="non_ero_io"><input type="hidden" name="dispositivo" value="{{ a.id }}">
+    </form>
+  {% endif %}{% endfor %}
   <script src="{% static 'core/js/notifiche_push.js' %}" defer></script>
 {% endblock %}
