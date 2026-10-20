@@ -87,6 +87,9 @@ body.theme-dark .p145-export-close{background:var(--surface-alt,#0f1b2d);color:v
 
 /* Dossier */
 .p145-table tbody tr:not([data-href]) { cursor:default; }
+.p145-azione { font-weight:700; color:#b91c1c; white-space:nowrap; text-decoration:none; }
+.p145-azione:hover { text-decoration:underline; }
+body.theme-dark .p145-azione { color:#fca5a5; }
 .p145-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
 .p145-kpi { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:12px 14px; }
 .p145-kpi span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; font-weight:800; }
@@ -151,9 +154,9 @@ body.theme-dark .p145-table tbody tr:hover { background:rgba(220,38,38,.08); }
     {% if s.righe %}
     <div class="p145-table-wrap">
       <table class="p145-table">
-        <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th>Cosa fare</th>{% endif %}</tr></thead>
         <tbody>
-          {% for riga, asset_id in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+          {% for riga, asset_id, azione in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}</td>{% endfor %}{% if s.ha_azioni %}<td>{% if azione %}<a class="p145-azione" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="p145-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}
         </tbody>
       </table>
     </div>
