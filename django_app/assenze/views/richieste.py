@@ -159,6 +159,27 @@ def _registra_capo_scelto(assenza_id, capo: dict | None, *, scelto_da: str = "")
     )
 
 
+def _registra_inserita_da(assenza_id, *, gruppo: str | None, inserito_da: str = "") -> None:
+    """Salva chi ha inserito la richiesta e con quale profilo Assenze.
+
+    Non blocca mai l'inserimento: senza riga le automazioni trattano l'autore
+    come sconosciuto e avvisano anche il caporeparto (comportamento storico).
+    """
+    item_id = _helpers._as_int(assenza_id)
+    if item_id is None:
+        return
+    from ..models import AssenzaInseritaDa
+
+    try:
+        with transaction.atomic():
+            AssenzaInseritaDa.objects.update_or_create(
+                assenza_id=item_id,
+                defaults={"gruppo": str(gruppo or "")[:20], "inserito_da": str(inserito_da or "")[:200]},
+            )
+    except Exception:
+        logger.warning("Autore richiesta assenza %s non registrato", item_id, exc_info=True)
+
+
 def _capo_assignment_diagnostics(
     *,
     legacy_user_id: int | None,
@@ -1360,6 +1381,9 @@ def invio_placeholder(request):
     try:
         with transaction.atomic():
             local_id = _insert_assenza(payload)
+            # Stessa transazione dell'insert: l'evento in coda del trigger SQL
+            # diventa visibile solo insieme all'autore (``inserito_da_gruppo``).
+            _registra_inserita_da(local_id, gruppo=perms.get("group"), inserito_da=request.user.get_username())
     except Exception as exc:
         return _render_richiesta(request, error=f"Errore salvataggio locale: {exc}", form_data=request.POST.dict())
 

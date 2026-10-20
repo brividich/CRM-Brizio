@@ -171,6 +171,19 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Con «Salta approvazione» assenza@ riceve due mail, o il caporeparto non è in copia",
+            "perche": "con «Salta approvazione» parte una sola mail ad assenza@: il caporeparto è in copia solo se "
+                      "la richiesta l'ha inserita l'ufficio assenze, non se l'ha inserita un caporeparto.",
+            "fare": [
+                "Apri Automazioni → Regole, sorgente Assenze: «PA import - Avviso inserimento dopo approvazione» "
+                "deve avere la condizione «Salta approvazione è falso».",
+                "In «PA import - Inserimento con salta approvazione» ci sono due mail: una parte se «Inserita da (profilo)» "
+                "è CAR (solo assenza@), l'altra negli altri casi (assenza@ + caporeparto).",
+                "Le richieste importate da SharePoint o dalla Certificazione presenze non hanno l'autore: "
+                "vengono trattate come inserite dall'ufficio (caporeparto in copia).",
+            ],
+        },
+        {
             "sintomo": "Un capo non vede le richieste dei suoi dipendenti",
             "fare": [
                 "Controlla in Anagrafica che sia il capo del dipendente (Organigramma → Coerenza capi).",
