@@ -562,4 +562,7 @@ def _apply_alias(alias):
     """Applica subito l'alias alle installazioni esistenti (vendor o prodotto normalizzati)."""
     field = "vendor" if alias.kind == SoftwareAlias.KIND_VENDOR else "product"
     raw_field = "vendor_raw" if alias.kind == SoftwareAlias.KIND_VENDOR else "product_raw"
-    return SoftwareInstallation.objects.filter(Q(**{f"{field}__iexact": alias.raw}) | Q(**{f"{raw_field}__iexact": alias.raw})).update(**{field: alias.canonical})
+    n = SoftwareInstallation.objects.filter(Q(**{f"{field}__iexact": alias.raw}) | Q(**{f"{raw_field}__iexact": alias.raw})).update(**{field: alias.canonical})
+    # Lo stesso software visto da due fonti con nomi diversi ora coincide: una riga sola.
+    software_inventory.unifica_installazioni()
+    return n

@@ -62,7 +62,9 @@ def _range_text(c):
 def _source_text(install):
     if install.source_kind == "snmp_firmware":
         return f"fonte: monitoraggio SNMP del {install.last_inventory_date:%d/%m/%Y}"
-    return f"fonte: export {install.get_source_kind_display()} del {install.last_inventory_date:%d/%m/%Y}"
+    fonti = install.fonti_etichette
+    nome = fonti[0] if len(fonti) == 1 else " + ".join(fonti)
+    return f"fonte: export {nome} del {install.last_inventory_date:%d/%m/%Y}"
 
 
 def _confirmed_mappings():

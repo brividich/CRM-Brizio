@@ -3,9 +3,13 @@
 Il formato reale degli export non è fissato nel codice: l'utente indica quale colonna è
 hostname, vendor, prodotto, versione e data di rilevamento (mappatura salvabile come preset
 per fonte). Flusso: upload → mappatura → anteprima (righe valide e scartate con motivo) →
-import. L'import è idempotente: la chiave di un'installazione è (fonte, host, vendor,
-prodotto, versione), quindi lo stesso file due volte non crea duplicati. Le installazioni
-non più presenti per gli host del file si marcano «non più rilevate», mai cancellate.
+import. L'import è idempotente: la chiave di un'installazione è (host, vendor, prodotto,
+versione) e NON include la fonte, quindi lo stesso file due volte non crea duplicati e lo
+stesso software sullo stesso PC visto da due fonti (es. WatchGuard e Defender) è una riga sola:
+``fonti`` elenca chi lo vede. Le installazioni non più presenti per gli host del file si
+tolgono dalla fonte che le vedeva; solo quando nessuna fonte le vede più si marcano «non più
+rilevate», mai cancellate. Le versioni diverse dello stesso prodotto restano righe distinte
+(servono al confronto con i range delle CVE) e si raggruppano per (vendor, prodotto).
 """
 from __future__ import annotations
 
@@ -299,8 +303,56 @@ def normalize_host(raw):
 
 
 def installation_key(source_kind, host, vendor, product, version):
+    """Chiave per fonte: la usano solo i firmware SNMP (un dispositivo non è un PC)."""
     seed = "|".join([source_kind, host, vendor, product, str(version).strip().lower()])
     return hashlib.sha256(seed.encode()).hexdigest()
+
+
+def identity_key(host, vendor, product, version):
+    """Chiave di un software su un PC, uguale per tutte le fonti (stessa della migrazione 0025)."""
+    seed = "|".join(["sw", host, vendor, product, str(version).strip().lower()])
+    return hashlib.sha256(seed.encode()).hexdigest()
+
+
+def unifica_installazioni() -> dict:
+    """Fonde le righe che oggi hanno lo stesso (host, vendor, prodotto, versione).
+
+    Serve dopo un alias o una correzione dei nomi: due righe di fonti diverse che prima avevano
+    nomi diversi ora coincidono e devono diventare una. Si tiene la riga rilevata più di recente,
+    le fonti si sommano e gli impatti CVE passano alla riga tenuta. I firmware SNMP non si toccano.
+    Ritorna ``{"fuse": righe eliminate, "richiavate": righe con chiave aggiornata}``.
+    """
+    from security.models import SecurityCveImpact, SoftwareSourceKind
+
+    gruppi = {}
+    for pk, key, host, vendor, product, version, detected, seen, fonti, origine in SoftwareInstallation.objects.exclude(
+        source_kind=SoftwareSourceKind.SNMP_FIRMWARE
+    ).values_list("pk", "dedup_key", "host", "vendor", "product", "version_raw", "still_detected", "last_seen_at", "fonti", "source_kind").iterator():
+        nuova = identity_key(host, vendor, product, version)
+        gruppi.setdefault(nuova, []).append((pk, key, detected, seen, list(fonti or ([origine] if detected else []))))
+    da_eliminare, da_aggiornare = [], []
+    for nuova, righe in gruppi.items():
+        righe.sort(key=lambda r: (not r[2], -(r[3].timestamp() if r[3] else 0), r[0]))
+        tenuta = righe[0]
+        altre = righe[1:]
+        fonti = sorted({f for r in righe if r[2] for f in r[4]})
+        if altre or tenuta[1] != nuova or sorted(tenuta[4]) != fonti:
+            da_aggiornare.append((tenuta[0], nuova, fonti, [r[0] for r in altre]))
+        da_eliminare.extend(r[0] for r in altre)
+    if not da_aggiornare:
+        return {"fuse": 0, "richiavate": 0}
+    with transaction.atomic():
+        for _pk, _nuova, _fonti, altre in da_aggiornare:
+            if altre:
+                SecurityCveImpact.objects.filter(installation_id__in=altre).update(installation_id=_pk)
+        for chunk in _chunks(da_eliminare):
+            SoftwareInstallation.objects.filter(pk__in=chunk).delete()
+        # Due passaggi: prima chiavi provvisorie, poi definitive, così non ci sono collisioni intermedie.
+        for pk, _nuova, _fonti, _altre in da_aggiornare:
+            SoftwareInstallation.objects.filter(pk=pk).update(dedup_key=f"tmp:{pk}")
+        for pk, nuova, fonti, _altre in da_aggiornare:
+            SoftwareInstallation.objects.filter(pk=pk).update(dedup_key=nuova, fonti=fonti)
+    return {"fuse": len(da_eliminare), "richiavate": len(da_aggiornare)}
 
 
 # --- Import ----------------------------------------------------------------------------------
@@ -338,14 +390,17 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
         host = normalize_host(row["host"])
         vendor = normalize_vendor(row["vendor"], vendor_aliases)
         product = normalize_product(row["product"], product_aliases, row["version"])
-        key = installation_key(source_kind, host, vendor, product, row["version"])
+        key = identity_key(host, vendor, product, row["version"])
         rows.setdefault(key, {**row, "host_norm": host, "vendor_norm": vendor, "product_norm": product})
     hosts = {data["host_norm"] for data in rows.values()}
     links = {host: _link_assets(host) for host in hosts}
     with transaction.atomic():
         existing = {}
+        fonti_esistenti = {}
         for chunk in _chunks(rows):
-            existing.update(SoftwareInstallation.objects.filter(dedup_key__in=chunk).values_list("dedup_key", "pk"))
+            for key, pk, fonti in SoftwareInstallation.objects.filter(dedup_key__in=chunk).values_list("dedup_key", "pk", "fonti"):
+                existing[key] = pk
+                fonti_esistenti[pk] = list(fonti or [])
         new_objects = []
         for key, data in rows.items():
             if key in existing:
@@ -357,12 +412,17 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
                 version_raw=data["version"], version_norm=normalize_version(data["version"]), first_import=inventory_import,
                 last_import=inventory_import, security_asset=sec, hub_asset=hub, detected_at=data["detected_at"],
                 seen_at=now, last_seen_at=now, last_inventory_date=inventory_import.inventory_date, still_detected=True,
+                fonti=[source_kind],
             ))
         SoftwareInstallation.objects.bulk_create(new_objects, batch_size=60)
         for chunk in _chunks(existing.values()):
             SoftwareInstallation.objects.filter(pk__in=chunk).update(
                 last_import=inventory_import, last_seen_at=now, last_inventory_date=inventory_import.inventory_date, still_detected=True,
             )
+        # Una riga già nota arrivata ora anche da questa fonte: si aggiunge la fonte, nessun doppione.
+        for pk, fonti in fonti_esistenti.items():
+            if source_kind not in fonti:
+                SoftwareInstallation.objects.filter(pk=pk).update(fonti=sorted({*fonti, source_kind}))
         for host, (sec, hub) in links.items():
             if sec is not None:
                 SoftwareInstallation.objects.filter(host=host, security_asset__isnull=True).update(security_asset=sec)
@@ -370,11 +430,21 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
                 SoftwareInstallation.objects.filter(host=host, hub_asset__isnull=True).update(hub_asset=hub)
         missing = []
         for chunk in _chunks(hosts):
-            for pk, key in SoftwareInstallation.objects.filter(source_kind=source_kind, host__in=chunk, still_detected=True).values_list("pk", "dedup_key"):
-                if key not in rows:
+            for pk, key, fonti, origine in SoftwareInstallation.objects.filter(host__in=chunk, still_detected=True).values_list(
+                "pk", "dedup_key", "fonti", "source_kind"
+            ):
+                if key in rows:
+                    continue
+                fonti = list(fonti or [origine])
+                if source_kind not in fonti:
+                    continue  # la vede un'altra fonte (o un firmware): questo file non può dire nulla
+                resto = [f for f in fonti if f != source_kind]
+                if resto:
+                    SoftwareInstallation.objects.filter(pk=pk).update(fonti=resto)
+                else:
                     missing.append(pk)
         for chunk in _chunks(missing):
-            SoftwareInstallation.objects.filter(pk__in=chunk).update(still_detected=False)
+            SoftwareInstallation.objects.filter(pk__in=chunk).update(still_detected=False, fonti=[])
         inventory_import.status = SoftwareInventoryImport.STATUS_IMPORTED
         inventory_import.rows_total = preview.total
         inventory_import.rows_imported = len(preview.valid)
