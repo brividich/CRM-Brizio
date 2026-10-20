@@ -658,6 +658,12 @@ def build_sqlserver_database() -> dict:
         query_timeout = max(0, int(env("DB_QUERY_TIMEOUT", "0") or 0))
     except ValueError:
         query_timeout = 0
+    # Connessioni persistenti: senza, ogni richiesta apre e chiude una connessione ODBC con
+    # autenticazione Windows (decine di ms a pagina). 0 = comportamento precedente.
+    try:
+        conn_max_age = max(0, int(env("DB_CONN_MAX_AGE", "60") or 0))
+    except ValueError:
+        conn_max_age = 60
 
     return {
         "ENGINE": "mssql",
@@ -665,6 +671,8 @@ def build_sqlserver_database() -> dict:
         "HOST": env("DB_HOST", ""),
         "USER": db_user,
         "PASSWORD": db_password,
+        "CONN_MAX_AGE": conn_max_age,
+        "CONN_HEALTH_CHECKS": conn_max_age > 0,   # scarta una connessione caduta invece di fallire la richiesta
         "OPTIONS": {
             "driver": driver,
             "extra_params": extra_params,
