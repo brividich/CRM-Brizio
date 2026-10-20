@@ -400,7 +400,7 @@ $phaseBodies["secrets"] = {
     foreach ($l in $lines) { if ($l -match '^PFX_PASSWORD=(.*)$') { $script:pfxPassword = $Matches[1] } elseif ($l -match '^PFX_THUMBPRINT=(.*)$') { $script:pfxThumb = $Matches[1] } }
     $visible = ($lines | Where-Object { $_ -and $_ -notmatch '^PFX_' }) -join " "
     if ($r.ExitCode -eq 3) { throw "Impronte delle chiavi diverse dal backup: $visible — questo kit non apre i documenti. Fermato." }
-    if ($r.ExitCode -ne 0) { throw "Import del Recovery Kit fallito: $visible" }
+    if ($r.ExitCode -ne 0) { throw "Import del Recovery Kit fallito (exit $($r.ExitCode)): $visible $($r.Err.Trim())" }
     @($visible, $(if (Test-Path $pfx) { "certificato HTTPS estratto (thumbprint $script:pfxThumb)" } else { "nessun certificato nel kit" }))
 }
 
