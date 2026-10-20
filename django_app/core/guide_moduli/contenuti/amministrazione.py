@@ -49,7 +49,7 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Chiedi alla persona il nome della pagina bloccata, oppure apri «Accessi negati»: trovi la riga con persona, pagina e motivo.",
-                    "Decidi se il permesso vale per tutto il suo ruolo o solo per lei.",
+                    "Decidi se il permesso vale per tutto il suo ruolo o solo per lei. Con «Ruoli e permessi» attivo, «il ruolo» è il ruolo del portale che comanda per la persona (quello con ordine più alto), non il ruolo del gestionale. Se la persona ha solo il ruolo base, è proposta «Solo …»: consentire al ruolo base apre la pagina a tutti.",
                     "Clicca «Consenti» sulla scelta giusta. Il portale scrive il permesso, lo verifica e lascia traccia nell'audit.",
                     "Falle ricaricare la pagina.",
                 ]),
@@ -235,6 +235,7 @@ GUIDA = {
             "fare": [
                 "Apri «Accessi negati» e trova la riga: il motivo è scritto in chiaro.",
                 "Clicca «Consenti» sul ruolo o sulla persona.",
+                "Se dice «Salvato, ma … resta bloccato», leggi il motivo: prevale un'eccezione personale che nega o un ruolo di ordine più alto che nega. Usa «Solo …» oppure correggi quel ruolo in «Ruoli e permessi».",
                 "Se la riga non c'è, impersona la persona e riproduci il problema.",
                 "Per i casi difficili, dal terminale: acl_diagnose --user <email> --path </pagina/> spiega la decisione passo per passo.",
             ],

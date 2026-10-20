@@ -317,3 +317,82 @@ class AccessiNegatiTest(TestCase):
         response = self._post(scope="user", action="allow", next="https://example.com/altrove")
 
         self.assertEqual(response["Location"], self.panel_url)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=True, SECURE_SSL_REDIRECT=False, ACL_STRICT_CANONICAL=True)
+class AccessiNegatiSistemaRuoliTest(AccessiNegatiTest):
+    """Sistema dei ruoli acceso: il ruolo legacy non concede nulla, decide il ruolo del portale.
+
+    Prima "Consenti a tutto il ruolo" scriveva sul ruolo legacy e la persona
+    restava bloccata a ogni clic («Salvato, ma ... resta bloccato»).
+    """
+
+    # I test della classe madre fissano il comportamento a sistema spento.
+    def run(self, result=None):
+        if self._testMethodName in AccessiNegatiTest.__dict__:
+            return None
+        return super().run(result)
+
+    def setUp(self):
+        super().setUp()
+        from core.models import SiteConfig
+        from core.permessi.cache import invalida_permessi
+        from core.permessi.motore import PRESET_BASE, SITECONFIG_SISTEMA_ATTIVO
+
+        self.base = AccessGroup.objects.filter(preset=PRESET_BASE).first() or AccessGroup.objects.create(
+            code="dipendente-test", label="Operatore", priority=1, preset=PRESET_BASE
+        )
+        self.cq = AccessGroup.objects.create(code="cq-test", label="CQ", priority=50)
+        SiteConfig.set(SITECONFIG_SISTEMA_ATTIVO, "1")
+        invalida_permessi()
+
+    def _iscrivi(self, group, legacy_user):
+        from core.permessi.cache import invalida_permessi
+
+        AccessGroupMembership.objects.create(group=group, legacy_user_id=legacy_user.id)
+        invalida_permessi()
+
+    def test_consenti_al_ruolo_scrive_sul_ruolo_del_portale(self):
+        self._iscrivi(self.cq, self.target_legacy)
+        self._impersonate()
+        self.client.get(PAGE)
+
+        info = describe_access(legacy_user=self.target_legacy, permission_code=PERM)
+        self.assertEqual(info["role"]["name"], "CQ")
+        self.assertTrue(info["role_preselected"])
+
+        self._post(origin="forbidden", next=PAGE, scope="role", action="allow")
+
+        self.assertTrue(GroupPermissionGrant.objects.get(group=self.cq, permission_id=PERM).enabled)
+        # Il ruolo legacy non si tocca: con il sistema acceso non conta.
+        self.assertFalse(RolePermissionGrant.objects.get(legacy_role_id=ROLE_USER, permission_id=PERM).enabled)
+        self.assertTrue(self._allowed(self.target_legacy))
+        self.assertEqual(
+            AclDenialEvent.objects.get(legacy_user_id=self.target_legacy.id).status,
+            AclDenialEvent.STATUS_ALLOWED,
+        )
+        self.assertEqual(describe_access(legacy_user=self.target_legacy, permission_code=PERM)["role_state"], "allow")
+
+    def test_senza_ruoli_propri_il_ruolo_e_quello_base_e_non_e_proposto(self):
+        info = describe_access(legacy_user=self.target_legacy, permission_code=PERM)
+
+        self.assertEqual(info["role"]["id"], self.base.id)
+        self.assertTrue(info["role"]["base"])
+        self.assertFalse(info["role_preselected"])
+
+        self._impersonate()
+        response = self.client.get(PAGE)
+        self.assertContains(response, "consentire qui apre la pagina a tutti", status_code=403)
+
+    def test_un_ruolo_di_ordine_piu_alto_che_nega_blocca_il_consenso(self):
+        self._iscrivi(self.cq, self.target_legacy)
+        alto = AccessGroup.objects.create(code="esterni-test", label="Esterni", priority=90)
+        self._iscrivi(alto, self.target_legacy)
+        GroupPermissionGrant.objects.create(group=alto, permission_id=PERM, enabled=False)
+
+        info = describe_access(legacy_user=self.target_legacy, permission_code=PERM)
+
+        # Comanda il ruolo di ordine piu' alto: e' quello proposto, ed e' lui che nega.
+        self.assertEqual(info["role"]["name"], "Esterni")
+        self.assertEqual(info["role_state"], "deny")
+        self.assertIn("impostata su «negato»", info["explanation"])

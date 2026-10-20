@@ -15,6 +15,12 @@ chiudere il giro:
 
 La decisione resta del resolver (:mod:`core.acl_resolver`): questo modulo non
 ne riscrive la precedenza, la legge.
+
+Con il sistema dei ruoli acceso (:mod:`core.permessi`) il ruolo legacy
+(``utenti.ruolo_id``) non concede piu' nulla: "il ruolo" e' il ruolo del portale
+che comanda per la persona, e la decisione si scrive sul suo
+``GroupPermissionGrant``. Scriverla sul ruolo legacy dava «Salvato, ma resta
+bloccato» a ogni clic.
 """
 from __future__ import annotations
 
@@ -39,7 +45,15 @@ from core.impersonation import display_name_for_user
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
-from core.models import AclDenialEvent, PermissionDefinition, RolePermissionGrant, UserPermissionGrant
+from core.models import (
+    AccessGroup,
+    AccessGroupMembership,
+    AclDenialEvent,
+    GroupPermissionGrant,
+    PermissionDefinition,
+    RolePermissionGrant,
+    UserPermissionGrant,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,9 +145,15 @@ def is_resolution_action_path(path: str) -> bool:
     return str(path or "").rstrip("/") == target.rstrip("/")
 
 
+def _sistema_ruoli_attivo() -> bool:
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    return sistema_ruoli_attivo()
+
+
 def _role_info(role_id: int | None) -> dict:
     if not role_id:
-        return {"id": None, "name": "", "members": 0}
+        return {"id": None, "name": "", "members": 0, "members_label": "", "portale": False, "base": False}
     name = ""
     members = 0
     try:
@@ -142,16 +162,71 @@ def _role_info(role_id: int | None) -> dict:
         members = UtenteLegacy.objects.filter(ruolo_id=int(role_id), attivo=True).count()
     except DatabaseError:
         pass
-    return {"id": int(role_id), "name": name or f"#{role_id}", "members": int(members)}
+    return {
+        "id": int(role_id),
+        "name": name or f"#{role_id}",
+        "members": int(members),
+        "members_label": f"{int(members)} persone attive",
+        "portale": False,
+        "base": False,
+        "priority": None,
+    }
 
 
-def _explain(decision, *, person: str, role_name: str) -> str:
+def _portal_role_info(legacy_user_id: int | None) -> dict:
+    """Il ruolo del portale che comanda per la persona: quello con ordine piu' alto.
+
+    Senza ruoli propri resta il ruolo base, che vale per tutti i dipendenti:
+    va detto, perche' consentire li' apre la pagina a chiunque.
+    """
+    from core.permessi.motore import PRESET_BASE, id_ruolo_base, ruoli_della_persona
+    from core.permessi.scadenze import q_appartenenze_valide
+
+    vuoto = {"id": None, "name": "", "members": 0, "members_label": "", "portale": True, "base": False, "priority": None}
+    try:
+        ruoli = ruoli_della_persona(legacy_user_id, includi_base=False)
+        ruolo = ruoli[0] if ruoli else None
+        if ruolo is None:
+            base_id = id_ruolo_base()
+            ruolo = AccessGroup.objects.filter(id=base_id, is_active=True).first() if base_id else None
+        if ruolo is None:
+            return vuoto
+        base = ruolo.preset == PRESET_BASE
+        if base:
+            members = UtenteLegacy.objects.filter(attivo=True).count()
+            label = f"ruolo base: vale per tutti i dipendenti ({members} persone attive)"
+        else:
+            members = (
+                AccessGroupMembership.objects.filter(q_appartenenze_valide(), group_id=ruolo.id)
+                .values("legacy_user_id")
+                .distinct()
+                .count()
+            )
+            label = f"ruolo del portale · {members} persone iscritte, più chi lo riceve dall'organigramma"
+    except DatabaseError:
+        return vuoto
+    return {
+        "id": int(ruolo.id),
+        "name": str(ruolo.label or "").strip() or f"#{ruolo.id}",
+        "members": int(members),
+        "members_label": label,
+        "portale": True,
+        "base": base,
+        "priority": int(ruolo.priority or 0),
+    }
+
+
+def _explain(decision, *, person: str, role_name: str, portal_role_id: int | None = None) -> str:
     """Il perche' della decisione, in una frase che non richiede il glossario ACL."""
     if decision is None:
         return "Il permesso non esiste più nel catalogo."
     if decision.permission_inactive:
         return "Il permesso è disattivato nel catalogo: nessuna concessione ha effetto finché non viene riattivato."
     group = decision.group_grant or {}
+    if portal_role_id and decision.level == LEVEL_GROUP_GRANT and group.get("group_id") == portal_role_id:
+        if decision.allowed:
+            return f"Consentito dal ruolo «{role_name}»."
+        return f"Il ruolo «{role_name}» ha questa pagina impostata su «negato»."
     if decision.allowed:
         if decision.level == LEVEL_USER_OVERRIDE:
             return f"Consentito da un'eccezione personale su {person}."
@@ -166,6 +241,11 @@ def _explain(decision, *, person: str, role_name: str) -> str:
             "L'eccezione vale più del ruolo e dei gruppi."
         )
     if decision.level == LEVEL_GROUP_GRANT:
+        if portal_role_id:
+            return (
+                f"Il ruolo «{group.get('group_label', '')}» (ordine {group.get('priority', '')}) "
+                f"nega questa pagina e comanda su «{role_name}»."
+            )
         return (
             f"Il gruppo «{group.get('group_label', '')}» (priorità {group.get('priority', '')}) "
             "nega questa pagina, e un gruppo vale più del ruolo."
@@ -193,7 +273,11 @@ def describe_access(*, legacy_user, permission_code: str) -> dict:
     except DatabaseError:
         permission = None
     person = str(getattr(legacy_user, "nome", "") or "").strip() or "questa persona"
-    role = _role_info(getattr(legacy_user, "ruolo_id", None))
+    portale = _sistema_ruoli_attivo()
+    if portale:
+        role = _portal_role_info(getattr(legacy_user, "id", None))
+    else:
+        role = _role_info(getattr(legacy_user, "ruolo_id", None))
 
     decision = None
     if permission is not None and legacy_user is not None:
@@ -207,14 +291,32 @@ def describe_access(*, legacy_user, permission_code: str) -> dict:
 
     group = (decision.group_grant if decision else None) or {}
     user_state = grant_state(decision.user_override if decision else None)
-    role_state = grant_state(decision.role_grant if decision else None)
-    group_state = grant_state(group) if group else STATE_UNSET
-
-    # Cosa ottiene davvero ciascuna scelta, data la precedenza del resolver.
     role_allow_blockers = []
     if user_state == STATE_DENY:
         role_allow_blockers.append(f"l'eccezione personale che nega {person}")
-    if group_state == STATE_DENY:
+
+    if portale:
+        # Il ruolo del portale e' un gruppo: il suo stato e' il suo grant, e lo
+        # scavalca solo un ruolo di ordine piu' alto (a pari ordine vince il no).
+        group_rows = list(decision.group_grants) if decision else []
+        own = next((row for row in group_rows if role["id"] and row.get("group_id") == role["id"]), None)
+        role_state = grant_state(own)
+        if group and role["id"] and group.get("group_id") == role["id"]:
+            group = {}
+        for row in group_rows:
+            if (
+                row.get("group_id") != role["id"]
+                and not row.get("enabled")
+                and int(row.get("priority") or 0) >= int(role["priority"] or 0)
+            ):
+                role_allow_blockers.append(f"il ruolo «{row.get('group_label', '')}»")
+                break
+    else:
+        role_state = grant_state(decision.role_grant if decision else None)
+    group_state = grant_state(group) if group else STATE_UNSET
+
+    # Cosa ottiene davvero ciascuna scelta, data la precedenza del resolver.
+    if not portale and group_state == STATE_DENY:
         role_allow_blockers.append(f"il gruppo «{group.get('group_label', '')}»")
 
     return {
@@ -227,7 +329,9 @@ def describe_access(*, legacy_user, permission_code: str) -> dict:
         "role": role,
         "allowed_now": bool(decision.allowed) if decision else False,
         "decided_by": decision.level if decision else "",
-        "explanation": _explain(decision, person=person, role_name=role["name"]),
+        "explanation": _explain(
+            decision, person=person, role_name=role["name"], portal_role_id=role["id"] if portale else None
+        ),
         "user_state": user_state,
         "user_state_label": STATE_LABELS[user_state],
         "role_state": role_state,
@@ -241,6 +345,9 @@ def describe_access(*, legacy_user, permission_code: str) -> dict:
         if group
         else None,
         "role_allow_blocked_by": " e ".join(role_allow_blockers),
+        # Sul ruolo base la scelta proposta e' la persona: il ruolo apre a tutti.
+        "role_available": bool(role["id"]),
+        "role_preselected": bool(role["id"]) and not role_allow_blockers and not role.get("base"),
         "has_user_override": user_state != STATE_UNSET,
     }
 
@@ -359,7 +466,9 @@ def record_denial(request, decision: dict | None) -> None:
 # ── Scrittura ──────────────────────────────────────────────────────────────
 
 
-def _sync_events(*, permission_code: str, legacy_user, scope: str, role_id: int | None, actor: str) -> None:
+def _sync_events(
+    *, permission_code: str, legacy_user, scope: str, role_id: int | None, actor: str, portale: bool = False
+) -> None:
     """Allinea lo stato dei 403 registrati all'esito reale, persona per persona."""
     events = AclDenialEvent.objects.filter(
         permission_code=permission_code,
@@ -367,8 +476,11 @@ def _sync_events(*, permission_code: str, legacy_user, scope: str, role_id: int 
     )
     if scope == SCOPE_USER:
         events = events.filter(legacy_user_id=int(legacy_user.id))
-    else:
+    elif not portale:
         events = events.filter(legacy_role_id=int(role_id))
+    # Ruolo del portale: i suoi membri non stanno nell'evento (organigramma,
+    # appartenenze a scadenza). Si ricontrollano tutti i 403 del permesso: sugli
+    # altri si registra comunque solo cio' che la scelta ha sbloccato.
     events = list(events[:500])
     if not events:
         return
@@ -423,7 +535,8 @@ def apply_resolution(request, *, legacy_user, permission_code: str, scope: str, 
         }
 
     person = str(legacy_user.nome or "").strip() or f"utente #{legacy_user.id}"
-    role = _role_info(legacy_user.ruolo_id)
+    portale = _sistema_ruoli_attivo()
+    role = _portal_role_info(legacy_user.id) if portale else _role_info(legacy_user.ruolo_id)
     if scope == SCOPE_ROLE and not role["id"]:
         return {"ok": False, "level": "error", "message": f"{person} non ha un ruolo assegnato.", "allowed_now": False}
 
@@ -432,7 +545,15 @@ def apply_resolution(request, *, legacy_user, permission_code: str, scope: str, 
 
     try:
         with transaction.atomic():
-            if scope == SCOPE_ROLE:
+            if scope == SCOPE_ROLE and portale:
+                # Nota diversa da quella della matrice: la sincronizzazione la
+                # tratta come scelta a mano e non la tocca.
+                GroupPermissionGrant.objects.update_or_create(
+                    group_id=int(role["id"]),
+                    permission_id=code,
+                    defaults={"enabled": action == ACTION_ALLOW, "note": "Da «Accessi negati»"},
+                )
+            elif scope == SCOPE_ROLE:
                 RolePermissionGrant.objects.update_or_create(
                     legacy_role_id=int(role["id"]),
                     permission_id=code,
@@ -451,12 +572,23 @@ def apply_resolution(request, *, legacy_user, permission_code: str, scope: str, 
         return {"ok": False, "level": "error", "message": f"Errore durante il salvataggio: {exc}", "allowed_now": False}
 
     bump_legacy_cache_version()
+    if portale:
+        from core.permessi.cache import invalida_permessi
+
+        invalida_permessi()
     after = describe_access(legacy_user=legacy_user, permission_code=code)
     allowed_now = bool(after["allowed_now"])
     actor = actor_display(request)
 
     try:
-        _sync_events(permission_code=code, legacy_user=legacy_user, scope=scope, role_id=role["id"], actor=actor)
+        _sync_events(
+            permission_code=code,
+            legacy_user=legacy_user,
+            scope=scope,
+            role_id=role["id"],
+            actor=actor,
+            portale=portale,
+        )
     except DatabaseError:
         logger.exception("allineamento accessi negati fallito: code=%s", code)
 
@@ -469,7 +601,8 @@ def apply_resolution(request, *, legacy_user, permission_code: str, scope: str, 
             "scope": scope,
             "action": action,
             "legacy_user_id": int(legacy_user.id),
-            "legacy_role_id": role["id"],
+            "legacy_role_id": None if portale else role["id"],
+            "portal_role_id": role["id"] if portale else None,
             "role_name": role["name"],
             "before": {"role": before["role_state"], "user": before["user_state"], "allowed": before["allowed_now"]},
             "after": {"role": after["role_state"], "user": after["user_state"], "allowed": allowed_now},
@@ -478,7 +611,7 @@ def apply_resolution(request, *, legacy_user, permission_code: str, scope: str, 
         oggetto_id=code,
     )
 
-    target = f"a tutto il ruolo «{role['name']}» ({role['members']} persone attive)" if scope == SCOPE_ROLE else f"solo a {person}"
+    target = f"a tutto il ruolo «{role['name']}» ({role['members_label']})" if scope == SCOPE_ROLE else f"solo a {person}"
     if action == ACTION_ALLOW:
         if allowed_now:
             return {"ok": True, "level": "success", "message": f"«{label}» consentito {target}.", "allowed_now": True}
