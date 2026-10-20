@@ -80,8 +80,8 @@
                         <input type="hidden" name="permission_code" value="{{ ev.permission_code }}">
                         <input type="hidden" name="event_id" value="{{ ev.pk }}">
                         <select class="input" name="scope" aria-label="A chi si applica">
-                          <option value="role"{% if not a.role_allow_blocked_by %} selected{% endif %}>Tutto il ruolo «{{ a.role.name }}» ({{ a.role.members }})</option>
-                          <option value="user"{% if a.role_allow_blocked_by %} selected{% endif %}>Solo {{ row.person_name }}</option>
+                          {% if a.role_available %}<option value="role"{% if a.role_preselected %} selected{% endif %}>Tutto il ruolo «{{ a.role.name }}»{% if a.role.base %} (ruolo base: tutti){% else %} ({{ a.role.members }}){% endif %}</option>{% endif %}
+                          <option value="user"{% if not a.role_preselected %} selected{% endif %}>Solo {{ row.person_name }}</option>
                         </select>
                         {% if a.role_allow_blocked_by %}<div class="acl-muted">Sul ruolo non basta: prevale {{ a.role_allow_blocked_by }}.</div>{% endif %}
                         <div class="acl-actions">
