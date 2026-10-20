@@ -320,6 +320,41 @@ def _parse_command_center_output(text: str) -> dict | None:
     return None
 
 
+def _read_log_tail(path: Path, max_lines: int, max_bytes: int = 64 * 1024) -> str:
+    """Ultime `max_lines` righe di un log leggendo solo gli ultimi `max_bytes`.
+
+    Il pannello si aggiorna ogni pochi secondi: leggere tutto il file (che in
+    produzione arriva a centinaia di MB) faceva salire la RAM a ogni giro.
+    """
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        f.seek(max(0, size - max_bytes))
+        data = f.read()
+    # Come la lettura in modalità testo di prima: \r\n → \n (tk.Text mostrerebbe \r).
+    text = data.decode("utf-8", errors="replace").replace("\r\n", "\n")
+    lines = text.splitlines(keepends=True)
+    if size > max_bytes and lines:
+        lines = lines[1:]  # la prima riga è quasi certamente tagliata a metà
+    return "".join(lines[-max_lines:])
+
+
+# Righe massime tenute nelle caselle di testo che crescono senza fine
+# (terminale integrato, log AI): oltre, le più vecchie vengono scartate.
+_TEXT_MAX_LINES = 5000
+
+
+def _trim_text_widget(txt, max_lines: int = _TEXT_MAX_LINES) -> None:
+    """Scarta le righe più vecchie di una tk.Text oltre `max_lines`."""
+    try:
+        total = int(txt.index("end-1c").split(".")[0])
+    except (tk.TclError, ValueError):
+        return
+    excess = total - max_lines
+    if excess > 0:
+        txt.delete("1.0", f"{excess + 1}.0")
+
+
 _SQL_SERVER_DRIVER_PREFERENCE = (
     "ODBC Driver 18 for SQL Server",
     "ODBC Driver 17 for SQL Server",
@@ -7561,6 +7596,10 @@ class ServerDashboard:
         self._selected_env = tk.StringVar(value="test")
         self._status_data: dict = {}
         self._after_id = None
+        # Un solo giro di lettura stato alla volta: le richieste arrivate nel
+        # frattempo (pulsanti, cambio ambiente) ne accodano uno solo.
+        self._refresh_running = False
+        self._refresh_pending = False
         self._admin_mode = is_admin()
         self._terminal_proc = None
         self._terminal_running = False
@@ -8180,16 +8219,65 @@ class ServerDashboard:
                           fg="white" if e == env else GRAY600)
         if hasattr(self, "_terminal_context_lbl"):
             self._update_terminal_context()
-        if self._after_id:
-            self.root.after_cancel(self._after_id)
         self._refresh()
         if self._cc_kpi:
             self._cc_reset()
             self._cc_refresh(full=True)
 
     def _refresh(self):
+        """Avvia subito una lettura dello stato; unico punto d'ingresso.
+
+        Annulla il giro automatico già programmato e, se una lettura è in
+        corso, ne accoda una sola: così pulsanti e cambi ambiente non creano
+        cicli paralleli (ognuno lanciava 3 PowerShell ogni 5 s per sempre).
+        """
+        if self._after_id:
+            try:
+                self.root.after_cancel(self._after_id)
+            except tk.TclError:
+                pass
+            self._after_id = None
+        if self._refresh_running:
+            self._refresh_pending = True
+            return
+        self._refresh_running = True
         env = self._selected_env.get()
-        threading.Thread(target=self._fetch_status, args=(env,), daemon=True).start()
+        threading.Thread(target=self._fetch_status_safe, args=(env,), daemon=True).start()
+
+    def _fetch_status_safe(self, env):
+        try:
+            self._fetch_status(env)
+        finally:
+            try:
+                self.root.after(0, self._refresh_done)
+            except (tk.TclError, RuntimeError):
+                pass
+
+    def _refresh_done(self):
+        self._refresh_running = False
+        if self._refresh_pending:
+            self._refresh_pending = False
+            self._refresh()
+            return
+        try:
+            self._after_id = self.root.after(self.REFRESH_MS, self._auto_refresh_tick)
+        except tk.TclError:
+            pass  # finestra chiusa
+
+    def _window_hidden(self) -> bool:
+        """True se la finestra è ridotta a icona o nascosta."""
+        try:
+            return self.root.state() in ("iconic", "withdrawn")
+        except tk.TclError:
+            return True
+
+    def _auto_refresh_tick(self):
+        self._after_id = None
+        if self._window_hidden():
+            # Ridotta a icona: nessuna lettura, si ricontrolla al giro dopo.
+            self._after_id = self.root.after(self.REFRESH_MS, self._auto_refresh_tick)
+            return
+        self._refresh()
 
     def _fetch_status(self, env):
         site_name = f"PortaleNovicrom-{env.upper()}"
@@ -8223,9 +8311,7 @@ Write-Output "$sState|$pState|$port"
         log_lines = ""
         try:
             if log_path.exists():
-                with open(log_path, encoding="utf-8", errors="replace") as f:
-                    all_lines = f.readlines()
-                    log_lines = "".join(all_lines[-40:])
+                log_lines = _read_log_tail(log_path, 40)
         except Exception:
             log_lines = ""
 
@@ -8260,8 +8346,7 @@ if ($t) {{
         q_log_tail = ""
         try:
             if q_log_path.exists():
-                with open(q_log_path, encoding="utf-8", errors="replace") as f:
-                    q_log_tail = "".join(f.readlines()[-20:])
+                q_log_tail = _read_log_tail(q_log_path, 20)
         except Exception:
             q_log_tail = ""
 
@@ -8322,7 +8407,6 @@ if ($t) {{
 
         now = datetime.now().strftime("%H:%M:%S")
         self._refresh_lbl.configure(text=f"Aggiornato alle {now}")
-        self._after_id = self.root.after(self.REFRESH_MS, self._refresh)
 
     def _iis_action(self, action):
         env = self._selected_env.get()
@@ -8636,6 +8720,7 @@ if ($t) {{
                 txt.insert("end", text, tag)
             else:
                 txt.insert("end", text)
+            _trim_text_widget(txt)
             txt.see("end")
             txt.configure(state="disabled")
 
@@ -9059,7 +9144,8 @@ if ($t) {{
                 return
         except tk.TclError:
             return
-        if not self._cc_loading and not self._terminal_running:
+        # Ridotta a icona: niente processo Django in background.
+        if not self._cc_loading and not self._terminal_running and not self._window_hidden():
             self._cc_refresh(full=False)
         self._cc_schedule_auto()
 
@@ -9399,6 +9485,7 @@ if ($t) {{
             self._ai_log_txt.insert("end", text, tag)
         else:
             self._ai_log_txt.insert("end", text)
+        _trim_text_widget(self._ai_log_txt)
         self._ai_log_txt.see("end")
         self._ai_log_txt.configure(state="disabled")
 
