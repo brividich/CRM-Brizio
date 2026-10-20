@@ -30,6 +30,7 @@ from security.models import (
     SoftwareImportPreset,
     SoftwareInstallation,
     SoftwareInventoryImport,
+    SoftwareSourceKind,
 )
 
 logger = logging.getLogger(__name__)
@@ -314,6 +315,122 @@ def identity_key(host, vendor, product, version):
     return hashlib.sha256(seed.encode()).hexdigest()
 
 
+_TOKEN = re.compile(r"[a-z0-9+#.]+")
+
+
+def _token(testo):
+    return _TOKEN.findall(str(testo or "").lower())
+
+
+def base_name(vendor, product):
+    """Nome del prodotto senza le parole del produttore: «google chrome» (google) → «chrome».
+
+    Defender usa nomi brevi («chrome», «edge», «teams»), gli export WatchGuard quelli completi
+    («Google Chrome»): tolto il produttore dal nome, i due coincidono.
+    """
+    del_produttore = set(_token(vendor))
+    parole = [t for t in _token(product) if t not in del_produttore]
+    return tuple(parole) or tuple(_token(product))
+
+
+def _produttori_compatibili(v1, v2):
+    a, b = _token(v1), _token(v2)
+    return not a or not b or a[0] == b[0]
+
+
+def somiglianza_prodotti(v1, p1, v2, p2):
+    """0.0 = prodotti diversi; 1.0 = stesso nome base; 0.9 = uno è contenuto nell'altro.
+
+    Prudente per non fondere prodotti diversi: serve lo stesso produttore (o uno ignoto) e,
+    per il contenimento, al massimo due parole in più, senza numeri («edge» ≠ «edge webview2
+    runtime», «office» ≠ «office 2019»). Chi chiama impone anche la stessa versione.
+    """
+    a, b = base_name(v1, p1), base_name(v2, p2)
+    if not a or not b or not _produttori_compatibili(v1, v2):
+        return 0.0
+    if a == b:
+        return 1.0
+    sa, sb = set(a), set(b)
+    piccolo, grande = (sa, sb) if len(sa) <= len(sb) else (sb, sa)
+    extra = grande - piccolo
+    if piccolo <= grande and len(extra) <= 2 and not any(any(c.isdigit() for c in t) for t in extra):
+        return 0.9
+    return 0.0
+
+
+def _migliore_equivalente(vendor, product, candidati, usati):
+    """Il candidato (pk, vendor, product, fonti) più simile; ``None`` se nessuno o se ce ne sono due alla pari."""
+    punteggi = []
+    for pk, v, pr, fonti in candidati:
+        if pk in usati:
+            continue
+        punteggio = somiglianza_prodotti(vendor, product, v, pr)
+        if punteggio:
+            punteggi.append((punteggio, pk, fonti))
+    if not punteggi:
+        return None
+    migliore = max(p for p, _pk, _f in punteggi)
+    in_testa = [(pk, f) for p, pk, f in punteggi if p == migliore]
+    return in_testa[0] if len(in_testa) == 1 else None
+
+
+def unisci_per_equivalenza(*, applica=False) -> dict:
+    """Fonde le righe di fonti diverse che sono lo stesso software (stesso PC, stessa versione,
+    prodotto equivalente). Senza ``applica`` elenca soltanto cosa fonderebbe.
+
+    Si tiene la riga più vecchia (di norma WatchGuard: i suoi nomi hanno già CPE e decisioni),
+    le fonti si sommano, gli impatti CVE passano alla riga tenuta. Le coppie ambigue (due
+    candidati alla pari) si saltano. Ritorna ``{"coppie": [...], "ambigue": n, "fuse": n}``.
+    """
+    from security.models import SecurityCveImpact, SoftwareSourceKind
+
+    per_chiave = {}
+    for pk, host, vendor, product, version, fonti, origine in SoftwareInstallation.objects.filter(still_detected=True).exclude(
+        source_kind=SoftwareSourceKind.SNMP_FIRMWARE
+    ).order_by("pk").values_list("pk", "host", "vendor", "product", "version_raw", "fonti", "source_kind"):
+        per_chiave.setdefault((host, str(version).strip().lower()), []).append((pk, vendor, product, set(fonti or [origine]), origine))
+    coppie, ambigue = [], 0
+    for righe in per_chiave.values():
+        if len(righe) < 2:
+            continue
+        # Per ogni riga: l'unica migliore tra quelle di un'altra fonte (None se nessuna o se ce ne sono due alla pari).
+        scelta, incerta = {}, set()
+        for pk, vendor, product, fonti, _origine in righe:
+            punteggi = [
+                (somiglianza_prodotti(vendor, product, v2, p2), pk2)
+                for pk2, v2, p2, f2, _o in righe if pk2 != pk and not (f2 & fonti)
+            ]
+            punteggi = [x for x in punteggi if x[0]]
+            if not punteggi:
+                continue
+            migliore = max(p for p, _ in punteggi)
+            in_testa = [pk2 for p, pk2 in punteggi if p == migliore]
+            if len(in_testa) == 1:
+                scelta[pk] = (in_testa[0], migliore)
+            else:
+                incerta.add(pk)
+        fonti_di = {r[0]: r[3] for r in righe}
+        fatti = set()
+        for pk, (altro, punteggio) in scelta.items():
+            if pk in fatti or altro in fatti:
+                continue
+            if scelta.get(altro, (None, 0))[0] == pk:  # la scelta è reciproca
+                tenuta, altra = sorted((pk, altro))
+                coppie.append((tenuta, altra, sorted(fonti_di[pk] | fonti_di[altro]), punteggio))
+                fatti.update({pk, altro})
+            else:
+                ambigue += 1
+        ambigue += len(incerta)
+    if applica and coppie:
+        with transaction.atomic():
+            for tenuta, altra, fonti, _p in coppie:
+                SecurityCveImpact.objects.filter(installation_id=altra).update(installation_id=tenuta)
+            SoftwareInstallation.objects.filter(pk__in=[c[1] for c in coppie]).delete()
+            for tenuta, _altra, fonti, _p in coppie:
+                SoftwareInstallation.objects.filter(pk=tenuta).update(fonti=fonti)
+    return {"coppie": coppie, "ambigue": ambigue, "fuse": len(coppie) if applica else 0}
+
+
 def unifica_installazioni() -> dict:
     """Fonde le righe che oggi hanno lo stesso (host, vendor, prodotto, versione).
 
@@ -401,6 +518,33 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
             for key, pk, fonti in SoftwareInstallation.objects.filter(dedup_key__in=chunk).values_list("dedup_key", "pk", "fonti"):
                 existing[key] = pk
                 fonti_esistenti[pk] = list(fonti or [])
+        # Lo stesso software sullo stesso PC può avere un nome diverso nell'altra fonte («chrome» /
+        # «Google Chrome»): se c'è UNA sola riga equivalente (stessa versione) si riusa invece di
+        # crearne una seconda. Le chiavi e i nomi delle righe esistenti non cambiano.
+        nuove_chiavi = [k for k in rows if k not in existing]
+        if nuove_chiavi:
+            candidati_per_pc = {}
+            for chunk in _chunks({rows[k]["host_norm"] for k in nuove_chiavi}):
+                for pk, host, vendor, product, version, fonti, origine in SoftwareInstallation.objects.filter(
+                    host__in=chunk, still_detected=True
+                ).exclude(source_kind=SoftwareSourceKind.SNMP_FIRMWARE).values_list(
+                    "pk", "host", "vendor", "product", "version_raw", "fonti", "source_kind"
+                ):
+                    candidati_per_pc.setdefault((host, str(version).strip().lower()), []).append(
+                        (pk, vendor, product, list(fonti or [origine]))
+                    )
+            usati = set(existing.values())
+            for key in nuove_chiavi:
+                data = rows[key]
+                candidati = candidati_per_pc.get((data["host_norm"], str(data["version"]).strip().lower()))
+                if not candidati:
+                    continue
+                trovato = _migliore_equivalente(data["vendor_norm"], data["product_norm"], candidati, usati)
+                if trovato is not None:
+                    pk, fonti = trovato
+                    existing[key] = pk
+                    fonti_esistenti[pk] = list(fonti)
+                    usati.add(pk)
         new_objects = []
         for key, data in rows.items():
             if key in existing:
@@ -429,11 +573,12 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
             if hub is not None:
                 SoftwareInstallation.objects.filter(host=host, hub_asset__isnull=True).update(hub_asset=hub)
         missing = []
+        visti_pk = set(existing.values())
         for chunk in _chunks(hosts):
             for pk, key, fonti, origine in SoftwareInstallation.objects.filter(host__in=chunk, still_detected=True).values_list(
                 "pk", "dedup_key", "fonti", "source_kind"
             ):
-                if key in rows:
+                if pk in visti_pk or key in rows:  # riga nota/abbinata, oppure appena creata da questo file
                     continue
                 fonti = list(fonti or [origine])
                 if source_kind not in fonti:
