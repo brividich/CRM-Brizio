@@ -2,9 +2,9 @@
 
 Per i PC visti da due fonti (es. WatchGuard e Defender) elenca i prodotti che compaiono
 con una sola delle due: sono i software che NON si sono fusi in una riga, di solito perché
-le fonti li chiamano in modo diverso («microsoft 365 apps» / «microsoft 365 apps for
-enterprise - it-it»). Per ognuno propone il nome più simile dell'altra fonte: se è lo
-stesso prodotto, si aggiunge l'alias da «Inventario software → Alias» e al prossimo import
+le fonti li chiamano in modo diverso ('microsoft 365 apps' / 'microsoft 365 apps for
+enterprise - it-it'). Per ognuno propone il nome più simile dell'altra fonte: se è lo
+stesso prodotto, si aggiunge l'alias da 'Inventario software -> Alias' e al prossimo import
 le righe si fondono. Non scrive nulla.
 
     manage.py software_fonti_confronto
@@ -18,11 +18,12 @@ from difflib import SequenceMatcher
 from django.core.management.base import BaseCommand, CommandError
 
 from security.models import SoftwareInstallation, SoftwareSourceKind
+from security.services.software_inventory import somiglianza_prodotti
 
 
 def somiglianza(a: str, b: str) -> float:
     """Somiglianza dei nomi: rapporto tra stringhe, ma un nome contenuto per intero nell'altro vale 0.9
-    («microsoft 365 apps» in «microsoft 365 apps for enterprise»)."""
+    ('microsoft 365 apps' in 'microsoft 365 apps for enterprise')."""
     ta, tb = a.split(), b.split()
     punteggio = SequenceMatcher(None, a, b).ratio()
     if min(len(ta), len(tb)) >= 2 and (set(ta) <= set(tb) or set(tb) <= set(ta)):
@@ -52,7 +53,7 @@ def confronta(fonte_a: str, fonte_b: str, *, soglia: float = 0.8):
     for chiave_a, n in sorted(solo_a.items(), key=lambda kv: -kv[1]):
         migliore, punteggio = None, 0.0
         for chiave_b in solo_b:
-            p = somiglianza(chiave_a[1], chiave_b[1])
+            p = max(somiglianza_prodotti(chiave_a[0], chiave_a[1], chiave_b[0], chiave_b[1]), somiglianza(chiave_a[1], chiave_b[1]))
             if chiave_a[0] and chiave_b[0] and chiave_a[0] != chiave_b[0]:
                 p *= 0.9  # produttori diversi: meno probabile che sia lo stesso prodotto
             if p > punteggio:
@@ -82,12 +83,12 @@ class Command(BaseCommand):
         if not pc:
             self.stdout.write("Nessun PC in comune: importa prima anche l'altra fonte.")
             return
-        self.stdout.write(f"Prodotti fusi in una riga: {len(comuni)} · solo {a}: {len(solo_a)} · solo {b}: {len(solo_b)}")
+        self.stdout.write(f"Prodotti fusi in una riga: {len(comuni)} | solo {a}: {len(solo_a)} | solo {b}: {len(solo_b)}")
         if proposte:
-            self.stdout.write(f"\nAlias proposti (somiglianza ≥ {opts['soglia']:.2f}): stesso prodotto con nomi diversi?")
+            self.stdout.write(f"\nAlias proposti (somiglianza >= {opts['soglia']:.2f}): stesso prodotto con nomi diversi?")
             for (va, pa), na, (vb, pb), nb, p in proposte[:limite]:
-                self.stdout.write(f"  [{na} PC] {a}: «{pa}» ({va or 'n/d'})  ≈  [{nb} PC] {b}: «{pb}» ({vb or 'n/d'})  [{p:.2f}]")
+                self.stdout.write(f"  [{na} PC] {a}: '{pa}' ({va or 'n/d'})  ~  [{nb} PC] {b}: '{pb}' ({vb or 'n/d'})  [{p:.2f}]")
         for nome, elenco in ((a, solo_a), (b, solo_b)):
             self.stdout.write(f"\nSolo {nome} (primi {limite}):")
             for (vendor, product), n in sorted(elenco.items(), key=lambda kv: -kv[1])[:limite]:
-                self.stdout.write(f"  [{n} PC] «{product}» ({vendor or 'n/d'})")
+                self.stdout.write(f"  [{n} PC] '{product}' ({vendor or 'n/d'})")

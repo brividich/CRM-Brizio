@@ -184,7 +184,7 @@
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Attrezzature
           {% if attrezzature %}<span class="fmd-count">{{ attrezzature|length }}</span>{% endif %}
         </div>
-        <div class="fmd-block-aside">Asset usati nel processo{% if processo.regime == "PART145" %}: per un processo PART 145 ci sono anche tutti gli asset con la casella «Rientra in PART 145»{% endif %}</div>
+        <div class="fmd-block-aside">Asset usati nel processo{% if processo.regime == "PART145" %}: per un processo PART 145 ci sono anche tutti gli asset con la casella «Rientra in PART 145» · <a href="{% url 'assets:part_145_list' %}">Dossier PART 145 →</a>{% endif %}</div>
       </div>
       {% if attrezzature %}
       <div class="fmd-tablewrap">
