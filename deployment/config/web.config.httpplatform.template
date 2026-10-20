@@ -43,13 +43,7 @@
 
     <httpPlatform
         processPath="%%VENV_PATH%%\Scripts\python.exe"
-        arguments="-m waitress
-                   --port=%%HTTP_PLATFORM_PORT%%
-                   --threads=24
-                   --backlog=256
-                   --channel-timeout=120
-                   --connection-limit=500
-                   config.wsgi:application"
+        arguments="-m waitress --port=%HTTP_PLATFORM_PORT% --threads=24 --connection-limit=500 config.wsgi:application"
         stdoutLogEnabled="true"
         stdoutLogFile="%%LOGS_PATH%%\waitress_stdout.log"
         startupTimeLimit="120"
@@ -70,6 +64,9 @@
 
         <!-- Segnala a Django che gira sotto IIS/proxy -->
         <environmentVariable name="DJANGO_PROXY_ENABLED" value="1" />
+
+        <!-- Waitress parla HTTP con IIS: Django (SECURE_PROXY_SSL_HEADER) deve sapere che il client usa HTTPS -->
+        <environmentVariable name="HTTP_X_FORWARDED_PROTO" value="https" />
       </environmentVariables>
     </httpPlatform>
 
