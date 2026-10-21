@@ -332,6 +332,25 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .kpi-flotta{grid-column:auto}
 @media(max-width:1599px){.contatori-module .centrale-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:span 2}}
 @media(max-width:640px){.contatori-module .centrale-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:1/-1}.contatori-module .centrale-kpi{grid-auto-flow:row dense}.contatori-module .centrale-kpi>:last-child{grid-column:1/-1}}
+/* Integrazione Asset e SOC: allineamento con l'inventario, riquadro Sicurezza, Guida nella barra. */
+.contatori-module .cnav-guida{font-weight:650}
+/* Con Impostazioni e Guida la barra non sta piu' su una riga sotto i 1600px: via le etichette dei gruppi
+   (i separatori restano), cosi' «+ Nuovo» e «? Guida» restano in fondo alla stessa riga. */
+@media(max-width:1599px){.contatori-module .cnav-label{display:none}}
+.contatori-module .allinea{margin-top:12px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--cm-warn) 45%,var(--cm-border));border-radius:13px;background:color-mix(in srgb,var(--cm-warn) 6%,var(--cm-surface))}
+.contatori-module .allinea-head{margin:0 0 8px;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.contatori-module .allinea-head strong{color:var(--cm-text)}
+.contatori-module .allinea .table-wrap{margin-bottom:10px}
+.contatori-module .allinea td{vertical-align:top}
+.contatori-module .asset-coll-nessuno .actions{display:flex;gap:8px;flex-wrap:wrap}
+.contatori-module .asset-coll-nessuno form{margin:0}
+.contatori-module .sic-list{list-style:none;margin:4px 0 8px;padding:0;display:grid;gap:8px}
+.contatori-module .sic-list li{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:13px}
+.contatori-module .sic-list .pill{flex:0 0 auto}
+.contatori-module .sic-nota{font-size:13px;margin:6px 0 0}
+.contatori-module .sic-app .banner{margin-bottom:10px}
+.contatori-module .filtri-rapidi{margin:10px 0 0;font-size:13px}
+.contatori-module .imp-form>.actions{margin:0 0 18px}
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .contatori-module{--cm-surface:var(--surface);--cm-text:var(--text);--cm-muted:var(--text-light);--cm-border:var(--border)}

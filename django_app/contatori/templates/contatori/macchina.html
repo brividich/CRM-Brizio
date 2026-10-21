@@ -1,11 +1,14 @@
 {% extends "contatori/_base_modulo.html" %}
+{% block title %}{{ macchina.reparto }} · Stampante MFC{% endblock %}
 {% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
-<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:export_macchina' macchina.pk %}" title="Letture trimestrali e mensili in Excel">Esporta storico</a>{% if g %}<a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a>{% endif %}</div></div>
+<div class="row"><div><div class="eyebrow">Stampante MFC</div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }}{% if macchina.modello %} · {{ macchina.modello }}{% endif %}{% if macchina.contratto %} · contratto {{ macchina.contratto }}{% endif %} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><div class="actions">{% if macchina.asset %}<a class="btn ghost" href="{% url 'assets:asset_view' macchina.asset.pk %}" title="Scheda dell'asset collegato nel modulo Asset">Asset {{ macchina.asset.asset_tag }}</a>{% endif %}<a class="btn ghost" href="{% url 'contatori:export_macchina' macchina.pk %}" title="Letture trimestrali e mensili in Excel">Esporta storico</a>{% if macchina.host %}<button class="btn ghost" type="button" hx-post="{% url 'contatori:macchina_test_snmp' macchina.pk %}" hx-target="#test-snmp" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-disabled-elt="this" title="Verifica subito che la stampante risponda via SNMP: non salva letture">Prova SNMP</button>{% endif %}{% if g %}<a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a>{% endif %}</div></div>
+<div id="test-snmp" aria-live="polite"></div>
 
 <div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
 {% if macchina.snmp_ultimo_errore %}{% include "contatori/_errore_snmp.html" with errore=macchina.snmp_ultimo_errore %}{% endif %}
 
 {% url 'contatori:macchina_edit' macchina.pk as edit_url %}{% include "contatori/_asset_collegato.html" with asset=macchina.asset %}
+{% include "contatori/_sicurezza_apparato.html" %}
 <div class="grid-2" id="info">
 <section class="panel"><h2>Info</h2><table class="info-table" data-fm-table-skip="1">
   <tr><th>Reparto</th><td>{{ macchina.reparto }}{% if not macchina.attiva %} <span class="pill warn">disattivata</span>{% endif %}</td></tr>
@@ -92,5 +95,5 @@
   {% else %}<p class="pos" style="margin-top:8px">Nessuna lettura salvata: premi «Leggi ora via SNMP».</p>{% endif %}</div>
 </div>
 
-<a class="btn ghost" href="{% url 'contatori:dashboard' %}">← Dashboard</a>
+<a class="btn ghost" href="{% url 'contatori:macchine' %}">← Stampanti MFC</a>
 {% endblock %}

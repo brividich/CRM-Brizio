@@ -335,7 +335,7 @@ class CentraleViewsAndAssetBridgeTest(TestCase):
         self.assertEqual(device.asset_id, asset.pk)
 
         asset_page = self.client.get(reverse("assets:asset_view", args=[asset.pk]))
-        self.assertContains(asset_page, "Monitoraggio MFC e SNMP")
+        self.assertContains(asset_page, "Apri in Contatori IT")
         self.assertContains(asset_page, "Lettore badge ingresso")
 
     def test_collega_asset_command_include_dispositivi_generici(self):

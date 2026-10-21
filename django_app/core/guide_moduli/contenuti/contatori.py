@@ -6,7 +6,7 @@ GUIDA = {
     "parole": "contatori mfc stampante stampanti copie toner snmp ups switch fattura copylab canon",
     "url": "contatori:dashboard",
     "prefissi": ("/contatori/",),
-    "dettaglio": [("Guida della riconciliazione fatture", "contatori:riconciliazione_guida")],
+    "dettaglio": [("Guida di Contatori IT", "contatori:riconciliazione_guida")],
     "uso": [
         {
             "id": "consultare",
@@ -18,6 +18,19 @@ GUIDA = {
                     "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza. «Tutte le MFC di un trimestre» inserisce le letture di più stampanti in una pagina.",
                     "Scheda di un dispositivo SNMP: uptime e «Risposte ultime 24 ore / 7 giorni», cioè quante interrogazioni hanno avuto risposta (sotto il 95% in rosso).",
                     "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte, con un secondo tentativo alle 08:00 per le macchine spente.",
+                    "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",
+                ]),
+            ],
+        },
+        {
+            "id": "asset-soc",
+            "titolo": "Asset e sicurezza di un apparato",
+            "blocchi": [
+                ("ul", [
+                    "Nella scheda di un apparato, «Asset collegato» mostra l'asset dell'inventario; se apparato e asset hanno seriale, modello, IP o posizione diversi compare «Apparato e inventario non dicono la stessa cosa»: «Allinea dalla scheda asset» porta dove si applica la correzione.",
+                    "Apparato senza asset: «Collega» (asset proposto) o «Crea l'asset», che lo crea con i dati letti e il punto rete con l'IP.",
+                    "Riquadro «Sicurezza»: SNMP senza cifratura o community predefinita; con accesso al SOC anche firmware, CVE e alert aperti.",
+                    "Firewall, switch, server, storage, UPS e videoregistratori che non rispondono per due controlli aprono un alert nel SOC, che si chiude da solo quando tornano raggiungibili.",
                 ]),
             ],
         },
@@ -46,7 +59,7 @@ GUIDA = {
                     "Verifica: un solo pulsante legge identità, modello e valori. Scegli qui il modello.",
                     "Riepilogo: se viene proposto l'asset trovato per matricola o IP, clicca «Collega questo asset», poi conferma.",
                 ]),
-                ("nota", "La community SNMP non è scritta nel codice: si imposta in configurazione globale o per apparato e resta cifrata."),
+                ("nota", "La community SNMP non è scritta nel codice: si imposta in «Configurazione» → «Impostazioni» o per apparato e resta cifrata."),
             ],
         },
         {
@@ -73,6 +86,15 @@ GUIDA = {
                 "009 SNMPv3: apparato raggiungibile ma credenziali scartate (protocollo o chiave di cifratura), 010 nessuna risposta SNMPv3 (rete, firewall, SNMPv3 non attivo).",
                 "Per 003: controlla che l'apparato sia acceso e raggiungibile (ping) e che la community sia quella giusta.",
                 "Per 007: sull'apparato va autorizzato l'indirizzo del server del portale come gestore SNMP.",
+            ],
+        },
+        {
+            "sintomo": "Il SOC segnala «Apparato non raggiungibile»",
+            "perche": "un apparato di rete non ha risposto per più controlli di fila.",
+            "fare": [
+                "Apri la scheda dell'apparato da Contatori IT: l'errore SNMP dice se è rete, credenziali o apparato spento.",
+                "Quando l'apparato risponde di nuovo l'alert si chiude da solo; se è stato tolto, disattivalo dalla sua scheda.",
+                "Il numero di controlli o l'interruttore si cambiano nel SOC: «Impostazioni» → «Apparati di rete (Contatori IT)».",
             ],
         },
         {

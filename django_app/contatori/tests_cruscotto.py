@@ -250,10 +250,14 @@ class LicenzeApparatiTests(TestCase):
     def test_apparato_senza_asset_e_da_collegare(self):
         from contatori.models import DispositivoSNMP
 
+        from contatori.integrazione import quadro_integrazione
+
         DispositivoSNMP.objects.create(nome="Switch demo", host="192.0.2.10")
         riepilogo = services.licenze_asset_apparati()
-        self.assertEqual(len(riepilogo["da_collegare"]), 1)
         self.assertEqual((riepilogo["scadute"], riepilogo["in_scadenza"]), (0, 0))
+        quadro = quadro_integrazione()
+        self.assertEqual(quadro["n_senza_asset"], 1)
+        self.assertEqual(quadro["senza_asset"][0]["nome"], "Switch demo")
 
 
 class LicenzeSchedaApparatoTests(_AuthedClientMixin, TestCase):

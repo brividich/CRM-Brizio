@@ -1,0 +1,22 @@
+{% comment %}Riquadro «Sicurezza» delle schede apparato: configurazione SNMP e dati del SOC. Usa dal contesto: sicurezza (contatori.integrazione.sicurezza_apparato).{% endcomment %}
+{% if sicurezza %}{% with soc=sicurezza.soc %}
+<section class="panel sic-app" id="sicurezza">
+  <div class="panel-head"><div><h2>Sicurezza</h2><p>Configurazione SNMP{% if soc %} e cosa sa il SOC di questo apparato: firmware nell'inventario, vulnerabilità, alert{% endif %}.</p></div>{% if soc %}<div class="spacer"></div><a class="btn ghost small" href="{{ soc.vuln_url }}">Vulnerabilità nel SOC</a>{% endif %}</div>
+  {% if soc.alert %}<div class="banner warn"><strong>Alert aperto nel SOC:</strong> {{ soc.alert.title }} · dal {{ soc.alert.created_at|date:"d/m/Y H:i" }} · <a class="plain" href="{% url 'security:alert_detail' soc.alert.pk %}">apri l'alert</a></div>{% endif %}
+  <ul class="sic-list">
+    {% for p in sicurezza.postura %}<li class="sic-{{ p.livello }}"><span class="pill {% if p.livello == 'danger' %}danger{% else %}warn{% endif %}">{{ p.titolo }}</span><span class="muted">{{ p.dettaglio }}</span></li>{% empty %}<li><span class="pill ok">SNMPv3</span><span class="muted">Interrogazioni autenticate e cifrate.</span></li>{% endfor %}
+    {% if soc %}
+      <li>{% if soc.firmware %}<span class="pill ok">Firmware nell'inventario SOC</span><span class="muted"><span class="mono">{{ soc.firmware.product_raw }} {{ soc.firmware.version_raw }}</span> · visto il {{ soc.firmware.last_seen_at|date:"d/m/Y H:i" }}</span>{% else %}<span class="pill">Firmware non nell'inventario SOC</span><span class="muted">Entra da solo alla prima interrogazione riuscita con produttore, modello e versione firmware noti.</span>{% endif %}</li>
+    {% endif %}
+  </ul>
+  {% if soc %}
+    {% if soc.impatti %}
+    <h3 class="centrale-sub">Vulnerabilità sul firmware{% if soc.impatta %} · <span class="health-error">{{ soc.impatta }} confermat{{ soc.impatta|pluralize:"a,e" }}</span>{% endif %}</h3>
+    <div class="table-wrap"><table class="compatta" data-fm-table-skip="1"><thead><tr><th>CVE</th><th>Esito</th><th class="num">CVSS</th><th>Perché</th></tr></thead><tbody>
+      {% for i in soc.impatti %}<tr><td><a class="plain mono" href="{% url 'security:cve_detail' i.cve.cve_id %}">{{ i.cve.cve_id }}</a>{% if i.cve.kev %} <span class="pill danger" title="Sfruttata attivamente (CISA KEV)">KEV</span>{% endif %}</td><td><span class="pill {% if i.outcome == 'impacts' %}danger{% else %}warn{% endif %}">{{ i.get_outcome_display }}</span></td><td class="num">{{ i.cve.cvss|default:"—" }}</td><td class="muted">{{ i.explanation|truncatechars:140 }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% if soc.impatti_altri %}<p class="muted">Ce ne sono altre: elenco completo nella pagina Vulnerabilità del SOC.</p>{% endif %}
+    {% else %}<p class="muted sic-nota">Nessuna CVE nota impatta questo firmware. Il SOC confronta il firmware con le CVE già note (fonti Defender, WatchGuard, NVD): una CVE mai vista nel SOC non compare qui.</p>{% endif %}
+  {% endif %}
+</section>
+{% endwith %}{% endif %}

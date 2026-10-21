@@ -35,8 +35,9 @@ class SolaLetturaTests(_AuthedClientMixin, TestCase):
         r = self.client.get(reverse("contatori:macchine"))
         self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, "+ Nuova MFC")
-        self.assertNotContains(r, "Configurazione SNMP globale")
-        self.client.post(reverse("contatori:macchine"), {"community": "x", "port": 1, "timeout": 1, "version": "v1"})
+        self.assertNotContains(r, reverse("contatori:impostazioni"))
+        self.assertRedirects(self.client.get(reverse("contatori:impostazioni")), reverse("contatori:dashboard"))
+        self.client.post(reverse("contatori:impostazioni"), {"community": "x", "port": 1, "timeout": 1, "version": "v1"})
         cfg.refresh_from_db()
         self.assertNotEqual(cfg.port, 1)
 
@@ -109,8 +110,9 @@ class MigrazioneAclTests(TestCase):
         mig39 = import_module("contatori.migrations.0039_acl_fatture_registro_letture")
         mig40 = import_module("contatori.migrations.0040_acl_letture_trimestre")
         mig41 = import_module("contatori.migrations.0041_acl_letture_gestisci")
+        mig42 = import_module("contatori.migrations.0042_acl_crea_asset_impostazioni")
         self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE)
                          - set(mig30.ROUTE_GESTIONE) - set(mig32.ROUTE_VIEW) - set(mig34.ROUTE_GESTIONE)
                          - set(mig39.ROUTE_VIEW) - set(mig39.ROUTE_GESTIONE) - set(mig40.ROUTE_GESTIONE)
-                         - set(mig41.ROUTE_GESTIONE), set(),
+                         - set(mig41.ROUTE_GESTIONE) - set(mig42.ROUTE_GESTIONE), set(),
                          "Route nuova senza binding ACL: aggiungila a ROUTE_VIEW o ROUTE_GESTIONE")

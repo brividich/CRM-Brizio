@@ -3,14 +3,14 @@
   <div class="cnav-gruppo">
     <span class="cnav-label">Operatività</span>
     <a href="{% url 'contatori:dashboard' %}" class="{% if n == 'dashboard' %}active{% endif %}">Centrale</a>
-    <a href="{% url 'contatori:macchine' %}" class="{% if n in 'macchine macchina_nuova macchina_edit macchina' %}active{% endif %}">Stampanti MFC</a>
+    <a href="{% url 'contatori:macchine' %}" class="{% if n in 'macchine macchina_nuova macchina_edit macchina macchina_test_snmp' %}active{% endif %}">Stampanti MFC</a>
     <a href="{% url 'contatori:letture_registro' %}" class="{% if n in 'letture_registro letture_trimestre importa_lettura lettura_edit letture_proposte letture_gestisci lettura_mensile_edit' %}active{% endif %}">Letture</a>
-    <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' %}active{% endif %}">Consumabili</a>
+    <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' or n == 'consumabili_riepilogo' or n == 'macchina_consumabili' %}active{% endif %}">Consumabili</a>
     <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit snmp_dispositivo_verifica_oid' or t == 'sonda' %}active{% endif %}">Monitor SNMP</a>
   </div>
   <div class="cnav-gruppo">
     <span class="cnav-label">Economico</span>
-    <a href="{% url 'contatori:riconciliazione' %}" class="{% if n in 'riconciliazione riconciliazione_trim riconciliazione_guida' %}active{% endif %}">Riconciliazione</a>
+    <a href="{% url 'contatori:riconciliazione' %}" class="{% if n == 'riconciliazione' or n == 'riconciliazione_trim' %}active{% endif %}">Riconciliazione</a>
     <a href="{% url 'contatori:fatture' %}" class="{% if n in 'fatture fatture_importa fattura_nuova fattura_edit' %}active{% endif %}">Fatture</a>
     <a href="{% url 'contatori:analisi' %}" class="{% if n == 'analisi' %}active{% endif %}">Analisi</a>
   </div>
@@ -18,13 +18,15 @@
     <span class="cnav-label">Configurazione</span>
     <a href="{% url 'contatori:snmp_profili' %}" class="cnav-config {% if n in 'snmp_profili snmp_profilo_nuovo snmp_profilo_edit snmp_profilo_colonna_nuova snmp_profilo_colonna_edit' or t == 'colonna' %}active{% endif %}">Profili SNMP</a>
     <a href="{% url 'contatori:discovery' %}" class="cnav-config {% if n == 'discovery' %}active{% endif %}">Discovery</a>
+    <a href="{% url 'contatori:impostazioni' %}" class="cnav-config {% if n == 'impostazioni' %}active{% endif %}" title="Community, versione e timeout globali, polling e storico della videosorveglianza">Impostazioni</a>
   </div>
-  <details class="cnav-nuovo{% if t == 'apparato' or t == 'profilo' %} attivo{% endif %}">
+  <details class="cnav-nuovo{% if t == 'apparato' or t == 'macchina' or t == 'dispositivo' or t == 'profilo' %} attivo{% endif %}">
     <summary>+ Nuovo</summary>
     <div class="cnav-menu">
-      <a href="{% url 'contatori:wizard_avvia' 'apparato' %}" title="Stampante MFC a contratto o dispositivo SNMP" class="cnav-config {% if t == 'apparato' %}active{% endif %}">+ Apparato</a>
+      <a href="{% url 'contatori:wizard_avvia' 'apparato' %}" title="Stampante MFC a contratto o dispositivo SNMP" class="cnav-config {% if t == 'apparato' or t == 'macchina' or t == 'dispositivo' %}active{% endif %}">+ Apparato</a>
       <a href="{% url 'contatori:wizard_avvia' 'profilo' %}" class="cnav-config {% if t == 'profilo' %}active{% endif %}">+ Profilo SNMP</a>
     </div>
   </details>{% endif %}
+  <a href="{% url 'contatori:riconciliazione_guida' %}" class="cnav-guida {% if n == 'riconciliazione_guida' %}active{% endif %}" title="Guida di Contatori IT">? Guida</a>
 </nav>
 {% endwith %}

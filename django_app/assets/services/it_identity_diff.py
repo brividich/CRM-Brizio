@@ -13,6 +13,7 @@ FIELD_LABELS = {
     "serial_number": "Numero di serie",
     "manufacturer": "Produttore",
     "model": "Modello",
+    "ip": "Indirizzo IP (punti rete)",
 }
 
 
@@ -32,14 +33,24 @@ def snmp_identity_diffs(asset) -> list[dict]:
     for device in DispositivoSNMP.objects.filter(asset=asset).only("nome", "host", "matricola", "produttore", "modello"):
         sources.append((f"Dispositivo SNMP «{device.nome}» ({device.host})", {
             "serial_number": device.matricola, "manufacturer": device.produttore, "model": device.modello,
+            "ip": device.host,
         }))
-    for machine in Macchina.objects.filter(asset=asset).only("reparto", "matricola", "modello"):
-        sources.append((f"MFC «{machine.reparto}» (anagrafica Contatori)", {"serial_number": machine.matricola, "model": machine.modello}))
+    for machine in Macchina.objects.filter(asset=asset).only("reparto", "matricola", "modello", "host"):
+        sources.append((f"MFC «{machine.reparto}» (anagrafica Contatori)",
+                        {"serial_number": machine.matricola, "model": machine.modello, "ip": machine.host}))
 
+    # L'IP non e' un campo dell'asset: si confronta con tutti i punti rete e si aggiunge come punto nuovo.
+    endpoint_ips = [ip.strip() for ip in asset.endpoints.exclude(ip__isnull=True).values_list("ip", flat=True) if ip.strip()]
     diffs, seen = [], set()
     for origin, values in sources:
         for field, value in values.items():
             value = " ".join(str(value or "").split())
+            if field == "ip":
+                if value and value not in endpoint_ips and (field, value) not in seen:
+                    seen.add((field, value))
+                    diffs.append({"field": field, "label": FIELD_LABELS[field], "asset_value": ", ".join(endpoint_ips),
+                                  "snmp_value": value, "origin": origin})
+                continue
             current = getattr(asset, field) or ""
             if not value or _norm(value, field) == _norm(current, field) or (field, _norm(value, field)) in seen:
                 continue

@@ -81,10 +81,11 @@ class SchedaMonitoraggioTvccTests(TestCase):
 
     def test_valori_e_mac_uguale(self):
         risposta = self._pagina()
-        self.assertContains(risposta, "<strong>Cam magazzino</strong><span>TVCC - Telecamera IP · ")
+        self.assertContains(risposta, ">Cam magazzino</a>")
+        self.assertContains(risposta, "TVCC - Telecamera IP · ")
         # Uptime della telecamera = servizio SNMP, non l'apparato: non si mostra.
         self.assertNotContains(risposta, "acceso da circa")
-        self.assertContains(risposta, "= dichiarato")
+        self.assertContains(risposta, "= punto rete")
 
     def test_nvr_mostra_modello_e_uptime(self):
         from contatori.models import DispositivoSNMP
@@ -99,12 +100,20 @@ class SchedaMonitoraggioTvccTests(TestCase):
     def test_mac_diverso(self):
         self.valore.valore_testo = "00:18:9a:0b:0c:10"
         self.valore.save()
-        self.assertContains(self._pagina(), "diverso dal dichiarato")
+        self.assertContains(self._pagina(), "diverso dal punto rete")
 
     def test_mac_non_dichiarato(self):
         self.endpoint.mac = ""
         self.endpoint.save()
-        self.assertContains(self._pagina(), "non dichiarato")
+        self.assertContains(self._pagina(), "non nei punti rete")
+
+    def test_senza_permesso_monitor_niente_dati_snmp(self):
+        from unittest import mock
+
+        with mock.patch("assets.services.it_monitoring.acl_allows_path", return_value=False):
+            risposta = self._pagina()
+        self.assertNotContains(risposta, "Cam magazzino")
+        self.assertNotContains(risposta, "00:18:9a:0b:0c:0f</td>")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False, SITE_URL="")

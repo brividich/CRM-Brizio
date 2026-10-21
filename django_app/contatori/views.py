@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from core.audit import log_action
-from . import services
+from . import integrazione, services
 from .permessi import richiede_gestione
 from .forms import (
     ColonnaProfiloSNMPForm,
@@ -156,11 +156,24 @@ def apparato_collega_asset(request, tipo, pk):
     return redirect(dettaglio, pk=pk)
 
 
-def _licenze_software_asset(asset, apparato=None, tipo=""):
-    """Licenze (modulo Asset) e software installato (inventario SOC) dell'asset collegato all'apparato."""
+def _puo_creare_asset(request):
+    """Creare un asset dall'apparato: gestione Contatori e permesso di creazione nel modulo Asset."""
+    from assets.services.it_monitoring import can_view_monitoring
+    from .permessi import puo_gestire
+
+    return puo_gestire(request) and can_view_monitoring(request, reverse("assets:asset_create"))
+
+
+def _licenze_software_asset(asset, apparato=None, tipo="", request=None):
+    """Riquadro «Asset collegato» e «Sicurezza» delle schede apparato (moduli Asset e SOC)."""
+    sicurezza = integrazione.sicurezza_apparato(request, apparato) if apparato is not None and request else None
     if asset is None:
         proposta = _asset_proposto(apparato, tipo) if apparato is not None else None
-        return {"licenze_asset": [], "software_asset": None, "asset_proposto": proposta}
+        crea = None
+        if apparato is not None and request is not None and _puo_creare_asset(request):
+            crea = {"tipo": tipo, "pk": apparato.pk, "dati": integrazione.dati_asset_proposti(apparato)}
+        return {"licenze_asset": [], "software_asset": None, "asset_proposto": proposta,
+                "crea_asset": crea, "sicurezza": sicurezza}
     from assets.services.software_licenze import licenses_for_asset
 
     software = None
@@ -177,7 +190,34 @@ def _licenze_software_asset(asset, apparato=None, tipo=""):
         costi = costi_asset(asset)
     except Exception:  # noqa: BLE001 - la scheda apparato non dipende dai costi
         costi = None
-    return {"licenze_asset": licenses_for_asset(asset), "software_asset": software, "costi_asset": costi}
+    allineamento = integrazione.allineamento_asset(apparato) if apparato is not None else []
+    return {"licenze_asset": licenses_for_asset(asset), "software_asset": software, "costi_asset": costi,
+            "allineamento": allineamento, "sicurezza": sicurezza}
+
+
+@require_POST
+@richiede_gestione
+def apparato_crea_asset(request, tipo, pk):
+    """Crea nell'inventario l'asset dell'apparato (dati letti via SNMP + punto rete con l'IP) e lo collega."""
+    model = integrazione._modello_apparato(tipo)
+    if model is None:
+        return redirect("contatori:dashboard")
+    apparato = get_object_or_404(model, pk=pk)
+    dettaglio = integrazione.url_apparato(apparato)
+    if not _puo_creare_asset(request):
+        messages.error(request, "Per creare l'asset serve anche il permesso di creazione nel modulo Asset.")
+        return redirect(dettaglio)
+    try:
+        asset = integrazione.crea_asset_da_apparato(apparato)
+    except ValueError as exc:
+        messages.warning(request, str(exc))
+        return redirect(dettaglio)
+    dati = {"tipo": tipo, "apparato_id": apparato.pk, "apparato": integrazione.nome_apparato(apparato),
+            "asset_id": asset.pk, "asset_tag": asset.asset_tag, "ip": apparato.host or ""}
+    # Agganciata all'asset: compare nello storico della sua scheda.
+    log_action(request, "asset_creato_da_apparato", "contatori", dati, oggetto_tipo="assets.asset", oggetto_id=str(asset.pk))
+    messages.success(request, f"Asset {asset.asset_tag} creato e collegato. Completa reparto, data d'acquisto e assegnazione dalla scheda asset.")
+    return redirect(dettaglio)
 
 
 def dashboard(request):
@@ -195,6 +235,7 @@ def dashboard(request):
         "errori_snmp": services.ultimi_errori_snmp(),
         "da_riconciliare": services.fatture_da_riconciliare(),
         "licenze_apparati": services.licenze_asset_apparati(),
+        "integrazione": integrazione.quadro_integrazione(request),
     })
 
 
@@ -397,7 +438,7 @@ def macchina_detail(request, pk):
         "colleghi_pool": (list(Macchina.objects.filter(contratto=macchina.contratto)
                                .exclude(pk=macchina.pk).order_by("reparto"))
                           if macchina.contratto else []),
-        **_licenze_software_asset(macchina.asset, macchina, "mfc"),
+        **_licenze_software_asset(macchina.asset, macchina, "mfc", request),
     })
 
 
@@ -575,18 +616,44 @@ def leggi_snmp(request):
 
 # --- Gestione stampanti & SNMP ---------------------------------------------
 
-@richiede_gestione(solo_post=True)
-def macchine_list(request):
-    """Elenco stampanti + form parametri SNMP globali (salvati sul singleton)."""
+@richiede_gestione
+def impostazioni(request):
+    """Parametri SNMP globali (singleton) e intervalli/storico della videosorveglianza."""
     cfg = ImpostazioniSNMP.get_solo()
     if request.method == "POST":
         form = ImpostazioniSNMPForm(request.POST, instance=cfg)
         if form.is_valid():
+            prima = model_to_dict(ImpostazioniSNMP.objects.get(pk=cfg.pk), fields=["port", "timeout", "version",
+                                                                                 "tvcc_intervallo_nvr",
+                                                                                 "tvcc_intervallo_telecamere",
+                                                                                 "tvcc_retention_giorni"])
             form.save()
+            # La community non finisce nell'audit: si registra solo che e' cambiata.
+            log_action(request, "impostazioni_snmp_salvate", "contatori",
+                       {"prima": prima, "community_cambiata": "community" in form.changed_data,
+                        "campi": [c for c in form.changed_data if c != "community"]})
             messages.success(request, "Parametri SNMP salvati.")
-            return redirect("contatori:macchine")
+            return redirect("contatori:impostazioni")
     else:
         form = ImpostazioniSNMPForm(instance=cfg)
+    in_chiaro = sum(1 for o in (*Macchina.objects.filter(attiva=True, host__isnull=False)
+                                .select_related("profilo_snmp", "community_salvata"),
+                                *DispositivoSNMP.objects.filter(attivo=True)
+                                .select_related("profilo_snmp", "community_salvata"))
+                    if integrazione.postura_snmp(o))
+    return render(request, "contatori/impostazioni.html", {
+        "snmp_form": form, "cfg": cfg, "apparati_in_chiaro": in_chiaro,
+        "profili_mfc": [
+            profilo for profilo in ProfiloSNMP.objects.filter(
+                attivo=True, categoria=ProfiloSNMP.Categoria.STAMPANTE,
+            ).prefetch_related("colonne")
+            if len({c.contatore_mfc for c in profilo.colonne.all() if c.contatore_mfc}) == 4
+        ],
+    })
+
+
+def macchine_list(request):
+    """Elenco stampanti MFC con filtri; i parametri SNMP globali stanno in «Impostazioni»."""
     from django.db.models import Q
     trimestre = services.trimestre_corrente()
     filtri = {k: request.GET.get(k, "").strip() for k in ("q", "stato", "lettura", "dismesse")}
@@ -612,13 +679,6 @@ def macchine_list(request):
         "dismesse_nascoste": dismesse_nascoste, "stati": StatoSNMP.choices,
         "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")),
         "consumabili": services.stato_consumabili(macchine),
-        "snmp_form": form,
-        "profili_mfc": [
-            profilo for profilo in ProfiloSNMP.objects.filter(
-                attivo=True, categoria=ProfiloSNMP.Categoria.STAMPANTE,
-            ).prefetch_related("colonne")
-            if len({c.contatore_mfc for c in profilo.colonne.all() if c.contatore_mfc}) == 4
-        ],
         "ultime": services.ultime_rilevazioni(),
     })
 
@@ -632,7 +692,17 @@ def macchina_edit(request, pk=None):
         if form.is_valid():
             m = form.save()
             messages.success(request, f"Stampante «{m.reparto}» salvata.")
-            return redirect("contatori:macchine")
+            if pk is None and m.asset_id is None:
+                # Come per i dispositivi SNMP: nuova MFC collegata all'asset con la stessa matricola o lo stesso IP.
+                proposta = _asset_proposto(m, "mfc")
+                if proposta is not None:
+                    m.asset = proposta["asset"]
+                    m.save(update_fields=["asset"])
+                    log_action(request, "apparato_collegato_asset", "contatori",
+                               {"tipo": "mfc", "apparato_id": m.pk, "asset_id": m.asset_id,
+                                "asset_tag": m.asset.asset_tag, "motivo": proposta["motivo"], "automatico": True})
+                    messages.info(request, f"Collegata all'asset {m.asset.asset_tag} (trovato per {proposta['motivo']}).")
+            return redirect("contatori:macchina", pk=m.pk)
     else:
         form = MacchinaForm(instance=macchina)
     return render(request, "contatori/macchina_form.html",
@@ -923,6 +993,10 @@ def snmp_centrale(request):
         dispositivi = dispositivi.filter(categoria=categoria)
     if stato in StatoSNMP.values:
         dispositivi = dispositivi.filter(snmp_stato=stato)
+        macchine = macchine.filter(snmp_stato=stato)
+    # Le MFC sono stampanti: una categoria diversa le esclude, invece di mostrarle comunque.
+    if categoria and categoria != DispositivoSNMP.Categoria.STAMPANTE:
+        macchine = macchine.none()
     q = (request.GET.get("q") or "").strip()
     if q:
         from django.db.models import Q
@@ -930,10 +1004,12 @@ def snmp_centrale(request):
             Q(nome__icontains=q) | Q(host__icontains=q) | Q(posizione__icontains=q)
             | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q))
         macchine = macchine.filter(Q(reparto__icontains=q) | Q(matricola__icontains=q)
-                                   | Q(host__icontains=q) | Q(modello__icontains=q))
+                                   | Q(host__icontains=q) | Q(modello__icontains=q)
+                                   | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q))
     dispositivi = list(dispositivi)
     return render(request, "contatori/snmp_centrale.html", {
-        "dispositivi": dispositivi, "q": q,
+        "dispositivi": dispositivi, "q": q, "filtrato": bool(q or categoria or stato or flotta),
+        "da_interrogare": DispositivoSNMP.objects.filter(attivo=True).count(),
         "disponibilita": services.disponibilita_flotta(d.pk for d in dispositivi),
         "macchine": macchine,
         "flotta": flotta, "flotta_etichetta": services.FLOTTA.get(flotta, ""),
@@ -976,7 +1052,7 @@ def dispositivo_snmp_detail(request, pk):
         "info_snmp": services.info_snmp(dispositivo),
         "ultima_ok": dispositivo.rilevazioni.filter(stato=StatoSNMP.OK).order_by("-rilevata_il").first(),
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
-        **_licenze_software_asset(dispositivo.asset, dispositivo, "snmp"),
+        **_licenze_software_asset(dispositivo.asset, dispositivo, "snmp", request),
         "firmware_storico": list(dispositivo.firmware_storico.all()[:20]),
         "disponibilita": services.disponibilita_dispositivo(dispositivo),
         "periodi_disponibilita": (("24h", "ultime 24 ore"), ("7g", "ultimi 7 giorni")),
