@@ -178,7 +178,7 @@ Valgono per tutti i trattamenti sotto; ogni scheda riporta solo le misure in piÃ
 | Trasferimenti extra UE | Dati letti da Microsoft Graph, Defender, Intune ed Entra (Microsoft) |
 | Termine | Mail del SOC: dopo 12 mesi mittente e contenuto svuotati; chat e log AI del SOC 12 mesi |
 | Moduli | `security` |
-| Note | Come T10 per l'art. 4 L. 300/1970. Controllo sistematico dei dispositivi dei lavoratori: DPIA consigliata |
+| Note | Come T10 per l'art. 4 L. 300/1970. Controllo sistematico dei dispositivi dei lavoratori: DPIA necessaria (vedi DPIA preliminare) |
 
 ### T12 â€” Assistente AI
 
