@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import logging
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.views.decorators.http import require_POST
+
+from django.utils import timezone
 
 from core import naming
 from core.legacy_anagrafica import fetch_anagrafica_rows
@@ -107,7 +111,89 @@ def mia_scheda(request):
         "cedolino_voci": voci,
         "cedolino_competenza": competenza,
         "dpi": _dpi(lid, request),
+        "ambiti_rettifica": _ambiti_rettifica(),
+        "mie_rettifiche": _mie_rettifiche(lid),
     })
+
+
+def _ambiti_rettifica():
+    from anagrafica.models import RichiestaRettifica
+
+    return RichiestaRettifica.AMBITO_CHOICES
+
+
+def _mie_rettifiche(lid: int) -> list:
+    from anagrafica.models import RichiestaRettifica
+
+    return list(RichiestaRettifica.objects.filter(legacy_anagrafica_id=lid)[:10])
+
+
+@login_required
+def miei_dati_zip(request):
+    """«Scarica i miei dati» (GDPR art. 15/20): ZIP con JSON e CSV, registrato in audit."""
+    from anagrafica.services.dati_personali import archivio_zip, raccogli
+    from core.audit import log_action
+
+    lid = _io(request)
+    if lid is None:
+        raise Http404
+    nome, sezioni = raccogli(request, lid)
+    contenuto = archivio_zip(nome, sezioni)
+    log_action(request, "DATI_PERSONALI_ESPORTATI", "anagrafica", {
+        "dipendente_id": lid, "sezioni": {k: len(v) for k, v in sezioni.items()},
+    }, oggetto_tipo="dipendente", oggetto_id=str(lid))
+    resp = HttpResponse(contenuto, content_type="application/zip")
+    resp["Content-Disposition"] = f'attachment; filename="miei_dati_{timezone.localdate():%Y%m%d}.zip"'
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@login_required
+@require_POST
+def segnala_rettifica(request):
+    """«Segnala un dato errato» (GDPR art. 16): richiesta tracciata verso l'ufficio HR."""
+    from anagrafica.models import RichiestaRettifica
+    from core.audit import log_action
+
+    lid = _io(request)
+    if lid is None:
+        raise Http404
+    testo = (request.POST.get("testo") or "").strip()[:4000]
+    ambito = request.POST.get("ambito") or "ALTRO"
+    if ambito not in dict(RichiestaRettifica.AMBITO_CHOICES):
+        ambito = "ALTRO"
+    if len(testo) < 5:
+        messages.error(request, "Scrivi quale dato è sbagliato e come dovrebbe essere.")
+        return redirect("anagrafica:mia_scheda")
+    richiesta = RichiestaRettifica.objects.create(
+        legacy_anagrafica_id=lid, utente=request.user, ambito=ambito, testo=testo)
+    log_action(request, "RETTIFICA_RICHIESTA", "anagrafica",
+               {"richiesta_id": richiesta.pk, "ambito": ambito, "dipendente_id": lid}, oggetto=richiesta)
+    _avvisa_hr(request, richiesta)
+    messages.success(request, f"Segnalazione inviata all'ufficio HR (n. {richiesta.pk}). "
+                              f"Riceverai la risposta entro il {richiesta.scadenza:%d/%m/%Y}.")
+    return redirect("anagrafica:mia_scheda")
+
+
+def _avvisa_hr(request, richiesta) -> None:
+    """Mail alla casella HR di SiteConfig «anagrafica_rettifiche_email», senza il testo
+    della richiesta (resta nel portale)."""
+    try:
+        from django.urls import reverse
+
+        from core.models import SiteConfig
+        from core.notifiche import invia_notifica_email
+
+        email = (SiteConfig.get("anagrafica_rettifiche_email", "") or "").strip()
+        if email:
+            invia_notifica_email(
+                email, "rettifica_dati",
+                f"Nuova richiesta di rettifica dei dati n. {richiesta.pk} ({richiesta.get_ambito_display()}). "
+                f"Da gestire entro il {richiesta.scadenza:%d/%m/%Y}.",
+                request.build_absolute_uri(reverse("anagrafica:rettifiche")),
+            )
+    except Exception:
+        logger.warning("Avviso HR per la rettifica %s non inviato", richiesta.pk, exc_info=True)
 
 
 @login_required

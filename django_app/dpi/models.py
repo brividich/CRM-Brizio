@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
+from core.campi_cifrati import CampoCifrato
+
 from .storage import PrivateDpiDocumentStorage
 
 
@@ -402,7 +404,8 @@ class ConsegnaDPI(models.Model):
         null=True, blank=True,
         help_text="Scadenza stimata per rinnovo (calcolata automaticamente da vita utile categoria)",
     )
-    firma_immagine = models.TextField(
+    # GDPR (E4): firma del ricevente cifrata nel database (core/campi_cifrati.py).
+    firma_immagine = CampoCifrato(
         blank=True, default="",
         help_text="Firma digitale del ricevente (PNG base64, data URI)",
     )

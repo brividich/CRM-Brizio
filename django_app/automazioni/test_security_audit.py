@@ -86,9 +86,21 @@ class HttpActionSsrfTests(SimpleTestCase):
         with self.assertRaises(AutomationSafetyError):
             self._check("http://intranet.local/api", "127.0.0.1")
 
+    @override_settings(AUTOMATION_HTTP_EXTERNAL_HOSTS=["example.com"])
     def test_public_address_allowed(self):
         self._check("https://example.com/hook", "93.184.216.34")
 
+    @override_settings(AUTOMATION_HTTP_EXTERNAL_HOSTS=[])
+    def test_host_pubblico_non_in_elenco_bloccato(self):
+        """GDPR 21/10: gli host esterni sono un elenco chiuso."""
+        with self.assertRaises(AutomationSafetyError):
+            self._check("https://example.com/hook", "93.184.216.34")
+
+    @override_settings(AUTOMATION_HTTP_EXTERNAL_HOSTS=[])
+    def test_servizi_microsoft_ammessi_di_default(self):
+        self._check("https://prod-00.westeurope.logic.azure.com/workflows/x", "20.0.0.1")
+
+    @override_settings(AUTOMATION_HTTP_EXTERNAL_HOSTS=["example.com"])
     def test_perform_http_request_disables_redirects(self):
         from automazioni import services
 

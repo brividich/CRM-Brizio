@@ -1,0 +1,80 @@
+{% extends "core/base.html" %}
+{% load anagrafica_extras %}
+
+{% block title %}Richieste di rettifica | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.rr-wrap { overflow-x:auto; }
+.rr-testo { white-space:pre-wrap; max-width:520px; }
+.rr-form { display:flex; flex-direction:column; gap:6px; min-width:260px; }
+.rr-form textarea { border:1px solid var(--hr-border); border-radius:9px; padding:8px 10px; font:inherit; background:var(--hr-surface); color:var(--hr-text); }
+.rr-muted { color:var(--hr-muted); font-size:12px; }
+.rr-ritardo { color:var(--hr-danger, #b42318); font-weight:700; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  {% url 'guida_modulo' 'anagrafica' as guida_url %}
+  {% url 'anagrafica:impostazioni' as back_url %}
+  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Impostazioni" title="Richieste di rettifica" desc="Segnalazioni dei dipendenti su un proprio dato sbagliato (GDPR art. 16), da «La mia scheda». Correggi il dato nella scheda, poi chiudi la richiesta con una risposta: il dipendente la riceve come notifica. Termine: un mese." guida_url=guida_url|add:"#rettifiche" back_url=back_url %}
+
+  <section class="hr-card">
+    <div class="hr-card-head"><div>
+      <div class="hr-card-title">Da gestire ({{ aperte|length }})</div>
+    </div></div>
+    {% if aperte %}
+    <div class="rr-wrap"><table class="hr-table">
+      <thead><tr><th>N.</th><th>Persona</th><th>Riguarda</th><th>Segnalazione</th><th>Entro il</th><th>Risposta e chiusura</th></tr></thead>
+      <tbody>{% for r in aperte %}
+        <tr>
+          <td>{{ r.pk }}</td>
+          <td><a href="{% url 'anagrafica:dipendente_detail' r.legacy_anagrafica_id %}">{{ r.persona }}</a><div class="rr-muted">inviata il {{ r.creata_il|date:"d/m/Y H:i" }}</div></td>
+          <td>{{ r.get_ambito_display }}</td>
+          <td class="rr-testo">{{ r.testo }}</td>
+          <td{% if r.in_ritardo %} class="rr-ritardo"{% endif %}>{{ r.scadenza|date:"d/m/Y" }}{% if r.in_ritardo %}<div>in ritardo</div>{% endif %}</td>
+          <td>
+            <form method="post" class="rr-form">
+              {% csrf_token %}
+              <input type="hidden" name="id" value="{{ r.pk }}">
+              <textarea name="risposta" rows="2" maxlength="4000" required aria-label="Risposta al dipendente" placeholder="Es. corretto l'indirizzo di residenza."></textarea>
+              <div><button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Chiudi e rispondi</button></div>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}
+      {% include "anagrafica/components/hr_empty.html" with icon="✅" title="Nessuna richiesta da gestire" %}
+    {% endif %}
+  </section>
+
+  <section class="hr-card">
+    <div class="hr-card-head"><div>
+      <div class="hr-card-title">Chiuse di recente</div>
+    </div></div>
+    {% if chiuse %}
+    <div class="rr-wrap"><table class="hr-table">
+      <thead><tr><th>N.</th><th>Persona</th><th>Riguarda</th><th>Risposta</th><th>Chiusa il</th></tr></thead>
+      <tbody>{% for r in chiuse %}
+        <tr>
+          <td>{{ r.pk }}</td>
+          <td>{{ r.persona }}</td>
+          <td>{{ r.get_ambito_display }}</td>
+          <td class="rr-testo">{{ r.risposta }}</td>
+          <td>{{ r.gestita_il|date:"d/m/Y" }}{% if r.gestita_da %}<div class="rr-muted">{{ r.gestita_da.get_username }}</div>{% endif %}</td>
+        </tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}
+      {% include "anagrafica/components/hr_empty.html" with icon="🗂️" title="Nessuna richiesta chiusa" %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

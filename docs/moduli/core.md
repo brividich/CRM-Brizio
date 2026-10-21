@@ -57,6 +57,13 @@ Sopra i 3000px di larghezza (monitor/TV 4K a scala 100%) `theme.css` applica `zo
 
 Con il tema scuro capitava di trovare scritte scure su sfondo scuro: colori «chiari» scritti a mano nei template (inline `style="color:#0f172a"` o nei `<style>` di pagina) che il tema non poteva ribaltare. Due rimedi, entrambi solo sotto `body.theme-dark` (il tema chiaro non cambia): `core/static/core/css/dark-safety.css` (generato da `tools/gen_dark_safety.py`) intercetta i colori inline più diffusi e li porta ai token del tema; `tools/gen_dark_block.py` ha accodato a ~250 pagine e CSS di modulo il blocco gemello scuro per le regole che mancavano. Regole per gli sviluppatori: `docs/ai/04_FRONTEND_DIRECTION.md` («Tema scuro»); test di allineamento `core.test_dark_safety`.
 
+## Protezione dei dati personali (GDPR, 21/10/2026)
+
+- `core/campi_cifrati.py`: `CampoCifrato` (TextField cifrato Fernet con `DOCUMENT_ENCRYPTION_KEY`, prefisso `enc1:`, vuoto = vuoto, valori storici in chiaro letti com'erano); comando `cifra_campi_esistenti [--apply] [--ruota]`.
+- `core/log_redaction.py`: filtro `dati_personali` su tutti gli handler di `LOGGING` (codici fiscali e IBAN mascherati, anche nei traceback).
+- `core.audit.log_consultazione(...)`: audit delle letture con finestra (default un'ora per utente e chiave).
+- Notifica `rettifica_dati` in `notifiche_meta`.
+
 ## Conservazione degli archivi tecnici (GDPR, 21/10/2026)
 
 `core/gdpr_retention.py`: registro di regole (monitoring, feedback chat, link e posta di approvazione, posta e AI del SOC, axes, sessioni), termine per regola in SiteConfig `gdpr_ret_<regola>_giorni` (7-3650). Schedule `gdpr_retention` ogni notte alle 03:15 (`core.tasks.run_gdpr_retention`), comando `gdpr_retention [--apply] [--solo <regola>]`, una riga di audit `gdpr_retention` con i conteggi. Comando `media_privatizza [--apply] [--app] [--orfani]`: sposta in storage privato cifrato i file storici rimasti in `MEDIA_ROOT`. Elenco completo: `docs/audit/RETENTION_DATI_PERSONALI.md`.
