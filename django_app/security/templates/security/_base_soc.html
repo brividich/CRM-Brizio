@@ -4,15 +4,34 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'security/security.css' %}">
 <link rel="stylesheet" href="{% static 'security/soc-live.css' %}">
+<link rel="stylesheet" href="{% static 'security/soc-design.css' %}">
 <script src="{% static 'security/htmx-lite.js' %}" defer></script>
 <script src="{% static 'security/soc-charts.js' %}" defer></script>
 <script src="{% static 'security/soc-ui.js' %}" defer></script>
 {% endblock %}
 {% block content %}
 <div class="soc-module">
+  {% include "security/_icons.html" %}
   {% with url_name=request.resolver_match.url_name %}
-  {% soc_menu url_name %}
-  {% soc_config_tabs url_name %}
+  <header class="soc-head">
+    <div class="soc-head-row">
+      <div class="soc-head-title">
+        <span class="soc-head-mark" aria-hidden="true"><svg class="soc-ico"><use href="#soc-i-shield"/></svg></span>
+        <div>
+          <p class="soc-head-kicker">Security Center · {% block page_marker %}SOC{% endblock %}</p>
+          <h1>{% block page_title %}Security Center{% endblock %}</h1>
+        </div>
+      </div>
+      <div class="soc-head-tools">
+        <form method="get" action="{% url 'security:search' %}" role="search" class="soc-head-search">
+          <svg class="soc-ico" aria-hidden="true"><use href="#soc-i-search"/></svg>
+          <input type="search" name="q" placeholder="Cerca PC, ticket, CVE…" aria-label="Cerca nel SOC" value="{% if url_name == 'search' %}{{ request.GET.q }}{% endif %}">
+        </form>
+        <a href="{% soc_page_help_url url_name %}" class="soc-head-help" title="Guida di questa pagina" aria-label="Guida di questa pagina"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-help"/></svg></a>
+      </div>
+    </div>
+    {% soc_menu url_name %}
+  </header>
   {% endwith %}
   {# Barra di stato: resa con la pagina, poi riletta ogni minuto da soc-ui.js. #}
   <div class="soc-live" data-live-url="{% url 'security:live_strip' %}" data-live-every="60" aria-label="Stato del SOC">{% soc_live_strip %}</div>

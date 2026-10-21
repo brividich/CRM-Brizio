@@ -156,3 +156,8 @@ Il menu (`templatetags/security_config_nav.py`, `MENU` + tag `soc_menu`, templat
 ## Segnalazioni (21/10/2026)
 
 `/soc/segnalazioni/` (rotta `segnalazioni`, `views_work.segnalazioni`, servizio `services/segnalazioni.py`): alert, ticket e incidenti in un elenco solo, in sola lettura. Ordine: aperte prima, poi termine NIS2/GDPR scaduto o in scadenza, gravità, anzianità. Filtri `tipo`, `stato` (aperte/chiuse/tutte), `gravita`, `q`; 40 righe per pagina; ogni riga ha `data-preview` verso l'anteprima esistente (`security:preview`). Gli eventi non entrano nell'elenco (hanno `/soc/eventi/`). Le azioni di gruppo restano nelle pagine dei singoli tipi.
+
+
+## Grafica del SOC (21/10/2026)
+
+`_base_soc.html` rende l'intestazione (`soc-head`: blocchi `page_marker`/`page_title`, ricerca, guida) e include lo sprite `_icons.html` (simboli `soc-i-*`). `soc_menu` aggiunge a ogni voce `icon` e `badge` (da `live_status`, in cache 60 s); dentro la configurazione la seconda riga elenca le `CONFIG_TABS` al posto della scheda unica, quindi il tag `soc_config_tabs` non è più usato nel layout. Stile in `static/security/soc-design.css`, caricato dopo `security.css` e `soc-live.css`.
