@@ -1,20 +1,16 @@
 {% extends "security/_base_soc.html" %}
 {% load security_i18n %}
 
-{% block title %}Il mio lavoro | Security Center AI{% endblock %}
-{% block page_icon %}M{% endblock %}
-{% block page_marker %}Il mio lavoro{% endblock %}
-{% block page_title %}Il mio lavoro{% endblock %}
+{% block title %}Da fare | Security Center AI{% endblock %}
+{% block page_icon %}D{% endblock %}
+{% block page_marker %}Da fare{% endblock %}
+{% block page_title %}Da fare{% endblock %}
 
 {% block soc_content %}
 <section class="sec-panel mw-head">
   <div>
-    <h2>{% if total %}Hai {{ total }} cos{{ total|pluralize:"a,e" }} in carico{% else %}Niente in carico a te{% endif %}</h2>
-    <p class="sec-muted sec-small" style="margin: 4px 0 0;">Incidenti di cui sei responsabile, ticket assegnati a te e alert presi in carico. Le scadenze più vicine in alto.</p>
-  </div>
-  <div class="mw-free">
-    <a href="{% url 'security:tickets_list' %}?assignee=none" class="sec-button">{{ unassigned.tickets }} ticket senza responsabile</a>
-    <a href="{% url 'security:incidents' %}" class="sec-button">{{ unassigned.incidents }} incident{{ unassigned.incidents|pluralize:"e,i" }} senza responsabile</a>
+    <h2>{% if total %}{{ total }} cos{{ total|pluralize:"a,e" }} da fare{% else %}Niente da fare{% endif %}</h2>
+    <p class="sec-muted sec-small" style="margin: 4px 0 0;">Incidenti, ticket e alert ancora aperti, per tutto il team. Le scadenze più vicine in alto.</p>
   </div>
 </section>
 
@@ -30,7 +26,7 @@
       </a>
     {% endfor %}
   </div>
-  {% else %}<p class="sec-empty">Nessun incidente aperto di cui sei responsabile.</p>{% endif %}
+  {% else %}<p class="sec-empty">Nessun incidente aperto.</p>{% endif %}
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px; align-items: start;">
@@ -39,15 +35,15 @@
     <ul class="sec-mini-list">
       {% for t in tickets %}
         <li><a href="{% url 'security:case_detail' t.pk %}">#{{ t.pk }} {{ t.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ t.severity }}">{{ t.severity|ui_label }}</span></span></li>
-      {% empty %}<li class="sec-muted">Nessun ticket assegnato a te.</li>{% endfor %}
+      {% empty %}<li class="sec-muted">Nessun ticket aperto.</li>{% endfor %}
     </ul>
   </div>
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Alert presi in carico</h2><span class="sec-badge">{{ alerts|length }}</span></div>
+    <div class="sec-section-head"><h2>Alert aperti</h2><span class="sec-badge">{{ alerts|length }}</span></div>
     <ul class="sec-mini-list">
       {% for a in alerts %}
         <li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ a.severity }}">{{ a.severity|ui_label }}</span></span></li>
-      {% empty %}<li class="sec-muted">Nessun alert preso in carico da te.</li>{% endfor %}
+      {% empty %}<li class="sec-muted">Nessun alert aperto.</li>{% endfor %}
     </ul>
   </div>
 </section>

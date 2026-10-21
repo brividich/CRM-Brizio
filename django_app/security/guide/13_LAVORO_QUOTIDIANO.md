@@ -6,7 +6,7 @@ Come si usa il SOC ogni giorno: da dove partire, come si lavorano alert, eventi 
 
 1. Apri **Panoramica**. In alto c'è il verdetto della giornata e l'elenco **Da guardare adesso**, ordinato dal più grave: notifiche NIS2/GDPR in scadenza, alert critici, PC senza backup, computer senza protezione, sorgenti che non mandano più report. Ogni voce porta al dettaglio.
 2. Se ti serve un riassunto, in **Sintesi del giorno** premi **Chiedi all'AI**: l'AI aziendale riassume in poche frasi cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.
-3. Apri **Il mio lavoro** (in alto a destra nel menu del SOC): incidenti di cui sei responsabile, ticket assegnati a te e alert che hai preso in carico, con le scadenze più vicine in alto. Sopra compaiono anche i ticket e gli incidenti senza responsabile.
+3. Apri **Da fare** (in alto a destra nel menu del SOC): tutti gli incidenti, i ticket e gli alert ancora aperti, per tutto il team, con le scadenze più vicine in alto. Non c'è un elenco «per persona»: chi è libero prende la voce in cima.
 4. Guarda i riquadri per area della Panoramica (firewall, computer, backup, accessi VPN, vulnerabilità): se la data dell'ultimo report è segnata come **dati vecchi**, quella sorgente non sta arrivando e il resto della pagina va letto con prudenza.
 
 ## La barra di stato
@@ -52,7 +52,7 @@ Più in basso: il ticket collegato, la timeline di tutto ciò che è successo al
 
 | Azione | Quando usarla |
 | --- | --- |
-| Prendi in carico | Te ne occupi tu: l'alert compare nel tuo «Il mio lavoro» |
+| Prendi in carico | Te ne occupi tu: nell'alert resta scritto chi l'ha preso in carico |
 | Posticipa | Non si può fare nulla adesso: l'alert torna da gestire alla data scelta |
 | Chiudi con esito «Risolto» | Il problema era vero ed è stato sistemato |
 | Chiudi con esito «Non rilevante» o «Rischio accettato» | Il problema c'è ma non va gestito, con il motivo |
