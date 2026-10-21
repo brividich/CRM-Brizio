@@ -1467,6 +1467,7 @@ def utenti_list(request):
 
     # Attacca info 2FA direttamente su ogni oggetto utente (twofa_info o None)
     _attach_twofa_to_users(utenti_page)
+    sistema_ruoli = _attach_ruoli_portale_to_users(utenti_page)
 
     return render(
         request,
@@ -1478,8 +1479,60 @@ def utenti_list(request):
             "filters": {"q": q, "attivo": attivo_filter, "ruolo_id": ruolo_filter, "pwd_change": pwd_filter},
             "create_form": UtenteCreateForm(initial={"attivo": True, "deve_cambiare_password": True}),
             "current_legacy_user_id": int(current_legacy_user.id) if current_legacy_user else None,
+            "sistema_ruoli": sistema_ruoli,
         },
     )
+
+
+def _attach_ruoli_portale_to_users(users: list) -> bool:
+    """Con «Ruoli e permessi» acceso attacca ``ruoli_portale`` a ogni utente.
+
+    A sistema acceso il ruolo legacy (``utenti.ruolo_id``) non decide piu' nulla:
+    la colonna deve mostrare i ruoli del portale (a mano + organigramma), dal piu'
+    alto in ordine, cioe' quello che comanda. Ritorna se il sistema e' acceso.
+    """
+    from core.permessi.motore import PRESET_BASE, sistema_ruoli_attivo
+
+    if not sistema_ruoli_attivo():
+        return False
+    for u in users:
+        u.ruoli_portale = []
+        u.ruolo_portale_base = ""
+    ids = [int(u.id) for u in users if u.id]
+    if not ids:
+        return True
+    try:
+        from core.models import AccessGroup, AccessGroupMembership
+        from core.permessi.organigramma import provenienze_per_utenti
+        from core.permessi.scadenze import q_appartenenze_valide
+
+        a_mano: dict[int, set[int]] = {}
+        for uid, gid in AccessGroupMembership.objects.filter(
+            q_appartenenze_valide(), legacy_user_id__in=ids
+        ).values_list("legacy_user_id", "group_id"):
+            a_mano.setdefault(int(uid), set()).add(int(gid))
+        da_org = {int(uid): set(gruppi) for uid, gruppi in provenienze_per_utenti(ids).items()}
+        tutti = set().union(*a_mano.values(), *da_org.values()) if (a_mano or da_org) else set()
+        gruppi = {
+            int(g.id): g
+            for g in AccessGroup.objects.filter(is_active=True).filter(Q(id__in=tutti) | Q(preset=PRESET_BASE))
+        }
+    except DatabaseError:
+        logger.warning("utenti_list: ruoli del portale non leggibili", exc_info=True)
+        return True
+    base = next((g for g in gruppi.values() if g.preset == PRESET_BASE), None)
+    for u in users:
+        uid = int(u.id or 0)
+        mano, org = a_mano.get(uid, set()), da_org.get(uid, set())
+        propri = [g for gid, g in gruppi.items() if gid in (mano | org) and g.preset != PRESET_BASE]
+        propri.sort(key=lambda g: (-int(g.priority or 0), str(g.label or ""), int(g.id)))
+        u.ruoli_portale = [
+            {"id": int(g.id), "label": str(g.label or "").strip() or f"#{g.id}", "da_organigramma": int(g.id) in org and int(g.id) not in mano}
+            for g in propri
+        ]
+        if not propri and base is not None:
+            u.ruolo_portale_base = str(base.label or "").strip() or "Ruolo base"
+    return True
 
 
 def _attach_twofa_to_users(users: list) -> None:
