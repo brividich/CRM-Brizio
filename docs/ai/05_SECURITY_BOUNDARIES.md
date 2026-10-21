@@ -145,6 +145,7 @@ Allineato a `config/settings/base.py` il 18/10/2026. Il middleware non applica n
 - **Mai** ricavare l'identità da header HTTP (`X-MS-CLIENT-PRINCIPAL-NAME`, `X-Forwarded-Email`): IIS li inoltra anche quando li scrive il client. Mai accettare decisioni anonime "da Teams".
 - L'IP del client si legge solo con `core.net.client_ip` (`X-Forwarded-For` solo da `TRUSTED_PROXY_IPS`).
 - Allegati di modulo: mai su storage pubblico `/media/`; usare `core.private_attachments.PrivateAttachmentStorage` (o lo storage privato del modulo) + view protetta, e aggiungere il `<location path="media/...">` di deny per i file storici.
+- Cartelle storiche con dati personali bloccate in IIS (GDPR 21/10/2026): `media/anagrafica`, `media/fotocard`, `media/firme`, `media/timbri`, `media/tasks_vrf`, `media/tasks_attachments`, `media/attrezzature_import_preview`. Il `web.config` di un server gia' installato non si ridistribuisce: i blocchi si aggiungono a mano. `media_privatizza --apply` sposta i file storici nello storage privato cifrato.
 Path auth-only condivisi gestiti direttamente da `ACLMiddleware` (senza grant ACL dedicati):
 - `/onboarding/` per tutti gli utenti autenticati non superuser interessati al primo accesso
 - `/notifiche/` e `/api/notifiche/...` per tutti gli utenti autenticati, cosi il centro notifiche e il popup ack restano sempre disponibili indipendentemente dal ruolo
