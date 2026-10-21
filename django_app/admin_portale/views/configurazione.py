@@ -1516,6 +1516,7 @@ def notifiche_config_view(request):
     from core import notifiche_archivio
     from core.notifiche_meta import CATEGORIE
     from core.notifiche_prefs import is_category_enabled_globally, set_category_global
+    from core.security_notify import avviso_impersonazione_attivo, set_avviso_impersonazione
 
     if request.method == "POST":
         sezione = (request.POST.get("sezione") or "categorie").strip()
@@ -1537,6 +1538,14 @@ def notifiche_config_view(request):
                 f"Archiviazione eseguita: {esito['non_lette']} non lette e {esito['lette']} lette archiviate, "
                 f"{esito['eliminate']} eliminate.",
             )
+        elif sezione == "sicurezza":
+            attivo = request.POST.get("avviso_impersonazione") == "1"
+            set_avviso_impersonazione(attivo)
+            log_action(request, "notifiche_avviso_impersonazione", "admin_portale", {"attivo": attivo})
+            messages.success(
+                request,
+                "Avviso di impersonazione acceso." if attivo else "Avviso di impersonazione spento: resta solo l'audit.",
+            )
         else:
             for cat in CATEGORIE:
                 set_category_global(cat, enabled=(request.POST.get(f"cat_{cat}") == "1"))
@@ -1554,6 +1563,7 @@ def notifiche_config_view(request):
         "politica": notifiche_archivio.get_politica(),
         "stats": notifiche_archivio.statistiche(),
         "max_giorni": notifiche_archivio.MAX_GIORNI,
+        "avviso_impersonazione": avviso_impersonazione_attivo(),
     })
 
 

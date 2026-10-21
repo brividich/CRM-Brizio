@@ -1249,6 +1249,7 @@ class ImpersonationFlowTests(TestCase):
         start_log = AuditLog.objects.get(azione="impersonation_start")
         self.assertEqual(start_log.legacy_user_id, self.admin_legacy.id)
         self.assertEqual(start_log.dettaglio["target_legacy_user_id"], self.target_legacy.id)
+        self.assertTrue(start_log.dettaglio["avviso_utente"])
 
         stop_response = self.client.post(
             reverse("stop_impersonation"),
@@ -1264,6 +1265,26 @@ class ImpersonationFlowTests(TestCase):
         stop_log = AuditLog.objects.get(azione="impersonation_stop")
         self.assertEqual(stop_log.legacy_user_id, self.admin_legacy.id)
         self.assertEqual(stop_log.dettaglio["target_legacy_user_id"], self.target_legacy.id)
+
+    def test_impersonation_mail_follows_admin_switch(self):
+        from django.core import mail
+
+        from core.security_notify import set_avviso_impersonazione
+
+        url = reverse("admin_portale:utente_impersonate", args=[self.target_legacy.id])
+        self.client.force_login(self.admin_user)
+
+        set_avviso_impersonazione(False)
+        self.client.post(url, {"next": reverse("profilo")})
+        self.assertEqual(
+            [m for m in mail.outbox if "m.rossi@example.local" in m.to], []
+        )
+        self.assertFalse(AuditLog.objects.get(azione="impersonation_start").dettaglio["avviso_utente"])
+        self.client.post(reverse("stop_impersonation"), {"next": reverse("profilo")})
+
+        set_avviso_impersonazione(True)
+        self.client.post(url, {"next": reverse("profilo")})
+        self.assertEqual(len([m for m in mail.outbox if "m.rossi@example.local" in m.to]), 1)
 
     def _insert_second_admin(self):
         with connection.cursor() as cursor:
