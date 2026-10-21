@@ -78,7 +78,7 @@ Un dispositivo non collegato funziona comunque nel SOC (scheda PC, backup, alert
 
 ## Stato elaborazione
 
-**Elaborazione** (gruppo Gestione) dice se i dati stanno arrivando. Il SOC lavora da solo: ogni 15 minuti legge le caselle mail, riconosce i report, applica le regole e calcola i KPI. Di solito non c'è niente da premere.
+**Elaborazione** (voce **Impostazioni**) dice se i dati stanno arrivando. Il SOC lavora da solo: ogni 15 minuti legge le caselle mail, riconosce i report, applica le regole e calcola i KPI. Di solito non c'è niente da premere.
 
 - **Lettura automatica attiva** con l'ora del prossimo giro: tutto in ordine. Se compare **Lettura automatica NON registrata**, va registrato lo schedule `security_cycle` dalla Centrale di comando.
 - **Da guardare**: mail o allegati che non sono stati elaborati, con il motivo. Dopo aver corretto un parser o una configurazione, **Configurazione › Parser › Rielabora** li ripropone.
