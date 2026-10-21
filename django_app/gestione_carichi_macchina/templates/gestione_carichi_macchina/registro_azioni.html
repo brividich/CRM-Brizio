@@ -67,12 +67,12 @@ body.theme-dark .reg{--r-navy:var(--text)}
 {% endblock %}
 
 {% block content %}
-{# data-fm-table-skip: il filtro è già server-side qui → niente toolbar auto dell'enhancer. #}
-<div class="reg" data-fm-table-skip="1">
+{# Filtri server-side sopra + tabella gestita da fm-table (colonne, larghezze, caricamento passo passo). #}
+<div class="reg">
   <div class="reg-head">
     <div>
       <h1>Registro azioni</h1>
-      <div class="sub">Tracciamento di chi crea, modifica, sposta, elimina e configura sul piano carichi · ultime {{ totale }} azioni.</div>
+      <div class="sub">Tracciamento di chi crea, modifica, sposta, elimina e configura sul piano carichi · {{ totale }} azioni.</div>
     </div>
     <a class="reg-back" href="{% url 'gestione_carichi_macchina:gantt' %}">‹ Torna al Gantt</a>
   </div>
@@ -125,5 +125,6 @@ body.theme-dark .reg{--r-navy:var(--text)}
       {% endfor %}
     </tbody>
   </table>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
 </div>
 {% endblock %}

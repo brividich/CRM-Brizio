@@ -604,7 +604,10 @@ def gestione_reparto(request):
         utenti_qs = UtenteLegacy.objects.filter(attivo=True)
         if q:
             utenti_qs = utenti_qs.filter(Q(nome__icontains=q) | Q(email__icontains=q) | naming.q_persona(q, "nome"))
-        utenti = list(utenti_qs.order_by("nome", "email", "id")[:200])
+        # Nessun tetto: il filtro per reparto del caporeparto si applica dopo,
+        # in memoria, e un tetto qui faceva sparire i colleghi oltre i primi
+        # 200 in ordine alfabetico. Le righe tante le disegna a blocchi la tabella.
+        utenti = list(utenti_qs.order_by("nome", "email", "id"))
         user_ids = [int(u.id) for u in utenti]
         extra_map = {int(obj.legacy_user_id): obj for obj in UserExtraInfo.objects.filter(legacy_user_id__in=user_ids)}
         ana_map = {int(obj.utente_id): obj for obj in AnagraficaDipendente.objects.filter(utente_id__in=user_ids)}
@@ -1292,12 +1295,14 @@ def api_table_prefs(request, table_id: str):
         state = data.get("state")
         if not isinstance(state, dict):
             return JsonResponse({"ok": False, "error": "campo 'state' deve essere un oggetto"}, status=400)
-        # Cap dimensione blob (evita abuso): 10 KB ampiamente sufficiente.
+        # Cap dimensione blob (evita abuso): 32 KB. Le tabelle con molte colonne
+        # (es. Cedolini, una colonna per voce retributiva) tra visibili, ordine e
+        # larghezze superano i 10 KB di prima.
         try:
             blob = json.dumps(state)
         except (TypeError, ValueError):
             return JsonResponse({"ok": False, "error": "state non serializzabile"}, status=400)
-        if len(blob) > 10240:
+        if len(blob) > 32768:
             return JsonResponse({"ok": False, "error": "state troppo grande"}, status=400)
         UserTablePreference.objects.update_or_create(
             user=request.user, table_id=table_id,

@@ -657,7 +657,10 @@ def admin_config_ticketing(request):
 def admin_config_audit(request):
     if not can_manage_security_config(request.user):
         return _security_config_denied(request)
-    return render(request, "security/admin_config/audit.html", {"objects": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:200], "section_help": CONFIG_SECTION_HELP["audit"]})
+    from core.paginazione import pagina_elenco
+
+    page_obj = pagina_elenco(request, SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at", "-id"))
+    return render(request, "security/admin_config/audit.html", {"objects": page_obj.object_list, "page_obj": page_obj, "section_help": CONFIG_SECTION_HELP["audit"]})
 
 
 @ensure_csrf_cookie

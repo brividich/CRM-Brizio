@@ -181,7 +181,7 @@
     {% if deadline_rows %}
       <div class="md-scroll">
         {% comment %}Niente fm-table: ordinare separerebbe ogni riga dal suo dettaglio; i filtri sono sopra.{% endcomment %}
-        <table class="md-table md-table--op ad-table" data-fm-table-skip="1">
+        <table class="md-table md-table--op ad-table">
           <thead>
             <tr><th style="width:130px">Scadenza</th><th>Adempimento</th><th>Asset</th><th>Ultima esecuzione</th><th>Stato</th><th class="md-right">Azioni</th></tr>
           </thead>
@@ -216,7 +216,7 @@
                   </div>
                 </td>
               </tr>
-              <tr class="ad-detail" id="ad-detail-{{ d.id }}" data-ad-detail="{{ d.id }}" hidden>
+              <tr class="ad-detail fm-detail-row" id="ad-detail-{{ d.id }}" data-ad-detail="{{ d.id }}" hidden>
                 <td colspan="6">
                   <div class="ad-detail-grid">
                     <div>

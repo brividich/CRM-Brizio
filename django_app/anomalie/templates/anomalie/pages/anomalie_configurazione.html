@@ -826,7 +826,7 @@
       </form>
 
       <div class="table-wrap">
-        <table class="admin-table" style="min-width:820px;">
+        <table class="admin-table" style="min-width:820px;" data-fm-page-param="mail_page">
           <thead>
             <tr><th>Data/ora</th><th>Tipo</th><th>Destinatari</th><th>Oggetto</th><th>Esito</th><th></th></tr>
           </thead>
@@ -873,6 +873,7 @@
           </tbody>
         </table>
       </div>
+      {% include "core/components/_pager_passo_passo.html" with page_obj=email_logs_page param="mail_page" %}
     </div>
   </div>
 
@@ -936,11 +937,12 @@
       });
       head.setAttribute("aria-expanded", "false");
     });
-    document.querySelectorAll("[data-maillog-toggle]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var row = document.getElementById(btn.dataset.maillogToggle);
-        if (row) row.hidden = !row.hidden;
-      });
+    // Delegato: le righe delle pagine successive arrivano scorrendo (fm-table).
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-maillog-toggle]");
+      if (!btn) return;
+      var row = document.getElementById(btn.dataset.maillogToggle);
+      if (row) row.hidden = !row.hidden;
     });
   })();
 </script>

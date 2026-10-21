@@ -38,6 +38,26 @@
  * 5.000 righe totali. Opt-out per tabella: `data-fm-fullload="0"` (oppure
  * `data-fm-tbl-pagination-skip="1"`).
  *
+ * Colonne ridimensionabili: maniglia sul bordo destro di ogni intestazione
+ * (trascina; doppio clic = adatta al contenuto; frecce ←/→ da tastiera). Le
+ * larghezze finiscono nelle preferenze utente (`widths`) come colonne e sort.
+ *
+ * Area tabella: la tabella sta in un contenitore `.fm-tbl-viewport` con
+ * intestazione fissa; quando è più alta dello schermo il contenitore scorre
+ * da sé (altezza = schermo). Pulsante «Schermo intero» nella barra controlli.
+ * Opt-out per tabella: `data-fm-viewport="0"`.
+ *
+ * Caricamento passo passo: oltre ~150 righe se ne disegnano 100 alla volta,
+ * le successive arrivano scorrendo (o con «Mostra altre»); le tabelle
+ * paginate dal server caricano la pagina successiva allo stesso modo. Con un
+ * filtro/ricerca/ordinamento attivo si carica comunque tutto il dataset.
+ * Blocco iniziale personalizzabile con `data-fm-row-cap="N"`; opt-out con
+ * `data-fm-progressive="0"`.
+ *
+ * Intestazioni su più righe (gruppi con colspan/rowspan): ordinamento e
+ * filtro stanno sulla riga più bassa; i gruppi si stringono quando si
+ * nascondono le loro colonne.
+ *
  * Attributi `<th>` riconosciuti:
  *   data-col            chiave colonna (inferita automaticamente se assente)
  *   data-col-label      etichetta UI (default: testo header)
@@ -75,6 +95,19 @@
     '</svg>';
 
   const SORT_ICON = { none: "↕", asc: "▲", desc: "▼" };
+
+  const ICON_ATTRS = 'viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="fm-tbl-ico"';
+  const ICON_COLUMNS = '<svg ' + ICON_ATTRS + '><rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2"/>' +
+    '<path d="M6 2.5v11M10 2.5v11"/></svg>';
+  const ICON_EXPAND = '<svg ' + ICON_ATTRS + '><path d="M2 6V2.5h3.5M14 6V2.5h-3.5M2 10v3.5h3.5M14 10v3.5h-3.5"/></svg>';
+  const ICON_COLLAPSE = '<svg ' + ICON_ATTRS + '><path d="M5.5 2v3.5H2M10.5 2v3.5H14M5.5 14v-3.5H2M10.5 14v-3.5H14"/></svg>';
+
+  // Larghezze colonna ammesse (px) e blocco del caricamento passo passo.
+  const COL_MIN_W = 44;
+  const COL_MAX_W = 900;
+  const FM_CHUNK = 100;
+  function clampWidth(w) { return Math.max(COL_MIN_W, Math.min(COL_MAX_W, Math.round(w))); }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -137,11 +170,53 @@
     return row && row.cells ? row.cells.length : 0;
   }
 
-  function headerLabels(table) {
+  // Griglia dell'intestazione, anche su più righe. Per ogni colonna del corpo
+  // restituisce la cella «foglia» (quella dell'ultima riga del thead che la
+  // copre, eventualmente con rowspan dall'alto) e l'elenco delle celle di
+  // gruppo con le colonne che coprono. null se il thead non si riconduce a una
+  // cella per colonna (foglia con colspan > 1).
+  function headerGrid(table) {
     const thead = table.tHead;
-    const firstRow = thead && thead.rows[0];
-    if (!firstRow) return [];
-    return Array.from(firstRow.cells).map(th => cleanText(th.dataset.colLabel || th.textContent || ""));
+    if (!thead || !thead.rows.length) return null;
+    const rows = Array.from(thead.rows);
+    const last = rows.length - 1;
+    const grid = rows.map(() => []);
+    rows.forEach((tr, r) => {
+      let c = 0;
+      Array.from(tr.cells).forEach((cell) => {
+        while (grid[r][c]) c += 1;
+        const rs = Math.max(1, cell.rowSpan || 1);
+        const cs = Math.max(1, cell.colSpan || 1);
+        for (let dr = 0; dr < rs && r + dr <= last; dr += 1) {
+          for (let dc = 0; dc < cs; dc += 1) grid[r + dr][c + dc] = cell;
+        }
+        c += cs;
+      });
+    });
+    const leaves = [];
+    for (let c = 0; c < grid[last].length; c += 1) {
+      const th = grid[last][c];
+      if (!th || (th.colSpan || 1) > 1) return null;
+      leaves.push(th);
+    }
+    const leafSet = new Set(leaves);
+    const groupMap = new Map();
+    for (let r = 0; r < last; r += 1) {
+      grid[r].forEach((cell, c) => {
+        if (!cell || leafSet.has(cell)) return;
+        if (!groupMap.has(cell)) groupMap.set(cell, []);
+        const list = groupMap.get(cell);
+        if (!list.includes(c)) list.push(c);
+      });
+    }
+    const groups = Array.from(groupMap, ([th, cols]) => ({ th, cols }));
+    return { leaves, groups };
+  }
+
+  function headerLabels(table) {
+    const grid = headerGrid(table);
+    if (!grid) return [];
+    return grid.leaves.map(th => cleanText(th.dataset.colLabel || th.textContent || ""));
   }
 
   function normalizePathForTableId() {
@@ -194,10 +269,8 @@
     );
   }
 
-  function hasComplexHeader(table) {
-    const firstRow = table.tHead && table.tHead.rows[0];
-    if (!firstRow) return true;
-    return Array.from(firstRow.cells).some(th => th.colSpan > 1 || th.rowSpan > 1);
+  function hasUnsupportedHeader(table) {
+    return headerGrid(table) === null;
   }
 
   function isTechnicalTable(table) {
@@ -223,10 +296,9 @@
     if (isOptedOut(table) || isTechnicalTable(table)) return false;
     if (table.parentElement && table.parentElement.closest("table")) return false;
     if (!table.tHead || !table.tBodies || !table.tBodies[0]) return false;
-    if (hasComplexHeader(table)) return false;
+    if (hasUnsupportedHeader(table)) return false;
 
-    const firstRow = table.tHead.rows[0];
-    const colCount = firstRow ? firstRow.cells.length : 0;
+    const colCount = headerGrid(table).leaves.length;
     if (colCount < 2) return false;
 
     const labels = headerLabels(table).filter(Boolean);
@@ -255,7 +327,8 @@
         actionCells += 1;
       }
     });
-    return filled > 0 && actionCells === filled && idx === (table.tHead.rows[0].cells.length - 1);
+    const grid = headerGrid(table);
+    return filled > 0 && actionCells === filled && !!grid && idx === grid.leaves.length - 1;
   }
 
   function valuesForColumn(table, idx) {
@@ -312,11 +385,11 @@
   }
 
   function applyInferredColumns(table) {
-    const firstRow = table.tHead && table.tHead.rows[0];
-    if (!firstRow) return false;
+    const grid = headerGrid(table);
+    if (!grid) return false;
 
     const usedKeys = {};
-    Array.from(firstRow.cells).forEach((th, idx) => {
+    grid.leaves.forEach((th, idx) => {
       const label = cleanText(th.dataset.colLabel || th.textContent || "");
       const actionColumn = looksLikeActionColumn(table, idx, label);
 
@@ -369,7 +442,7 @@
       if (th.dataset.colSortable === undefined) th.dataset.colSortable = "1";
       if (th.dataset.colFilterable === undefined) th.dataset.colFilterable = "1";
     });
-    return Array.from(firstRow.cells).some(th => !!th.dataset.col);
+    return grid.leaves.some(th => !!th.dataset.col);
   }
 
   function prepareTable(table, index) {
@@ -421,6 +494,7 @@
         sort:    state.sort,
         filters: persistOpts.persistFilters ? state.filters : {},
         q:       persistOpts.persistSearch  ? state.q       : "",
+        widths:  state.widths || {},
       };
       try {
         const r = await fetch(API_BASE + encodeURIComponent(tableId) + "/", {
@@ -602,11 +676,10 @@
   // ─── Parsing colonne ──────────────────────────────────────────────────────
 
   function parseColumns(table) {
-    const thead = table.tHead;
-    if (!thead) return [];
-    const firstRow = thead.rows[0];
+    const grid = headerGrid(table);
+    if (!grid) return [];
     const cols = [];
-    Array.from(firstRow.cells).forEach((th, idx) => {
+    grid.leaves.forEach((th, idx) => {
       const key = th.dataset.col;
       if (!key) { cols.push({ idx, key: null, th, locked: true }); return; }
       let options = null;
@@ -637,6 +710,7 @@
       sort:    [],          // [[key,"asc"|"desc"], …]
       filters: {},
       q:       "",
+      widths:  {},          // { key: px } solo per le colonne allargate/strette a mano
     };
   }
 
@@ -662,6 +736,13 @@
     if (Array.isArray(saved.sort)) out.sort = saved.sort.filter(s => Array.isArray(s) && s.length === 2);
     if (saved.filters && typeof saved.filters === "object") out.filters = saved.filters;
     if (typeof saved.q === "string") out.q = saved.q;
+    if (saved.widths && typeof saved.widths === "object") {
+      const known = new Set(defaults.order);
+      Object.keys(saved.widths).forEach((k) => {
+        const w = Number(saved.widths[k]);
+        if (known.has(k) && Number.isFinite(w)) out.widths[k] = clampWidth(w);
+      });
+    }
     return out;
   }
 
@@ -673,7 +754,7 @@
 
     // Search globale — opt-out per tabella con data-fm-hide-search="1"
     // (utile quando la pagina ha già una ricerca rapida dedicata sopra la tabella).
-    if (table.dataset.fmHideSearch !== "1") {
+    if (table.dataset.fmHideSearch !== "1" && !table.closest("[data-fm-hide-search='1']")) {
       const searchWrap = document.createElement("div");
       searchWrap.className = "fm-tbl-search";
       searchWrap.innerHTML = '<span class="fm-tbl-search-ico">🔍</span>';
@@ -694,7 +775,8 @@
     const colsBtn = document.createElement("button");
     colsBtn.type = "button";
     colsBtn.className = "fm-tbl-btn";
-    colsBtn.innerHTML = "Colonne ▾";
+    colsBtn.innerHTML = ICON_COLUMNS + "Colonne ▾";
+    colsBtn.title = "Mostra, nascondi e riordina le colonne";
     const colsMenu = buildColumnsMenu(cols, state, onChange);
     colsBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -747,6 +829,18 @@
       location.reload();
     });
     bar.appendChild(resetBtn);
+
+    // Schermo intero: cablato in initTable, che conosce il contenitore da
+    // portare a tutto schermo. Nascosto se il browser non lo supporta.
+    if (document.fullscreenEnabled) {
+      const fsBtn = document.createElement("button");
+      fsBtn.type = "button";
+      fsBtn.className = "fm-tbl-btn fm-tbl-btn-fs";
+      fsBtn.innerHTML = ICON_EXPAND + "<span>Schermo intero</span>";
+      fsBtn.title = "Apri la tabella a tutto schermo (Esc per uscire)";
+      table._fmFsBtn = fsBtn;
+      bar.appendChild(fsBtn);
+    }
 
     if (statusEl) bar.appendChild(statusEl);
     return bar;
@@ -1033,8 +1127,11 @@
   // funnel, in modo da non essere clippato da overflow:hidden / overflow-x:auto
   // dei contenitori della tabella (es. .table-responsive, hr-card, ecc.).
   function positionFilterPopover(pop, anchor) {
-    if (pop.parentNode !== document.body) {
-      document.body.appendChild(pop);
+    // A schermo intero si vede solo il sottoalbero dell'elemento a tutto
+    // schermo: il popover deve stare lì dentro, non in <body>.
+    const host = document.fullscreenElement || document.body;
+    if (pop.parentNode !== host) {
+      host.appendChild(pop);
     }
     pop.style.position = "fixed";
     pop.style.right = "auto";
@@ -1188,57 +1285,485 @@
       });
     });
 
-    // Cap righe (opzionale): con data-fm-row-cap="N", quando NON c'è alcuna
-    // query attiva (filtro/sort/search) si mostrano solo le prime N righe dati;
-    // appena l'utente filtra/cerca/ordina il cap si disattiva e agisce su tutto.
-    const rowCap = parseInt(table.dataset.fmRowCap || "0", 10);
-    const capActive = rowCap > 0 && !hasActiveQuery(state);
-    let shownSoFar = 0;
+    // Gruppi d'intestazione: il colspan segue le colonne visibili sotto.
+    if (table._fmGroups) {
+      const hiddenIdx = new Set(cols.filter(c => c.key && c.th.style.display === "none").map(c => c.idx));
+      table._fmGroups.forEach((g) => {
+        const n = g.cols.filter(i => !hiddenIdx.has(i)).length;
+        g.th.colSpan = Math.max(1, n);
+        g.th.style.display = n ? "" : "none";
+      });
+    }
 
-    // Filtra (solo righe dati). Le detail-row associate seguono lo stato della
-    // riga padre: se il padre è filtrato via, la detail-row va nascosta; se il
-    // padre torna visibile, la detail-row resta collassata (la riapre il toggle).
-    dataRows.forEach(tr => {
-      let show = rowMatchesFilters(tr, cols, state);
-      if (show && capActive) {
-        if (shownSoFar >= rowCap) show = false;
-        else shownSoFar += 1;
-      }
-      tr.style.display = show ? "" : "none";
-      let sib = tr.nextElementSibling;
-      while (sib && isDetailRow(sib)) {
-        if (!show) sib.style.display = "none";
-        sib = sib.nextElementSibling;
-      }
-    });
+    // Filtra (solo righe dati), poi ordina le righe che passano il filtro.
+    const matched = [];
+    dataRows.forEach((tr) => { if (rowMatchesFilters(tr, cols, state)) matched.push(tr); });
 
     // Sort: riordina le righe dati portando con sé le eventuali detail-row figlie.
     if (state.sort.length) {
-      const visibleRows = dataRows.filter(r => r.style.display !== "none");
-      visibleRows.sort((a, b) => compareRows(a, b, cols, state));
+      matched.sort((a, b) => compareRows(a, b, cols, state));
       const tbody = table.tBodies[0];
       const frag = document.createDocumentFragment();
-      visibleRows.forEach(r => {
-        frag.appendChild(r);
+      matched.forEach(r => {
+        const details = [];
         let sib = r.nextElementSibling;
-        while (sib && isDetailRow(sib)) {
-          const next = sib.nextElementSibling;
-          frag.appendChild(sib);
-          sib = next;
-        }
+        while (sib && isDetailRow(sib)) { details.push(sib); sib = sib.nextElementSibling; }
+        frag.appendChild(r);
+        details.forEach(d => frag.appendChild(d));
       });
       tbody.appendChild(frag);
     }
 
+    // Caricamento passo passo: delle righe che passano il filtro se ne
+    // disegnano solo le prime `_fmWindow`; le altre arrivano scorrendo.
+    // Le detail-row seguono il padre: nascoste se il padre lo è, altrimenti
+    // restano come le ha lasciate il loro toggle.
+    const limit = progressiveLimit(table, dataRows.length);
+    const shownSet = new Set(matched.slice(0, limit));
+    dataRows.forEach((tr) => {
+      const show = shownSet.has(tr);
+      tr.style.display = show ? "" : "none";
+      let sib = tr.nextElementSibling;
+      while (sib && isDetailRow(sib)) {
+        if (!show) {
+          // Si ricorda com'era: ritornato visibile il padre, il dettaglio
+          // torna aperto o chiuso come l'aveva lasciato il suo toggle.
+          if (sib.dataset.fmHidByParent !== "1") {
+            sib.dataset.fmPrevDisplay = sib.style.display || "";
+            sib.dataset.fmHidByParent = "1";
+          }
+          sib.style.display = "none";
+        } else if (sib.dataset.fmHidByParent === "1") {
+          sib.style.display = sib.dataset.fmPrevDisplay || "";
+          delete sib.dataset.fmHidByParent;
+          delete sib.dataset.fmPrevDisplay;
+        }
+        sib = sib.nextElementSibling;
+      }
+    });
+
     updateSortIndicators(cols, state);
 
-    // Conta (solo righe dati)
+    // Conta (solo righe dati): quelle che passano il filtro, non solo quelle
+    // già disegnate.
+    table._fmMatched = matched.length;
     const countEl = table._fmTblCountEl || (table.parentNode.parentNode && table.parentNode.parentNode.querySelector(".fm-tbl-count"));
     if (countEl) {
       const tot = dataRows.length;
-      const shown = dataRows.filter(r => r.style.display !== "none").length;
-      countEl.textContent = shown < tot ? `${shown} / ${tot}` : `${tot}`;
+      countEl.textContent = matched.length < tot
+        ? `${formatInt(matched.length)} / ${formatInt(tot)}`
+        : formatInt(tot);
     }
+    updateMoreFooter(table, cols, matched.length, Math.min(limit, matched.length));
+    syncColgroup(table, cols, state);
+    refreshViewportMode(table);
+  }
+
+  function formatInt(n) {
+    return Number(n || 0).toLocaleString("it-IT");
+  }
+
+  // ─── Caricamento passo passo ─────────────────────────────────────────────
+  //
+  // Sotto la soglia (1,5 blocchi) la tabella si disegna intera come sempre.
+  // Sopra, se ne mostrano `_fmWindow` righe; il piede della tabella dice
+  // quante ne restano e ne aggiunge un blocco quando lo si raggiunge
+  // scorrendo, oppure su richiesta. Le tabelle paginate dal server caricano
+  // la pagina successiva quando le righe già scaricate sono finite.
+
+  function chunkSize(table) {
+    const cap = parseInt(table.dataset.fmRowCap || "0", 10);
+    return cap > 0 ? cap : FM_CHUNK;
+  }
+
+  function progressiveAllowed(table) {
+    if (table.dataset.fmProgressive === "0") return false;
+    // Con una casella «seleziona tutti» nell'intestazione le righe non ancora
+    // disegnate finirebbero selezionate senza che l'utente le veda: queste
+    // tabelle (azioni di massa) si disegnano sempre intere e tengono il loro
+    // pager.
+    if (table._fmBulkHeader === undefined) {
+      table._fmBulkHeader = !!(table.tHead && table.tHead.querySelector("input[type='checkbox']"));
+    }
+    return !table._fmBulkHeader;
+  }
+
+  function progressiveEnabled(table, totalRows) {
+    if (!progressiveAllowed(table)) return false;
+    if (serverPagesLeft(table) > 0) return true;
+    const chunk = chunkSize(table);
+    return parseInt(table.dataset.fmRowCap || "0", 10) > 0 || totalRows > chunk * 1.5;
+  }
+
+  function progressiveLimit(table, totalRows) {
+    if (!progressiveEnabled(table, totalRows)) return Infinity;
+    if (!table._fmWindow) table._fmWindow = chunkSize(table);
+    return table._fmWindow;
+  }
+
+  function serverPagesLeft(table) {
+    const pag = table._fmPag;
+    if (!pag || _fmLoadAllDone.has(table)) return 0;
+    let left = 0;
+    for (let p = 1; p <= pag.lastPage; p += 1) if (!pag.loaded.has(p)) left += 1;
+    return left;
+  }
+
+  function buildMoreFooter(table) {
+    const tfoot = document.createElement("tfoot");
+    tfoot.className = "fm-tbl-more-foot";
+    const tr = document.createElement("tr");
+    tr.className = "fm-tbl-more-row";
+    const td = document.createElement("td");
+    td.className = "fm-tbl-more-cell";
+    const inner = document.createElement("div");
+    inner.className = "fm-tbl-more";
+    inner.innerHTML =
+      '<div class="fm-tbl-more-bar" aria-hidden="true"><span></span></div>' +
+      '<span class="fm-tbl-more-text" aria-live="polite"></span>' +
+      '<span class="fm-tbl-more-actions">' +
+      '<button type="button" class="fm-tbl-more-btn" data-act="more"></button>' +
+      '<button type="button" class="fm-tbl-more-btn fm-tbl-more-btn-ghost" data-act="all">Mostra tutte</button>' +
+      '</span>';
+    td.appendChild(inner);
+    tr.appendChild(td);
+    tfoot.appendChild(tr);
+    // Un <table> ha un solo <tfoot>: se la pagina ne ha già uno (totali) la
+    // nostra riga si accoda lì.
+    if (table.tFoot) table.tFoot.appendChild(tr);
+    else table.appendChild(tfoot);
+    table._fmMore = { tr, td, inner };
+    return table._fmMore;
+  }
+
+  function updateMoreFooter(table, cols, matchedCount, shownCount) {
+    const enabled = progressiveEnabled(table, bodyRows(table).length);
+    const left = serverPagesLeft(table);
+    const needsMore = enabled && (shownCount < matchedCount || left > 0);
+    if (!needsMore) {
+      if (table._fmMore) table._fmMore.tr.hidden = true;
+      return;
+    }
+    const more = table._fmMore || buildMoreFooter(table);
+    more.tr.hidden = false;
+    more.td.colSpan = Math.max(1, cols.filter(c => c.th.style.display !== "none").length);
+    const chunk = chunkSize(table);
+    const loading = !!table._fmPageLoading;
+    const pag = table._fmPag;
+    let text = "Visualizzate <b>" + formatInt(shownCount) + "</b> di <b>" + formatInt(matchedCount) + "</b> righe";
+    if (left > 0 && pag) {
+      const done = pag.lastPage - left;
+      text += done === 1
+        ? " · pagina 1 di " + formatInt(pag.lastPage)
+        : " · pagine 1–" + formatInt(done) + " di " + formatInt(pag.lastPage);
+    }
+    more.inner.querySelector(".fm-tbl-more-text").innerHTML = loading ? "Carico altre righe…" : text;
+    const pct = left > 0 && pag
+      ? Math.round(((pag.lastPage - left) / pag.lastPage) * 100)
+      : Math.round((shownCount / Math.max(1, matchedCount)) * 100);
+    more.inner.querySelector(".fm-tbl-more-bar > span").style.width = Math.min(100, pct) + "%";
+    more.inner.classList.toggle("is-loading", loading);
+    const btnMore = more.inner.querySelector('[data-act="more"]');
+    const rest = matchedCount - shownCount;
+    btnMore.textContent = rest > 0
+      ? "Mostra altre " + formatInt(Math.min(chunk, rest))
+      : "Carica altre righe";
+    btnMore.disabled = loading;
+    more.inner.querySelector('[data-act="all"]').disabled = loading;
+  }
+
+  // Aggiunge un blocco di righe; se quelle già scaricate sono finite, scarica
+  // la pagina successiva dal server. Ritorna true se qualcosa è cambiato.
+  async function showMoreRows(table, cols, state) {
+    const matched = table._fmMatched || 0;
+    const chunk = chunkSize(table);
+    if ((table._fmWindow || chunk) < matched) {
+      table._fmWindow = (table._fmWindow || chunk) + chunk;
+      applyState(table, cols, state);
+      return true;
+    }
+    if (serverPagesLeft(table) > 0) {
+      const loaded = await loadNextServerPage(table, cols);
+      table._fmWindow = (table._fmWindow || chunk) + chunk;
+      applyState(table, cols, state);
+      return loaded;
+    }
+    return false;
+  }
+
+  async function showAllRows(table, cols, state, statusEl) {
+    if (serverPagesLeft(table) > 0) {
+      table._fmPageLoading = true;
+      applyState(table, cols, state);
+      await ensureFullDataset(table, statusEl, cols, null);
+      table._fmPageLoading = false;
+    }
+    table._fmWindow = Infinity;
+    applyState(table, cols, state);
+  }
+
+  function wireMoreFooter(table, cols, state, statusEl) {
+    const getMore = () => table._fmMore || buildMoreFooter(table);
+    const more = getMore();
+    more.tr.hidden = true;
+    more.inner.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn || btn.disabled) return;
+      if (btn.dataset.act === "all") showAllRows(table, cols, state, statusEl);
+      else showMoreRows(table, cols, state);
+    });
+    // Arrivati in fondo scorrendo, il blocco successivo si carica da solo.
+    // Solo dopo che l'utente ha davvero fatto scorrere la tabella, altrimenti
+    // un piede già visibile al caricamento farebbe arrivare tutto a cascata.
+    if (!("IntersectionObserver" in window)) return;
+    const vp = table._fmViewport;
+    let userScrolled = false;
+    const markScrolled = () => { userScrolled = true; };
+    (vp || window).addEventListener("scroll", markScrolled, { passive: true });
+    if (vp) window.addEventListener("scroll", markScrolled, { passive: true });
+    let busy = false;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some(en => en.isIntersecting)) return;
+      if (!userScrolled || busy || more.tr.hidden || table._fmPageLoading) return;
+      busy = true;
+      // Un blocco per gesto: il successivo solo dopo un nuovo scorrimento.
+      userScrolled = false;
+      showMoreRows(table, cols, state).finally(() => { busy = false; });
+    }, { root: null, rootMargin: "0px 0px 240px 0px" });
+    io.observe(more.inner);
+  }
+
+  // ─── Area tabella: contenitore, intestazione fissa, schermo intero ───────
+  //
+  // Ogni tabella gestita sta in un `.fm-tbl-viewport`: si riusa il wrapper a
+  // scorrimento orizzontale che la pagina ha già (se contiene solo la
+  // tabella), altrimenti se ne crea uno. Il contenitore diventa scorrevole
+  // (`fm-vp-scroll`) solo quando serve: tabella più alta dello schermo o più
+  // larga della pagina. Così le tabelle piccole non cambiano affatto (nessun
+  // menu a tendina nelle celle viene tagliato) e quelle grandi tengono
+  // l'intestazione sempre in vista.
+
+  function ensureViewport(table) {
+    if (table._fmViewport) return table._fmViewport;
+    if (table.dataset.fmViewport === "0" || table.closest("[data-fm-viewport='0']")) return null;
+    const parent = table.parentElement;
+    if (!parent) return null;
+    let vp = null;
+    if (parent.children.length === 1 && parent.tagName === "DIV") {
+      const cs = window.getComputedStyle(parent);
+      if (/(auto|scroll)/.test(cs.overflowX) || /(auto|scroll)/.test(cs.overflowY)) vp = parent;
+    }
+    if (!vp) {
+      vp = document.createElement("div");
+      parent.insertBefore(vp, table);
+      vp.appendChild(table);
+      vp.dataset.fmVpOwn = "1";
+    }
+    vp.classList.add("fm-tbl-viewport");
+    table._fmViewport = vp;
+    vp.addEventListener("scroll", () => {
+      vp.classList.toggle("is-scrolled-y", vp.scrollTop > 2);
+      vp.classList.toggle("is-scrolled-x", vp.scrollLeft > 2);
+    }, { passive: true });
+    return vp;
+  }
+
+  function refreshViewportMode(table) {
+    const vp = table._fmViewport;
+    if (!vp) return;
+    // Una tabella che scorre in un riquadro proprio non deve «saltare» quando
+    // compare una riga in più: una volta scorrevole, resta tale.
+    if (vp.classList.contains("fm-vp-scroll")) return;
+    const tall = table.offsetHeight > window.innerHeight * 0.72;
+    const wide = table.offsetWidth > vp.clientWidth + 2;
+    if (tall || wide) vp.classList.add("fm-vp-scroll");
+    if (tall) vp.classList.add("fm-vp-tall");
+  }
+
+  // Colonne strette: le icone ordina/filtro passano nell'angolo (CSS
+  // `fm-th-narrow`) e l'etichetta intera finisce nel tooltip.
+  function markNarrowHeaders(cols) {
+    cols.forEach((col) => {
+      if (!col.key || col.th.style.display === "none") return;
+      const narrow = col.th.getBoundingClientRect().width < 92;
+      col.th.classList.toggle("fm-th-narrow", narrow);
+      if (narrow && !col.th.title) col.th.title = col.label || col.key;
+    });
+  }
+
+  function fullscreenTitle(table) {
+    const scope = table.closest("section, article, .card, .rg-card, .hr-card, .ana-card") || null;
+    const h = scope && scope.querySelector("h1, h2, h3, .card-title, .fmd-block-title");
+    const pageH1 = document.querySelector(".content h1");
+    const text = (h && h.textContent) || (pageH1 && pageH1.textContent) || document.title.split("|")[0];
+    return cleanText(text);
+  }
+
+  function wireFullscreen(table, shell) {
+    const btn = table._fmFsBtn;
+    if (!btn || !shell || !shell.requestFullscreen) { if (btn) btn.hidden = true; return; }
+    const title = document.createElement("span");
+    title.className = "fm-tbl-fs-title";
+    title.textContent = fullscreenTitle(table);
+    const bar = shell.querySelector(":scope > .fm-tbl-controls");
+    if (bar) bar.insertBefore(title, bar.firstChild);
+    btn.addEventListener("click", () => {
+      if (document.fullscreenElement === shell) document.exitFullscreen();
+      else shell.requestFullscreen().catch(() => { /* negato dal browser */ });
+    });
+    document.addEventListener("fullscreenchange", () => {
+      const on = document.fullscreenElement === shell;
+      shell.classList.toggle("is-fullscreen", on);
+      btn.innerHTML = on ? ICON_COLLAPSE + "<span>Esci (Esc)</span>" : ICON_EXPAND + "<span>Schermo intero</span>";
+      btn.classList.toggle("active", on);
+      // I popover dei filtri migrano dentro/fuori l'elemento a tutto schermo.
+      document.querySelectorAll(".fm-th-filter-pop-open").forEach(p => p.classList.remove("fm-th-filter-pop-open"));
+      if (on && table._fmViewport) table._fmViewport.classList.add("fm-vp-scroll");
+    });
+  }
+
+  // ─── Larghezza colonne ───────────────────────────────────────────────────
+  //
+  // Finché nessuno tocca le larghezze la tabella resta a layout automatico,
+  // come l'ha disegnata la pagina. Al primo ridimensionamento (o se l'utente
+  // ha larghezze salvate) si fotografano le larghezze correnti, si passa a
+  // `table-layout: fixed` con un <colgroup> nostro e da lì ogni colonna ha la
+  // larghezza scelta; le celle troppo strette vanno a capo invece di
+  // sbordare.
+
+  function enterSizedMode(table, cols) {
+    if (table._fmSized) return;
+    const natural = {};
+    cols.forEach((col) => {
+      if (col.th.style.display === "none") return;
+      natural[col.idx] = Math.round(col.th.getBoundingClientRect().width) || 120;
+    });
+    table._fmNatural = natural;
+    // Un <colgroup> della pagina si sovrapporrebbe al nostro: le larghezze
+    // che imponeva sono già nelle misure appena prese.
+    $$(":scope > colgroup", table).forEach(cg => { if (!cg.classList.contains("fm-colgroup")) cg.remove(); });
+    table._fmSized = true;
+    table.classList.add("fm-tbl-sized");
+  }
+
+  function syncColgroup(table, cols, state) {
+    if (!table._fmSized) return;
+    let cg = table._fmColgroup;
+    if (!cg) {
+      cg = document.createElement("colgroup");
+      cg.className = "fm-colgroup";
+      table._fmColgroup = cg;
+    }
+    if (cg.parentNode !== table) {
+      const caption = table.caption;
+      table.insertBefore(cg, caption ? caption.nextSibling : table.firstChild);
+    }
+    const widths = state.widths || {};
+    const parts = [];
+    let total = 0;
+    cols.forEach((col) => {
+      if (col.th.style.display === "none") return;
+      const w = (col.key && widths[col.key]) || (table._fmNatural && table._fmNatural[col.idx]) || 140;
+      parts.push(w);
+      total += w;
+    });
+    // Ricostruisce solo se cambia qualcosa: durante il trascinamento conta.
+    const sig = parts.join(",");
+    if (cg.dataset.sig !== sig) {
+      while (cg.firstChild) cg.removeChild(cg.firstChild);
+      parts.forEach((w) => {
+        const c = document.createElement("col");
+        c.style.width = w + "px";
+        cg.appendChild(c);
+      });
+      cg.dataset.sig = sig;
+    }
+    table.style.tableLayout = "fixed";
+    table.style.width = total + "px";
+    table.style.minWidth = "0";
+    table.style.maxWidth = "none";
+  }
+
+  function autoFitWidth(table, col) {
+    // Per un istante la tabella torna a layout automatico, senza vincoli e
+    // senza andare a capo: la larghezza dell'intestazione è allora quella
+    // naturale della colonna.
+    const cg = table._fmColgroup;
+    const prev = { layout: table.style.tableLayout, width: table.style.width };
+    if (cg && cg.parentNode) cg.parentNode.removeChild(cg);
+    table.classList.add("fm-tbl-measuring");
+    table.style.tableLayout = "auto";
+    table.style.width = "max-content";
+    const w = col.th.getBoundingClientRect().width;
+    table.classList.remove("fm-tbl-measuring");
+    table.style.tableLayout = prev.layout;
+    table.style.width = prev.width;
+    return clampWidth(w + 6);
+  }
+
+  function attachResizer(table, cols, col, state, onResized) {
+    if (!col.key || table.dataset.fmResize === "0") return;
+    const th = col.th;
+    if (th.querySelector(":scope > .fm-th-resize")) return;
+    const h = document.createElement("span");
+    h.className = "fm-th-resize";
+    h.tabIndex = 0;
+    h.setAttribute("role", "separator");
+    h.setAttribute("aria-orientation", "vertical");
+    h.setAttribute("aria-label", "Larghezza colonna " + (col.label || col.key));
+    h.title = "Trascina per allargare o stringere · doppio clic: adatta al contenuto";
+
+    let frame = 0;
+    const setWidth = (w) => {
+      state.widths[col.key] = clampWidth(w);
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; syncColgroup(table, cols, state); });
+    };
+
+    h.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      enterSizedMode(table, cols);
+      syncColgroup(table, cols, state);
+      const startX = e.clientX;
+      const startW = th.getBoundingClientRect().width;
+      try { h.setPointerCapture(e.pointerId); } catch (_) { /* no-op */ }
+      document.documentElement.classList.add("fm-col-resizing");
+      h.classList.add("is-active");
+      const move = (ev) => setWidth(startW + (ev.clientX - startX));
+      const up = () => {
+        h.removeEventListener("pointermove", move);
+        h.removeEventListener("pointerup", up);
+        h.removeEventListener("pointercancel", up);
+        document.documentElement.classList.remove("fm-col-resizing");
+        h.classList.remove("is-active");
+        onResized();
+      };
+      h.addEventListener("pointermove", move);
+      h.addEventListener("pointerup", up);
+      h.addEventListener("pointercancel", up);
+    });
+    h.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      enterSizedMode(table, cols);
+      state.widths[col.key] = autoFitWidth(table, col);
+      syncColgroup(table, cols, state);
+      onResized();
+    });
+    h.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      enterSizedMode(table, cols);
+      const cur = th.getBoundingClientRect().width;
+      setWidth(cur + (e.key === "ArrowRight" ? 16 : -16));
+      onResized();
+    });
+    // Il clic sulla maniglia non deve arrivare all'intestazione (alcune
+    // pagine ordinano al clic sul <th>).
+    h.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+    th.appendChild(h);
   }
 
   // ─── Caricamento completo dataset (server pagination) ────────────────────
@@ -1278,14 +1803,29 @@
     ) || document.body;
   }
 
+  // Nome del parametro di pagina: `page` di default; una pagina con più
+  // elenchi paginati ne dà uno per tabella con `data-fm-page-param="log_page"`.
+  function pageParam(table) {
+    return table.dataset.fmPageParam || "page";
+  }
+
+  function pagerLinks(table, scope) {
+    const param = pageParam(table);
+    return $$('a[href*="' + param + '="]', scope).filter((a) => {
+      try { return new URL(a.href, window.location.href).searchParams.has(param); }
+      catch (e) { return false; }
+    });
+  }
+
   function detectPagination(table) {
     const scope = tablePageScope(table);
+    const param = pageParam(table);
     const urls = new Map();
     let lastPage = 1;
-    $$('a[href*="page="]', scope).forEach((a) => {
+    pagerLinks(table, scope).forEach((a) => {
       try {
         const u = new URL(a.href, window.location.href);
-        const p = parseInt(u.searchParams.get("page"), 10);
+        const p = parseInt(u.searchParams.get(param), 10);
         if (Number.isFinite(p) && p >= 1) {
           urls.set(p, u.toString());
           if (p > lastPage) lastPage = p;
@@ -1294,11 +1834,20 @@
     });
     let currentPage = 1;
     try {
-      const cur = parseInt(new URL(window.location.href).searchParams.get("page") || "1", 10);
+      const cur = parseInt(new URL(window.location.href).searchParams.get(param) || "1", 10);
       if (Number.isFinite(cur) && cur >= 1) currentPage = cur;
     } catch (e) { /* ignore */ }
+    // Numero di pagine dichiarato dal template (i pager mostrano spesso solo
+    // le pagine vicine): <div data-fm-last-page="{{ page_obj.paginator.num_pages }}">.
+    const declared = param === "page"
+      ? scope.querySelector("[data-fm-last-page]:not([data-fm-page-param]), [data-fm-last-page][data-fm-page-param='page']")
+      : scope.querySelector("[data-fm-last-page][data-fm-page-param='" + param + "']");
+    if (declared) {
+      const tot = parseInt(declared.getAttribute("data-fm-last-page"), 10);
+      if (Number.isFinite(tot) && tot > lastPage) lastPage = tot;
+    }
     // Fallback: parse "Pagina N / M" o "Pagina N di M" presente nei template
-    const m = (scope.textContent || "").match(/Pagina\s+(\d+)\s*(?:\/|di)\s*(\d+)/i);
+    const m = param === "page" ? (scope.textContent || "").match(/Pagina\s+(\d+)\s*(?:\/|di)\s*(\d+)/i) : null;
     if (m) {
       const n = parseInt(m[1], 10);
       const tot = parseInt(m[2], 10);
@@ -1306,7 +1855,7 @@
       if (Number.isFinite(tot) && tot > lastPage) lastPage = tot;
     }
     if (lastPage <= 1) return null;
-    return { currentPage, lastPage, urls };
+    return { currentPage, lastPage, urls, param, loaded: new Set([currentPage]) };
   }
 
   function tableSignature(table) {
@@ -1314,19 +1863,21 @@
     // Considera data-table-id solo se proveniente dal template (non auto-generato lato JS)
     if (table.dataset.tableId && table.dataset.fmTblAuto !== "1") return "tid:" + table.dataset.tableId;
     const labels = headerLabels(table).join("|");
-    const cls = Array.from(table.classList).sort().join(".");
-    return "hdr:" + cls + ":" + labels;
+    return "hdr:" + pageClasses(table) + ":" + labels;
+  }
+
+  // Classi messe dalla pagina, senza quelle aggiunte da questo componente
+  // (`fm-…`): altrimenti la tabella locale non si riconosce più nell'HTML
+  // delle altre pagine scaricate.
+  function pageClasses(t) {
+    return Array.from(t.classList).filter(c => !/^fm-/.test(c)).sort().join(".");
   }
 
   function tableSignatureForFetched(t) {
     if (t.id) return "id:" + t.id;
     if (t.hasAttribute("data-table-id")) return "tid:" + t.getAttribute("data-table-id");
-    const head = t.tHead && t.tHead.rows[0];
-    const labels = head
-      ? Array.from(head.cells).map((c) => cleanText(c.dataset.colLabel || c.textContent || "")).join("|")
-      : "";
-    const cls = Array.from(t.classList).sort().join(".");
-    return "hdr:" + cls + ":" + labels;
+    const labels = headerLabels(t).join("|");
+    return "hdr:" + pageClasses(t) + ":" + labels;
   }
 
   function findMatchingTableInDoc(doc, sig, fallbackIndex) {
@@ -1377,11 +1928,93 @@
   }
 
   function hideServerPaginationBlock(table) {
-    $$(".hr-pag, .ana-pag, .pagination, .paginator, .pag, .pagin", tablePageScope(table)).forEach((el) => {
+    const scope = tablePageScope(table);
+    // Le classi generiche valgono solo per il parametro di default: con più
+    // elenchi paginati nella pagina si nasconde solo il pager di questa tabella.
+    const blocks = new Set(pageParam(table) === "page"
+      ? $$(".hr-pag, .ana-pag, .pagination, .paginator, .pag, .pagin", scope)
+      : []);
+    // Anche i contenitori dei link `?page=` con nomi di classe propri
+    // (es. `.rg-pager`): si risale al primo antenato «da paginazione».
+    pagerLinks(table, scope).forEach((a) => {
+      const box = a.parentElement && a.parentElement.closest("nav, [class*='pag']");
+      if (box && box !== scope && !box.contains(table)) blocks.add(box);
+    });
+    blocks.forEach((el) => {
       if (el.getAttribute("data-fm-hidden") === "1") return;
       el.style.display = "none";
       el.setAttribute("data-fm-hidden", "1");
     });
+  }
+
+  function pageUrl(pag, p) {
+    return pag.urls.get(p) || (function () {
+      const url = new URL(window.location.href);
+      url.searchParams.set(pag.param || "page", String(p));
+      return url.toString();
+    })();
+  }
+
+  // Scarica una pagina del server e accoda le sue righe al <tbody>.
+  // Ritorna il numero di righe aggiunte.
+  async function fetchAndMergePage(table, pag, p) {
+    const sig = tableSignature(table);
+    const allTables = Array.from(document.querySelectorAll("table"));
+    const tableIndex = allTables.indexOf(table);
+    const tbody = table.tBodies[0];
+    let added = 0;
+    try {
+      const r = await fetch(pageUrl(pag, p), {
+        credentials: "same-origin",
+        headers: { "Accept": "text/html, */*" },
+      });
+      if (r.ok) {
+        const html = await r.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const matched = findMatchingTableInDoc(doc, sig, tableIndex);
+        if (matched && matched.tBodies[0]) {
+          const remoteRows = Array.from(matched.tBodies[0].querySelectorAll(":scope > tr"));
+          const frag = document.createDocumentFragment();
+          let total = bodyRows(table).length;
+          for (const row of remoteRows) {
+            if (total >= FM_MAX_MERGED_ROWS) break;
+            const cloned = document.importNode(row, true);
+            cloned.dataset.fmExtra = "1";
+            frag.appendChild(cloned);
+            total += 1;
+            added += 1;
+          }
+          tbody.appendChild(frag);
+        }
+      }
+    } catch (e) { /* skip page on network/parse error */ }
+    pag.loaded.add(p);
+    return added;
+  }
+
+  // Caricamento passo passo delle tabelle paginate: la pagina successiva a
+  // quelle già scaricate. Le pagine precedenti a quella aperta (se l'utente è
+  // arrivato da un link `?page=N`) le scarica solo «Mostra tutte».
+  async function loadNextServerPage(table, cols) {
+    const pag = table._fmPag;
+    if (!pag || table._fmPageLoading) return false;
+    if (bodyRows(table).length >= FM_MAX_MERGED_ROWS) { _fmLoadAllDone.add(table); return false; }
+    let next = null;
+    for (let p = pag.currentPage + 1; p <= pag.lastPage; p += 1) {
+      if (!pag.loaded.has(p)) { next = p; break; }
+    }
+    if (next === null) return false;
+    table._fmPageLoading = true;
+    if (table._fmMore) table._fmMore.inner.classList.add("is-loading");
+    try {
+      await fetchAndMergePage(table, pag, next);
+    } finally {
+      table._fmPageLoading = false;
+    }
+    if (serverPagesLeft(table) === 0) _fmLoadAllDone.add(table);
+    refreshSelectFilterOptions(table, cols);
+    refreshTextFilterDatalists(table, cols);
+    return true;
   }
 
   function hasActiveQuery(state) {
@@ -1401,26 +2034,18 @@
     if (_fmLoadAllDone.has(table)) return;
     if (_fmLoadAllInflight.has(table)) return _fmLoadAllInflight.get(table);
 
-    const pag = detectPagination(table);
+    const pag = table._fmPag || detectPagination(table);
     if (!pag) { _fmLoadAllDone.add(table); return; }
+    table._fmPag = pag;
 
     const promise = (async () => {
-      const sig = tableSignature(table);
-      const allTables = Array.from(document.querySelectorAll("table"));
-      const tableIndex = allTables.indexOf(table);
-      const tbody = table.tBodies[0];
+      // Aspetta un eventuale caricamento passo passo in corso.
+      while (table._fmPageLoading) await new Promise(res => setTimeout(res, 80));
 
       const toFetch = [];
       for (let p = 1; p <= pag.lastPage; p += 1) {
-        if (p === pag.currentPage) continue;
-        const u = pag.urls.get(p) || (function () {
-          const url = new URL(window.location.href);
-          url.searchParams.set("page", String(p));
-          return url.toString();
-        })();
-        toFetch.push({ page: p, url: u });
+        if (!pag.loaded.has(p)) toFetch.push({ page: p });
       }
-      toFetch.sort((a, b) => a.page - b.page);
 
       let totalRows = bodyRows(table).length;
       const totalPages = toFetch.length;
@@ -1436,29 +2061,7 @@
           if (statusEl) statusEl.textContent = "⚠ Limite " + FM_MAX_MERGED_ROWS + " righe raggiunto";
           break;
         }
-        try {
-          const r = await fetch(item.url, {
-            credentials: "same-origin",
-            headers: { "Accept": "text/html, */*" },
-          });
-          if (r.ok) {
-            const html = await r.text();
-            const doc = new DOMParser().parseFromString(html, "text/html");
-            const matched = findMatchingTableInDoc(doc, sig, tableIndex);
-            if (matched && matched.tBodies[0]) {
-              const remoteRows = Array.from(matched.tBodies[0].querySelectorAll(":scope > tr"));
-              const frag = document.createDocumentFragment();
-              for (const row of remoteRows) {
-                if (totalRows >= FM_MAX_MERGED_ROWS) break;
-                const cloned = document.importNode(row, true);
-                cloned.dataset.fmExtra = "1";
-                frag.appendChild(cloned);
-                totalRows += 1;
-              }
-              tbody.appendChild(frag);
-            }
-          }
-        } catch (e) { /* skip page on network/parse error */ }
+        totalRows += await fetchAndMergePage(table, pag, item.page);
         processedPages += 1;
         if (statusEl) statusEl.textContent = "Carico dataset completo… " + processedPages + "/" + totalPages;
       }
@@ -1518,7 +2121,8 @@
     // filtri e ricerca compresi.
     const pendingView = takePendingView(tableId);
     if (pendingView) {
-      saved = pendingView.stato;
+      // La vista non porta le larghezze: restano quelle dell'utente.
+      saved = Object.assign({}, pendingView.stato, { widths: saved.widths });
       table._fmViewName = pendingView.nome;
     }
     const state = mergeState(defaults, saved);
@@ -1536,29 +2140,69 @@
       ensureFullDataset(table, statusEl, cols, () => applyState(table, cols, state));
     };
 
+    const querySig = () => JSON.stringify([state.q || "", state.filters || {}, state.sort || []]);
+    table._fmQuerySig = querySig();
     const onChange = () => {
+      // Nuova ricerca/filtro/ordinamento: si riparte dal primo blocco.
+      const sig = querySig();
+      if (sig !== table._fmQuerySig) { table._fmQuerySig = sig; table._fmWindow = 0; }
       applyState(table, cols, state);
       schedulePrefsSave(tableId, state, statusEl, persistOpts);
       maybeLoadAll();
     };
+    const onResized = () => {
+      markNarrowHeaders(cols);
+      schedulePrefsSave(tableId, state, statusEl, persistOpts);
+    };
 
-    // Decorazione header (sort + filter icone per ogni th[data-col])
+    // Gruppi d'intestazione (thead su più righe): servono per stringerli
+    // quando si nascondono le loro colonne.
+    const grid = headerGrid(table);
+    table._fmGroups = grid && grid.groups.length ? grid.groups : null;
+    if (table._fmGroups) table.classList.add("fm-tbl-grouped");
+
+    // Paginazione del server: rilevata subito, prima che la si nasconda.
+    // Aperta la prima pagina, le successive arrivano passo passo scorrendo.
+    if (table.dataset.fmFullload !== "0" && table.dataset.fmTblPaginationSkip !== "1" &&
+        progressiveAllowed(table)) {
+      const pag = detectPagination(table);
+      if (pag && pag.currentPage === 1) {
+        table._fmPag = pag;
+        hideServerPaginationBlock(table);
+      }
+    }
+
+    // Decorazione header (sort + filter icone per ogni th[data-col]) e
+    // maniglie di larghezza.
     cols.forEach(col => decorateHeader(col, state, onChange));
+    cols.forEach(col => attachResizer(table, cols, col, state, onResized));
+
+    const vp = ensureViewport(table);
 
     // Barra controlli sopra il wrap — saltata con data-fm-hide-controls (le
     // icone di ordina/filtro per colonna restano comunque attive).
     if (!controlsHidden(table)) {
       const wrap = tableControlAnchor(table);
       const bar = buildControlsBar(table, cols, state, onChange, statusEl);
-      wrap.parentNode.insertBefore(bar, wrap);
+      // Barra + tabella in un unico guscio: è lui che va a schermo intero.
+      const shell = document.createElement("div");
+      shell.className = "fm-tbl-shell";
+      wrap.parentNode.insertBefore(shell, wrap);
+      shell.appendChild(bar);
+      shell.appendChild(wrap);
+      wireFullscreen(table, shell);
 
       // Contatore
       const countSpan = document.createElement("span");
       countSpan.className = "fm-tbl-count";
+      countSpan.title = "Righe che passano ricerca e filtri / righe totali";
       countSpan.textContent = String($$("tr", table.tBodies[0]).length);
       table._fmTblCountEl = countSpan;
       bar.appendChild(countSpan);
     }
+
+    wireMoreFooter(table, cols, state, statusEl);
+    if (vp) window.addEventListener("resize", () => refreshViewportMode(table), { passive: true });
 
     // API programmatica per impostare/azzerare un filtro di colonna dall'esterno
     // (es. click su un KPI che filtra la tabella per anno). Aggiorna lo stato,
@@ -1595,6 +2239,12 @@
     // attiva (filtro/sort/search), carica subito tutto il dataset così che il
     // primo render rifletta la filtro su tutti i record e non solo sulla pagina.
     applyState(table, cols, state);
+    // Larghezze salvate: si fotografano quelle naturali e si applicano le sue.
+    if (Object.keys(state.widths).length) {
+      enterSizedMode(table, cols);
+      syncColgroup(table, cols, state);
+    }
+    markNarrowHeaders(cols);
     maybeLoadAll();
     // Colonne e ordinamento della vista diventano le preferenze correnti.
     if (pendingView) schedulePrefsSave(tableId, state, statusEl, persistOpts);

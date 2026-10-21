@@ -1554,7 +1554,9 @@ def registro_azioni(request):
     f_azione = request.GET.get("azione") or ""
     f_mac = _as_int(request.GET.get("macchina"))
     f_q = (request.GET.get("q") or "").strip()
-    azioni, tabella_assente = [], False
+    from core.paginazione import pagina_elenco
+
+    azioni, tabella_assente, page_obj = [], False, None
     try:
         qs = RegistroAzione.objects.select_related("utente", "macchina__asset")
         if f_azione in dict(RegistroAzione.AZIONE_CHOICES):
@@ -1563,7 +1565,9 @@ def registro_azioni(request):
             qs = qs.filter(macchina_id=f_mac)
         if f_q:
             qs = qs.filter(descrizione__icontains=f_q) | qs.filter(utente_nome__icontains=f_q)
-        azioni = list(qs.order_by("-created_at", "-id")[:300])
+        # Tutto il registro a pagine: il browser carica le successive scorrendo.
+        page_obj = pagina_elenco(request, qs.order_by("-created_at", "-id"))
+        azioni = list(page_obj.object_list)
     except DatabaseError:
         # Tabella non ancora creata (deploy senza `migrate`): degrada con un avviso
         # invece di un 500. Il log inizia a popolarsi dopo la migrazione 0006.
@@ -1573,5 +1577,6 @@ def registro_azioni(request):
         "azione_choices": RegistroAzione.AZIONE_CHOICES,
         "macchine": Macchina.objects.filter(attivo=True).select_related("asset").order_by("categoria", "ordine_sezione"),
         "f_azione": f_azione, "f_mac": f_mac, "f_q": f_q,
-        "totale": len(azioni), "tabella_assente": tabella_assente,
+        "totale": page_obj.paginator.count if page_obj else 0, "page_obj": page_obj,
+        "tabella_assente": tabella_assente,
     })

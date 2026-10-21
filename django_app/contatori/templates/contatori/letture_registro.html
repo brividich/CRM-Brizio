@@ -11,7 +11,7 @@
   <button class="btn ghost" type="submit">Aggiorna</button>
 </form></section>
 
-<section class="panel"><div class="table-wrap"><table class="registro-letture" data-fm-table-skip="1">
+<section class="panel"><div class="table-wrap"><table class="registro-letture">
   <thead><tr><th>MFC</th>{% for t in registro.trimestri %}<th class="num">{{ t }}{% if t == registro.corrente %}<div class="muted">in corso</div>{% endif %}</th>{% endfor %}</tr></thead>
   <tbody>{% for r in registro.righe %}<tr{% if not r.macchina.attiva %} class="dismessa"{% endif %}>
     <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>{% if not r.macchina.attiva %} <span class="pill">dismessa</span>{% endif %}<div class="muted">{{ r.macchina.matricola }}</div></td>

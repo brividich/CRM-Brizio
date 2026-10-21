@@ -131,7 +131,7 @@
     <span class="sec-badge">{{ page.paginator.count }} risultati</span>
   </div>
   <div class="sec-table-wrap">
-    <table class="sec-table" data-fm-table-skip="1">
+    <table class="sec-table">
       <thead><tr><th>Esito</th><th>Utente</th><th>IP origine</th><th>Accesso</th><th>Uscita</th><th class="sec-num">Durata</th>{% if has_method %}<th>Tipo</th>{% endif %}<th>Firewall</th></tr></thead>
       <tbody>
       {% for row in page %}

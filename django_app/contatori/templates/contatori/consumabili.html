@@ -14,7 +14,7 @@
 </div>
 {% if solo_critici %}<div class="banner warn filtro-attivo"><span>Solo le MFC con un consumabile sotto il {{ soglia }}%: {{ righe|length }} su {{ totale }}.</span><a class="btn ghost small" href="{% url 'contatori:consumabili' %}">Mostra tutte</a></div>{% endif %}
 <section class="panel">
-  <div class="table-wrap"><table class="cons-table" data-fm-table-skip="1">
+  <div class="table-wrap"><table class="cons-table">
     <thead><tr><th>MFC</th><th>Livelli</th><th>Ultima lettura</th></tr></thead>
     <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% empty %}<tr><td colspan="3" class="empty">Nessuna MFC con consumabili sotto soglia.</td></tr>{% endfor %}</tbody>
   </table></div>

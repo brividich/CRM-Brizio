@@ -1,0 +1,18 @@
+{% load paginazione %}{% comment %}
+Pager a link per gli elenchi a caricamento passo passo (vedi core/paginazione.py).
+Parametri: page_obj (obbligatorio), param (default "page": serve un nome proprio
+quando nella stessa pagina ci sono più elenchi paginati; la tabella va allora
+marcata con data-fm-page-param="<param>").
+Con JavaScript fm-table-enhanced.js lo nasconde e carica le pagine scorrendo;
+senza resta un normale pager.
+{% endcomment %}{% if page_obj.has_other_pages %}{% with p=param|default:"page" %}
+<nav class="fm-pager" aria-label="Pagine dell'elenco" data-fm-last-page="{{ page_obj.paginator.num_pages }}" data-fm-page-param="{{ p }}">
+  {% if page_obj.has_previous %}<a class="fm-pager-btn" href="{% url_pagina p page_obj.previous_page_number %}" aria-label="Pagina precedente">&laquo;</a>{% endif %}
+  {% for n in page_obj.paginator.page_range %}
+    {% if n == page_obj.number %}<span class="fm-pager-btn is-current" aria-current="page">{{ n }}</span>
+    {% elif n == 1 or n == page_obj.paginator.num_pages or n >= page_obj.number|add:"-2" and n <= page_obj.number|add:"2" %}<a class="fm-pager-btn" href="{% url_pagina p n %}">{{ n }}</a>{% endif %}
+  {% endfor %}
+  {% if page_obj.has_next %}<a class="fm-pager-btn" href="{% url_pagina p page_obj.next_page_number %}" aria-label="Pagina successiva">&raquo;</a>{% endif %}
+  <span class="fm-pager-info">{{ page_obj.paginator.count }} righe in totale</span>
+</nav>
+{% endwith %}{% endif %}

@@ -18,6 +18,7 @@ from core import naming
 from core.audit import log_action
 from core.legacy_models import UtenteLegacy
 from core.models import AccessGroup, AccessGroupMembership, AuditLog, RuoloPermessoModulo, SiteConfig
+from core.paginazione import pagina_elenco
 from core.permessi.cache import invalida_permessi
 from core.permessi.motore import (
     PRESET_BASE,
@@ -805,11 +806,14 @@ def _descrivi(voce) -> str:
 
 
 def _ctx_registro(request) -> dict:
+    # Tutto il registro, a pagine: il browser carica le successive scorrendo.
     try:
-        voci = list(AuditLog.objects.filter(modulo=MODULO_AUDIT).order_by("-id")[:200])
+        page_obj = pagina_elenco(request, AuditLog.objects.filter(modulo=MODULO_AUDIT).order_by("-id"))
+        voci = list(page_obj.object_list)
     except DatabaseError:
-        voci = []
+        page_obj, voci = None, []
     return {
+        "page_obj": page_obj,
         "voci": [
             {"voce": v, "titolo": _AZIONI_REGISTRO.get(v.azione, v.azione), "descrizione": _descrivi(v)}
             for v in voci
