@@ -145,7 +145,10 @@ GUIDA = {
                 ("p", "Oltre alle azioni degli utenti, il portale registra da solo inserimenti, modifiche ed eliminazioni dei dati. "
                       "Quanto registra lo decide una politica scritta nel codice (core/audit_policy.py, documento docs/dr/AUDIT_POLICY.md)."),
                 ("def", [
-                    ("Dati di business", "anagrafica, visite, formazione, asset, DPI, ticket, anomalie, assenze, permessi e menu: audit completo, come prima."),
+                    ("Dati di business", "anagrafica aziendale, formazione, asset, ticket, anomalie, assenze, permessi e menu: audit completo, come prima."),
+                    ("Dati personali sensibili", "visite e referti, dati civili e familiari, retribuzioni e cedolini, candidati, "
+                                                 "certificazioni di presenza, consegne DPI con firma, chat dell'AI: dal 21/10/2026 "
+                                                 "l'audit dice chi, quando e quali campi, mai i valori (GDPR). Il valore resta solo nella scheda."),
                     ("Registri tecnici", "esecuzioni delle automazioni, job del Monitoraggio, letture SNMP, impatti CVE: non entrano nell'audit perché hanno già il loro registro."),
                     ("Contenuti di file e mail", "file e messaggi del Security Center, testi estratti dai documenti SGI: l'audit dice chi, quando e quali campi sono cambiati, mai il contenuto."),
                     ("Campi tecnici", "«ultima esecuzione» di una regola, «letta» di una notifica, stato SNMP di un dispositivo: da soli non generano righe."),
@@ -155,6 +158,32 @@ GUIDA = {
                     "Terminale, solo lettura: hub_backup_doctor mostra spazio del database rispetto al limite di SQL Express, crescita dell'audit, previsione di saturazione e i modelli che scrivono di più.",
                     "audit_archive --plan mostra cosa si può archiviare e liberare. audit_archive --run archivia su NAS (file verificati) e poi pulisce: in produzione lo lancia solo il responsabile, dopo aver letto il --plan.",
                     "L'audit dei dati di business resta online 5 anni; gli archivi si conservano 10 anni.",
+                    "Le righe scritte prima del 21/10/2026 con i valori dei dati sensibili si riducono a soli metadati con "
+                    "audit_archive --run --category contenuti: non toccano il sigillo mensile, che non contiene le righe automatiche.",
+                ]),
+            ],
+        },
+        {
+            "id": "conservazione-archivi",
+            "titolo": "Conservazione dei dati negli archivi tecnici (GDPR)",
+            "blocchi": [
+                ("p", "Ogni notte alle 03:15 il lavoro «gdpr_retention» cancella, o svuota dove la riga serve ancora, i dati "
+                      "personali degli archivi tecnici oltre il loro termine. Il registro attività riporta quante righe per archivio."),
+                ("def", [
+                    ("Monitoraggio", "occorrenze degli errori 90 giorni; segnalazioni degli utenti 12 mesi, solo con la segnalazione chiusa; "
+                                     "esecuzioni dei job 30 giorni, tenendo sempre l'ultima di ogni job."),
+                    ("Assistente AI", "feedback della chat 90 giorni. Le conversazioni hanno già la loro pulizia a 90 giorni."),
+                    ("Automazioni", "link e risposte di approvazione 6 mesi, solo per richieste già decise o scadute: chi ha deciso e quando resta."),
+                    ("SOC", "dopo 12 mesi i messaggi della casella perdono mittente, corpo e originale (restano oggetto e collegamenti); "
+                            "chat e log dell'AI del SOC cancellati."),
+                    ("Accessi", "tentativi di accesso (blocco account) 90 giorni; sessioni scadute ogni notte."),
+                ]),
+                ("ul", [
+                    "Ogni termine si cambia in SiteConfig con la chiave gdpr_ret_<archivio>_giorni (minimo 7, massimo 3650).",
+                    "Dal terminale: gdpr_retention mostra quante righe toccherebbe, senza cambiare nulla; gdpr_retention --apply applica; "
+                    "--solo <archivio> per uno solo.",
+                    "I dati di dipendenti e candidati non si cancellano da soli: Anagrafica → Impostazioni → «Conservazione dei dati», con conferma.",
+                    "L'elenco completo, con i termini, è in docs/audit/RETENTION_DATI_PERSONALI.md.",
                 ]),
             ],
         },

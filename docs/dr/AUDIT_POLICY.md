@@ -1,6 +1,6 @@
 # Politica dell'audit automatico (`core_auditlog`)
 
-Versione politica: **1** (`core/audit_policy.py`, `AUDIT_POLICY_VERSION`) · introdotta il 17/10/2026 (BUILD_SPEC R0).
+Versione politica: **2** (`core/audit_policy.py`, `AUDIT_POLICY_VERSION`) · introdotta il 17/10/2026 (BUILD_SPEC R0) · v2 del 21/10/2026: dati personali sensibili in classe C (GDPR).
 
 ## Perché
 
@@ -14,7 +14,7 @@ La politica riduce solo ciò che è elencato. Tutto il resto resta in audit comp
 |---|---|---|
 | **A** — critico / ISO (default) | audit completo; nessuna riga per gli update senza modifiche reali; valori oltre 500 caratteri troncati con lunghezza e impronta SHA-256 | tutti i modelli non elencati sotto: anagrafica, sorveglianza sanitaria, formazione, assets/manutenzione, DPI, ticket, anomalie, assenze, tasks/KICK-OFF, diario preposto, incidenti, procedure, RENTRI, controllo accessi (`RolePermissionGrant`, `RoutePermissionBinding`, `NavigationItem`, `Pulsante`…), configurazione Security Center |
 | **B** — tecnico ad alto volume | **escluso**: nessuna riga e nessun listener | `automazioni.AutomationRunLog`, `AutomationActionLog`, `ClusterHeartbeat`, `BrokerRecoveryEntry`; `monitoring.AutomationExecution`, `IssueOccurrence`; `security.SecurityCveImpact`, `SecurityKpiSnapshot`, `SecurityReportMetric`; `contatori.RilevazioneSNMP` |
-| **C** — contenuti voluminosi o personali | **solo metadati**: modello, pk, etichetta, utente, IP, data e nomi dei campi; mai i valori | `security.SecuritySourceFile`, `SecurityMailboxMessage`, `SecurityReport`; `procedure_refresh.SgiTestoEstratto` |
+| **C** — contenuti voluminosi o personali | **solo metadati**: modello, pk, etichetta, utente, IP, data e nomi dei campi; mai i valori | `security.SecuritySourceFile`, `SecurityMailboxMessage`, `SecurityReport`; `procedure_refresh.SgiTestoEstratto`. **Dalla v2 (GDPR)**: sorveglianza sanitaria (`anagrafica.VisitaMedica`, `DipendenteVisitaFacoltativa`, `DerogaOperativaVisita`, `RefertoIntakeRiga`, `RequisitoVisitaDipendente`), dati civili e familiari (`DipendenteAnagraficaCivile`, `FiglioACarico`), retribuzioni e cedolini (`ImportazioneRetributiva`, `VoceRetributiva`, `ImportazioneCedolini`, `SaldoCedolino`), selezione (`Candidato`, `CandidatoPunteggio`, `CandidatoLog`), `assenze.CertificazionePresenza`, `dpi.ConsegnaDPI` (firma), chat AI (`ai_assistant.AiConversationMessage`, `AiChatFeedback`, `security.AIConversationMessage`, `SecurityAiInteractionLog`) |
 | **D** — rumorosi con campi tecnici | audit completo, ma un update che tocca solo i campi tecnici non produce righe; i campi tecnici cambiati insieme a quelli reali compaiono solo per nome in `campi_tecnici_cambiati` | `automazioni.AutomationRule` (`last_run_at`, `last_test_at`, `updated_at`), `automazioni.ManagedFlow` (`queued_task_id`, `running_until`, `lease_token`), `contatori.DispositivoSNMP` (stato e dati letti a ogni interrogazione SNMP: `snmp_*`, `sys_name`, `sys_description`, `sys_object_id`, `sys_uptime_seconds`, `firmware_rilevato_il`), `security.SecurityCveRecord` (`nvd_fetched_at`, `impact_computed_at`, `epss`, `epss_percentile`, `nvd_error`), `core.Notifica` (`popup_shown`, `letta`, `letta_il`) |
 
 ### Perché ogni modello di classe B e C ha già una traccia
@@ -28,6 +28,7 @@ La politica riduce solo ciò che è elencato. Tutto il resto resta in audit comp
 | `RilevazioneSNMP` | è la serie storica delle letture SNMP |
 | `SecuritySourceFile`, `SecurityMailboxMessage`, `SecurityReport` | il contenuto è nella tabella stessa; le modifiche di configurazione del Security Center restano in `SecurityConfigurationAuditLog` |
 | `SgiTestoEstratto` | testo estratto dai documenti SGI, rigenerabile dalla fonte |
+| modelli GDPR della v2 | il valore corrente è nel record stesso; l'audit conserva chi, quando, quale record e quali campi. Copiare i valori per 5+10 anni vanificava i termini di conservazione e l'anonimizzazione (`docs/audit/RETENTION_DATI_PERSONALI.md`). Gli export e le letture sensibili restano tracciati da `log_action` |
 
 ## Cosa non cambia
 
@@ -44,7 +45,9 @@ La politica riduce solo ciò che è elencato. Tutto il resto resta in audit comp
 3. `manage.py check`: una chiave che non corrisponde a un modello installato produce il warning `core.W002`, un campo ignorato inesistente produce `core.W003`.
 4. PR verso `main` con revisione: una modifica della politica di logging va tracciata (ISO/IEC 27001).
 
-Un modello si sposta in classe B solo se ha già una traccia propria. Un modello di business non va mai in classe B o C.
+Un modello si sposta in classe B solo se ha già una traccia propria. Un modello di business non va mai in classe B; va in classe C solo per minimizzazione dei dati personali (GDPR art. 5.1.c), mai per risparmiare spazio.
+
+Dopo un passaggio in classe C le righe già scritte con i valori si riducono con `audit_archive --run --category contenuti --archive-dir <UNC>` (archivio a soli metadati, riga ridotta in DB). Le righe automatiche non sono nel sigillo mensile (`core/audit_sigilli.py` esclude `auto_*`), quindi la riduzione non rompe la catena.
 
 ## Archivio e pulizia dello storico (`manage.py audit_archive`)
 
