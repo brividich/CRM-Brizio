@@ -169,6 +169,19 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 description="Flag che indica se la richiesta e' stata creata bypassando il flusso approvativo.",
                 aliases=["Salta_x0020_approvazione", "SALTAAPPROVAZIONE", "skip_approval"],
             ),
+            _field(
+                name="inserito_da_gruppo",
+                label="Inserita da (profilo)",
+                data_type="string",
+                description=(
+                    "Profilo Assenze di chi ha inserito la richiesta dal portale: CAR (caporeparto), "
+                    "AMMINISTRAZIONE (ufficio assenze) o UTENTI. Vuoto se nata fuori dal form."
+                ),
+                is_virtual=True,
+                aliases=["inserito_da", "inserita_da"],
+                allowed_values=["CAR", "AMMINISTRAZIONE", "UTENTI"],
+                ui_control="select",
+            ),
         ],
     },
     "tasks": {

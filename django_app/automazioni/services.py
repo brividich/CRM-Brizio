@@ -527,7 +527,30 @@ def _enrich_assenze_payload(payload: Any) -> Any:
     normalized_salta_approvazione = _normalize_runtime_bool(salta_approvazione)
     if normalized_salta_approvazione is not None:
         enriched["salta_approvazione"] = normalized_salta_approvazione
+
+    if enriched.get("inserito_da_gruppo") in {None, ""}:
+        enriched["inserito_da_gruppo"] = _resolve_assenza_inserita_da_gruppo(enriched.get("id"))
     return enriched
+
+
+def _resolve_assenza_inserita_da_gruppo(assenza_id: Any) -> str:
+    """Profilo Assenze di chi ha inserito la richiesta (CAR / AMMINISTRAZIONE / UTENTI).
+
+    Vuoto se la richiesta non è nata dal form del portale (SharePoint, import,
+    certificazione presenze) o se la tabella non esiste ancora.
+    """
+    try:
+        item_id = int(assenza_id)
+    except (TypeError, ValueError):
+        return ""
+    try:
+        from assenze.models import AssenzaInseritaDa
+
+        gruppo = AssenzaInseritaDa.objects.filter(assenza_id=item_id).values_list("gruppo", flat=True).first()
+    except Exception:
+        logger.debug("inserito_da_gruppo non risolto per assenza %s", assenza_id, exc_info=True)
+        return ""
+    return str(gruppo or "").strip().upper()
 
 
 def _enrich_tickets_payload(payload: Any) -> Any:

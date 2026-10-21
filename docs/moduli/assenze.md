@@ -39,6 +39,10 @@ Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`
 
 ## Note di rilascio
 
+#### «Salta approvazione»: una sola mail ad assenza@, caporeparto in CC solo se serve
+
+Prima ogni richiesta con «Salta approvazione» mandava due mail ad assenza@: «Inserimento …» e anche «Approvazione …», perché il passaggio automatico ad approvata faceva partire pure l'avviso dopo approvazione. Ora arriva solo «Inserimento …»: se l'ha inserita l'ufficio assenze (Amministrazione) va ad assenza@ con il caporeparto in CC, se l'ha inserita un caporeparto solo ad assenza@. Il portale registra chi inserisce ogni richiesta (tabella `AssenzaInseritaDa`, migrazione `assenze 0007`), che le automazioni leggono come campo `inserito_da_gruppo`. Al deploy la migrazione `automazioni 0031` adatta le regole «PA import - Inserimento con salta approvazione» e «PA import - Avviso inserimento dopo approvazione» (fail-closed: se le regole non sono quelle attese non tocca nulla e lo scrive nel log).
+
 #### Una sola mail di approvazione (fix, dopo la 1.6.8)
 
 La migrazione `automazioni 0030` unisce le due regole di approvazione che partivano insieme: il caporeparto riceve solo la mail dettagliata e, alla sua decisione, la richiesta passa ad approvata/rifiutata (con righe giornaliere e avviso ad `assenza@costruzioninovicrom.it`). Le ferie oltre 10 giorni hanno come secondo approvatore `assenza@costruzioninovicrom.it`. Le richieste approvate prima della correzione vanno approvate a mano da «Gestione admin».
