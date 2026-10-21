@@ -40,7 +40,7 @@
     </div>
     <div class="soc-nav-tools">
       <a href="{% soc_page_help_url url_name %}" class="soc-nav-help" title="Guida di questa pagina" aria-label="Guida di questa pagina">?</a>
-      <a href="{% url 'security:my_work' %}" class="soc-nav-mine{% if url_name == 'my_work' %} active{% endif %}">Il mio lavoro</a>
+      <a href="{% url 'security:my_work' %}" class="soc-nav-mine{% if url_name == 'my_work' %} active{% endif %}">Da fare</a>
       <form method="get" action="{% url 'security:search' %}" role="search" class="soc-nav-search">
         <input type="search" name="q" placeholder="Cerca PC, ticket, CVE…" aria-label="Cerca nel SOC" value="{% if url_name == 'search' %}{{ request.GET.q }}{% endif %}">
       </form>

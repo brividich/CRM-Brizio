@@ -83,10 +83,10 @@ def live_status(user):
         from security.services.cases import ACTIVE_CASE_STATUSES
 
         if getattr(user, "is_authenticated", False):
-            mine = SecurityRemediationTicket.objects.filter(assignee=user, status__in=ACTIVE_CASE_STATUSES).count()
-            mine += SecurityIncident.objects.filter(owner=user, status__in=["open", "contained"]).count()
+            mine = SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES).count()
+            mine += SecurityIncident.objects.filter(status__in=["open", "contained"]).count()
     except Exception:  # noqa: BLE001
-        logger.exception("Barra di stato SOC: «i miei» non calcolato")
+        logger.exception("Barra di stato SOC: «da fare» non calcolato")
     worst = "success"
     for item in data["items"]:
         if item["tone"] == "critical":
