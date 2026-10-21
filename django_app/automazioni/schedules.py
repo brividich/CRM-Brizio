@@ -626,6 +626,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CORE — GDPR: conservazione degli archivi tecnici (monitoring, feedback
+        # chat, link e posta di approvazione, posta e AI del SOC, axes, sessioni).
+        # Termini in SiteConfig gdpr_ret_<regola>_giorni (core/gdpr_retention.py).
+        "name": "gdpr_retention",
+        "func": "core.tasks.run_gdpr_retention",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 3 * * *",       # ogni notte alle 03:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CORE — Centro report: elimina dal registro emissioni le righe oltre la
         # conservazione (SiteConfig, Admin portale → Centro report; 0 = mai).
         "name": "report_emissioni_pulizia",

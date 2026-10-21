@@ -17,9 +17,22 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 CHECK_NAME = "anagrafica_retention_report"
-# Candidati chiusi senza esito utile (non assunti, non tenuti «in database"):
-# oltre questi mesi dall'ultima modifica i loro dati vanno rivalutati.
+# Candidati chiusi senza esito utile o tenuti «in database» (decisione GDPR del
+# 21/10/2026): oltre questi mesi dall'ultima modifica i loro dati vanno rivalutati.
 MESI_CONSERVAZIONE_CANDIDATI = 24
+
+
+def _mesi_fa(oggi: date, mesi: int) -> date:
+    """``oggi`` meno ``mesi`` mesi di calendario (giorno clampato a fine mese).
+
+    ``models._add_months`` con mesi negativi restituisce la data invariata: usato
+    qui faceva risultare «oltre la conservazione» qualunque candidato chiuso prima
+    di oggi (fix del 21/10/2026)."""
+    import calendar
+
+    indice = oggi.year * 12 + (oggi.month - 1) - int(mesi)
+    anno, mese = divmod(indice, 12)
+    return date(anno, mese + 1, min(oggi.day, calendar.monthrange(anno, mese + 1)[1]))
 
 
 @dataclass
@@ -80,14 +93,15 @@ CAMPI_PERSONALI_CANDIDATO = (
 
 
 def candidati_scaduti(*, oggi: date | None = None):
-    """Candidati chiusi (non idonei, rinunce, annullati) fermi da oltre la conservazione."""
+    """Candidati chiusi (non idonei, rinunce, annullati) o tenuti «in database» fermi da
+    oltre la conservazione. Gli assunti passano alla scheda del dipendente e restano."""
     from anagrafica.models_recruiting import Candidato
-    from anagrafica.models import _add_months
 
     oggi = oggi or timezone.localdate()
-    soglia = _add_months(oggi, -MESI_CONSERVAZIONE_CANDIDATI)
+    soglia = _mesi_fa(oggi, MESI_CONSERVAZIONE_CANDIDATI)
     return Candidato.objects.filter(
-        stato__in=(Candidato.STATO_SCARTATO, Candidato.STATO_RINUNCIA, Candidato.STATO_ANNULLATO),
+        stato__in=(Candidato.STATO_SCARTATO, Candidato.STATO_RINUNCIA, Candidato.STATO_ANNULLATO,
+                   Candidato.STATO_IN_DATABASE),
         updated_at__date__lt=soglia,
     ).exclude(cognome=COGNOME_ANONIMO).order_by("updated_at", "id")
 
@@ -151,6 +165,128 @@ def anonimizza_candidati(request, ids, *, oggi: date | None = None) -> dict:
     return esito
 
 
+# Dipendenti cessati (decisione GDPR del 21/10/2026, termini da validare col DPO):
+# passati questi anni dalla cessazione si tolgono i dati personali che non servono
+# piu' allo storico. Restano anagrafica aziendale, formazione, DPI e le visite con
+# date ed esito (lo storico); si svuotano dati civili e familiari, recapiti privati,
+# prescrizioni e note delle visite; si cancellano voci retributive e saldi cedolino.
+ANNI_CONSERVAZIONE_CESSATI = 10
+# Campi civili che restano: il genere serve alle statistiche, non identifica.
+CAMPI_CIVILI_TENUTI = frozenset({"id", "legacy_anagrafica_id", "genere", "updated_at", "updated_by"})
+CAMPI_AZIENDALI_PERSONALI = ("taglia_scarpe", "taglia_pantalone", "taglia_maglia", "telefono_aziendale")
+
+
+def _valore_vuoto(campo):
+    if campo.null:
+        return None
+    default = campo.get_default()
+    return default if default is not None else ""
+
+
+def _civile_ha_dati(civile) -> bool:
+    for campo in civile._meta.concrete_fields:
+        if campo.name in CAMPI_CIVILI_TENUTI:
+            continue
+        valore = getattr(civile, campo.name)
+        if campo.name == "foto":
+            if valore:
+                return True
+            continue
+        if valore not in (None, "", False, _valore_vuoto(campo)):
+            return True
+    return False
+
+
+def cessati_da_minimizzare(*, oggi: date | None = None, limit: int | None = None) -> list[dict]:
+    """Cessati da oltre ``ANNI_CONSERVAZIONE_CESSATI`` anni che hanno ancora dati da
+    togliere. Riassunti dopo la cessazione (assunzione successiva) esclusi. Idempotente:
+    chi e' gia' stato minimizzato non ricompare."""
+    from django.db.models import F, Q
+
+    from anagrafica.models import (
+        DipendenteAnagraficaAziendale, DipendenteAnagraficaCivile, FiglioACarico, SaldoCedolino,
+        VisitaMedica, VoceRetributiva,
+    )
+
+    oggi = oggi or timezone.localdate()
+    soglia = _mesi_fa(oggi, ANNI_CONSERVAZIONE_CESSATI * 12)
+    aziendali = (
+        DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=False, data_cessazione__lt=soglia)
+        .exclude(data_assunzione_ultima__gt=F("data_cessazione"))
+        .order_by("data_cessazione", "legacy_anagrafica_id")
+    )
+    righe = []
+    for az in aziendali.iterator():
+        lid = az.legacy_anagrafica_id
+        civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=lid).first()
+        conteggi = {
+            "civili": int(bool(civile and _civile_ha_dati(civile))),
+            "figli": FiglioACarico.objects.filter(anagrafica__legacy_anagrafica_id=lid).count(),
+            "retribuzioni": VoceRetributiva.objects.filter(legacy_anagrafica_id=lid).count(),
+            "saldi": SaldoCedolino.objects.filter(legacy_anagrafica_id=lid).count(),
+            "visite": VisitaMedica.objects.filter(legacy_anagrafica_id=lid)
+            .filter(~Q(prescrizioni="") | ~Q(note="") | ~Q(scadenza_nota="")).count(),
+            "aziendali": int(any(getattr(az, c) for c in CAMPI_AZIENDALI_PERSONALI)),
+        }
+        if any(conteggi.values()):
+            righe.append({"legacy_anagrafica_id": lid, "cessazione": az.data_cessazione, **conteggi})
+            if limit and len(righe) >= limit:
+                break
+    return righe
+
+
+def minimizza_cessati(request, ids, *, oggi: date | None = None) -> dict:
+    """Toglie i dati personali non piu' necessari ai cessati indicati, solo se oggi
+    risultano ancora oltre la conservazione. Registro attivita' con i soli conteggi."""
+    from django.db import transaction
+
+    from anagrafica.models import (
+        DipendenteAnagraficaAziendale, DipendenteAnagraficaCivile, FiglioACarico, SaldoCedolino,
+        VisitaMedica, VoceRetributiva,
+    )
+    from core.audit import log_action
+
+    richiesti = {int(i) for i in ids}
+    ammessi = {r["legacy_anagrafica_id"]: r for r in cessati_da_minimizzare(oggi=oggi)
+               if r["legacy_anagrafica_id"] in richiesti}
+    esito = {"minimizzati": 0, "saltati": len(richiesti) - len(ammessi), "errori": 0}
+    for lid, riga in ammessi.items():
+        try:
+            with transaction.atomic():
+                civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=lid).first()
+                codice_fiscale = (civile.codice_fiscale or "").strip() if civile else ""
+                VoceRetributiva.objects.filter(legacy_anagrafica_id=lid).delete()
+                SaldoCedolino.objects.filter(legacy_anagrafica_id=lid).delete()
+                if codice_fiscale:
+                    VoceRetributiva.objects.filter(legacy_anagrafica_id__isnull=True, tax_code=codice_fiscale).delete()
+                    SaldoCedolino.objects.filter(legacy_anagrafica_id__isnull=True, tax_code=codice_fiscale).delete()
+                FiglioACarico.objects.filter(anagrafica__legacy_anagrafica_id=lid).delete()
+                VisitaMedica.objects.filter(legacy_anagrafica_id=lid).update(prescrizioni="", note="", scadenza_nota="")
+                DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=lid).update(
+                    **{c: "" for c in CAMPI_AZIENDALI_PERSONALI}
+                )
+                if civile:
+                    if civile.foto:
+                        civile.foto.delete(save=False)
+                    for campo in civile._meta.concrete_fields:
+                        if campo.name in CAMPI_CIVILI_TENUTI or campo.name == "foto":
+                            continue
+                        setattr(civile, campo.name, _valore_vuoto(campo))
+                    civile.foto = ""
+                    civile.save()
+        except Exception:
+            logger.exception("Retention: minimizzazione del cessato %s fallita", lid)
+            esito["errori"] += 1
+            continue
+        log_action(request, "update", "anagrafica", {
+            "oggetto": "retention_cessato", "legacy_anagrafica_id": lid,
+            "cessazione": str(riga["cessazione"]),
+            "rimossi": {k: riga[k] for k in ("civili", "figli", "retribuzioni", "saldi", "visite", "aziendali")},
+        })
+        esito["minimizzati"] += 1
+    return esito
+
+
 def report_retention(*, oggi: date | None = None) -> dict:
     """Riepilogo in sola lettura: conteggi per tipo documento e candidati da rivalutare."""
     esito = documenti_scaduti(oggi=oggi)
@@ -162,6 +298,7 @@ def report_retention(*, oggi: date | None = None) -> dict:
         "documenti_per_tipo": dict(sorted(per_tipo.items())),
         "documenti_di_attivi": esito.saltati_attivi,
         "candidati_da_rivalutare": candidati_da_rivalutare(oggi=oggi),
+        "cessati_da_minimizzare": len(cessati_da_minimizzare(oggi=oggi)),
     }
 
 
@@ -176,18 +313,20 @@ def pubblica_in_monitoring(report: dict) -> dict:
 
     documenti = report["documenti_da_eliminare"]
     candidati = report["candidati_da_rivalutare"]
-    if not documenti and not candidati:
+    cessati = report.get("cessati_da_minimizzare", 0)
+    if not documenti and not candidati and not cessati:
         resolve_health_check_issue(check_name=CHECK_NAME, category=Issue.Category.DATA,
                                    summary="Retention HR: nessun dato oltre la conservazione.")
         return report
     righe = [f"Documenti dipendente oltre la conservazione: {documenti}"]
     righe += [f"  {tipo}: {n}" for tipo, n in report["documenti_per_tipo"].items()]
-    righe.append(f"Candidati chiusi fermi da oltre {MESI_CONSERVAZIONE_CANDIDATI} mesi: {candidati}")
+    righe.append(f"Candidati chiusi o in database fermi da oltre {MESI_CONSERVAZIONE_CANDIDATI} mesi: {candidati}")
+    righe.append(f"Dipendenti cessati da oltre {ANNI_CONSERVAZIONE_CESSATI} anni con dati da togliere: {cessati}")
     righe.append("Report in sola lettura: nulla e' stato cancellato. Per eliminare dopo una verifica: "
                  "Anagrafica → Impostazioni → «Conservazione dei dati» (/anagrafica/impostazioni/retention/).")
     open_or_update_issue_from_health_check(
         check_name=CHECK_NAME,
-        title=f"Retention HR: {documenti} documenti, {candidati} candidati oltre la conservazione",
+        title=f"Retention HR: {documenti} documenti, {candidati} candidati, {cessati} cessati oltre la conservazione",
         message="\n".join(righe)[:8000],
         severity=Issue.Severity.LOW,
         category=Issue.Category.DATA, module_name="anagrafica",

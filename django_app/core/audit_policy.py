@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-AUDIT_POLICY_VERSION = 1
+AUDIT_POLICY_VERSION = 2
 
 # Esclusioni storiche (precedenti alla politica): ricorsione, cache, log già dedicati.
 _LEGACY_EXCLUDED_MODELS: frozenset[str] = frozenset({
@@ -57,6 +57,29 @@ METADATA_ONLY_MODELS: frozenset[str] = frozenset({
     "security.securitymailboxmessage",
     "security.securityreport",
     "procedure_refresh.sgitestoestratto",
+    # GDPR 21/10/2026 (versione 2): dati sanitari, economici, familiari, di
+    # selezione e testi della chat AI. Il valore resta solo nel record: copiarlo
+    # nell'audit per 5+10 anni vanificava la conservazione e l'anonimizzazione.
+    "anagrafica.visitamedica",
+    "anagrafica.dipendentevisitafacoltativa",
+    "anagrafica.derogaoperativavisita",
+    "anagrafica.refertointakeriga",
+    "anagrafica.requisitovisitadipendente",
+    "anagrafica.dipendenteanagraficacivile",
+    "anagrafica.figlioacarico",
+    "anagrafica.importazioneretributiva",
+    "anagrafica.voceretributiva",
+    "anagrafica.importazionecedolini",
+    "anagrafica.saldocedolino",
+    "anagrafica.candidato",
+    "anagrafica.candidatopunteggio",
+    "anagrafica.candidatolog",
+    "assenze.certificazionepresenza",
+    "dpi.consegnadpi",
+    "ai_assistant.aiconversationmessage",
+    "ai_assistant.aichatfeedback",
+    "security.aiconversationmessage",
+    "security.securityaiinteractionlog",
 })
 
 # Classe D — campi tecnici di stato (attname) che da soli non generano audit.

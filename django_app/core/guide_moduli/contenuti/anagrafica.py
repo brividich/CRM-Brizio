@@ -239,15 +239,24 @@ GUIDA = {
             "titolo": "Conservazione dei dati (retention)",
             "blocchi": [
                 ("p", "Ogni lunedì alle 06:30 il portale conta, senza cancellare nulla, i documenti dei dipendenti cessati "
-                      "oltre gli anni di conservazione e i candidati chiusi (non idonei, rinunce, annullati) fermi da "
-                      "oltre 24 mesi. Se ce ne sono apre in Monitoraggio la segnalazione «Retention HR» con i soli "
-                      "numeri; quando non ce ne sono più la chiude."),
+                      "oltre gli anni di conservazione, i dipendenti cessati da oltre 10 anni che hanno ancora dati "
+                      "personali da togliere e i candidati chiusi (non idonei, rinunce, annullati) o tenuti «in database» "
+                      "fermi da oltre 24 mesi. Se ce ne sono apre in Monitoraggio la segnalazione «Retention HR» con i "
+                      "soli numeri; quando non ce ne sono più la chiude."),
                 ("p", "Per cancellare: Impostazioni → «Conservazione dei dati» (solo amministratori dell'anagrafica). "
-                      "La pagina elenca i documenti dei cessati oltre la conservazione e i candidati chiusi da oltre 24 "
-                      "mesi; scegli le righe, scrivi ELIMINA e conferma. I documenti vengono eliminati (file compreso); i "
-                      "candidati resi anonimi: spariscono nome, contatti, note e storico delle modifiche, restano stato, "
-                      "date ed esiti per le statistiche del recruiting. Ogni riga è ricontrollata al momento e va nel "
-                      "registro attività. Un dipendente in forza non perde mai documenti."),
+                      "Scegli le righe, scrivi ELIMINA e conferma. Ogni riga è ricontrollata al momento e va nel "
+                      "registro attività, senza i dati tolti. Un dipendente in forza non perde mai nulla."),
+                ("ul", [
+                    "Documenti dei dipendenti cessati: eliminati, file compreso.",
+                    "Dipendenti cessati da oltre 10 anni, «Ripulisci»: si tolgono dati civili e bancari, recapiti "
+                    "privati, foto, figli a carico, taglie e telefono, voci retributive e saldi del cedolino, "
+                    "prescrizioni e note delle visite. Restano nome, rapporto di lavoro, formazione, DPI e visite con "
+                    "date ed esito: è lo storico. Chi è stato riassunto dopo la cessazione non compare.",
+                    "Candidati: resi anonimi. Spariscono nome, contatti, note e storico delle modifiche; restano "
+                    "stato, date ed esiti per le statistiche del recruiting. Gli assunti non compaiono mai.",
+                ]),
+                ("p", "I termini (10 anni per i cessati, 24 mesi per i candidati) sono la proposta del 21/10/2026, da "
+                      "confermare con il DPO."),
             ],
         },
         {

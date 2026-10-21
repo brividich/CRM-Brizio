@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 78
+**Totale automazioni disponibili:** 79
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -351,6 +351,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** da lun a ven, alle 07:00
 - **Task eseguito:** `core.tasks.run_caporeparto_morning_digest`
 - **Cosa fa:** CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica). Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket (nessun legame reparto) esclusi per design.
+
+### `gdpr_retention`
+
+- **Quando gira:** ogni giorno, alle 03:15
+- **Task eseguito:** `core.tasks.run_gdpr_retention`
+- **Cosa fa:** CORE — GDPR: conservazione degli archivi tecnici (monitoring, feedback chat, link e posta di approvazione, posta e AI del SOC, axes, sessioni). Termini in SiteConfig gdpr_ret_<regola>_giorni (core/gdpr_retention.py).
 
 ### `notifiche_archivio`
 

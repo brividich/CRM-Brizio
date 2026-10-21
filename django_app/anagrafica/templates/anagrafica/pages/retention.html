@@ -67,8 +67,45 @@
   <section class="hr-card">
     <div class="hr-card-head">
       <div>
-        <div class="hr-card-title">Candidati chiusi da oltre {{ mesi_candidati }} mesi ({{ candidati|length }})</div>
-        <div class="hr-card-desc">Non idonei, rinunce e annullati senza modifiche da oltre {{ mesi_candidati }} mesi. «Rendi anonimi» cancella i dati personali e lo storico delle modifiche; restano stato, date ed esiti per le statistiche del recruiting.</div>
+        <div class="hr-card-title">Dipendenti cessati da oltre {{ anni_cessati }} anni ({{ righe_cessati|length }})</div>
+        <div class="hr-card-desc">«Ripulisci» toglie i dati che non servono più allo storico: dati civili e bancari, recapiti privati, foto, figli a carico, taglie, voci retributive e saldi del cedolino, prescrizioni e note delle visite. Restano nome, rapporto di lavoro, formazione, DPI e visite con date ed esito. Chi è stato riassunto dopo la cessazione non compare. {% info_hint "retention" %}</div>
+      </div>
+    </div>
+    {% if righe_cessati %}
+    <form method="post" class="rt-form" onsubmit="return confirm('Togliere i dati personali dei dipendenti selezionati? Non si recuperano.');">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="cessati">
+      <div class="rt-table-wrap">
+        <table class="hr-table">
+          <thead><tr><th><input type="checkbox" class="rt-check" data-rt-tutti checked aria-label="Seleziona tutti"></th><th>Persona</th><th>Cessazione</th><th>Dati da togliere</th></tr></thead>
+          <tbody>
+            {% for r in righe_cessati %}
+            <tr>
+              <td><input type="checkbox" class="rt-check" name="ids" value="{{ r.legacy_anagrafica_id }}" checked aria-label="Seleziona {{ r.persona }}"></td>
+              <td>{{ r.persona }}</td>
+              <td>{{ r.cessazione|date:"d/m/Y" }}</td>
+              <td class="rt-muted">{% if r.civili %}dati civili · {% endif %}{% if r.figli %}figli a carico: {{ r.figli }} · {% endif %}{% if r.retribuzioni %}voci retributive: {{ r.retribuzioni }} · {% endif %}{% if r.saldi %}saldi cedolino: {{ r.saldi }} · {% endif %}{% if r.visite %}visite con note: {{ r.visite }} · {% endif %}{% if r.aziendali %}taglie e telefono{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="rt-confirm">
+        <label for="rt-conf-cess">Scrivi {{ parola }} per confermare</label>
+        <input type="text" id="rt-conf-cess" name="conferma" autocomplete="off" required>
+        <button type="submit" class="hr-btn hr-btn-danger hr-btn-sm">Ripulisci i dipendenti selezionati</button>
+      </div>
+    </form>
+    {% else %}
+      {% include "anagrafica/components/hr_empty.html" with icon="✅" title="Nessun dipendente cessato con dati da togliere" %}
+    {% endif %}
+  </section>
+
+  <section class="hr-card">
+    <div class="hr-card-head">
+      <div>
+        <div class="hr-card-title">Candidati chiusi o in database da oltre {{ mesi_candidati }} mesi ({{ candidati|length }})</div>
+        <div class="hr-card-desc">Non idonei, rinunce, annullati e tenuti «in database» senza modifiche da oltre {{ mesi_candidati }} mesi. «Rendi anonimi» cancella i dati personali e lo storico delle modifiche; restano stato, date ed esiti per le statistiche del recruiting.</div>
       </div>
     </div>
     {% if candidati %}

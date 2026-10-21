@@ -10,7 +10,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 
-from core import db_diagnostics as dd
+from core import audit_policy, db_diagnostics as dd
 from core.models import AuditLog
 
 
@@ -44,7 +44,7 @@ class DiagnosticaTests(TestCase):
     def test_audit_growth_e_top_modelli(self):
         g = dd.audit_growth(days=7)
         self.assertGreaterEqual(g["recent_rows"], 2)
-        self.assertEqual(g["policy_version"], 1)
+        self.assertEqual(g["policy_version"], audit_policy.AUDIT_POLICY_VERSION)
         modelli = {t["modello"]: t["classe"] for t in g["top_models"]}
         self.assertEqual(modelli.get("SecuritySourceFile"), "metadata_only")
         self.assertEqual(modelli.get("AutomationRule"), "full")
@@ -52,7 +52,7 @@ class DiagnosticaTests(TestCase):
     def test_doctor_testo_e_json(self):
         out = io.StringIO()
         call_command("hub_backup_doctor", "--offline", "--no-exit-code", stdout=out)
-        self.assertIn("Audit (politica v1)", out.getvalue())
+        self.assertIn(f"Audit (politica v{audit_policy.AUDIT_POLICY_VERSION})", out.getvalue())
         out = io.StringIO()
         call_command("hub_backup_doctor", "--json", "--offline", "--no-exit-code", stdout=out)
         data = json.loads(out.getvalue())
