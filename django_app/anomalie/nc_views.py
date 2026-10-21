@@ -245,7 +245,13 @@ def _nc_post(request, nc, perm):
         return torna
 
     with transaction.atomic():
-        if action == "contenimento":
+        if action == "part145":
+            nc.part145 = request.POST.get("part145") == "1"
+            nc.updated_by = request.user
+            nc.save(update_fields=["part145", "updated_by", "updated_at"])
+            nc_service.registra_evento(nc, "part145", "Segnata come componente Part 145" if nc.part145
+                                       else "Tolta dal perimetro Part 145", request.user)
+        elif action == "contenimento":
             nc.contenimento = _testo(request, "contenimento")
             nc.contenimento_data = _data_o_none(request.POST.get("contenimento_data"))
             nc.contenimento_da = _testo(request, "contenimento_da", 150) or (_nome(request) if nc.contenimento else "")

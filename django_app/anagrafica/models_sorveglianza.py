@@ -34,6 +34,8 @@ from __future__ import annotations
 from django.conf import settings
 from django.db import models
 
+from core.campi_cifrati import CampoCifrato
+
 __all__ = [
     "RefertoIntakeConfig",
     "RefertoIntakeRiga",
@@ -273,8 +275,8 @@ class RefertoIntakeRiga(models.Model):
     letto_nominativo = models.CharField(max_length=200, blank=True, default="")
     letto_data_nascita = models.DateField(null=True, blank=True)
     letto_data_giudizio = models.DateField(null=True, blank=True)
-    letto_esito_testo = models.CharField(
-        max_length=200, blank=True, default="",
+    letto_esito_testo = CampoCifrato(
+        max_length=200, blank=True, default="", riga_singola=True,
         help_text="Il giudizio così com'è scritto sul certificato, prima della "
                   "traduzione in codice.",
     )

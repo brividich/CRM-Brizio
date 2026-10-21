@@ -913,6 +913,8 @@ TWOFA_EXTERNAL_PROXY_IPS: set[str] = set(env_list("TWOFA_EXTERNAL_PROXY_IPS", []
 # SEC (audit M7): host che le azioni http_request delle automazioni possono chiamare
 # anche se risolvono su una rete privata (servizi interni noti). Accetta «*.dominio».
 AUTOMATION_HTTP_ALLOWED_HOSTS: list[str] = env_list("AUTOMATION_HTTP_ALLOWED_HOSTS", [])
+# Host pubblici ammessi oltre ai servizi Microsoft di default (automazioni.services.http_external_hosts).
+AUTOMATION_HTTP_EXTERNAL_HOSTS: list[str] = env_list("AUTOMATION_HTTP_EXTERNAL_HOSTS", [])
 
 # Audit B6: 1 = includi il token della richiesta nel payload dei flussi Teams
 # (solo se un flusso Power Automate esistente lo usa davvero).
@@ -1019,15 +1021,21 @@ LOGGING = {
             "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         }
     },
+    # GDPR 21/10/2026: codici fiscali e IBAN mascherati in ogni log (core/log_redaction.py).
+    "filters": {
+        "dati_personali": {"()": "core.log_redaction.MascheraDatiPersonali"},
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",
+            "filters": ["dati_personali"],
         },
         "file": {
             "class": "core.logging_handlers.SafeTimedRotatingFileHandler",
             "filename": str(LOG_DIR / LOG_FILE_NAME),
             "formatter": "standard",
+            "filters": ["dati_personali"],
             "encoding": "utf-8",
             "when": "midnight",
             "backupCount": 5,
@@ -1036,6 +1044,7 @@ LOGGING = {
             "class": "core.logging_handlers.SafeTimedRotatingFileHandler",
             "filename": str(LOG_DIR / "sql.log"),
             "formatter": "standard",
+            "filters": ["dati_personali"],
             "encoding": "utf-8",
             "when": "midnight",
             "backupCount": SQL_LOG_BACKUP_COUNT,

@@ -8,6 +8,8 @@ from pathlib import Path
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+from core.campi_cifrati import CampoCifrato
 from django.utils import timezone
 
 from .storage import PrivateAnagraficaStorage
@@ -1117,7 +1119,7 @@ class DipendenteAnagraficaCivile(models.Model):
 
     # Dati sensibili — accesso limitato a ruolo HR
     nome_banca = models.CharField(max_length=200, blank=True, default="")
-    iban = models.CharField(max_length=34, blank=True, default="", verbose_name="IBAN")
+    iban = CampoCifrato(max_length=34, blank=True, default="", verbose_name="IBAN", riga_singola=True)
     intestatario_conto = models.CharField(max_length=200, blank=True, default="")
     categoria_protetta = models.BooleanField(default=False)
     categoria_disabili = models.BooleanField(default=False)
@@ -3001,9 +3003,10 @@ class VisitaMedica(models.Model):
     esito = models.CharField(
         max_length=20, choices=Esito.choices, default=Esito.IDONEO
     )
-    prescrizioni = models.TextField(blank=True, default="")
+    # GDPR (E4): dati sanitari cifrati nel database (core/campi_cifrati.py).
+    prescrizioni = CampoCifrato(blank=True, default="")
     medico_competente = models.CharField(max_length=200, blank=True, default="")
-    note = models.TextField(blank=True, default="")
+    note = CampoCifrato(blank=True, default="")
     referto_documento = models.ForeignKey(
         DocumentoDipendente,
         null=True, blank=True,
@@ -3200,3 +3203,5 @@ from .models_recruiting import *  # noqa: E402, F401, F403
 from .models_sorveglianza import *  # noqa: E402, F401, F403
 from .models_reportistica import *  # noqa: E402, F401, F403
 from .models_elenco import *  # noqa: E402, F401, F403
+# Richieste di rettifica dei propri dati (GDPR art. 16).
+from .models_gdpr import *  # noqa: E402, F401, F403

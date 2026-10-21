@@ -6,7 +6,7 @@ Questo capitolo spiega tre funzioni che riducono il lavoro ripetitivo del SOC se
 - gli **automatismi di rientro**: l'alert si chiude da solo quando un dato successivo prova che il problema non c'è più;
 - l'**impatto CVE sugli asset**: per ogni vulnerabilità si vede quali PC la hanno davvero, partendo dall'inventario software.
 
-Le pagine si trovano nel menu del SOC: **Soppressioni** e **Vulnerabilità** per tutti; in **Configurazione** le schede **Automatismi di rientro** e **Inventario software** (da cui si apre **Software e CPE**) per chi ha il permesso di configurazione.
+Le pagine si trovano nel menu del SOC: **Vulnerabilità** (voce **Dispositivi**) e **Soppressioni** (voce **Impostazioni**) per tutti; in **Impostazioni › Configurazione** le schede **Automatismi di rientro** e **Inventario software** (da cui si apre **Software e CPE**) per chi ha il permesso di configurazione.
 
 ## Soppressione appresa
 

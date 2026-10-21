@@ -56,3 +56,57 @@ def soc_config_tabs(context, url_name):
         if can_configure or not admin_only
     ]
     return {"tabs": tabs, "show": is_config_page(url_name) and len(tabs) > 1}
+
+
+# --- Menu del SOC: 5 voci, le pagine di ogni voce come seconda riga -------------------------
+# (etichetta, rotta di ingresso, [(etichetta scheda, rotta, rotte che la accendono, solo per chi configura)])
+MENU = [
+    ("Da fare", "dashboard", [
+        ("Panoramica", "dashboard", ("dashboard", "security_dashboard"), False),
+        ("Tutto ciò che è aperto", "my_work", ("my_work",), False),
+    ]),
+    ("Segnalazioni", "alerts_list", [
+        ("Alert", "alerts_list", ("alerts_list", "alert_detail"), False),
+        ("Ticket", "tickets_list", ("tickets_list", "case_detail", "case_create"), False),
+        ("Incidenti", "incidents", ("incidents", "incident_create", "incident_detail", "incident_edit"), False),
+        ("Eventi", "events", ("events", "event_detail"), False),
+    ]),
+    ("Dispositivi", "assets", [
+        ("Asset", "assets", ("assets", "pc_detail"), False),
+        ("Backup", "backup", ("backup", "backup_device", "backup_log"), False),
+        ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
+        ("Accessi VPN", "vpn_history", ("vpn_history",), False),
+    ]),
+    ("Report", "report", [
+        ("Report", "report", ("report",), False),
+        ("Storico", "history", ("history",), False),
+        ("KPI", "kpis", ("kpis", "kpi_detail"), False),
+    ]),
+    ("Impostazioni", None, [
+        ("Configurazione", None, tuple(CONFIG_ROUTES), False),
+        ("Elaborazione", "pipeline", ("pipeline",), True),
+        ("Soppressioni", "suppressions", ("suppressions",), False),
+        ("Guida", "help", ("help", "doc_detail"), False),
+    ]),
+]
+
+
+@register.inclusion_tag("security/_menu.html", takes_context=True)
+def soc_menu(context, url_name):
+    request = context.get("request")
+    user = getattr(request, "user", None)
+    can_configure = bool(user and can_manage_security_config(user))
+    voci, sezione = [], None
+    for label, entry, pagine in MENU:
+        tabs = []
+        for tab_label, route, names, admin_only in pagine:
+            if admin_only and not can_configure:
+                continue
+            url = reverse(f"security:{route}") if route else reverse("security:admin_config" if can_configure else "security:soc_settings")
+            tabs.append({"label": tab_label, "url": url, "active": url_name in names})
+        attiva = any(t["active"] for t in tabs)
+        voce = {"label": label, "url": reverse(f"security:{entry}") if entry else (tabs[0]["url"] if tabs else "#"), "active": attiva, "tabs": tabs}
+        if attiva:
+            sezione = voce
+        voci.append(voce)
+    return {"voci": voci, "sezione": sezione, "url_name": url_name}

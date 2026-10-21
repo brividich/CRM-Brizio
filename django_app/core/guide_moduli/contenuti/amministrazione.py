@@ -189,6 +189,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "protezione-dati",
+            "titolo": "Protezione dei dati personali: cifratura, log, letture, invii esterni",
+            "blocchi": [
+                ("def", [
+                    ("Campi cifrati", "IBAN, prescrizioni e note delle visite, giudizio letto dai referti e firma delle "
+                                      "consegne DPI sono cifrati nel database con la chiave dei documenti (DOCUMENT_ENCRYPTION_KEY). "
+                                      "Nel portale si vedono normalmente; non si possono cercare per valore. Dopo l'aggiornamento: "
+                                      "cifra_campi_esistenti (anteprima), poi --apply; dopo un cambio di chiave --apply --ruota."),
+                    ("Log", "codici fiscali e IBAN sono mascherati in ogni log (RSS***********01U) anche dentro gli errori."),
+                    ("Letture", "aprire la scheda di un dipendente o di un candidato, i ratei e le retribuzioni va nel registro "
+                                "attività, al più una riga all'ora per persona e pagina. Le visite erano già tracciate."),
+                    ("Invii esterni", "l'azione «HTTP request» delle automazioni chiama solo i servizi Microsoft (Power Automate, "
+                                      "webhook Teams, Outlook, Graph) e gli host aggiunti in SiteConfig «automazioni_http_host_esterni» "
+                                      "(separati da virgola) o in AUTOMATION_HTTP_EXTERNAL_HOSTS. Prima di aggiungerne uno verifica "
+                                      "che possa ricevere i dati del record. automazioni_http_host_report elenca le azioni e chi verrebbe bloccato."),
+                ]),
+            ],
+        },
+        {
             "id": "allarmi-server",
             "titolo": "Allarmi del server",
             "blocchi": [

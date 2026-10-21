@@ -107,7 +107,7 @@ class Part145Tests(TestCase):
         self.assertEqual([r[0] for r in sezioni["attrezzature"].righe], ["SYN-145-A"])
         self.assertEqual(len(sezioni["personale"].righe), 1)
         self.assertEqual(sezioni["scadenze"].righe[0][1], "Processo")
-        tipi = {r[0] for r in sezioni["aperte"].righe}
+        tipi = {r[1] for r in sezioni["aperte"].righe}
         self.assertIn("Attrezzatura in riparazione", tipi)
         self.assertIn("OdL aperto (Correttiva)", tipi)
         senza = part145_dossier.costruisci(con_personale=False)
@@ -117,7 +117,7 @@ class Part145Tests(TestCase):
         wo = WorkOrder.objects.create(asset=self.flag, title="Controllo sintetico", kind="CORRECTIVE")
         Asset.objects.filter(pk=self.flag.pk).update(status=Asset.STATUS_IN_REPAIR)
         aperte = {s.codice: s for s in part145_dossier.costruisci()["sezioni"]}["aperte"]
-        azioni = {riga[0]: azione for riga, _, azione in aperte.righe_link}
+        azioni = {riga[1]: azione for riga, _, azione in aperte.righe_link}
         self.assertEqual(azioni["Attrezzatura in riparazione"][1], reverse("assets:asset_view", args=[self.flag.pk]))
         self.assertEqual(azioni["OdL aperto (Correttiva)"][1], reverse("assets:wo_view", args=[wo.pk]))
         self.assertEqual(azioni["Processo senza persone abilitate"][1],
@@ -206,7 +206,7 @@ class Part145AllineamentoSgiTests(TestCase):
         self.assertEqual(righe["SYN-CAL-1"][col("Controllo")], part145_dossier.CLASSE_TARATURA)
         self.assertEqual(righe["SYN-CAL-1"][col("Ente taratura")], "Laboratorio LAT sintetico")
         self.assertEqual(righe["SYN-DQP-1"][col("Controllo")], part145_dossier.CLASSE_A_VISTA)
-        self.assertIn("Taratura scaduta", {r[0] for r in sezioni["aperte"].righe})
+        self.assertIn("Taratura scaduta", {r[1] for r in sezioni["aperte"].righe})
         self.assertIn("Taratura", {r[1] for r in sezioni["scadenze"].righe})
 
     def test_contratto_quadro_in_scadenza_e_scaduto(self):
@@ -219,11 +219,11 @@ class Part145AllineamentoSgiTests(TestCase):
         self.assertEqual(sezioni["contratti"].righe[0][1], "Contratto / accordo")
         self.assertIn("Contratto", {r[1] for r in sezioni["scadenze"].righe})
         RequisitoQualifica.objects.filter(processo=self.p145).update(data_scadenza=self.oggi - timedelta(days=1))
-        self.assertIn("Contratto scaduto", {r[0] for r in self._sezioni()["aperte"].righe})
+        self.assertIn("Contratto scaduto", {r[1] for r in self._sezioni()["aperte"].righe})
 
     def test_processo_senza_scadenza_va_segnalato(self):
         # Il DQP è «a data» ma senza data: va completato in MOD.128. Il Part 145 illimitato no.
-        aperte = {(r[0], r[1]) for r in self._sezioni()["aperte"].righe}
+        aperte = {(r[1], r[2]) for r in self._sezioni()["aperte"].righe}
         self.assertIn(("Processo senza scadenza", "Ritocco sintetico DQP"), aperte)
         self.assertNotIn(("Processo senza scadenza", "Riparazione sintetica"), aperte)
 
@@ -260,3 +260,109 @@ class Part145AllineamentoSgiTests(TestCase):
         mail.outbox.clear()
         self.assertEqual(part145_dossier.notifica_scadenze(override=["qualita@example.test"]), 1)
         self.assertIn("[PART 145] Scadenze", mail.outbox[-1].subject)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class Part145IntegrazioniTests(TestCase):
+    """Formazione, audit e NC collegati al dossier; robustezza; report del catalogo. Dati sintetici."""
+
+    def setUp(self):
+        self.admin = _admin("p145.int")
+        self.client.force_login(self.admin)
+        self.oggi = timezone.localdate()
+        cliente = ClienteQualificante.objects.create(nome="Cliente sintetico INT")
+        self.p145 = ProcessoQualificato.objects.create(nome="Riparazione INT", regime="PART145", cliente=cliente,
+                                                       tipo_validita=ProcessoQualificato.VALIDITA_ILLIMITATA)
+        self.ab = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=990077, processo=self.p145, is_part145=True)
+        self.attrezzo = Asset.objects.create(asset_tag="SYN-INT-1", name="Calibro sintetico", part_145=True,
+                                             reparto="CQF", serial_number="SN-I1")
+
+    def _sezioni(self, **kw):
+        return {s.codice: s for s in part145_dossier.costruisci(**kw)["sezioni"]}
+
+    def test_formazione_richiesta_scaduta_e_mancante(self):
+        from anagrafica.models_formazione import TrainingCourse, TrainingDeadline, TrainingPlan
+
+        piano = TrainingPlan.objects.create(codice="PL-HF", nome="Piano sintetico")
+        hf = TrainingCourse.objects.create(piano=piano, codice="HF-SYN", titolo="Human Factor sintetico", durata_ore_teorica=1)
+        moe = TrainingCourse.objects.create(piano=piano, codice="MOE-SYN", titolo="MOE sintetico", durata_ore_teorica=1)
+        self.p145.corsi_richiesti.add(hf, moe)
+        TrainingDeadline.objects.create(corso=hf, legacy_anagrafica_id=990077, stato_scadenza="SCADUTO",
+                                        data_scadenza=self.oggi - timedelta(days=5), is_required=True)
+        sezioni = self._sezioni()
+        self.assertEqual(len(sezioni["formazione"].righe), 2)
+        tipi = {r[1] for r in sezioni["aperte"].righe}
+        self.assertIn("Formazione scaduta", tipi)
+        self.assertIn("Formazione mancante", tipi)
+        self.assertEqual(sezioni["aperte"].righe[0][0], part145_dossier.PRIORITA_ALTA)
+        self.assertIn("Formazione", {r[1] for r in sezioni["scadenze"].righe})
+        # Senza permesso MOD.128 niente formazione per persona.
+        self.assertNotIn("formazione", self._sezioni(con_personale=False))
+
+    def test_audit_part145_mancanti_e_rilievo_scaduto(self):
+        from sistema_gestione.models import Audit, AuditEsito, Auditor
+
+        auditor = Auditor.objects.create(user=self.admin, interno=True)
+        audit = Audit.objects.create(numero="RAIS-SYN-01", lead_auditor=auditor, processi="Part 145",
+                                     data_inizio=self.oggi, part145=Audit.PART145_SISTEMA, created_by=self.admin)
+        AuditEsito.objects.create(audit=audit, esito=AuditEsito.ESITO_NC, scostamento="Rilievo sintetico",
+                                  scadenza_azione=self.oggi - timedelta(days=2))
+        self.assertNotIn("audit", self._sezioni())  # serve il permesso audit
+        sezioni = self._sezioni(con_audit=True)
+        self.assertEqual([r[0] for r in sezioni["audit"].righe], ["RAIS-SYN-01"])
+        tipi = {r[1] for r in sezioni["aperte"].righe}
+        self.assertIn("Audit Part 145 di prodotto da pianificare", tipi)
+        self.assertNotIn("Audit Part 145 di sistema da pianificare", tipi)
+        self.assertIn("Azione da audit scaduta", tipi)
+
+    def test_nc_part145_aperta_e_segnalazione_dal_dettaglio(self):
+        from anomalie.quality_models import AnomaliaNC
+
+        nc = AnomaliaNC.objects.create(protocollo="NC-SYN-145", op_titolo="OP-SYN-1", part_number="PN-SYN")
+        self.assertEqual(self._sezioni(con_nc=True)["nc"].righe, [])
+        self.client.post(reverse("anomalie_nc_dettaglio", args=[nc.pk]), {"action": "part145", "part145": "1"})
+        nc.refresh_from_db()
+        self.assertTrue(nc.part145)
+        sezioni = self._sezioni(con_nc=True)
+        self.assertEqual([r[0] for r in sezioni["nc"].righe], ["NC-SYN-145"])
+        self.assertIn("NC Part 145 aperta", {r[1] for r in sezioni["aperte"].righe})
+        self.assertNotIn("nc", self._sezioni())
+
+    def test_parte_accessoria_rotta_non_fa_cadere_il_dossier(self):
+        with patch("assets.services.part145_dossier._documenti_sgi", side_effect=RuntimeError("sintetico")):
+            dati = part145_dossier.costruisci()
+            pagina = self.client.get(reverse("assets:part_145_list"))
+        self.assertTrue(any("Documenti SGI" in a for a in dati["avvisi"]))
+        self.assertEqual(pagina.status_code, 200)
+        self.assertContains(pagina, "Alcune parti non sono disponibili")
+
+    def test_attrezzature_dismesse_escluse(self):
+        Asset.objects.filter(pk=self.attrezzo.pk).update(status=Asset.STATUS_RETIRED)
+        dati = part145_dossier.costruisci()
+        self.assertEqual({s.codice: s for s in dati["sezioni"]}["attrezzature"].righe, [])
+        self.assertEqual(dati["dismesse"], 1)
+
+    def test_pagina_ricerca_unica_e_kpi(self):
+        pagina = self.client.get(reverse("assets:part_145_list"))
+        self.assertContains(pagina, 'id="p145-cerca"')
+        self.assertContains(pagina, 'data-fm-table-skip="1"')
+        self.assertContains(pagina, "Da sistemare")
+        self.assertEqual(pagina.context["dossier"]["kpi"][0]["sezione"], "aperte")
+
+    def test_report_catalogo_part145(self):
+        from .services import report_catalog
+
+        definizioni = report_catalog.definizioni()
+        for code in ("part145-tarature", "part145-da-sistemare", "part145-scadenze"):
+            self.assertEqual(definizioni[code].area, "Qualità e PART 145")
+        tarature = definizioni["part145-tarature"].esegui({})
+        self.assertEqual([r[0] for r in tarature.righe], ["SYN-INT-1"])
+        aperte = definizioni["part145-da-sistemare"].esegui({"priorita": ""})
+        # Senza dati del personale il catalogo non segnala i processi senza persone: è un dato MOD.128.
+        self.assertNotIn("Processo senza persone abilitate", {r[1] for r in aperte.righe})
+        self.assertEqual(aperte.intestazioni[0], "Priorità")
+        scadenze = definizioni["part145-scadenze"].esegui({"giorni": "365"})
+        self.assertIn("365", scadenze.titolo)
+        risposta = self.client.get(reverse("assets:report_catalog_run", args=["part145-tarature"]))
+        self.assertEqual(risposta.status_code, 200)
+        self.assertContains(risposta, "SYN-INT-1")

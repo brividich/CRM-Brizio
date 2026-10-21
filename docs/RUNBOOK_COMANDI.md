@@ -209,6 +209,8 @@ Foglio operativo di tutti gli script eseguibili (Django management commands + Po
 | `python django_app\manage.py backup_portale` | 🟡 | Backup DB + config + file del portale |
 | `python django_app\manage.py media_audit` | 🟢 | Segnala file sensibili in `MEDIA_ROOT` (servito senza auth) |
 | `python django_app\manage.py gdpr_retention [--apply] [--solo <regola>]` | 🟡 | Conservazione GDPR degli archivi tecnici (gira da solo ogni notte alle 03:15; senza `--apply` solo conteggi) |
+| `python django_app\manage.py cifra_campi_esistenti [--apply] [--ruota]` | 🟡 | Cifra i valori in chiaro dei campi cifrati (IBAN, prescrizioni, firme DPI); `--ruota` dopo un cambio di chiave |
+| `python django_app\manage.py automazioni_http_host_report` | 🟢 | Host delle azioni http_request e quali verrebbero bloccati (sola lettura) |
 | `python django_app\manage.py media_privatizza [--apply]` | 🟡 | Sposta in storage privato cifrato i file storici rimasti in `MEDIA_ROOT` (anteprima senza `--apply`) |
 | `python django_app\manage.py cleanup_expired_documents` | 🔴 | Retention GDPR dei documenti dipendente (cleanup) |
 | `python django_app\manage.py encrypt_existing_documents` | 🔴 | Cifra at-rest i file privati esistenti (una-tantum) |

@@ -4590,6 +4590,7 @@ class AutomationExtendedActionExecutorTests(TestCase):
         self.assertEqual(self.task.status, "DONE")
         self.assertEqual(self.task.next_step_text, f"Sollecito task {self.task.id}")
 
+    @override_settings(AUTOMATION_HTTP_EXTERNAL_HOSTS=["example.local"])
     @patch("automazioni.services.requests.request")
     def test_http_request_executes_and_checks_expected_status(self, mock_request):
         response = MagicMock()

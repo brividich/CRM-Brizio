@@ -7,7 +7,6 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-from django.utils.text import slugify
 
 from .storage import PrivateTimbriStorage
 from core import naming
@@ -16,16 +15,13 @@ from core import naming
 PNG_MAX_SIZE = 20 * 1024 * 1024
 
 
-def _safe_segment(value: str, fallback: str) -> str:
-    cleaned = slugify(str(value or "").strip())
-    return cleaned[:80] or fallback
-
-
 def _registro_image_upload_to(instance: "RegistroTimbroImmagine", filename: str) -> str:
     suffix = Path(filename or "").suffix.lower()[:20] or ".png"
     stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-    operatore = instance.registro.operatore if instance.registro_id else None
-    operatore_key = _safe_segment(getattr(operatore, "full_name", "") or getattr(operatore, "matricola", ""), "operatore")
+    # GDPR 21/10/2026: solo identificativi nel percorso, mai il nome della persona
+    # (prima: slug di nome e cognome). I file gia' salvati mantengono il loro nome.
+    operatore_id = instance.registro.operatore_id if instance.registro_id else None
+    operatore_key = f"op{operatore_id}" if operatore_id else "operatore"
     record_key = instance.registro_id or "tmp"
     variant = str(instance.variante or "").strip().lower()
     folder = "timbri" if variant == RegistroTimbroImmagine.VARIANTE_TIMBRO else "firme"
