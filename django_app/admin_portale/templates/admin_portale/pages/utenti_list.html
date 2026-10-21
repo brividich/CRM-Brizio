@@ -125,6 +125,7 @@
     font-weight: 800;
     color: var(--text);
   }
+  .users-ruoli-portale { display:inline-flex; flex-wrap:wrap; gap:4px; text-decoration:none; }
   .users-table-count {
     margin-top: 2px;
     color: var(--text-light);
@@ -277,7 +278,7 @@
               <input class="input" type="email" id="nuovo_email" name="email">
             </div>
             <div class="field">
-              <label for="nuovo_ruolo_id">Ruolo</label>
+              <label for="nuovo_ruolo_id">{% if sistema_ruoli %}Ruolo storico (non decide i permessi){% else %}Ruolo{% endif %}</label>
               <select class="input" id="nuovo_ruolo_id" name="ruolo_id">
                 <option value="">-- Nessuno --</option>
                 {% for ruolo in roles %}
@@ -314,6 +315,7 @@
             <option value="0" {% if filters.attivo == '0' %}selected{% endif %}>No</option>
           </select>
         </div>
+        {% if not sistema_ruoli %}
         <div class="field">
           <label for="ruolo_id">Ruolo</label>
           <select class="input" id="ruolo_id" name="ruolo_id">
@@ -323,6 +325,7 @@
             {% endfor %}
           </select>
         </div>
+        {% endif %}
         <div class="field">
           <label for="pwd_change">Deve cambiare password</label>
           <select class="input" id="pwd_change" name="pwd_change">
@@ -348,12 +351,14 @@
           </div>
         </div>
         <div class="admin-inline-actions users-bulk-actions">
+          {% if not sistema_ruoli %}
           <select class="input input-sm" name="ruolo_id">
             <option value="">Ruolo massivo...</option>
             {% for ruolo in roles %}
               <option value="{{ ruolo.id }}">{{ ruolo.nome }} (#{{ ruolo.id }})</option>
             {% endfor %}
           </select>
+          {% endif %}
           <div class="col-picker-wrap">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-column-picker">Colonne</button>
             <div class="col-picker-panel" id="column-picker-panel" hidden>
@@ -364,12 +369,16 @@
               <label class="col-picker-row"><input type="checkbox" data-col-target="reparto"> Reparto</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="mansione"> Mansione</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="username_ad"> Username AD</label>
-              <label class="col-picker-row"><input type="checkbox" data-col-target="ruolo_quick"> Ruolo (quick)</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="ruolo_quick"> {% if sistema_ruoli %}Ruolo del portale{% else %}Ruolo (quick){% endif %}</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="attivo"> Attivo</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="force_pwd"> Force pwd</label>
             </div>
           </div>
-          <button type="submit" class="btn btn-sm">Applica ruolo selezionati</button>
+          {% if sistema_ruoli %}
+            <a class="btn btn-sm" href="{% url 'admin_portale:ruoli_portale' %}">Ruoli e permessi</a>
+          {% else %}
+            <button type="submit" class="btn btn-sm">Applica ruolo selezionati</button>
+          {% endif %}
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="activate" formnovalidate>Attiva selezionati</button>
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="deactivate" formnovalidate>Disattiva selezionati</button>
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="force_pwd" formnovalidate>Force pwd selezionati</button>
@@ -389,7 +398,7 @@
                 <th data-col="reparto">Reparto</th>
                 <th data-col="mansione">Mansione</th>
                 <th data-col="username_ad">Username AD</th>
-                <th data-col="ruolo_quick">Ruolo (quick)</th>
+                <th data-col="ruolo_quick">{% if sistema_ruoli %}Ruolo del portale{% else %}Ruolo (quick){% endif %}</th>
                 <th data-col="attivo">Attivo</th>
                 <th data-col="force_pwd">Force pwd</th>
                 <th data-col="twofa">2FA</th>
@@ -407,6 +416,15 @@
                   <td data-col="mansione">{{ u.anagrafica_mansione|default:"-" }}</td>
                   <td data-col="username_ad" style="font-family:monospace;">{{ u.anagrafica_aliasusername|default:"-" }}</td>
                   <td data-col="ruolo_quick">
+                    {% if sistema_ruoli %}
+                      <a class="users-ruoli-portale" href="{% url 'admin_portale:ruoli_portale_persona' u.id %}" title="Ruoli del portale: il primo è quello che comanda. Apri per assegnarli.">
+                        {% for r in u.ruoli_portale %}
+                          <span class="badge{% if forloop.first %} badge-info{% endif %}">{{ r.label }}{% if r.da_organigramma %} · organigramma{% endif %}</span>
+                        {% empty %}
+                          <span class="badge">{{ u.ruolo_portale_base|default:"Nessun ruolo" }}</span>
+                        {% endfor %}
+                      </a>
+                    {% else %}
                     <div class="admin-inline-actions">
                       <select class="input input-sm" name="quick_ruolo_id_{{ u.id }}">
                         <option value="">--</option>
@@ -416,6 +434,7 @@
                       </select>
                       <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utente_quick_role' u.id %}" formmethod="post" name="next" value="{{ request.get_full_path }}" formnovalidate>Salva</button>
                     </div>
+                    {% endif %}
                   </td>
                   <td data-col="attivo">
                     {% if u.attivo %}
