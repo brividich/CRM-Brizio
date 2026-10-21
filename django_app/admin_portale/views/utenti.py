@@ -2182,14 +2182,17 @@ def utente_impersonate(request, user_id: int):
         messages.error(request, "Impossibile avviare l'impersonazione per questo utente.")
         return redirect(next_url)
 
-    from core.security_notify import notify_security_event
+    from core.security_notify import avviso_impersonazione_attivo, notify_security_event
 
-    notify_security_event(
-        context["target_user"],
-        "Accesso al tuo account da parte di un amministratore",
-        "Un amministratore del portale ha appena iniziato a usare il tuo account in modalità "
-        "impersonazione (assistenza o verifica dei permessi). L'operazione è registrata nel log di audit.",
-    )
+    # Interruttore in «Gestione notifiche»: spento, resta solo l'audit.
+    avviso_attivo = avviso_impersonazione_attivo()
+    if avviso_attivo:
+        notify_security_event(
+            context["target_user"],
+            "Accesso al tuo account da parte di un amministratore",
+            "Un amministratore del portale ha appena iniziato a usare il tuo account in modalità "
+            "impersonazione (assistenza o verifica dei permessi). L'operazione è registrata nel log di audit.",
+        )
     log_action(
         request,
         "impersonation_start",
@@ -2197,6 +2200,7 @@ def utente_impersonate(request, user_id: int):
         {
             "target_legacy_user_id": int(target_user.id),
             "target_display": (target_user.nome or target_user.email or "").strip(),
+            "avviso_utente": avviso_attivo,
         },
     )
     messages.warning(

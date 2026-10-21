@@ -147,3 +147,116 @@ class Part145Tests(TestCase):
             pagina = self.client.get(reverse("assets:part_145_list"))
         self.assertContains(pagina, "servono i permessi sui processi qualificati")
         self.assertNotIn("personale", {s.codice for s in pagina.context["dossier"]["sezioni"]})
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class Part145AllineamentoSgiTests(TestCase):
+    """Perimetro DQP, attrezzi come il MOE §2.4, contratto, documenti SGI, avviso scadenze."""
+
+    def setUp(self):
+        from anagrafica.models import Fornitore
+
+        from .models import MaintenanceInterventionTemplate, MaintenancePlanAssignment
+
+        self.admin = _admin("p145.sgi")
+        self.client.force_login(self.admin)
+        self.oggi = timezone.localdate()
+        cliente = ClienteQualificante.objects.create(nome="Cliente sintetico SGI")
+        self.p145 = ProcessoQualificato.objects.create(nome="Riparazione sintetica", regime="PART145", cliente=cliente,
+                                                       tipo_validita=ProcessoQualificato.VALIDITA_ILLIMITATA)
+        self.dqp = ProcessoQualificato.objects.create(nome="Ritocco sintetico DQP", regime="SPECIALE", cliente=cliente,
+                                                      perimetro_part145=True)
+        self.fuori = ProcessoQualificato.objects.create(nome="Processo fuori perimetro", regime="SPECIALE",
+                                                        cliente=cliente)
+        self.strumento = Asset.objects.create(asset_tag="SYN-CAL-1", name="Chiave dinamometrica sintetica",
+                                              part_145=True, reparto="Aggiustaggio", serial_number="SN-C1")
+        self.pennello = Asset.objects.create(asset_tag="SYN-DQP-1", name="Kit ritocco sintetico", reparto="Aggiustaggio",
+                                             serial_number="SN-D1")
+        self.pennello.processi_qualificati.add(self.dqp)
+        lab = Fornitore.objects.create(ragione_sociale="Laboratorio LAT sintetico")
+        self.piano = MaintenanceInterventionTemplate.objects.create(
+            code="syn-taratura", label="Taratura sintetica",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_CALIBRATION,
+            execution_mode=MaintenanceInterventionTemplate.MODE_EXTERNAL, default_supplier=lab)
+        MaintenancePlanAssignment.objects.create(plan=self.piano, target_type=MaintenancePlanAssignment.TARGET_ASSET,
+                                                 asset=self.strumento, frequency=MaintenancePlanAssignment.FREQ_MONTHS,
+                                                 interval=12)
+
+    def _sezioni(self, **kw):
+        return {s.codice: s for s in part145_dossier.costruisci(**kw)["sezioni"]}
+
+    def test_perimetro_include_i_processi_speciali_con_la_casella(self):
+        sezioni = self._sezioni()
+        nomi = [r[0] for r in sezioni["processi"].righe]
+        self.assertIn("Ritocco sintetico DQP", nomi)
+        self.assertNotIn("Processo fuori perimetro", nomi)
+        self.assertEqual({r[0] for r in sezioni["attrezzature"].righe}, {"SYN-CAL-1", "SYN-DQP-1"})
+        # Il flag dell'asset non lo lega ai processi speciali del perimetro.
+        self.assertEqual(part145.processi_dell_asset(self.strumento), [self.p145])
+
+    def test_classificazione_e_taratura_scaduta(self):
+        from .models import MaintenanceOccurrence
+
+        MaintenanceOccurrence.objects.create(plan=self.piano, asset=self.strumento,
+                                             due_date=self.oggi - timedelta(days=3))
+        sezioni = self._sezioni()
+        attr = sezioni["attrezzature"]
+        col = attr.intestazioni.index
+        righe = {r[0]: r for r in attr.righe}
+        self.assertEqual(righe["SYN-CAL-1"][col("Controllo")], part145_dossier.CLASSE_TARATURA)
+        self.assertEqual(righe["SYN-CAL-1"][col("Ente taratura")], "Laboratorio LAT sintetico")
+        self.assertEqual(righe["SYN-DQP-1"][col("Controllo")], part145_dossier.CLASSE_A_VISTA)
+        self.assertIn("Taratura scaduta", {r[0] for r in sezioni["aperte"].righe})
+        self.assertIn("Taratura", {r[1] for r in sezioni["scadenze"].righe})
+
+    def test_contratto_quadro_in_scadenza_e_scaduto(self):
+        from anagrafica.models_mpq import RequisitoQualifica
+
+        RequisitoQualifica.objects.create(processo=self.p145, tipo=RequisitoQualifica.TIPO_CONTRATTO,
+                                          descrizione="Contratto quadro sintetico",
+                                          data_scadenza=self.oggi + timedelta(days=60))
+        sezioni = self._sezioni()
+        self.assertEqual(sezioni["contratti"].righe[0][1], "Contratto / accordo")
+        self.assertIn("Contratto", {r[1] for r in sezioni["scadenze"].righe})
+        RequisitoQualifica.objects.filter(processo=self.p145).update(data_scadenza=self.oggi - timedelta(days=1))
+        self.assertIn("Contratto scaduto", {r[0] for r in self._sezioni()["aperte"].righe})
+
+    def test_processo_senza_scadenza_va_segnalato(self):
+        # Il DQP è «a data» ma senza data: va completato in MOD.128. Il Part 145 illimitato no.
+        aperte = {(r[0], r[1]) for r in self._sezioni()["aperte"].righe}
+        self.assertIn(("Processo senza scadenza", "Ritocco sintetico DQP"), aperte)
+        self.assertNotIn(("Processo senza scadenza", "Riparazione sintetica"), aperte)
+
+    def test_documenti_di_riferimento_dal_registro_sgi(self):
+        from procedure_refresh.models import ProcedureDocument, ProcedureRevision
+
+        doc = ProcedureDocument.objects.create(code="MT CN 70", title="PART 145 sintetica", document_type="MT")
+        rev = ProcedureRevision.objects.create(document=doc, revision_code="1", revision_date=self.oggi,
+                                               effective_date=self.oggi, file_name="mt70.pdf", is_current=True)
+        documenti = self._sezioni()["documenti"]
+        righe = {r[0]: (r, azione) for r, _, azione in documenti.righe_link}
+        self.assertEqual(righe["MT CN 70"][1][1], reverse("procedure_refresh:document_open", args=[rev.pk]))
+        self.assertEqual(righe["MO-ID-009.24"][0][2], "Non trovato nel registro SGI")
+
+    def test_export_tarature_e_controllo_semestrale(self):
+        xlsx = self.client.get(reverse("assets:part_145_export_tarature"))
+        ws = load_workbook(BytesIO(xlsx.content)).active
+        valori = [c.value for riga in ws.iter_rows() for c in riga]
+        self.assertIn("SYN-CAL-1", valori)
+        self.assertNotIn("SYN-DQP-1", valori)
+        pdf = self.client.get(reverse("assets:part_145_export_controllo"))
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+        pagina = self.client.get(reverse("assets:part_145_list"))
+        self.assertContains(pagina, "Strumenti tarati")
+        self.assertContains(pagina, "Documenti di riferimento")
+
+    def test_avviso_scadenze_solo_se_ce_qualcosa(self):
+        from .models import MaintenanceOccurrence
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(part145_dossier.notifica_scadenze(override=["qualita@example.test"]), 0)
+        MaintenanceOccurrence.objects.create(plan=self.piano, asset=self.strumento,
+                                             due_date=self.oggi + timedelta(days=10))
+        mail.outbox.clear()
+        self.assertEqual(part145_dossier.notifica_scadenze(override=["qualita@example.test"]), 1)
+        self.assertIn("[PART 145] Scadenze", mail.outbox[-1].subject)

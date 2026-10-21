@@ -52,7 +52,7 @@ class ProcessoQualificatoForm(forms.ModelForm):
     class Meta:
         model = ProcessoQualificato
         fields = [
-            "cliente", "nome", "regime", "livello",
+            "cliente", "nome", "regime", "perimetro_part145", "livello",
             "ente_certificatore", "tipo_qualifica",
             "tipo_validita", "data_conseguimento", "durata_mesi", "data_scadenza",
             "personale_modalita", "riferimento_dichiarazione",
