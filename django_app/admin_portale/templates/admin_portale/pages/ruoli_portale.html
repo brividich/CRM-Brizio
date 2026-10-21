@@ -568,6 +568,7 @@
           </tbody>
         </table>
       </div>
+      {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
     {% else %}
       <div class="acl-empty">Nessuna modifica registrata.</div>
     {% endif %}

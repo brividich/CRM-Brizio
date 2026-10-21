@@ -87,7 +87,7 @@
       </nav>
 
       <div class="fmd-tablewrap">
-        <table class="fmd-table" data-fm-table-skip="1">
+        <table class="fmd-table">
           <thead>
             <tr>
               <th style="width:44px;"></th>
@@ -123,7 +123,7 @@
                   <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}" data-tim-stop>Timbri <svg class="fmd-ico"><use href="#i-chevron-right"/></svg></a>
                 </td>
               </tr>
-              <tr class="tim-xpanel" id="tim-x-{{ operatore.legacy_id }}" hidden>
+              <tr class="tim-xpanel fm-detail-row" id="tim-x-{{ operatore.legacy_id }}" hidden>
                 <td colspan="8"><div class="tim-xinner" id="tim-x-inner-{{ operatore.legacy_id }}"></div></td>
               </tr>
             {% empty %}
@@ -153,7 +153,7 @@
       <p class="fmd-ph-sub" style="margin:-6px 0 14px;">Righe del CSV non importate perché l'operatore non è stato trovato nell'anagrafica centrale.</p>
       {% if pending_issues %}
         <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
-          <table class="fmd-table" data-fm-table-skip="1">
+          <table class="fmd-table">
             <thead>
               <tr><th>Riga</th><th>Operatore</th><th>Matricola</th><th>Codice</th><th>Tipo</th><th>Motivo</th><th class="fmd-r">Anagrafica</th></tr>
             </thead>

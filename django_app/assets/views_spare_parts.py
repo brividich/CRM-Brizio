@@ -165,12 +165,15 @@ def spare_part_detail(request: HttpRequest, part_id: int) -> HttpResponse:
                        {"part_id": part.pk, "kind": kind, "qty": str(movement.qty), "stock_after": str(movement.stock_after)})
             messages.success(request, f"{movement.get_kind_display()} registrato: giacenza {movement.stock_after} {part.unit}.")
         return redirect("assets:spare_part_detail", part_id=part.pk)
-    movements = list(part.movements.select_related("work_order", "user")[:200])
+    from core.paginazione import pagina_elenco
+
+    # Tutti i movimenti a pagine: il browser carica le successive scorrendo.
+    movements_page = pagina_elenco(request, part.movements.select_related("work_order", "user"))
     return render(
         request,
         "assets/pages/spare_part_detail.html",
         {**_assets_shell_context(request), "page_title": f"Ricambio {part.code}", "part": part,
-         "movements": movements, "can_manage": can_manage},
+         "movements": movements_page.object_list, "movements_page": movements_page, "can_manage": can_manage},
     )
 
 

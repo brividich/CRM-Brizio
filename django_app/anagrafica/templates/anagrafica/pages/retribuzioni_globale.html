@@ -56,7 +56,7 @@
 
 /* Paginazione */
 .rg-pager { display:flex; gap:6px; justify-content:center; padding:14px; flex-wrap:wrap; }
-.rg-page-btn { padding:5px 12px; border-radius:7px; border:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; cursor:pointer; }
+.rg-page-btn { display:inline-block; text-decoration:none; padding:5px 12px; border-radius:7px; border:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; cursor:pointer; }
 .rg-page-btn:hover { background:#e2e8f0; }
 .rg-page-btn.active { background:#0c2545; color:#fff; border-color:#0c2545; cursor:default; }
 .rg-empty { padding:40px 24px; text-align:center; color:#94a3b8; font-size:14px; }
@@ -252,20 +252,22 @@ body.theme-dark .rg-page-btn:hover{background:var(--surface-alt,#0f1b2d)}
       </table>
     </div>
 
+    {# Paginazione a link `?page=` (i filtri applicati sono già nella querystring):  #}
+    {# la riconosce fm-table, che carica le pagine successive scorrendo.             #}
     {% if page_obj.has_other_pages %}
-    <div class="rg-pager">
+    <div class="rg-pager" data-fm-last-page="{{ page_obj.paginator.num_pages }}">
       {% if page_obj.has_previous %}
-        <button type="button" class="rg-page-btn" onclick="rgGoPage({{ page_obj.previous_page_number }})">&laquo;</button>
+        <a class="rg-page-btn" href="{% querystring page=page_obj.previous_page_number %}">&laquo;</a>
       {% endif %}
       {% for n in page_obj.paginator.page_range %}
         {% if n == page_obj.number %}
           <span class="rg-page-btn active">{{ n }}</span>
         {% elif n >= page_obj.number|add:"-3" and n <= page_obj.number|add:"3" %}
-          <button type="button" class="rg-page-btn" onclick="rgGoPage({{ n }})">{{ n }}</button>
+          <a class="rg-page-btn" href="{% querystring page=n %}">{{ n }}</a>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-        <button type="button" class="rg-page-btn" onclick="rgGoPage({{ page_obj.next_page_number }})">&raquo;</button>
+        <a class="rg-page-btn" href="{% querystring page=page_obj.next_page_number %}">&raquo;</a>
       {% endif %}
     </div>
     {% endif %}
@@ -294,17 +296,6 @@ document.getElementById('rg-dip-search').addEventListener('input', function () {
     opt.style.display = opt.text.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
   });
 });
-
-/* Paginazione che preserva i filtri multi-select */
-function rgGoPage(n) {
-  var form = document.getElementById('rg-filter-form');
-  var existing = form.querySelector('input[name="page"]');
-  if (existing) existing.remove();
-  var inp = document.createElement('input');
-  inp.type = 'hidden'; inp.name = 'page'; inp.value = n;
-  form.appendChild(inp);
-  form.submit();
-}
 
 /* Export Excel con i filtri attivi */
 function rgExport() {

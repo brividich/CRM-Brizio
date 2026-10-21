@@ -29,7 +29,7 @@
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Alert che si ripetono</h2><span class="sec-badge">{{ review.recurring|length }}</span></div>
     {% if review.recurring %}
-      <div class="sec-table-wrap"><table class="sec-table" data-fm-table-skip="1">
+      <div class="sec-table-wrap"><table class="sec-table">
         <thead><tr><th>Problema</th><th class="num">Volte</th><th>Com'è finita</th></tr></thead>
         <tbody>
         {% for row in review.recurring %}

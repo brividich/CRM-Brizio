@@ -37,7 +37,7 @@
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Esecuzioni</h2><span class="sec-badge">{% if rows|length >= 300 %}prime 300{% else %}{{ rows|length }}{% endif %}</span></div>
   <div class="sec-table-wrap">
-    <table class="sec-table" data-table-enhanced="0">
+    <table class="sec-table">
       <thead><tr><th>Quando</th><th>Esito</th><th>Job</th><th>Dispositivi</th><th class="sec-num">Dati</th><th class="sec-num">Durata</th><th>Report</th></tr></thead>
       <tbody>
       {% for r in rows %}

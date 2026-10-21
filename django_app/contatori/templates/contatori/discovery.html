@@ -27,7 +27,7 @@
   <summary>Catalogo community salvate</summary>
   {% if request.GET.catalogo_salvato %}<p class="pos">Community salvata.</p>{% endif %}
   <p>I valori restano nascosti. La versione e la porta della community, se specificate, prevalgono su quelle della scansione. Le community vengono provate nell'ordine del catalogo, precedute dalla globale se selezionata.</p>
-  <div style="overflow-x:auto"><table class="tbl" data-fm-table-skip="1"><thead><tr><th>Nome</th><th>Versione</th><th>Porta</th><th>Ordine</th><th>Stato</th><th></th></tr></thead>
+  <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Nome</th><th>Versione</th><th>Porta</th><th>Ordine</th><th>Stato</th><th></th></tr></thead>
   <tbody>{% for c in catalogo %}<tr>
     <td>{{ c.nome }}</td><td>{{ c.get_versione_display }}</td><td>{{ c.porta|default:"Globale" }}</td><td>{{ c.ordine }}</td><td>{{ c.attiva|yesno:"Attiva,Disattivata" }}</td>
     <td><a href="{% url 'contatori:discovery' %}?community={{ c.pk }}">Modifica</a></td>

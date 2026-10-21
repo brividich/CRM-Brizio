@@ -166,7 +166,7 @@ body.theme-dark .p145-azione { color:#fca5a5; }
     {% if s.nota %}<div class="p145-note">{{ s.nota }}</div>{% endif %}
     {% if s.righe %}
     <div class="p145-table-wrap">
-      <table class="p145-table" data-fm-table-skip="1">
+      <table class="p145-table" data-fm-hide-search="1">
         <thead><tr>{% for h in s.intestazioni %}<th scope="col">{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th scope="col">Cosa fare</th>{% endif %}</tr></thead>
         <tbody>
           {% for riga, asset_id, azione in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% with cls=dossier.badge|get_item:v %}{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif cls %}<span class="p145-badge {{ cls }}">{{ v }}</span>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}{% endwith %}</td>{% endfor %}{% if s.ha_azioni %}<td>{% if azione %}<a class="p145-azione" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="p145-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}
