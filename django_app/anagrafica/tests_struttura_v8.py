@@ -56,8 +56,10 @@ class _Base(TestCase):
         self.ut = Reparto.objects.create(nome="UT")
         self.a_in1 = AreaAziendale.objects.create(nome="IN1", reparto=self.ut)
         self.a_vendite = AreaAziendale.objects.create(nome="Vendite", reparto=self.ut)
+        self.a_in2 = AreaAziendale.objects.create(nome="IN2", reparto=self.ut)  # confluisce in UFFICIO TECNICO
         self.logistica = Reparto.objects.create(nome="LOGISTICA")
         self.a_manut = AreaAziendale.objects.create(nome="Manutenzione", reparto=self.logistica)
+        self.a_log = AreaAziendale.objects.create(nome="Logistica", reparto=self.logistica)  # solo maiuscole
         # Ruoli del gestionale
         self.r_cnc = RuoloOperativo.objects.create(nome="Operatore CNC", ambito=self.produttivo)
         self.r_cn5 = RuoloOperativo.objects.create(nome="Operatore CN5", ambito=self.produttivo)
@@ -117,6 +119,10 @@ class CaricamentoV8Tests(_Base):
         self.assertEqual(ut.pk, self.a_in1.pk)  # IN1 rinominata in UFFICIO TECNICO
         self.assertEqual(ut.ruolo_responsabile.sigla, "EM")
         self.assertEqual(AreaAziendale.objects.get(nome="COMMERCIALE").pk, self.a_vendite.pk)
+        self.a_in2.refresh_from_db()
+        self.assertFalse(self.a_in2.is_active)  # confluita in UFFICIO TECNICO
+        self.a_log.refresh_from_db()
+        self.assertEqual(self.a_log.nome, "LOGISTICA")  # stesso record, nome del file
         hse = AreaAziendale.objects.get(nome="HSE")
         self.assertEqual(hse.reparto.nome, "UT")
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.p_man.pk)

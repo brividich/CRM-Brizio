@@ -113,6 +113,10 @@ def _reparti_aree(r: Rapporto, user) -> dict[str, Reparto]:
             ospite = AreaAziendale.objects.create(nome=nome, reparto=rep)
             r.add("aree", "crea", nome, f"nel reparto {rep.nome}")
         campi = []
+        if ospite.nome != nome:  # stessa area, nome diverso solo per maiuscole: si allinea al file
+            r.add("aree", "rinomina", nome, f"era «{ospite.nome}»")
+            ospite.nome = nome
+            campi.append("nome")
         if ospite.reparto_id != rep.pk:
             r.add("aree", "aggiorna", nome, f"reparto {ospite.reparto.nome if ospite.reparto_id else '—'} → {rep.nome}")
             ospite.reparto = rep
@@ -130,6 +134,9 @@ def _reparti_aree(r: Rapporto, user) -> dict[str, Reparto]:
         for src in sorgenti:
             if src.pk == ospite.pk:
                 continue
+            if not src.is_active and not DipendenteAnagraficaAziendale.objects.filter(area_aziendale=src).exists() \
+                    and not CompetenzaSkm.objects.filter(area=src).exists():
+                continue  # già accorpata in un giro precedente
             n = struttura_aree.accorpa_area(src, ospite, user=user)
             r.add("aree", "accorpa", src.nome, f"in {nome}: {n} persone spostate, area spenta")
 
