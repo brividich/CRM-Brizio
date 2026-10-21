@@ -915,3 +915,11 @@ body.theme-dark .soc-module .sec-btn-link:hover{color:#93c5fd}
 @media (max-width: 720px) { .sec-secure-score .sec-ss-body { grid-template-columns: 1fr; } }
 .soc-module .sec-ss-score .ov-spark { width: 160px; height: 36px; margin-top: 6px; overflow: visible; }
 .soc-module .sec-ss-score .ov-spark polyline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+
+/* Menu a 5 voci con seconda riga per le pagine della voce attiva. */
+.soc-module .soc-nav-main { margin-bottom: 6px; }
+.soc-module .soc-nav-main .soc-nav-group a { padding: 8px 14px; font-size: var(--fs-md); }
+.soc-module .soc-subnav { display: flex; gap: 2px; margin: 0 0 14px; padding: 0 0 6px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+.soc-module .soc-subnav a { flex: 0 0 auto; padding: 6px 11px; border-radius: 8px 8px 0 0; color: var(--text-mid); font-size: var(--fs-sm, 13px); font-weight: 600; text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+.soc-module .soc-subnav a:hover { color: var(--text); background: var(--hover-bg, rgba(0, 43, 92, 0.06)); }
+.soc-module .soc-subnav a.active { color: var(--accent); border-bottom-color: var(--accent); }
