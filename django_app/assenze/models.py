@@ -154,6 +154,29 @@ class AssenzaCapoScelto(models.Model):
         return f"assenza {self.assenza_id} → capo {self.capo_legacy_user_id}"
 
 
+class AssenzaInseritaDa(models.Model):
+    """Chi ha inserito la richiesta dal portale e con quale profilo Assenze.
+
+    La tabella ``assenze`` è legacy e non ha l'autore: la riga vive qui, per
+    ``assenza_id``. Le automazioni la leggono come ``inserito_da_gruppo``
+    (``CAR`` / ``AMMINISTRAZIONE`` / ``UTENTI``) per scegliere i destinatari:
+    con «Salta approvazione» il caporeparto non va avvisato di ciò che ha
+    inserito lui stesso.
+    """
+
+    assenza_id = models.IntegerField(unique=True)
+    gruppo = models.CharField(max_length=20, blank=True, default="")
+    inserito_da = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Autore richiesta assenza"
+        verbose_name_plural = "Autori richieste assenza"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id} inserita da {self.inserito_da} ({self.gruppo})"
+
+
 class FlessibilitaImpostazioni(models.Model):
     """Orari ammessi per le richieste di Flessibilita' (riga unica, pk=1).
 
