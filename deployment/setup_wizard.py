@@ -8875,6 +8875,9 @@ if ($t) {{
             "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1",
             "STATIC_ROOT": str(env_root / "static"),
             "MEDIA_ROOT": str(env_root / "media"),
+            # La console legge l'output in UTF-8: senza, Python su una pipe scrive in cp1252
+            # e un carattere come «→» fa fallire il comando con UnicodeEncodeError.
+            "PYTHONIOENCODING": "utf-8",
         }
         env_vars["PATH"] = f"{venv_scripts};{env_vars.get('PATH', '')}"
         return env_vars
