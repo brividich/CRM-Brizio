@@ -55,15 +55,19 @@ body.theme-dark .method-badge.email{background:rgba(56,161,105,.18);color:#86efa
               <label>Quando richiesto</label>
               <select class="input" name="when_required">
                 <option value="external_only" {% if policy.when_required == "external_only" %}selected{% endif %}>Solo da rete esterna</option>
+                <option value="new_device" {% if policy.when_required == "new_device" %}selected{% endif %}>Da rete esterna e da dispositivi nuovi</option>
                 <option value="always" {% if policy.when_required == "always" %}selected{% endif %}>Sempre (interno e esterno)</option>
               </select>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">
+                «Dispositivi nuovi»: dalla rete interna il codice si chiede solo su un browser in cui la persona non l'ha già inserito negli ultimi 90 giorni, o che ha segnalato con «Non ero io».
+              </div>
             </div>
 
             <div class="field">
               <label>Reti interne (una per riga, notazione CIDR)</label>
               <textarea class="input" name="internal_networks" rows="4" placeholder="192.168.0.0/16&#10;10.0.0.0/8">{{ policy.internal_networks|join:"\n" }}</textarea>
               <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">
-                Usato solo se "Solo da rete esterna" è selezionato. Accessi da questi range non richiedono 2FA.
+                Usato con "Solo da rete esterna" e "Da rete esterna e da dispositivi nuovi". Accessi da questi range non richiedono 2FA.
               </div>
             </div>
 
@@ -174,7 +178,7 @@ body.theme-dark .method-badge.email{background:rgba(56,161,105,.18);color:#86efa
           </div>
           <div class="activity-item">
             <div class="act-dot"></div>
-            <div><div class="act-text">Rilevazione rete e ruolo</div><div class="act-time">Il sistema verifica se il ruolo dell'utente è soggetto a 2FA e se accede da una rete esterna (se configurato "Solo rete esterna").</div></div>
+            <div><div class="act-text">Rilevazione rete e ruolo</div><div class="act-time">Il sistema verifica se il ruolo dell'utente è soggetto a 2FA, se accede da una rete esterna e, con "dispositivi nuovi", se il browser ha già superato il 2FA negli ultimi 90 giorni.</div></div>
           </div>
           <div class="activity-item">
             <div class="act-dot"></div>

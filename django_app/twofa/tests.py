@@ -203,3 +203,74 @@ class PrivilegedAccountsPolicyTests(TestCase):
         TwoFactorPolicy.objects.filter(pk=1).update(enabled=False)
         su = self.User.objects.create_superuser(username="a2-root3", password="pass12345", email="")
         self.assertFalse(should_require_2fa(self.request, su))
+
+
+class NewDevicePolicyTests(TestCase):
+    """GDPR G5: «Da rete esterna e da dispositivi nuovi» (core.dispositivi.dispositivo_fidato)."""
+
+    def setUp(self):
+        from twofa.models import TwoFactorPolicy
+
+        policy = TwoFactorPolicy.get()
+        policy.enabled = True
+        policy.when_required = TwoFactorPolicy.WHEN_NEW_DEVICE
+        policy.internal_networks = ["10.0.0.0/8"]
+        policy.save()
+        self.su = get_user_model().objects.create_superuser(username="g5-root", password="pass12345", email="")
+
+    def _richiesta(self, ip="10.0.0.5", cookie=None):
+        from django.contrib.sessions.backends.db import SessionStore
+
+        from core import dispositivi
+
+        req = RequestFactory().get("/", REMOTE_ADDR=ip)
+        req.session = SessionStore()
+        if cookie:
+            req.COOKIES[dispositivi.COOKIE] = cookie
+        return req
+
+    def _cookie_registrato(self):
+        from core import dispositivi
+
+        req = self._richiesta()
+        dispositivi.registra_accesso(req, self.su)
+        return req._nh_dev_cookie
+
+    def test_interno_browser_nuovo_chiede_poi_verificato_no(self):
+        from twofa.utils import mark_2fa_verified, should_require_2fa
+
+        cookie = self._cookie_registrato()
+        req = self._richiesta(cookie=cookie)
+        self.assertTrue(should_require_2fa(req, self.su))  # registrato ma mai verificato
+        req.user = self.su
+        mark_2fa_verified(req, 300)
+        self.assertFalse(should_require_2fa(self._richiesta(cookie=cookie), self.su))
+        self.assertTrue(should_require_2fa(self._richiesta(), self.su))  # altro browser senza cookie
+
+    def test_esterno_sempre(self):
+        from core import dispositivi
+        from twofa.utils import should_require_2fa
+
+        cookie = self._cookie_registrato()
+        req = self._richiesta(cookie=cookie)
+        dispositivi.segna_verificato(req, self.su)
+        self.assertTrue(should_require_2fa(self._richiesta(ip="203.0.113.9", cookie=cookie), self.su))
+
+    def test_fiducia_scade_e_non_ero_io(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from core import dispositivi
+        from core.models import DispositivoAccesso
+        from twofa.utils import should_require_2fa
+
+        cookie = self._cookie_registrato()
+        disp = DispositivoAccesso.objects.get(user=self.su)
+        disp.verificato_2fa_il = timezone.now() - timedelta(days=dispositivi.FIDUCIA_2FA_GIORNI + 1)
+        disp.save()
+        self.assertTrue(should_require_2fa(self._richiesta(cookie=cookie), self.su))
+        disp.verificato_2fa_il = timezone.now()
+        disp.non_riconosciuto = True
+        disp.save()
+        self.assertTrue(should_require_2fa(self._richiesta(cookie=cookie), self.su))

@@ -3423,6 +3423,29 @@ class AdminPortaleUtentiListLayoutTests(TestCase):
         self.assertContains(response, 'class="users-create-panel"', html=False)
         self.assertContains(response, 'class="users-table-scroll"', html=False)
         self.assertContains(response, "Target Layout", html=False)
+        self.assertContains(response, "Applica ruolo selezionati", html=False)
+
+    def test_utenti_list_shows_portal_roles_when_system_on(self):
+        from core.models import AccessGroup, AccessGroupMembership
+
+        qualita = AccessGroup.objects.create(code="qualita_test", label="Qualità test", priority=50)
+        AccessGroupMembership.objects.create(group=qualita, legacy_user_id=self.target_legacy.id)
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("core.permessi.motore.sistema_ruoli_attivo", return_value=True):
+            response = self.client.get(reverse("admin_portale:utenti_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ruolo del portale", html=False)
+        self.assertContains(response, "Qualità test", html=False)
+        self.assertContains(
+            response, reverse("admin_portale:ruoli_portale_persona", args=[self.target_legacy.id]), html=False
+        )
+        # Il ruolo legacy non decide piu': niente selettore rapido ne' ruolo massivo.
+        self.assertNotContains(response, f'name="quick_ruolo_id_{self.target_legacy.id}"', html=False)
+        self.assertNotContains(response, "Applica ruolo selezionati", html=False)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

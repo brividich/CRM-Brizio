@@ -18,6 +18,11 @@ avvio della funzione, tutti riceverebbero un avviso). Dalla pagina Impostazioni
 notifiche la persona vede i suoi accessi e con «Non ero io» chiude la sessione
 di quel dispositivo e apre un alert alto nel SOC.
 
+Con la policy 2FA «Da rete esterna e da dispositivi nuovi» il codice si chiede
+dalla rete interna solo se il browser non è **fidato**: fidato = la persona ci ha
+superato il secondo fattore negli ultimi ``FIDUCIA_2FA_GIORNI`` giorni e non l'ha
+segnalato con «Non ero io».
+
 Nel cookie c'è solo un numero casuale: nel database se ne tiene l'impronta
 SHA-256, mai il valore.
 """
@@ -38,6 +43,8 @@ COOKIE_ANNI = 2
 EVENTO_NUOVO = "accesso_nuovo_dispositivo"
 EVENTO_NON_RICONOSCIUTO = "accesso_non_riconosciuto"
 FONTE_SOC = "Portale · accessi"
+FIDUCIA_2FA_GIORNI = 90
+_SESSIONE_FIDATO = "twofa_dispositivo_fidato"
 
 
 def _impronta(token: str) -> str:
@@ -93,6 +100,39 @@ def _token_dal_cookie(request) -> str:
         return signing.loads(grezzo, salt=COOKIE_SALT, max_age=COOKIE_ANNI * 366 * 86400)
     except signing.BadSignature:
         return ""
+
+
+def dispositivo_fidato(request, user) -> bool:
+    """True se questo browser ha superato il 2FA della persona da meno di ``FIDUCIA_2FA_GIORNI``."""
+    from datetime import timedelta
+
+    from core.models import DispositivoAccesso
+
+    token = _token_dal_cookie(request) if request is not None else ""
+    if not token or not getattr(user, "pk", None):
+        return False
+    impronta = _impronta(token)
+    sessione = getattr(request, "session", None)
+    if sessione is not None and sessione.get(_SESSIONE_FIDATO) == impronta:
+        return True
+    fidato = DispositivoAccesso.objects.filter(
+        user=user, token_hash=impronta, non_riconosciuto=False,
+        verificato_2fa_il__gte=timezone.now() - timedelta(days=FIDUCIA_2FA_GIORNI),
+    ).exists()
+    if fidato and sessione is not None:
+        sessione[_SESSIONE_FIDATO] = impronta
+    return fidato
+
+
+def segna_verificato(request, user) -> None:
+    """Il secondo fattore è stato superato da questo browser: diventa fidato."""
+    from core.models import DispositivoAccesso
+
+    token = _token_dal_cookie(request)
+    if not token or not getattr(user, "pk", None):
+        return
+    DispositivoAccesso.objects.filter(user=user, token_hash=_impronta(token), non_riconosciuto=False).update(
+        verificato_2fa_il=timezone.now())
 
 
 def registra_accesso(request, user) -> dict:

@@ -27,7 +27,8 @@ GUIDA = {
             "titolo": "Dove si trova cosa",
             "blocchi": [
                 ("def", [
-                    ("Utenti", "elenco account, disattivazione, impersonazione («vedi come»), import da Active Directory (Import Utenti LDAP)."),
+                    ("Utenti", "elenco account, disattivazione, impersonazione («vedi come»), import da Active Directory (Import Utenti LDAP). "
+                               "Con «Ruoli e permessi» acceso la colonna «Ruolo del portale» mostra i ruoli che decidono davvero (il primo comanda; «· organigramma» se arriva dall'organigramma): clic per assegnarli. Il vecchio ruolo («Ruolo storico») non decide più i permessi."),
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
                     ("Ruoli e permessi", "il sistema unico: matrice ruolo × modulo × azione. Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo. Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
@@ -203,6 +204,11 @@ GUIDA = {
                                       "webhook Teams, Outlook, Graph) e gli host aggiunti in SiteConfig «automazioni_http_host_esterni» "
                                       "(separati da virgola) o in AUTOMATION_HTTP_EXTERNAL_HOSTS. Prima di aggiungerne uno verifica "
                                       "che possa ricevere i dati del record. automazioni_http_host_report elenca le azioni e chi verrebbe bloccato."),
+                    ("2FA da dispositivi nuovi", "in Configurazione › 2FA, «Quando richiesto» = «Da rete esterna e da dispositivi nuovi»: "
+                                                 "da fuori il codice si chiede sempre; dalla rete interna solo su un browser in cui la "
+                                                 "persona non l'ha inserito negli ultimi 90 giorni o che ha segnalato con «Non ero io». "
+                                                 "Il browser si riconosce dal cookie del dispositivo: cancellare i cookie = dispositivo nuovo. "
+                                                 "Per HR e amministratori spunta i loro ruoli in «Ruoli soggetti a 2FA»."),
                 ]),
             ],
         },
