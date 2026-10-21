@@ -1568,6 +1568,11 @@ def dipendente_detail(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
     is_admin = _helpers._is_anagrafica_admin(request)
     can_hr = _helpers._check_hr_permission(request)
+    from core.audit import log_consultazione
+
+    log_consultazione(request, "DIPENDENTE_SCHEDA_VISUALIZZATA", "anagrafica",
+                      {"dipendente_id": legacy_id, "dati_hr": bool(can_hr or is_admin)},
+                      chiave=f"dipendente:{legacy_id}", oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
 
     # Anagrafica civile e aziendale estese
     civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()

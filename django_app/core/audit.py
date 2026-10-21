@@ -23,6 +23,34 @@ def _riferimento_oggetto(oggetto, oggetto_tipo: str, oggetto_id: str) -> tuple[s
     return (oggetto_tipo or "")[:100], str(oggetto_id or "")[:64]
 
 
+def log_consultazione(
+    request,
+    azione: str,
+    modulo: str,
+    dettaglio: dict | None = None,
+    *,
+    chiave: str,
+    oggetto=None,
+    oggetto_tipo: str = "",
+    oggetto_id: str = "",
+    finestra_secondi: int = 3600,
+) -> None:
+    """Traccia la **lettura** di un dato personale sensibile (GDPR art. 5.1.f / 32).
+
+    Al piu' una riga per utente e ``chiave`` ogni ``finestra_secondi``: i refresh e
+    la paginazione non annegano l'audit. Mai bloccante: un errore viene solo loggato.
+    """
+    try:
+        from django.core.cache import cache
+
+        utente = getattr(getattr(request, "user", None), "pk", None) or "anon"
+        if cache.add(f"audit:consultazione:{azione}:{utente}:{chiave}", 1, finestra_secondi):
+            log_action(request, azione, modulo, dettaglio, oggetto=oggetto,
+                       oggetto_tipo=oggetto_tipo, oggetto_id=oggetto_id)
+    except Exception:
+        logger.warning("Audit consultazione %s fallito", azione, exc_info=True)
+
+
 def log_action(
     request,
     azione: str,

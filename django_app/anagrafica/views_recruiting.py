@@ -305,6 +305,11 @@ def recruiting_detail(request, candidato_id: int):
         Candidato.objects.select_related("onboarding_pratica", "posizione"), pk=candidato_id,
     )
     criteri = recruiting_service.criteri_attivi()
+    from core.audit import log_consultazione
+
+    log_consultazione(request, "CANDIDATO_SCHEDA_VISUALIZZATA", "anagrafica",
+                      {"candidato_id": candidato.pk, "codice_riferimento": candidato.codice_riferimento},
+                      chiave=f"candidato:{candidato.pk}", oggetto=candidato)
 
     return render(request, "anagrafica/pages/recruiting_detail.html", {
         "candidato": candidato,

@@ -948,8 +948,16 @@ def impostazioni(request):
         item.catalog_label = meta["label"] if meta else item.campo_label
         item.catalog_section = meta["section"] if meta else item.sezione
 
+    try:
+        from anagrafica.models import RichiestaRettifica
+
+        rettifiche_aperte = RichiestaRettifica.objects.filter(stato=RichiestaRettifica.STATO_APERTA).count()
+    except Exception:
+        rettifiche_aperte = 0
+
     return render(request, "anagrafica/pages/impostazioni.html", {
         "is_admin": is_admin,
+        "rettifiche_aperte": rettifiche_aperte,
         "active_tab": active_tab,
         # Mansioni
         "mansioni": mansioni,

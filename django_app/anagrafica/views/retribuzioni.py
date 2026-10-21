@@ -685,7 +685,7 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
                 except Exception:
                     err += 1
                     scarti.append({"riga": n_riga, "chiave": cf, "motivo": "Errore di salvataggio (dettaglio nel log applicativo)"})
-                    logger.exception("Errore import cedolino CF=%s mese=%s", cf, dt)
+                    logger.exception("Errore import cedolino riga=%s mese=%s", n_riga, dt)
 
             imp.righe_ok = ok
             imp.righe_errore = err
@@ -780,6 +780,11 @@ def ratei_list(request):
     if not can_hr:
         messages.error(request, "Accesso non autorizzato ai dati HR.")
         return redirect("anagrafica:index")
+    from core.audit import log_consultazione
+
+    log_consultazione(request, "RATEI_CEDOLINI_VISUALIZZATI", "anagrafica",
+                      {"filtri": sorted(k for k in request.GET.keys() if k != "page")},
+                      chiave="ratei")
 
     # Periodi disponibili
     periodi_qs = (
@@ -1416,6 +1421,11 @@ def retribuzioni_globale(request):
 
     legacy_user = get_legacy_user(request.user)
     is_admin = _helpers._is_anagrafica_admin(request)
+    from core.audit import log_consultazione
+
+    log_consultazione(request, "RETRIBUZIONI_VISUALIZZATE", "anagrafica",
+                      {"filtri": sorted(k for k in request.GET.keys() if k != "page")},
+                      chiave="retribuzioni_globale")
 
     ctx = _retribuzioni_globale_context(request)
 

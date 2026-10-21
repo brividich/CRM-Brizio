@@ -79,3 +79,64 @@ def retention(request):
         "mesi_candidati": svc.MESI_CONSERVAZIONE_CANDIDATI,
         "parola": PAROLA_CONFERMA,
     })
+
+
+@login_required
+def rettifiche(request):
+    """«Richieste di rettifica» (GDPR art. 16): HR legge, corregge i dati e chiude con
+    una risposta, che arriva al dipendente come notifica."""
+    from anagrafica.models import RichiestaRettifica
+    from anagrafica.views import _helpers
+    from core.audit import log_action
+    from django.utils import timezone
+
+    if not (_solo_admin(request) or _helpers._check_hr_permission(request)):
+        return HttpResponseForbidden("Solo l'ufficio HR gestisce le richieste di rettifica.")
+
+    if request.method == "POST":
+        richiesta = RichiestaRettifica.objects.filter(
+            pk=request.POST.get("id") or 0, stato=RichiestaRettifica.STATO_APERTA).first()
+        risposta = (request.POST.get("risposta") or "").strip()[:4000]
+        if richiesta is None:
+            messages.error(request, "Richiesta non trovata o già chiusa.")
+        elif not risposta:
+            messages.error(request, "Scrivi la risposta per il dipendente prima di chiudere.")
+        else:
+            richiesta.stato = RichiestaRettifica.STATO_CHIUSA
+            richiesta.risposta = risposta
+            richiesta.gestita_da = request.user
+            richiesta.gestita_il = timezone.now()
+            richiesta.save(update_fields=["stato", "risposta", "gestita_da", "gestita_il"])
+            log_action(request, "RETTIFICA_CHIUSA", "anagrafica",
+                       {"richiesta_id": richiesta.pk, "dipendente_id": richiesta.legacy_anagrafica_id},
+                       oggetto=richiesta)
+            _notifica_dipendente(richiesta)
+            messages.success(request, f"Richiesta n. {richiesta.pk} chiusa: il dipendente riceve la risposta.")
+        return redirect("anagrafica:rettifiche")
+
+    aperte = list(RichiestaRettifica.objects.filter(stato=RichiestaRettifica.STATO_APERTA).order_by("creata_il"))
+    chiuse = list(RichiestaRettifica.objects.filter(stato=RichiestaRettifica.STATO_CHIUSA).order_by("-gestita_il")[:50])
+    ids = sorted({r.legacy_anagrafica_id for r in aperte + chiuse})
+    nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
+            for r in fetch_anagrafica_rows(ids=ids)} if ids else {}
+    for r in aperte + chiuse:
+        r.persona = nomi.get(r.legacy_anagrafica_id) or f"#{r.legacy_anagrafica_id}"
+    return render(request, "anagrafica/pages/rettifiche.html", {"aperte": aperte, "chiuse": chiuse})
+
+
+def _notifica_dipendente(richiesta) -> None:
+    try:
+        from django.urls import reverse
+
+        from core.legacy_utils import get_legacy_user
+        from core.notifiche import invia_notifica
+
+        legacy = get_legacy_user(richiesta.utente) if richiesta.utente_id else None
+        if legacy is not None:
+            invia_notifica(legacy.id, "rettifica_dati",
+                           f"L'ufficio HR ha risposto alla tua segnalazione n. {richiesta.pk}.",
+                           reverse("anagrafica:mia_scheda") + "#ms-rettifiche")
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("Notifica rettifica %s non inviata", richiesta.pk, exc_info=True)

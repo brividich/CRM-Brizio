@@ -2128,12 +2128,43 @@ def _host_matches(host: str, patterns: list[str] | tuple[str, ...]) -> bool:
     return False
 
 
+# GDPR 21/10/2026 (checklist E8): un'azione http_request manda fuori i dati del
+# record che l'ha scatenata. Gli host esterni ammessi sono un elenco chiuso:
+# servizi Microsoft gia' usati dal portale, piu' quelli aggiunti da
+# AUTOMATION_HTTP_EXTERNAL_HOSTS (.env) o dalla SiteConfig qui sotto.
+HTTP_EXTERNAL_HOSTS_DEFAULT = (
+    "*.logic.azure.com",          # Power Automate / Logic Apps (trigger HTTP)
+    "*.api.powerplatform.com",
+    "*.webhook.office.com",       # webhook Teams
+    "outlook.office.com",
+    "graph.microsoft.com",
+)
+HTTP_EXTERNAL_HOSTS_SITECONFIG = "automazioni_http_host_esterni"
+
+
+def http_external_hosts() -> list[str]:
+    """Host esterni ammessi per http_request: default + .env + SiteConfig (virgole o righe)."""
+    from django.conf import settings as dj_settings
+
+    hosts = list(HTTP_EXTERNAL_HOSTS_DEFAULT)
+    hosts += list(getattr(dj_settings, "AUTOMATION_HTTP_EXTERNAL_HOSTS", []) or [])
+    try:
+        from core.models import SiteConfig
+
+        raw = SiteConfig.get(HTTP_EXTERNAL_HOSTS_SITECONFIG, "") or ""
+        hosts += [h.strip() for h in raw.replace("\n", ",").split(",") if h.strip()]
+    except Exception:
+        pass
+    return hosts
+
+
 def validate_http_action_target(url: str) -> None:
     """SEC (audit M7): niente SSRF dalle azioni http_request.
 
     Loopback, link-local (metadati cloud), indirizzi riservati e multicast sono
     sempre vietati. Le reti private (LAN) solo per gli host elencati in
-    ``AUTOMATION_HTTP_ALLOWED_HOSTS`` (es. un servizio interno noto).
+    ``AUTOMATION_HTTP_ALLOWED_HOSTS`` (es. un servizio interno noto). Gli host
+    pubblici solo se in :func:`http_external_hosts` (GDPR: elenco chiuso).
     """
     import ipaddress
     import socket
@@ -2147,6 +2178,12 @@ def validate_http_action_target(url: str) -> None:
         raise AutomationSafetyError("http_request: host mancante nell'URL.")
     allowed_hosts = list(getattr(dj_settings, "AUTOMATION_HTTP_ALLOWED_HOSTS", []) or [])
     allow_private = _host_matches(host, allowed_hosts)
+    if not allow_private and not _host_matches(host, http_external_hosts()):
+        raise AutomationSafetyError(
+            f"http_request: {host} non e' fra gli host esterni ammessi. Aggiungerlo in SiteConfig "
+            f"«{HTTP_EXTERNAL_HOSTS_SITECONFIG}» (o AUTOMATION_HTTP_EXTERNAL_HOSTS) dopo aver verificato "
+            "che puo' ricevere i dati del record."
+        )
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
     except socket.gaierror as exc:
