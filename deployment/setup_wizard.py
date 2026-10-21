@@ -4183,6 +4183,13 @@ Write-Host "OK $taskName"
   <location path="media/rentri"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
   <location path="media/suggestion_corner"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
   <location path="media/diario_preposto"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/anagrafica"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/firme"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/fotocard"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/timbri"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/tasks_vrf"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/tasks_attachments"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/attrezzature_import_preview"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
   <location path="media_private"><system.webServer><security><authorization><remove users="*" roles="" verbs="" /><add accessType="Deny" users="*" /></authorization></security></system.webServer></location>
 </configuration>"""
         (ep/"web.config").write_text(xml, encoding="utf-8")
