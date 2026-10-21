@@ -135,15 +135,15 @@ class ScheduledAlertTests(_Base):
 
 
 class WorkPagesTests(_Base):
-    def test_my_work(self):
+    def test_da_fare_mostra_tutto_il_team(self):
         SecurityRemediationTicket.objects.create(source=self.source, title="Ticket mio", assignee=self.user, dedup_hash="t1")
         SecurityRemediationTicket.objects.create(source=self.source, title="Ticket di nessuno", dedup_hash="t2")
         inc_svc.create_incident(self.user, title="Incidente mio", owner=self.user, is_significant=True)
         page = self.client.get(reverse("security:my_work"))
         self.assertContains(page, "Ticket mio")
-        self.assertNotContains(page, "Ticket di nessuno")
+        self.assertContains(page, "Ticket di nessuno")  # «Da fare» e' di tutto il team
         self.assertContains(page, "Incidente mio")
-        self.assertContains(page, "1 ticket senza responsabile")
+        self.assertContains(page, "3 cose da fare")
 
     def test_search_groups(self):
         SecurityAlert.objects.create(source=self.source, title="Malware su PC-CERCA-01", severity=Severity.HIGH, status=Status.OPEN, dedup_hash="s1")

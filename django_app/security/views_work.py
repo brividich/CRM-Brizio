@@ -95,28 +95,25 @@ def settings_run_now(request):
     return redirect("security:soc_settings")
 
 
-# --- Il mio lavoro ---------------------------------------------------------------------
+# --- Da fare ---------------------------------------------------------------------------
 
 def my_work(request):
+    """«Da fare»: tutto cio' che e' aperto, per urgenza. Il team e' piccolo: niente filtro per persona."""
     if not can_view_security_center(request.user):
         return _denied(request)
     from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES
     from .services.cases import ACTIVE_CASE_STATUSES
     from .services.incidents import ACTIVE_STATUSES, next_open_deadline
 
-    user, now = request.user, timezone.now()
-    incidents = list(SecurityIncident.objects.filter(owner=user, status__in=ACTIVE_STATUSES).order_by("detected_at"))
+    now = timezone.now()
+    incidents = list(SecurityIncident.objects.filter(status__in=ACTIVE_STATUSES).order_by("detected_at"))
     for incident in incidents:
         incident.next_deadline = next_open_deadline(incident, now)
     incidents.sort(key=lambda i: (i.next_deadline is None, i.next_deadline["due_at"] if i.next_deadline else i.detected_at))
-    tickets = list(SecurityRemediationTicket.objects.filter(assignee=user, status__in=ACTIVE_CASE_STATUSES).select_related("source").order_by("-updated_at")[:50])
-    alerts = list(SecurityAlert.objects.filter(owner=user.get_username(), status__in=ACTIVE_ALERT_STATUSES).select_related("source").order_by("-updated_at")[:30])
-    unassigned = {
-        "tickets": SecurityRemediationTicket.objects.filter(assignee__isnull=True, status__in=ACTIVE_CASE_STATUSES).count(),
-        "incidents": SecurityIncident.objects.filter(owner__isnull=True, status__in=ACTIVE_STATUSES).count(),
-    }
+    tickets = list(SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES).select_related("source").order_by("-updated_at")[:50])
+    alerts = list(SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES).select_related("source").order_by("-updated_at")[:30])
     return render(request, "security/my_work.html", {
-        "incidents": incidents, "tickets": tickets, "alerts": alerts, "unassigned": unassigned,
+        "incidents": incidents, "tickets": tickets, "alerts": alerts,
         "total": len(incidents) + len(tickets) + len(alerts),
     })
 
