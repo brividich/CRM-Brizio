@@ -33,7 +33,7 @@ GUIDA = {
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
                     ("Navigation Builder", "le voci dei menu."),
                     ("Branding", "logo, favicon, nome e colori."),
-                    ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica; vedere cosa è partito e a chi."),
+                    ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
                                       "(registro, con impronta SHA-256, senza conservare il file) e i profili di layout dei PDF. Ha la sua guida."),
                     ("Audit / Attività utenti", "chi ha fatto cosa (ultimi 30 giorni), con export."),
@@ -53,7 +53,7 @@ GUIDA = {
                     "Clicca «Consenti» sulla scelta giusta. Il portale scrive il permesso, lo verifica e lascia traccia nell'audit.",
                     "Falle ricaricare la pagina.",
                 ]),
-                ("nota", "Per vedere il portale come lo vede la persona usa l'impersonazione da «Utenti». Ricordati di uscirne (banner in alto)."),
+                ("nota", "Per vedere il portale come lo vede la persona usa l'impersonazione da «Utenti». Ricordati di uscirne (banner in alto). La persona riceve una mail di avviso, salvo che in «Gestione notifiche» l'interruttore «Avvisa l'utente quando viene impersonato» sia spento: l'impersonazione resta comunque nell'audit."),
             ],
         },
         {

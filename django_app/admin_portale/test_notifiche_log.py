@@ -113,3 +113,18 @@ class NotificheConfigViewTests(TestCase):
         self.assertTrue(is_category_enabled_globally("assenze"))
         self.assertFalse(is_category_enabled_globally("scadenzari"))
         self.assertFalse(is_category_enabled_globally("ticket"))
+
+    def test_interruttore_avviso_impersonazione(self):
+        from core.security_notify import avviso_impersonazione_attivo
+
+        self.assertTrue(avviso_impersonazione_attivo())  # acceso di default
+        resp = self._as_admin("get", reverse("admin_portale:notifiche_config"))
+        self.assertContains(resp, "utente quando viene impersonato")
+
+        self._as_admin("post", reverse("admin_portale:notifiche_config"), {"sezione": "sicurezza"})
+        self.assertFalse(avviso_impersonazione_attivo())
+        self._as_admin(
+            "post", reverse("admin_portale:notifiche_config"),
+            {"sezione": "sicurezza", "avviso_impersonazione": "1"},
+        )
+        self.assertTrue(avviso_impersonazione_attivo())

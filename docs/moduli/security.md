@@ -44,15 +44,15 @@ Security Center (Security Center AI innestato): **Panoramica IT** (`/soc/`: verd
 - **Report periodico**: settimanale (lunedì) o mensile (giorno 1), dalle 7; via mail con il PDF allegato, su Teams riassunto e link.
 - Motore: `services/proactive_alerts.py`, passo `avvisi` di `security_cycle`; deduplica per canale e stato con `notifications.deliver_once` sul registro `SecurityNotificationLog`. «Esegui i controlli ora» lancia subito i controlli accesi.
 
-## Il mio lavoro, ricerca, scheda PC
+## Da fare, ricerca, scheda PC
 
-- **Il mio lavoro** `/soc/mio-lavoro/`: incidenti di cui sono responsabile (prossima scadenza in alto), ticket assegnati, alert presi in carico.
+- **Da fare** `/soc/mio-lavoro/` (URL e nome rotta `my_work` invariati): tutti gli incidenti (prossima scadenza in alto), ticket e alert aperti, senza filtro per persona (il team IT è di due tecnici).
 - **Ricerca** (casella nella barra del SOC, `/soc/cerca/?q=`): incidenti, ticket, alert, PC e server (dispositivi SOC e PC dei backup), vulnerabilità.
 - **Scheda PC** `/soc/pc/?nome=…` (`services/pc_overview.py`): verdetto, backup, alert e vulnerabilità aperti, protezione endpoint, eventi, link all'asset HUB. Il nome host è la chiave comune ai fornitori (confronto senza maiuscole).
 
 ## Sala controllo: barra live, anteprime, multiselezione, AI
 
-- **Barra di stato** (`services/live_status.py`, cache 60 s, `/soc/stato/` riletta ogni minuto da `static/security/soc-ui.js`): critici e alti, scadenze NIS2, PC backup ko, sorgenti mute, senza responsabile, miei.
+- **Barra di stato** (`services/live_status.py`, cache 60 s, `/soc/stato/` riletta ogni minuto da `static/security/soc-ui.js`): critici e alti, scadenze NIS2, PC backup ko, sorgenti mute, senza responsabile, da fare (incidenti e ticket aperti).
 - **Anteprima a pannello** (`/soc/anteprima/<tipo>/<id>/`, `/soc/anteprima/pc/?nome=`): righe con `data-preview`; ← → Esc; i form `data-drawer-form` agiscono senza uscire dalla lista.
 - **Multiselezione** (`form[data-bulk]` + `soc-ui.js`): ticket `/soc/tickets/bulk/`, incidenti `/soc/incidenti/bulk/`, eventi `/soc/eventi/bulk/`, PC del Backup `/soc/backup/ticket/`; alert come prima; gravità degli alert a scelta multipla.
 - **Controlli AI**: `/soc/incidenti/<id>/ai/` e `/soc/pc/ai/` (`ai_explain.check_incident`, `check_pc`), con cache 30 minuti e registro `SecurityAiInteractionLog`.

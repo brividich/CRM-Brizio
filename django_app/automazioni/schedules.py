@@ -717,6 +717,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSETS — PART 145: scadenze entro 90 giorni (contratto, processi, requisiti,
+        # tarature, certificazioni) a Qualità, destinatari MOD.128 mpq_msm_reminder_emails.
+        # Nessuna scadenza = nessuna mail. Disattivabile dalla Centrale di comando.
+        "name": "part145_scadenze",
+        "func": "assets.tasks.run_part145_scadenze",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1",       # ogni lunedi alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ASSETS — avvisi del monitoraggio IT: dispositivi SNMP in errore o muti,
         # consumabili MFC sotto soglia. Digest a SiteConfig assets_it_monitoring_emails
         # (poi assets_reminder_emails, poi ADMINS/superuser) + notifica in app solo

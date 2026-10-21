@@ -91,6 +91,19 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "notifica_cambio_stato",
     },
     {
+        "code": "part145_scadenze",
+        "label": "Scadenze PART 145 entro 90 giorni",
+        "module": "Asset",
+        "trigger": (
+            "Ogni lunedì (task part145_scadenze): contratto e requisiti dei processi, processi, tarature e "
+            "manutenzioni delle attrezzature, certificazioni del personale in scadenza entro 90 giorni o scaduti. "
+            "Nessuna scadenza = nessuna mail."
+        ),
+        "destinatari": "Destinatari MOD.128 configurati nel servizio (gli stessi dei timbri sospesi)",
+        "source": "assets/services/part145_dossier.py",
+        "func": "notifica_scadenze",
+    },
+    {
         "code": "skillmatrix_refresh_car",
         "label": "Refresh abilitazioni macchina — notifica CAR",
         "module": "Anagrafica HR",

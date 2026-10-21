@@ -169,6 +169,11 @@ class ProcessoQualificato(models.Model):
     )
     livello = models.CharField(max_length=40, blank=True, default="", help_text="Es. LVL2/LVL3.")
     regime = models.CharField(max_length=20, choices=REGIME_CHOICES, default=REGIME_SPECIALE)
+    perimetro_part145 = models.BooleanField(
+        default=False, verbose_name="Rientra nel perimetro Part 145",
+        help_text="Processo speciale autorizzato per le attività Part 145 (es. elenco DQP dell'accordo "
+                  "con l'organizzazione di manutenzione): compare nel Dossier PART 145.",
+    )
     reparti = models.ManyToManyField(
         "anagrafica.Reparto", blank=True, related_name="processi_qualificati",
         verbose_name="Distribuzione a reparto",
@@ -304,6 +309,7 @@ class RequisitoQualifica(models.Model):
     TIPO_VISIONE = "visione"
     TIPO_DPI = "dpi"
     TIPO_RIF_NORMATIVO = "rif_normativo"
+    TIPO_CONTRATTO = "contratto"
     TIPO_ALTRO = "altro"
     TIPO_CHOICES = [
         (TIPO_AUDIT, "Audit"),
@@ -314,6 +320,7 @@ class RequisitoQualifica(models.Model):
         (TIPO_VISIONE, "Test visivo"),
         (TIPO_DPI, "DPI"),
         (TIPO_RIF_NORMATIVO, "Riferimento normativo"),
+        (TIPO_CONTRATTO, "Contratto / accordo"),
         (TIPO_ALTRO, "Altro"),
     ]
 

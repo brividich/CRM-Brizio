@@ -55,6 +55,8 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 - Link mail-action: il token si prende in modo atomico prima di aggiornare le anomalie, quindi un doppio invio non applica due volte le modifiche né manda due conferme; se l'aggiornamento fallisce il token torna utilizzabile.
 - Correzione 07/10: «Nuova segnalazione» (`/gestione-anomalie/nuova-segnalazione`) era a pagina bianca perché il limite allegati da `.env` finiva come testo letterale dentro lo script React (`{% verbatim %}`). Ora il limite arriva da una variabile JS valorizzata fuori dal blocco verbatim.
 
+- Svuotamento dei dati di collaudo (21/10/2026): `manage.py svuota_anomalie` conta (prova a secco) e con `--esegui` cancella, in un'unica transazione, le tabelle legacy `anomalie` e `ordini_produzione` (`--mantieni-op` per lasciare gli OP) più tutti i dati collegati: segnalazioni, descrizioni, schede qualità, NC con azioni/eventi/allegati, controlli e blocchi, token e registro delle azioni via mail, notifiche in coda, registro email, marcatori automazioni; poi elimina le cartelle allegati `<id>/` e `nc/<id>/`. Restano intatti tipi difetto, ruoli, regole di accesso e impostazioni. Voce in audit. Da lanciare solo dopo il backup del DB.
+
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) il livello globale viene dalla matrice: «modificare» su tutti = modifica tutto, «vedere» su tutti = vede tutto. La lista «autorizzati alla modifica» per nome non vale più (omonimi); restano le regole per ruolo sull'OP (capocommessa, CAR).

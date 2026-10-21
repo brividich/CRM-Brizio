@@ -224,6 +224,12 @@ GUIDA = {
                       "PART 145 compaiono anche gli asset con «Rientra in PART 145» (si tolgono dal form dell'asset)."),
                 ("p", "Quando un'attrezzatura del processo cambia stato arriva una mail agli stessi destinatari dei "
                       "timbri sospesi. Il riepilogo per l'audit è il Dossier PART 145 del modulo Asset."),
+                ("p", "Un processo speciale autorizzato per le attività Part 145 (es. i processi con DQP "
+                      "dell'Annesso 2 dell'accordo con l'organizzazione di manutenzione) va marcato con la casella "
+                      "«Rientra nel perimetro Part 145» nel form del processo: così entra nel Dossier PART 145 con "
+                      "persone, attrezzature e scadenze. Il contratto quadro si registra come requisito del processo "
+                      "PART 145 di tipo «Contratto / accordo», con la sua scadenza: compare nelle scadenze del "
+                      "Dossier e nella mail settimanale «[PART 145] Scadenze entro 90 giorni»."),
             ],
         },
         {

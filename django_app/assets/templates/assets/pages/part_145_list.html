@@ -124,12 +124,14 @@ body.theme-dark .p145-table tbody tr:hover { background:rgba(220,38,38,.08); }
       </span>
       <div class="p145-count">
         <b>Dossier PART 145</b>
-        <span>Processo, attrezzature{% if dossier.con_personale %}, personale abilitato{% endif %}, scadenze e situazioni aperte · {{ dossier.oggi|date:"d/m/Y" }}</span>
+        <span>Processi, contratti, attrezzature{% if dossier.con_personale %}, personale abilitato{% endif %}, scadenze, situazioni aperte e documenti SGI · {{ dossier.oggi|date:"d/m/Y" }}</span>
       </div>
     </div>
     <div class="p145-actions">
       <a class="btn" href="{% url 'assets:part_145_export_excel' %}">&#8595; Excel</a>
       <a class="btn" href="{% url 'assets:part_145_export_pdf' %}">&#8595; PDF</a>
+      <a class="btn" href="{% url 'assets:part_145_export_tarature' %}" title="Strumenti con taratura: ente, ultima e prossima (MT CN 70 §6.12)">&#8595; Strumenti tarati</a>
+      <a class="btn" href="{% url 'assets:part_145_export_controllo' %}" title="Elenco per reparto da timbrare e firmare (MT CN 17, Mod.072)">&#8595; Controllo semestrale</a>
       <a class="btn btn-secondary" href="{% url 'assets:guida' %}#part145">? Guida</a>
     </div>
   </div>

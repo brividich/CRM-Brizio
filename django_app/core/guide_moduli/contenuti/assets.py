@@ -90,8 +90,14 @@ GUIDA = {
                     "Dalla scheda asset, menu «Altro»: «Dismetti» toglie la macchina dagli elenchi senza perdere lo "
                     "storico (si annulla con «Riattiva»); «Elimina» cancella solo un asset creato per errore, senza storico.",
                     "Le attrezzature PART 145 si marcano con «Rientra in PART 145» nel form dell'asset. La voce "
-                    "«PART 145» del menu apre il Dossier PART 145 (processi, attrezzature, personale, scadenze, "
-                    "situazioni aperte) con export Excel e PDF; se un'attrezzatura cambia stato Qualità riceve una mail.",
+                    "«PART 145» del menu apre il Dossier PART 145 (processi, contratti, attrezzature, personale, "
+                    "scadenze, situazioni aperte, documenti SGI) con export Excel e PDF; se un'attrezzatura cambia stato "
+                    "Qualità riceve una mail.",
+                    "Nel Dossier la colonna «Controllo» dice come si tiene sotto controllo l'attrezzo (MOE §2.4): "
+                    "«Taratura» se ha un piano di taratura, «Manutenzione periodica» se ha altri piani, «A vista» se "
+                    "non ne ha. Una taratura scaduta compare tra le situazioni aperte: l'attrezzo va segregato.",
+                    "Dal Dossier: «Strumenti tarati» (Excel, l'elenco da comunicare all'organizzazione di "
+                    "manutenzione) e «Controllo semestrale» (PDF per reparto da timbrare e firmare, MT CN 17).",
                     "Nei Documenti della scheda si caricano anche intere cartelle con sottocartelle e video .avi: "
                     "i file non ammessi vengono scartati ed elencati, gli altri entrano.",
                 ]),
