@@ -1,5 +1,5 @@
 """Impostazioni avvisi, «Il mio lavoro», ricerca unica e scheda PC del SOC."""
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from django.contrib import messages
 from django.db.models import Q
@@ -115,6 +115,52 @@ def my_work(request):
     return render(request, "security/my_work.html", {
         "incidents": incidents, "tickets": tickets, "alerts": alerts,
         "total": len(incidents) + len(tickets) + len(alerts),
+    })
+
+
+# --- Segnalazioni ----------------------------------------------------------------------
+
+SEGNALAZIONI_PER_PAGINA = 40
+
+
+def segnalazioni(request):
+    """Alert, ticket e incidenti in un elenco solo, dal più urgente; ogni riga apre l'anteprima laterale."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from django.core.paginator import Paginator
+
+    from .services import segnalazioni as svc
+
+    tipo = request.GET.get("tipo", "")
+    stato = request.GET.get("stato", "aperte")
+    severity = request.GET.get("gravita", "")
+    q = request.GET.get("q", "").strip()[:100]
+    righe = svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q)
+    tipo = tipo if tipo in dict(svc.KINDS) else ""
+    stato = stato if stato in {"aperte", "chiuse", "tutte"} else "aperte"
+    severity = severity if severity in dict(svc.GRAVITA) else ""
+    page = Paginator(righe, SEGNALAZIONI_PER_PAGINA).get_page(request.GET.get("page"))
+    counts = svc.conteggi()
+
+    def link(**cambi):
+        params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q}
+        params.update(cambi)
+        return "?" + urlencode({k: v for k, v in params.items() if v and not (k == "stato" and v == "aperte")})
+
+    return render(request, "security/segnalazioni.html", {
+        "page": page, "righe_totali": len(righe), "tipo": tipo, "stato": stato, "gravita": severity, "q": q,
+        "counts": counts, "counts_totale": sum(counts.values()),
+        "chips_tipo": [{"value": "", "label": "Tutte", "count": sum(counts.values()), "active": not tipo, "url": link(tipo="", page="")}] + [
+            {"value": k, "label": label, "count": counts[k], "active": tipo == k, "url": link(tipo=k, page="")} for k, label in svc.KINDS
+        ],
+        "chips_stato": [
+            {"value": "aperte", "label": "Da gestire", "active": stato == "aperte", "url": link(stato="aperte", page="")},
+            {"value": "chiuse", "label": "Chiuse", "active": stato == "chiuse", "url": link(stato="chiuse", page="")},
+            {"value": "tutte", "label": "Tutte", "active": stato == "tutte", "url": link(stato="tutte", page="")},
+        ],
+        "gravita_choices": svc.GRAVITA,
+        "pagina_prec": link(page=page.previous_page_number()) if page.has_previous() else "",
+        "pagina_succ": link(page=page.next_page_number()) if page.has_next() else "",
     })
 
 

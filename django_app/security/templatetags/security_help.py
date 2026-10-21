@@ -10,6 +10,7 @@ PAGE_HELP = {
     "dashboard": ("13-lavoro-quotidiano", "da-dove-partire"),
     "security_dashboard": ("13-lavoro-quotidiano", "da-dove-partire"),
     "my_work": ("13-lavoro-quotidiano", "da-dove-partire"),
+    "segnalazioni": ("13-lavoro-quotidiano", "le-segnalazioni"),
     "search": ("13-lavoro-quotidiano", "cercare-qualcosa"),
     "alerts_list": ("13-lavoro-quotidiano", "alert"),
     "alert_detail": ("13-lavoro-quotidiano", "alert"),
