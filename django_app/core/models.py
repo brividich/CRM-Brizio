@@ -526,6 +526,8 @@ class DispositivoAccesso(models.Model):
     session_key = models.CharField(max_length=40, blank=True, default="")
     non_riconosciuto = models.BooleanField(default=False)
     segnalato_il = models.DateTimeField(null=True, blank=True)
+    # Ultimo secondo fattore superato da questo browser (policy 2FA «dispositivi nuovi»).
+    verificato_2fa_il = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "core_dispositivoaccesso"

@@ -204,6 +204,11 @@ GUIDA = {
                                       "webhook Teams, Outlook, Graph) e gli host aggiunti in SiteConfig «automazioni_http_host_esterni» "
                                       "(separati da virgola) o in AUTOMATION_HTTP_EXTERNAL_HOSTS. Prima di aggiungerne uno verifica "
                                       "che possa ricevere i dati del record. automazioni_http_host_report elenca le azioni e chi verrebbe bloccato."),
+                    ("2FA da dispositivi nuovi", "in Configurazione › 2FA, «Quando richiesto» = «Da rete esterna e da dispositivi nuovi»: "
+                                                 "da fuori il codice si chiede sempre; dalla rete interna solo su un browser in cui la "
+                                                 "persona non l'ha inserito negli ultimi 90 giorni o che ha segnalato con «Non ero io». "
+                                                 "Il browser si riconosce dal cookie del dispositivo: cancellare i cookie = dispositivo nuovo. "
+                                                 "Per HR e amministratori spunta i loro ruoli in «Ruoli soggetti a 2FA»."),
                 ]),
             ],
         },

@@ -14,9 +14,13 @@ class TwoFactorPolicy(models.Model):
 
     WHEN_ALWAYS = "always"
     WHEN_EXTERNAL = "external_only"
+    # Da fuori sempre; dalla rete interna solo su un browser che la persona non ha
+    # ancora verificato con il secondo fattore (core.dispositivi.dispositivo_fidato).
+    WHEN_NEW_DEVICE = "new_device"
     WHEN_CHOICES = [
         (WHEN_ALWAYS, "Sempre (interno + esterno)"),
         (WHEN_EXTERNAL, "Solo da rete esterna"),
+        (WHEN_NEW_DEVICE, "Da rete esterna e da dispositivi nuovi"),
     ]
 
     enabled = models.BooleanField(default=False)

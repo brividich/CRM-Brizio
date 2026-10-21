@@ -368,12 +368,17 @@ def should_require_2fa(request, user) -> bool:
         pass  # utente senza record UserTwoFactor → deve configurare
 
     # Controlla rete interna
-    if policy.when_required == TwoFactorPolicy.WHEN_EXTERNAL:
+    if policy.when_required in (TwoFactorPolicy.WHEN_EXTERNAL, TwoFactorPolicy.WHEN_NEW_DEVICE):
         client_ip = get_client_ip(request)
         if not is_external_entrypoint(request, client_ip) and is_internal_ip(
             client_ip, policy.internal_networks or []
         ):
-            return False
+            if policy.when_required == TwoFactorPolicy.WHEN_EXTERNAL:
+                return False
+            from core.dispositivi import dispositivo_fidato
+
+            if dispositivo_fidato(request, user):
+                return False
 
     return True
 
@@ -406,6 +411,12 @@ def mark_2fa_verified(request, validity_seconds: int | None = None) -> None:
     until = timezone.now() + timedelta(seconds=validity_seconds)
     request.session["twofa_verified_until"] = until.isoformat()
     request.session.modified = True
+    try:
+        from core.dispositivi import segna_verificato
+
+        segna_verificato(request, getattr(request, "impersonator_user", None) or request.user)
+    except Exception:
+        logger.warning("2FA: dispositivo non segnato come verificato", exc_info=True)
 
 
 def needs_totp_setup(user) -> bool:
