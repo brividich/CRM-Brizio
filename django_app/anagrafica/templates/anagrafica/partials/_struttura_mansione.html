@@ -25,17 +25,27 @@
       </select>
       <small>DPI, visite e schede di sicurezza vengono da qui</small>
     </div>
-    <div class="mst-campo"><span>Reparto</span>
-      {% if mansione.asset_id %}
-      <input type="text" value="{{ mansione.reparto_effettivo|default:'—' }}" disabled aria-label="Reparto">
-      <small>Dalla macchina {{ mansione.asset.name }}</small>
-      {% else %}
-      <select name="reparto" aria-label="Reparto">
-        <option value="">— nessuno —</option>
+    <div class="mst-campo"><span>Area</span>
+      <select name="area" aria-label="Area">
+        <option value="">— nessuna —</option>
+        {% for a in aree_opts %}<option value="{{ a.pk }}"{% if a.pk == config.area %} selected{% endif %}>{{ a.reparto.nome|default:"senza reparto" }} / {{ a.nome }}</option>{% endfor %}
+      </select>
+      <small>Il reparto è quello dell'area{% if mansione.asset_id %} (vince sul reparto scritto sulla macchina {{ mansione.asset.name }}){% endif %}.</small>
+      {% if not config.area and not mansione.asset_id %}
+      <select name="reparto" aria-label="Reparto" style="margin-top:6px;">
+        <option value="">— reparto: nessuno —</option>
         {% for r in reparti_opts %}<option value="{{ r.pk }}"{% if r.pk == config.reparto %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
       </select>
       {% endif %}
       <label class="mst-check" style="margin-top:8px;"><input type="checkbox" name="attiva"{% if config.attiva %} checked{% endif %}> Mansione attiva</label>
+    </div>
+    <div class="mst-campo"><span>Processo SGI</span>
+      <select name="processo_sgi" aria-label="Processo del Sistema di Gestione">
+        <option value="">— nessuno —</option>
+        {% for p in processi_opts %}<option value="{{ p.pk }}"{% if p.pk == config.processo %} selected{% endif %}>{{ p.codice }} · {{ p.nome }}</option>{% endfor %}
+      </select>
+      <label class="mst-check" style="margin-top:8px;"><input type="checkbox" name="abilitazione_con_scadenza"{% if config.abilitazione %} checked{% endif %}> Abilitazione con validità o scadenza</label>
+      {% if mansione.deriva_da_id %}<small>Nata dalla divisione di «{{ mansione.deriva_da.nome }}»: il livello registrato lì è solo un suggerimento.</small>{% endif %}
     </div>
   </div>
 

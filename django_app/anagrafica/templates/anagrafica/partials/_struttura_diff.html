@@ -1,0 +1,10 @@
+<div class="sto-diff">
+  <h3>{{ s.sezione }}</h3>
+  {% if s.aggiunte %}<ul class="sto-agg">{% for x in s.aggiunte %}<li>aggiunta: {{ x }}</li>{% endfor %}</ul>{% endif %}
+  {% if s.tolte %}<ul class="sto-tolta">{% for x in s.tolte %}<li>tolta: {{ x }}</li>{% endfor %}</ul>{% endif %}
+  {% if s.cambiate %}
+  <ul class="sto-camb">
+    {% for c in s.cambiate %}<li><strong>{{ c.voce }}</strong>: {% for f in c.campi %}{{ f.campo }} «{{ f.prima }}» → «{{ f.dopo }}»{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>

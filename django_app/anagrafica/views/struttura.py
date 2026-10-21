@@ -210,7 +210,16 @@ def ruolo_operativo_edit(request, ruolo_id: int):
         messages.error(request, "Il nome del ruolo è obbligatorio.")
         return _helpers._back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
-    ruolo.nome = nome
+    if nome != ruolo.nome:
+        # Il «Ruolo aziendale» delle schede è un testo abbinato per nome: la rinomina lo riscrive
+        # e tiene il nome di prima fra i nomi precedenti.
+        from ..services.struttura_ruoli import rinomina
+
+        try:
+            rinomina(ruolo, nome, user=request.user)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return _helpers._back_to_caller(request, "anagrafica:ruoli_operativi_list")
     ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
     ruolo.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     ruolo.icona = (request.POST.get("icona") or "").strip()[:10]

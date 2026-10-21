@@ -40,6 +40,10 @@
 .obd-dates-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; font-weight: 700; color: #475569; }
 .obd-dates-form input, .obv-exc input { border: 1px solid var(--fmd-line); border-radius: 8px; padding: 7px 9px; font-family: inherit; font-size: 13px; background: #fff; color: #0f172a; }
 .obd-note { font-size: 13px; color: #475569; }
+/* Posizione nella struttura: mansioni previste dal ruolo, da assegnare una per una */
+.obd-mansioni { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.obd-mansioni li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; padding: 5px 8px; border: 1px solid #eef2f7; border-radius: 8px; }
+.obd-mansioni form { margin: 0; }
 
 /* ── Timeline per fase ──────────────────────────────────────────────────── */
 .obd-timeline { position: relative; display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
@@ -113,6 +117,7 @@ body.theme-dark .obd-resp-chip b{color:#93c5fd}
 body.theme-dark .obd-resp-chip:hover{color:var(--text)}
 body.theme-dark .obd-resp-late b{color:#fdba74}
 body.theme-dark .obd-dates summary,body.theme-dark .obv-exc summary{color:#93c5fd}
+body.theme-dark .obd-mansioni li{border-color:var(--border)}
 body.theme-dark .obf-n{color:#93c5fd}
 body.theme-dark .obv-auto{color:#93c5fd}
 body.theme-dark .obv-done-auto{color:#86efac}

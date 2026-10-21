@@ -291,7 +291,18 @@ def mansionario_assegna(request, mansione_id: int):
         "mansione": mansione.pk, "legacy_anagrafica_id": int(lid), "livello": request.POST.get("livello"),
     }, oggetto=mansione)
     messages.success(request, "Persona assegnata alla mansione.")
-    return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+    return _torna_a_next(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+
+
+def _torna_a_next(request):
+    """Dalla scheda dipendente o dall'onboarding si torna lì (solo URL interni)."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    prossima = request.POST.get("next") or ""
+    if prossima and url_has_allowed_host_and_scheme(prossima, allowed_hosts={request.get_host()},
+                                                     require_https=request.is_secure()):
+        return redirect(prossima)
+    return None
 
 
 @login_required
@@ -306,13 +317,7 @@ def mansionario_togli(request, mansione_id: int, abilitazione_id: int):
     }, oggetto=ab)
     messages.success(request, "Persona tolta dalla mansione.")
     # Dalla scheda dipendente (mansioni da rivedere dopo uno spostamento) si torna lì.
-    from django.utils.http import url_has_allowed_host_and_scheme
-
-    prossima = request.POST.get("next") or ""
-    if prossima and url_has_allowed_host_and_scheme(prossima, allowed_hosts={request.get_host()},
-                                                     require_https=request.is_secure()):
-        return redirect(prossima)
-    return redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+    return _torna_a_next(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

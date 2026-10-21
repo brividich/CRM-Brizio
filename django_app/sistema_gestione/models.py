@@ -398,6 +398,19 @@ class Processo(models.Model):
     ], default="OPERATIVO")
     responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                     on_delete=models.PROTECT, related_name="processi_sgi")
+    # Struttura della Qualità: ruolo owner del processo (CEO, SAM, EM, PM, OPM…) e
+    # tipo principale/ausiliario. Modificabili anche dalla Struttura organizzativa
+    # dell'Anagrafica: stessa riga, stessa revisione.
+    TIPO_PRINCIPALE = "PRINCIPALE"
+    TIPO_AUSILIARIO = "AUSILIARIO"
+    TIPO_CHOICES = [(TIPO_PRINCIPALE, "Principale"), (TIPO_AUSILIARIO, "Ausiliario")]
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, blank=True, default="",
+                            verbose_name="Tipo di processo")
+    ruolo_owner = models.ForeignKey(
+        "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="processi_owner", verbose_name="Ruolo owner",
+        help_text="Ruolo della struttura che è owner del processo.",
+    )
     enti = models.CharField(max_length=255, blank=True)
     scopo = models.TextField(blank=True)
     input = models.TextField(blank=True)
@@ -430,7 +443,9 @@ class Processo(models.Model):
 
     def snapshot(self):
         dati = {f.name: getattr(self, f.name) for f in self._meta.fields
-                if f.name not in {"responsabile", "updated_at"}}
+                if f.name not in {"responsabile", "ruolo_owner", "updated_at"}}
+        dati["ruolo_owner_id"] = self.ruolo_owner_id
+        dati["ruolo_owner"] = self.ruolo_owner.etichetta if self.ruolo_owner_id else ""
         dati["responsabile_id"] = self.responsabile_id
         dati["responsabile"] = ((self.responsabile.get_full_name() or self.responsabile.get_username())
                                 if self.responsabile_id else "")

@@ -364,6 +364,85 @@ GUIDA = {
             ],
         },
         {
+            "id": "struttura-organizzativa",
+            "titolo": "Struttura organizzativa (struttura della Qualità)",
+            "blocchi": [
+                ("p", "Persone → «Struttura organizzativa» mette in una pagina la struttura voluta dalla Qualità: "
+                      "processi → reparti → aree → ruoli → mansioni. Le aree sono i «reparti» del file della Qualità "
+                      "(MEGA SKILL MATRIX): per esempio il reparto AGG/MONT ha le aree AGGIUSTAGGIO, MONTAGGIO, "
+                      "MASCHERATURA…; il reparto UT ha le aree DIREZIONE, COMMERCIALE, UFFICIO TECNICO, OPERATIONS, "
+                      "ACQUISTI, QUALITA, RISORSE UMANE, HSE e IT."),
+                ("def", [
+                    ("Reparti e aree", "un blocco per reparto con il ruolo responsabile (es. CAR), il caporeparto, le "
+                                       "aree e, per ogni area, i ruoli con le loro mansioni. Gli amministratori "
+                                       "dell'anagrafica cambiano qui il ruolo responsabile del reparto e dell'area "
+                                       "(vuoto = come il reparto). Il caporeparto (la persona) resta in «Reparti e aree»."),
+                    ("Responsabilità del reparto", "ogni reparto con un ruolo responsabile ha la sua mansione "
+                                                   "«Responsabilità del reparto <nome>», creata e aggiornata da sola: "
+                                                   "serve per scrivere le competenze del responsabile. Chi la ricopre è "
+                                                   "il caporeparto; se togli il ruolo responsabile la mansione si spegne."),
+                    ("Processi", "i processi del Sistema di Gestione con tipo (principale/ausiliario), owner (un ruolo), "
+                                 "numero di mansioni e ruoli coinvolti. «Cambia» modifica tipo e owner: serve il motivo e "
+                                 "si salva come nuova revisione della scheda processo, la stessa che si vede in Sistema di "
+                                 "Gestione → Catalogo processi."),
+                    ("Ruoli", "sigla (ACO, IN1, MSM, CAR…, unica), diretto/indiretto, organigramma, persone e mansioni. "
+                              "Sigla e diretto/indiretto si cambiano in linea. «accorpa N» indica i ruoli di prima "
+                              "confluiti in questo (passa col mouse per vederli)."),
+                    ("Da completare", "mansioni senza area, senza processo, senza ruolo o senza mansione di rischio "
+                                      "confermata; reparti senza caporeparto o senza ruolo responsabile; ruoli della "
+                                      "struttura senza nessuno assegnato."),
+                ]),
+                ("p", "Nell'editor della mansione (Mansionario → Struttura) ci sono anche «Area» (il reparto segue "
+                      "l'area e vince sul reparto scritto sulla macchina), «Processo SGI» e «Abilitazione con validità o "
+                      "scadenza». Una mansione nata dalla divisione di un'altra (es. Marcatura → laser, manuale, a "
+                      "punti, elettrolitica) lo dice: il livello registrato sulla vecchia è solo un suggerimento, le "
+                      "persone si valutano di nuovo."),
+                ("p", "Scheda dipendente → «Posizione nella struttura»: ruolo (sigla, diretto/indiretto, principale), "
+                      "reparto e area, ruolo responsabile, processi, mansioni svolte con livello e «Mansioni previste dal "
+                      "ruolo, non ancora assegnate»: si assegnano una per una scegliendo il livello e «Assegna». Lo stesso "
+                      "riquadro c'è nella pratica di onboarding («Assegna (I)», livello in formazione) e la checklist ha "
+                      "la voce «Assegnare ruolo, area e mansioni della struttura»."),
+                ("nota", "Rinominare un ruolo dal catalogo dei ruoli ora riscrive anche il «Ruolo aziendale» delle schede "
+                         "e tiene il nome di prima fra i nomi precedenti."),
+            ],
+        },
+        {
+            "id": "struttura-revisioni",
+            "titolo": "Revisioni della struttura (solo MSM)",
+            "blocchi": [
+                ("p", "La struttura che si modifica nelle pagine è la bozza. Quando la Qualità la approva, chi ricopre il "
+                      "ruolo MSM (Management System Manager) apre «Revisioni», legge le modifiche rispetto alla revisione "
+                      "in vigore, scrive il motivo e preme «Emetti la Rev. N». Nessun altro può emetterla, nemmeno "
+                      "l'amministratore del portale. Se non è cambiato niente il portale non emette."),
+                ("p", "Ogni revisione è una fotografia non modificabile: processi, reparti, aree, ruoli, mansioni con "
+                      "competenze richieste e mansioni di rischio. Non contiene nominativi né livelli delle persone. "
+                      "Dalla revisione: confronto con un'altra («Confronta con») e «Scarica PDF», il mansionario "
+                      "ufficiale da conservare come documento controllato. La pagina della struttura dice in alto quale "
+                      "revisione è in vigore e quante modifiche la bozza ha in più."),
+            ],
+        },
+        {
+            "id": "struttura-rischi",
+            "titolo": "Mansioni di rischio da confermare (HSE)",
+            "blocchi": [
+                ("p", "Per le mansioni nuove il portale propone la mansione di rischio: impiegati → ADDETTO UFFICI, "
+                      "macchine → ADDETTO MACCHINE UTENSILI, magazzino, pulizie, manutenzione, lavaggio, verniciatura, "
+                      "prova pressione, liquidi penetranti, ritocchi dal nome, il resto dall'area. La proposta non vale "
+                      "per DPI, visite e schede di sicurezza finché HSE (ruoli ESM/ESO, o chi gestisce i requisiti delle "
+                      "mansioni di rischio) non la conferma in «Rischi da confermare»."),
+                ("passi", [
+                    "Cerca per mansione, area o mansione di rischio; spunta le righe giuste (o «seleziona tutte quelle "
+                    "visibili») e premi «Conferma le selezionate»: valgono le proposte così come sono.",
+                    "Per una riga diversa apri «Correggi»: scegli le mansioni di rischio giuste (anche più d'una) e "
+                    "premi «Conferma»; valgono da subito e la proposta si chiude.",
+                    "«Scarta la proposta»: non si conferma niente; la mansione resta senza mansione di rischio e "
+                    "compare in «Da completare».",
+                ]),
+                ("nota", "La «Responsabilità del reparto» non riceve proposte: il rischio del caporeparto viene dalle "
+                         "mansioni che svolge davvero."),
+            ],
+        },
+        {
             "id": "mansioni-rischio",
             "titolo": "Mansioni di rischio",
             "blocchi": [
@@ -507,12 +586,39 @@ GUIDA = {
                                                  "loro, a pari merito niente). Da lanciare dopo importa_mansioni_idoneita. "
                                                  "In prova di default, --commit per scrivere, --report file.csv per "
                                                  "l'elenco completo; le mansioni rimaste senza si collegano a mano."),
+                    ("carica_struttura_v8", "carica la struttura della Qualità (MEGA SKILL MATRIX v8): reparti e aree "
+                                            "(rinomine, aree che confluiscono con le persone), area delle persone che "
+                                            "non ce l'hanno ricavata dal ruolo di oggi, ruoli con sigla (rinomine e "
+                                            "accorpamenti: storico chiuso ieri, permessi e collegamenti al ruolo nuovo, "
+                                            "nessuno perde accessi), processi con owner, mansioni (rinomine, nuove, "
+                                            "divisioni), responsabilità di reparto, rischi proposti. In prova di "
+                                            "default (rapporto riga per riga, nulla salvato), --applica per scrivere, "
+                                            "--solo-da-decidere per i soli punti da guardare, --senza-aree-persone. "
+                                            "Si può rilanciare: un secondo giro non cambia niente."),
                 ]),
                 ("p", "Prima di ogni comando che scrive, lancialo in prova (--dry-run) se l'opzione esiste."),
             ],
         },
     ],
     "problemi": [
+        {
+            "sintomo": "«Emetti la revisione» non c'è o dice che solo l'MSM può emetterla",
+            "perche": "la revisione della struttura la emette solo chi ricopre oggi il ruolo con sigla MSM.",
+            "fare": [
+                "Struttura organizzativa → «Ruoli»: controlla che il ruolo MSM abbia la sigla MSM e la persona giusta.",
+                "Assegna il ruolo alla persona dalla sua scheda (o con «Cambio ruoli in blocco»), poi riprova.",
+            ],
+        },
+        {
+            "sintomo": "Nella scheda dipendente non compaiono «Mansioni previste dal ruolo»",
+            "perche": "la persona non ha un ruolo della struttura, oppure le mansioni del suo ruolo sono di un'altra "
+                      "area, oppure le ha già tutte.",
+            "fare": [
+                "Controlla in «Posizione nella struttura» ruolo e area (se c'è «area da indicare», assegnala con uno "
+                "spostamento).",
+                "In Struttura organizzativa verifica che le mansioni dell'area abbiano quel ruolo.",
+            ],
+        },
         {
             "sintomo": "Una persona entra nel portale ma non vede i suoi dati",
             "perche": "il suo account non è collegato alla sua scheda anagrafica.",
