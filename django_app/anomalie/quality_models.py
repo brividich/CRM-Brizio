@@ -59,6 +59,8 @@ class AnomaliaNC(models.Model):
     protocollo = models.CharField(max_length=20, unique=True)
     op_titolo = models.CharField(max_length=100, db_index=True)
     part_number = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    # MT CN 70 §6.13: NC su un componente lavorato per l'organizzazione di manutenzione (Part 145).
+    part145 = models.BooleanField(default=False, verbose_name="Componente Part 145")
     # Istantanee dei nominativi dall'OP (ordini_produzione), riallineate a ogni sync.
     capocommessa = models.CharField(max_length=200, blank=True, default="")
     car = models.CharField(max_length=200, blank=True, default="")

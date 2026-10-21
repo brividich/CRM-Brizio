@@ -96,8 +96,13 @@ GUIDA = {
                     "Nel Dossier la colonna «Controllo» dice come si tiene sotto controllo l'attrezzo (MOE §2.4): "
                     "«Taratura» se ha un piano di taratura, «Manutenzione periodica» se ha altri piani, «A vista» se "
                     "non ne ha. Una taratura scaduta compare tra le situazioni aperte: l'attrezzo va segregato.",
-                    "Dal Dossier: «Strumenti tarati» (Excel, l'elenco da comunicare all'organizzazione di "
-                    "manutenzione) e «Controllo semestrale» (PDF per reparto da timbrare e firmare, MT CN 17).",
+                    "Nel Dossier la sezione «Da sistemare» è in cima con la priorità (Alta / Media); i riquadri in "
+                    "testa sono rossi, ambra o verdi e portano alla sezione; una sola ricerca filtra tutte le sezioni. "
+                    "Il menu «↓ Scarica» ha Dossier PDF ed Excel, «Strumenti tarati» (Excel, da comunicare "
+                    "all'organizzazione di manutenzione) e «Controllo semestrale» (PDF per reparto da firmare, MT CN 17).",
+                    "Il Dossier mostra anche, a chi ha il permesso del modulo, la formazione richiesta dai processi "
+                    "(MOD.128), gli audit interni Part 145 (Sistema di gestione) e le NC Part 145 aperte (Anomalie).",
+                    "Nel Catalogo report, area «Qualità e PART 145»: tarature delle attrezzature, da sistemare, scadenze.",
                     "Nei Documenti della scheda si caricano anche intere cartelle con sottocartelle e video .avi: "
                     "i file non ammessi vengono scartati ed elencati, gli altri entrano.",
                 ]),

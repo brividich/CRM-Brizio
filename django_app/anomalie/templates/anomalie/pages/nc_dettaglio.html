@@ -59,6 +59,12 @@
     <div class="page-sub">OP <strong>{{ nc.op_titolo }}</strong> &middot; P/N {{ nc.part_number|default:"—" }} &middot; Capocommessa {{ nc.capocommessa|default:"—" }} &middot; CAR {{ nc.car|default:"—" }}{% if nc.precedente_id %} &middot; ricaduta di <a href="{% url 'anomalie_nc_dettaglio' nc.precedente_id %}">{{ nc.precedente.protocollo }}</a>{% endif %}</div>
   </div>
   <div class="page-header-actions">
+    {% if perm.modifica and not nc.is_chiusa %}
+    <form method="post" style="display:inline;" title="NC su un componente lavorato per l'organizzazione di manutenzione (MT CN 70): compare nel Dossier PART 145">
+      {% csrf_token %}<input type="hidden" name="action" value="part145"><input type="hidden" name="part145" value="{% if nc.part145 %}0{% else %}1{% endif %}">
+      <button type="submit" class="btn btn-sm {% if nc.part145 %}btn-danger{% else %}btn-secondary{% endif %}">{% if nc.part145 %}&#10003; Componente Part 145{% else %}Segna come Part 145{% endif %}</button>
+    </form>
+    {% elif nc.part145 %}<span class="btn btn-sm btn-danger" style="cursor:default;">Componente Part 145</span>{% endif %}
     <a href="{{ gestione_url }}" class="btn btn-secondary btn-sm">Anomalie dell'OP</a>
     <a href="{% url 'anomalie_nc_pdf' nc.pk %}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">PDF</a>
   </div>

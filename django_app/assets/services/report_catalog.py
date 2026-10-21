@@ -658,6 +658,100 @@ def _kind_choices():
     return [("", "Tutti")] + list(WorkOrder.KIND_CHOICES)
 
 
+# ── Qualità e PART 145 ────────────────────────────────────────────────────────
+# Gli stessi dati del Dossier PART 145 (services/part145_dossier.py), senza dati del
+# personale: il catalogo è aperto a chi vede gli asset, i nominativi MOD.128 no.
+
+ESITI_TARATURA = [("", "Qualsiasi"), ("Scaduta", "Scaduta"), ("Entro 30 giorni", "Entro 30 giorni"),
+                  ("Valida", "Valida"), ("Nessuna taratura pianificata", "Nessuna taratura pianificata")]
+
+
+def _part145_tarature(filtri: dict) -> RisultatoReport:
+    from .part145_dossier import CLASSE_A_VISTA, CLASSE_MANUTENZIONE, CLASSE_TARATURA, _stato_scadenza, solo_attrezzature
+
+    dati = solo_attrezzature()
+    oggi = dati["oggi"]
+    reparto = (filtri.get("reparto") or "").strip().lower()
+    classe = filtri.get("classe") or ""
+    esito = filtri.get("esito") or ""
+    righe = []
+    for a in dati["attrezzature"]:
+        c = dati["controlli"][a.pk]
+        if reparto and reparto not in (a.reparto or "").lower():
+            continue
+        if classe and c["classe"] != classe:
+            continue
+        stato = (_stato_scadenza(c["prossima"], oggi) if c["prossima"]
+                 else ("Nessuna taratura pianificata" if c["classe"] == CLASSE_TARATURA else ""))
+        if esito and stato != esito:
+            continue
+        righe.append([a.asset_tag, a.name, a.reparto, dati["stati_asset"].get(a.status, a.status), a.serial_number or "",
+                      c["classe"], ", ".join(c["enti"]), c["ultima"], c["prossima"], stato])
+    note = [f"Classi come il MOE §2.4: «{CLASSE_TARATURA}» (piano di taratura), «{CLASSE_MANUTENZIONE}» (altri piani), "
+            f"«{CLASSE_A_VISTA}» (nessun piano: esame visivo prima dell'uso). Dismessi esclusi."]
+    return RisultatoReport("Tarature attrezzature PART 145",
+                           ["Asset", "Nome", "Reparto", "Stato", "Seriale", "Controllo", "Ente taratura", "Ultima taratura",
+                            "Prossima taratura", "Esito"], righe[:MAX_RIGHE], note=note, troncato=len(righe) > MAX_RIGHE)
+
+
+def _sintesi_part145_tarature(righe):
+    scadute = sum(1 for r in righe if r[9] == "Scaduta")
+    tarate = sum(1 for r in righe if r[5] == "Taratura")
+    riepilogo = [("Attrezzature", _num(len(righe))), ("Con taratura", _num(tarate)), ("Tarature scadute", _num(scadute))]
+    per_ente: dict = defaultdict(int)
+    for r in righe:
+        if r[5] == "Taratura":
+            per_ente[r[6] or "Ente non indicato"] += 1
+    return riepilogo, _barre("Strumenti per ente di taratura", per_ente.items())
+
+
+def _part145_sezione(codice: str, filtri: dict):
+    from .part145_dossier import costruisci
+
+    giorni = int(filtri.get("giorni") or 90) if str(filtri.get("giorni") or "90").isdigit() else 90
+    dati = costruisci(con_personale=False, giorni=max(1, min(giorni, 365)))
+    return next(s for s in dati["sezioni"] if s.codice == codice)
+
+
+def _part145_da_sistemare(filtri: dict) -> RisultatoReport:
+    sezione = _part145_sezione("aperte", filtri)
+    priorita = filtri.get("priorita") or ""
+    tipo = (filtri.get("tipo") or "").strip().lower()
+    righe = [r for r in sezione.righe if (not priorita or r[0] == priorita) and (not tipo or tipo in r[1].lower())]
+    return RisultatoReport("PART 145 — da sistemare", sezione.intestazioni, righe,
+                           note=["Le stesse situazioni aperte del Dossier PART 145, senza i dati del personale MOD.128."])
+
+
+def _sintesi_part145_da_sistemare(righe):
+    alte = sum(1 for r in righe if r[0] == "Alta")
+    riepilogo = [("Situazioni aperte", _num(len(righe))), ("Priorità alta", _num(alte)), ("Priorità media", _num(len(righe) - alte))]
+    return riepilogo, _barre("Situazioni per tipo", _conta(righe, 1).items())
+
+
+def _part145_scadenze(filtri: dict) -> RisultatoReport:
+    sezione = _part145_sezione("scadenze", filtri)
+    tipo = filtri.get("tipo") or ""
+    righe = [r for r in sezione.righe if not tipo or r[1] == tipo]
+    return RisultatoReport(sezione.titolo.replace("Scadenze", "PART 145 — scadenze", 1), sezione.intestazioni, righe,
+                           note=["Processi, contratti e requisiti, tarature e manutenzioni delle attrezzature PART 145."])
+
+
+def _sintesi_part145_scadenze(righe):
+    scadute = sum(1 for r in righe if r[4] == "Scaduta")
+    riepilogo = [("Scadenze", _num(len(righe))), ("Già scadute", _num(scadute)),
+                 ("Entro 30 giorni", _num(sum(1 for r in righe if r[4] == "Entro 30 giorni")))]
+    return riepilogo, _barre("Scadenze per tipo", _conta(righe, 1).items())
+
+
+GIORNI_CHOICES = [("90", "90 giorni"), ("30", "30 giorni"), ("60", "60 giorni"), ("180", "180 giorni"), ("365", "Un anno")]
+TIPI_SCADENZA_CHOICES = [("", "Qualsiasi"), ("Contratto", "Contratto"), ("Processo", "Processo"),
+                         ("Requisito di processo", "Requisito di processo"), ("Taratura", "Taratura"),
+                         ("Manutenzione", "Manutenzione")]
+PRIORITA_CHOICES = [("", "Qualsiasi"), ("Alta", "Alta"), ("Media", "Media")]
+CLASSI_CHOICES = [("", "Qualsiasi"), ("Taratura", "Taratura"), ("Manutenzione periodica", "Manutenzione periodica"),
+                  ("A vista", "A vista")]
+
+
 def definizioni() -> "OrderedDict[str, DefinizioneReport]":
     return OrderedDict((d.code, d) for d in (
         DefinizioneReport(
@@ -676,6 +770,33 @@ def definizioni() -> "OrderedDict[str, DefinizioneReport]":
             [Filtro("asset_type", "Tipo", "select", _type_choices()), Filtro("reparto", "Reparto contiene"),
              Filtro("manca", "Manca", "select", MANCA_CHOICES)],
             _qualita, "Inventario", _sintesi_qualita,
+        ),
+        DefinizioneReport(
+            "part145-tarature", "PART 145 — tarature delle attrezzature",
+            "Le attrezzature PART 145 con la classe di controllo del MOE §2.4 (taratura, manutenzione periodica, a "
+            "vista), l'ente che le tara, l'ultima e la prossima taratura: anche l'elenco da comunicare "
+            "all'organizzazione di manutenzione.",
+            "P145-0007 · Chiave dinamometrica · Aggiustaggio · Taratura · Laboratorio LAT · 12/11/2025 · 12/11/2026 · Valida",
+            [Filtro("reparto", "Reparto contiene"), Filtro("classe", "Controllo", "select", CLASSI_CHOICES),
+             Filtro("esito", "Esito", "select", ESITI_TARATURA)],
+            _part145_tarature, "Qualità e PART 145", _sintesi_part145_tarature,
+        ),
+        DefinizioneReport(
+            "part145-da-sistemare", "PART 145 — da sistemare",
+            "Le situazioni aperte del Dossier PART 145, prima quelle a priorità alta: tarature e contratti scaduti, "
+            "processi senza scadenza o senza persone, attrezzature in riparazione o incomplete, OdL aperti.",
+            "Alta · Taratura scaduta · P145-0007 — Chiave dinamometrica · scaduta il 17/10/2026",
+            [Filtro("priorita", "Priorità", "select", PRIORITA_CHOICES), Filtro("tipo", "Tipo contiene")],
+            _part145_da_sistemare, "Qualità e PART 145", _sintesi_part145_da_sistemare,
+        ),
+        DefinizioneReport(
+            "part145-scadenze", "PART 145 — scadenze",
+            "Tutto quello che scade nella finestra scelta (e quello già scaduto): contratto quadro e requisiti dei "
+            "processi, processi, tarature e manutenzioni delle attrezzature.",
+            "31/12/2026 · Contratto · Contratto quadro · Riparazione componenti · Entro 90 giorni",
+            [Filtro("giorni", "Finestra", "select", GIORNI_CHOICES, "90"),
+             Filtro("tipo", "Tipo", "select", TIPI_SCADENZA_CHOICES)],
+            _part145_scadenze, "Qualità e PART 145", _sintesi_part145_scadenze,
         ),
         DefinizioneReport(
             "parco-it-rete", "Parco IT e rete",
@@ -761,9 +882,13 @@ def report_esistenti() -> list[dict]:
          "descrizione": "Scadenze di manutenzione per finestra, piano, gruppo, fornitore.",
          "filtri": "Finestra, piano, gruppo, asset, reparto, tipo, fornitore", "output": "Pagina, Excel, PDF", "area": "Manutenzione e scadenze"},
         {"titolo": "Dossier PART 145", "url": reverse("assets:part_145_list"),
-         "descrizione": "Processo PART 145, attrezzature, personale abilitato (MOD.128), scadenze a 90 giorni e "
-                        "situazioni aperte, pronto per l'audit.",
-         "filtri": "Nessuno", "output": "Pagina, Excel (un foglio per sezione), PDF", "area": "Qualità e PART 145"},
+         "descrizione": "Processi del perimetro, contratti, attrezzature con tarature, personale e formazione "
+                        "(MOD.128), audit, NC Part 145, scadenze, situazioni da sistemare e documenti SGI.",
+         "filtri": "Ricerca libera", "output": "Pagina, Excel (un foglio per sezione), PDF", "area": "Qualità e PART 145"},
+        {"titolo": "Controllo semestrale attrezzature PART 145", "url": reverse("assets:part_145_export_controllo"),
+         "descrizione": "Una pagina per reparto con le attrezzature da controllare a gennaio e giugno, da timbrare e "
+                        "firmare (MT CN 17, Mod.072).",
+         "filtri": "Nessuno", "output": "PDF", "area": "Qualità e PART 145"},
         {"titolo": "Export elenco asset", "url": reverse("assets:asset_list"),
          "descrizione": "Elenco asset con i filtri della lista (pulsante Esporta).",
          "filtri": "Ricerca, tipo, categoria, reparto, VLAN, IP", "output": "Excel", "area": "Inventario"},

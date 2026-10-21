@@ -23,7 +23,7 @@ class Command(BaseCommand):
         from assets.services import part145_dossier
 
         if opts["dry_run"]:
-            dati = part145_dossier.costruisci(con_personale=True)
+            dati = part145_dossier.costruisci(con_personale=True, con_audit=True, con_nc=True)
             scadenze = next(s for s in dati["sezioni"] if s.codice == "scadenze")
             for riga in scadenze.righe:
                 self.stdout.write(" · ".join(str(v) for v in riga))
