@@ -1608,7 +1608,8 @@ def admin_health_check(request):
 
     # 4. File di log
     try:
-        log_path = Path(djsettings.BASE_DIR) / "logs" / "app.log"
+        # In prod i log stanno in DJANGO_LOG_DIR (fuori dalla cartella della release).
+        log_path = Path(getattr(djsettings, "LOG_DIR", Path(djsettings.BASE_DIR) / "logs")) / "app.log"
         if log_path.exists():
             size_kb = round(log_path.stat().st_size / 1024, 1)
             checks.append({"nome": "File di log", "ok": True, "dettaglio": f"{log_path} ({size_kb} KB)"})
