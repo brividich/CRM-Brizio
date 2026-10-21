@@ -197,4 +197,4 @@ class InteractiveChartsTests(_Base):
         SecurityEventRecord.objects.create(source=self.source, event_type="x", fingerprint="f", dedup_hash="d", payload={})
         page = self.client.get(reverse("security:dashboard"))
         self.assertContains(page, "giorno=" + self.today.isoformat())
-        self.assertContains(page, "eventi oggi")
+        self.assertContains(page, "Il periodo in numeri")

@@ -10,6 +10,7 @@ PAGE_HELP = {
     "dashboard": ("13-lavoro-quotidiano", "da-dove-partire"),
     "security_dashboard": ("13-lavoro-quotidiano", "da-dove-partire"),
     "my_work": ("13-lavoro-quotidiano", "da-dove-partire"),
+    "pc_copertura": ("15-backup-vpn-kpi-asset", "pc-e-fonti"),
     "segnalazioni": ("13-lavoro-quotidiano", "le-segnalazioni"),
     "search": ("13-lavoro-quotidiano", "cercare-qualcosa"),
     "alerts_list": ("13-lavoro-quotidiano", "alert"),

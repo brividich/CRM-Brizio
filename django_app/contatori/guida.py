@@ -1,4 +1,4 @@
-"""Guida d'uso della riconciliazione fatture MFC (pagina «? Guida» della Riconciliazione).
+"""Guida di Contatori IT (pagina «? Guida» della barra del modulo).
 
 Testo semplice, niente HTML: il template lo mostra con l'autoescape. Blocchi di una
 sezione: ("p", testo), ("ul", [voci]), ("nota", testo), ("def", [(termine, spiegazione)]).
@@ -161,14 +161,23 @@ SEZIONI: list[dict] = [
         "titolo": "Barra del modulo e Centrale",
         "blocchi": [
             ("p", "La barra in alto raggruppa le pagine in Operatività (Centrale, Stampanti MFC, Letture, "
-                  "Consumabili, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione. Le "
-                  "procedure guidate «+ Apparato» (stampanti MFC e dispositivi SNMP) e «+ Profilo SNMP» sono "
-                  "nel menu «+ Nuovo» (solo con il permesso di gestione)."),
+                  "Consumabili, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione "
+                  "(Profili SNMP, Discovery, Impostazioni). Le procedure guidate «+ Apparato» (stampanti MFC e "
+                  "dispositivi SNMP) e «+ Profilo SNMP» sono nel menu «+ Nuovo» (solo con il permesso di "
+                  "gestione). «? Guida», a destra, apre questa pagina da qualunque punto del modulo."),
             ("p", "La Centrale sta in una schermata: in alto gli indicatori (letture del trimestre, copie, "
                   "riconciliazione del trimestre precedente, stato flotta SNMP, consumabili sotto soglia, "
                   "letture da confermare, fatture da riconciliare, licenze degli apparati), sotto tre colonne che scorrono ognuna per "
                   "conto suo: «Da fare», «Parco MFC» e «SNMP». Ogni indicatore e ogni voce aprono la pagina "
-                  "dove si interviene; nel Parco MFC il dettaglio A4/A3 compare passando il mouse sul totale."),
+                  "dove si interviene; nel Parco MFC il dettaglio A4/A3 compare passando il mouse sul totale. "
+                  "In fondo a «Da fare», il blocco «Asset e SOC» (vedi la sezione dedicata)."),
+            ("p", "Monitor SNMP: «Interroga tutti ora» interroga subito tutti i dispositivi attivi (chiede "
+                  "conferma; il monitor lo fa comunque ogni 5 minuti). I filtri Cerca, Categoria e Stato valgono "
+                  "anche per la tabella «Stampanti MFC»; una categoria diversa da «Stampante / MFC extra» la "
+                  "svuota. Sotto i filtri, i filtri rapidi «Videosorveglianza», «In errore», «Non interrogati»."),
+            ("p", "Scheda MFC: «Prova SNMP» verifica subito che la stampante risponda e mostra i contatori letti "
+                  "senza salvarli; «Asset …» apre la scheda dell'asset collegato. Dopo «Modifica MFC» si torna "
+                  "alla scheda della stampante."),
         ],
     },
     {
@@ -247,8 +256,8 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "Nel Monitor SNMP il pulsante «Videosorveglianza» (o la categoria «Videosorveglianza (NVR e "
                   "telecamere)» nel filtro) mostra solo NVR e telecamere, con l'asset collegato."),
-            ("p", "In «Stampanti MFC» → «Configurazione SNMP globale» (link «Impostazioni SNMP e TVCC» nel "
-                  "Monitor SNMP) si impostano: «TVCC - Intervallo NVR (minuti)» (predefinito 5), «TVCC - "
+            ("p", "In «Configurazione» → «Impostazioni», riquadro «Videosorveglianza» (link «Impostazioni SNMP "
+                  "e TVCC» nel Monitor SNMP) si impostano: «TVCC - Intervallo NVR (minuti)» (predefinito 5), «TVCC - "
                   "Intervallo telecamere (minuti)» (predefinito 30) e «TVCC - Storico rilevazioni (giorni)» "
                   "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate; stampanti "
                   "e altri apparati conservano tutto lo storico."),
@@ -258,9 +267,10 @@ SEZIONI: list[dict] = [
                   "dettaglio. Il pallino si vede solo con accesso al Monitor SNMP."),
             ("p", "Nella scheda dell'asset, tab «Monitoraggio», compaiono stato, ultimo controllo, da quanti "
                   "giorni è acceso (non per le telecamere: il loro dato riguarda il servizio SNMP) e gli "
-                  "ultimi valori letti. Il MAC letto è confrontato con quello "
-                  "dichiarato nel campo «MAC» dell'asset: «= dichiarato», «diverso dal dichiarato» oppure "
-                  "«non dichiarato». Il monitoraggio non modifica mai i dati dell'asset."),
+                  "ultimi valori letti, con lo stesso riquadro degli asset IT e gli stessi permessi del Monitor "
+                  "SNMP. Il MAC letto è confrontato con quelli dei punti rete dell'asset: «= punto rete», "
+                  "«diverso dal punto rete» oppure «non nei punti rete». Il monitoraggio non modifica mai i dati "
+                  "dell'asset da solo."),
         ],
     },
     {
@@ -272,8 +282,6 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Indicatore «Licenze degli apparati»: licenze scadute e in scadenza (entro 30 giorni) degli asset "
                 "collegati ad apparati attivi, più il numero di apparati senza asset. Apre l'elenco licenze filtrato.",
-                "Nella colonna «Da fare», elenco «Apparati senza asset collegato»: MFC e dispositivi senza asset. Senza collegamento "
-                "non si vedono licenze, software installato e scadenze: apri l'apparato e collegalo dalla modifica.",
                 "Nella scheda MFC e dispositivo, riquadro «Asset collegato»: nome, tipo, seriale e codice "
                 "dell'asset, numero di licenze e di software rilevati dall'inventario del SOC, poi ogni licenza "
                 "con scadenza, giorni mancanti (o trascorsi) e stato (valida, in scadenza, scaduta, disattiva). "
@@ -283,8 +291,55 @@ SEZIONI: list[dict] = [
                 "Apparato senza asset: se il portale trova un solo asset con la stessa matricola/seriale o lo stesso "
                 "IP lo propone («Asset trovato per seriale», «per indirizzo IP», …) e chi gestisce il modulo lo collega "
                 "con «Collega» (registrato nell'audit). Con «Scegli un altro», o se non c'è una proposta univoca, "
-                "«Collega un asset» apre la modifica dell'apparato.",
+                "«Collega un asset esistente» apre la modifica dell'apparato. Se l'apparato non è nel registro, "
+                "«Crea l'asset» (vedi «Asset e SOC»).",
+                "Una MFC creata da «Modulo completo» viene collegata da sola all'asset con la stessa matricola o "
+                "lo stesso IP, se ce n'è uno solo (come i dispositivi SNMP).",
             ]),
+        ],
+    },
+    {
+        "id": "asset-soc",
+        "titolo": "Asset e SOC: un apparato, tre moduli",
+        "blocchi": [
+            ("p", "Ogni apparato di Contatori IT è anche un asset dell'inventario e, per il SOC, un host con un "
+                  "firmware. Le tre viste restano allineate così:"),
+            ("def", [
+                ("Crea l'asset", "nella scheda di un apparato senza asset (permesso di gestione Contatori e di "
+                                 "creazione asset): crea l'asset con nome, tipo, produttore, modello, matricola e "
+                                 "posizione letti dall'apparato, un punto rete «Monitoraggio SNMP» con il suo IP, "
+                                 "e lo collega. Chiede conferma ed è registrato nello storico dell'asset. Reparto, "
+                                 "data d'acquisto e assegnazione si completano dalla scheda asset."),
+                ("Apparato e inventario non dicono la stessa cosa", "riquadro nella scheda dell'apparato, sotto "
+                                 "«Asset collegato»: numero di serie, produttore, modello, IP e posizione "
+                                 "diversi tra apparato e asset, e lo stato di vita («Asset dismesso» con apparato "
+                                 "ancora interrogato). Niente si sovrascrive da solo: «Allinea dalla scheda asset» "
+                                 "porta alla tabella «Il monitoraggio ha dati diversi dall'anagrafica», dove "
+                                 "«Applica» copia il valore (per l'IP aggiunge un punto rete)."),
+                ("Sicurezza", "riquadro nella scheda dell'apparato. Per tutti: «SNMPv1/v2c senza cifratura» "
+                              "(community in chiaro sulla rete) e «Community predefinita» (public, private…: "
+                              "cambiala). Solo con accesso al SOC: il firmware nell'inventario del SOC, le CVE che "
+                              "lo impattano (KEV = sfruttata attivamente) e l'alert aperto se l'apparato non "
+                              "risponde. Il valore della community non viene mai mostrato."),
+                ("Apparati di rete che cadono", "firewall, switch (Rete), server, storage, UPS e "
+                                                "videoregistratori che non rispondono per 2 controlli di fila "
+                                                "(circa 10 minuti) aprono un alert nel SOC, uno per apparato; "
+                                                "l'alert si chiude da solo alla prima risposta. Stampanti, "
+                                                "telecamere, lettori e sensori no. Il numero di controlli e "
+                                                "l'interruttore sono nel SOC: «Impostazioni» → «Apparati di "
+                                                "rete (Contatori IT)»."),
+                ("Firmware sempre coerente", "disattivando, eliminando o cambiando IP a un dispositivo, il suo "
+                                             "firmware nell'inventario del SOC diventa «non più rilevato»; "
+                                             "collegandolo a un asset, firmware e CVE passano subito su "
+                                             "quell'asset."),
+                ("Centrale, blocco «Asset e SOC»", "apparati di rete non raggiungibili (alert SOC aperti), "
+                                                   "apparati con firmware vulnerabile (solo con accesso al SOC), "
+                                                   "apparati su asset dismessi e apparati senza asset (telecamere "
+                                                   "escluse), con «Riconcilia» verso la riconciliazione IT del "
+                                                   "modulo Asset."),
+            ]),
+            ("p", "Nel SOC, pagina «Vulnerabilità», «Host più esposti»: un host che è un apparato di Contatori IT "
+                  "mostra il nome dell'apparato e apre la sua scheda."),
         ],
     },
     {
@@ -369,6 +424,10 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Consultare la riconciliazione", "permesso «Contatori - Consultazione»."),
                 ("Caricare, modificare ed eliminare fatture e letture", "permesso «Contatori - Gestione»."),
+                ("Impostazioni, profili, discovery, nuovi apparati", "permesso «Contatori - Gestione»."),
+                ("Creare l'asset da un apparato", "permesso «Contatori - Gestione» e permesso di creazione nel "
+                                                  "modulo Asset."),
+                ("Vedere CVE, firmware nel SOC e alert", "accesso al Security Center (SOC)."),
             ]),
         ],
     },

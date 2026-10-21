@@ -376,6 +376,39 @@ def _alert_da_evento(event, title, severity, trace):
         notify_alert_created(alert)
 
 
+def _evaluate_apparato_irraggiungibile(event):
+    """Apparato di rete di Contatori IT senza risposta (``contatori.soc``): un alert per apparato."""
+    payload = event.payload or {}
+    if not soc_settings_value("apparati.irraggiungibile.alert"):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Alert sugli apparati di rete spenti in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Apparato di rete senza risposta SNMP per più controlli consecutivi => alert",
+        "apparato": payload.get("apparato"),
+        "host": payload.get("host"),
+        "errore": payload.get("errore"),
+        "controlli": payload.get("controlli_senza_risposta"),
+    }
+    _alert_da_evento(event, f"Apparato non raggiungibile: {payload.get('apparato')} ({payload.get('categoria')}, "
+                            f"{payload.get('host')})", event.severity, trace)
+
+
+def _evaluate_apparato_raggiungibile(event):
+    """L'apparato risponde di nuovo: chiude l'alert di caduta (stesso dedup)."""
+    from security.services.auto_resolution import resolve_alert
+
+    alert = _active_alert(event.source, event.dedup_hash)
+    trace = {"decision": "resolved_upstream", "reason": "L'apparato risponde di nuovo al monitoraggio SNMP"}
+    if alert is not None:
+        resolve_alert(alert, "L'apparato risponde di nuovo al monitoraggio SNMP di Contatori IT.",
+                      evidence_event=event, rule_code="apparato_raggiungibile")
+        trace["alert_id"] = alert.pk
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+
+
 def soc_settings_value(key):
     from security.services import soc_settings
 
@@ -827,4 +860,6 @@ _HANDLERS = {
     "m365_account_cessato": _evaluate_m365_account_cessato,
     "entra_audit": _evaluate_entra_audit,
     "entra_accesso": _evaluate_entra_accesso,
+    "apparato_irraggiungibile": _evaluate_apparato_irraggiungibile,
+    "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
 }

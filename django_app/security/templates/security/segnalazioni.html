@@ -13,10 +13,12 @@
     {% for chip in chips_tipo %}
       <a class="sec-chip{% if chip.active %} is-active{% endif %}{% if not chip.count and chip.value %} is-empty{% endif %}" href="{{ chip.url }}"{% if chip.active %} aria-current="true"{% endif %}>{{ chip.label }} <strong>{{ chip.count }}</strong></a>
     {% endfor %}
+    <a class="sec-chip sev-critical{% if urgenti %} is-active{% endif %}{% if not n_urgenti %} is-empty{% endif %}" href="{{ link_urgenti }}" title="Critiche o alte, o con una notifica NIS2/GDPR scaduta o in scadenza: lo stesso numero del riquadro e del menu"{% if urgenti %} aria-pressed="true"{% endif %}>Solo urgenti <strong>{{ n_urgenti }}</strong></a>
+    {% if scadenza %}<span class="soc-day-chip">Solo con notifica di legge in scadenza<a href="{% url 'security:segnalazioni' %}" title="Togli il filtro" aria-label="Togli il filtro">✕</a></span>{% endif %}
     <span class="sec-muted sec-small" style="margin-left:auto">aperte adesso</span>
   </div>
   <form class="sec-filter-bar" method="get">
-    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="hidden" name="tipo" value="{{ tipo }}">{% if urgenti %}<input type="hidden" name="urgenti" value="1">{% endif %}
     <label>Stato
       <select name="stato">
         {% for chip in chips_stato %}<option value="{{ chip.value }}"{% if chip.active %} selected{% endif %}>{{ chip.label }}</option>{% endfor %}
@@ -36,7 +38,7 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
-    <h2>{% if stato == "chiuse" %}Chiuse{% elif stato == "tutte" %}Tutte{% else %}Da gestire{% endif %}</h2>
+    <h2>{% if urgenti %}Urgenti{% elif stato == "chiuse" %}Chiuse{% elif stato == "tutte" %}Tutte{% else %}Da gestire{% endif %}</h2>
     <span class="sec-badge">{{ righe_totali }} segnalazion{{ righe_totali|pluralize:"e,i" }}</span>
   </div>
   <div class="sec-table-wrap">
@@ -54,7 +56,7 @@
           <td>{{ r.who|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="sec-empty">{% if q or gravita or tipo or stato != "aperte" %}Nessuna segnalazione corrisponde ai filtri.{% else %}Niente da gestire: nessun alert, ticket o incidente aperto.{% endif %}</td></tr>
+        <tr><td colspan="7" class="sec-empty">{% if q or gravita or tipo or urgenti or scadenza or stato != "aperte" %}Nessuna segnalazione corrisponde ai filtri.{% else %}Niente da gestire: nessun alert, ticket o incidente aperto.{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>

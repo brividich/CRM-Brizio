@@ -46,10 +46,10 @@ class LiveStripTests(_Base):
         self.alert(Severity.CRITICAL)
         page = self.client.get(reverse("security:tickets_list"))
         self.assertContains(page, 'data-live-url="/soc/stato/"')
-        self.assertContains(page, "critici e alti")
+        self.assertContains(page, "segnalazioni urgenti")
         strip = self.client.get(reverse("security:live_strip"))
         self.assertContains(strip, "tone-critical")
-        self.assertContains(strip, "/soc/alerts/?status=active&amp;severity=critical&amp;severity=high")
+        self.assertContains(strip, "/soc/segnalazioni/?urgenti=1")
 
 
 class PreviewTests(_Base):

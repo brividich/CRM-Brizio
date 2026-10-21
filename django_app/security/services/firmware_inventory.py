@@ -54,3 +54,24 @@ def sincronizza_dispositivo(dispositivo) -> SoftwareInstallation | None:
         SoftwareInstallation.objects.filter(source_kind=KIND, host=host, still_detected=True).exclude(
             pk=riga.pk).update(still_detected=False)
     return riga
+
+
+def dismetti_host(host) -> int:
+    """Il dispositivo non c'e' piu' su ``host`` (disattivato, eliminato, IP cambiato): firmware «non più rilevato»."""
+    host = str(host or "").strip().lower()
+    if not host:
+        return 0
+    return SoftwareInstallation.objects.filter(source_kind=KIND, host=host, still_detected=True).update(still_detected=False)
+
+
+def aggiorna_asset(host, asset_id) -> int:
+    """Il dispositivo su ``host`` e' stato collegato a un altro asset: firmware e impatti CVE lo seguono subito."""
+    from security.models import SecurityCveImpact
+
+    host = str(host or "").strip().lower()
+    if not host:
+        return 0
+    righe = SoftwareInstallation.objects.filter(source_kind=KIND, host=host)
+    aggiornate = righe.update(hub_asset_id=asset_id)
+    SecurityCveImpact.objects.filter(installation__in=righe).update(hub_asset_id=asset_id)
+    return aggiornate

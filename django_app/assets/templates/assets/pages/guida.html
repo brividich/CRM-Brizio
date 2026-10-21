@@ -230,8 +230,9 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li><strong>NVR TVT</strong>: modello, firmware, da quanti giorni è acceso, velocità e stato delle schede di rete eth0 ed eth1.</li>
         <li><strong>Telecamere TVT</strong>: solo se rispondono o no. Non espongono via SNMP né MAC né altri dati; il «da quanti giorni è acceso» non si mostra perché riguarda il servizio SNMP, non la telecamera.</li>
       </ul>
-      <p>Quando un apparato espone il MAC, accanto al valore letto compare <strong>= dichiarato</strong>, <strong>diverso dal dichiarato</strong> o <strong>non dichiarato</strong> rispetto al campo MAC dell'asset. Il monitoraggio non cambia mai i dati dell'asset.</p>
-      <p class="ag-note">Ogni quanto si leggono NVR e telecamere e quanti giorni di storico si tengono si imposta nel modulo Contatori IT (Configurazione SNMP globale). Il portale non mostra né salva immagini o video.</p>
+      <p>Quando un apparato espone il MAC, accanto al valore letto compare <strong>= punto rete</strong>, <strong>diverso dal punto rete</strong> o <strong>non nei punti rete</strong> rispetto ai MAC dei punti rete dell'asset. Se seriale, modello o IP letti sono diversi dall'anagrafica compare la tabella «Il monitoraggio ha dati diversi dall'anagrafica»: <strong>Applica</strong> copia il valore (per l'IP aggiunge un punto rete). Il monitoraggio non cambia mai i dati dell'asset da solo.</p>
+      <p>Il riquadro si vede solo con accesso al Monitor SNMP di Contatori IT. Un apparato di Contatori IT senza asset si può aggiungere all'inventario dalla sua scheda con «Crea l'asset».</p>
+      <p class="ag-note">Ogni quanto si leggono NVR e telecamere e quanti giorni di storico si tengono si imposta nel modulo Contatori IT (Configurazione → Impostazioni). Il portale non mostra né salva immagini o video.</p>
     </section>
 
     <section class="ag-sec" id="storico">

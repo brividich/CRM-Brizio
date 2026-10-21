@@ -170,6 +170,22 @@ SECTIONS = [
         ],
     },
     {
+        "code": "apparati_rete",
+        "title": "Apparati di rete (Contatori IT)",
+        "intro": "Firewall, switch, server, storage, UPS e videoregistratori monitorati via SNMP in Contatori IT. Quando un "
+                 "apparato non risponde per più controlli consecutivi (uno ogni 5 minuti) nasce un evento e un alert, uno per "
+                 "apparato; l'alert si chiude da solo quando l'apparato risponde di nuovo. Stampanti, telecamere e sensori "
+                 "restano nel solo monitor di Contatori IT.",
+        "channels_optional": True,
+        "options": [
+            Option("apparati.irraggiungibile.attivo", True, "Manda al SOC le cadute degli apparati di rete"),
+            Option("apparati.irraggiungibile.alert", True, "Apri un alert per ogni caduta",
+                   "Spento: le cadute restano eventi (KPI) senza alert. Severità alta per i firewall, attenzione per gli altri."),
+            Option("apparati.irraggiungibile.controlli", 2, "Controlli senza risposta",
+                   "Quante interrogazioni consecutive fallite fanno una caduta.", "int", min_value=1, max_value=12, unit="controlli"),
+        ],
+    },
+    {
         "code": "ai_sintesi",
         "title": "Sintesi del giorno già pronta",
         "intro": "L'AI locale prepara la «Sintesi del giorno» della Panoramica ogni 30 minuti nelle ore di lavoro, solo quando "

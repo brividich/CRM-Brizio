@@ -10,7 +10,7 @@
   <div class="spacer"></div>
   <div class="actions">
     {% if g %}<a class="btn ghost small" href="{% url 'contatori:importa_lettura' %}">+ Lettura manuale</a>
-    <form method="post" action="{% url 'contatori:leggi_snmp' %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Lettura in corso…'">{% csrf_token %}<button class="btn small" title="Legge via SNMP le MFC senza lettura manuale nel trimestre (nei primi 7 giorni del trimestre: chiusura del precedente)">Leggi MFC ora</button></form>{% endif %}
+    <form method="post" action="{% url 'contatori:leggi_snmp' %}" data-busy="Lettura in corso…">{% csrf_token %}<button class="btn small" title="Legge via SNMP le MFC senza lettura manuale nel trimestre (nei primi 7 giorni del trimestre: chiusura del precedente)">Leggi MFC ora</button></form>{% endif %}
   </div>
 </header>
 
@@ -61,7 +61,7 @@
   <a class="kpi" href="{% url 'assets:software_license_list' %}?status={% if licenze_apparati.scadute %}expired{% else %}expiring{% endif %}">
     <span class="k">Licenze degli apparati</span>
     <span class="v {% if licenze_apparati.scadute %}health-error{% elif licenze_apparati.in_scadenza %}health-warning{% endif %}">{{ licenze_apparati.scadute }}</span>
-    <span class="meta">scadute · {{ licenze_apparati.in_scadenza }} in scadenza{% if licenze_apparati.da_collegare %} · {{ licenze_apparati.da_collegare|length }} apparati senza asset{% endif %}</span>
+    <span class="meta">scadute · {{ licenze_apparati.in_scadenza }} in scadenza{% if integrazione.n_senza_asset %} · {{ integrazione.n_senza_asset }} apparat{{ integrazione.n_senza_asset|pluralize:"o,i" }} senza asset{% endif %}</span>
   </a>
 </div>
 
@@ -82,9 +82,16 @@
     {% endif %}
     {% if c.cali %}<h3 id="cali" class="centrale-sub">Cali di lettura</h3>
     <table class="compatta" data-fm-table-skip="1"><tbody>{% for p in c.cali %}<tr><td>{{ p.macchina }}<div class="muted">{{ p.contatore }}</div></td><td class="num">{{ p.da_val }} <span class="muted">({{ p.da_trim }})</span></td><td class="num neg">{{ p.a_val }} <span class="muted">({{ p.a_trim }})</span></td></tr>{% endfor %}</tbody></table>{% endif %}
-    {% if licenze_apparati.da_collegare %}<h3 id="da-collegare" class="centrale-sub">Apparati senza asset collegato</h3>
-    <p class="muted">Senza asset non si vedono licenze, software e scadenze: collegalo da «Modifica».</p>
-    <ul class="disp-list">{% for r in licenze_apparati.da_collegare %}<li><div>{% if r.kind == 'macchina' %}<a class="plain" href="{% url 'contatori:macchina' r.oggetto.pk %}">{{ r.nome }}</a>{% else %}<a class="plain" href="{% url 'contatori:snmp_dispositivo' r.oggetto.pk %}">{{ r.nome }}</a>{% endif %}<div class="muted">{% if r.kind == 'macchina' %}Multifunzione{% else %}{{ r.oggetto.get_categoria_display }}{% endif %}{% if r.oggetto.host %} · <span class="mono">{{ r.oggetto.host }}</span>{% endif %}</div></div><span class="pill warn">non collegato</span></li>{% endfor %}</ul>{% endif %}
+    {% with q=integrazione %}{% if q.n_dismessi or q.n_senza_asset or q.firmware_cve or q.irraggiungibili_soc %}
+    <h3 id="integrazione" class="centrale-sub">Asset e SOC</h3>
+    <ul class="todo-list">
+      {% if q.irraggiungibili_soc %}<li class="todo danger"><span class="todo-dot" aria-hidden="true"></span><div class="todo-body"><strong>{{ q.irraggiungibili_soc }} apparat{{ q.irraggiungibili_soc|pluralize:"o,i" }} di rete non raggiungibil{{ q.irraggiungibili_soc|pluralize:"e,i" }}</strong><span>Alert aperti nel SOC: si chiudono da soli quando l'apparato risponde.</span></div><a class="btn ghost small" href="{% url 'security:alerts_list' %}">Alert SOC</a></li>{% endif %}
+      {% if q.firmware_cve %}<li class="todo danger"><span class="todo-dot" aria-hidden="true"></span><div class="todo-body"><strong>{{ q.firmware_cve }} apparat{{ q.firmware_cve|pluralize:"o,i" }} con firmware vulnerabile</strong><span>CVE confermate dal SOC sul firmware letto via SNMP: aggiorna il firmware.</span></div><a class="btn ghost small" href="{% url 'security:vulnerabilities' %}">Vulnerabilità</a></li>{% endif %}
+      {% if q.n_dismessi %}<li class="todo danger"><span class="todo-dot" aria-hidden="true"></span><div class="todo-body"><strong>{{ q.n_dismessi }} apparat{{ q.n_dismessi|pluralize:"o,i" }} su asset dismess{{ q.n_dismessi|pluralize:"o,i" }}</strong><span>{% for r in q.dismessi %}<a class="plain" href="{{ r.url }}">{{ r.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}: ancora interrogat{{ q.n_dismessi|pluralize:"o,i" }}. Disattivali o correggi lo stato dell'asset.</span></div></li>{% endif %}
+      {% if q.n_senza_asset %}<li class="todo warn"><span class="todo-dot" aria-hidden="true"></span><div class="todo-body"><strong>{{ q.n_senza_asset }} apparat{{ q.n_senza_asset|pluralize:"o,i" }} senza asset</strong><span>Senza asset non si vedono licenze, costi e scadenze e il SOC non sa a chi attribuire firmware e CVE. Dalla scheda dell'apparato: «Collega» o «Crea l'asset».</span></div><a class="btn ghost small" href="{{ q.riconciliazione_url }}?vista=senza">Riconcilia</a></li>{% endif %}
+    </ul>
+    {% if q.senza_asset %}<ul class="disp-list">{% for r in q.senza_asset %}<li><div><a class="plain" href="{{ r.url }}">{{ r.nome }}</a><div class="muted">{% if r.tipo == 'mfc' %}Stampante MFC{% else %}{{ r.oggetto.get_categoria_display }}{% endif %}{% if r.oggetto.host %} · <span class="mono">{{ r.oggetto.host }}</span>{% endif %}</div></div><span class="pill warn">senza asset</span></li>{% endfor %}{% if q.n_senza_asset > q.senza_asset|length %}<li class="muted">Sono {{ q.n_senza_asset }} in tutto (telecamere escluse): elenco completo nella <a class="plain" href="{{ q.riconciliazione_url }}?vista=senza">riconciliazione IT</a>.</li>{% endif %}</ul>{% endif %}
+    {% endif %}{% endwith %}
     </div>
   </section>
 
@@ -96,7 +103,7 @@
       <td><span class="pill {% if m.snmp_stato == 'OK' %}ok{% elif m.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ m.get_snmp_stato_display }}</span></td>
       {% if l %}<td class="num" title="A4 B/N {{ l.a4_bn }} · A3 B/N {{ l.a3_bn }} · A4 col {{ l.a4_col }} · A3 col {{ l.a3_col }}"><strong>{{ l.totale }}</strong><div class="muted">{{ l.get_fonte_display }} · {{ l.data|date:"d/m" }}</div></td><td>{% if g %}<a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a>{% endif %}</td>
       {% else %}<td class="num muted">nessuna lettura</td><td>{% if g %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ c.trimestre }}">+ Inserisci</a>{% endif %}</td>{% endif %}
-    </tr>{% endwith %}{% empty %}<tr><td colspan="4" class="empty">Nessuna MFC attiva.{% if g %} <a class="plain" href="{% url 'contatori:macchina_nuova' %}">Aggiungi la prima</a>.{% endif %}</td></tr>{% endfor %}
+    </tr>{% endwith %}{% empty %}<tr><td colspan="4" class="empty">Nessuna MFC attiva.{% if g %} <a class="plain" href="{% url 'contatori:wizard_avvia' 'apparato' %}?tipo_apparato=MFC">Aggiungi la prima</a>.{% endif %}</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 

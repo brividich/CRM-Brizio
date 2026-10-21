@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.urls import reverse
 from django.utils import timezone
 
-from security.models import BackupJobRecord, SecurityAlert, SecurityReport, SecurityVulnerabilityFinding, Severity
+from security.models import BackupJobRecord, SecurityAlert, SecurityReport, Severity
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 
 LEVELS = {"critical": 0, "high": 1, "warning": 2, "info": 3}
@@ -25,12 +25,10 @@ AREAS = [
      (("watchguard_epdr_protected_endpoints", "protetti"), ("watchguard_epdr_unprotected_endpoints", "senza protezione"),
       ("watchguard_epdr_outdated_agents", "protezione non aggiornata"))),
     ("backup", "Backup", ("synology_active_backup", "veeam_backup_job"),
-     (("backup_completed_count", "riusciti"), ("backup_failed_count", "falliti"), ("backup_transferred_total_gb", "GB salvati"))),
+     (("backup_completed_count", "esecuzioni riuscite"), ("backup_failed_count", "esecuzioni fallite"), ("backup_transferred_total_gb", "GB salvati"))),
     ("vpn", "Accessi VPN", ("watchguard_firebox_authentication_allowed", "watchguard_firebox_authentication_denied"),
      (("vpn_access_allowed", "accessi"), ("vpn_access_denied", "negati"), ("vpn_unique_users", "utenti"))),
-    ("vulns", "Vulnerabilità", ("defender_vulnerability_notification",),
-     (("defender_vulnerability_critical_count", "critiche"), ("defender_exposed_devices_total", "dispositivi esposti"),
-      ("defender_unique_cves", "CVE distinte"))),
+    ("vulns", "Vulnerabilità", ("defender_vulnerability_notification",), ()),  # numeri dal catalogo: CVE sull'inventario
 ]
 
 
@@ -70,20 +68,37 @@ def attention_items(now=None):
                            f"aperto dal {alert.created_at:%d/%m %H:%M}", reverse("security:alert_detail", args=[alert.pk])))
     extra = alerts.count() - 5
     if extra > 0:
-        items.append(_item("high", "Alert", f"Altri {extra} alert critici o alti aperti", "", reverse("security:alerts_list") + "?status=active"))
+        items.append(_item("high", "Alert", f"Altri {extra} alert critici o alti aperti", "",
+                           reverse("security:alerts_list") + "?status=active&severity=critical&severity=high"))
 
-    # Conta la data del job, non quella di importazione: «Importa storico» porta dentro anche fallimenti vecchi.
-    # Un solo punto per job (l'ultimo fallimento): tre notti fallite dello stesso job sono un problema, non tre.
+    # Backup contati per PC, come il riquadro «PC con backup ko» e la pagina Backup (filtro «Solo backup ko»).
+    from security.services import metriche
+
+    ko = metriche.pc_backup_ko_rows()
+    for row in ko[:3]:
+        if row["last_status"] == "failed":
+            detail = f"ultimo backup fallito il {timezone.localtime(row['last_at']):%d/%m %H:%M}"
+        elif row["last_ok"]:
+            detail = f"nessun backup riuscito da {row['days_since_ok']} giorni"
+        else:
+            detail = "nessun backup riuscito nel periodo"
+        items.append(_item("high", "Backup", f"Backup ko: {row['name']}", detail, reverse("security:pc_detail") + "?nome=" + row["name"]))
+    if len(ko) > 3:
+        items.append(_item("high", "Backup", f"Altri {len(ko) - 3} PC con backup ko", "", reverse("security:backup") + "?giorni=7&stato=ko#pc"))
+    # Job falliti che non nominano nessun PC (alcuni report danno solo il job): non entrano nel conteggio per PC,
+    # quindi restano qui come job. Data del job, non dell'import; un punto per job (l'ultimo fallimento).
+    from security.services.backup_center import device_runs
+
     cutoff = now - timedelta(hours=48)
-    failed, seen = [], set()
+    seen = set()
     for job in BackupJobRecord.objects.filter(status="failed").order_by("-started_at", "-created_at")[:50]:
         when = job.started_at or job.created_at
-        if when >= cutoff and job.job_name not in seen:
-            seen.add(job.job_name)
-            failed.append(job)
-    for job in failed[:3]:
-        items.append(_item("high", "Backup", f"Backup fallito: {job.job_name}", f"{job.started_at:%d/%m %H:%M}" if job.started_at else "",
-                           reverse("security:kpi_detail", args=["backup_failed_count"])))
+        if when < cutoff or job.job_name in seen or device_runs(job):
+            continue
+        seen.add(job.job_name)
+        if len(seen) <= 3:
+            items.append(_item("high", "Backup", f"Backup fallito: {job.job_name}", f"{job.started_at:%d/%m %H:%M} · il report non indica i PC" if job.started_at else "il report non indica i PC",
+                               reverse("security:backup_log") + "?giorni=7"))
     try:
         from security.services.backup_monitoring import missing_backup_candidates
 
@@ -122,11 +137,10 @@ def attention_items(now=None):
     except Exception:  # noqa: BLE001
         pass
 
-    critical_cves = SecurityVulnerabilityFinding.objects.filter(severity=Severity.CRITICAL, last_seen_at__gte=now - timedelta(days=30)).count() \
-        if hasattr(SecurityVulnerabilityFinding, "last_seen_at") else 0
-    if critical_cves:
-        items.append(_item("high", "Vulnerabilità", f"{critical_cves} vulnerabilità critiche negli ultimi 30 giorni", "", reverse("security:tickets_list")))
-
+    cve = metriche.cve_sui_pc()
+    if cve.extra["gravi"]:
+        items.append(_item("high", "Vulnerabilità", f"{cve.extra['gravi']} CVE gravi colpiscono i nostri PC",
+                           "sfruttate (CISA KEV) o con CVSS 9 o più, secondo l'inventario software", cve.url))
     try:
         from security.services.source_heartbeat import source_status_rows
 
@@ -155,8 +169,20 @@ def area_cards(items, days=7):
     for code, title, report_types, metrics in AREAS:
         last = SecurityReport.objects.filter(report_type__in=report_types).order_by("-created_at").first()
         last_at = max([d for d in (last.created_at if last else None, _last_record_at(code)) if d], default=None)
-        numbers = [{"name": name, "label": label, "tile": tiles.get(name)} for name, label in metrics]
-        has_data = bool(last_at) or any(n["tile"] for n in numbers)
+        numbers = [_number(name, label, tiles.get(name)) for name, label in metrics]
+        if code == "vulns":
+            numbers = _vuln_numbers()
+        elif code == "backup":
+            from security.services import metriche
+
+            ko = metriche.pc_backup_ko()
+            numbers = [{"name": "pc_backup_ko", "label": ko.label, "tile": {"value": ko.value}, "hint": "adesso", "url": ko.url, "raw": True}] + numbers
+        if code == "vulns":
+            from security.models import SoftwareInstallation
+
+            last_at = SoftwareInstallation.objects.order_by("-last_seen_at").values_list("last_seen_at", flat=True).first() or last_at
+        # Vulnerabilità e backup hanno numeri calcolati «adesso» (anche 0): conta solo se la fonte ha mandato dati.
+        has_data = bool(last_at) or (code not in ("vulns", "backup") and any(n["tile"] for n in numbers))
         state = worst.get(code) or ("ok" if has_data else "nodata")
         cards.append({
             "code": code, "title": title, "state": state,
@@ -164,7 +190,28 @@ def area_cards(items, days=7):
             "numbers": numbers, "last_report": last_at,
             "stale": bool(last_at) and last_at < timezone.now() - timedelta(days=3),
         })
+    # Prima le aree con dati: quelle senza fonte collegata vanno in fondo, non in prima fila.
+    cards.sort(key=lambda c: c["state"] == "nodata")
     return cards
+
+
+def _number(name, label, tile):
+    """Ogni numero dice se è l'ultimo valore letto o il totale del periodo: non si mescolano senza dirlo."""
+    hint = ("ultimo report" if tile.get("last_value") else "totale 7 giorni") if tile else ""
+    return {"name": name, "label": label, "tile": tile, "hint": hint, "url": reverse("security:kpi_detail", args=[name])}
+
+
+def _vuln_numbers():
+    """Vulnerabilità = CVE che colpiscono i nostri PC secondo l'inventario software (stesso dato della pagina Vulnerabilità)."""
+    from security.services import metriche
+
+    cve, pc, cop = metriche.cve_sui_pc(), metriche.pc_esposti(), metriche.copertura_cpe()
+    return [
+        {"name": "cve", "label": "CVE sui nostri PC", "tile": {"value": cve.value}, "hint": "adesso", "url": cve.url, "raw": True},
+        {"name": "pc_esposti", "label": "PC con CVE", "tile": {"value": pc.value}, "hint": "adesso", "url": pc.url, "raw": True},
+        {"name": "copertura_cpe", "label": f"software controllabili ({cop.extra['coperti']} su {cop.extra['totale']})",
+         "tile": {"value": f"{cop.value}%"}, "hint": "collegati a un CPE o N/A", "url": cop.url, "raw": True},
+    ]
 
 
 def _live_tiles(days):

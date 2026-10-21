@@ -590,7 +590,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 {% endblock %}
 
 {% block assets_shell_content %}
-{% if it_presentation or switch_mappa %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
+{% if it_presentation or switch_mappa or it_monitoring %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
 <style>
 /* Cruscotto per tipo di asset */
 .af-kpiband { margin:0 0 14px; padding:14px 16px; border:1px solid #dbe3f0; border-radius:14px; background:linear-gradient(180deg,#f7faff 0%,#fff 100%); }
@@ -937,50 +937,11 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
     </section>
   {% endif %}
 
-  {% if not it_presentation %}
-  {% with mfc_collegate=asset.contatori_macchine.all dispositivi_snmp=asset.dispositivi_snmp.all %}
-  {% if mfc_collegate or dispositivi_snmp %}
+  {% if not it_presentation and it_monitoring %}
+  {# Asset fuori dai profili IT (videosorveglianza, UPS, switch…): stesso riquadro e stessi permessi degli asset IT. #}
   <section class="af-sections" aria-label="Monitoraggio SNMP collegato" data-af-tab="Monitoraggio">
-    <article class="af-card af-span-full">
-      <div class="af-card-head">
-        <h2 class="af-card-title">Monitoraggio MFC e SNMP</h2>
-        <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_centrale' %}">Apri centrale</a>
-      </div>
-      <div class="af-card-body">
-        <ul class="af-mon-list">
-        {% for macchina in mfc_collegate %}
-          <li class="af-mon-row">
-            <span class="af-mon-ico" aria-hidden="true">MFC</span>
-            <div class="af-mon-main"><strong>MFC · {{ macchina.reparto }}</strong><span>Matricola {{ macchina.matricola }} · <span class="af-mon-host">{{ macchina.host|default:"host non impostato" }}</span></span></div>
-            <span class="as-badge {% if macchina.snmp_stato == 'OK' %}as-badge--ok{% elif macchina.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ macchina.get_snmp_stato_display }}</span>
-            <a class="af-btn af-btn-ghost" href="{% url 'contatori:macchina' macchina.pk %}">Dettagli</a>
-          </li>
-        {% endfor %}
-        {% for dispositivo in dispositivi_snmp %}
-          {# Ultima rilevazione salvata dal monitor: aprire la scheda non interroga mai il dispositivo. #}
-          <li class="af-mon-row">
-            <span class="af-mon-ico" aria-hidden="true">SNMP</span>
-            <div class="af-mon-main"><strong>{{ dispositivo.nome }}</strong><span>{{ dispositivo.get_categoria_display }} · <span class="af-mon-host">{{ dispositivo.host }}</span></span>
-              <span>{% if dispositivo.snmp_ultimo_controllo %}Ultimo controllo {{ dispositivo.snmp_ultimo_controllo|timesince }} fa{% else %}Mai interrogato{% endif %}{% if dispositivo.categoria == 'TVCC_NVR' and dispositivo.sys_object_id %} · modello {{ dispositivo.sys_object_id }}{% endif %}{% if dispositivo.sys_uptime_seconds is not None and dispositivo.categoria != 'TVCC_CAMERA' %} · acceso da circa {% widthratio dispositivo.sys_uptime_seconds 86400 1 %} giorni{% endif %}{% if dispositivo.sys_name %} · {{ dispositivo.sys_name }}{% endif %}{% if dispositivo.sys_description %} · {{ dispositivo.sys_description|truncatechars:90 }}{% endif %}</span>
-              {% if dispositivo.snmp_ultimo_errore %}<div class="as-error">{{ dispositivo.snmp_ultimo_errore|truncatechars:120 }}</div>{% endif %}</div>
-            <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
-            <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
-            {% with ril=dispositivo.rilevazioni.first %}{% if ril %}
-            <div style="flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;">
-              {% for valore in ril.valori.all %}
-                <span class="af-hero-tag"><span>{{ valore.sonda.nome }}</span>{{ valore.valore_display }}{% if valore.sonda.tipo_valore == 'MAC' and valore.valore_testo %}{% if valore.valore_testo in endpoint_macs %} <span class="as-badge as-badge--ok">= dichiarato</span>{% elif endpoint_macs %} <span class="as-badge as-badge--warn">diverso dal dichiarato</span>{% else %} <span class="as-badge">non dichiarato</span>{% endif %}{% endif %}</span>
-              {% endfor %}
-            </div>
-            {% endif %}{% endwith %}
-          </li>
-        {% endfor %}
-        </ul>
-      </div>
-    </article>
+    <div class="af-span-full">{% include "assets/partials/it_monitoring.html" %}</div>
   </section>
-  {% endif %}
-  {% endwith %}
-
   {% endif %}
   {% if asset_costi and not asset_costi.vuoto or asset_costi.pagine_fatturate %}
   <section class="af-sections" aria-label="Costi dell'asset" data-af-tab="Panoramica">

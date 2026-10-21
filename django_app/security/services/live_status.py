@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 
 from django.core.cache import cache
-from django.urls import reverse
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -19,48 +18,16 @@ CACHE_SECONDS = 60
 
 
 def _shared():
-    from security.models import SecurityAlert, SecurityMailboxMessage, Severity
-    from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
+    """I riquadri vengono dal catalogo delle metriche: stessi numeri del menu, della Panoramica e degli elenchi."""
+    from security.models import SecurityMailboxMessage
+    from security.services import metriche
 
     items = []
-
-    def add(key, fn):
+    for fn in (metriche.segnalazioni_urgenti, metriche.scadenze_legali, metriche.pc_backup_ko, metriche.sorgenti_mute):
         try:
-            items.append(fn())
+            items.append(fn().as_item())
         except Exception:  # noqa: BLE001 - una voce rotta non rompe la barra
-            logger.exception("Barra di stato SOC: voce %s non calcolata", key)
-
-    def alerts():
-        n = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, severity__in=[Severity.CRITICAL, Severity.HIGH]).count()
-        return {"key": "alerts", "label": "critici e alti", "value": n, "tone": "critical" if n else "success",
-                "url": reverse("security:alerts_list") + "?status=active&severity=critical&severity=high",
-                "title": "Alert critici o alti ancora aperti"}
-
-    def deadlines():
-        from security.services.incidents import urgent_incidents
-
-        rows = urgent_incidents()
-        overdue = sum(1 for r in rows if r["deadline"]["state"] == "overdue")
-        return {"key": "nis2", "label": "scadenze NIS2", "value": len(rows), "tone": "critical" if overdue else ("warning" if rows else "success"),
-                "url": reverse("security:incidents"), "title": f"Notifiche scadute ({overdue}) o in scadenza entro 12 ore"}
-
-    def backups():
-        from security.services.backup_center import FAIL, overview
-
-        devices = overview(7)["devices"]
-        bad = sum(1 for d in devices if d["stale"] or d["last_status"] == FAIL)
-        return {"key": "backup", "label": "PC backup ko", "value": bad, "tone": "warning" if bad else "success",
-                "url": reverse("security:backup") + "?giorni=7#pc", "title": "PC con ultimo backup fallito o senza backup riuscito oltre la soglia"}
-
-    def silent():
-        from security.services.source_heartbeat import source_status_rows
-
-        n = sum(1 for r in source_status_rows() if r["state"] in ("high", "warning"))
-        return {"key": "sources", "label": "sorgenti mute", "value": n, "tone": "warning" if n else "success",
-                "url": reverse("security:admin_mailbox_sources_list"), "title": "Sorgenti di report che non mandano dati da troppo"}
-
-    for key, fn in (("alerts", alerts), ("nis2", deadlines), ("backup", backups), ("sources", silent)):
-        add(key, fn)
+            logger.exception("Barra di stato SOC: voce %s non calcolata", fn.__name__)
     last = SecurityMailboxMessage.objects.order_by("-received_at").values_list("received_at", flat=True).first()
     return {"items": items, "last_report": last, "computed_at": timezone.now()}
 

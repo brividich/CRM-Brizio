@@ -135,20 +135,30 @@ def segnalazioni(request):
     stato = request.GET.get("stato", "aperte")
     severity = request.GET.get("gravita", "")
     q = request.GET.get("q", "").strip()[:100]
-    righe = svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q)
+    urgenti = request.GET.get("urgenti") == "1"
+    scadenza = request.GET.get("scadenza") == "1"
+    righe = svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q, urgenti=urgenti, scadenza=scadenza)
     tipo = tipo if tipo in dict(svc.KINDS) else ""
     stato = stato if stato in {"aperte", "chiuse", "tutte"} else "aperte"
     severity = severity if severity in dict(svc.GRAVITA) else ""
     page = Paginator(righe, SEGNALAZIONI_PER_PAGINA).get_page(request.GET.get("page"))
     counts = svc.conteggi()
+    if urgenti:
+        # con «Solo urgenti» i chip contano le urgenti: il numero sul chip è sempre uguale alle righe che apre
+        from collections import Counter
+
+        per_tipo = Counter(r["kind"] for r in svc.elenco(urgenti=True))
+        counts = {k: per_tipo.get(k, 0) for k, _l in svc.KINDS}
 
     def link(**cambi):
-        params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q}
+        params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q, "urgenti": "1" if urgenti else "", "scadenza": "1" if scadenza else ""}
         params.update(cambi)
         return "?" + urlencode({k: v for k, v in params.items() if v and not (k == "stato" and v == "aperte")})
 
     return render(request, "security/segnalazioni.html", {
         "page": page, "righe_totali": len(righe), "tipo": tipo, "stato": stato, "gravita": severity, "q": q,
+        "urgenti": urgenti, "scadenza": scadenza, "n_urgenti": len(svc.elenco(urgenti=True)),
+        "link_urgenti": link(urgenti="" if urgenti else "1", scadenza="", page=""),
         "counts": counts, "counts_totale": sum(counts.values()),
         "chips_tipo": [{"value": "", "label": "Tutte", "count": sum(counts.values()), "active": not tipo, "url": link(tipo="", page="")}] + [
             {"value": k, "label": label, "count": counts[k], "active": tipo == k, "url": link(tipo=k, page="")} for k, label in svc.KINDS
@@ -161,6 +171,30 @@ def segnalazioni(request):
         "gravita_choices": svc.GRAVITA,
         "pagina_prec": link(page=page.previous_page_number()) if page.has_previous() else "",
         "pagina_succ": link(page=page.next_page_number()) if page.has_next() else "",
+    })
+
+
+# --- Copertura dei PC ----------------------------------------------------------------------
+
+def pc_copertura(request):
+    """Tutti i PC visti da almeno una fonte, con le fonti che li vedono (Intune, WatchGuard, Defender, backup)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import pc_copertura as svc
+
+    rows = svc.righe()
+    codice = request.GET.get("f", "tutti")
+    codice = codice if codice in dict(svc.FILTRI) else "tutti"
+    q = request.GET.get("q", "").strip()[:100]
+    visibili = svc.filtra(rows, codice)
+    if q:
+        needle = q.casefold()
+        visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())]
+    counts = svc.conteggi(rows)
+    return render(request, "security/pc_copertura.html", {
+        "rows": visibili, "totale": len(rows), "q": q, "codice": codice,
+        "filtri": [{"code": c, "label": label, "count": counts[c], "active": c == codice} for c, label in svc.FILTRI],
+        "intune_totale": sum(1 for r in rows if r["intune"]),
     })
 
 

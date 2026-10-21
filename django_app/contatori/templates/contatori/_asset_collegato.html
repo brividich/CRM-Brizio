@@ -14,6 +14,15 @@
     {% if software_asset and software_asset.rows %}<span><b>{{ software_asset.present }}</b> software rilevati{% if software_asset.inventory_date %} · inventario del {{ software_asset.inventory_date|date:"d/m/Y" }}{% endif %}</span>{% else %}<span class="muted">Nessun software dall'inventario</span>{% endif %}
     {% if costi_asset and not costi_asset.vuoto %}<span><b>€ {{ costi_asset.totale|floatformat:"2g" }}</b> costi registrati negli ultimi 12 mesi · <a class="plain" href="{% url 'assets:asset_view' asset.pk %}#asset-costi">dettaglio</a></span>{% endif %}
   </div>
+  {% if allineamento %}
+  <div class="allinea" role="group" aria-label="Differenze con l'inventario">
+    <p class="allinea-head"><strong>Apparato e inventario non dicono la stessa cosa</strong> <span class="muted">Nulla viene sovrascritto da solo: i dati si allineano dalla scheda asset, con lo storico delle modifiche.</span></p>
+    <div class="table-wrap"><table class="compatta" data-fm-table-skip="1"><thead><tr><th>Dato</th><th>Letto dall'apparato</th><th>Nell'inventario</th><th>Cosa fare</th></tr></thead><tbody>
+      {% for r in allineamento %}<tr class="allinea-{{ r.livello }}"><td><span class="pill {% if r.livello == 'danger' %}danger{% elif r.livello == 'warn' %}warn{% endif %}">{{ r.dato }}</span></td><td class="mono">{{ r.apparato }}</td><td>{{ r.asset|default:"— vuoto —" }}</td><td class="muted">{{ r.nota }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    <a class="btn ghost small" href="{% url 'assets:asset_view' asset.pk %}#asset-it-monitoring">Allinea dalla scheda asset</a>
+  </div>
+  {% endif %}
   {% if licenze_asset %}
   <ul class="lic-list">{% for r in licenze_asset %}
     <li class="lic-item {{ r.status }}"><span class="lic-dot" aria-hidden="true"></span>
@@ -23,7 +32,7 @@
   </ul>
   {% else %}<p class="asset-coll-vuoto">Nessuna licenza registrata su questo asset. <a class="plain" href="{% url 'assets:software_license_list' %}?asset={{ asset.pk }}">Aggiungila da «Licenze software»</a>.</p>{% endif %}
   {% else %}
-  <div class="asset-coll-vuoto asset-coll-nessuno"><div><strong>Apparato non collegato a un asset</strong><span class="muted">Collegalo per vedere qui licenze, software installato e la scheda dell'inventario.</span></div>{% if g and not asset_proposto %}<a class="btn small" href="{{ edit_url }}">Collega un asset</a>{% endif %}</div>
+  <div class="asset-coll-vuoto asset-coll-nessuno"><div><strong>Apparato non collegato a un asset</strong><span class="muted">Collegalo per vedere qui licenze, software installato, costi e la scheda dell'inventario; senza asset il SOC non sa a chi attribuire firmware e vulnerabilità.</span></div><div class="actions">{% if g and not asset_proposto %}<a class="btn small ghost" href="{{ edit_url }}">Collega un asset esistente</a>{% endif %}{% if crea_asset and not asset_proposto %}<form method="post" action="{% url 'contatori:apparato_crea_asset' crea_asset.tipo crea_asset.pk %}" data-confirm="Creare nell'inventario l'asset «{{ crea_asset.dati.name }}» e collegarlo a questo apparato?">{% csrf_token %}<button class="btn small" type="submit" title="Nuovo asset con nome, modello, matricola e IP letti dall'apparato">Crea l'asset</button></form>{% endif %}</div></div>
   {% if asset_proposto %}{% with p=asset_proposto.asset %}
   <div class="asset-coll-proposta">
     <span class="asset-coll-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span>

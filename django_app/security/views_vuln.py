@@ -52,13 +52,34 @@ def _config_denied(request):
 
 # --- Lettura ---------------------------------------------------------------------------------
 
+def _con_apparati_snmp(hosts):
+    """Gli host che sono apparati di Contatori IT (firmware) si aprono nella loro scheda, non in «PC»."""
+    from django.urls import reverse
+
+    try:
+        from contatori.models import DispositivoSNMP
+
+        nomi = {str(h["host"]).lower() for h in hosts}
+        apparati = {host.lower(): (pk, nome) for pk, host, nome in DispositivoSNMP.objects.filter(
+            host__in=nomi).values_list("pk", "host", "nome")}
+    except Exception:  # noqa: BLE001 - senza Contatori IT i link restano quelli dei PC
+        logger.exception("Apparati SNMP non abbinati agli host esposti")
+        return hosts
+    for h in hosts:
+        apparato = apparati.get(str(h["host"]).lower())
+        if apparato:
+            h["snmp_url"] = reverse("contatori:snmp_dispositivo", args=[apparato[0]])
+            h["snmp_nome"] = apparato[1]
+    return hosts
+
+
 def vulnerabilities_dashboard(request):
     if not can_view_security_center(request.user):
         return _denied(request)
     latest = cve_impact.latest_inventory_date()
     return render(request, "security/vuln_dashboard.html", {
         "cves": cve_impact.impacting_cves(),
-        "hosts": cve_impact.most_exposed_hosts(),
+        "hosts": _con_apparati_snmp(cve_impact.most_exposed_hosts()),
         "unmapped": cve_impact.unmapped_software(limit=30),
         "inventory_date": latest,
         "inventory_fresh": bool(latest and latest >= cve_impact.fresh_since()),

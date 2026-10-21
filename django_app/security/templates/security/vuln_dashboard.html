@@ -45,7 +45,7 @@
     <div class="sec-table-wrap">
       <table class="sec-table sec-table-compact" data-fm-table-skip="1">
         <thead><tr><th>Host</th><th class="sec-num">CVE</th><th class="sec-num">di cui KEV</th></tr></thead>
-        <tbody>{% for h in hosts %}<tr><td><a href="{% url 'security:pc_detail' %}?nome={{ h.host|urlencode }}">{{ h.host }}</a></td><td class="sec-num">{{ h.cves }}</td><td class="sec-num">{{ h.kev }}</td></tr>{% empty %}<tr><td colspan="3" class="sec-empty">Nessun host impattato.</td></tr>{% endfor %}</tbody>
+        <tbody>{% for h in hosts %}<tr><td>{% if h.snmp_url %}<a href="{{ h.snmp_url }}" title="Apparato monitorato in Contatori IT">{{ h.snmp_nome }}</a> <span class="sec-muted">{{ h.host }} · apparato di rete</span>{% else %}<a href="{% url 'security:pc_detail' %}?nome={{ h.host|urlencode }}">{{ h.host }}</a>{% endif %}</td><td class="sec-num">{{ h.cves }}</td><td class="sec-num">{{ h.kev }}</td></tr>{% empty %}<tr><td colspan="3" class="sec-empty">Nessun host impattato.</td></tr>{% endfor %}</tbody>
       </table>
     </div>
   </div>

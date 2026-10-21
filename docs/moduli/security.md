@@ -161,3 +161,12 @@ Il menu (`templatetags/security_config_nav.py`, `MENU` + tag `soc_menu`, templat
 ## Grafica del SOC (21/10/2026)
 
 `_base_soc.html` rende l'intestazione (`soc-head`: blocchi `page_marker`/`page_title`, ricerca, guida) e include lo sprite `_icons.html` (simboli `soc-i-*`). `soc_menu` aggiunge a ogni voce `icon` e `badge` (da `live_status`, in cache 60 s); dentro la configurazione la seconda riga elenca le `CONFIG_TABS` al posto della scheda unica, quindi il tag `soc_config_tabs` non è più usato nel layout. Stile in `static/security/soc-design.css`, caricato dopo `security.css` e `soc-live.css`.
+
+
+## Catalogo delle metriche (21/10/2026)
+
+`services/metriche.py`: ogni numero del SOC si calcola solo lì (`Metrica`: key, label, unit, periodo, fonte, value, url, tone). Regole: una definizione per numero; unità e periodo dichiarati; il link apre un elenco con esattamente quelle righe (test `test_metriche_coerenti`); «adesso» separato dall'andamento. Metriche: `segnalazioni_urgenti` (→ `/soc/segnalazioni/?urgenti=1`), `segnalazioni_aperte`, `alert_urgenti`, `scadenze_legali` (→ `?tipo=incident&scadenza=1`), `pc_backup_ko` (per PC, → `/soc/backup/?stato=ko`), `sorgenti_mute`, `cve_sui_pc`, `pc_esposti`, `copertura_cpe`. `live_status` e i numeri del menu (`BADGE`) leggono da qui.
+
+## PC e fonti (21/10/2026)
+
+`/soc/dispositivi/pc/` (rotta `pc_copertura`, servizio `services/pc_copertura.py`): unione di `assets.DispositivoIntune` (presenti), `SoftwareInstallation` attive (campo `fonti`, esclusi i firmware SNMP) e PC dei report di backup degli ultimi 30 giorni, con chiave il nome host senza dominio in minuscolo. Filtri `f` = tutti / problemi / non_intune / senza_edr / senza_backup, ricerca `q` su nome e utente. Sola lettura.

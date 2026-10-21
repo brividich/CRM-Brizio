@@ -102,7 +102,7 @@ class SocDashboardAndKpiTests(TestCase):
     def test_dashboard_shows_data_flows_and_vpn_panels(self):
         response = self.client.get(reverse("security:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Flussi dati")
+        self.assertContains(response, "Fonti dati")
         self.assertContains(response, "Accessi VPN")
         self.assertIn("source_rows", response.context)
 
