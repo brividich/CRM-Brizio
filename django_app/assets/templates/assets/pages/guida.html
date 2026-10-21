@@ -305,7 +305,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="catalogo">
       <h2>Catalogo software</h2>
-      <p>La pagina <a href="{% url 'assets:software_catalog' %}">Catalogo software</a> (menu Configurazione, accanto a Licenze software) elenca tutti i programmi installati sui PC dell'azienda secondo l'ultimo inventario: per ognuno su quanti PC c'è, quante versioni diverse, la decisione dell'azienda, la licenza e, a chi vede il SOC, le CVE.</p>
+      <p>La pagina <a href="{% url 'assets:software_catalog' %}">Catalogo software</a> (menu Configurazione, accanto a Licenze software) elenca tutti i programmi installati sui PC dell'azienda secondo l'ultimo inventario, <strong>una riga per programma</strong> anche se le fonti lo chiamano in modo diverso («chrome» e «Google Chrome» sono lo stesso programma): per ognuno su quanti PC c'è, quante versioni diverse (nel dettaglio la tabella <strong>«Versioni presenti»</strong> dice quanti PC hanno ciascuna versione e da quale fonte arriva), la decisione dell'azienda, la licenza e, a chi vede il SOC, le CVE.</p>
       <h3>Filtri</h3>
       <p>In alto: <em>Da classificare</em>, <em>Non autorizzati</em>, <em>Da rimuovere</em>, <em>A pagamento senza licenza</em>, <em>Sotto la versione minima</em>, <em>Con CVE</em>. Il numero accanto dice quanti software ci sono in quel gruppo.</p>
       <h3>Classificare un software</h3>
