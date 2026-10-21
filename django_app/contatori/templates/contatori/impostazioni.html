@@ -1,0 +1,22 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Impostazioni SNMP · Contatori IT{% endblock %}
+{% block modulo %}
+<div class="row"><div><div class="eyebrow">Configurazione</div><h1>Impostazioni SNMP</h1><p class="sub">Valori usati quando un apparato non ne ha di propri (dal suo profilo, dalla community del catalogo o dalla sua scheda), e il ritmo della videosorveglianza.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:snmp_profili' %}">Catalogo profili</a><a class="btn ghost" href="{% url 'contatori:riconciliazione_guida' %}#snmpv3">? Guida SNMPv3</a></div></div>
+
+{% if apparati_in_chiaro %}<div class="banner warn"><strong>{{ apparati_in_chiaro }} apparat{{ apparati_in_chiaro|pluralize:"o,i" }} interrogat{{ apparati_in_chiaro|pluralize:"o,i" }} senza cifratura (SNMPv1/v2c).</strong> La community viaggia in chiaro sulla rete: dove l'apparato lo supporta, imposta SNMPv3 sulla sua scheda. Il dettaglio è nel riquadro «Sicurezza» di ogni apparato.</div>{% endif %}
+
+<form method="post" class="imp-form">{% csrf_token %}
+  {% if snmp_form.non_field_errors %}<div class="banner danger">{{ snmp_form.non_field_errors|join:" " }}</div>{% endif %}
+  <section class="panel">
+    <div class="panel-head"><div><h2>Parametri predefiniti</h2><p>Community condivisa in sola lettura, porta, timeout e versione. Vuota la community, gli apparati senza una propria non vengono letti.</p></div></div>
+    <div class="form-grid">{% for field in snmp_form %}{% if not field.name|slice:":5" == "tvcc_" %}{% include "contatori/_form_campo.html" with form=snmp_form %}{% endif %}{% endfor %}</div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><h2>Videosorveglianza</h2><p>Per i dispositivi di categoria «TVCC»: ogni quanti minuti interrogare NVR e telecamere e quanti giorni di storico delle interrogazioni conservare. Le immagini non passano dal portale.</p></div></div>
+    <div class="form-grid">{% for field in snmp_form %}{% if field.name|slice:":5" == "tvcc_" %}{% include "contatori/_form_campo.html" with form=snmp_form %}{% endif %}{% endfor %}</div>
+  </section>
+  <div class="actions"><button class="btn" type="submit">Salva impostazioni</button></div>
+</form>
+
+<section class="panel"><h2>Profili MFC completi</h2><p class="muted">Profili di stampante che leggono tutti e quattro i contatori di fatturazione (A4/A3, bianco e nero/colore): {% for profilo in profili_mfc %}<span class="pill ok">{{ profilo }}</span> {% empty %}nessuno{% endfor %}</p></section>
+{% endblock %}

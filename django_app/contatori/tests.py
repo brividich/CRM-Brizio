@@ -315,7 +315,7 @@ class GestioneStampantiTest(_AuthedClientMixin, TestCase):
             "modello": "iR-ADV C5535i", "contratto": "9999/1",
             "fornitore": "BASE", "host": "192.168.1.50", "attiva": "on",
         })
-        self.assertRedirects(r, reverse("contatori:macchine"))
+        self.assertRedirects(r, reverse("contatori:macchina", args=[Macchina.objects.get(matricola="TEST0001").pk]))
         self.assertEqual(Macchina.objects.count(), prima + 1)
         self.assertTrue(Macchina.objects.filter(matricola="TEST0001").exists())
 
@@ -326,7 +326,7 @@ class GestioneStampantiTest(_AuthedClientMixin, TestCase):
             "contratto": m.contratto, "fornitore": m.fornitore,
             "host": "10.0.0.7", "attiva": "on",
         })
-        self.assertRedirects(r, reverse("contatori:macchine"))
+        self.assertRedirects(r, reverse("contatori:macchina", args=[m.pk]))
         m.refresh_from_db()
         self.assertEqual(m.host, "10.0.0.7")
 
@@ -362,12 +362,12 @@ class GestioneStampantiTest(_AuthedClientMixin, TestCase):
         self.assertEqual(cfg.port, 161)
 
     def test_salva_impostazioni_snmp(self):
-        r = self.client.post(reverse("contatori:macchine"), {
+        r = self.client.post(reverse("contatori:impostazioni"), {
             "community": "altrogruppo", "port": "1610",
             "timeout": "5", "version": "v2c",
             "tvcc_intervallo_nvr": "10", "tvcc_intervallo_telecamere": "45", "tvcc_retention_giorni": "7",
         })
-        self.assertRedirects(r, reverse("contatori:macchine"))
+        self.assertRedirects(r, reverse("contatori:impostazioni"))
         cfg = ImpostazioniSNMP.get_solo()
         self.assertEqual(cfg.community, "altrogruppo")
         self.assertEqual(cfg.version, "v2c")

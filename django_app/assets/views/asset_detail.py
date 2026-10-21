@@ -32,6 +32,7 @@ from ..models import (
     AssetDetailField,
     AssetDetailSectionLayout,
     AssetDocument,
+    AssetEndpoint,
     AssetMaintenanceBudget,
     AssetTimelineEntry,
     AssetTimelineHiddenEvent,
@@ -396,6 +397,20 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             diff = next((row for row in snmp_identity_diffs(asset) if row["field"] == field and row["snmp_value"] == value), None)
             if diff is None:
                 messages.error(request, "Dato SNMP non più disponibile o già allineato.")
+                return redirect("assets:asset_view", id=asset.id)
+            if field == "ip":
+                # L'IP interrogato da Contatori IT diventa un punto rete in piu': quelli esistenti restano.
+                endpoint = AssetEndpoint.objects.create(asset=asset, endpoint_name="Monitoraggio SNMP", ip=diff["snmp_value"])
+                log_action(
+                    request,
+                    "apply_snmp_identity",
+                    "assets",
+                    {"asset_id": asset.id, "field": "ip", "endpoint_id": endpoint.id, "new_value": diff["snmp_value"],
+                     "origin": diff["origin"]},
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=asset.id,
+                )
+                messages.success(request, f"Punto rete «{diff['snmp_value']}» aggiunto dal monitoraggio.")
                 return redirect("assets:asset_view", id=asset.id)
             old_value = getattr(asset, field) or ""
             setattr(asset, field, diff["snmp_value"])
@@ -1305,19 +1320,24 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
 
     scheda_chimica = asset.prodotto_chimico.scheda_corrente() if asset.prodotto_chimico_id else None
     it_monitoring = None
+    from ..services.it_monitoring import has_snmp_monitoring, monitoring_for_asset
+
     if it_presentation is not None:
-        from ..services.it_monitoring import monitoring_for_asset
         it_monitoring = monitoring_for_asset(
             request,
             asset,
             printer=it_presentation.get("profile") == "printer",
             endpoint_ips=[e.ip for e in it_presentation.get("endpoints", []) if e.ip],
         )
-        if it_monitoring is not None:
-            from ..services.it_identity_diff import snmp_identity_diffs
+    elif has_snmp_monitoring(asset):
+        # Videosorveglianza, UPS, switch, NAS…: stesso riquadro degli asset IT, con gli stessi
+        # permessi di Contatori IT (prima qui si vedevano host ed errori SNMP senza controllo ACL).
+        it_monitoring = monitoring_for_asset(request, asset)
+    if it_monitoring is not None:
+        from ..services.it_identity_diff import snmp_identity_diffs
 
-            it_monitoring["identity_diffs"] = snmp_identity_diffs(asset)
-            it_monitoring["can_apply_identity"] = _can_edit_asset(request, asset.id)
+        it_monitoring["identity_diffs"] = snmp_identity_diffs(asset)
+        it_monitoring["can_apply_identity"] = _can_edit_asset(request, asset.id)
     it_intune = []
     if it_presentation is not None:
         from ..services.intune import per_asset as _intune_per_asset
@@ -1349,8 +1369,6 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 if asset.prodotto_chimico_id else []
             ),
             "asset_completeness": asset.completeness(),
-            # MAC dichiarati sui punti rete: confronto con quello letto via SNMP (blocco Monitoraggio).
-            "endpoint_macs": [e.mac for e in asset.endpoints.all() if e.mac],
             "asset_status": asset_status,
             # Chi ha toccato QUESTO asset, e quando. Vedi core.audit.storico_oggetto:
             # compaiono le voci agganciate all'asset, non tutte quelle del modulo.

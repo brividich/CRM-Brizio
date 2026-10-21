@@ -19,7 +19,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
 
-from . import errori_snmp
+from . import errori_snmp, soc
 from .models import (
     CONTATORI,
     DispositivoSNMP,
@@ -870,6 +870,7 @@ def interroga_dispositivo(dispositivo):
             "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
             "snmp_ultimo_errore", "aggiornato_il",
         ])
+        soc.valuta(dispositivo)
         return rilevazione
 
     sys_name = _testo(valori.get(SYS_NAME))
@@ -1064,6 +1065,7 @@ def interroga_dispositivo(dispositivo):
     dispositivo.save(update_fields=[
         *update_fields,
     ])
+    soc.valuta(dispositivo)
     return rilevazione
 
 
@@ -1567,27 +1569,19 @@ def conferma_proposta(proposta, trimestre):
 
 
 def licenze_asset_apparati():
-    """Licenze software degli asset collegati ad apparati (MFC e dispositivi SNMP) e apparati senza asset.
+    """Licenze software degli asset collegati ad apparati attivi (MFC e dispositivi SNMP).
 
-    Ritorna ``scadute``/``in_scadenza`` (numero di licenze attive degli asset collegati) e ``da_collegare``
-    (apparati attivi senza asset). Nessun match per apparato: il numero di query non cresce con la flotta.
+    Ritorna ``scadute``/``in_scadenza`` (numero di licenze attive degli asset collegati). Gli apparati
+    senza asset sono in ``integrazione.quadro_integrazione``. Query a numero fisso.
     """
     from assets.services.software_licenze import expiring_for_assets
 
-    macchine = list(Macchina.objects.filter(attiva=True).select_related("asset"))
-    dispositivi = list(DispositivoSNMP.objects.filter(attivo=True).select_related("asset"))
-    ids = {o.asset_id for o in (*macchine, *dispositivi) if o.asset_id}
+    ids = set(Macchina.objects.filter(attiva=True, asset__isnull=False).values_list("asset_id", flat=True))
+    ids |= set(DispositivoSNMP.objects.filter(attivo=True, asset__isnull=False).values_list("asset_id", flat=True))
     conteggi = expiring_for_assets(ids)
-    da_collegare = []
-    for kind, oggetti in (("macchina", macchine), ("dispositivo", dispositivi)):
-        for o in oggetti:
-            if o.asset_id:
-                continue
-            da_collegare.append({"kind": kind, "oggetto": o, "nome": getattr(o, "nome", "") or o.reparto})
     return {
         "scadute": sum(s for s, _ in conteggi.values()),
         "in_scadenza": sum(i for _, i in conteggi.values()),
-        "da_collegare": da_collegare,
     }
 
 

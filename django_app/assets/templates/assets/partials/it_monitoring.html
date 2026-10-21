@@ -26,7 +26,7 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
       <div class="af-it-dev">
         <span class="af-it-dev-ico" aria-hidden="true">SNMP</span>
         <div class="af-it-dev-main"><a class="af-it-dev-name" href="{{ device.url }}">{{ device.nome }}</a>
-          <span class="af-it-dev-meta"><span class="af-it-mono">{{ device.host }}</span> · {% if device.firmware %}Firmware <span class="af-it-mono">{{ device.firmware }}</span> · {% endif %}{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
+          <span class="af-it-dev-meta">{% if device.categoria_label %}{{ device.categoria_label }} · {% endif %}<span class="af-it-mono">{{ device.host }}</span> · {% if device.modello_tvcc %}modello {{ device.modello_tvcc }} · {% endif %}{% if device.acceso_giorni is not None %}acceso da circa {{ device.acceso_giorni }} giorni · {% endif %}{% if device.firmware %}Firmware <span class="af-it-mono">{{ device.firmware }}</span> · {% endif %}{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai registrato{% endif %}</span></div>
         {% if device.snmp_ultimo_controllo %}<span class="as-badge as-badge--{% if device.snmp_stato == 'OK' %}ok{% elif device.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}">{{ device.state_label }}</span>{% endif %}
         <a class="af-btn af-btn-ghost" href="{{ device.url }}">Apri in Contatori IT</a>
       </div>
@@ -34,7 +34,7 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
       <details class="af-it-disclosure"{% if it_presentation.profile != 'printer' %} open{% endif %}><summary>Valori rilevati</summary>
         <p>Fonte: rilevazione SNMP del {{ device.snapshot.rilevata_il|date:"d/m/Y H:i" }}.</p>
         <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Dato</th><th>Valore</th><th>Esito</th></tr></thead><tbody>
-          {% for reading in device.readings %}<tr><td>{{ reading.name }}</td><td>{{ reading.value }}</td><td>{% if reading.state == 'OK' %}{{ reading.state_label }}{% else %}<strong>{{ reading.state_label }}</strong>{% endif %}</td></tr>{% endfor %}
+          {% for reading in device.readings %}<tr><td>{{ reading.name }}</td><td>{{ reading.value }}{% if reading.mac_check == 'same' %} <span class="as-badge as-badge--ok">= punto rete</span>{% elif reading.mac_check == 'different' %} <span class="as-badge as-badge--warn" title="Il MAC letto non è tra quelli dei punti rete dell'asset">diverso dal punto rete</span>{% elif reading.mac_check == 'undeclared' %} <span class="as-badge">non nei punti rete</span>{% endif %}</td><td>{% if reading.state == 'OK' %}{{ reading.state_label }}{% else %}<strong>{{ reading.state_label }}</strong>{% endif %}</td></tr>{% endfor %}
         </tbody></table></div>
         <p class="af-note">Fino a 30 valori, nell'ordine del profilo SNMP. I dettagli tecnici degli errori sono nella scheda del dispositivo.</p>
       </details>

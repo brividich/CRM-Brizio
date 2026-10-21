@@ -41,14 +41,18 @@ def _format_reading(number, unit):
     return f"{text} {unit}".strip()
 
 
-def _probe_readings(snapshot_ids):
-    """Valori delle sonde dell'ultima rilevazione, senza i messaggi d'errore tecnici."""
-    from contatori.models import ValoreSNMP, etichetta_valore
+def _probe_readings(snapshot_ids, declared_macs=None):
+    """Valori delle sonde dell'ultima rilevazione, senza i messaggi d'errore tecnici.
+
+    Con ``declared_macs`` (MAC dei punti rete dell'asset) il MAC letto via SNMP viene
+    confrontato con quello dichiarato: ``mac_check`` = ``same`` | ``different`` | ``undeclared``.
+    """
+    from contatori.models import SondaSNMP, ValoreSNMP, etichetta_valore
 
     out = {}
     rows = ValoreSNMP.objects.filter(rilevazione_id__in=snapshot_ids).order_by(
         "rilevazione_id", "sonda__ordine", "sonda__nome",
-    ).values("rilevazione_id", "sonda__nome", "sonda__unita", "sonda__etichette",
+    ).values("rilevazione_id", "sonda__nome", "sonda__unita", "sonda__etichette", "sonda__tipo_valore",
              "valore_numero", "valore_testo", "stato")
     for row in rows:
         readings = out.setdefault(row["rilevazione_id"], [])
@@ -61,11 +65,25 @@ def _probe_readings(snapshot_ids):
             value = _format_reading(row["valore_numero"], row["sonda__unita"])
         else:
             value = row["valore_testo"] or "Non disponibile"
-        readings.append({
+        reading = {
             "name": row["sonda__nome"], "value": value, "state": row["stato"],
             "state_label": READING_STATE_LABELS.get(row["stato"], "Esito non noto"),
-        })
+        }
+        if declared_macs is not None and row["sonda__tipo_valore"] == SondaSNMP.TipoValore.MAC and row["valore_testo"]:
+            mac = row["valore_testo"].lower()
+            reading["mac_check"] = "same" if mac in declared_macs else ("different" if declared_macs else "undeclared")
+        readings.append(reading)
     return out
+
+
+def has_snmp_monitoring(asset) -> bool:
+    """Asset fuori dai profili IT che Contatori IT osserva o puo' osservare (es. videosorveglianza, UPS)."""
+    from contatori.forms_wizard import TIPO_DA_ASSET
+    from contatori.models import DispositivoSNMP, Macchina
+
+    if asset.asset_type in TIPO_DA_ASSET:
+        return True
+    return DispositivoSNMP.objects.filter(asset=asset).exists() or Macchina.objects.filter(asset=asset).exists()
 
 
 def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
@@ -77,7 +95,9 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
     latest = RilevazioneSNMP.objects.filter(dispositivo_id=OuterRef("pk")).order_by("-rilevata_il", "-pk")
     devices = list(DispositivoSNMP.objects.filter(asset=asset).order_by("nome", "pk").annotate(
         snapshot_id=Subquery(latest.values("pk")[:1]),
-    ).values("id", "nome", "host", "attivo", "snmp_stato", "snmp_ultimo_controllo", "firmware", "snapshot_id")[:LINK_LIMIT])
+    ).values("id", "nome", "host", "attivo", "snmp_stato", "snmp_ultimo_controllo", "firmware", "snapshot_id",
+             "categoria", "sys_object_id", "sys_uptime_seconds")[:LINK_LIMIT])
+    categorie = dict(DispositivoSNMP.Categoria.choices)
     permitted = []
     for device in devices:
         device["url"] = reverse("contatori:snmp_dispositivo", args=[device["id"]])
@@ -87,9 +107,16 @@ def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
     snapshots = {row["id"]: row for row in RilevazioneSNMP.objects.filter(
         pk__in=snapshot_ids,
     ).values("id", "rilevata_il", "stato", "dati_stampante")}
-    readings_by_snapshot = _probe_readings(snapshot_ids)
+    declared_macs = {mac.lower() for mac in asset.endpoints.exclude(mac="").values_list("mac", flat=True)} if snapshot_ids else set()
+    readings_by_snapshot = _probe_readings(snapshot_ids, declared_macs)
     for device in permitted:
         device["state_label"] = STATE_LABELS.get(device["snmp_stato"], "Esito non noto")
+        device["categoria_label"] = categorie.get(device["categoria"], "")
+        # NVR TVT: il modello sta nel sysObjectID. Telecamere: l'uptime e' del servizio SNMP, non si mostra.
+        device["modello_tvcc"] = device["sys_object_id"] if device["categoria"] == DispositivoSNMP.Categoria.TVCC_NVR else ""
+        uptime = device["sys_uptime_seconds"]
+        device["acceso_giorni"] = (uptime // 86400 if uptime is not None
+                                   and device["categoria"] != DispositivoSNMP.Categoria.TVCC_TELECAMERA else None)
         snapshot = snapshots.get(device["snapshot_id"])
         if snapshot:
             snapshot["state_label"] = STATE_LABELS.get(snapshot["stato"], "Esito non noto")
