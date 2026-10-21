@@ -1,7 +1,9 @@
 <div class="soc-live-inner tone-{{ live.worst }}">
-  <span class="soc-live-dot" aria-hidden="true"></span>
   {% for item in live.items %}
-    <a class="soc-live-item tone-{{ item.tone }}" href="{{ item.url }}" title="{{ item.title }}"><strong>{{ item.value }}</strong> {{ item.label }}</a>
+    <a class="soc-kpi tone-{{ item.tone }}" href="{{ item.url }}" title="{{ item.title }}">
+      <span class="soc-kpi-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-{% if item.key == 'alerts' %}alert{% elif item.key == 'nis2' %}clock{% elif item.key == 'backup' %}disk{% else %}signal{% endif %}"/></svg></span>
+      <span class="soc-kpi-body"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></span>
+    </a>
   {% endfor %}
-  <span class="soc-live-meta" title="Barra aggiornata ogni minuto">{% if live.last_report %}ultimo report {{ live.last_report|date:"d/m H:i" }} · {% endif %}agg. {{ live.computed_at|date:"H:i" }}</span>
+  <span class="soc-live-meta" title="Barra aggiornata ogni minuto"><span class="soc-live-dot" aria-hidden="true"></span>{% if live.last_report %}ultimo report {{ live.last_report|date:"d/m H:i" }} · {% endif %}agg. {{ live.computed_at|date:"H:i" }}</span>
 </div>

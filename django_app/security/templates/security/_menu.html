@@ -1,17 +1,14 @@
-{% load soc_live security_help %}
-<nav class="soc-nav soc-nav-main" aria-label="Navigazione SOC">
-  <div class="soc-nav-group">
-    {% for v in voci %}<a href="{{ v.url }}"{% if v.active %} class="active" aria-current="page"{% endif %}>{{ v.label }}</a>{% endfor %}
-  </div>
-  <div class="soc-nav-tools">
-    <a href="{% soc_page_help_url url_name %}" class="soc-nav-help" title="Guida di questa pagina" aria-label="Guida di questa pagina">?</a>
-    <form method="get" action="{% url 'security:search' %}" role="search" class="soc-nav-search">
-      <input type="search" name="q" placeholder="Cerca PC, ticket, CVE…" aria-label="Cerca nel SOC" value="{% if url_name == 'search' %}{{ request.GET.q }}{% endif %}">
-    </form>
-  </div>
+<nav class="soc-tabs" aria-label="Navigazione SOC">
+  {% for v in voci %}
+    <a class="soc-tab{% if v.active %} is-active{% endif %}" href="{{ v.url }}"{% if v.active %} aria-current="page"{% endif %}>
+      <svg class="soc-ico" aria-hidden="true"><use href="#soc-i-{{ v.icon }}"/></svg>
+      <span>{{ v.label }}</span>
+      {% if v.badge %}<span class="soc-count tone-{{ v.badge.tone }}" title="{{ v.badge.title }}">{{ v.badge.value }}</span>{% endif %}
+    </a>
+  {% endfor %}
 </nav>
 {% if sezione and sezione.tabs|length > 1 %}
 <nav class="soc-subnav" aria-label="{{ sezione.label }}">
-  {% for t in sezione.tabs %}<a href="{{ t.url }}"{% if t.active %} class="active" aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
+  {% for t in sezione.tabs %}<a href="{{ t.url }}"{% if t.active %} class="active" aria-current="page"{% endif %}>{{ t.label }}</a>{% if t.sep_after %}<span class="soc-subnav-sep" aria-hidden="true"></span>{% endif %}{% endfor %}
 </nav>
 {% endif %}

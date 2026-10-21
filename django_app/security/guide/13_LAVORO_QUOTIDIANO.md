@@ -4,7 +4,7 @@ Come si usa il SOC ogni giorno: da dove partire, come si lavorano alert, eventi 
 
 ## Il menu del SOC
 
-Cinque voci; la voce aperta mostra le sue pagine in una seconda riga:
+In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casella **Cerca** e il «?» che apre la guida della pagina. Sotto, il menu ha cinque voci con un'icona; un numero rosso o arancione accanto a una voce dice che lì c'è qualcosa da guardare (Segnalazioni: alert critici e alti più scadenze NIS2; Dispositivi: PC con backup ko; Impostazioni: sorgenti mute). La voce aperta mostra le sue pagine in una seconda riga:
 
 | Voce | Pagine |
 | --- | --- |
@@ -14,7 +14,7 @@ Cinque voci; la voce aperta mostra le sue pagine in una seconda riga:
 | **Report** | Report, Storico, KPI |
 | **Impostazioni** | Configurazione, Elaborazione, Soppressioni, Guida |
 
-Elaborazione compare solo a chi ha il permesso di configurazione. La casella **Cerca** è a destra, accanto al «?» che apre la guida della pagina.
+Elaborazione compare solo a chi ha il permesso di configurazione. Dentro **Impostazioni › Configurazione** la seconda riga elenca direttamente le sezioni della configurazione (Panoramica, Avvisi e automatismi, Caselle mail, Sorgenti e parser...), seguite da Elaborazione, Soppressioni e Guida.
 
 ## Da dove partire
 
@@ -25,7 +25,7 @@ Elaborazione compare solo a chi ha il permesso di configurazione. La casella **C
 
 ## La barra di stato
 
-Sotto il menu del SOC c'è una barra con quattro numeri che si aggiorna da sola ogni minuto. Ogni numero è un link:
+Sotto il menu ci sono quattro riquadri che si aggiornano da soli ogni minuto: verde se è tutto a posto, arancione o rosso se c'è da intervenire. Ogni riquadro è un link:
 
 | Voce | Cosa conta |
 | --- | --- |
