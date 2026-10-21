@@ -63,6 +63,19 @@ def run_report_emissioni_pulizia() -> dict:
         raise
 
 
+def run_gdpr_retention() -> dict:
+    """Conservazione GDPR degli archivi tecnici (``core/gdpr_retention.py``), applicata."""
+    from core.gdpr_retention import esegui
+
+    try:
+        esiti = esegui(apply=True)
+        return {"ok": not any(e["errore"] for e in esiti),
+                "righe": {e["codice"]: e["righe"] for e in esiti}}
+    except Exception:
+        logger.exception("run_gdpr_retention: eccezione inattesa")
+        raise
+
+
 def run_notifiche_archivio() -> dict:
     """Archivia le notifiche in-app scadute ed elimina le archiviate oltre soglia.
 
