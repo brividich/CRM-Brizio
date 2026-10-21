@@ -27,7 +27,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "setup_wizard": ("Piattaforma", "#94a3b8", "Configurazione iniziale"),
     "twofa": ("Piattaforma", "#64748b", "Verifica in due passaggi"),
     "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
-    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, formazione, visite, skill matrix, fornitori, richieste di rettifica (GDPR)"),
+    "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, formazione, visite, skill matrix, fornitori, richieste di rettifica (GDPR)"),
     "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),

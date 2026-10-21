@@ -50,6 +50,7 @@
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
       <a class="fmd-data-link" href="#ruoli-in-blocco">Cambio ruoli in blocco</a>
+      <a class="fmd-data-link" href="#struttura-organizzativa">Struttura organizzativa</a>
       <a class="fmd-data-link" href="#nuovo-dipendente">Nuovo dipendente</a>
       <a class="fmd-data-link" href="#account-portale">Account portale nella scheda</a>
       <a class="fmd-data-link" href="#amministrazione">Amministrazione e import</a>
@@ -147,6 +148,20 @@
       <p>Per collegare i ruoli alle mansioni e alle competenze c'è <strong>Mansionario → Struttura e import</strong>, con export e import in Excel: vedi la guida dell'Anagrafica, parte per amministratori.</p>
     </section>
 
+    <section class="fmd-panel gpa-sec" id="struttura-organizzativa">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Struttura organizzativa e posizione della persona</h2>
+      <p><strong>Persone → Struttura organizzativa</strong> mostra la struttura della Qualità: processi → reparti → aree → ruoli → mansioni. Le <strong>aree</strong> sono i «reparti» del file della Qualità (per esempio il reparto AGG/MONT ha le aree AGGIUSTAGGIO, MONTAGGIO, MASCHERATURA…; il reparto UT ha DIREZIONE, COMMERCIALE, UFFICIO TECNICO, OPERATIONS, ACQUISTI, QUALITA, RISORSE UMANE, HSE, IT). I ruoli hanno una <strong>sigla</strong> (ACO, IN1, MSM, CAR…) e sono <strong>diretti</strong> o <strong>indiretti</strong>.</p>
+      <ul>
+        <li>Ogni reparto ha un <strong>ruolo responsabile</strong> (es. CAR) e la sua mansione <strong>«Responsabilità del reparto»</strong>, creata da sola, dove si scrivono le competenze del responsabile. La persona responsabile resta il caporeparto del reparto.</li>
+        <li>Nella scheda del dipendente il riquadro <strong>Posizione nella struttura</strong> riassume ruolo, reparto e area, ruolo responsabile, processi e mansioni svolte con il livello. Sotto, <strong>Mansioni previste dal ruolo, non ancora assegnate</strong>: si assegnano <strong>una per una</strong>, scegliendo il livello (I in formazione, L intermedio, U autonomo, O esperto) e premendo <strong>Assegna</strong>.</li>
+        <li>Lo stesso riquadro è nella <strong>pratica di onboarding</strong>, con <strong>Assegna (I)</strong>: all'ingresso la mansione parte «in formazione». La checklist ha la voce <strong>Assegnare ruolo, area e mansioni della struttura</strong>.</li>
+        <li>Se il riquadro dice <strong>area da indicare</strong>, assegna l'area con uno spostamento: senza area il portale non sa quali mansioni proporre.</li>
+        <li>Le mansioni di rischio delle mansioni nuove sono <strong>proposte</strong> dal portale e valgono solo dopo la conferma di HSE (pagina <strong>Rischi da confermare</strong>).</li>
+        <li>Quando la Qualità approva la struttura, l'<strong>MSM</strong> ne emette una <strong>revisione</strong> (pagina <strong>Revisioni</strong>): fotografia non modificabile, confronto con le revisioni precedenti e PDF. Solo chi ha il ruolo MSM può emetterla.</li>
+      </ul>
+      <div class="gpa-nota">Rinominare un ruolo dal catalogo dei ruoli riscrive anche il «Ruolo aziendale» delle schede; il nome di prima resta fra i nomi precedenti del ruolo.</div>
+    </section>
+
     <section class="fmd-panel gpa-sec" id="nuovo-dipendente">
       <h2><svg class="fmd-ico"><use href="#i-plus"/></svg>Inserire un nuovo dipendente</h2>
       <p><strong>Persone → Nuovo dipendente</strong> apre quattro passi; si va avanti con <strong>Avanti →</strong> e si torna con <strong>← Indietro</strong>, oppure cliccando sul passo.</p>
@@ -239,6 +254,7 @@
         <li>Controllare in <strong>Accessi</strong> che le pagine nuove abbiano il permesso: con l'accesso rigoroso attivo una pagina senza permesso resta chiusa a chi non è superuser.</li>
         <li>Compilare i destinatari dell'<a class="fmd-data-link" href="#avviso-it">avviso IT</a>.</li>
         <li>Se serve, adattare le viste di partenza in <strong>Viste elenco dipendenti</strong>.</li>
+        <li>Struttura della Qualità: lanciare <span class="gpa-code">carica_struttura_v8</span> prima <strong>in prova</strong> (stampa riga per riga cosa farebbe, non salva), leggere i punti segnalati, poi con <span class="gpa-code">--applica</span>. Dopo: assegnare a mano i ruoli nuovi senza titolari (BDM, OPA, PM, PCO, ACA), scegliere il caporeparto dove il rapporto lo chiede, far confermare a HSE le mansioni di rischio e far emettere all'MSM la prima revisione.</li>
       </ol>
     </section>
     {% endif %}
