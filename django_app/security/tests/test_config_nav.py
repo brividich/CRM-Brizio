@@ -15,10 +15,13 @@ class ConfigNavTests(TestCase):
 
     def test_one_menu_entry_and_tabs_on_settings_page(self):
         html = self.client.get(reverse("security:soc_settings")).content.decode()
-        menu = html.split('<nav class="soc-nav"', 1)[1].split("</nav>", 1)[0]
-        self.assertIn(">Configurazione</a>", menu)
-        for old in (">Config</a>", ">Autoconfig</a>", ">Impostazioni</a>", ">Caselle mail</a>"):
+        menu = html.split('<nav class="soc-nav soc-nav-main"', 1)[1].split("</nav>", 1)[0]
+        sub = html.split('<nav class="soc-subnav"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn(">Impostazioni</a>", menu)  # una sola voce di menu per tutta la configurazione
+        self.assertIn(">Configurazione</a>", sub)
+        for old in (">Config</a>", ">Autoconfig</a>", ">Caselle mail</a>"):
             self.assertNotIn(old, menu)
+            self.assertNotIn(old, sub)
         self.assertIn('class="soc-config-tabs"', html)
         self.assertIn('aria-current="page">Avvisi e automatismi</a>', html)
 

@@ -4,7 +4,7 @@ Gli avvisi automatici su mail e Teams, il report che parte da solo e le funzioni
 
 ## Avvisi automatici
 
-La scheda **Avvisi e automatismi** di **Configurazione** (gruppo Gestione del menu) raccoglie gli avvisi che il SOC manda da solo. Tutti si vedono; per modificarli serve il permesso di configurazione del SOC.
+La scheda **Avvisi e automatismi** di **Impostazioni › Configurazione** raccoglie gli avvisi che il SOC manda da solo. Tutti si vedono; per modificarli serve il permesso di configurazione del SOC.
 
 Gli avvisi partono verso i **canali** (mail o Teams) definiti in **Configurazione › Notifiche**: se non ce n'è nessuno, la pagina lo dice e porta a crearne uno. Ogni sezione sceglie i suoi canali.
 

@@ -19,9 +19,8 @@ CACHE_SECONDS = 60
 
 
 def _shared():
-    from security.models import SecurityAlert, SecurityIncident, SecurityMailboxMessage, SecurityRemediationTicket, Severity
+    from security.models import SecurityAlert, SecurityMailboxMessage, Severity
     from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
-    from security.services.cases import ACTIVE_CASE_STATUSES
 
     items = []
 
@@ -60,13 +59,7 @@ def _shared():
         return {"key": "sources", "label": "sorgenti mute", "value": n, "tone": "warning" if n else "success",
                 "url": reverse("security:admin_mailbox_sources_list"), "title": "Sorgenti di report che non mandano dati da troppo"}
 
-    def unassigned():
-        n = SecurityRemediationTicket.objects.filter(assignee__isnull=True, status__in=ACTIVE_CASE_STATUSES).count()
-        n += SecurityIncident.objects.filter(owner__isnull=True, status__in=["open", "contained"]).count()
-        return {"key": "unassigned", "label": "senza responsabile", "value": n, "tone": "warning" if n else "success",
-                "url": reverse("security:tickets_list") + "?assignee=none", "title": "Ticket e incidenti aperti senza responsabile"}
-
-    for key, fn in (("alerts", alerts), ("nis2", deadlines), ("backup", backups), ("sources", silent), ("unassigned", unassigned)):
+    for key, fn in (("alerts", alerts), ("nis2", deadlines), ("backup", backups), ("sources", silent)):
         add(key, fn)
     last = SecurityMailboxMessage.objects.order_by("-received_at").values_list("received_at", flat=True).first()
     return {"items": items, "last_report": last, "computed_at": timezone.now()}
@@ -77,20 +70,10 @@ def live_status(user):
     if data is None:
         data = _shared()
         cache.set(CACHE_KEY, data, CACHE_SECONDS)
-    mine = 0
-    try:
-        from security.models import SecurityIncident, SecurityRemediationTicket
-        from security.services.cases import ACTIVE_CASE_STATUSES
-
-        if getattr(user, "is_authenticated", False):
-            mine = SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES).count()
-            mine += SecurityIncident.objects.filter(status__in=["open", "contained"]).count()
-    except Exception:  # noqa: BLE001
-        logger.exception("Barra di stato SOC: «da fare» non calcolato")
     worst = "success"
     for item in data["items"]:
         if item["tone"] == "critical":
             worst = "critical"
         elif item["tone"] == "warning" and worst != "critical":
             worst = "warning"
-    return {**data, "mine": mine, "worst": worst}
+    return {**data, "worst": worst}
