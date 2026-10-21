@@ -46,7 +46,8 @@ TIPO_META: dict[str, dict[str, str]] = {
     "specifica":            {"label": "Specifica",              "icona": "📐", "tono": "info",   "categoria": "operativita"},
     "sc_assegnazione":      {"label": "Suggestion Corner",      "icona": "💡", "tono": "info",   "categoria": "operativita"},
     "accesso_nuovo_dispositivo": {"label": "Accesso da un nuovo dispositivo", "icona": "🔐", "tono": "warn", "categoria": "sicurezza"},
-    "generico":             {"label": "Notifica",               "icona": "🔔", "tono": "info",   "categoria": "operativita"},
+    "rettifica_dati":       {"label": "Rettifica dei dati",     "icona": "✏️", "tono": "info",   "categoria": "operativita"},
+    "generico":            {"label": "Notifica",               "icona": "🔔", "tono": "info",   "categoria": "operativita"},
 }
 
 _DEFAULT: dict[str, str] = {"label": "Notifica", "icona": "🔔", "tono": "info", "categoria": "operativita"}

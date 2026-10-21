@@ -16,6 +16,8 @@
 .ms-table-wrap { overflow-x:auto; }
 .ms-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .ms-mesi { display:flex; gap:6px; flex-wrap:wrap; padding:10px 16px 0; }
+.ms-rett-form { display:flex; flex-direction:column; gap:6px; padding:12px 16px; max-width:720px; }
+.ms-rett-campo { border:1px solid var(--hr-border); border-radius:9px; padding:8px 10px; font:inherit; background:var(--hr-surface); color:var(--hr-text); }
 @media (max-width:900px) { .ms-grid { grid-template-columns:1fr; } .ms-kpi { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 </style>
 {% endblock %}
@@ -29,7 +31,7 @@
       {% include "anagrafica/components/hr_empty.html" with icon="🔗" title="Account non collegato a un dipendente" text="Il tuo utente del portale non è collegato a una scheda in anagrafica: chiedi all'ufficio HR di collegarlo." %}
     </section>
   {% else %}
-    {% include "anagrafica/components/hr_pagehead.html" with eyebrow="I miei dati" title=nome desc="Solo i tuoi dati: ferie, visite, formazione, cedolino e DPI. Se qualcosa non torna, scrivi all'ufficio HR." guida_url=guida_url|add:"#la-mia-scheda" %}
+    {% include "anagrafica/components/hr_pagehead.html" with eyebrow="I miei dati" title=nome desc="Solo i tuoi dati: ferie, visite, formazione, cedolino e DPI. Se qualcosa non torna, usa «Segnala un dato errato» in fondo alla pagina." guida_url=guida_url|add:"#la-mia-scheda" %}
 
     <div class="ms-grid">
       <section class="hr-card ms-wide" aria-labelledby="ms-ferie">
@@ -118,6 +120,38 @@
           <thead><tr><th>Voce</th><th>Tipo</th><th class="ms-num">Importo €</th></tr></thead>
           <tbody>{% for v in cedolino_voci %}
             <tr><td>{{ v.pay_item }}</td><td>{{ v.get_categoria_display }}</td><td class="ms-num">{{ v.importo|floatformat:2 }}</td></tr>
+          {% endfor %}</tbody>
+        </table></div>
+        {% endif %}
+      </section>
+
+      <section class="hr-card ms-wide" aria-labelledby="ms-rettifiche" id="ms-rettifiche">
+        <div class="hr-card-head"><div>
+          <div class="hr-card-title">I tuoi dati personali</div>
+          <div class="hr-card-desc">Puoi scaricare una copia di tutti i dati che il portale ha su di te e segnalare all'ufficio HR un dato sbagliato: risponde entro un mese.</div>
+        </div>
+        <div><a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:miei_dati_zip' %}">⬇ Scarica i miei dati</a></div></div>
+        <form method="post" action="{% url 'anagrafica:segnala_rettifica' %}" class="ms-rett-form">
+          {% csrf_token %}
+          <label class="ms-muted" for="ms-rett-ambito">Che dato riguarda</label>
+          <select id="ms-rett-ambito" name="ambito" class="ms-rett-campo">
+            {% for valore, etichetta in ambiti_rettifica %}<option value="{{ valore }}">{{ etichetta }}</option>{% endfor %}
+          </select>
+          <label class="ms-muted" for="ms-rett-testo">Cosa è sbagliato e come dovrebbe essere</label>
+          <textarea id="ms-rett-testo" name="testo" rows="3" maxlength="4000" required class="ms-rett-campo"></textarea>
+          <div><button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Segnala un dato errato</button></div>
+        </form>
+        {% if mie_rettifiche %}
+        <div class="ms-table-wrap"><table class="hr-table">
+          <thead><tr><th>N.</th><th>Riguarda</th><th>Inviata il</th><th>Stato</th><th>Risposta</th></tr></thead>
+          <tbody>{% for r in mie_rettifiche %}
+            <tr>
+              <td>{{ r.pk }}</td>
+              <td>{{ r.get_ambito_display }}</td>
+              <td>{{ r.creata_il|date:"d/m/Y" }}</td>
+              <td>{% if r.stato == "CHIUSA" %}{% include "anagrafica/components/hr_pill.html" with tone="ok" label="Chiusa" %}{% else %}{% include "anagrafica/components/hr_pill.html" with tone="warning" label="In lavorazione" %}{% endif %}</td>
+              <td>{{ r.risposta|default:"—"|linebreaksbr }}</td>
+            </tr>
           {% endfor %}</tbody>
         </table></div>
         {% endif %}

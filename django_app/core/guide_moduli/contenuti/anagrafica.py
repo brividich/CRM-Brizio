@@ -56,7 +56,27 @@ GUIDA = {
                       "idoneità (il referto e le prescrizioni restano all'ufficio HR); i corsi completati con il PDF "
                       "dell'«Attestato»; le voci del cedolino (ultimi sei mesi importati); le ultime richieste DPI, con "
                       "«Tutti i miei DPI»."),
+                ("p", "In fondo, «I tuoi dati personali»: «⬇ Scarica i miei dati» scarica un file ZIP con tutto quello che "
+                      "il portale ha su di te (dati.json, una tabella CSV per sezione da aprire con Excel e LEGGIMI.txt): "
+                      "dati anagrafici e bancari, rapporto di lavoro, figli a carico, visite (tipo, date, giudizio), "
+                      "formazione, voci del cedolino, saldi, assenze confermate, elenco dei documenti, DPI e le tue "
+                      "segnalazioni. Non contiene i file dei documenti né prescrizioni e note del medico: si chiedono all'ufficio HR."),
+                ("p", "«Segnala un dato errato»: scegli che dato riguarda, scrivi cosa è sbagliato e come dovrebbe essere, "
+                      "invia. L'ufficio HR risponde entro un mese; la risposta arriva come notifica e resta nella tabella "
+                      "sotto il modulo («In lavorazione» / «Chiusa»)."),
                 ("nota", "Se dice «Account non collegato», chiedi all'ufficio HR di collegare il tuo utente alla tua scheda."),
+            ],
+        },
+        {
+            "id": "rettifiche",
+            "titolo": "Richieste di rettifica (ufficio HR)",
+            "blocchi": [
+                ("p", "Impostazioni → «Richieste di rettifica» (HR e amministratori dell'anagrafica) elenca le segnalazioni "
+                      "dei dipendenti fatte da «La mia scheda», con la data entro cui rispondere (un mese, in rosso se "
+                      "scaduta). Correggi il dato nella scheda del dipendente (il nome è un link), poi scrivi la risposta "
+                      "e «Chiudi e rispondi»: il dipendente riceve la notifica. Apertura e chiusura vanno nel registro attività."),
+                ("p", "Per ricevere una mail a ogni nuova richiesta, imposta la casella dell'ufficio HR nella SiteConfig "
+                      "«anagrafica_rettifiche_email». La mail non contiene il testo della segnalazione."),
             ],
         },
         {
