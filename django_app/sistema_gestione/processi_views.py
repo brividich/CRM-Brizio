@@ -22,7 +22,7 @@ def catalogo(request):
         return _nega(request, "Non hai accesso al catalogo processi.")
     query = request.GET.get("q", "").strip()[:200]
     stato = request.GET.get("stato", "attivi")
-    processi = Processo.objects.select_related("responsabile").annotate(
+    processi = Processo.objects.select_related("responsabile", "ruolo_owner").annotate(
         ultimo_audit=Max("audit__data_inizio", filter=Q(audit__stato=Audit.STATO_CHIUSO)),
         audit_totali=Count("audit", distinct=True),
     )

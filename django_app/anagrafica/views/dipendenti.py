@@ -1547,6 +1547,20 @@ def _mansioni_da_rivedere_ctx(request, legacy_id: int, is_admin: bool) -> dict:
         return {"mansioni_da_rivedere": []}
 
 
+def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
+    """Card «Posizione nella struttura»: ruoli, area, processi, mansioni e proposte da assegnare."""
+    if not is_admin:
+        return {"posizione": None}
+    try:
+        from ..services.struttura_persona import posizione
+        from ..views_mansionario import _puo_valutare
+
+        return {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": _puo_valutare(request)}
+    except Exception:
+        logger.warning("posizione nella struttura non calcolata per %s", legacy_id, exc_info=True)
+        return {"posizione": None}
+
+
 @login_required
 def dipendente_detail(request, legacy_id: int):
     ensure_anagrafica_schema()
@@ -2263,6 +2277,7 @@ def dipendente_detail(request, legacy_id: int):
         "mansioni_catalogo": mansioni_catalogo,
         "assegnazioni": assegnazioni,
         **_mansioni_da_rivedere_ctx(request, legacy_id, is_admin),
+        **_posizione_struttura_ctx(request, legacy_id, is_admin),
         "assegnazione_in_corso": assegnazione_in_corso,
         "assetto_attuale": assetto_attuale,
         "ruoli_aziendali_catalogo": ruoli_aziendali_catalogo,
@@ -5580,8 +5595,11 @@ def onboarding_detail(request, pratica_id: int):
     if pratica.is_aperta and pratica.legacy_anagrafica_id:
         _onboarding_aggiorna_safe(pratiche=[pratica])
     candidato = pratica.candidati_recruiting.order_by("-pk").first()
+    posizione_ctx = (_posizione_struttura_ctx(request, pratica.legacy_anagrafica_id, True)
+                     if pratica.legacy_anagrafica_id else {"posizione": None})
     return render(request, "anagrafica/pages/onboarding_detail.html", {
         **_onboarding_contesto_pratica(pratica),
+        **posizione_ctx,
         "candidato": candidato,
         "task_stato_choices": OnboardingTask.STATO_CHOICES,
         "is_admin": _offboarding_is_admin(request),

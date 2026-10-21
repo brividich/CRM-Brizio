@@ -1,0 +1,79 @@
+/* ============================================================
+   Struttura organizzativa (anagrafica) — pagina dedicata, revisioni, conferme HSE.
+   Si appoggia ai token fmd- e alle classi mns- del Mansionario; qui solo il
+   proprio (prefisso sto-).
+   ============================================================ */
+
+.sto-rev{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:14px 0 4px; padding:10px 14px; border:1px solid #bfe3c8; border-radius:10px; background:#effaf2; color:#14532d; font-size:13px; }
+.sto-rev-bozza{ border-color:#f5d48b; background:#fff8e6; color:#78350f; }
+.sto-rev-nessuna{ border-color:#cfd9ea; background:#f3f7fb; color:var(--fmd-navy); }
+.sto-rev-link{ margin-left:auto; color:var(--fmd-cyan); font-weight:700; text-decoration:none; }
+.sto-rev-link:hover{ text-decoration:underline; }
+
+.sto-nav{ margin:4px 0 14px; }
+.sto-nav .fmd-chip{ text-decoration:none; }
+
+.sto-rep-body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:10px; }
+.sto-resp{ margin:0; font-size:12.5px; color:var(--fmd-muted); }
+.sto-resp a{ color:var(--fmd-cyan); font-weight:700; text-decoration:none; }
+
+.sto-area{ border:1px solid var(--fmd-line-soft); border-radius:9px; padding:10px 12px; background:#fff; }
+.sto-area[hidden]{ display:none; }
+.sto-area-warn{ border-color:#f5c99b; background:#fffaf4; }
+.sto-area-h{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:6px; }
+.sto-area-nome{ font-weight:800; color:var(--fmd-navy); letter-spacing:.01em; }
+.sto-area-meta{ font-size:12px; color:var(--fmd-muted); }
+
+.sto-ruolo{ display:grid; grid-template-columns:minmax(150px,220px) 1fr; gap:4px 14px; padding:6px 0; border-top:1px dashed var(--fmd-line-soft); }
+.sto-ruolo-nome{ font-size:12.5px; font-weight:700; color:var(--fmd-ink); }
+@media (max-width:700px){ .sto-ruolo{ grid-template-columns:1fr; } }
+
+.sto-mansioni{ margin:0; padding:0 0 0 16px; font-size:12.5px; line-height:1.55; }
+.sto-mansioni a{ color:var(--fmd-ink); text-decoration:none; }
+.sto-mansioni a:hover{ color:var(--fmd-cyan); text-decoration:underline; }
+.sto-badge{ font-size:10px; padding:1px 6px; }
+.sto-nota{ font-size:11.5px; color:var(--fmd-muted); }
+.sto-small{ font-size:12px; color:var(--fmd-muted); }
+.sto-ok{ margin:0; font-size:13px; color:#166534; font-weight:600; }
+
+.sto-inline{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; font-size:12.5px; }
+.sto-inline label{ display:flex; align-items:center; gap:6px; color:var(--fmd-muted); }
+.sto-inline-r{ margin-left:auto; }
+.sto-inline select, .sto-inline input[type=text], .sto-form select, .sto-form input[type=text]{ height:30px; padding:0 8px; border:1px solid var(--fmd-line); border-radius:7px; background:#fff; color:var(--fmd-ink); font:inherit; font-size:12.5px; }
+.sto-link{ color:var(--fmd-cyan); font-weight:700; text-decoration:none; font-size:12.5px; }
+.sto-link:hover{ text-decoration:underline; }
+
+.sto-edit > summary{ cursor:pointer; color:var(--fmd-cyan); font-weight:700; font-size:12.5px; }
+.sto-form{ display:flex; flex-direction:column; gap:6px; margin-top:8px; min-width:240px; font-size:12.5px; }
+.sto-form label{ display:flex; flex-direction:column; gap:3px; color:var(--fmd-muted); }
+
+.sto-todo{ border:1px solid var(--fmd-line-soft); border-radius:9px; padding:8px 12px; margin-bottom:8px; background:#fff; }
+.sto-todo > summary{ cursor:pointer; font-size:13px; color:var(--fmd-ink); }
+.sto-todo .sto-mansioni{ margin-top:6px; columns:2 280px; }
+
+/* Revisioni */
+.sto-diff{ border:1px solid var(--fmd-line-soft); border-radius:9px; padding:10px 12px; margin-bottom:10px; background:#fff; }
+.sto-diff h3{ margin:0 0 6px; font-size:13.5px; color:var(--fmd-navy); }
+.sto-diff ul{ margin:0 0 6px; padding-left:18px; font-size:12.5px; }
+.sto-agg{ color:#166534; }
+.sto-tolta{ color:#b91c1c; }
+.sto-camb{ color:#92400e; }
+.sto-emetti{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+.sto-emetti label{ display:flex; flex-direction:column; gap:4px; flex:1 1 360px; font-size:12.5px; color:var(--fmd-muted); }
+.sto-emetti input[type=text]{ height:34px; padding:0 10px; border:1px solid var(--fmd-line); border-radius:8px; font:inherit; background:#fff; color:var(--fmd-ink); }
+
+/* Conferme HSE */
+.sto-rischi td form{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.sto-rischi select[multiple]{ min-width:220px; min-height:64px; border:1px solid var(--fmd-line); border-radius:7px; background:#fff; color:var(--fmd-ink); font:inherit; font-size:12.5px; }
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .sto-area{background:var(--surface)}
+body.theme-dark .sto-ok{color:#86efac}
+body.theme-dark .sto-inline select,body.theme-dark .sto-inline input[type=text],body.theme-dark .sto-form select,body.theme-dark .sto-form input[type=text]{background:var(--surface)}
+body.theme-dark .sto-todo{background:var(--surface)}
+body.theme-dark .sto-diff{background:var(--surface)}
+body.theme-dark .sto-agg{color:#86efac}
+body.theme-dark .sto-tolta{color:#fca5a5}
+body.theme-dark .sto-camb{color:#fcd34d}
+body.theme-dark .sto-emetti input[type=text]{background:var(--surface)}
+body.theme-dark .sto-rischi select[multiple]{background:var(--surface)}

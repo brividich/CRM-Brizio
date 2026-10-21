@@ -1,0 +1,82 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Revisioni della struttura | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa</a><span class="fmd-sep"> / </span><span class="fmd-cur">Revisioni</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>Revisioni della struttura</h1>
+        <p class="fmd-ph-sub">Ogni revisione è la fotografia non modificabile della struttura approvata dalla Qualità: processi, reparti, aree, ruoli, mansioni con competenze richieste e mansioni di rischio. Nessun nominativo. La emette solo l'MSM.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-revisioni" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    <section class="fmd-panel fmd-block" aria-label="Modifiche non ancora emesse">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-edit"/></svg>{% if ultima %}Bozza rispetto alla Rev. {{ ultima.numero }}{% else %}Bozza (nessuna revisione emessa){% endif %}</div>
+      </div>
+      {% for s in modifiche %}
+        {% include "anagrafica/partials/_struttura_diff.html" with s=s %}
+      {% empty %}
+        <p class="sto-ok">Nessuna modifica: la bozza coincide con la revisione in vigore.</p>
+      {% endfor %}
+      {% if puo_emettere %}
+        {% if modifiche %}
+        <form method="post" class="sto-emetti">
+          {% csrf_token %}
+          <label>Motivo della revisione
+            <input type="text" name="motivo" required maxlength="500" placeholder="Es. recepita la MEGA SKILL MATRIX v8">
+          </label>
+          <button type="submit" class="fmd-btn fmd-btn-navy">Emetti la Rev. {% if ultima %}{{ ultima.numero|add:1 }}{% else %}1{% endif %}</button>
+        </form>
+        {% endif %}
+      {% else %}
+        <p class="sto-nota">La revisione la emette chi ricopre il ruolo MSM (Management System Manager).</p>
+      {% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block" aria-label="Revisioni emesse">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Revisioni emesse</div>
+      </div>
+      <table class="fmd-table">
+        <thead><tr><th>Rev.</th><th>Data</th><th>Emessa da</th><th>Motivo</th><th>Contenuto</th><th></th></tr></thead>
+        <tbody>
+        {% for r in revisioni %}
+          <tr>
+            <td><a class="fmd-data-link" href="{% url 'anagrafica:struttura_revisione' r.numero %}"><strong>{{ r.numero }}</strong></a></td>
+            <td>{{ r.emessa_il|date:"d/m/Y H:i" }}</td>
+            <td>{{ r.emessa_da_nome|default:"—" }}</td>
+            <td>{{ r.motivo }}</td>
+            <td class="sto-small">{{ r.riepilogo.processi }} processi · {{ r.riepilogo.reparti }} reparti · {{ r.riepilogo.aree }} aree · {{ r.riepilogo.ruoli }} ruoli · {{ r.riepilogo.mansioni }} mansioni · {{ r.riepilogo.competenze }} competenze</td>
+            <td><a class="sto-link" href="{% url 'anagrafica:struttura_revisione_pdf' r.numero %}">PDF</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="mst-vuoto">Nessuna revisione emessa.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

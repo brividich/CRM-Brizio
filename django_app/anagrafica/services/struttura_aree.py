@@ -88,13 +88,11 @@ def rinomina_reparto(reparto: Reparto, nuovo_nome: str, *, user=None) -> dict:
         if (dip.get("reparto") or "").strip().casefold() == vecchio.casefold() and dip.get("id"):
             _scrivi_reparto_legacy(dip, int(dip["id"]), nuovo_nome)
             legacy += 1
-    try:
-        from core.models import RepartoCapoMapping
+    from core.models import RepartoCapoMapping
 
-        RepartoCapoMapping.objects.filter(reparto__iexact=vecchio).update(reparto=nuovo_nome)
-    except Exception:  # tabella di compatibilità: se manca non blocca la rinomina
-        pass
     from ..models import CampagnaRefresh
+
+    RepartoCapoMapping.objects.filter(reparto__iexact=vecchio).update(reparto=nuovo_nome)
 
     CampagnaRefresh.objects.filter(reparto__iexact=vecchio, stato=CampagnaRefresh.STATO_APERTA).update(
         reparto=nuovo_nome)

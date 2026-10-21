@@ -41,16 +41,18 @@ def _asset_ids_reparto(reparto: str) -> list[int]:
 
 
 def mansioni_reparto(reparto: str) -> list[CompetenzaSkm]:
-    """Mansioni del reparto (Mansionario fase 4): macchine con l'asset nel reparto e
-    processi senza asset con il reparto scelto nella mansione."""
+    """Mansioni del reparto (Mansionario fase 4): quelle col reparto scelto (o dato
+    dall'area, struttura della Qualità) e le macchine senza reparto scelto con
+    l'asset nel reparto. Stessa regola di ``CompetenzaSkm.reparto_effettivo``."""
     from django.db.models import Q
     reparto = (reparto or "").strip()
     if not reparto:
         return []
     return list(
         CompetenzaSkm.objects
-        .filter(Q(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False, asset__reparto=reparto)
-                | Q(tipo=CompetenzaSkm.TIPO_PROCESSO, asset__isnull=True, reparto__nome__iexact=reparto))
+        .filter(Q(tipo__in=(CompetenzaSkm.TIPO_MACCHINA, CompetenzaSkm.TIPO_PROCESSO), reparto__nome__iexact=reparto)
+                | Q(tipo=CompetenzaSkm.TIPO_MACCHINA, reparto__isnull=True, asset__isnull=False,
+                    asset__reparto=reparto))
         .select_related("asset", "reparto").order_by("tipo", "display", "competenza_key")
     )
 

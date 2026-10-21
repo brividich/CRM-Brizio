@@ -248,6 +248,103 @@ class RevisioniTests(_Base):
         self.assertEqual(StrutturaRevisione.objects.count(), 2)
 
 
+class PagineStrutturaTests(_Base):
+    def setUp(self):
+        super().setUp()
+        struttura_v8.carica(applica=True, user=self.user)
+        self.client.force_login(self.user)
+
+    def test_pagine_si_aprono(self):
+        from django.urls import reverse
+
+        for nome in ("anagrafica:struttura_org", "anagrafica:struttura_revisioni", "anagrafica:struttura_rischi"):
+            resp = self.client.get(reverse(nome))
+            self.assertEqual(resp.status_code, 200, nome)
+        resp = self.client.get(reverse("anagrafica:struttura_org"))
+        self.assertContains(resp, "UFFICIO TECNICO")
+        self.assertContains(resp, "Nessuna revisione emessa")
+
+    def test_schede_processo_sgi_senza_responsabile(self):
+        """I processi nati dal caricamento non hanno un responsabile (utente): le pagine SGI reggono."""
+        from django.urls import reverse
+
+        from sistema_gestione.models import Processo
+
+        p = Processo.objects.get(codice="PRC-PRD")
+        self.assertIsNone(p.responsabile_id)
+        resp = self.client.get(reverse("sistema_gestione:processo_dettaglio", args=[p.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "OPM")
+        self.assertEqual(self.client.get(reverse("sistema_gestione:processi_catalogo")).status_code, 200)
+
+    def test_scheda_dipendente_e_onboarding(self):
+        from django.urls import reverse
+
+        from .models import OnboardingPratica
+
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.p_cn5.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Posizione nella struttura")
+        self.assertContains(resp, "MK1 - MIKRON HSM 600U")  # proposta dal ruolo nella sua area
+        pratica = OnboardingPratica.objects.create(legacy_anagrafica_id=self.p_cn5.pk, dipendente_nome="A VOTTO")
+        resp = self.client.get(reverse("anagrafica:onboarding_detail", args=[pratica.pk]))
+        self.assertContains(resp, "Posizione nella struttura")
+        mk1 = CompetenzaSkm.objects.get(competenza_key="MK1")
+        dest = reverse("anagrafica:onboarding_detail", args=[pratica.pk])
+        resp = self.client.post(reverse("anagrafica:mansionario_assegna", args=[mk1.pk]),
+                                {"persona": self.p_cn5.pk, "livello": "I", "next": dest})
+        self.assertRedirects(resp, dest, fetch_redirect_response=False)
+        self.assertTrue(mk1.abilitazioni.filter(legacy_anagrafica_id=self.p_cn5.pk, in_lista=True).exists())
+
+    def test_processo_si_modifica_con_revisione(self):
+        from django.urls import reverse
+
+        from sistema_gestione.models import Processo
+
+        p = Processo.objects.get(codice="PRC-AUD")
+        rev_prima = p.revisione
+        msm = RuoloOperativo.objects.get(sigla="MSM")
+        resp = self.client.post(reverse("anagrafica:struttura_processo_salva", args=[p.pk]),
+                                {"tipo": "AUSILIARIO", "ruolo_owner": msm.pk, "motivo": "Owner definito"})
+        self.assertEqual(resp.status_code, 302)
+        p.refresh_from_db()
+        self.assertEqual((p.ruolo_owner_id, p.revisione), (msm.pk, rev_prima + 1))
+        self.assertEqual(p.revisioni.first().motivo, "Owner definito")
+        # senza motivo non si salva
+        self.client.post(reverse("anagrafica:struttura_processo_salva", args=[p.pk]),
+                         {"tipo": "PRINCIPALE", "ruolo_owner": msm.pk, "motivo": ""})
+        p.refresh_from_db()
+        self.assertEqual(p.tipo, "AUSILIARIO")
+
+    def test_emissione_e_pdf(self):
+        from django.urls import reverse
+
+        resp = self.client.post(reverse("anagrafica:struttura_revisioni"), {"motivo": "Prova"})
+        self.assertEqual(resp.status_code, 302)  # l'amministratore non è MSM: rifiutato
+        self.assertFalse(StrutturaRevisione.objects.exists())
+        with mock.patch("core.operational_roles.get_roles_for_user",
+                        return_value=RuoloOperativo.objects.filter(sigla="MSM")):
+            resp = self.client.post(reverse("anagrafica:struttura_revisioni"), {"motivo": "Recepita la v8"})
+        self.assertRedirects(resp, reverse("anagrafica:struttura_revisione", args=[1]), fetch_redirect_response=False)
+        self.assertEqual(self.client.get(reverse("anagrafica:struttura_revisione", args=[1])).status_code, 200)
+        pdf = self.client.get(reverse("anagrafica:struttura_revisione_pdf", args=[1]))
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+
+    def test_conferma_rischio_e_reparto(self):
+        from django.urls import reverse
+
+        m = CompetenzaSkm.objects.filter(mansioni_rischio_proposte__isnull=False).first()
+        scelta = m.mansioni_rischio_proposte.first()
+        self.client.post(reverse("anagrafica:struttura_rischi"), {"mansione": m.pk, "rischi": [scelta.pk],
+                                                                   "azione": "conferma"})
+        self.assertIn(scelta, m.mansioni_rischio.all())
+        rep = Reparto.objects.get(nome="UT")
+        msm = RuoloOperativo.objects.get(sigla="MSM")
+        self.client.post(reverse("anagrafica:struttura_reparto_salva", args=[rep.pk]), {"ruolo_responsabile": msm.pk})
+        self.assertTrue(CompetenzaSkm.objects.filter(responsabilita_reparto=rep, attiva=True,
+                                                     ruoli=msm).exists())  # il segnale la genera
+
+
 class ResponsabilitaRepartoTests(_Base):
     def test_segue_il_ruolo_responsabile(self):
         car = RuoloOperativo.objects.create(nome="Caporeparto sintetico", sigla="CARX")

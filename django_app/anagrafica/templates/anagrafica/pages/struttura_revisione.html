@@ -1,0 +1,95 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Struttura Rev. {{ r.numero }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:struttura_revisioni' %}">Revisioni</a><span class="fmd-sep"> / </span><span class="fmd-cur">Rev. {{ r.numero }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-doc"/></svg>Struttura Rev. {{ r.numero }}</h1>
+        <p class="fmd-ph-sub">Emessa il {{ r.emessa_il|date:"d/m/Y H:i" }} da {{ r.emessa_da_nome|default:"—" }}. Motivo: {{ r.motivo }}</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:struttura_revisione_pdf' r.numero %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Scarica PDF</a>
+      </div>
+    </div>
+
+    <div class="mns-stats">
+      <div class="mns-stat"><b>{{ r.riepilogo.processi }}</b><span>processi</span></div>
+      <div class="mns-stat"><b>{{ r.riepilogo.reparti }}</b><span>reparti</span></div>
+      <div class="mns-stat"><b>{{ r.riepilogo.aree }}</b><span>aree</span></div>
+      <div class="mns-stat"><b>{{ r.riepilogo.ruoli }}</b><span>ruoli</span></div>
+      <div class="mns-stat"><b>{{ r.riepilogo.mansioni }}</b><span>mansioni</span></div>
+      <div class="mns-stat"><b>{{ r.riepilogo.competenze }}</b><span>competenze</span></div>
+    </div>
+
+    <section class="fmd-panel fmd-block" aria-label="Confronto">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>{% if altra %}Cosa cambia rispetto alla Rev. {{ altra.numero }}{% else %}Prima revisione{% endif %}</div>
+        {% if revisioni %}
+        <form method="get" class="sto-inline">
+          <label>Confronta con
+            <select name="confronta">
+              {% for x in revisioni %}<option value="{{ x.numero }}"{% if altra and x.numero == altra.numero %} selected{% endif %}>Rev. {{ x.numero }}</option>{% endfor %}
+            </select>
+          </label>
+          <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Confronta</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if altra %}
+        {% for s in differenze %}
+          {% include "anagrafica/partials/_struttura_diff.html" with s=s %}
+        {% empty %}
+          <p class="sto-ok">Nessuna differenza.</p>
+        {% endfor %}
+      {% else %}
+        <p class="sto-nota">È la prima revisione emessa: non c'è niente da confrontare.</p>
+      {% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block" aria-label="Contenuto della revisione">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Contenuto</div>
+      </div>
+      <h3 class="sto-area-nome">Processi</h3>
+      <table class="fmd-table">
+        <thead><tr><th>Codice</th><th>Processo</th><th>Tipo</th><th>Owner</th></tr></thead>
+        <tbody>{% for p in r.dati.processi %}<tr><td>{{ p.codice }}</td><td>{{ p.nome }}</td><td>{{ p.tipo|default:"—" }}</td><td>{{ p.owner|default:"—" }}</td></tr>{% endfor %}</tbody>
+      </table>
+      <h3 class="sto-area-nome">Reparti e aree</h3>
+      <table class="fmd-table">
+        <thead><tr><th>Area</th><th>Reparto</th><th>Responsabile (ruolo)</th></tr></thead>
+        <tbody>{% for a in r.dati.aree %}<tr><td>{{ a.nome }}</td><td>{{ a.reparto }}</td><td>{{ a.ruolo_responsabile|default:"come il reparto" }}</td></tr>{% endfor %}</tbody>
+      </table>
+      <h3 class="sto-area-nome">Ruoli</h3>
+      <table class="fmd-table">
+        <thead><tr><th>Sigla</th><th>Ruolo</th><th>Diretto / indiretto</th><th>Organigramma</th></tr></thead>
+        <tbody>{% for x in r.dati.ruoli %}<tr><td>{{ x.sigla|default:"—" }}</td><td>{{ x.nome }}</td><td>{{ x.classe|default:"—" }}</td><td>{{ x.organigramma }}</td></tr>{% endfor %}</tbody>
+      </table>
+      <h3 class="sto-area-nome">Mansioni</h3>
+      <table class="fmd-table">
+        <thead><tr><th>Area</th><th>Mansione</th><th>Ruoli</th><th>Processo</th><th>Rischio</th><th>Competenze</th></tr></thead>
+        <tbody>{% for m in r.dati.mansioni %}<tr><td>{{ m.area|default:m.reparto }}</td><td>{{ m.nome }}{% if m.abilitazione_con_scadenza %} <span class="fmd-badge sto-badge">abilitazione</span>{% endif %}</td><td class="sto-small">{{ m.ruoli|join:", " }}</td><td class="sto-small">{{ m.processo|default:"—" }}</td><td class="sto-small">{{ m.mansioni_rischio|join:", "|default:"—" }}</td><td>{{ m.competenze|length }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </section>
+
+  </div>
+</div>
+{% endblock %}
