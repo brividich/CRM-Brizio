@@ -175,3 +175,62 @@ class SoftwarePolicyTests(TestCase):
         response = self.client.get(reverse("security:vulnerabilities"))
         self.assertContains(response, "Software non conforme")
         self.assertContains(response, "?f=da_rimuovere")
+
+
+class ProgrammiRaggruppatiTests(TestCase):
+    """«chrome» (Defender) e «Google Chrome» (WatchGuard) con versioni diverse: un programma, più versioni."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create(username="grp_admin", is_staff=True, is_superuser=True)
+        self.client.force_login(self.admin)
+        self.hub = Asset.objects.create(asset_tag="GRP-1", name="PC-GRP-01")
+        now = timezone.now()
+
+        def riga(host, vendor, product, raw, version, fonte, hub=None):
+            return SoftwareInstallation.objects.create(
+                dedup_key=f"{host}|{product}|{version}|{fonte}", source_kind=fonte, host=host, host_display=host.upper(), hub_asset=hub,
+                vendor=vendor, vendor_raw=vendor, product=product, product_raw=raw, version_raw=version, fonti=[fonte],
+                still_detected=True, seen_at=now, last_seen_at=now,
+            )
+
+        riga("pc-grp-01", "google", "google chrome", "Google Chrome", "130.0.1", "watchguard", hub=self.hub)
+        riga("pc-grp-02", "google", "google chrome", "Google Chrome", "129.0.9", "watchguard")
+        riga("pc-grp-01", "google", "chrome", "chrome", "131.0.2", "defender", hub=self.hub)
+        riga("pc-grp-03", "google", "chrome", "chrome", "131.0.2", "defender")
+        riga("pc-grp-01", "google", "chromium", "Chromium", "1.0", "defender", hub=self.hub)  # altro programma
+        self.key = software_catalog.inventory_key("google", "google chrome")  # il piu' diffuso dopo i pari: sceglie il canonico
+
+    def test_un_solo_programma_con_tutti_i_pc(self):
+        cat = software_catalog.catalog()
+        chrome = [c for c in cat if "chrome" in c["key"] and "chromium" not in c["key"]]
+        self.assertEqual(len(chrome), 1)
+        self.assertEqual(chrome[0]["hosts"], 3)
+        self.assertEqual(len(chrome[0]["member_keys"]), 2)
+        self.assertEqual(len(cat), 2)  # Chrome + Chromium
+
+    def test_versioni_e_pc_del_programma(self):
+        key = next(c["key"] for c in software_catalog.catalog() if "chrome" in c["key"] and "chromium" not in c["key"])
+        self.assertEqual(sum(software_catalog.versions_by_key()[key].values()), 4)
+        self.assertEqual(len(software_catalog.versions_by_key()[key]), 3)
+        self.assertEqual({i.host for i in software_catalog.product_hosts(key)}, {"pc-grp-01", "pc-grp-02", "pc-grp-03"})
+        self.assertEqual(software_catalog.hosts_by_key({key})[key], 3)
+
+    def test_scheda_pc_mostra_una_riga_con_le_versioni(self):
+        rows = software_catalog.software_for_hub_asset(self.hub)["rows"]
+        chrome = [r for r in rows if "chrome" in r["key"] and "chromium" not in r["key"]]
+        self.assertEqual(len(chrome), 1)
+        self.assertEqual(sorted(chrome[0]["versions"]), ["130.0.1", "131.0.2"])
+
+    def test_dettaglio_esplode_per_versione(self):
+        key = next(c["key"] for c in software_catalog.catalog() if "chrome" in c["key"] and "chromium" not in c["key"])
+        page = self.client.get(reverse("assets:software_catalog_detail"), {"k": key})
+        self.assertContains(page, "Versioni presenti (3)")
+        self.assertContains(page, "130.0.1")
+        self.assertContains(page, "131.0.2")
+        self.assertContains(page, "Installato su 3 PC")
+
+    def test_la_decisione_su_un_nome_minore_vale_per_il_programma(self):
+        SoftwareCatalogEntry.objects.create(inventory_key=software_catalog.inventory_key("google", "chrome"), classification="non_autorizzato")
+        page = self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato")
+        self.assertContains(page, "hrome")
+        self.assertNotContains(page, "Chromium")

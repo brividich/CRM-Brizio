@@ -41,19 +41,33 @@
   </div>
 
   <div class="sc-card sc-table-wrap">
-    <h2 style="margin:0 0 10px;font-size:18px">Installato su {{ hosts|length }} PC</h2>
+    <h2 style="margin:0 0 10px;font-size:18px">Versioni presenti ({{ version_rows|length }})</h2>
     <table class="sc-table">
-      <thead><tr><th>PC</th><th>Asset</th><th>Versione</th><th>Rilevato dal</th><th>Ultima rilevazione</th></tr></thead>
+      <thead><tr><th>Versione</th><th>PC</th><th>Fonti</th></tr></thead>
+      <tbody>
+      {% for v in version_rows %}
+        <tr><td>{{ v.version }}{% if v.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td><td>{{ v.hosts }}</td><td>{{ v.fonti|join:", "|default:"—" }}</td></tr>
+      {% empty %}<tr><td colspan="3" class="sc-meta">Nessuna versione rilevata.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <p class="sc-note" style="margin-top:8px">Il programma può comparire con nomi diversi nelle fonti (es. «chrome» e «Google Chrome»): qui sono raggruppati. L'elenco dei PC è qui sotto, con la versione di ciascuno.</p>
+  </div>
+
+  <div class="sc-card sc-table-wrap">
+    <h2 style="margin:0 0 10px;font-size:18px">Installato su {{ host_count }} PC</h2>
+    <table class="sc-table">
+      <thead><tr><th>PC</th><th>Asset</th><th>Versione</th><th>Fonti</th><th>Rilevato dal</th><th>Ultima rilevazione</th></tr></thead>
       <tbody>
       {% for h in hosts %}
         <tr>
           <td>{{ h.install.host_display|default:h.install.host }}</td>
           <td>{% if h.install.hub_asset %}<a href="{% url 'assets:asset_view' h.install.hub_asset_id %}#tab-software">{{ h.install.hub_asset.asset_tag }}</a>{% else %}<span class="sc-meta">non collegato</span>{% endif %}</td>
           <td>{{ h.install.version_raw|default:"—" }}{% if h.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td>
+          <td>{{ h.install.fonti_etichette|join:", "|default:"—" }}</td>
           <td>{{ h.install.seen_at|date:"d/m/Y" }}</td>
           <td>{{ h.install.last_seen_at|date:"d/m/Y" }}</td>
         </tr>
-      {% empty %}<tr><td colspan="5" class="sc-meta">Non più rilevato su nessun PC.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="6" class="sc-meta">Non più rilevato su nessun PC.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

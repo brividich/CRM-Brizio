@@ -78,12 +78,16 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     rows = []
     for item in sc.catalog():
         key = item["key"]
-        entry = entries.get(key)
+        members = item.get("member_keys") or [key]
+        # decisioni e licenze possono essere legate a uno qualsiasi dei nomi del programma: vale la prima trovata
+        entry = entries.get(key) or next((entries[m] for m in members if m in entries), None)
         classification = entry.classification if entry else SoftwareCatalogEntry.CLASS_UNREVIEWED
         licensing = entry.licensing if entry else SoftwareCatalogEntry.LICENSING_UNKNOWN
         min_version = entry.min_version if entry else ""
         old, unknown = sc.below_min_version(versions.get(key, {}), min_version)
-        license_state = states.get(key, "")
+        member_states = [states[m] for m in members if m in states]
+        license_state = "coperta" if "coperta" in member_states else (member_states[0] if member_states else "")
+        member_seats = sum(seats.get(m, 0) for m in members) or None
         rows.append({
             "key": key,
             "url": _detail_url(key),
@@ -96,8 +100,9 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
             "licensing": licensing,
             "licensing_label": dict(SoftwareCatalogEntry.LICENSING_CHOICES)[licensing],
             "license_state": license_state,
-            "seats": seats.get(key),
-            "over_seats": bool(seats.get(key) and item["hosts"] > seats[key]),
+            "seats": member_seats,
+            "over_seats": bool(member_seats and item["hosts"] > member_seats),
+            "names": len(members),
             "paid_without_license": licensing == SoftwareCatalogEntry.LICENSING_PAID and license_state != "coperta",
             "min_version": min_version,
             "outdated": old,
@@ -190,7 +195,18 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         return redirect(_detail_url(key))
     hosts = sc.product_hosts(key)
     outdated = {i.pk for i in sc.outdated_hosts(key, entry.min_version)} if entry and entry.min_version else set()
-    licenses = SoftwareLicense.objects.filter(inventory_key=key).order_by("-is_active", "-expiry_date")
+    licenses = SoftwareLicense.objects.filter(inventory_key__in=sc.member_keys(key)).order_by("-is_active", "-expiry_date")
+    # «Esplosione» per versione: quante PC hanno ciascuna versione e da quali fonti arriva
+    per_version = {}
+    for inst in hosts:
+        riga = per_version.setdefault(inst.version_raw or "", {"version": inst.version_raw or "—", "hosts": set(), "fonti": set(), "outdated": 0})
+        riga["hosts"].add(inst.host)
+        riga["fonti"].update(inst.fonti_etichette)
+        riga["outdated"] += 1 if inst.pk in outdated else 0
+    version_rows = [
+        {"version": r["version"], "hosts": len(r["hosts"]), "fonti": sorted(r["fonti"]), "outdated": bool(r["outdated"])}
+        for r in sorted(per_version.values(), key=lambda r: (-len(r["hosts"]), r["version"]))
+    ]
     return render(request, "assets/pages/software_catalog_detail.html", {
         **_assets_shell_context(request, search_placeholder="Cerca software"),
         "page_title": (row or {}).get("name") or key,
@@ -201,6 +217,8 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         "entry": entry,
         "key": key,
         "hosts": [{"install": i, "outdated": i.pk in outdated} for i in hosts],
+        "version_rows": version_rows,
+        "host_count": len({i.host for i in hosts}),
         "licenses": licenses,
         "classification_choices": SoftwareCatalogEntry.CLASSIFICATION_CHOICES,
         "licensing_choices": SoftwareCatalogEntry.LICENSING_CHOICES,
