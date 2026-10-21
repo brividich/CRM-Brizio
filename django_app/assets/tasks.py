@@ -28,6 +28,18 @@ def run_generate_maintenance_occurrences() -> dict:
         raise
 
 
+def run_part145_scadenze() -> dict:
+    """Avviso settimanale scadenze PART 145 a Qualità (wrappa ``part145_avviso_scadenze``)."""
+    from django.core.management import call_command
+
+    try:
+        call_command("part145_avviso_scadenze", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_part145_scadenze: eccezione inattesa")
+        raise
+
+
 def run_it_monitoring_alerts() -> dict:
     """Avvisi del monitoraggio IT (dispositivi muti/in errore, consumabili bassi).
 

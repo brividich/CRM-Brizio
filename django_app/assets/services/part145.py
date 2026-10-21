@@ -35,6 +35,17 @@ def processi_part145():
     return ProcessoQualificato.objects.filter(regime=REGIME_PART145)
 
 
+def processi_perimetro():
+    """Processi del Dossier: regime PART145 + processi speciali «nel perimetro Part 145».
+
+    Il flag ``part_145`` dell'asset vale solo per il regime PART145: i processi speciali
+    del perimetro (es. DQP) hanno le attrezzature collegate dal dettaglio MOD.128.
+    """
+    from anagrafica.models_mpq import ProcessoQualificato
+
+    return ProcessoQualificato.objects.filter(Q(regime=REGIME_PART145) | Q(perimetro_part145=True))
+
+
 def attrezzature_processo(processo):
     """Asset attrezzatura del processo: collegati + (se regime PART145) quelli col flag."""
     from ..models import Asset

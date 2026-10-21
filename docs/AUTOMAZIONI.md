@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 79
+**Totale automazioni disponibili:** 80
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -175,6 +175,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 06:40
 - **Task eseguito:** `assets.tasks.run_m365_licenze_sync`
 - **Cosa fa:** Microsoft 365 — abbonamenti (posti, stato, rinnovo) nel modulo Licenze software. Serve il permesso Graph Organization.Read.All (+ LicenseAssignment.Read.All per le date).
+
+### `part145_scadenze`
+
+- **Quando gira:** ogni lun, alle 07:30
+- **Task eseguito:** `assets.tasks.run_part145_scadenze`
+- **Cosa fa:** ASSETS — PART 145: scadenze entro 90 giorni (contratto, processi, requisiti, tarature, certificazioni) a Qualità, destinatari MOD.128 mpq_msm_reminder_emails. Nessuna scadenza = nessuna mail. Disattivabile dalla Centrale di comando.
 
 ## DPI · Sicurezza
 

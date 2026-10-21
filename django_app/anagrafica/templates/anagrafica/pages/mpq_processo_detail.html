@@ -29,6 +29,7 @@
           <p class="fmd-sub">
             Cliente/ente: <strong>{{ processo.cliente.nome }}</strong>
             · Regime: {{ processo.get_regime_display }}
+            {% if processo.perimetro_part145 and processo.regime != "PART145" %}· nel perimetro Part 145 (<a href="{% url 'assets:part_145_list' %}" style="color:inherit;">Dossier</a>){% endif %}
             {% if processo.livello %}· Livello: {{ processo.livello }}{% endif %}
             {% if processo.ente_certificatore %}· Certificatore: {{ processo.ente_certificatore.nome }}{% endif %}
           </p>
