@@ -4,6 +4,8 @@ Documento nato con l'audit sicurezza del 09/10/2026 (Fase 3) ed esteso ai moduli
 
 I termini marcati «proposta» vengono dalla checklist GDPR del 21/10/2026 e **non sono ancora validati dal DPO**. Per questo i dati di dipendenti e candidati non si cancellano da soli: il portale li conta e un amministratore conferma.
 
+Collegati: [registro dei trattamenti](../gdpr/REGISTRO_TRATTAMENTI.md), [DPIA preliminare](../gdpr/DPIA_PRELIMINARE.md), [soggetti esterni](../gdpr/RESPONSABILI_ART28.md).
+
 ## Archivi tecnici
 
 | Dato | Dove | Contenuto personale | Regola | Stato |
