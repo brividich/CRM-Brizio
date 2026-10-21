@@ -64,6 +64,31 @@
       <div class="ncfg-foot"><button type="submit" class="ncfg-btn">Salva categorie</button></div>
     </form>
 
+    <form method="post" class="card">
+      {% csrf_token %}
+      <input type="hidden" name="sezione" value="sicurezza">
+      <div class="card-head"><div class="card-title">🔐 Avvisi di sicurezza</div></div>
+      <div class="card-body" style="padding:0;border-top:1px solid var(--hub-color-border);">
+        <div class="ncfg-row">
+          <div>
+            <div class="ncfg-label">Avvisa l'utente quando viene impersonato</div>
+            <div class="ncfg-hint">
+              Mail alla persona quando un amministratore inizia a usare il suo account da «Utenti».
+              Spento: nessuna mail, l'impersonazione resta comunque nell'audit.
+            </div>
+          </div>
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" name="avviso_impersonazione" value="1" {% if avviso_impersonazione %}checked{% endif %}
+                   style="width:18px;height:18px;cursor:pointer;">
+            <span class="{% if avviso_impersonazione %}ncfg-on{% else %}ncfg-off{% endif %}" style="font-size:13px;font-weight:600;min-width:56px;">
+              {% if avviso_impersonazione %}Attivo{% else %}Spento{% endif %}
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="ncfg-foot"><button type="submit" class="ncfg-btn">Salva</button></div>
+    </form>
+
     <div class="card">
       <div class="card-head"><div class="card-title">🗄️ Archiviazione automatica</div></div>
       <div class="ncfg-note">
