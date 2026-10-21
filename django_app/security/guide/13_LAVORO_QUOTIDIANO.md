@@ -18,10 +18,10 @@ Elaborazione compare solo a chi ha il permesso di configurazione. Dentro **Impos
 
 ## Da dove partire
 
-1. Apri **Panoramica**. In alto c'è il verdetto della giornata e l'elenco **Da guardare adesso**, ordinato dal più grave: notifiche NIS2/GDPR in scadenza, alert critici, PC senza backup, computer senza protezione, sorgenti che non mandano più report. Ogni voce porta al dettaglio.
+1. Apri **Panoramica**. In alto c'è il verdetto della giornata con due numeri (segnalazioni urgenti e aperte), sotto l'elenco **Da guardare adesso**, ordinato dal più grave: notifiche NIS2/GDPR in scadenza, alert critici, PC con backup ko, computer senza protezione, CVE gravi sui nostri PC, sorgenti che non mandano più report. Ogni voce porta al dettaglio. A destra la sintesi dell'AI e le **Fonti dati**, con l'ora dell'ultimo report di ogni casella.
 2. Se ti serve un riassunto, in **Sintesi del giorno** premi **Chiedi all'AI**: l'AI aziendale riassume in poche frasi cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.
 3. Apri **Da fare › Tutto ciò che è aperto** (seconda riga del menu): tutti gli incidenti, i ticket e gli alert ancora aperti, per tutto il team, con le scadenze più vicine in alto. Non c'è un elenco «per persona»: chi è libero prende la voce in cima.
-4. Guarda i riquadri per area della Panoramica (firewall, computer, backup, accessi VPN, vulnerabilità): se la data dell'ultimo report è segnata come **dati vecchi**, quella sorgente non sta arrivando e il resto della pagina va letto con prudenza.
+4. Guarda **Le aree** della Panoramica (firewall, computer, backup, accessi VPN, vulnerabilità, Secure Score). Sotto ogni numero è scritto se è l'**ultimo valore letto**, il **totale degli ultimi 7 giorni** o lo stato di **adesso**. Le aree senza dati stanno in fondo. Se la data dell'ultimo dato è segnata come **dati vecchi**, quella fonte non sta arrivando e i suoi numeri vanno letti con prudenza. L'area **Vulnerabilità** conta le CVE che colpiscono i nostri PC secondo l'inventario software e la quota di software controllabili (collegati a un CPE). In fondo, **Andamento**: il grafico degli ultimi 7 giorni con i totali del periodo.
 
 ## La barra di stato
 
@@ -29,12 +29,16 @@ Sotto il menu ci sono quattro riquadri che si aggiornano da soli ogni minuto: ve
 
 | Voce | Cosa conta |
 | --- | --- |
-| critici e alti | Alert critici o alti ancora da gestire |
-| scadenze NIS2 | Notifiche di incidenti scadute o in scadenza |
-| PC backup ko | PC e server senza backup riuscito oltre la soglia, o con l'ultimo backup fallito |
-| sorgenti mute | Sorgenti che non mandano report nei tempi attesi |
+| segnalazioni urgenti | Alert, ticket e incidenti aperti critici o alti, più gli incidenti con una notifica di legge scaduta o in scadenza. Apre **Segnalazioni › Solo urgenti** |
+| scadenze NIS2/GDPR | Incidenti con una notifica scaduta o in scadenza entro 12 ore |
+| PC con backup ko | PC e server con l'ultimo backup fallito o senza un backup riuscito oltre la soglia. Apre **Backup › Solo backup ko** |
+| sorgenti in ritardo | Caselle che non mandano report nei tempi attesi |
 
-Il colore dice la situazione: verde a posto, giallo da guardare, rosso urgente. A destra c'è l'ora dell'ultimo report arrivato.
+Il colore dice la situazione: verde a posto, arancione da guardare, rosso urgente. A destra c'è l'ora dell'ultimo report arrivato.
+
+### Un numero, un significato
+
+Ogni numero del SOC ha una sola definizione e si legge allo stesso modo ovunque compaia: riquadri, numeri sul menu, Panoramica ed elenchi. Il numero rosso su **Segnalazioni** nel menu è lo stesso dei riquadri «segnalazioni urgenti» e del chip **Solo urgenti**; il numero su **Dispositivi** è quello dei PC con backup ko. Il clic su un numero apre un elenco con esattamente quelle righe. I backup si contano sempre **per PC**: i singoli job falliti si vedono nella scheda del PC e nella pagina Backup.
 
 ## Cercare qualcosa
 

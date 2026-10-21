@@ -94,7 +94,7 @@ MENU = [
 
 ICONE = {"Da fare": "todo", "Segnalazioni": "bell", "Dispositivi": "monitor", "Report": "chart", "Impostazioni": "gear"}
 # Numeri sulle voci: dalla barra di stato (in cache 60 s), nessuna query in più. Solo se c'è qualcosa.
-BADGE = {"Segnalazioni": ("alerts", "nis2"), "Dispositivi": ("backup",), "Impostazioni": ("sources",)}
+BADGE = {"Segnalazioni": ("urgenti",), "Dispositivi": ("backup",), "Impostazioni": ("sources",)}
 
 
 def _badges(user):

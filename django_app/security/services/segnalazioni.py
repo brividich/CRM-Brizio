@@ -67,7 +67,8 @@ def _incidents(stato, severity, q, now):
     qs = _filtra(qs, severity=severity, q=q, campi_testo=["title", "code", "description"])
     for i in qs.order_by("-detected_at")[:PER_KIND_LIMIT]:
         active = i.status in ACTIVE_INCIDENT_STATUSES
-        deadline = next_open_deadline(i, now) if active else None
+        legale = i.is_significant or i.personal_data_breach
+        deadline = next_open_deadline(i, now) if active and legale else None
         # una notifica NIS2/GDPR scaduta o in scadenza passa davanti a tutto: ha un termine di legge
         boost = 3 if deadline and deadline["state"] in {"overdue", "due_soon"} else (1 if deadline else 0)
         yield {
@@ -88,8 +89,17 @@ def conteggi():
     }
 
 
-def elenco(*, tipo="", stato="aperte", severity="", q="", now=None):
-    """Segnalazioni ordinate: prima le aperte, poi per urgenza (termine di legge, gravità), poi le più vecchie."""
+def _urgente(riga):
+    return riga["active"] and (riga["severity"] in (Severity.CRITICAL, Severity.HIGH) or riga["boost"] >= 3)
+
+
+def elenco(*, tipo="", stato="aperte", severity="", q="", urgenti=False, scadenza=False, now=None):
+    """Segnalazioni ordinate: prima le aperte, poi per urgenza (termine di legge, gravità), poi le più vecchie.
+
+    ``urgenti``: solo le aperte critiche/alte o con una notifica di legge scaduta o in scadenza (stessa
+    definizione del riquadro «segnalazioni urgenti» e del numero sul menu). ``scadenza``: solo gli
+    incidenti con una notifica scaduta o in scadenza.
+    """
     now = now or timezone.now()
     if tipo not in {k for k, _l in KINDS}:
         tipo = ""
@@ -104,5 +114,11 @@ def elenco(*, tipo="", stato="aperte", severity="", q="", now=None):
         righe += list(_tickets(stato, severity, q))
     if tipo in ("", "incident"):
         righe += list(_incidents(stato, severity, q, now))
+    for r in righe:
+        r["urgente"] = _urgente(r)
+    if urgenti:
+        righe = [r for r in righe if r["urgente"]]
+    if scadenza:
+        righe = [r for r in righe if r["boost"] >= 3]
     righe.sort(key=lambda r: (not r["active"], -r["boost"], -_RANK.get(r["severity"], 0), r["since"]))
     return righe

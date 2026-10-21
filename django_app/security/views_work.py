@@ -135,20 +135,30 @@ def segnalazioni(request):
     stato = request.GET.get("stato", "aperte")
     severity = request.GET.get("gravita", "")
     q = request.GET.get("q", "").strip()[:100]
-    righe = svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q)
+    urgenti = request.GET.get("urgenti") == "1"
+    scadenza = request.GET.get("scadenza") == "1"
+    righe = svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q, urgenti=urgenti, scadenza=scadenza)
     tipo = tipo if tipo in dict(svc.KINDS) else ""
     stato = stato if stato in {"aperte", "chiuse", "tutte"} else "aperte"
     severity = severity if severity in dict(svc.GRAVITA) else ""
     page = Paginator(righe, SEGNALAZIONI_PER_PAGINA).get_page(request.GET.get("page"))
     counts = svc.conteggi()
+    if urgenti:
+        # con «Solo urgenti» i chip contano le urgenti: il numero sul chip è sempre uguale alle righe che apre
+        from collections import Counter
+
+        per_tipo = Counter(r["kind"] for r in svc.elenco(urgenti=True))
+        counts = {k: per_tipo.get(k, 0) for k, _l in svc.KINDS}
 
     def link(**cambi):
-        params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q}
+        params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q, "urgenti": "1" if urgenti else "", "scadenza": "1" if scadenza else ""}
         params.update(cambi)
         return "?" + urlencode({k: v for k, v in params.items() if v and not (k == "stato" and v == "aperte")})
 
     return render(request, "security/segnalazioni.html", {
         "page": page, "righe_totali": len(righe), "tipo": tipo, "stato": stato, "gravita": severity, "q": q,
+        "urgenti": urgenti, "scadenza": scadenza, "n_urgenti": len(svc.elenco(urgenti=True)),
+        "link_urgenti": link(urgenti="" if urgenti else "1", scadenza="", page=""),
         "counts": counts, "counts_totale": sum(counts.values()),
         "chips_tipo": [{"value": "", "label": "Tutte", "count": sum(counts.values()), "active": not tipo, "url": link(tipo="", page="")}] + [
             {"value": k, "label": label, "count": counts[k], "active": tipo == k, "url": link(tipo=k, page="")} for k, label in svc.KINDS

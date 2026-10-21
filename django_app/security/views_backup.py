@@ -25,6 +25,9 @@ def backup_overview(request):
     data = svc.overview(days)
     query = request.GET.get("q", "").strip()
     devices = data["devices"]
+    solo_ko = request.GET.get("stato") == "ko"
+    if solo_ko:
+        devices = [row for row in devices if row["stale"] or row["last_status"] == svc.FAIL]
     if query:
         devices = [row for row in devices if query.casefold() in row["name"].casefold() or any(query.casefold() in j.casefold() for j in row["jobs"])]
     return render(request, "security/backup.html", {
@@ -33,6 +36,7 @@ def backup_overview(request):
         "devices_total": len(data["devices"]),
         "periods": svc.PERIODS,
         "query": query,
+        "solo_ko": solo_ko,
         "stale_days": svc.stale_days(),
     })
 

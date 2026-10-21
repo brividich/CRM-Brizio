@@ -30,7 +30,6 @@ from .models import (
     SecurityAlertSuppressionRule,
     SecurityCenterSetting,
     SecurityConfigurationAuditLog,
-    SecurityEvidenceContainer,
     SecurityEventRecord,
     SecurityMailboxMessage,
     SecurityMailboxSource,
@@ -42,7 +41,6 @@ from .models import (
     SecuritySourceConfig,
     SecuritySourceFile,
     SecurityTicketConfig,
-    SecurityVulnerabilityFinding,
     Severity,
     SourceType,
     Status,
@@ -62,10 +60,9 @@ from .services.auto_resolution import registry_rows as auto_resolution_registry_
 from .services.learned_suppression import dismissal_progress
 from .services.kpi_service import build_daily_kpi_snapshots
 from .services.source_heartbeat import source_status_rows
-from .services.vpn_history import vpn_recent_stats
 from .services.mailbox_setup import recommended_subject_filters as _recommended_subject_filters
 from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, start_history_import, unique_code_for
-from .services.posture import build_posture, build_trend
+from .services.posture import build_trend
 from .services.parser_engine import run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
 from .services.backup_monitoring import last_seen_backup_status, missing_backup_candidates
@@ -108,34 +105,21 @@ def _secure_score():
 
 @ensure_csrf_cookie
 def dashboard(request):
-    today = timezone.localdate()
-    context = {
-        "open_alerts_count": SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES).count(),
-        "critical_alerts_count": SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, severity=Severity.CRITICAL).count(),
-        "open_tickets_count": SecurityRemediationTicket.objects.filter(status__in=[Status.NEW, Status.OPEN, Status.IN_PROGRESS]).count(),
-        "reports_today_count": SecurityReport.objects.filter(created_at__date=today).count(),
-        "events_today_count": SecurityEventRecord.objects.filter(occurred_at__date=today).count(),
-        "evidence_today_count": SecurityEvidenceContainer.objects.filter(created_at__date=today).count(),
-        "latest_critical_cves": SecurityVulnerabilityFinding.objects.filter(severity=Severity.CRITICAL).order_by("-last_seen_at")[:8],
-        "latest_defender_findings": _decorate_defender_findings(
-            SecurityVulnerabilityFinding.objects.select_related("source", "report")
-            .filter(payload__source="microsoft_defender")
-            .order_by("-last_seen_at")[:8]
-        ),
-        "latest_alerts": _decorate_alerts(SecurityAlert.objects.select_related("source", "event").order_by("-updated_at")[:10]),
-        "last_pipeline_run": request.session.get("last_pipeline_run"),
-        "posture": build_posture(),
-        "secure_score": _secure_score(),
-        "trend": build_trend(today=today),
-        "source_rows": source_status_rows(),
-        "vpn_week": vpn_recent_stats(),
-    }
+    """Panoramica: il verdetto, cosa guardare adesso, le aree con il loro andamento. Numeri dal catalogo ``metriche``."""
+    from security.services import metriche
     from security.services.ai_explain import cached_brief
     from security.services.overview import area_cards, attention_items, overall
 
+    today = timezone.localdate()
     items = attention_items()
-    context.update({"items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime(),
-                    "brief": cached_brief(items)})
+    context = {
+        "items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime(),
+        "brief": cached_brief(items),
+        "urgenti": metriche.segnalazioni_urgenti(), "aperte": metriche.segnalazioni_aperte(),
+        "secure_score": _secure_score(),
+        "trend": build_trend(today=today),
+        "source_rows": source_status_rows(),
+    }
     return render(request, "security/dashboard.html", context)
 
 
@@ -1106,31 +1090,6 @@ def _decorate_alerts(alerts):
         alert.linked_ticket = _alert_case(alert)
         alert.last_seen_at = alert.event.occurred_at if alert.event_id else alert.updated_at
         decorated.append(alert)
-    return decorated
-
-
-def _decorate_defender_findings(findings):
-    decorated = []
-    active_ticket_statuses = [Status.NEW, Status.OPEN, Status.IN_PROGRESS]
-    for finding in findings:
-        finding.linked_alert = SecurityAlert.objects.filter(
-            source=finding.source,
-            dedup_hash=finding.dedup_hash,
-        ).order_by("-updated_at").first()
-        ticket = (
-            SecurityRemediationTicket.objects.filter(
-                source=finding.source,
-                affected_product=finding.affected_product,
-                status__in=active_ticket_statuses,
-            )
-            .order_by("-updated_at")
-            .first()
-        )
-        if ticket and finding.cve not in (ticket.cve_ids or [ticket.cve]):
-            ticket = None
-        finding.linked_ticket = ticket
-        finding.linked_evidence = ticket.evidence.order_by("-created_at").first() if ticket else None
-        decorated.append(finding)
     return decorated
 
 
