@@ -100,7 +100,11 @@
 <section class="sec-panel" style="margin-top: 12px;" id="pc">
   <div class="sec-section-head">
     <h2>Per PC e server</h2>
-    <span class="sec-badge">{% if query %}{{ devices|length }} di {{ devices_total }}{% else %}{{ devices_total }}{% endif %}</span>
+    <span class="sec-badge">{% if query or solo_ko %}{{ devices|length }} di {{ devices_total }}{% else %}{{ devices_total }}{% endif %}</span>
+  </div>
+  <div class="sec-chip-row" aria-label="Quali PC">
+    <a class="sec-chip{% if not solo_ko %} is-active{% endif %}" href="?giorni={{ days }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}#pc">Tutti</a>
+    <a class="sec-chip sev-high{% if solo_ko %} is-active{% endif %}" href="?giorni={{ days }}&amp;stato=ko{% if query %}&amp;q={{ query|urlencode }}{% endif %}#pc" title="Ultimo backup fallito o nessun backup riuscito da oltre {{ stale_days }} giorni: lo stesso numero del riquadro «PC con backup ko»">Solo backup ko</a>
   </div>
   <p class="sec-muted sec-small" style="margin-top:0;">In cima chi ha l'ultimo backup fallito o nessun backup riuscito da oltre {{ stale_days }} giorni. La striscia mostra le ultime esecuzioni, dalla più vecchia (sinistra) alla più recente.</p>
   <form method="post" action="{% url 'security:backup_bulk_case' %}" data-bulk>

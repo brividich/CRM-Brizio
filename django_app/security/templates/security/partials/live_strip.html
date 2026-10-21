@@ -1,7 +1,7 @@
 <div class="soc-live-inner tone-{{ live.worst }}">
   {% for item in live.items %}
     <a class="soc-kpi tone-{{ item.tone }}" href="{{ item.url }}" title="{{ item.title }}">
-      <span class="soc-kpi-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-{% if item.key == 'alerts' %}alert{% elif item.key == 'nis2' %}clock{% elif item.key == 'backup' %}disk{% else %}signal{% endif %}"/></svg></span>
+      <span class="soc-kpi-ico"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-{{ item.icon }}"/></svg></span>
       <span class="soc-kpi-body"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></span>
     </a>
   {% endfor %}

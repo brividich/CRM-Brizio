@@ -3,7 +3,7 @@
 
 {% block title %}Panoramica IT | Security Center{% endblock %}
 {% block page_icon %}#{% endblock %}
-{% block page_marker %}Panoramica IT{% endblock %}
+{% block page_marker %}Da fare{% endblock %}
 {% block page_title %}Panoramica IT{% endblock %}
 
 {% block soc_content %}
@@ -13,21 +13,21 @@
     <span class="ov-icon" aria-hidden="true">{% if level == "ok" %}✓{% elif level == "warning" %}!{% else %}!!{% endif %}</span>
     <div>
       <h2>{{ verdict.1 }}</h2>
-      <p class="sec-muted">Aggiornato alle {{ now|date:"H:i" }} · {{ items|length }} punt{{ items|length|pluralize:"o,i" }} da guardare</p>
+      <p class="ov-summary">
+        <a href="{{ urgenti.url }}" title="{{ urgenti.title }}"><strong>{{ urgenti.value }}</strong> {{ urgenti.label }}</a>
+        <span aria-hidden="true">·</span>
+        <a href="{{ aperte.url }}" title="{{ aperte.title }}"><strong>{{ aperte.value }}</strong> {{ aperte.label }}</a>
+        <span aria-hidden="true">·</span>
+        <span class="sec-muted">aggiornato alle {{ now|date:"H:i" }}</span>
+      </p>
     </div>
   </div>
-  <nav class="ov-stats" aria-label="Indicatori rapidi">
-    <a class="ov-stat{% if open_alerts_count %} hot{% endif %}" href="{% url 'security:alerts_list' %}?status=active"><strong>{{ open_alerts_count }}</strong><span>alert aperti</span></a>
-    <a class="ov-stat{% if critical_alerts_count %} hot{% endif %}" href="{% url 'security:alerts_list' %}?status=active&amp;severity=critical"><strong>{{ critical_alerts_count }}</strong><span>critici</span></a>
-    <a class="ov-stat" href="{% url 'security:tickets_list' %}"><strong>{{ open_tickets_count }}</strong><span>ticket aperti</span></a>
-    <a class="ov-stat" href="{% url 'security:events' %}?giorni=1" title="Tutti gli eventi letti oggi dai report, anche quelli giudicati a posto"><strong>{{ events_today_count }}</strong><span>eventi oggi</span></a>
-  </nav>
 </section>
 {% endwith %}
 
 <section class="ov-main">
   <div class="sec-panel" id="ov-attention" data-autorefresh="120">
-    <div class="sec-section-head"><h2>Da guardare adesso</h2><span class="sec-muted">dal più grave</span></div>
+    <div class="sec-section-head"><h2>Da guardare adesso</h2><span class="sec-muted sec-small">{{ items|length }} punt{{ items|length|pluralize:"o,i" }} · dal più grave</span></div>
     {% if items %}
       <ul class="ov-list">
         {% for item in items %}
@@ -42,80 +42,81 @@
       <p class="proc-ok">Niente da gestire: backup, protezione dei computer, accessi, licenze e firewall sono in regola.</p>
     {% endif %}
   </div>
-  <div class="sec-panel ai-panel" id="ov-brief">
-    <div class="sec-section-head">
-      <h2>Sintesi del giorno</h2>
-      <form method="post" action="{% url 'security:overview_brief' %}" hx-post="{% url 'security:overview_brief' %}" hx-target="#ov-brief-body">
-        {% csrf_token %}{% if brief %}<input type="hidden" name="refresh" value="1">{% endif %}<button class="{% if brief %}sec-button{% else %}sec-button-primary{% endif %}" type="submit" data-busy-label="Sto scrivendo…">{% if brief %}Rigenera{% else %}Chiedi all'AI{% endif %}</button>
-      </form>
+  <div class="ov-side">
+    <div class="sec-panel ai-panel" id="ov-brief">
+      <div class="sec-section-head">
+        <h2>Sintesi del giorno</h2>
+        <form method="post" action="{% url 'security:overview_brief' %}" hx-post="{% url 'security:overview_brief' %}" hx-target="#ov-brief-body">
+          {% csrf_token %}{% if brief %}<input type="hidden" name="refresh" value="1">{% endif %}<button class="{% if brief %}sec-button{% else %}sec-button-primary{% endif %}" type="submit" data-busy-label="Sto scrivendo…">{% if brief %}Rigenera{% else %}Chiedi all'AI{% endif %}</button>
+        </form>
+      </div>
+      <div id="ov-brief-body">{% if brief %}{% include "security/partials/ai_explanation.html" with ai=brief %}{% else %}<p class="sec-muted">L'AI locale riassume in poche frasi i punti qui a fianco: cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.</p>{% endif %}</div>
     </div>
-    <div id="ov-brief-body">{% if brief %}{% include "security/partials/ai_explanation.html" with ai=brief %}{% else %}<p class="sec-muted">L'AI locale riassume in poche frasi i punti qui a fianco: cosa è più urgente e da dove partire. Nessun dato esce dall'azienda.</p>{% endif %}</div>
+    <div class="sec-panel" id="ov-sources">
+      <div class="sec-section-head"><h2>Fonti dati</h2><a class="sec-small" href="{% url 'security:admin_mailbox_sources_list' %}">Caselle mail</a></div>
+      {% if source_rows %}
+        <ul class="ov-sources">
+          {% for row in source_rows %}
+            <li><span class="ov-dot state-{{ row.state }}" aria-hidden="true"></span><span class="ov-src-name">{{ row.name }}</span><span class="ov-src-when" title="{{ row.label }}">{{ row.last_report_at|date:"d/m H:i"|default:"mai" }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="sec-muted sec-small" style="margin:8px 0 0">Ora dell'ultimo report arrivato da ogni casella. Il pallino diventa arancione o rosso quando una casella tace più del previsto.</p>
+      {% else %}
+        <p class="sec-empty">Nessuna casella collegata: senza, il Security Center non riceve i report. <a href="{% url 'security:admin_mailbox_sources_list' %}">Configura la casella</a>.</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 
+<div class="ov-section-head"><h2>Le aree</h2><span class="sec-muted sec-small">ogni numero dice se è l'ultimo valore letto o il totale degli ultimi 7 giorni</span></div>
 <section class="ov-cards" id="ov-cards" data-autorefresh="300">
   {% for c in cards %}
     <article class="ov-card state-{{ c.state }}">
       <div class="ov-card-head"><h3>{{ c.title }}</h3><span class="ov-state">{{ c.state_label }}</span></div>
+      {% if c.state == "nodata" %}
+      <p class="ov-nodata">Nessun dato ricevuto: la fonte non è collegata o non ha ancora mandato report.</p>
+      {% else %}
       <div class="ov-numbers">
         {% for n in c.numbers %}
-          <a href="{% url 'security:kpi_detail' n.name %}" class="ov-number" title="{% if n.tile.last_value %}Ultimo valore{% else %}Totale ultimi 7 giorni{% endif %}{% if n.tile.delta is not None %} · {{ n.tile.delta|metric_delta:n.name }} rispetto ai 7 giorni prima{% endif %}: apri l'andamento">
-            <strong>{% if n.tile %}{{ n.tile.value|metric_value:n.name }}{% else %}—{% endif %}</strong>
-            <span>{{ n.label }}</span>
+          <a href="{{ n.url }}" class="ov-number" title="{% if n.tile.delta is not None %}{{ n.tile.delta|metric_delta:n.name }} rispetto ai 7 giorni prima · {% endif %}apri il dettaglio">
+            <strong>{% if n.tile %}{% if n.raw %}{{ n.tile.value }}{% else %}{{ n.tile.value|metric_value:n.name }}{% endif %}{% else %}—{% endif %}</strong>
+            <span>{{ n.label }}{% if n.hint and n.tile %}<em>{{ n.hint }}</em>{% endif %}</span>
             {% if n.tile.spark %}<svg class="ov-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ n.tile.spark }}"></polyline></svg>{% endif %}
           </a>
         {% endfor %}
       </div>
-      <p class="ov-fresh{% if c.stale %} stale{% endif %}">{% if c.last_report %}Ultimo report: {{ c.last_report|date:"d/m H:i" }}{% if c.stale %} · dati vecchi{% endif %}{% else %}Nessun report ricevuto{% endif %}</p>
+      {% endif %}
+      {% if c.last_report %}<p class="ov-fresh{% if c.stale %} stale{% endif %}">Ultimo dato: {{ c.last_report|date:"d/m H:i" }}{% if c.stale %} · dati vecchi{% endif %}</p>{% endif %}
     </article>
   {% endfor %}
+  {% if secure_score %}
+    <article class="ov-card state-ok ov-card-score">
+      <div class="ov-card-head"><h3>Microsoft Secure Score</h3><span class="ov-state">al {{ secure_score.data_label }}</span></div>
+      <div class="ov-numbers">
+        <a class="ov-number" href="https://security.microsoft.com/securescore" target="_blank" rel="noopener">
+          <strong>{{ secure_score.percentuale }}%</strong>
+          <span>{{ secure_score.punteggio }} su {{ secure_score.massimo }} punti<em>{% if secure_score.variazione_30gg > 0 %}+{% endif %}{{ secure_score.variazione_30gg }} punti % in 30 giorni</em></span>
+          {% if secure_score.spark %}<svg class="ov-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ secure_score.spark }}"></polyline></svg>{% endif %}
+        </a>
+      </div>
+      {% if secure_score.azioni %}
+        <ul class="ov-score-actions">
+          {% for a in secure_score.azioni|slice:":3" %}<li><span>{% if a.url %}<a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titolo }}</a>{% else %}{{ a.titolo }}{% endif %}</span><span class="sec-badge info">+{{ a.punti }}</span></li>{% endfor %}
+        </ul>
+      {% endif %}
+    </article>
+  {% endif %}
 </section>
 
-{% if secure_score %}
-<section class="sec-panel sec-secure-score" style="margin-top: 12px;" aria-labelledby="sec-ss-title">
-  <div class="sec-section-head"><h2 id="sec-ss-title">Microsoft Secure Score</h2><span class="sec-muted">al {{ secure_score.data_label }}</span></div>
-  <div class="sec-ss-body">
-    <div class="sec-ss-score">
-      <strong>{{ secure_score.percentuale }}%</strong>
-      <span>{{ secure_score.punteggio }} su {{ secure_score.massimo }} punti</span>
-      <span class="sec-muted">{% if secure_score.variazione_30gg > 0 %}+{% endif %}{{ secure_score.variazione_30gg }} punti % in 30 giorni</span>
-      {% if secure_score.spark %}<svg class="ov-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ secure_score.spark }}"></polyline></svg>{% endif %}
-    </div>
-    <div class="sec-ss-azioni">
-      <h3>Le azioni che valgono di più</h3>
-      <ul class="sec-mini-list">
-        {% for a in secure_score.azioni %}
-          <li><span>{% if a.url %}<a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.titolo }}</a>{% else %}{{ a.titolo }}{% endif %}<small class="sec-muted" style="display:block;">{{ a.categoria }}</small></span><span class="sec-badge info">+{{ a.punti }}</span></li>
-        {% empty %}<li><span class="sec-muted">Nessuna azione aperta.</span></li>{% endfor %}
-      </ul>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-<section class="sec-grid sec-two-col sec-dash-cols" style="margin-top: 12px;">
-  <div class="sec-panel">
-    <div class="sec-section-head"><h2>Eventi e alert</h2><span class="sec-badge">Ultimi {{ trend.days|length }} giorni</span></div>
-    {% include "security/partials/trend_chart.html" %}
-    <div class="sec-section-head" style="margin-top: 14px;"><h3>Ultimi alert</h3><a href="{% url 'security:alerts_list' %}">Coda alert</a></div>
-    <ul class="sec-mini-list">
-      {% for alert in latest_alerts|slice:":6" %}
-        <li><span><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:80 }}</a><small class="sec-muted" style="display:block;">{{ alert.source.name }} · {{ alert.updated_at|date:"d/m H:i" }}</small></span><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></li>
-      {% empty %}<li><span class="sec-muted">Nessun alert.</span></li>{% endfor %}
+<div class="ov-section-head"><h2>Andamento</h2><span class="sec-muted sec-small">eventi letti dai report e alert aperti, ultimi {{ trend.days|length }} giorni</span></div>
+<section class="ov-trend-row">
+  <div class="sec-panel">{% include "security/partials/trend_chart.html" %}</div>
+  <div class="sec-panel ov-period">
+    <div class="sec-section-head"><h2>Il periodo in numeri</h2></div>
+    <ul>
+      {% for serie in trend.series %}<li style="--dot: {{ serie.color }};"><strong>{{ serie.total }}</strong><span>{{ serie.label|lower }}</span></li>{% endfor %}
     </ul>
-  </div>
-  <div class="sec-panel">
-    <div class="sec-section-head"><h2>Flussi dati</h2><a href="{% url 'security:admin_mailbox_sources_list' %}">Caselle mail</a></div>
-    {% if source_rows %}
-      <ul class="sec-mini-list">
-        {% for row in source_rows %}
-          <li><span><strong>{{ row.name }}</strong><br><small class="sec-muted">Ultimo report: {{ row.last_report_at|date:"d/m/Y H:i"|default:"mai ricevuto" }}</small></span><span class="sec-badge {{ row.state }}">{{ row.label }}</span></li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="sec-empty">Nessuna casella collegata: senza, il Security Center non riceve i report. <a href="{% url 'security:admin_mailbox_sources_list' %}">Configura la casella</a>.</p>
-    {% endif %}
-    <p class="sec-muted" style="margin-top: 10px;"><a href="{% url 'security:pipeline' %}">Stato elaborazione</a> · <a href="{% url 'security:vpn_history' %}">Accessi VPN</a> · <a href="{% url 'security:assets' %}">Dispositivi</a></p>
+    <p class="sec-muted sec-small" style="margin:8px 0 0"><a href="{% url 'security:events' %}?giorni=7">Eventi degli ultimi 7 giorni</a> · <a href="{% url 'security:segnalazioni' %}?stato=tutte">Tutte le segnalazioni</a></p>
   </div>
 </section>
 {% endblock %}
