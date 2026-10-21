@@ -3,6 +3,6 @@
   {% for item in live.items %}
     <a class="soc-live-item tone-{{ item.tone }}" href="{{ item.url }}" title="{{ item.title }}"><strong>{{ item.value }}</strong> {{ item.label }}</a>
   {% endfor %}
-  <a class="soc-live-item soc-live-mine" href="{% url 'security:my_work' %}" title="Ticket e incidenti assegnati a te"><strong>{{ live.mine }}</strong> miei</a>
+  <a class="soc-live-item soc-live-mine" href="{% url 'security:my_work' %}" title="Incidenti e ticket ancora aperti"><strong>{{ live.mine }}</strong> da fare</a>
   <span class="soc-live-meta" title="Barra aggiornata ogni minuto">{% if live.last_report %}ultimo report {{ live.last_report|date:"d/m H:i" }} · {% endif %}agg. {{ live.computed_at|date:"H:i" }}</span>
 </div>
