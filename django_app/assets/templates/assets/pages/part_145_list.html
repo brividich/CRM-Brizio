@@ -1,184 +1,239 @@
 {% extends "assets/base_shell.html" %}
+{% load assets_extras %}
 
 {% block title %}Dossier PART 145{% endblock %}
 
 {% block assets_shell_head %}
 <style>
-.p145-page { display:grid; gap:16px; }
+.p145-page { display:grid; gap:14px; }
 
-/* Hero: identità PART 145 (rosso) + conteggio */
-.p145-hero {
-  position:relative; overflow:hidden;
-  border:1px solid #f1c9c9; border-radius:14px;
-  background:linear-gradient(135deg,#fff 0%,#fff5f5 100%);
-  padding:18px 20px 18px 24px;
-  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  box-shadow:0 10px 24px rgba(220,38,38,.06);
-}
-.p145-hero:before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:#dc2626; }
-.p145-hero-main { display:flex; align-items:center; gap:16px; min-width:0; }
-.p145-badge {
-  flex:0 0 auto; display:inline-flex; align-items:center; gap:8px;
-  background:#dc2626; color:#fff; border-radius:12px; padding:10px 14px;
-  font-weight:800; letter-spacing:.04em; box-shadow:0 6px 16px rgba(220,38,38,.25);
-}
-.p145-count { display:grid; gap:2px; }
-.p145-count b { font-size:var(--fs-display-xl,1.9rem); font-weight:800; color:#0f172a; line-height:1; }
-.p145-count span { color:#64748b; font-size:var(--fs-sm); font-weight:600; }
-.p145-actions { display:flex; gap:8px; flex-wrap:wrap; }
+/* Avvisi */
+.p145-info { border:1px dashed #dbe1ea; border-radius:12px; padding:10px 14px; color:#475569; background:#f8fafc; font-size:var(--fs-sm); }
+.p145-info.err { border-style:solid; border-color:#fecaca; background:#fef2f2; color:#991b1b; }
+.p145-info ul { margin:4px 0 0; padding-left:18px; }
 
-/* Card tabella */
-.p145-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 10px 24px rgba(15,23,42,.045); }
-.p145-card-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; background:linear-gradient(90deg,#fff5f5 0%,#fff 60%); }
-.p145-card-head h2 { margin:0; font-size:var(--fs-display-sm,1.1rem); font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; }
-.p145-card-head h2:before { content:""; width:8px; height:18px; border-radius:4px; background:#dc2626; }
+/* Indicatori */
+.p145-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+.p145-kpi { display:block; border:1px solid #dbe1ea; border-left:4px solid #cbd5e1; border-radius:12px; background:#fff; padding:12px 14px; text-decoration:none; color:inherit; transition:box-shadow .15s, transform .15s; }
+.p145-kpi:hover { box-shadow:0 8px 20px rgba(15,23,42,.08); transform:translateY(-1px); }
+.p145-kpi span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; font-weight:800; }
+.p145-kpi b { display:block; margin-top:4px; font-size:1.7rem; line-height:1.1; color:#0f172a; }
+.p145-kpi small { display:block; margin-top:2px; color:#64748b; font-size:var(--fs-xs); font-weight:600; }
+.p145-kpi.ok { border-left-color:#16a34a; }
+.p145-kpi.warn { border-left-color:#d97706; }
+.p145-kpi.warn b { color:#b45309; }
+.p145-kpi.ko { border-left-color:#dc2626; }
+.p145-kpi.ko b { color:#b91c1c; }
 
+/* Barra: ricerca live + salti alle sezioni */
+.p145-bar.p145-bar-nav { position:static; padding-top:0; z-index:1; }
+.p145-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:5; padding:8px 0; background:var(--bg, #f4f6fa); }
+.p145-search { flex:1 1 260px; min-width:0; display:flex; align-items:center; gap:8px; border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:0 12px; }
+.p145-search input { flex:1; min-width:0; border:0; outline:0; background:transparent; padding:10px 0; font:inherit; color:inherit; }
+.p145-search small { color:#64748b; white-space:nowrap; font-size:var(--fs-xs); }
+.p145-nav { display:flex; gap:6px; flex-wrap:wrap; }
+.p145-nav a { padding:5px 11px; border-radius:999px; border:1px solid #dbe1ea; background:#fff; color:#334155; font-weight:700; text-decoration:none; font-size:.82rem; white-space:nowrap; }
+.p145-nav a:hover { border-color:#dc2626; color:#b91c1c; }
+
+/* Menu «Scarica» */
+.p145-menu { position:relative; }
+.p145-menu > summary { list-style:none; cursor:pointer; }
+.p145-menu > summary::-webkit-details-marker { display:none; }
+.p145-menu-list { position:absolute; right:0; top:calc(100% + 6px); z-index:20; min-width:280px; background:#fff; border:1px solid #dbe1ea; border-radius:12px; box-shadow:0 14px 32px rgba(15,23,42,.16); padding:6px; display:grid; }
+.p145-menu-list a { display:grid; gap:1px; padding:9px 12px; border-radius:8px; text-decoration:none; color:#0f172a; font-weight:700; font-size:.9rem; }
+.p145-menu-list a small { color:#64748b; font-weight:500; font-size:var(--fs-xs); }
+.p145-menu-list a:hover { background:#f1f5f9; }
+.p145-menu-list hr { border:0; border-top:1px solid #eef2f7; margin:4px 6px; }
+
+/* Sezioni */
+.p145-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 6px 18px rgba(15,23,42,.04); scroll-margin-top:70px; }
+.p145-card > summary { list-style:none; cursor:pointer; padding:12px 16px; display:flex; align-items:center; gap:10px; justify-content:space-between; }
+.p145-card > summary::-webkit-details-marker { display:none; }
+.p145-card > summary h2 { margin:0; font-size:var(--fs-display-sm,1.05rem); font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; }
+.p145-card > summary h2:before { content:""; width:6px; height:18px; border-radius:4px; background:#dc2626; }
+.p145-card > summary .p145-chev { transition:transform .15s; color:#94a3b8; }
+.p145-card[open] > summary { border-bottom:1px solid #eef2f7; }
+.p145-card[open] > summary .p145-chev { transform:rotate(90deg); }
+.p145-count { display:inline-flex; align-items:center; justify-content:center; min-width:26px; padding:2px 8px; border-radius:999px; background:#f1f5f9; color:#475569; font-size:var(--fs-xs); font-weight:800; }
+.p145-count.ko { background:#fee2e2; color:#b91c1c; }
+.p145-note { padding:10px 16px 0; color:#64748b; font-size:var(--fs-sm); }
 .p145-table-wrap { overflow-x:auto; }
-.p145-table { width:100%; min-width:820px; border-collapse:separate; border-spacing:0; }
-.p145-table th, .p145-table td { padding:11px 14px; text-align:left; border-bottom:1px solid #eef2f7; vertical-align:middle; }
-.p145-table th { position:sticky; top:0; background:#fef2f2; color:#9b1c1c; font-size:var(--fs-xs); text-transform:uppercase; font-weight:800; letter-spacing:.04em; }
-.p145-table tbody tr { cursor:pointer; transition:background .15s; }
-.p145-table tbody tr:hover { background:#fff7f7; }
-.p145-name { font-weight:800; color:#0f172a; }
-.p145-tag { color:#64748b; font-size:var(--fs-xs); font-weight:700; }
+.p145-table { width:100%; border-collapse:separate; border-spacing:0; font-size:var(--fs-sm); }
+.p145-table th, .p145-table td { padding:9px 12px; text-align:left; border-bottom:1px solid #eef2f7; vertical-align:top; }
+.p145-table th { background:#f8fafc; color:#475569; font-size:var(--fs-2xs,.7rem); text-transform:uppercase; font-weight:800; letter-spacing:.04em; white-space:nowrap; }
+.p145-table tbody tr:last-child td { border-bottom:0; }
+.p145-table tbody tr[data-href] { cursor:pointer; }
+.p145-table tbody tr:hover { background:#f8fafc; }
+.p145-name { font-weight:800; color:#0f172a; text-decoration:none; }
+.p145-name:hover { text-decoration:underline; }
 .p145-muted { color:#94a3b8; }
-.p145-status { display:inline-flex; border-radius:999px; padding:3px 9px; font-size:var(--fs-2xs,.7rem); font-weight:800; background:#f1f5f9; color:#475569; white-space:nowrap; }
-
-/* Empty */
-.p145-empty { padding:56px 20px; text-align:center; }
-.p145-empty-icon { font-size:40px; opacity:.25; }
-.p145-empty-text { margin-top:8px; font-size:var(--fs-md,1rem); font-weight:800; color:#334155; }
-.p145-empty-sub { margin-top:4px; color:#94a3b8; font-size:var(--fs-base); }
-
-/* Export dialog */
-.p145-export-dlg { border:1px solid #dbe1ea; border-radius:14px; padding:20px; min-width:280px; box-shadow:0 8px 32px rgba(15,23,42,.15); }
-.p145-export-dlg h3 { margin:0 0 12px; font-size:1rem; font-weight:800; color:#7f1d1d; }
-.p145-export-links { display:flex; gap:8px; margin-bottom:12px; }
-.p145-export-links a { flex:1; text-align:center; border-radius:10px; padding:9px 14px; font-weight:700; text-decoration:none; font-size:.875rem; color:#fff; }
-.p145-xlsx { background:#16a34a; border:1px solid #16a34a; }
-.p145-pdf { background:#dc2626; border:1px solid #dc2626; }
-.p145-export-close { width:100%; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; border-radius:8px; padding:7px; font-weight:600; cursor:pointer; font-family:inherit; font-size:.875rem; }
-
-/* Dark mode */
-body.theme-dark .p145-hero { background:linear-gradient(135deg,var(--surface) 0%,rgba(220,38,38,.08) 100%); border-color:rgba(220,38,38,.35); }
-body.theme-dark .p145-count b { color:var(--text); }
-body.theme-dark .p145-count span { color:var(--text-light); }
-body.theme-dark .p145-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .p145-card-head { background:linear-gradient(90deg,rgba(220,38,38,.06) 0%,rgba(255,255,255,.01) 60%); border-bottom-color:var(--border); }
-body.theme-dark .p145-card-head h2 { color:var(--text); }
-body.theme-dark .p145-table th { background:rgba(220,38,38,.12); color:#fca5a5; }
-body.theme-dark .p145-table th, body.theme-dark .p145-table td { border-bottom-color:var(--border); }
-body.theme-dark .p145-table tbody tr:hover { background:rgba(220,38,38,.08); }
-body.theme-dark .p145-name { color:var(--text); }
-body.theme-dark .p145-status { background:rgba(255,255,255,.06); color:var(--text-light); }
-body.theme-dark .p145-export-dlg { background:var(--surface); border-color:var(--border); }
-
-@media (max-width:640px) {
-  .p145-hero { flex-direction:column; align-items:flex-start; }
-}
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .p145-card-head{border-color:var(--border)}
-body.theme-dark .p145-table th,body.theme-dark .p145-table td{border-color:var(--border)}
-body.theme-dark .p145-tag{color:var(--text-light)}
-body.theme-dark .p145-empty-text{color:var(--text)}
-body.theme-dark .p145-export-dlg h3{color:#fca5a5}
-body.theme-dark .p145-export-close{background:var(--surface-alt,#0f1b2d);color:var(--text-mid);border-color:var(--border)}
-
-/* Dossier */
-.p145-table tbody tr:not([data-href]) { cursor:default; }
+.p145-badge { display:inline-flex; border-radius:999px; padding:2px 9px; font-size:var(--fs-2xs,.72rem); font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; }
+.p145-badge.ko { background:#fee2e2; color:#b91c1c; }
+.p145-badge.warn { background:#fef3c7; color:#92400e; }
+.p145-badge.ok { background:#dcfce7; color:#166534; }
 .p145-azione { font-weight:700; color:#b91c1c; white-space:nowrap; text-decoration:none; }
 .p145-azione:hover { text-decoration:underline; }
+.p145-empty { padding:18px 16px; color:#64748b; font-size:var(--fs-sm); }
+.p145-nomatch { display:none; padding:14px 16px; color:#64748b; font-size:var(--fs-sm); }
+.p145-foot { color:#64748b; font-size:var(--fs-sm); margin:0; }
+
+@media (max-width:640px) {
+  .p145-bar { position:static; }
+  .p145-menu-list { right:auto; left:0; min-width:min(280px, calc(100vw - 32px)); }
+}
+
+/* Tema scuro */
+body.theme-dark .p145-info { background:var(--surface,#1e293b); border-color:var(--border,#334155); color:var(--text-light,#cbd5e1); }
+body.theme-dark .p145-info.err { background:rgba(220,38,38,.10); border-color:rgba(220,38,38,.45); color:#fecaca; }
+body.theme-dark .p145-kpi, body.theme-dark .p145-card, body.theme-dark .p145-search, body.theme-dark .p145-nav a,
+body.theme-dark .p145-menu-list { background:var(--surface,#1e293b); border-color:var(--border,#334155); }
+body.theme-dark .p145-kpi.ok { border-left-color:#22c55e; }
+body.theme-dark .p145-kpi.warn { border-left-color:#f59e0b; }
+body.theme-dark .p145-kpi.ko { border-left-color:#ef4444; }
+body.theme-dark .p145-kpi b, body.theme-dark .p145-card > summary h2, body.theme-dark .p145-name,
+body.theme-dark .p145-menu-list a { color:var(--text,#e2e8f0); }
+body.theme-dark .p145-kpi.warn b { color:#fbbf24; }
+body.theme-dark .p145-kpi.ko b { color:#fca5a5; }
+body.theme-dark .p145-kpi span, body.theme-dark .p145-kpi small, body.theme-dark .p145-note, body.theme-dark .p145-empty,
+body.theme-dark .p145-search small, body.theme-dark .p145-menu-list a small, body.theme-dark .p145-foot { color:var(--text-light,#94a3b8); }
+body.theme-dark .p145-bar { background:var(--bg,#0f172a); }
+body.theme-dark .p145-nav a { color:var(--text-mid,#cbd5e1); }
+body.theme-dark .p145-menu-list a:hover, body.theme-dark .p145-table tbody tr:hover { background:rgba(255,255,255,.04); }
+body.theme-dark .p145-menu-list hr, body.theme-dark .p145-card[open] > summary,
+body.theme-dark .p145-table th, body.theme-dark .p145-table td { border-color:var(--border,#334155); }
+body.theme-dark .p145-table th { background:rgba(255,255,255,.03); color:var(--text-light,#94a3b8); }
+body.theme-dark .p145-count, body.theme-dark .p145-badge { background:rgba(255,255,255,.07); color:var(--text-mid,#cbd5e1); }
+body.theme-dark .p145-count.ko, body.theme-dark .p145-badge.ko { background:rgba(239,68,68,.18); color:#fca5a5; }
+body.theme-dark .p145-badge.warn { background:rgba(245,158,11,.18); color:#fcd34d; }
+body.theme-dark .p145-badge.ok { background:rgba(34,197,94,.16); color:#86efac; }
 body.theme-dark .p145-azione { color:#fca5a5; }
-.p145-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
-.p145-kpi { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:12px 14px; }
-.p145-kpi span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; font-weight:800; }
-.p145-kpi b { display:block; margin-top:4px; font-size:1.6rem; color:#0f172a; }
-.p145-kpi.warn b { color:#b45309; }
-.p145-note { padding:10px 16px 0; color:#64748b; font-size:var(--fs-sm); }
-.p145-nav { display:flex; gap:6px; flex-wrap:wrap; }
-.p145-nav a { padding:6px 12px; border-radius:999px; border:1px solid #f1c9c9; background:#fff; color:#9b1c1c; font-weight:700; text-decoration:none; font-size:.85rem; }
-.p145-info { border:1px dashed #dbe1ea; border-radius:12px; padding:10px 14px; color:#475569; background:#f8fafc; }
-body.theme-dark .p145-hero, body.theme-dark .p145-card, body.theme-dark .p145-kpi, body.theme-dark .p145-nav a, body.theme-dark .p145-info { background:var(--surface,#1e293b); border-color:var(--border,#334155); }
-body.theme-dark .p145-count b, body.theme-dark .p145-kpi b, body.theme-dark .p145-name, body.theme-dark .p145-card-head h2 { color:var(--text,#e2e8f0); }
-body.theme-dark .p145-table th { background:#3b1d1d; color:#fecaca; }
-body.theme-dark .p145-table tbody tr:hover { background:rgba(220,38,38,.08); }
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}PART 145{% endblock %}
-{% block assets_shell_subtitle %}<p>Attrezzature, personale e scadenze del regolamento aeronautico PART 145.</p>{% endblock %}
+{% block assets_shell_title %}Dossier PART 145{% endblock %}
+{% block assets_shell_subtitle %}<p>Processi, attrezzature{% if dossier.con_personale %}, personale e formazione{% endif %}{% if dossier.con_audit %}, audit{% endif %}{% if dossier.con_nc %}, non conformità{% endif %} e documenti SGI · aggiornato al {{ dossier.oggi|date:"d/m/Y" }}</p>{% endblock %}
 
 {% block assets_shell_toolbar %}
-<a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario completo</a>
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#part145">? Guida</a>
+
 {% endblock %}
 
 {% block assets_shell_content %}
 <section class="p145-page">
 
-  <div class="p145-hero">
-    <div class="p145-hero-main">
-      <span class="p145-badge">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        PART 145
-      </span>
-      <div class="p145-count">
-        <b>Dossier PART 145</b>
-        <span>Processi, contratti, attrezzature{% if dossier.con_personale %}, personale abilitato{% endif %}, scadenze, situazioni aperte e documenti SGI · {{ dossier.oggi|date:"d/m/Y" }}</span>
-      </div>
-    </div>
-    <div class="p145-actions">
-      <a class="btn" href="{% url 'assets:part_145_export_excel' %}">&#8595; Excel</a>
-      <a class="btn" href="{% url 'assets:part_145_export_pdf' %}">&#8595; PDF</a>
-      <a class="btn" href="{% url 'assets:part_145_export_tarature' %}" title="Strumenti con taratura: ente, ultima e prossima (MT CN 70 §6.12)">&#8595; Strumenti tarati</a>
-      <a class="btn" href="{% url 'assets:part_145_export_controllo' %}" title="Elenco per reparto da timbrare e firmare (MT CN 17, Mod.072)">&#8595; Controllo semestrale</a>
-      <a class="btn btn-secondary" href="{% url 'assets:guida' %}#part145">? Guida</a>
-    </div>
-  </div>
+  {% if dossier.avvisi %}
+  <div class="p145-info err" role="alert"><strong>Alcune parti non sono disponibili.</strong> Il resto del dossier è aggiornato.<ul>{% for a in dossier.avvisi %}<li>{{ a }}</li>{% endfor %}</ul></div>
+  {% endif %}
 
   <div class="p145-kpis">
-    {% for etichetta, valore in dossier.riepilogo %}<div class="p145-kpi{% if etichetta == 'Situazioni aperte' and valore %} warn{% endif %}"><span>{{ etichetta }}</span><b>{{ valore }}</b></div>{% endfor %}
+    {% for k in dossier.kpi %}<a class="p145-kpi {{ k.stato }}" href="#sez-{{ k.sezione }}"><span>{{ k.etichetta }}</span><b>{{ k.valore }}</b><small>{{ k.nota }}</small></a>{% endfor %}
   </div>
 
-  {% if not dossier.con_personale %}<div class="p145-info">I dati del personale abilitato non sono mostrati: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}
+  {% if not dossier.con_personale %}<div class="p145-info">Personale e formazione non sono mostrati: servono i permessi sui processi qualificati (MOD.128).</div>{% endif %}
 
-  <nav class="p145-nav" aria-label="Sezioni del dossier">
-    {% for s in dossier.sezioni %}<a href="#sez-{{ s.codice }}">{{ s.titolo }}{% if s.righe %} ({{ s.righe|length }}){% endif %}</a>{% endfor %}
-  </nav>
+  <div class="p145-bar">
+    <label class="p145-search">
+      <span aria-hidden="true">&#128269;</span>
+      <input type="search" id="p145-cerca" placeholder="Cerca in tutto il dossier: asset, persona, processo, documento…" autocomplete="off" aria-label="Cerca nel dossier">
+      <small id="p145-esito" aria-live="polite"></small>
+    </label>
+    <details class="p145-menu">
+      <summary class="btn">&#8595; Scarica</summary>
+      <div class="p145-menu-list" role="menu">
+        <a href="{% url 'assets:part_145_export_pdf' %}" role="menuitem">Dossier in PDF<small>Tutte le sezioni, pronto per l'audit</small></a>
+        <a href="{% url 'assets:part_145_export_excel' %}" role="menuitem">Dossier in Excel<small>Riepilogo + un foglio per sezione</small></a>
+        <hr>
+        <a href="{% url 'assets:part_145_export_tarature' %}" role="menuitem">Strumenti tarati (Excel)<small>Ente, ultima e prossima taratura · MT CN 70 §6.12</small></a>
+        <a href="{% url 'assets:part_145_export_controllo' %}" role="menuitem">Controllo semestrale (PDF)<small>Una pagina per reparto da firmare · MT CN 17</small></a>
+      </div>
+    </details>
+  </div>
+  <div class="p145-bar p145-bar-nav">
+    <nav class="p145-nav" aria-label="Sezioni del dossier">
+      {% for s in dossier.sezioni %}<a href="#sez-{{ s.codice }}" data-sez="{{ s.codice }}">{{ s.titolo }}</a>{% endfor %}
+    </nav>
+  </div>
 
   {% for s in dossier.sezioni %}
-  <article class="p145-card" id="sez-{{ s.codice }}">
-    <div class="p145-card-head">
+  <details class="p145-card" id="sez-{{ s.codice }}" {% if not s.chiusa %}open{% endif %}>
+    <summary>
       <h2>{{ s.titolo }}</h2>
-      <span class="p145-tag">{{ s.righe|length }} righe</span>
-    </div>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span class="p145-count{% if s.codice == 'aperte' and s.righe %} ko{% endif %}" data-totale="{{ s.righe|length }}">{{ s.righe|length }}</span>
+        <span class="p145-chev" aria-hidden="true">&#9656;</span>
+      </span>
+    </summary>
     {% if s.nota %}<div class="p145-note">{{ s.nota }}</div>{% endif %}
     {% if s.righe %}
     <div class="p145-table-wrap">
-      <table class="p145-table">
-        <thead><tr>{% for h in s.intestazioni %}<th>{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th>Cosa fare</th>{% endif %}</tr></thead>
+      <table class="p145-table" data-fm-table-skip="1">
+        <thead><tr>{% for h in s.intestazioni %}<th scope="col">{{ h }}</th>{% endfor %}{% if s.ha_azioni %}<th scope="col">Cosa fare</th>{% endif %}</tr></thead>
         <tbody>
-          {% for riga, asset_id, azione in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}</td>{% endfor %}{% if s.ha_azioni %}<td>{% if azione %}<a class="p145-azione" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="p145-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}
+          {% for riga, asset_id, azione in s.righe_link %}<tr{% if asset_id %} data-href="{% url 'assets:asset_view' asset_id %}"{% endif %}>{% for v in riga %}<td>{% with cls=dossier.badge|get_item:v %}{% if forloop.first and asset_id %}<a class="p145-name" href="{% url 'assets:asset_view' asset_id %}">{{ v }}</a>{% elif cls %}<span class="p145-badge {{ cls }}">{{ v }}</span>{% elif v|stringformat:"s" == "" %}<span class="p145-muted">—</span>{% else %}{{ v }}{% endif %}{% endwith %}</td>{% endfor %}{% if s.ha_azioni %}<td>{% if azione %}<a class="p145-azione" href="{{ azione.1 }}">{{ azione.0 }} →</a>{% else %}<span class="p145-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}
         </tbody>
       </table>
+      <div class="p145-nomatch">Nessuna riga corrisponde alla ricerca.</div>
     </div>
     {% else %}
-    <div class="p145-empty"><div class="p145-empty-sub">{{ s.vuoto }}</div></div>
+    <div class="p145-empty">{{ s.vuoto }}</div>
     {% endif %}
-  </article>
+  </details>
   {% endfor %}
 
-  <p class="p145-muted">Le attrezzature si marcano con «Rientra in PART 145» nel form dell'asset, oppure si collegano al processo dal dettaglio MOD.128 (sezione «Attrezzature»).</p>
+  <p class="p145-foot">Le attrezzature si marcano con «Rientra in PART 145» nel form dell'asset, oppure si collegano al processo dal dettaglio MOD.128 (sezione «Attrezzature»).{% if dossier.dismesse %} {{ dossier.dismesse }} attrezzatur{{ dossier.dismesse|pluralize:"a dismessa non è mostrata,e dismesse non sono mostrate" }}.{% endif %}</p>
 </section>
 {% endblock %}
 
 {% block assets_shell_scripts %}
 <script>
-document.querySelectorAll('.p145-table tbody tr[data-href]').forEach(function (row) {
-  row.addEventListener('click', function (event) {
-    if (event.target.closest('a,button')) return;
-    window.location.href = row.getAttribute('data-href');
+(function () {
+  document.querySelectorAll('.p145-table tbody tr[data-href]').forEach(function (row) {
+    row.addEventListener('click', function (event) {
+      if (event.target.closest('a,button')) return;
+      window.location.href = row.getAttribute('data-href');
+    });
   });
-});
+
+  // Un link a una sezione chiusa la apre.
+  function apri(hash) {
+    var el = hash && document.getElementById(hash.slice(1));
+    if (el && el.tagName === 'DETAILS') el.open = true;
+  }
+  document.querySelectorAll('a[href^="#sez-"]').forEach(function (a) {
+    a.addEventListener('click', function () { apri(a.getAttribute('href')); });
+  });
+  apri(window.location.hash);
+
+  // Il menu «Scarica» si chiude cliccando fuori.
+  var menu = document.querySelector('.p145-menu');
+  document.addEventListener('click', function (e) { if (menu && menu.open && !menu.contains(e.target)) menu.open = false; });
+
+  // Ricerca live su tutte le sezioni (sostituisce le barre per tabella).
+  var input = document.getElementById('p145-cerca');
+  var esito = document.getElementById('p145-esito');
+  var timer = null;
+  function norm(t) { return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function filtra() {
+    var q = norm(input.value.trim());
+    var trovate = 0;
+    document.querySelectorAll('.p145-card').forEach(function (card) {
+      var righe = card.querySelectorAll('tbody tr');
+      var visibili = 0;
+      righe.forEach(function (tr) {
+        var ok = !q || norm(tr.textContent).indexOf(q) !== -1;
+        tr.hidden = !ok;
+        if (ok) visibili++;
+      });
+      trovate += visibili;
+      var conta = card.querySelector('.p145-count');
+      if (conta) conta.textContent = q ? visibili + '/' + conta.getAttribute('data-totale') : conta.getAttribute('data-totale');
+      var vuoto = card.querySelector('.p145-nomatch');
+      if (vuoto) vuoto.style.display = q && righe.length && !visibili ? 'block' : 'none';
+      if (q && visibili) card.open = true;
+    });
+    esito.textContent = q ? trovate + ' righe' : '';
+  }
+  if (input) input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(filtra, 120); });
+})();
 </script>
 {% endblock %}

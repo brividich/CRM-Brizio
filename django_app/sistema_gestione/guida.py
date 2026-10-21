@@ -237,7 +237,9 @@ _PAGINE_AUDIT = [
                   "crea una bozza: prima delle firme il portale mostra esattamente cosa manca."),
             ("def", [
                 ("1. Campo di audit", "programma e righe, tipo (sistema, mandatorio cliente, straordinario), processi scelti "
-                 "dal catalogo e norme. «Adotta le revisioni attuali del catalogo» aggiorna le schede copiate nel piano."),
+                 "dal catalogo e norme. «Adotta le revisioni attuali del catalogo» aggiorna le schede copiate nel piano. "
+                 "«Perimetro Part 145» (Sì — audit di sistema / Sì — audit di prodotto) porta l'audit e i suoi rilievi "
+                 "nel Dossier PART 145: l'anno ne chiede almeno uno di sistema e uno di prodotto (MT CN 70)."),
                 ("2. Criteri e limiti", "punti norma, procedure e criteri (vuoti = quelli delle schede processo) ed esclusioni."),
                 ("3. Team e indipendenza", "Lead Auditor e team. Se il sistema segnala un conflitto di imparzialità serve un "
                  "auditor indipendente oppure la motivazione della deroga, da far approvare all'RDD."),

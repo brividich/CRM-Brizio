@@ -289,6 +289,10 @@ SEZIONI: list[dict] = [
                 "«Proponi analisi e azioni» chiede all'AI una proposta: non salva nulla.",
                 "«Chiudi NC» e «Riapri NC» sono riservati a chi è indicato nella configurazione (scheda Qualità).",
                 "«PDF» scarica la scheda; «Anomalie dell'OP» riporta alla gestione.",
+                "«Segna come Part 145» (in alto, per chi può modificare la NC aperta) indica che la NC riguarda un "
+                "componente lavorato per l'organizzazione di manutenzione (MT CN 70 §6.13): la NC compare nel Dossier "
+                "PART 145 tra le situazioni da sistemare, da comunicare all'organizzazione di manutenzione. Un secondo "
+                "clic la toglie; la scelta resta nello storico della NC.",
             ]),
         ],
     },

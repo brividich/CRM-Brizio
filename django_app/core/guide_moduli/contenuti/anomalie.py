@@ -25,6 +25,8 @@ GUIDA = {
                     "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
                     "di questi seriali» copia la decisione su tutto il blocco.",
                 ]),
+                ("p", "Nella scheda di una NC aperta «Segna come Part 145» indica che riguarda un componente lavorato per "
+                      "l'organizzazione di manutenzione: la NC compare nel Dossier PART 145 del modulo Asset."),
                 ("p", "La guida completa, con ogni schermata, è nel collegamento in cima."),
             ],
         },

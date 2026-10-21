@@ -516,6 +516,15 @@ class Audit(models.Model):
     iso14001 = models.BooleanField(default=False)
     iso27001 = models.BooleanField(default=False)
     pdr125 = models.BooleanField(default=False)
+    # MT CN 70 §5.3: ogni anno almeno un audit interno Part 145 di sistema e uno di prodotto.
+    PART145_SISTEMA = "SISTEMA"
+    PART145_PRODOTTO = "PRODOTTO"
+    PART145_CHOICES = [("", "No"), (PART145_SISTEMA, "Sì — audit di sistema"), (PART145_PRODOTTO, "Sì — audit di prodotto")]
+    part145 = models.CharField(
+        max_length=10, choices=PART145_CHOICES, blank=True, default="", verbose_name="Perimetro Part 145",
+        help_text="Audit interno sulle attività Part 145: l'anno ne richiede almeno uno di sistema e uno di prodotto "
+                  "(MT CN 70). Compare nel Dossier PART 145.",
+    )
     lead_auditor = models.ForeignKey(Auditor, on_delete=models.PROTECT, related_name="audit_come_lead")
     auditor = models.ManyToManyField(Auditor, blank=True, related_name="audit_come_membro")
     processi = models.TextField(blank=True, default="")
