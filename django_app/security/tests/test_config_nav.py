@@ -15,15 +15,17 @@ class ConfigNavTests(TestCase):
 
     def test_one_menu_entry_and_tabs_on_settings_page(self):
         html = self.client.get(reverse("security:soc_settings")).content.decode()
-        menu = html.split('<nav class="soc-nav soc-nav-main"', 1)[1].split("</nav>", 1)[0]
+        menu = html.split('<nav class="soc-tabs"', 1)[1].split("</nav>", 1)[0]
         sub = html.split('<nav class="soc-subnav"', 1)[1].split("</nav>", 1)[0]
-        self.assertIn(">Impostazioni</a>", menu)  # una sola voce di menu per tutta la configurazione
-        self.assertIn(">Configurazione</a>", sub)
-        for old in (">Config</a>", ">Autoconfig</a>", ">Caselle mail</a>"):
+        self.assertIn("<span>Impostazioni</span>", menu)  # una sola voce di menu per tutta la configurazione
+        for old in (">Config<", ">Autoconfig<", ">Caselle mail<"):
             self.assertNotIn(old, menu)
-            self.assertNotIn(old, sub)
-        self.assertIn('class="soc-config-tabs"', html)
-        self.assertIn('aria-current="page">Avvisi e automatismi</a>', html)
+        # dentro la configurazione le sue sezioni stanno nella seconda riga: niente terza riga di schede
+        self.assertIn('aria-current="page">Avvisi e automatismi</a>', sub)
+        self.assertIn(">Caselle mail</a>", sub)
+        self.assertIn(">Elaborazione</a>", sub)
+        self.assertEqual(html.count('class="soc-subnav"'), 1)
+        self.assertNotIn('class="soc-config-tabs"', html)
 
     def test_tabs_on_config_dashboard_and_not_on_work_pages(self):
         self.assertIn('aria-current="page">Panoramica</a>', self.client.get(reverse("security:admin_config")).content.decode())

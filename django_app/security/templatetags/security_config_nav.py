@@ -92,21 +92,52 @@ MENU = [
 ]
 
 
+ICONE = {"Da fare": "todo", "Segnalazioni": "bell", "Dispositivi": "monitor", "Report": "chart", "Impostazioni": "gear"}
+# Numeri sulle voci: dalla barra di stato (in cache 60 s), nessuna query in più. Solo se c'è qualcosa.
+BADGE = {"Segnalazioni": ("alerts", "nis2"), "Dispositivi": ("backup",), "Impostazioni": ("sources",)}
+
+
+def _badges(user):
+    try:
+        from security.services.live_status import live_status
+
+        items = {i["key"]: i for i in live_status(user)["items"]}
+    except Exception:  # noqa: BLE001 - un conteggio rotto non toglie il menu
+        return {}
+    out = {}
+    for voce, chiavi in BADGE.items():
+        presenti = [items[k] for k in chiavi if k in items and items[k]["value"]]
+        if presenti:
+            tone = "critical" if any(i["tone"] == "critical" for i in presenti) else "warning"
+            out[voce] = {"value": sum(i["value"] for i in presenti), "tone": tone, "title": " · ".join(f"{i['value']} {i['label']}" for i in presenti)}
+    return out
+
+
 @register.inclusion_tag("security/_menu.html", takes_context=True)
 def soc_menu(context, url_name):
     request = context.get("request")
     user = getattr(request, "user", None)
     can_configure = bool(user and can_manage_security_config(user))
+    badges = _badges(user)
     voci, sezione = [], None
     for label, entry, pagine in MENU:
         tabs = []
         for tab_label, route, names, admin_only in pagine:
             if admin_only and not can_configure:
                 continue
+            if route is None and is_config_page(url_name):
+                # Dentro la configurazione le sue sezioni prendono il posto della scheda unica: una riga sola, non due.
+                tabs += [
+                    {"label": t_label, "url": reverse(f"security:{t_route}"), "active": url_name in t_names}
+                    for t_route, t_label, t_names, t_admin in CONFIG_TABS if can_configure or not t_admin
+                ]
+                tabs[-1]["sep_after"] = True
+                continue
             url = reverse(f"security:{route}") if route else reverse("security:admin_config" if can_configure else "security:soc_settings")
             tabs.append({"label": tab_label, "url": url, "active": url_name in names})
         attiva = any(t["active"] for t in tabs)
-        voce = {"label": label, "url": reverse(f"security:{entry}") if entry else (tabs[0]["url"] if tabs else "#"), "active": attiva, "tabs": tabs}
+        voce = {"label": label, "icon": ICONE.get(label, "shield"), "badge": badges.get(label),
+                "url": reverse(f"security:{entry}") if entry else (tabs[0]["url"] if tabs else "#"), "active": attiva, "tabs": tabs}
         if attiva:
             sezione = voce
         voci.append(voce)

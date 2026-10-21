@@ -44,8 +44,8 @@
       <thead><tr><th>Tipo</th><th>Gravità</th><th>Cosa</th><th>Dove</th><th>Stato</th><th>Aperta da</th><th>Chi se ne occupa</th></tr></thead>
       <tbody>
       {% for r in page.object_list %}
-        <tr data-preview="{{ r.preview }}"{% if not r.active %} style="opacity:.7"{% endif %}>
-          <td><span class="sec-badge sec-badge-muted">{{ r.kind_label }}</span></td>
+        <tr class="soc-sev-row sev-{{ r.severity }}{% if not r.active %} is-closed{% endif %}" data-preview="{{ r.preview }}">
+          <td><span class="soc-kind kind-{{ r.kind }}"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-{% if r.kind == 'alert' %}bell{% elif r.kind == 'ticket' %}ticket{% else %}flame{% endif %}"/></svg>{{ r.kind_label }}</span></td>
           <td><span class="sec-badge {{ r.severity }}">{{ r.severity|ui_label }}</span></td>
           <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.title|truncatechars:90 }}</strong></a>{% if r.deadline %}<small><span class="sec-badge sec-badge-{{ r.deadline.tone }}">{{ r.deadline.state_label }}</span> {{ r.deadline.label }} · entro {{ r.deadline.due_at|date:"d/m H:i" }}</small>{% endif %}</td>
           <td>{{ r.where|default:"—" }}</td>
