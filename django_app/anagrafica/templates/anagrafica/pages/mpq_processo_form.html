@@ -32,7 +32,7 @@
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
 
-      {% include "anagrafica/partials/_fmd_section.html" with title="Processo" icon="i-cap" desc="Cliente/ente qualificante, nome del processo, regime e livello." fields=form|section_fields:"cliente,nome,regime,livello" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Processo" icon="i-cap" desc="Cliente/ente qualificante, nome del processo, regime e livello. «Rientra nel perimetro Part 145» porta un processo speciale (es. con DQP) nel Dossier PART 145." fields=form|section_fields:"cliente,nome,regime,perimetro_part145,livello" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Certificazione" icon="i-check" desc="Ente/organismo certificatore e tipo qualifica di catalogo collegato (opzionali)." fields=form|section_fields:"ente_certificatore,tipo_qualifica" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Validità e scadenza" icon="i-cal-clock" desc="Illimitata, a periodo (mesi da conseguimento) o data esplicita." fields=form|section_fields:"tipo_validita,data_conseguimento,durata_mesi,data_scadenza" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Personale" icon="i-clipboard" desc="Nominale (elenco persone) oppure organizzativa (rimando a dichiarazione)." fields=form|section_fields:"personale_modalita,riferimento_dichiarazione" %}

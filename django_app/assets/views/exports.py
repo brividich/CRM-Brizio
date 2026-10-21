@@ -195,6 +195,30 @@ def asset_part_145_export_excel(request: HttpRequest) -> HttpResponse:
     return resp
 
 
+@login_required
+def asset_part_145_export_tarature(request: HttpRequest) -> HttpResponse:
+    """Strumenti PART 145 con taratura (ente, ultima, prossima): l'elenco da comunicare all'AMO."""
+    from ..services import part145_dossier
+
+    dati = part145_dossier.costruisci(con_personale=False)
+    data, nome = part145_dossier.esporta_tarature_xlsx(dati, request.user)
+    resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resp
+
+
+@login_required
+def asset_part_145_export_controllo(request: HttpRequest) -> HttpResponse:
+    """Elenco per reparto del controllo semestrale delle attrezzature PART 145 (MT CN 17, Mod.072)."""
+    from ..services import part145_dossier
+
+    dati = part145_dossier.costruisci(con_personale=False)
+    data, nome = part145_dossier.esporta_controllo_semestrale_pdf(dati, request.user)
+    resp = HttpResponse(data, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resp
+
+
 def _apply_asset_export_filters(get_params) -> "QuerySet[Asset]":
     form = AssetFilterForm(get_params or None)
     qs = Asset.objects.select_related("asset_category").prefetch_related("endpoints")

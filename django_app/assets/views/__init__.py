@@ -152,8 +152,10 @@ from .workorders import (  # noqa: F401
 from .exports import (  # noqa: F401
     asset_detail_export_xlsx,
     asset_list_export,
+    asset_part_145_export_controllo,
     asset_part_145_export_excel,
     asset_part_145_export_pdf,
+    asset_part_145_export_tarature,
     asset_report_pdf,
     work_machine_export_excel,
     work_machine_export_pdf,
