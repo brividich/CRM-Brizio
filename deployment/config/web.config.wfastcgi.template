@@ -186,4 +186,98 @@
       </security>
     </system.webServer>
   </location>
+
+  <!-- GDPR 21/10/2026: cartelle legacy con dati personali (foto e documenti
+       dipendenti, fotocard, firme e timbri, verbali e allegati task, file di import).
+       I file nuovi nascono in media_private cifrato; quelli storici restano in
+       /media/ finche' media_audit non li sposta, e si leggono SOLO da Django. -->
+  <location path="media/anagrafica">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/firme">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/fotocard">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/timbri">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/tasks_vrf">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/tasks_attachments">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/attrezzature_import_preview">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+
+  <!-- /media_private/ — MAI servita da IIS (difesa in profondita'). -->
+  <location path="media_private">
+    <system.webServer>
+      <security>
+        <authorization>
+          <remove users="*" roles="" verbs="" />
+          <add accessType="Deny" users="*" />
+        </authorization>
+      </security>
+    </system.webServer>
+  </location>
 </configuration>
