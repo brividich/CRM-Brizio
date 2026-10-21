@@ -1794,7 +1794,7 @@ def api_twofa_policy_save(request: HttpRequest):
     policy = TwoFactorPolicy.get()
     policy.enabled = request.POST.get("enabled") == "1"
     policy.when_required = request.POST.get("when_required", "external_only")
-    if policy.when_required not in ("always", "external_only"):
+    if policy.when_required not in ("always", "external_only", "new_device"):
         policy.when_required = "external_only"
 
     # Ruoli richiesti: lista di ID interi
