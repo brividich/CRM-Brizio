@@ -79,6 +79,14 @@ _ONBOARDING_NOTIFICATION_SPECS: tuple[dict[str, object], ...] = (
         "default": True,
         "module_keys": {"anomalie", "tasks", "gestione_specifiche"},
     },
+    {
+        "key": "sicurezza",
+        "label": "Sicurezza dell'account",
+        "description": "Accessi al portale da un browser o un PC che non avevi mai usato.",
+        "default": True,
+        "module_keys": set(),
+        "sempre": True,  # vale per tutti, a prescindere dai moduli visibili
+    },
 )
 
 
@@ -189,7 +197,7 @@ def _build_onboarding_notification_options(request, onboarding=None) -> list[dic
         label = str(spec["label"])
         default_enabled = bool(spec.get("default", True))
         module_keys = {str(value).strip().lower() for value in spec.get("module_keys", set()) if str(value).strip()}
-        visible = bool(visible_module_keys.intersection(module_keys))
+        visible = bool(spec.get("sempre")) or bool(visible_module_keys.intersection(module_keys))
         enabled = bool(saved_config.get(key, default_enabled if visible else False))
         visible_labels = sorted(
             {
@@ -961,6 +969,16 @@ def notifiche_impostazioni(request):
     onb, _ = UserOnboarding.objects.get_or_create(user=request.user)
     canali = NotificaCanali.objects.filter(user=request.user).first()
 
+    if request.method == "POST" and request.POST.get("azione") == "non_ero_io":
+        from core.dispositivi import non_ero_io
+        from core.models import DispositivoAccesso
+
+        disp = DispositivoAccesso.objects.filter(user=request.user, pk=request.POST.get("dispositivo") or 0).first()
+        if disp is not None and not disp.non_riconosciuto:
+            non_ero_io(request, disp)
+            messages.warning(request, "Abbiamo chiuso la sessione di quel dispositivo e avvisato la sicurezza IT. "
+                                      "Cambia subito la password.")
+        return redirect(reverse("notifiche_impostazioni") + "#ni-accessi")
     if request.method == "POST":
         cfg = onb.notifiche_config if isinstance(onb.notifiche_config, dict) else {}
         push_categorie = []
@@ -982,6 +1000,7 @@ def notifiche_impostazioni(request):
         canali.digest_scadenze = request.POST.get("digest_scadenze") == "1"
         canali.digest_giorni = digest_giorni
         canali.outlook_scadenze = request.POST.get("outlook_scadenze") == "1"
+        canali.sicurezza_mail = request.POST.get("sicurezza_mail") == "1"
         canali.save()
         messages.success(request, "Preferenze notifiche salvate.")
         return redirect("notifiche_impostazioni")
@@ -1011,7 +1030,21 @@ def notifiche_impostazioni(request):
         "outlook_ultimo_sync": canali.outlook_ultimo_sync if canali else None,
         "outlook_errore": canali.outlook_errore if canali else "",
         "outlook_disponibile": _graph_configurato(),
+        "sicurezza_mail": bool(canali.sicurezza_mail) if canali else True,
+        "accessi": _accessi_recenti(request),
     })
+
+
+def _accessi_recenti(request) -> list:
+    from core.dispositivi import COOKIE, _impronta, _token_dal_cookie
+    from core.models import DispositivoAccesso
+
+    token = _token_dal_cookie(request)
+    corrente = _impronta(token) if token else ""
+    righe = list(DispositivoAccesso.objects.filter(user=request.user)[:15])
+    for r in righe:
+        r.questo = bool(corrente) and r.token_hash == corrente
+    return righe
 
 
 def _graph_configurato() -> bool:
@@ -1397,6 +1430,15 @@ def onboarding_wizard(request):
         onboarding.email_contatto = email_contatto
         onboarding.cellulare_contatto = cellulare_contatto
         onboarding.notifiche_config = notifiche_config
+        # Push per categoria scelta nel wizard (stesso campo delle Impostazioni notifiche).
+        from core.models import NotificaCanali
+
+        canali_onb = NotificaCanali.objects.filter(user=request.user).first() or NotificaCanali(user=request.user)
+        canali_onb.push_categorie = [
+            str(o["key"]) for o in notification_options
+            if o["visible"] and notifiche_config.get(str(o["key"])) and request.POST.get(f"push_{o['key']}") == "1"
+        ]
+        canali_onb.save()
         onboarding.completed = True
         onboarding.completed_at = timezone.now()
         onboarding.save()
@@ -1443,7 +1485,21 @@ def onboarding_wizard(request):
         "visible_notification_options": visible_notification_options,
         "sidebar_footer_catalog": get_sidebar_footer_catalog(),
         "ui_prefs_current": ui_prefs_current,
+        "push_configurato": _push_configurato(),
+        "vapid_public_key": _push_chiave_pubblica(),
     })
+
+
+def _push_configurato() -> bool:
+    from core.push import push_configurato
+
+    return push_configurato()
+
+
+def _push_chiave_pubblica() -> str:
+    from core.push import chiave_pubblica
+
+    return chiave_pubblica()
 
 
 @require_POST
