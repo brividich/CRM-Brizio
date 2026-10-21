@@ -200,6 +200,40 @@ class CompetenzaSkm(models.Model):
     )
     attiva = models.BooleanField(default=True, help_text="Mansione in uso nel Mansionario.")
 
+    # ── Struttura della Qualità (MEGA SKILL MATRIX v8, 21/10/2026) ──────
+    # Il «reparto» del file della Qualità è un'AREA del portale: la mansione sta
+    # in un'area, il reparto è quello dell'area (vince sul testo dell'asset).
+    area = models.ForeignKey(
+        "anagrafica.AreaAziendale", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="mansioni_skm", help_text="Area della mansione; il reparto è quello dell'area.",
+    )
+    # Processo del Sistema di Gestione a cui la mansione contribuisce (Turtle, owner).
+    processo_sgi = models.ForeignKey(
+        "sistema_gestione.Processo", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="mansioni_lavorative", verbose_name="Processo SGI",
+    )
+    abilitazione_con_scadenza = models.BooleanField(
+        default=False, verbose_name="Abilitazione con validità",
+        help_text="Mansione soggetta a qualifica/abilitazione con validità o scadenza da gestire.",
+    )
+    # Divisione di una mansione in più mansioni (es. Marcatura → laser, manuale…):
+    # la nuova parte «da valutare» e mostra il livello sulla vecchia come suggerimento.
+    deriva_da = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="derivate",
+        help_text="Mansione da cui questa è nata per divisione: il livello lì è solo un suggerimento.",
+    )
+    # «Responsabilità del reparto»: una sola mansione per reparto, generata dal
+    # ruolo responsabile del reparto; serve per appendere le competenze del responsabile.
+    responsabilita_reparto = models.ForeignKey(
+        "anagrafica.Reparto", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="mansioni_responsabilita",
+    )
+    # Mansioni di rischio proposte dal portale, in attesa di conferma HSE.
+    mansioni_rischio_proposte = models.ManyToManyField(
+        "anagrafica.Mansione", blank=True, related_name="proposte_mansioni_skm",
+        help_text="Proposte del portale: valgono solo dopo la conferma HSE.",
+    )
+
     # Esito del match asset (F2a). Mai usato come baseline finché non confermato.
     match_confidenza = models.CharField(
         max_length=10, choices=CONFIDENZA_CHOICES, default=CONF_NA, blank=True,
@@ -214,6 +248,12 @@ class CompetenzaSkm(models.Model):
         ordering = ["tipo", "competenza_key"]
         verbose_name = "Competenza Skill Matrix"
         verbose_name_plural = "Competenze Skill Matrix"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["responsabilita_reparto"], condition=models.Q(responsabilita_reparto__isnull=False),
+                name="skm_responsabilita_reparto_unica",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.display or self.competenza_key
@@ -222,12 +262,31 @@ class CompetenzaSkm(models.Model):
     def nome(self) -> str:
         return self.display or self.competenza_key
 
+    def save(self, *args, **kwargs):
+        # Il reparto segue l'area: una sola fonte, niente coppie incoerenti.
+        if self.area_id:
+            from .models import AreaAziendale
+
+            reparto_id = AreaAziendale.objects.filter(pk=self.area_id).values_list("reparto_id", flat=True).first()
+            if reparto_id and reparto_id != self.reparto_id:
+                self.reparto_id = reparto_id
+                if kwargs.get("update_fields") is not None:
+                    kwargs["update_fields"] = list({*kwargs["update_fields"], "reparto"})
+        super().save(*args, **kwargs)
+
     @property
     def reparto_effettivo(self) -> str:
-        """Reparto della mansione: dall'asset per le macchine, scelto per i processi."""
+        """Reparto della mansione: quello scelto (o dell'area) vince; per le macchine
+        senza reparto scelto vale il testo del reparto dell'asset."""
+        if self.reparto_id:
+            return self.reparto.nome
         if self.asset_id and (getattr(self.asset, "reparto", "") or "").strip():
             return self.asset.reparto.strip()
-        return self.reparto.nome if self.reparto_id else ""
+        return ""
+
+    @property
+    def is_responsabilita(self) -> bool:
+        return bool(self.responsabilita_reparto_id)
 
 
 # ---------------------------------------------------------------------------

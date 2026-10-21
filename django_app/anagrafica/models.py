@@ -384,7 +384,30 @@ class RuoloOperativo(models.Model):
     senza scalzarsi. Vuoto = ambito della scheda, come prima della
     classificazione.
     """
+    CLASSE_DIRETTO = "DIRETTO"
+    CLASSE_INDIRETTO = "INDIRETTO"
+    CLASSE_CHOICES = [
+        (CLASSE_DIRETTO, "Diretto"),
+        (CLASSE_INDIRETTO, "Indiretto"),
+    ]
+
     nome = models.CharField(max_length=100, unique=True)
+    # Sigla della struttura della Qualità (MEGA SKILL MATRIX: ACO, IN1, MSM, CAR…).
+    # Facoltativa: gli operatori nel file della Qualità hanno solo il nome. Vuota
+    # = NULL, così l'unicità vale solo fra le sigle scritte.
+    sigla = models.CharField(
+        max_length=20, null=True, blank=True, verbose_name="Sigla",
+        help_text="Sigla del ruolo nella struttura della Qualità (es. ACO, IN1, MSM). Unica.",
+    )
+    classe = models.CharField(
+        max_length=10, choices=CLASSE_CHOICES, blank=True, default="",
+        verbose_name="Diretto / indiretto",
+        help_text="Manodopera diretta (operatori, caporeparto) o indiretta (impiegati, responsabili).",
+    )
+    nomi_precedenti = models.TextField(
+        blank=True, default="",
+        help_text="Nomi che il ruolo ha avuto prima e ruoli accorpati in questo (uno per riga).",
+    )
     ambito = models.ForeignKey(
         AmbitoRuolo,
         null=True,
@@ -430,8 +453,25 @@ class RuoloOperativo(models.Model):
         ordering = ["nome"]
         verbose_name = "Ruolo"
         verbose_name_plural = "Ruoli"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sigla"], condition=models.Q(sigla__isnull=False), name="anag_ruolo_sigla_unica",
+            ),
+        ]
 
     def __str__(self) -> str:
+        return self.nome
+
+    def save(self, *args, **kwargs):
+        # Sigla vuota = NULL (l'indice unico filtrato ignora i NULL) e sempre maiuscola.
+        self.sigla = (self.sigla or "").strip().upper() or None
+        super().save(*args, **kwargs)
+
+    @property
+    def etichetta(self) -> str:
+        """«ACO · Accounting Officer» se c'è la sigla, altrimenti il solo nome."""
+        if self.sigla and self.sigla.casefold() != (self.nome or "").casefold():
+            return f"{self.sigla} · {self.nome}"
         return self.nome
 
     @property
@@ -964,6 +1004,15 @@ class Reparto(models.Model):
         verbose_name="Responsabili",
         help_text="Responsabili aggiuntivi del reparto. Se ne possono indicare più di uno.",
     )
+    # Struttura della Qualità: QUALE ruolo è responsabile del reparto (CAR, LOG,
+    # ACM…). La PERSONA resta ``caporeparto_legacy_id``, unica fonte del capo:
+    # questo campo dice solo chi dovrebbe esserlo e genera la mansione
+    # «Responsabilità del reparto» (``CompetenzaSkm.responsabilita_reparto``).
+    ruolo_responsabile = models.ForeignKey(
+        "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="reparti_responsabilita", verbose_name="Ruolo responsabile",
+        help_text="Ruolo della struttura che ha la responsabilità del reparto (es. CAR).",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1012,6 +1061,13 @@ class AreaAziendale(models.Model):
         related_name="aree_responsabile",
         verbose_name="Responsabili",
         help_text="Responsabili aggiuntivi dell'area. Se ne possono indicare più di uno.",
+    )
+    # Ruolo responsabile dell'area nella struttura della Qualità (es. l'area
+    # QUALITA di UT → MSM). Vuoto = vale il ruolo responsabile del reparto.
+    ruolo_responsabile = models.ForeignKey(
+        "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="aree_responsabilita", verbose_name="Ruolo responsabile",
+        help_text="Ruolo della struttura responsabile dell'area. Vuoto = quello del reparto.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -3205,3 +3261,5 @@ from .models_reportistica import *  # noqa: E402, F401, F403
 from .models_elenco import *  # noqa: E402, F401, F403
 # Richieste di rettifica dei propri dati (GDPR art. 16).
 from .models_gdpr import *  # noqa: E402, F401, F403
+# Revisioni emesse della struttura organizzativa (documento controllato).
+from .models_struttura import *  # noqa: E402, F401, F403
