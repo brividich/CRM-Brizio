@@ -151,3 +151,8 @@ Una sola voce **Configurazione** nel gruppo Gestione (prima: Caselle mail, Confi
 ## Menu del SOC a 5 voci (21/10/2026)
 
 Il menu (`templatetags/security_config_nav.py`, `MENU` + tag `soc_menu`, template `_menu.html`) ha 5 voci — Da fare, Segnalazioni, Dispositivi, Report, Impostazioni — e una seconda riga (`soc-subnav`) con le pagine della voce attiva. Nessun URL né permesso cambia: è solo raggruppamento (Elaborazione resta visibile solo a chi configura). La barra di stato ha 4 numeri (critici e alti, scadenze NIS2, PC backup ko, sorgenti mute): tolti «senza responsabile» e «miei».
+
+
+## Segnalazioni (21/10/2026)
+
+`/soc/segnalazioni/` (rotta `segnalazioni`, `views_work.segnalazioni`, servizio `services/segnalazioni.py`): alert, ticket e incidenti in un elenco solo, in sola lettura. Ordine: aperte prima, poi termine NIS2/GDPR scaduto o in scadenza, gravità, anzianità. Filtri `tipo`, `stato` (aperte/chiuse/tutte), `gravita`, `q`; 40 righe per pagina; ogni riga ha `data-preview` verso l'anteprima esistente (`security:preview`). Gli eventi non entrano nell'elenco (hanno `/soc/eventi/`). Le azioni di gruppo restano nelle pagine dei singoli tipi.

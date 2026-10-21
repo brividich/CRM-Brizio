@@ -65,6 +65,7 @@ urlpatterns = [
     path("impostazioni/", views_work.settings_page, name="soc_settings"),
     path("impostazioni/esegui/", views_work.settings_run_now, name="soc_settings_run"),
     path("mio-lavoro/", views_work.my_work, name="my_work"),
+    path("segnalazioni/", _guard(views_work.segnalazioni), name="segnalazioni"),
     path("cerca/", views_work.search, name="search"),
     path("pc/", views_work.pc_detail, name="pc_detail"),
     path("backup/", views_backup.backup_overview, name="backup"),

@@ -1,0 +1,67 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Segnalazioni | Security Center AI{% endblock %}
+{% block page_icon %}S{% endblock %}
+{% block page_marker %}Segnalazioni{% endblock %}
+{% block page_title %}Segnalazioni{% endblock %}
+
+{% block soc_content %}
+{% include "security/partials/tip.html" with tip_id="segnalazioni-v1" tip="<strong>Un elenco solo</strong> per alert, ticket e incidenti, dal più urgente: prima le notifiche NIS2/GDPR in scadenza, poi la gravità, poi le più vecchie. <strong>Clic su una riga</strong> per l'anteprima con le azioni; il titolo apre la pagina completa. Gli eventi letti dai report hanno la loro scheda." %}
+<section class="sec-panel">
+  <div class="sec-chip-row" aria-label="Tipo di segnalazione">
+    {% for chip in chips_tipo %}
+      <a class="sec-chip{% if chip.active %} is-active{% endif %}{% if not chip.count and chip.value %} is-empty{% endif %}" href="{{ chip.url }}"{% if chip.active %} aria-current="true"{% endif %}>{{ chip.label }} <strong>{{ chip.count }}</strong></a>
+    {% endfor %}
+    <span class="sec-muted sec-small" style="margin-left:auto">aperte adesso</span>
+  </div>
+  <form class="sec-filter-bar" method="get">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <label>Stato
+      <select name="stato">
+        {% for chip in chips_stato %}<option value="{{ chip.value }}"{% if chip.active %} selected{% endif %}>{{ chip.label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Gravità
+      <select name="gravita">
+        <option value="">Tutte</option>
+        {% for value, label in gravita_choices %}<option value="{{ value }}"{% if gravita == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="titolo, PC, CVE, sorgente…"></label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="{% url 'security:segnalazioni' %}">Reimposta</a>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>{% if stato == "chiuse" %}Chiuse{% elif stato == "tutte" %}Tutte{% else %}Da gestire{% endif %}</h2>
+    <span class="sec-badge">{{ righe_totali }} segnalazion{{ righe_totali|pluralize:"e,i" }}</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>Tipo</th><th>Gravità</th><th>Cosa</th><th>Dove</th><th>Stato</th><th>Aperta da</th><th>Chi se ne occupa</th></tr></thead>
+      <tbody>
+      {% for r in page.object_list %}
+        <tr data-preview="{{ r.preview }}"{% if not r.active %} style="opacity:.7"{% endif %}>
+          <td><span class="sec-badge sec-badge-muted">{{ r.kind_label }}</span></td>
+          <td><span class="sec-badge {{ r.severity }}">{{ r.severity|ui_label }}</span></td>
+          <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.title|truncatechars:90 }}</strong></a>{% if r.deadline %}<small><span class="sec-badge sec-badge-{{ r.deadline.tone }}">{{ r.deadline.state_label }}</span> {{ r.deadline.label }} · entro {{ r.deadline.due_at|date:"d/m H:i" }}</small>{% endif %}</td>
+          <td>{{ r.where|default:"—" }}</td>
+          <td><span class="sec-badge {{ r.status }}">{{ r.status|ui_label }}</span></td>
+          <td class="sec-nowrap" title="{{ r.since|date:'d/m/Y H:i' }}">{{ r.since|timesince }}</td>
+          <td>{{ r.who|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sec-empty">{% if q or gravita or tipo or stato != "aperte" %}Nessuna segnalazione corrisponde ai filtri.{% else %}Niente da gestire: nessun alert, ticket o incidente aperto.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page.has_other_pages %}
+    <div class="sec-actions">{% if pagina_prec %}<a class="sec-button" href="{{ pagina_prec }}">‹ Precedenti</a>{% endif %}<span class="sec-small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if pagina_succ %}<a class="sec-button" href="{{ pagina_succ }}">Successive ›</a>{% endif %}</div>
+  {% endif %}
+  <p class="sec-muted sec-small" style="margin-top:10px">Per le azioni su più elementi insieme (prendi in carico, chiudi, apri un ticket) usa le pagine <a href="{% url 'security:alerts_list' %}">Alert</a>, <a href="{% url 'security:tickets_list' %}">Ticket</a> e <a href="{% url 'security:incidents' %}">Incidenti</a>. Gli <a href="{% url 'security:events' %}">Eventi</a> letti dai report sono a parte.</p>
+</section>
+{% endblock %}

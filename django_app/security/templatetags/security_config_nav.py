@@ -65,7 +65,8 @@ MENU = [
         ("Panoramica", "dashboard", ("dashboard", "security_dashboard"), False),
         ("Tutto ciò che è aperto", "my_work", ("my_work",), False),
     ]),
-    ("Segnalazioni", "alerts_list", [
+    ("Segnalazioni", "segnalazioni", [
+        ("Tutte", "segnalazioni", ("segnalazioni",), False),
         ("Alert", "alerts_list", ("alerts_list", "alert_detail"), False),
         ("Ticket", "tickets_list", ("tickets_list", "case_detail", "case_create"), False),
         ("Incidenti", "incidents", ("incidents", "incident_create", "incident_detail", "incident_edit"), False),
