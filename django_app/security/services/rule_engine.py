@@ -409,6 +409,21 @@ def _evaluate_defender_incident(event):
     _alert_da_evento(event, f"Defender: incidente «{payload.get('title')}»", event.severity, trace)
 
 
+def _evaluate_accesso_nuovo_dispositivo(event):
+    """Accesso al portale da un dispositivo nuovo (core.dispositivi): solo KPI, la persona è già avvisata."""
+    event.decision_trace = {"decision": "kpi_only", "reason": "Accesso da un dispositivo nuovo: avvisata la persona"}
+    event.save(update_fields=["decision_trace"])
+
+
+def _evaluate_accesso_non_riconosciuto(event):
+    """La persona ha premuto «Non ero io» su un accesso: alert alto."""
+    payload = event.payload or {}
+    trace = {"decision": "alert", "rule": "Accesso al portale non riconosciuto dalla persona => alert",
+             "utente": payload.get("utente"), "dispositivo": payload.get("dispositivo"), "ip": payload.get("ip")}
+    _alert_da_evento(event, f"Accesso al portale non riconosciuto: {payload.get('utente')} da {payload.get('dispositivo')} "
+                            f"({payload.get('ip')})", Severity.HIGH, trace)
+
+
 def _evaluate_m365_account_cessato(event):
     """Account Microsoft 365 abilitato di un ex dipendente (``entra_signals``): un alert per account."""
     payload = event.payload or {}
@@ -807,6 +822,8 @@ _HANDLERS = {
     "software_policy": _evaluate_software_policy,
     "defender_alert": _evaluate_defender_alert,
     "defender_incident": _evaluate_defender_incident,
+    "accesso_nuovo_dispositivo": _evaluate_accesso_nuovo_dispositivo,
+    "accesso_non_riconosciuto": _evaluate_accesso_non_riconosciuto,
     "m365_account_cessato": _evaluate_m365_account_cessato,
     "entra_audit": _evaluate_entra_audit,
     "entra_accesso": _evaluate_entra_accesso,

@@ -7,7 +7,9 @@
 (function () {
   "use strict";
 
-  const form = document.getElementById("ni-form");
+  // Impostazioni notifiche (#ni-form) o wizard di primo accesso (il form che contiene #ni-push).
+  const boxPush = document.getElementById("ni-push");
+  const form = document.getElementById("ni-form") || (boxPush && boxPush.closest("form"));
   if (!form) return;
 
   // Push spuntabile solo con la categoria accesa.

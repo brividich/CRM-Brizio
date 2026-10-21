@@ -588,6 +588,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "core.csrf_cookie_middleware.EnsureCSRFCookieMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.dispositivi.DispositivoCookieMiddleware",  # cookie del dispositivo scelto al login
     "core.audit_middleware.AuditRequestMiddleware",
     "axes.middleware.AxesMiddleware",
     "core.middleware.ImpersonationMiddleware",

@@ -289,5 +289,4 @@ Questi componenti esistono solo sul server di produzione:
 - `db.sqlite3` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DB locale con dati di test
 - `build/` e `dist/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â contengono `asta.exe` e `utenti.db`
 
-
-
+- **Cookie `nh_dev` (riconoscimento del dispositivo, 20/10/2026)**: firmato con `SECRET_KEY` (salt `core.dispositivi`), HttpOnly, SameSite Lax, Secure in https, 2 anni; contiene solo un numero casuale, nel DB l'impronta SHA-256 (`core.DispositivoAccesso`). Serve solo a dire «browser già visto»: non autentica e non sostituisce login o 2FA.

@@ -358,6 +358,13 @@ body.theme-dark .onb-toggle-switch::after{background:var(--surface)}
 body.theme-dark .onb-chip{background:rgba(59,130,246,.18);color:#93c5fd}
 body.theme-dark .onb-summary-badge{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);color:var(--text-light)}
+  .onb-push { display:flex; flex-direction:column; gap:6px; padding:12px 14px; margin-bottom:14px; border:1px solid var(--border, #e2e8f0); border-radius:12px; }
+  .onb-push span { font-size:13px; color:var(--text-mid, #475569); }
+  .onb-push-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .onb-push-stato.ok { color:#15803d; font-weight:700; }
+  .onb-push-stato.ko { color:#b91c1c; font-weight:700; }
+  .onb-push-msg { font-size:12px; color:var(--text-mid, #64748b); }
+  .onb-push-cat { display:flex; gap:6px; align-items:center; font-size:12px; margin:-4px 0 10px 56px; color:var(--text-mid, #475569); }
 </style>
 {% endblock %}
 
@@ -571,6 +578,22 @@ body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);col
           Mostriamo solo i moduli che il tuo ruolo vede davvero, cosi le preferenze email restano chiare e non fuorvianti.
         </p>
 
+        {% if push_configurato %}
+        <div class="onb-push" id="ni-push" data-vapid="{{ vapid_public_key }}"
+             data-url-iscrizione="{% url 'api_push_iscrizione' %}" data-url-revoca="{% url 'api_push_revoca' %}"
+             data-url-prova="{% url 'api_push_prova' %}" data-url-sw="{% url 'push_service_worker' %}">
+          <strong>📱 Notifiche anche su questo telefono o PC</strong>
+          <span>Arrivano anche a portale chiuso; toccandole si apre la pagina giusta. Poi scegli «Push» sulle categorie qui sotto. Su iPhone: prima «Condividi → Aggiungi alla schermata Home».</span>
+          <div class="onb-push-row">
+            <span>Questo dispositivo: <span class="onb-push-stato" id="ni-push-stato">verifica in corso…</span></span>
+            <button type="button" class="onb-btn onb-btn-primary" id="ni-push-attiva" hidden>Attiva su questo dispositivo</button>
+            <button type="button" class="onb-btn onb-btn-ghost" id="ni-push-disattiva" hidden>Disattiva</button>
+            <button type="button" class="onb-btn onb-btn-ghost" id="ni-push-prova" disabled>Invia una prova</button>
+          </div>
+          <div class="onb-push-msg" id="ni-push-msg" role="status"></div>
+        </div>
+        {% endif %}
+
         {% if visible_notification_options %}
         <div class="onb-toggle-list">
           {% for option in visible_notification_options %}
@@ -580,6 +603,7 @@ body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);col
               name="notifiche_{{ option.key }}"
               value="1"
               data-label="{{ option.label }}"
+              data-ni-cat="{{ option.key }}"
               {% if option.enabled %}checked{% endif %}>
             <div class="onb-toggle-switch"></div>
             <div class="onb-toggle-copy">
@@ -594,6 +618,12 @@ body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);col
               {% endif %}
             </div>
           </label>
+          {% if push_configurato %}
+          <label class="onb-push-cat">
+            <input type="checkbox" name="push_{{ option.key }}" value="1" data-ni-push="{{ option.key }}" {% if not option.enabled %}disabled{% endif %}>
+            «{{ option.label }}» anche come notifica sul telefono o sul PC
+          </label>
+          {% endif %}
           {% endfor %}
         </div>
         {% else %}
@@ -657,6 +687,7 @@ body.theme-dark .onb-summary-badge.off{background:var(--surface-alt,#0f1b2d);col
 </div>
 
 {{ visible_notification_options|json_script:"onb-notification-options" }}
+{% if push_configurato %}<script src="{% static 'core/js/notifiche_push.js' %}" defer></script>{% endif %}
 <script>
 (function () {
   var current = 1;

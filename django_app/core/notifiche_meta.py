@@ -18,6 +18,7 @@ CATEGORIE: dict[str, str] = {
     "scadenzari": "Scadenzari e manutenzioni",
     "ticket": "Ticket e segnalazioni",
     "operativita": "Operatività (anomalie, task, CAPA, specifiche)",
+    "sicurezza": "Sicurezza dell'account",
 }
 
 # tono ∈ {ok, warn, danger, info}  →  i template mappano il tono a un colore.
@@ -44,6 +45,7 @@ TIPO_META: dict[str, dict[str, str]] = {
     "capa":                 {"label": "Azione CAPA",            "icona": "🛠️", "tono": "info",   "categoria": "operativita"},
     "specifica":            {"label": "Specifica",              "icona": "📐", "tono": "info",   "categoria": "operativita"},
     "sc_assegnazione":      {"label": "Suggestion Corner",      "icona": "💡", "tono": "info",   "categoria": "operativita"},
+    "accesso_nuovo_dispositivo": {"label": "Accesso da un nuovo dispositivo", "icona": "🔐", "tono": "warn", "categoria": "sicurezza"},
     "generico":             {"label": "Notifica",               "icona": "🔔", "tono": "info",   "categoria": "operativita"},
 }
 

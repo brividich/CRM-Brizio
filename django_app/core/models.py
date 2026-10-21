@@ -491,6 +491,8 @@ class NotificaCanali(models.Model):
     outlook_calendario_id = models.CharField(max_length=255, blank=True, default="")
     outlook_ultimo_sync = models.DateTimeField(null=True, blank=True)
     outlook_errore = models.CharField(max_length=300, blank=True, default="")
+    # Avviso di accesso da un dispositivo nuovo (core/dispositivi.py) anche per mail.
+    sicurezza_mail = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -504,6 +506,36 @@ class NotificaCanali(models.Model):
     def push_per_categoria(self, categoria: str) -> bool:
         cats = self.push_categorie if isinstance(self.push_categorie, list) else []
         return str(categoria or "") in cats
+
+
+class DispositivoAccesso(models.Model):
+    """Un browser/PC da cui la persona è entrata nel portale (``core.dispositivi``).
+
+    ``token_hash`` è l'impronta SHA-256 del numero casuale nel cookie ``nh_dev``:
+    il valore non si salva. ``non_riconosciuto``: la persona ha premuto «Non ero io».
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="dispositivi_accesso")
+    token_hash = models.CharField(max_length=64)
+    etichetta = models.CharField(max_length=80, blank=True, default="")
+    user_agent = models.CharField(max_length=300, blank=True, default="")
+    ip_primo = models.CharField(max_length=60, blank=True, default="")
+    ip_ultimo = models.CharField(max_length=60, blank=True, default="")
+    primo_accesso = models.DateTimeField()
+    ultimo_accesso = models.DateTimeField()
+    session_key = models.CharField(max_length=40, blank=True, default="")
+    non_riconosciuto = models.BooleanField(default=False)
+    segnalato_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "core_dispositivoaccesso"
+        ordering = ["-ultimo_accesso"]
+        constraints = [models.UniqueConstraint(fields=["user", "token_hash"], name="uniq_dispositivo_user_token")]
+        verbose_name = "Dispositivo di accesso"
+        verbose_name_plural = "Dispositivi di accesso"
+
+    def __str__(self) -> str:
+        return f"{self.user_id}: {self.etichetta}"
 
 
 class ScadenzaOutlook(models.Model):

@@ -59,6 +59,14 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Alert «Accesso al portale non riconosciuto»",
+            "fare": [
+                "La persona ha premuto «Non ero io» su un accesso da un dispositivo nuovo: la sessione di quel dispositivo è già chiusa.",
+                "Verifica che abbia cambiato la password; se l'account è AD, controlla anche gli accessi in Entra (stesso IP).",
+                "Gli accessi da dispositivi nuovi senza segnalazione restano eventi della sorgente «Portale · accessi» (KPI), senza alert.",
+            ],
+        },
+        {
             "sintomo": "Alert «Accesso a Microsoft 365 da un Paese non ammesso»",
             "fare": [
                 "Apri l'accesso in Entra (Utenti › Log di accesso) con l'IP indicato nell'alert e chiedi alla persona se era lei (viaggio, VPN).",

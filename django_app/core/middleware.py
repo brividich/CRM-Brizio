@@ -50,6 +50,8 @@ _ACL_ONBOARDING_SHARED_ROUTE_NAMES = (
     "onboarding_wizard",
     "notifiche",
     "api_onboarding_email_save",
+    # Il wizard di primo accesso attiva le push: il browser deve poter scaricare il service worker.
+    "push_service_worker",
 )
 _ACL_ONBOARDING_SHARED_PREFIXES = (
     "/api/notifiche/",
