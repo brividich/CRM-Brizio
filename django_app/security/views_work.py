@@ -174,6 +174,30 @@ def segnalazioni(request):
     })
 
 
+# --- Copertura dei PC ----------------------------------------------------------------------
+
+def pc_copertura(request):
+    """Tutti i PC visti da almeno una fonte, con le fonti che li vedono (Intune, WatchGuard, Defender, backup)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import pc_copertura as svc
+
+    rows = svc.righe()
+    codice = request.GET.get("f", "tutti")
+    codice = codice if codice in dict(svc.FILTRI) else "tutti"
+    q = request.GET.get("q", "").strip()[:100]
+    visibili = svc.filtra(rows, codice)
+    if q:
+        needle = q.casefold()
+        visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())]
+    counts = svc.conteggi(rows)
+    return render(request, "security/pc_copertura.html", {
+        "rows": visibili, "totale": len(rows), "q": q, "codice": codice,
+        "filtri": [{"code": c, "label": label, "count": counts[c], "active": c == codice} for c, label in svc.FILTRI],
+        "intune_totale": sum(1 for r in rows if r["intune"]),
+    })
+
+
 # --- Ricerca ---------------------------------------------------------------------------
 
 SEARCH_LIMIT = 8

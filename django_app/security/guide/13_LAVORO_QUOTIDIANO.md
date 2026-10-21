@@ -10,7 +10,7 @@ In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casel
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
 | **Segnalazioni** | Tutte, Alert, Ticket, Incidenti, Eventi |
-| **Dispositivi** | Asset, Backup, Vulnerabilità, Accessi VPN |
+| **Dispositivi** | PC e fonti, Asset, Backup, Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
 | **Impostazioni** | Configurazione, Elaborazione, Soppressioni, Guida |
 

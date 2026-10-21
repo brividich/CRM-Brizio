@@ -177,6 +177,14 @@
 .soc-module .ov-period li span { color: var(--text-mid); font-weight: 600; }
 @media (max-width: 900px) { .soc-module .ov-trend-row { grid-template-columns: 1fr; } }
 
+/* PC e fonti: una colonna per fonte, a colpo d'occhio */
+.soc-module .pcc-table th.pcc-src, .soc-module .pcc-table td.pcc-src { text-align: center; width: 88px; }
+.soc-module .pcc-yes, .soc-module .pcc-no { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; font-weight: 800; font-size: 13px; }
+.soc-module .pcc-yes { background: var(--success-bg); color: var(--success); }
+.soc-module .pcc-yes.pcc-ko { background: var(--warning-bg); color: #b7791f; }
+.soc-module .pcc-no { background: var(--danger-bg); color: var(--danger); }
+.soc-module .pcc-table tr.pcc-warn > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
+
 /* ---------- Tema scuro ---------- */
 body.theme-dark .soc-module .ov-hero { background: linear-gradient(100deg, var(--success-bg) 0%, var(--surface) 55%); }
 body.theme-dark .soc-module .ov-hero.tone-warning { background: linear-gradient(100deg, var(--warning-bg) 0%, var(--surface) 55%); }
