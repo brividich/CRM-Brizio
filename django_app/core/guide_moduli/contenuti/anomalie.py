@@ -52,6 +52,23 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "svuota",
+            "titolo": "Svuotare i dati di collaudo",
+            "blocchi": [
+                ("ul", [
+                    "Dal portale non si cancellano anomalie: per togliere i dati di prova si usa, sul server, il "
+                    "comando «manage.py svuota_anomalie». Da solo conta quante righe toccherebbe; con «--esegui» "
+                    "cancella davvero.",
+                    "Cancella tutte le anomalie e gli OP, le NC con azioni e allegati, i controlli, le schede "
+                    "qualità, il registro delle mail e delle azioni e le cartelle degli allegati. Con "
+                    "«--mantieni-op» gli OP restano.",
+                    "Non tocca la configurazione: tipi difetto, ruoli, regole di accesso e impostazioni delle "
+                    "notifiche restano come sono.",
+                    "Non si torna indietro: fai prima il backup del database.",
+                ]),
+            ],
+        },
     ],
     "problemi": [
         {
