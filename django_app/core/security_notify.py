@@ -12,6 +12,25 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# Interruttore admin da «Gestione notifiche»: acceso salvo "0" esplicito.
+AVVISO_IMPERSONAZIONE_KEY = "sicurezza_avviso_impersonazione"
+
+
+def avviso_impersonazione_attivo() -> bool:
+    from core.models import SiteConfig
+
+    return (SiteConfig.get(AVVISO_IMPERSONAZIONE_KEY, "1") or "1").strip() != "0"
+
+
+def set_avviso_impersonazione(attivo: bool) -> None:
+    from core.models import SiteConfig
+
+    SiteConfig.set(
+        AVVISO_IMPERSONAZIONE_KEY,
+        "1" if attivo else "0",
+        "Mail all'utente quando un amministratore inizia a impersonarlo",
+    )
+
 
 def notify_security_event(user, title: str, message: str) -> bool:
     """Invia la mail di sicurezza a ``user.email``. Ritorna True se spedita."""
