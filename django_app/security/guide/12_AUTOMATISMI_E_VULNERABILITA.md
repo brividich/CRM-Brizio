@@ -195,7 +195,7 @@ Si accende e si spegne in **Configurazione › Avvisi e automatismi › Impatto 
 
 ## Software non conforme
 
-Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su ogni programma dell'inventario: **Consentito**, **Da rimuovere**, **Non autorizzato**, ed eventualmente una **versione minima**. Il SOC confronta l'inventario con queste decisioni dopo ogni import dell'inventario e ogni modifica al catalogo.
+Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su ogni programma dell'inventario (i nomi diversi dello stesso programma sono una riga sola e il dettaglio mostra le versioni presenti): **Consentito**, **Da rimuovere**, **Non autorizzato**, ed eventualmente una **versione minima**. Il SOC confronta l'inventario con queste decisioni dopo ogni import dell'inventario e ogni modifica al catalogo.
 
 - **Un alert per software e per caso**: software non autorizzato (severità alta), software da rimuovere, versione sotto la minima (solo per i software consentiti). Il titolo dice il prodotto e su quanti PC è.
 - L'alert nasce solo quando **nuovi** PC entrano nel caso; se altri PC si aggiungono dopo, lo stesso alert si aggiorna.

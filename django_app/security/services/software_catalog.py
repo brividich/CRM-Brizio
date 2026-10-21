@@ -23,27 +23,72 @@ def split_key(key):
     return vendor, product
 
 
-def catalog(limit=2000):
-    """Prodotti presenti oggi, con il nome più usato nell'export e quanti PC li hanno."""
+def _famiglia(vendor, product):
+    """Il «programma»: produttore + nome senza le parole del produttore («chrome» = «google chrome»).
+
+    Solo per mostrare: le decisioni, le licenze e la mappatura CPE restano legate a ``vendor|product``.
+    """
+    from security.services.software_inventory import _token, base_name
+
+    return (_token(vendor)[:1] and _token(vendor)[0] or "", base_name(vendor, product))
+
+
+def families():
+    """{(vendor, product): chiave canonica} per i prodotti presenti: i nomi dello stesso programma
+    puntano a quello più diffuso (a parità, il nome più corto). Un prodotto da solo punta a sé stesso."""
     rows = (
         SoftwareInstallation.objects.filter(still_detected=True)
-        .values("vendor", "product").order_by()
-        .annotate(hosts=Count("host", distinct=True))
-        .order_by("product", "vendor")[:limit]
+        .values("vendor", "product").order_by().annotate(hosts=Count("host", distinct=True))
     )
-    labels = defaultdict(Counter)
-    for vendor, product, raw, vendor_raw in SoftwareInstallation.objects.filter(still_detected=True).values_list(
-        "vendor", "product", "product_raw", "vendor_raw"
-    ):
-        labels[(vendor, product)][(raw, vendor_raw)] += 1
-    out = []
+    gruppi = defaultdict(list)
     for row in rows:
-        (raw, vendor_raw), _n = labels[(row["vendor"], row["product"])].most_common(1)[0]
+        gruppi[_famiglia(row["vendor"], row["product"])].append(row)
+    out = {}
+    for membri in gruppi.values():
+        canonico = min(membri, key=lambda r: (-r["hosts"], len(r["product"]), r["product"], r["vendor"]))
+        for r in membri:
+            out[(r["vendor"], r["product"])] = (canonico["vendor"], canonico["product"])
+    return out
+
+
+def _canon(fam, vendor, product):
+    return fam.get((vendor, product), (vendor, product))
+
+
+def member_keys(key):
+    """Tutte le chiavi dei nomi che formano lo stesso programma di ``key`` (compresa ``key``)."""
+    target = _canon(families(), *split_key(key))
+    keys = {inventory_key(*m) for m, c in families().items() if c == target}
+    keys.add(key)
+    return keys
+
+
+def catalog(limit=2000):
+    """Programmi presenti oggi (i nomi dello stesso programma sono una riga sola), con il nome più
+    usato nell'export e quanti PC li hanno."""
+    fam = families()
+    labels = defaultdict(Counter)
+    hosts = defaultdict(set)
+    members = defaultdict(set)
+    for vendor, product, raw, vendor_raw, host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
+        "vendor", "product", "product_raw", "vendor_raw", "host"
+    ):
+        canon = _canon(fam, vendor, product)
+        labels[canon][(raw, vendor_raw)] += 1
+        hosts[canon].add(host)
+        members[canon].add(inventory_key(vendor, product))
+    out = []
+    for canon in sorted(hosts, key=lambda c: (c[1], c[0]))[:limit]:
+        vendor, product = canon
+        # il nome mostrato è quello del prodotto canonico (il più diffuso), non quello di un membro minore
+        etichette = Counter({k: v for k, v in labels[canon].items()})
+        (raw, vendor_raw), _n = etichette.most_common(1)[0]
         out.append({
-            "key": inventory_key(row["vendor"], row["product"]),
-            "label": raw or row["product"],
-            "vendor_label": vendor_raw or row["vendor"],
-            "hosts": row["hosts"],
+            "key": inventory_key(vendor, product),
+            "label": raw or product,
+            "vendor_label": vendor_raw or vendor,
+            "hosts": len(hosts[canon]),
+            "member_keys": sorted(members[canon]),
         })
     return out
 
@@ -53,22 +98,16 @@ def catalog_choices():
 
 
 def hosts_by_key(keys):
-    """{chiave: numero di PC che hanno oggi quel prodotto} per le chiavi richieste, in una query."""
-    wanted = {split_key(k) for k in keys if k}
+    """{chiave: numero di PC che hanno oggi il programma} per le chiavi richieste (nomi dello stesso programma uniti)."""
+    wanted = {k for k in keys if k}
     if not wanted:
         return {}
-    vendors = {v for v, _p in wanted}
-    products = {p for _v, p in wanted}
-    counts = {}
-    rows = (
-        SoftwareInstallation.objects.filter(still_detected=True, vendor__in=vendors, product__in=products)
-        .values("vendor", "product").order_by()
-        .annotate(hosts=Count("host", distinct=True))
-    )
-    for row in rows:
-        if (row["vendor"], row["product"]) in wanted:
-            counts[inventory_key(row["vendor"], row["product"])] = row["hosts"]
-    return counts
+    fam = families()
+    targets = {k: _canon(fam, *split_key(k)) for k in wanted}
+    hosts = defaultdict(set)
+    for vendor, product, host in SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product", "host").distinct():
+        hosts[_canon(fam, vendor, product)].add(host)
+    return {k: len(hosts[t]) for k, t in targets.items() if t in hosts}
 
 
 def latest_inventory_date():
@@ -93,9 +132,10 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
                 cve[inst_id]["impacts"].append(cve_id)
             else:
                 cve[inst_id]["to_verify"] += 1
+    fam = families()
     groups = defaultdict(list)
     for inst in installs:
-        groups[(inst.vendor, inst.product)].append(inst)
+        groups[_canon(fam, inst.vendor, inst.product)].append(inst)
     rows = []
     for (vendor, product), items in groups.items():
         current = [i for i in items if i.still_detected]
@@ -126,31 +166,32 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
 
 
 def product_hosts(key):
-    """PC che hanno oggi il prodotto, con versione, asset collegato e ultima rilevazione."""
-    vendor, product = split_key(key)
-    return list(
-        SoftwareInstallation.objects.filter(still_detected=True, vendor=vendor, product=product)
-        .select_related("hub_asset").order_by("host", "version_raw")
-    )
+    """PC che hanno oggi il programma (tutti i nomi che lo formano), con versione, asset collegato e ultima rilevazione."""
+    pairs = {split_key(k) for k in member_keys(key)}
+    vendors, products = {v for v, _p in pairs}, {p for _v, p in pairs}
+    rows = SoftwareInstallation.objects.filter(still_detected=True, vendor__in=vendors, product__in=products).select_related("hub_asset")
+    return sorted((i for i in rows if (i.vendor, i.product) in pairs), key=lambda i: (i.host, i.version_raw))
 
 
 def versions_by_key():
     """{chiave: Counter(versione → PC)} dei prodotti presenti."""
+    fam = families()
     out = defaultdict(Counter)
     for vendor, product, version, host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
         "vendor", "product", "version_raw", "host"
     ).distinct():
-        out[inventory_key(vendor, product)][version] += 1
+        out[inventory_key(*_canon(fam, vendor, product))][version] += 1
     return out
 
 
 def cve_by_key():
     """{chiave: numero di CVE che impattano almeno un PC} dai calcoli d'impatto del SOC."""
+    fam = families()
     out = defaultdict(set)
     for vendor, product, cve_id in SecurityCveImpact.objects.filter(
         outcome=SecurityCveImpact.IMPACTS, installation__isnull=False,
     ).values_list("installation__vendor", "installation__product", "cve__cve_id"):
-        out[inventory_key(vendor, product)].add(cve_id)
+        out[inventory_key(*_canon(fam, vendor, product))].add(cve_id)
     return {key: len(ids) for key, ids in out.items()}
 
 
