@@ -5,10 +5,10 @@ from django.conf import settings
 from django.db import migrations, models
 
 # Binding ACL di «Richieste di rettifica» (/anagrafica/impostazioni/rettifiche/),
-# copiato dalle sorelle come in 0184. Nella view vale comunque HR o amministratore.
+# copiato dalle sorelle come in 0184 (0189). Nella view vale comunque HR o amministratore.
 ROTTA = "anagrafica:rettifiche"
 SORELLE = ("anagrafica:ratei_list", "anagrafica:impostazioni")
-NOTA = "[RETTIFICHE_0188] copiato da {}"
+NOTA = "[RETTIFICHE_0189] copiato da {}"
 
 
 def binding_avanti(apps, schema_editor):
@@ -29,13 +29,13 @@ def binding_avanti(apps, schema_editor):
 
 def binding_indietro(apps, schema_editor):
     apps.get_model("core", "RoutePermissionBinding").objects.filter(
-        route_name=ROTTA, note__startswith="[RETTIFICHE_0188]").delete()
+        route_name=ROTTA, note__startswith="[RETTIFICHE_0189]").delete()
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0187_mpq_attrezzature_acl'),
+        ('anagrafica', '0188_mpq_perimetro_part145_contratto'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('core', '0090_dispositivi_accesso'),
     ]

@@ -7,7 +7,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0188_richiesta_rettifica'),
+        ('anagrafica', '0189_richiesta_rettifica'),
     ]
 
     operations = [
