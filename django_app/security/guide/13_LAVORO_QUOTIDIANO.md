@@ -9,7 +9,7 @@ Cinque voci; la voce aperta mostra le sue pagine in una seconda riga:
 | Voce | Pagine |
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
-| **Segnalazioni** | Alert, Ticket, Incidenti, Eventi |
+| **Segnalazioni** | Tutte, Alert, Ticket, Incidenti, Eventi |
 | **Dispositivi** | Asset, Backup, Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
 | **Impostazioni** | Configurazione, Elaborazione, Soppressioni, Guida |
@@ -44,6 +44,12 @@ La casella **Cerca** nel menu del SOC trova incidenti, ticket, alert, PC e serve
 
 - **Anteprima**: nelle liste (alert, ticket, incidenti, eventi, PC) un clic sulla riga (non sul link né sulla casella) apre il dettaglio in un pannello laterale, senza perdere la lista. Con le frecce **←** e **→** passi alla riga precedente o successiva, con **Esc** chiudi. Le azioni del pannello (prendere in carico, chiudere…) restano sulla lista.
 - **Selezione multipla**: la casella in testa alla riga seleziona; la casella nell'intestazione seleziona tutte le righe della pagina. In fondo compare la barra con le azioni possibili e il conto dei selezionati. Le righe in uno stato non compatibile vengono saltate e il messaggio finale lo dice.
+
+## Le segnalazioni
+
+**Segnalazioni › Tutte** mette in un elenco solo gli alert, i ticket e gli incidenti. L'ordine è quello di lavoro: prima le notifiche NIS2/GDPR scadute o in scadenza, poi la gravità (critico, alto, attenzione, medio, basso, info), poi le più vecchie. In alto i chip **Tutte / Alert / Ticket / Incidenti** mostrano quante ce ne sono aperte; sotto si filtra per **Stato** (Da gestire, Chiuse, Tutte), **Gravità** e testo (titolo, PC, CVE, sorgente).
+
+Ogni riga dice il tipo, la gravità, che cosa è, dove (il PC o la sorgente), lo stato, da quanto tempo è aperta e chi se ne occupa. Un clic sulla riga apre l'anteprima laterale con le azioni; il titolo apre la pagina completa. Per agire su più elementi insieme (prendi in carico, chiudi, apri un ticket) servono le pagine **Alert**, **Ticket** e **Incidenti**. Gli **Eventi** letti dai report non sono nell'elenco: sono molti e per lo più già giudicati a posto, quindi hanno la loro scheda.
 
 ## Alert
 
