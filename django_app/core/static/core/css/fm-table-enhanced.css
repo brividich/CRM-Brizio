@@ -127,7 +127,174 @@
 }
 .fm-th-filter-clear:hover{background:#fef2f2;border-color:#dc2626;color:#dc2626}
 
+/* ── Pulsanti con icona ─────────────────────────────────── */
+.fm-tbl-btn{display:inline-flex;align-items:center;gap:6px}
+.fm-tbl-ico{flex:none;display:block}
+.fm-tbl-btn.active{background:var(--primary,#002b5c);border-color:var(--primary,#002b5c);color:#fff}
+.fm-tbl-btn.active:hover{color:#fff;filter:brightness(1.12)}
+
+/* ── Guscio (barra + tabella) e area tabella ─────────────── */
+.fm-tbl-shell{min-width:0}
+.fm-tbl-viewport{position:relative;min-width:0}
+/* Scorrevole solo quando serve: tabella più alta dello schermo o più larga
+ * della pagina. L'altezza è quella dello schermo meno barra di navigazione,
+ * sotto-menu e barra controlli: la tabella occupa tutta la pagina e
+ * l'intestazione resta in vista. */
+.fm-tbl-viewport.fm-vp-scroll{
+  overflow:auto;
+  scrollbar-width:thin;scrollbar-color:#b6c4d4 transparent;
+}
+.fm-tbl-viewport.fm-vp-tall{
+  max-height:calc(100 * var(--vh, 1vh) - var(--fm-vp-offset, 150px));
+  min-height:320px;
+}
+.fm-tbl-viewport.fm-vp-scroll::-webkit-scrollbar{width:10px;height:10px}
+.fm-tbl-viewport.fm-vp-scroll::-webkit-scrollbar-thumb{background:#c3cfdc;border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+.fm-tbl-viewport.fm-vp-scroll::-webkit-scrollbar-thumb:hover{background-color:var(--primary-mid,#2f5f89)}
+.fm-tbl-viewport.fm-vp-scroll::-webkit-scrollbar-track{background:transparent}
+/* Intestazione fissa (anche su più righe: si fissa l'intero thead). */
+.fm-tbl-viewport.fm-vp-scroll > table > thead{
+  position:sticky;top:0;z-index:4;background:var(--surface,#fff);
+}
+.fm-tbl-viewport.fm-vp-scroll.is-scrolled-y > table > thead > tr:last-child > th{
+  box-shadow:inset 0 -2px 0 var(--primary-mid,#2f5f89), 0 8px 12px -10px rgba(0,43,92,.45);
+}
+
+/* ── Schermo intero ─────────────────────────────────────── */
+.fm-tbl-shell:fullscreen{
+  display:flex;flex-direction:column;
+  background:var(--bg,#f2f5f8);padding:18px 22px 14px;overflow:hidden;
+}
+.fm-tbl-shell:fullscreen::backdrop{background:var(--bg,#f2f5f8)}
+.fm-tbl-shell:fullscreen > .fm-tbl-controls{flex:none;box-shadow:0 6px 18px -12px rgba(0,43,92,.35)}
+.fm-tbl-shell:fullscreen > :not(.fm-tbl-controls){
+  flex:1 1 auto;min-height:0;overflow:auto;
+  background:var(--surface,#fff);border:1px solid var(--border,#d7e0ea);border-radius:12px;
+}
+.fm-tbl-shell:fullscreen .fm-tbl-viewport{max-height:calc(100 * var(--vh, 1vh) - 110px);min-height:0}
+.fm-tbl-shell:fullscreen > .fm-tbl-viewport{max-height:none}
+
+/* ── Larghezza colonne ──────────────────────────────────── */
+.fm-th-resize{
+  position:absolute;top:0;right:0;bottom:0;width:10px;z-index:3;
+  cursor:col-resize;touch-action:none;outline:none;
+}
+.fm-th-resize::after{
+  content:"";position:absolute;top:22%;bottom:22%;right:3px;width:2px;border-radius:2px;
+  background:transparent;transition:background .15s, top .15s, bottom .15s;
+}
+th:hover > .fm-th-resize::after{background:#c3cfdc}
+.fm-th-resize:hover::after,
+.fm-th-resize:focus-visible::after,
+.fm-th-resize.is-active::after{background:var(--accent,#ff6b00);top:0;bottom:0}
+html.fm-col-resizing, html.fm-col-resizing *{cursor:col-resize !important;-webkit-user-select:none !important;user-select:none !important}
+/* Dopo un ridimensionamento la tabella è a layout fisso: il testo va a capo
+ * tra le parole e una parola che non ci sta finisce con «…» (mai spezzata a
+ * metà, come in un foglio di calcolo). */
+table.fm-tbl-sized > thead > tr > th,
+table.fm-tbl-sized > tbody > tr > td{overflow:hidden;text-overflow:ellipsis}
+table.fm-tbl-sized .fm-th-label{overflow:hidden;text-overflow:ellipsis}
+
+/* Colonne strette: ordina/filtra non rubano spazio all'etichetta, stanno
+ * nell'angolo in alto a destra e compaiono al passaggio del mouse (sempre se
+ * attivi). */
+th.fm-th-narrow > .fm-th-wrap{display:block;position:static}
+th.fm-th-narrow .fm-th-label{display:block}
+th.fm-th-narrow .fm-th-sort,
+th.fm-th-narrow .fm-th-filter{
+  position:absolute;top:2px;z-index:2;opacity:0;
+  background:var(--surface,#fff);box-shadow:0 1px 4px rgba(0,43,92,.18);
+  transition:opacity .12s;
+}
+th.fm-th-narrow .fm-th-sort{right:30px}
+th.fm-th-narrow .fm-th-filter{right:11px}
+th.fm-th-narrow:hover .fm-th-sort,
+th.fm-th-narrow:hover .fm-th-filter,
+th.fm-th-narrow:focus-within .fm-th-sort,
+th.fm-th-narrow:focus-within .fm-th-filter,
+th.fm-th-narrow .fm-th-sort.active,
+th.fm-th-narrow .fm-th-filter.active{opacity:1}
+/* Etichetta del guscio a schermo intero (nome della pagina/sezione). */
+.fm-tbl-fs-title{display:none;font-size:15px;font-weight:800;color:var(--primary,#002b5c);margin-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(40vw, 640px)}
+.fm-tbl-shell:fullscreen .fm-tbl-fs-title{display:block}
+table.fm-tbl-measuring > thead > tr > th,
+table.fm-tbl-measuring > tbody > tr > td{white-space:nowrap !important;overflow-wrap:normal !important}
+
+/* ── Caricamento passo passo (piede della tabella) ──────── */
+/* Il piede non fa da àncora di scorrimento: altrimenti, comparse le righe
+ * nuove, il browser lo terrebbe in vista e caricherebbe blocchi a cascata. */
+tr.fm-tbl-more-row, tr.fm-tbl-more-row *{overflow-anchor:none}
+table > tfoot > tr > td.fm-tbl-more-cell{
+  padding:0 !important;background:transparent !important;
+  border:0;border-top:1px dashed var(--border,#d7e0ea);
+}
+.fm-tbl-more{
+  position:sticky;left:0;display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:12px 14px;font-size:12.5px;color:var(--text-mid,#4a5568);
+  text-align:left;text-transform:none;letter-spacing:normal;font-weight:400;
+}
+.fm-tbl-more-text b{color:var(--text,#1a202c);font-weight:700}
+.fm-tbl-more-bar{
+  flex:none;width:120px;height:6px;border-radius:999px;overflow:hidden;
+  background:#e2e8f0;
+}
+.fm-tbl-more-bar > span{
+  display:block;height:100%;width:0;border-radius:inherit;
+  background:linear-gradient(90deg, var(--primary,#002b5c), var(--primary-mid,#2f5f89) 65%, var(--accent,#ff6b00));
+  transition:width .35s ease;
+}
+.fm-tbl-more.is-loading .fm-tbl-more-bar > span{
+  width:100% !important;
+  background:linear-gradient(90deg, transparent, var(--accent,#ff6b00), transparent) 0 0/40% 100% no-repeat, #dbe4ee;
+  animation:fm-more-slide 1s linear infinite;
+}
+@keyframes fm-more-slide{from{background-position:-40% 0}to{background-position:140% 0}}
+.fm-tbl-more-actions{display:inline-flex;gap:6px}
+.fm-tbl-more-btn{
+  border:1px solid var(--primary,#002b5c);background:var(--primary,#002b5c);color:#fff;
+  border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+  transition:filter .15s, transform .15s;
+}
+.fm-tbl-more-btn:hover:not(:disabled){filter:brightness(1.15);transform:translateY(-1px)}
+.fm-tbl-more-btn:disabled{opacity:.55;cursor:progress}
+.fm-tbl-more-btn-ghost{background:transparent;color:var(--primary,#002b5c);border-color:var(--border,#d7e0ea)}
+.fm-tbl-more-btn-ghost:hover:not(:disabled){border-color:var(--primary,#002b5c);filter:none}
+@media (prefers-reduced-motion: reduce){
+  .fm-tbl-more.is-loading .fm-tbl-more-bar > span{animation:none}
+  .fm-tbl-more-btn{transition:none}
+}
+
+/* ── Pager condiviso (core/components/_pager_passo_passo.html) ── */
+.fm-pager{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:12px}
+.fm-pager-btn{
+  display:inline-block;min-width:32px;padding:5px 10px;text-align:center;text-decoration:none;
+  border:1px solid var(--border,#d7e0ea);border-radius:8px;background:var(--surface,#fff);
+  color:var(--primary,#002b5c);font-size:12.5px;font-weight:600;
+}
+.fm-pager-btn:hover{border-color:var(--primary,#002b5c)}
+.fm-pager-btn.is-current{background:var(--primary,#002b5c);border-color:var(--primary,#002b5c);color:#fff}
+.fm-pager-info{font-size:12px;color:var(--text-light,#94a3b8);margin-left:6px}
+
 /* ── Tema scuro ──────────────────────────────────────────── */
+body.theme-dark .fm-pager-btn{background:var(--surface-alt,#0f1b2d);color:#93c5fd}
+body.theme-dark .fm-pager-btn:hover{border-color:#93c5fd}
+body.theme-dark .fm-pager-btn.is-current{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+body.theme-dark .fm-tbl-viewport.fm-vp-scroll{scrollbar-color:#3b4d66 transparent}
+body.theme-dark .fm-tbl-viewport.fm-vp-scroll::-webkit-scrollbar-thumb{background-color:#3b4d66}
+body.theme-dark .fm-tbl-viewport.fm-vp-scroll > table > thead{background:var(--thead-bg,#0f1b2d)}
+body.theme-dark .fm-tbl-viewport.fm-vp-scroll.is-scrolled-y > table > thead > tr:last-child > th{box-shadow:inset 0 -2px 0 #93c5fd, 0 8px 12px -10px rgba(0,0,0,.7)}
+body.theme-dark th:hover > .fm-th-resize::after{background:#3b4d66}
+body.theme-dark th.fm-th-narrow .fm-th-sort,
+body.theme-dark th.fm-th-narrow .fm-th-filter{background:var(--surface-alt,#0f1b2d);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+body.theme-dark .fm-tbl-fs-title{color:#93c5fd}
+body.theme-dark .fm-tbl-shell:fullscreen > :not(.fm-tbl-controls){background:var(--surface);border-color:var(--border)}
+body.theme-dark .fm-tbl-more-text b{color:var(--text)}
+body.theme-dark .fm-tbl-more-bar{background:#1e293b}
+body.theme-dark .fm-tbl-more.is-loading .fm-tbl-more-bar > span{background:linear-gradient(90deg, transparent, var(--accent,#ff6b00), transparent) 0 0/40% 100% no-repeat, #1e293b}
+body.theme-dark .fm-tbl-more-btn{background:#1d4ed8;border-color:#1d4ed8}
+body.theme-dark .fm-tbl-more-btn-ghost{background:transparent;color:#93c5fd;border-color:var(--border)}
+body.theme-dark .fm-tbl-more-btn-ghost:hover:not(:disabled){border-color:#93c5fd}
+body.theme-dark .fm-tbl-btn.active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
 body.theme-dark .fm-tbl-controls{background:#0b1220;border-color:#334155}
 body.theme-dark .fm-tbl-search input,
 body.theme-dark .fm-tbl-btn,

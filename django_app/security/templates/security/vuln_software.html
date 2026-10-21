@@ -42,7 +42,7 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
-    <table class="sec-table" data-fm-table-skip="1">
+    <table class="sec-table">
       <thead><tr><th><input type="checkbox" aria-label="Seleziona tutte le righe della pagina" title="Seleziona tutte le righe della pagina" onchange="document.querySelectorAll('input[name=bulk][form=bulk-form]').forEach(function(c){c.checked=this.checked;}, this);"></th><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for row in page.object_list %}

@@ -108,17 +108,32 @@ GUIDA = {
         },
         {
             "id": "tabelle-viste",
-            "titolo": "Tabelle: colonne e viste salvate",
+            "titolo": "Tabelle: ordinare, filtrare, allargare, schermo intero",
             "blocchi": [
-                ("p", "Sopra molte tabelle del portale c'è una barra con «Cerca…», «Colonne ▾», «Viste ▾» e «Reset»."),
+                ("p", "Le tabelle del portale funzionano tutte allo stesso modo. Sopra c'è una barra con «Cerca…», "
+                      "«Colonne ▾», «Viste ▾», «Reset», «Schermo intero» e il numero di righe "
+                      "(«45 / 1.340» = righe trovate / righe totali). In Anagrafica la casella di ricerca è quella della pagina."),
                 ("def", [
+                    ("↕ nell'intestazione", "ordina la colonna (crescente, decrescente, nessun ordine). Con Maiusc+clic ordini su più colonne."),
+                    ("Imbuto nell'intestazione", "filtra la colonna: testo contenuto, un valore dall'elenco, una data, oppure «≥ valore» per i numeri. "
+                     "L'imbuto pieno indica un filtro attivo; «Pulisci» lo toglie."),
+                    ("Bordo destro dell'intestazione", "trascinalo per allargare o stringere la colonna; doppio clic la adatta al contenuto. "
+                     "Da tastiera: Tab fino al bordo, poi frecce ← →. Le larghezze restano salvate per te."),
                     ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo."),
                     ("Viste ▾", "«＋ Salva la vista attuale…» dà un nome a colonne, filtri, ricerca e ordinamento di adesso; "
                      "un clic sul nome la richiama, × la elimina. Fino a 12 viste per tabella, solo tue. "
                      "Quando una vista è attiva il pulsante dice «Vista: nome»."),
-                    ("Reset", "torna alle colonne di partenza della tabella. Le viste salvate restano."),
+                    ("Reset", "torna alle colonne e alle larghezze di partenza della tabella. Le viste salvate restano."),
+                    ("Schermo intero", "porta la tabella a tutto lo schermo, con la sua barra. Esc o «Esci (Esc)» per tornare alla pagina."),
                 ]),
-                ("nota", "Senza una vista, filtri e ricerca valgono solo finché resti sulla pagina: ricaricando la tabella torna completa."),
+                ("p", "Tabelle lunghe: quando la tabella è più alta dello schermo scorre dentro il suo riquadro e "
+                      "l'intestazione resta sempre in vista. Oltre 150 righe circa se ne mostrano 100 alla volta: "
+                      "in fondo alla tabella il piede dice «Visualizzate 100 di 1.340 righe»; scorrendo fino in fondo "
+                      "arrivano le successive, oppure usa «Mostra altre 100» o «Mostra tutte». Gli elenchi divisi in pagine "
+                      "caricano la pagina successiva allo stesso modo."),
+                ("nota", "Ricerca, filtri e ordinamento valgono sempre su tutte le righe, anche quelle non ancora "
+                         "disegnate: alla prima ricerca il portale carica l'elenco completo (fino a 5.000 righe). "
+                         "Senza una vista, filtri e ricerca valgono solo finché resti sulla pagina: ricaricando la tabella torna completa."),
             ],
         },
         {
@@ -210,6 +225,18 @@ GUIDA = {
                 "Le viste sono legate a quella tabella di quella pagina: su un'altra pagina non compaiono.",
                 "Se la tabella ha cambiato colonne, le colonne nuove compaiono comunque e quelle tolte vengono ignorate: risalva la vista.",
                 "«Vista non salvata»: troppi filtri lunghi o connessione assente. Riprova con meno filtri.",
+            ],
+        },
+        {
+            "sintomo": "In una tabella mancano righe o il testo è tagliato con «…»",
+            "fare": [
+                "Guarda il piede della tabella: «Visualizzate 100 di 1.340 righe» vuol dire che le altre arrivano scorrendo "
+                "fino in fondo o con «Mostra tutte».",
+                "Il numero sulla barra («45 / 1.340») dice quante righe passano ricerca e filtri: un imbuto pieno "
+                "nell'intestazione è un filtro ancora attivo.",
+                "Testo tagliato: la colonna è stata stretta. Doppio clic sul bordo destro dell'intestazione la riadatta al "
+                "contenuto; «Reset» riporta tutte le larghezze di partenza.",
+                "Oltre 5.000 righe la barra mostra «Limite 5000 righe raggiunto»: restringi con i filtri della pagina.",
             ],
         },
         {

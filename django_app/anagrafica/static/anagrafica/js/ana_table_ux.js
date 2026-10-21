@@ -130,7 +130,11 @@
     function refresh() {
       var q = input.value.trim();
       var rows = dataRows(table);
-      var shown = rows.filter(function (tr) { return tr.style.display !== "none"; }).length;
+      // Con il caricamento passo passo di fm-table non tutte le righe trovate
+      // sono già disegnate: il conteggio giusto è quello del componente.
+      var shown = typeof table._fmMatched === "number"
+        ? table._fmMatched
+        : rows.filter(function (tr) { return tr.style.display !== "none"; }).length;
       chip.hidden = !q;
       chip.textContent = shown + " / " + rows.length;
       chip.classList.toggle("ana-live-count-zero", q && shown === 0);

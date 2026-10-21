@@ -3664,8 +3664,14 @@ def anomalie_configurazione_page(request):
             email_qs = email_qs.filter(
                 Q(subject__icontains=q_mail) | Q(op_id__icontains=q_mail)
             )
+        from core.paginazione import pagina_elenco
+
+        email_logs_page = pagina_elenco(
+            request, email_qs.select_related("created_by").order_by("-created_at", "-id"), param="mail_page"
+        )
         email_log_context = {
-            "email_logs": list(email_qs.select_related("created_by")[:100]),
+            "email_logs": list(email_logs_page.object_list),
+            "email_logs_page": email_logs_page,
             "email_log_stats": {
                 "total": AnomalieEmailLog.objects.count(),
                 "failed": AnomalieEmailLog.objects.filter(

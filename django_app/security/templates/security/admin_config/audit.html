@@ -12,5 +12,6 @@
       <tr><td>{{ object.created_at|date:"d/m/Y H:i:s" }}</td><td>{{ object.actor|default:"sistema" }}</td><td>{{ object.action }}</td><td>{{ object.model_name }} {{ object.object_repr }}</td><td>{{ object.field_name }}</td><td class="sec-code">{{ object.old_value }}</td><td class="sec-code">{{ object.new_value }}</td></tr>
     {% empty %}<tr><td colspan="7" class="sec-empty">Nessuna voce nel registro audit.</td></tr>{% endfor %}
   </tbody></table></div>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
 </section>
 {% endblock %}

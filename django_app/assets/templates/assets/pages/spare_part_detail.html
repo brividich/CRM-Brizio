@@ -32,7 +32,7 @@
   {% endif %}
 
   <details class="md-section" open>
-    <summary class="md-section-head"><h2>Movimenti</h2><span class="md-badge badge-muted">{{ movements|length }}</span></summary>
+    <summary class="md-section-head"><h2>Movimenti</h2><span class="md-badge badge-muted">{{ movements_page.paginator.count }}</span></summary>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
         <thead><tr><th>Data</th><th>Movimento</th><th class="md-right">Quantità</th><th class="md-right">Giacenza dopo</th><th>Intervento</th><th>Nota</th><th>Da</th></tr></thead>
@@ -53,6 +53,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/components/_pager_passo_passo.html" with page_obj=movements_page %}
   </details>
 </div>
 {% endblock %}

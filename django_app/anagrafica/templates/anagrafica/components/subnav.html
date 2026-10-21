@@ -174,11 +174,12 @@ body.theme-dark .hrnav-sub-sez a:hover{background:var(--surface-alt,#0f1b2d);col
   {% endif %}
 </div>
 {% comment %}
-Modulo Anagrafica HR: nasconde la barra controlli (Cerca/Colonne/Reset/contatore)
-sopra le tabelle, mantenendo le icone di ordina/filtro per colonna negli header.
+Modulo Anagrafica HR: nasconde solo la casella «Cerca» della barra controlli
+sopra le tabelle (la ricerca live è quella della pagina, vedi ana_table_ux.js);
+Colonne, Viste, Reset, Schermo intero e contatore restano.
 Marca <body> prima che fm-table-enhanced.js (defer) inizializzi le tabelle.
 {% endcomment %}
-<script>document.body && document.body.setAttribute("data-fm-hide-controls", "1");</script>
+<script>document.body && document.body.setAttribute("data-fm-hide-search", "1");</script>
 {% comment %}
 UX comune alle tabelle del modulo (ricerca live + riga cliccabile): sta qui
 perché la subnav è l'unico pezzo incluso da OGNI pagina di anagrafica e dei

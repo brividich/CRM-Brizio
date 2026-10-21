@@ -40,7 +40,7 @@
     <span class="sec-badge">{{ righe_totali }} segnalazion{{ righe_totali|pluralize:"e,i" }}</span>
   </div>
   <div class="sec-table-wrap">
-    <table class="sec-table" data-fm-table-skip="1">
+    <table class="sec-table">
       <thead><tr><th>Tipo</th><th>Gravità</th><th>Cosa</th><th>Dove</th><th>Stato</th><th>Aperta da</th><th>Chi se ne occupa</th></tr></thead>
       <tbody>
       {% for r in page.object_list %}
