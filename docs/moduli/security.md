@@ -161,3 +161,8 @@ Il menu (`templatetags/security_config_nav.py`, `MENU` + tag `soc_menu`, templat
 ## Grafica del SOC (21/10/2026)
 
 `_base_soc.html` rende l'intestazione (`soc-head`: blocchi `page_marker`/`page_title`, ricerca, guida) e include lo sprite `_icons.html` (simboli `soc-i-*`). `soc_menu` aggiunge a ogni voce `icon` e `badge` (da `live_status`, in cache 60 s); dentro la configurazione la seconda riga elenca le `CONFIG_TABS` al posto della scheda unica, quindi il tag `soc_config_tabs` non è più usato nel layout. Stile in `static/security/soc-design.css`, caricato dopo `security.css` e `soc-live.css`.
+
+
+## PC e fonti (21/10/2026)
+
+`/soc/dispositivi/pc/` (rotta `pc_copertura`, servizio `services/pc_copertura.py`): unione di `assets.DispositivoIntune` (presenti), `SoftwareInstallation` attive (campo `fonti`, esclusi i firmware SNMP) e PC dei report di backup degli ultimi 30 giorni, con chiave il nome host senza dominio in minuscolo. Filtri `f` = tutti / problemi / non_intune / senza_edr / senza_backup, ricerca `q` su nome e utente. Sola lettura.

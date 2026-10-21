@@ -72,8 +72,9 @@ MENU = [
         ("Incidenti", "incidents", ("incidents", "incident_create", "incident_detail", "incident_edit"), False),
         ("Eventi", "events", ("events", "event_detail"), False),
     ]),
-    ("Dispositivi", "assets", [
-        ("Asset", "assets", ("assets", "pc_detail"), False),
+    ("Dispositivi", "pc_copertura", [
+        ("PC e fonti", "pc_copertura", ("pc_copertura", "pc_detail"), False),
+        ("Asset", "assets", ("assets",), False),
         ("Backup", "backup", ("backup", "backup_device", "backup_log"), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),

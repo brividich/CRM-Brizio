@@ -68,6 +68,7 @@ urlpatterns = [
     path("segnalazioni/", _guard(views_work.segnalazioni), name="segnalazioni"),
     path("cerca/", views_work.search, name="search"),
     path("pc/", views_work.pc_detail, name="pc_detail"),
+    path("dispositivi/pc/", views_work.pc_copertura, name="pc_copertura"),
     path("backup/", views_backup.backup_overview, name="backup"),
     path("backup/dispositivo/", views_backup.backup_device, name="backup_device"),
     path("backup/log/", views_backup.backup_log, name="backup_log"),
