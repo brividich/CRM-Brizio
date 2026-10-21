@@ -24,7 +24,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import CompetenzaSkm, Mansione, Reparto, RuoloOperativo
+from .models import AreaAziendale, CompetenzaSkm, Mansione, Reparto, RuoloOperativo
 from .services import mansionario_struttura as svc
 from .views_mansionario import LIVELLO_LABEL, _ids, _int_o_none, _nega, _opzioni_requisiti, _puo_gestire, _puo_vedere
 
@@ -139,8 +139,12 @@ def _render_editor(request, mansione, *, righe=None, config=None, errore="", sal
         "ruoli": {r.pk for r in mansione.ruoli.all()},
         "rischi": {m.pk for m in mansione.mansioni_rischio.all()},
         "reparto": mansione.reparto_id,
+        "area": mansione.area_id,
+        "processo": mansione.processo_sgi_id,
+        "abilitazione": mansione.abilitazione_con_scadenza,
         "attiva": mansione.attiva,
     }
+    from sistema_gestione.models import Processo
     return render(request, "anagrafica/partials/_struttura_mansione.html", {
         "mansione": mansione, "righe": righe, "n_righe": len(righe), "config": config,
         "riga_vuota": {**vuota, "i": "__I__"},
@@ -153,6 +157,9 @@ def _render_editor(request, mansione, *, righe=None, config=None, errore="", sal
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
         "rischi_opts": list(Mansione.objects.filter(is_active=True).order_by("nome")),
         "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
+        "aree_opts": list(AreaAziendale.objects.filter(is_active=True).select_related("reparto")
+                          .order_by("reparto__nome", "nome")),
+        "processi_opts": list(Processo.objects.filter(attivo=True).order_by("codice")),
         **_opzioni_requisiti(),
     })
 
@@ -174,12 +181,17 @@ def struttura_mansione(request, mansione_id: int):
         "ruoli": set(_ids(request, "ruoli")),
         "rischi": set(_ids(request, "mansioni_rischio")),
         "reparto": _int_o_none(request.POST.get("reparto")),
+        "area": _int_o_none(request.POST.get("area")),
+        "processo": _int_o_none(request.POST.get("processo_sgi")),
+        "abilitazione": request.POST.get("abilitazione_con_scadenza") == "on",
         "attiva": request.POST.get("attiva") == "on",
     }
     try:
         conta = svc.salva_editor(
             mansione, nome=config["nome"], ruoli_ids=config["ruoli"], rischi_ids=config["rischi"],
             reparto_id=config["reparto"], attiva=config["attiva"], righe=righe,
+            struttura={"area_id": config["area"], "processo_id": config["processo"],
+                       "abilitazione": config["abilitazione"]},
         )
     except ValueError as exc:
         return _render_editor(request, mansione, righe=righe, config=config, errore=f"Niente salvato. {exc}")

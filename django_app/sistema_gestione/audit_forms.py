@@ -198,7 +198,7 @@ class ProcessoForm(forms.ModelForm):
 
     class Meta:
         model = Processo
-        fields = ["codice", "nome", "categoria", "responsabile", "enti", "scopo", "input", "output",
+        fields = ["codice", "nome", "categoria", "tipo", "ruolo_owner", "responsabile", "enti", "scopo", "input", "output",
                   "rischi", "indicatori", "procedure", "fonte_documentale", "punti_9100", "punti_45001", "punti_14001", "punti_27001",
                   "punti_pdr125", "criticita", "frequenza_mesi", "requisiti_cliente", "attivo"]
         widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in
@@ -209,6 +209,11 @@ class ProcessoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.initial["versione"] = self.instance.revisione if self.instance.pk else 0
+        from anagrafica.models import RuoloOperativo
+
+        owner = self.fields["ruolo_owner"]
+        owner.queryset = RuoloOperativo.objects.filter(is_active=True).order_by("nome")
+        owner.label_from_instance = lambda r: r.etichetta
         for nome in ("responsabile", "scopo", "input", "output", "rischi", "indicatori", "procedure"):
             self.fields[nome].required = True
         self.fields["criticita"].required = False

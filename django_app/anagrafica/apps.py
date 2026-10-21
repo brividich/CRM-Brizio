@@ -15,6 +15,10 @@ class AnagraficaConfig(AppConfig):
         from .segnali_capi import collega as collega_capi
 
         collega_capi()
+        # Struttura della Qualità: «Responsabilità del reparto» generata dal reparto.
+        from .segnali_struttura import collega as collega_struttura
+
+        collega_struttura()
         try:
             from .acl_bootstrap import bootstrap_anagrafica_acl_endpoints
 

@@ -9,6 +9,7 @@ from . import views_cambio_mansione
 from . import views_mansioni_rischio
 from . import views_mansionario
 from . import views_struttura
+from . import views_struttura_org
 from . import views_coerenza_capi
 from . import views_mio_team
 from . import views_mia_scheda
@@ -388,6 +389,19 @@ urlpatterns = [
     path("mansionario/struttura/export.xlsx", views_struttura.struttura_export, name="mansionario_struttura_export"),
     path("mansionario/struttura/import/", views_struttura.struttura_import, name="mansionario_struttura_import"),
     path("ruoli-operativi/cambio-in-blocco/", views_struttura.ruoli_in_blocco, name="ruoli_in_blocco"),
+    # Struttura organizzativa (struttura della Qualità): pagina dedicata, revisioni, conferme HSE
+    path("struttura/", views_struttura_org.struttura_org, name="struttura_org"),
+    path("struttura/reparto/<int:reparto_id>/", views_struttura_org.struttura_reparto_salva,
+         name="struttura_reparto_salva"),
+    path("struttura/area/<int:area_id>/", views_struttura_org.struttura_area_salva, name="struttura_area_salva"),
+    path("struttura/ruolo/<int:ruolo_id>/", views_struttura_org.struttura_ruolo_salva, name="struttura_ruolo_salva"),
+    path("struttura/processo/<int:processo_id>/", views_struttura_org.struttura_processo_salva,
+         name="struttura_processo_salva"),
+    path("struttura/revisioni/", views_struttura_org.struttura_revisioni, name="struttura_revisioni"),
+    path("struttura/revisioni/<int:numero>/", views_struttura_org.struttura_revisione, name="struttura_revisione"),
+    path("struttura/revisioni/<int:numero>/pdf/", views_struttura_org.struttura_revisione_pdf,
+         name="struttura_revisione_pdf"),
+    path("struttura/rischi/", views_struttura_org.struttura_rischi, name="struttura_rischi"),
     path("skill-matrix/scadenzario/", views.skm_scadenzario, name="skm_scadenzario"),
     path("skill-matrix/copertura/", views.skm_copertura, name="skm_copertura"),
     path("skill-matrix/impostazioni/", views.skm_impostazioni, name="skm_impostazioni"),

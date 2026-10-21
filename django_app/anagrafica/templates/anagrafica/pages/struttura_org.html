@@ -1,0 +1,271 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Struttura organizzativa | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=2">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><span class="fmd-cur">Struttura organizzativa</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Struttura organizzativa</h1>
+        <p class="fmd-ph-sub">Processi, reparti, aree, ruoli e mansioni della struttura della Qualità. Quello che vedi qui è la bozza viva: quando la Qualità la approva, l'MSM ne emette una revisione.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_revisioni' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Revisioni</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_rischi' %}"><svg class="fmd-ico"><use href="#i-shield"/></svg>Rischi da confermare{% if kpi.rischi_da_confermare %} <span class="fmd-count">{{ kpi.rischi_da_confermare }}</span>{% endif %}</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_struttura' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni e competenze</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-organizzativa" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    <div class="sto-rev{% if not ultima %} sto-rev-nessuna{% elif n_modifiche %} sto-rev-bozza{% endif %}" role="status">
+      {% if ultima %}
+        <strong>In vigore: Rev. {{ ultima.numero }}</strong> del {{ ultima.emessa_il|date:"d/m/Y" }}, emessa da {{ ultima.emessa_da_nome|default:"—" }}.
+        {% if n_modifiche %}La bozza ha <strong>{{ n_modifiche }} modific{{ n_modifiche|pluralize:"a,he" }}</strong> non ancora emess{{ n_modifiche|pluralize:"a,e" }}.{% else %}La bozza coincide con la revisione in vigore.{% endif %}
+      {% else %}
+        <strong>Nessuna revisione emessa.</strong> La struttura è ancora una bozza: la prima revisione la emette l'MSM.
+      {% endif %}
+      <a class="sto-rev-link" href="{% url 'anagrafica:struttura_revisioni' %}">Vai alle revisioni →</a>
+    </div>
+
+    <div class="mns-stats">
+      <div class="mns-stat"><b>{{ kpi.processi }}</b><span>processi</span></div>
+      <div class="mns-stat"><b>{{ kpi.reparti }}</b><span>reparti</span></div>
+      <div class="mns-stat"><b>{{ kpi.aree }}</b><span>aree</span></div>
+      <div class="mns-stat"><b>{{ kpi.ruoli }}</b><span>ruoli</span></div>
+      <div class="mns-stat"><b>{{ kpi.mansioni }}</b><span>mansioni</span></div>
+      <div class="mns-stat{% if kpi.rischi_da_confermare %} mns-mid{% endif %}"><b>{{ kpi.rischi_da_confermare }}</b><span>rischi da confermare</span></div>
+    </div>
+
+    <nav class="fmd-chips sto-nav" aria-label="Sezioni della pagina">
+      <a class="fmd-chip" href="#reparti">Reparti e aree</a>
+      <a class="fmd-chip" href="#processi">Processi</a>
+      <a class="fmd-chip" href="#ruoli">Ruoli</a>
+      <a class="fmd-chip" href="#completare">Da completare{% if da_completare %} <span class="fmd-count">{{ da_completare|length }}</span>{% endif %}</a>
+    </nav>
+
+    {# ── Reparti e aree ─────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block mns-box" id="reparti" aria-label="Reparti e aree" data-sto-box>
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Reparti e aree</div>
+        <div class="fmd-block-aside">Le aree sono i «reparti» del file della Qualità</div>
+      </div>
+      <div class="mns-tools">
+        <label class="mns-search"><svg class="fmd-ico" aria-hidden="true"><use href="#i-search"/></svg>
+          <input type="search" placeholder="Cerca reparto, area, ruolo o mansione…" aria-label="Cerca nella struttura" data-sto-q autocomplete="off">
+        </label>
+        <div class="fmd-chips mns-tools-r">
+          <button type="button" class="fmd-chip" data-sto-espandi="1">Apri tutto</button>
+          <button type="button" class="fmd-chip" data-sto-espandi="0">Chiudi tutto</button>
+        </div>
+      </div>
+
+      {% for r in albero %}
+      <details class="mns-gruppo" id="rep-{{ r.reparto.pk }}" data-sto-gruppo data-q="{{ r.reparto.nome|lower }}">
+        <summary>
+          <span class="mns-gruppo-h">
+            <svg class="fmd-ico mns-chev" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+            <span class="mns-gruppo-nome">{{ r.reparto.nome }}</span>
+            <span class="fmd-count">{{ r.aree|length }} are{{ r.aree|length|pluralize:"a,e" }}</span>
+          </span>
+          <span class="mns-gruppo-meta">
+            Responsabile: <strong>{{ r.reparto.ruolo_responsabile.etichetta|default:"ruolo da indicare" }}</strong>
+            · caporeparto {{ r.caporeparto|default:"da indicare" }} · {{ r.n_mansioni }} mansion{{ r.n_mansioni|pluralize:"e,i" }} · {{ r.persone }} person{{ r.persone|pluralize:"a,e" }}
+          </span>
+        </summary>
+        <div class="sto-rep-body">
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:struttura_reparto_salva' r.reparto.pk %}" class="sto-inline">
+            {% csrf_token %}
+            <label>Ruolo responsabile del reparto
+              <select name="ruolo_responsabile">
+                <option value="">— nessuno —</option>
+                {% for o in ruoli_opts %}<option value="{{ o.pk }}"{% if o.pk == r.reparto.ruolo_responsabile_id %} selected{% endif %}>{{ o.etichetta }}</option>{% endfor %}
+              </select>
+            </label>
+            <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button>
+            <a class="sto-link" href="{% url 'anagrafica:aree_list' %}">caporeparto e aree →</a>
+          </form>
+          {% endif %}
+          {% if r.responsabilita %}
+          <p class="sto-resp">Mansione <a href="{% url 'anagrafica:mansionario_mansione' r.responsabilita.pk %}">«{{ r.responsabilita.nome }}»</a>: qui si definiscono le competenze del responsabile. Chi la ricopre è il caporeparto del reparto.</p>
+          {% endif %}
+          {% for a in r.aree %}
+          <div class="sto-area" data-sto-area data-q="{{ a.area.nome|lower }}{% for nome, ms in a.ruoli %} {{ nome|lower }}{% for m in ms %} {{ m.nome|lower }}{% endfor %}{% endfor %}">
+            <div class="sto-area-h">
+              <span class="sto-area-nome">{{ a.area.nome }}</span>
+              <span class="sto-area-meta">{{ a.n_mansioni }} mansion{{ a.n_mansioni|pluralize:"e,i" }} · {{ a.persone }} person{{ a.persone|pluralize:"a,e" }}
+                {% if a.area.ruolo_responsabile_id %}· responsabile <strong>{{ a.area.ruolo_responsabile.etichetta }}</strong>{% endif %}</span>
+              {% if is_admin %}
+              <form method="post" action="{% url 'anagrafica:struttura_area_salva' a.area.pk %}" class="sto-inline sto-inline-r">
+                {% csrf_token %}
+                <select name="ruolo_responsabile" aria-label="Ruolo responsabile dell'area {{ a.area.nome }}">
+                  <option value="">come il reparto</option>
+                  {% for o in ruoli_opts %}<option value="{{ o.pk }}"{% if o.pk == a.area.ruolo_responsabile_id %} selected{% endif %}>{{ o.etichetta }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button>
+              </form>
+              {% endif %}
+            </div>
+            {% for nome, ms in a.ruoli %}
+            <div class="sto-ruolo">
+              <span class="sto-ruolo-nome">{{ nome }}</span>
+              <ul class="sto-mansioni">
+                {% for m in ms %}<li><a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a>{% if m.abilitazione_con_scadenza %} <span class="fmd-badge sto-badge" title="Abilitazione con validità o scadenza">abilitazione</span>{% endif %}{% if not m.mansioni_rischio.all %} <span class="fmd-c-mai sto-nota">rischio da confermare</span>{% endif %}</li>{% endfor %}
+              </ul>
+            </div>
+            {% empty %}
+            <p class="mst-vuoto">Nessuna mansione in quest'area.</p>
+            {% endfor %}
+          </div>
+          {% endfor %}
+          {% if r.senza_area %}
+          <div class="sto-area sto-area-warn">
+            <div class="sto-area-h"><span class="sto-area-nome">Mansioni del reparto senza area</span></div>
+            <ul class="sto-mansioni">{% for m in r.senza_area %}<li><a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a></li>{% endfor %}</ul>
+          </div>
+          {% endif %}
+        </div>
+      </details>
+      {% empty %}
+      <div class="fmd-empty"><span class="fmd-et">Nessun reparto attivo.</span></div>
+      {% endfor %}
+      <div class="fmd-empty" data-sto-vuoto hidden><span class="fmd-et">Nessun risultato</span></div>
+    </section>
+
+    {# ── Processi ───────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="processi" aria-label="Processi">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Processi</div>
+        <div class="fmd-block-aside">Owner e tipo si cambiano anche dal catalogo processi del Sistema di Gestione: è la stessa scheda</div>
+      </div>
+      <table class="fmd-table">
+        <thead><tr><th>Codice</th><th>Processo</th><th>Tipo</th><th>Owner</th><th>Mansioni</th><th>Ruoli coinvolti</th>{% if puo_processi %}<th>Modifica</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for p in processi %}
+          <tr>
+            <td>{{ p.processo.codice }}</td>
+            <td>{{ p.processo.nome }} <span class="sto-nota">Rev. {{ p.processo.revisione }}</span></td>
+            <td>{{ p.processo.get_tipo_display|default:"—" }}</td>
+            <td>{{ p.processo.ruolo_owner.etichetta|default:"—" }}</td>
+            <td>{{ p.n_mansioni }}</td>
+            <td class="sto-small">{{ p.ruoli|join:", "|default:"—" }}</td>
+            {% if puo_processi %}
+            <td>
+              <details class="sto-edit">
+                <summary>Cambia</summary>
+                <form method="post" action="{% url 'anagrafica:struttura_processo_salva' p.processo.pk %}" class="sto-form">
+                  {% csrf_token %}
+                  <label>Tipo <select name="tipo"><option value="">—</option>{% for v, l in tipi_processo %}<option value="{{ v }}"{% if v == p.processo.tipo %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+                  <label>Owner <select name="ruolo_owner"><option value="">—</option>{% for o in ruoli_opts %}<option value="{{ o.pk }}"{% if o.pk == p.processo.ruolo_owner_id %} selected{% endif %}>{{ o.etichetta }}</option>{% endfor %}</select></label>
+                  <label>Motivo della revisione <input type="text" name="motivo" required maxlength="500" placeholder="Es. owner definito dalla Qualità"></label>
+                  <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Salva come nuova revisione</button>
+                </form>
+              </details>
+            </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="mst-vuoto">Nessun processo attivo nel registro del Sistema di Gestione.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    {# ── Ruoli ──────────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="ruoli" aria-label="Ruoli">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli</div>
+        <div class="fmd-block-aside"><a class="sto-link" href="{% url 'anagrafica:ruoli_operativi_list' %}">catalogo completo dei ruoli →</a></div>
+      </div>
+      <table class="fmd-table">
+        <thead><tr><th>Sigla</th><th>Ruolo</th><th>Diretto / indiretto</th><th>Organigramma</th><th>Persone</th><th>Mansioni</th>{% if is_admin %}<th>Modifica</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for x in ruoli %}
+          <tr>
+            <td><strong>{{ x.ruolo.sigla|default:"—" }}</strong></td>
+            <td>{{ x.ruolo.nome }}{% if x.ruolo.nomi_precedenti %} <span class="sto-nota" title="{{ x.ruolo.nomi_precedenti }}">(accorpa {{ x.ruolo.nomi_precedenti.splitlines|length }})</span>{% endif %}</td>
+            <td>{{ x.ruolo.get_classe_display|default:"—" }}</td>
+            <td class="sto-small">{{ x.ruolo.ambito_label }}</td>
+            <td>{% if x.persone %}{{ x.persone }}{% else %}<span class="fmd-c-s30">0</span>{% endif %}</td>
+            <td>{{ x.n_mansioni }}</td>
+            {% if is_admin %}
+            <td>
+              <form method="post" action="{% url 'anagrafica:struttura_ruolo_salva' x.ruolo.pk %}" class="sto-inline">
+                {% csrf_token %}
+                <input type="text" name="sigla" value="{{ x.ruolo.sigla|default:'' }}" maxlength="20" size="6" aria-label="Sigla di {{ x.ruolo.nome }}">
+                <select name="classe" aria-label="Diretto o indiretto"><option value="">—</option>{% for v, l in classi %}<option value="{{ v }}"{% if v == x.ruolo.classe %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+                <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="mst-vuoto">Nessun ruolo della struttura: carica la struttura della Qualità o dai una sigla ai ruoli.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    {# ── Da completare ──────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="completare" aria-label="Da completare">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Da completare</div>
+        <div class="fmd-block-aside">Cosa manca perché la struttura sia completa</div>
+      </div>
+      {% for v in da_completare %}
+      <details class="sto-todo">
+        <summary><strong>{{ v.titolo }}</strong> <span class="fmd-count">{{ v.voci|length }}</span></summary>
+        <ul class="sto-mansioni">
+          {% for o in v.voci %}
+            {% if v.tipo == "mansione" %}<li><a href="{% url 'anagrafica:mansionario_mansione' o.pk %}">{{ o.nome }}</a></li>
+            {% elif v.tipo == "ruolo" %}<li>{{ o.etichetta }}</li>
+            {% else %}<li><a href="{% url 'anagrafica:aree_list' %}">{{ o.nome }}</a></li>{% endif %}
+          {% endfor %}
+        </ul>
+      </details>
+      {% empty %}
+      <p class="sto-ok">La struttura è completa.</p>
+      {% endfor %}
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var box=document.querySelector('[data-sto-box]');if(!box)return;
+  var q=box.querySelector('[data-sto-q]');
+  q.addEventListener('input',function(){
+    var t=(q.value||'').trim().toLowerCase(),tot=0;
+    box.querySelectorAll('[data-sto-gruppo]').forEach(function(g){
+      var n=0,rep=(g.dataset.q||'').indexOf(t)>=0;
+      g.querySelectorAll('[data-sto-area]').forEach(function(a){var ok=!t||rep||(a.dataset.q||'').indexOf(t)>=0;a.hidden=!ok;if(ok)n++;});
+      var mostra=!t||rep||n>0;g.hidden=!mostra;if(t&&mostra)g.open=true;tot+=mostra?1:0;
+    });
+    box.querySelector('[data-sto-vuoto]').hidden=tot>0;
+  });
+  box.addEventListener('click',function(e){
+    var b=e.target.closest('[data-sto-espandi]');if(!b)return;
+    var apri=b.dataset.stoEspandi==='1';box.querySelectorAll('[data-sto-gruppo]').forEach(function(g){g.open=apri;});
+  });
+  // #rep-<id> (dopo un salvataggio): il reparto si apre da solo.
+  if(location.hash.indexOf('#rep-')===0){var d=document.querySelector(location.hash);if(d){d.open=true;d.scrollIntoView({block:'start'});}}
+})();
+</script>
+{% endblock %}

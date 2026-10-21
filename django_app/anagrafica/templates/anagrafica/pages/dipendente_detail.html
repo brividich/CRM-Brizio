@@ -374,6 +374,21 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .dp-mdr-why { color:#92400e; font-size:12px; }
 body.theme-dark .dp-mdr { background:rgba(217,119,6,.12); border-color:rgba(217,119,6,.35); }
 body.theme-dark .dp-mdr-title, body.theme-dark .dp-mdr-sub, body.theme-dark .dp-mdr-why { color:#fcd34d; }
+/* Posizione nella struttura (struttura della Qualità) */
+.dp-pos-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px 18px; margin-bottom:12px; }
+.dp-pos-l { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#64748b; margin-bottom:3px; }
+.dp-pos-v { font-size:13px; color:#0f172a; }
+.dp-pos-warn { color:#c2410c; font-weight:600; font-size:12.5px; }
+.dp-pos-sec { font-weight:700; font-size:12.5px; color:#0c2545; margin:12px 0 6px; }
+.dp-pos-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; }
+.dp-pos-list li { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; padding:5px 8px; border:1px solid #eef2f7; border-radius:8px; }
+.dp-pos-list form { display:flex; gap:6px; align-items:center; }
+.dp-pos-list select { height:28px; border:1px solid #e2e8f0; border-radius:6px; font-size:12px; background:#fff; color:#0f172a; }
+.dp-pos-meta { color:#64748b; font-size:12px; }
+body.theme-dark .dp-pos-v { color:var(--text); }
+body.theme-dark .dp-pos-sec { color:#93c5fd; }
+body.theme-dark .dp-pos-list li { border-color:rgba(148,163,184,.25); }
+body.theme-dark .dp-pos-list select { background:var(--surface, #1e293b); color:var(--text); border-color:rgba(148,163,184,.35); }
 /* Spostamenti organizzativi (assegnazioni a periodo) */
 .sp-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
 .sp-card { border:1px solid #e2e8f0; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
@@ -619,6 +634,9 @@ body.theme-dark .dp-btn-danger-sm{background:rgba(229,62,62,.16);color:#fca5a5}
 body.theme-dark .dp-btn-danger-sm:hover{background:rgba(229,62,62,.16)}
 body.theme-dark .dp-btn-edit-sm{background:rgba(59,130,246,.18);color:#93c5fd}
 body.theme-dark .dp-btn-edit-sm:hover{background:rgba(59,130,246,.18)}
+body.theme-dark .dp-pos-l{color:var(--text-light)}
+body.theme-dark .dp-pos-warn{color:#fdba74}
+body.theme-dark .dp-pos-meta{color:var(--text-light)}
 body.theme-dark .sp-gap{border-color:var(--border)}
 body.theme-dark .sp-gap-titolo{color:#fcd34d}
 body.theme-dark .sp-card-foot{border-color:var(--border)}
@@ -1602,6 +1620,62 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           </div>
         </form>
       </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- POSIZIONE NELLA STRUTTURA (struttura della Qualità) -->
+  {% if posizione %}
+  <div class="dp-card" data-tab="anagrafica" id="posizione-struttura">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🧭 Posizione nella struttura</div>
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa →</a>
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-pos-grid">
+        <div><div class="dp-pos-l">Ruolo</div><div class="dp-pos-v">
+          {% for a in posizione.ruoli %}{{ a.ruolo.etichetta }}{% if a.ruolo.classe %} · {{ a.ruolo.get_classe_display|lower }}{% endif %}{% if a.tipologia == "PRINCIPALE" %} <span class="dp-pos-meta">(principale)</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="dp-pos-warn">nessun ruolo della struttura</span>{% endfor %}
+        </div></div>
+        <div><div class="dp-pos-l">Reparto / area</div><div class="dp-pos-v">
+          {% if posizione.area %}{{ posizione.reparto.nome|default:"—" }} / {{ posizione.area.nome }}{% else %}{{ posizione.reparto_testo|default:"—" }} <span class="dp-pos-warn">· area da indicare</span>{% endif %}
+        </div></div>
+        <div><div class="dp-pos-l">Responsabile (ruolo)</div><div class="dp-pos-v">{{ posizione.responsabile.etichetta|default:"—" }}</div></div>
+        <div><div class="dp-pos-l">Processi</div><div class="dp-pos-v">{{ posizione.processi|join:", "|default:"—" }}</div></div>
+        {% if posizione.incarichi %}
+        <div><div class="dp-pos-l">Incarichi</div><div class="dp-pos-v">{% for a in posizione.incarichi %}{{ a.ruolo.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
+        {% endif %}
+      </div>
+
+      <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }})</div>
+      {% if posizione.abilitazioni %}
+      <ul class="dp-pos-list">
+        {% for ab in posizione.abilitazioni %}
+        <li><span><a href="{% url 'anagrafica:mansionario_mansione' ab.competenza.pk %}">{{ ab.competenza.nome }}</a>{% if ab.competenza.abilitazione_con_scadenza %} <span class="dp-pos-meta">· abilitazione con validità</span>{% endif %}</span><span class="dp-pos-meta">livello {{ ab.livello }}{% if ab.competenza.area_id %} · {{ ab.competenza.area.nome }}{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="dp-pos-meta" style="margin:0;">Nessuna mansione assegnata.</p>{% endif %}
+
+      {% if posizione.proposte %}
+      <div class="dp-pos-sec">Mansioni previste dal ruolo, non ancora assegnate ({{ posizione.proposte|length }})</div>
+      <ul class="dp-pos-list">
+        {% for m in posizione.proposte %}
+        <li>
+          <span><a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a>{% if m.area_id %} <span class="dp-pos-meta">· {{ m.area.nome }}</span>{% endif %}</span>
+          {% if puo_assegnare_mansioni %}
+          <form method="post" action="{% url 'anagrafica:mansionario_assegna' m.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="persona" value="{{ legacy_id }}">
+            <input type="hidden" name="next" value="{{ request.get_full_path }}#posizione-struttura">
+            <select name="livello" aria-label="Livello per {{ m.nome }}">
+              <option value="I">I · in formazione</option><option value="L">L · intermedio</option><option value="U">U · autonomo</option><option value="O">O · esperto</option>
+            </select>
+            <button type="submit" class="dp-btn dp-btn-sm">Assegna</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
       {% endif %}
     </div>
   </div>

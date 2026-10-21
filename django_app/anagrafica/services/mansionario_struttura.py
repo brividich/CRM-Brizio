@@ -270,8 +270,26 @@ def crea_processo(nome: str, *, reparto_id=None, ruoli_ids=()) -> CompetenzaSkm:
 
 
 @transaction.atomic
+def salva_struttura(mansione: CompetenzaSkm, *, area_id=None, processo_id=None, abilitazione=False) -> None:
+    """Area (il reparto la segue), processo SGI e abilitazione con validità della mansione."""
+    from sistema_gestione.models import Processo
+
+    from ..models import AreaAziendale
+
+    mansione.area = AreaAziendale.objects.filter(pk=area_id).first() if area_id else None
+    mansione.processo_sgi = Processo.objects.filter(pk=processo_id).first() if processo_id else None
+    mansione.abilitazione_con_scadenza = bool(abilitazione)
+    campi = ["area", "processo_sgi", "abilitazione_con_scadenza", "updated_at"]
+    if mansione.area is None and mansione.asset_id and mansione.reparto_id:
+        # Macchina tolta dall'area: torna a valere il reparto scritto sulla macchina.
+        mansione.reparto = None
+        campi.append("reparto")
+    mansione.save(update_fields=campi)
+
+
+@transaction.atomic
 def salva_editor(mansione: CompetenzaSkm, *, nome: str, ruoli_ids, rischi_ids, reparto_id, attiva: bool,
-                 righe: list[dict]) -> dict:
+                 righe: list[dict], struttura: dict | None = None) -> dict:
     """Configurazione e competenze di una mansione in un colpo solo (editor della struttura).
 
     ``righe``: una per competenza, ``{"id", "nome", "livello_minimo", "bloccante",
@@ -284,6 +302,8 @@ def salva_editor(mansione: CompetenzaSkm, *, nome: str, ruoli_ids, rischi_ids, r
 
     salva_configurazione(mansione, ruoli_ids=ruoli_ids, rischi_ids=rischi_ids, reparto_id=reparto_id,
                          attiva=attiva)
+    if struttura is not None:
+        salva_struttura(mansione, **struttura)
     conta = {"salvate": 0, "nuove": 0, "tolte": 0, "nome_prima": None}
     if (nome or "").strip():
         conta["nome_prima"] = rinomina(mansione, nome)

@@ -78,6 +78,11 @@ TASK_BASE = [
     {"codice": "responsabile_postazione_affiancamento", "fase": T.FASE_GIORNO1, "categoria": T.CATEGORIA_RESPONSABILE,
      "titolo": "Accogliere in reparto, preparare la postazione e assegnare il tutor",
      "descrizione": "Presentazione del reparto, postazione e strumenti pronti, affiancamento iniziale."},
+    {"codice": "responsabile_struttura_mansioni", "fase": T.FASE_GIORNO1, "categoria": T.CATEGORIA_RESPONSABILE,
+     "titolo": "Assegnare ruolo, area e mansioni della struttura",
+     "descrizione": "Nella pratica (riquadro «Posizione nella struttura») o nella scheda dipendente: ruolo della "
+                    "struttura, area e, una per una, le mansioni previste dal ruolo (all'ingresso di norma "
+                    "livello I, in formazione). Da qui dipendono competenze richieste, formazione e rischio."},
     {"codice": "hr_informativa_regolamento", "fase": T.FASE_GIORNO1, "categoria": T.CATEGORIA_HR,
      "titolo": "Consegnare informativa privacy e regolamento aziendale",
      "descrizione": "Con firma per ricevuta."},

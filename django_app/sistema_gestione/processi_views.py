@@ -12,7 +12,7 @@ from django.utils import timezone
 from core.audit import log_action
 from .acl_bootstrap import PERM_AUDIT_EDIT, PERM_AUDIT_VIEW
 from .audit_forms import ProcessoForm
-from .models import Audit, Processo, ProcessoRevisione
+from .models import Audit, Processo
 from .views import MODULE, _has_perm, _nega
 
 
@@ -22,7 +22,7 @@ def catalogo(request):
         return _nega(request, "Non hai accesso al catalogo processi.")
     query = request.GET.get("q", "").strip()[:200]
     stato = request.GET.get("stato", "attivi")
-    processi = Processo.objects.select_related("responsabile").annotate(
+    processi = Processo.objects.select_related("responsabile", "ruolo_owner").annotate(
         ultimo_audit=Max("audit__data_inizio", filter=Q(audit__stato=Audit.STATO_CHIUSO)),
         audit_totali=Count("audit", distinct=True),
     )
@@ -55,12 +55,10 @@ def modifica(request, pk=None):
     processo = get_object_or_404(Processo.objects.select_for_update(), pk=pk) if pk else Processo()
     form = ProcessoForm(request.POST or None, instance=processo)
     if request.method == "POST" and form.is_valid():
-        processo = form.save(commit=False)
-        if pk:
-            processo.revisione += 1
-        processo.save()
-        ProcessoRevisione.objects.create(processo=processo, numero=processo.revisione,
-            dati=processo.snapshot(), motivo=form.cleaned_data["motivo"], autore=request.user)
+        from .services.processi import salva_processo
+
+        processo = salva_processo(form.save(commit=False), motivo=form.cleaned_data["motivo"],
+                                  user=request.user, nuovo=not pk)
         log_action(request, "processo_revisionato", MODULE,
                    {"codice": processo.codice, "revisione": processo.revisione, "campi": form.changed_data}, oggetto=processo)
         messages.success(request, "Scheda processo salvata. Gli audit esistenti conservano la loro copia.")

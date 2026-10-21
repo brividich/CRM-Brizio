@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
-<link rel="stylesheet" href="{% static 'anagrafica/css/onboarding.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/onboarding.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -70,6 +70,41 @@
       {% endif %}
       {% if pratica.note_hr %}<div class="obd-note"><b>Note HR:</b> {{ pratica.note_hr }}</div>{% endif %}
     </section>
+
+    {% if posizione %}
+    <section class="fmd-panel fmd-block" id="posizione-struttura" aria-label="Posizione nella struttura">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Posizione nella struttura</div>
+        <div class="fmd-block-aside"><a href="{% url 'anagrafica:dipendente_detail' pratica.legacy_anagrafica_id %}#posizione-struttura">ruolo e area dalla scheda dipendente →</a></div>
+      </div>
+      <dl class="obd-facts">
+        <div><dt>Ruolo</dt><dd>{% for a in posizione.ruoli %}{{ a.ruolo.etichetta }}{% if not forloop.last %}, {% endif %}{% empty %}da assegnare{% endfor %}</dd></div>
+        <div><dt>Area</dt><dd>{% if posizione.area %}{{ posizione.reparto.nome|default:"—" }} / {{ posizione.area.nome }}{% else %}da indicare{% endif %}</dd></div>
+        <div><dt>Mansioni assegnate</dt><dd>{{ posizione.abilitazioni|length }}</dd></div>
+      </dl>
+      {% if posizione.proposte %}
+      <p class="obd-note">Mansioni previste dal ruolo: assegnale una per una (all'ingresso di norma livello I, in formazione).</p>
+      <ul class="obd-mansioni">
+        {% for m in posizione.proposte %}
+        <li>
+          <a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a>
+          {% if puo_assegnare_mansioni and pratica.is_aperta %}
+          <form method="post" action="{% url 'anagrafica:mansionario_assegna' m.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="persona" value="{{ pratica.legacy_anagrafica_id }}">
+            <input type="hidden" name="livello" value="I">
+            <input type="hidden" name="next" value="{{ request.get_full_path }}#posizione-struttura">
+            <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Assegna (I)</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif posizione.senza_ruolo %}
+      <p class="obd-note">Assegna prima il ruolo della struttura dalla scheda dipendente: da lì il portale propone le mansioni.</p>
+      {% endif %}
+    </section>
+    {% endif %}
 
     <div class="obd-timeline">
       {% for fase in fasi %}
