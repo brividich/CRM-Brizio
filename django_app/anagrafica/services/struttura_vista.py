@@ -146,5 +146,6 @@ def kpi(alb, procs, rls, mans) -> dict:
         "ruoli": len(rls),
         "mansioni": sum(1 for m in mans if not m.responsabilita_reparto_id),
         "processi": len(procs),
-        "rischi_da_confermare": sum(1 for m in mans if m.mansioni_rischio_proposte.all()),
+        "rischi_da_confermare": sum(1 for m in mans if m.mansioni_rischio_proposte.all()
+                                    and not m.responsabilita_reparto_id),
     }

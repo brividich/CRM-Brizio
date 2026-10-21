@@ -431,11 +431,15 @@ GUIDA = {
                       "per DPI, visite e schede di sicurezza finché HSE (ruoli ESM/ESO, o chi gestisce i requisiti delle "
                       "mansioni di rischio) non la conferma in «Rischi da confermare»."),
                 ("passi", [
-                    "Controlla la proposta: puoi sceglierne altre o aggiungerne (elenco a scelta multipla).",
-                    "«Conferma»: le mansioni di rischio scelte valgono da subito e la proposta si chiude.",
+                    "Cerca per mansione, area o mansione di rischio; spunta le righe giuste (o «seleziona tutte quelle "
+                    "visibili») e premi «Conferma le selezionate»: valgono le proposte così come sono.",
+                    "Per una riga diversa apri «Correggi»: scegli le mansioni di rischio giuste (anche più d'una) e "
+                    "premi «Conferma»; valgono da subito e la proposta si chiude.",
                     "«Scarta la proposta»: non si conferma niente; la mansione resta senza mansione di rischio e "
                     "compare in «Da completare».",
                 ]),
+                ("nota", "La «Responsabilità del reparto» non riceve proposte: il rischio del caporeparto viene dalle "
+                         "mansioni che svolge davvero."),
             ],
         },
         {

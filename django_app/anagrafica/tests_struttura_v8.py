@@ -250,6 +250,13 @@ class RevisioniTests(_Base):
         diff = rev.confronto(r1.dati, r2.dati)
         self.assertEqual(diff[0]["sezione"], "Ruoli")
         self.assertEqual(diff[0]["cambiate"][0]["campi"][0]["dopo"], "IN1")
+        # Una rinomina è una modifica della stessa voce, non «tolta + aggiunta».
+        self.r_pe.nome = "Ingegnere di progetto"
+        self.r_pe.save()
+        diff = rev.confronto(r2.dati, rev.fotografia())
+        ruoli = next(s for s in diff if s["sezione"] == "Ruoli")
+        self.assertEqual((ruoli["aggiunte"], ruoli["tolte"]), ([], []))
+        self.assertEqual(ruoli["cambiate"][0]["campi"][0]["campo"], "nome")
         self.assertTrue(rev.pdf(r2).startswith(b"%PDF"))
         self.assertEqual(StrutturaRevisione.objects.count(), 2)
 
@@ -344,6 +351,13 @@ class PagineStrutturaTests(_Base):
         self.client.post(reverse("anagrafica:struttura_rischi"), {"mansione": m.pk, "rischi": [scelta.pk],
                                                                    "azione": "conferma"})
         self.assertIn(scelta, m.mansioni_rischio.all())
+        # conferma in blocco delle proposte così come sono
+        altre = list(rischi.da_confermare().values_list("pk", flat=True)[:3])
+        self.client.post(reverse("anagrafica:struttura_rischi"), {"azione": "conferma_selezionate", "mansioni": altre})
+        self.assertFalse(rischi.da_confermare().filter(pk__in=altre).exists())
+        self.assertTrue(all(CompetenzaSkm.objects.get(pk=x).mansioni_rischio.exists() for x in altre))
+        self.assertFalse(CompetenzaSkm.objects.filter(responsabilita_reparto__isnull=False,
+                                                      mansioni_rischio_proposte__isnull=False).exists())
         rep = Reparto.objects.get(nome="UT")
         msm = RuoloOperativo.objects.get(sigla="MSM")
         self.client.post(reverse("anagrafica:struttura_reparto_salva", args=[rep.pk]), {"ruolo_responsabile": msm.pk})

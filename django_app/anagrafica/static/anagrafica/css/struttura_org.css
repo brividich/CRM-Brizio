@@ -9,6 +9,10 @@
 .sto-rev-nessuna{ border-color:#cfd9ea; background:#f3f7fb; color:var(--fmd-navy); }
 .sto-rev-link{ margin-left:auto; color:var(--fmd-cyan); font-weight:700; text-decoration:none; }
 .sto-rev-link:hover{ text-decoration:underline; }
+/* Banner revisione in tema scuro (a mano: le tinte chiare di stato vanno scurite, non solo il testo) */
+body.theme-dark .sto-rev{ background:rgba(22,163,74,.12); border-color:rgba(22,163,74,.35); color:#86efac; }
+body.theme-dark .sto-rev-bozza{ background:rgba(217,119,6,.12); border-color:rgba(217,119,6,.35); color:#fcd34d; }
+body.theme-dark .sto-rev-nessuna{ background:rgba(148,163,184,.10); border-color:rgba(148,163,184,.30); color:var(--text); }
 
 .sto-nav{ margin:4px 0 14px; }
 .sto-nav .fmd-chip{ text-decoration:none; }
@@ -63,8 +67,10 @@
 .sto-emetti input[type=text]{ height:34px; padding:0 10px; border:1px solid var(--fmd-line); border-radius:8px; font:inherit; background:#fff; color:var(--fmd-ink); }
 
 /* Conferme HSE */
-.sto-rischi td form{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.sto-rischi select[multiple]{ min-width:220px; min-height:64px; border:1px solid var(--fmd-line); border-radius:7px; background:#fff; color:var(--fmd-ink); font:inherit; font-size:12.5px; }
+.sto-rischi tr[hidden]{ display:none; }
+.sto-col-sel{ width:34px; text-align:center; }
+.sto-rischi select[multiple]{ min-width:240px; border:1px solid var(--fmd-line); border-radius:7px; background:#fff; color:var(--fmd-ink); font:inherit; font-size:12.5px; }
+.sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .sto-area{background:var(--surface)}

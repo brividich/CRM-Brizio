@@ -71,8 +71,10 @@ def proponi(*, solo_senza=True) -> int:
     """Scrive le proposte sulle mansioni attive senza mansione di rischio confermata."""
     catalogo = _catalogo()
     n = 0
+    # La «Responsabilità del reparto» non porta un rischio suo: quello del caporeparto
+    # viene dalle mansioni che svolge davvero.
     qs = (CompetenzaSkm.objects.filter(tipo__in=(CompetenzaSkm.TIPO_MACCHINA, CompetenzaSkm.TIPO_PROCESSO),
-                                       attiva=True)
+                                       attiva=True, responsabilita_reparto__isnull=True)
           .select_related("area").prefetch_related("ruoli", "mansioni_rischio", "mansioni_rischio_proposte"))
     for m in qs:
         if solo_senza and (m.mansioni_rischio.exists() or m.mansioni_rischio_proposte.exists()):
@@ -86,7 +88,8 @@ def proponi(*, solo_senza=True) -> int:
 
 def da_confermare():
     """Mansioni con una proposta in attesa (per la pagina HSE)."""
-    return (CompetenzaSkm.objects.filter(attiva=True, mansioni_rischio_proposte__isnull=False)
+    return (CompetenzaSkm.objects.filter(attiva=True, mansioni_rischio_proposte__isnull=False,
+                                         responsabilita_reparto__isnull=True)
             .select_related("area", "area__reparto").prefetch_related("ruoli", "mansioni_rischio",
                                                                        "mansioni_rischio_proposte")
             .distinct().order_by("area__reparto__nome", "area__nome", "display"))
@@ -101,6 +104,18 @@ def conferma(mansione: CompetenzaSkm, rischi_ids) -> list[str]:
     mansione.mansioni_rischio.add(*scelte)
     mansione.mansioni_rischio_proposte.clear()
     return [m.nome for m in scelte]
+
+
+@transaction.atomic
+def conferma_proposte(mansioni_ids) -> list[str]:
+    """Conferma in blocco le proposte così come sono (solo le mansioni che ne hanno una)."""
+    fatte = []
+    for m in da_confermare().filter(pk__in=list(mansioni_ids)):
+        proposte = [r.pk for r in m.mansioni_rischio_proposte.all()]
+        if proposte:
+            conferma(m, proposte)
+            fatte.append(m.nome)
+    return fatte
 
 
 @transaction.atomic

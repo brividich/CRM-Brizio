@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 <link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -30,41 +30,78 @@
       </div>
     </div>
 
-    <section class="fmd-panel fmd-block" aria-label="Proposte da confermare">
+    <section class="fmd-panel fmd-block mns-box" aria-label="Proposte da confermare" data-str-box>
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Proposte <span class="fmd-count">{{ righe|length }}</span></div>
         {% if not puo %}<div class="fmd-block-aside">Le conferma HSE (ESM/ESO): tu puoi solo vederle</div>{% endif %}
       </div>
-      <table class="fmd-table sto-rischi">
-        <thead><tr><th>Reparto / area</th><th>Mansione</th><th>Ruoli</th><th>Proposta</th>{% if puo %}<th>Conferma</th>{% endif %}</tr></thead>
+      {% if righe %}
+      <div class="mns-tools">
+        <label class="mns-search"><svg class="fmd-ico" aria-hidden="true"><use href="#i-search"/></svg>
+          <input type="search" placeholder="Cerca mansione, area o mansione di rischio…" aria-label="Cerca nelle proposte" data-str-q autocomplete="off">
+        </label>
+        {% if puo %}
+        <form method="post" id="str-blocco" class="sto-inline mns-tools-r">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="conferma_selezionate">
+          <label><input type="checkbox" data-str-tutte> seleziona tutte quelle visibili</label>
+          <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Conferma le selezionate</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+      <table class="fmd-table sto-rischi" data-fm-table-skip="1">
+        <thead><tr>{% if puo %}<th class="sto-col-sel"><span class="sr-only">Seleziona</span></th>{% endif %}<th>Reparto / area</th><th>Mansione</th><th>Ruoli</th><th>Proposta</th>{% if puo %}<th>Correggi</th>{% endif %}</tr></thead>
         <tbody>
         {% for m in righe %}
-          <tr>
+          <tr data-str-riga data-q="{{ m.nome|lower }} {{ m.area.nome|default:''|lower }} {% for p in m.mansioni_rischio_proposte.all %}{{ p.nome|lower }} {% endfor %}">
+            {% if puo %}<td class="sto-col-sel"><input type="checkbox" name="mansioni" value="{{ m.pk }}" form="str-blocco" aria-label="Seleziona {{ m.nome }}"></td>{% endif %}
             <td class="sto-small">{{ m.area.reparto.nome|default:"—" }} / {{ m.area.nome|default:"—" }}</td>
             <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a></td>
             <td class="sto-small">{% for r in m.ruoli.all %}{{ r.etichetta }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
             <td>{% for p in m.mansioni_rischio_proposte.all %}<strong>{{ p.nome }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}</td>
             {% if puo %}
             <td>
-              <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="mansione" value="{{ m.pk }}">
-                <select name="rischi" multiple aria-label="Mansioni di rischio di {{ m.nome }}">
-                  {% for o in rischi_opts %}<option value="{{ o.pk }}"{% if o in m.mansioni_rischio_proposte.all %} selected{% endif %}>{{ o.nome }}</option>{% endfor %}
-                </select>
-                <button type="submit" name="azione" value="conferma" class="fmd-btn fmd-btn-navy fmd-btn-mini">Conferma</button>
-                <button type="submit" name="azione" value="scarta" class="fmd-btn fmd-btn-ghost fmd-btn-mini" formnovalidate>Scarta la proposta</button>
-              </form>
+              <details class="sto-edit">
+                <summary>Correggi</summary>
+                <form method="post" class="sto-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="mansione" value="{{ m.pk }}">
+                  <select name="rischi" multiple size="6" aria-label="Mansioni di rischio di {{ m.nome }}">
+                    {% for o in rischi_opts %}<option value="{{ o.pk }}"{% if o in m.mansioni_rischio_proposte.all %} selected{% endif %}>{{ o.nome }}</option>{% endfor %}
+                  </select>
+                  <span class="sto-inline">
+                    <button type="submit" name="azione" value="conferma" class="fmd-btn fmd-btn-navy fmd-btn-mini">Conferma</button>
+                    <button type="submit" name="azione" value="scarta" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Scarta la proposta</button>
+                  </span>
+                </form>
+              </details>
             </td>
             {% endif %}
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="mst-vuoto">Nessuna proposta in attesa.</td></tr>
+          <tr><td colspan="6" class="mst-vuoto">Nessuna proposta in attesa.</td></tr>
         {% endfor %}
         </tbody>
       </table>
+      <div class="fmd-empty" data-str-vuoto hidden><span class="fmd-et">Nessuna proposta corrisponde</span></div>
     </section>
 
   </div>
 </div>
+
+<script>
+(function(){
+  var box=document.querySelector('[data-str-box]');if(!box)return;
+  var q=box.querySelector('[data-str-q]'),tutte=box.querySelector('[data-str-tutte]');
+  if(q)q.addEventListener('input',function(){
+    var t=(q.value||'').trim().toLowerCase(),n=0;
+    box.querySelectorAll('[data-str-riga]').forEach(function(r){var ok=!t||(r.dataset.q||'').indexOf(t)>=0;r.hidden=!ok;if(ok)n++;});
+    box.querySelector('[data-str-vuoto]').hidden=n>0;
+  });
+  if(tutte)tutte.addEventListener('change',function(){
+    box.querySelectorAll('[data-str-riga]').forEach(function(r){if(!r.hidden){var c=r.querySelector('input[name=mansioni]');if(c)c.checked=tutte.checked;}});
+  });
+})();
+</script>
 {% endblock %}

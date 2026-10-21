@@ -242,6 +242,14 @@ def struttura_rischi(request):
     if request.method == "POST":
         if not puo:
             return _nega(request, "Le mansioni di rischio le conferma HSE.")
+        if request.POST.get("azione") == "conferma_selezionate":
+            fatte = rischi.conferma_proposte(_ids(request, "mansioni"))
+            if fatte:
+                log_action(request, "struttura_rischi_confermati", MODULE, {"mansioni": fatte})
+                messages.success(request, f"Confermate {len(fatte)} proposte.")
+            else:
+                messages.error(request, "Spunta almeno una mansione con una proposta.")
+            return redirect("anagrafica:struttura_rischi")
         mansione = get_object_or_404(CompetenzaSkm, pk=_int_o_none(request.POST.get("mansione")))
         if request.POST.get("azione") == "scarta":
             rischi.scarta(mansione)

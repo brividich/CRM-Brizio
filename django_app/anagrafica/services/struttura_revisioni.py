@@ -15,13 +15,22 @@ from ..models import AreaAziendale, CompetenzaSkm, Reparto, RuoloOperativo, Stru
 from .mansionario_struttura import TIPI_MANSIONE
 
 SIGLA_EMITTENTE = "MSM"
+# Ogni voce si riconosce dal suo id (o dalla chiave della mansione), non dal nome:
+# una rinomina è una modifica, non una voce tolta e una aggiunta.
 SEZIONI = [
-    ("processi", "Processi", "nome"),
-    ("reparti", "Reparti", "nome"),
-    ("aree", "Aree", "nome"),
-    ("ruoli", "Ruoli", "nome"),
+    ("processi", "Processi", "id"),
+    ("reparti", "Reparti", "id"),
+    ("aree", "Aree", "id"),
+    ("ruoli", "Ruoli", "id"),
     ("mansioni", "Mansioni", "chiave"),
 ]
+ETICHETTE = {
+    "nome": "nome", "codice": "codice", "tipo": "tipo", "owner": "owner", "attivo": "attivo",
+    "ruolo_responsabile": "ruolo responsabile", "aree": "aree", "reparto": "reparto", "sigla": "sigla",
+    "classe": "diretto/indiretto", "organigramma": "organigramma", "riporta_a": "riporta a", "area": "area",
+    "processo": "processo", "ruoli": "ruoli", "abilitazione_con_scadenza": "abilitazione con validità",
+    "mansioni_rischio": "mansioni di rischio", "competenze": "competenze richieste",
+}
 
 
 def _et(ruolo) -> str:
@@ -34,21 +43,21 @@ def fotografia() -> dict:
     from .mansionario_competenze import competenze
 
     processi = [{
-        "nome": p.nome, "codice": p.codice, "tipo": p.get_tipo_display() if p.tipo else "",
+        "id": p.pk, "nome": p.nome, "codice": p.codice, "tipo": p.get_tipo_display() if p.tipo else "",
         "owner": _et(p.ruolo_owner), "attivo": p.attivo,
     } for p in Processo.objects.select_related("ruolo_owner").filter(attivo=True).order_by("codice")]
     reparti = [{
-        "nome": r.nome, "ruolo_responsabile": _et(r.ruolo_responsabile),
+        "id": r.pk, "nome": r.nome, "ruolo_responsabile": _et(r.ruolo_responsabile),
         "aree": sorted(a.nome for a in r.aree_aziendali.all() if a.is_active),
     } for r in Reparto.objects.filter(is_active=True).select_related("ruolo_responsabile")
         .prefetch_related("aree_aziendali").order_by("nome")]
     aree = [{
-        "nome": a.nome, "reparto": a.reparto.nome if a.reparto_id else "",
+        "id": a.pk, "nome": a.nome, "reparto": a.reparto.nome if a.reparto_id else "",
         "ruolo_responsabile": _et(a.ruolo_responsabile),
     } for a in AreaAziendale.objects.filter(is_active=True).select_related("reparto", "ruolo_responsabile")
         .order_by("reparto__nome", "nome")]
     ruoli = [{
-        "nome": r.nome, "sigla": r.sigla or "", "classe": r.get_classe_display() if r.classe else "",
+        "id": r.pk, "nome": r.nome, "sigla": r.sigla or "", "classe": r.get_classe_display() if r.classe else "",
         "organigramma": r.ambito_label, "riporta_a": r.riporta_a.nome if r.riporta_a_id else "",
     } for r in RuoloOperativo.objects.filter(is_active=True).select_related("ambito", "riporta_a").order_by("nome")]
     mansioni = []
@@ -120,21 +129,23 @@ def confronto(prima: dict, dopo: dict) -> list[dict]:
     """Differenze sezione per sezione: aggiunte, tolte, cambiate (campo per campo)."""
     out = []
     for chiave, titolo, id_campo in SEZIONI:
-        a = {x[id_campo]: x for x in (prima or {}).get(chiave) or []}
-        b = {x[id_campo]: x for x in (dopo or {}).get(chiave) or []}
+        # Fotografie senza id (formato più vecchio): si ripiega sul nome.
+        a = {x.get(id_campo) or x.get("nome"): x for x in (prima or {}).get(chiave) or []}
+        b = {x.get(id_campo) or x.get("nome"): x for x in (dopo or {}).get(chiave) or []}
         aggiunte = [b[k] for k in b.keys() - a.keys()]
         tolte = [a[k] for k in a.keys() - b.keys()]
         cambiate = []
         for k in sorted(a.keys() & b.keys()):
-            campi = [{"campo": c, "prima": _descrivi(a[k].get(c)), "dopo": _descrivi(b[k].get(c))}
-                     for c in sorted(set(a[k]) | set(b[k])) if c != id_campo and a[k].get(c) != b[k].get(c)]
+            campi = [{"campo": ETICHETTE.get(c, c), "prima": _descrivi(a[k].get(c)), "dopo": _descrivi(b[k].get(c))}
+                     for c in sorted(set(a[k]) | set(b[k]))
+                     if c not in (id_campo, "id", "chiave") and a[k].get(c) != b[k].get(c)]
             if campi:
-                cambiate.append({"voce": b[k].get("nome") or k, "campi": campi})
+                cambiate.append({"voce": b[k].get("nome") or str(k), "campi": campi})
         if aggiunte or tolte or cambiate:
             out.append({
                 "sezione": titolo,
-                "aggiunte": sorted((x.get("nome") or x[id_campo] for x in aggiunte), key=str.casefold),
-                "tolte": sorted((x.get("nome") or x[id_campo] for x in tolte), key=str.casefold),
+                "aggiunte": sorted((x.get("nome") or str(x.get(id_campo)) for x in aggiunte), key=str.casefold),
+                "tolte": sorted((x.get("nome") or str(x.get(id_campo)) for x in tolte), key=str.casefold),
                 "cambiate": cambiate,
             })
     return out
