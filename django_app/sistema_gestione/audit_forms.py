@@ -89,7 +89,7 @@ class AuditForm(forms.ModelForm):
     class Meta:
         model = Audit
         fields = [
-            "numero", "programma", "righe", "tipo", "en9100", "iso45001", "iso14001", "iso27001", "pdr125",
+            "numero", "programma", "righe", "tipo", "en9100", "iso45001", "iso14001", "iso27001", "pdr125", "part145",
             "lead_auditor", "auditor", "processi_catalogo", "processi", "punti_norma", "procedure_criteri", "esclusioni",
             "data_inizio", "data_fine", "durata_stimata", "sede",
             "metodo_intervista", "metodo_esame_documenti", "metodo_osservazione_diretta",
@@ -181,7 +181,7 @@ class AuditForm(forms.ModelForm):
     def sezioni(self):
         gruppi = [
             ("1. Campo di audit", "Scegli i processi dal catalogo e le norme applicabili.",
-             "numero programma righe tipo processi_catalogo aggiorna_schede en9100 iso45001 iso14001 iso27001 pdr125"),
+             "numero programma righe tipo processi_catalogo aggiorna_schede en9100 iso45001 iso14001 iso27001 pdr125 part145"),
             ("2. Criteri e limiti", "Lascia i criteri vuoti per usare quelli delle schede processo. Precisa le esclusioni.",
              "punti_norma procedure_criteri esclusioni"),
             ("3. Team e indipendenza", "Assegna il Lead Auditor e il team; motiva eventuali conflitti.",

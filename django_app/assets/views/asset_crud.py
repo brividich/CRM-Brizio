@@ -848,17 +848,9 @@ def asset_part_145_list(request: HttpRequest) -> HttpResponse:
     """Dossier PART 145: processo, attrezzature, personale, scadenze e situazioni aperte."""
     from ..services import part145_dossier
 
-    con_personale = part145_dossier.puo_vedere_personale(request)
-    part_145_assets = (
-        Asset.objects.filter(part_145=True)
-        .select_related("asset_category")
-        .order_by("name", "asset_tag", "id")
-    )
     context = {
         "page_title": "Dossier PART 145",
-        "part_145_assets": part_145_assets,
-        "part_145_total": part_145_assets.count(),
-        "dossier": part145_dossier.costruisci(con_personale=con_personale),
+        "dossier": part145_dossier.costruisci(**part145_dossier.visibilita(request)),
         # Shell context: senza questo la sidebar del modulo asset resta vuota.
         **_assets_shell_context(request, search_action=reverse("assets:asset_list")),
     }

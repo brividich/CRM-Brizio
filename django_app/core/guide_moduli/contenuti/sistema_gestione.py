@@ -16,7 +16,8 @@ GUIDA = {
             "titolo": "Cosa c'è nel modulo",
             "blocchi": [
                 ("def", [
-                    ("Audit interni", "programma annuale (MOD.034), piano (MOD.035A), checklist, rilievi e rapporto con PDF."),
+                    ("Audit interni", "programma annuale (MOD.034), piano (MOD.035A), checklist, rilievi e rapporto con PDF. "
+                     "Con «Perimetro Part 145» nel piano l'audit compare nel Dossier PART 145 del modulo Asset."),
                     ("Registro OFI / NC", "opportunità di miglioramento e non conformità con azioni e verifica di efficacia (MOD.174)."),
                     ("SoA", "dichiarazione di applicabilità dei controlli ISO 27001."),
                 ]),

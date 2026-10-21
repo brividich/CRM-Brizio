@@ -42,6 +42,8 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 
 ## Note di rilascio
 
+**Audit Part 145** (ottobre 2026, sistema_gestione 0015): `Audit.part145` (vuoto / SISTEMA / PRODOTTO, «Perimetro Part 145» nel passo 1 del piano). Il Dossier PART 145 del modulo Asset mostra gli audit Part 145 dell'anno, segnala se manca quello di sistema o di prodotto (MT CN 70 §5.3) e le azioni da audit scadute (permesso `sistema_gestione.audit.view`).
+
 **Verifica SGI e guida (Unreleased, 12/10/2026):** rilievi verso il MOD.174 con ISO 14001, PdR 125 e fonte «Audit interno»; guida d'uso in-app generale e per pagina. Deploy: `migrate gestione_specifiche` 0014.
 
 **Audit interni professionali — fasi 6-7 (Unreleased, prompt 08):** cruscotto, export rilievi, allegato Rilievi e azioni, «I miei rilievi». Deploy: `migrate sistema_gestione` 0014.
