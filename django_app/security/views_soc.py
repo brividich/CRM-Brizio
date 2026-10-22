@@ -15,39 +15,24 @@ from security.services.vpn_history import vpn_daily_series, vpn_findings, vpn_hi
 
 
 def assets_list(request):
-    """Dispositivi citati dai report, con l'asset HUB collegato o proposto (conferma manuale)."""
-    from django.db.models import Count, Max
+    """Vecchio indirizzo «Asset»: ora i dispositivi e il collegamento al registro stanno in un elenco solo."""
+    from django.urls import reverse
 
-    from security.services.asset_signals import link, suggest_hub_asset
-    from security.services.configuration import can_manage_security_config
-
-    can_manage = can_manage_security_config(request.user)
+    filtro = {"da_collegare": "da_collegare"}.get(request.GET.get("stato", ""), "tutti")
+    target = reverse("security:pc_copertura") + f"?f={filtro}"
     if request.method == "POST":
-        if not can_manage:
-            messages.error(request, "Serve il permesso di configurazione del Security Center.")
-            return redirect("security:assets")
-        _assets_post(request, link, suggest_hub_asset)
-        return redirect(request.get_full_path())
+        if not can_view_security_center(request.user):
+            from security.views import _security_center_denied
 
-    base = SecurityAsset.objects.select_related("source", "hub_asset")
-    n_tot = base.count()
-    n_linked = base.exclude(hub_asset__isnull=True).count()
-    view = request.GET.get("stato") or ("da_collegare" if n_tot - n_linked else "tutti")
-    qs = base.annotate(n_signals=Count("signals"), last_signal=Max("signals__occurred_at")).order_by("hostname")
-    if view == "da_collegare":
-        qs = qs.filter(hub_asset__isnull=True)
-    elif view == "collegati":
-        qs = qs.exclude(hub_asset__isnull=True)
-    rows = []
-    for asset in qs[:500]:
-        suggestion, reason = (None, "") if asset.hub_asset_id else suggest_hub_asset(asset)
-        rows.append({"asset": asset, "suggestion": suggestion, "reason": reason})
-    return render(
-        request,
-        "security/soc_assets.html",
-        {"rows": rows, "n_tot": n_tot, "n_linked": n_linked, "view": view, "can_manage": can_manage,
-         "n_suggested": sum(1 for r in rows if r["suggestion"])},
-    )
+            return _security_center_denied(request)
+        from security.services.asset_signals import link, suggest_hub_asset
+        from security.services.configuration import can_manage_security_config
+
+        if not can_manage_security_config(request.user):
+            messages.error(request, "Serve il permesso di configurazione del Security Center.")
+        else:
+            _assets_post(request, link, suggest_hub_asset)
+    return redirect(target)
 
 
 def _assets_post(request, link, suggest_hub_asset):
