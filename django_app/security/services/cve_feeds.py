@@ -392,12 +392,20 @@ def run_enrichment(time_budget_seconds=90, clock=time.monotonic, sleep=time.slee
 
 def queue_recompute():
     """Ricalcolo degli impatti in un task django-q separato (ha il suo timeout)."""
+    from django.core.cache import cache
+
+    from security.services.cve_impact import LOCK_TTL, QUEUED_KEY
+
+    # Un ricalcolo già in coda e non ancora partito copre anche questa richiesta.
+    if not cache.add(QUEUED_KEY, 1, LOCK_TTL):
+        return "già accodato"
     try:
         from django_q.tasks import async_task
 
         async_task("security.services.cve_impact.recompute_all", timeout=110)
         return "accodato"
     except Exception as exc:  # noqa: BLE001 - la coda non disponibile non annulla l'arricchimento
+        cache.delete(QUEUED_KEY)
         logger.exception("Ricalcolo impatti CVE non accodato")
         return f"non accodato: {exc}"[:200]
 
