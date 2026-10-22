@@ -642,6 +642,13 @@ class Mansione(models.Model):
     RINNOVO_FORMAZIONE_MESI = 60  # ASR: aggiornamento ogni 5 anni
 
     nome = models.CharField(max_length=100, unique=True)
+    # Le persone sono legate alla mansione di rischio per NOME (testo «mansione»
+    # dell'anagrafica): dopo una rinomina il vecchio nome resta qui e le ricerche
+    # (services/mansionario.mansione_per_nome) lo riconoscono ancora.
+    nomi_precedenti = models.TextField(
+        blank=True, default="",
+        help_text="Nomi che la mansione ha avuto prima (uno per riga).",
+    )
     categoria = models.CharField(
         max_length=20, choices=CATEGORIA_CHOICES, blank=True, default=""
     )

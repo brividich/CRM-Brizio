@@ -179,7 +179,9 @@ def dipendente_sicurezza_panel(request, legacy_id: int):
                     .select_related("mansione_rischio", "created_by", "revocato_da")
                     .order_by("-attivo", "-created_at")[:30])
     nome_mansione = (det.get("mansione_nome") or "").strip()
-    mansione_catalogo = Mansione.objects.filter(nome__iexact=nome_mansione).first() if nome_mansione else None
+    from .services.mansionario import mansione_per_nome
+
+    mansione_catalogo = mansione_per_nome(nome_mansione)
     return render(request, "anagrafica/partials/sicurezza_panel.html", {
         "legacy_id": legacy_id,
         "det": det,

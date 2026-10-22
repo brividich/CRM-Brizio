@@ -2539,10 +2539,7 @@ def dipendente_libretto_sanitario(request, legacy_id: int):
         mansione_nome=mansione_nome,
         include_visite_dettaglio=can_view_visite,
     )
-    mansione_obj = (
-        Mansione.objects.filter(nome__iexact=mansione_nome).only("id", "nome", "livello_rischio").first()
-        if mansione_nome else None
-    )
+    mansione_obj = mansionario_service.mansione_per_nome(mansione_nome)
     return render(request, "anagrafica/pages/dipendente_libretto_sanitario.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -5314,10 +5311,7 @@ def _build_conformita_panel_ctx(request, legacy_id: int) -> dict:
         include_visite_dettaglio=can_view_visite,
         mansione=mansione_nome,
     )
-    mansione_obj = (
-        Mansione.objects.filter(nome__iexact=mansione_nome.strip()).only("id").first()
-        if mansione_nome else None
-    )
+    mansione_obj = mansionario_service.mansione_per_nome(mansione_nome)
     # Profilo di rischio DERIVATO ("mansione di rischio" a vista): unione dei requisiti
     # della mansione lavorativa + esposizioni di area + esposizioni dirette al dipendente.
     requisiti_rischio = mansionario_service.requisiti_dipendente(

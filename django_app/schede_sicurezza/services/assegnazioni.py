@@ -33,12 +33,9 @@ class ProfiloSDSUtente:
 
 
 def _mansione_per_nome(nome: str):
-    from anagrafica.models import Mansione
+    from anagrafica.services.mansionario import mansione_per_nome
 
-    nome = (nome or "").strip()
-    if not nome:
-        return None
-    return Mansione.objects.filter(nome__iexact=nome).order_by("-is_active", "pk").first()
+    return mansione_per_nome(nome)
 
 
 def _riga_anagrafica_per_legacy_user_id(legacy_user_id: int | None):

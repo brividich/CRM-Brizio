@@ -28,7 +28,7 @@
       <div class="fmd-pagehead-actions">
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_revisioni' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Revisioni</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_rischi' %}"><svg class="fmd-ico"><use href="#i-shield"/></svg>Rischi da confermare{% if kpi.rischi_da_confermare %} <span class="fmd-count">{{ kpi.rischi_da_confermare }}</span>{% endif %}</a>
-        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_struttura' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni e competenze</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% if is_admin %}{% url 'anagrafica:mansionario_struttura' %}{% else %}{% url 'anagrafica:mansionario' %}{% endif %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni e competenze</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-organizzativa" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
@@ -233,8 +233,9 @@
         <summary><strong>{{ v.titolo }}</strong> <span class="fmd-count">{{ v.voci|length }}</span></summary>
         <ul class="sto-mansioni">
           {% for o in v.voci %}
-            {% if v.tipo == "mansione" %}<li><a href="{% url 'anagrafica:mansionario_mansione' o.pk %}">{{ o.nome }}</a></li>
-            {% elif v.tipo == "ruolo" %}<li>{{ o.etichetta }}</li>
+            {% if v.tipo == "mansione" %}<li>{% if is_admin %}<a href="{% url 'anagrafica:mansionario_struttura' %}?apri={{ o.pk }}" title="Apri nell'editor: area, processo e ruoli">{{ o.nome }}</a>{% else %}<a href="{% url 'anagrafica:mansionario_mansione' o.pk %}">{{ o.nome }}</a>{% endif %}</li>
+            {% elif v.tipo == "rischio" %}<li><a href="{% url 'anagrafica:struttura_rischi' %}" title="La conferma HSE">{{ o.nome }}</a></li>
+            {% elif v.tipo == "ruolo" %}<li>{% if is_admin %}<a href="{% url 'anagrafica:ruoli_in_blocco' %}?ruolo={{ o.pk }}" title="Assegna il ruolo">{{ o.etichetta }}</a>{% else %}{{ o.etichetta }}{% endif %}</li>
             {% else %}<li><a href="{% url 'anagrafica:aree_list' %}">{{ o.nome }}</a></li>{% endif %}
           {% endfor %}
         </ul>

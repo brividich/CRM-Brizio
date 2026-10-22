@@ -177,7 +177,9 @@ def _corsi_obbligatori(
     if legacy_id:
         conds.append(Q(legacy_anagrafica_id=legacy_id))
     if mansione_nome:
-        conds.append(Q(mansione__nome__iexact=mansione_nome.strip()))
+        mansione = mansionario.mansione_per_nome(mansione_nome)
+        if mansione is not None:
+            conds.append(Q(mansione=mansione))
     ruolo_ids = [int(r) for r in (ruolo_ids or []) if r]
     if ruolo_ids:
         conds.append(Q(ruolo_operativo_id__in=ruolo_ids))

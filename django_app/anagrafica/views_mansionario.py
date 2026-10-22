@@ -183,7 +183,10 @@ def mansionario(request):
 
 @login_required
 def mansionario_mansione(request, mansione_id: int):
-    if not _puo_vedere(request):
+    # Chi valuta (gestore skill matrix, es. il caporeparto) deve poter aprire la
+    # mansione e usarne Assegna / Valuta / Togli, non solo passare dal refresh.
+    puo_valutare = _puo_valutare(request)
+    if not (_puo_vedere(request) or puo_valutare):
         return _nega(request)
     mansione = get_object_or_404(
         CompetenzaSkm.objects.select_related("asset", "reparto").prefetch_related("ruoli", "mansioni_rischio"),
@@ -243,7 +246,7 @@ def mansionario_mansione(request, mansione_id: int):
     }
     in_lista = {p["legacy_id"] for p in persone}
     candidati = []
-    if is_admin:
+    if puo_valutare:
         candidati = sorted(
             ({"id": int(r["id"]), "nome": naming.nome_completo(r.get("nome"), r.get("cognome"))}
              for r in fetch_anagrafica_rows(deduplicate=True)
@@ -269,6 +272,7 @@ def mansionario_mansione(request, mansione_id: int):
         "completezza": svc.completezza(mansione, n_competenze=len(competenze), n_persone=len(persone)),
         "regole": svc.regole_correnti(),
         "is_admin": is_admin,
+        "puo_valutare": puo_valutare,
     })
 
 

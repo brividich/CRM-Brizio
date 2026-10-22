@@ -404,6 +404,15 @@ GUIDA = {
                       "la voce «Assegnare ruolo, area e mansioni della struttura»."),
                 ("nota", "Rinominare un ruolo dal catalogo dei ruoli ora riscrive anche il «Ruolo aziendale» delle schede "
                          "e tiene il nome di prima fra i nomi precedenti."),
+                ("nota", "Rinominare una mansione di rischio (Impostazioni → Mansioni) è sicuro: il nome di prima resta fra "
+                         "i «nomi precedenti» e DPI, visite, schede di sicurezza, formazione e onboarding delle persone "
+                         "continuano a trovarla. Rinominare un reparto aggiorna anche macchine, operatori timbri, reparto "
+                         "degli utenti, pratiche di onboarding e posizioni aperte. L'approvazione DPI del preposto "
+                         "riconosce il ruolo anche se viene rinominato."),
+                ("p", "«Da completare» porta dove si risolve: le mansioni si aprono nell'editor (area, processo, ruoli), "
+                      "quelle senza mansione di rischio vanno a «Rischi da confermare», i ruoli senza nessuno al "
+                      "«Cambio ruoli in blocco» con il ruolo già scelto. Chi gestisce la skill matrix (es. il "
+                      "caporeparto) dalla scheda di una mansione può assegnare persone, valutarle e toglierle."),
             ],
         },
         {

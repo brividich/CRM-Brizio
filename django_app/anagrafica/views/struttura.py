@@ -619,7 +619,14 @@ def mansione_edit(request, mansione_id: int):
         return _helpers._back_to_caller(request, "anagrafica:mansioni_list")
 
     _lr = (request.POST.get("livello_rischio") or "").strip().upper()
-    mansione.nome = nome
+    from ..services.mansionario import rinomina as rinomina_mansione
+
+    try:
+        # Il vecchio nome resta fra i precedenti: le persone, legate per nome, non si perdono.
+        rinomina_mansione(mansione, nome)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return _helpers._back_to_caller(request, "anagrafica:mansioni_list")
     mansione.categoria = (request.POST.get("categoria") or "").strip()[:20]
     mansione.descrizione = (request.POST.get("descrizione") or "").strip()
     mansione.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
