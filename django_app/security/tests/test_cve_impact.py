@@ -334,6 +334,56 @@ class ImpactAlertTests(_Base):
         self.assertFalse(SecurityRemediationTicket.objects.exists())
 
 
+class RecomputeAllConcurrencyTests(_Base):
+    """Un solo ricalcolo completo alla volta, richieste accodate unite, letture una volta sola."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.delete_many([cve_impact.LOCK_KEY, cve_impact.QUEUED_KEY, cve_impact.RERUN_KEY])
+        self.addCleanup(cache.delete_many, [cve_impact.LOCK_KEY, cve_impact.QUEUED_KEY, cve_impact.RERUN_KEY])
+        self._import()
+        self._map_7zip()
+
+    def test_ricalcolo_gia_in_corso_viene_rimandato_e_rifatto_alla_fine(self):
+        from django.core.cache import cache
+
+        self._cve()
+        cache.add(cve_impact.LOCK_KEY, "altro processo", 60)
+        self.assertEqual(cve_impact.recompute_all(), 0)
+        self.assertFalse(SecurityCveImpact.objects.exists())
+        cache.delete(cve_impact.LOCK_KEY)
+        with patch("security.services.cve_feeds.queue_recompute") as queue:
+            self.assertGreater(cve_impact.recompute_all(), 0)
+        queue.assert_called_once()
+        self.assertIsNone(cache.get(cve_impact.LOCK_KEY))
+
+    def test_richieste_accodate_insieme_diventano_un_solo_task(self):
+        from security.services import cve_feeds
+
+        with patch("django_q.tasks.async_task") as async_task:
+            self.assertEqual(cve_feeds.queue_recompute(), "accodato")
+            self.assertEqual(cve_feeds.queue_recompute(), "già accodato")
+            async_task.assert_called_once()
+            cve_impact.recompute_all()  # parte: la richiesta successiva si accoda di nuovo
+            self.assertEqual(cve_feeds.queue_recompute(), "accodato")
+
+    def test_letture_non_crescono_con_il_numero_di_cve(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._cve()
+        with CaptureQueriesContext(connection) as una:
+            cve_impact.recompute_all()
+        for n in range(2, 6):
+            self._cve(cve_id=f"CVE-2099-000{n}")
+        with CaptureQueriesContext(connection) as cinque:
+            cve_impact.recompute_all()
+        letture = lambda ctx: sum(1 for q in ctx.captured_queries if "security_softwareinstallation" in q["sql"] and q["sql"].lstrip().upper().startswith("SELECT"))  # noqa: E731
+        self.assertEqual(letture(una), letture(cinque))
+
+
 class FeedTests(_Base):
     NVD = {"vulnerabilities": [{"cve": {
         "id": "CVE-2099-0001", "published": "2099-01-01T00:00:00.000", "lastModified": "2099-01-02T00:00:00.000",
