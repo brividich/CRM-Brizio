@@ -196,6 +196,23 @@ class CaricamentoV8Tests(_Base):
         self.assertEqual(list(m.mansioni_rischio.all()), [ufficio])
         self.assertFalse(m.mansioni_rischio_proposte.exists())
 
+    def test_rapporto_su_console_cp1252(self):
+        # Console di produzione cp1252: il rapporto non deve crollare dopo il salvataggio.
+        import io
+
+        from django.core.management import call_command
+
+        r = struttura_v8.Rapporto(applicato=True)
+        r.add("ruoli", "aggiorna", "X", "organigramma → Y")
+        buf = io.BytesIO()
+        out = io.TextIOWrapper(buf, encoding="cp1252")
+        with mock.patch.object(struttura_v8, "carica", return_value=r):
+            call_command("carica_struttura_v8", "--applica", stdout=out)
+        out.flush()
+        testo = buf.getvalue().decode("cp1252")
+        self.assertIn("organigramma ? Y", testo)
+        self.assertIn("Applicato.", testo)
+
 
 class AccorpaRuoloTests(_Base):
     def test_doppioni_e_gerarchia(self):

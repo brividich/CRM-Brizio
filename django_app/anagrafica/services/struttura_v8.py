@@ -118,7 +118,7 @@ def _reparti_aree(r: Rapporto, user) -> dict[str, Reparto]:
             ospite.nome = nome
             campi.append("nome")
         if ospite.reparto_id != rep.pk:
-            r.add("aree", "aggiorna", nome, f"reparto {ospite.reparto.nome if ospite.reparto_id else '—'} → {rep.nome}")
+            r.add("aree", "aggiorna", nome, f"reparto {ospite.reparto.nome if ospite.reparto_id else '—'} -> {rep.nome}")
             ospite.reparto = rep
             campi.append("reparto")
         if not ospite.is_active:
@@ -130,7 +130,7 @@ def _reparti_aree(r: Rapporto, user) -> dict[str, Reparto]:
         for lid in list(DipendenteAnagraficaAziendale.objects.filter(area_aziendale=ospite)
                         .exclude(area__iexact=rep.nome).values_list("legacy_anagrafica_id", flat=True)):
             struttura_aree.sposta_persona(lid, ospite, user=user)
-            r.add("persone", "sposta", f"#{lid}", f"reparto → {rep.nome} (area {nome})")
+            r.add("persone", "sposta", f"#{lid}", f"reparto -> {rep.nome} (area {nome})")
         for src in sorgenti:
             if src.pk == ospite.pk:
                 continue
@@ -240,7 +240,7 @@ def _ruoli(r: Rapporto, user) -> dict[str, RuoloOperativo]:
                 ruolo.classe = classe
                 cambi.append(classe.lower())
             if ambito and ruolo.ambito_id != ambito.pk:
-                cambi.append(f"organigramma {ruolo.ambito_label} → {ambito.nome}")
+                cambi.append(f"organigramma {ruolo.ambito_label} -> {ambito.nome}")
                 ruolo.ambito = ambito
             if not ruolo.is_active:
                 ruolo.is_active = True
@@ -273,7 +273,7 @@ def _ruoli(r: Rapporto, user) -> dict[str, RuoloOperativo]:
         if ruolo and amb and ruolo.ambito_id != amb.pk:
             ruolo.ambito = amb
             ruolo.save(update_fields=["ambito"])
-            r.add("ruoli", "aggiorna", nome, f"organigramma → {amb.nome}")
+            r.add("ruoli", "aggiorna", nome, f"organigramma -> {amb.nome}")
     return per_v8
 
 
