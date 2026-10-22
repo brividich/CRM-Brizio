@@ -94,8 +94,10 @@ class LinkingTests(TestCase):
 
     def test_nothing_is_linked_without_confirmation(self):
         Asset.objects.create(asset_tag="T1", name="PCLOGSYS")
-        response = self.client.get(reverse("security:assets"))
+        response = self.client.get(reverse("security:pc_copertura"))
         self.assertContains(response, "Proposto")
+        self.assertRedirects(self.client.get(reverse("security:assets") + "?stato=da_collegare"),
+                             reverse("security:pc_copertura") + "?f=da_collegare", fetch_redirect_response=False)
         self.device.refresh_from_db()
         self.assertIsNone(self.device.hub_asset)
 
@@ -105,6 +107,14 @@ class LinkingTests(TestCase):
         self.device.refresh_from_db()
         self.assertEqual(self.device.hub_asset, hub)
         self.assertTrue(SecurityConfigurationAuditLog.objects.filter(action="asset_link", object_id=str(self.device.pk)).exists())
+
+    def test_confirm_from_unified_devices_page(self):
+        hub = Asset.objects.create(asset_tag="T1", name="PCLOGSYS")
+        self.client.post(reverse("security:pc_copertura"), {"action": "confirm", "asset": self.device.pk, "hub": hub.pk})
+        self.device.refresh_from_db()
+        self.assertEqual(self.device.hub_asset, hub)
+        page = self.client.get(reverse("security:pc_copertura"))
+        self.assertContains(page, "T1")
 
     def test_confirm_all_links_only_unambiguous_exact_names(self):
         Asset.objects.create(asset_tag="T1", name="PCLOGSYS")
@@ -128,6 +138,7 @@ class LinkingTests(TestCase):
         hub = Asset.objects.create(asset_tag="T1", name="PCLOGSYS")
         self.client.force_login(get_user_model().objects.create(username="solo_lettura"))
         self.client.post(reverse("security:assets"), {"action": "confirm", "asset": self.device.pk, "hub": hub.pk})
+        self.client.post(reverse("security:pc_copertura"), {"action": "confirm", "asset": self.device.pk, "hub": hub.pk})
         self.device.refresh_from_db()
         self.assertIsNone(self.device.hub_asset)
 

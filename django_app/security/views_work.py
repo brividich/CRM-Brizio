@@ -177,10 +177,21 @@ def segnalazioni(request):
 # --- Copertura dei PC ----------------------------------------------------------------------
 
 def pc_copertura(request):
-    """Tutti i PC visti da almeno una fonte, con le fonti che li vedono (Intune, WatchGuard, Defender, backup)."""
+    """Dispositivi: una riga per PC o server con fonti, backup, CVE e asset del registro collegato."""
     if not can_view_security_center(request.user):
         return _denied(request)
     from .services import pc_copertura as svc
+
+    can_manage = can_manage_security_config(request.user)
+    if request.method == "POST":
+        from .services.asset_signals import link, suggest_hub_asset
+        from .views_soc import _assets_post
+
+        if not can_manage:
+            messages.error(request, "Serve il permesso di configurazione del Security Center.")
+        else:
+            _assets_post(request, link, suggest_hub_asset)
+        return redirect(request.get_full_path())
 
     rows = svc.righe()
     codice = request.GET.get("f", "tutti")
@@ -192,9 +203,11 @@ def pc_copertura(request):
         visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())]
     counts = svc.conteggi(rows)
     return render(request, "security/pc_copertura.html", {
-        "rows": visibili, "totale": len(rows), "q": q, "codice": codice,
+        "rows": visibili, "totale": len(rows), "q": q, "codice": codice, "can_manage": can_manage,
         "filtri": [{"code": c, "label": label, "count": counts[c], "active": c == codice} for c, label in svc.FILTRI],
         "intune_totale": sum(1 for r in rows if r["intune"]),
+        "collegati": sum(1 for r in rows if r["asset"]),
+        "n_proposte": sum(1 for r in rows if r["proposta"]),
     })
 
 

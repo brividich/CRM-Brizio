@@ -66,27 +66,23 @@ Come si contano:
 
 Su tutti i grafici del SOC, passando sopra a un giorno compare il dettaglio; un clic porta all'elenco di quel giorno.
 
-## PC e fonti
+## Dispositivi
 
-**Dispositivi › PC e fonti** elenca ogni computer visto da almeno una fonte e dice **quali fonti lo vedono**: una colonna per **Intune**, **WatchGuard**, **Defender** e **Backup**. ✓ la fonte vede il PC, ✕ non lo vede, **!** il backup c'è ma l'ultimo è fallito o è troppo vecchio. Il PC si riconosce dal nome, senza dominio e senza maiuscole: «PC-01.dominio.local» e «pc-01» sono lo stesso PC.
+**Dispositivi › Elenco** è l'elenco unico dei PC e dei server: una riga per dispositivo con **tutto ciò che lo riguarda**. Prima erano due pagine separate («PC e fonti» e «Asset»): ora sono una sola, e il vecchio indirizzo `/soc/assets/` porta qui. Backup e vulnerabilità sono attività del dispositivo: si vedono sulla sua riga, il dettaglio sta nella sua scheda.
 
-- Per i PC gestiti da Intune compaiono anche utente, produttore e modello, sistema operativo e lo **Stato Intune**: «Conforme», oppure i problemi aperti (disco non cifrato, non conforme ai criteri, non si sincronizza).
-- **Asset**: il codice dell'asset del portale collegato. «Da collegare» vuol dire che il PC è in Intune ma non ancora collegato a un asset: si conferma dalla **riconciliazione dispositivi** del modulo Asset.
-- In cima ci sono i PC con problemi Intune, poi quelli visti da meno fonti: un PC visto da una sola fonte è il segnale da guardare.
-- I filtri **Problemi Intune**, **Non in Intune**, **Senza WatchGuard** e **Senza backup** mostrano accanto quanti PC trovano; il numero è sempre uguale alle righe che si aprono. «Senza backup» conta i PC che non compaiono nei report di backup degli ultimi 30 giorni: non tutti i PC devono avere un backup, è un elenco da controllare, non un errore.
-- Gli apparati di rete letti via SNMP non compaiono, e nemmeno i dispositivi non più presenti in Intune.
+Le colonne:
 
-Un clic sulla riga apre l'anteprima del PC; il nome apre la scheda PC completa.
+- **Intune**, **WatchGuard**, **Defender**: ✓ la fonte vede il dispositivo, ✕ non lo vede. WatchGuard e Defender si ricavano dall'inventario software.
+- **Backup**: l'esito dell'ultimo backup negli ultimi 30 giorni («Riuscito», «Con avvisi», «Fallito»); in rosso se è fallito o se non c'è un backup riuscito da troppi giorni (la soglia è in Impostazioni). «nessuno» se il dispositivo non compare nei report di backup.
+- **Vulnerabilità**: quante CVE lo colpiscono secondo l'inventario software, e quante sono **gravi** (già sfruttate, KEV, o CVSS 9 e oltre). Se il dispositivo è collegato a un asset, il clic apre il pannello con le CVE raggruppate per software.
+- **Stato Intune**: «Conforme», oppure i problemi aperti (disco non cifrato, non conforme ai criteri, non si sincronizza).
+- **Asset del registro**: il codice dell'asset del portale collegato. **Proposto** vuol dire che c'è un asset con lo stesso IP o lo stesso nome: lo confermi con **Conferma**, oppure tutti insieme con **Conferma le N proposte**; **scollega** se il collegamento è sbagliato. Per i PC di Intune «da collegare» porta alla **riconciliazione dispositivi** del modulo Asset. Collegare e scollegare richiede il permesso di configurazione del SOC.
 
-## Asset
+I filtri **Senza asset**, **Backup ko**, **Con CVE**, **Problemi Intune**, **Non in Intune**, **Senza WatchGuard** e **Senza backup** mostrano accanto quanti dispositivi trovano; il numero è sempre uguale alle righe che si aprono. «Senza backup» non è un errore: non tutti i PC devono avere un backup, è un elenco da controllare.
 
-I report citano dei dispositivi (nei backup, nella protezione endpoint). La pagina **Asset** serve a collegarli agli **asset del portale**, così sulla scheda dell'asset compaiono backup, rilevamenti, minacce e vulnerabilità.
+In cima ci sono i dispositivi con backup ko, poi quelli con problemi Intune, poi quelli con CVE gravi, poi quelli visti da meno fonti. Il dispositivo si riconosce dal nome, senza dominio e senza maiuscole: «PC-01.dominio.local» e «pc-01» sono lo stesso. Gli apparati di rete letti via SNMP non compaiono, e nemmeno i dispositivi non più presenti in Intune.
 
-- Il collegamento viene **proposto** quando il nome è identico a quello di un asset: lo confermi tu con **Conferma**, oppure tutti insieme con **Conferma tutti … con nome identico**.
-- I filtri **Da collegare**, **Collegati** e **Tutti** aiutano a finire il lavoro.
-- **Scollega** se il collegamento è sbagliato.
-
-Un dispositivo non collegato funziona comunque nel SOC (scheda PC, backup, alert); manca solo il riepilogo sulla scheda dell'asset.
+Un clic sulla riga apre l'anteprima; il nome apre la scheda completa del dispositivo. Le pagine **Backup** e **Vulnerabilità** restano per il lavoro trasversale (job di backup e log, CVE per programma), e ogni dispositivo lì porta alla stessa scheda.
 
 ## Stato elaborazione
 
