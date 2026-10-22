@@ -12,7 +12,7 @@
     {% elif nodo.titolari %}
       {% with t=nodo.titolari.0 %}
         {% if t.ha_foto %}
-          <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}" alt="" loading="lazy">
+          <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}?m=1" alt="" loading="lazy">
         {% else %}
           <span class="ogd-avatar ogd-avatar--ph" aria-hidden="true">{{ t.nome|slice:":1"|upper|default:"?" }}</span>
         {% endif %}
