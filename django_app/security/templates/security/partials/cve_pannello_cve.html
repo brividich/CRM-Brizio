@@ -1,0 +1,46 @@
+{# Scheda breve di una CVE nel pannello. «ritorno» è validato dalla vista (solo elenchi del pannello). #}
+{% with rec=d.record %}
+{% if ritorno %}<a class="cvp-back" href="{{ ritorno }}" data-drawer-load="{{ ritorno }}">&#8592; Torna all'elenco</a>{% endif %}
+<header class="pv-head">
+  <div class="pv-badges">
+    <span class="cvp-pill cvp-pill--{{ d.tono }}">{{ d.gravita }}{% if rec.cvss is not None %} · CVSS {{ rec.cvss|floatformat:1 }}{% endif %}</span>
+    {% if rec.kev %}<span class="cvp-pill cvp-pill--kev">Sfruttata attivamente (CISA KEV)</span>{% endif %}
+  </div>
+  <h2 class="cvp-id">{{ rec.cve_id }}</h2>
+  {% if rec.published_at %}<p class="pv-sub">Pubblicata il {{ rec.published_at|date:"d/m/Y" }}</p>{% endif %}
+</header>
+<p class="pv-text">{{ rec.description|default:"Descrizione non ancora letta da NVD." }}</p>
+<div class="cvp-todo cvp-todo--{{ d.tono }}">
+  <strong>Cosa fare</strong>
+  {% if d.correzione %}<span>Aggiornare: {{ d.correzione }}.</span>{% else %}<span>L'NVD non indica una versione corretta: controllare l'avviso del produttore.</span>{% endif %}
+  {% if rec.kev and rec.kev_due %}<span>CISA chiede di correggerla entro il {{ rec.kev_due|date:"d/m/Y" }}.</span>{% endif %}
+</div>
+<dl class="pv-facts">
+  <div><dt>PC colpiti</dt><dd>{{ d.colpiti }}</dd></div>
+  <div><dt>Da verificare</dt><dd>{{ d.da_verificare }}</dd></div>
+  <div><dt>Probabilità di attacco</dt><dd>{% if rec.epss is not None %}EPSS {{ rec.epss|floatformat:3 }}{% if rec.epss_percentile is not None %} <small>(sopra il {% widthratio rec.epss_percentile 1 100 %}% delle CVE)</small>{% endif %}{% else %}—{% endif %}</dd></div>
+  <div><dt>Dati NVD</dt><dd>{% if rec.nvd_fetched_at %}letti il {{ rec.nvd_fetched_at|date:"d/m/Y" }}{% else %}non ancora letti{% endif %}</dd></div>
+</dl>
+{% if d.pc %}
+  <h3 class="pv-h">PC</h3>
+  <ul class="cvp-hosts">
+  {% for p in d.pc %}
+    <li{% if p.questo %} class="is-this"{% endif %}>
+      <span class="cvp-host">{% if p.asset %}<a href="{% url 'assets:asset_view' p.asset.pk %}">{{ p.host }}</a>{% else %}{{ p.host }}{% endif %}{% if p.questo %} <small>(questo PC)</small>{% endif %}</span>
+      <span class="cvp-pill cvp-pill--{% if p.esito == 'impacts' %}high{% else %}muted{% endif %}">{% if p.esito == 'impacts' %}Colpito{% else %}Da verificare{% endif %}</span>
+      <small class="cvp-host-why">{% if p.versione %}versione {{ p.versione }} · {% endif %}{{ p.spiegazione|truncatechars:120 }}</small>
+    </li>
+  {% endfor %}
+  </ul>
+  {% if d.pc_altri %}<p class="cvp-note">E altri {{ d.pc_altri }} PC nella scheda completa.</p>{% endif %}
+{% endif %}
+{% if d.ranges %}
+  <details class="cvp-more"><summary>Versioni vulnerabili secondo NVD ({{ d.ranges|length|add:d.ranges_altri }})</summary>
+    <ul class="cvp-ranges">{% for t in d.ranges %}<li>{{ t }}</li>{% endfor %}</ul>
+  </details>
+{% endif %}
+<footer class="pv-foot">
+  <a class="cvp-btn cvp-btn--primary" href="{% url 'security:cve_detail' rec.cve_id %}">Scheda completa</a>
+  <a class="cvp-btn" href="{{ d.nvd_url }}" target="_blank" rel="noopener noreferrer">Apri su NVD &#8599;</a>
+</footer>
+{% endwith %}

@@ -1,0 +1,22 @@
+{# Pannello CVE di un programma dell'inventario. Numeri = cve_pannello.per_programma (stesso conteggio del catalogo). #}
+<header class="pv-head">
+  <div class="cvp-kicker">Vulnerabilità del programma</div>
+  <h2>{{ titolo }}</h2>
+  <p class="pv-sub">{{ sottotitolo }}</p>
+</header>
+{% include "security/partials/cve_pannello_numeri.html" with n_colpiscono=dati.colpiscono|length n_gravi=dati.gravi n_verificare=dati.da_verificare|length %}
+{% if dati.colpiscono %}
+  <h3 class="pv-h">Colpiscono i nostri PC</h3>
+  <ul class="cvp-list">{% for r in dati.colpiscono %}{% include "security/partials/cve_pannello_riga.html" %}{% endfor %}</ul>
+{% endif %}
+{% if dati.da_verificare %}
+  <details class="cvp-more"{% if not dati.colpiscono %} open{% endif %}>
+    <summary>Da verificare ({{ dati.da_verificare|length }})</summary>
+    <p class="cvp-note">Il programma è sui PC ma non si può confermare se la versione è vulnerabile (versione non confrontabile, inventario vecchio o CVE senza range di versioni).</p>
+    <ul class="cvp-list">{% for r in dati.da_verificare %}{% include "security/partials/cve_pannello_riga.html" %}{% endfor %}</ul>
+  </details>
+{% endif %}
+{% if not dati.colpiscono and not dati.da_verificare %}
+  <p class="cvp-empty">Nessuna CVE nota colpisce questo programma secondo l'ultimo calcolo. Se il programma non è collegato a un CPE il SOC non può controllarlo: vedi <a href="{% url 'security:software_mapping' %}">Software e CPE</a>.</p>
+{% endif %}
+<footer class="pv-foot"><a class="cvp-btn" href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></footer>

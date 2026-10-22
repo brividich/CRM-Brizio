@@ -25,6 +25,16 @@ GUIDA = {
                 ("p", "La guida completa del Security Center ha un capitolo per ogni pagina: i collegamenti sono in cima."),
             ],
         },
+        {
+            "id": "cve-pannello",
+            "titolo": "Le CVE di un programma o di un PC in un pannello",
+            "blocchi": [
+                ("p", "Nel Catalogo software e nella scheda di un PC (modulo Asset) il numero di CVE è un bottone: apre un pannello a destra "
+                      "con le CVE dalla più pericolosa, quanti PC colpiscono e da quale versione sono corrette. Un clic su una CVE mostra "
+                      "«Cosa fare» e i PC colpiti, senza lasciare la pagina. I numeri sono gli stessi del catalogo e contano solo i software "
+                      "ancora presenti sui PC."),
+            ],
+        },
     ],
     "admin": [
         {

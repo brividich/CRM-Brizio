@@ -7,6 +7,8 @@ Modificare: amministratori del modulo Asset, come per le licenze.
 """
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpRequest, HttpResponse
@@ -148,6 +150,7 @@ def software_catalog(request: HttpRequest) -> HttpResponse:
         "q": q,
         "filter_code": code,
         "show_cve": with_cve,
+        "cve_panel_url": reverse("security:cve_pannello_programma") if with_cve else "",
         "inventory_date": latest_inventory_date(),
         "can_edit": _can_edit(request),
     })
@@ -203,8 +206,14 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         riga["hosts"].add(inst.host)
         riga["fonti"].update(inst.fonti_etichette)
         riga["outdated"] += 1 if inst.pk in outdated else 0
+    cve_versioni = {}
+    if with_cve:
+        from security.services import cve_pannello
+
+        cve_versioni = cve_pannello.cve_per_versione(key)
     version_rows = [
-        {"version": r["version"], "hosts": len(r["hosts"]), "fonti": sorted(r["fonti"]), "outdated": bool(r["outdated"])}
+        {"version": r["version"], "hosts": len(r["hosts"]), "fonti": sorted(r["fonti"]), "outdated": bool(r["outdated"]),
+         "cves": cve_versioni.get("" if r["version"] == "—" else r["version"], 0)}
         for r in sorted(per_version.values(), key=lambda r: (-len(r["hosts"]), r["version"]))
     ]
     return render(request, "assets/pages/software_catalog_detail.html", {
@@ -224,6 +233,8 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         "licensing_choices": SoftwareCatalogEntry.LICENSING_CHOICES,
         "can_edit": can_edit,
         "show_cve": with_cve,
+        "cve_count": (row or {}).get("cves", 0),
+        "cve_panel_url": f"{reverse('security:cve_pannello_programma')}?{urlencode({'k': key})}" if with_cve else "",
         "catalog_url": reverse("assets:software_catalog"),
         "licenses_url": reverse("assets:software_license_list"),
     })

@@ -144,6 +144,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "cve",
+            "titolo": "Vedere le CVE di un programma o di un PC",
+            "blocchi": [
+                ("passi", [
+                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center).",
+                    "Si apre un pannello a destra con le CVE in ordine di pericolo: prima le sfruttate attivamente, poi per punteggio CVSS.",
+                    "Premi una CVE: vedi «Cosa fare» (la versione da installare, se nota) e i PC colpiti. «Torna all'elenco» per tornare, Esc per chiudere.",
+                    "Scheda di un PC: il riquadro «Vulnerabilità» mostra le cinque CVE più pericolose; «Vedi tutte le CVE» apre il pannello per software.",
+                ]),
+                ("p", "Nella scheda del programma la tabella «Versioni presenti» dice quante CVE colpiscono ogni versione: "
+                      "quelle con «nessuna nota» sono le versioni a cui aggiornare."),
+            ],
+        },
+        {
             "id": "intune",
             "titolo": "PC gestiti da Microsoft Intune",
             "blocchi": [

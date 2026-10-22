@@ -318,6 +318,9 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Premi <span class="ag-btn">Salva</span>.</li>
       </ol>
       <p>Solo gli amministratori del modulo Asset possono cambiare la decisione; gli altri la vedono.</p>
+      <h3>Le CVE di un programma o di un PC</h3>
+      <p>A chi vede il SOC, nella colonna <strong>CVE</strong> del catalogo il numero è un bottone: <span class="ag-btn">N CVE ›</span> apre un pannello a destra con le CVE del programma, dalla più pericolosa (prima quelle sfruttate attivamente, poi per punteggio CVSS), quanti PC colpiscono, quali versioni e da quale versione sono corrette. Un clic su una CVE apre la scheda breve con <strong>Cosa fare</strong> e i PC colpiti; <kbd>Esc</kbd> chiude il pannello. Nella scheda del programma una fascia in alto dice quante CVE lo colpiscono e la tabella «Versioni presenti» ha la colonna <strong>CVE</strong> per versione: le versioni «nessuna nota» sono quelle a cui aggiornare.</p>
+      <p>Nella scheda di un PC il riquadro <strong>Vulnerabilità</strong> mostra quante CVE lo colpiscono, quante sono gravi e le cinque più pericolose; <span class="ag-btn">Vedi tutte le CVE</span> apre il pannello con le CVE raggruppate per software. Anche il numero nella colonna CVE della scheda <strong>Software</strong> apre il pannello, con quel software in cima.</p>
       <h3>Cosa succede nel SOC</h3>
       <p>Dopo ogni salvataggio e ogni import dell'inventario il SOC controlla il catalogo: se nuovi PC hanno un software <em>Non autorizzato</em> o <em>Da rimuovere</em>, o una versione sotto la minima, nasce un alert (uno per software, che si aggiorna se altri PC si aggiungono). Il riepilogo è nella pagina Vulnerabilità del SOC, riquadro «Software non conforme».</p>
     </section>
