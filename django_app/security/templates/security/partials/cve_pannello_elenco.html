@@ -19,4 +19,5 @@
 {% if not dati.colpiscono and not dati.da_verificare %}
   <p class="cvp-empty">Nessuna CVE nota colpisce questo programma secondo l'ultimo calcolo. Se il programma non è collegato a un CPE il SOC non può controllarlo: vedi <a href="{% url 'security:software_mapping' %}">Software e CPE</a>.</p>
 {% endif %}
+{% include "security/partials/cve_pannello_risolte.html" with d=dati mostra_cve=True mostra_host=True %}
 <footer class="pv-foot"><a class="cvp-btn" href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></footer>

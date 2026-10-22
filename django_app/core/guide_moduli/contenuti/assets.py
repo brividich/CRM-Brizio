@@ -155,6 +155,9 @@ GUIDA = {
                 ]),
                 ("p", "Nella scheda del programma la tabella «Versioni presenti» dice quante CVE colpiscono ogni versione: "
                       "quelle con «nessuna nota» sono le versioni a cui aggiornare."),
+                ("p", "Quando un PC viene aggiornato (a mano o dal patch management) non si chiude niente a mano: al primo inventario "
+                      "con la versione nuova la CVE esce dal PC e finisce in «Risolte negli ultimi 90 giorni», con versione prima e dopo. "
+                      "Il riquadro «Vulnerabilità» del PC conta le «risolte (90 gg)»."),
             ],
         },
         {
@@ -162,12 +165,16 @@ GUIDA = {
             "titolo": "PC gestiti da Microsoft Intune",
             "blocchi": [
                 ("p", "Ogni mattina alle 06:45 il portale legge da Microsoft Intune i PC gestiti: nome, seriale, produttore, modello, "
-                      "Windows e versione, conformità ai criteri, cifratura del disco (BitLocker), ultima sincronizzazione, utente principale."),
+                      "Windows e versione, conformità ai criteri, cifratura del disco (BitLocker), ultima sincronizzazione, utente principale, "
+                      "RAM, disco (totale e libero) e MAC Wi-Fi/Ethernet. La RAM Intune la dà un PC alla volta: arriva nei primi giorni "
+                      "(50 PC per giro). Il processore Intune non lo espone."),
                 ("ul", [
                     "Collegamento all'asset: Asset → «Riconciliazione dispositivi», righe «Intune». La proposta viene dal numero di serie, poi dal nome; "
                     "si conferma con il permesso di modificare quell'asset.",
-                    "Sull'asset collegato compare il riquadro «Microsoft Intune» (scheda Panoramica). Produttore, modello, seriale e sistema operativo "
-                    "vuoti vengono completati da Intune; quelli già scritti non si toccano.",
+                    "Sull'asset collegato compare il riquadro «Microsoft Intune» (scheda Panoramica). Produttore, modello, seriale, sistema operativo, "
+                    "RAM e disco vuoti vengono completati da Intune; quelli già scritti non si toccano.",
+                    "In cima alla Panoramica di un PC la riga «Visto da» dice quali fonti lo vedono (Intune, WatchGuard, Defender, Security Center, SNMP) "
+                    "e quando: pallino verde = visto di recente, arancione = non di recente, rosso = problema; tratteggiata = la fonte non lo vede.",
                     "Gli avvisi IT del mattino (07:15) riportano i PC non cifrati, non conformi o che non si sincronizzano da oltre 30 giorni; "
                     "la notifica in app arriva solo per i problemi nuovi.",
                     "Serve il permesso Graph «DeviceManagementManagedDevices.Read.All» (applicazione, consenso amministratore). "

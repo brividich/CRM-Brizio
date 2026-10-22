@@ -1343,6 +1343,13 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         from ..services.intune import per_asset as _intune_per_asset
 
         it_intune = _intune_per_asset(asset)
+    it_fonti = []
+    if it_presentation is not None:
+        from security.permissions import can_view_security_center
+
+        from ..services.fonti_dispositivo import per_asset as _fonti_per_asset
+
+        it_fonti = _fonti_per_asset(asset, profilo=it_presentation.get("profile"), soc=can_view_security_center(request.user))
     from ..services.asset_kpis import device_kpis as _device_kpis
 
     device_kpis = _device_kpis(request, asset, it_presentation)
@@ -1388,6 +1395,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "processi_qualificati_asset": _processi_qualificati(asset),
             "it_monitoring": it_monitoring,
             "it_intune": it_intune,
+            "it_fonti": it_fonti,
             "device_kpis": device_kpis,
             "it_ticket_create_url": it_ticket_create_url,
             "asset_status_band": asset_status_band,

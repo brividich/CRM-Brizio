@@ -5253,6 +5253,11 @@ class DispositivoIntune(models.Model):
     registrato_il = models.DateTimeField(null=True, blank=True)
     utente_upn = models.CharField(max_length=200, blank=True, default="")
     utente_nome = models.CharField(max_length=200, blank=True, default="")
+    ram_bytes = models.BigIntegerField(null=True, blank=True)
+    disco_totale_bytes = models.BigIntegerField(null=True, blank=True)
+    disco_libero_bytes = models.BigIntegerField(null=True, blank=True)
+    mac_wifi = models.CharField(max_length=32, blank=True, default="")
+    mac_ethernet = models.CharField(max_length=32, blank=True, default="")
     presente = models.BooleanField(default=True, help_text="Ancora presente in Intune all'ultima lettura.")
     problemi = models.JSONField(default=list, blank=True)
     problemi_dal = models.DateTimeField(null=True, blank=True)
@@ -5270,3 +5275,28 @@ class DispositivoIntune(models.Model):
     @property
     def problemi_label(self) -> list[str]:
         return [self.PROBLEMI_LABEL.get(p, p) for p in (self.problemi or [])]
+
+    @staticmethod
+    def _gb(valore):
+        if not valore:
+            return ""
+        gb = valore / 1024 ** 3
+        return f"{gb:.0f} GB" if gb >= 10 else f"{gb:.1f} GB".replace(".", ",")
+
+    @property
+    def ram_label(self) -> str:
+        return self._gb(self.ram_bytes)
+
+    @property
+    def disco_label(self) -> str:
+        return self._gb(self.disco_totale_bytes)
+
+    @property
+    def disco_libero_label(self) -> str:
+        return self._gb(self.disco_libero_bytes)
+
+    @property
+    def disco_usato_pct(self) -> int | None:
+        if not self.disco_totale_bytes or self.disco_libero_bytes is None:
+            return None
+        return max(0, min(100, round(100 - self.disco_libero_bytes * 100 / self.disco_totale_bytes)))

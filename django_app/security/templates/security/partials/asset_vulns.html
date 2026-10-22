@@ -1,12 +1,13 @@
 {% if show %}
 <section class="af-card" id="asset-vulnerabilita" aria-labelledby="asset-vulnerabilita-title">
   <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER</div><h2 class="af-card-title" id="asset-vulnerabilita-title">Vulnerabilità</h2></div>
-    {% if dati.colpiscono or dati.da_verificare %}<button type="button" class="cvp-open{% if not dati.colpiscono %} cvp-open--warn{% endif %}" data-preview="{% url 'security:cve_pannello_asset' asset.pk %}">Vedi tutte le CVE</button>{% endif %}
+    {% if dati.colpiscono or dati.da_verificare or dati.risolte %}<button type="button" class="cvp-open{% if not dati.colpiscono %} cvp-open--warn{% endif %}" data-preview="{% url 'security:cve_pannello_asset' asset.pk %}">Vedi tutte le CVE</button>{% endif %}
   </div>
   <div class="cvp-card-stats">
     <div class="cvp-card-stat{% if dati.colpiscono %} is-danger{% endif %}"><strong>{{ dati.colpiscono }}</strong><span>CVE colpiscono</span></div>
     <div class="cvp-card-stat{% if dati.gravi %} is-critical{% endif %}"><strong>{{ dati.gravi }}</strong><span>gravi</span></div>
     <div class="cvp-card-stat"><strong>{{ dati.da_verificare }}</strong><span>da verificare</span></div>
+    <div class="cvp-card-stat{% if dati.corrette %} is-ok{% endif %}" title="Programma aggiornato o disinstallato negli ultimi 90 giorni"><strong>{{ dati.corrette }}</strong><span>risolte (90 gg)</span></div>
   </div>
   {% if top %}
     <ul class="cvp-card-list" data-preview-scope>

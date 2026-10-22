@@ -28,12 +28,13 @@
     <li{% if p.questo %} class="is-this"{% endif %}>
       <span class="cvp-host">{% if p.asset %}<a href="{% url 'assets:asset_view' p.asset.pk %}">{{ p.host }}</a>{% else %}{{ p.host }}{% endif %}{% if p.questo %} <small>(questo PC)</small>{% endif %}</span>
       <span class="cvp-pill cvp-pill--{% if p.esito == 'impacts' %}high{% else %}muted{% endif %}">{% if p.esito == 'impacts' %}Colpito{% else %}Da verificare{% endif %}</span>
-      <small class="cvp-host-why">{% if p.versione %}versione {{ p.versione }} · {% endif %}{{ p.spiegazione|truncatechars:120 }}</small>
+      <small class="cvp-host-why">{% if p.versione %}versione {{ p.versione }} · {% endif %}{% if p.aperta_dal %}esposto dal {{ p.aperta_dal|date:"d/m/Y" }} · {% endif %}{{ p.spiegazione|truncatechars:120 }}</small>
     </li>
   {% endfor %}
   </ul>
   {% if d.pc_altri %}<p class="cvp-note">E altri {{ d.pc_altri }} PC nella scheda completa.</p>{% endif %}
 {% endif %}
+{% include "security/partials/cve_pannello_risolte.html" with mostra_host=True asset_q="" %}
 {% if d.ranges %}
   <details class="cvp-more"><summary>Versioni vulnerabili secondo NVD ({{ d.ranges|length|add:d.ranges_altri }})</summary>
     <ul class="cvp-ranges">{% for t in d.ranges %}<li>{{ t }}</li>{% endfor %}</ul>

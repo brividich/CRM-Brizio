@@ -6,11 +6,14 @@ Ogni mattina (schedule ``intune_sync``, prima degli avvisi IT delle 07:15) legge
 - identità del dispositivo (nome, seriale, produttore, modello), Windows/versione,
   conformità ai criteri, cifratura del disco, ultima sincronizzazione, utente
   principale;
+- hardware: disco (totale/libero), MAC Wi-Fi ed Ethernet e RAM. La RAM Intune la dà
+  solo leggendo il singolo dispositivo: si legge per chi non ce l'ha ancora, al massimo
+  ``RAM_PER_GIRO`` dispositivi al giorno. Il processore Graph v1.0 non lo espone;
 - i problemi aperti: disco non cifrato, non conforme, nessuna sincronizzazione da
   oltre ``NON_SINCRONIZZA_GIORNI`` giorni. ``problemi_dal`` cambia solo quando cambia
   l'insieme, così gli avvisi IT notificano solo i problemi nuovi;
 - sugli asset già collegati riempie i dati di inventario ancora vuoti (produttore,
-  modello, seriale, sistema operativo): mai sovrascritti.
+  modello, seriale, sistema operativo, RAM, disco): mai sovrascritti.
 
 Il collegamento a un asset non è automatico: si conferma dalla riconciliazione
 dispositivi IT, con l'abbinatore unico (seriale, poi nome). Permesso applicativo
@@ -29,8 +32,10 @@ logger = logging.getLogger(__name__)
 PERMESSO = "DeviceManagementManagedDevices.Read.All"
 URL = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices"
 NON_SINCRONIZZA_GIORNI = 30
-_SELECT = ("id,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,complianceState,"
-           "isEncrypted,lastSyncDateTime,enrolledDateTime,userPrincipalName,userDisplayName")
+_SELECT_BASE = ("id,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,complianceState,"
+                "isEncrypted,lastSyncDateTime,enrolledDateTime,userPrincipalName,userDisplayName")
+_SELECT = _SELECT_BASE + ",totalStorageSpaceInBytes,freeStorageSpaceInBytes,wiFiMacAddress,ethernetMacAddress"
+RAM_PER_GIRO = 50
 # Seriali di comodo dei produttori: non identificano nessuno.
 _SERIALI_VUOTI = {"", "0", "none", "default string", "to be filled by o.e.m.", "system serial number", "0123456789"}
 
@@ -60,8 +65,32 @@ def problemi_di(dati: dict, now) -> list[str]:
     return out
 
 
+def _byte(valore):
+    try:
+        n = int(valore or 0)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def _mac(valore):
+    from assets.services.mac import normalizza_mac
+
+    return normalizza_mac(str(valore or ""))[:32]
+
+
 def normalizza(device: dict) -> dict:
+    hardware = {
+        "disco_totale_bytes": _byte(device.get("totalStorageSpaceInBytes")),
+        "disco_libero_bytes": _byte(device.get("freeStorageSpaceInBytes")),
+        "mac_wifi": _mac(device.get("wiFiMacAddress")),
+        "mac_ethernet": _mac(device.get("ethernetMacAddress")),
+    }
+    # Nella lista Intune la RAM vale 0: si tiene solo un valore vero, mai lo zero sopra quello letto prima.
+    if _byte(device.get("physicalMemoryInBytes")):
+        hardware["ram_bytes"] = _byte(device.get("physicalMemoryInBytes"))
     return {
+        **hardware,
         "nome": str(device.get("deviceName") or "")[:200],
         "seriale": seriale_valido(device.get("serialNumber"))[:120],
         "produttore": str(device.get("manufacturer") or "")[:120],
@@ -92,25 +121,54 @@ def completa_asset(disp) -> list[str]:
     if scritti:
         asset.save(update_fields=[*scritti, "updated_at"])
     sistema = " ".join(x for x in (disp.sistema, disp.versione_sistema) if x)[:120]
-    if sistema:
+    valori = {"os": sistema, "ram": disp.ram_label, "disco": disp.disco_label}
+    if any(valori.values()):
         details, _ = AssetITDetails.objects.get_or_create(asset=asset)
-        if not details.os.strip():
-            details.os = sistema
-            details.save(update_fields=["os"])
-            scritti.append("os")
+        vuoti = [campo for campo, valore in valori.items() if valore and not getattr(details, campo).strip()]
+        for campo in vuoti:
+            setattr(details, campo, valori[campo][:120])
+        if vuoti:
+            details.save(update_fields=vuoti)
+            scritti.extend(vuoti)
     return scritti
 
 
-def sincronizza(now=None, *, devices: list[dict] | None = None) -> dict:
-    """Legge Intune e aggiorna i dispositivi. ``devices`` serve ai test."""
-    from assets.models import DispositivoIntune
+def leggi_dispositivi() -> list[dict]:
+    """Tutti i dispositivi Intune. Se Graph rifiuta i campi hardware (400) si rilegge senza."""
     from core import m365_graph
+
+    try:
+        return m365_graph.get_all(URL, permesso=PERMESSO, params={"$select": _SELECT, "$top": "1000"})
+    except m365_graph.GraphError as exc:
+        if exc.status != 400:
+            raise
+        logger.warning("Intune: campi hardware rifiutati da Graph (%s), letti solo quelli di base", exc)
+        return m365_graph.get_all(URL, permesso=PERMESSO, params={"$select": _SELECT_BASE, "$top": "1000"})
+
+
+def ram_da_graph(intune_id: str):
+    """RAM in byte del singolo dispositivo (Intune la dà solo così), oppure None."""
+    from core import m365_graph
+
+    try:
+        dati = m365_graph.get(f"{URL}/{intune_id}", permesso=PERMESSO, params={"$select": "id,physicalMemoryInBytes"})
+    except m365_graph.GraphError as exc:
+        logger.info("Intune: RAM non letta per %s (%s)", intune_id, exc)
+        return None
+    return _byte(dati.get("physicalMemoryInBytes"))
+
+
+def sincronizza(now=None, *, devices: list[dict] | None = None, dettaglio=None) -> dict:
+    """Legge Intune e aggiorna i dispositivi. ``devices`` e ``dettaglio`` (RAM per id) servono ai test."""
+    from assets.models import DispositivoIntune
 
     now = now or timezone.now()
     if devices is None:
-        devices = m365_graph.get_all(URL, permesso=PERMESSO, params={"$select": _SELECT, "$top": "1000"})
+        devices = leggi_dispositivi()
+        dettaglio = dettaglio or ram_da_graph
     visti = set()
     creati = aggiornati = completati = 0
+    ram_lette = 0
     for raw in devices:
         intune_id = str(raw.get("id") or "")
         if not intune_id:
@@ -130,12 +188,15 @@ def sincronizza(now=None, *, devices: list[dict] | None = None) -> dict:
             setattr(disp, campo, valore)
         disp.problemi = problemi
         disp.presente = True
+        if dettaglio is not None and not disp.ram_bytes and ram_lette < RAM_PER_GIRO:
+            ram_lette += 1
+            disp.ram_bytes = dettaglio(intune_id)
         disp.save()
         if completa_asset(disp):
             completati += 1
     usciti = DispositivoIntune.objects.filter(presente=True).exclude(intune_id__in=visti).update(presente=False)
     return {"letti": len(devices), "creati": creati, "aggiornati": aggiornati,
-            "usciti": usciti, "asset_completati": completati}
+            "usciti": usciti, "asset_completati": completati, "ram_lette": ram_lette}
 
 
 def problemi_aperti(now=None) -> list[dict]:

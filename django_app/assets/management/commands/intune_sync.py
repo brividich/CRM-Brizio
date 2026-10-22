@@ -23,10 +23,9 @@ class Command(BaseCommand):
         if not m365_graph.configurato():
             raise CommandError("Credenziali Graph non configurate.")
         try:
-            devices = m365_graph.get_all(intune.URL, permesso=intune.PERMESSO,
-                                         params={"$select": intune._SELECT, "$top": "1000"})
+            devices = intune.leggi_dispositivi()
         except m365_graph.GraphError as exc:
-            raise CommandError(str(exc))
+            raise CommandError(str(exc)) from exc
         if options["prova"]:
             now = timezone.now()
             con_problemi = sum(1 for d in devices if intune.problemi_di(intune.normalizza(d), now))
@@ -34,4 +33,4 @@ class Command(BaseCommand):
                 f"{intune.PERMESSO} OK: {len(devices)} dispositivi in Intune, {con_problemi} con problemi."
             ))
             return
-        self.stdout.write(self.style.SUCCESS(str(intune.sincronizza(devices=devices))))
+        self.stdout.write(self.style.SUCCESS(str(intune.sincronizza(devices=devices, dettaglio=intune.ram_da_graph))))

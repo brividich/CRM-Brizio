@@ -17,6 +17,10 @@
     .ss-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px}
     .ss-row:last-child{border-bottom:0}
     .ss-row .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ss-check{align-items:flex-start}
+    .ss-check .chk{min-width:0;flex:1;line-height:1.35}
+    .ss-check .chk-name{font-weight:600;color:#0c2545}
+    .ss-check .chk-msg{display:block;font-size:12.5px;color:#475569;margin-top:2px;overflow-wrap:anywhere}
     .ss-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
     .ss-ok{background:#dcfce7;color:#166534}
     .ss-warn{background:#fef9c3;color:#854d0e}
@@ -37,6 +41,8 @@
 body.theme-dark .ss-card{border-color:var(--border);background:var(--surface)}
 body.theme-dark .ss-card h3{color:var(--text)}
 body.theme-dark .ss-row{border-color:var(--border)}
+body.theme-dark .ss-check .chk-name{color:var(--text)}
+body.theme-dark .ss-check .chk-msg{color:var(--text-mid)}
 body.theme-dark .ss-ok{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .ss-warn{background:rgba(214,158,46,.16);color:#fcd34d}
 body.theme-dark .ss-fail{background:rgba(229,62,62,.16);color:#fca5a5}
@@ -105,8 +111,8 @@ body.theme-dark .ss-drift{background:rgba(229,62,62,.16);color:#fca5a5}
     <div class="ss-card">
       <h3>Servizi · readiness <span class="ss-badge {% if readyz_ok %}ss-ok{% elif readyz.status == 'fail' %}ss-fail{% else %}ss-warn{% endif %}">{{ readyz.status|upper }}</span></h3>
       {% for c in readyz.checks %}
-        <div class="ss-row">
-          <span class="lbl">{{ c.name }}{% if c.message %} · <span style="color:#94a3b8">{{ c.message }}</span>{% endif %}</span>
+        <div class="ss-row ss-check">
+          <span class="chk"><span class="chk-name">{{ c.name }}</span>{% if c.message %}<span class="chk-msg">{{ c.message }}</span>{% endif %}</span>
           <span class="ss-badge ss-{% if c.status == 'ok' %}ok{% elif c.status == 'warn' %}warn{% elif c.status == 'fail' %}fail{% else %}skip{% endif %}">{{ c.status|upper }}</span>
         </div>
       {% empty %}

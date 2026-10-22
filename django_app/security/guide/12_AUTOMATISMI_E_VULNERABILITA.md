@@ -194,6 +194,25 @@ Il pannello si apre dal bottone rosso «N CVE» (arancione per «da verificare»
 
 I numeri del pannello sono gli stessi del catalogo: contano solo i software ancora presenti sui PC, dall'ultimo calcolo d'impatto (il pannello non legge l'NVD in diretta). Pannello e numeri compaiono solo a chi vede il Security Center; il server lo controlla a ogni apertura.
 
+### Quando un PC viene aggiornato
+
+Non si chiude niente a mano. Il giro è questo:
+
+1. Il PC viene aggiornato (a mano, da Windows Update, dal patch management).
+2. Il primo inventario dopo l'aggiornamento (export WatchGuard o lettura Defender) vede la versione nuova: la riga della versione vecchia diventa «non più rilevata».
+3. Il ricalcolo degli impatti (parte da solo dopo ogni import) non trova più il PC esposto e scrive la **risoluzione**: CVE, PC, programma, versione prima e dopo, da quando era esposto, quando è uscito.
+
+Nel pannello (programma, PC, scheda breve della CVE) la sezione **Risolte negli ultimi 90 giorni** elenca queste uscite. Il motivo:
+
+- **Programma aggiornato**: sul PC c'è ancora il programma, con un'altra versione (mostrata «prima → dopo»).
+- **Programma disinstallato**: il PC c'è nell'inventario, il programma no.
+- **PC non più nell'inventario**: il PC non compare più nell'export. Non è una correzione verificata: può essere spento, dismesso o fuori dall'ultimo export.
+- **Rivalutata**: la versione è la stessa ma non risulta più vulnerabile (l'NVD ha corretto i range, o una regola N/A).
+
+Solo le prime due contano come **corrette**. Ogni PC esposto ha anche «esposto dal»: la data passa da un ricalcolo all'altro (per le righe che c'erano prima di questa funzione è la data dell'ultimo ricalcolo).
+
+Nella scheda asset, la riga **Visto da** in cima alla Panoramica dice quali fonti vedono il PC (Intune, WatchGuard, Defender, Security Center, SNMP) e quando: un PC senza WatchGuard né Defender non ha inventario software, quindi il SOC non può controllarne le CVE.
+
 ### Alert e ticket automatici
 
 Quando l'inventario dice che un PC ha una versione vulnerabile di una CVE **critica** (CVSS 9 o più) o **sfruttata attivamente** (CISA KEV), il SOC apre un alert critico, senza aspettare che lo segnali Defender.
