@@ -57,7 +57,7 @@
 
       {# ── Persone ──────────────────────────────────────────────────────── #}
       <div class="mns-pane mns-pane-on" id="persone" role="tabpanel" aria-labelledby="tab-persone">
-        {% if is_admin %}
+        {% if puo_valutare %}
         <form method="post" action="{% url 'anagrafica:mansionario_assegna' mansione.pk %}" class="mns-add">
           {% csrf_token %}
           <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi una persona alla mansione</div>
@@ -79,7 +79,7 @@
         {% if persone %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">
-            <thead><tr><th>Persona</th><th>Livello</th><th>Esito</th><th>Cosa manca</th><th class="fmd-nowrap">In lista dal</th>{% if is_admin %}<th class="fmd-r">Azioni</th>{% endif %}</tr></thead>
+            <thead><tr><th>Persona</th><th>Livello</th><th>Esito</th><th>Cosa manca</th><th class="fmd-nowrap">In lista dal</th>{% if puo_valutare %}<th class="fmd-r">Azioni</th>{% endif %}</tr></thead>
             <tbody>
               {% for p in persone %}
               <tr>
@@ -94,7 +94,7 @@
                   {% else %}<span class="fmd-muted">—</span>{% endif %}
                 </td>
                 <td class="fmd-nowrap fmd-muted">{{ p.data_assegnazione|date:"d-m-Y"|default:"—" }}</td>
-                {% if is_admin %}
+                {% if puo_valutare %}
                 <td class="fmd-r fmd-nowrap">
                   <span class="mns-actions">
                     {% if competenze %}<a class="fmd-btn {% if p.da_valutare %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %} fmd-btn-mini" href="{% url 'anagrafica:mansionario_valuta' mansione.pk p.abilitazione.pk %}">Valuta</a>{% endif %}
@@ -111,7 +111,7 @@
         </div>
         <div class="fmd-legend"><span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto. Con le competenze definite il livello si ricalcola da «Valuta».</span></div>
         {% else %}
-        <div class="fmd-empty"><span class="fmd-et">Nessuna persona in lista</span><span class="fmd-em">{% if is_admin %}Aggiungila dal riquadro qui sopra.{% else %}Nessuno è ancora assegnato a questa mansione.{% endif %}</span></div>
+        <div class="fmd-empty"><span class="fmd-et">Nessuna persona in lista</span><span class="fmd-em">{% if puo_valutare %}Aggiungila dal riquadro qui sopra.{% else %}Nessuno è ancora assegnato a questa mansione.{% endif %}</span></div>
         {% endif %}
       </div>
 

@@ -21,6 +21,19 @@ logger = logging.getLogger(__name__)
 RUOLO_PREPOSTO = "preposto"
 
 
+def ruoli_preposto_ids() -> list[int]:
+    """Ruoli operativi del preposto: per nome attuale o per un nome precedente,
+    così una rinomina del ruolo (es. «Preposto di reparto») non spegne le approvazioni."""
+    from anagrafica.models import RuoloOperativo
+
+    ids = []
+    for pk, nome, precedenti in RuoloOperativo.objects.values_list("pk", "nome", "nomi_precedenti"):
+        nomi = [nome or ""] + (precedenti or "").splitlines()
+        if any(n.strip().casefold() == RUOLO_PREPOSTO for n in nomi):
+            ids.append(pk)
+    return ids
+
+
 def _split_emails(text: str) -> list[str]:
     raw = (text or "").replace(";", "\n").replace(",", "\n")
     seen: list[str] = []
@@ -90,7 +103,7 @@ def approvatori_di(legacy_id: int | None) -> set[int]:
             ids.update(
                 int(i)
                 for i in DipendenteRuoloOperativo.objects.filter(
-                    legacy_anagrafica_id__in=list(colleghi), ruolo__nome__iexact=RUOLO_PREPOSTO, data_fine__isnull=True
+                    legacy_anagrafica_id__in=list(colleghi), ruolo_id__in=ruoli_preposto_ids(), data_fine__isnull=True
                 ).values_list("legacy_anagrafica_id", flat=True)
             )
     except Exception:
@@ -133,7 +146,7 @@ def dipendenti_di_approvatore(approvatore_legacy_id: int | None) -> set[int]:
         area_ids = set(aree)
         # Preposto: le persone della propria area.
         if DipendenteRuoloOperativo.objects.filter(
-            legacy_anagrafica_id=me, ruolo__nome__iexact=RUOLO_PREPOSTO, data_fine__isnull=True
+            legacy_anagrafica_id=me, ruolo_id__in=ruoli_preposto_ids(), data_fine__isnull=True
         ).exists():
             mie = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=me).values_list(
                 "area_aziendale_id", flat=True

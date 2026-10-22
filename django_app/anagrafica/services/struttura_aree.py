@@ -96,7 +96,40 @@ def rinomina_reparto(reparto: Reparto, nuovo_nome: str, *, user=None) -> dict:
 
     CampagnaRefresh.objects.filter(reparto__iexact=vecchio, stato=CampagnaRefresh.STATO_APERTA).update(
         reparto=nuovo_nome)
-    return {"schede": schede, "legacy": legacy}
+    out = {"schede": schede, "legacy": legacy}
+    out.update(propaga_nome_reparto(vecchio, nuovo_nome))
+    return out
+
+
+def propaga_nome_reparto(vecchio: str, nuovo: str, *, applica: bool = True) -> dict[str, int]:
+    """Riscrive il nome del reparto nei campi di testo degli altri moduli.
+
+    Macchine, operatori timbri, reparto utente e pratiche ancora aperte cercano il
+    reparto per nome: senza questo, dopo una rinomina, uscirebbero dal reparto
+    (es. le macchine dal refresh della skill matrix). Lo storico chiuso resta com'è.
+    Con ``applica=False`` conta soltanto.
+    """
+    from assets.models import Asset
+    from core.models import UserExtraInfo
+    from timbri.models import OperatoreTimbri
+
+    from ..models import OnboardingPratica
+    from ..models_recruiting import PosizioneAperta
+
+    bersagli = {
+        "macchine": (Asset.objects.filter(reparto__iexact=vecchio), "reparto"),
+        "macchine_assegnazione": (Asset.objects.filter(assignment_reparto__iexact=vecchio), "assignment_reparto"),
+        "operatori_timbri": (OperatoreTimbri.objects.filter(reparto__iexact=vecchio), "reparto"),
+        "utenti": (UserExtraInfo.objects.filter(reparto__iexact=vecchio), "reparto"),
+        "onboarding_aperti": (OnboardingPratica.objects.filter(
+            reparto__iexact=vecchio, stato__in=OnboardingPratica.STATI_APERTI), "reparto"),
+        "posizioni_aperte": (PosizioneAperta.objects.filter(
+            reparto__iexact=vecchio, stato__in=PosizioneAperta.STATI_ATTIVI), "reparto"),
+    }
+    conteggi: dict[str, int] = {}
+    for chiave, (qs, campo) in bersagli.items():
+        conteggi[chiave] = qs.update(**{campo: nuovo}) if applica else qs.count()
+    return conteggi
 
 
 @transaction.atomic

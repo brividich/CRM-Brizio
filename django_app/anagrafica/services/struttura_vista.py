@@ -125,7 +125,7 @@ def da_completare(mansioni=None) -> list[dict]:
         ("Mansioni senza processo SGI", [m for m in lavorative if not m.processo_sgi_id], "mansione"),
         ("Mansioni senza ruolo", [m for m in lavorative if not m.ruoli.all()], "mansione"),
         ("Mansioni senza mansione di rischio confermata",
-         [m for m in lavorative if not m.mansioni_rischio.all()], "mansione"),
+         [m for m in lavorative if not m.mansioni_rischio.all()], "rischio"),
         ("Reparti senza caporeparto (persona)",
          list(Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=True).order_by("nome")), "reparto"),
         ("Reparti senza ruolo responsabile",
