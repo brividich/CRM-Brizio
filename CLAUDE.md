@@ -1,136 +1,70 @@
-# CLAUDE.md - NOVICROM HUB AI Instructions
+# CLAUDE.md - NOVICROM HUB
 
 Versione app corrente: **1.6.8** (2026-10-16)
 
-## Prime Directive
+Portale Django interno (SSR + HTMX) per flussi di lavoro, operatività, sicurezza/compliance, automazioni e permessi granulari. Marchio canonico **NOVICROM HUB**; «Portale Novicrom» resta solo in percorsi di deploy e riferimenti storici.
 
-Build and maintain NOVICROM HUB conservatively: preserve security boundaries, auditability, legacy compatibility, and operational reliability. Prefer existing Django/SSR/HTMX patterns over new abstractions. Keep root `CLAUDE.md` short; long-form context lives in `docs/ai/`.
+Lavora in modo conservativo: preserva confini di sicurezza, tracciabilità, compatibilità legacy e affidabilità; preferisci i pattern Django/SSR/HTMX esistenti a nuove astrazioni. Il contesto lungo è in `docs/ai/` ([indice](docs/ai/00_INDEX.md)): apri solo il file che serve al compito, mai tutta la cartella.
 
-Do not read all docs automatically. Open only the files relevant to the current task.
+## Sicurezza
 
-## Security Boundaries
+- Mai segreti, dati reali di persone o clienti, contenuto di caselle, log di produzione, credenziali, certificati o export di dati personali in prompt, documenti, commit, esempi, screenshot o fixture: solo dati sintetici.
+- Materiale sensibile a runtime: `.env` (anche `config/.env` del deploy), credenziali Graph/LDAP/SMTP, certificati, dump di database, media con dati personali, log di produzione.
+- ACL v2 è il livello di autorizzazione primario; l'ACL legacy è solo il fallback dove manca un binding canonico. La visibilità nel menu non protegge niente: decide il server.
+- Superfici pubbliche a token strette: solo `/automazioni/approvazione/*` e `/approval-actions/*`; via Entra Application Proxy si pubblica solo `/approval-actions/*`. Ogni nuova esenzione da login/ACL va in `MIDDLEWARE_EXEMPT_PREFIXES` (`config/settings/base.py`) **e** in `PUBLIC_VIEWS` di `core/test_security_audit_fase3.py`.
+- Endpoint API/AJAX protetti: JSON `401/403`, mai redirect HTML.
+- Security Center AI (`diario_preposto`, `rilevazione_incidenti`, `procedure_refresh`, `dpi`, `rentri`): preserva audit trail, fonti di verità, privacy e tracciabilità visibile all'utente.
 
-- Never include secrets, real customer data, mailbox dumps, production logs, credentials, certificates, private reports, or raw personal-data exports in prompts, docs, commits, generated examples, screenshots, or test fixtures.
-- Treat `.env`, deploy `config/.env`, Graph/LDAP/SMTP credentials, certificates, database dumps, media with personal data, mailbox content, and production logs as sensitive runtime material.
-- Use synthetic examples for incidents, procedures, DPI, approvals, mailbox messages, Graph payloads, SharePoint data, and employee/customer records.
-- Preserve ACL v2 as the primary authorization layer; legacy ACL is compatibility fallback only when no canonical binding exists.
-- Navigation visibility is not a security boundary. Server-side ACL/middleware decisions remain authoritative.
-- Public/token surfaces must stay narrow: `/automazioni/approvazione/*` and `/approval-actions/*` only for approval tokens; publish only `/approval-actions/*` through Entra Application Proxy. The full list of login/ACL-exempt prefixes is `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py` (documented in `docs/ai/05_SECURITY_BOUNDARIES.md`); every new exemption also goes into `PUBLIC_VIEWS` of `core/test_security_audit_fase3.py`.
-- API/AJAX protected endpoints must return JSON `401/403`, not HTML redirects.
-- For Security Center AI work (`diario_preposto`, `rilevazione_incidenti`, `procedure_refresh`, `dpi`, `rentri`), preserve audit trail, source-of-truth boundaries, privacy, and user-visible traceability.
+Dettagli: [docs/ai/05_SECURITY_BOUNDARIES.md](docs/ai/05_SECURITY_BOUNDARIES.md).
 
-Details: [docs/ai/05_SECURITY_BOUNDARIES.md](docs/ai/05_SECURITY_BOUNDARIES.md).
+## Stack
 
-## Project Summary
+- Waitress dietro IIS (HttpPlatformHandler). SQL Server in test/prod (`mssql-django` + `pyodbc`); SQLite solo per sviluppo Django-only. Cache su database in prod, in memoria in dev.
+- Login a cascata: `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend`.
+- Template server-side, CSS proprio, HTMX; nessun framework JS. Integrazioni: Graph/SharePoint/Outlook, LDAP/AD, SMTP, Entra Application Proxy.
+- I settings leggono `.env` all'avvio con `_load_dotenv(...)`.
 
-NOVICROM HUB is the internal Django portal for workflows, operations, safety/compliance, automations, and granular ACL governance. Historical names such as `Portale Novicrom` may remain only as deployment/path examples or legacy references.
+Architettura: [02_ARCHITECTURE.md](docs/ai/02_ARCHITECTURE.md). Moduli: [03_BACKEND_MODULES.md](docs/ai/03_BACKEND_MODULES.md). Setup di sviluppo: [06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
 
-Primary product areas:
-- Core platform: `core`, `dashboard`, `admin_portale`, `hub_tools`, `setup_wizard`, `monitoring`.
-- Operations: `anagrafica`, `assets`, `tasks` / KICK-OFF, `planimetria`.
-- HR/workflow: `assenze`, `anomalie`, `tickets`, `timbri`, `notizie`.
-- Safety/compliance: `dpi`, `diario_preposto`, `rilevazione_incidenti`, `procedure_refresh`, `rentri`.
-- Automation: `automazioni` visual designer, SQL queue, approvals, Graph mailbox polling.
-
-## Tech Stack
-
-- Backend: Django 5.2, Python 3.11+.
-- Production runtime: Waitress via IIS HttpPlatformHandler.
-- Databases: SQL Server in test/prod via `mssql-django` + `pyodbc`; SQLite only for Django-only development.
-- Auth cascade: `AxesStandaloneBackend` -> `SQLServerLegacyBackend` -> `LDAPBackend` -> `ModelBackend`.
-- Frontend: server-rendered Django templates, custom CSS, HTMX partial updates; no full JS framework.
-- Integrations: Microsoft Graph/SharePoint/Outlook Calendar, LDAP/AD, SMTP, Entra Application Proxy for approval actions.
-- Cache: SQL Server `DatabaseCache` in production; local memory cache in dev.
-
-## Essential Commands
+## Test e controlli
 
 ```powershell
-# Dev setup
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r django_app\requirements.txt
-python django_app\manage.py migrate --settings=config.settings.dev
-python django_app\manage.py runserver --settings=config.settings.dev
-
-# Tests / checks
-python django_app\manage.py test
+python django_app\manage.py test django_app.<app> --keepdb --settings=config.settings.test
 python django_app\manage.py check --settings=config.settings.test
 python django_app\manage.py secret_hygiene_check
 python django_app\manage.py validate_deployment --format json --settings=config.settings.test
-
-# Tests - scoped (prefer these during development)
-python django_app\manage.py test django_app.<app_name> --settings=config.settings.test
-python django_app\manage.py test django_app.<app_name> --keepdb --settings=config.settings.test
-
-# ACL / release support
 python django_app\manage.py bootstrap_acl_v2 --dry-run
-python django_app\manage.py acl_fallback_report --only-unbound
 python django_app\manage.py acl_coverage_report --max-missing 222
-# Settings files call _load_dotenv(...) to read .env at startup
-.\tools\release_guard.ps1  # also: tools/release_guard.ps1
 ```
 
-No tests are required for documentation-only changes unless project files outside documentation are changed.
+- **Mai la suite completa** (`manage.py test` senza app) se non è richiesta: solo l'app toccata, con `--keepdb`. In background `--verbosity 0`; mai `runserver` insieme alla suite completa.
+- Per modifiche solo di documentazione non servono test.
+- Prima del pacchetto: release guard `tools/release_guard.ps1`.
 
-## Resource Constraints
+## Sessioni parallele e git
 
-- **Never run the full test suite (`manage.py test`) unless explicitly asked.**
-- Default to running only the tests for the app being modified:
-  `python django_app\manage.py test django_app.<app_name> --settings=config.settings.test`
-- Use `--keepdb` whenever possible to avoid recreating the test DB on every run.
-- Do not run `runserver` and the full test suite simultaneously.
-- Prefer `--verbosity 0` when running tests in background to reduce I/O.
+Più sessioni lavorano sul repo in contemporanea: branch e file non committati appartengono alla cartella, non alla sessione.
 
-## Background Work Guard (ALWAYS)
+- Il checkout condiviso `C:\Dev\Portale Novicrom` è **sola lettura**: lì mai `git checkout`/`git switch`, mai `git add -A`/`git commit -a`.
+- Apri con `git status`; lavora in un worktree dedicato: `git worktree add C:\Dev\pn-<tema> -B feature/<area>-<tema> origin/main`. Committa e pusha da lì, poi `git worktree remove` (percorso troppo lungo: `cmd /c rmdir /s /q <path>` + `git worktree prune`).
+- Ogni sessione chiude con un commit: nessun lavoro resta fuori da git.
+- Merge **sempre feature → main → release/prod** (regola di Brizio, 02/10/2026): mai una feature direttamente in release.
+- Committare non è deployare: in produzione va solo ciò che è in `release/prod`, da cui `package-release.ps1` crea il pacchetto. Il pacchetto nasce solo da un commit; `-FromWorkingTree -Force` è un'emergenza.
 
-- Whenever you start a **process, subagent (`Agent`), or background work** (`run_in_background` Bash/PowerShell, `Workflow`, long `Task`, external status polling), immediately arm a `ScheduleWakeup` **guard** so you regain control even if the completion notification never arrives.
-- Cadence ~5 min: use `delaySeconds: 270` (stays inside the 5-min prompt-cache TTL). Re-arm on each wake while the work is still in flight; explicit `reason`.
-- Close the guard (`ScheduleWakeup(stop: true)`) when the work finishes. The guard protects a **real wait** — don't leave hollow wakeups when nothing is running.
-- Rationale: past background waits left the session **stuck**; this is the safety heartbeat.
+Motivazioni e dettagli: [06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md#sessioni-parallele-e-disciplina-git).
 
-## Session Isolation (ALWAYS)
+## Lavoro in background
 
-Multiple Claude sessions work on this repo **at the same time**. The branch and the uncommitted files belong to the *folder*, not to the session: if every session works in `C:\Dev\Portale Novicrom`, one session's `git checkout` switches the branch under the others, and one session's `git add` stages another session's WIP (it also silently discards uncommitted edits made there).
+Appena avvii un processo, un subagente o un lavoro in background (`run_in_background`, `Workflow`, polling esterno), arma un `ScheduleWakeup` di guardia (`delaySeconds: 270`, `reason` esplicita). Riarmalo a ogni risveglio finché il lavoro è in corso e chiudilo (`stop: true`) quando finisce: le attese senza guardia hanno bloccato la sessione.
 
-- **Never work directly in the shared checkout `C:\Dev\Portale Novicrom`**, and never run `git checkout`/`git switch` there. Treat it as a read-only reference.
-- Before producing any commit, create a **dedicated worktree** on a dedicated branch:
-  `git worktree add C:\Dev\pn-<topic> -B <branch> origin/<base-branch>`
-  Work, test, commit and push from there; then `git worktree remove` (if the path is too long for git: `cmd /c rmdir /s /q <path>` + `git worktree prune`).
-- If you must touch a file in the shared checkout, **stage only your own hunks** — never `git add -A` / `git commit -a`: the working tree holds other sessions' WIP.
+## A ogni modifica, in automatico
 
-## Disciplina git di sessione (ALWAYS)
-
-- **Percorso obbligatorio dei merge: feature → main → release/prod.** Integrare e verificare prima in `main`, poi promuovere `main` in `release/prod`. Non fare merge diretti delle feature nella release. Regola esplicita di Brizio (02/10/2026).
-
-Il server di sviluppo serve la **cartella di lavoro**: il codice "funziona" anche quando non è committato. Il packager invece esporta un **commit del branch di release**. Un file non committato quindi funziona in locale e non esiste per la produzione — e la divergenza si scopre al deploy.
-
-- **Ogni sessione APRE con `git status`.** Se il tree è già sporco, il lavoro precedente va chiuso prima: non si costruisce sopra il WIP di un altro.
-- **Ogni sessione CHIUDE con un commit** su branch feature (`feature/<area>-<tema>`), nel worktree dedicato di cui sopra. Nessuna sessione termina con working tree sporco.
-- **Committare non è deployare.** Un commit WIP su branch feature è al sicuro, recuperabile e visibile in `git branch` — ma **non è in produzione**. Il codice è in produzione solo quando è in **`release/prod`**: è da lì che `package-release.ps1` esporta. Non c'è alcun motivo per lasciare lavoro fuori da git, e nessuna garanzia che un commit fuori da `release/prod` arrivi mai sul server.
-- **Il pacchetto si produce SOLO da un commit.** Il pre-flight di `package-release.ps1` fallisce se il tree è sporco o se il branch corrente ha commit assenti da `release/prod`. `-FromWorkingTree -Force` è un'emergenza, non una scorciatoia: il pacchetto che ne esce si dichiara non tracciabile in `BUILD_INFO.json` e la Centrale di comando lo mostra in rosso.
-- In sviluppo (`DEBUG=True`) il badge in basso a destra tiene i due numeri sotto gli occhi: file non committati e commit non ancora in `release/prod`.
-
-## Patch Workflow
-
-- Read only the relevant AI doc(s), not the whole `docs/ai` folder.
-- Keep edits scoped and compatible with existing module boundaries.
-- **MANDATORY after every code change:** update `CHANGELOG.md` with all modified files and a description under `[Unreleased]`. Do this automatically, without waiting for an explicit request.
-- **MANDATORY when visible functionality, URLs, setup, dependencies, or user-facing docs change:** update the module sheet `docs/moduli/<app>.md` (feature detail, commands, release notes) and, only if the one-line summary or URL changes, the module catalog table in `README.md`. Keep README rows short: long-form text never goes into the README. Do this automatically, without waiting for an explicit request.
-- **MANDATORY when a visible function changes:** update, in the same commit, the **in-app user guide** of the module (the page users open from the «? Guida» button: e.g. `anagrafica/formazione/guida/`, `formazione/corsi-online/guida/`, `anomalie/guida.py`, `timbri/guida.py`, `security/guide/`) with the real labels and thresholds from the code, and add the «? Guida» link on new pages. Also update the module file of the Centro guide `core/guide_moduli/contenuti/<modulo>.py` (parts `uso` / `admin` / `problemi`; new modules get a new file registered in `core/guide_moduli/__init__.py`) and, for new tables/apps or integrations, `hub_tools/schema_db.py` (`APP_INFO`, `CONNESSIONI_ESTERNE`). If the module has no guide yet, create one. Do this automatically, without waiting for an explicit request.
-- Update root `CLAUDE.md` only for concise operational changes; put long-form details in the relevant `docs/ai/*.md` file.
-- If user-facing behavior changes, follow the version-bump checklist in [docs/ai/06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
-- If `deployment/setup_wizard.py` changes, regenerate `deployment/dist/SetupWizard.exe` and respect bundle exclusions.
-
-## Documentation Map
-
-Long-form context lives in `docs/ai/`. The canonical, complete index is [docs/ai/00_INDEX.md](docs/ai/00_INDEX.md) — open only the file relevant to the current task. Keep this pointer here instead of duplicating the file list. Two pointers worth inlining: security boundaries in [docs/ai/05_SECURITY_BOUNDARIES.md](docs/ai/05_SECURITY_BOUNDARIES.md), and the pre-finish quality gates in [docs/ai/06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
-
-## Current Product Direction
-
-- Keep NOVICROM HUB as the canonical brand.
-- Keep `dashboard` as KPI/launcher; domain workflows stay in their modules.
-- Continue ACL migration toward canonical v2 while preserving legacy fallback until coverage is complete.
-- Keep automation approvals fail-closed, deduplicated, auditable, and portable across email/Teams/Graph paths.
-- Keep Setup Wizard and Windows/IIS deployment flows fail-fast and reproducible.
-- For Security Center AI, prioritize safety/compliance workflows, privacy, auditability, and synthetic test/demo data.
-
+- `CHANGELOG.md`, sezione `[Unreleased]`: file toccati e descrizione.
+- Cambiano funzioni visibili, URL, setup o dipendenze: scheda `docs/moduli/<app>.md`. La tabella moduli del `README.md` solo se cambiano riassunto o URL, con righe brevi.
+- Cambia una funzione visibile, nello stesso commit:
+  - guida in-app del modulo (pulsante «? Guida», es. `anomalie/guida.py`, `timbri/guida.py`, `security/guide/`) con le etichette e le soglie reali del codice; link «? Guida» sulle pagine nuove; se il modulo non ha una guida, va creata;
+  - Centro guide `core/guide_moduli/contenuti/<modulo>.py` (parti `uso`, `admin`, `problemi`; un modulo nuovo va registrato in `core/guide_moduli/__init__.py`);
+  - per tabelle, app o integrazioni nuove: `hub_tools/schema_db.py` (`APP_INFO`, `CONNESSIONI_ESTERNE`).
+- Cambia il comportamento per l'utente: checklist di bump versione in [06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
+- Cambia `deployment/setup_wizard.py`: rigenera `deployment/dist/SetupWizard.exe` rispettando le esclusioni del bundle.
+- Questo file resta corto: qui solo regole operative, i dettagli nel file giusto di `docs/ai/`.
