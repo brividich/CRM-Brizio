@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
 <link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/struttura_org.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -29,6 +29,7 @@
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_revisioni' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Revisioni</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_rischi' %}"><svg class="fmd-ico"><use href="#i-shield"/></svg>Rischi da confermare{% if kpi.rischi_da_confermare %} <span class="fmd-count">{{ kpi.rischi_da_confermare }}</span>{% endif %}</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% if is_admin %}{% url 'anagrafica:mansionario_struttura' %}{% else %}{% url 'anagrafica:mansionario' %}{% endif %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni e competenze</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_report_persone' %}" title="Una riga per persona: ruolo, mansioni con livello, mansioni da assegnare"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel per persona</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-organizzativa" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
@@ -81,6 +82,7 @@
           <span class="mns-gruppo-h">
             <svg class="fmd-ico mns-chev" aria-hidden="true"><use href="#i-chevron-right"/></svg>
             <span class="mns-gruppo-nome">{{ r.reparto.nome }}</span>
+            <button type="button" class="sto-apri-btn" data-sto-apri="reparto" data-id="{{ r.reparto.pk }}" title="Scheda del reparto: aree, persone, macchine">Scheda</button>
             <span class="fmd-count">{{ r.aree|length }} are{{ r.aree|length|pluralize:"a,e" }}</span>
           </span>
           <span class="mns-gruppo-meta">
@@ -106,7 +108,7 @@
           <p class="sto-resp">Mansione <a href="{% url 'anagrafica:mansionario_mansione' r.responsabilita.pk %}">«{{ r.responsabilita.nome }}»</a>: qui si definiscono le competenze del responsabile. Chi la ricopre è il caporeparto del reparto.</p>
           {% endif %}
           {% for a in r.aree %}
-          <div class="sto-area" data-sto-area data-q="{{ a.area.nome|lower }}{% for nome, ms in a.ruoli %} {{ nome|lower }}{% for m in ms %} {{ m.nome|lower }}{% endfor %}{% endfor %}">
+          <div class="sto-area" data-sto-area data-q="{{ a.area.nome|lower }}{% for nome, ruolo, ms in a.ruoli %} {{ nome|lower }}{% for m in ms %} {{ m.nome|lower }}{% endfor %}{% endfor %}">
             <div class="sto-area-h">
               <span class="sto-area-nome">{{ a.area.nome }}</span>
               <span class="sto-area-meta">{{ a.n_mansioni }} mansion{{ a.n_mansioni|pluralize:"e,i" }} · {{ a.persone }} person{{ a.persone|pluralize:"a,e" }}
@@ -122,11 +124,11 @@
               </form>
               {% endif %}
             </div>
-            {% for nome, ms in a.ruoli %}
+            {% for nome, ruolo, ms in a.ruoli %}
             <div class="sto-ruolo">
-              <span class="sto-ruolo-nome">{{ nome }}</span>
+              {% if ruolo %}<a class="sto-ruolo-nome" href="#" data-sto-apri="ruolo" data-id="{{ ruolo.pk }}">{{ nome }}</a>{% else %}<span class="sto-ruolo-nome">{{ nome }}</span>{% endif %}
               <ul class="sto-mansioni">
-                {% for m in ms %}<li><a href="{% url 'anagrafica:mansionario_mansione' m.pk %}">{{ m.nome }}</a>{% if m.abilitazione_con_scadenza %} <span class="fmd-badge sto-badge" title="Abilitazione con validità o scadenza">abilitazione</span>{% endif %}{% if not m.mansioni_rischio.all %} <span class="fmd-c-mai sto-nota">rischio da confermare</span>{% endif %}</li>{% endfor %}
+                {% for m in ms %}<li><a href="{% url 'anagrafica:mansionario_mansione' m.pk %}" data-sto-apri="mansione" data-id="{{ m.pk }}">{{ m.nome }}</a>{% if m.abilitazione_con_scadenza %} <span class="fmd-badge sto-badge" title="Abilitazione con validità o scadenza">abilitazione</span>{% endif %}{% if not m.mansioni_rischio.all %} <span class="fmd-c-mai sto-nota">rischio da confermare</span>{% endif %}</li>{% endfor %}
               </ul>
             </div>
             {% empty %}
@@ -199,7 +201,7 @@
         {% for x in ruoli %}
           <tr>
             <td><strong>{{ x.ruolo.sigla|default:"—" }}</strong></td>
-            <td>{{ x.ruolo.nome }}{% if x.ruolo.nomi_precedenti %} <span class="sto-nota" title="{{ x.ruolo.nomi_precedenti }}">(accorpa {{ x.ruolo.nomi_precedenti.splitlines|length }})</span>{% endif %}</td>
+            <td><a href="#" data-sto-apri="ruolo" data-id="{{ x.ruolo.pk }}">{{ x.ruolo.nome }}</a>{% if x.ruolo.nomi_precedenti %} <span class="sto-nota" title="{{ x.ruolo.nomi_precedenti }}">(accorpa {{ x.ruolo.nomi_precedenti.splitlines|length }})</span>{% endif %}</td>
             <td>{{ x.ruolo.get_classe_display|default:"—" }}</td>
             <td class="sto-small">{{ x.ruolo.ambito_label }}</td>
             <td>{% if x.persone %}{{ x.persone }}{% else %}<span class="fmd-c-s30">0</span>{% endif %}</td>
@@ -247,6 +249,45 @@
 
   </div>
 </div>
+
+{# Scheda laterale: ruolo, mansione, reparto (caricata al clic) #}
+<div class="sto-velo" data-sto-velo hidden></div>
+<aside class="sto-drawer" data-sto-drawer aria-label="Scheda" aria-hidden="true" tabindex="-1"
+       data-url-ruolo="{% url 'anagrafica:struttura_scheda_ruolo' 0 %}"
+       data-url-mansione="{% url 'anagrafica:struttura_scheda_mansione' 0 %}"
+       data-url-reparto="{% url 'anagrafica:struttura_scheda_reparto' 0 %}">
+  <div class="fmd sto-drawer-body" data-sto-drawer-body></div>
+</aside>
+
+<script>
+(function(){
+  // Scheda laterale: un clic su ruolo, mansione o reparto la apre; Esc o il velo la chiudono.
+  var dr=document.querySelector('[data-sto-drawer]'),velo=document.querySelector('[data-sto-velo]');
+  if(!dr)return;
+  var body=dr.querySelector('[data-sto-drawer-body]'),ultimo=null;
+  function chiudi(){dr.classList.remove('sto-drawer-on');dr.setAttribute('aria-hidden','true');velo.hidden=true;
+    if(location.hash.indexOf('#scheda-')===0)history.replaceState(null,'',location.pathname+location.search);
+    if(ultimo)ultimo.focus();}
+  function apri(tipo,id,da){
+    var base=dr.dataset['url'+tipo.charAt(0).toUpperCase()+tipo.slice(1)];if(!base)return;
+    ultimo=da||null;body.innerHTML='<p class="sto-sch-vuoto">Caricamento…</p>';
+    dr.classList.add('sto-drawer-on');dr.setAttribute('aria-hidden','false');velo.hidden=false;
+    history.replaceState(null,'','#scheda-'+tipo+'-'+id);
+    fetch(base.replace(/0\/$/,id+'/'),{headers:{'X-Requested-With':'fetch'},credentials:'same-origin'})
+      .then(function(r){if(!r.ok)throw r;return r.text();})
+      .then(function(h){body.innerHTML=h;dr.focus();})
+      .catch(function(){body.innerHTML='<p class="sto-sch-vuoto">Scheda non disponibile.</p>';});
+  }
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('[data-sto-apri]');
+    if(a){if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();e.stopPropagation();apri(a.dataset.stoApri,a.dataset.id,a);return;}
+    if(e.target.closest('[data-sto-chiudi]')||e.target===velo)chiudi();
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dr.classList.contains('sto-drawer-on'))chiudi();});
+  function daHash(){var m=/^#scheda-(ruolo|mansione|reparto)-(\d+)$/.exec(location.hash);if(m)apri(m[1],m[2]);}
+  window.addEventListener('hashchange',daHash);daHash();
+})();
+</script>
 
 <script>
 (function(){

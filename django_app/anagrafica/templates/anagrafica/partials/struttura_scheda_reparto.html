@@ -1,0 +1,48 @@
+<div class="sto-sch-head">
+  <div>
+    <div class="sto-sch-tipo">Reparto</div>
+    <h2 class="sto-sch-titolo">{{ reparto.nome }}</h2>
+    <div class="sto-sch-sub">Ruolo responsabile: {% if reparto.ruolo_responsabile_id %}<a href="#" data-sto-apri="ruolo" data-id="{{ reparto.ruolo_responsabile_id }}">{{ reparto.ruolo_responsabile.etichetta }}</a>{% else %}da indicare{% endif %} · caporeparto {{ caporeparto|default:"da indicare" }}</div>
+  </div>
+  <button type="button" class="sto-sch-x" data-sto-chiudi aria-label="Chiudi">×</button>
+</div>
+
+<div class="sto-sch-kpi">
+  <div><b>{{ aree|length }}</b><span>are{{ aree|length|pluralize:"a,e" }}</span></div>
+  <div><b>{{ persone }}</b><span>person{{ persone|pluralize:"a,e" }}</span></div>
+  <div><b>{{ n_mansioni }}</b><span>mansion{{ n_mansioni|pluralize:"e,i" }}</span></div>
+  <div><b>{{ n_macchine }}</b><span>macchin{{ n_macchine|pluralize:"a,e" }}</span></div>
+</div>
+
+<section class="sto-sch-sez">
+  <h3>Aree</h3>
+  {% if aree %}
+  <ul class="sto-sch-lista">{% for a in aree %}<li><strong>{{ a.area.nome }}</strong> · {{ a.persone }} person{{ a.persone|pluralize:"a,e" }}{% if a.area.ruolo_responsabile_id %} · responsabile <a href="#" data-sto-apri="ruolo" data-id="{{ a.area.ruolo_responsabile_id }}">{{ a.area.ruolo_responsabile.etichetta }}</a>{% endif %}{% if a.responsabile %} ({{ a.responsabile }}){% endif %}</li>{% endfor %}</ul>
+  {% else %}<p class="sto-sch-vuoto">Nessuna area.</p>{% endif %}
+  {% if responsabili %}<p class="sto-nota">Co-responsabili: {% for p in responsabili %}<a href="{% url 'anagrafica:dipendente_detail' p.id %}">{{ p.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if is_admin %}<a class="sto-link" href="{% url 'anagrafica:aree_list' %}">Caporeparto, co-responsabili e aree →</a>{% endif %}
+</section>
+
+<section class="sto-sch-sez">
+  <h3>Macchine del reparto</h3>
+  {% if macchine %}
+  <ul class="sto-sch-lista sto-sch-col2">{% for a in macchine %}<li><a href="{% url 'assets:asset_view' a.pk %}">{{ a.name }}</a></li>{% endfor %}</ul>
+  {% if n_macchine > macchine|length %}<p class="sto-nota">Ne vedi {{ macchine|length }} su {{ n_macchine }}.</p>{% endif %}
+  {% else %}<p class="sto-sch-vuoto">Nessuna macchina con questo reparto.</p>{% endif %}
+</section>
+
+<div class="sto-sch-azioni">
+  <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:struttura_report_persone' %}?reparto={{ reparto.pk }}">Excel: ruoli e mansioni delle persone del reparto</a>
+</div>
+
+{% if is_admin %}
+<section class="sto-sch-sez sto-sch-edit">
+  <h3>Rinomina il reparto</h3>
+  <form method="post" action="{% url 'anagrafica:struttura_reparto_rinomina' reparto.pk %}" class="sto-form">
+    {% csrf_token %}
+    <label>Nuovo nome <input type="text" name="nome" value="{{ reparto.nome }}" maxlength="100" required></label>
+    <p class="sto-nota">Si aggiornano anche schede dei dipendenti, anagrafica, macchine, operatori timbri, utenti e pratiche aperte.</p>
+    <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Rinomina</button>
+  </form>
+</section>
+{% endif %}
