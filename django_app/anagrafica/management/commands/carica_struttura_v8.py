@@ -23,6 +23,13 @@ class Command(BaseCommand):
                             help="Non assegna l'area alle persone che non ce l'hanno.")
         parser.add_argument("--solo-da-decidere", action="store_true", help="Stampa solo i punti da decidere.")
 
+    def _scrivi(self, testo, stile=None):
+        # La console di produzione è cp1252: un carattere fuori tabella farebbe
+        # crollare il rapporto DOPO il salvataggio. Lo sostituiamo con «?».
+        enc = getattr(self.stdout._out, "encoding", None) or "utf-8"
+        testo = testo.encode(enc, errors="replace").decode(enc)
+        self.stdout.write(stile(testo) if stile else testo)
+
     def handle(self, *args, **opts):
         r = struttura_v8.carica(applica=opts["applica"], aree_persone=not opts["senza_aree_persone"])
         righe = r.da_decidere if opts["solo_da_decidere"] else r.righe
@@ -30,11 +37,13 @@ class Command(BaseCommand):
         for riga in righe:
             if riga.fase != fase:
                 fase = riga.fase
-                self.stdout.write(self.style.MIGRATE_HEADING(f"\n== {fase.upper()} =="))
+                self._scrivi(f"\n== {fase.upper()} ==", self.style.MIGRATE_HEADING)
             testo = f"  [{riga.azione}] {riga.oggetto}" + (f" — {riga.dettaglio}" if riga.dettaglio else "")
-            self.stdout.write(self.style.WARNING(testo) if riga.azione == "segnala" else testo)
+            self._scrivi(testo, self.style.WARNING if riga.azione == "segnala" else None)
         self.stdout.write("")
         for k, v in sorted(r.conteggi().items()):
-            self.stdout.write(f"  {k}: {v}")
-        self.stdout.write(self.style.SUCCESS("\nApplicato.") if r.applicato
-                          else self.style.NOTICE("\nPROVA: nulla è stato salvato. Rilancia con --applica per scrivere."))
+            self._scrivi(f"  {k}: {v}")
+        if r.applicato:
+            self._scrivi("\nApplicato.", self.style.SUCCESS)
+        else:
+            self._scrivi("\nPROVA: nulla è stato salvato. Rilancia con --applica per scrivere.", self.style.NOTICE)
