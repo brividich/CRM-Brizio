@@ -1,0 +1,5 @@
+<div class="cvp-stats">
+  <div class="cvp-stat{% if n_colpiscono %} cvp-stat--danger{% endif %}"><strong>{{ n_colpiscono }}</strong><span>CVE colpiscono</span></div>
+  <div class="cvp-stat{% if n_gravi %} cvp-stat--critical{% endif %}"><strong>{{ n_gravi }}</strong><span>gravi</span><small>sfruttate o CVSS ≥ 9</small></div>
+  <div class="cvp-stat"><strong>{{ n_verificare }}</strong><span>da verificare</span></div>
+</div>

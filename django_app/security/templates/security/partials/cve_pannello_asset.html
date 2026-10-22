@@ -1,0 +1,18 @@
+{# Pannello CVE di un PC: le CVE raggruppate per software installato. Numeri = cve_pannello.per_asset. #}
+<header class="pv-head">
+  <div class="cvp-kicker">Vulnerabilità del PC</div>
+  <h2>{{ asset.name|default:asset.asset_tag }}</h2>
+  <p class="pv-sub">CVE sui software installati oggi, dall'ultimo inventario</p>
+</header>
+{% include "security/partials/cve_pannello_numeri.html" with n_colpiscono=dati.colpiscono n_gravi=dati.gravi n_verificare=dati.da_verificare %}
+{% for s in dati.software %}
+  <details class="cvp-group{% if sw and s.key == sw %} is-focus{% endif %}"{% if sw %}{% if s.key == sw %} open{% endif %}{% elif s.colpiscono %} open{% endif %}>
+    <summary><span class="cvp-group-name">{{ s.nome }}</span>{% if s.versione %} <span class="cvp-group-ver">{{ s.versione }}</span>{% endif %}
+      <span class="cvp-group-count">{% if s.colpiscono %}<span class="cvp-pill cvp-pill--{% if s.gravi %}critical{% else %}high{% endif %}">{{ s.colpiscono|length }} CVE</span>{% endif %}{% if s.da_verificare %} <span class="cvp-pill cvp-pill--muted">{{ s.da_verificare|length }} da verificare</span>{% endif %}</span>
+    </summary>
+    <ul class="cvp-list">{% for r in s.colpiscono %}{% include "security/partials/cve_pannello_riga.html" %}{% endfor %}{% for r in s.da_verificare %}{% include "security/partials/cve_pannello_riga.html" %}{% endfor %}</ul>
+  </details>
+{% empty %}
+  <p class="cvp-empty">Nessuna CVE nota colpisce i software di questo PC secondo l'ultimo calcolo.</p>
+{% endfor %}
+<footer class="pv-foot"><a class="cvp-btn" href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></footer>

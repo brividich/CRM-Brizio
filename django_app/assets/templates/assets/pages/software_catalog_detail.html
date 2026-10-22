@@ -6,6 +6,13 @@
 
 {% block assets_shell_content %}
 <section class="sc-page">
+  {% if show_cve %}
+  <div class="sc-card sc-cve-strip{% if cve_count %} has-cve{% endif %}">
+    <div><strong>{% if cve_count %}{{ cve_count }} CVE colpiscono questo programma{% else %}Nessuna CVE nota colpisce questo programma{% endif %}</strong>
+      <p class="sc-note">{% if cve_count %}Calcolate sui PC che lo hanno oggi, versione per versione: nella tabella «Versioni presenti» vedi quali versioni sono vulnerabili.{% else %}Secondo l'ultimo calcolo del SOC. Un programma non collegato a un CPE non si può controllare.{% endif %}</p></div>
+    <button type="button" class="cvp-open{% if not cve_count %} cvp-open--warn{% endif %}" data-preview="{{ cve_panel_url }}">{% if cve_count %}Vedi le CVE{% else %}Dettagli{% endif %}</button>
+  </div>
+  {% endif %}
   <div class="sc-card">
     <h2 style="margin:0 0 10px;font-size:18px">Decisione dell'azienda</h2>
     {% if can_edit %}
@@ -43,11 +50,12 @@
   <div class="sc-card sc-table-wrap">
     <h2 style="margin:0 0 10px;font-size:18px">Versioni presenti ({{ version_rows|length }})</h2>
     <table class="sc-table">
-      <thead><tr><th>Versione</th><th>PC</th><th>Fonti</th></tr></thead>
+      <thead><tr><th>Versione</th><th>PC</th><th>Fonti</th>{% if show_cve %}<th>CVE</th>{% endif %}</tr></thead>
       <tbody>
       {% for v in version_rows %}
-        <tr><td>{{ v.version }}{% if v.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td><td>{{ v.hosts }}</td><td>{{ v.fonti|join:", "|default:"—" }}</td></tr>
-      {% empty %}<tr><td colspan="3" class="sc-meta">Nessuna versione rilevata.</td></tr>{% endfor %}
+        <tr><td>{{ v.version }}{% if v.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td><td>{{ v.hosts }}</td><td>{{ v.fonti|join:", "|default:"—" }}</td>
+          {% if show_cve %}<td>{% if v.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}" title="CVE che colpiscono la versione {{ v.version }}">{{ v.cves }} CVE</button>{% else %}<span class="sc-tag sc-tag--ok">nessuna nota</span>{% endif %}</td>{% endif %}</tr>
+      {% empty %}<tr><td colspan="4" class="sc-meta">Nessuna versione rilevata.</td></tr>{% endfor %}
       </tbody>
     </table>
     <p class="sc-note" style="margin-top:8px">Il programma può comparire con nomi diversi nelle fonti (es. «chrome» e «Google Chrome»): qui sono raggruppati. L'elenco dei PC è qui sotto, con la versione di ciascuno.</p>
@@ -72,4 +80,5 @@
     </table>
   </div>
 </section>
+{% if show_cve %}{% include "security/partials/cve_pannello_risorse.html" %}{% endif %}
 {% endblock %}

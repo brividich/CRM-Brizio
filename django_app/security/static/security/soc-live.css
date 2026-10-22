@@ -107,3 +107,99 @@ body.theme-dark .soc-drawer a:not(.sec-button):not(.sec-button-primary) { color:
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .soc-drawer a{color:#93c5fd}
+
+/* Pannello CVE (inventario software, scheda asset, SOC): elenco per pericolo + scheda breve */
+.soc-drawer .cvp-kicker { color: var(--text-light); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.soc-drawer .cvp-id { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: -.2px; }
+.soc-drawer .cvp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.soc-drawer .cvp-stat { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.soc-drawer .cvp-stat strong { font-size: 22px; line-height: 1.1; }
+.soc-drawer .cvp-stat span { color: var(--text-mid); font-size: 12px; line-height: 1.3; }
+.soc-drawer .cvp-stat small { color: var(--text-light); }
+.soc-drawer .cvp-stat--danger { border-color: rgba(234, 88, 12, .45); background: rgba(234, 88, 12, .06); }
+.soc-drawer .cvp-stat--danger strong { color: #c2410c; }
+.soc-drawer .cvp-stat--critical { border-color: rgba(220, 38, 38, .5); background: rgba(220, 38, 38, .07); }
+.soc-drawer .cvp-stat--critical strong { color: var(--danger, #dc2626); }
+.soc-drawer .cvp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.soc-drawer .cvp-item { display: grid; gap: 4px; padding: 10px 12px 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px; color: var(--text); text-decoration: none; transition: background .12s ease, border-color .12s ease, transform .12s ease; }
+.soc-drawer a.cvp-item, body.theme-dark .soc-drawer a.cvp-item { color: var(--text); }
+.soc-drawer .cvp-item:hover, .soc-drawer .cvp-item:focus-visible { background: rgba(59, 130, 246, .06); border-color: rgba(59, 130, 246, .45); transform: translateX(-2px); outline: none; }
+.soc-drawer .cvp-item--critical { border-left-color: var(--danger, #dc2626); }
+.soc-drawer .cvp-item--high { border-left-color: #ea580c; }
+.soc-drawer .cvp-item--medium { border-left-color: var(--warning, #d97706); }
+.soc-drawer .cvp-item--low, .soc-drawer .cvp-item--muted { border-left-color: var(--text-light); }
+.soc-drawer .cvp-item-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.soc-drawer .cvp-item-top .cvp-id { margin-right: auto; font-size: 14px; }
+.soc-drawer .cvp-desc { color: var(--text-mid); font-size: 13px; line-height: 1.4; }
+.soc-drawer .cvp-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--text-light); font-size: 12px; }
+.soc-drawer .cvp-fix { color: var(--success, #16a34a); font-weight: 600; }
+.soc-drawer .cvp-pill { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+.soc-drawer .cvp-pill--critical { background: rgba(220, 38, 38, .12); color: #b91c1c; border-color: rgba(220, 38, 38, .3); }
+.soc-drawer .cvp-pill--high { background: rgba(234, 88, 12, .12); color: #c2410c; border-color: rgba(234, 88, 12, .3); }
+.soc-drawer .cvp-pill--medium { background: rgba(217, 119, 6, .12); color: #b45309; border-color: rgba(217, 119, 6, .3); }
+.soc-drawer .cvp-pill--low, .soc-drawer .cvp-pill--muted { background: rgba(100, 116, 139, .12); color: var(--text-mid); border-color: rgba(100, 116, 139, .25); }
+.soc-drawer .cvp-pill--kev { background: #7f1d1d; color: #fff; }
+.soc-drawer .cvp-more > summary, .soc-drawer .cvp-group > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.soc-drawer .cvp-more[open] > summary, .soc-drawer .cvp-group[open] > summary { margin-bottom: 8px; }
+.soc-drawer .cvp-group { border: 1px solid var(--border); border-radius: 10px; padding: 4px 12px 10px; }
+.soc-drawer .cvp-group > summary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.soc-drawer .cvp-group-ver { color: var(--text-light); font-weight: 400; font-size: 12px; }
+.soc-drawer .cvp-group-count { margin-left: auto; display: inline-flex; gap: 4px; }
+.soc-drawer .cvp-note, .soc-drawer .cvp-empty { margin: 0; color: var(--text-mid); font-size: var(--fs-sm); }
+.soc-drawer .cvp-empty { padding: 14px; border: 1px dashed var(--border); border-radius: 10px; }
+.soc-drawer .cvp-back { justify-self: start; font-size: var(--fs-sm); font-weight: 600; text-decoration: none; }
+.soc-drawer .cvp-todo { display: grid; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); border-left: 4px solid var(--success, #16a34a); font-size: var(--fs-sm); }
+.soc-drawer .cvp-todo--critical { border-left-color: var(--danger, #dc2626); background: rgba(220, 38, 38, .05); }
+.soc-drawer .cvp-todo--high { border-left-color: #ea580c; background: rgba(234, 88, 12, .05); }
+.soc-drawer .cvp-todo--medium { border-left-color: var(--warning, #d97706); }
+.soc-drawer .cvp-hosts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.soc-drawer .cvp-hosts li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.soc-drawer .cvp-hosts li.is-this { border-color: rgba(59, 130, 246, .55); background: rgba(59, 130, 246, .06); }
+.soc-drawer .cvp-host-why { grid-column: 1 / -1; color: var(--text-light); }
+.soc-drawer .cvp-ranges { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-mid); font-family: ui-monospace, Consolas, monospace; }
+body.theme-dark .soc-drawer .cvp-pill--critical { color: #fca5a5; }
+body.theme-dark .soc-drawer .cvp-pill--high { color: #fdba74; }
+body.theme-dark .soc-drawer .cvp-pill--medium { color: #fcd34d; }
+body.theme-dark .soc-drawer .cvp-stat--danger strong { color: #fdba74; }
+body.theme-dark .soc-drawer .cvp-stat--critical strong { color: #fca5a5; }
+body.theme-dark .soc-drawer .cvp-fix { color: #86efac; }
+@media (max-width: 520px) { .soc-drawer .cvp-stats { grid-template-columns: 1fr 1fr 1fr; } .soc-drawer .cvp-stat strong { font-size: 18px; } }
+
+/* Pulsante che apre il pannello CVE (badge «N CVE» cliccabile) */
+.cvp-open { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(220, 38, 38, .35); background: rgba(220, 38, 38, .08); color: #b91c1c; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .12s ease, box-shadow .12s ease; }
+.cvp-open:hover, .cvp-open:focus-visible { background: rgba(220, 38, 38, .16); box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); outline: none; }
+.cvp-open::after { content: "\203A"; font-size: 14px; line-height: 1; }
+.cvp-open--warn { border-color: rgba(217, 119, 6, .35); background: rgba(217, 119, 6, .08); color: #b45309; }
+.cvp-open--warn:hover, .cvp-open--warn:focus-visible { background: rgba(217, 119, 6, .16); box-shadow: 0 0 0 3px rgba(217, 119, 6, .12); }
+body.theme-dark .cvp-open { color: #fca5a5; }
+body.theme-dark .cvp-open--warn { color: #fcd34d; }
+.soc-drawer .cvp-group.is-focus { border-color: rgba(59, 130, 246, .55); box-shadow: 0 0 0 3px rgba(59, 130, 246, .1); }
+
+/* Riquadro «Vulnerabilità» nella scheda asset: numeri + le 5 CVE più pericolose (aprono il pannello) */
+.cvp-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.cvp-card-stat { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border, #dbe3ef); border-radius: 12px; }
+.cvp-card-stat strong { font-size: 22px; line-height: 1.1; }
+.cvp-card-stat span { color: var(--text-mid, #64748b); font-size: 12px; }
+.cvp-card-stat.is-danger { border-color: rgba(234, 88, 12, .45); background: rgba(234, 88, 12, .06); }
+.cvp-card-stat.is-danger strong { color: #c2410c; }
+.cvp-card-stat.is-critical { border-color: rgba(220, 38, 38, .5); background: rgba(220, 38, 38, .07); }
+.cvp-card-stat.is-critical strong { color: var(--danger, #dc2626); }
+.cvp-card-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.cvp-card-item { width: 100%; display: grid; grid-template-columns: auto auto 1fr; gap: 3px 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--border, #dbe3ef); border-left: 4px solid var(--border, #dbe3ef); border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.cvp-card-item:hover, .cvp-card-item:focus-visible, .cvp-card-item.is-previewed { background: rgba(59, 130, 246, .06); border-color: rgba(59, 130, 246, .45); outline: none; }
+.cvp-card-item--critical { border-left-color: var(--danger, #dc2626); }
+.cvp-card-item--high { border-left-color: #ea580c; }
+.cvp-card-item--medium { border-left-color: var(--warning, #d97706); }
+.cvp-card-id { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 700; font-size: 13px; }
+.cvp-card-kev { padding: 0 7px; border-radius: 999px; background: #7f1d1d; color: #fff; font-size: 10px; font-weight: 700; }
+.cvp-card-score { justify-self: end; grid-column: 3; color: var(--text-mid, #64748b); font-size: 12px; font-weight: 700; }
+.cvp-card-desc { grid-column: 1 / -1; color: var(--text-mid, #64748b); font-size: 12px; line-height: 1.35; }
+body.theme-dark .cvp-card-stat.is-danger strong { color: #fdba74; }
+body.theme-dark .cvp-card-stat.is-critical strong { color: #fca5a5; }
+
+.soc-drawer .cvp-stat small { font-size: 11px; line-height: 1.2; }
+.soc-drawer .cvp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font-size: var(--fs-sm, 13px); font-weight: 600; text-decoration: none; }
+.soc-drawer .cvp-btn:hover, .soc-drawer .cvp-btn:focus-visible { border-color: rgba(59, 130, 246, .55); background: rgba(59, 130, 246, .06); outline: none; }
+.soc-drawer .cvp-btn--primary, body.theme-dark .soc-drawer a.cvp-btn--primary { background: var(--primary-mid, #2563eb); border-color: var(--primary-mid, #2563eb); color: #fff; }
+.soc-drawer .cvp-btn--primary:hover { background: var(--primary, #1d4ed8); }
+body.theme-dark .soc-drawer a.cvp-btn:not(.cvp-btn--primary) { color: var(--text); }

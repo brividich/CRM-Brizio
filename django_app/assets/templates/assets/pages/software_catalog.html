@@ -14,6 +14,11 @@
 .sc-search{display:flex;gap:8px;margin-left:auto}
 .sc-search input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit;min-width:220px}
 .sc-table-wrap{overflow:auto}
+.sc-cve-strip{display:flex;gap:14px;align-items:center;justify-content:space-between;border-left:5px solid var(--success,#16a34a)}
+.sc-cve-strip.has-cve{border-left-color:var(--danger,#dc2626);background:color-mix(in srgb,var(--danger,#dc2626) 5%,var(--surface,#fff))}
+.sc-cve-strip strong{font-size:16px}
+.sc-cve-strip .sc-note{margin-top:2px}
+.sc-cve-strip .cvp-open{font-size:13px;padding:6px 14px}
 .sc-table{width:100%;border-collapse:collapse}
 .sc-table th{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border,#e5e7eb);color:var(--text-mid,#64748b);font-size:var(--fs-xs,12px);text-transform:uppercase;letter-spacing:.04em}
 .sc-table td{padding:10px 8px;border-bottom:1px solid color-mix(in srgb,var(--border,#e5e7eb) 60%,transparent);vertical-align:top}
@@ -59,7 +64,7 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
             {% if row.paid_without_license %}<br><span class="sc-tag sc-tag--warn">A pagamento senza licenza</span>{% endif %}
           </td>
           <td>{% if row.min_version %}{{ row.min_version }}{% if row.outdated %}<br><span class="sc-tag sc-tag--warn">{{ row.outdated }} PC sotto</span>{% endif %}{% else %}<span class="sc-meta">—</span>{% endif %}</td>
-          {% if show_cve %}<td>{% if row.cves %}<span class="sc-tag sc-tag--danger">{{ row.cves }} CVE</span>{% else %}<span class="sc-meta">—</span>{% endif %}</td>{% endif %}
+          {% if show_cve %}<td>{% if row.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}?k={{ row.key|urlencode }}" title="Vedi le CVE di {{ row.name }}">{{ row.cves }} CVE</button>{% else %}<span class="sc-meta">—</span>{% endif %}</td>{% endif %}
         </tr>
       {% empty %}
         <tr><td colspan="7" class="sc-meta">{% if q or filter_code != "all" %}Nessun software con questi filtri.{% else %}Nessun software: l'inventario non è ancora stato importato nel SOC (Configurazione › Inventario software).{% endif %}</td></tr>
@@ -68,4 +73,5 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
     </table>
   </div>
 </section>
+{% if show_cve %}{% include "security/partials/cve_pannello_risorse.html" %}{% endif %}
 {% endblock %}

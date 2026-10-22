@@ -17,7 +17,7 @@
           <td style="white-space:nowrap">{{ row.first_seen|date:"d/m/Y" }}</td>
           <td style="white-space:nowrap">{{ row.last_seen|date:"d/m/Y" }}</td>
           <td>{% if row.license == "coperta" %}<span class="af-pill af-pill--ok">Licenza valida</span>{% elif row.license == "scaduta" %}<span class="af-pill af-pill--danger">Licenza scaduta</span>{% else %}<span class="af-note">—</span>{% endif %}</td>
-          {% if show_cve %}<td>{% if row.cve_impacts %}<span class="af-pill af-pill--danger" title="{{ row.cve_impacts|join:', ' }}">{{ row.cve_impacts|length }} CVE</span>{% for cve in row.cve_impacts|slice:":2" %} <a href="{% url 'security:cve_detail' cve %}">{{ cve }}</a>{% endfor %}{% elif row.cve_to_verify %}<span class="af-pill af-pill--warn">{{ row.cve_to_verify }} da verificare</span>{% else %}<span class="af-note">—</span>{% endif %}</td>{% endif %}
+          {% if show_cve %}<td>{% if row.cve_impacts %}<button type="button" class="cvp-open" data-preview="{% url 'security:cve_pannello_asset' asset.pk %}?sw={{ row.key|urlencode }}" title="{{ row.cve_impacts|join:', ' }}">{{ row.cve_impacts|length }} CVE</button>{% elif row.cve_to_verify %}<button type="button" class="cvp-open cvp-open--warn" data-preview="{% url 'security:cve_pannello_asset' asset.pk %}?sw={{ row.key|urlencode }}">{{ row.cve_to_verify }} da verificare</button>{% else %}<span class="af-note">—</span>{% endif %}</td>{% endif %}
         </tr>
       {% endfor %}
       </tbody>
@@ -26,4 +26,5 @@
   <p class="af-note">«Licenza» compare per i software collegati a una licenza in <a href="{% url 'assets:software_license_list' %}">Licenze software</a>. Un software senza licenza collegata non è per forza a pagamento.</p>
   </div>
 </section>
+{% if show_cve %}{% include "security/partials/cve_pannello_risorse.html" %}{% endif %}
 {% endif %}
