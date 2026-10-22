@@ -818,12 +818,49 @@ class AnagraficaDipendentiViewTests(TestCase):
             # Markup avatar attuale (design system fmd-): <span class="fmd-avatar"> con
             # <img> se c'e' la foto, iniziali come fallback altrimenti.
             self.assertIn("fmd-avatar", html)
+            # Negli elenchi la miniatura, con la versione della foto nell'URL.
             self.assertIn(
-                f'<img src="{reverse("anagrafica:foto_dipendente", args=[photo_legacy_id])}"',
+                f'<img src="{reverse("anagrafica:foto_dipendente", args=[photo_legacy_id])}?m=',
                 html,
             )
             # Il dipendente senza foto (Bruno Beta) mostra le iniziali.
             self.assertIn("BB", html)
+
+    def test_foto_miniatura_piccola_salvata_e_rinnovata_con_la_foto(self):
+        from PIL import Image
+
+        from .views.dipendenti import MINIATURA_LATO, _foto_versione
+
+        def png(colore):
+            out = BytesIO()
+            Image.new("RGBA", (1200, 900), colore).save(out, format="PNG")
+            return out.getvalue()
+
+        with tempfile.TemporaryDirectory() as private_root, override_settings(ANAGRAFICA_PRIVATE_ROOT=private_root):
+            civile = DipendenteAnagraficaCivile.objects.create(legacy_anagrafica_id=4242)
+            civile.foto.save("profilo.png", ContentFile(png((200, 10, 10, 255))), save=True)
+            url = reverse("anagrafica:foto_dipendente", args=[4242])
+            self.client.force_login(self.user)
+
+            versione = _foto_versione(civile.foto.name)
+            response = self.client.get(f"{url}?m={versione}")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Content-Type"], "image/jpeg")
+            self.assertIn("max-age=2592000", response["Cache-Control"])
+            with Image.open(BytesIO(response.content)) as img:
+                self.assertLessEqual(max(img.size), MINIATURA_LATO)
+            cartella = os.path.join(os.path.dirname(civile.foto.path), "miniature")
+            self.assertEqual(len(os.listdir(cartella)), 1)
+            # Seconda richiesta: la miniatura salvata, senza rifarla.
+            with patch("PIL.Image.open", side_effect=AssertionError("rifatta")):
+                self.assertEqual(self.client.get(f"{url}?m={versione}").content, response.content)
+
+            # Foto nuova: miniatura nuova, la vecchia sparisce.
+            civile.foto.save("profilo.png", ContentFile(png((10, 10, 200, 255))), save=True)
+            self.client.get(f"{url}?m={_foto_versione(civile.foto.name)}")
+            self.assertEqual(len(os.listdir(cartella)), 1)
+            # Senza ?m resta la foto intera (scheda dipendente).
+            self.assertNotEqual(self.client.get(url)["Content-Type"], "image/jpeg")
 
     def test_civil_form_can_upload_employee_photo(self):
         with connection.cursor() as cursor:

@@ -5,6 +5,7 @@ Spacchettamento di ``anagrafica/views.py`` (18/10/2026): le funzioni condivise s
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 from datetime import timedelta as _timedelta
@@ -114,17 +115,30 @@ from . import _helpers  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-def _foto_dipendente_url(civile, legacy_id) -> str:
+def _foto_dipendente_url(civile, legacy_id, miniatura: bool = False) -> str:
     """URL della view protetta che serve la foto profilo (storage privato).
 
     La foto NON ha più un URL pubblico /media/: ``ImageField.url`` solleva
     ``NotImplementedError`` su ``PrivateAnagraficaStorage``. Restituisce l'URL
     della view solo se il dipendente ha effettivamente una foto, altrimenti ""
     (così i template applicano il fallback iniziali).
+
+    ``miniatura=True`` (elenchi): chiede l'icona piccola con la versione della foto
+    nell'URL, così il browser la tiene finché la foto non cambia.
     """
     if not civile or not getattr(civile, "foto", None):
         return ""
-    return reverse("anagrafica:foto_dipendente", args=[int(legacy_id)])
+    url = reverse("anagrafica:foto_dipendente", args=[int(legacy_id)])
+    if miniatura:
+        url += f"?m={_foto_versione(civile.foto.name)}"
+    return url
+
+
+def _foto_versione(nome: str) -> str:
+    """Impronta corta del nome file: cambia a ogni nuova foto (il nome ha data e ora)."""
+    import hashlib
+
+    return hashlib.sha1(str(nome or "").encode("utf-8")).hexdigest()[:10]
 
 
 def _int_or_none(value):
@@ -690,7 +704,7 @@ def dipendenti_list(request):
     }
     for dip in list(page.object_list):
         civile = civile_map.get(int(dip.get("id") or 0))
-        dip["foto_url"] = _foto_dipendente_url(civile, dip.get("id") or 0)
+        dip["foto_url"] = _foto_dipendente_url(civile, dip.get("id") or 0, miniatura=True)
 
     try:
         from timbri.models import OperatoreTimbri, RegistroTimbro
@@ -842,7 +856,7 @@ def ex_dipendenti_list(request):
         civile = civile_map.get(legacy_id)
         row["legacy_id"] = legacy_id
         row["matricola_legacy"] = str(row.get("matricola") or "").strip()
-        row["foto_url"] = _foto_dipendente_url(civile, legacy_id)
+        row["foto_url"] = _foto_dipendente_url(civile, legacy_id, miniatura=True)
         row["data_cessazione"] = getattr(az, "data_cessazione", None)
         row["data_assunzione"] = (
             getattr(az, "data_assunzione_ultima", None)
@@ -4888,6 +4902,16 @@ def foto_dipendente(request, legacy_id: int):
         return HttpResponse(status=404)
 
     from django.http import FileResponse
+    richiesta = str(request.GET.get("m") or "")
+    if richiesta:
+        # Elenchi e organigramma: icona piccola invece della foto intera (anche 6 MB).
+        dati = _miniatura_foto(civile.foto)
+        if dati is not None:
+            response = HttpResponse(dati, content_type="image/jpeg")
+            versionata = richiesta == _foto_versione(civile.foto.name)
+            # Con la versione giusta nell'URL la si tiene a lungo: una foto nuova cambia l'URL.
+            response["Cache-Control"] = "private, max-age=2592000" if versionata else "private, max-age=3600"
+            return response
     try:
         fh = civile.foto.open("rb")
     except FileNotFoundError:
@@ -4899,6 +4923,53 @@ def foto_dipendente(request, legacy_id: int):
     # Cache breve lato browser: la foto cambia di rado, ma resta dietro auth.
     response["Cache-Control"] = "private, max-age=3600"
     return response
+
+
+MINIATURA_LATO = 160  # px: avatar mostrati a 40-48 px, nitidi anche su schermi 4K
+
+
+def _miniatura_foto(foto):
+    """JPEG piccolo della foto, creato una volta e salvato cifrato accanto all'originale.
+
+    Sta in ``<cartella foto>/miniature/`` dello stesso storage privato (cifrato at rest);
+    quando la foto cambia si crea quella nuova e si cancellano le vecchie.
+    Se qualcosa va storto restituisce None e la view serve la foto intera.
+    """
+    import posixpath
+
+    from django.core.files.base import ContentFile
+
+    storage = foto.storage
+    cartella = posixpath.join(posixpath.dirname(foto.name), "miniature")
+    base = posixpath.splitext(posixpath.basename(foto.name))[0]
+    nome = posixpath.join(cartella, f"{base}_{MINIATURA_LATO}.jpg")
+    try:
+        if storage.exists(nome):
+            with storage.open(nome, "rb") as fh:
+                return fh.read()
+        from PIL import Image, ImageOps
+
+        with foto.open("rb") as fh:
+            img = ImageOps.exif_transpose(Image.open(fh))
+            img.thumbnail((MINIATURA_LATO, MINIATURA_LATO))
+            if img.mode != "RGB":
+                sfondo = Image.new("RGB", img.size, (255, 255, 255))
+                sfondo.paste(img, mask=img.convert("RGBA").getchannel("A"))
+                img = sfondo
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=82, optimize=True)
+        dati = out.getvalue()
+        try:
+            _, vecchie = storage.listdir(cartella)
+        except (FileNotFoundError, NotADirectoryError):
+            vecchie = []
+        for vecchia in vecchie:
+            storage.delete(posixpath.join(cartella, vecchia))
+        storage.save(nome, ContentFile(dati))
+        return dati
+    except Exception:  # noqa: BLE001 - la miniatura è un'ottimizzazione, mai un errore per l'utente
+        logger.exception("Miniatura foto non creata: %s", foto.name)
+        return None
 
 
 @login_required
