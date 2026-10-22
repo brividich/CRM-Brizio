@@ -26,6 +26,7 @@
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-grid"/></svg>Mansionario</h1>
           <p class="fmd-sub">Ogni ruolo raccoglie le sue mansioni: le macchine e i processi della skill matrix MOD.187. Apri una mansione per vedere chi la sa fare, quali competenze servono e quali rischi comporta.</p>
           <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:struttura_org' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Struttura organizzativa</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:skill_matrix_macchina' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Skill matrix</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:skm_scadenzario' %}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Refresh caporeparto</a>
             {% if is_admin %}<a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_struttura_nuova' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</a>

@@ -170,15 +170,60 @@ def requisiti_mansione(mansione: "Mansione | int") -> dict[str, list]:
     return requisiti_mansioni_rischio([mansione_id]).get(mansione_id, requisiti_vuoti())
 
 
+def nomi_precedenti(mansione: Mansione) -> list[str]:
+    return [r.strip() for r in (mansione.nomi_precedenti or "").splitlines() if r.strip()]
+
+
+def _indice_nomi(mansioni: Iterable[Mansione]) -> dict[str, Mansione]:
+    """Nome minuscolo -> mansione. I nomi attuali vincono sui nomi precedenti."""
+    indice: dict[str, Mansione] = {}
+    mansioni = list(mansioni)
+    for m in mansioni:
+        for vecchio in nomi_precedenti(m):
+            indice.setdefault(vecchio.casefold(), m)
+    for m in mansioni:
+        indice[m.nome.strip().casefold()] = m
+    return indice
+
+
 def _mansioni_per_nome(nomi: Iterable[str]) -> dict[str, Mansione]:
     voluti = {str(n).strip().casefold() for n in nomi if str(n or "").strip()}
     if not voluti:
         return {}
-    return {
-        m.nome.strip().casefold(): m
-        for m in _mansioni_prefetch().filter(is_active=True)
-        if m.nome.strip().casefold() in voluti
-    }
+    indice = _indice_nomi(_mansioni_prefetch().filter(is_active=True))
+    return {nome: indice[nome] for nome in voluti if nome in indice}
+
+
+def mansione_per_nome(nome: str, *, solo_attive: bool = False) -> Mansione | None:
+    """Mansione di rischio dal testo «mansione» dell'anagrafica, anche se rinominata.
+
+    Unico punto di ricerca per nome: le attive prima, poi le spente.
+    """
+    nome = (nome or "").strip().casefold()
+    if not nome:
+        return None
+    qs = Mansione.objects.all() if not solo_attive else Mansione.objects.filter(is_active=True)
+    candidate = list(qs.order_by("-is_active", "pk"))
+    attive = [m for m in candidate if m.is_active]
+    return _indice_nomi(attive).get(nome) or _indice_nomi(candidate).get(nome)
+
+
+def rinomina(mansione: Mansione, nuovo_nome: str) -> bool:
+    """Rinomina conservando il vecchio nome fra i precedenti (le persone restano legate)."""
+    nuovo_nome = " ".join((nuovo_nome or "").split())[:100]
+    if not nuovo_nome:
+        raise ValueError("Il nome della mansione è obbligatorio.")
+    vecchio = mansione.nome
+    if vecchio == nuovo_nome:
+        return False
+    if Mansione.objects.filter(nome__iexact=nuovo_nome).exclude(pk=mansione.pk).exists():
+        raise ValueError(f"Esiste già una mansione «{nuovo_nome}».")
+    righe = [r for r in nomi_precedenti(mansione) if r.casefold() != nuovo_nome.casefold()]
+    if vecchio.casefold() != nuovo_nome.casefold() and vecchio.casefold() not in {r.casefold() for r in righe}:
+        righe.append(vecchio)
+    mansione.nome = nuovo_nome
+    mansione.nomi_precedenti = "\n".join(righe)
+    return True
 
 
 def requisiti_per_nome(nomi: Iterable[str]) -> dict[str, dict[str, list]]:

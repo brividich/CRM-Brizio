@@ -395,3 +395,48 @@ class ResponsabilitaRepartoTests(_Base):
         self.assertEqual(m.pk, m2.pk)
         self.assertFalse(m2.attiva)  # spenta, non cancellata
         self.assertEqual(CompetenzaSkm.objects.filter(responsabilita_reparto=self.ut).count(), 1)
+
+
+class RiparazioniFaseZeroTests(_Base):
+    def test_mansione_rischio_rinominata_resta_trovata(self):
+        from .services import mansionario
+
+        m = Mansione.objects.create(nome="ADDETTO SINTETICO")
+        self.assertTrue(mansionario.rinomina(m, "ADDETTO SINTETICO REPARTO"))
+        m.save()
+        self.assertEqual(mansionario.mansione_per_nome("addetto sintetico"), m)
+        self.assertIn("addetto sintetico", mansionario.requisiti_per_nome(["ADDETTO SINTETICO"]))
+        # Il nome attuale di un'altra mansione vince sul nome precedente.
+        altra = Mansione.objects.create(nome="ADDETTO SINTETICO")
+        self.assertEqual(mansionario.mansione_per_nome("ADDETTO SINTETICO"), altra)
+        with self.assertRaises(ValueError):
+            mansionario.rinomina(m, "addetto sintetico")
+
+    def test_rinomina_reparto_aggiorna_le_macchine(self):
+        from .services.struttura_aree import rinomina_reparto
+
+        asset = Asset.objects.create(name="Alesatrice sintetica", asset_tag="CNC-AL- 9", reparto="CNC5 - ALESATRICI")
+        esito = rinomina_reparto(self.alesatrici, "CN5G", user=self.user)
+        asset.refresh_from_db()
+        self.assertEqual(asset.reparto, "CN5G")
+        self.assertEqual(esito["macchine"], 1)
+
+    def test_comando_riallinea_nome_reparto(self):
+        import io
+
+        from django.core.management import call_command
+
+        asset = Asset.objects.create(name="Alesatrice sintetica", asset_tag="CNC-AL- 8", reparto="VECCHIO NOME")
+        call_command("riallinea_nome_reparto", "VECCHIO NOME", "UT", stdout=io.StringIO())
+        asset.refresh_from_db()
+        self.assertEqual(asset.reparto, "VECCHIO NOME")  # prova
+        call_command("riallinea_nome_reparto", "VECCHIO NOME", "UT", "--applica", stdout=io.StringIO())
+        asset.refresh_from_db()
+        self.assertEqual(asset.reparto, "UT")
+
+    def test_preposto_riconosciuto_anche_rinominato(self):
+        from dpi.flusso import ruoli_preposto_ids
+
+        r = RuoloOperativo.objects.create(nome="Preposto di reparto", nomi_precedenti="Preposto")
+        self.assertIn(r.pk, ruoli_preposto_ids())
+        self.assertNotIn(self.r_cnc.pk, ruoli_preposto_ids())

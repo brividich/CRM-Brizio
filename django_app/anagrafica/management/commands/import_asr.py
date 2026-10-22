@@ -137,6 +137,7 @@ class Command(BaseCommand):
         )
         from anagrafica.models_rischi import CategoriaCorso
         from anagrafica.services.formazione_import import _short_code
+        from anagrafica.services.mansionario import mansione_per_nome
         from core.legacy_models import AnagraficaDipendente
 
         dry = not opt["commit"]
@@ -441,7 +442,7 @@ class Command(BaseCommand):
                 if liv and man_nome:
                     mansioni_seen[man_nome.casefold()] = man_nome
                     if not dry:
-                        man = Mansione.objects.filter(nome__iexact=man_nome).first()
+                        man = mansione_per_nome(man_nome)
                         if man and not man.livello_rischio:
                             man.livello_rischio = liv
                             man.save(update_fields=["livello_rischio"])

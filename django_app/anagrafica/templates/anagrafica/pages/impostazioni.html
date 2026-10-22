@@ -399,6 +399,7 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                         <div class="imp-field">
                           <label class="imp-label">Nome *</label>
                           <input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ m.nome }}">
+                          <small class="imp-help">Rinominare è sicuro: il vecchio nome resta fra i precedenti e le persone restano legate.{% if m.nomi_precedenti %} Nomi precedenti: {{ m.nomi_precedenti|linebreaksbr }}{% endif %}</small>
                         </div>
                         <div class="imp-field">
                           <label class="imp-label">Categoria</label>
