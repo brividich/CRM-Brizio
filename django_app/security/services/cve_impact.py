@@ -25,6 +25,7 @@ from django.utils import timezone
 from security.models import (
     SecurityCveImpact,
     SecurityCveRecord,
+    SecurityCveRisoluzione,
     SoftwareCpeMapping,
     SoftwareInstallation,
 )
@@ -131,8 +132,11 @@ class Contesto:
         self.not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
         self.installs = list(SoftwareInstallation.objects.filter(still_detected=True))
         self.per_prodotto = defaultdict(list)
+        self.per_host = defaultdict(list)
+        self.per_pk = {install.pk: install for install in self.installs}
         for install in self.installs:
             self.per_prodotto[(_ci(install.vendor), _ci(install.product))].append(install)
+            self.per_host[install.host].append(install)
 
     def installazioni_di(self, products):
         visti = {}
@@ -185,18 +189,61 @@ def _merge(per_host, install, outcome, text):
         current[1].append(text)
 
 
+APERTI = (SecurityCveImpact.IMPACTS, SecurityCveImpact.TO_VERIFY)
+
+
+def _risoluzione(record, prima, inst, ctx, now):
+    """Perché il PC di ``prima`` (riga del giro precedente, installazione ``inst``) non è più esposto."""
+    from security.services.software_catalog import _famiglia
+
+    attuali = ctx.per_host.get(prima.host, [])
+    come, dopo = SecurityCveRisoluzione.PC_ASSENTE, ""
+    if inst is not None and inst.still_detected:
+        come, dopo = SecurityCveRisoluzione.RIVALUTATA, inst.version_raw
+    elif inst is not None and attuali:
+        famiglia = _famiglia(inst.vendor, inst.product)
+        stesso = [i for i in attuali if (i.vendor, i.product) == (inst.vendor, inst.product) or _famiglia(i.vendor, i.product) == famiglia]
+        if stesso:
+            come = SecurityCveRisoluzione.AGGIORNATO
+            dopo = ", ".join(sorted({i.version_raw for i in stesso if i.version_raw}))
+        else:
+            come = SecurityCveRisoluzione.RIMOSSO
+    elif inst is None and attuali:
+        come = SecurityCveRisoluzione.RIVALUTATA
+    return SecurityCveRisoluzione(
+        cve=record, host=prima.host, host_display=((inst.host_display if inst else "") or prima.host)[:255],
+        hub_asset_id=prima.hub_asset_id, software=(inst.product_raw if inst else "")[:255],
+        chiave=f"{inst.vendor}|{inst.product}"[:300] if inst else "", versione_prima=(inst.version_raw if inst else "")[:120],
+        versione_dopo=dopo[:120], come=come, esito_prima=prima.outcome, aperta_dal=prima.aperta_dal or prima.computed_at, risolta_il=now,
+    )
+
+
 def recompute(record, today=None, ctx=None):
+    ctx = ctx or Contesto()
     per_host, _unmapped = evaluate(record, today, ctx)
     now = timezone.now()
-    before = set(record.impacts.filter(outcome=SecurityCveImpact.IMPACTS).values_list("host", flat=True))
-    rows = [
-        SecurityCveImpact(cve=record, host=host[:255], installation=install, hub_asset_id=install.hub_asset_id, outcome=outcome,
-                          explanation="\n".join(texts)[:4000], inventory_date=inventory_date, computed_at=now)
-        for host, (outcome, texts, install, inventory_date) in per_host.items()
-    ]
+    prima = {r.host: r for r in record.impacts.filter(outcome__in=APERTI)}
+    before = {host for host, r in prima.items() if r.outcome == SecurityCveImpact.IMPACTS}
+    rows = []
+    for host, (outcome, texts, install, inventory_date) in per_host.items():
+        aperta_dal = None
+        if outcome in APERTI:
+            aperta_dal = (prima[host].aperta_dal or prima[host].computed_at) if host in prima else now
+        rows.append(SecurityCveImpact(
+            cve=record, host=host[:255], installation=install, hub_asset_id=install.hub_asset_id, outcome=outcome,
+            explanation="\n".join(texts)[:4000], inventory_date=inventory_date, computed_at=now, aperta_dal=aperta_dal,
+        ))
+    # Il PC esposto al giro prima e non più adesso lascia la traccia della risoluzione.
+    uscite = [r for host, r in prima.items() if per_host.get(host, (None,))[0] not in APERTI]
+    # Le installazioni ancora rilevate sono già nel contesto; si legge solo quella che non c'è più.
+    mancanti = {r.installation_id for r in uscite if r.installation_id and r.installation_id not in ctx.per_pk}
+    altre = SoftwareInstallation.objects.in_bulk(mancanti) if mancanti else {}
+    risolte = [_risoluzione(record, r, ctx.per_pk.get(r.installation_id) or altre.get(r.installation_id), ctx, now) for r in uscite]
     with transaction.atomic():
         SecurityCveImpact.objects.filter(cve=record).delete()
         SecurityCveImpact.objects.bulk_create(rows, batch_size=100)
+        if risolte:
+            SecurityCveRisoluzione.objects.bulk_create(risolte, batch_size=100)
         record.impact_computed_at = now
         record.save(update_fields=["impact_computed_at"])
     impacted = {host: per_host[host] for host in per_host if per_host[host][0] == SecurityCveImpact.IMPACTS}

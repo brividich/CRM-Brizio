@@ -171,3 +171,18 @@ body.theme-dark .af-swmap-porta.is-occ{color:var(--text)}
 /* Microsoft Intune (assets/partials/it_intune.html) */
 .af-it-intune .af-it-summary + .af-it-summary { margin-top: 12px; }
 .af-it-intune-problemi { color: var(--danger, #b91c1c); }
+/* Barra del disco usato (riquadro Intune) */
+.af-it-meter { display: block; height: 6px; border-radius: 3px; background: var(--border, #e2e8f0); overflow: hidden; margin: 2px 0 4px; max-width: 200px; }
+.af-it-meter > span { display: block; height: 100%; background: var(--primary, #2563eb); }
+.af-it-meter.is-full > span { background: var(--danger, #dc2626); }
+/* Striscia «Visto da»: le fonti che vedono questo dispositivo */
+.af-fonti { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; }
+.af-fonti-label { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid, #64748b); margin-right: 2px; }
+.af-fonte { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); color: var(--text, #0f172a); font-size: 13px; text-decoration: none; line-height: 1.2; }
+a.af-fonte:hover { border-color: var(--primary, #2563eb); }
+.af-fonte small { color: var(--text-mid, #64748b); font-size: 12px; }
+.af-fonte-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex: none; }
+.af-fonte.is-ok .af-fonte-dot { background: #16a34a; }
+.af-fonte.is-old .af-fonte-dot { background: #d97706; }
+.af-fonte.is-ko .af-fonte-dot { background: #dc2626; }
+.af-fonte.is-no { border-style: dashed; color: var(--text-mid, #64748b); background: transparent; }

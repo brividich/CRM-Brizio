@@ -4,17 +4,41 @@ Legge solo i calcoli d'impatto già fatti (``SecurityCveImpact``), mai l'NVD in 
 Esiti mostrati: «Colpisce» (versione nel range, CPE confermato) e «Da verificare»;
 «Non impatta» non entra nel pannello. Le CVE sono in ordine di pericolo:
 sfruttate attivamente (CISA KEV), poi CVSS, poi le più recenti.
+
+Le CVE chiuse su un PC (programma aggiornato o disinstallato) arrivano da ``SecurityCveRisoluzione``,
+scritta dal ricalcolo: si mostrano gli ultimi ``GIORNI_RISOLTE`` giorni.
 """
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import timedelta
 
-from security.models import SecurityCveImpact, SecurityCveRecord
+from django.utils import timezone
+
+from security.models import SecurityCveImpact, SecurityCveRecord, SecurityCveRisoluzione
 from security.services import software_catalog as sc
 from security.services.cve_impact import _range_text
 
 ESITI = (SecurityCveImpact.IMPACTS, SecurityCveImpact.TO_VERIFY)
 NVD_URL = "https://nvd.nist.gov/vuln/detail/{}"
+GIORNI_RISOLTE = 90
+
+
+def _risolte(qs, giorni=GIORNI_RISOLTE):
+    """L'ultima risoluzione per (CVE, PC) negli ultimi ``giorni``: un PC che va e viene conta una volta."""
+    dal = timezone.now() - timedelta(days=giorni)
+    visti, out = set(), []
+    for r in qs.filter(risolta_il__gte=dal).select_related("cve", "hub_asset").order_by("-risolta_il"):
+        if (r.cve_id, r.host) in visti:
+            continue
+        visti.add((r.cve_id, r.host))
+        out.append(r)
+    return out
+
+
+def _conta_risolte(righe):
+    corrette = [r for r in righe if r.correzione]
+    return {"risolte": righe, "corrette": len(corrette), "uscite": len(righe) - len(corrette)}
 
 
 def gravita(record):
@@ -97,8 +121,9 @@ def _impatti_programma(key):
 
 
 def per_programma(key):
-    """CVE del programma (tutti i nomi che lo formano) sui PC che lo hanno oggi."""
-    return _riepilogo(_righe(_impatti_programma(key)))
+    """CVE del programma (tutti i nomi che lo formano) sui PC che lo hanno oggi, più quelle chiuse di recente."""
+    risolte = _risolte(SecurityCveRisoluzione.objects.filter(chiave__in=sc.member_keys(key)))
+    return {**_riepilogo(_righe(_impatti_programma(key))), **_conta_risolte(risolte)}
 
 
 def cve_per_versione(key):
@@ -132,8 +157,9 @@ def per_asset(asset):
         software.append({"key": chiave, "nome": nome, "versione": versione, **_riepilogo(righe), "totale": len(righe)})
     software.sort(key=lambda s: (-s["gravi"], -len(s["colpiscono"]), s["nome"].lower()))
     tutte = _riepilogo(_righe(impatti))
+    risolte = _risolte(SecurityCveRisoluzione.objects.filter(hub_asset=asset))
     return {"software": software, "colpiscono": len(tutte["colpiscono"]), "da_verificare": len(tutte["da_verificare"]),
-            "gravi": tutte["gravi"], "kev": tutte["kev"]}
+            "gravi": tutte["gravi"], "kev": tutte["kev"], **_conta_risolte(risolte)}
 
 
 def _perche(testo):
@@ -154,6 +180,7 @@ def dettaglio(cve_id, *, key="", asset=None):
         "asset": i.hub_asset,
         "versione": i.installation.version_raw if i.installation_id else "",
         "esito": i.outcome,
+        "aperta_dal": i.aperta_dal,
         "spiegazione": _perche(i.explanation),
         "questo": bool(asset is not None and i.hub_asset_id == asset.pk),
     } for i in impatti]
@@ -177,4 +204,5 @@ def dettaglio(cve_id, *, key="", asset=None):
         "colpiti": sum(1 for r in pc if r["esito"] == SecurityCveImpact.IMPACTS),
         "da_verificare": sum(1 for r in pc if r["esito"] != SecurityCveImpact.IMPACTS),
         "nvd_url": NVD_URL.format(record.cve_id),
+        **_conta_risolte(_risolte(record.risoluzioni.all())),
     }

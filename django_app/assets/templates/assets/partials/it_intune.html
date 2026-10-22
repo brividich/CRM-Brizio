@@ -9,10 +9,13 @@
         <div><span class="af-it-label">Utente principale</span><strong>{{ d.utente_nome|default:"—" }}</strong><span>{{ d.utente_upn }}</span></div>
         <div><span class="af-it-label">Conformità</span><strong>{% if d.conformita == "compliant" %}Conforme{% elif d.conformita == "noncompliant" %}Non conforme{% elif d.conformita == "inGracePeriod" %}In periodo di tolleranza{% else %}{{ d.conformita|default:"Non nota" }}{% endif %}</strong><span>ai criteri Intune</span></div>
         <div><span class="af-it-label">Disco cifrato</span><strong>{% if d.cifrato is True %}Sì (BitLocker){% elif d.cifrato is False %}No{% else %}Non noto{% endif %}</strong><span></span></div>
+        <div><span class="af-it-label">Memoria (RAM)</span><strong>{{ d.ram_label|default:"Non ancora letta" }}</strong><span>{% if not d.ram_label %}Intune la dà un PC alla volta: arriva nei prossimi giri{% endif %}</span></div>
+        <div><span class="af-it-label">Disco</span><strong>{% if d.disco_label %}{{ d.disco_label }}{% else %}Non noto{% endif %}</strong><span>{% if d.disco_usato_pct is not None %}<span class="af-it-meter{% if d.disco_usato_pct >= 90 %} is-full{% endif %}" role="img" aria-label="Disco usato al {{ d.disco_usato_pct }}%"><span style="width: {{ d.disco_usato_pct }}%"></span></span>{{ d.disco_libero_label }} liberi ({{ d.disco_usato_pct }}% usato){% endif %}</span></div>
+        <div><span class="af-it-label">Scheda di rete (MAC)</span><strong>{{ d.mac_ethernet|default:"—" }}</strong><span>{% if d.mac_wifi %}Wi-Fi {{ d.mac_wifi }}{% else %}Ethernet{% endif %}</span></div>
         <div><span class="af-it-label">Ultima sincronizzazione</span><strong>{{ d.ultima_sync|date:"d/m/Y H:i"|default:"mai" }}</strong><span>{% if not d.presente %}non più presente in Intune{% endif %}</span></div>
       </div>
       {% if d.problemi %}<p class="af-note af-it-intune-problemi"><strong>Da sistemare:</strong> {{ d.problemi_label|join:", " }}.</p>{% endif %}
     {% endfor %}
-    <p class="af-note">Letto ogni mattina da Microsoft Intune: i dati si cambiano in Intune, non qui. I campi di inventario vuoti (produttore, modello, seriale, sistema operativo) vengono completati da Intune; quelli già scritti non vengono toccati.</p>
+    <p class="af-note">Letto ogni mattina da Microsoft Intune: i dati si cambiano in Intune, non qui. I campi di inventario vuoti (produttore, modello, seriale, sistema operativo, RAM, disco) vengono completati da Intune; quelli già scritti non vengono toccati.</p>
   </div>
 </section>
