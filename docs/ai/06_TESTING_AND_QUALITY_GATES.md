@@ -6,14 +6,14 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## Aggiornamenti obbligatori dopo ogni modifica
 
-**REGOLA: dopo ogni modifica al codice (nuova funzionalitÃƒÆ’Ã‚Â , bugfix, refactor significativo) aggiornare SEMPRE e AUTOMATICAMENTE questi file, senza aspettare istruzioni esplicite:**
+**REGOLA: dopo ogni modifica al codice (nuova funzionalità, bugfix, refactor significativo) aggiornare SEMPRE e AUTOMATICAMENTE questi file, senza aspettare istruzioni esplicite:**
 
-1. **`docs/ai/*.md` + `CLAUDE.md` leggero** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â aggiornare il file AI mirato per dettagli lunghi; aggiornare `CLAUDE.md` solo per regole operative concise
-2. **`CHANGELOG.md`** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â aggiungere o aggiornare la voce nella sezione della versione corrente
-3. **`README.md`** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â aggiornare se la modifica cambia funzionalitÃƒÆ’Ã‚Â  visibili, URL, setup o dipendenze
-4. **Versione** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â se la modifica ÃƒÆ’Ã‚Â¨ rilevante per l'utente finale, applicare la checklist "Bump di versione" qui sotto
+1. **`docs/ai/*.md` + `CLAUDE.md` leggero** — aggiornare il file AI mirato per dettagli lunghi; aggiornare `CLAUDE.md` solo per regole operative concise
+2. **`CHANGELOG.md`** — aggiungere o aggiornare la voce nella sezione della versione corrente
+3. **`README.md`** — aggiornare se la modifica cambia funzionalità visibili, URL, setup o dipendenze
+4. **Versione** — se la modifica è rilevante per l'utente finale, applicare la checklist "Bump di versione" qui sotto
 
-Questo aggiornamento ÃƒÆ’Ã‚Â¨ parte integrante di ogni task, non un'attivitÃƒÆ’Ã‚Â  opzionale.
+Questo aggiornamento è parte integrante di ogni task, non un'attività opzionale.
 
 ### Governance docs/release
 
@@ -35,28 +35,28 @@ Ad ogni bump di versione (es. `0.7.3 -> 0.7.4`) aggiornare TUTTI questi file, se
 
 ### File codice (hardcode da aggiornare)
 
-1. `VERSION` (root repo) â€” single source of truth (`X.Y.Z`)
-2. `django_app/VERSION` â€” mirror di compatibilita, deve combaciare con root `VERSION`
-3. `django_app/config/app_version.py` â€” riga `DEFAULT_APP_VERSION = "X.Y.Z"`
-4. `deployment/setup_wizard.py` â€” riga `_DEFAULT_APP_VERSION = "X.Y.Z"`
+1. `VERSION` (root repo) — single source of truth (`X.Y.Z`)
+2. `django_app/VERSION` — mirror di compatibilita, deve combaciare con root `VERSION`
+3. `django_app/config/app_version.py` — riga `DEFAULT_APP_VERSION = "X.Y.Z"`
+4. `deployment/setup_wizard.py` — riga `_DEFAULT_APP_VERSION = "X.Y.Z"`
 
 ### File configurazione
 
-1. `django_app/.env.example` â€” `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*`
-2. `config\test\.env` e `config\prod\.env` â€” `APP_VERSION=X.Y.Z` (source of truth runtime deploy)
+1. `django_app/.env.example` — `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*`
+2. `config\test\.env` e `config\prod\.env` — `APP_VERSION=X.Y.Z` (source of truth runtime deploy)
 
 ### File documentazione (tutti devono mostrare la versione nel frontmatter/header)
 
-1. `CLAUDE.md` header â€” `Versione app corrente: **X.Y.Z** (YYYY-MM-DD)`
-2. `CHANGELOG.md` â€” aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
-3. `README.md` â€” badge `![Version X.Y.Z](https://img.shields.io/badge/version-X.Y.Z-F97316)`
-4. `doc/README.md` â€” `> Versione documentazione: **X.Y.Z**`
-5. `doc/START_HERE.md` â€” `> Versione documentazione: **X.Y.Z**`
-6. `doc/TESTING.md` â€” `> Versione documentazione: **X.Y.Z**`
-7. `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md` â€” `> Versione documentazione: **X.Y.Z**`
-8. `doc/STRUTTURA_ATTUALE_PORTALE.md` â€” `Data snapshot: YYYY-MM-DD | Versione: X.Y.Z`
-9. `deployment/README_DEPLOY_IIS_WINDOWS.md` â€” `> Versione repo: **X.Y.Z**`
-10. `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md` â€” `> NOVICROM HUB Â· Aggiornato: YYYY-MM-DD (vX.Y.Z)`
+1. `CLAUDE.md` header — `Versione app corrente: **X.Y.Z** (YYYY-MM-DD)`
+2. `CHANGELOG.md` — aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
+3. `README.md` — badge `![Version X.Y.Z](https://img.shields.io/badge/version-X.Y.Z-F97316)`
+4. `doc/README.md` — `> Versione documentazione: **X.Y.Z**`
+5. `doc/START_HERE.md` — `> Versione documentazione: **X.Y.Z**`
+6. `doc/TESTING.md` — `> Versione documentazione: **X.Y.Z**`
+7. `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md` — `> Versione documentazione: **X.Y.Z**`
+8. `doc/STRUTTURA_ATTUALE_PORTALE.md` — `Data snapshot: YYYY-MM-DD | Versione: X.Y.Z`
+9. `deployment/README_DEPLOY_IIS_WINDOWS.md` — `> Versione repo: **X.Y.Z**`
+10. `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md` — `> NOVICROM HUB · Aggiornato: YYYY-MM-DD (vX.Y.Z)`
 
 ### Regole operative
 
@@ -117,14 +117,14 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 
 Regola pratica: se anche un solo punto cade nella colonna destra, è una release. Il wizard la impone comunque bloccando migration/requirements e base sbagliata.
 
-### Selezione moduli (ModulesPage â€” step 11)
+### Selezione moduli (ModulesPage — step 11)
 
 - `MODULE_REGISTRY` (costante di modulo in `setup_wizard.py`): lista di dict con campi `key`, `label`, `description`, `app_label`, `required`, `default`, `depends_on`, `has_migrations`, `tier`.
-- Tre tier: `system` (obbligatori, checkbox disabilitato), `standard` (pre-selezionati), `optional` (disattivati per default â€” futuro licensing).
+- Tre tier: `system` (obbligatori, checkbox disabilitato), `standard` (pre-selezionati), `optional` (disattivati per default — futuro licensing).
 - Ogni app con migration Django deve essere presente in `MODULE_REGISTRY` con `has_migrations=True`, anche se e' un wrapper/servizio tecnico (`monitoring`, `planimetria`, `anomalie`), altrimenti `createsuperuser` e i comandi successivi avvisano di migration non applicate.
 - `cfg.selected_modules`: lista di key salvata nel `Config` e passata al migrate selettivo.
-- `_run_selective_migrate()` presente sia in `InstallPage` che in `ReleaseRunPage` (non ereditano): migra nell'ordine `_DJANGO_BUILTIN_MIGRATE_LABELS` â†’ moduli `required` â†’ moduli opzionali selezionati.
-- La dipendenza automatica tra moduli (es. `tickets` â†’ `assets`, `anagrafica`) Ã¨ gestita in UI via `depends_on`: attivare un modulo auto-attiva le sue dipendenze; disattivarlo auto-disattiva i moduli che dipendono da esso.
+- `_run_selective_migrate()` presente sia in `InstallPage` che in `ReleaseRunPage` (non ereditano): migra nell'ordine `_DJANGO_BUILTIN_MIGRATE_LABELS` → moduli `required` → moduli opzionali selezionati.
+- La dipendenza automatica tra moduli (es. `tickets` → `assets`, `anagrafica`) è gestita in UI via `depends_on`: attivare un modulo auto-attiva le sue dipendenze; disattivarlo auto-disattiva i moduli che dipendono da esso.
 - Totale step wizard installazione: **14** (aggiunto "Moduli" tra "Utente Admin" e "Riepilogo").
 
 ### Discovery SQL Server (DatabasePage)
@@ -183,21 +183,33 @@ Accessibile da launcher, FinishPage e CLI `--mode=dashboard`.
 Django proibisce a livello di template engine l'accesso a chiavi dict o attributi che iniziano con `_`. Questo vale per template tag, dot notation e loop variables.
 
 ```python
-# SBAGLIATO ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â causa TemplateSyntaxError a runtime
-f["_stato"] = "APERTO"     # nel template: {{ f._stato }} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ERRORE
+# SBAGLIATO — causa TemplateSyntaxError a runtime
+f["_stato"] = "APERTO"     # nel template: {{ f._stato }} → ERRORE
 
 # CORRETTO
-f["stato"] = "APERTO"      # nel template: {{ f.stato }} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ OK
+f["stato"] = "APERTO"      # nel template: {{ f.stato }} → OK
 ```
 
 Questo si applica anche a dict arbitrari passati al template (es. campi SharePoint arricchiti con metadati computed). Non usare mai chiavi `_xxx` in oggetti/dict che vengono passati al contesto template.
 
 ### Graph / SharePoint
 
-- Utility centralizzata: `core/graph_utils.py` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `acquire_graph_token(tenant_id, client_id, client_secret)`
+- Utility centralizzata: `core/graph_utils.py` — `acquire_graph_token(tenant_id, client_id, client_secret)`
 - Cache thread-safe con `Lock + dict`, rinnovo 60s prima della scadenza
-- **Non duplicare** la logica token nelle singole app ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â usare sempre `core/graph_utils.py`
-- I nomi di campo SharePoint con spazi usano encoding URL: spazio ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_x0020_`, slash ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `_x002F_`. Verificare sempre i nomi reali via risposta Graph API prima di hardcodarli.
+- **Non duplicare** la logica token nelle singole app — usare sempre `core/graph_utils.py`
+- I nomi di campo SharePoint con spazi usano encoding URL: spazio → `_x0020_`, slash → `_x002F_`. Verificare sempre i nomi reali via risposta Graph API prima di hardcodarli.
+
+---
+
+## Sessioni parallele e disciplina git
+
+Le regole brevi sono in `CLAUDE.md`; qui le motivazioni.
+
+- **Perché un worktree per sessione.** Branch e file non committati appartengono alla cartella, non alla sessione. Se più sessioni lavorano in `C:\Dev\Portale Novicrom`, il `git checkout` di una cambia il branch sotto le altre e il `git add` di una mette in stage il lavoro in corso di un'altra (e un checkout può scartare in silenzio modifiche non committate). Il checkout condiviso resta un riferimento in sola lettura; se proprio si deve toccare un file lì, si mettono in stage solo i propri hunk.
+- **Perché ogni sessione chiude con un commit.** Il server di sviluppo serve la cartella di lavoro, quindi il codice «funziona» anche se non è committato; il packager invece esporta un commit di `release/prod`. Un file non committato funziona in locale e non esiste per la produzione: la divergenza si scopre al deploy. Un commit su branch feature è al sicuro e recuperabile, ma non è in produzione finché non arriva in `release/prod`.
+- **Percorso dei merge.** Feature → `main` (integrazione e verifica) → `release/prod` (promozione). Mai merge diretti di una feature in release (regola di Brizio, 02/10/2026).
+- **Pre-flight del pacchetto.** `deployment/scripts/package-release.ps1` fallisce se il tree è sporco o se il branch corrente ha commit assenti da `release/prod`. `-FromWorkingTree -Force` è solo per emergenze: il pacchetto si dichiara non tracciabile in `BUILD_INFO.json` e la Centrale di comando lo mostra in rosso.
+- **Badge di sviluppo.** Con `DEBUG=True` il badge in basso a destra mostra i file non committati e i commit non ancora in `release/prod`.
 
 ---
 

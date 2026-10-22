@@ -3,7 +3,8 @@
 Serve solo a raggruppare/filtrare i permission code nelle UI admin lungo tre
 assi gia' impliciti nel naming `modulo.risorsa.azione`:
 
-* **area** funzionale (sopra il modulo) -> allineata al Project Summary del CLAUDE.md;
+* **area** funzionale (sopra il modulo) -> allineata a docs/ai/03_BACKEND_MODULES.md
+  (sezione «Aree di prodotto»);
 * **modulo** -> campo ``PermissionDefinition.module`` (fonte autorevole);
 * **risorsa** -> 2o segmento del code, derivato in modo robusto anche per i
   code legacy importati come ``legacy.<modulo>.<azione>``.
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-# ── Aree funzionali (allineate a CLAUDE.md -> Primary product areas) ──────────
+# ── Aree funzionali (allineate a docs/ai/03_BACKEND_MODULES.md -> Aree di prodotto)
 AREA_CORE = "core"
 AREA_OPERAZIONI = "operazioni"
 AREA_HR = "hr"

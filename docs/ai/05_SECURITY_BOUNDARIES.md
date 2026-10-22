@@ -70,7 +70,7 @@ procedura in [PERMESSI_RUOLI.md](PERMESSI_RUOLI.md).
 - Stato attuale runtime: `core/acl.py` e sempre piu una **facade compat** sopra il canonico. Se una route/path o un `legacy.<modulo>.<azione>` hanno gia un permission code canonico registrato, la decisione passa prima da `PermissionDefinition` / `RolePermissionGrant` / `UserPermissionGrant`; il legacy resta come fallback solo per superfici ancora non migrate.
 - Diagnostica legacy dettagliata: `diagnose_permesso_for_context()`
 - Tabelle SQL Server legacy: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti`
-- Modelli in `core/legacy_models.py` Ã¢â‚¬â€ `Ruolo`, `UtenteLegacy`, `Pulsante`, `Permesso`, `AnagraficaDipendente` Ã¢â‚¬â€ `managed=True` (app_label="core"), migration `0029_legacy_managed` fake su SQL Server esistente.
+- Modelli in `core/legacy_models.py` — `Ruolo`, `UtenteLegacy`, `Pulsante`, `Permesso`, `AnagraficaDipendente` — `managed=True` (app_label="core"), migration `0029_legacy_managed` fake su SQL Server esistente.
 - Cache ACL legacy: `core/legacy_cache.py` + `bump_legacy_cache_version()`.
 
 ### 3. Navigation Registry (visibilita menu, non sicurezza)
@@ -80,7 +80,7 @@ procedura in [PERMESSI_RUOLI.md](PERMESSI_RUOLI.md).
 - `NavigationItem` espone ora anche `required_permission_code`: se compilato, o se ricavabile da `route_name` / `url_path`, la visibilita della voce viene derivata dai grant canonici del ruolo/utente.
 - Runtime attuale: `RolePermissionGrant` / `UserPermissionGrant` sono la fonte primaria di visibilita menu; `NavigationRoleAccess` sopravvive solo come fallback compat per voci ancora prive di permission code canonico.
 - Quando il Navigation Registry e' vuoto/disattivato e la shell cade sul fallback legacy `pulsanti`, `core.context_processors.legacy_nav()` deve deduplicare la navigazione principale per modulo prima di renderizzare topbar/sidebar. Le tabelle legacy possono contenere piu azioni dello stesso modulo (`lista`, `crea`, `gestione`) ma il menu principale deve mostrare una sola voce modulo, specialmente dopo restore/import topbar.
-- **Override per-utente navigazione** (`UserNavigationOverride`): in runtime e hide-only. `enabled=False` nasconde una voce gia consentita; i vecchi override positivi (`enabled=True`) non forzano piu la mostra di voci negate dal canonico. Non usa la cache; gli admin non sono soggetti agli override. Funziona su `topbar` e `subnav`. Gestito da "Step 5 Ã¢â‚¬â€œ Nav Override" in `/admin-portale/acl-canonico/` e da "Override Navigazione Utente" in `/admin-portale/navigation-builder/`.
+- **Override per-utente navigazione** (`UserNavigationOverride`): in runtime e hide-only. `enabled=False` nasconde una voce gia consentita; i vecchi override positivi (`enabled=True`) non forzano piu la mostra di voci negate dal canonico. Non usa la cache; gli admin non sono soggetti agli override. Funziona su `topbar` e `subnav`. Gestito da "Step 5 – Nav Override" in `/admin-portale/acl-canonico/` e da "Override Navigazione Utente" in `/admin-portale/navigation-builder/`.
 
 #### Sezioni `NavigationItem.section`
 
@@ -90,11 +90,11 @@ procedura in [PERMESSI_RUOLI.md](PERMESSI_RUOLI.md).
 | `subnav` | Barra secondaria per modulo (filtrata per `parent_code`) | permission code canonico -> fallback `NavigationRoleAccess` solo se unmapped |
 | `sidebar` | Menu laterale (modalita sidebar) | permission code canonico -> fallback `NavigationRoleAccess` solo se unmapped |
 | `page` | Dentro una pagina specifica | permission code canonico -> fallback `NavigationRoleAccess` solo se unmapped |
-| `admin_subnav` | Barra interna dell'admin portale (`/admin-portale/`) | **Nessuna ACL** Ã¢â‚¬â€ area gia gated da `@legacy_admin_required` |
+| `admin_subnav` | Barra interna dell'admin portale (`/admin-portale/`) | **Nessuna ACL** — area gia gated da `@legacy_admin_required` |
 
-**`admin_subnav` Ã¢â‚¬â€ regola critica:** NON hardcodare mai voci in `admin_subnav.html`. Gestire sempre tramite `NavigationItem` con `section="admin_subnav"` via Navigation Builder o migration. Migration seed: `core/migrations/0031_admin_subnav_seed.py` + `0032_admin_subnav_acl_nav_map.py` (voce aggiuntiva mappa permessi/navigazione). Il context processor inietta `admin_subnav_items` solo per utenti `is_legacy_admin()`.
+**`admin_subnav` — regola critica:** NON hardcodare mai voci in `admin_subnav.html`. Gestire sempre tramite `NavigationItem` con `section="admin_subnav"` via Navigation Builder o migration. Migration seed: `core/migrations/0031_admin_subnav_seed.py` + `0032_admin_subnav_acl_nav_map.py` (voce aggiuntiva mappa permessi/navigazione). Il context processor inietta `admin_subnav_items` solo per utenti `is_legacy_admin()`.
 
-Navigation Builder (`/admin-portale/navigation-builder/`): oltre alla tabella inline include una **vista visuale drag&drop orizzontale** (scroll laterale) a colonne per sezione (`topbar`, `subnav`, `admin_subnav`, `sidebar`, `page`) con card trascinabili, spostamento cross-sezione e sincronizzazione immediata su `NavigationItem.section` + `NavigationItem.order` tramite `api_navigation_reorder`. Ogni card supporta azioni rapide `Apri`, `Clona`, `Rimuovi`; il listener globale dei click nel template deve restare `async` perchÃƒÂ© invoca fetch asincrone. Nota semantica: `topbar` rappresenta la navigazione principale e in `nav_mode=side` viene renderizzata nella sidebar. Nel builder `sidebar` e trattata come opzione avanzata (`Sidebar Dedicated`) e viene nascosta in modalita standard.
+Navigation Builder (`/admin-portale/navigation-builder/`): oltre alla tabella inline include una **vista visuale drag&drop orizzontale** (scroll laterale) a colonne per sezione (`topbar`, `subnav`, `admin_subnav`, `sidebar`, `page`) con card trascinabili, spostamento cross-sezione e sincronizzazione immediata su `NavigationItem.section` + `NavigationItem.order` tramite `api_navigation_reorder`. Ogni card supporta azioni rapide `Apri`, `Clona`, `Rimuovi`; il listener globale dei click nel template deve restare `async` perché invoca fetch asincrone. Nota semantica: `topbar` rappresenta la navigazione principale e in `nav_mode=side` viene renderizzata nella sidebar. Nel builder `sidebar` e trattata come opzione avanzata (`Sidebar Dedicated`) e viene nascosta in modalita standard.
 
 Rendering icone navigazione: `render_icon` supporta alias SVG semantici (`layout-dashboard`, `newspaper`, `scan`, `id-card`, `package`, `shield-check`, `file-check`, `key-round`, ecc.), immagini (`media:`/`static:`/URL) e fallback automatico da label per sostituire iniziali placeholder nella topbar/sidebar.
 
@@ -154,7 +154,7 @@ Path auth-only condivisi gestiti direttamente da `ACLMiddleware` (senza grant AC
 
 Alcune app registrano automaticamente i propri endpoint nell'ACL legacy all'avvio tramite `acl_bootstrap.py`. App con bootstrap: `assenze`, `notizie`, `tasks`, `diario_preposto`.
 
-Pattern: `AppConfig.ready()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ chiama `bootstrap_*_acl_endpoints()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ upsert su tabella `pulsanti` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `bump_legacy_cache_version()`. Gli endpoint API vengono nascosti dalla UI via tabella `ui_pulsanti_meta`.
+Pattern: `AppConfig.ready()` → chiama `bootstrap_*_acl_endpoints()` → upsert su tabella `pulsanti` → `bump_legacy_cache_version()`. Gli endpoint API vengono nascosti dalla UI via tabella `ui_pulsanti_meta`.
 
 ### Bootstrap ACL v2 (nuovo)
 
@@ -186,13 +186,13 @@ Pattern: `AppConfig.ready()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ chiama `b
 - Permette a un admin di impersonare un altro utente via session key `_impersonation_state`
 - Durante l'impersonation `request.user` viene sostituito con l'utente target
 - Stop path: `/impersonation/stop` e `/impersonation/stop/`
-- Solo `is_legacy_admin()` puÃƒÆ’Ã‚Â² avviare l'impersonation
+- Solo `is_legacy_admin()` può avviare l'impersonation
 
 ### Elementi hardcoded da NON replicare
 
 - Nomi moduli: `"admin"`, `"dashboard"`, `"assenze"` in `core/acl.py`
-- API gate: `"/api/anomalie/"` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `"/gestione-anomalie"` in `core/middleware.py`
-- Nav gate: `"tasks"` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `"/tasks/"` in `core/context_processors.py`
+- API gate: `"/api/anomalie/"` → `"/gestione-anomalie"` in `core/middleware.py`
+- Nav gate: `"tasks"` → `"/tasks/"` in `core/context_processors.py`
 
 ### Architettura target (stato attuale)
 
@@ -273,7 +273,7 @@ Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 
 Questi componenti esistono solo sul server di produzione:
 
-- Tabelle legacy SQL Server: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DDL non nel repo, migration Django `0029_legacy_managed` presente ma applicata con `--fake` (tabelle preesistenti)
+- Tabelle legacy SQL Server: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti` — DDL non nel repo, migration Django `0029_legacy_managed` presente ma applicata con `--fake` (tabelle preesistenti)
 - Trigger SQL Server per assenze (`sql/`): `trg_assenze_automation_after_insert`, `trg_assenze_automation_after_update`
 - Tabella `automation_event_queue` (`sql/automation_event_queue.sql`) con riallineamento idempotente delle colonne nuove (es. `execute_after`) senza ricreazione della tabella
 - SharePoint/Graph data (credenziali `GRAPH_*` nel `.env`)
@@ -285,9 +285,9 @@ Questi componenti esistono solo sul server di produzione:
 
 ## File sensibili nel repo (da non esporre)
 
-- `django_app/.env` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â credenziali AD, IP di rete, SECRET_KEY
-- `DIPENDENTI.csv` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â dati reali dipendenti
-- `db.sqlite3` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DB locale con dati di test
-- `build/` e `dist/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â contengono `asta.exe` e `utenti.db`
+- `django_app/.env` — credenziali AD, IP di rete, SECRET_KEY
+- `DIPENDENTI.csv` — dati reali dipendenti
+- `db.sqlite3` — DB locale con dati di test
+- `build/` e `dist/` — contengono `asta.exe` e `utenti.db`
 
 - **Cookie `nh_dev` (riconoscimento del dispositivo, 20/10/2026)**: firmato con `SECRET_KEY` (salt `core.dispositivi`), HttpOnly, SameSite Lax, Secure in https, 2 anni; contiene solo un numero casuale, nel DB l'impronta SHA-256 (`core.DispositivoAccesso`). Serve solo a dire «browser già visto»: non autentica e non sostituisce login o 2FA.
