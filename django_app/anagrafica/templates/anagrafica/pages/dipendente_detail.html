@@ -477,8 +477,9 @@ body.theme-dark .sp-idoneita { background:var(--surface-alt, rgba(255,255,255,.0
 body.theme-dark .sp-idoneita-titolo, body.theme-dark .sp-dominio-nome { color:var(--text-light); }
 
 /* Tab interne scheda dipendente */
-.dp-tabs { display:flex; gap:6px; flex-wrap:wrap; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-.dp-tab { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; border-radius:10px; padding:7px 13px; font-size:13px; font-weight:700; color:#64748b; background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s, color .15s; }
+/* Una riga sola: se le schede non ci stanno si scorre in orizzontale, non si va a capo. */
+.dp-tabs { display:flex; gap:2px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.dp-tab { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; border-radius:10px; padding:7px 9px; font-size:12.5px; font-weight:700; color:#64748b; background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s, color .15s; }
 .dp-tab:hover { background:#f1f5f9; color:#0c2545; }
 .dp-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
 .dp-soon-card { background:#f8fafc; border:1px dashed #cbd5e1; border-radius:1rem; padding:24px; text-align:center; }
