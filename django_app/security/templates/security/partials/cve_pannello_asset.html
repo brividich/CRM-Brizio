@@ -15,4 +15,5 @@
 {% empty %}
   <p class="cvp-empty">Nessuna CVE nota colpisce i software di questo PC secondo l'ultimo calcolo.</p>
 {% endfor %}
+{% include "security/partials/cve_pannello_risolte.html" with d=dati mostra_cve=True asset_q=asset.pk %}
 <footer class="pv-foot"><a class="cvp-btn" href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></footer>

@@ -142,3 +142,53 @@ class RiconciliazioneTests(TestCase):
         resp = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
         self.assertContains(resp, "MICROSOFT INTUNE")
         self.assertContains(resp, "Sì (BitLocker)")
+        self.assertContains(resp, "Visto da")
+        self.assertContains(resp, "af-fonte is-")
+
+
+class HardwareIntuneTests(TestCase):
+    def _hw(self, **extra):
+        return {**_device(), "totalStorageSpaceInBytes": 512 * 1024 ** 3, "freeStorageSpaceInBytes": 64 * 1024 ** 3,
+                "wiFiMacAddress": "AABBCCDDEEFF", "ethernetMacAddress": "", "physicalMemoryInBytes": 0, **extra}
+
+    def test_disco_mac_e_ram_letta_a_parte(self):
+        letti = []
+
+        def ram(intune_id):
+            letti.append(intune_id)
+            return 16 * 1024 ** 3
+
+        esito = intune.sincronizza(ORA, devices=[self._hw()], dettaglio=ram)
+        d = DispositivoIntune.objects.get()
+        self.assertEqual((d.ram_label, d.disco_label, d.disco_libero_label, d.disco_usato_pct), ("16 GB", "512 GB", "64 GB", 88))
+        self.assertTrue(d.mac_wifi)
+        self.assertEqual(esito["ram_lette"], 1)
+        # al giro dopo la RAM c'è già: non si rilegge e lo zero della lista non la cancella
+        intune.sincronizza(ORA, devices=[self._hw()], dettaglio=ram)
+        self.assertEqual(letti, ["d-1"])
+        self.assertEqual(DispositivoIntune.objects.get().ram_bytes, 16 * 1024 ** 3)
+
+    def test_completa_ram_e_disco_vuoti_dell_asset(self):
+        asset = Asset.objects.create(asset_tag="HW-1", name="PC-SINTETICO-01")
+        AssetITDetails.objects.create(asset=asset, disco="1 TB scritto a mano")
+        intune.sincronizza(ORA, devices=[self._hw()], dettaglio=lambda _id: 8 * 1024 ** 3)
+        DispositivoIntune.objects.update(asset=asset)
+        intune.sincronizza(ORA, devices=[self._hw()])
+        details = AssetITDetails.objects.get(asset=asset)
+        self.assertEqual((details.ram, details.disco), ("8,0 GB", "1 TB scritto a mano"))
+
+    def test_campi_hardware_rifiutati_si_rilegge_senza(self):
+        from core.m365_graph import GraphError
+
+        chiamate = []
+
+        def get_all(url, *, permesso, params=None):
+            chiamate.append(params["$select"])
+            if len(chiamate) == 1:
+                raise GraphError("campo sconosciuto", 400)
+            return [_device()]
+
+        with patch("core.m365_graph.get_all", side_effect=get_all):
+            self.assertEqual(len(intune.leggi_dispositivi()), 1)
+        self.assertIn("totalStorageSpaceInBytes", chiamate[0])
+        self.assertNotIn("totalStorageSpaceInBytes", chiamate[1])

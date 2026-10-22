@@ -1525,6 +1525,8 @@ class SecurityCveImpact(models.Model):
     explanation = models.TextField()
     inventory_date = models.DateField(null=True, blank=True)
     computed_at = models.DateTimeField(default=timezone.now)
+    # Il ricalcolo ricrea le righe: questa data passa da un giro all'altro e dice da quando il PC è esposto.
+    aperta_dal = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["cve", "outcome", "host"]
@@ -1532,3 +1534,49 @@ class SecurityCveImpact(models.Model):
 
     def __str__(self):
         return f"{self.cve_id} {self.host}: {self.outcome}"
+
+
+class SecurityCveRisoluzione(models.Model):
+    """Un PC che non è più esposto a una CVE, e perché (scritto dal ricalcolo degli impatti).
+
+    Il ricalcolo confronta il giro precedente con quello nuovo: il PC che esce dall'elenco lascia
+    qui la traccia con la versione di prima e, se il programma c'è ancora, quella di adesso.
+    Solo ``aggiornato`` e ``rimosso`` sono correzioni viste nell'inventario; ``pc_assente`` e
+    ``rivalutata`` dicono soltanto che il PC non risulta più esposto.
+    """
+
+    AGGIORNATO = "aggiornato"
+    RIMOSSO = "rimosso"
+    PC_ASSENTE = "pc_assente"
+    RIVALUTATA = "rivalutata"
+    COME_CHOICES = [
+        (AGGIORNATO, "Programma aggiornato"),
+        (RIMOSSO, "Programma disinstallato"),
+        (PC_ASSENTE, "PC non più nell'inventario"),
+        (RIVALUTATA, "Rivalutata (dati NVD o regola)"),
+    ]
+    CORREZIONI = (AGGIORNATO, RIMOSSO)
+
+    cve = models.ForeignKey(SecurityCveRecord, on_delete=models.CASCADE, related_name="risoluzioni")
+    host = models.CharField(max_length=255)
+    host_display = models.CharField(max_length=255, blank=True, default="")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="security_cve_risoluzioni")
+    software = models.CharField(max_length=255, blank=True, default="")
+    chiave = models.CharField(max_length=300, blank=True, default="", help_text="vendor|product del software di prima.")
+    versione_prima = models.CharField(max_length=120, blank=True, default="")
+    versione_dopo = models.CharField(max_length=120, blank=True, default="")
+    come = models.CharField(max_length=16, choices=COME_CHOICES, db_index=True)
+    esito_prima = models.CharField(max_length=16, blank=True, default="")
+    aperta_dal = models.DateTimeField(null=True, blank=True)
+    risolta_il = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-risolta_il", "cve", "host"]
+        indexes = [models.Index(fields=["hub_asset", "risolta_il"], name="sec_cve_ris_asset_idx")]
+
+    def __str__(self):
+        return f"{self.cve_id} {self.host}: {self.come}"
+
+    @property
+    def correzione(self):
+        return self.come in self.CORREZIONI

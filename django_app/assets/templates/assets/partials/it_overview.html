@@ -1,4 +1,14 @@
 {% load security_asset %}
+{% if it_fonti %}
+<div class="af-fonti" data-af-tab="Panoramica" role="list" aria-label="Fonti che vedono questo dispositivo">
+  <span class="af-fonti-label">Visto da</span>
+  {% for f in it_fonti %}
+    {% if f.url %}<a role="listitem" class="af-fonte is-{{ f.stato }}" href="{{ f.url }}"{% if f.quando %} title="Ultima volta: {{ f.quando|date:'d/m/Y' }}"{% endif %}>{% else %}<span role="listitem" class="af-fonte is-{{ f.stato }}">{% endif %}
+      <span class="af-fonte-dot" aria-hidden="true"></span><strong>{{ f.nome }}</strong><small>{{ f.dettaglio }}{% if f.quando %} · {{ f.quando|date:"d/m" }}{% endif %}</small>
+    {% if f.url %}</a>{% else %}</span>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}
 <section class="af-card af-it-overview" id="asset-it-overview" aria-labelledby="asset-it-overview-title" data-af-tab="Panoramica">
   <div class="af-card-head"><div><div class="af-card-kicker">{{ it_presentation.label|upper }}</div><h2 class="af-card-title" id="asset-it-overview-title">Identità e responsabilità</h2></div></div>
   <div class="af-it-body">

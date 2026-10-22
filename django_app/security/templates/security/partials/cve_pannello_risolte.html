@@ -1,0 +1,21 @@
+{# CVE chiuse negli ultimi 90 giorni (SecurityCveRisoluzione, scritta dal ricalcolo). Parametri: d (con risolte/corrette/uscite), mostra_cve, mostra_host, asset_q. #}
+{% if d.risolte %}
+  <details class="cvp-more cvp-risolte"{% if aperta %} open{% endif %}>
+    <summary>Risolte negli ultimi 90 giorni · {{ d.corrette }} corrett{{ d.corrette|pluralize:"a,e" }}{% if d.uscite %} · {{ d.uscite }} uscit{{ d.uscite|pluralize:"a,e" }} dall'elenco{% endif %}</summary>
+    <ul class="cvp-hosts">
+    {% for r in d.risolte|slice:":30" %}
+      <li>
+        <span class="cvp-host">
+          {% if mostra_cve %}<a href="{% url 'security:cve_pannello_cve' r.cve.cve_id %}{% if asset_q %}?asset={{ asset_q }}{% endif %}" data-drawer-load>{{ r.cve.cve_id }}</a>{% endif %}
+          {% if mostra_host %}{% if mostra_cve %} · {% endif %}{% if r.hub_asset %}<a href="{% url 'assets:asset_view' r.hub_asset.pk %}">{{ r.host_display|default:r.host }}</a>{% else %}{{ r.host_display|default:r.host }}{% endif %}{% endif %}
+        </span>
+        <span class="cvp-pill cvp-pill--{% if r.correzione %}ok{% else %}muted{% endif %}">{{ r.get_come_display }}</span>
+        <small class="cvp-host-why">
+          {% if r.software %}{{ r.software }} {{ r.versione_prima }}{% if r.versione_dopo and r.versione_dopo != r.versione_prima %} &#8594; {{ r.versione_dopo }}{% endif %} · {% endif %}il {{ r.risolta_il|date:"d/m/Y" }}{% if r.aperta_dal %}, esposto dal {{ r.aperta_dal|date:"d/m/Y" }}{% endif %}
+        </small>
+      </li>
+    {% endfor %}
+    </ul>
+    <p class="cvp-note">«Corretta» = nell'inventario la versione è cambiata o il programma non c'è più. «Uscita dall'elenco» = il PC non è più nell'inventario o la CVE è stata rivalutata: non è una correzione verificata.</p>
+  </details>
+{% endif %}

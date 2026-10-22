@@ -139,6 +139,8 @@ body.theme-dark .soc-drawer a{color:#93c5fd}
 .soc-drawer .cvp-pill--medium { background: rgba(217, 119, 6, .12); color: #b45309; border-color: rgba(217, 119, 6, .3); }
 .soc-drawer .cvp-pill--low, .soc-drawer .cvp-pill--muted { background: rgba(100, 116, 139, .12); color: var(--text-mid); border-color: rgba(100, 116, 139, .25); }
 .soc-drawer .cvp-pill--kev { background: #7f1d1d; color: #fff; }
+.soc-drawer .cvp-pill--ok, .cvp-card .cvp-pill--ok { background: rgba(22, 163, 74, .12); color: #15803d; border-color: rgba(22, 163, 74, .3); }
+.soc-drawer .cvp-risolte { margin-top: 14px; }
 .soc-drawer .cvp-more > summary, .soc-drawer .cvp-group > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .soc-drawer .cvp-more[open] > summary, .soc-drawer .cvp-group[open] > summary { margin-bottom: 8px; }
 .soc-drawer .cvp-group { border: 1px solid var(--border); border-radius: 10px; padding: 4px 12px 10px; }
@@ -158,6 +160,7 @@ body.theme-dark .soc-drawer a{color:#93c5fd}
 .soc-drawer .cvp-host-why { grid-column: 1 / -1; color: var(--text-light); }
 .soc-drawer .cvp-ranges { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-mid); font-family: ui-monospace, Consolas, monospace; }
 body.theme-dark .soc-drawer .cvp-pill--critical { color: #fca5a5; }
+body.theme-dark .soc-drawer .cvp-pill--ok { color: #86efac; }
 body.theme-dark .soc-drawer .cvp-pill--high { color: #fdba74; }
 body.theme-dark .soc-drawer .cvp-pill--medium { color: #fcd34d; }
 body.theme-dark .soc-drawer .cvp-stat--danger strong { color: #fdba74; }
@@ -176,7 +179,7 @@ body.theme-dark .cvp-open--warn { color: #fcd34d; }
 .soc-drawer .cvp-group.is-focus { border-color: rgba(59, 130, 246, .55); box-shadow: 0 0 0 3px rgba(59, 130, 246, .1); }
 
 /* Riquadro «Vulnerabilità» nella scheda asset: numeri + le 5 CVE più pericolose (aprono il pannello) */
-.cvp-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.cvp-card-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
 .cvp-card-stat { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border, #dbe3ef); border-radius: 12px; }
 .cvp-card-stat strong { font-size: 22px; line-height: 1.1; }
 .cvp-card-stat span { color: var(--text-mid, #64748b); font-size: 12px; }
@@ -184,6 +187,8 @@ body.theme-dark .cvp-open--warn { color: #fcd34d; }
 .cvp-card-stat.is-danger strong { color: #c2410c; }
 .cvp-card-stat.is-critical { border-color: rgba(220, 38, 38, .5); background: rgba(220, 38, 38, .07); }
 .cvp-card-stat.is-critical strong { color: var(--danger, #dc2626); }
+.cvp-card-stat.is-ok { border-color: rgba(22, 163, 74, .4); background: rgba(22, 163, 74, .06); }
+.cvp-card-stat.is-ok strong { color: #15803d; }
 .cvp-card-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
 .cvp-card-item { width: 100%; display: grid; grid-template-columns: auto auto 1fr; gap: 3px 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--border, #dbe3ef); border-left: 4px solid var(--border, #dbe3ef); border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
 .cvp-card-item:hover, .cvp-card-item:focus-visible, .cvp-card-item.is-previewed { background: rgba(59, 130, 246, .06); border-color: rgba(59, 130, 246, .45); outline: none; }
@@ -196,6 +201,7 @@ body.theme-dark .cvp-open--warn { color: #fcd34d; }
 .cvp-card-desc { grid-column: 1 / -1; color: var(--text-mid, #64748b); font-size: 12px; line-height: 1.35; }
 body.theme-dark .cvp-card-stat.is-danger strong { color: #fdba74; }
 body.theme-dark .cvp-card-stat.is-critical strong { color: #fca5a5; }
+body.theme-dark .cvp-card-stat.is-ok strong { color: #86efac; }
 
 .soc-drawer .cvp-stat small { font-size: 11px; line-height: 1.2; }
 .soc-drawer .cvp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font-size: var(--fs-sm, 13px); font-weight: 600; text-decoration: none; }
@@ -203,3 +209,4 @@ body.theme-dark .cvp-card-stat.is-critical strong { color: #fca5a5; }
 .soc-drawer .cvp-btn--primary, body.theme-dark .soc-drawer a.cvp-btn--primary { background: var(--primary-mid, #2563eb); border-color: var(--primary-mid, #2563eb); color: #fff; }
 .soc-drawer .cvp-btn--primary:hover { background: var(--primary, #1d4ed8); }
 body.theme-dark .soc-drawer a.cvp-btn:not(.cvp-btn--primary) { color: var(--text); }
+@media (max-width: 520px) { .cvp-card-stats { grid-template-columns: 1fr 1fr; } }
