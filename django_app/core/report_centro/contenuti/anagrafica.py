@@ -30,6 +30,11 @@ VOCI = [
          "Vista ed esportazione Word del registro dei processi qualificati.",
          ("html", "docx"), route="anagrafica:mpq_vista", pagina="anagrafica:mpq_cruscotto",
          dati_personali=True, layout=LAYOUT_SU_MISURA, norma="MOD.128"),
+    voce("struttura_persone", "Ruoli, mansioni e competenze per persona",
+         "Una riga per persona: reparto, area, ruolo, mansioni con livello e semaforo, mansioni previste dal "
+         "ruolo non ancora assegnate, mansione di rischio. Filtro per reparto.",
+         "xlsx", route="anagrafica:struttura_report_persone", pagina="anagrafica:struttura_org",
+         dati_personali=True, layout=LAYOUT_EXCEL),
     voce("struttura", "Struttura ruoli e mansioni",
          "Excel della struttura organizzativa (ruoli, mansioni, rischi), reimportabile.",
          "xlsx", route="anagrafica:mansionario_struttura_export", pagina="anagrafica:mansionario_struttura",

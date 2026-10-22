@@ -325,6 +325,19 @@ class PagineStrutturaTests(_Base):
                                 {"persona": self.p_cn5.pk, "livello": "I", "next": dest})
         self.assertRedirects(resp, dest, fetch_redirect_response=False)
         self.assertTrue(mk1.abilitazioni.filter(legacy_anagrafica_id=self.p_cn5.pk, in_lista=True).exists())
+        # Scheda «Ruolo e competenze»: tab, semaforo, riga nel riepilogo, report per persona.
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.p_cn5.pk]))
+        self.assertContains(resp, 'data-tab-target="ruolo"')
+        self.assertContains(resp, 'data-tab="ruolo" id="posizione-struttura"')
+        self.assertContains(resp, "dp-sem-addestramento")  # livello I: in addestramento
+        self.assertContains(resp, 'data-tab-vai="ruolo"')
+        resp = self.client.get(reverse("anagrafica:struttura_report_persone"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("spreadsheetml", resp["Content-Type"])
+        from .services import struttura_report
+
+        riga = next(r for r in struttura_report.righe() if "MK1" in r[11] or "MIKRON" in r[11])
+        self.assertEqual(riga[6], 1)
 
     def test_processo_si_modifica_con_revisione(self):
         from django.urls import reverse
@@ -440,3 +453,53 @@ class RiparazioniFaseZeroTests(_Base):
         r = RuoloOperativo.objects.create(nome="Preposto di reparto", nomi_precedenti="Preposto")
         self.assertIn(r.pk, ruoli_preposto_ids())
         self.assertNotIn(self.r_cnc.pk, ruoli_preposto_ids())
+
+
+class SchedeLateraliTests(_Base):
+    def setUp(self):
+        super().setUp()
+        struttura_v8.carica(applica=True, user=self.user)
+        self.client.force_login(self.user)
+
+    def test_schede_si_aprono(self):
+        from django.urls import reverse
+
+        ruolo = RuoloOperativo.objects.filter(sigla__isnull=False).first()
+        ruolo.profili_permessi.add(self.gruppo)
+        resp = self.client.get(reverse("anagrafica:struttura_scheda_ruolo", args=[ruolo.pk]))
+        self.assertContains(resp, ruolo.nome)
+        self.assertContains(resp, "Accessi al portale che concede")
+        self.assertContains(resp, self.gruppo.label)
+        m = CompetenzaSkm.objects.filter(area__isnull=False, attiva=True).first()
+        resp = self.client.get(reverse("anagrafica:struttura_scheda_mansione", args=[m.pk]))
+        self.assertContains(resp, "Persone e livello")
+        rep = Reparto.objects.get(nome="CN5G")
+        resp = self.client.get(reverse("anagrafica:struttura_scheda_reparto", args=[rep.pk]))
+        self.assertContains(resp, "Macchine del reparto")
+        resp = self.client.get(reverse("anagrafica:struttura_org"))
+        self.assertContains(resp, 'data-sto-apri="ruolo"')
+
+    def test_riporta_a_senza_giri(self):
+        from django.urls import reverse
+
+        capo, sotto = self.r_msm, self.r_pe
+        sotto.riporta_a = capo
+        sotto.save()
+        url = reverse("anagrafica:struttura_ruolo_salva", args=[capo.pk])
+        self.client.post(url, {"nome": capo.nome, "sigla": capo.sigla or "", "classe": "", "riporta_a": sotto.pk})
+        capo.refresh_from_db()
+        self.assertIsNone(capo.riporta_a_id)  # giro rifiutato
+        self.client.post(url, {"nome": "Responsabile sistema sintetico", "sigla": capo.sigla or "", "classe": "",
+                               "riporta_a": ""})
+        capo.refresh_from_db()
+        self.assertEqual(capo.nome, "Responsabile sistema sintetico")
+
+    def test_rinomina_reparto_da_pagina(self):
+        from django.urls import reverse
+
+        rep = Reparto.objects.get(nome="UT")
+        Asset.objects.create(name="PC sintetico", asset_tag="PC-UT- 1", reparto="UT")
+        self.client.post(reverse("anagrafica:struttura_reparto_rinomina", args=[rep.pk]), {"nome": "UFFICI"})
+        rep.refresh_from_db()
+        self.assertEqual(rep.nome, "UFFICI")
+        self.assertTrue(Asset.objects.filter(reparto="UFFICI").exists())

@@ -39,7 +39,7 @@ def posizione(legacy_id: int) -> dict:
     assegnazioni = list(
         DipendenteRuoloOperativo.objects.filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi),
                                                 legacy_anagrafica_id=legacy_id)
-        .select_related("ruolo", "ruolo__ambito").order_by("ruolo__nome")
+        .select_related("ruolo", "ruolo__ambito").prefetch_related("ruolo__profili_permessi").order_by("ruolo__nome")
     )
     struttura = [a for a in assegnazioni if a.ruolo.alimenta_ruolo_principale]
     incarichi = [a for a in assegnazioni if not a.ruolo.alimenta_ruolo_principale]
@@ -53,11 +53,21 @@ def posizione(legacy_id: int) -> dict:
         AbilitazioneMacchina.objects.filter(legacy_anagrafica_id=legacy_id, in_lista=True, competenza__isnull=False)
         .select_related("competenza__area", "competenza__processo_sgi").order_by("competenza__display")
     )
+    from ..models import SkillMatrixConfig
+
+    soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
+    for a in abilitazioni:
+        # Semaforo della mansione: sospesa, operativa (livello ≥ soglia) o in addestramento.
+        a.semaforo = ("sospesa" if a.stato == AbilitazioneMacchina.STATO_SOSPESA
+                      else "operativa" if a.is_operativa(soglia) else "addestramento")
     assegnate = {a.competenza_id for a in abilitazioni}
     da_proporre = proposte([a.ruolo_id for a in struttura], area=area, escludi_ids=assegnate)
     processi = sorted({a.competenza.processo_sgi.nome for a in abilitazioni if a.competenza.processo_sgi_id}
                       | {m.processo_sgi.nome for m in da_proporre if m.processo_sgi_id}, key=str.casefold)
+    accessi = {g.pk: g for a in assegnazioni for g in a.ruolo.profili_permessi.all()}
     return {
+        "accessi": sorted(accessi.values(), key=lambda g: g.label.casefold()),
+        "n_operative": sum(1 for a in abilitazioni if a.semaforo == "operativa"),
         "ruoli": struttura, "incarichi": incarichi, "area": area, "reparto": reparto,
         "reparto_testo": (az.area if az else "") or "", "responsabile": responsabile,
         "abilitazioni": abilitazioni, "proposte": da_proporre, "processi": processi,

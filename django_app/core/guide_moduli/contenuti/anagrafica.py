@@ -397,11 +397,30 @@ GUIDA = {
                       "scadenza». Una mansione nata dalla divisione di un'altra (es. Marcatura → laser, manuale, a "
                       "punti, elettrolitica) lo dice: il livello registrato sulla vecchia è solo un suggerimento, le "
                       "persone si valutano di nuovo."),
+                ("p", "Scheda dipendente → scheda «🧭 Ruolo e competenze» (con il numero delle mansioni da assegnare): "
+                      "riunisce in un posto solo posizione nella struttura, ruoli operativi e qualifiche professionali "
+                      "(prima sparse fra Anagrafica e Formazione). Ruolo e reparto aprono la loro scheda nella Struttura "
+                      "organizzativa; ogni mansione ha il semaforo operativa / in addestramento / sospesa; «Competenze e "
+                      "lacune» apre la scheda competenze della persona; l'amministrazione vede anche gli «Accessi al "
+                      "portale ricevuti dal ruolo». Nel Riepilogo la riga «Ruolo e competenze» riassume ruolo, mansioni, "
+                      "operative e da assegnare e porta alla scheda. La vede chi vede il Mansionario e chi gestisce la "
+                      "skill matrix. Report: «Excel per persona» nella Struttura organizzativa (o dalla scheda di un "
+                      "reparto, solo quel reparto), anche nel Centro report."),
                 ("p", "Scheda dipendente → «Posizione nella struttura»: ruolo (sigla, diretto/indiretto, principale), "
                       "reparto e area, ruolo responsabile, processi, mansioni svolte con livello e «Mansioni previste dal "
                       "ruolo, non ancora assegnate»: si assegnano una per una scegliendo il livello e «Assegna». Lo stesso "
                       "riquadro c'è nella pratica di onboarding («Assegna (I)», livello in formazione) e la checklist ha "
                       "la voce «Assegnare ruolo, area e mansioni della struttura»."),
+                ("p", "Schede laterali: un clic sul nome di un ruolo, di una mansione o sul pulsante «Scheda» di un "
+                      "reparto apre a destra la sua scheda, senza lasciare la pagina. Ruolo: chi lo ricopre (link alla "
+                      "scheda del dipendente), mansioni previste, processi di cui è owner, reparti e aree di cui è "
+                      "responsabile, chi gli riporta, «Accessi al portale che concede» (i ruoli del portale collegati) e "
+                      "nomi precedenti; l'amministrazione ne cambia nome, sigla, diretto/indiretto e «Riporta a» (un giro "
+                      "nella gerarchia viene rifiutato). Mansione: ruoli, mansione di rischio (o la proposta da "
+                      "confermare), persone con il livello, storia (divisa da, nomi precedenti), link a valutazioni ed "
+                      "editor. Reparto: aree con persone e responsabili, macchine, co-responsabili; l'amministrazione lo "
+                      "rinomina da qui (aggiorna anche schede, anagrafica, macchine, timbri, pratiche aperte). Esc o un "
+                      "clic fuori chiude la scheda; l'indirizzo #scheda-ruolo-N si può condividere."),
                 ("nota", "Rinominare un ruolo dal catalogo dei ruoli ora riscrive anche il «Ruolo aziendale» delle schede "
                          "e tiene il nome di prima fra i nomi precedenti."),
                 ("nota", "Rinominare una mansione di rischio (Impostazioni → Mansioni) è sicuro: il nome di prima resta fra "
