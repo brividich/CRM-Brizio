@@ -587,3 +587,77 @@ def _apply_alias(alias):
     # Lo stesso software visto da due fonti con nomi diversi ora coincide: una riga sola.
     software_inventory.unifica_installazioni()
     return n
+
+
+# --- Pannello laterale delle CVE (inventario software, scheda asset) ----------------------------
+
+def _pannello_negato():
+    from django.http import JsonResponse
+
+    return JsonResponse({"error": "Serve l'accesso al Security Center per vedere le CVE."}, status=403)
+
+
+def _ritorno(request):
+    """Link «torna all'elenco» del pannello: solo un altro elenco del pannello, mai un indirizzo esterno."""
+    from django.urls import reverse
+
+    back = request.GET.get("da", "")
+    base = reverse("security:cve_pannello_programma").rsplit("programma/", 1)[0]
+    return back if back.startswith(base) and "//" not in back else ""
+
+
+def cve_pannello_programma(request):
+    """Elenco CVE di un programma dell'inventario (tutti i nomi che lo formano)."""
+    if not can_view_security_center(request.user):
+        return _pannello_negato()
+    from .services import cve_pannello, software_catalog
+
+    key = request.GET.get("k", "")
+    if "|" not in key:
+        raise Http404
+    vendor, product = software_catalog.families().get(software_catalog.split_key(key), software_catalog.split_key(key))
+    nome = (SoftwareInstallation.objects.filter(vendor=vendor, product=product).exclude(product_raw="")
+            .values_list("product_raw", flat=True).first() or product)
+    return render(request, "security/partials/cve_pannello_elenco.html", {
+        "titolo": nome, "sottotitolo": "CVE sui PC che hanno oggi il programma",
+        "dati": cve_pannello.per_programma(key), "qui": request.get_full_path(),
+    })
+
+
+def cve_pannello_asset(request, asset_id):
+    """Elenco CVE di un PC, raggruppate per software installato."""
+    if not can_view_security_center(request.user):
+        return _pannello_negato()
+    from assets.models import Asset
+
+    from .services import cve_pannello
+
+    asset = get_object_or_404(Asset, pk=asset_id)
+    dati = cve_pannello.per_asset(asset)
+    # ?sw=<chiave>: aperto dalla riga di un software, quel software in cima e solo lui espanso
+    sw = request.GET.get("sw", "")
+    if sw and any(s["key"] == sw for s in dati["software"]):
+        dati["software"].sort(key=lambda s: s["key"] != sw)
+    return render(request, "security/partials/cve_pannello_asset.html", {
+        "asset": asset, "dati": dati, "sw": sw, "qui": request.get_full_path(),
+    })
+
+
+def cve_pannello_cve(request, cve_id):
+    """Scheda breve di una CVE dentro il pannello, con il ritorno all'elenco da cui si arriva."""
+    if not can_view_security_center(request.user):
+        return _pannello_negato()
+    from .services import cve_pannello
+
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    asset = None
+    if request.GET.get("asset", "").isdigit():
+        from assets.models import Asset
+
+        asset = Asset.objects.filter(pk=int(request.GET["asset"])).first()
+    dati = cve_pannello.dettaglio(cve_id, asset=asset)
+    if dati is None:
+        raise Http404
+    return render(request, "security/partials/cve_pannello_cve.html", {"d": dati, "ritorno": _ritorno(request)})

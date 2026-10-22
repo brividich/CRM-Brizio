@@ -180,7 +180,19 @@ Il sistema non tira mai a indovinare: quando non può dimostrare l'esito, scrive
 - **Scheda CVE**: l'esito PC per PC con la spiegazione.
 - **Scheda alert e ticket** di una CVE: il riquadro «Impatto sugli asset» e, se non ci sono PC impattati, la proposta di chiusura. La proposta **non compare mai** per CVE sfruttate (KEV) o critiche.
 - **Scheda asset** del modulo Asset: la sezione «Vulnerabilità» con le CVE che riguardano quel PC e la scheda **Software** con tutti i programmi installati, le versioni precedenti, la licenza collegata e le CVE per programma.
+- **Pannello laterale delle CVE**: nel Catalogo software (colonna CVE e scheda del programma) e nella scheda asset (riquadro «Vulnerabilità» e colonna CVE della scheda Software) il numero di CVE è un bottone che apre un pannello a destra, senza lasciare la pagina. Vedi «Il pannello delle CVE» qui sotto.
 - **Licenze software** del modulo Asset: per le licenze collegate a un software dell'inventario, su quanti PC è installato rispetto ai posti acquistati.
+
+### Il pannello delle CVE
+
+Il pannello si apre dal bottone rosso «N CVE» (arancione per «da verificare») e si chiude con <kbd>Esc</kbd> o con la ×.
+
+- **Dal Catalogo software** mostra le CVE del programma su tutti i PC che lo hanno oggi, anche quando le fonti lo chiamano in modo diverso. In cima tre numeri: CVE che **colpiscono**, quante sono **gravi** (sfruttate attivamente, cioè in CISA KEV, oppure con CVSS 9 o più) e quante sono **da verificare**. Le CVE sono in ordine di pericolo: prima le sfruttate, poi per CVSS. Ogni riga dice quanti PC sono colpiti, quali versioni e, se l'NVD lo indica, da quale versione è corretta. Le «da verificare» sono in un gruppo chiuso a parte.
+- **Nella scheda del programma** una fascia in alto dice quante CVE lo colpiscono e la tabella «Versioni presenti» ha la colonna **CVE**: quante CVE colpiscono ciascuna versione. Le versioni con «nessuna nota» sono quelle a cui aggiornare.
+- **Dalla scheda asset** mostra le CVE del PC raggruppate per software installato; aperto dalla riga di un software della scheda Software, quel software è in cima ed è l'unico aperto.
+- **Clic su una CVE** apre la scheda breve nel pannello: gravità e CVSS, se è sfruttata attivamente (con la scadenza CISA), la descrizione, **Cosa fare** (la versione da installare, se nota), la probabilità di attacco (EPSS), i PC colpiti o da verificare con la versione (il PC da cui si arriva è evidenziato «questo PC») e i range vulnerabili letti dall'NVD. «Torna all'elenco» riporta all'elenco; «Scheda completa» apre la pagina della CVE nel SOC; «Apri su NVD» apre il sito NVD.
+
+I numeri del pannello sono gli stessi del catalogo: contano solo i software ancora presenti sui PC, dall'ultimo calcolo d'impatto (il pannello non legge l'NVD in diretta). Pannello e numeri compaiono solo a chi vede il Security Center; il server lo controlla a ogni apertura.
 
 ### Alert e ticket automatici
 

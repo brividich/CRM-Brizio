@@ -177,7 +177,7 @@ def versions_by_key():
     """{chiave: Counter(versione → PC)} dei prodotti presenti."""
     fam = families()
     out = defaultdict(Counter)
-    for vendor, product, version, host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
+    for vendor, product, version, _host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
         "vendor", "product", "version_raw", "host"
     ).distinct():
         out[inventory_key(*_canon(fam, vendor, product))][version] += 1
@@ -185,11 +185,11 @@ def versions_by_key():
 
 
 def cve_by_key():
-    """{chiave: numero di CVE che impattano almeno un PC} dai calcoli d'impatto del SOC."""
+    """{chiave: numero di CVE che impattano almeno un PC che ha oggi il programma} (lo stesso numero del pannello CVE)."""
     fam = families()
     out = defaultdict(set)
     for vendor, product, cve_id in SecurityCveImpact.objects.filter(
-        outcome=SecurityCveImpact.IMPACTS, installation__isnull=False,
+        outcome=SecurityCveImpact.IMPACTS, installation__still_detected=True,
     ).values_list("installation__vendor", "installation__product", "cve__cve_id"):
         out[inventory_key(*_canon(fam, vendor, product))].add(cve_id)
     return {key: len(ids) for key, ids in out.items()}

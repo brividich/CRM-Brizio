@@ -3,7 +3,9 @@
    Selezione multipla   form[data-bulk]: .sec-bulk-item, [data-bulk-all], [data-bulk-count], [data-bulk-go],
                         campi opzionali [data-show-for="azione1 azione2"] mostrati solo per quelle azioni.
    Anteprima a pannello [data-preview="/url/"] su righe o elementi: clic (fuori da link e caselle) apre il
-                        pannello laterale; ← → scorrono le righe della stessa lista, Esc chiude. Nel pannello i
+                        pannello laterale; un bottone/link con data-preview lo apre lui stesso (Ctrl+clic su un
+                        link apre invece la pagina). ← → scorrono le righe della stessa lista, Esc chiude.
+                        Nel pannello i link [data-drawer-load] cambiano il contenuto senza chiuderlo. Nel pannello i
                         form [data-drawer-form] si inviano senza lasciare la pagina; [data-drawer-target] mette
                         la risposta in un riquadro del pannello (es. risposta dell'AI).
    Barra di stato live  [data-live-url] si ricarica ogni [data-live-every] secondi (pagina visibile).
@@ -12,6 +14,9 @@
    Testo inserito con textContent o HTML generato dal server stesso: mai HTML da input dell'utente. */
 (function () {
   "use strict";
+  // Caricato anche da pagine fuori dal SOC (pannello CVE negli Asset): una volta sola.
+  if (window.__socUi) return;
+  window.__socUi = true;
 
   function csrf() {
     var m = document.cookie.match(/(?:^|;)\s*csrftoken=([^;]+)/);
@@ -105,6 +110,10 @@
       if (ev.target.closest("[data-drawer-close]")) closeDrawer();
       else if (ev.target.closest("[data-drawer-prev]")) step(-1);
       else if (ev.target.closest("[data-drawer-next]")) step(1);
+      else {
+        var link = ev.target.closest("a[data-drawer-load]");
+        if (link && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); load(link.getAttribute("data-drawer-load") || link.href); }
+      }
     });
     drawerBody.addEventListener("submit", onDrawerSubmit);
   }
@@ -120,7 +129,7 @@
     drawerBody.innerHTML = '<p class="soc-drawer-loading">Caricamento…</p>';
     return fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-      .then(function (html) { drawerBody.innerHTML = html; drawerBody.focus(); })
+      .then(function (html) { drawerBody.innerHTML = html; drawerBody.scrollTop = 0; drawerBody.focus(); })
       .catch(function () { drawerBody.innerHTML = '<p class="sec-action-result sec-error">Anteprima non disponibile. Apri la scheda completa.</p>'; });
   }
 
@@ -186,7 +195,9 @@
 
   document.addEventListener("click", function (ev) {
     var row = ev.target.closest("[data-preview]");
-    if (!row || ev.target.closest("a, button, input, select, label, textarea")) return;
+    if (!row) return;
+    var own = ev.target.closest("a, button, input, select, label, textarea");
+    if (own && own !== row) return;
     if (ev.ctrlKey || ev.metaKey) return;
     ev.preventDefault();
     openFor(row);

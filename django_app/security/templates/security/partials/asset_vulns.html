@@ -1,25 +1,28 @@
 {% if show %}
 <section class="af-card" id="asset-vulnerabilita" aria-labelledby="asset-vulnerabilita-title">
-  <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER</div><h2 class="af-card-title" id="asset-vulnerabilita-title">Vulnerabilità</h2></div></div>
-  <p class="af-note">{{ software_count }} software rilevati, inventario del {{ inventory_date|date:"d/m/Y" }}. <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></p>
-  {% if impacts %}
-    <div class="af-table-wrap">
-      <table class="af-table">
-        <thead><tr><th>CVE</th><th>Esito</th><th>CVSS</th><th>Perché</th></tr></thead>
-        <tbody>
-        {% for imp in impacts %}
-          <tr>
-            <td><a href="{% url 'security:cve_detail' imp.cve.cve_id %}">{{ imp.cve.cve_id }}</a>{% if imp.cve.kev %} <strong title="CISA KEV: sfruttata attivamente">KEV</strong>{% endif %}</td>
-            <td>{{ imp.get_outcome_display }}</td>
-            <td>{{ imp.cve.cvss|default_if_none:"—" }}</td>
-            <td>{{ imp.explanation|truncatechars:200 }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER</div><h2 class="af-card-title" id="asset-vulnerabilita-title">Vulnerabilità</h2></div>
+    {% if dati.colpiscono or dati.da_verificare %}<button type="button" class="cvp-open{% if not dati.colpiscono %} cvp-open--warn{% endif %}" data-preview="{% url 'security:cve_pannello_asset' asset.pk %}">Vedi tutte le CVE</button>{% endif %}
+  </div>
+  <div class="cvp-card-stats">
+    <div class="cvp-card-stat{% if dati.colpiscono %} is-danger{% endif %}"><strong>{{ dati.colpiscono }}</strong><span>CVE colpiscono</span></div>
+    <div class="cvp-card-stat{% if dati.gravi %} is-critical{% endif %}"><strong>{{ dati.gravi }}</strong><span>gravi</span></div>
+    <div class="cvp-card-stat"><strong>{{ dati.da_verificare }}</strong><span>da verificare</span></div>
+  </div>
+  {% if top %}
+    <ul class="cvp-card-list" data-preview-scope>
+    {% for r in top %}{% with rec=r.record %}
+      <li><button type="button" class="cvp-card-item cvp-card-item--{{ r.tono }}" data-preview="{% url 'security:cve_pannello_cve' rec.cve_id %}?asset={{ asset.pk }}">
+        <span class="cvp-card-id">{{ rec.cve_id }}</span>
+        {% if rec.kev %}<span class="cvp-card-kev" title="CISA KEV: sfruttata attivamente">Sfruttata</span>{% endif %}
+        <span class="cvp-card-score">{{ r.gravita }}{% if rec.cvss is not None %} · {{ rec.cvss|floatformat:1 }}{% endif %}</span>
+        <span class="cvp-card-desc">{{ rec.description|default:"Descrizione non ancora letta da NVD."|truncatechars:110 }}</span>
+      </button></li>
+    {% endwith %}{% endfor %}
+    </ul>
   {% else %}
-    <p class="af-note">Nessuna CVE nota impatta questo asset (o è da verificare) secondo l'inventario.</p>
+    <p class="af-note">Nessuna CVE nota colpisce questo PC secondo l'ultimo calcolo{% if dati.da_verificare %} ({{ dati.da_verificare }} da verificare){% endif %}.</p>
   {% endif %}
+  <p class="af-note">{{ software_count }} software rilevati, inventario del {{ inventory_date|date:"d/m/Y" }}. Clic su una CVE per i dettagli. <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></p>
 </section>
+{% include "security/partials/cve_pannello_risorse.html" %}
 {% endif %}

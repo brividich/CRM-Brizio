@@ -114,16 +114,26 @@ def security_asset_vulns(context, asset):
     if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
         return {"show": False}
     from security.models import SoftwareInstallation
-    from security.services.cve_impact import impacts_for_hub_asset
+    from security.services import cve_pannello
 
     installs = SoftwareInstallation.objects.filter(hub_asset=asset, still_detected=True)
     if not installs.exists():
         return {"show": False}
     from django.db.models import Max
 
+    dati = cve_pannello.per_asset(asset)
+    # le più pericolose del PC, una riga per CVE (stesso ordine del pannello)
+    righe = sorted((r for s in dati["software"] for r in s["colpiscono"]), key=cve_pannello._ordine)
+    viste, top = set(), []
+    for r in righe:
+        if r["record"].cve_id not in viste:
+            viste.add(r["record"].cve_id)
+            top.append(r)
     return {
         "show": True,
-        "impacts": impacts_for_hub_asset(asset),
+        "asset": asset,
+        "dati": dati,
+        "top": top[:5],
         "software_count": installs.count(),
         "inventory_date": installs.aggregate(last=Max("last_inventory_date"))["last"],
     }
