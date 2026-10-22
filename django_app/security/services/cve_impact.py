@@ -12,10 +12,12 @@ in CISA KEV o critica).
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter, defaultdict
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.utils import timezone
@@ -29,7 +31,16 @@ from security.models import (
 from security.services import soc_settings
 from security.services.versioning import in_range
 
+logger = logging.getLogger(__name__)
+
 RANK = {SecurityCveImpact.IMPACTS: 2, SecurityCveImpact.TO_VERIFY: 1, SecurityCveImpact.NOT_IMPACTED: 0}
+
+# Un solo ricalcolo completo alla volta: più copie in parallelo si bloccavano a vicenda
+# (deadlock 40001) e tenevano occupato SQL per ore. Le chiavi stanno nella cache condivisa.
+LOCK_KEY = "security:cve_recompute:in_corso"
+QUEUED_KEY = "security:cve_recompute:accodato"
+RERUN_KEY = "security:cve_recompute:da_rifare"
+LOCK_TTL = 900
 
 
 def freshness_days():
@@ -100,25 +111,51 @@ def _evaluate_install(record, criterion, install, stale_before, auto_pairs=froze
     return SecurityCveImpact.NOT_IMPACTED, f"{base}: versione fuori dal range vulnerabile."
 
 
-def evaluate(record, today=None):
+def _ci(text):
+    """Confronto senza maiuscole, come la collation CI di SQL Server."""
+    return str(text or "").lower()
+
+
+class Contesto:
+    """Mappature e installazioni lette UNA volta per tutto il ricalcolo, non per ogni criterio.
+
+    Prima ogni criterio di ogni CVE rifaceva una ricerca ``icontains`` su tutto l'inventario:
+    decine di migliaia di scansioni per un ricalcolo completo.
+    """
+
+    def __init__(self):
+        self.mappings = _confirmed_mappings()
+        self.auto_pairs = frozenset(
+            SoftwareCpeMapping.objects.filter(confirmed=True, origin=SoftwareCpeMapping.ORIGIN_AUTO).values_list("vendor", "product")
+        )
+        self.not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
+        self.installs = list(SoftwareInstallation.objects.filter(still_detected=True))
+        self.per_prodotto = defaultdict(list)
+        for install in self.installs:
+            self.per_prodotto[(_ci(install.vendor), _ci(install.product))].append(install)
+
+    def installazioni_di(self, products):
+        visti = {}
+        for vendor, product in products:
+            for install in self.per_prodotto.get((_ci(vendor), _ci(product)), []):
+                visti.setdefault(install.pk, install)
+        return list(visti.values())
+
+    def nome_contiene(self, testo):
+        return [install for install in self.installs if testo in _ci(install.product)]
+
+
+def evaluate(record, today=None, ctx=None):
     """Esiti per host (dict host → (esito, [spiegazioni], installazione, data inventario)) + criteri non mappati."""
     stale_before = fresh_since(today)
-    mappings = _confirmed_mappings()
-    auto_pairs = frozenset(
-        SoftwareCpeMapping.objects.filter(confirmed=True, origin=SoftwareCpeMapping.ORIGIN_AUTO).values_list("vendor", "product")
-    )
-    not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
+    ctx = ctx or Contesto()
     per_host, unmapped = {}, []
     for criterion in record.configurations or []:
         pair = (criterion.get("vendor", "").lower(), criterion.get("product", "").lower())
-        products = mappings.get(pair, [])
+        products = ctx.mappings.get(pair, [])
         if products:
-            q = Q()
-            for vendor, product in products:
-                q |= Q(vendor=vendor, product=product)
-            installs = SoftwareInstallation.objects.filter(q, still_detected=True)
-            for install in installs:
-                outcome, text = _evaluate_install(record, criterion, install, stale_before, auto_pairs)
+            for install in ctx.installazioni_di(products):
+                outcome, text = _evaluate_install(record, criterion, install, stale_before, ctx.auto_pairs)
                 _merge(per_host, install, outcome, text)
             continue
         # Nessuna mappatura confermata: cerco prodotti dal nome simile, da verificare.
@@ -126,8 +163,8 @@ def evaluate(record, today=None):
         if not cpe_name:
             continue
         similar = [
-            install for install in SoftwareInstallation.objects.filter(still_detected=True, product__icontains=cpe_name.split(" ")[0])
-            if (install.vendor, install.product) not in not_applicable and (cpe_name in _key(install.product) or _key(install.product) in cpe_name)
+            install for install in ctx.nome_contiene(cpe_name.split(" ")[0])
+            if (install.vendor, install.product) not in ctx.not_applicable and (cpe_name in _key(install.product) or _key(install.product) in cpe_name)
         ]
         unmapped.append({"cpe": f"{pair[0]}:{pair[1]}", "similar": len(similar)})
         for install in similar:
@@ -148,8 +185,8 @@ def _merge(per_host, install, outcome, text):
         current[1].append(text)
 
 
-def recompute(record, today=None):
-    per_host, _unmapped = evaluate(record, today)
+def recompute(record, today=None, ctx=None):
+    per_host, _unmapped = evaluate(record, today, ctx)
     now = timezone.now()
     before = set(record.impacts.filter(outcome=SecurityCveImpact.IMPACTS).values_list("host", flat=True))
     rows = [
@@ -168,16 +205,31 @@ def recompute(record, today=None):
 
 
 def recompute_all(today=None):
-    total, events = 0, 0
-    for record in SecurityCveRecord.objects.all():
-        total += recompute(record, today)
-        events += 1 if getattr(record, "_new_impact_event", None) else 0
-    if events:
-        # Gli eventi passano dal motore regole come tutti gli altri: soppressioni, alert, ticket, notifiche.
-        from security.services.rule_engine import evaluate_security_rules
+    if not cache.add(LOCK_KEY, timezone.now().isoformat(), LOCK_TTL):
+        # Un ricalcolo è già in corso: lo si rifà alla sua fine, per non perdere le modifiche arrivate nel frattempo.
+        cache.set(RERUN_KEY, 1, LOCK_TTL)
+        logger.info("Ricalcolo impatti CVE già in corso: rimandato alla sua fine")
+        return 0
+    cache.delete(QUEUED_KEY)
+    try:
+        total, events = 0, 0
+        ctx = Contesto()
+        for record in SecurityCveRecord.objects.all():
+            total += recompute(record, today, ctx)
+            events += 1 if getattr(record, "_new_impact_event", None) else 0
+        if events:
+            # Gli eventi passano dal motore regole come tutti gli altri: soppressioni, alert, ticket, notifiche.
+            from security.services.rule_engine import evaluate_security_rules
 
-        evaluate_security_rules()
-    return total
+            evaluate_security_rules()
+        return total
+    finally:
+        cache.delete(LOCK_KEY)
+        if cache.get(RERUN_KEY):
+            cache.delete(RERUN_KEY)
+            from security.services.cve_feeds import queue_recompute
+
+            queue_recompute()
 
 
 # --- Alert sui PC impattati ---------------------------------------------------------------
