@@ -1,12 +1,12 @@
 {% extends "security/_base_soc.html" %}
 
-{% block title %}PC e fonti | Security Center AI{% endblock %}
+{% block title %}Dispositivi | Security Center AI{% endblock %}
 {% block page_marker %}Dispositivi{% endblock %}
-{% block page_title %}PC e fonti{% endblock %}
+{% block page_title %}Dispositivi{% endblock %}
 
 {% block soc_content %}
 <section class="sec-panel">
-  <div class="sec-chip-row" aria-label="Quali PC">
+  <div class="sec-chip-row" aria-label="Quali dispositivi">
     {% for f in filtri %}
       <a class="sec-chip{% if f.active %} is-active{% endif %}{% if not f.count and f.code != 'tutti' %} is-empty{% endif %}" href="?f={{ f.code }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"{% if f.active %} aria-current="true"{% endif %}>{{ f.label }} <strong>{{ f.count }}</strong></a>
     {% endfor %}
@@ -17,7 +17,10 @@
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:pc_copertura' %}">Reimposta</a>
   </form>
-  <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune. Il PC si riconosce dal nome, senza dominio. In cima chi ha problemi in Intune e chi è visto da meno fonti.</p>
+  {% if can_manage and n_proposte %}
+    <form method="post" style="margin-top:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" onclick="return confirm('Collegare all’asset proposto tutti i {{ n_proposte }} dispositivi con proposta univoca (IP o nome)?');">Conferma le {{ n_proposte }} proposte di collegamento all'asset</button></form>
+  {% endif %}
+  <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC o server visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune, {{ collegati }} collegati a un asset del registro. Backup e vulnerabilità sono del dispositivo: si vedono sulla sua riga, il dettaglio nella sua scheda. In cima chi ha backup ko, problemi Intune o CVE gravi.</p>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
@@ -25,36 +28,47 @@
     <table class="sec-table pcc-table" data-fm-table-skip="1">
       <thead>
         <tr>
-          <th>PC</th><th>Utente</th>
+          <th>Dispositivo</th><th>Utente</th>
           <th class="pcc-src" title="Gestito da Microsoft Intune">Intune</th>
           <th class="pcc-src" title="Antivirus WatchGuard EPDR: compare nell'inventario software">WatchGuard</th>
           <th class="pcc-src" title="Microsoft Defender for Endpoint: compare nell'inventario software">Defender</th>
-          <th class="pcc-src" title="Compare nei report di backup degli ultimi 30 giorni">Backup</th>
-          <th>Stato Intune</th><th>Asset</th>
+          <th title="Esito dei backup negli ultimi 30 giorni">Backup</th>
+          <th title="CVE che colpiscono il dispositivo secondo l'inventario software">Vulnerabilità</th>
+          <th>Stato Intune</th><th>Asset del registro</th>
         </tr>
       </thead>
       <tbody>
       {% for r in rows %}
-        <tr data-preview="{% url 'security:preview_pc' %}?nome={{ r.nome|urlencode }}" class="{% if r.problemi %}pcc-warn{% endif %}">
-          <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.nome }}</strong></a>{% if r.intune %}<small>{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.sistema %} · {{ r.intune.sistema }} {{ r.intune.versione_sistema }}{% endif %}</small>{% endif %}</td>
+        <tr data-preview="{% url 'security:preview_pc' %}?nome={{ r.nome|urlencode }}" class="{% if r.problemi or r.backup_ko %}pcc-warn{% endif %}">
+          <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.nome }}</strong></a>{% if r.intune %}<small>{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.sistema %} · {{ r.intune.sistema }} {{ r.intune.versione_sistema }}{% endif %}</small>{% elif r.soc %}<small>{% if r.soc.0.asset_type %}{{ r.soc.0.asset_type }}{% endif %}{% if r.soc.0.ip_address %} · {{ r.soc.0.ip_address }}{% endif %}</small>{% endif %}</td>
           <td>{% if r.intune.utente_nome %}{{ r.intune.utente_nome }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td class="pcc-src">{% if r.intune %}<span class="pcc-yes" title="Ultima sincronizzazione {{ r.intune.ultima_sync|date:'d/m/Y H:i'|default:'mai' }}">✓</span>{% else %}<span class="pcc-no" title="Non gestito da Intune">✕</span>{% endif %}</td>
           <td class="pcc-src">{% if r.watchguard %}<span class="pcc-yes">✓</span>{% else %}<span class="pcc-no" title="Non compare nell'inventario WatchGuard">✕</span>{% endif %}</td>
           <td class="pcc-src">{% if r.defender %}<span class="pcc-yes">✓</span>{% else %}<span class="pcc-no" title="Non compare nell'inventario Defender">✕</span>{% endif %}</td>
-          <td class="pcc-src">{% if r.backup %}<span class="pcc-yes{% if r.backup.stale or r.backup.last_status == 'failed' %} pcc-ko{% endif %}" title="Ultimo esito: {{ r.backup.last_label }} il {{ r.backup.last_at|date:'d/m H:i' }}">{% if r.backup.stale or r.backup.last_status == 'failed' %}!{% else %}✓{% endif %}</span>{% else %}<span class="pcc-no" title="Nessun backup negli ultimi 30 giorni">✕</span>{% endif %}</td>
+          <td>{% if r.backup %}<a href="{{ r.url }}#backup" class="sec-badge {% if r.backup_ko %}high{% else %}success{% endif %}" title="Ultimo esito il {{ r.backup.last_at|date:'d/m H:i' }}">{{ r.backup.last_label }}</a>{% else %}<span class="sec-muted" title="Nessun backup negli ultimi 30 giorni">nessuno</span>{% endif %}</td>
+          <td>{% if r.cve %}{% if r.asset %}<button type="button" class="cvp-open{% if not r.cve.gravi %} cvp-open--warn{% endif %}" data-preview="{% url 'security:cve_pannello_asset' r.asset.pk %}" title="{{ r.cve.kev }} sfruttate (KEV)">{{ r.cve.cves }} CVE{% if r.cve.gravi %} · {{ r.cve.gravi }} gravi{% endif %}</button>{% else %}<a href="{{ r.url }}#vulnerabilita" class="sec-badge {% if r.cve.gravi %}high{% else %}medium{% endif %}">{{ r.cve.cves }} CVE{% if r.cve.gravi %} · {{ r.cve.gravi }} gravi{% endif %}</a>{% endif %}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td>
             {% if r.problemi %}{% for p in r.problemi %}<span class="sec-badge high">{{ p }}</span> {% endfor %}
             {% elif r.intune %}<span class="sec-badge success">{% if r.intune.conformita == "compliant" %}Conforme{% else %}Nessun problema{% endif %}</span>
             {% else %}<span class="sec-muted">—</span>{% endif %}
           </td>
-          <td>{% if r.asset %}<a href="{% url 'assets:asset_view' r.asset.pk %}">{{ r.asset.asset_tag }}</a>{% elif r.intune %}<a class="sec-small" href="{% url 'assets:it_reconciliation' %}" title="Collegalo dalla riconciliazione dispositivi">da collegare</a>{% else %}<span class="sec-muted">—</span>{% endif %}</td>
+          <td>
+            {% if r.asset %}
+              <a href="{% url 'assets:asset_view' r.asset.pk %}">{{ r.asset.asset_tag }}</a>
+              {% if can_manage and not r.intune.asset_id %}{% for sa in r.soc %}{% if sa.hub_asset_id %}<form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="unlink"><input type="hidden" name="asset" value="{{ sa.pk }}"><button class="sec-button sec-small" type="submit" title="Scollega «{{ sa.hostname }}» dall'asset">scollega</button></form>{% endif %}{% endfor %}{% endif %}
+            {% elif r.proposta %}
+              <span class="sec-badge warning">Proposto</span> <a href="{% url 'assets:asset_view' r.proposta.pk %}" title="{{ r.proposta.name }}">{{ r.proposta.asset_tag }}</a>
+              {% if can_manage %}<form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="confirm"><input type="hidden" name="asset" value="{{ r.soc_da_collegare.pk }}"><input type="hidden" name="hub" value="{{ r.proposta.pk }}"><button class="sec-button-primary sec-small" type="submit">Conferma</button></form>{% endif %}
+            {% elif r.intune %}<a class="sec-small" href="{% url 'assets:it_reconciliation' %}" title="Collegalo dalla riconciliazione dispositivi">da collegare</a>
+            {% else %}<span class="sec-muted sec-small">{{ r.motivo|default:"—" }}</span>{% endif %}
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="sec-empty">{% if q or codice != "tutti" %}Nessun PC corrisponde ai filtri.{% else %}Nessun PC: nessuna fonte ha ancora mandato dati (Intune, inventario software, backup).{% endif %}</td></tr>
+        <tr><td colspan="9" class="sec-empty">{% if q or codice != "tutti" %}Nessun dispositivo corrisponde ai filtri.{% else %}Nessun dispositivo: nessuna fonte ha ancora mandato dati (Intune, inventario software, backup, report SOC).{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-  <p class="sec-muted sec-small" style="margin-top:10px">✓ la fonte vede il PC · ✕ non lo vede · <strong>!</strong> backup fallito o troppo vecchio. «Da collegare»: il PC è in Intune ma non è ancora collegato a un asset del portale, si fa dalla <a href="{% url 'assets:it_reconciliation' %}">riconciliazione dispositivi</a>.</p>
+  <p class="sec-muted sec-small" style="margin-top:10px">✓ la fonte vede il dispositivo · ✕ non lo vede. Backup «ko»: ultimo backup fallito o nessun riuscito da troppi giorni. CVE «gravi»: già sfruttate (KEV) o CVSS 9 e oltre. Asset «Proposto»: stesso IP o stesso nome di un asset del registro, lo confermi tu; i PC di Intune si collegano dalla <a href="{% url 'assets:it_reconciliation' %}">riconciliazione dispositivi</a>.</p>
 </section>
 {% endblock %}

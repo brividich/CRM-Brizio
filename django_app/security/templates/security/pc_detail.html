@@ -3,7 +3,7 @@
 
 {% block title %}{{ pc.name }} | Security Center AI{% endblock %}
 {% block page_icon %}P{% endblock %}
-{% block page_marker %}PC e server{% endblock %}
+{% block page_marker %}Dispositivo{% endblock %}
 {% block page_title %}{{ pc.name }}{% endblock %}
 
 {% block soc_content %}
@@ -12,7 +12,7 @@
   <div class="sec-section-head">
     <div class="pc-title">
       <span class="sec-badge sec-badge-{{ pc.status.0 }}">{{ pc.status.1 }}</span>
-      <span class="sec-muted sec-small">{% if pc.asset_type %}{{ pc.asset_type }} · {% endif %}{% if pc.ip %}{{ pc.ip }} · {% endif %}{% if pc.sources %}visto da {{ pc.sources|join:", " }}{% else %}visto solo nei report di backup{% endif %}</span>
+      <span class="sec-muted sec-small">{% if pc.asset_type %}{{ pc.asset_type }} · {% endif %}{% if pc.ip %}{{ pc.ip }} · {% endif %}{% if pc.sources %}visto da {{ pc.sources|join:", " }}{% elif b %}visto solo nei report di backup{% else %}visto solo dall'inventario software{% endif %}</span>
     </div>
     {% if pc.hub_asset %}<a class="sec-button" href="{% url 'assets:asset_view' pc.hub_asset.id %}">Apri l'asset nel portale</a>{% endif %}
   </div>
@@ -28,9 +28,9 @@
       <small>{% if pc.alert_count %}da gestire{% else %}nessuno{% endif %}</small>
     </a>
     <a class="pc-area" href="#vulnerabilita">
-      <span>Vulnerabilità aperte</span>
-      <strong class="pc-tone-{% if pc.vuln_count %}warning{% else %}success{% endif %}">{{ pc.vuln_count }}</strong>
-      <small>{% if pc.vulns %}la più grave CVSS {{ pc.vulns.0.cvss|floatformat:1 }}{% else %}nessuna nota{% endif %}</small>
+      <span>Vulnerabilità</span>
+      <strong class="pc-tone-{% if pc.cve_gravi %}critical{% elif pc.vuln_count or pc.cve_count %}warning{% else %}success{% endif %}">{{ pc.cve_count|add:pc.vuln_count }}</strong>
+      <small>{% if pc.cve_count %}{{ pc.cve_count }} CVE dall'inventario{% if pc.cve_gravi %}, {{ pc.cve_gravi }} gravi{% endif %}{% elif pc.vulns %}la più grave CVSS {{ pc.vulns.0.cvss|floatformat:1 }}{% else %}nessuna nota{% endif %}</small>
     </a>
     <a class="pc-area" href="#protezione">
       <span>Protezione endpoint</span>
@@ -92,11 +92,15 @@
       </ul>
     </div>
     <div class="sec-panel" id="vulnerabilita">
-      <div class="sec-section-head"><h2>Vulnerabilità aperte</h2>{% if pc.vuln_count %}<span class="sec-badge">{{ pc.vuln_count }}</span>{% endif %}</div>
+      <div class="sec-section-head"><h2>Vulnerabilità</h2>{% if pc.cve_count or pc.vuln_count %}<span class="sec-badge">{{ pc.cve_count|add:pc.vuln_count }}</span>{% endif %}{% if pc.hub_asset and pc.cve_count %}<button type="button" class="cvp-open" data-preview="{% url 'security:cve_pannello_asset' pc.hub_asset.id %}">Vedi tutte le CVE</button>{% endif %}</div>
       <ul class="sec-mini-list">
+        {% for i in pc.cve_impacts %}
+          <li><span><a href="{% url 'security:cve_detail' i.cve.cve_id %}"><strong>{{ i.cve.cve_id }}</strong></a> <small class="sec-muted">{% if i.installation %}{{ i.installation.product_raw|default:i.installation.product }} {{ i.installation.version_raw }}{% endif %}{% if i.cve.kev %} · sfruttata (KEV){% endif %}</small></span><span class="sec-nowrap">{% if i.cve.cvss %}CVSS {{ i.cve.cvss|floatformat:1 }}{% endif %}</span></li>
+        {% endfor %}
+        {% if pc.cve_count > 10 %}<li class="sec-muted">e altre {{ pc.cve_count|add:"-10" }} CVE{% if not pc.hub_asset %}: elenco completo in <a href="{% url 'security:vulnerabilities' %}#pc">Vulnerabilità</a>{% endif %}</li>{% endif %}
         {% for v in pc.vulns %}
           <li><span><strong>{{ v.cve }}</strong> <small class="sec-muted">{{ v.affected_product }}</small></span><span class="sec-nowrap">CVSS {{ v.cvss|floatformat:1 }}</span></li>
-        {% empty %}<li class="sec-muted">Nessuna vulnerabilità aperta nota.</li>{% endfor %}
+        {% empty %}{% if not pc.cve_impacts %}<li class="sec-muted">Nessuna vulnerabilità aperta nota.</li>{% endif %}{% endfor %}
       </ul>
     </div>
     <div class="sec-panel" id="protezione">
