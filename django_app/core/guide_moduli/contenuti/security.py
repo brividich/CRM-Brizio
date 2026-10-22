@@ -26,6 +26,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "dispositivi",
+            "titolo": "Un PC o server: fonti, backup, CVE e asset in una riga",
+            "blocchi": [
+                ("p", "«Dispositivi › Elenco» è l'elenco unico dei PC e dei server (prima erano due pagine, «PC e fonti» e «Asset»). "
+                      "Ogni riga dice quali fonti vedono il dispositivo (Intune, WatchGuard, Defender), l'esito dell'ultimo backup, "
+                      "quante CVE lo colpiscono (e quante gravi) e a quale asset del registro è collegato."),
+                ("passi", [
+                    "Usa i filtri «Backup ko», «Con CVE» e «Senza asset» per trovare cosa sistemare: il numero accanto è uguale alle righe.",
+                    "Se nella colonna «Asset del registro» c'è «Proposto», controlla e premi «Conferma» (serve il permesso di configurazione del SOC).",
+                    "Il nome del dispositivo apre la sua scheda con backup, alert, vulnerabilità e protezione endpoint.",
+                ]),
+            ],
+        },
+        {
             "id": "cve-pannello",
             "titolo": "Le CVE di un programma o di un PC in un pannello",
             "blocchi": [

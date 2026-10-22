@@ -123,6 +123,16 @@ def pc_esposti():
                    reverse("security:vulnerabilities") + "#pc", icon="monitor", tone="warning" if n else "success")
 
 
+def cve_per_pc():
+    """Per ogni host (nome come nell'inventario) le CVE che lo colpiscono e quante sono KEV: il dettaglio di «PC con CVE»."""
+    from security.models import SecurityCveImpact
+
+    rows = (SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS).values("host").order_by()
+            .annotate(cves=Count("cve", distinct=True), kev=Count("cve", filter=Q(cve__kev=True), distinct=True),
+                      gravi=Count("cve", filter=Q(cve__kev=True) | Q(cve__cvss__gte=9), distinct=True)))
+    return {r["host"]: r for r in rows}
+
+
 def copertura_cpe():
     """Quanti software presenti si possono controllare contro le CVE (collegati al CPE o dichiarati N/A)."""
     from security.models import SoftwareCpeMapping, SoftwareInstallation

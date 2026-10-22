@@ -1,4 +1,4 @@
-"""PC e fonti: per ogni PC quali fonti lo vedono (Intune, WatchGuard, Defender, backup). Dati sintetici."""
+"""Dispositivi: elenco unico con fonti, backup, CVE e asset del registro. Dati sintetici."""
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -46,7 +46,8 @@ class PcCoperturaTests(TestCase):
     def test_ordine_e_filtri(self):
         rows = svc.righe()
         self.assertEqual(rows[0]["key"], "pc-due")  # prima chi ha problemi Intune
-        self.assertEqual(svc.conteggi(rows), {"tutti": 3, "problemi": 1, "non_intune": 1, "senza_edr": 1, "senza_backup": 2})
+        self.assertEqual(svc.conteggi(rows), {"tutti": 3, "da_collegare": 3, "backup_ko": 0, "con_cve": 0, "problemi": 1,
+                                              "non_intune": 1, "senza_edr": 1, "senza_backup": 2})
 
     def test_pagina_e_chip_coerenti(self):
         page = self.client.get(reverse("security:pc_copertura"))
@@ -61,4 +62,31 @@ class PcCoperturaTests(TestCase):
     def test_voce_di_menu(self):
         html = self.client.get(reverse("security:pc_copertura")).content.decode()
         sub = html.split('<nav class="soc-subnav"', 1)[1].split("</nav>", 1)[0]
-        self.assertIn('aria-current="page">PC e fonti</a>', sub)
+        self.assertIn('aria-current="page">Elenco</a>', sub)
+        self.assertNotIn(">Asset</a>", sub)  # «Asset» non è più una pagina a parte
+
+    def test_dispositivo_dei_report_backup_ko_cve_e_asset_in_una_riga(self):
+        from assets.models import Asset
+        from security.models import SecurityAsset, SecurityCveImpact, SecurityCveRecord
+
+        hub = Asset.objects.create(asset_tag="SRV-T1", name="SRV-UNO")
+        SecurityAsset.objects.create(hostname="SRV-UNO.dominio.local", hub_asset=hub)
+        SecurityAsset.objects.create(hostname="PC-TRE")
+        cve = SecurityCveRecord.objects.create(cve_id="CVE-2099-0001", cvss=9.8)
+        SecurityCveImpact.objects.create(cve=cve, host="pc-tre.dominio.local", outcome=SecurityCveImpact.IMPACTS, explanation="sintetico")
+        src = SecuritySource.objects.first()
+        BackupJobRecord.objects.create(source=src, job_name="Job2", status="failed", completed_at=timezone.now() - timedelta(hours=1),
+                                       payload={"device_name": "PC-DUE"}, dedup_hash="b2")
+        rows = {r["key"]: r for r in svc.righe()}
+        self.assertEqual(rows["srv-uno"]["asset"], hub)  # asset dal dispositivo SOC, una riga sola
+        self.assertEqual(rows["pc-tre"]["cve"], {"cves": 1, "kev": 0, "gravi": 1})
+        self.assertTrue(rows["pc-due"]["backup_ko"])
+        self.assertEqual(svc.righe()[0]["key"], "pc-due")  # backup ko in cima
+        page = self.client.get(reverse("security:pc_copertura") + "?f=con_cve")
+        self.assertEqual([r["key"] for r in page.context["rows"]], ["pc-tre"])
+        self.assertContains(page, "1 CVE · 1 gravi")
+        scheda = self.client.get(reverse("security:pc_detail") + "?nome=PC-TRE")
+        self.assertContains(scheda, "CVE-2099-0001")
+
+    def test_scheda_anche_per_pc_solo_intune(self):
+        self.assertEqual(self.client.get(reverse("security:pc_detail") + "?nome=PC-DUE").status_code, 200)

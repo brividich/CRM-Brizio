@@ -10,7 +10,7 @@ In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casel
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
 | **Segnalazioni** | Tutte, Alert, Ticket, Incidenti, Eventi |
-| **Dispositivi** | PC e fonti, Asset, Backup, Vulnerabilità, Accessi VPN |
+| **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
 | **Impostazioni** | Configurazione, Elaborazione, Soppressioni, Guida |
 
@@ -146,4 +146,4 @@ Sotto ci sono **Report recenti**, **Messaggi ricevuti** e **File caricati**, con
 
 ## Scheda PC e server
 
-Da un risultato di ricerca, dalla pagina Backup o da un alert si apre la **scheda PC**: un riepilogo di backup, alert aperti, vulnerabilità, protezione endpoint e ultimi eventi di quel dispositivo, con il link all'asset del portale se è collegato. **Controlla il dispositivo** chiede all'AI cosa rischia e cosa fare.
+Dall'elenco Dispositivi, da un risultato di ricerca, dalla pagina Backup o Vulnerabilità o da un alert si apre la **scheda PC**: un riepilogo di backup, alert aperti, vulnerabilità (le CVE dell'inventario software, le gravi in cima, e quelle segnalate dai report), protezione endpoint e ultimi eventi di quel dispositivo, con il link all'asset del portale se è collegato. Si apre anche per i PC visti solo da Intune o dall'inventario software. **Controlla il dispositivo** chiede all'AI cosa rischia e cosa fare.

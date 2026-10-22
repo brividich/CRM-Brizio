@@ -70,7 +70,8 @@ class SocPagesRenderTest(_AuthedSuperuserMixin, TestCase):
         self.assertEqual(self.client.get(reverse("security:admin_addons")).status_code, 200)
 
     def test_assets_page(self):
-        self.assertEqual(self.client.get(reverse("security:assets")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("security:assets")).status_code, 302)
+        self.assertEqual(self.client.get(reverse("security:assets"), follow=True).status_code, 200)
 
     def test_mailbox_sources_page(self):
         self.assertEqual(self.client.get(reverse("security:admin_mailbox_sources_list")).status_code, 200)
@@ -85,9 +86,9 @@ class SocPagesRenderTest(_AuthedSuperuserMixin, TestCase):
         from security.models import SecurityAsset
         a = Asset.objects.create(asset_tag="SOC-ASSET-UI", name="FW-CORE")
         SecurityAsset.objects.create(hostname="FW-CORE", hub_asset=a)
-        r = self.client.get(reverse("security:assets"))
-        self.assertContains(r, "Asset di sicurezza")
+        r = self.client.get(reverse("security:assets"), follow=True)
         self.assertContains(r, "FW-CORE")
+        self.assertContains(r, "SOC-ASSET-UI")
 
 
 class SocTasksTest(TestCase):
