@@ -31,6 +31,10 @@
   {% else %}<p class="sto-sch-vuoto">Nessuna macchina con questo reparto.</p>{% endif %}
 </section>
 
+<div class="sto-sch-azioni">
+  <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:struttura_report_persone' %}?reparto={{ reparto.pk }}">Excel: ruoli e mansioni delle persone del reparto</a>
+</div>
+
 {% if is_admin %}
 <section class="sto-sch-sez sto-sch-edit">
   <h3>Rinomina il reparto</h3>

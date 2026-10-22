@@ -389,6 +389,21 @@ body.theme-dark .dp-pos-v { color:var(--text); }
 body.theme-dark .dp-pos-sec { color:#93c5fd; }
 body.theme-dark .dp-pos-list li { border-color:rgba(148,163,184,.25); }
 body.theme-dark .dp-pos-list select { background:var(--surface, #1e293b); color:var(--text); border-color:rgba(148,163,184,.35); }
+.dp-pos-v a, .dp-pos-list a, .dp-pos-vai { color:#1f87cd; text-decoration:none; font-weight:600; }
+.dp-pos-v a:hover, .dp-pos-list a:hover, .dp-pos-vai:hover { text-decoration:underline; }
+.dp-pos-azioni { display:flex; flex-wrap:wrap; gap:6px; }
+.dp-pos-det > summary { cursor:pointer; list-style:revert; }
+.dp-info-wide { grid-column:1 / -1; }
+.dp-sem { display:inline-block; padding:0 7px; margin-right:4px; border-radius:999px; font-size:11px; font-weight:700; }
+.dp-sem-operativa { background:#dcfce7; color:#166534; }
+.dp-sem-addestramento { background:#fef3c7; color:#92400e; }
+.dp-sem-sospesa { background:#fee2e2; color:#991b1b; }
+body.theme-dark .dp-sem-operativa { background:rgba(22,163,74,.18); color:#86efac; }
+body.theme-dark .dp-sem-addestramento { background:rgba(217,119,6,.18); color:#fcd34d; }
+body.theme-dark .dp-sem-sospesa { background:rgba(220,38,38,.18); color:#fca5a5; }
+.dp-pos-accessi { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none; }
+.dp-pos-accessi li { padding:2px 9px; border:1px solid #dbe4ef; border-radius:999px; font-size:12px; }
+body.theme-dark .dp-pos-accessi li { border-color:rgba(148,163,184,.3); }
 /* Spostamenti organizzativi (assegnazioni a periodo) */
 .sp-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
 .sp-card { border:1px solid #e2e8f0; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
@@ -877,6 +892,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   <div class="dp-tabs" id="dp-tabbar">
     <button type="button" class="dp-tab" data-tab-target="riepilogo">📋 Riepilogo</button>
     <button type="button" class="dp-tab" data-tab-target="anagrafica">🪪 Anagrafica</button>
+    {% if posizione %}<button type="button" class="dp-tab" data-tab-target="ruolo">🧭 Ruolo e competenze{% if posizione.proposte %}<span class="dp-tab-count" title="Mansioni previste dal ruolo da assegnare">{{ posizione.proposte|length }}</span>{% endif %}</button>{% endif %}
     <button type="button" class="dp-tab" data-tab-target="onboarding">🚀 Onboarding</button>
     <button type="button" class="dp-tab" data-tab-target="contratto">📑 Contratto e retribuzione</button>
     <button type="button" class="dp-tab" data-tab-target="ferie">📅 Ferie</button>
@@ -923,6 +939,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div class="dp-info-item"><div class="dp-info-label">Assunto il</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
+        {% if posizione %}<div class="dp-info-item dp-info-wide"><div class="dp-info-label">Ruolo e competenze</div><div class="dp-info-value"><a href="#posizione-struttura" class="dp-pos-vai" data-tab-vai="ruolo">{% for a in posizione.ruoli %}{% if a.ruolo.sigla %}{{ a.ruolo.sigla }} · {% endif %}{{ a.ruolo.nome }}{% if not forloop.last %}, {% endif %}{% empty %}ruolo da assegnare{% endfor %}</a><span class="dp-pos-meta"> · {{ posizione.abilitazioni|length }} mansion{{ posizione.abilitazioni|length|pluralize:"e,i" }}, {{ posizione.n_operative }} operativ{{ posizione.n_operative|pluralize:"a,e" }}{% if posizione.proposte %} · <strong>{{ posizione.proposte|length }} da assegnare</strong>{% endif %}</span></div></div>{% endif %}
       </div>
 
       <div class="dp-sum-stats">
@@ -1627,18 +1644,21 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- POSIZIONE NELLA STRUTTURA (struttura della Qualità) -->
   {% if posizione %}
-  <div class="dp-card" data-tab="anagrafica" id="posizione-struttura">
+  <div class="dp-card" data-tab="ruolo" id="posizione-struttura">
     <div class="dp-card-head">
       <div class="dp-card-title">🧭 Posizione nella struttura</div>
-      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa →</a>
+      <span class="dp-pos-azioni">
+        {% if legacy_id %}<a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:mansionario_persona' legacy_id %}">Competenze e lacune →</a>{% endif %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa →</a>
+      </span>
     </div>
     <div class="dp-card-body">
       <div class="dp-pos-grid">
         <div><div class="dp-pos-l">Ruolo</div><div class="dp-pos-v">
-          {% for a in posizione.ruoli %}{{ a.ruolo.etichetta }}{% if a.ruolo.classe %} · {{ a.ruolo.get_classe_display|lower }}{% endif %}{% if a.tipologia == "PRINCIPALE" %} <span class="dp-pos-meta">(principale)</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="dp-pos-warn">nessun ruolo della struttura</span>{% endfor %}
+          {% for a in posizione.ruoli %}<a href="{% url 'anagrafica:struttura_org' %}#scheda-ruolo-{{ a.ruolo.pk }}">{{ a.ruolo.etichetta }}</a>{% if a.ruolo.classe %} · {{ a.ruolo.get_classe_display|lower }}{% endif %}{% if a.tipologia == "PRINCIPALE" %} <span class="dp-pos-meta">(principale)</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="dp-pos-warn">nessun ruolo della struttura</span>{% endfor %}
         </div></div>
         <div><div class="dp-pos-l">Reparto / area</div><div class="dp-pos-v">
-          {% if posizione.area %}{{ posizione.reparto.nome|default:"—" }} / {{ posizione.area.nome }}{% else %}{{ posizione.reparto_testo|default:"—" }} <span class="dp-pos-warn">· area da indicare</span>{% endif %}
+          {% if posizione.area %}{% if posizione.reparto %}<a href="{% url 'anagrafica:struttura_org' %}#scheda-reparto-{{ posizione.reparto.pk }}">{{ posizione.reparto.nome }}</a>{% else %}—{% endif %} / {{ posizione.area.nome }}{% else %}{{ posizione.reparto_testo|default:"—" }} <span class="dp-pos-warn">· area da indicare</span>{% endif %}
         </div></div>
         <div><div class="dp-pos-l">Responsabile (ruolo)</div><div class="dp-pos-v">{{ posizione.responsabile.etichetta|default:"—" }}</div></div>
         <div><div class="dp-pos-l">Processi</div><div class="dp-pos-v">{{ posizione.processi|join:", "|default:"—" }}</div></div>
@@ -1647,17 +1667,18 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         {% endif %}
       </div>
 
-      <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }})</div>
+      <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }}{% if posizione.abilitazioni %}, {{ posizione.n_operative }} operativ{{ posizione.n_operative|pluralize:"a,e" }}{% endif %})</div>
       {% if posizione.abilitazioni %}
       <ul class="dp-pos-list">
         {% for ab in posizione.abilitazioni %}
-        <li><span><a href="{% url 'anagrafica:mansionario_mansione' ab.competenza.pk %}">{{ ab.competenza.nome }}</a>{% if ab.competenza.abilitazione_con_scadenza %} <span class="dp-pos-meta">· abilitazione con validità</span>{% endif %}</span><span class="dp-pos-meta">livello {{ ab.livello }}{% if ab.competenza.area_id %} · {{ ab.competenza.area.nome }}{% endif %}</span></li>
+        <li><span><a href="{% url 'anagrafica:mansionario_mansione' ab.competenza.pk %}">{{ ab.competenza.nome }}</a>{% if ab.competenza.abilitazione_con_scadenza %} <span class="dp-pos-meta">· abilitazione con validità</span>{% endif %}</span><span class="dp-pos-meta"><span class="dp-sem dp-sem-{{ ab.semaforo }}">{% if ab.semaforo == "operativa" %}operativa{% elif ab.semaforo == "sospesa" %}sospesa{% else %}in addestramento{% endif %}</span> livello {{ ab.livello }}{% if ab.competenza.area_id %} · {{ ab.competenza.area.nome }}{% endif %}</span></li>
         {% endfor %}
       </ul>
       {% else %}<p class="dp-pos-meta" style="margin:0;">Nessuna mansione assegnata.</p>{% endif %}
 
       {% if posizione.proposte %}
-      <div class="dp-pos-sec">Mansioni previste dal ruolo, non ancora assegnate ({{ posizione.proposte|length }})</div>
+      <details class="dp-pos-det"{% if posizione.proposte|length <= 5 %} open{% endif %}>
+      <summary class="dp-pos-sec">Mansioni previste dal ruolo, non ancora assegnate ({{ posizione.proposte|length }})</summary>
       <ul class="dp-pos-list">
         {% for m in posizione.proposte %}
         <li>
@@ -1676,6 +1697,15 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         </li>
         {% endfor %}
       </ul>
+      </details>
+      {% endif %}
+
+      {% if is_admin %}
+      <div class="dp-pos-sec">Accessi al portale ricevuti dal ruolo</div>
+      {% if posizione.accessi %}
+      <ul class="dp-pos-accessi">{% for g in posizione.accessi %}<li>{{ g.label }}</li>{% endfor %}</ul>
+      <p class="dp-pos-meta" style="margin:6px 0 0;">Arrivano in automatico finché la persona ricopre il ruolo; gli altri accessi (dati a mano) sono in Ruoli e permessi.</p>
+      {% else %}<p class="dp-pos-meta" style="margin:0;">Nessuno: il ruolo non porta ruoli del portale, valgono solo quelli dati a mano.</p>{% endif %}
       {% endif %}
     </div>
   </div>
@@ -2254,8 +2284,8 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     </div>
   </div>
 
-  <!-- RUOLI OPERATIVI -->
-  <div class="dp-card" data-tab="formazione">
+  <!-- RUOLI OPERATIVI (scheda «Ruolo e competenze») -->
+  <div class="dp-card" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
     <div class="dp-card-head">
       <div class="dp-card-title">🏷 Ruoli operativi</div>
       {% if is_admin %}
@@ -2323,8 +2353,8 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     </div>
   </div>
 
-  <!-- QUALIFICHE PROFESSIONALI -->
-  <div class="dp-card" data-tab="formazione">
+  <!-- QUALIFICHE PROFESSIONALI (scheda «Ruolo e competenze») -->
+  <div class="dp-card" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
     <div class="dp-card-head">
       <div class="dp-card-title">📜 Qualifiche professionali</div>
       {% if is_admin %}
@@ -3495,6 +3525,15 @@ function toggleContrattoEdit(id) {
     b.addEventListener('click', function () { show(t); });
   });
   if (!firstAvailable) return;
+
+  // Link interni con data-tab-vai (es. «Ruolo e competenze» dal riepilogo): cambiano scheda.
+  page.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-tab-vai]');
+    if (!a || !present[a.getAttribute('data-tab-vai')]) return;
+    e.preventDefault(); show(a.getAttribute('data-tab-vai'));
+    var bersaglio = a.hash ? document.getElementById(a.hash.slice(1)) : null;
+    if (bersaglio) bersaglio.scrollIntoView({block: 'start'});
+  });
 
   // Ritorno da un'azione con ancora (es. #account-portale): apre la tab che contiene il riquadro.
   var ancora = location.hash ? document.getElementById(location.hash.slice(1)) : null;

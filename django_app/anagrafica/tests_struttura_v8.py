@@ -325,6 +325,19 @@ class PagineStrutturaTests(_Base):
                                 {"persona": self.p_cn5.pk, "livello": "I", "next": dest})
         self.assertRedirects(resp, dest, fetch_redirect_response=False)
         self.assertTrue(mk1.abilitazioni.filter(legacy_anagrafica_id=self.p_cn5.pk, in_lista=True).exists())
+        # Scheda «Ruolo e competenze»: tab, semaforo, riga nel riepilogo, report per persona.
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.p_cn5.pk]))
+        self.assertContains(resp, 'data-tab-target="ruolo"')
+        self.assertContains(resp, 'data-tab="ruolo" id="posizione-struttura"')
+        self.assertContains(resp, "dp-sem-addestramento")  # livello I: in addestramento
+        self.assertContains(resp, 'data-tab-vai="ruolo"')
+        resp = self.client.get(reverse("anagrafica:struttura_report_persone"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("spreadsheetml", resp["Content-Type"])
+        from .services import struttura_report
+
+        riga = next(r for r in struttura_report.righe() if "MK1" in r[11] or "MIKRON" in r[11])
+        self.assertEqual(riga[6], 1)
 
     def test_processo_si_modifica_con_revisione(self):
         from django.urls import reverse

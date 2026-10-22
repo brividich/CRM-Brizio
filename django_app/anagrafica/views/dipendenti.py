@@ -1548,14 +1548,19 @@ def _mansioni_da_rivedere_ctx(request, legacy_id: int, is_admin: bool) -> dict:
 
 
 def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
-    """Card «Posizione nella struttura»: ruoli, area, processi, mansioni e proposte da assegnare."""
-    if not is_admin:
+    """Scheda «Ruolo e competenze»: ruoli, area, processi, mansioni e proposte da assegnare.
+
+    La vede chi vede il Mansionario (amministrazione anagrafica o HR) e chi
+    valuta (gestore skill matrix); gli accessi al portale solo l'amministrazione."""
+    from ..views_mansionario import _puo_valutare, _puo_vedere
+
+    puo_valutare = _puo_valutare(request)
+    if not (is_admin or _puo_vedere(request) or puo_valutare):
         return {"posizione": None}
     try:
         from ..services.struttura_persona import posizione
-        from ..views_mansionario import _puo_valutare
 
-        return {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": _puo_valutare(request)}
+        return {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": puo_valutare}
     except Exception:
         logger.warning("posizione nella struttura non calcolata per %s", legacy_id, exc_info=True)
         return {"posizione": None}

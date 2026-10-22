@@ -403,6 +403,8 @@ urlpatterns = [
          name="struttura_scheda_mansione"),
     path("struttura/scheda/reparto/<int:reparto_id>/", views_struttura_org.struttura_scheda_reparto,
          name="struttura_scheda_reparto"),
+    path("struttura/report/persone.xlsx", views_struttura_org.struttura_report_persone,
+         name="struttura_report_persone"),
     path("struttura/reparto/<int:reparto_id>/rinomina/", views_struttura_org.struttura_reparto_rinomina,
          name="struttura_reparto_rinomina"),
     path("struttura/revisioni/", views_struttura_org.struttura_revisioni, name="struttura_revisioni"),

@@ -258,6 +258,31 @@ def struttura_reparto_rinomina(request, reparto_id: int):
     return _torna(f"rep-{reparto.pk}")
 
 
+@login_required
+def struttura_report_persone(request):
+    """Excel «Ruoli, mansioni e competenze per persona» (dati personali: chi vede la struttura)."""
+    if not _puo_vedere(request):
+        return _nega(request, "Non hai accesso alla struttura organizzativa.")
+    from django.utils import timezone
+
+    from core.excel_export import make_xlsx_response
+
+    from .services import struttura_report
+
+    reparto_id = _int_o_none(request.GET.get("reparto"))
+    reparto = Reparto.objects.filter(pk=reparto_id).first() if reparto_id else None
+    righe = struttura_report.righe(reparto_id=reparto.pk if reparto else None)
+    log_action(request, "struttura_report_persone", MODULE, {"reparto": reparto.pk if reparto else None,
+                                                              "righe": len(righe)})
+    return make_xlsx_response(
+        filename=f"ruoli-mansioni-persone-{timezone.localdate():%Y%m%d}.xlsx",
+        columns=struttura_report.COLONNE, rows=righe, sheet_title="Persone",
+        title="Ruoli, mansioni e competenze per persona",
+        subtitle=f"Struttura organizzativa al {timezone.localdate():%d/%m/%Y}",
+        filters_label=f"Reparto: {reparto.nome}" if reparto else "Tutti i reparti",
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Revisioni
 # ═══════════════════════════════════════════════════════════════════════════

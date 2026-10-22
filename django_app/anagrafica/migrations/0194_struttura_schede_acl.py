@@ -1,5 +1,5 @@
 """Binding ACL delle schede laterali della Struttura organizzativa (ruolo, mansione,
-reparto) e della rinomina del reparto: copiati da quello della pagina. Nelle view
+reparto), della rinomina del reparto e del report per persona: copiati da quello della pagina. Nelle view
 restano i controlli propri (vedere = chi vede il Mansionario, modificare =
 amministrazione anagrafica)."""
 from django.db import migrations
@@ -9,6 +9,7 @@ ROTTE = {
     "anagrafica:struttura_scheda_mansione": "anagrafica:struttura_org",
     "anagrafica:struttura_scheda_reparto": "anagrafica:struttura_org",
     "anagrafica:struttura_reparto_rinomina": "anagrafica:struttura_org",
+    "anagrafica:struttura_report_persone": "anagrafica:struttura_org",
 }
 NOTA = "[STRUTTURA_ORG_0194] copiato da {}"
 

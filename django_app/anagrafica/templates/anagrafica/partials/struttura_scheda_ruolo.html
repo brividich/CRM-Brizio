@@ -25,7 +25,8 @@
 <section class="sto-sch-sez">
   <h3>Mansioni previste</h3>
   {% if mansioni %}
-  <ul class="sto-sch-lista">{% for m in mansioni %}<li><a href="#" data-sto-apri="mansione" data-id="{{ m.pk }}">{{ m.nome }}</a> <span class="sto-nota">{{ m.area.nome|default:m.reparto_effettivo }}</span></li>{% endfor %}</ul>
+  <details class="sto-sch-det"{% if mansioni|length <= 12 %} open{% endif %}><summary>{{ mansioni|length }} mansion{{ mansioni|length|pluralize:"e,i" }}{% if mansioni|length > 12 %}: mostra l'elenco{% endif %}</summary>
+  <ul class="sto-sch-lista">{% for m in mansioni %}<li><a href="#" data-sto-apri="mansione" data-id="{{ m.pk }}">{{ m.nome }}</a> <span class="sto-nota">{{ m.area.nome|default:m.reparto_effettivo }}</span></li>{% endfor %}</ul></details>
   {% else %}<p class="sto-sch-vuoto">Nessuna mansione collegata a questo ruolo.</p>{% endif %}
 </section>
 

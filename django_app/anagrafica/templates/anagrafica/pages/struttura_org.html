@@ -29,6 +29,7 @@
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_revisioni' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Revisioni</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_rischi' %}"><svg class="fmd-ico"><use href="#i-shield"/></svg>Rischi da confermare{% if kpi.rischi_da_confermare %} <span class="fmd-count">{{ kpi.rischi_da_confermare }}</span>{% endif %}</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% if is_admin %}{% url 'anagrafica:mansionario_struttura' %}{% else %}{% url 'anagrafica:mansionario' %}{% endif %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni e competenze</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:struttura_report_persone' %}" title="Una riga per persona: ruolo, mansioni con livello, mansioni da assegnare"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel per persona</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}?vista=admin#struttura-organizzativa" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
@@ -255,7 +256,7 @@
        data-url-ruolo="{% url 'anagrafica:struttura_scheda_ruolo' 0 %}"
        data-url-mansione="{% url 'anagrafica:struttura_scheda_mansione' 0 %}"
        data-url-reparto="{% url 'anagrafica:struttura_scheda_reparto' 0 %}">
-  <div class="sto-drawer-body" data-sto-drawer-body></div>
+  <div class="fmd sto-drawer-body" data-sto-drawer-body></div>
 </aside>
 
 <script>
@@ -283,7 +284,8 @@
     if(e.target.closest('[data-sto-chiudi]')||e.target===velo)chiudi();
   });
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&dr.classList.contains('sto-drawer-on'))chiudi();});
-  var m=/^#scheda-(ruolo|mansione|reparto)-(\d+)$/.exec(location.hash);if(m)apri(m[1],m[2]);
+  function daHash(){var m=/^#scheda-(ruolo|mansione|reparto)-(\d+)$/.exec(location.hash);if(m)apri(m[1],m[2]);}
+  window.addEventListener('hashchange',daHash);daHash();
 })();
 </script>
 
