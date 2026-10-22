@@ -34,9 +34,12 @@ croniter==6.2.4
 cryptography==50.0.2
     # via
     #   msal
+    #   puresnmp-crypto
     #   pyjwt
     #   pyopenssl
     #   pyspnego
+defusedxml==0.7.1
+    # via -r requirements.in
 distlib==0.4.0
     # via virtualenv
 django==5.2.17
@@ -99,10 +102,13 @@ mssql-django==1.7.4
     # via -r requirements.in
 nodeenv==1.10.0
     # via pre-commit
+numpy==2.5.4
+    # via -r requirements.in
 openpyxl==3.1.5
     # via -r requirements.in
 packaging==26.2
     # via
+    #   -r requirements.in
     #   build
     #   pytest
     #   wheel
@@ -111,12 +117,10 @@ pillow==12.3.0
     #   -r requirements.in
     #   qrcode
     #   reportlab
-pip-tools==7.5.3
+pip-tools==7.6.2
     # via -r requirements-dev.in
 platformdirs==4.9.6
-    # via
-    #   python-discovery
-    #   virtualenv
+    # via virtualenv
 pluggy==1.6.0
     # via
     #   pytest
@@ -124,6 +128,7 @@ pluggy==1.6.0
 pre-commit==4.6.0
     # via -r requirements-dev.in
 puresnmp==2.0.1
+    # via -r requirements.in
 puresnmp-crypto==1.0.1.post1
     # via -r requirements.in
 pyasn1==0.6.4
