@@ -128,15 +128,29 @@ def struttura_ruolo_salva(request, ruolo_id: int):
     classe = request.POST.get("classe") or ""
     if classe not in dict(RuoloOperativo.CLASSE_CHOICES):
         classe = ""
+    nome = " ".join((request.POST.get("nome") or "").split()) or ruolo.nome
     try:
-        struttura_ruoli.rinomina(ruolo, ruolo.nome, sigla=request.POST.get("sigla") or "", user=request.user)
+        struttura_ruoli.rinomina(ruolo, nome, sigla=request.POST.get("sigla") or "", user=request.user)
     except ValueError as exc:
         messages.error(request, str(exc))
         return _torna("ruoli")
     ruolo.classe = classe
-    ruolo.save(update_fields=["classe"])
-    log_action(request, "struttura_ruolo_salva", MODULE, {"ruolo": ruolo.pk, "sigla": ruolo.sigla, "classe": classe},
-               oggetto=ruolo)
+    campi = ["classe"]
+    if "riporta_a" in request.POST:  # dalla scheda del ruolo
+        capo_id = _int_o_none(request.POST.get("riporta_a"))
+        capo = RuoloOperativo.objects.filter(pk=capo_id, is_active=True).exclude(pk=ruolo.pk).first() if capo_id else None
+        # Niente cicli: il capo scelto non può stare sotto questo ruolo.
+        giro, passo = capo, 0
+        while giro is not None and passo < 50:
+            if giro.pk == ruolo.pk:
+                messages.error(request, "«Riporta a» creerebbe un giro nella gerarchia: non salvato.")
+                return _torna("ruoli")
+            giro, passo = giro.riporta_a, passo + 1
+        ruolo.riporta_a = capo
+        campi.append("riporta_a")
+    ruolo.save(update_fields=campi)
+    log_action(request, "struttura_ruolo_salva", MODULE, {"ruolo": ruolo.pk, "nome": ruolo.nome, "sigla": ruolo.sigla,
+               "classe": classe, "riporta_a": ruolo.riporta_a_id}, oggetto=ruolo)
     messages.success(request, f"Ruolo «{ruolo.etichetta}» aggiornato.")
     return _torna("ruoli")
 
@@ -170,6 +184,78 @@ def struttura_processo_salva(request, processo_id: int):
                 "revisione": processo.revisione}, oggetto=processo)
     messages.success(request, f"{processo.nome}: salvato come revisione {processo.revisione} della scheda processo.")
     return _torna("processi")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Schede laterali (ruolo, mansione, reparto)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _scheda(request, template: str, ctx: dict):
+    from core.legacy_utils import get_legacy_user, is_legacy_admin
+
+    # Il link a «Ruoli e permessi» solo a chi può aprirla (stesso controllo della pagina).
+    vede_accessi = bool(request.user.is_superuser) or is_legacy_admin(get_legacy_user(request.user))
+    ctx.update({"is_admin": _puo_gestire(request), "vede_accessi": vede_accessi})
+    return render(request, f"anagrafica/partials/struttura_scheda_{template}.html", ctx)
+
+
+@login_required
+def struttura_scheda_ruolo(request, ruolo_id: int):
+    if not _puo_vedere(request):
+        return _nega(request, "Non hai accesso alla struttura organizzativa.")
+    from .services import struttura_schede as schede
+
+    ruolo = get_object_or_404(RuoloOperativo.objects.select_related("ambito", "riporta_a"), pk=ruolo_id)
+    ctx = schede.scheda_ruolo(ruolo)
+    ctx.update({"classi": RuoloOperativo.CLASSE_CHOICES,
+                "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).exclude(pk=ruolo.pk).order_by("nome"))})
+    return _scheda(request, "ruolo", ctx)
+
+
+@login_required
+def struttura_scheda_mansione(request, mansione_id: int):
+    if not _puo_vedere(request):
+        return _nega(request, "Non hai accesso alla struttura organizzativa.")
+    from .services import struttura_schede as schede
+    from .services.mansionario_struttura import TIPI_MANSIONE
+
+    mansione = get_object_or_404(
+        CompetenzaSkm.objects.select_related("area__reparto", "reparto", "processo_sgi", "asset", "deriva_da"),
+        pk=mansione_id, tipo__in=TIPI_MANSIONE)
+    return _scheda(request, "mansione", schede.scheda_mansione(mansione))
+
+
+@login_required
+def struttura_scheda_reparto(request, reparto_id: int):
+    if not _puo_vedere(request):
+        return _nega(request, "Non hai accesso alla struttura organizzativa.")
+    from .services import struttura_schede as schede
+
+    reparto = get_object_or_404(Reparto.objects.select_related("ruolo_responsabile"), pk=reparto_id)
+    return _scheda(request, "reparto", schede.scheda_reparto(reparto))
+
+
+@login_required
+@require_POST
+def struttura_reparto_rinomina(request, reparto_id: int):
+    """Rinomina con propagazione: schede, anagrafica, macchine, timbri, pratiche aperte."""
+    if not _puo_gestire(request):
+        return _nega(request, "Il nome del reparto lo cambia l'amministrazione dell'anagrafica.")
+    from .services.struttura_aree import rinomina_reparto
+
+    reparto = get_object_or_404(Reparto, pk=reparto_id)
+    vecchio = reparto.nome
+    try:
+        esito = rinomina_reparto(reparto, request.POST.get("nome") or "", user=request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return _torna(f"rep-{reparto.pk}")
+    log_action(request, "struttura_reparto_rinomina", MODULE, {"reparto": reparto.pk, "da": vecchio,
+               "a": reparto.nome, **esito}, oggetto=reparto)
+    if reparto.nome != vecchio:
+        messages.success(request, f"Reparto «{vecchio}» ora si chiama «{reparto.nome}»: aggiornate "
+                                  f"{esito.get('schede', 0)} schede e {esito.get('macchine', 0)} macchine.")
+    return _torna(f"rep-{reparto.pk}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

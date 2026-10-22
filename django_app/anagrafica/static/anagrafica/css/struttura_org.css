@@ -83,3 +83,39 @@ body.theme-dark .sto-tolta{color:#fca5a5}
 body.theme-dark .sto-camb{color:#fcd34d}
 body.theme-dark .sto-emetti input[type=text]{background:var(--surface)}
 body.theme-dark .sto-rischi select[multiple]{background:var(--surface)}
+
+/* ── Scheda laterale (ruolo, mansione, reparto) ─────────────────────────── */
+.sto-ruolo-nome[href]{ text-decoration:none; }
+.sto-ruolo-nome[href]:hover{ color:var(--fmd-cyan); text-decoration:underline; }
+.sto-apri-btn{ margin-left:6px; padding:1px 8px; border:1px solid var(--fmd-line); border-radius:999px; background:var(--surface,#fff); color:var(--fmd-cyan); font-size:11px; font-weight:700; cursor:pointer; }
+.sto-apri-btn:hover{ border-color:var(--fmd-cyan); }
+.sto-velo{ position:fixed; inset:0; z-index:1040; background:rgba(15,23,42,.35); }
+.sto-velo[hidden]{ display:none; }
+.sto-drawer{ position:fixed; top:0; right:0; bottom:0; z-index:1041; width:min(520px,100vw); overflow-y:auto; background:var(--surface,#fff); color:var(--text,#1a202c); border-left:1px solid var(--border,#d7e0ea); box-shadow:-12px 0 32px rgba(15,23,42,.18); transform:translateX(105%); transition:transform .18s ease; outline:none; }
+.sto-drawer-on{ transform:none; }
+.sto-drawer-body{ padding:18px 20px 28px; }
+@media (prefers-reduced-motion:reduce){ .sto-drawer{ transition:none; } }
+.sto-sch-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:10px; border-bottom:1px solid var(--border,#d7e0ea); }
+.sto-sch-tipo{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--fmd-muted); }
+.sto-sch-titolo{ margin:2px 0 4px; font-size:19px; line-height:1.25; color:var(--fmd-navy); }
+body.theme-dark .sto-sch-titolo{ color:var(--text); }
+.sto-sigla{ display:inline-block; padding:0 6px; border-radius:5px; background:var(--fmd-navy); color:#fff; font-size:14px; vertical-align:2px; }
+.sto-sch-sub{ font-size:12.5px; color:var(--fmd-muted); }
+.sto-sch-sub a,.sto-sch-lista a{ color:var(--fmd-cyan); text-decoration:none; font-weight:600; }
+.sto-sch-sub a:hover,.sto-sch-lista a:hover{ text-decoration:underline; }
+.sto-sch-x{ border:0; background:transparent; color:var(--fmd-muted); font-size:24px; line-height:1; cursor:pointer; padding:0 4px; }
+.sto-sch-x:hover{ color:var(--fmd-ink); }
+.sto-sch-kpi{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 0 6px; }
+.sto-sch-kpi div{ padding:8px; border:1px solid var(--border,#d7e0ea); border-radius:8px; text-align:center; }
+.sto-sch-kpi b{ display:block; font-size:18px; color:var(--fmd-navy); }
+body.theme-dark .sto-sch-kpi b{ color:var(--text); }
+.sto-sch-kpi span{ font-size:11px; color:var(--fmd-muted); }
+@media (max-width:480px){ .sto-sch-kpi{ grid-template-columns:repeat(2,1fr); } }
+.sto-sch-sez{ margin-top:16px; }
+.sto-sch-sez h3{ margin:0 0 6px; font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--fmd-muted); }
+.sto-sch-lista{ margin:0 0 6px; padding:0 0 0 16px; font-size:13px; line-height:1.6; }
+.sto-sch-col2{ columns:2; column-gap:18px; }
+@media (max-width:480px){ .sto-sch-col2{ columns:1; } }
+.sto-sch-vuoto{ margin:0 0 6px; font-size:12.5px; color:var(--fmd-muted); }
+.sto-sch-edit{ padding-top:12px; border-top:1px dashed var(--border,#d7e0ea); }
+.sto-sch-azioni{ display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }

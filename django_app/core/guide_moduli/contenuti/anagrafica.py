@@ -402,6 +402,16 @@ GUIDA = {
                       "ruolo, non ancora assegnate»: si assegnano una per una scegliendo il livello e «Assegna». Lo stesso "
                       "riquadro c'è nella pratica di onboarding («Assegna (I)», livello in formazione) e la checklist ha "
                       "la voce «Assegnare ruolo, area e mansioni della struttura»."),
+                ("p", "Schede laterali: un clic sul nome di un ruolo, di una mansione o sul pulsante «Scheda» di un "
+                      "reparto apre a destra la sua scheda, senza lasciare la pagina. Ruolo: chi lo ricopre (link alla "
+                      "scheda del dipendente), mansioni previste, processi di cui è owner, reparti e aree di cui è "
+                      "responsabile, chi gli riporta, «Accessi al portale che concede» (i ruoli del portale collegati) e "
+                      "nomi precedenti; l'amministrazione ne cambia nome, sigla, diretto/indiretto e «Riporta a» (un giro "
+                      "nella gerarchia viene rifiutato). Mansione: ruoli, mansione di rischio (o la proposta da "
+                      "confermare), persone con il livello, storia (divisa da, nomi precedenti), link a valutazioni ed "
+                      "editor. Reparto: aree con persone e responsabili, macchine, co-responsabili; l'amministrazione lo "
+                      "rinomina da qui (aggiorna anche schede, anagrafica, macchine, timbri, pratiche aperte). Esc o un "
+                      "clic fuori chiude la scheda; l'indirizzo #scheda-ruolo-N si può condividere."),
                 ("nota", "Rinominare un ruolo dal catalogo dei ruoli ora riscrive anche il «Ruolo aziendale» delle schede "
                          "e tiene il nome di prima fra i nomi precedenti."),
                 ("nota", "Rinominare una mansione di rischio (Impostazioni → Mansioni) è sicuro: il nome di prima resta fra "

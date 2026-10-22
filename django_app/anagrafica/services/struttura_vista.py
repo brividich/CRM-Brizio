@@ -71,12 +71,17 @@ def albero(mansioni=None) -> list[dict]:
         for a in sorted((a for a in rep.aree_aziendali.all() if a.is_active), key=lambda a: a.nome.casefold()):
             ms = per_area.get(a.pk, [])
             per_ruolo: dict[str, list] = defaultdict(list)
+            ruolo_di: dict[str, RuoloOperativo | None] = {}
             for m in ms:
                 for r in (m.ruoli.all() or [None]):
-                    per_ruolo[r.etichetta if r else "Senza ruolo"].append(m)
+                    chiave = r.etichetta if r else "Senza ruolo"
+                    per_ruolo[chiave].append(m)
+                    ruolo_di[chiave] = r
             aree.append({
                 "area": a, "persone": persone_area.get(a.pk, 0), "n_mansioni": len(ms),
-                "ruoli": sorted(per_ruolo.items(), key=lambda kv: (kv[0] == "Senza ruolo", kv[0].casefold())),
+                # (etichetta, ruolo o None, mansioni): il ruolo serve per aprirne la scheda.
+                "ruoli": [(k, ruolo_di[k], v) for k, v in
+                          sorted(per_ruolo.items(), key=lambda kv: (kv[0] == "Senza ruolo", kv[0].casefold()))],
             })
         out.append({
             "reparto": rep, "aree": aree, "caporeparto": capi.get(rep.caporeparto_legacy_id, ""),

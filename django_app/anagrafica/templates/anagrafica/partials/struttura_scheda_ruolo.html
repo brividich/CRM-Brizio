@@ -1,0 +1,73 @@
+<div class="sto-sch-head">
+  <div>
+    <div class="sto-sch-tipo">Ruolo</div>
+    <h2 class="sto-sch-titolo">{% if ruolo.sigla %}<span class="sto-sigla">{{ ruolo.sigla }}</span> {% endif %}{{ ruolo.nome }}</h2>
+    <div class="sto-sch-sub">{{ ruolo.get_classe_display|default:"Diretto / indiretto da indicare" }} · {{ ruolo.ambito_label }}{% if ruolo.riporta_a_id %} · riporta a <a href="#" data-sto-apri="ruolo" data-id="{{ ruolo.riporta_a_id }}">{{ ruolo.riporta_a.etichetta }}</a>{% endif %}</div>
+  </div>
+  <button type="button" class="sto-sch-x" data-sto-chiudi aria-label="Chiudi">×</button>
+</div>
+
+<div class="sto-sch-kpi">
+  <div><b>{{ persone|length }}</b><span>person{{ persone|length|pluralize:"a,e" }}</span></div>
+  <div><b>{{ mansioni|length }}</b><span>mansion{{ mansioni|length|pluralize:"e,i" }}</span></div>
+  <div><b>{{ processi|length }}</b><span>process{{ processi|length|pluralize:"o,i" }} di cui è owner</span></div>
+  <div><b>{{ accessi|length }}</b><span>ruol{{ accessi|length|pluralize:"o,i" }} del portale</span></div>
+</div>
+
+<section class="sto-sch-sez">
+  <h3>Chi lo ricopre</h3>
+  {% if persone %}
+  <ul class="sto-sch-lista sto-sch-col2">{% for p in persone %}<li><a href="{% url 'anagrafica:dipendente_detail' p.id %}">{{ p.nome }}</a></li>{% endfor %}</ul>
+  {% else %}<p class="sto-sch-vuoto">Nessuno.</p>{% endif %}
+  {% if is_admin %}<a class="sto-link" href="{% url 'anagrafica:ruoli_in_blocco' %}?ruolo={{ ruolo.pk }}">Assegna o chiudi il ruolo per più persone →</a>{% endif %}
+</section>
+
+<section class="sto-sch-sez">
+  <h3>Mansioni previste</h3>
+  {% if mansioni %}
+  <ul class="sto-sch-lista">{% for m in mansioni %}<li><a href="#" data-sto-apri="mansione" data-id="{{ m.pk }}">{{ m.nome }}</a> <span class="sto-nota">{{ m.area.nome|default:m.reparto_effettivo }}</span></li>{% endfor %}</ul>
+  {% else %}<p class="sto-sch-vuoto">Nessuna mansione collegata a questo ruolo.</p>{% endif %}
+</section>
+
+{% if processi or reparti or aree or sotto %}
+<section class="sto-sch-sez">
+  <h3>Responsabilità</h3>
+  <ul class="sto-sch-lista">
+    {% for p in processi %}<li>Owner del processo <strong>{{ p.codice }}</strong> {{ p.nome }}</li>{% endfor %}
+    {% for r in reparti %}<li>Responsabile del reparto <a href="#" data-sto-apri="reparto" data-id="{{ r.pk }}">{{ r.nome }}</a></li>{% endfor %}
+    {% for a in aree %}<li>Responsabile dell'area <strong>{{ a.nome }}</strong>{% if a.reparto_id %} ({{ a.reparto.nome }}){% endif %}</li>{% endfor %}
+    {% for r in sotto %}<li>Gli riporta <a href="#" data-sto-apri="ruolo" data-id="{{ r.pk }}">{{ r.etichetta }}</a></li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="sto-sch-sez">
+  <h3>Accessi al portale che concede</h3>
+  {% if accessi %}
+  <ul class="sto-sch-lista">{% for g in accessi %}<li>{% if vede_accessi %}<a href="{% url 'admin_portale:ruoli_portale' %}?tab=matrice&amp;ruolo={{ g.pk }}">{{ g.label }}</a>{% else %}{{ g.label }}{% endif %}</li>{% endfor %}</ul>
+  <p class="sto-nota">Chi ricopre il ruolo riceve questi ruoli del portale in automatico; li perde quando il ruolo si chiude.</p>
+  {% else %}<p class="sto-sch-vuoto">Nessun ruolo del portale collegato: chi lo ricopre ha solo la dotazione di base.</p>{% endif %}
+  {% if vede_accessi %}<a class="sto-link" href="{% url 'admin_portale:ruoli_portale' %}?tab=matrice">Collega i ruoli del portale →</a>{% endif %}
+</section>
+
+{% if nomi_precedenti %}
+<section class="sto-sch-sez">
+  <h3>Nomi precedenti e ruoli accorpati</h3>
+  <p class="sto-nota">{{ nomi_precedenti|join:" · " }}</p>
+</section>
+{% endif %}
+
+{% if is_admin %}
+<section class="sto-sch-sez sto-sch-edit">
+  <h3>Modifica</h3>
+  <form method="post" action="{% url 'anagrafica:struttura_ruolo_salva' ruolo.pk %}" class="sto-form">
+    {% csrf_token %}
+    <label>Nome <input type="text" name="nome" value="{{ ruolo.nome }}" maxlength="100" required></label>
+    <label>Sigla <input type="text" name="sigla" value="{{ ruolo.sigla|default:'' }}" maxlength="20"></label>
+    <label>Diretto / indiretto <select name="classe"><option value="">—</option>{% for v, l in classi %}<option value="{{ v }}"{% if v == ruolo.classe %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label>Riporta a <select name="riporta_a"><option value="">— nessuno —</option>{% for o in ruoli_opts %}<option value="{{ o.pk }}"{% if o.pk == ruolo.riporta_a_id %} selected{% endif %}>{{ o.etichetta }}</option>{% endfor %}</select></label>
+    <p class="sto-nota">Rinominare è sicuro: il nome di prima resta fra i precedenti e le schede dei dipendenti si aggiornano.</p>
+    <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Salva</button>
+  </form>
+</section>
+{% endif %}

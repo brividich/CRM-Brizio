@@ -1,0 +1,52 @@
+<div class="sto-sch-head">
+  <div>
+    <div class="sto-sch-tipo">Mansione{% if not mansione.attiva %} · spenta{% endif %}</div>
+    <h2 class="sto-sch-titolo">{{ mansione.nome }}</h2>
+    <div class="sto-sch-sub">{% if mansione.area_id %}{{ mansione.area.nome }} · {% endif %}{{ mansione.reparto_effettivo|default:"reparto da indicare" }}{% if mansione.processo_sgi_id %} · processo <strong>{{ mansione.processo_sgi.codice }}</strong>{% endif %}{% if mansione.abilitazione_con_scadenza %} · abilitazione con validità{% endif %}</div>
+  </div>
+  <button type="button" class="sto-sch-x" data-sto-chiudi aria-label="Chiudi">×</button>
+</div>
+
+<div class="sto-sch-kpi">
+  <div><b>{{ persone|length }}</b><span>in lista</span></div>
+  <div><b>{{ operativi }}</b><span>operativ{{ operativi|pluralize:"o,i" }}</span></div>
+  <div><b>{{ ruoli|length }}</b><span>ruol{{ ruoli|length|pluralize:"o,i" }}</span></div>
+  <div><b>{{ rischi|length }}</b><span>mansion{{ rischi|length|pluralize:"e,i" }} di rischio</span></div>
+</div>
+
+<section class="sto-sch-sez">
+  <h3>Ruoli che la svolgono</h3>
+  {% if ruoli %}<ul class="sto-sch-lista">{% for r in ruoli %}<li><a href="#" data-sto-apri="ruolo" data-id="{{ r.pk }}">{{ r.etichetta }}</a></li>{% endfor %}</ul>
+  {% else %}<p class="sto-sch-vuoto">Nessun ruolo: va indicato nell'editor.</p>{% endif %}
+</section>
+
+<section class="sto-sch-sez">
+  <h3>Mansione di rischio</h3>
+  {% if rischi %}<ul class="sto-sch-lista">{% for m in rischi %}<li>{{ m.nome }}</li>{% endfor %}</ul>
+  {% elif rischi_proposti %}<p class="sto-sch-vuoto">Proposta, da confermare da HSE: {{ rischi_proposti|join:", " }}. <a class="sto-link" href="{% url 'anagrafica:struttura_rischi' %}">Rischi da confermare →</a></p>
+  {% else %}<p class="sto-sch-vuoto">Nessuna mansione di rischio.</p>{% endif %}
+</section>
+
+<section class="sto-sch-sez">
+  <h3>Persone e livello</h3>
+  {% if persone %}
+  <ul class="sto-sch-lista sto-sch-col2">{% for p in persone %}<li><a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a> <span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b></span>{% if p.sospesa %} <span class="fmd-badge fmd-b-red">sospesa</span>{% endif %}</li>{% endfor %}</ul>
+  {% else %}<p class="sto-sch-vuoto">Nessuno in lista.</p>{% endif %}
+  <p class="sto-nota">Livelli: I in formazione · L intermedio · U autonomo · O esperto.</p>
+</section>
+
+{% if mansione.deriva_da_id or derivate or nomi_precedenti %}
+<section class="sto-sch-sez">
+  <h3>Storia</h3>
+  <ul class="sto-sch-lista">
+    {% if mansione.deriva_da_id %}<li>Nata dalla divisione di <a href="#" data-sto-apri="mansione" data-id="{{ mansione.deriva_da_id }}">{{ mansione.deriva_da.nome }}</a>: il livello che le persone avevano là è solo un suggerimento.</li>{% endif %}
+    {% for d in derivate %}<li>Divisa anche in <a href="#" data-sto-apri="mansione" data-id="{{ d.pk }}">{{ d.nome }}</a></li>{% endfor %}
+    {% if nomi_precedenti %}<li>Nomi precedenti: {{ nomi_precedenti|join:" · " }}</li>{% endif %}
+  </ul>
+</section>
+{% endif %}
+
+<div class="sto-sch-azioni">
+  <a class="fmd-btn fmd-btn-ghost fmd-btn-mini" href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">Persone, competenze e valutazioni</a>
+  {% if is_admin %}<a class="fmd-btn fmd-btn-navy fmd-btn-mini" href="{% url 'anagrafica:mansionario_struttura' %}?apri={{ mansione.pk }}">Modifica nell'editor</a>{% endif %}
+</div>

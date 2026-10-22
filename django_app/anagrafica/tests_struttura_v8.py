@@ -440,3 +440,53 @@ class RiparazioniFaseZeroTests(_Base):
         r = RuoloOperativo.objects.create(nome="Preposto di reparto", nomi_precedenti="Preposto")
         self.assertIn(r.pk, ruoli_preposto_ids())
         self.assertNotIn(self.r_cnc.pk, ruoli_preposto_ids())
+
+
+class SchedeLateraliTests(_Base):
+    def setUp(self):
+        super().setUp()
+        struttura_v8.carica(applica=True, user=self.user)
+        self.client.force_login(self.user)
+
+    def test_schede_si_aprono(self):
+        from django.urls import reverse
+
+        ruolo = RuoloOperativo.objects.filter(sigla__isnull=False).first()
+        ruolo.profili_permessi.add(self.gruppo)
+        resp = self.client.get(reverse("anagrafica:struttura_scheda_ruolo", args=[ruolo.pk]))
+        self.assertContains(resp, ruolo.nome)
+        self.assertContains(resp, "Accessi al portale che concede")
+        self.assertContains(resp, self.gruppo.label)
+        m = CompetenzaSkm.objects.filter(area__isnull=False, attiva=True).first()
+        resp = self.client.get(reverse("anagrafica:struttura_scheda_mansione", args=[m.pk]))
+        self.assertContains(resp, "Persone e livello")
+        rep = Reparto.objects.get(nome="CN5G")
+        resp = self.client.get(reverse("anagrafica:struttura_scheda_reparto", args=[rep.pk]))
+        self.assertContains(resp, "Macchine del reparto")
+        resp = self.client.get(reverse("anagrafica:struttura_org"))
+        self.assertContains(resp, 'data-sto-apri="ruolo"')
+
+    def test_riporta_a_senza_giri(self):
+        from django.urls import reverse
+
+        capo, sotto = self.r_msm, self.r_pe
+        sotto.riporta_a = capo
+        sotto.save()
+        url = reverse("anagrafica:struttura_ruolo_salva", args=[capo.pk])
+        self.client.post(url, {"nome": capo.nome, "sigla": capo.sigla or "", "classe": "", "riporta_a": sotto.pk})
+        capo.refresh_from_db()
+        self.assertIsNone(capo.riporta_a_id)  # giro rifiutato
+        self.client.post(url, {"nome": "Responsabile sistema sintetico", "sigla": capo.sigla or "", "classe": "",
+                               "riporta_a": ""})
+        capo.refresh_from_db()
+        self.assertEqual(capo.nome, "Responsabile sistema sintetico")
+
+    def test_rinomina_reparto_da_pagina(self):
+        from django.urls import reverse
+
+        rep = Reparto.objects.get(nome="UT")
+        Asset.objects.create(name="PC sintetico", asset_tag="PC-UT- 1", reparto="UT")
+        self.client.post(reverse("anagrafica:struttura_reparto_rinomina", args=[rep.pk]), {"nome": "UFFICI"})
+        rep.refresh_from_db()
+        self.assertEqual(rep.nome, "UFFICI")
+        self.assertTrue(Asset.objects.filter(reparto="UFFICI").exists())
