@@ -12,5 +12,8 @@ registra_modulo(ModuloPermessi(
     area='Sicurezza',
     app='schede_sicurezza',
     moduli_acl=('schede_sicurezza',),
+    # Elenco, scheda, download, QR e presa visione: consultazione delle SDS per chi le
+    # deve leggere. La presa visione lo faceva sembrare «modifica».
+    capacita_forzate=(('schede_sicurezza.prodotto.view', 'lettura'),),
     domini_ai=('schede_sicurezza',),
 ))
