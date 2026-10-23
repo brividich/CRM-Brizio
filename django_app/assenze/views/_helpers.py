@@ -1787,6 +1787,37 @@ def _sp_enqueue_upsert(item_id) -> dict:
     return {"ok": True, "queued": True}
 
 
+def allinea_dopo_automazione(item_id, colonne) -> dict:
+    """Un'automazione ha scritto sulla riga (es. approvazione via mail): stato coerente e invio a SharePoint.
+
+    ``update_trigger_record`` cambia solo ``moderation_status``. Senza questo
+    passaggio ``consenso`` restava «In attesa», a SharePoint partiva quel testo
+    (o niente) e la lettura successiva riportava la richiesta «In attesa»
+    sopra l'approvazione (#9656, #9727). L'allineamento di ``consenso`` gira con
+    il flag che spegne i trigger delle automazioni: le mail sono già partite.
+    """
+    local_id = _as_int(item_id)
+    if local_id is None:
+        return {"ok": False, "reason": "id"}
+    if "moderation_status" in {str(c) for c in (colonne or ())}:
+        current = _get_assenza(local_id) or {}
+        mod = _as_int(current.get("moderation_status"))
+        consenso = _MOD_TO_CONSENSO.get(str(mod)) if mod is not None else None
+        if consenso and _norm_consenso(current.get("consenso")) != consenso:
+            updates = {"consenso": consenso, "modified_datetime": timezone.now()}
+            if _has_assenze_column(_APPROVAZIONE_DATETIME_COL):
+                if consenso == "Approvato" and not current.get(_APPROVAZIONE_DATETIME_COL):
+                    updates[_APPROVAZIONE_DATETIME_COL] = timezone.now()
+                elif consenso != "Approvato" and current.get(_APPROVAZIONE_DATETIME_COL):
+                    updates[_APPROVAZIONE_DATETIME_COL] = None
+            _set_automation_queue_skip(True)
+            try:
+                _update_assenza(local_id, updates)
+            finally:
+                _set_automation_queue_skip(False)
+    return _sp_enqueue_upsert(local_id)
+
+
 def _sp_enqueue_delete(item_id, sharepoint_item_id) -> dict:
     """Mette in coda l'eliminazione su SharePoint di un record cancellato in locale.
 
