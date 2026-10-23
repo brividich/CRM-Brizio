@@ -572,6 +572,25 @@ GUIDA = {
                                 "e le mansioni di rischio che ne derivano."),
                     ("Lacune di competenza", "elenco di chi non è abilitato e cosa manca, filtrabile ed esportabile in "
                                              "CSV: base per il piano formativo e per il refresh dei caporeparto."),
+                    ("Catalogo competenze", "Mansionario → «Catalogo competenze»: ogni competenza una volta sola, con le "
+                                            "mansioni che la chiedono e quante persone sono valutate. Stesso nome (senza "
+                                            "badare a maiuscole e spazi) = stessa competenza; nel form della mansione il "
+                                            "nome si sceglie dai suggerimenti del catalogo. L'amministrazione usa «Rinomina "
+                                            "in tutte» (un nome già esistente va unito, non rinominato) e «Unisci» (non "
+                                            "se una mansione ha già entrambe le competenze attive: prima togline una). "
+                                            "Minimo, bloccante e requisiti restano della singola mansione."),
+                    ("Livelli già valutati", "nella valutazione di una persona, sotto ogni competenza valutata su "
+                                             "un'altra mansione compare «Già valutato X in «…»» con «Usa»; «Riprendi N "
+                                             "livelli già valutati» li copia tutti nei campi vuoti. Si salva solo con "
+                                             "«Salva valutazione»."),
+                    ("Storico delle valutazioni", "ogni cambio di livello su una competenza resta registrato (prima, "
+                                                  "dopo, chi, quando): sotto la competenza nella valutazione («Ultima "
+                                                  "modifica») e nella scheda della persona nel Mansionario («Storico "
+                                                  "delle valutazioni», ultime 40)."),
+                    ("Matrice delle competenze", "dal Catalogo, «Matrice delle competenze»: persone in lista × "
+                                                 "competenze, il livello più alto su qualsiasi mansione, filtro per "
+                                                 "reparto ed export Excel. Le colonne vuote sono competenze richieste "
+                                                 "che nessuno ha ancora valutato."),
                     ("Refresh caporeparto", "la qualità, da «Refresh caporeparto» (Scadenzario refresh), avvia il "
                                             "refresh di un reparto con «Avvia refresh»: il caporeparto riceve notifica "
                                             "ed email. Con la campagna aperta compare «Sollecita», che gli manda un "

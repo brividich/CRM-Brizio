@@ -65,6 +65,33 @@
       {% endfor %}
       <p class="fmd-muted" style="margin:10px 0 0;font-size:12.5px;">Sono queste a decidere DPI, visite, formazione e schede di sicurezza della persona.</p>
     </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clock"/></svg>Storico delle valutazioni <span class="fmd-count">{{ storico|length }}</span></div>
+        <div class="fmd-block-aside">ultime 40</div>
+      </div>
+      {% if storico %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Quando</th><th>Mansione</th><th>Competenza</th><th>Livello</th><th>Valutato da</th></tr></thead>
+          <tbody>
+            {% for s in storico %}
+            <tr>
+              <td class="fmd-muted">{{ s.valutato_il|date:"d/m/Y H:i" }}</td>
+              <td>{% if s.mansione %}<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}—{% endif %}</td>
+              <td>{{ s.competenza_nome }}</td>
+              <td>{{ s.livello_prima|default:"—" }} → <b>{{ s.livello|default:"tolto" }}</b></td>
+              <td class="fmd-muted">{{ s.valutato_da|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-muted">Nessuna valutazione per competenza registrata.</div>
+      {% endif %}
+    </section>
   </div>
 </div>
 {% endblock %}
