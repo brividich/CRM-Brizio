@@ -583,7 +583,7 @@ class TrainingRequirementRuleForm(forms.ModelForm):
         model = TrainingRequirementRule
         fields = [
             "corso", "piano",
-            "mansione", "area", "ruolo_operativo", "legacy_anagrafica_id",
+            "mansione", "area", "ruolo_operativo", "competenza", "legacy_anagrafica_id",
             # `override_frequenza_mesi` non è nel form: il calcolo delle scadenze usa
             # la validità del corso e il campo non veniva applicato. Le regole che
             # l'hanno valorizzato compaiono in «Integrità dati».
@@ -597,6 +597,7 @@ class TrainingRequirementRuleForm(forms.ModelForm):
             "mansione":                forms.Select(attrs=_FM_SELECT),
             "area":                    forms.Select(attrs=_FM_SELECT),
             "ruolo_operativo":         forms.Select(attrs=_FM_SELECT),
+            "competenza":              forms.Select(attrs=_FM_SELECT),
             "legacy_anagrafica_id":    forms.NumberInput(attrs={**_FM_NUMBER, "min": "1"}),
             "is_mandatory":            forms.CheckboxInput(attrs=_FM_CHECK),
             "data_inizio_validita":    forms.DateInput(attrs=_FM_DATE),
@@ -606,17 +607,29 @@ class TrainingRequirementRuleForm(forms.ModelForm):
             "is_active":               forms.CheckboxInput(attrs=_FM_CHECK),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models_skillmatrix import CompetenzaSkm
+        from .services.mansionario_struttura import TIPI_MANSIONE
+
+        campo = self.fields["competenza"]
+        campo.queryset = CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True).order_by("display")
+        campo.label_from_instance = lambda c: c.display or c.competenza_key
+        campo.help_text = "Vale per chi è in lista sulla mansione nella skill matrix, anche in addestramento."
+
     def clean(self):
         cd = super().clean()
         targets = [
             cd.get("mansione"),
             cd.get("area"),
             cd.get("ruolo_operativo"),
+            cd.get("competenza"),
             cd.get("legacy_anagrafica_id"),
         ]
         if not any(targets):
             raise forms.ValidationError(
-                "Almeno uno dei target (mansione, area, ruolo operativo, dipendente) deve essere valorizzato."
+                "Almeno uno dei target (mansione di rischio, area, ruolo operativo, mansione lavorativa, dipendente) "
+                "deve essere valorizzato."
             )
         if cd.get("corso") and cd.get("piano"):
             raise forms.ValidationError("La regola può riguardare un corso oppure un piano, non entrambi.")

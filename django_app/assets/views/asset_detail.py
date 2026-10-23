@@ -1393,6 +1393,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             **rete_ctx,
             "switch_mappa": switch_mappa,
             "processi_qualificati_asset": _processi_qualificati(asset),
+            "operatori_abilitati": _operatori_abilitati(request, asset),
             "it_monitoring": it_monitoring,
             "it_intune": it_intune,
             "it_fonti": it_fonti,
@@ -1494,6 +1495,16 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25), **shell_kwargs),
         },
     )
+
+
+def _operatori_abilitati(request, asset) -> dict | None:
+    """Chi è abilitato sulla macchina (skill matrix); i nomi solo a chi legge la skill matrix. Fail-safe."""
+    from anagrafica.services import struttura_macchina
+
+    try:
+        return struttura_macchina.operatori(asset, con_nomi=struttura_macchina.puo_vedere_nomi(request))
+    except Exception:
+        return None
 
 
 def _processi_qualificati(asset) -> list:

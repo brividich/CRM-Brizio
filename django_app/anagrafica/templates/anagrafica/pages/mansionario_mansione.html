@@ -160,6 +160,16 @@
           <div style="margin-top:10px;">{% include "anagrafica/components/_mansionario_competenza_form.html" with voce=None %}</div>
         </details>
         {% endif %}
+
+        {# Formazione obbligatoria per chi è in lista: regole di obbligatorietà con target «Mansione lavorativa». #}
+        <h3 style="margin:18px 0 6px;font-size:14px;">Formazione obbligatoria per chi fa questa mansione</h3>
+        {% if regole_formazione %}
+        <ul style="margin:0 0 6px;padding-left:18px;font-size:13px;">
+          {% for r in regole_formazione %}<li>{% if r.corso %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}">{{ r.corso.titolo }}</a>{% elif r.piano %}Piano «{{ r.piano }}»{% endif %}{% if r.note %} <span class="fmd-muted">· {{ r.note|truncatechars:60 }}</span>{% endif %}</li>{% endfor %}
+        </ul>
+        {% else %}
+        <p class="fmd-muted" style="margin:0;font-size:12.5px;">Nessuna regola. Si aggiunge dalla scheda del corso, «Regole di obbligatorietà», scegliendo questa mansione lavorativa: vale per tutti quelli in lista, anche in addestramento, e compare nei fabbisogni e nell'onboarding di chi riceve un ruolo con questa mansione.</p>
+        {% endif %}
       </div>
 
       {# ── Impostazioni ─────────────────────────────────────────────────── #}

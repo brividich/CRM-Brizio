@@ -33,6 +33,9 @@ GUIDA = {
                 ("ul", [
                     "Auditor interni ed esterni qualificati si gestiscono nell'elenco auditor del modulo.",
                     "Programma e piano vanno approvati da chi ha il permesso di approvazione (Qualità).",
+                    "La scheda processo mostra chi ricopre il ruolo owner e chi è operativo sulle mansioni del processo "
+                    "(Struttura organizzativa dell'Anagrafica); il piano di audit propone queste persone come "
+                    "responsabili e auditati, da aggiungere con «Aggiungi».",
                     "Permessi di pagina: Amministrazione → Accessi, modulo Sistema di gestione.",
                 ]),
             ],

@@ -665,6 +665,12 @@ class TrainingRequirementRule(models.Model):
         "anagrafica.RuoloOperativo", null=True, blank=True,
         on_delete=models.CASCADE, related_name="regole_formazione",
     )
+    # Mansione lavorativa (colonna della skill matrix): vale per chi è in lista sulla mansione.
+    competenza = models.ForeignKey(
+        "anagrafica.CompetenzaSkm", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_formazione",
+        verbose_name="Mansione lavorativa",
+    )
     legacy_anagrafica_id = models.IntegerField(
         null=True, blank=True, db_index=True,
         help_text="Se valorizzato: regola per singolo dipendente",
@@ -693,6 +699,7 @@ class TrainingRequirementRule(models.Model):
             models.Index(fields=["mansione", "is_active"]),
             models.Index(fields=["area", "is_active"]),
             models.Index(fields=["ruolo_operativo", "is_active"]),
+            models.Index(fields=["competenza", "is_active"]),
             models.Index(fields=["legacy_anagrafica_id", "is_active"]),
         ]
 

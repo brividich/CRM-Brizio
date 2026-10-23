@@ -138,6 +138,9 @@ _PAGINE_AUDIT = [
                 "«Proponi domande dalla scheda» le genera dai punti norma e le lascia in bozza finché non le verifichi con "
                 "«Verifica / revisiona domanda». Solo le domande attive vengono copiate nei nuovi piani.",
                 "«Audit collegati» mostra lo storico delle verifiche del processo.",
+                "«Chi possiede e chi esegue il processo» legge la Struttura organizzativa: chi ricopre oggi il ruolo "
+                "owner, le mansioni lavorative collegate al processo con quanti operativi e quanti in lista («nessuno» in "
+                "rosso se nessuno è operativo) e, aprendo «Persone operative», i nomi.",
             ]),
             ("nota", "Un audit conserva la copia della scheda processo usata nel piano: le revisioni successive del catalogo "
                      "non cambiano gli audit già pianificati."),
@@ -263,7 +266,10 @@ _PAGINE_AUDIT = [
                 "Le tessere contano Conformi, OFI, NC (maggiori e minori), Osservazioni, Punti di forza e N/A; «Rilievi in Excel» "
                 "scarica i rilievi dell'audit.",
                 "«4 · Persone coinvolte»: «Aggiungi persona» con funzione, email e ruolo; «Correggi» finché il piano è Pianificato. "
-                "La colonna Conferma riporta la risposta all'invito Outlook.",
+                "La colonna Conferma riporta la risposta all'invito Outlook. Sotto, «Proposte dalla struttura "
+                "organizzativa» elenca chi ricopre il ruolo owner dei processi dell'audit (come Responsabile del "
+                "processo) e chi è operativo sulle loro mansioni (come Auditato), con l'email di notifica: «Aggiungi» lo "
+                "mette nel piano. Chi è già nel piano (stessa email o nome) non viene riproposto.",
                 "«5 · Programma orario»: «Aggiungi voce» con data/ora, processo, attività e auditor.",
                 "«6 · Approvazione piano»: prima «Approva come Lead Auditor», poi «Approva Direzione»; se c'è una deroga, "
                 "«Approva la deroga (RDD)».",

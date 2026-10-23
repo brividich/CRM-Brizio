@@ -1,0 +1,56 @@
+{# Operatori abilitati sulla macchina: fonte skill matrix (anagrafica.services.struttura_macchina). #}
+{% with op=operatori_abilitati %}
+<section class="af-card af-span-full" style="margin-top:18px;" id="asset-operatori-section" data-af-tab="Operatori">
+  <div class="af-card-head">
+    <div>
+      <div class="af-card-kicker">SKILL MATRIX</div>
+      <h3 class="af-card-title">Operatori abilitati</h3>
+    </div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <span class="af-pill {% if op.n_operativi >= 2 %}af-pill--ok{% elif op.n_operativi == 1 %}af-pill--warn{% else %}af-pill--danger{% endif %}" title="Abilitati attivi con livello almeno pari alla soglia operativa">{{ op.n_operativi }} operativ{{ op.n_operativi|pluralize:"o,i" }}</span>
+      {% if op.n_addestramento %}<span class="af-pill" title="In lista ma sotto la soglia operativa">{{ op.n_addestramento }} in addestramento</span>{% endif %}
+      {% if op.n_sospesi %}<span class="af-pill af-pill--warn">{{ op.n_sospesi }} sospes{{ op.n_sospesi|pluralize:"o,i" }}</span>{% endif %}
+      {% if op.uomo_solo %}<span class="af-pill af-pill--danger" title="Una sola persona operativa: se manca, la macchina resta ferma">Uomo solo</span>{% endif %}
+    </div>
+  </div>
+  <div class="af-card-body">
+    {% if op.soglie %}
+      <p style="margin:0 0 8px;">
+        {% for s in op.soglie %}
+          <span class="af-pill {% if s.coperta %}af-pill--ok{% elif s.coperta is False %}af-pill--danger{% endif %}" title="{{ s.soglia.certificazione|default:'Soglia di copertura' }}">
+            {{ s.soglia.nome }}: {{ s.disponibili }}/{{ s.minimo }}{% if s.gap %} · mancano {{ s.gap }}{% endif %}
+          </span>
+        {% endfor %}
+      </p>
+    {% endif %}
+    {% if op.mansioni %}
+      <p style="margin:0 0 8px;">Mansioni lavorative:
+        {% for m in op.mansioni %}{% if op.con_nomi %}<a href="{% url 'anagrafica:mansionario_mansione' m.id %}">{{ m.display|default:m.competenza_key }}</a>{% else %}{{ m.display|default:m.competenza_key }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </p>
+    {% endif %}
+    {% if op.con_nomi %}
+      {% if op.persone %}
+        <div class="af-table-wrap">
+          <table class="af-table">
+            <thead><tr><th>Persona</th><th>Livello</th><th>Stato</th><th>Prossima revisione</th></tr></thead>
+            <tbody>
+              {% for p in op.persone %}
+                <tr>
+                  <td><a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}#posizione-struttura">{{ p.nome }}</a></td>
+                  <td>{{ p.livello }} · {{ p.livello_label }}</td>
+                  <td><span class="af-pill {% if p.semaforo == 'operativa' %}af-pill--ok{% elif p.semaforo == 'sospesa' %}af-pill--warn{% endif %}">{% if p.semaforo == 'operativa' %}Operativo{% elif p.semaforo == 'sospesa' %}Sospeso{% else %}In addestramento{% endif %}</span></td>
+                  <td>{{ p.prossima_revisione|date:"d/m/Y"|default:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p style="margin:0;">Nessuna persona in lista su questa macchina.</p>
+      {% endif %}
+    {% else %}
+      <p style="margin:0; color:var(--text-muted, #64748b);">Nomi e livelli li vede chi ha accesso alla skill matrix.</p>
+    {% endif %}
+  </div>
+</section>
+{% endwith %}

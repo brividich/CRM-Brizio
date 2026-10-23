@@ -271,6 +271,10 @@ def mansionario_mansione(request, mansione_id: int):
         "nomi_precedenti": svc.nomi_precedenti(mansione),
         "completezza": svc.completezza(mansione, n_competenze=len(competenze), n_persone=len(persone)),
         "regole": svc.regole_correnti(),
+        "regole_formazione": list(
+            mansione.regole_formazione.filter(is_active=True, is_mandatory=True)
+            .select_related("corso", "piano").order_by("corso__titolo", "piano__nome")
+        ),
         "is_admin": is_admin,
         "puo_valutare": puo_valutare,
     })

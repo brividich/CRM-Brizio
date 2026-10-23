@@ -41,10 +41,12 @@ PERSONA = [
     ("anagrafica", "DipendenteAnagraficaAziendale"),
     ("anagrafica", "DipendenteAssegnazione"),
     ("anagrafica", "AbilitazioneProcesso"),
+    # In lista su una mansione lavorativa: può far scattare le regole per mansione lavorativa.
+    ("anagrafica", "AbilitazioneMacchina"),
 ]
 # Possono essere della persona o di tutti (regole, esposizioni): decide il record.
 MISTI = [
-    ("anagrafica", "TrainingRequirementRule", ("mansione_id", "ruolo_operativo_id", "area_id")),
+    ("anagrafica", "TrainingRequirementRule", ("mansione_id", "ruolo_operativo_id", "area_id", "competenza_id")),
     ("anagrafica", "EsposizioneRischio", ("mansione_id", "area_id")),
 ]
 # Cataloghi: (app, modello, campi che contano; None = tutti).

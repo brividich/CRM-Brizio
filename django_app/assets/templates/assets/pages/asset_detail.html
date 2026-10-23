@@ -2031,6 +2031,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
     </div>
   </section>
   {% endif %}
+  {% if operatori_abilitati %}{% include "assets/partials/asset_operatori_abilitati.html" %}{% endif %}
   {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
 
   {# Segnali dei report di sicurezza/backup sul dispositivo collegato (solo a chi vede il Security Center). #}

@@ -93,6 +93,9 @@ GUIDA = {
                     "«PART 145» del menu apre il Dossier PART 145 (processi, contratti, attrezzature, personale, "
                     "scadenze, situazioni aperte, documenti SGI) con export Excel e PDF; se un'attrezzatura cambia stato "
                     "Qualità riceve una mail.",
+                    "Scheda di una macchina, scheda «Operatori»: chi è abilitato dalla skill matrix, quanti operativi, "
+                    "in addestramento e sospesi, «Uomo solo» con un solo operativo e le soglie di copertura AS/EN 9100. "
+                    "Nomi e livelli solo per chi ha accesso alla skill matrix o ai dati HR.",
                     "Nel Dossier la colonna «Controllo» dice come si tiene sotto controllo l'attrezzo (MOE §2.4): "
                     "«Taratura» se ha un piano di taratura, «Manutenzione periodica» se ha altri piani, «A vista» se "
                     "non ne ha. Una taratura scaduta compare tra le situazioni aperte: l'attrezzo va segregato.",
