@@ -25,7 +25,7 @@
         hx-post="{% url 'anagrafica:tipo_visita_medica_create' %}"
         hx-target="#visite-mediche-panel-content" hx-swap="outerHTML">
     {% csrf_token %}
-    <div class="imp-add-form">
+    <div class="imp-add-form" data-add-label="Nuovo tipo di visita">
       <div class="imp-field">
         <label class="imp-label">Nome *</label>
         <input class="imp-input" type="text" name="nome" maxlength="150" required placeholder="Es. Visita periodica">

@@ -736,6 +736,14 @@ body.theme-dark .af-tabs { background:rgba(15,23,42,.92); border-color:var(--bor
 .af-costi-note { margin:0; padding:0 16px 12px; color:#64748b; font-size:var(--fs-sm); }
 body.theme-dark .af-costi > div { border-color:var(--border); }
 body.theme-dark .af-costi strong { color:var(--text); }
+.af-cnc-testo { font-size:15px !important; overflow-wrap:anywhere; }
+.af-cnc-allarmi { list-style:none; margin:0; padding:0 16px 12px; display:grid; gap:6px; font-size:var(--fs-sm); }
+.af-cnc-periodi { padding:0 16px 14px; }
+.af-cnc-sottotitolo { font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#64748b; margin:2px 0 6px; }
+.af-cnc-tabella { width:100%; border-collapse:collapse; font-size:var(--fs-sm); font-variant-numeric:tabular-nums; }
+.af-cnc-tabella th { text-align:left; font-weight:600; color:#64748b; padding:4px 8px; border-bottom:1px solid #dbe3f0; }
+.af-cnc-tabella td { padding:5px 8px; border-bottom:1px solid #eef2f7; }
+body.theme-dark .af-cnc-tabella th, body.theme-dark .af-cnc-tabella td { border-color:var(--border); }
 body.theme-dark .af-costi span, body.theme-dark .af-costi small, body.theme-dark .af-costi-note { color:var(--text-light); }
 body.theme-dark .af-costi-tot { background:rgba(59,130,246,.14); border-color:rgba(59,130,246,.4) !important; }
 body.theme-dark .af-costi-tot strong { color:#fff; }
@@ -956,6 +964,35 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
         </article>
       {% endfor %}
     </section>
+  {% endif %}
+
+  {% if stato_cnc %}
+  <section class="af-sections" aria-label="Stato dal controllo della macchina" data-af-tab="Panoramica">
+    <article class="af-card af-span-full" id="asset-cnc">
+      <div class="af-card-head">
+        <div><div class="af-card-kicker">DAL CONTROLLO DELLA MACCHINA · {{ stato_cnc.fonte }}</div><h2 class="af-card-title">Stato della CNC</h2></div>
+        <a class="as-link-subtle" href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a>
+      </div>
+      <div class="af-costi">
+        <div><span>Stato</span><strong><span class="as-badge as-badge--{{ stato_cnc.badge }}">{{ stato_cnc.label }}</span></strong><small>{% if stato_cnc.dal %}dal {{ stato_cnc.dal }}{% endif %}</small></div>
+        <div><span>Oggi in lavoro</span><strong>{{ stato_cnc.ore_oggi }} h</strong><small>dalla mezzanotte</small></div>
+        {% if stato_cnc.programma %}<div><span>Programma</span><strong class="af-cnc-testo">{{ stato_cnc.programma }}</strong><small>{{ stato_cnc.modalita }}</small></div>{% endif %}
+        {% if stato_cnc.pezzi %}<div><span>Pezzi sulla CNC</span><strong>{{ stato_cnc.pezzi }}</strong><small>contatore della macchina</small></div>{% endif %}
+        <div class="af-costi-voce is-info"><span>Letto alle</span><strong>{{ stato_cnc.letto|default:"—" }}</strong><small>{% if stato_cnc.stato == "vecchio" %}nessun dato dal collector da più di 15 minuti{% else %}aggiornato ogni minuto{% endif %}</small></div>
+      </div>
+      {% if stato_cnc.allarmi %}<ul class="af-cnc-allarmi">{% for a in stato_cnc.allarmi|slice:":5" %}<li><span class="as-badge as-badge--{% if a.livello == 'allarme' %}danger{% else %}warn{% endif %}">{% if a.livello == "allarme" %}Allarme{% else %}Avviso{% endif %}</span> {% if a.codice %}{{ a.codice }} · {% endif %}{% firstof a.testo a.tipo %}</li>{% endfor %}</ul>{% endif %}
+      {% if stato_cnc.errore %}<p class="af-costi-note">{{ stato_cnc.errore }}</p>{% endif %}
+      {% if stato_cnc.periodi %}
+      <div class="af-cnc-periodi">
+        <div class="af-cnc-sottotitolo">Ultimi cambi di stato</div>
+        <table class="af-cnc-tabella" data-fm-table-skip="1">
+          <thead><tr><th>Stato</th><th>Dal</th><th>Al</th><th>Durata</th></tr></thead>
+          <tbody>{% for p in stato_cnc.periodi %}<tr><td><span class="as-badge as-badge--{{ p.badge }}">{{ p.label }}</span></td><td>{{ p.dal }}</td><td>{{ p.al|default:"in corso" }}</td><td>{{ p.durata }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% endif %}
+    </article>
+  </section>
   {% endif %}
 
   {% if not it_presentation and it_monitoring %}

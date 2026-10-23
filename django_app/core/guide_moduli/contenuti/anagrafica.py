@@ -206,9 +206,16 @@ GUIDA = {
                       "«Cerca una sezione» la trova per nome o argomento (es. «rspp», «retention»); Invio apre la prima. Le voci "
                       "di «Altre pagine» (E-learning, Viste elenco dipendenti, Amministrazione e import, Conservazione dei dati, "
                       "Richieste di rettifica) hanno la freccia ↗ e aprono un'altra pagina; le rettifiche aperte compaiono in rosso."),
-                ("p", "In ogni sezione il riquadro tratteggiato in alto aggiunge una voce; «Modifica» apre una finestra (Esc o "
-                      "«Annulla» la chiudono senza salvare). Gli elenchi lunghi hanno «Filtra in questa sezione». Qualifiche, "
+                ("p", "Ogni sezione sta in un solo riquadro con l'elenco compatto, una riga per voce. In testata ci sono "
+                      "«Filtra…» (negli elenchi lunghi) e il bottone verde «+ Nuova …» (es. «+ Nuova mansione», «+ Nuovo "
+                      "pilastro»): apre il form subito sotto, che si richiude con lo stesso bottone; se la sezione è vuota il "
+                      "form è già aperto. «Modifica» apre una finestra (Esc o «Annulla» la chiudono senza salvare). Qualifiche, "
                       "ruoli e cartelle documenti già in uso non si eliminano: si disattivano e lo storico resta."),
+                ("p", "In «Visite mediche» la barra «Seleziona tutti» mostra i campi della modifica in blocco solo dopo aver "
+                      "spuntato almeno un tipo. In «Ruoli» il form «+ Nuovo ruolo» e gli «Ambiti dei ruoli» sono richiudibili, e "
+                      "ogni ruolo aggiunge una qualifica da «+ Aggiungi qualifica». In «Permessi» ogni sezione riservata ha una "
+                      "riga con il selettore Tutti / Solo amministratori / Ruoli scelti; gli «Utenti sempre abilitati» (col loro "
+                      "numero) si aprono a parte."),
                 ("p", "La scheda «Mansioni» mostra le mansioni di rischio (con «Catalogo completo →» per livello di rischio "
                       "e requisiti) e il numero di mansioni lavorative, con «Apri il Mansionario →»: le mansioni lavorative "
                       "(macchine e processi della skill matrix) si gestiscono lì."),

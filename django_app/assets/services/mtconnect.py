@@ -407,6 +407,43 @@ def attuale(coll, ora=None) -> bool:
     return bool(coll.controllato_il and ora - coll.controllato_il <= VECCHIO_DOPO)
 
 
+BADGE_STATO = {
+    "in_lavoro": "ok", "setup": "ok", "pronta": "warn", "ferma": "warn",
+    "allarme": "danger", "emergenza": "danger",
+}
+
+
+def _durata(intervallo: timedelta) -> str:
+    minuti = max(int(intervallo.total_seconds() // 60), 0)
+    if minuti < 60:
+        return f"{minuti} min"
+    ore, minuti = divmod(minuti, 60)
+    if ore < 24:
+        return f"{ore} h {minuti:02d} min"
+    return f"{ore // 24} g {ore % 24} h"
+
+
+def per_scheda(asset_id: int, ora=None) -> dict | None:
+    """Riquadro «Dal controllo della macchina» nella scheda dell'asset: lo stesso stato della mappa
+    officina più gli ultimi cambi di stato. None se l'asset non ha un collegamento attivo."""
+    from assets.models import PeriodoStatoMacchina
+
+    ora = ora or timezone.now()
+    dati = per_mappa([asset_id], ora).get(asset_id)
+    if dati is None:
+        return None
+    periodi = []
+    for p in PeriodoStatoMacchina.objects.filter(collegamento__asset_id=asset_id, collegamento__attivo=True)[:10]:
+        periodi.append({
+            "label": STATO_ETICHETTE.get(p.stato, p.stato),
+            "badge": BADGE_STATO.get(p.stato, "muted"),
+            "dal": timezone.localtime(p.dal).strftime("%d/%m %H:%M"),
+            "al": timezone.localtime(p.al).strftime("%d/%m %H:%M") if p.al else "",
+            "durata": _durata((p.al or ora) - p.dal),
+        })
+    return {**dati, "badge": BADGE_STATO.get(dati["stato"], "muted"), "periodi": periodi}
+
+
 def per_mappa(asset_ids, ora=None) -> dict[int, dict]:
     """asset_id → stato dal controllo per la mappa officina (solo collegamenti attivi)."""
     from assets.models import CollegamentoMTConnect
