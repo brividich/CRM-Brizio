@@ -1,45 +1,46 @@
 {% extends "security/_base_soc.html" %}
+{# Panoramica della configurazione: sezioni per compito, stato in parole, «Da sistemare» in cima. Dati: services/config_hub.py. #}
 {% block title %}Configurazione / Security Center AI{% endblock %}
-{% block page_marker %}Configurazione admin{% endblock %}
+{% block page_marker %}Impostazioni{% endblock %}
 {% block page_title %}Configurazione{% endblock %}
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
-<section class="sec-panel" style="margin-bottom:12px">
-  <div class="sec-section-head"><h2>Tutta la configurazione del SOC è qui</h2></div>
-  <p class="sec-muted">Le schede in alto portano a ogni sezione: <strong>Avvisi e automatismi</strong> (avvisi automatici, report programmato, soppressione appresa, impatto CVE), caselle mail, sorgenti e parser, regole, notifiche, inventario software, autoconfigurazione e audit. Se manca qualcosa, l'<strong>Autoconfigurazione</strong> la semina e applica le correzioni suggerite dalla diagnostica.</p>
-  <a class="sec-button sec-button-primary" href="{% url 'security:soc_settings' %}">Avvisi e automatismi</a>
-  <a class="sec-button" href="{% url 'security:admin_autoconfig' %}">Apri autoconfigurazione</a>
-  <a class="sec-button" href="{% url 'security:admin_diagnostics' %}">Diagnostica</a>
+<section class="cfg-todo{% if not problemi %} is-ok{% endif %}">
+  {% if problemi %}
+    <h2>Da sistemare <span>{{ problemi|length }}</span></h2>
+    <ul>
+      {% for testo, url in problemi %}<li><a href="{{ url }}"><span>{{ testo }}</span><span class="cfg-go" aria-hidden="true">&#8594;</span></a></li>{% endfor %}
+    </ul>
+  {% else %}
+    <h2>Niente da sistemare</h2>
+    <p>Caselle, letture automatiche, canali di notifica e software sono a posto.</p>
+  {% endif %}
 </section>
-<div class="sec-grid sec-three-col">
-  {% for card in cards %}
-    <section class="sec-card">
-      <div class="sec-section-head">
-        <h2>{{ card.title }}</h2>
-        <span class="sec-badge {{ card.status }}">{{ card.status_label }}</span>
-      </div>
-      <div class="sec-fact-grid">
-        <div class="sec-fact"><span>Attivi</span><strong>{{ card.enabled_count }}</strong></div>
-        <div class="sec-fact"><span>Avvisi</span><strong>{{ card.warning_count }}</strong></div>
-      </div>
-      <p class="sec-muted">Ultimo aggiornamento: {% if card.last_updated %}{{ card.last_updated|date:"d/m/Y H:i" }}{% else %}Mai{% endif %}</p>
-      <a class="sec-button sec-button-primary" href="{{ card.url }}">Configura</a>
-    </section>
-  {% endfor %}
-</div>
-<section class="sec-panel" style="margin-top:12px">
-  <div class="sec-section-head"><h2>Modifiche recenti alla configurazione</h2><a href="{% url 'security:admin_config_audit' %}">Registro audit</a></div>
-  <div class="sec-table-wrap">
-    <table class="sec-table">
-      <thead><tr><th>Quando</th><th>Attore</th><th>Oggetto</th><th>Campo</th><th>Azione</th></tr></thead>
-      <tbody>
-        {% for change in recent_changes %}
-          <tr><td>{{ change.created_at|date:"d/m/Y H:i" }}</td><td>{{ change.actor|default:"sistema" }}</td><td>{{ change.model_name }} {{ change.object_repr }}</td><td>{{ change.field_name }}</td><td>{{ change.action }}</td></tr>
-        {% empty %}
-          <tr><td colspan="5" class="sec-empty">Nessuna modifica di configurazione registrata.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+{% for s in sezioni %}
+<section class="cfg-sec">
+  <header><h2>{{ s.titolo }}</h2><p>{{ s.intro }}</p></header>
+  <div class="cfg-grid">
+    {% for v in s.voci %}
+      <a class="cfg-tile is-{{ v.tono }}" href="{{ v.url }}">
+        <strong>{{ v.nome }}</strong>
+        <span class="cfg-desc">{{ v.descrizione }}</span>
+        {% if v.stato %}<span class="cfg-state"><span class="cfg-dot" aria-hidden="true"></span>{{ v.stato }}</span>{% endif %}
+      </a>
+    {% endfor %}
   </div>
 </section>
+{% endfor %}
+
+<details class="cfg-recent">
+  <summary>Ultime modifiche alla configurazione</summary>
+  <ul>
+    {% for change in recent_changes %}
+      <li><span class="sec-nowrap">{{ change.created_at|date:"d/m/Y H:i" }}</span> · {{ change.actor|default:"sistema" }} · {{ change.object_repr|default:change.model_name }}{% if change.field_name %} <small>({{ change.field_name }})</small>{% endif %}</li>
+    {% empty %}
+      <li>Nessuna modifica registrata.</li>
+    {% endfor %}
+  </ul>
+  <a href="{% url 'security:admin_config_audit' %}">Tutto il registro &#8594;</a>
+</details>
 {% endblock %}

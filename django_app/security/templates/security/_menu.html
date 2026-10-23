@@ -12,3 +12,6 @@
   {% for t in sezione.tabs %}<a href="{{ t.url }}"{% if t.active %} class="active" aria-current="page"{% endif %}>{{ t.label }}</a>{% if t.sep_after %}<span class="soc-subnav-sep" aria-hidden="true"></span>{% endif %}{% endfor %}
 </nav>
 {% endif %}
+{% if briciola %}
+<nav class="soc-crumb" aria-label="Percorso"><a href="{{ briciola.url }}">&#8592; Configurazione</a><span aria-hidden="true">›</span><strong>{{ briciola.nome }}</strong></nav>
+{% endif %}

@@ -10,11 +10,11 @@ In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casel
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
 | **Segnalazioni** | Tutte, Alert, Ticket, Incidenti, Eventi |
-| **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Vulnerabilità, Accessi VPN |
+| **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Patch e protezione, Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
-| **Impostazioni** | Configurazione, Elaborazione, Soppressioni, Guida |
+| **Impostazioni** | Panoramica, Avvisi e automatismi, Letture automatiche, Soppressioni, Guida |
 
-Elaborazione compare solo a chi ha il permesso di configurazione. Dentro **Impostazioni › Configurazione** la seconda riga elenca direttamente le sezioni della configurazione (Panoramica, Avvisi e automatismi, Caselle mail, Sorgenti e parser...), seguite da Elaborazione, Soppressioni e Guida.
+La **Panoramica** delle impostazioni (solo con il permesso di configurazione) apre tutte le altre pagine, divise per compito: *Da dove arrivano i dati* (caselle mail, letture automatiche, sorgenti e parser, inventario software, software e CVE), *Cosa diventa un alert* (regole, soppressioni, automatismi di rientro, backup attesi), *Chi viene avvisato* (avvisi e automatismi, canali di notifica, ticket), *Controllo e manutenzione* (diagnostica, autoconfigurazione, elaborazione, registro modifiche, impostazioni tecniche). Ogni voce dice a cosa serve e com'è messa («2 caselle attive · ultima lettura oggi alle 12:10»; pallino verde, arancione o rosso). In cima **Da sistemare** elenca solo le cose concrete da fare (nessuna casella attiva, letture con errore, nessun canale di notifica, software da collegare alle CVE, sorgenti in ritardo, job di backup non configurati), ognuna con il link. Nelle pagine aperte dalla Panoramica, sotto il menu, «← Configurazione» riporta indietro.
 
 ## Da dove partire
 
