@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ postazione.nome }} | {{ portal_branding.portal_name|default:"NOVICROM HUB" }}{% endblock %}
+{% block title %}{{ page_title }} | {{ portal_branding.portal_name|default:"NOVICROM HUB" }}{% endblock %}
 {% block layout_sidebar %}{% endblock %}
 {% block layout_header %}{% endblock %}
 {% block subnav %}{% endblock %}
@@ -47,7 +47,7 @@
   <header class="pz-head">
     <div>
       <div class="pz-kicker">Postazione condivisa</div>
-      <h1 class="pz-title">{{ postazione.nome }}</h1>
+      <h1 class="pz-title">{{ page_title }}</h1>
     </div>
     <div class="pz-head-actions">
       <form method="post" action="{% url 'logout' %}" class="inline-form">
@@ -64,6 +64,13 @@
     <div class="pz-errore" role="alert">{{ errore }}</div>
   {% endif %}
 
+  {% if pc_non_registrato %}
+  <section class="pz-card">
+    <h2 class="pz-h2">Questo PC non è registrato come postazione condivisa</h2>
+    <p>L'account con cui sei entrato si usa solo dai PC registrati. Indirizzo di questo PC visto dal portale: <strong>{{ ip|default:"sconosciuto" }}</strong>.</p>
+    <p>Chiedi all'amministratore di registrarlo in admin-portale → «Postazioni condivise», oppure entra con il tuo account personale.</p>
+  </section>
+  {% else %}
   <section class="pz-card">
   {% if not scelto %}
     <h2 class="pz-h2">Chi sei?</h2>
@@ -81,7 +88,7 @@
           </span>
         </a>
       {% empty %}
-        <p>Nessun operatore abilitato su questa postazione. L'amministratore deve aggiungere le persone al gruppo «{{ postazione.gruppo.label }}».</p>
+        <p>Nessun operatore abilitato su questo PC. L'amministratore deve aggiungere le persone al gruppo «{{ postazione.gruppo.label }}» e abilitarle sul PC in admin-portale → «Postazioni condivise».</p>
       {% endfor %}
     </div>
   {% elif imposta_pin %}
@@ -138,7 +145,7 @@
   <details class="pz-card pz-guida">
     <summary>? Guida</summary>
     <ol>
-      <li>Tocca il tuo nome. Se non c'è, chiedi all'amministratore di aggiungerti al gruppo «{{ postazione.gruppo.label }}».</li>
+      <li>Tocca il tuo nome. Se non c'è, chiedi all'amministratore di abilitarti su questo PC.</li>
       <li>La prima volta scegli «Imposta il PIN»: inserisci nome utente e password del tuo account e un PIN da {{ pin_min }} a {{ pin_max }} cifre. Poi basta il PIN.</li>
       <li>Da quel momento lavori con il tuo nome: quello che fai resta registrato a te.</li>
       <li>Quando hai finito premi «Cambio operatore» in alto (anche «Esci» riporta qui). Dopo {{ postazione.minuti_inattivita }} minuti senza usare il portale si torna comunque qui.</li>
@@ -146,6 +153,7 @@
       <li>Il PIN è personale: non dirlo ai colleghi.</li>
     </ol>
   </details>
+  {% endif %}
 </div>
 <script nonce="{{ csp_nonce }}">
 (function () {

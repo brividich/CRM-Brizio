@@ -125,14 +125,14 @@ Procedura: backup del DB → `pulizia_pre_golive` (verificare i conteggi) → `p
 
 ## Postazioni condivise (`/postazione/`, 23/10/2026)
 
-PC usati a turno con un solo account (es. «zeiss» del controllo): ognuno entra con il proprio nome e un PIN personale, e la sessione diventa sua.
+PC usati a turno con un solo account (es. «zeiss» del controllo): ogni PC è registrato con il suo IP e ha i suoi operatori, che entrano con il proprio nome e un PIN personale; la sessione diventa loro.
 
-- Configurazione in Amministrazione → **Postazioni condivise** (`/admin-portale/postazioni-condivise/`): nome, account della postazione (utente legacy creato dal primo login LDAP; mai amministratori), gruppo degli operatori (`AccessGroup`, membri gestiti in «Accessi»), minuti di inattività (1–60), «Attiva». «Operatori e PIN»: stato del PIN di ogni operatore e «Azzera PIN». Guida `?guida=1`.
-- Sul PC: l'account apre solo «Chi sei?» (`/postazione/`). Tocca il nome → tastierino PIN → «Entra». Prima volta, PIN bloccato o da cambiare: «Imposta il PIN» con nome utente e password dell'account personale (stessa cascata del login, axes compreso), PIN 4–8 cifre senza cifre ripetute o sequenze.
+- Configurazione in admin-portale → **Postazioni condivise** (`/admin-portale/postazioni-condivise/`, voce nella barra admin, gruppo Accessi): una riga per PC con nome, **IP del PC** (unico), account della postazione (utente legacy creato dal primo login LDAP; può servire più PC; mai amministratori), gruppo degli operatori (`AccessGroup`, membri gestiti in «Accessi»), minuti di inattività (1–60), «Attiva». **Operatori del PC**: spunta dei membri del gruppo che possono usare quel PC (`OperatorePostazione`), stato del PIN e «Azzera PIN». Guida `?guida=1`.
+- Sul PC registrato l'account apre solo «Chi sei?» (`/postazione/`) con gli operatori abilitati su quel PC; da un PC non registrato solo la pagina «PC non registrato» (si sblocca da sola appena il PC viene registrato). Se la sessione arriva da un altro IP si chiude. Tocca il nome → tastierino PIN → «Entra». Prima volta, PIN bloccato o da cambiare: «Imposta il PIN» con nome utente e password dell'account personale (stessa cascata del login, axes compreso), PIN 4–8 cifre senza cifre ripetute o sequenze.
 - Operatore dentro: fascia blu «Postazione condivisa … stai lavorando come …» con **Cambio operatore** (anche «Esci» del menu utente torna a «Chi sei?»; «Chiudi la postazione» su «Chi sei?» chiude tutto); dopo i minuti di inattività (controllo in pagina e sul server) si torna a «Chi sei?».
 - 5 PIN sbagliati di fila → bloccato + mail «PIN della postazione bloccato». Audit `postazione_*`.
-- Codice: `core/postazioni.py`, `core/postazioni_views.py`, `admin_portale/views_postazioni.py`; template `core/pages/postazione.html`, `core/components/postazione_banner.html`, `admin_portale/pages/postazioni_condivise.html`; migrazione `core 0092`; test `core.test_postazioni`. Regole di sicurezza: [`docs/ai/05_SECURITY_BOUNDARIES.md`](../ai/05_SECURITY_BOUNDARIES.md#postazioni-condivise-pin).
-- Messa in esercizio: deploy + `migrate`; far entrare una volta l'account del PC; creare gruppo e postazione; gli operatori impostano il PIN al primo uso.
+- Codice: `core/postazioni.py`, `core/postazioni_views.py`, `admin_portale/views_postazioni.py`; template `core/pages/postazione.html`, `core/components/postazione_banner.html`, `admin_portale/pages/postazioni_condivise.html`; migrazioni `core 0092`–`0093`; test `core.test_postazioni`. Regole di sicurezza: [`docs/ai/05_SECURITY_BOUNDARIES.md`](../ai/05_SECURITY_BOUNDARIES.md#postazioni-condivise-pin).
+- Messa in esercizio: deploy + `migrate`; far entrare una volta l'account del PC; creare il gruppo, una postazione per PC con il suo IP, spuntare gli operatori; gli operatori impostano il PIN al primo uso.
 
 ## Centro guide (`/guide/`)
 

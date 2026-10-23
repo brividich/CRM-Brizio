@@ -543,14 +543,18 @@ class DispositivoAccesso(models.Model):
 class PostazioneCondivisa(models.Model):
     """Un PC usato a turno da più persone con un solo account (es. «zeiss»), ``core.postazioni``.
 
-    Chi entra con l'account della postazione vede solo la scelta dell'operatore:
-    l'operatore sceglie il proprio nome fra i membri del ``gruppo`` e digita il
+    Il PC si riconosce dal suo indirizzo IP (``ip_pc``): lo stesso account può
+    servire più PC. Chi entra con l'account dal PC vede solo la scelta
+    dell'operatore: l'operatore sceglie il proprio nome fra i membri del
+    ``gruppo`` abilitati su questo PC (``OperatorePostazione``) e digita il
     proprio PIN, e da lì la sessione è sua (permessi, audit, firme).
     """
 
     nome = models.CharField(max_length=100)
     # UtenteLegacy dell'account condiviso (creato dal primo accesso LDAP).
-    account_legacy_user_id = models.IntegerField(unique=True)
+    account_legacy_user_id = models.IntegerField(db_index=True)
+    # Unicità verificata dalla pagina di configurazione (vuoto = PC non utilizzabile).
+    ip_pc = models.CharField(max_length=45, blank=True, default="", db_index=True)
     gruppo = models.ForeignKey("AccessGroup", on_delete=models.PROTECT, related_name="postazioni_condivise")
     minuti_inattivita = models.PositiveSmallIntegerField(
         default=10,
@@ -568,6 +572,23 @@ class PostazioneCondivisa(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+
+class OperatorePostazione(models.Model):
+    """Persona (UtenteLegacy) abilitata a entrare con il PIN da un PC condiviso."""
+
+    postazione = models.ForeignKey(PostazioneCondivisa, on_delete=models.CASCADE, related_name="operatori_abilitati")
+    legacy_user_id = models.IntegerField(db_index=True)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_operatorepostazione"
+        constraints = [models.UniqueConstraint(fields=["postazione", "legacy_user_id"], name="uniq_operatore_postazione")]
+        verbose_name = "Operatore della postazione"
+        verbose_name_plural = "Operatori delle postazioni"
+
+    def __str__(self) -> str:
+        return f"{self.postazione_id}:{self.legacy_user_id}"
 
 
 class PinPostazione(models.Model):
