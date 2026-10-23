@@ -1155,7 +1155,7 @@ def formazione_piano_detail(request, piano_id: int):
     )
     regole = list(
         TrainingRequirementRule.objects.filter(piano=piano, is_active=True)
-        .select_related("mansione", "area", "ruolo_operativo")
+        .select_related("mansione", "area", "ruolo_operativo", "competenza")
         .order_by("-priority")
     )
     nomi_singoli: dict[int, str] = {}
@@ -1483,7 +1483,7 @@ def formazione_corso_detail(request, corso_id: int):
     )
     regole = list(
         TrainingRequirementRule.objects.filter(corso=corso, is_active=True)
-        .select_related("mansione", "area", "ruolo_operativo")
+        .select_related("mansione", "area", "ruolo_operativo", "competenza")
         .order_by("-priority")
     )
     nomi_singoli: dict[int, str] = {}

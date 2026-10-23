@@ -64,3 +64,7 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 #### Aggiornamento audit interni EN 9100 - fase 2
 
 Il rapporto MOD.035B diventa immutabile dopo la firma dell'auditor; l'auditor assegnato può usare **Riapri il rapporto** solo prima della convalida dell'ente e della valutazione RDD. La convalida è consentita alla Direzione oppure al responsabile di processo identificato dall'email con permesso audit di lettura. Nel report di conformità, il KPI programmato usa soltanto la revisione MOD.034 approvata e i mesi del periodo; gli anni privi di programma approvato sono esplicitati nelle note.
+
+#### Collegamento con la Struttura organizzativa (23/10/2026)
+
+Scheda processo: sezione «Chi possiede e chi esegue il processo» (`processi_views._persone_processo` → `anagrafica.services.struttura_processo.persone_processo`): titolari del ruolo owner, mansioni lavorative con `processo_sgi` = processo, operativi e in lista. Piano di audit (stato Pianificato, permesso di modifica): «Proposte dalla struttura organizzativa» (`audit_views._proposte_auditati`) con owner come «Responsabile del processo» ed esecutori operativi come «Auditato»; «Aggiungi» invia al già esistente `audit_persona_salva`. Nessuna migrazione, nessun URL nuovo.

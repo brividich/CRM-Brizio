@@ -119,6 +119,16 @@ def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int]
             .values_list("legacy_anagrafica_id", flat=True)
         )
 
+    # 2b) regole per mansione lavorativa: chi è in lista sulla mansione (skill matrix)
+    competenza_ids = [r.competenza_id for r in rules if r.competenza_id]
+    if competenza_ids:
+        from ..models import AbilitazioneMacchina
+        ids.update(
+            int(lid) for lid in AbilitazioneMacchina.objects
+            .filter(competenza_id__in=competenza_ids, in_lista=True)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+
     # 3) regole per area aziendale (match per FK area_aziendale, non più per nome)
     area_ids = {r.area_id for r in rules if r.area_id}
     if area_ids:

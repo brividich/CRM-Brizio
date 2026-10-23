@@ -183,6 +183,8 @@ def _corsi_obbligatori(
     ruolo_ids = [int(r) for r in (ruolo_ids or []) if r]
     if ruolo_ids:
         conds.append(Q(ruolo_operativo_id__in=ruolo_ids))
+        # Le mansioni lavorative del ruolo: chi entra le farà, la formazione va pianificata subito.
+        conds.append(Q(competenza__ruoli__id__in=ruolo_ids, competenza__attiva=True))
     if not conds:
         return []
 
@@ -194,7 +196,7 @@ def _corsi_obbligatori(
     for rule in (
         TrainingRequirementRule.objects
         .filter(query, is_active=True, is_mandatory=True)
-        .select_related("corso", "piano")
+        .select_related("corso", "piano").distinct()
     ):
         if rule.corso_id and rule.corso:
             titoli.append(rule.corso.titolo)

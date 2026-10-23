@@ -78,4 +78,15 @@ def dettaglio(request, pk):
         "processo": processo, "revisioni": processo.revisioni.select_related("autore"),
         "audit_list": processo.audit.select_related("lead_auditor"),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
+        "persone_processo": _persone_processo(processo),
     })
+
+
+def _persone_processo(processo):
+    """Owner ed esecutori dalla struttura organizzativa (anagrafica). Fail-safe."""
+    from anagrafica.services.struttura_processo import persone_processo
+
+    try:
+        return persone_processo(processo)
+    except Exception:
+        return None

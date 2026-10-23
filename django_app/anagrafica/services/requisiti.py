@@ -61,6 +61,22 @@ def _ruoli_in_essere(ctx, estesi: list[int]) -> dict[int, list]:
     return out
 
 
+def _mansioni_lavorative_in_lista(ctx, estesi: list[int], competenza_ids: set[int]) -> dict[int, set[int]]:
+    """Mansioni lavorative (skill matrix) su cui la persona e' in lista, tra quelle con una regola."""
+    from anagrafica.models import AbilitazioneMacchina
+
+    out: dict[int, set[int]] = {}
+    if not competenza_ids:
+        return out
+    for lid, comp_id in filtra_in(
+        AbilitazioneMacchina.objects.filter(competenza_id__in=competenza_ids, in_lista=True)
+        .values_list("legacy_anagrafica_id", "competenza_id"),
+        "legacy_anagrafica_id", estesi,
+    ):
+        out.setdefault(ctx.canonico(lid), set()).add(comp_id)
+    return out
+
+
 def _requisiti_mansione(ctx, persone: dict) -> dict:
     """Resolver unico del portale: mansione + fattori di rischio + esposizioni di area e dirette.
 
@@ -174,15 +190,18 @@ def requisiti_formazione(ctx, persone: dict) -> dict[int, dict[int, list[str]]]:
             for etichetta in dato["origini"].get(("corsi", corso.pk)) or ["Processo qualificato"]:
                 _aggiungi(richiesti[pid], corso.pk, etichetta)
 
-    # 3) Regole di obbligatorieta' per persona, ruolo operativo e area (la mansione e' gia' nel punto 1).
+    # 3) Regole di obbligatorieta' per persona, ruolo operativo, area e mansione lavorativa
+    #    (la mansione di rischio e' gia' nel punto 1).
     regole = [
         r for r in TrainingRequirementRule.objects.filter(is_active=True, is_mandatory=True)
-        .exclude(legacy_anagrafica_id__isnull=True, ruolo_operativo__isnull=True, area__isnull=True)
-        .select_related("ruolo_operativo", "area")
+        .exclude(legacy_anagrafica_id__isnull=True, ruolo_operativo__isnull=True, area__isnull=True,
+                 competenza__isnull=True)
+        .select_related("ruolo_operativo", "area", "competenza")
         if _regola_in_vigore(r, ctx.today)
     ]
     if regole:
         ruoli = _ruoli_in_essere(ctx, estesi)
+        in_lista = _mansioni_lavorative_in_lista(ctx, estesi, {r.competenza_id for r in regole if r.competenza_id})
         # Area della persona (anche quella simulata in un cambio mansione); la scheda
         # aziendale e' gia' stata letta su tutti gli id delle anagrafiche doppie.
         aree = {pid: p.area_aziendale_id for pid, p in persone.items() if p.area_aziendale_id}
@@ -198,6 +217,10 @@ def requisiti_formazione(ctx, persone: dict) -> dict[int, dict[int, list[str]]]:
             if r.area_id:
                 destinatari += [(pid, f"Area «{r.area}»") for pid, area_id in aree.items()
                                 if pid in richiesti and area_id == r.area_id]
+            if r.competenza_id:
+                nome = r.competenza.display or r.competenza.competenza_key
+                destinatari += [(pid, f"Mansione lavorativa «{nome}»") for pid, ids in in_lista.items()
+                                if pid in richiesti and r.competenza_id in ids]
             for pid, etichetta in destinatari:
                 if r.corso_id:
                     _aggiungi(richiesti[pid], r.corso_id, etichetta)

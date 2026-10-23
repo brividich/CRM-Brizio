@@ -33,6 +33,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#ricambi">Ricambi</a>
     <a href="#ticket">Interventi nati da una segnalazione</a>
     <a href="#stato">Stato dell'asset</a>
+    <a href="#operatori">Operatori abilitati</a>
     <a href="#documenti">Documenti, cartelle e video</a>
     <a href="#dismetti">Dismettere o eliminare un asset</a>
     <a href="#qr">QR ed etichette</a>
@@ -135,6 +136,16 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <h2>Stato dell'asset</h2>
       <p>Lo stato si legge allo stesso modo in lista, scheda, dispositivi IT e pagina del QR: <strong>In uso</strong> (verde), <strong>In magazzino</strong> (grigio), <strong>In riparazione</strong> (rosso), <strong>Dismesso</strong> (giallo).</p>
       <p>In cima alla lista asset: <strong>«Salute asset»</strong> è la percentuale di asset non in riparazione — <strong>Buona</strong> da 90%, <strong>Da monitorare</strong> fra 70% e 89%, <strong>Critica</strong> sotto 70%. La barra di <strong>«Manutenzioni in scadenza»</strong> mostra quanti interventi aperti sono oltre la soglia di ritardo sul totale degli aperti: passa il mouse sulla barra per leggere i numeri (es. «1 su 4 interventi aperti»). <strong>«Rischio conformità»</strong> somma asset in riparazione e interventi aperti e non ha barra.</p>
+    </section>
+
+    <section class="ag-sec" id="operatori">
+      <h2>Operatori abilitati</h2>
+      <p>Nella scheda di una macchina la scheda <strong>Operatori</strong> dice chi può lavorarci, letto dalla skill matrix (Persone → Mansionario). Compare solo se la macchina ha abilitati, una mansione lavorativa o una soglia di copertura.</p>
+      <ul>
+        <li>In alto: quanti sono <strong>operativi</strong> (in lista, attivi, con livello almeno pari alla soglia operativa della skill matrix), quanti <strong>in addestramento</strong> e quanti <strong>sospesi</strong>. Il numero degli operativi è verde da 2, giallo con 1, rosso con 0; con un solo operativo compare <strong>Uomo solo</strong>.</li>
+        <li>Le <strong>soglie di copertura</strong> AS/EN 9100 della macchina dicono quanti abilitati ci sono sul minimo richiesto e quanti mancano.</li>
+        <li>Nomi, livelli (I, L, U, O) e prossima revisione li vede solo chi ha accesso alla skill matrix o ai dati HR; gli altri vedono i numeri. Il nome apre la scheda del dipendente su «Ruolo e competenze», la mansione apre la sua scheda nel Mansionario.</li>
+      </ul>
     </section>
 
     <section class="ag-sec" id="documenti">

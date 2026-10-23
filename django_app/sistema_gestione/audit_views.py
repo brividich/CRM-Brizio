@@ -496,7 +496,20 @@ def audit_dettaglio(request, pk: int):
         ),
         "puo_convalidare_ente_senza_approvare": puo_convalidare_ente and not puo_approvare,
         "rapporto_modificabile": _rapporto_modificabile(audit),
+        "proposte_auditati": _proposte_auditati(request, audit),
     })
+
+
+def _proposte_auditati(request, audit) -> list:
+    """Owner ed esecutori dei processi dell'audit dalla struttura organizzativa (solo piano modificabile). Fail-safe."""
+    if audit.stato != Audit.STATO_PIANIFICATO or not _has_perm(request, PERM_AUDIT_EDIT):
+        return []
+    from anagrafica.services.struttura_processo import proposte_auditati
+
+    try:
+        return proposte_auditati(audit)
+    except Exception:
+        return []
 
 
 @login_required
