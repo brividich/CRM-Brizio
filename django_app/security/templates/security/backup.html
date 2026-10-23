@@ -101,7 +101,7 @@
 <section class="sec-panel" style="margin-top: 12px;" id="veeam">
   <div class="sec-section-head">
     <h2>Lettura diretta da Veeam</h2>
-    {% if not veeam.attivo %}<span class="sec-badge">spenta</span>{% elif veeam.ultimo_giro.ok %}<span class="sec-badge sec-badge-success">collegata</span>{% elif veeam.ultimo_giro.errore %}<span class="sec-badge sec-badge-critical">errore</span>{% else %}<span class="sec-badge">in attesa del primo giro</span>{% endif %}
+    {% if not veeam.attivo %}<span class="sec-badge">spenta</span>{% elif not veeam.configurato %}<span class="sec-badge sec-badge-critical">da configurare</span>{% elif veeam.ultimo_giro.ok %}<span class="sec-badge sec-badge-success">collegata</span>{% elif veeam.ultimo_giro.errore %}<span class="sec-badge sec-badge-critical">errore</span>{% else %}<span class="sec-badge">in attesa del primo giro</span>{% endif %}
   </div>
   {% if veeam.attivo and not veeam.configurato %}
     <p class="bk-late">Mancano indirizzo, utente o password dell'API di Veeam nel file .env del server: il giro non parte.</p>

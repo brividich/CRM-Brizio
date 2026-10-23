@@ -112,6 +112,19 @@ GUIDA = {
             ],
         },
         {
+            "id": "mtconnect",
+            "titolo": "Stato reale delle CNC (MTConnect) sulla mappa officina",
+            "blocchi": [
+                ("passi", [
+                    "Apri la mappa officina: una macchina con il pallino rosso scuro è «In allarme» sul suo controllo.",
+                    "Clicca la macchina: «Dal controllo della macchina» dice stato e da quando, programma, pezzi, ore in lavoro di oggi e gli allarmi attivi.",
+                    "Elenco di tutte le macchine collegate, con stato e contatori: Configurazione → «Macchine collegate».",
+                ]),
+                ("p", "Lo stato si aggiorna ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli ultimi 15 minuti "
+                      "(agent spento o lettura ferma): in quel caso la macchina non conta come in allarme."),
+            ],
+        },
+        {
             "id": "rete-indirizzi",
             "titolo": "Indirizzi IP e dispositivi non censiti (DHCP e DNS)",
             "blocchi": [
@@ -201,6 +214,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "mtconnect-collega",
+            "titolo": "Collegare una CNC con MTConnect",
+            "blocchi": [
+                ("passi", [
+                    "Serve un agent MTConnect raggiungibile dal server del portale (sul PC della macchina o su un gateway dell'officina).",
+                    "Configurazione → «Macchine collegate»: scegli la macchina, scrivi l'indirizzo dell'agent (es. http://10.0.5.21:5000) e premi «Prova».",
+                    "Se la prova legge ore e pezzi, lascia spuntati i contatori Ore e Cicli (vanno creati prima dalla scheda della macchina).",
+                    "Premi «Salva collegamento»: lo stato arriva sulla mappa entro 2 minuti (schedule mtconnect_poll).",
+                ]),
+                ("p", "Solo indirizzi della rete interna; il portale legge e basta. Collegare, sospendere o togliere una macchina "
+                      "richiede il permesso di modificarla. I contatori avanzano per differenza, al massimo una volta all'ora."),
+            ],
+        },
+        {
             "id": "rete-windows",
             "titolo": "Collegare il DHCP e il DNS di Windows Server",
             "blocchi": [
@@ -217,6 +244,22 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una macchina collegata risulta «Agent non raggiungibile» o «Dato non aggiornato»",
+            "fare": [
+                "«Agent non raggiungibile»: l'agent è spento o la rete non passa. Dal server del portale apri l'indirizzo dell'agent seguito da /current: deve rispondere un XML.",
+                "«Dato non aggiornato»: nessuna lettura da oltre 15 minuti; controlla che il qcluster giri (Centrale di comando, schedule mtconnect_poll).",
+                "«Dispositivo non trovato»: l'agent serve più macchine; scrivi nel collegamento il nome giusto (la «Prova» elenca i dispositivi dell'agent).",
+            ],
+        },
+        {
+            "sintomo": "Il contatore Ore o Cicli di una macchina collegata non avanza",
+            "fare": [
+                "La «Prova» del collegamento dice se l'agent espone ore e pezzi: se scrive «non le espone», il controllo non pubblica quel dato.",
+                "Il collegamento deve avere la spunta del contatore e l'asset deve avere un contatore «Ore» o «Cicli» (creato dalla scheda); poi salva di nuovo il collegamento.",
+                "Il contatore avanza al massimo una volta all'ora e la prima lettura fa solo da base.",
+            ],
+        },
         {
             "sintomo": "La pagina Indirizzi IP dice «Accesso negato» o «Mancano i moduli PowerShell»",
             "fare": [

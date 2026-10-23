@@ -43,6 +43,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#software">Software installati e licenze</a>
     <a href="#catalogo">Catalogo software</a>
     <a href="#rete-indirizzi">Indirizzi IP</a>
+    <a href="#mtconnect">Macchine collegate (MTConnect)</a>
     <a href="#part145">PART 145</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
@@ -355,6 +356,27 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ul>
       <p>La ricerca trova IP, MAC, nomi DHCP e DNS e il nome dell'asset.</p>
       <p class="ag-note">Per riconoscere un dispositivo dal MAC, scrivilo nel punto rete dell'asset (scheda asset › Rete) oppure collega il PC a Intune: il portale usa anche i MAC che Intune conosce. Il registro non viene mai modificato da solo: la lettura propone, la riconciliazione conferma.</p>
+    </section>
+
+    <section class="ag-sec" id="mtconnect">
+      <h2>Macchine collegate (MTConnect)</h2>
+      <p>Le CNC che hanno un <strong>agent MTConnect</strong> (lo standard aperto con cui il controllo pubblica il suo stato in rete) si collegano dalla pagina <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a>. Ogni <strong>2 minuti</strong> il portale legge dall'agent, solo in lettura e solo nella rete interna:</p>
+      <ul>
+        <li><strong>lo stato</strong>: <em>In lavoro</em>, <em>Pronta</em> (accesa senza programma in corso), <em>Programma interrotto</em> (fermo in avanzamento, stop), <em>In allarme</em> (allarme attivo sul controllo o emergenza premuta), <em>Spenta</em>, <em>Agent non raggiungibile</em>;</li>
+        <li>il programma in esecuzione, la modalità, i pezzi contati dalla CNC, gli allarmi e gli avvisi attivi con il codice e il testo;</li>
+        <li>le <strong>ore di lavoro</strong> e i <strong>pezzi</strong>, se l'agent li espone.</li>
+      </ul>
+      <h3>Collegare una macchina</h3>
+      <ol>
+        <li>Apri <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a> (menu Configurazione, sotto Indirizzi IP).</li>
+        <li>Scegli la <strong>Macchina</strong> e scrivi l'<strong>Indirizzo dell'agent</strong>, per esempio <kbd>http://10.0.5.21:5000</kbd>. Se l'agent serve più macchine, scrivi anche il nome del <strong>Dispositivo</strong>.</li>
+        <li>Premi <span class="ag-btn">Prova</span>: il portale dice cosa legge (stato, programma, ore, pezzi) senza salvare. Se ore o pezzi non ci sono, l'agent non li espone e quel contatore non avanzerà.</li>
+        <li>Lascia spuntate <strong>Aggiorna il contatore Ore</strong> e <strong>Aggiorna il contatore Cicli con i pezzi</strong> se vuoi che i piani di manutenzione a contatore usino i dati della macchina (i contatori «Ore» e «Cicli» si creano dalla scheda della macchina).</li>
+        <li>Premi <span class="ag-btn">Salva collegamento</span>. Collegare, sospendere e togliere una macchina lo può fare chi ha il permesso di modificarla.</li>
+      </ol>
+      <p class="ag-note">I contatori avanzano per <strong>differenza</strong> tra due letture e al massimo <strong>una volta all'ora</strong>: se il contatore pezzi della CNC viene azzerato a fine turno, quello del portale non scende, riparte da lì. La prima lettura fa solo da base di partenza.</p>
+      <h3>Sulla mappa officina</h3>
+      <p>Nella <a href="{% url 'assets:plant_layout_map' %}">mappa officina</a> una macchina in allarme ha il pallino <strong>rosso scuro «Allarme sulla CNC»</strong>, il più grave, e in alto compare il riquadro <strong>Allarmi sulle CNC</strong>. Cliccando la macchina, il riquadro <strong>Dal controllo della macchina</strong> mostra stato e da quando, programma, modalità, pezzi, ore in lavoro di oggi, ora dell'ultima lettura e gli allarmi attivi. Se la lettura è più vecchia di 15 minuti lo stato appare come <em>Dato non aggiornato</em> e non conta come allarme.</p>
     </section>
 
     <section class="ag-sec" id="part145">

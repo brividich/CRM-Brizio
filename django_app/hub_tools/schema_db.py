@@ -32,7 +32,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
-    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS)"),
+    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
     "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
     "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione"),
@@ -134,6 +134,16 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "config": "VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD (utente con ruolo Veeam Backup Viewer), facoltativi "
                   "VEEAM_API_VERSION e VEEAM_API_CA_BUNDLE nel .env; interruttore in /soc/impostazioni/.",
         "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
+    },
+    {
+        "nome": "Agent MTConnect delle CNC",
+        "cosa": "Stato delle macchine (in lavoro, pronta, ferma, in allarme, spenta), programma, pezzi, allarmi e ore di lavoro, letti "
+                "ogni 2 minuti con HTTP GET /current dall'agent di ogni macchina (solo letture, solo rete interna). Finiscono in "
+                "assets_collegamentomtconnect, assets_periodostatomacchina e nei contatori assets_assetmeter (fonte MTConnect).",
+        "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
+        "config": "Pagina Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/): indirizzo dell'agent per macchina. "
+                  "Schedule mtconnect_poll (ogni 2 minuti).",
+        "controllo": "«Prova» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina.",
     },
     {
         "nome": "DHCP e DNS di Windows Server",

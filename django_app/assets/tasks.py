@@ -68,6 +68,17 @@ def run_rete_windows_sync() -> dict:
     return rete_windows.sincronizza()
 
 
+def run_mtconnect_poll() -> dict:
+    """Stato delle macchine CNC dagli agent MTConnect (``assets.services.mtconnect``).
+
+    Senza collegamenti attivi non fa nulla; un agent che non risponde segna la sua
+    macchina «non raggiungibile» e il task prosegue con le altre.
+    """
+    from assets.services import mtconnect
+
+    return mtconnect.leggi_tutti()
+
+
 def run_intune_sync() -> dict:
     """Legge i dispositivi da Microsoft Intune (``assets.services.intune``).
 

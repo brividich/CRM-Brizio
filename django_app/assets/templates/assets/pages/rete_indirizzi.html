@@ -21,9 +21,8 @@
 .ri-filters a{padding:6px 11px;border:1px solid var(--border,#dbe3ef);border-radius:999px;color:inherit;text-decoration:none;font-weight:600;font-size:var(--fs-sm,13px)}
 .ri-filters a.active{border-color:var(--link,#2563eb);color:var(--link,#2563eb);background:color-mix(in srgb,var(--link,#2563eb) 10%,transparent)}
 .ri-filters a span{opacity:.7;margin-left:4px}
-.ri-search{display:flex;gap:8px;margin-left:auto}
-.ri-search input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit;min-width:220px}
-.ri-search button{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;background:var(--surface,#fff);color:inherit;cursor:pointer}
+.ri-clear{margin-left:auto;font-size:var(--fs-sm,13px);font-weight:600;color:var(--link,#2563eb)}
+.ri-scope .ri-mono{font-size:12px;white-space:normal;overflow-wrap:anywhere}
 .ri-table-wrap{overflow:auto}
 .ri-table{width:100%;border-collapse:collapse}
 .ri-table th{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border,#e5e7eb);color:var(--text-mid,#64748b);font-size:var(--fs-xs,12px);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
@@ -36,7 +35,6 @@
 body.theme-dark .ri-tag--ok{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .ri-tag--warn{color:#fdba74;background:rgba(234,88,12,.18)}
 body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body.theme-dark .ri-tag--muted{color:#cbd5e1;background:rgba(148,163,184,.16)}
 .ri-off{opacity:.6}
-@media(max-width:820px){.ri-search{margin-left:0;width:100%}.ri-search input{min-width:0;flex:1}}
 </style>
 {% endblock %}
 
@@ -47,7 +45,7 @@ body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
 <section class="ri-page">
   <div class="ri-card">
     <p class="ri-note">
-      {% if not configurato %}La lettura non è configurata: servono i nomi dei server DHCP e DNS nel file .env del server del portale.
+      {% if not configurato and not ultimo_giro_at %}La lettura non è configurata: servono i nomi dei server DHCP e DNS nel file .env del server del portale.
       {% elif ultimo_giro_at %}Ultima lettura {{ ultimo_giro_at|date:"d/m/Y H:i" }}: si aggiorna da sola ogni ora.
       {% else %}In attesa della prima lettura (ogni ora).{% endif %}
       I collegamenti agli asset si confermano dalla <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a>.
@@ -61,7 +59,7 @@ body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
     {% for a in ambiti %}
       <a class="ri-scope{% if a.pieno %} is-full{% endif %}{% if ambito_id == a.pk %} active{% endif %}" href="?f={{ filter_code }}{% if ambito_id != a.pk %}&ambito={{ a.pk }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}" title="{% if ambito_id == a.pk %}Mostra tutti gli ambiti{% else %}Mostra solo questo ambito{% endif %}">
         <strong>{{ a.nome|default:a.scope_id }}</strong>
-        <span class="ri-meta ri-mono">{{ a.scope_id }} · {{ a.inizio }}–{{ a.fine }}</span>
+        <span class="ri-meta ri-mono">{{ a.scope_id }}<br>{{ a.inizio }} – {{ a.fine }}</span>
         <span class="ri-bar" aria-hidden="true"><i style="width:{{ a.percentuale_uso|default:0|floatformat:0 }}%"></i></span>
         <span class="ri-meta">{{ a.in_uso }} in uso · {{ a.liberi }} liberi ({{ a.percentuale_uso|default:0|floatformat:0 }}%){% if a.pieno %} · <strong class="ri-warn" style="display:inline">quasi pieno</strong>{% endif %}{% if a.stato and a.stato != "Active" %} · {{ a.stato }}{% endif %}</span>
       </a>
@@ -74,11 +72,7 @@ body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
       <nav class="ri-filters" aria-label="Filtri degli indirizzi">
         {% for f in filtri %}<a href="?f={{ f.code }}{% if ambito_id %}&ambito={{ ambito_id }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if f.active %} class="active" aria-current="page"{% endif %}>{{ f.label }}<span>{{ f.count }}</span></a>{% endfor %}
       </nav>
-      <form class="ri-search" method="get" role="search">
-        <input type="hidden" name="f" value="{{ filter_code }}">{% if ambito_id %}<input type="hidden" name="ambito" value="{{ ambito_id }}">{% endif %}
-        <input type="search" name="q" value="{{ q }}" placeholder="IP, MAC, nome o asset" aria-label="Cerca IP, MAC, nome o asset">
-        <button type="submit">Cerca</button>
-      </form>
+      {% if q %}<a class="ri-clear" href="?f={{ filter_code }}{% if ambito_id %}&ambito={{ ambito_id }}{% endif %}">Solo «{{ q }}» · mostra tutti</a>{% endif %}
     </div>
   </div>
 

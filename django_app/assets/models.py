@@ -3291,11 +3291,13 @@ class AssetMeter(models.Model):
     SOURCE_OPCUA = "OPCUA"
     SOURCE_SNMP = "SNMP"
     SOURCE_IMPORT = "IMPORT"
+    SOURCE_MTCONNECT = "MTCONNECT"
     SOURCE_CHOICES = [
         (SOURCE_MANUAL, "Manuale"),
         (SOURCE_OPCUA, "OPC UA"),
         (SOURCE_SNMP, "SNMP"),
         (SOURCE_IMPORT, "Import"),
+        (SOURCE_MTCONNECT, "MTConnect"),
     ]
 
     asset = models.ForeignKey(
@@ -5396,3 +5398,82 @@ class IndirizzoRete(models.Model):
         if not (self.nel_dhcp and self.nome_dhcp and self.nomi_dns):
             return False
         return self._corto(self.nome_dhcp) not in {self._corto(n) for n in self.nomi_dns}
+
+
+class CollegamentoMTConnect(models.Model):
+    """Una macchina CNC letta da un agent MTConnect (``assets.services.mtconnect``), in sola lettura.
+
+    Ogni 2 minuti lo schedule ``mtconnect_poll`` legge ``/current`` dall'agent e aggiorna
+    lo stato (in lavoro, pronta, ferma, in allarme, spenta, non raggiungibile), il
+    programma, i pezzi e gli allarmi attivi. Le ore di lavoro e i pezzi, se l'agent li
+    espone, avanzano i contatori dell'asset scelti qui (``record_meter_reading``, fonte
+    MTConnect) per differenza tra due letture: un contatore azzerato sulla CNC non fa mai
+    scendere quello del portale.
+    """
+
+    STATO_IN_LAVORO = "in_lavoro"
+    STATO_PRONTA = "pronta"
+    STATO_FERMA = "ferma"
+    STATO_ALLARME = "allarme"
+    STATO_SPENTA = "spenta"
+    STATO_NON_RAGGIUNGIBILE = "non_raggiungibile"
+    STATO_MAI = "mai"
+    STATO_CHOICES = [
+        (STATO_IN_LAVORO, "In lavoro"),
+        (STATO_PRONTA, "Pronta, ferma senza programma"),
+        (STATO_FERMA, "Programma interrotto"),
+        (STATO_ALLARME, "In allarme"),
+        (STATO_SPENTA, "Spenta o non disponibile"),
+        (STATO_NON_RAGGIUNGIBILE, "Agent non raggiungibile"),
+        (STATO_MAI, "Mai letta"),
+    ]
+
+    asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="mtconnect")
+    url_agent = models.CharField(max_length=300, help_text="Indirizzo dell'agent MTConnect, es. http://10.0.5.21:5000")
+    dispositivo = models.CharField(max_length=120, blank=True, default="", help_text="Nome del dispositivo nell'agent; vuoto = il primo.")
+    attivo = models.BooleanField(default=True)
+    contatore_ore = models.ForeignKey(AssetMeter, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    contatore_pezzi = models.ForeignKey(AssetMeter, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_MAI)
+    stato_dal = models.DateTimeField(null=True, blank=True)
+    disponibilita = models.CharField(max_length=30, blank=True, default="")
+    esecuzione = models.CharField(max_length=30, blank=True, default="")
+    modalita = models.CharField(max_length=30, blank=True, default="")
+    emergenza = models.CharField(max_length=30, blank=True, default="")
+    programma = models.CharField(max_length=200, blank=True, default="")
+    pezzi_grezzo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    ore_grezzo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # Differenze accumulate e non ancora registrate sui contatori ({"ore": "0.35", "pezzi": "12"}).
+    sospesi = models.JSONField(default=dict, blank=True)
+    allarmi = models.JSONField(default=list, blank=True)
+    letto_il = models.DateTimeField(null=True, blank=True)
+    controllato_il = models.DateTimeField(null=True, blank=True)
+    errore = models.CharField(max_length=300, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["asset__name"]
+        verbose_name = "Collegamento MTConnect"
+        verbose_name_plural = "Collegamenti MTConnect"
+
+    def __str__(self) -> str:
+        return f"{self.asset} ← {self.url_agent}"
+
+
+class PeriodoStatoMacchina(models.Model):
+    """Da quando a quando una macchina MTConnect è stata in uno stato (``al`` vuoto = in corso)."""
+
+    collegamento = models.ForeignKey(CollegamentoMTConnect, on_delete=models.CASCADE, related_name="periodi")
+    stato = models.CharField(max_length=20, choices=CollegamentoMTConnect.STATO_CHOICES)
+    dal = models.DateTimeField(db_index=True)
+    al = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-dal"]
+        indexes = [models.Index(fields=["collegamento", "dal"], name="assets_periodo_mtc_idx")]
+        verbose_name = "Periodo di stato della macchina"
+        verbose_name_plural = "Periodi di stato delle macchine"
+
+    def __str__(self) -> str:
+        return f"{self.collegamento_id} {self.stato} dal {self.dal:%d/%m %H:%M}"
