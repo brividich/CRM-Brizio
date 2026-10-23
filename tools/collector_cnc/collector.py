@@ -12,9 +12,10 @@ Uso:
   py collector.py                      # usa machines.json e machines.db
   py collector.py --config machines.json --db machines.db
 
-Invio al NOVICROM HUB (facoltativo, vedi portale.py e README.md): con le variabili
-d'ambiente PORTALE_URL e PORTALE_TOKEN lo stato, gli allarmi e i contatori delle macchine
-che in machines.json hanno "asset_tag" vanno anche al portale.
+Con il NOVICROM HUB (vedi portale.py e README.md): con le variabili d'ambiente PORTALE_URL e
+PORTALE_TOKEN l'elenco delle macchine arriva dal portale (Asset › Configurazione › Macchine
+collegate, riletto ogni 5 minuti: macchine aggiunte, tolte o cambiate senza riavviare) e lo
+stato, gli allarmi e i contatori vanno al portale. Senza portale si usa machines.json.
 
 Requisiti: pip install asyncua
 """
@@ -28,7 +29,7 @@ from pathlib import Path
 
 from asyncua import Client, ua
 
-from portale import Portale
+from portale import AGGIORNA_ELENCO, Portale
 
 # ----------------------------------------------------------------------------
 # Parametri
@@ -551,12 +552,12 @@ class Machine:
 # ----------------------------------------------------------------------------
 # Riepilogo a video
 # ----------------------------------------------------------------------------
-async def status_printer(machines):
+async def status_printer(elenco):
     last = None
     while True:
         await asyncio.sleep(STATUS_PRINT_PERIOD)
         rows = []
-        for m in machines:
+        for m in elenco():
             v = m.values
             lights = ",".join(m.colors.get(k, "?") for k in ("light1", "light2", "light3", "light4")
                               if v.get(k) not in (None, False)) or "-"
@@ -585,29 +586,72 @@ async def main():
     for noisy in ("asyncua", "asyncio"):
         logging.getLogger(noisy).setLevel(logging.ERROR)
 
-    cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
     db = DB(args.db)
     db.close_dangling()
-    machines = [Machine(c, db) for c in cfg["machines"] if c.get("enabled", True) and c.get("ip")]
-    print(f"Collector avviato: {len(machines)} macchine, database {Path(args.db).resolve()}. CTRL+C per uscire.\n")
-
-    tasks = [asyncio.create_task(m.run(), name=m.name) for m in machines]
-    tasks.append(asyncio.create_task(status_printer(machines)))
-    portale = Portale.da_ambiente(machines, prog_name)
+    copia = Path(args.config).with_name("machines.portale.json")   # ultimo elenco scaricato (resta sul PC)
+    portale = Portale.da_ambiente([], prog_name)
+    elenco = None
     if portale is not None:
-        tasks.append(asyncio.create_task(portale.run(), name="portale"))
-    else:
-        print("Invio al portale spento (mancano PORTALE_URL e PORTALE_TOKEN).\n")
-    try:
-        await asyncio.gather(*tasks)
-    finally:
+        elenco = await asyncio.to_thread(portale.scarica_macchine)
+        if elenco is not None:
+            copia.write_text(json.dumps({"machines": elenco}, indent=1), encoding="utf-8")
+            print(f"Elenco delle macchine dal portale: {len(elenco)}.")
+        elif copia.exists():
+            elenco = json.loads(copia.read_text(encoding="utf-8"))["machines"]
+            print(f"Portale non raggiungibile: uso l'ultimo elenco scaricato ({len(elenco)} macchine).")
+    if elenco is None:
+        cfg_path = Path(args.config)
+        elenco = json.loads(cfg_path.read_text(encoding="utf-8"))["machines"] if cfg_path.exists() else []
+        print(f"Elenco delle macchine da {cfg_path.name}: {len(elenco)}.")
+    if portale is None:
+        print("Invio al portale spento (mancano PORTALE_URL e PORTALE_TOKEN).")
+
+    attive = {}   # nome -> (Machine, task, configurazione)
+
+    def avvia(c):
+        m = Machine(c, db)
+        attive[m.name] = (m, asyncio.create_task(m.run(), name=m.name), dict(c))
+
+    def ferma(nome):
+        m, task, _cfg = attive.pop(nome)
+        task.cancel()
         now = ts(utcnow())
-        for m in machines:
-            if m.state_row:
-                db.x("UPDATE state_log SET end_utc=? WHERE id=?", (now, m.state_row))
-            for a in m.alarms.values():
-                db.x("UPDATE alarm_log SET end_utc=? WHERE id=?", (now, a["row"]))
-            m.flush_last_seen()
+        if m.state_row:
+            db.x("UPDATE state_log SET end_utc=? WHERE id=?", (now, m.state_row))
+        for a in m.alarms.values():
+            db.x("UPDATE alarm_log SET end_utc=? WHERE id=?", (now, a["row"]))
+        m.flush_last_seen()
+
+    def applica(nuovo):
+        voluto = {str(c.get("name")): c for c in nuovo if c.get("enabled", True) and c.get("ip") and c.get("name")}
+        for nome in list(attive):
+            if nome not in voluto or voluto[nome] != attive[nome][2]:
+                print(f"{local_hms(utcnow())}  {nome:<5} tolta o cambiata nel portale: la fermo")
+                ferma(nome)
+        for nome, c in voluto.items():
+            if nome not in attive:
+                avvia(c)
+        if portale is not None:
+            portale.machines = [m for m, _t, _c in attive.values() if m.asset_tag]
+
+    async def aggiorna_elenco():
+        while True:
+            await asyncio.sleep(AGGIORNA_ELENCO)
+            nuovo = await asyncio.to_thread(portale.scarica_macchine)
+            if nuovo is not None:
+                applica(nuovo)
+                copia.write_text(json.dumps({"machines": nuovo}, indent=1), encoding="utf-8")
+
+    applica(elenco)
+    print(f"Collector avviato: {len(attive)} macchine, database {Path(args.db).resolve()}. CTRL+C per uscire.\n")
+    servizi = [status_printer(lambda: [m for m, _t, _c in attive.values()])]
+    if portale is not None:
+        servizi += [portale.run(), aggiorna_elenco()]
+    try:
+        await asyncio.gather(*servizi)
+    finally:
+        for nome in list(attive):
+            ferma(nome)
 
 
 if __name__ == "__main__":

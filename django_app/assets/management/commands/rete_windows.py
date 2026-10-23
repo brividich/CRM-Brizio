@@ -19,7 +19,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         cfg = svc.config()
         if not svc.configurato():
-            raise CommandError("Mancano RETE_DHCP_SERVERS e/o RETE_DNS_SERVER + RETE_DNS_ZONES nel .env del portale.")
+            raise CommandError("Server DHCP/DNS non configurati: scrivili nella pagina Asset › Indirizzi IP (riquadro «Server DHCP e DNS»).")
         if options["prova"]:
             errori = 0
             for server in cfg["dhcp"]:

@@ -101,6 +101,36 @@
   {% endif %}
 </section>
 
+<section class="sec-panel st-card{% if veeam_cred.configurato %} is-on{% endif %}" id="veeam-api" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>Credenziali API Veeam</h2>
+    <span class="sec-badge {% if veeam_cred.configurato %}sec-badge-success{% else %}sec-badge-muted{% endif %}">{% if veeam_cred.configurato %}{% if veeam_cred.fonte == "env" %}Dal file .env{% else %}Configurate{% endif %}{% else %}Assenti{% endif %}</span>
+  </div>
+  <p class="sec-muted sec-small st-intro">Per leggere i backup direttamente da <strong>Veeam Backup &amp; Replication</strong> (versione 12 o successive). Usa un utente dedicato con il solo ruolo <strong>Veeam Backup Viewer</strong>. La password è salvata cifrata e non si rivede: lasciala vuota per tenere quella salvata. Se il certificato del server Veeam è firmato dalla CA interna, incolla qui il certificato della CA (formato PEM). La lettura si accende nel riquadro «Backup letti direttamente da Veeam» qui sopra; i dati sono in <a href="{% url 'security:backup' %}#veeam">Backup</a>.{% if veeam_cred.fonte == "env" %} Ora valgono le credenziali del file .env: salvandole qui le sostituisci.{% endif %}</p>
+  {% if can_edit %}
+  <form method="post" action="{% url 'security:veeam_credenziali' %}" class="st-wg-form" autocomplete="off">
+    {% csrf_token %}
+    <label class="st-field">Indirizzo<input type="url" name="url" value="{{ veeam_cred.url }}" placeholder="https://srv-veeam:9419" maxlength="300" required></label>
+    <label class="st-field">Utente<input type="text" name="username" value="{{ veeam_cred.username }}" placeholder="DOMINIO\utente" maxlength="300" required></label>
+    <label class="st-field">Password<input type="password" name="password" maxlength="300" autocomplete="new-password"{% if veeam_cred.password and veeam_cred.fonte == "portale" %} placeholder="salvata: vuoto = resta quella"{% else %} required{% endif %}></label>
+    <label class="st-field">Revisione API (facoltativa)<input type="text" name="version" value="{{ veeam_cred.version }}" placeholder="1.1-rev0" maxlength="20"></label>
+    <label class="st-field">Certificato della CA (facoltativo){% if veeam_cred.ca %} <span class="sec-muted sec-small">· salvato: vuoto = resta quello</span>{% endif %}<textarea name="ca_pem" rows="3" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>
+    {% if veeam_cred.ca %}<label class="st-field"><span><input type="checkbox" name="togli_ca"> Togli il certificato salvato</span></label>{% endif %}
+    <div class="sec-actions">
+      <button type="submit" name="azione" value="salva" class="sec-button sec-button-primary">Salva le credenziali</button>
+    </div>
+  </form>
+  {% if veeam_cred.configurato %}
+  <div class="sec-actions" style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <form method="post" action="{% url 'security:veeam_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="prova" class="sec-button">Prova la connessione</button></form>
+    {% if veeam_cred.fonte == "portale" %}<form method="post" action="{% url 'security:veeam_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="cancella" class="sec-button" onclick="return confirm('Cancellare le credenziali API Veeam? La lettura si ferma.');">Cancella le credenziali</button></form>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+    <p class="sec-muted">{% if veeam_cred.configurato %}Collegato a {{ veeam_cred.url }}.{% else %}Non collegato.{% endif %}</p>
+  {% endif %}
+</section>
+
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Ultimi avvisi inviati</h2><a class="sec-small" href="{% url 'security:admin_config_notifications' %}">Canali di notifica</a></div>
   <div class="sec-table-wrap">

@@ -3476,6 +3476,9 @@ class MeterIngestClient(models.Model):
         help_text="Se attivo puo' scrivere su tutti gli asset che hanno un contatore; altrimenti solo su quelli elencati.",
     )
     allowed_assets = models.ManyToManyField(Asset, blank=True, related_name="meter_ingest_clients")
+    # IP o reti CIDR da cui questo collector può chiamare, scritti nel portale (Macchine collegate):
+    # si aggiungono a ASSETS_METER_INGEST_ALLOWED_IPS del .env.
+    allowed_ips = models.TextField(blank=True, default="")
     last_seen_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -3514,6 +3517,12 @@ class MeterIngestClient(models.Model):
         if self.all_meter_assets:
             return True
         return self.allowed_assets.filter(pk=asset_id).exists()
+
+    @property
+    def allowed_ips_list(self) -> list[str]:
+        import re
+
+        return [v for v in re.split(r"[\s,;]+", self.allowed_ips or "") if v]
 
 
 class SparePart(models.Model):
@@ -5466,6 +5475,12 @@ class CollegamentoMTConnect(models.Model):
     fonte = models.CharField(max_length=20, choices=FONTE_CHOICES, default=FONTE_MTCONNECT)
     url_agent = models.CharField(max_length=300, blank=True, default="",
                                  help_text="Indirizzo dell'agent MTConnect, es. http://10.0.5.21:5000 (vuoto per il collector)")
+    # Dati che il collector OPC UA scarica dal portale (GET /api/assets/contatori/ingest/config/).
+    codice = models.CharField(max_length=40, blank=True, default="", help_text="Nome breve della macchina per il collector, es. DM6.")
+    opcua_host = models.CharField(max_length=255, blank=True, default="", help_text="IP o nome del server OPC UA della macchina.")
+    opcua_porta = models.PositiveIntegerField(default=4840)
+    opcua_utente = models.CharField(max_length=120, blank=True, default="")
+    opcua_password = models.TextField(blank=True, default="", help_text="Cifrata (secret_box): mai in chiaro nel database.")
     dispositivo = models.CharField(max_length=120, blank=True, default="", help_text="Nome del dispositivo nell'agent; vuoto = il primo.")
     attivo = models.BooleanField(default=True)
     contatore_ore = models.ForeignKey(AssetMeter, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")

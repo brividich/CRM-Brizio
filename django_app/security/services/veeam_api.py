@@ -13,15 +13,21 @@ Ogni giro del ``security_cycle`` (15 minuti), se acceso da ``/soc/impostazioni/`
 4. legge lo spazio dei repository e apre un alert per ogni repository sotto la soglia di
    spazio libero (chiuso da solo quando lo spazio torna sopra).
 
-Credenziali solo nel ``.env``: ``VEEAM_API_URL`` (es. ``https://srv-veeam:9419``),
-``VEEAM_API_USERNAME``, ``VEEAM_API_PASSWORD``; facoltativi ``VEEAM_API_VERSION`` e
-``VEEAM_API_CA_BUNDLE`` (certificato della CA che firma quello del server Veeam).
-Senza credenziali il giro registra l'errore e non fa altro.
+Credenziali dal portale: ``/soc/impostazioni/`` › «Credenziali API Veeam» (indirizzo, utente,
+password, revisione API, certificato della CA), cifrate a riposo in ``SecurityCenterSetting``
+(``secret_box``) come quelle di WatchGuard. Se non ci sono, valgono ancora le vecchie variabili
+del ``.env`` (``VEEAM_API_URL``, ``VEEAM_API_USERNAME``, ``VEEAM_API_PASSWORD``,
+``VEEAM_API_VERSION``, ``VEEAM_API_CA_BUNDLE``). Senza credenziali il giro registra l'errore e
+non fa altro.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from datetime import timezone as dt_timezone
 
 from django.conf import settings
@@ -29,7 +35,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from security.models import BackupJobRecord, SecurityCenterSetting, SecurityEventRecord, SecuritySource, Severity, SourceType
-from security.services import soc_settings
+from security.services import secret_box, soc_settings
 from security.services.dedup import make_hash
 
 logger = logging.getLogger(__name__)
@@ -57,27 +63,128 @@ class VeeamError(RuntimeError):
     pass
 
 
-def _config() -> dict:
-    url = str(getattr(settings, "VEEAM_API_URL", "") or "").strip().rstrip("/")
+# --- Credenziali (dal portale, cifrate) -----------------------------------------------------
+
+SETTING = "veeam.api.credenziali"
+PURPOSE = "veeam-api"
+CAMPI = ("url", "username", "password", "version", "ca_pem")
+
+
+def _dal_portale() -> dict:
+    setting = SecurityCenterSetting.objects.filter(key=SETTING).first()
+    testo = secret_box.decrypt(setting.value, PURPOSE) if setting and setting.value else ""
+    try:
+        dati = json.loads(testo) if testo else {}
+    except ValueError:
+        dati = {}
+    return {campo: str(dati.get(campo) or "").strip() for campo in CAMPI}
+
+
+def credenziali() -> dict:
+    """Credenziali in uso: quelle salvate nel portale, altrimenti quelle del .env (compatibilità)."""
+    dati = _dal_portale()
+    if dati["url"]:
+        return {**dati, "ca_path": "", "fonte": "portale"}
+    url = str(getattr(settings, "VEEAM_API_URL", "") or "").strip()
     return {
         "url": url,
         "username": str(getattr(settings, "VEEAM_API_USERNAME", "") or "").strip(),
         "password": str(getattr(settings, "VEEAM_API_PASSWORD", "") or ""),
-        "version": str(getattr(settings, "VEEAM_API_VERSION", "") or DEFAULT_API_VERSION).strip(),
-        "verify": str(getattr(settings, "VEEAM_API_CA_BUNDLE", "") or "").strip() or True,
+        "version": str(getattr(settings, "VEEAM_API_VERSION", "") or "").strip(),
+        "ca_pem": "",
+        "ca_path": str(getattr(settings, "VEEAM_API_CA_BUNDLE", "") or "").strip(),
+        "fonte": "env" if url else "",
+    }
+
+
+def _ca_file(pem: str) -> str:
+    """Il certificato della CA incollato nel portale, su un file temporaneo (``requests`` vuole un percorso)."""
+    pem = pem.strip() + "\n"
+    path =Path(tempfile.gettempdir()) / f"pn_veeam_ca_{hashlib.sha256(pem.encode()).hexdigest()[:16]}.pem"
+    if not path.exists():
+        path.write_text(pem, encoding="ascii")
+    return str(path)
+
+
+def _config() -> dict:
+    cfg = credenziali()
+    verify = _ca_file(cfg["ca_pem"]) if cfg["ca_pem"] else (cfg["ca_path"] or True)
+    return {
+        "url": cfg["url"].rstrip("/"),
+        "username": cfg["username"],
+        "password": cfg["password"],
+        "version": cfg["version"] or DEFAULT_API_VERSION,
+        "verify": verify,
     }
 
 
 def configured() -> bool:
-    cfg = _config()
+    cfg = credenziali()
     return bool(cfg["url"] and cfg["username"] and cfg["password"])
+
+
+def riepilogo() -> dict:
+    """Quello che la pagina Impostazioni può mostrare: mai la password in chiaro."""
+    cfg = credenziali()
+    return {"url": cfg["url"], "username": cfg["username"], "version": cfg["version"], "password": bool(cfg["password"]),
+            "ca": bool(cfg["ca_pem"] or cfg["ca_path"]), "fonte": cfg["fonte"],
+            "configurato": bool(cfg["url"] and cfg["username"] and cfg["password"])}
+
+
+def valida(dati: dict) -> list[str]:
+    errori = []
+    if not dati["url"].lower().startswith("https://") or len(dati["url"]) < 12:
+        errori.append("Indirizzo non valido: è https://<server Veeam>:9419 (l'API di Veeam risponde solo in HTTPS).")
+    if not dati["username"]:
+        errori.append("Manca l'utente (es. DOMINIO\\utente con il solo ruolo «Veeam Backup Viewer»).")
+    if not dati["password"]:
+        errori.append("Manca la password.")
+    if dati["ca_pem"] and "BEGIN CERTIFICATE" not in dati["ca_pem"]:
+        errori.append("Il certificato della CA va incollato in formato PEM (-----BEGIN CERTIFICATE----- …).")
+    return errori
+
+
+def salva_credenziali(nuovi: dict, actor=None, togli_ca: bool = False) -> list[str]:
+    """Salva le credenziali; password e certificato vuoti = si tengono quelli già salvati."""
+    from security.services.configuration import audit_config_change
+
+    attuali = _dal_portale()
+    dati = {campo: str(nuovi.get(campo) or "").strip()[:8000 if campo == "ca_pem" else 300] for campo in CAMPI}
+    dati["url"] = dati["url"].rstrip("/")
+    dati["password"] = dati["password"] or attuali["password"]
+    dati["ca_pem"] = "" if togli_ca else (dati["ca_pem"] or attuali["ca_pem"])
+    errori = valida(dati)
+    if errori:
+        return errori
+    setting, _ = SecurityCenterSetting.objects.get_or_create(
+        key=SETTING, defaults={"category": "integrazioni", "is_secret": True,
+                               "description": "Credenziali API Veeam Backup & Replication (cifrate)"})
+    setting.value = secret_box.encrypt(json.dumps(dati), PURPOSE)
+    setting.is_secret = True
+    setting.updated_by = actor if getattr(actor, "pk", None) else None
+    setting.save()
+    cambiati = [c for c in CAMPI if dati[c] != attuali[c]]
+    audit_config_change(actor, "update", setting, field_name="value", old_value="***" if any(attuali.values()) else "",
+                        new_value="campi cambiati: " + (", ".join(cambiati) or "nessuno"))
+    return []
+
+
+def cancella_credenziali(actor=None) -> None:
+    from security.services.configuration import audit_config_change
+
+    setting = SecurityCenterSetting.objects.filter(key=SETTING).first()
+    if setting is None or not setting.value:
+        return
+    setting.value = ""
+    setting.save()
+    audit_config_change(actor, "update", setting, field_name="value", old_value="***", new_value="")
 
 
 def _check_config(cfg: dict) -> None:
     if not (cfg["url"] and cfg["username"] and cfg["password"]):
-        raise VeeamError("Mancano VEEAM_API_URL, VEEAM_API_USERNAME o VEEAM_API_PASSWORD nel .env del portale.")
+        raise VeeamError("Credenziali API Veeam mancanti: inseriscile in Impostazioni › «Credenziali API Veeam».")
     if not cfg["url"].lower().startswith("https://"):
-        raise VeeamError("VEEAM_API_URL deve iniziare con https:// (l'API di Veeam risponde solo in HTTPS, porta 9419).")
+        raise VeeamError("L'indirizzo di Veeam deve iniziare con https:// (l'API di Veeam risponde solo in HTTPS, porta 9419).")
 
 
 class VeeamClient:
@@ -102,7 +209,7 @@ class VeeamClient:
                 data={"grant_type": "password", "username": self.cfg["username"], "password": self.cfg["password"]},
             )
         except requests.exceptions.SSLError as exc:
-            raise VeeamError("Certificato del server Veeam non attendibile: indica la CA in VEEAM_API_CA_BUNDLE.") from exc
+            raise VeeamError("Certificato del server Veeam non attendibile: incolla il certificato della CA nelle credenziali API Veeam.") from exc
         except requests.exceptions.RequestException as exc:
             raise VeeamError(f"Server Veeam non raggiungibile ({type(exc).__name__}): controlla indirizzo e porta 9419.") from exc
         if resp.status_code in (400, 401, 403):
