@@ -251,14 +251,29 @@ GUIDA = {
             ],
         },
         {
+            "id": "collector-collega",
+            "titolo": "Collegare le CNC al collector OPC UA (tutto dal portale)",
+            "blocchi": [
+                ("passi", [
+                    "Configurazione → «Macchine collegate» → «Collega una macchina» → «Collector OPC UA»: scegli la macchina, scrivi "
+                    "l'indirizzo OPC UA (IP), la porta (4840), il codice breve (es. DM6) e, se serve, utente e password OPC UA. «Salva».",
+                    "Riquadro «Collector» (amministratori del modulo Asset): «Crea il collector e il token» con l'IP del PC del collector. "
+                    "Copia il token: si vede una volta sola.",
+                    "Sul PC del collector imposta PORTALE_URL (lo mostra la pagina) e PORTALE_TOKEN e avvia il collector: scarica da solo "
+                    "l'elenco delle macchine e lo rilegge ogni 5 minuti.",
+                    "Token perso o compromesso: «Nuovo token» (il vecchio smette subito di funzionare). Collector dismesso: «Disattiva».",
+                ]),
+            ],
+        },
+        {
             "id": "mtconnect-collega",
             "titolo": "Collegare una CNC con MTConnect",
             "blocchi": [
                 ("passi", [
                     "Serve un agent MTConnect raggiungibile dal server del portale (sul PC della macchina o su un gateway dell'officina).",
                     "Configurazione → «Macchine collegate»: scegli la macchina, scrivi l'indirizzo dell'agent (es. http://10.0.5.21:5000) e premi «Prova».",
-                    "Se la prova legge ore e pezzi, lascia spuntati i contatori Ore e Cicli (vanno creati prima dalla scheda della macchina).",
-                    "Premi «Salva collegamento»: lo stato arriva sulla mappa entro 2 minuti (schedule mtconnect_poll).",
+                    "Se la prova legge ore e pezzi, lascia spuntati «Aggiorna i contatori» e «Crea i contatori Ore e Cicli se mancano».",
+                    "Premi «Salva»: lo stato arriva sulla mappa entro 2 minuti (schedule mtconnect_poll).",
                 ]),
                 ("p", "Solo indirizzi della rete interna; il portale legge e basta. Collegare, sospendere o togliere una macchina "
                       "richiede il permesso di modificarla. I contatori avanzano per differenza, al massimo una volta all'ora."),
@@ -394,8 +409,8 @@ GUIDA = {
         {
             "sintomo": "Il collector delle CNC non aggiorna le ore",
             "fare": [
-                "Admin Django → «Collector letture contatori»: il collector deve essere attivo e avere un «ultimo contatto» recente.",
-                "L'IP della macchina del collector deve essere in ASSETS_METER_INGEST_ALLOWED_IPS; il contatore deve esistere sull'asset.",
+                "Asset › Configurazione › «Macchine collegate» › Collector: il collector deve essere attivo e avere un «ultimo contatto» recente.",
+                "Negli «IP o reti ammessi» del collector ci deve essere l'IP del suo PC; sulla macchina devono esistere i contatori Ore e Cicli («Crea contatori»).",
             ],
         },
         {

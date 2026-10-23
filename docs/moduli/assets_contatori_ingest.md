@@ -9,12 +9,15 @@ collector esterni, per esempio lo script OPC UA delle CNC. Codice:
 ## Regole
 
 - **Solo rete interna.** Il percorso non va pubblicato su Entra Application Proxy.
-  Il portale accetta solo i client IP in `ASSETS_METER_INGEST_ALLOWED_IPS` (IP o reti
-  CIDR separati da virgola; default `127.0.0.1,::1`): da altre reti risponde `403`.
-- **Un token per collector.** Si crea dall'admin Django («Collector letture contatori»)
-  o con `manage.py meter_ingest_client "<nome>" [--tutti | --asset TAG ...]`. Il token
-  in chiaro si vede **una sola volta**: a DB resta l'hash SHA-256. Per cambiarlo:
-  `--rigenera`. Un collector disattivato riceve `401`.
+  Ogni collector ha i suoi **IP ammessi** (IP o reti CIDR), scritti in **Asset ›
+  Configurazione › Macchine collegate › Collector**; valgono anche quelli di
+  `ASSETS_METER_INGEST_ALLOWED_IPS` del `.env` (default `127.0.0.1,::1`). Il token si
+  controlla prima della rete: token errato `401`, rete non ammessa per quel collector `403`.
+- **Un token per collector.** Si crea dalla stessa pagina («Crea il collector e il token»,
+  solo amministratori del modulo Asset; anche dall'admin Django o con `manage.py
+  meter_ingest_client`). Il token in chiaro si vede **una sola volta**, nella risposta della
+  pagina: a DB resta l'hash SHA-256. «Nuovo token» lo sostituisce (il vecchio smette subito
+  di funzionare), «Disattiva» lo blocca: un collector disattivato riceve `401`.
 - **Asset consentiti.** Ogni collector scrive solo sugli asset elencati (o su tutti con
   `--tutti` / «tutti gli asset con contatore»). Il contatore deve già esistere sull'asset
   (scheda asset → Contatori).
@@ -69,6 +72,22 @@ $body = @{ readings = @(@{ asset_tag = "CNC-001"; meter_type = "HOURS"; value = 
 Invoke-RestMethod -Method Post -Uri "https://portale.example.local/api/assets/contatori/ingest/" `
   -Headers @{ Authorization = "Bearer TOKEN-DI-ESEMPIO" } -ContentType "application/json" -Body $body
 ```
+
+## Elenco delle macchine per il collector
+
+`GET /api/assets/contatori/ingest/config/` — stessa autenticazione. Ritorna le macchine scritte
+nel portale che quel collector deve leggere (fonte «Collector OPC UA», attive, con l'indirizzo
+OPC UA, consentite al collector), nel formato di `machines.json`:
+
+```json
+{"collector": "Collector CNC officina",
+ "machines": [{"name": "DM6", "ip": "192.0.2.15", "port": 4840, "serial": "…", "model": "DMC 125",
+               "department": "CN5", "asset_tag": "CNC-001", "username": "", "password": ""}]}
+```
+
+`password` è quella OPC UA della macchina (a DB cifrata con `secret_box`): viaggia in chiaro
+solo verso il collector autenticato, quindi l'endpoint va usato in HTTPS. `tools/collector_cnc`
+lo legge all'avvio e ogni 5 minuti.
 
 ## Stato delle macchine (collector OPC UA)
 

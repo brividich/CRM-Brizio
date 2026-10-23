@@ -73,7 +73,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Collector letture contatori (OPC UA)",
         "cosa": "Script esterni (es. il collector OPC UA delle CNC) che inviano le ore/km/cicli delle macchine a POST /api/assets/contatori/ingest/. Le letture finiscono in assets_assetmeter e assets_assetmeterhistory e alimentano i piani di manutenzione a contatore.",
         "chi": "Asset → contatori e scadenze a contatore.",
-        "config": "Token per collector (admin Django «Collector letture contatori» o manage.py meter_ingest_client); ASSETS_METER_INGEST_ALLOWED_IPS (IP/CIDR ammessi); ASSETS_METER_STALE_HOURS (ore oltre cui una lettura è vecchia). Solo rete interna, mai su Entra.",
+        "config": "Token e IP ammessi per collector in Asset › Configurazione › Macchine collegate › Collector (assets_meteringestclient; anche admin Django o manage.py meter_ingest_client); in più ASSETS_METER_INGEST_ALLOWED_IPS del .env; ASSETS_METER_STALE_HOURS (ore oltre cui una lettura è vecchia). Solo rete interna, mai su Entra.",
         "controllo": "Admin «Collector letture contatori» → «ultimo contatto»; badge di freschezza sulla scheda asset e sulla pagina del QR.",
     },
     {
@@ -145,9 +145,10 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "HTTP GET /current ogni 2 minuti. Finiscono in assets_collegamentomtconnect, assets_periodostatomacchina e nei "
                 "contatori assets_assetmeter.",
         "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
-        "config": "Collector: token MeterIngestClient (manage.py meter_ingest_client), IP del suo PC in ASSETS_METER_INGEST_ALLOWED_IPS, "
-                  "PORTALE_URL/PORTALE_TOKEN sul PC, asset_tag in machines.json. MTConnect: pagina Configurazione → «Macchine collegate» "
-                  "(/assets/work-machines/mtconnect/), schedule mtconnect_poll (ogni 2 minuti).",
+        "config": "Tutto in Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/): macchine del collector (indirizzo e "
+                  "porta OPC UA, codice, credenziali OPC UA cifrate) scaricate dal collector con GET /api/assets/contatori/ingest/config/, "
+                  "token e IP ammessi del collector; sul PC del collector solo PORTALE_URL e PORTALE_TOKEN. MTConnect: indirizzo dell'agent "
+                  "nella stessa pagina, schedule mtconnect_poll (ogni 2 minuti).",
         "controllo": "«Prova» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina.",
     },
     {

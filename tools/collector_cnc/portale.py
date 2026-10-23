@@ -8,13 +8,16 @@ Cosa manda (solo HTTPS/HTTP verso il portale, nessuna scrittura sulle macchine):
   - contatori Ore (ore di lavoro) e Cicli (pezzi totali) -> /api/assets/contatori/ingest/
     ogni OGNI_CONTATORI secondi (il portale li registra sui contatori dei piani di manutenzione).
 
+Le macchine da leggere arrivano dal portale (Asset › Configurazione › Macchine collegate):
+GET /api/assets/contatori/ingest/config/ all'avvio e ogni AGGIORNA_ELENCO secondi.
+
 Configurazione solo da variabili d'ambiente (mai nel codice):
   PORTALE_URL    es. https://portale.dominio.local   (senza / finale)
   PORTALE_TOKEN  token del collector (manage.py meter_ingest_client "<nome>" --asset TAG ...)
   PORTALE_CA     facoltativo: certificato della CA interna (file .pem) se HTTPS non e' pubblico
 Senza PORTALE_URL o PORTALE_TOKEN il collector lavora come prima, senza inviare nulla.
 
-Ogni macchina va al portale solo se in machines.json ha "asset_tag" (il codice dell'asset nel portale).
+Le macchine scritte a mano in machines.json (senza portale) vanno al portale solo se hanno "asset_tag".
 """
 import asyncio
 import datetime as dt
@@ -29,6 +32,8 @@ log = logging.getLogger("collector.portale")
 
 URL_STATO = "/api/assets/contatori/ingest/stato/"
 URL_CONTATORI = "/api/assets/contatori/ingest/"
+URL_CONFIG = "/api/assets/contatori/ingest/config/"
+AGGIORNA_ELENCO = 300    # s - ogni quanto si riscarica l'elenco delle macchine dal portale
 INVIO_CAMBI = 5          # s - ogni quanto si guarda se qualche macchina e' cambiata
 BATTITO = 60             # s - invio di tutte le macchine anche senza cambi
 OGNI_CONTATORI = 3600    # s - invio dei contatori
@@ -64,6 +69,22 @@ class Portale:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"})
         with urllib.request.urlopen(req, timeout=TIMEOUT, context=self.ctx) as resp:
             return json.loads(resp.read().decode("utf-8") or "{}")
+
+    def scarica_macchine(self):
+        """Elenco delle macchine scritto nel portale (formato di machines.json), None se non si riesce."""
+        req = urllib.request.Request(self.base + URL_CONFIG, headers={"Authorization": f"Bearer {self.token}"})
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT, context=self.ctx) as resp:
+                dati = json.loads(resp.read().decode("utf-8") or "{}")
+        except urllib.error.HTTPError as e:
+            self._errore(f"il portale ha risposto {e.code} sull'elenco delle macchine"
+                         + (" (token o rete non ammessi)" if e.code in (401, 403) else ""))
+            return None
+        except Exception as e:  # noqa: BLE001 - rete, certificato, portale fermo: si usa l'ultimo elenco
+            self._errore(f"elenco delle macchine non scaricato ({type(e).__name__}: {e})")
+            return None
+        macchine = dati.get("machines")
+        return [m for m in macchine if isinstance(m, dict)] if isinstance(macchine, list) else None
 
     async def invia(self, path, body):
         """True se il portale ha risposto; gli errori si scrivono una volta sola finche' durano."""
@@ -124,14 +145,14 @@ class Portale:
 
     # ---------------- ciclo ----------------
     async def run(self):
-        if not self.machines:
-            log.warning("portale: nessuna macchina con asset_tag in machines.json, non invio nulla")
-            return
-        log.info("portale: invio di %d macchine a %s", len(self.machines), self.base)
+        log.info("portale: invio a %s", self.base)
         loop = asyncio.get_running_loop()
         t_battito = t_contatori = pausa = 0.0
         while True:
             t0 = loop.time()
+            if not self.machines:
+                await asyncio.sleep(INVIO_CAMBI)
+                continue
             sporche = [m for m in self.machines if m.portale_cambiata]
             if t0 >= pausa and (sporche or t0 >= t_battito):
                 scelte = self.machines if t0 >= t_battito else sporche
