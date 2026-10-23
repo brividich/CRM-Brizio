@@ -1,8 +1,10 @@
 """Postazioni condivise: un PC usato a turno con un solo account (es. «zeiss»).
 
-L'account della postazione entra dal login normale (LDAP). Da quel momento la
-sessione è «in attesa»: si apre solo ``/postazione/``, dove l'operatore sceglie
-il proprio nome fra i membri del gruppo della postazione e digita il proprio PIN.
+Ogni postazione è un PC fisico, riconosciuto dal suo indirizzo IP; lo stesso
+account può servire più PC. L'account entra dal login normale (LDAP): dal PC
+registrato la sessione è «in attesa» e si apre solo ``/postazione/``, dove
+l'operatore sceglie il proprio nome fra i membri del gruppo abilitati su quel PC
+e digita il proprio PIN; da un PC non registrato si apre solo la pagina di blocco.
 Con il PIN giusto la sessione diventa **dell'operatore** (``login()`` vero:
 permessi, audit, 2FA e firme sono i suoi); nella sessione resta il segno della
 postazione, così «Cambio operatore» e l'inattività riportano alla scelta senza
@@ -10,8 +12,9 @@ chiedere di nuovo la password dell'account condiviso.
 
 Regole di sicurezza:
 
-- il PIN vale solo dentro una sessione aperta con l'account della postazione;
-  fuori da lì non è una credenziale;
+- il PIN vale solo dentro una sessione aperta con l'account della postazione
+  dal suo PC; fuori da lì non è una credenziale. Se la sessione arriva da un
+  altro IP si chiude;
 - si salva solo l'hash; dopo ``MAX_TENTATIVI`` errori di fila il PIN si blocca;
 - il PIN si imposta con la propria password (``authenticate`` con axes);
 - amministratori e superuser non entrano mai con il PIN;
@@ -115,18 +118,42 @@ def e_amministratore(user=None, legacy_user=None) -> bool:
     return bool(legacy_user is not None and is_legacy_admin(legacy_user))
 
 
-def postazione_dell_account(user):
-    """La postazione attiva di cui ``user`` è l'account condiviso, se esiste."""
+def ip_normalizzato(valore) -> str:
+    """IP in forma canonica (``""`` se non è un indirizzo valido)."""
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(str(valore or "").strip()).compressed
+    except ValueError:
+        return ""
+
+
+def ip_richiesta(request) -> str:
+    from core.net import client_ip
+
+    return ip_normalizzato(client_ip(request)) if request is not None else ""
+
+
+def postazioni_dell_account(user):
+    """Le postazioni attive di cui ``user`` è l'account condiviso (una per PC)."""
     from core.models import PostazioneCondivisa
 
     legacy = legacy_di(user)
     if legacy is None:
+        return PostazioneCondivisa.objects.none()
+    return PostazioneCondivisa.objects.filter(account_legacy_user_id=int(legacy.id), attiva=True)
+
+
+def postazione_del_pc(user, request):
+    """La postazione dell'account per il PC da cui arriva la richiesta, se registrato."""
+    ip = ip_richiesta(request)
+    if not ip:
         return None
-    return PostazioneCondivisa.objects.filter(account_legacy_user_id=int(legacy.id), attiva=True).first()
+    return postazioni_dell_account(user).filter(ip_pc=ip).first()
 
 
-def operatori(postazione) -> list:
-    """Membri attivi del gruppo della postazione che possono entrare con il PIN (UtenteLegacy)."""
+def candidati(postazione) -> list:
+    """Membri attivi del gruppo che si possono abilitare sul PC (UtenteLegacy, mai amministratori)."""
     from core.legacy_models import UtenteLegacy
     from core.models import AccessGroupMembership, Profile
 
@@ -149,6 +176,16 @@ def operatori(postazione) -> list:
         .values_list("legacy_user_id", flat=True)
     )
     return [u for u in utenti if u.id not in privilegiati and not e_amministratore(legacy_user=u)]
+
+
+def operatori(postazione) -> list:
+    """Chi può entrare con il PIN da questo PC: membri del gruppo abilitati sul PC."""
+    from core.models import OperatorePostazione
+
+    if postazione is None:
+        return []
+    abilitati = set(OperatorePostazione.objects.filter(postazione=postazione).values_list("legacy_user_id", flat=True))
+    return [u for u in candidati(postazione) if u.id in abilitati]
 
 
 def operatore_della_postazione(postazione, legacy_user_id):
@@ -207,6 +244,7 @@ def passa_a_operatore(request, postazione, operatore_legacy) -> bool:
     _ancora_attivita(request)
     registra_audit(request, "postazione_operatore_entra", {
         "postazione": postazione.nome, "postazione_id": postazione.pk, "operatore": utente.get_username(),
+        "ip_pc": postazione.ip_pc,
     })
     return True
 
@@ -225,7 +263,8 @@ def torna_alla_postazione(request, motivo: str = "cambio") -> bool:
         "operatore": request.user.get_username() if request.user.is_authenticated else "",
         "motivo": motivo,
     })
-    if postazione is None or account is None or postazione_dell_account(account) != postazione:
+    if (postazione is None or account is None or ip_richiesta(request) != postazione.ip_pc
+            or not postazioni_dell_account(account).filter(pk=postazione.pk).exists()):
         logout(request)
         return False
     request.postazione_cambio_in_corso = True
@@ -250,15 +289,16 @@ def _al_login(sender, request, user, **kwargs):
     if getattr(request, "postazione_cambio_in_corso", False):
         return
     try:
-        postazione = postazione_dell_account(user)
+        if not postazioni_dell_account(user).exists():
+            request.session.pop(SESSIONE, None)
+            return
+        postazione = postazione_del_pc(user, request)
     except Exception:  # noqa: BLE001 - mai bloccare un login per questo
         logger.exception("Postazione condivisa: verifica account non riuscita")
         return
-    if postazione is None:
-        request.session.pop(SESSIONE, None)
-        return
+    # postazione None = account condiviso da un PC non registrato: solo la pagina di blocco.
     request.session[SESSIONE] = {
-        "postazione": postazione.pk, "account": user.pk,
+        "postazione": postazione.pk if postazione else None, "account": user.pk,
         "account_backend": getattr(user, "backend", "") or BACKEND_OPERATORE, "operatore": None,
     }
 
@@ -305,12 +345,25 @@ class PostazioneCondivisaMiddleware:
 
         from core.models import PostazioneCondivisa
 
+        if corrente.get("postazione") is None and not corrente.get("operatore"):
+            risposta = self._pc_non_registrato(request, corrente)
+            if risposta is not None:
+                return risposta
+            corrente = stato(request)
+
         postazione = PostazioneCondivisa.objects.filter(pk=corrente.get("postazione"), attiva=True).first()
+        motivo = ""
         if postazione is None:
-            # Postazione spenta o cancellata: la sessione nata da lì non vale più.
+            motivo = "postazione_disattivata"  # spenta o cancellata: la sessione nata da lì non vale più
+        elif ip_richiesta(request) != postazione.ip_pc:
+            motivo = "postazione_altro_pc"  # sessione portata su un altro PC
+            registra_audit(request, "postazione_altro_pc", {
+                "postazione_id": postazione.pk, "ip_pc": postazione.ip_pc, "ip": ip_richiesta(request),
+            })
+        if motivo:
             logout(request)
             if _vuole_json(request):
-                return JsonResponse({"ok": False, "reason": "postazione_disattivata"}, status=401)
+                return JsonResponse({"ok": False, "reason": motivo}, status=401)
             return redirect(f"{reverse('login')}?reason=logout")
 
         operatore_id = corrente.get("operatore")
@@ -350,4 +403,24 @@ class PostazioneCondivisaMiddleware:
         if _vuole_json(request):
             return JsonResponse({"ok": False, "reason": "postazione_condivisa",
                                  "redirect": reverse("postazione_home")}, status=403)
+        return redirect("postazione_home")
+
+    def _pc_non_registrato(self, request, corrente):
+        """Account condiviso entrato da un PC non registrato.
+
+        Si riprova a riconoscere il PC (registrato nel frattempo): se c'è, la sessione
+        passa «in attesa» e si ritorna None; altrimenti si apre solo la pagina di blocco.
+        """
+        if int(corrente.get("account") or 0) != request.user.pk or not postazioni_dell_account(request.user).exists():
+            request.session.pop(SESSIONE, None)
+            return self.get_response(request)
+        postazione = postazione_del_pc(request.user, request)
+        if postazione is not None:
+            corrente["postazione"] = postazione.pk
+            request.session[SESSIONE] = corrente
+            return None
+        if any(request.path.startswith(p) for p in _PERCORSI_IN_ATTESA):
+            return self.get_response(request)
+        if _vuole_json(request):
+            return JsonResponse({"ok": False, "reason": "postazione_pc_non_registrato"}, status=403)
         return redirect("postazione_home")

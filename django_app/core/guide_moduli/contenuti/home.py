@@ -36,7 +36,7 @@ GUIDA = {
                 ]),
                 ("nota", "Niente cifre tutte uguali né sequenze come 1234. Dopo 5 PIN sbagliati il PIN si blocca e ti arriva una mail: "
                          "impostane uno nuovo con «Imposta un nuovo PIN» (serve la password) o chiedi all'amministratore. "
-                         "Se il tuo nome non c'è, chiedi all'amministratore di aggiungerti al gruppo della postazione."),
+                         "Se il tuo nome non c'è, chiedi all'amministratore di abilitarti su quel PC."),
             ],
         },
         {

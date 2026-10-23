@@ -19,6 +19,7 @@ from core.models import (
     AccessGroup,
     AccessGroupMembership,
     AuditLog,
+    OperatorePostazione,
     PinPostazione,
     PostazioneCondivisa,
     UserOnboarding,
@@ -51,6 +52,7 @@ class PostazioneTests(TestCase):
         self.l_op2 = legacy("Verdi Operatrice", "op.due@example.local")
         self.l_admin = legacy("Admin Sintetico", "admin.sint@example.local", ruolo="admin", ruolo_id=1)
         self.l_esterno = legacy("Bianchi Esterno", "esterno@example.local")
+        self.l_op3 = legacy("Gialli NonAbilitato", "op.tre@example.local")
         self.account = sync_django_user_from_legacy(self.l_account)
         self.op1 = sync_django_user_from_legacy(self.l_op1)
         self.op2 = sync_django_user_from_legacy(self.l_op2)
@@ -58,14 +60,21 @@ class PostazioneTests(TestCase):
         for u in (self.op1, self.op2, self.esterno):
             UserOnboarding.objects.create(user=u, completed=True)
         self.gruppo = AccessGroup.objects.create(code="operatori-controllo-test", label="Operatori controllo")
-        for lu in (self.l_account, self.l_op1, self.l_op2, self.l_admin):
+        for lu in (self.l_account, self.l_op1, self.l_op2, self.l_op3, self.l_admin):
             AccessGroupMembership.objects.create(group=self.gruppo, legacy_user_id=lu.id)
+        # Il client di test arriva da 127.0.0.1: è il PC registrato.
         self.postazione = PostazioneCondivisa.objects.create(
-            nome="Sala misure test", account_legacy_user_id=self.l_account.id, gruppo=self.gruppo, minuti_inattivita=10)
+            nome="Sala misure test", account_legacy_user_id=self.l_account.id, ip_pc="127.0.0.1",
+            gruppo=self.gruppo, minuti_inattivita=10)
+        # l_op3 è nel gruppo ma non è abilitato su questo PC.
+        for lu in (self.l_account, self.l_op1, self.l_op2, self.l_admin):
+            OperatorePostazione.objects.create(postazione=self.postazione, legacy_user_id=lu.id)
         postazioni.imposta_pin(self.l_op1.id, PIN)
 
     def _entra_account(self):
+        # force_login non porta l'IP: il PC si riconosce alla prima richiesta.
         self.client.force_login(self.account)
+        self.assertEqual(self.client.get(reverse("postazione_home")).status_code, 200)
         stato = self.client.session.get(postazioni.SESSIONE)
         self.assertEqual(stato["postazione"], self.postazione.pk)
         self.assertIsNone(stato["operatore"])
@@ -91,6 +100,7 @@ class PostazioneTests(TestCase):
         self.assertContains(resp, "Verdi Operatrice")
         self.assertNotContains(resp, "Admin Sintetico")  # gli amministratori non entrano con il PIN
         self.assertNotContains(resp, "PC Sintetico")
+        self.assertNotContains(resp, "Gialli NonAbilitato")  # nel gruppo ma non abilitato su questo PC
 
     def test_account_in_attesa_api_json_403(self):
         self._entra_account()
@@ -134,7 +144,8 @@ class PostazioneTests(TestCase):
         postazioni.imposta_pin(self.l_esterno.id, PIN)
         postazioni.imposta_pin(self.l_admin.id, PIN)
         self._entra_account()
-        for legacy_id in (self.l_esterno.id, self.l_admin.id, self.l_account.id):
+        postazioni.imposta_pin(self.l_op3.id, PIN)
+        for legacy_id in (self.l_esterno.id, self.l_admin.id, self.l_account.id, self.l_op3.id):
             resp = self.client.post(reverse("postazione_entra"), {"operatore": legacy_id, "pin": PIN})
             self.assertEqual(resp.status_code, 400)
             self.assertEqual(self._utente_sessione(), self.account.pk)
@@ -149,6 +160,44 @@ class PostazioneTests(TestCase):
         record = PinPostazione.objects.get(legacy_user_id=self.l_op1.id)
         for riga in AuditLog.objects.all():
             self.assertNotIn(record.pin_hash, str(riga.dettaglio))
+
+    # ── PC ──
+
+    def test_pc_non_registrato_solo_pagina_di_blocco(self):
+        PostazioneCondivisa.objects.filter(pk=self.postazione.pk).update(ip_pc="10.0.0.50")
+        self.client.force_login(self.account)
+        resp = self.client.get(reverse("postazione_home"))
+        self.assertContains(resp, "non è registrato", status_code=403)
+        self.assertContains(resp, "127.0.0.1", status_code=403)
+        self.assertRedirects(self.client.get(reverse("dashboard_home")), reverse("postazione_home"),
+                             fetch_redirect_response=False, target_status_code=403)
+        resp = self.client.get("/api/qualcosa/", HTTP_ACCEPT="application/json")
+        self.assertEqual(resp.json()["reason"], "postazione_pc_non_registrato")
+        self.client.post(reverse("postazione_entra"), {"operatore": self.l_op1.id, "pin": PIN})
+        self.assertEqual(self._utente_sessione(), self.account.pk)
+        # Registrato il PC, la stessa sessione passa a «Chi sei?».
+        PostazioneCondivisa.objects.filter(pk=self.postazione.pk).update(ip_pc="127.0.0.1")
+        self.assertContains(self.client.get(reverse("postazione_home")), "Rossi Operatore")
+
+    def test_stesso_account_su_due_pc_operatori_diversi(self):
+        pc2 = PostazioneCondivisa.objects.create(
+            nome="Sala misure due", account_legacy_user_id=self.l_account.id, ip_pc="10.0.0.7", gruppo=self.gruppo)
+        OperatorePostazione.objects.create(postazione=pc2, legacy_user_id=self.l_op2.id)
+        self.client.force_login(self.account)
+        resp = self.client.get(reverse("postazione_home"), REMOTE_ADDR="10.0.0.7")
+        self.assertContains(resp, "Sala misure due")
+        self.assertContains(resp, "Verdi Operatrice")
+        self.assertNotContains(resp, "Rossi Operatore")
+        resp = self.client.post(reverse("postazione_entra"), {"operatore": self.l_op1.id, "pin": PIN},
+                                REMOTE_ADDR="10.0.0.7")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_sessione_portata_su_un_altro_pc_si_chiude(self):
+        self._entra_operatore()
+        resp = self.client.get(reverse("dashboard_home"), REMOTE_ADDR="10.0.0.99")
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertTrue(AuditLog.objects.filter(azione="postazione_altro_pc").exists())
 
     # ── uscita ──
 
@@ -244,10 +293,10 @@ class AdminPostazioniTests(TestCase):
                                                    ruolo="admin", attivo=True, ruolo_id=1)
         self.gruppo = AccessGroup.objects.create(code="gruppo-pc-test", label="Gruppo PC")
 
-    def _salva(self, account_id, minuti=10):
+    def _salva(self, account_id, minuti=10, ip="192.168.10.25"):
         return self.client.post(reverse("admin_portale:postazioni_condivise_azione"), {
             "azione": "salva", "nome": "PC prova", "account": account_id, "gruppo": self.gruppo.pk,
-            "minuti_inattivita": minuti, "attiva": "1",
+            "minuti_inattivita": minuti, "attiva": "1", "ip_pc": ip,
         })
 
     def test_pagina_e_creazione(self):
@@ -256,11 +305,35 @@ class AdminPostazioniTests(TestCase):
         self._salva(self.l_pc.id)
         self.assertTrue(PostazioneCondivisa.objects.filter(account_legacy_user_id=self.l_pc.id).exists())
 
-    def test_account_amministratore_e_minuti_fuori_soglia_rifiutati(self):
+    def test_account_amministratore_minuti_e_ip_non_validi_rifiutati(self):
         self._salva(self.l_admin.id)
         self._salva(self.l_pc.id, minuti=0)
         self._salva(self.l_pc.id, minuti=61)
+        self._salva(self.l_pc.id, ip="")
+        self._salva(self.l_pc.id, ip="pc-zeiss")
         self.assertFalse(PostazioneCondivisa.objects.exists())
+
+    def test_stesso_account_piu_pc_ma_ip_unico(self):
+        self._salva(self.l_pc.id, ip="192.168.10.25")
+        self._salva(self.l_pc.id, ip="192.168.10.26")
+        self._salva(self.l_pc.id, ip="192.168.10.25")  # IP già registrato
+        self.assertEqual(sorted(PostazioneCondivisa.objects.values_list("ip_pc", flat=True)),
+                         ["192.168.10.25", "192.168.10.26"])
+
+    def test_operatori_del_pc(self):
+        self._salva(self.l_pc.id)
+        pc = PostazioneCondivisa.objects.get()
+        op = UtenteLegacy.objects.create(nome="Op Admin Test", email="op.at@example.local", password="x",
+                                         ruolo="operatore", attivo=True, ruolo_id=2)
+        AccessGroupMembership.objects.create(group=self.gruppo, legacy_user_id=op.id)
+        url = reverse("admin_portale:postazioni_condivise_azione")
+        self.assertContains(self.client.get(reverse("admin_portale:postazioni_condivise") + f"?operatori={pc.pk}"),
+                            "Op Admin Test")
+        # Un id fuori dal gruppo si ignora.
+        self.client.post(url, {"azione": "operatori", "id": pc.pk, "abilitati": [op.id, 999999]})
+        self.assertEqual(list(OperatorePostazione.objects.values_list("legacy_user_id", flat=True)), [op.id])
+        self.client.post(url, {"azione": "operatori", "id": pc.pk})
+        self.assertFalse(OperatorePostazione.objects.exists())
 
     def test_azzera_pin(self):
         self._salva(self.l_pc.id)
