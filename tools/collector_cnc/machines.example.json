@@ -1,0 +1,8 @@
+{
+  "machines": [
+    {"name": "CNC-A", "model": "DMC 85",   "serial": "00000000001", "ip": "192.0.2.11", "department": "REP1", "asset_tag": "CNC-0001"},
+    {"name": "CNC-B", "model": "CTX 2000", "serial": "00000000002", "ip": "192.0.2.12", "department": "REP2", "asset_tag": "CNC-0002"},
+    {"name": "CNC-C", "model": "DMC 160",  "serial": "00000000003", "ip": "192.0.2.13", "department": "REP1", "asset_tag": "",
+     "username": "", "password": "", "enabled": false}
+  ]
+}

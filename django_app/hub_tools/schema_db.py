@@ -137,13 +137,16 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
     },
     {
-        "nome": "Agent MTConnect delle CNC",
-        "cosa": "Stato delle macchine (in lavoro, pronta, ferma, in allarme, spenta), programma, pezzi, allarmi e ore di lavoro, letti "
-                "ogni 2 minuti con HTTP GET /current dall'agent di ogni macchina (solo letture, solo rete interna). Finiscono in "
-                "assets_collegamentomtconnect, assets_periodostatomacchina e nei contatori assets_assetmeter (fonte MTConnect).",
+        "nome": "CNC: collector OPC UA e agent MTConnect",
+        "cosa": "Stato delle macchine (in lavoro, MDI/manuale, interrotta, ferma, in allarme, emergenza, offline), programma, pezzi e "
+                "allarmi. Le DMG MORI: il collector OPC UA dell'officina (tools/collector_cnc) li invia a POST "
+                "/api/assets/contatori/ingest/stato/ e i contatori a /api/assets/contatori/ingest/. Le macchine con agent MTConnect: "
+                "HTTP GET /current ogni 2 minuti. Finiscono in assets_collegamentomtconnect, assets_periodostatomacchina e nei "
+                "contatori assets_assetmeter.",
         "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
-        "config": "Pagina Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/): indirizzo dell'agent per macchina. "
-                  "Schedule mtconnect_poll (ogni 2 minuti).",
+        "config": "Collector: token MeterIngestClient (manage.py meter_ingest_client), IP del suo PC in ASSETS_METER_INGEST_ALLOWED_IPS, "
+                  "PORTALE_URL/PORTALE_TOKEN sul PC, asset_tag in machines.json. MTConnect: pagina Configurazione → «Macchine collegate» "
+                  "(/assets/work-machines/mtconnect/), schedule mtconnect_poll (ogni 2 minuti).",
         "controllo": "«Prova» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina.",
     },
     {

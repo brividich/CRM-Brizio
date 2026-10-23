@@ -70,9 +70,35 @@ Invoke-RestMethod -Method Post -Uri "https://portale.example.local/api/assets/co
   -Headers @{ Authorization = "Bearer TOKEN-DI-ESEMPIO" } -ContentType "application/json" -Body $body
 ```
 
+## Stato delle macchine (collector OPC UA)
+
+`POST /api/assets/contatori/ingest/stato/` — stessa autenticazione, stessa rete e stessi asset
+consentiti delle letture; al massimo **100** macchine per chiamata (oltre: `413`). Lo usa
+`tools/collector_cnc` (collector OPC UA delle DMG MORI) a ogni cambio di stato e almeno una volta
+al minuto: oltre 15 minuti senza invii il portale mostra la macchina come «non aggiornata».
+
+```json
+{
+  "macchine": [
+    {"asset_tag": "CNC-001", "stato": "ALLARME", "dal": "2026-10-23T08:14:05+00:00",
+     "programma": "DM9_0014", "modalita": "AUTO", "esecuzione": "INTERRUPTED", "pezzi": 7,
+     "allarmi": [{"codice": "2001", "testo": "Pressione lubrificazione bassa", "severita": 900, "dal": "2026-10-23T08:14:03+00:00"}]}
+  ]
+}
+```
+
+- `stato`: `LAVORO`, `SETUP` (MDI/manuale), `INTERROTTA`, `FERMA`, `ALLARME`, `EMERGENZA`, `OFFLINE`.
+- `dal`: inizio dello stato sulla macchina, ISO 8601 **con** fuso; apre un periodo di stato
+  (`PeriodoStatoMacchina`) solo quando lo stato cambia.
+- `allarmi`: quelli attivi; dalla `severita` 801 in su sono «allarme», sotto «avviso».
+- La macchina compare in **Macchine collegate** al primo invio (fonte «Collector OPC UA»).
+  Righe `ignored` = collegamento sospeso nel portale; `rejected` = asset sconosciuto o non
+  consentito, stato non valido, `dal` senza fuso, macchina già letta via MTConnect.
+
 ## Adattare il collector esistente
 
-Il collector OPC UA standalone deve: leggere il token da una variabile d'ambiente (mai
+Fatto in `tools/collector_cnc` (`portale.py`, vedi il suo README). Regole per altri collector:
+leggere il token da una variabile d'ambiente (mai
 nel codice), inviare `read_at` dell'istante di lettura sulla macchina con l'offset,
 raggruppare al massimo 500 letture per chiamata e registrare le righe `rejected`.
 Ripetere un invio fallito è sicuro: le letture già registrate tornano `ignored_older`.

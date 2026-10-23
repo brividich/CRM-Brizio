@@ -128,15 +128,16 @@ GUIDA = {
         },
         {
             "id": "mtconnect",
-            "titolo": "Stato reale delle CNC (MTConnect) sulla mappa officina",
+            "titolo": "Stato reale delle CNC (collector OPC UA, MTConnect) sulla mappa officina",
             "blocchi": [
                 ("passi", [
                     "Apri la mappa officina: una macchina con il pallino rosso scuro è «In allarme» sul suo controllo.",
                     "Clicca la macchina: «Dal controllo della macchina» dice stato e da quando, programma, pezzi, ore in lavoro di oggi e gli allarmi attivi.",
                     "Elenco di tutte le macchine collegate, con stato e contatori: Configurazione → «Macchine collegate».",
                 ]),
-                ("p", "Lo stato si aggiorna ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli ultimi 15 minuti "
-                      "(agent spento o lettura ferma): in quel caso la macchina non conta come in allarme."),
+                ("p", "Le DMG MORI arrivano dal collector OPC UA dell'officina (a ogni cambio di stato e almeno ogni minuto); "
+                      "le macchine con un agent MTConnect si leggono ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli "
+                      "ultimi 15 minuti (collector o agent fermo): in quel caso la macchina non conta come in allarme."),
             ],
         },
         {
@@ -289,8 +290,10 @@ GUIDA = {
             ],
         },
         {
-            "sintomo": "Una macchina collegata risulta «Agent non raggiungibile» o «Dato non aggiornato»",
+            "sintomo": "Una macchina collegata risulta «Non raggiungibile», «Offline» o «Dato non aggiornato»",
             "fare": [
+                "Fonte «Collector OPC UA»: «Offline» = il collector non raggiunge il controllo della macchina; «Dato non aggiornato» = "
+                "il collector non invia da oltre 15 minuti: controlla che giri sul suo PC e il suo log (token, rete ammessa).",
                 "«Agent non raggiungibile»: l'agent è spento o la rete non passa. Dal server del portale apri l'indirizzo dell'agent seguito da /current: deve rispondere un XML.",
                 "«Dato non aggiornato»: nessuna lettura da oltre 15 minuti; controlla che il qcluster giri (Centrale di comando, schedule mtconnect_poll).",
                 "«Dispositivo non trovato»: l'agent serve più macchine; scrivi nel collegamento il nome giusto (la «Prova» elenca i dispositivi dell'agent).",

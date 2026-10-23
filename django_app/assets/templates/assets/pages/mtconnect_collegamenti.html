@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Macchine collegate (MTConnect){% endblock %}
+{% block title %}Macchine collegate{% endblock %}
 
 {% block assets_shell_head %}
 <style>
@@ -24,9 +24,10 @@
 .mc-mono{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:13px}
 .mc-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
 .mc-tag--in_lavoro{color:#15803d;background:#dcfce7}.mc-tag--pronta{color:#1d4ed8;background:#dbeafe}.mc-tag--ferma{color:#9a3412;background:#ffedd5}
-.mc-tag--allarme{color:#991b1b;background:#fee2e2}.mc-tag--spenta,.mc-tag--mai,.mc-tag--vecchio{color:#475569;background:#f1f5f9}.mc-tag--non_raggiungibile{color:#991b1b;background:#fee2e2}
+.mc-tag--allarme,.mc-tag--emergenza{color:#991b1b;background:#fee2e2}.mc-tag--setup{color:#854d0e;background:#fef9c3}.mc-tag--spenta,.mc-tag--mai,.mc-tag--vecchio{color:#475569;background:#f1f5f9}.mc-tag--non_raggiungibile{color:#991b1b;background:#fee2e2}
 body.theme-dark .mc-tag--in_lavoro{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .mc-tag--pronta{color:#93c5fd;background:rgba(37,99,235,.2)}
-body.theme-dark .mc-tag--ferma{color:#fdba74;background:rgba(234,88,12,.18)}body.theme-dark .mc-tag--allarme,body.theme-dark .mc-tag--non_raggiungibile{color:#fca5a5;background:rgba(220,38,38,.2)}
+body.theme-dark .mc-tag--ferma{color:#fdba74;background:rgba(234,88,12,.18)}body.theme-dark .mc-tag--setup{color:#fde047;background:rgba(202,138,4,.2)}
+body.theme-dark .mc-tag--allarme,body.theme-dark .mc-tag--emergenza,body.theme-dark .mc-tag--non_raggiungibile{color:#fca5a5;background:rgba(220,38,38,.2)}
 body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc-tag--vecchio{color:#cbd5e1;background:rgba(148,163,184,.16)}
 .mc-alarms{margin:4px 0 0;padding-left:18px;font-size:var(--fs-sm,13px)}
 .mc-err{color:var(--danger,#b91c1c);font-size:var(--fs-sm,13px)}
@@ -38,13 +39,13 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Macchine collegate (MTConnect){% endblock %}
-{% block assets_shell_subtitle %}<p>Le CNC che il portale legge dal loro agent MTConnect: stato reale sulla mappa officina, ore di lavoro e pezzi sui contatori di manutenzione.</p>{% endblock %}
+{% block assets_shell_title %}Macchine collegate{% endblock %}
+{% block assets_shell_subtitle %}<p>Le CNC di cui il portale conosce lo stato reale, dal collector OPC UA dell'officina o da un agent MTConnect: stato sulla mappa officina, ore di lavoro e pezzi sui contatori di manutenzione.</p>{% endblock %}
 
 {% block assets_shell_content %}
 <section class="mc-page">
   <div class="mc-card">
-    <p class="mc-note">Ogni 2 minuti il portale legge lo stato di ogni macchina dal suo agent (solo lettura, rete interna). Le ore di lavoro e i pezzi avanzano i contatori «Ore» e «Cicli» dell'asset al massimo una volta all'ora. <a href="{% url 'assets:plant_layout_map' %}">Mappa officina</a> · <a href="{% url 'assets:guida' %}#mtconnect">? Guida</a></p>
+    <p class="mc-note"><strong>Collector OPC UA</strong>: le macchine compaiono qui da sole quando il collector dell'officina comincia a inviarne lo stato (a ogni cambio e almeno una volta al minuto); i contatori «Ore» e «Cicli» li aggiorna il collector una volta all'ora. <strong>Agent MTConnect</strong>: per le macchine che ne hanno uno, collegale qui sotto; il portale le legge ogni 2 minuti. <a href="{% url 'assets:plant_layout_map' %}">Mappa officina</a> · <a href="{% url 'assets:guida' %}#mtconnect">? Guida</a></p>
   </div>
 
   <div class="mc-card mc-table-wrap">
@@ -55,7 +56,7 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
       {% for r in righe %}
         <tr>
           <td><a href="{% url 'assets:asset_view' r.asset_id %}"><strong>{{ r.asset.name }}</strong></a><br><span class="mc-meta">{{ r.asset.asset_tag }}{% if r.asset.reparto %} · {{ r.asset.reparto }}{% endif %}</span></td>
-          <td class="mc-mono">{{ r.url_agent }}{% if r.dispositivo %}<br><span class="mc-meta">{{ r.dispositivo }}</span>{% endif %}</td>
+          <td>{% if r.fonte == "collector_opcua" %}<span class="mc-tag mc-tag--pronta">Collector OPC UA</span>{% else %}<span class="mc-mono">{{ r.url_agent }}</span>{% if r.dispositivo %}<br><span class="mc-meta">{{ r.dispositivo }}</span>{% endif %}{% endif %}</td>
           <td>
             {% if not r.attivo %}<span class="mc-tag mc-tag--mai">sospesa</span>
             {% elif r.attuale %}<span class="mc-tag mc-tag--{{ r.stato }}">{{ r.stato_label }}</span>{% if r.stato_dal %}<br><span class="mc-meta">dal {{ r.stato_dal|date:"d/m H:i" }}</span>{% endif %}
@@ -68,7 +69,7 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
           <td>{{ r.ore_oggi }} h</td>
           <td class="mc-actions">
             {% if r.puo_modificare %}
-              <a href="?modifica={{ r.pk }}#form">Modifica</a>
+              {% if r.fonte != "collector_opcua" %}<a href="?modifica={{ r.pk }}#form">Modifica</a>{% endif %}
               <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="{% if r.attivo %}sospendi{% else %}riattiva{% endif %}">{% if r.attivo %}Sospendi{% else %}Riattiva{% endif %}</button></form>
               <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="elimina">Togli</button></form>
             {% endif %}
@@ -82,7 +83,7 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
   </div>
 
   <div class="mc-card" id="form">
-    <h2>{% if form.asset %}Collegamento della macchina{% else %}Collega una macchina{% endif %}</h2>
+    <h2>{% if form.asset %}Collegamento della macchina (agent MTConnect){% else %}Collega una macchina con un agent MTConnect{% endif %}</h2>
     <form method="post" class="mc-form">
       {% csrf_token %}
       <label>Macchina
