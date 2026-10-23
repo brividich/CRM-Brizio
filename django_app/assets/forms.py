@@ -261,9 +261,13 @@ class AssetCategoryFieldMixin:
             # da schede_sicurezza (niente scheda SDS, niente pittogrammi) e finisce con
             # il trattamento da asset di produzione (numero interno, manutenzione,
             # contratti) che per un prodotto chimico non ha senso.
-            category_qs = category_qs.exclude(
-                base_asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CHEMICAL]
-            )
+            # Un bene gia' esistente puo' invece passare a una categoria di macchine di lavoro
+            # (es. una CNC finita nella categoria padre «CNC»): diventa Macchina di lavoro e la
+            # scheda macchina si completa subito dopo nel form dedicato (asset_edit).
+            escluse = [Asset.TYPE_CHEMICAL]
+            if not getattr(self.instance, "pk", None):
+                escluse.append(Asset.TYPE_WORK_MACHINE)
+            category_qs = category_qs.exclude(base_asset_type__in=escluse)
 
         category_ids = list(category_qs.values_list("id", flat=True))
         if current_category_id and current_category_id not in category_ids:
@@ -478,6 +482,8 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             Asset.TYPE_WORK_MACHINE, Asset.TYPE_CHEMICAL,
         ):
             instance.asset_type = selected_category.base_asset_type
+        elif selected_category and selected_category.base_asset_type == Asset.TYPE_WORK_MACHINE and instance.pk:
+            instance.asset_type = Asset.TYPE_WORK_MACHINE  # bene esistente spostato tra le macchine di lavoro
         next_extra: dict[str, object] = {}
         for key, value in self._original_extra_columns.items():
             keep_key = True
@@ -672,7 +678,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         cleaned_data = super().clean()
         cleaned_data = self._validate_assignment_chooser(cleaned_data)
         selected_category = cleaned_data.get("asset_category")
-        if selected_category and selected_category.base_asset_type == Asset.TYPE_WORK_MACHINE:
+        if selected_category and selected_category.base_asset_type == Asset.TYPE_WORK_MACHINE and not self.instance.pk:
             self.add_error("asset_category", "Per questa categoria usa il form Macchine di lavoro.")
         elif selected_category and selected_category.base_asset_type == Asset.TYPE_CHEMICAL:
             self.add_error("asset_category", "Per questa categoria usa Schede di sicurezza (o \"+ Nuovo prodotto chimico\").")

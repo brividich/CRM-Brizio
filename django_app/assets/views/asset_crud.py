@@ -1553,6 +1553,10 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 if marker_warning:
                     messages.warning(request, marker_warning)
 
+            if asset.asset_type == Asset.TYPE_WORK_MACHINE:
+                # Spostato in una categoria di macchine di lavoro: la scheda macchina nasce al salvataggio del form dedicato.
+                messages.success(request, f"{asset.asset_tag} ora è una macchina di lavoro: controlla i dati e salva la scheda macchina.")
+                return redirect("assets:work_machine_edit", id=asset.id)
             messages.success(request, "Asset aggiornato.")
             return redirect("assets:asset_view", id=asset.id)
     else:

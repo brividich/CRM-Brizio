@@ -217,3 +217,59 @@ class PaginaTests(_Macchina):
 
     def test_binding_acl(self):
         self.assertTrue(RoutePermissionBinding.objects.filter(path_pattern="/assets/work-machines/mtconnect/", is_active=True).exists())
+
+    def test_scheda_asset_con_stato_della_cnc(self):
+        from django.utils import timezone
+
+        adesso = timezone.now()
+        svc.applica_stato_collector(self.coll, {"stato": "FERMA"}, adesso - timedelta(minutes=50), ora=adesso - timedelta(minutes=50))
+        svc.applica_stato_collector(self.coll, {"stato": "LAVORO", "programma": "P-SINT-7"}, adesso - timedelta(minutes=5),
+                                    ora=adesso - timedelta(minutes=5))
+        resp = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
+        self.assertContains(resp, "Stato della CNC")
+        self.assertContains(resp, "P-SINT-7")
+        self.assertContains(resp, "Ultimi cambi di stato")
+        self.assertContains(resp, "45 min")  # Ferma per 45 minuti prima di andare in lavoro
+        self.assertContains(resp, "in corso")
+
+    def test_scheda_asset_senza_collegamento(self):
+        self.coll.attivo = False
+        self.coll.save(update_fields=["attivo"])
+        self.assertNotContains(self.client.get(reverse("assets:asset_view", args=[self.asset.pk])), "Stato della CNC")
+        self.assertIsNone(svc.per_scheda(self.asset.pk))
+
+    def test_durata(self):
+        self.assertEqual([svc._durata(timedelta(minutes=m)) for m in (7, 65, 60 * 26)], ["7 min", "1 h 05 min", "1 g 2 h"])
+
+
+class CategoriaMacchinaTests(TestCase):
+    """Un bene finito nella categoria padre «CNC» (tipo Altro) si sposta nelle Macchine CNC dalla scheda generica."""
+
+    def setUp(self):
+        from assets.models import AssetCategory
+
+        self.padre = AssetCategory.objects.create(code="cnc-sint", label="CNC", base_asset_type=Asset.TYPE_OTHER)
+        self.macchine = AssetCategory.objects.create(code="cnc-sint-macchine", label="Macchine CNC", parent=self.padre,
+                                                     base_asset_type=Asset.TYPE_WORK_MACHINE)
+        self.asset = Asset.objects.create(asset_tag="CNC-SINT-16", name="Fresa sintetica 16", asset_type=Asset.TYPE_OTHER,
+                                          asset_category=self.padre, status=Asset.STATUS_IN_USE)
+        admin = get_user_model().objects.create_superuser(username="adm_cat", email="c@a.it", password="x")
+        UserOnboarding.objects.create(user=admin, completed=True)
+        self.client.force_login(admin)
+
+    def test_categoria_macchine_solo_per_beni_esistenti(self):
+        from assets.forms import AssetForm
+
+        self.assertIn(self.macchine, AssetForm(instance=self.asset).fields["asset_category"].queryset)
+        self.assertNotIn(self.macchine, AssetForm().fields["asset_category"].queryset)
+
+    def test_diventa_macchina_di_lavoro_e_compare_tra_le_macchine_collegabili(self):
+        resp = self.client.post(reverse("assets:asset_edit", args=[self.asset.pk]), {
+            "asset_tag": self.asset.asset_tag, "name": self.asset.name, "asset_category": self.macchine.pk,
+            "reparto": "", "manufacturer": "", "model": "", "serial_number": "", "status": Asset.STATUS_IN_USE,
+            "assignment_to": "", "assignment_reparto": "", "assignment_location": "", "notes": "",
+        })
+        self.assertRedirects(resp, reverse("assets:work_machine_edit", args=[self.asset.pk]), fetch_redirect_response=False)
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.asset_type, self.asset.asset_category_id), (Asset.TYPE_WORK_MACHINE, self.macchine.pk))
+        self.assertEqual(self.client.get(reverse("assets:work_machine_edit", args=[self.asset.pk])).status_code, 200)
