@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_centro_report, views_ruoli
+from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_centro_report, views_postazioni, views_ruoli
 
 
 app_name = "admin_portale"
@@ -150,6 +150,8 @@ urlpatterns = [
     path("crea-release/api/terminal/", views.api_release_terminal_command, name="api_release_terminal_command"),
     # 2FA
     path("2fa/", views.twofa_config, name="twofa_config"),
+    path("postazioni-condivise/", views_postazioni.postazioni_condivise, name="postazioni_condivise"),
+    path("postazioni-condivise/azione/", views_postazioni.postazioni_condivise_azione, name="postazioni_condivise_azione"),
     path("api/2fa/policy/save", views.api_twofa_policy_save, name="api_twofa_policy_save"),
     path("api/2fa/utenti/<int:user_id>/toggle", views.api_twofa_user_toggle, name="api_twofa_user_toggle"),
     path("api/2fa/utenti/<int:user_id>/reset", views.api_twofa_user_reset, name="api_twofa_user_reset"),
