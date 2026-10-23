@@ -55,6 +55,39 @@ def run_it_monitoring_alerts() -> dict:
         raise
 
 
+def run_rete_windows_sync() -> dict:
+    """Task ``rete_windows_sync``: passa dal registro delle letture del SOC (storico ed «Esegui ora»)."""
+    try:
+        from security.services import letture
+    except ImportError:  # SOC non installato
+        return _rete_windows_sync()
+    return letture.esegui("rete_windows")
+
+
+def _rete_windows_sync() -> dict:
+    """Indirizzi IP dal DHCP e dal DNS di Windows Server (``assets.services.rete_windows``).
+
+    Senza server configurati non fa nulla (lettura «spenta»); gli errori di un server
+    (permessi, RSAT mancanti) finiscono nell'esito e nella pagina Indirizzi IP.
+    """
+    from assets.services import rete_windows
+
+    if not rete_windows.configurato():
+        return {"attivo": False, "skipped": "DHCP/DNS non configurati (RETE_DHCP_SERVERS / RETE_DNS_SERVER)"}
+    return rete_windows.sincronizza()
+
+
+def run_mtconnect_poll() -> dict:
+    """Stato delle macchine CNC dagli agent MTConnect (``assets.services.mtconnect``).
+
+    Senza collegamenti attivi non fa nulla; un agent che non risponde segna la sua
+    macchina «non raggiungibile» e il task prosegue con le altre.
+    """
+    from assets.services import mtconnect
+
+    return mtconnect.leggi_tutti()
+
+
 def run_intune_sync() -> dict:
     """Task ``intune_sync``: passa dal registro delle letture del SOC (storico ed «Esegui ora»)."""
     try:

@@ -4,6 +4,7 @@ from django.shortcuts import render
 from .models import BackupJobRecord
 from .permissions import can_view_security_center
 from .services import backup_center as svc
+from .services import veeam_api
 
 
 def _denied(request):
@@ -38,6 +39,7 @@ def backup_overview(request):
         "query": query,
         "solo_ko": solo_ko,
         "stale_days": svc.stale_days(),
+        "veeam": veeam_api.panel(),
     })
 
 

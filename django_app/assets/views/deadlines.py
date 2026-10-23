@@ -569,6 +569,15 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 for error in upload_errors:
                     messages.error(request, error)
                 return redirect(redirect_url)
+            # Serie inserita una riga per data: la voce eseguita si chiude e la serie
+            # prosegue con la riga successiva. Rinnovarla creerebbe un doppione.
+            next_in_series = (
+                deadline.series_siblings().filter(due_date__gt=deadline.due_date).order_by("due_date", "id").first()
+            )
+            if next_in_series is not None:
+                next_due_date = None
+            elif next_due_date is None:
+                next_due_date = deadline.next_due_after(completed_on)
             attachments_total = 0
             try:
                 with transaction.atomic():
@@ -624,6 +633,12 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 messages.success(
                     request,
                     f"Completamento registrato. Nuova scadenza fissata al {next_due_date:%d-%m-%Y}{attach_suffix}.",
+                )
+            elif next_in_series is not None:
+                messages.success(
+                    request,
+                    f"Completamento registrato il {completed_on:%d-%m-%Y}{attach_suffix}. "
+                    f"La serie prosegue con la scadenza del {next_in_series.due_date:%d-%m-%Y}.",
                 )
             else:
                 messages.success(

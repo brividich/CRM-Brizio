@@ -561,10 +561,12 @@ def _open_tickets_by_asset(asset_ids) -> dict[int, list[dict[str, object]]]:
     return result
 
 
-# Stato di ogni macchina sulla mappa officina, dal piu' grave: ticket aperti,
-# manutenzione scaduta, OdL aperti, manutenzione in scadenza, in riparazione.
-_PLANT_ALERT_LEVELS = ("ticket", "overdue", "workorder", "due_soon", "repair", "ok")
+# Stato di ogni macchina sulla mappa officina, dal piu' grave: allarme attivo sul
+# controllo (MTConnect), ticket aperti, manutenzione scaduta, OdL aperti, manutenzione in
+# scadenza, in riparazione.
+_PLANT_ALERT_LEVELS = ("alarm", "ticket", "overdue", "workorder", "due_soon", "repair", "ok")
 _PLANT_ALERT_LABELS = {
+    "alarm": "Allarme sulla CNC",
     "ticket": "Ticket aperto",
     "overdue": "Manutenzione scaduta",
     "workorder": "OdL aperto",
@@ -622,6 +624,8 @@ def _plant_layout_machine_alerts(assets, *, today=None) -> dict[int, dict[str, o
 
 
 def _plant_alert_level(alerts: dict[str, object], open_tickets: int) -> str:
+    if alerts.get("cnc_alarm"):
+        return "alarm"
     if open_tickets:
         return "ticket"
     if alerts.get("overdue"):
@@ -650,9 +654,15 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         row["id"] for row in machine_catalog if _clean_string(str(row.get("reparto") or "")) in area_repartos
     }
     ticket_map = _open_tickets_by_asset(shown_ids)
+    from ..services.mtconnect import per_mappa as _mtconnect_per_mappa
+
+    live_map = _mtconnect_per_mappa(shown_ids)
     for row in machine_catalog:
         info = alerts.get(row["id"], {})
         tickets = ticket_map.get(row["id"], [])
+        row["live"] = live_map.get(row["id"])
+        if row["live"] and row["live"]["stato"] == "allarme":
+            info = {**info, "cnc_alarm": True}
         row["alert"] = _plant_alert_level(info, len(tickets))
         row["alert_label"] = _PLANT_ALERT_LABELS[row["alert"]]
         row["tickets"] = tickets

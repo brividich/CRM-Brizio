@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 83
+**Totale automazioni disponibili:** 86
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -176,11 +176,23 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `assets.tasks.run_m365_licenze_sync`
 - **Cosa fa:** Microsoft 365 — abbonamenti (posti, stato, rinnovo) nel modulo Licenze software. Serve il permesso Graph Organization.Read.All (+ LicenseAssignment.Read.All per le date).
 
+### `mtconnect_poll`
+
+- **Quando gira:** ogni 2 minuti
+- **Task eseguito:** `assets.tasks.run_mtconnect_poll`
+- **Cosa fa:** Officina — stato reale delle CNC dagli agent MTConnect (solo lettura, rete interna): mappa officina, allarmi, ore e pezzi sui contatori. Senza collegamenti non fa nulla.
+
 ### `part145_scadenze`
 
 - **Quando gira:** ogni lun, alle 07:30
 - **Task eseguito:** `assets.tasks.run_part145_scadenze`
 - **Cosa fa:** ASSETS — PART 145: scadenze entro 90 giorni (contratto, processi, requisiti, tarature, certificazioni) a Qualità, destinatari MOD.128 mpq_msm_reminder_emails. Nessuna scadenza = nessuna mail. Disattivabile dalla Centrale di comando.
+
+### `rete_windows_sync`
+
+- **Quando gira:** ogni 60 minuti
+- **Task eseguito:** `assets.tasks.run_rete_windows_sync`
+- **Cosa fa:** Asset IT — indirizzi IP dal DHCP e dal DNS di Windows Server (PowerShell locale, moduli RSAT). Senza RETE_DHCP_SERVERS / RETE_DNS_SERVER nel .env non fa nulla.
 
 ## DPI · Sicurezza
 
@@ -425,6 +437,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 5 minuti
 - **Task eseguito:** `assenze.tasks.run_assenze_sharepoint_sync`
 - **Cosa fa:** ASSENZE — convivenza con la lista SharePoint: invia la coda delle modifiche locali e legge da SharePoint solo gli elementi cambiati (delta query). No-op se Graph non e' configurato.
+
+### `assenze_solleciti`
+
+- **Quando gira:** da lun a ven, alle 08:15
+- **Task eseguito:** `assenze.tasks.run_assenze_solleciti`
+- **Cosa fa:** ASSENZE — promemoria ai capi per le richieste ferme «In attesa» (una mail per capo). Soglie e interruttore in Assenze → HR → Impostazioni.
 
 ### `checklist_chiusura_reminders`
 

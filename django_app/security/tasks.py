@@ -154,6 +154,7 @@ def run_security_cycle_task():
         ("mailboxes", lambda: letture.esegui("caselle", rilancia=True)),
         ("defender", lambda: letture.esegui("defender_alert", rilancia=True)),
         ("entra", lambda: letture.esegui("entra", rilancia=True)),
+        ("veeam", lambda: letture.esegui("veeam", rilancia=True)),
         ("secure_score", lambda: letture.esegui("secure_score", rilancia=True)),
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
