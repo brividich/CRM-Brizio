@@ -45,6 +45,8 @@ CAMPI = ("url_api", "account_id", "access_id", "password", "api_key")
 SEGRETI = ("password", "api_key")
 # Solo gli host dell'API di WatchGuard Cloud: le credenziali non partono mai verso altri indirizzi.
 URL_API_RE = re.compile(r"^https://api\.[a-z0-9-]+\.cloud\.watchguard\.com$")
+# Managed Access mostra anche «API URL (base)» con /rest/ e l'URL di autenticazione con /oauth/token: si accettano.
+_URL_INCOLLATO_RE = re.compile(r"^(https://api\.[a-z0-9-]+\.cloud\.watchguard\.com)(/rest|/oauth/token)?/?$")
 ACCOUNT_RE = re.compile(r"^(ACC-\d+|WGC-\d-[0-9a-zA-Z]+)$")
 BASE = "/rest/endpoint-security/management/api/v1/accounts/{account}"
 TIMEOUT = 30
@@ -88,7 +90,7 @@ def riepilogo() -> dict:
 def valida(dati: dict) -> list[str]:
     errori = []
     if not URL_API_RE.match(dati.get("url_api", "")):
-        errori.append("URL API non valido: deve essere come https://api.deu.cloud.watchguard.com (pagina Managed Access).")
+        errori.append("URL API non valido: è l'«API URL (base)» di Managed Access, come https://api.deu.cloud.watchguard.com/rest/.")
     if not ACCOUNT_RE.match(dati.get("account_id", "")):
         errori.append("ID account non valido: è come ACC-1234567 o WGC-1-123abc456 (pagina My Account).")
     for campo, nome in (("access_id", "Access ID"), ("password", "password"), ("api_key", "API Key")):
@@ -103,7 +105,9 @@ def salva_credenziali(nuovi: dict, actor=None) -> list[str]:
 
     attuali = credenziali()
     dati = {campo: str(nuovi.get(campo) or "").strip()[:300] for campo in CAMPI}
-    dati["url_api"] = dati["url_api"].rstrip("/").lower()
+    url = dati["url_api"].lower()
+    trovato = _URL_INCOLLATO_RE.match(url)
+    dati["url_api"] = trovato.group(1) if trovato else url.rstrip("/")
     for campo in SEGRETI:
         dati[campo] = dati[campo] or attuali[campo]
     errori = valida(dati)
