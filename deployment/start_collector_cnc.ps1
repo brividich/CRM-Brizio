@@ -12,12 +12,11 @@
     il processo resta acceso senza leggere nessuna macchina.
     Il server deve raggiungere le macchine sulla porta OPC UA (di solito 4840).
 
-    Registrare in Task Scheduler con:
-      - Trigger: "All'avvio" (At startup)
-      - Azione: powershell.exe -NonInteractive -ExecutionPolicy Bypass
-                -File "C:\PortaleNovicrom\shared\scripts\start_collector_cnc.ps1"
-      - Flag: "Esegui indipendentemente dall'accesso utente"
-      - Account: lo stesso del qcluster
+    Il task \PortaleNovicrom\CollectorCnc_<ENV> si registra dal Setup Wizard
+    (Server Dashboard > Collector CNC > Installa task) oppure con
+    deployment\scripts\install-collector-cnc-task.ps1: trigger all'avvio, stesso account
+    del qcluster, esegue questo file dalla release attiva (current\deployment).
+    A ogni release nuova il collector esce da solo e questo launcher lo riavvia.
 
 .PARAMETER Environment
     Ambiente target: 'test' oppure 'prod' (default: 'prod').
