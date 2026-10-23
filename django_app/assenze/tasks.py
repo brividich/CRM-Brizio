@@ -50,3 +50,11 @@ def run_assenze_solleciti() -> dict:
     from assenze.solleciti import invia_solleciti
 
     return invia_solleciti()
+
+
+@system_job_run("assenze_outlook_sync")
+def run_assenze_outlook_sync() -> dict:
+    """Assenze approvate nel calendario Outlook del capo (Graph). No-op se spento."""
+    from assenze.outlook_sync import sincronizza
+
+    return sincronizza()

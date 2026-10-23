@@ -189,7 +189,12 @@ class PrestazioniRicercaTests(_Base):
         with mock.patch.object(glossario_rag, "token_aggiuntivi", side_effect=originale) as spia:
             ranked = services._select_chunk_indices(query, query_tokens, index)
             self.assertIs(services._load_knowledge_index(), index)  # indice dalla cache
-        self.assertEqual(spia.call_count, 0)
+        # Nessun chunk ritokenizzato in ricerca. Le uniche chiamate ammesse sono
+        # sulle parole chiave delle guide (filtro guide admin, testi brevi).
+        testi_chunk = {c.content for c in index.chunks} | {getattr(c, "title", "") for c in index.chunks}
+        testi_chunk.discard("")
+        ritokenizzati = [call.args[0] for call in spia.call_args_list if call.args and call.args[0] in testi_chunk]
+        self.assertEqual(ritokenizzati, [])
         self.assertTrue(index.chunks[ranked[0]].source.endswith("#lamatura"))
         services.clear_knowledge_cache()
 

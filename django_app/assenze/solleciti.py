@@ -91,6 +91,8 @@ def richieste_da_sollecitare(now=None, imp=None) -> list[dict]:
 
 
 def _corpo_mail(righe: list[dict]) -> tuple[str, str]:
+    from automazioni.calendario_outlook import evento_assenza, link_outlook
+
     from .views import _helpers
 
     base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
@@ -98,20 +100,25 @@ def _corpo_mail(righe: list[dict]) -> tuple[str, str]:
     voci = []
     for r in righe:
         tipo = _helpers._tipo_for_display(r.get("tipo_assenza"), r.get("motivazione_richiesta"))
+        nome = str(r.get("copia_nome") or "").upper()
+        ev = evento_assenza("assenze", {**r, "dipendente_nome": nome, "tipo_assenza": tipo})
         voci.append((
-            str(r.get("copia_nome") or "").upper(),
+            nome,
             tipo,
             f"{_helpers._dt_label(r.get('data_inizio'))} - {_helpers._dt_label(r.get('data_fine'))}",
             _helpers._dt_label(r.get("created_datetime")),
+            link_outlook(ev) if ev else "",
         ))
     righe_html = "".join(
         '<tr>'
         f'<td style="padding:6px 10px 6px 0;color:#0f172a;font-weight:600;">{escape(nome)}</td>'
         f'<td style="padding:6px 10px;color:#334155;">{escape(tipo)}</td>'
         f'<td style="padding:6px 10px;color:#334155;">{escape(periodo)}</td>'
-        f'<td style="padding:6px 0 6px 10px;color:#64748b;">{escape(creata)}</td>'
-        '</tr>'
-        for nome, tipo, periodo, creata in voci
+        f'<td style="padding:6px 10px;color:#64748b;">{escape(creata)}</td>'
+        f'<td style="padding:6px 0 6px 10px;">'
+        + (f'<a href="{escape(outlook)}" style="color:#0f6cbd;font-weight:700;">Aggiungi a Outlook</a>' if outlook else "")
+        + '</td></tr>'
+        for nome, tipo, periodo, creata, outlook in voci
     )
     body_content = (
         '<p style="color:#334155;line-height:1.6;margin:0 0 14px;">'
@@ -121,7 +128,8 @@ def _corpo_mail(righe: list[dict]) -> tuple[str, str]:
         '<tr><th align="left" style="padding:0 10px 6px 0;color:#64748b;">Dipendente</th>'
         '<th align="left" style="padding:0 10px 6px;color:#64748b;">Tipo</th>'
         '<th align="left" style="padding:0 10px 6px;color:#64748b;">Periodo</th>'
-        '<th align="left" style="padding:0 0 6px 10px;color:#64748b;">Inviata il</th></tr>'
+        '<th align="left" style="padding:0 10px 6px;color:#64748b;">Inviata il</th>'
+        '<th align="left" style="padding:0 0 6px 10px;color:#64748b;">Calendario</th></tr>'
         f"{righe_html}</table>"
         f'<p style="margin:0;"><a href="{escape(link)}" style="color:#0f766e;font-weight:700;">'
         "Apri «Assenze del reparto» per approvare o rifiutare</a></p>"
@@ -141,7 +149,7 @@ def _corpo_mail(righe: list[dict]) -> tuple[str, str]:
     )
     testo = "\n".join(
         ["Richieste di assenza che aspettano la tua decisione:", ""]
-        + [f"- {n} | {t} | {p} | inviata il {c}" for n, t, p, c in voci]
+        + [f"- {n} | {t} | {p} | inviata il {c}" + (f" | Outlook: {o}" if o else "") for n, t, p, c, o in voci]
         + ["", f"Apri: {link}", "", "Messaggio automatico generato da NOVICROM HUB."]
     )
     return html, testo

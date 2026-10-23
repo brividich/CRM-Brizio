@@ -301,6 +301,10 @@ class AssenzeImpostazioniHR(models.Model):
     sollecito_ripeti_giorni = models.PositiveSmallIntegerField(
         default=2, verbose_name="Ripeti il sollecito ogni (giorni)",
     )
+    outlook_capo_attivo = models.BooleanField(
+        default=False, verbose_name="Assenze approvate nel calendario Outlook del capo",
+        help_text="Serve il permesso applicativo Calendars.ReadWrite di Microsoft Graph.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.CharField(max_length=200, blank=True, default="")
 
@@ -477,3 +481,37 @@ class AssenzaSollecito(models.Model):
 
     def __str__(self):
         return f"assenza {self.assenza_id}: {self.invii} solleciti"
+
+
+class AssenzaOutlook(models.Model):
+    """Evento creato via Graph nel calendario Outlook del capo per un'assenza approvata."""
+
+    assenza_id = models.IntegerField(unique=True)
+    email = models.CharField(max_length=200, blank=True, default="")
+    event_id = models.CharField(max_length=512, blank=True, default="")
+    impronta = models.CharField(max_length=64, blank=True, default="")
+    rimosso_da_utente = models.BooleanField(default=False)
+    ultimo_errore = models.CharField(max_length=500, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Assenza nel calendario Outlook"
+        verbose_name_plural = "Assenze nel calendario Outlook"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id} → {self.email or '?'}"
+
+
+class CalendarioOutlookCapo(models.Model):
+    """Id del calendario «Assenze del team (NOVICROM HUB)» nella casella di un capo."""
+
+    email = models.CharField(max_length=200, unique=True)
+    calendario_id = models.CharField(max_length=512, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Calendario Outlook del capo"
+        verbose_name_plural = "Calendari Outlook dei capi"
+
+    def __str__(self):
+        return self.email
