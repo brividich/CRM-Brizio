@@ -29,6 +29,19 @@ class ClientIpTests(SimpleTestCase):
         request = self.factory.get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="6.6.6.6, 10.1.2.3")
         self.assertEqual(client_ip(request), "10.1.2.3")
 
+    @override_settings(TRUSTED_PROXY_IPS={"127.0.0.1", "::1"})
+    def test_port_added_by_iis_is_stripped(self):
+        # HttpPlatformHandler scrive il proprio hop come ip:porta.
+        request = self.factory.get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="10.1.2.3:51234")
+        self.assertEqual(client_ip(request), "10.1.2.3")
+        request = self.factory.get("/", REMOTE_ADDR="::1", HTTP_X_FORWARDED_FOR="[fe80::1]:443")
+        self.assertEqual(client_ip(request), "fe80::1")
+        request = self.factory.get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="fe80::1")
+        self.assertEqual(client_ip(request), "fe80::1")
+        # Spoof a sinistra con porta: vince comunque l'hop aggiunto da IIS.
+        request = self.factory.get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="6.6.6.6:1, 10.1.2.3:51234")
+        self.assertEqual(client_ip(request), "10.1.2.3")
+
 
 class JsJsonFilterTests(SimpleTestCase):
     def test_script_breakout_is_neutralized(self):
