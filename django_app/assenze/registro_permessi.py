@@ -25,6 +25,13 @@ registra_modulo(ModuloPermessi(
     area="Persone",
     app="assenze",
     moduli_acl=("assenze",),
+    # Pagine personali: «Le mie assenze» ha un permesso suo (core 0094), il modulo di
+    # richiesta è un'azione di chi crea, il controllo corsi lo usa il modulo di richiesta.
+    capacita_forzate=(
+        ("assenze.mie_richieste.view", "lettura"),
+        ("assenze.assenze_richiesta.view", "modifica"),
+        ("assenze.assenze_check.manage", "lettura"),
+    ),
     proprietario=proprietario_assenza,
     domini_ai=("absence",),
 ))

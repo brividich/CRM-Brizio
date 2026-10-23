@@ -12,5 +12,8 @@ registra_modulo(ModuloPermessi(
     area='Persone',
     app='notizie',
     moduli_acl=('notizie',),
+    # Elenco, dettaglio, allegati e presa visione stanno sotto un permesso solo: la
+    # conferma di lettura lo faceva sembrare «modifica» e il ruolo base non lo riceveva.
+    capacita_forzate=(('legacy.notizie.notizie_lista', 'lettura'),),
     domini_ai=('notizie',),
 ))

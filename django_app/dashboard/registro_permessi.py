@@ -11,5 +11,5 @@ registra_modulo(ModuloPermessi(
     descrizione='Login, home, bacheca, profilo, preferenze, rubrica e organigramma: dotazione base di ogni ruolo.',
     area='Piattaforma',
     app='dashboard',
-    moduli_acl=('login', 'logout', 'dashboard', 'core', 'preferenze', 'profilo', 'notifiche', 'rubrica', 'organigramma', 'richieste', 'hub_preview', 'cambia_password'),
+    moduli_acl=('login', 'logout', 'dashboard', 'core', 'preferenze', 'profilo', 'notifiche', 'rubrica', 'organigramma', 'richieste', 'hub_preview', 'cambia_password', 'home_portale'),
 ))
