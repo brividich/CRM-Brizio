@@ -42,7 +42,7 @@ COOKIE_SALT = "core.dispositivi"
 COOKIE_ANNI = 2
 EVENTO_NUOVO = "accesso_nuovo_dispositivo"
 EVENTO_NON_RICONOSCIUTO = "accesso_non_riconosciuto"
-FONTE_SOC = "Portale · accessi"
+FONTE_SOC = "Portale · accessi"  # = core.eventi_sicurezza.FONTE_SOC
 FIDUCIA_2FA_GIORNI = 90
 _SESSIONE_FIDATO = "twofa_dispositivo_fidato"
 
@@ -208,22 +208,12 @@ def _mail(user, testo: str) -> None:
 
 
 def evento_soc(tipo: str, user, disp) -> None:
-    """Evento nel SOC (sorgente «Portale · accessi»). Fallisce in silenzio se il SOC non c'è."""
-    try:
-        from security.models import SecurityEventRecord, SecuritySource, Severity, SourceType
-        from security.services.dedup import make_hash
-    except Exception:  # noqa: BLE001
-        return
-    fonte, _ = SecuritySource.objects.get_or_create(name=FONTE_SOC, defaults={"source_type": SourceType.API, "vendor": "novicrom"})
-    dedup = make_hash(fonte.pk, tipo, user.pk, disp.pk)
-    if SecurityEventRecord.objects.filter(source=fonte, event_type=tipo, dedup_hash=dedup).exists():
-        return
-    SecurityEventRecord.objects.create(
-        source=fonte, event_type=tipo, occurred_at=timezone.now(), fingerprint=dedup, dedup_hash=dedup,
-        severity=Severity.HIGH if tipo == EVENTO_NON_RICONOSCIUTO else Severity.INFO,
-        payload={"utente": user.get_username(), "dispositivo": disp.etichetta, "ip": disp.ip_ultimo or disp.ip_primo,
-                 "primo_accesso": disp.primo_accesso.isoformat(), "alert_candidate": tipo == EVENTO_NON_RICONOSCIUTO},
-    )
+    """Evento nel SOC (canale unico ``core.eventi_sicurezza``): uno per persona e dispositivo."""
+    from core.eventi_sicurezza import segnala
+
+    segnala(tipo, utente=user, chiave=(user.pk, disp.pk), una_volta=True,
+            extra={"dispositivo": disp.etichetta, "ip": disp.ip_ultimo or disp.ip_primo,
+                   "primo_accesso": disp.primo_accesso.isoformat()})
 
 
 def non_ero_io(request, disp) -> None:
@@ -237,13 +227,7 @@ def non_ero_io(request, disp) -> None:
     disp.non_riconosciuto = True
     disp.segnalato_il = timezone.now()
     disp.save(update_fields=["non_riconosciuto", "segnalato_il"])
-    evento_soc(EVENTO_NON_RICONOSCIUTO, request.user, disp)
-    try:
-        from security.services.rule_engine import evaluate_security_rules
-
-        evaluate_security_rules()
-    except Exception:  # noqa: BLE001
-        logger.exception("Dispositivo non riconosciuto: valutazione SOC non riuscita")
+    evento_soc(EVENTO_NON_RICONOSCIUTO, request.user, disp)  # valutato subito: l'alert si apre ora
     log_action(request, "accesso_non_riconosciuto", "core",
                {"dispositivo": disp.etichetta, "ip": disp.ip_ultimo, "dispositivo_id": disp.pk})
 

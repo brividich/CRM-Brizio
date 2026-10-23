@@ -20,7 +20,8 @@
 
 {% block content %}
   {% url 'admin_portale:postazioni_condivise' as pagina_url %}
-  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ogni PC ha i suoi operatori, che entrano con nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" %}
+  {% url 'admin_portale:postazioni_registro' as registro_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ogni PC ha i suoi operatori, che entrano con nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" page_secondary_action_label="Registro d'uso" page_secondary_action_url=registro_url %}
 
   {% if mostra_guida %}
   <div class="card pc-guida" style="max-width:1280px;margin-bottom:20px;">
@@ -35,6 +36,7 @@
         <li>La sessione resta legata al PC: se arriva da un altro indirizzo si chiude e resta traccia nell'audit («postazione_altro_pc»).</li>
         <li>Con il PIN giusto la sessione è dell'operatore: permessi, audit e firme sono i suoi. «Cambio operatore», «Esci» o l'inattività riportano a «Chi sei?»; solo «Chiudi la postazione» chiude la sessione dell'account.</li>
         <li>Dopo {{ max_tentativi }} PIN sbagliati il PIN si blocca e la persona riceve una mail. «Azzera PIN» lo cancella: la persona ne imposta uno nuovo con la propria password.</li>
+        <li>«Registro d'uso» (in alto o «Registro» sulla riga): chi ha usato quale PC e quando, come è uscito, PIN sbagliati e bloccati, con «Scarica Excel». PIN bloccati e sessioni da un altro PC arrivano anche al SOC.</li>
         <li>Amministratori e superuser non compaiono mai fra gli operatori: entrano solo con le loro credenziali. Il 2FA dell'operatore segue la policy, come a un login normale.</li>
       </ol>
     </div>
@@ -64,6 +66,7 @@
                     <div class="pc-azioni">
                       <a class="btn btn-sm" href="?operatori={{ r.p.pk }}#operatori">Operatori del PC</a>
                       <a class="btn btn-sm" href="?modifica={{ r.p.pk }}#modulo">Modifica</a>
+                      <a class="btn btn-sm" href="{{ registro_url }}?postazione={{ r.p.pk }}">Registro</a>
                       <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}" class="inline-form">
                         {% csrf_token %}
                         <input type="hidden" name="azione" value="elimina">

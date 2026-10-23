@@ -39,6 +39,23 @@ def evaluate_security_rules():
     return evaluated
 
 
+def evaluate_event(event):
+    """Valuta subito un solo evento appena creato (es. ``core.eventi_sicurezza.segnala``).
+
+    Stesse regole e stesso isolamento del giro completo, senza scorrere gli altri
+    eventi in attesa. Un evento già deciso non si rivaluta.
+    """
+    if event.decision_trace:
+        return False
+    try:
+        with transaction.atomic():
+            _evaluate_event(event)
+    except Exception as exc:  # noqa: BLE001 - come nel giro completo
+        logger.exception("Valutazione regole fallita sull'evento %s (%s)", event.pk, event.event_type)
+        _mark_evaluation_error(event, exc)
+    return True
+
+
 def _mark_evaluation_error(event, exc):
     trace = {
         "decision": EVALUATION_ERROR,
@@ -58,6 +75,8 @@ def _evaluate_event(event):
         _mark_suppressed(event, suppression)
         return
     handler = _HANDLERS.get(event.event_type)
+    if handler is None and (event.payload or {}).get("evento_portale"):
+        handler = _evaluate_evento_portale
     if handler:
         handler(event)
     else:
@@ -487,6 +506,26 @@ def _evaluate_accesso_non_riconosciuto(event):
              "utente": payload.get("utente"), "dispositivo": payload.get("dispositivo"), "ip": payload.get("ip")}
     _alert_da_evento(event, f"Accesso al portale non riconosciuto: {payload.get('utente')} da {payload.get('dispositivo')} "
                             f"({payload.get('ip')})", Severity.HIGH, trace)
+
+
+def _evaluate_evento_portale(event):
+    """Evento del catalogo ``core.eventi_sicurezza``: alert se il tipo lo prevede e l'interruttore è acceso."""
+    from core.eventi_sicurezza import TIPI, chiave_interruttore
+
+    payload = event.payload or {}
+    tipo = TIPI.get(event.event_type)
+    if tipo is None or not tipo.alert:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Evento del portale senza alert previsto"}
+        event.save(update_fields=["decision_trace"])
+        return
+    if tipo.interruttore and not soc_settings_value(chiave_interruttore(tipo.codice)):
+        event.decision_trace = {"decision": "kpi_only",
+                                "reason": "Alert spento in /soc/impostazioni/ (Eventi di sicurezza del portale)"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {"decision": "alert", "rule": f"Portale: {tipo.etichetta} => alert",
+             "utente": payload.get("utente"), "ip": payload.get("ip"), "dettaglio": payload.get("dettaglio")}
+    _alert_da_evento(event, payload.get("titolo") or tipo.etichetta, event.severity, trace)
 
 
 def _evaluate_m365_account_cessato(event):
