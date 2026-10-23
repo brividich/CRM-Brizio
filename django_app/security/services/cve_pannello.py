@@ -2,8 +2,11 @@
 
 Legge solo i calcoli d'impatto già fatti (``SecurityCveImpact``), mai l'NVD in diretta.
 Esiti mostrati: «Colpisce» (versione nel range, CPE confermato) e «Da verificare»;
-«Non impatta» non entra nel pannello. Le CVE sono in ordine di pericolo:
-sfruttate attivamente (CISA KEV), poi CVSS, poi le più recenti.
+«Non impatta» non entra nel pannello. Le CVE sono in ordine di priorità (``priorita``: sfruttate
+attivamente secondo CISA KEV o probabili secondo EPSS prima, poi CVSS).
+
+Accanto al calcolo del SOC: le patch WatchGuard che correggono la CVE (``WatchGuardPatch``, API
+WatchGuard) e il confronto con le CVE che vede Defender (``DefenderVulnerabilita``).
 
 Le CVE chiuse su un PC (programma aggiornato o disinstallato) arrivano da ``SecurityCveRisoluzione``,
 scritta dal ricalcolo: si mostrano gli ultimi ``GIORNI_RISOLTE`` giorni.
@@ -22,6 +25,10 @@ from security.services.cve_impact import _range_text
 ESITI = (SecurityCveImpact.IMPACTS, SecurityCveImpact.TO_VERIFY)
 NVD_URL = "https://nvd.nist.gov/vuln/detail/{}"
 GIORNI_RISOLTE = 90
+# EPSS = probabilità che la CVE venga sfruttata nei prossimi 30 giorni (FIRST.org).
+EPSS_SUBITO = 0.10
+EPSS_PRESTO = 0.01
+_RANGO = {"subito": 0, "presto": 1, "normale": 2}
 
 
 def _risolte(qs, giorni=GIORNI_RISOLTE):
@@ -55,9 +62,34 @@ def gravita(record):
     return "low", "Bassa"
 
 
+def priorita(record):
+    """(codice, etichetta, motivo): «subito» = sfruttata (KEV) o EPSS ≥ 10%; «presto» = CVSS ≥ 9, o CVSS ≥ 7 con EPSS ≥ 1%."""
+    epss, cvss = record.epss or 0, record.cvss
+    if record.kev:
+        return "subito", "Subito", "sfruttata attivamente (CISA KEV)"
+    if epss >= EPSS_SUBITO:
+        return "subito", "Subito", f"probabilità di attacco alta (EPSS {epss:.0%} nei prossimi 30 giorni)"
+    if cvss is not None and cvss >= 9:
+        return "presto", "Presto", "CVSS 9 o più"
+    if cvss is not None and cvss >= 7 and epss >= EPSS_PRESTO:
+        return "presto", "Presto", f"CVSS {cvss:.1f} e probabilità di attacco {epss:.0%}"
+    return "normale", "Normale", ""
+
+
 def _ordine(riga):
     rec = riga["record"]
-    return (riga["esito"] != SecurityCveImpact.IMPACTS, not rec.kev, -(rec.cvss if rec.cvss is not None else -1), rec.cve_id)
+    return (riga["esito"] != SecurityCveImpact.IMPACTS, _RANGO[riga["priorita"]], -(rec.cvss if rec.cvss is not None else -1),
+            rec.cve_id)
+
+
+def _patch(cve_ids, hosts):
+    """{(cve, host): patch WatchGuard aperta}; vuoto se l'API WatchGuard non è usata."""
+    try:
+        from security.services.watchguard_api import patch_aperte_per_cve
+
+        return patch_aperte_per_cve(cve_ids, hosts)
+    except Exception:  # noqa: BLE001 - il pannello non deve rompersi per le patch
+        return {}
 
 
 def correzione(record):
@@ -83,10 +115,13 @@ def _righe(impatti):
                 g["versioni"].add(imp.installation.version_raw)
         else:
             g["da_verificare"].add(imp.host)
+    patch = _patch({r.cve_id for r in records.values()}, {h for g in per_cve.values() for h in g["colpiti"] | g["da_verificare"]})
     out = []
     for cve_pk, g in per_cve.items():
         rec = records[cve_pk]
         tono, etichetta = gravita(rec)
+        prio, prio_label, prio_motivo = priorita(rec)
+        con_patch = [h for h in g["colpiti"] | g["da_verificare"] if (rec.cve_id, h) in patch]
         out.append({
             "record": rec,
             "esito": SecurityCveImpact.IMPACTS if g["colpiti"] else SecurityCveImpact.TO_VERIFY,
@@ -96,6 +131,11 @@ def _righe(impatti):
             "tono": tono,
             "gravita": etichetta,
             "correzione": correzione(rec),
+            "priorita": prio,
+            "priorita_label": prio_label,
+            "priorita_motivo": prio_motivo,
+            "pc_con_patch": len(con_patch),
+            "patch": patch.get((rec.cve_id, con_patch[0])) if con_patch else None,
         })
     out.sort(key=_ordine)
     return out
@@ -108,6 +148,7 @@ def _riepilogo(righe):
         "da_verificare": [r for r in righe if r["esito"] != SecurityCveImpact.IMPACTS],
         "gravi": sum(1 for r in colpiscono if r["tono"] == "critical"),
         "kev": sum(1 for r in colpiscono if r["record"].kev),
+        "subito": sum(1 for r in colpiscono if r["priorita"] == "subito"),
     }
 
 
@@ -159,7 +200,19 @@ def per_asset(asset):
     tutte = _riepilogo(_righe(impatti))
     risolte = _risolte(SecurityCveRisoluzione.objects.filter(hub_asset=asset))
     return {"software": software, "colpiscono": len(tutte["colpiscono"]), "da_verificare": len(tutte["da_verificare"]),
-            "gravi": tutte["gravi"], "kev": tutte["kev"], **_conta_risolte(risolte)}
+            "gravi": tutte["gravi"], "kev": tutte["kev"], "subito": tutte["subito"], **_conta_risolte(risolte),
+            "defender": _defender_asset(asset, {i.cve.cve_id for i in impatti})}
+
+
+def _defender_asset(asset, nostre):
+    from security.models import SoftwareInstallation
+    from security.services import defender_vuln
+
+    host = SoftwareInstallation.objects.filter(hub_asset=asset, still_detected=True).values_list("host", flat=True).first()
+    try:
+        return defender_vuln.confronto_asset(host or "", nostre)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _perche(testo):
@@ -175,6 +228,7 @@ def dettaglio(cve_id, *, key="", asset=None):
         return None
     impatti = list(record.impacts.filter(outcome__in=ESITI).select_related("installation", "hub_asset").order_by("outcome", "host"))
     tono, etichetta = gravita(record)
+    patch = _patch({record.cve_id}, {i.host for i in impatti})
     pc = [{
         "host": i.host,
         "asset": i.hub_asset,
@@ -183,7 +237,19 @@ def dettaglio(cve_id, *, key="", asset=None):
         "aperta_dal": i.aperta_dal,
         "spiegazione": _perche(i.explanation),
         "questo": bool(asset is not None and i.hub_asset_id == asset.pk),
+        "patch": patch.get((record.cve_id, i.host)),
+        "defender": None,
     } for i in impatti]
+    from security.services import defender_vuln
+
+    try:
+        defender = defender_vuln.confronto_cve(record.cve_id, {i.host for i in impatti if i.outcome == SecurityCveImpact.IMPACTS})
+    except Exception:  # noqa: BLE001
+        defender = None
+    if defender:
+        for r in pc:
+            r["defender"] = r["host"] in defender["defender"]
+    prio, prio_label, prio_motivo = priorita(record)
     pc.sort(key=lambda r: (not r["questo"], r["esito"] != SecurityCveImpact.IMPACTS, r["host"].lower()))
     ranges = []
     for c in record.configurations or []:
@@ -204,5 +270,10 @@ def dettaglio(cve_id, *, key="", asset=None):
         "colpiti": sum(1 for r in pc if r["esito"] == SecurityCveImpact.IMPACTS),
         "da_verificare": sum(1 for r in pc if r["esito"] != SecurityCveImpact.IMPACTS),
         "nvd_url": NVD_URL.format(record.cve_id),
+        "priorita": prio,
+        "priorita_label": prio_label,
+        "priorita_motivo": prio_motivo,
+        "pc_con_patch": sum(1 for r in pc if r["patch"]),
+        "defender": defender,
         **_conta_risolte(_risolte(record.risoluzioni.all())),
     }

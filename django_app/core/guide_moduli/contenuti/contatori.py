@@ -45,6 +45,18 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "stampanti-avvisi",
+            "titolo": "Una stampante: avvisi, cassetti e quando finisce il toner",
+            "blocchi": [
+                ("passi", [
+                    "Apri la scheda della MFC (o la stampante dal Monitor SNMP): il pannello è lo stesso.",
+                    "«La stampante adesso» dice lo stato, cosa c'è scritto sul display e cosa va sistemato (carta inceppata, sportello aperto, cassetto vuoto).",
+                    "«Registro avvisi» elenca gli avvisi con quando sono comparsi, quando sono spariti e quanto sono durati.",
+                    "Sotto ogni toner «Finisce verso il» dice la data prevista di esaurimento, calcolata sul consumo dall'ultima sostituzione.",
+                ]),
+            ],
+        },
     ],
     "admin": [
         {
@@ -86,6 +98,16 @@ GUIDA = {
                 "009 SNMPv3: apparato raggiungibile ma credenziali scartate (protocollo o chiave di cifratura), 010 nessuna risposta SNMPv3 (rete, firewall, SNMPv3 non attivo).",
                 "Per 003: controlla che l'apparato sia acceso e raggiungibile (ping) e che la community sia quella giusta.",
                 "Per 007: sull'apparato va autorizzato l'indirizzo del server del portale come gestore SNMP.",
+            ],
+        },
+        {
+            "sintomo": "La scheda dello switch non dice chi è collegato alle porte",
+            "perche": "la tabella MAC si legge ogni notte alle 05:30 solo dagli apparati di categoria «Rete» attivi e raggiungibili.",
+            "fare": [
+                "Controlla che lo switch sia di categoria «Rete» e risponda via SNMP.",
+                "L'interruttore è nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch». A mano: manage.py soc_api_sync --solo switch.",
+                "Un PC «non riconosciuto» ha un MAC che il portale non conosce: arriva da Intune, da WatchGuard o dal punto rete dell'asset.",
+                "Gli switch Cisco con tabella MAC separata per VLAN (community@vlan) non sono coperti.",
             ],
         },
         {

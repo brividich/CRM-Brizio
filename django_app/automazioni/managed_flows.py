@@ -101,6 +101,8 @@ def run_managed_flow(code, *, queue_limit=None):
     if not spec or spec["kind"] != "schedule":
         raise ValueError("Flusso pianificato sconosciuto.")
     native_kwargs = dict(spec.get("kwargs", {}))
+    # q_options è per django-q (timeout del task), non per la funzione nativa.
+    native_kwargs.pop("q_options", None)
     if queue_limit is not None:
         if code != "automation_queue":
             raise ValueError("Il limite eventi si applica solo al processore della coda.")

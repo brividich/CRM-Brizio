@@ -269,8 +269,7 @@ class ITMonitoringTests(TestCase):
         with patch("contatori.tasks.async_task"):
             self.client.post(action, {"asset_inline": "1"})
         with patch.object(cont_services, "leggi_consumabili_macchina", return_value=(None, "PRIVATE-NETWORK-ERROR")):
-            with self.assertRaises(RuntimeError):
-                cont_tasks.leggi_consumabili(machine.pk)
+            self.assertTrue(cont_tasks.leggi_consumabili(machine.pk)["non_raggiungibile"])
         status = self.client.get(reverse("contatori:macchina_consumabili", args=[machine.pk]) + "?vista=asset")
         self.assertContains(status, "Lettura non riuscita")
         self.assertNotContains(status, "PRIVATE-NETWORK-ERROR")

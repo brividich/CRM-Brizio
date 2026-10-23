@@ -15,5 +15,12 @@
 {% empty %}
   <p class="cvp-empty">Nessuna CVE nota colpisce i software di questo PC secondo l'ultimo calcolo.</p>
 {% endfor %}
+{% if dati.defender %}
+  <details class="cvp-more"><summary>Confronto con Defender · {{ dati.defender.comuni }} in comune{% if dati.defender.solo_soc %} · {{ dati.defender.solo_soc|length }} solo SOC{% endif %}{% if dati.defender.solo_defender_n %} · {{ dati.defender.solo_defender_n }} solo Defender{% endif %}</summary>
+    <p class="cvp-note">Defender calcola le vulnerabilità per conto suo. Dove i due elenchi non coincidono la CVE va guardata: «solo SOC» = Defender non la segnala (versione o CPE da controllare); «solo Defender» = il SOC non la vede (programma fuori inventario o senza CPE).</p>
+    {% if dati.defender.solo_soc %}<p class="cvp-note"><strong>Solo SOC:</strong> {% for c in dati.defender.solo_soc|slice:":20" %}<a href="{% url 'security:cve_pannello_cve' c %}?asset={{ asset.pk }}" data-drawer-load>{{ c }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+    {% if dati.defender.solo_defender %}<p class="cvp-note"><strong>Solo Defender:</strong> {{ dati.defender.solo_defender|join:", " }}{% if dati.defender.solo_defender_n > dati.defender.solo_defender|length %} e altre{% endif %}</p>{% endif %}
+  </details>
+{% endif %}
 {% include "security/partials/cve_pannello_risolte.html" with d=dati mostra_cve=True asset_q=asset.pk %}
 <footer class="pv-foot"><a class="cvp-btn" href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></footer>

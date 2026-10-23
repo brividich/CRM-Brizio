@@ -1580,3 +1580,143 @@ class SecurityCveRisoluzione(models.Model):
     @property
     def correzione(self):
         return self.come in self.CORREZIONI
+
+
+class WatchGuardDispositivo(models.Model):
+    """Un PC visto da WatchGuard Endpoint Security (API): gestito (con agente) o trovato in rete senza agente.
+
+    Scritto da ``services.watchguard_api``: ``devices`` + ``devicesprotectionstatus`` per i gestiti,
+    ``unmanageddevices`` per quelli senza agente (``gestito=False``). ``presente`` diventa False quando
+    il PC non compare più nell'ultima lettura.
+    """
+
+    # Stati di protezione dell'API (accumulated_protection_status).
+    PROTEZIONE = {0: "Senza protezione", 1: "Attiva", 2: "Disattivata", 3: "In errore", 4: "Errore di installazione",
+                  5: "Senza licenza", 6: "Non disponibile"}
+
+    device_id = models.CharField(max_length=120, unique=True)
+    gestito = models.BooleanField(default=True, db_index=True)
+    host = models.CharField(max_length=255, db_index=True, help_text="Nome normalizzato (minuscolo, senza dominio).")
+    host_display = models.CharField(max_length=255, blank=True, default="")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="watchguard_dispositivi")
+    ip = models.CharField(max_length=64, blank=True, default="")
+    mac = models.CharField(max_length=400, blank=True, default="", help_text="MAC normalizzati separati da spazio.")
+    sistema = models.CharField(max_length=200, blank=True, default="")
+    agente = models.CharField(max_length=60, blank=True, default="")
+    protezione = models.PositiveSmallIntegerField(null=True, blank=True)
+    motore_aggiornato = models.BooleanField(null=True, blank=True)
+    riavvio_richiesto = models.BooleanField(default=False)
+    isolato = models.BooleanField(default=False)
+    ultima_connessione = models.DateTimeField(null=True, blank=True)
+    # Solo per i non gestiti: chi l'ha visto in rete e la scheda di rete.
+    sonda = models.CharField(max_length=255, blank=True, default="")
+    produttore_scheda = models.CharField(max_length=255, blank=True, default="")
+    presente = models.BooleanField(default=True, db_index=True)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["host"]
+
+    def __str__(self):
+        return self.host_display or self.host
+
+    @property
+    def protezione_label(self):
+        return self.PROTEZIONE.get(self.protezione, "Sconosciuta")
+
+    @property
+    def protetto(self):
+        return self.protezione == 1 and self.motore_aggiornato is not False
+
+    @property
+    def mac_lista(self):
+        return [m for m in self.mac.split() if m]
+
+
+class WatchGuardPatch(models.Model):
+    """Patch pubblicata e non ancora installata su un PC (WatchGuard Patch Management, ``patchavailability``).
+
+    Quando la patch non compare più nella lettura diventa ``presente=False`` con ``chiusa_il``: installata
+    o non più necessaria. ``esito`` arriva dai task di installazione (``tasks`` di tipo 6).
+    """
+
+    CRITICITA = {101: "Altro", 201: "Critica", 202: "Importante", 203: "Moderata", 204: "Bassa", 205: "Non specificata",
+                 301: "Service pack"}
+    DISPONIBILITA = {1: "Da installare", 2: "Da aggiungere al repository", 3: "Nel repository", 4: "Attende il riavvio"}
+    ESITI = {1: "Installata", 2: "Attende il riavvio", 3: "Errore di download", 4: "Errore di installazione",
+             5: "Era già installata", 6: "Disinstallata", 7: "Errore di disinstallazione", 8: "Errore di download manuale"}
+    ESITI_ERRORE = (3, 4, 7, 8)
+
+    device_id = models.CharField(max_length=120, db_index=True)
+    patch_id = models.CharField(max_length=120)
+    host = models.CharField(max_length=255, db_index=True)
+    host_display = models.CharField(max_length=255, blank=True, default="")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="watchguard_patch")
+    nome = models.CharField(max_length=500)
+    programma = models.CharField(max_length=255, blank=True, default="")
+    versione = models.CharField(max_length=120, blank=True, default="")
+    produttore = models.CharField(max_length=255, blank=True, default="")
+    rilasciata_il = models.DateField(null=True, blank=True)
+    criticita = models.PositiveSmallIntegerField(null=True, blank=True)
+    di_sistema = models.BooleanField(default=False)
+    disponibilita = models.PositiveSmallIntegerField(null=True, blank=True)
+    cve = models.TextField(blank=True, default="", help_text="CVE della patch come «|CVE-1|CVE-2|» (ricerca con contains).")
+    esito = models.PositiveSmallIntegerField(null=True, blank=True)
+    esito_il = models.DateTimeField(null=True, blank=True)
+    presente = models.BooleanField(default=True, db_index=True)
+    vista_il = models.DateTimeField(default=timezone.now)
+    chiusa_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["host", "nome"]
+        constraints = [models.UniqueConstraint(fields=["device_id", "patch_id"], name="sec_wg_patch_uniq")]
+
+    def __str__(self):
+        return f"{self.host}: {self.nome}"
+
+    @property
+    def criticita_label(self):
+        return self.CRITICITA.get(self.criticita, "")
+
+    @property
+    def disponibilita_label(self):
+        return self.DISPONIBILITA.get(self.disponibilita, "")
+
+    @property
+    def esito_label(self):
+        return self.ESITI.get(self.esito, "")
+
+    @property
+    def esito_errore(self):
+        return self.esito in self.ESITI_ERRORE
+
+    @property
+    def cve_lista(self):
+        return [c for c in self.cve.split("|") if c]
+
+
+class DefenderVulnerabilita(models.Model):
+    """CVE che Microsoft Defender vede su un PC (``vulnerabilities/machinesVulnerabilities``).
+
+    Serve da confronto con il calcolo del SOC (NVD + inventario): non apre alert né ticket.
+    Una riga per (PC, CVE, prodotto, versione); le righe non più lette vengono cancellate.
+    """
+
+    host = models.CharField(max_length=255, db_index=True)
+    host_display = models.CharField(max_length=255, blank=True, default="")
+    cve_id = models.CharField(max_length=32, db_index=True)
+    prodotto = models.CharField(max_length=255, blank=True, default="")
+    produttore = models.CharField(max_length=255, blank=True, default="")
+    versione = models.CharField(max_length=120, blank=True, default="")
+    kb = models.CharField(max_length=40, blank=True, default="", help_text="KB Microsoft che la corregge, se c'è.")
+    severita = models.CharField(max_length=20, blank=True, default="")
+    letta_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["host", "cve_id"]
+        constraints = [models.UniqueConstraint(fields=["host", "cve_id", "prodotto", "versione"], name="sec_def_vuln_uniq")]
+
+    def __str__(self):
+        return f"{self.host}: {self.cve_id}"

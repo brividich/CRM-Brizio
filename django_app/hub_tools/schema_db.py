@@ -115,7 +115,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
         "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
                "alert di Microsoft Defender con SecurityAlert.Read.All, incidenti con SecurityIncident.Read.All, Secure Score con "
-               "SecurityEvents.Read.All, software dei PC dall'API di Defender for Endpoint con Software.Read.All; Microsoft Entra ID: account degli ex dipendenti e audit "
+               "SecurityEvents.Read.All, software dei PC dall'API di Defender for Endpoint con Software.Read.All, vulnerabilità per PC con Vulnerability.Read.All e Machine.Read.All (tabella security_defendervulnerabilita); Microsoft Entra ID: account degli ex dipendenti e audit "
                "amministrativo con User.Read.All e AuditLog.Read.All), Ruoli e permessi (scheda «Account Microsoft 365»), Centrale di comando (stato dei servizi Microsoft 365 con ServiceHealth.Read.All), Scadenzario (calendario Outlook «Scadenze "
                "NOVICROM HUB» delle persone che lo scelgono, Calendars.ReadWrite, tabella core_scadenzaoutlook), Licenze software (abbonamenti "
                "Microsoft 365 con Organization.Read.All e LicenseAssignment.Read.All), Asset IT (PC gestiti da Microsoft Intune con "
@@ -124,6 +124,13 @@ CONNESSIONI_ESTERNE: list[dict] = [
                "Audit sigillato (export mensile su SharePoint: SiteConfig audit_export_sp_drive_id / audit_export_sp_cartella).",
         "config": "GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET e gli ID delle liste (Setup Wizard → Microsoft Graph / SharePoint)",
         "controllo": "Errori 401/403/invalid_client = segreto dell'app scaduto: rinnovarlo su Entra ID.",
+    },
+    {
+        "nome": "WatchGuard Cloud (API Endpoint Security)",
+        "cosa": "Lettura dei PC con agente (protezione, ultima connessione, MAC), dei dispositivi in rete senza agente, del software installato e delle patch mancanti con l'esito dei task di installazione. Sola lettura.",
+        "chi": "Security Center → Dispositivi › Patch e protezione, inventario software (fonte WatchGuard), pannello CVE, riga «Visto da» della scheda asset. Tabelle security_watchguarddispositivo, security_watchguardpatch.",
+        "config": "SOC › Impostazioni › «Credenziali API WatchGuard» (URL API della regione, ID account, Access ID, password, API Key da Managed Access; cifrate nel database) e interruttori «WatchGuard Endpoint Security (API)».",
+        "controllo": "«Prova la connessione» nelle Impostazioni o manage.py soc_api_sync --prova; esito del task watchguard_api_sync.",
     },
     {
         "nome": "Posta in uscita (SMTP)",
@@ -166,7 +173,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     },
     {
         "nome": "Apparati di rete (SNMP)",
-        "cosa": "Lettura di contatori e stato da stampanti MFC, switch, UPS, NVR e altri apparati.",
+        "cosa": "Lettura di contatori e stato da stampanti MFC (anche avvisi, cassetti carta, sportelli e display, sola lettura Printer-MIB), switch, UPS, NVR e altri apparati.",
         "chi": "Contatori MFC e SNMP; asset collegati; Security Center (firmware e vulnerabilità).",
         "config": "Community o utenti SNMPv3 nel catalogo cifrato del modulo Contatori",
         "controllo": "Codici di errore SNMP-001…008 nella scheda dell'apparato.",

@@ -1,0 +1,56 @@
+{% load contatori_formato %}
+<section class="panel" id="stampante-adesso">
+  <div class="panel-head"><div><h2>La stampante adesso</h2>
+    <p>Letto dalla stampante{% if letto_il %} il {{ letto_il|date:"d/m/Y H:i" }}{% endif %}: stato, display, avvisi, cassetti e sportelli.</p>
+  </div></div>
+  {% if not d %}
+    <p class="muted">{% if mfc %}Ancora nessuna lettura: il portale legge stato, avvisi, cassetti e toner della stampante ogni 15 minuti, quando risponde.{% else %}Dati stampante non acquisiti in questa interrogazione. Premi «Interroga ora» per aggiornarli; se la connessione fallisce, consulta l'errore sopra.{% endif %}</p>
+  {% else %}
+    <div class="cards">
+      <div class="card"><div class="k">Stato</div><div class="v" style="font-size:20px">{% if problemi_stampante %}<span class="pill {% if problemi_gravi %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ problemi_stampante|length }} da sistemare</span>{% elif d.stato.stato %}<span class="pill ok"><span class="status-dot"></span>{{ d.stato.stato|capfirst }}</span>{% else %}<span class="pill ok"><span class="status-dot"></span>Nessun problema</span>{% endif %}</div>{% if d.stato.stato and problemi_stampante %}<div class="meta">{{ d.stato.stato|capfirst }}</div>{% endif %}</div>
+      {% if d.stato.display %}<div class="card"><div class="k">Display della stampante</div><div class="mono" style="margin-top:8px">{% for r in d.stato.display %}<div>{{ r }}</div>{% endfor %}</div></div>{% endif %}
+      {% for p in stime_stampante.pagine %}<div class="card"><div class="k">{% if stime_stampante.pagine|length == 1 %}Pagine al giorno{% else %}Contatore {{ p.indice }} al giorno{% endif %}</div><div class="v">{{ p.al_giorno }}</div><div class="meta">{{ p.totale }} {{ p.unita }} in {{ p.giorni }} giorni</div></div>{% endfor %}
+    </div>
+    {% if problemi_stampante %}
+      <h3>Da sistemare</h3>
+      <ul>{% for testo, livello in problemi_stampante %}<li class="{% if livello == 'ERROR' %}health-error{% else %}health-warning{% endif %}"><strong>{{ testo|capfirst }}</strong></li>{% endfor %}</ul>
+    {% endif %}
+    {% if not d.stato %}<p class="muted">Avvisi, cassetti e sportelli compaiono dalla prossima interrogazione.</p>{% endif %}
+    {% if d.cassetti %}
+      <h3>Cassetti carta</h3>
+      <div class="device-grid">
+      {% for c in d.cassetti %}
+        <div class="device-card"><h3>{{ c.nome }}</h3>
+          <p>{% if c.carta %}{{ c.carta }}{% endif %}{% if c.capacita %}{% if c.carta %} · {% endif %}{{ c.capacita }} fogli{% endif %}</p>
+          {% if c.pct != None %}<p><strong class="{% if c.pct == 0 %}health-error{% elif c.pct <= 20 %}health-warning{% else %}health-ok{% endif %}">{% if c.pct == 0 %}Vuoto{% else %}{{ c.pct }}%{% endif %}</strong></p><progress max="100" value="{{ c.pct }}" aria-label="{{ c.nome }}" style="width:100%">{{ c.pct }}%</progress>
+          {% else %}<p class="muted">{{ c.nota|capfirst }}</p>{% endif %}
+          {% if c.stato %}<p class="{% if c.problema %}health-error{% else %}muted{% endif %}">{{ c.stato|capfirst }}</p>{% endif %}
+        </div>
+      {% endfor %}
+      </div>
+    {% endif %}
+    {% if d.sportelli %}
+      <p style="margin-top:12px"><strong>Sportelli:</strong> {% for s in d.sportelli %}<span class="pill {% if s.aperto %}danger{% else %}ok{% endif %}">{{ s.nome }}: {{ s.stato }}</span> {% endfor %}</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="panel" id="avvisi-stampante">
+  <div class="panel-head"><div><h2>Registro avvisi</h2>
+    <p>Gli avvisi della stampante (inceppamenti, carta, toner, sportelli, assistenza) da quando compaiono a quando spariscono. In grigio gli eventi di normale funzionamento.</p>
+  </div></div>
+  {% if avvisi_registro %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Avviso</th><th>Parte</th><th>Chi interviene</th><th>Dal</th><th>Al</th><th class="num">Durata</th></tr></thead>
+    <tbody>{% for a in avvisi_registro %}
+      <tr class="{% if a.informativo %}muted{% endif %}">
+        <td>{% if not a.chiuso_il and not a.informativo %}<span class="pill {% if a.critico %}danger{% else %}warn{% endif %}">aperto</span> {% endif %}<strong class="{% if a.informativo %}muted{% elif a.critico %}health-error{% endif %}">{{ a.testo }}</strong>{% if a.descrizione and a.descrizione|lower != a.testo|lower %}<div class="muted">{{ a.descrizione|capfirst }}</div>{% endif %}</td>
+        <td>{{ a.gruppo|capfirst|default:"—" }}</td>
+        <td>{{ a.chi|capfirst|default:"—" }}</td>
+        <td>{{ a.aperto_il|date:"d/m/Y H:i" }}</td>
+        <td>{% if a.chiuso_il %}{{ a.chiuso_il|date:"d/m/Y H:i" }}{% else %}<span class="muted">ancora presente</span>{% endif %}</td>
+        <td class="num">{{ a.durata_secondi|durata }}</td>
+      </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Nessun avviso registrato. Il registro si riempie con le interrogazioni: se la stampante non ha la tabella avvisi, registra gli errori che segnala (carta inceppata, sportello aperto…).</p>{% endif %}
+</section>

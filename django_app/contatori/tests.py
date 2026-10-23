@@ -209,8 +209,7 @@ class ConsumabiliTest(_AuthedClientMixin, TestCase):
         with mock.patch("contatori.tasks.async_task"):
             self.client.post(reverse("contatori:macchina_consumabili", args=[m.pk]))
         with mock.patch("contatori.snmp.leggi_consumabili", side_effect=SNMPError("host irraggiungibile")):
-            with self.assertRaises(RuntimeError):
-                tasks.leggi_consumabili(m.pk)
+            self.assertTrue(tasks.leggi_consumabili(m.pk)["non_raggiungibile"])
         r = self.client.get(reverse("contatori:macchina_consumabili", args=[m.pk]))
         self.assertContains(r, "Lettura non riuscita")
         self.assertNotContains(r, "host irraggiungibile")
