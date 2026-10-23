@@ -8,6 +8,9 @@
 * al massimo 500 letture per chiamata (413 oltre), esito per riga:
   ``accepted`` / ``ignored_older`` / ``rejected`` con il motivo.
 
+``POST /api/assets/contatori/ingest/stato/`` — stato reale delle CNC dallo stesso collector
+(stessa autenticazione, stessa rete, stessi asset consentiti), vedi ``ingest_stato``.
+
 Il percorso e' in ``MIDDLEWARE_EXEMPT_PREFIXES`` (niente sessione: e' una macchina
 a chiamare), quindi l'unica protezione e' qui. Non pubblicarlo su Entra
 Application Proxy (vedi docs/ai/05_SECURITY_BOUNDARIES.md). Contratto e esempi:
@@ -160,4 +163,78 @@ def ingest(request, payload: IngestPayload):
 
     MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=timezone.now())
     summary = {status: sum(1 for r in results if r["status"] == status) for status in ("accepted", "ignored_older", "rejected")}
+    return {"results": results, **summary}
+
+
+# --- Stato delle macchine dal collector OPC UA ---------------------------------------------------
+
+MAX_MACCHINE = 100
+
+
+class StatoPayload(Schema):
+    macchine: List[dict[str, Any]]
+
+
+def _stato_result(index: int, row: dict, status: str, reason: str = "") -> dict:
+    return {"index": index, "asset_tag": str(row.get("asset_tag") or ""), "status": status, "reason": reason}
+
+
+@api.post("/ingest/stato/")
+def ingest_stato(request, payload: StatoPayload):
+    """Stato reale delle CNC dal collector OPC UA (``tools/collector_cnc``): stessa autenticazione,
+    stessa rete e stessi asset consentiti delle letture dei contatori.
+
+    Una riga per macchina: ``asset_tag``, ``stato`` (LAVORO, SETUP, INTERROTTA, FERMA, ALLARME,
+    EMERGENZA, OFFLINE), ``dal`` (inizio dello stato, ISO 8601 con fuso), facoltativi
+    ``programma``, ``modalita``, ``esecuzione``, ``pezzi``, ``allarmi`` [{codice, testo, severita, dal}].
+    La macchina compare in «Macchine collegate» al primo invio.
+    """
+    from .models import CollegamentoMTConnect
+    from .services import mtconnect
+
+    client: MeterIngestClient = request.auth
+    macchine = payload.macchine
+    if len(macchine) > MAX_MACCHINE:
+        raise HttpError(413, f"Al massimo {MAX_MACCHINE} macchine per chiamata.")
+    tags = {str(row.get("asset_tag") or "").strip() for row in macchine if isinstance(row, dict)}
+    assets = {asset.asset_tag: asset for asset in Asset.objects.filter(asset_tag__in=[t for t in tags if t])}
+    allowed_ids = None if client.all_meter_assets else set(client.allowed_assets.values_list("id", flat=True))
+    ora = timezone.now()
+
+    results = []
+    for index, row in enumerate(macchine):
+        if not isinstance(row, dict):
+            results.append(_stato_result(index, {}, "rejected", "riga non valida"))
+            continue
+        asset = assets.get(str(row.get("asset_tag") or "").strip())
+        if asset is None:
+            results.append(_stato_result(index, row, "rejected", "asset sconosciuto"))
+            continue
+        if allowed_ids is not None and asset.id not in allowed_ids:
+            results.append(_stato_result(index, row, "rejected", "asset non consentito a questo collector"))
+            continue
+        stato = str(row.get("stato") or "").strip().upper()
+        if stato not in mtconnect.STATI_COLLECTOR:
+            results.append(_stato_result(index, row, "rejected", "stato non valido"))
+            continue
+        dal = parse_datetime(str(row.get("dal") or "")) if row.get("dal") else None
+        if dal is not None and timezone.is_naive(dal):
+            results.append(_stato_result(index, row, "rejected", "dal senza fuso orario (ISO 8601 con offset)"))
+            continue
+        coll = CollegamentoMTConnect.objects.filter(asset=asset).first()
+        if coll is None:
+            coll = CollegamentoMTConnect(asset=asset, fonte=CollegamentoMTConnect.FONTE_COLLECTOR)
+        elif coll.fonte != CollegamentoMTConnect.FONTE_COLLECTOR:
+            if coll.attivo:
+                results.append(_stato_result(index, row, "rejected", "macchina letta dal portale via MTConnect"))
+                continue
+            coll.fonte = CollegamentoMTConnect.FONTE_COLLECTOR
+        elif not coll.attivo:
+            results.append(_stato_result(index, row, "ignored", "lettura sospesa nel portale"))
+            continue
+        mtconnect.applica_stato_collector(coll, {**row, "stato": stato}, dal or ora, ora)
+        results.append(_stato_result(index, row, "accepted"))
+
+    MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=ora)
+    summary = {status: sum(1 for r in results if r["status"] == status) for status in ("accepted", "ignored", "rejected")}
     return {"results": results, **summary}

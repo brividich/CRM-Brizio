@@ -661,7 +661,7 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         info = alerts.get(row["id"], {})
         tickets = ticket_map.get(row["id"], [])
         row["live"] = live_map.get(row["id"])
-        if row["live"] and row["live"]["stato"] == "allarme":
+        if row["live"] and row["live"]["allarme"]:
             info = {**info, "cnc_alarm": True}
         row["alert"] = _plant_alert_level(info, len(tickets))
         row["alert_label"] = _PLANT_ALERT_LABELS[row["alert"]]

@@ -5424,9 +5424,12 @@ class IndirizzoRete(models.Model):
 
 
 class CollegamentoMTConnect(models.Model):
-    """Una macchina CNC letta da un agent MTConnect (``assets.services.mtconnect``), in sola lettura.
+    """Una macchina CNC collegata al portale per lo stato reale, in sola lettura.
 
-    Ogni 2 minuti lo schedule ``mtconnect_poll`` legge ``/current`` dall'agent e aggiorna
+    Due fonti: ``collector_opcua`` = il collector OPC UA dell'officina (``tools/collector_cnc``)
+    invia stato e allarmi a ``/api/assets/contatori/ingest/stato/`` e i contatori all'ingest
+    dei contatori; ``mtconnect`` = ogni 2 minuti lo schedule ``mtconnect_poll`` legge ``/current``
+    dall'agent MTConnect e aggiorna
     lo stato (in lavoro, pronta, ferma, in allarme, spenta, non raggiungibile), il
     programma, i pezzi e gli allarmi attivi. Le ore di lavoro e i pezzi, se l'agent li
     espone, avanzano i contatori dell'asset scelti qui (``record_meter_reading``, fonte
@@ -5434,25 +5437,35 @@ class CollegamentoMTConnect(models.Model):
     scendere quello del portale.
     """
 
+    # Stati con le parole dell'officina (le stesse del collector e di DMG MORI Messenger).
     STATO_IN_LAVORO = "in_lavoro"
+    STATO_SETUP = "setup"
     STATO_PRONTA = "pronta"
     STATO_FERMA = "ferma"
     STATO_ALLARME = "allarme"
+    STATO_EMERGENZA = "emergenza"
     STATO_SPENTA = "spenta"
     STATO_NON_RAGGIUNGIBILE = "non_raggiungibile"
     STATO_MAI = "mai"
     STATO_CHOICES = [
         (STATO_IN_LAVORO, "In lavoro"),
-        (STATO_PRONTA, "Pronta, ferma senza programma"),
-        (STATO_FERMA, "Programma interrotto"),
+        (STATO_SETUP, "Lavoro MDI/manuale"),
+        (STATO_PRONTA, "Ferma"),
+        (STATO_FERMA, "Interrotta"),
         (STATO_ALLARME, "In allarme"),
-        (STATO_SPENTA, "Spenta o non disponibile"),
-        (STATO_NON_RAGGIUNGIBILE, "Agent non raggiungibile"),
+        (STATO_EMERGENZA, "Emergenza"),
+        (STATO_SPENTA, "Offline"),
+        (STATO_NON_RAGGIUNGIBILE, "Non raggiungibile"),
         (STATO_MAI, "Mai letta"),
     ]
+    FONTE_MTCONNECT = "mtconnect"
+    FONTE_COLLECTOR = "collector_opcua"
+    FONTE_CHOICES = [(FONTE_MTCONNECT, "Agent MTConnect"), (FONTE_COLLECTOR, "Collector OPC UA")]
 
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="mtconnect")
-    url_agent = models.CharField(max_length=300, help_text="Indirizzo dell'agent MTConnect, es. http://10.0.5.21:5000")
+    fonte = models.CharField(max_length=20, choices=FONTE_CHOICES, default=FONTE_MTCONNECT)
+    url_agent = models.CharField(max_length=300, blank=True, default="",
+                                 help_text="Indirizzo dell'agent MTConnect, es. http://10.0.5.21:5000 (vuoto per il collector)")
     dispositivo = models.CharField(max_length=120, blank=True, default="", help_text="Nome del dispositivo nell'agent; vuoto = il primo.")
     attivo = models.BooleanField(default=True)
     contatore_ore = models.ForeignKey(AssetMeter, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -5477,11 +5490,11 @@ class CollegamentoMTConnect(models.Model):
 
     class Meta:
         ordering = ["asset__name"]
-        verbose_name = "Collegamento MTConnect"
-        verbose_name_plural = "Collegamenti MTConnect"
+        verbose_name = "Macchina collegata"
+        verbose_name_plural = "Macchine collegate"
 
     def __str__(self) -> str:
-        return f"{self.asset} ← {self.url_agent}"
+        return f"{self.asset} ← {self.url_agent or self.get_fonte_display()}"
 
 
 class PeriodoStatoMacchina(models.Model):

@@ -142,8 +142,8 @@ class VeeamClient:
     def close(self) -> None:
         try:
             self.http.post(f"{self.cfg['url']}/api/oauth2/logout", timeout=TIMEOUT_SECONDS)
-        except Exception:  # noqa: BLE001 - il token scade comunque da solo
-            pass
+        except Exception as exc:  # noqa: BLE001 - il token scade comunque da solo
+            logger.debug("Veeam: logout non riuscito: %s", exc)
 
 
 def veeam_source():

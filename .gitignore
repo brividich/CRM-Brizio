@@ -135,6 +135,8 @@ db.sqlite3
 db.sqlite3-journal
 *.sqlite3
 *.db
+# Configurazione vera del collector CNC (IP e matricole delle macchine): resta sul PC del collector
+tools/collector_cnc/machines.json
 *.log
 logs/
 DIPENDENTI.csv
