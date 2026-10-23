@@ -251,6 +251,21 @@ GUIDA = {
             ],
         },
         {
+            "id": "collector-server",
+            "titolo": "Far girare il collector delle CNC sul server del portale",
+            "blocchi": [
+                ("passi", [
+                    "Dal server del portale verifica che le macchine rispondano sulla porta OPC UA: Test-NetConnection <IP macchina> -Port 4840.",
+                    "Registra sul server l'attività di Windows che lancia deployment/start_collector_cnc.ps1 all'avvio (come il qcluster, stesso account).",
+                    "Configurazione → «Macchine collegate» → «Dove gira il collector» → «Sul server del portale» → «Salva».",
+                    "Entro un minuto il riquadro dice «Attivo» con il numero di macchine in lettura; niente token né PC dedicato.",
+                ]),
+                ("p", "Le due modalità si escludono: con il collector sul server, quello di un PC non riceve più macchine da leggere. "
+                      "Se il servizio si ferma, il riquadro dice «Fermo» e il controllo «collector_cnc» della Centrale di comando avvisa. "
+                      "Prova senza leggere: manage.py collector_cnc --prova."),
+            ],
+        },
+        {
             "id": "collector-collega",
             "titolo": "Collegare le CNC al collector OPC UA (tutto dal portale)",
             "blocchi": [
@@ -313,6 +328,14 @@ GUIDA = {
                 "«Agent non raggiungibile»: l'agent è spento o la rete non passa. Dal server del portale apri l'indirizzo dell'agent seguito da /current: deve rispondere un XML.",
                 "«Dato non aggiornato»: nessuna lettura da oltre 15 minuti; controlla che il qcluster giri (Centrale di comando, schedule mtconnect_poll).",
                 "«Dispositivo non trovato»: l'agent serve più macchine; scrivi nel collegamento il nome giusto (la «Prova» elenca i dispositivi dell'agent).",
+            ],
+        },
+        {
+            "sintomo": "«Dove gira il collector» dice «Fermo» o «Mai partito»",
+            "fare": [
+                "Sul server l'attività di Windows del collector (deployment/start_collector_cnc.ps1) non gira: avviala o registrala all'avvio.",
+                "Log: <ambiente>\\logs\\collector_cnc.log. «Manca la libreria asyncua»: pip install -r requirements.txt nel venv del portale.",
+                "Macchine «Offline» con il servizio «Attivo»: il server non raggiunge la macchina sulla porta 4840 (firewall o rete d'officina).",
             ],
         },
         {

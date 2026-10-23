@@ -153,6 +153,16 @@ def _azione_collector(request: HttpRequest, azione: str) -> dict | None:
     """Ritorna ``{"nome", "token"}`` quando c'è un token nuovo da mostrare una volta sola."""
     from .models import Asset, CollegamentoMTConnect, MeterIngestClient
 
+    if azione == "collector_modalita":
+        valore = request.POST.get("modalita") or ""
+        if valore not in collector_cnc.MODALITA:
+            messages.error(request, "Scegli dove gira il collector.")
+            return None
+        collector_cnc.imposta_modalita(valore)
+        log_action(request, "collector_modalita", "assets", {"modalita": valore})
+        messages.success(request, f"Collector: {collector_cnc.MODALITA[valore].lower()}. Il cambio vale entro 5 minuti "
+                                  "(il collector rilegge l'elenco delle macchine).")
+        return None
     if azione == "collector_crea":
         nome = (request.POST.get("nome") or "").strip()[:120]
         if not nome or MeterIngestClient.objects.filter(name__iexact=nome).exists():
@@ -266,5 +276,8 @@ def mtconnect_collegamenti(request: HttpRequest) -> HttpResponse:
         "collector": collector if puo_amministrare else [],
         "token_nuovo": token_nuovo,
         "nessun_collector": not MeterIngestClient.objects.filter(is_active=True).exists(),
+        "modalita": collector_cnc.modalita(),
+        "modalita_scelte": collector_cnc.MODALITA,
+        "battito": collector_cnc.battito(),
         "url_portale": request.build_absolute_uri("/").rstrip("/"),
     })

@@ -86,14 +86,14 @@ OPC UA, consentite al collector), nel formato di `machines.json`:
 ```
 
 `password` è quella OPC UA della macchina (a DB cifrata con `secret_box`): viaggia in chiaro
-solo verso il collector autenticato, quindi l'endpoint va usato in HTTPS. `tools/collector_cnc`
+solo verso il collector autenticato, quindi l'endpoint va usato in HTTPS. `django_app/assets/collector_cnc`
 lo legge all'avvio e ogni 5 minuti.
 
 ## Stato delle macchine (collector OPC UA)
 
 `POST /api/assets/contatori/ingest/stato/` — stessa autenticazione, stessa rete e stessi asset
 consentiti delle letture; al massimo **100** macchine per chiamata (oltre: `413`). Lo usa
-`tools/collector_cnc` (collector OPC UA delle DMG MORI) a ogni cambio di stato e almeno una volta
+`django_app/assets/collector_cnc` (collector OPC UA delle DMG MORI) a ogni cambio di stato e almeno una volta
 al minuto: oltre 15 minuti senza invii il portale mostra la macchina come «non aggiornata».
 
 ```json
@@ -116,7 +116,7 @@ al minuto: oltre 15 minuti senza invii il portale mostra la macchina come «non 
 
 ## Adattare il collector esistente
 
-Fatto in `tools/collector_cnc` (`portale.py`, vedi il suo README). Regole per altri collector:
+Fatto in `django_app/assets/collector_cnc` (`portale.py`, vedi il suo README). Regole per altri collector:
 leggere il token da una variabile d'ambiente (mai
 nel codice), inviare `read_at` dell'istante di lettura sulla macchina con l'offset,
 raggruppare al massimo 500 letture per chiamata e registrare le righe `rejected`.
