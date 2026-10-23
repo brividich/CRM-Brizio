@@ -917,6 +917,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSENZE — le assenze approvate nel calendario Outlook del capo (Graph,
+        # Calendars.ReadWrite). No-op finché l'interruttore in Area HR è spento.
+        "name": "assenze_outlook_sync",
+        "func": "assenze.tasks.run_assenze_outlook_sync",
+        "schedule_type": "I",       # Schedule.MINUTES
+        "minutes": 10,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ASSENZE — promemoria ai capi per le richieste ferme «In attesa» (una
         # mail per capo). Soglie e interruttore in Assenze → HR → Impostazioni.
         "name": "assenze_solleciti",

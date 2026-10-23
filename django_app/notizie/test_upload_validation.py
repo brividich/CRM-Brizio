@@ -30,8 +30,10 @@ class NotiziaAllegatoFormUploadValidationTests(SimpleTestCase):
         f = SimpleUploadedFile("vuoto.pdf", b"", content_type="application/pdf")
         form = self._build(f)
         self.assertFalse(form.is_valid())
-        all_errors = form.errors.get("__all__", []) + form.non_field_errors()
-        self.assertTrue(any("vuoto" in e.lower() for e in all_errors))
+        # Il file vuoto lo scarta gia' il FileField («Il file inviato è vuoto.»),
+        # prima di clean(): l'errore sta sul campo, non in __all__.
+        all_errors = [e for errori in form.errors.values() for e in errori]
+        self.assertTrue(any("vuoto" in e.lower() for e in all_errors), all_errors)
 
     def test_form_accepts_valid_pdf(self):
         f = SimpleUploadedFile("doc.pdf", b"%PDF-1.4\n%test", content_type="application/pdf")

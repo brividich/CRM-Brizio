@@ -426,6 +426,23 @@
             <label for="imp-sr">Ripeti il sollecito ogni (giorni)</label>
             <input id="imp-sr" class="abs-input" type="number" min="1" max="60" name="sollecito_ripeti_giorni" value="{{ imp.sollecito_ripeti_giorni }}" required>
           </div>
+          <label class="abs-field full" style="display:flex;flex-direction:row;gap:8px;align-items:flex-start;">
+            <input type="checkbox" name="outlook_capo_attivo" value="1"{% if imp.outlook_capo_attivo %} checked{% endif %} style="margin-top:3px;">
+            <span>Assenze approvate nel calendario Outlook del capo
+              <span class="hr-muted" style="display:block;">Ogni 10 minuti il portale scrive le assenze approvate nel calendario «Assenze del team (NOVICROM HUB)» della casella del capo che le approva (eventi «liberi»), le aggiorna se cambiano e le toglie se rifiutate o eliminate. Serve il permesso applicativo Microsoft Graph «Calendars.ReadWrite». Acceso, le mail non hanno più il pulsante «Aggiungi al calendario Outlook».</span>
+            </span>
+          </label>
+          {% if imp.outlook_capo_attivo or outlook.eventi or outlook.n_errori %}
+            <div class="full hr-muted">
+              Calendario Outlook dei capi: {{ outlook.eventi }} event{{ outlook.eventi|pluralize:"o,i" }}{% if outlook.rimossi %}, {{ outlook.rimossi }} tolti dai capi in Outlook (non vengono ricreati){% endif %}{% if outlook.ultimo %} · ultimo aggiornamento {{ outlook.ultimo|date:"d/m/Y H:i" }}{% endif %}.
+              {% if outlook.n_errori %}
+                <div class="abs-alert abs-alert-warn" style="margin-top:8px;">
+                  {{ outlook.n_errori }} richiest{{ outlook.n_errori|pluralize:"a,e" }} non scritt{{ outlook.n_errori|pluralize:"a,e" }}. Ultimi errori:
+                  <ul style="margin:6px 0 0;padding-left:18px;">{% for e in outlook.errori %}<li>richiesta #{{ e.assenza_id }}{% if e.email %} ({{ e.email }}){% endif %}: {{ e.ultimo_errore }}</li>{% endfor %}</ul>
+                </div>
+              {% endif %}
+            </div>
+          {% endif %}
           <div class="hr-actions"><button type="submit" class="btn btn-primary">Salva impostazioni</button></div>
         </form>
       </div>

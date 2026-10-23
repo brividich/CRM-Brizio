@@ -2436,9 +2436,12 @@ def _send_approval_email(
     expires_at: datetime | None,
     html_body_override: str | None = None,
     text_body_override: str | None = None,
+    calendar_event: dict | None = None,
 ) -> str:
     """
     Invia l'email di approvazione.
+    Con ``calendar_event`` (richieste di assenza) aggiunge «Aggiungi al calendario
+    Outlook» e l'allegato ``.ics`` (vedi ``calendario_outlook``).
     Se html_body_override / text_body_override sono valorizzati (rendering da ApprovalEmailTemplate),
     vengono usati direttamente. Altrimenti viene generato il corpo inline (comportamento legacy).
     """
@@ -2475,6 +2478,10 @@ def _send_approval_email(
             f'</tr>'
             f'</table>'
         )
+        if calendar_event:
+            from .calendario_outlook import pulsante_html
+
+            cta_buttons += f'<div style="margin-top:12px;">{pulsante_html(calendar_event)}</div>'
 
         # Preserva gli a-capo del message_template: prima si escapa l'HTML (sicurezza),
         # poi i newline diventano <br> cosi' il corpo non collassa su una riga unica.
@@ -2492,6 +2499,10 @@ def _send_approval_email(
             f"{approve_label}: {approve_url}\n"
             f"{reject_label}: {reject_url}\n"
         )
+        if calendar_event:
+            from .calendario_outlook import ETICHETTA, link_outlook
+
+            text_body += f"{ETICHETTA}: {link_outlook(calendar_event)}\n"
 
     for approver_email in approver_emails:
         message = EmailMultiAlternatives(
@@ -2501,6 +2512,10 @@ def _send_approval_email(
             to=[approver_email],
         )
         message.attach_alternative(html_body, "text/html")
+        if calendar_event:
+            from .calendario_outlook import allega
+
+            allega(message, calendar_event)
         message.send(fail_silently=False)
 
     return f"Email approvazione inviata a {', '.join(approver_emails)}."
@@ -4122,6 +4137,19 @@ def execute_action(
                 "section_label": (config.get("section_label") or ""),
                 "title": render_template_string(config.get("title_template"), payload_context),
             }
+            # Assenze: «Aggiungi al calendario Outlook» (pulsante + allegato .ics), best-effort.
+            calendar_event = None
+            try:
+                from .calendario_outlook import ETICHETTA, evento_assenza, link_outlook, pulsante_html
+
+                calendar_event = evento_assenza(getattr(action.rule, "source_code", ""), payload_context)
+                if calendar_event:
+                    _base_ctx["cta_buttons"] = mark_safe(pulsante_html(calendar_event))
+                    if body_text:
+                        body_text = f"{body_text.rstrip()}\n\n{ETICHETTA}: {link_outlook(calendar_event)}\n"
+            except Exception:
+                logger.warning("send_email: evento calendario non costruito", exc_info=True)
+                calendar_event = None
             if body_html and not body_html.lstrip().lower().startswith(("<!doctype", "<html")):
                 body_html = render_to_string("core/email/base_email.html", {
                     **_base_ctx,
@@ -4147,6 +4175,10 @@ def execute_action(
             )
             if body_html:
                 message.attach_alternative(body_html, "text/html")
+            if calendar_event:
+                from .calendario_outlook import allega
+
+                allega(message, calendar_event)
 
             try:
                 sent_count = message.send(fail_silently=fail_silently)
@@ -4224,6 +4256,15 @@ def execute_action(
             # ── Risolvi template email (opzionale, non bloccante) ─────────────
             email_template = _resolve_approval_email_template(config)
 
+            # Assenze: «Aggiungi al calendario Outlook» per il capo (best-effort).
+            try:
+                from .calendario_outlook import evento_assenza
+
+                calendar_event = evento_assenza(getattr(action.rule, "source_code", ""), payload_context)
+            except Exception:
+                logger.warning("send_approval: evento calendario non costruito", exc_info=True)
+                calendar_event = None
+
             approval = _create_approval_record(
                 action=action,
                 run_log=run_log,
@@ -4257,11 +4298,19 @@ def execute_action(
                     )
                     if approval.expires_at:
                         tpl_context["expires_at"] = timezone.localtime(approval.expires_at).strftime("%d-%m-%Y %H:%M")
+                    extra_html = extra_text = ""
+                    if calendar_event:
+                        from .calendario_outlook import ETICHETTA, link_outlook, pulsante_html
+
+                        extra_html = pulsante_html(calendar_event)
+                        extra_text = f"{ETICHETTA}: {link_outlook(calendar_event)}\n"
                     rendered = render_approval_email(
                         email_template,
                         tpl_context,
                         approve_url=approve_url,
                         reject_url=reject_url,
+                        extra_cta_html=extra_html,
+                        extra_cta_text=extra_text,
                     )
                     # Usa il subject del template solo se non è stato esplicitamente
                     # configurato nella regola (config ha subject_template vuoto/default)
@@ -4305,6 +4354,7 @@ def execute_action(
                             expires_at=approval.expires_at,
                             html_body_override=html_override,
                             text_body_override=text_override,
+                            calendar_event=calendar_event,
                         )
                     result_message_parts.append(
                         f"Email approvazione inviata a {', '.join(email_approver_emails)}."
