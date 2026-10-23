@@ -543,8 +543,9 @@ class DispositivoAccesso(models.Model):
 class PostazioneCondivisa(models.Model):
     """Un PC usato a turno da più persone con un solo account (es. «zeiss»), ``core.postazioni``.
 
-    Il PC si riconosce dal suo indirizzo IP (``ip_pc``): lo stesso account può
-    servire più PC. Chi entra con l'account dal PC vede solo la scelta
+    Il PC si riconosce dal suo indirizzo IP: quelli dell'``asset`` collegato
+    (punti rete e DHCP, ``core.postazioni.ip_dell_asset``) più ``ip_pc`` scritto
+    a mano. Lo stesso account può servire più PC. Chi entra con l'account dal PC vede solo la scelta
     dell'operatore: l'operatore sceglie il proprio nome fra i membri del
     ``gruppo`` abilitati su questo PC (``OperatorePostazione``) e digita il
     proprio PIN, e da lì la sessione è sua (permessi, audit, firme).
@@ -553,7 +554,12 @@ class PostazioneCondivisa(models.Model):
     nome = models.CharField(max_length=100)
     # UtenteLegacy dell'account condiviso (creato dal primo accesso LDAP).
     account_legacy_user_id = models.IntegerField(db_index=True)
-    # Unicità verificata dalla pagina di configurazione (vuoto = PC non utilizzabile).
+    # Il PC nel registro asset: da lì arrivano IP (punti rete, DHCP) e dati della macchina.
+    asset = models.ForeignKey(
+        "assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="postazioni_condivise",
+    )
+    # IP scritto a mano, in aggiunta a quelli dell'asset. Unicità verificata dalla pagina
+    # di configurazione (nessun IP né dall'asset né qui = PC non utilizzabile).
     ip_pc = models.CharField(max_length=45, blank=True, default="", db_index=True)
     gruppo = models.ForeignKey("AccessGroup", on_delete=models.PROTECT, related_name="postazioni_condivise")
     minuti_inattivita = models.PositiveSmallIntegerField(

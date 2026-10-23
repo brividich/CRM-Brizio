@@ -12,6 +12,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from assets.models import Asset, AssetEndpoint, IndirizzoRete
 from core import postazioni
 from core.legacy_models import UtenteLegacy
 from core.legacy_utils import sync_django_user_from_legacy
@@ -184,6 +185,30 @@ class PostazioneTests(TestCase):
         PostazioneCondivisa.objects.filter(pk=self.postazione.pk).update(ip_pc="127.0.0.1")
         self.assertContains(self.client.get(reverse("postazione_home")), "Rossi Operatore")
 
+    def test_pc_riconosciuto_dal_dhcp_dell_asset(self):
+        # Nessun IP a mano: il PC si riconosce dall'IP che il DHCP dà al MAC dell'asset.
+        asset = Asset.objects.create(asset_tag="PC-T-001", name="PC sala misure", asset_type=Asset.TYPE_PC)
+        AssetEndpoint.objects.create(asset=asset, endpoint_name="eth0", mac="AA-BB-CC-00-11-22")
+        IndirizzoRete.objects.create(ip="127.0.0.1", mac="aa:bb:cc:00:11:22", nel_dhcp=True)
+        PostazioneCondivisa.objects.filter(pk=self.postazione.pk).update(ip_pc="", asset=asset)
+        self._entra_account()
+        self.assertContains(self.client.get(reverse("postazione_home")), "Rossi Operatore")
+        # Il DHCP dà al PC un altro indirizzo: la sessione aperta da 127.0.0.1 non vale più.
+        IndirizzoRete.objects.filter(ip="127.0.0.1").update(mac="aa:bb:cc:99:99:99")
+        self.client.get(reverse("postazione_home"))
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_ip_dell_asset_dato_dal_dhcp_a_un_altro_pc_non_vale(self):
+        asset = Asset.objects.create(asset_tag="PC-T-002", name="PC controllo", asset_type=Asset.TYPE_PC)
+        AssetEndpoint.objects.create(asset=asset, endpoint_name="eth0", ip="10.0.0.9", mac="aa:bb:cc:00:11:33")
+        AssetEndpoint.objects.create(asset=asset, endpoint_name="wifi", ip="10.0.0.10")
+        IndirizzoRete.objects.create(ip="10.0.0.9", mac="aa:bb:cc:77:77:77", nel_dhcp=True, nome_dhcp="ALTRO-PC")
+        righe = {r["ip"]: r for r in postazioni.ip_dell_asset(asset)}
+        self.assertIn("ALTRO-PC", righe["10.0.0.9"]["escluso"])
+        self.assertEqual(righe["10.0.0.10"]["escluso"], "")
+        pc = PostazioneCondivisa(nome="x", account_legacy_user_id=self.l_account.id, gruppo=self.gruppo, asset=asset)
+        self.assertEqual(postazioni.ip_della_postazione(pc), {"10.0.0.10"})
+
     def test_stesso_account_su_due_pc_operatori_diversi(self):
         pc2 = PostazioneCondivisa.objects.create(
             nome="Sala misure due", account_legacy_user_id=self.l_account.id, ip_pc="10.0.0.7", gruppo=self.gruppo)
@@ -315,11 +340,38 @@ class AdminPostazioniTests(TestCase):
                                                    ruolo="admin", attivo=True, ruolo_id=1)
         self.gruppo = AccessGroup.objects.create(code="gruppo-pc-test", label="Gruppo PC")
 
-    def _salva(self, account_id, minuti=10, ip="192.168.10.25"):
+    def _salva(self, account_id, minuti=10, ip="192.168.10.25", asset=None, nome="PC prova"):
         return self.client.post(reverse("admin_portale:postazioni_condivise_azione"), {
-            "azione": "salva", "nome": "PC prova", "account": account_id, "gruppo": self.gruppo.pk,
-            "minuti_inattivita": minuti, "attiva": "1", "ip_pc": ip,
+            "azione": "salva", "nome": nome, "account": account_id, "gruppo": self.gruppo.pk,
+            "minuti_inattivita": minuti, "attiva": "1", "ip_pc": ip, "asset": asset.pk if asset else "",
         })
+
+    def test_collegata_all_asset_prende_nome_e_ip(self):
+        asset = Asset.objects.create(asset_tag="PC-T-010", name="PC metrologia", asset_type=Asset.TYPE_PC,
+                                     reparto="Controllo qualità")
+        AssetEndpoint.objects.create(asset=asset, endpoint_name="eth0", ip="192.168.10.40", mac="aa:bb:cc:00:22:44")
+        self._salva(self.l_pc.id, ip="", asset=asset, nome="")
+        pc = PostazioneCondivisa.objects.get()
+        self.assertEqual((pc.nome, pc.asset_id, pc.ip_pc), ("PC metrologia", asset.pk, ""))
+        resp = self.client.get(reverse("admin_portale:postazioni_condivise") + f"?modifica={pc.pk}")
+        self.assertContains(resp, "PC-T-010")
+        self.assertContains(resp, "192.168.10.40")
+        self.assertContains(resp, "Punto rete dell&#x27;asset")
+        self.assertContains(resp, "aa:bb:cc:00:22:44")
+        self.assertContains(resp, "Controllo qualità")
+
+    def test_asset_senza_ip_doppio_o_ip_gia_usato_rifiutati(self):
+        senza_ip = Asset.objects.create(asset_tag="PC-T-011", name="PC senza rete", asset_type=Asset.TYPE_PC)
+        self._salva(self.l_pc.id, ip="", asset=senza_ip)
+        self.assertFalse(PostazioneCondivisa.objects.exists())
+        self._salva(self.l_pc.id, ip="192.168.10.50", asset=senza_ip)  # IP a mano: va bene
+        self._salva(self.l_pc.id, ip="192.168.10.51", asset=senza_ip)  # stesso asset su due postazioni
+        con_ip = Asset.objects.create(asset_tag="PC-T-012", name="PC con rete", asset_type=Asset.TYPE_PC)
+        AssetEndpoint.objects.create(asset=con_ip, endpoint_name="eth0", ip="192.168.10.50")
+        self._salva(self.l_pc.id, ip="", asset=con_ip)  # il suo IP è già dell'altra postazione
+        stampante = Asset.objects.create(asset_tag="ST-T-001", name="Stampante", asset_type=Asset.TYPE_STAMPANTE)
+        self._salva(self.l_pc.id, ip="192.168.10.60", asset=stampante)  # solo PC e portatili
+        self.assertEqual(list(PostazioneCondivisa.objects.values_list("asset_id", flat=True)), [senza_ip.pk])
 
     def test_pagina_e_creazione(self):
         self.assertEqual(self.client.get(reverse("admin_portale:postazioni_condivise")).status_code, 200)

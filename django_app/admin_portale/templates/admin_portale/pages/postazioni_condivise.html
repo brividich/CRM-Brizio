@@ -15,13 +15,19 @@
 .pc-stato-off { color: var(--text-mid); }
 .pc-stato-rosso { color: var(--danger); font-weight: 700; }
 .pc-guida ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+.pc-asset { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 6px 0 4px; font-size: .88rem; }
+.pc-asset dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.pc-asset dt { color: var(--text-mid); }
+.pc-asset dd { margin: 0; overflow-wrap: anywhere; }
+.pc-asset ul { margin: 0; padding-left: 18px; }
+.pc-ip-escluso { color: var(--text-mid); text-decoration: line-through; }
 </style>
 {% endblock %}
 
 {% block content %}
   {% url 'admin_portale:postazioni_condivise' as pagina_url %}
   {% url 'admin_portale:postazioni_registro' as registro_url %}
-  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ogni PC ha i suoi operatori, che entrano con nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" page_secondary_action_label="Registro d'uso" page_secondary_action_url=registro_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ogni PC, collegato al suo asset, ha i suoi operatori, che entrano con nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" page_secondary_action_label="Registro d'uso" page_secondary_action_url=registro_url %}
 
   {% if mostra_guida %}
   <div class="card pc-guida" style="max-width:1280px;margin-bottom:20px;">
@@ -30,7 +36,8 @@
       <ol>
         <li>Fai entrare <strong>una volta</strong> l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: così compare nell'elenco «Account della postazione». L'account deve essere in un gruppo AD ammesso al login, come ogni utente.</li>
         <li>In «Accessi» crea (o scegli) il gruppo degli operatori e aggiungi le persone che lavorano al controllo.</li>
-        <li>Qui registra <strong>un PC per riga</strong>: nome, <strong>IP del PC</strong> (su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP), account, gruppo e minuti di inattività ({{ minuti_min }}–{{ minuti_max }}). Lo stesso account può servire più PC. Se configuri dal PC stesso, sotto il campo trovi l'IP che il portale vede.</li>
+        <li>Qui registra <strong>un PC per riga</strong>: scegli il <strong>PC del registro asset</strong> (PC e portatili non dismessi), poi account, gruppo e minuti di inattività ({{ minuti_min }}–{{ minuti_max }}). Dall'asset arrivano nome (se lo lasci vuoto), dati della macchina, MAC e <strong>IP</strong>: quelli dei punti rete dell'asset e quelli che il DHCP dà ai suoi MAC, così un PC con IP dinamico resta riconosciuto. Un IP dei punti rete che il DHCP ora dà a un altro PC compare barrato e non vale. Lo stesso account può servire più PC.</li>
+        <li>«IP a mano» serve solo se il PC non è nel registro asset o l'asset non ha IP (su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP). Se configuri dal PC stesso, sotto il campo trovi l'IP che il portale vede.</li>
         <li>In «Operatori del PC» spunta chi può usare quel PC e salva. Chi non è spuntato non compare in «Chi sei?» su quel PC.</li>
         <li>L'account del PC vede solo «Chi sei?» e solo dal PC registrato: da un altro PC trova la pagina «PC non registrato». L'operatore tocca il proprio nome e digita il PIN; la prima volta imposta il PIN con la propria password.</li>
         <li>La sessione resta legata al PC: se arriva da un altro indirizzo si chiude e resta traccia nell'audit («postazione_altro_pc»).</li>
@@ -51,12 +58,13 @@
           {% if postazioni %}
           <div class="table-wrap">
             <table class="fm-table">
-              <thead><tr><th>Nome</th><th>PC (IP)</th><th>Account</th><th>Gruppo operatori</th><th>Operatori abilitati</th><th>Inattività</th><th>Stato</th><th></th></tr></thead>
+              <thead><tr><th>Nome</th><th>Asset</th><th>PC (IP)</th><th>Account</th><th>Gruppo operatori</th><th>Operatori abilitati</th><th>Inattività</th><th>Stato</th><th></th></tr></thead>
               <tbody>
               {% for r in postazioni %}
                 <tr>
                   <td>{{ r.p.nome }}</td>
-                  <td>{% if r.p.ip_pc %}{{ r.p.ip_pc }}{% else %}<span class="pc-stato-rosso">da indicare</span>{% endif %}</td>
+                  <td>{% if r.p.asset %}<a href="{% url 'assets:asset_view' r.p.asset.pk %}">{{ r.p.asset.asset_tag }}</a> · {{ r.p.asset.name }}{% if r.p.asset.reparto %}<div class="pc-nota">{{ r.p.asset.reparto }}</div>{% endif %}{% else %}<span class="pc-stato-off">non collegato</span>{% endif %}</td>
+                  <td>{% if r.ip %}{{ r.ip|join:", " }}{% else %}<span class="pc-stato-rosso">nessun IP</span>{% endif %}</td>
                   <td>{{ r.account }}</td>
                   <td>{{ r.p.gruppo.label }}</td>
                   <td>{{ r.operatori }}</td>
@@ -88,7 +96,7 @@
 
       {% if dettaglio %}
       <div class="card" id="operatori">
-        <div class="card-head"><div class="card-title">Operatori del PC «{{ dettaglio.nome }}» {% if dettaglio.ip_pc %}({{ dettaglio.ip_pc }}){% endif %} · gruppo {{ dettaglio.gruppo.label }}</div></div>
+        <div class="card-head"><div class="card-title">Operatori del PC «{{ dettaglio.nome }}»{% if dettaglio.asset %} ({{ dettaglio.asset.asset_tag }}){% elif dettaglio.ip_pc %} ({{ dettaglio.ip_pc }}){% endif %} · gruppo {{ dettaglio.gruppo.label }}</div></div>
         <div class="card-body">
           {% if righe_operatori %}
           <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}" id="pc-operatori-form">
@@ -144,13 +152,45 @@
           <input type="hidden" name="azione" value="salva">
           {% if modifica %}<input type="hidden" name="id" value="{{ modifica.pk }}">{% endif %}
           <div class="field">
-            <label>Nome</label>
-            <input class="input" type="text" name="nome" maxlength="100" required value="{{ modifica.nome|default:'' }}" placeholder="Sala metrologica – Zeiss">
+            <label>PC del registro asset</label>
+            <select class="input" name="asset">
+              <option value="">— nessuno (solo IP a mano) —</option>
+              {% for a in asset_ammessi %}
+                <option value="{{ a.pk }}" {% if modifica and modifica.asset_id == a.pk %}selected{% endif %}>{{ a.name }} · {{ a.asset_tag }}{% if a.reparto %} · {{ a.reparto }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="pc-nota">PC e portatili non dismessi. Dall'asset la postazione prende nome, dati della macchina e IP (punti rete e DHCP sui suoi MAC).</div>
+            {% if scheda_asset %}
+            <div class="pc-asset">
+              <dl>
+                <dt>Asset</dt><dd><a href="{% url 'assets:asset_view' scheda_asset.asset.pk %}">{{ scheda_asset.asset.asset_tag }}</a> · {{ scheda_asset.asset.name }} ({{ scheda_asset.asset.get_status_display }})</dd>
+                {% if scheda_asset.asset.reparto %}<dt>Reparto</dt><dd>{{ scheda_asset.asset.reparto }}</dd>{% endif %}
+                {% if scheda_asset.modello %}<dt>Modello</dt><dd>{{ scheda_asset.modello }}</dd>{% endif %}
+                {% if scheda_asset.asset.serial_number %}<dt>Seriale</dt><dd>{{ scheda_asset.asset.serial_number }}</dd>{% endif %}
+                <dt>MAC</dt><dd>{% if scheda_asset.mac %}{{ scheda_asset.mac|join:", " }}{% else %}<span class="pc-stato-off">nessuno</span>{% endif %}</dd>
+                <dt>IP</dt>
+                <dd>
+                  {% if scheda_asset.ip %}
+                  <ul>
+                    {% for i in scheda_asset.ip %}
+                      <li>{% if i.escluso %}<span class="pc-ip-escluso">{{ i.ip }}</span> · {{ i.fonte }}: non vale, {{ i.escluso }}{% else %}<strong>{{ i.ip }}</strong> · {{ i.fonte }}{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                  {% else %}<span class="pc-stato-rosso">nessuno: aggiungilo all'asset o scrivilo a mano qui sotto</span>{% endif %}
+                </dd>
+              </dl>
+            </div>
+            {% endif %}
           </div>
           <div class="field">
-            <label>IP del PC</label>
-            <input class="input" type="text" name="ip_pc" maxlength="45" required value="{{ modifica.ip_pc|default:'' }}" placeholder="192.168.10.25" inputmode="decimal" autocomplete="off">
-            <div class="pc-nota">Un PC per postazione. Su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP.{% if ip_questo_pc %} Questo browser il portale lo vede come <strong>{{ ip_questo_pc }}</strong>.{% endif %}</div>
+            <label>Nome</label>
+            <input class="input" type="text" name="nome" maxlength="100" value="{{ modifica.nome|default:'' }}" placeholder="Sala metrologica – Zeiss">
+            <div class="pc-nota">Vuoto = il nome dell'asset.</div>
+          </div>
+          <div class="field">
+            <label>IP a mano</label>
+            <input class="input" type="text" name="ip_pc" maxlength="45" value="{{ modifica.ip_pc|default:'' }}" placeholder="192.168.10.25" inputmode="decimal" autocomplete="off">
+            <div class="pc-nota">Solo se il PC non è nel registro asset o l'asset non ha IP; si aggiunge a quelli dell'asset. Su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP.{% if ip_questo_pc %} Questo browser il portale lo vede come <strong>{{ ip_questo_pc }}</strong>.{% endif %}</div>
           </div>
           <div class="field">
             <label>Account della postazione</label>
