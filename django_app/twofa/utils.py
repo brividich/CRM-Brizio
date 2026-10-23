@@ -261,6 +261,12 @@ def verify_email_otp(user, code: str) -> tuple[bool, str]:
     if challenge.code_hash != _hash_code(code.strip()):
         challenge.save(update_fields=["attempts"])
         remaining = _MAX_ATTEMPTS - challenge.attempts
+        if remaining <= 0:
+            from core.eventi_sicurezza import segnala
+
+            segnala("twofa_bloccato", utente=user, chiave=(user.pk,), finestra_minuti=60,
+                    titolo=f"Verifica in due passaggi bloccata: {user.get_username()}",
+                    dettaglio={"metodo": "mail"})
         return False, f"Codice non valido. Tentativi rimanenti: {remaining}."
 
     challenge.used = True
