@@ -36,6 +36,19 @@ Nella stessa sezione, tre interruttori in più (spenti di default):
 - **Leggi il software dei PC**: ogni mattina alle 06:20 il software installato sui PC collegati a Defender entra nell'inventario del SOC come fonte **Microsoft Defender for Endpoint**, con la stessa procedura dei file caricati a mano: collegamento ai CPE, regole «non applicabile», impatti CVE e catalogo software si aggiornano da soli; il software che sparisce da un PC diventa «non più rilevato». I PC non collegati a Defender restano agli import da file. Serve **Software.Read.All** dell'API **WindowsDefenderATP** (non Graph: in Entra si trova in «API usate dall'organizzazione»).
 - **Mostra il Secure Score**: in cima alla Panoramica compare il riquadro **Microsoft Secure Score** con la percentuale, i punti, la variazione in 30 giorni e **le 5 azioni che valgono di più**, con il link alla pagina di Microsoft. Letto ogni 12 ore. Serve **SecurityEvents.Read.All**.
 
+## Backup letti direttamente da Veeam
+
+Con **Leggi i backup dall'API di Veeam** acceso, ogni 15 minuti il SOC si collega all'API REST di **Veeam Backup & Replication** (versione 12 o successive) e legge:
+
+- le **sessioni di backup concluse** dopo l'ultimo giro (la prima volta: gli ultimi giorni scelti in **Primo giro**, default 7), con l'esito, i dati trasferiti e la durata di **ogni macchina**. Le sessioni ancora in corso si leggono al giro dopo; ripristini, manutenzioni e backup della configurazione restano fuori;
+- lo **spazio dei repository**, mostrato nel riquadro **Lettura diretta da Veeam** della pagina Backup.
+
+Ogni sessione diventa un'esecuzione della sorgente **Veeam Backup & Replication (API)**, uguale a quelle lette dalle mail: KPI, «Da controllare», alert «backup fallito» e rientri funzionano come prima. Se arriva anche la mail di esito, **la stessa esecuzione conta una volta sola** (stesso job, inizio entro due minuti). Una sessione annullata a mano risulta «con avvisi».
+
+Con **Avvisa quando un repository si riempie** acceso (default), un repository con lo spazio libero sotto lo **Spazio libero minimo** (default 15%) apre l'alert «Repository di backup quasi pieno», uno per repository; si chiude da solo quando lo spazio torna sopra.
+
+Le credenziali stanno solo nel file `.env` del server: `VEEAM_API_URL` (es. `https://srv-veeam:9419`), `VEEAM_API_USERNAME`, `VEEAM_API_PASSWORD` di un utente con il solo ruolo **Veeam Backup Viewer**. Se il certificato del server Veeam non è firmato da una CA attendibile, `VEEAM_API_CA_BUNDLE` con il percorso del certificato della CA. Prova dal terminale: `manage.py veeam_api --prova` (legge le ultime 24 ore e lo spazio dei repository, non salva). L'esito dell'ultimo giro: `manage.py veeam_api`.
+
 ## Microsoft Entra ID
 
 Tre controlli su Microsoft 365, ciascuno con il suo interruttore nella sezione **«Microsoft Entra ID (account, modifiche amministrative, accessi)»**. Gli eventi hanno la sorgente **Microsoft Entra ID (Graph)**.

@@ -149,12 +149,13 @@ def run_security_cycle_task():
 
     logger = logging.getLogger(__name__)
     result = {}
-    from security.services import defender_alerts, entra_signals, secure_score
+    from security.services import defender_alerts, entra_signals, secure_score, veeam_api
 
     steps = (
         ("mailboxes", ingest_security_mailboxes_task),
         ("defender", defender_alerts.run),
         ("entra", entra_signals.run),
+        ("veeam", veeam_api.run),
         ("secure_score", secure_score.aggiorna),
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),

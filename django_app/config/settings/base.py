@@ -962,6 +962,14 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
 # API dati (dati_bi): client IP (o reti CIDR) da cui le applicazioni possono leggere.
 DATI_API_ALLOWED_IPS = env_list("DATI_API_ALLOWED_IPS", ["127.0.0.1", "::1"])
 
+# API REST di Veeam Backup & Replication (security/services/veeam_api.py): solo letture,
+# in uscita verso il server Veeam della rete interna. Utente dedicato di sola lettura.
+VEEAM_API_URL = os.environ.get("VEEAM_API_URL", "").strip()
+VEEAM_API_USERNAME = os.environ.get("VEEAM_API_USERNAME", "").strip()
+VEEAM_API_PASSWORD = os.environ.get("VEEAM_API_PASSWORD", "")
+VEEAM_API_VERSION = os.environ.get("VEEAM_API_VERSION", "").strip()
+VEEAM_API_CA_BUNDLE = os.environ.get("VEEAM_API_CA_BUNDLE", "").strip()
+
 # Contatori asset: ore dopo le quali una lettura e' "vecchia" (default una settimana)
 # e client IP (o reti CIDR) da cui i collector possono inviare letture.
 ASSETS_METER_STALE_HOURS = int(os.environ.get("ASSETS_METER_STALE_HOURS", "168") or 168)

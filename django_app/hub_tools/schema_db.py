@@ -126,6 +126,16 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "controllo": "Errori 401/403/invalid_client = segreto dell'app scaduto: rinnovarlo su Entra ID.",
     },
     {
+        "nome": "Veeam Backup & Replication (REST API)",
+        "cosa": "Sessioni di backup concluse con l'esito per macchina e spazio dei repository, lette ogni 15 minuti dal "
+                "security_cycle (solo letture, in uscita verso il server Veeam sulla porta 9419). Finiscono in "
+                "security_backupjobrecord ed eventi del SOC, come le mail di esito Veeam.",
+        "chi": "SOC → Backup (riquadro «Lettura diretta da Veeam»), alert «Repository di backup quasi pieno».",
+        "config": "VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD (utente con ruolo Veeam Backup Viewer), facoltativi "
+                  "VEEAM_API_VERSION e VEEAM_API_CA_BUNDLE nel .env; interruttore in /soc/impostazioni/.",
+        "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
+    },
+    {
         "nome": "Posta in uscita (SMTP)",
         "cosa": "Tutte le mail del portale.",
         "chi": "Notifiche, approvazioni, promemoria, minute degli incontri.",
