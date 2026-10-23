@@ -75,6 +75,7 @@ MENU = [
     ("Dispositivi", "pc_copertura", [
         ("Elenco", "pc_copertura", ("pc_copertura", "pc_detail", "assets"), False),
         ("Backup", "backup", ("backup", "backup_device", "backup_log"), False),
+        ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
@@ -85,6 +86,7 @@ MENU = [
     ]),
     ("Impostazioni", None, [
         ("Configurazione", None, tuple(CONFIG_ROUTES), False),
+        ("Letture automatiche", "letture", ("letture",), False),
         ("Elaborazione", "pipeline", ("pipeline",), True),
         ("Soppressioni", "suppressions", ("suppressions",), False),
         ("Guida", "help", ("help", "doc_detail"), False),

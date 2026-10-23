@@ -158,6 +158,13 @@ body.theme-dark .soc-drawer a{color:#93c5fd}
 .soc-drawer .cvp-hosts li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
 .soc-drawer .cvp-hosts li.is-this { border-color: rgba(59, 130, 246, .55); background: rgba(59, 130, 246, .06); }
 .soc-drawer .cvp-host-why { grid-column: 1 / -1; color: var(--text-light); }
+.soc-drawer .cvp-tag { display: inline-block; padding: 0 6px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-mid); font-size: 11px; }
+.soc-drawer .cvp-tag.is-ok { border-color: rgba(22, 163, 74, .35); color: #15803d; }
+.soc-drawer .cvp-tag.is-ko { border-color: rgba(220, 38, 38, .35); color: #b91c1c; }
+.soc-drawer .cvp-tag.is-warn { border-color: rgba(217, 119, 6, .4); color: #b45309; }
+body.theme-dark .soc-drawer .cvp-tag.is-ok { color: #86efac; }
+body.theme-dark .soc-drawer .cvp-tag.is-ko { color: #fca5a5; }
+body.theme-dark .soc-drawer .cvp-tag.is-warn { color: #fcd34d; }
 .soc-drawer .cvp-ranges { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-mid); font-family: ui-monospace, Consolas, monospace; }
 body.theme-dark .soc-drawer .cvp-pill--critical { color: #fca5a5; }
 body.theme-dark .soc-drawer .cvp-pill--ok { color: #86efac; }

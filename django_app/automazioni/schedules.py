@@ -750,6 +750,37 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SOC — CVE viste da Defender, accanto al calcolo del SOC nel pannello CVE. Gira solo con
+        # «Confronta le CVE con Defender» acceso in /soc/impostazioni/.
+        "name": "defender_vulnerabilita_sync",
+        "func": "security.tasks.run_defender_vulnerabilita_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "25 6 * * *",       # ogni mattina alle 06:25
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SOC — WatchGuard Cloud (API): PC e protezione, software, patch mancanti. Ogni parte gira
+        # solo con il suo interruttore in /soc/impostazioni/ e le credenziali API salvate.
+        "name": "watchguard_api_sync",
+        "func": "security.tasks.run_watchguard_api_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "10 6,13 * * *",    # alle 06:10 e alle 13:10
+        "repeats": -1,
+        # Software e patch di tutti i PC possono superare i 120 s del cluster; la riconsegna
+        # della coda (retry 180 s) trova il giro in corso nel registro delle letture e non riparte.
+        "kwargs": {"q_options": {"timeout": 600}},
+    },
+    {
+        # CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.
+        "name": "contatori_tabella_mac",
+        "func": "contatori.tasks.run_tabella_mac",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 5 * * *",       # ogni notte alle 05:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Microsoft 365 — abbonamenti (posti, stato, rinnovo) nel modulo Licenze software.
         # Serve il permesso Graph Organization.Read.All (+ LicenseAssignment.Read.All per le date).
         "name": "m365_licenze_sync",

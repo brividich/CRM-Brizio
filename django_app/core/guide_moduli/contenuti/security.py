@@ -50,6 +50,11 @@ GUIDA = {
                 ("p", "Dopo un aggiornamento non si chiude niente a mano: al primo inventario con la versione nuova la CVE esce dal PC "
                       "e compare in «Risolte negli ultimi 90 giorni» con versione prima → dopo. «Programma aggiornato» e «disinstallato» "
                       "sono correzioni; «PC non più nell'inventario» e «Rivalutata» no."),
+                ("p", "Ogni CVE ha una priorità: «Subito» se sfruttata (CISA KEV) o con probabilità di attacco alta (EPSS 10% o più), "
+                      "«Presto» se CVSS 9 o più (o CVSS 7 con EPSS almeno 1%), altrimenti «Normale». Le CVE sono in quest'ordine."),
+                ("p", "Dispositivi › «Patch e protezione»: patch mancanti per PC lette da WatchGuard (prima quelle che correggono CVE "
+                      "sfruttate), installazioni non riuscite, PC con la protezione da sistemare e dispositivi in rete senza agente. "
+                      "Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC la patch è pronta."),
             ],
         },
     ],
@@ -70,11 +75,37 @@ GUIDA = {
                     "Microsoft Entra ID: Impostazioni › «Microsoft Entra ID». Tre interruttori: account degli ex dipendenti ancora attivi "
                     "(alert che si chiude quando l'account viene disattivato), modifiche amministrative sensibili e accessi sospetti (falliti a raffica, Paesi non ammessi, protocolli vecchi). Permessi User.Read.All e "
                     "AuditLog.Read.All; prova con manage.py entra_signals --prova.",
+                    "«Confronta le CVE con Defender» (riquadro Microsoft Defender): ogni mattina alle 06:25 le CVE che Defender vede sui PC "
+                    "vanno accanto al calcolo del SOC nel pannello CVE. Permessi Vulnerability.Read.All e Machine.Read.All dell'API "
+                    "WindowsDefenderATP; a mano: manage.py soc_api_sync --solo defender.",
+                    "WatchGuard Cloud (API): credenziali nel riquadro «Credenziali API WatchGuard» delle Impostazioni (da Managed Access: URL API, "
+                    "Access ID e password di sola lettura, API Key; ID account da My Account), poi «Prova la connessione» e gli interruttori "
+                    "«WatchGuard Endpoint Security (API)»: PC e protezione, software (al posto dell'export), patch. Girano alle 06:10 e 13:10; "
+                    "a mano: manage.py soc_api_sync --solo watchguard.",
+                    "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
+                    "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
+                    "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
                 ]),
             ],
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una lettura resta «In coda» o diventa «Interrotta»",
+            "fare": [
+                "Il giro aspetta il servizio dei lavori in background (qcluster): se resta in coda il servizio è fermo.",
+                "Amministrazione › Monitoring: controlla qcluster e riavvialo; poi rilancia «Esegui ora» dalla scheda.",
+            ],
+        },
+        {
+            "sintomo": "«Prova la connessione» a WatchGuard non riesce",
+            "fare": [
+                "«Access ID o password non validi»: ricopiali da Managed Access (attenzione a quelli di sola lettura vs lettura/scrittura).",
+                "401/403 sulle letture: l'API Key non è quella dell'account o l'account non ha Endpoint Security.",
+                "404: l'ID account è sbagliato (My Account, formato ACC-… o WGC-…). L'URL API deve essere quello della regione dell'account.",
+                "Errore di rete: il server del portale deve raggiungere https://api.<regione>.cloud.watchguard.com (porta 443).",
+            ],
+        },
         {
             "sintomo": "Il Security Center non mostra dati recenti",
             "fare": [

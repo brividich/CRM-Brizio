@@ -73,11 +73,9 @@ def enrich_cve_task():
     con backoff e rate limit; il giro si ferma entro 90 s (timeout worker 120 s) e riprende
     al successivo. Spento finché non si accende «Impatto CVE sugli asset» in /soc/impostazioni/.
     """
-    from security.services.cve_feeds import enrichment_enabled, run_enrichment
+    from security.services import letture
 
-    if not enrichment_enabled():
-        return {"skipped": "arricchimento CVE spento"}
-    return run_enrichment(time_budget_seconds=90)
+    return letture.esegui("cve")
 
 
 def ai_sintesi_giorno_task():
@@ -149,13 +147,14 @@ def run_security_cycle_task():
 
     logger = logging.getLogger(__name__)
     result = {}
-    from security.services import defender_alerts, entra_signals, secure_score
+    from security.services import letture
 
     steps = (
-        ("mailboxes", ingest_security_mailboxes_task),
-        ("defender", defender_alerts.run),
-        ("entra", entra_signals.run),
-        ("secure_score", secure_score.aggiorna),
+        # Le letture passano dal registro (Impostazioni › Letture automatiche): storico ed «Esegui ora».
+        ("mailboxes", lambda: letture.esegui("caselle", rilancia=True)),
+        ("defender", lambda: letture.esegui("defender_alert", rilancia=True)),
+        ("entra", lambda: letture.esegui("entra", rilancia=True)),
+        ("secure_score", lambda: letture.esegui("secure_score", rilancia=True)),
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
@@ -176,6 +175,20 @@ def run_security_cycle_task():
 
 def run_defender_software_task() -> dict:
     """Software dei PC da Microsoft Defender for Endpoint (``services.defender_software``)."""
-    from security.services import defender_software
+    from security.services import letture
 
-    return defender_software.run()
+    return letture.esegui("defender_software")
+
+
+def run_watchguard_api_task() -> dict:
+    """PC, software e patch da WatchGuard Cloud (``services.watchguard_api``), con i loro interruttori."""
+    from security.services import letture
+
+    return letture.esegui("watchguard")
+
+
+def run_defender_vulnerabilita_task() -> dict:
+    """CVE viste da Defender per il confronto nel pannello CVE (``services.defender_vuln``)."""
+    from security.services import letture
+
+    return letture.esegui("defender_vuln")

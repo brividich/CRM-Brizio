@@ -1,0 +1,94 @@
+{% extends "security/_base_soc.html" %}
+{# Patch e protezione: dati dell'API WatchGuard (services/watchguard_api.py). Sola lettura. #}
+
+{% block title %}Patch e protezione | Security Center AI{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Patch e protezione{% endblock %}
+
+{% block soc_content %}
+{% if not configurato or not attivi.dispositivi and not attivi.patch %}
+  <section class="sec-panel sec-callout sec-callout-warning">
+    <strong>{% if not configurato %}Credenziali API WatchGuard non configurate.{% else %}Letture WatchGuard spente.{% endif %}</strong>
+    {% if can_edit %}Vai in <a href="{% url 'security:soc_settings' %}#watchguard-api">Impostazioni › Avvisi e automatismi</a>: {% if not configurato %}inserisci le credenziali di WatchGuard Cloud e prova la connessione, poi {% endif %}accendi le letture nel riquadro «WatchGuard Endpoint Security (API)».{% else %}Chiedi a chi configura il SOC di collegare WatchGuard Cloud.{% endif %}
+  </section>
+{% endif %}
+
+<div class="wgp-stats">
+  <div class="wgp-stat{% if patch_totale %} is-warn{% endif %}"><strong>{{ patch_totale }}</strong><span>patch mancanti</span><small>su {{ pc_con_patch }} PC</small></div>
+  <div class="wgp-stat{% if kev_totale %} is-danger{% endif %}"><strong>{{ kev_totale }}</strong><span>correggono CVE sfruttate</span><small>CISA KEV: da installare per prime</small></div>
+  <div class="wgp-stat{% if protezione %} is-danger{% endif %}"><strong>{{ protezione|length }}</strong><span>PC con la protezione da sistemare</span><small>su {{ gestiti }} con agente</small></div>
+  <div class="wgp-stat{% if senza_agente %} is-warn{% endif %}"><strong>{{ senza_agente|length }}</strong><span>in rete senza agente</span><small>trovati dalle sonde WatchGuard</small></div>
+  <div class="wgp-stat is-ok"><strong>{{ chiuse }}</strong><span>patch chiuse</span><small>negli ultimi 30 giorni</small></div>
+</div>
+<p class="sec-muted sec-small">{% if ultima %}Ultima lettura da WatchGuard Cloud: {{ ultima|date:"d/m/Y H:i" }}.{% else %}Nessuna lettura ancora.{% endif %} <a href="{% url 'security:letture' %}#lettura-watchguard">Storico dei giri ed «Esegui ora»</a>. Le patch si installano dalla console WatchGuard (Patch Management): qui si vede cosa manca e com'è andata. Una patch esce dall'elenco quando WatchGuard non la segnala più (installata o non più necessaria).</p>
+
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Patch mancanti</h2><span class="sec-muted sec-small">prima quelle che correggono CVE sfruttate, poi per criticità e numero di PC</span></div>
+  {% if patch %}
+  <div class="wgp-list">
+    {% for g in patch %}
+      <details class="wgp-item{% if g.kev %} is-kev{% endif %}">
+        <summary>
+          <span class="wgp-name"><strong>{{ g.nome }}</strong><small>{% if g.programma %}{{ g.programma }}{% endif %}{% if g.di_sistema %} · sistema operativo{% endif %}{% if g.rilasciata_il %} · pubblicata il {{ g.rilasciata_il|date:"d/m/Y" }}{% endif %}</small></span>
+          <span class="wgp-tags">
+            {% if g.kev %}<span class="sec-badge critical" title="{{ g.kev|join:', ' }}">CVE sfruttata</span>{% endif %}
+            {% if g.criticita_label %}<span class="sec-badge {% if g.criticita == 201 %}high{% elif g.criticita == 202 %}medium{% else %}muted{% endif %}">{{ g.criticita_label }}</span>{% endif %}
+            {% if g.errori %}<span class="sec-badge high">{{ g.errori }} installazion{{ g.errori|pluralize:"e,i" }} fallit{{ g.errori|pluralize:"a,e" }}</span>{% endif %}
+            <span class="wgp-count">{{ g.pc|length }} PC</span>
+          </span>
+        </summary>
+        {% if g.cve %}<p class="wgp-cve">Corregge: {% for c in g.cve|slice:":12" %}<a href="{% url 'security:cve_detail' c %}" data-preview="{% url 'security:cve_pannello_cve' c %}">{{ c }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if g.cve|length > 12 %} e altre {{ g.cve|length|add:"-12" }}{% endif %}</p>{% endif %}
+        <ul class="wgp-pcs">
+          {% for p in g.pc %}
+            <li>{% if p.hub_asset %}<a href="{% url 'assets:asset_view' p.hub_asset.pk %}">{{ p.host_display|default:p.host }}</a>{% else %}{{ p.host_display|default:p.host }}{% endif %}
+              <small>{% if p.esito %}<span class="{% if p.esito_errore %}wgp-ko{% endif %}">{{ p.esito_label }}{% if p.esito_il %} il {{ p.esito_il|date:"d/m" }}{% endif %}</span>{% else %}{{ p.disponibilita_label|default:"da installare" }}{% endif %}{% if p.versione %} · versione {{ p.versione }}{% endif %}</small></li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endfor %}
+  </div>
+  {% if patch_totale > patch|length %}<p class="sec-muted sec-small">E altre {{ patch_totale|add:"-150" }} patch meno urgenti.</p>{% endif %}
+  {% else %}
+    <p class="sec-empty">{% if attivi.patch %}Nessuna patch mancante secondo WatchGuard.{% else %}La lettura delle patch è spenta.{% endif %}</p>
+  {% endif %}
+</section>
+
+{% if errori %}
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Installazioni non riuscite (14 giorni)</h2></div>
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>PC</th><th>Patch</th><th>Esito</th><th>Quando</th></tr></thead>
+    <tbody>{% for p in errori %}<tr>
+      <td>{% if p.hub_asset %}<a href="{% url 'assets:asset_view' p.hub_asset.pk %}">{{ p.host_display|default:p.host }}</a>{% else %}{{ p.host_display|default:p.host }}{% endif %}</td>
+      <td>{{ p.nome }}</td><td><span class="sec-badge high">{{ p.esito_label }}</span></td><td class="sec-nowrap">{{ p.esito_il|date:"d/m/Y H:i" }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<div class="wgp-grid">
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Protezione da sistemare</h2></div>
+  {% if protezione %}
+  <ul class="wgp-rows">
+    {% for d in protezione %}
+      <li><span>{% if d.hub_asset %}<a href="{% url 'assets:asset_view' d.hub_asset.pk %}">{{ d.host_display|default:d.host }}</a>{% else %}{{ d.host_display|default:d.host }}{% endif %}<small>{{ d.sistema }}{% if d.agente %} · agente {{ d.agente }}{% endif %}</small></span>
+        <span class="wgp-tags">{% if not d.protetto %}<span class="sec-badge high">{% if d.protezione == 1 %}Protezione non aggiornata{% else %}{{ d.protezione_label }}{% endif %}</span>{% endif %}{% if d.riavvio_richiesto %}<span class="sec-badge medium">Riavvio richiesto</span>{% endif %}{% if d.ultima_connessione %}<small>connesso il {{ d.ultima_connessione|date:"d/m/Y" }}</small>{% endif %}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="sec-empty">{% if attivi.dispositivi %}Tutti i PC con agente sono protetti e connessi negli ultimi 7 giorni.{% else %}La lettura dei PC è spenta.{% endif %}</p>{% endif %}
+</section>
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>In rete senza agente</h2></div>
+  {% if senza_agente %}
+  <ul class="wgp-rows">
+    {% for d in senza_agente %}
+      <li><span>{% if d.hub_asset %}<a href="{% url 'assets:asset_view' d.hub_asset.pk %}">{{ d.host_display|default:d.ip }}</a>{% else %}{{ d.host_display|default:d.ip|default:"senza nome" }}{% endif %}<small>{{ d.ip }}{% if d.mac %} · {{ d.mac }}{% endif %}{% if d.produttore_scheda %} · {{ d.produttore_scheda }}{% endif %}</small></span>
+        <span class="wgp-tags">{% if d.hub_asset %}<span class="sec-badge medium">Asset senza agente</span>{% endif %}{% if d.ultima_connessione %}<small>visto il {{ d.ultima_connessione|date:"d/m/Y" }}</small>{% endif %}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="sec-muted sec-small">Dispositivi trovati in rete dalle sonde WatchGuard senza agente: stampanti e apparati sono normali; un PC qui è un PC non protetto.</p>
+  {% else %}<p class="sec-empty">{% if attivi.dispositivi %}Nessun dispositivo senza agente.{% else %}La lettura dei PC è spenta.{% endif %}</p>{% endif %}
+</section>
+</div>
+{% endblock %}

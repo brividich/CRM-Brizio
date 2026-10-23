@@ -1,0 +1,35 @@
+{% extends "security/_base_soc.html" %}
+{# Impostazioni › Letture automatiche: services/letture.py. Il contenuto si ricarica da solo mentre un giro è in corso. #}
+
+{% block title %}Letture automatiche | Security Center AI{% endblock %}
+{% block page_marker %}Impostazioni{% endblock %}
+{% block page_title %}Letture automatiche{% endblock %}
+
+{% block soc_content %}
+<p class="sec-muted sec-small lt-intro">Da dove il SOC prende i dati, da solo: quando ha letto l'ultima volta, cosa ha letto e se qualcosa non va. «Esegui ora» fa partire subito un giro{% if not can_edit %} (serve il permesso di configurazione del SOC){% endif %}. Le letture si accendono e si spengono in <a href="{% url 'security:soc_settings' %}">Avvisi e automatismi</a>.</p>
+<div id="lt-root" data-url="{% url 'security:letture' %}?parziale=1">
+  {% include "security/partials/letture_contenuto.html" %}
+</div>
+<script{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>
+(function () {
+  var root = document.getElementById("lt-root");
+  function giro() {
+    var corre = root.querySelector("[data-running='1']");
+    if (!corre) { return; }
+    setTimeout(function () {
+      fetch(root.getAttribute("data-url"), {credentials: "same-origin", headers: {"X-Requested-With": "fetch"}})
+        .then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (html) {
+          if (html === null) { return; }
+          var aperti = Array.prototype.map.call(root.querySelectorAll("details[open][data-id]"), function (d) { return d.getAttribute("data-id"); });
+          root.innerHTML = html;
+          aperti.forEach(function (id) { var d = root.querySelector("details[data-id='" + id + "']"); if (d) { d.open = true; } });
+          giro();
+        })
+        .catch(function () { setTimeout(giro, 10000); });
+    }, 4000);
+  }
+  giro();
+})();
+</script>
+{% endblock %}

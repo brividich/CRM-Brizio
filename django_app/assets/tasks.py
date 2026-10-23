@@ -56,6 +56,15 @@ def run_it_monitoring_alerts() -> dict:
 
 
 def run_intune_sync() -> dict:
+    """Task ``intune_sync``: passa dal registro delle letture del SOC (storico ed «Esegui ora»)."""
+    try:
+        from security.services import letture
+    except ImportError:  # SOC non installato
+        return _intune_sync()
+    return letture.esegui("intune")
+
+
+def _intune_sync() -> dict:
     """Legge i dispositivi da Microsoft Intune (``assets.services.intune``).
 
     Non solleva sugli errori di Graph (permesso mancante, rete): li registra e
@@ -75,6 +84,15 @@ def run_intune_sync() -> dict:
 
 
 def run_m365_licenze_sync() -> dict:
+    """Task ``m365_licenze_sync``: passa dal registro delle letture del SOC (storico ed «Esegui ora»)."""
+    try:
+        from security.services import letture
+    except ImportError:  # SOC non installato
+        return _m365_licenze_sync()
+    return letture.esegui("m365_licenze")
+
+
+def _m365_licenze_sync() -> dict:
     """Abbonamenti Microsoft 365 nel modulo Licenze (``assets.services.m365_licenze``).
 
     Come ``run_intune_sync``: un permesso mancante viene registrato, il task non fallisce.

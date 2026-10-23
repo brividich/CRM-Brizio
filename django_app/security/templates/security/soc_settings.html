@@ -72,6 +72,35 @@
 </form>
 {% if can_edit %}<form id="st-run-now" method="post" action="{% url 'security:soc_settings_run' %}">{% csrf_token %}</form>{% endif %}
 
+<section class="sec-panel st-card{% if wg.configurato %} is-on{% endif %}" id="watchguard-api" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>Credenziali API WatchGuard</h2>
+    <span class="sec-badge {% if wg.configurato %}sec-badge-success{% else %}sec-badge-muted{% endif %}">{% if wg.configurato %}Configurate{% else %}Assenti{% endif %}</span>
+  </div>
+  <p class="sec-muted sec-small st-intro">Da WatchGuard Cloud › Amministrazione › <strong>Managed Access</strong>: abilita l'accesso API, poi copia qui URL API, Access ID e password (meglio quelli <strong>sola lettura</strong>) e l'API Key. L'ID account è in <strong>My Account</strong> (ACC-… o WGC-…). Password e API Key sono salvate cifrate e non si rivedono: lasciale vuote per tenere quelle salvate. Le letture si accendono nel riquadro «WatchGuard Endpoint Security (API)» qui sopra; i dati sono in <a href="{% url 'security:watchguard_pc' %}">Dispositivi › Patch e protezione</a>, i giri e «Esegui ora» in <a href="{% url 'security:letture' %}#lettura-watchguard">Letture automatiche</a>.</p>
+  {% if can_edit %}
+  <form method="post" action="{% url 'security:watchguard_credenziali' %}" class="st-wg-form" autocomplete="off">
+    {% csrf_token %}
+    <label class="st-field">URL API (regione)<input type="url" name="url_api" value="{{ wg.url_api }}" placeholder="https://api.deu.cloud.watchguard.com" maxlength="200" required></label>
+    <label class="st-field">ID account<input type="text" name="account_id" value="{{ wg.account_id }}" placeholder="ACC-1234567" maxlength="60" required></label>
+    <label class="st-field">Access ID<input type="text" name="access_id" value="{{ wg.access_id }}" maxlength="200" required></label>
+    <label class="st-field">Password<input type="password" name="password" maxlength="300" autocomplete="new-password"{% if wg.password %} placeholder="salvata: vuoto = resta quella"{% else %} required{% endif %}></label>
+    <label class="st-field">API Key<input type="password" name="api_key" maxlength="300" autocomplete="new-password"{% if wg.api_key %} placeholder="salvata: vuoto = resta quella"{% else %} required{% endif %}></label>
+    <div class="sec-actions">
+      <button type="submit" name="azione" value="salva" class="sec-button sec-button-primary">Salva le credenziali</button>
+    </div>
+  </form>
+  {% if wg.configurato %}
+  <div class="sec-actions" style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <form method="post" action="{% url 'security:watchguard_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="prova" class="sec-button">Prova la connessione</button></form>
+    <form method="post" action="{% url 'security:watchguard_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="cancella" class="sec-button" onclick="return confirm('Cancellare le credenziali API WatchGuard? Le letture si fermano.');">Cancella le credenziali</button></form>
+  </div>
+  {% endif %}
+  {% else %}
+    <p class="sec-muted">{% if wg.configurato %}Collegato all'account {{ wg.account_id }}.{% else %}Non collegato.{% endif %}</p>
+  {% endif %}
+</section>
+
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Ultimi avvisi inviati</h2><a class="sec-small" href="{% url 'security:admin_config_notifications' %}">Canali di notifica</a></div>
   <div class="sec-table-wrap">

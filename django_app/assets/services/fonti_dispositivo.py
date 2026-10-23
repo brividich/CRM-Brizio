@@ -5,7 +5,9 @@ Sola lettura, poche query. Ogni fonte dice se vede l'asset e quando l'ha visto l
 - Microsoft Intune (``DispositivoIntune`` collegato): sincronizzazione e problemi aperti;
 - inventario software WatchGuard / Defender (``SoftwareInstallation`` ancora rilevate);
 - dispositivi del Security Center (``SecurityAsset`` collegati): ultimo fatto ricevuto;
-- monitoraggio SNMP del modulo contatori (``DispositivoSNMP`` collegato).
+- monitoraggio SNMP del modulo contatori (``DispositivoSNMP`` collegato);
+- WatchGuard via API (``WatchGuardDispositivo``): stato della protezione e patch mancanti, prima dell'inventario;
+- switch e porta a cui il PC è collegato (tabella MAC letta via SNMP, ``contatori.tabella_mac``).
 
 Le fonti SOC compaiono solo a chi vede il Security Center. Per i PC (postazioni e server) le
 fonti che mancano si mostrano tratteggiate: un PC non in Intune o senza inventario è il dato utile.
@@ -65,6 +67,37 @@ def _inventario(asset, oggi):
     return out
 
 
+def _watchguard_api(asset, oggi):
+    """WatchGuard letto dall'API: protezione, ultima connessione, patch mancanti. None se l'API non lo vede."""
+    from security.models import WatchGuardDispositivo, WatchGuardPatch
+
+    disp = WatchGuardDispositivo.objects.filter(hub_asset=asset, presente=True).order_by("-gestito", "-ultima_connessione").first()
+    if disp is None:
+        return None
+    url = reverse("security:watchguard_pc")
+    if not disp.gestito:
+        return _fonte("WatchGuard", "ko", "in rete senza agente", url, disp.ultima_connessione)
+    patch = WatchGuardPatch.objects.filter(hub_asset=asset, presente=True).count()
+    dettaglio = "protezione attiva" if disp.protetto else f"protezione: {disp.protezione_label.lower()}"
+    if disp.protezione == 1 and disp.motore_aggiornato is False:
+        dettaglio = "protezione non aggiornata"
+    if patch:
+        dettaglio += f" · {patch} patch mancant{'e' if patch == 1 else 'i'}"
+    stato = "ko" if not disp.protetto else _stato_data(disp.ultima_connessione, oggi)
+    return _fonte("WatchGuard", stato, dettaglio, url, disp.ultima_connessione)
+
+
+def _switch(asset):
+    from contatori.tabella_mac import porte_di_asset
+
+    porte = [p for p in porte_di_asset(asset) if p.porta_accesso]
+    if not porte:
+        return None
+    p = porte[0]
+    url = reverse("contatori:snmp_dispositivo", args=[p.dispositivo_id])
+    return _fonte("Rete", "ok", f"{p.dispositivo.nome} · {p.porta}", url, p.letto_il)
+
+
 def _soc(asset, oggi):
     from security.models import SecurityAsset
 
@@ -106,6 +139,9 @@ def per_asset(asset, *, profilo=None, soc=False, oggi=None):
         out.append(_fonte("Intune", "no", "non gestito"))
     if soc:
         inventario = _inventario(asset, oggi)
+        wg_api = _watchguard_api(asset, oggi)
+        if wg_api:
+            inventario["watchguard"] = wg_api
         for fonte, nome in (("watchguard", "WatchGuard"), ("defender", "Defender")):
             if fonte in inventario:
                 out.append(inventario[fonte])
@@ -117,6 +153,9 @@ def per_asset(asset, *, profilo=None, soc=False, oggi=None):
     snmp = _snmp(asset, oggi)
     if snmp:
         out.append(snmp)
+    switch = _switch(asset)
+    if switch:
+        out.append(switch)
     if not any(f["stato"] != "no" for f in out) and not pc:
         return []
     return out

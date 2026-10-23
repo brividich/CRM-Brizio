@@ -261,8 +261,12 @@ SEZIONI: list[dict] = [
             ("p", "Un avviso critico o uno sportello aperto mette la stampante in «Errore», gli altri avvisi e "
                   "un cassetto vuoto in «Attenzione». Se una stampante non espone la tabella avvisi, il registro "
                   "usa gli errori che segnala (carta inceppata, sportello aperto, toner esaurito…). Sulle MFC "
-                  "la lettura non cambia contatori di fatturazione, letture e «Stato SNMP» della scheda; la data "
-                  "di fine del toner delle MFC resta quella della pagina «Consumabili»."),
+                  "la lettura non cambia contatori di fatturazione e letture; la data di fine del toner delle MFC "
+                  "resta quella della pagina «Consumabili»."),
+            ("p", "Una stampante censita due volte, come MFC a contratto e come dispositivo del Monitor SNMP (stesso "
+                  "IP o stesso asset), è una sola: compare e conta una volta, come MFC, e la scheda del dispositivo "
+                  "porta alla scheda MFC. Sonde, firmware e storico delle interrogazioni restano raggiungibili dal "
+                  "link «Dettagli tecnici SNMP» sotto il pannello della stampante. Non si cancella nulla."),
         ],
     },
     {
@@ -390,6 +394,23 @@ SEZIONI: list[dict] = [
                 "come il software dei PC. Una versione nuova sostituisce la precedente.",
                 "Le MFC del modulo (letture contatori) non leggono il sysDescr: per il firmware di una stampante "
                 "aggiungila anche in Monitor SNMP.",
+            ]),
+        ],
+    },
+    {
+        "id": "porte-switch",
+        "titolo": "Chi è collegato alle porte degli switch",
+        "blocchi": [
+            ("p", "Ogni notte alle 05:30 il portale legge (solo lettura) la tabella MAC degli apparati di categoria «Rete» "
+                  "attivi e raggiungibili: su quale porta e VLAN sta ogni MAC."),
+            ("ul", [
+                "Nella scheda dello switch, riquadro «Chi è collegato alle porte»: porta, VLAN, MAC e l'asset riconosciuto. "
+                "Si mostrano solo le porte con al massimo 3 MAC: quelle con più MAC portano ad altri switch o access point.",
+                "Nella scheda asset di un PC, la riga «Visto da» ha la voce «Rete» con switch e porta.",
+                "Il MAC del PC arriva da Intune, da WatchGuard o dal punto rete dichiarato dell'asset: un MAC sconosciuto resta «non riconosciuto».",
+                "Si legge dal Q-BRIDGE-MIB o, se l'apparato non lo espone, dal BRIDGE-MIB. Gli switch Cisco con tabella separata per VLAN "
+                "(community@vlan) non sono coperti.",
+                "Interruttore nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch».",
             ]),
         ],
     },
