@@ -146,7 +146,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "contatori assets_assetmeter.",
         "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
         "config": "Tutto in Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/). «Dove gira il collector»: sul server "
-                  "del portale (manage.py collector_cnc, attività deployment/start_collector_cnc.ps1, scrittura diretta nel DB, uscita "
+                  "del portale (manage.py collector_cnc, task CollectorCnc_<ENV> installato dal Setup Wizard, scrittura diretta nel DB, uscita "
                   "verso le macchine sulla porta OPC UA 4840, controllo collector_cnc) oppure su un PC dell'officina. Macchine del collector (indirizzo e "
                   "porta OPC UA, codice, credenziali OPC UA cifrate) scaricate dal collector con GET /api/assets/contatori/ingest/config/, "
                   "token e IP ammessi del collector; sul PC del collector solo PORTALE_URL e PORTALE_TOKEN. MTConnect: indirizzo dell'agent "

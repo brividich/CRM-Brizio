@@ -7,17 +7,34 @@ Legge le macchine scritte in Asset › Configurazione › Macchine collegate (fo
 e scrive stato, allarmi e contatori direttamente nel database. Il registro dettagliato dei segnali
 resta in ``<PRIVATE_ATTACHMENTS_ROOT>/collector_cnc/machines.db``. Ogni minuto lascia un segnale
 di vita (pagina Macchine collegate, controllo infrastruttura). Avvio come servizio:
-``deployment/start_collector_cnc.ps1``.
+``deployment/start_collector_cnc.ps1``, registrato in Windows da
+``deployment/scripts/install-collector-cnc-task.ps1``. Quando si attiva una release nuova
+(il junction ``current`` cambia cartella) il comando esce da solo e il launcher lo riavvia
+col codice nuovo.
 """
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 BATTITO_SECONDI = 60
+
+
+def cartella_release() -> str:
+    """Cartella vera da cui gira il codice: il launcher parte da ``<ambiente>/current/django_app``.
+
+    Il junction ``current`` passa a un'altra cartella quando si attiva una release nuova:
+    il percorso vero cambia anche se il processo ha ancora in memoria il codice vecchio.
+    """
+    return os.path.realpath(os.getcwd())
+
+
+class ReleaseCambiata(Exception):
+    """È stata attivata una release nuova: si esce e il launcher riparte col codice nuovo."""
 
 
 class Command(BaseCommand):
@@ -50,11 +67,15 @@ class Command(BaseCommand):
         cartella = Path(settings.PRIVATE_ATTACHMENTS_ROOT) / "collector_cnc"
         cartella.mkdir(parents=True, exist_ok=True)
         portale = PortaleDiretto(collector.prog_name)
+        partenza = cartella_release()
 
         async def battiti():
             from django.db import close_old_connections
 
             while True:
+                if cartella_release() != partenza:
+                    raise ReleaseCambiata
+
                 def scrivi():
                     close_old_connections()
                     svc.registra_battito(len(portale.machines), portale.ultimo_errore or "")
@@ -71,5 +92,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Collector integrato avviato (modalità: {svc.MODALITA[svc.modalita()]}). CTRL+C per fermarlo.")
         try:
             asyncio.run(tutto())
+        except ReleaseCambiata:
+            self.stdout.write("Attivata una release nuova: il collector esce e il launcher lo riavvia col codice nuovo.")
         except KeyboardInterrupt:
             self.stdout.write("Collector fermato.")
