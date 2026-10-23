@@ -175,6 +175,9 @@ class PostazioneTests(TestCase):
         resp = self.client.get(reverse("postazione_home"))
         self.assertContains(resp, "non è registrato", status_code=403)
         self.assertContains(resp, "127.0.0.1", status_code=403)
+        self.assertContains(resp, "TRUSTED_PROXY_IPS", status_code=403)
+        resp = self.client.get(reverse("postazione_home"), REMOTE_ADDR="10.0.0.99")
+        self.assertNotContains(resp, "TRUSTED_PROXY_IPS", status_code=403)
         self.assertRedirects(self.client.get(reverse("dashboard_home")), reverse("postazione_home"),
                              fetch_redirect_response=False, target_status_code=403)
         resp = self.client.get("/api/qualcosa/", HTTP_ACCEPT="application/json")

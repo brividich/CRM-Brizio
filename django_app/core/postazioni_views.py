@@ -68,8 +68,11 @@ def postazione_home(request):
         corrente = postazioni.stato(request)
         if corrente and corrente.get("postazione") is None and not corrente.get("operatore"):
             # Account condiviso da un PC non registrato (il middleware lascia aprire solo qui).
+            ip = postazioni.ip_richiesta(request)
             return render(request, _TEMPLATE, {
-                "page_title": "PC non registrato", "pc_non_registrato": True, "ip": postazioni.ip_richiesta(request),
+                "page_title": "PC non registrato", "pc_non_registrato": True, "ip": ip,
+                # 127.0.0.1 = il portale non vede l'IP vero (TRUSTED_PROXY_IPS vuoto dietro IIS).
+                "ip_loopback": ip in {"127.0.0.1", "::1"},
             }, status=403)
         return redirect("dashboard_home")
     selezionato = None
