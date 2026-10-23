@@ -55,6 +55,19 @@ def run_it_monitoring_alerts() -> dict:
         raise
 
 
+def run_rete_windows_sync() -> dict:
+    """Indirizzi IP dal DHCP e dal DNS di Windows Server (``assets.services.rete_windows``).
+
+    Senza server configurati non fa nulla; gli errori di un server (permessi, RSAT
+    mancanti) finiscono nell'esito e nella pagina Indirizzi IP, il task non fallisce.
+    """
+    from assets.services import rete_windows
+
+    if not rete_windows.configurato():
+        return {"ok": False, "motivo": "DHCP/DNS non configurati (RETE_DHCP_SERVERS / RETE_DNS_SERVER)"}
+    return rete_windows.sincronizza()
+
+
 def run_intune_sync() -> dict:
     """Legge i dispositivi da Microsoft Intune (``assets.services.intune``).
 

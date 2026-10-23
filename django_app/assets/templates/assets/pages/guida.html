@@ -42,6 +42,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#storico">Storico delle modifiche</a>
     <a href="#software">Software installati e licenze</a>
     <a href="#catalogo">Catalogo software</a>
+    <a href="#rete-indirizzi">Indirizzi IP</a>
     <a href="#part145">PART 145</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
@@ -336,6 +337,24 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>In cima alla Panoramica di un PC la riga <strong>Visto da</strong> elenca le fonti che lo vedono (Intune, WatchGuard, Defender, Security Center, SNMP) con la data dell'ultima volta: pallino verde = recente, arancione = non recente, rosso = problema aperto; un riquadro tratteggiato = la fonte non vede il PC (per esempio «Intune · non gestito»). WatchGuard, Defender e Security Center compaiono solo a chi vede il SOC. Il riquadro <strong>Microsoft Intune</strong> mostra anche RAM, disco (con la barra dello spazio usato) e MAC.</p>
       <h3>Cosa succede nel SOC</h3>
       <p>Dopo ogni salvataggio e ogni import dell'inventario il SOC controlla il catalogo: se nuovi PC hanno un software <em>Non autorizzato</em> o <em>Da rimuovere</em>, o una versione sotto la minima, nasce un alert (uno per software, che si aggiorna se altri PC si aggiungono). Il riepilogo è nella pagina Vulnerabilità del SOC, riquadro «Software non conforme».</p>
+    </section>
+
+    <section class="ag-sec" id="rete-indirizzi">
+      <h2>Indirizzi IP (DHCP e DNS)</h2>
+      <p>La pagina <a href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a> (menu, accanto a Catalogo software) elenca gli indirizzi della rete letti dal <strong>DHCP</strong> e dal <strong>DNS</strong> di Windows Server, <strong>una riga per IP</strong>: MAC, nome che il PC dà al DHCP, nome nel DNS, tipo (dinamico, prenotazione, solo nel DNS) e l'asset a cui appartiene. Si aggiorna da sola <strong>ogni ora</strong>; in cima c'è l'ora dell'ultima lettura ed eventuali errori.</p>
+      <h3>Ambiti DHCP</h3>
+      <p>I riquadri in alto sono gli ambiti DHCP con quanti indirizzi sono in uso e quanti liberi. Un ambito con il bordo rosso è <strong>quasi pieno</strong> (in uso il 90% o più): i nuovi dispositivi potrebbero non ricevere un indirizzo. Un clic sul riquadro mostra solo gli indirizzi di quell'ambito; un altro clic toglie il filtro.</p>
+      <h3>Filtri</h3>
+      <ul>
+        <li><strong>Non censiti</strong>: indirizzi DHCP di dispositivi che nessun asset del registro riconosce (né per MAC, né per IP, né per nome). Sono da censire o da indagare.</li>
+        <li><strong>Da collegare</strong>: il portale ha trovato l'asset giusto (lo dice la colonna Asset, con il motivo: MAC, IP o nome); la conferma si fa dalla <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a>, modulo «Rete (DHCP)».</li>
+        <li><strong>Collegati a un asset</strong>: già confermati; nella scheda dell'asset la riga <strong>Visto da</strong> mostra la fonte «Rete» con l'IP.</li>
+        <li><strong>Nome DHCP diverso dal DNS</strong>: il DNS dà a quell'IP il nome di un altro dispositivo, di solito un record rimasto. Si corregge sul server DNS.</li>
+        <li><strong>Record DNS vecchi</strong>: record dinamici non aggiornati da oltre 30 giorni e senza un lease DHCP: probabilmente da eliminare (o da far pulire con lo «scavenging» del DNS).</li>
+        <li><strong>Prenotazioni</strong> e <strong>Non più visti</strong> (indirizzi spariti da DHCP e DNS, in grigio).</li>
+      </ul>
+      <p>La ricerca trova IP, MAC, nomi DHCP e DNS e il nome dell'asset.</p>
+      <p class="ag-note">Per riconoscere un dispositivo dal MAC, scrivilo nel punto rete dell'asset (scheda asset › Rete) oppure collega il PC a Intune: il portale usa anche i MAC che Intune conosce. Il registro non viene mai modificato da solo: la lettura propone, la riconciliazione conferma.</p>
     </section>
 
     <section class="ag-sec" id="part145">

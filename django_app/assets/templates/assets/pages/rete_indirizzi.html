@@ -1,0 +1,113 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Indirizzi IP{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.ri-page{display:grid;gap:14px;color:var(--text,#16253c)}
+.ri-card{border:1px solid var(--border,#dbe3ef);border-radius:16px;background:var(--surface,#fff);padding:16px 18px}
+.ri-note{margin:0;color:var(--text-mid,#66758b);font-size:var(--fs-sm,13px);line-height:1.5}
+.ri-warn{margin:6px 0 0;color:var(--danger,#b91c1c);font-size:var(--fs-sm,13px);line-height:1.5}
+.ri-scopes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.ri-scope{display:grid;gap:6px;border:1px solid var(--border,#dbe3ef);border-radius:14px;padding:12px 14px;color:inherit;text-decoration:none;background:var(--surface,#fff)}
+.ri-scope:hover,.ri-scope:focus-visible{border-color:var(--link,#2563eb)}
+.ri-scope.active{border-color:var(--link,#2563eb);box-shadow:0 0 0 2px color-mix(in srgb,var(--link,#2563eb) 25%,transparent)}
+.ri-scope.is-full{border-left:5px solid var(--danger,#dc2626)}
+.ri-scope strong{font-size:15px}
+.ri-bar{height:8px;border-radius:999px;background:color-mix(in srgb,var(--text-mid,#64748b) 18%,transparent);overflow:hidden}
+.ri-bar i{display:block;height:100%;border-radius:999px;background:var(--success,#16a34a)}
+.ri-scope.is-full .ri-bar i{background:var(--danger,#dc2626)}
+.ri-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ri-filters a{padding:6px 11px;border:1px solid var(--border,#dbe3ef);border-radius:999px;color:inherit;text-decoration:none;font-weight:600;font-size:var(--fs-sm,13px)}
+.ri-filters a.active{border-color:var(--link,#2563eb);color:var(--link,#2563eb);background:color-mix(in srgb,var(--link,#2563eb) 10%,transparent)}
+.ri-filters a span{opacity:.7;margin-left:4px}
+.ri-search{display:flex;gap:8px;margin-left:auto}
+.ri-search input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit;min-width:220px}
+.ri-search button{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;background:var(--surface,#fff);color:inherit;cursor:pointer}
+.ri-table-wrap{overflow:auto}
+.ri-table{width:100%;border-collapse:collapse}
+.ri-table th{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border,#e5e7eb);color:var(--text-mid,#64748b);font-size:var(--fs-xs,12px);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.ri-table td{padding:9px 8px;border-bottom:1px solid color-mix(in srgb,var(--border,#e5e7eb) 60%,transparent);vertical-align:top}
+.ri-table a{color:var(--link,#2563eb)}
+.ri-mono{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:13px;white-space:nowrap}
+.ri-meta{color:var(--text-mid,#64748b);font-size:var(--fs-sm,13px)}
+.ri-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;margin:1px 0}
+.ri-tag--ok{color:#15803d;background:#dcfce7}.ri-tag--warn{color:#9a3412;background:#ffedd5}.ri-tag--danger{color:#991b1b;background:#fee2e2}.ri-tag--muted{color:#475569;background:#f1f5f9}
+body.theme-dark .ri-tag--ok{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .ri-tag--warn{color:#fdba74;background:rgba(234,88,12,.18)}
+body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body.theme-dark .ri-tag--muted{color:#cbd5e1;background:rgba(148,163,184,.16)}
+.ri-off{opacity:.6}
+@media(max-width:820px){.ri-search{margin-left:0;width:100%}.ri-search input{min-width:0;flex:1}}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Indirizzi IP{% endblock %}
+{% block assets_shell_subtitle %}<p>Gli indirizzi della rete letti dal DHCP e dal DNS di Windows Server, con l'asset a cui appartengono: chi non ce l'ha è un dispositivo non censito.</p>{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ri-page">
+  <div class="ri-card">
+    <p class="ri-note">
+      {% if not configurato %}La lettura non è configurata: servono i nomi dei server DHCP e DNS nel file .env del server del portale.
+      {% elif ultimo_giro_at %}Ultima lettura {{ ultimo_giro_at|date:"d/m/Y H:i" }}: si aggiorna da sola ogni ora.
+      {% else %}In attesa della prima lettura (ogni ora).{% endif %}
+      I collegamenti agli asset si confermano dalla <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a>.
+      <a href="{% url 'assets:guida' %}#rete-indirizzi">? Guida</a>
+    </p>
+    {% for errore in ultimo_giro.errori %}<p class="ri-warn">{{ errore }}</p>{% endfor %}
+  </div>
+
+  {% if ambiti %}
+  <div class="ri-scopes" aria-label="Ambiti DHCP">
+    {% for a in ambiti %}
+      <a class="ri-scope{% if a.pieno %} is-full{% endif %}{% if ambito_id == a.pk %} active{% endif %}" href="?f={{ filter_code }}{% if ambito_id != a.pk %}&ambito={{ a.pk }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}" title="{% if ambito_id == a.pk %}Mostra tutti gli ambiti{% else %}Mostra solo questo ambito{% endif %}">
+        <strong>{{ a.nome|default:a.scope_id }}</strong>
+        <span class="ri-meta ri-mono">{{ a.scope_id }} · {{ a.inizio }}–{{ a.fine }}</span>
+        <span class="ri-bar" aria-hidden="true"><i style="width:{{ a.percentuale_uso|default:0|floatformat:0 }}%"></i></span>
+        <span class="ri-meta">{{ a.in_uso }} in uso · {{ a.liberi }} liberi ({{ a.percentuale_uso|default:0|floatformat:0 }}%){% if a.pieno %} · <strong class="ri-warn" style="display:inline">quasi pieno</strong>{% endif %}{% if a.stato and a.stato != "Active" %} · {{ a.stato }}{% endif %}</span>
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="ri-card">
+    <div class="ri-filters">
+      <nav class="ri-filters" aria-label="Filtri degli indirizzi">
+        {% for f in filtri %}<a href="?f={{ f.code }}{% if ambito_id %}&ambito={{ ambito_id }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if f.active %} class="active" aria-current="page"{% endif %}>{{ f.label }}<span>{{ f.count }}</span></a>{% endfor %}
+      </nav>
+      <form class="ri-search" method="get" role="search">
+        <input type="hidden" name="f" value="{{ filter_code }}">{% if ambito_id %}<input type="hidden" name="ambito" value="{{ ambito_id }}">{% endif %}
+        <input type="search" name="q" value="{{ q }}" placeholder="IP, MAC, nome o asset" aria-label="Cerca IP, MAC, nome o asset">
+        <button type="submit">Cerca</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="ri-card ri-table-wrap">
+    <table class="ri-table">
+      <thead><tr><th>IP</th><th>MAC</th><th>Nome nel DHCP</th><th>Nome nel DNS</th><th>Tipo</th><th>Ultima volta</th><th>Asset</th></tr></thead>
+      <tbody>
+      {% for r in righe %}
+        <tr{% if not r.presente %} class="ri-off"{% endif %}>
+          <td class="ri-mono"><strong>{{ r.ip }}</strong>{% if r.ambito %}<br><span class="ri-meta">{{ r.ambito.nome|default:r.ambito.scope_id }}</span>{% endif %}</td>
+          <td class="ri-mono">{{ r.mac|default:"—" }}</td>
+          <td>{{ r.nome_dhcp|default:"—" }}{% if r.nome_diverso %}<br><span class="ri-tag ri-tag--warn" title="Il DNS dà a questo IP un nome diverso: il record DNS è probabilmente rimasto da un altro dispositivo">nome diverso dal DNS</span>{% endif %}</td>
+          <td>{% for n in r.nomi_dns %}{{ n }}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="ri-meta">—</span>{% endfor %}
+            {% if r.nel_dns and r.dns_statico %}<br><span class="ri-tag ri-tag--muted">record statico</span>{% endif %}
+            {% if r.dns_vecchio %}<br><span class="ri-tag ri-tag--warn" title="Record dinamico non aggiornato da oltre {{ giorni_dns_vecchio }} giorni e nessun lease DHCP: probabilmente da eliminare">non aggiornato dal {{ r.dns_aggiornato_il|date:"d/m/Y" }}</span>{% endif %}</td>
+          <td>{{ r.get_tipo_display }}{% if r.stato_dhcp %}<br><span class="ri-meta">{{ r.stato_dhcp }}</span>{% endif %}{% if r.scadenza_lease and r.nel_dhcp %}<br><span class="ri-meta">scade {{ r.scadenza_lease|date:"d/m H:i" }}</span>{% endif %}</td>
+          <td class="ri-meta">{% if r.presente %}{{ r.ultima_vista|date:"d/m/Y H:i" }}{% else %}non più visto dal {{ r.ultima_vista|date:"d/m/Y" }}{% endif %}</td>
+          <td>
+            {% if r.asset %}<a href="{% url 'assets:asset_view' r.asset.pk %}"><strong>{{ r.asset.name }}</strong></a><br><span class="ri-meta">{{ r.asset.asset_tag }}</span>
+            {% elif r.asset_proposto %}<span class="ri-tag ri-tag--muted">proposta</span> <a href="{% url 'assets:asset_view' r.asset_proposto.pk %}">{{ r.asset_proposto.name }}</a><br><span class="ri-meta">per {{ r.motivo_proposta }} · <a href="{% url 'assets:it_reconciliation' %}">conferma</a></span>
+            {% elif r.nel_dhcp %}<span class="ri-tag ri-tag--danger" title="Nessun asset del registro ha questo MAC, IP o nome">non censito</span>{% if r.motivo_proposta and r.motivo_proposta != "nessuna corrispondenza" %}<br><span class="ri-meta">{{ r.motivo_proposta }}</span>{% endif %}
+            {% else %}<span class="ri-meta">—</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="ri-meta">{% if q or filter_code != "tutti" or ambito_id %}Nessun indirizzo con questi filtri.{% elif configurato %}Nessun indirizzo letto finora: guarda l'esito della lettura qui sopra.{% else %}Nessun indirizzo: la lettura DHCP/DNS non è ancora configurata.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

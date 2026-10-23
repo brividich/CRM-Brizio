@@ -32,7 +32,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
-    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software"),
+    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
     "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
     "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione"),
@@ -134,6 +134,16 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "config": "VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD (utente con ruolo Veeam Backup Viewer), facoltativi "
                   "VEEAM_API_VERSION e VEEAM_API_CA_BUNDLE nel .env; interruttore in /soc/impostazioni/.",
         "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
+    },
+    {
+        "nome": "DHCP e DNS di Windows Server",
+        "cosa": "Ambiti DHCP con l'occupazione, lease e prenotazioni (IP, MAC, nome) e record A del DNS, letti ogni ora "
+                "con PowerShell in locale (moduli RSAT DhcpServer/DnsServer, solo letture). Finiscono in assets_ambitodhcp "
+                "e assets_indirizzorete.",
+        "chi": "Asset → Indirizzi IP (dispositivi non censiti, record DNS vecchi), riconciliazione dispositivi IT, riga «Visto da» della scheda asset.",
+        "config": "RETE_DHCP_SERVERS, RETE_DNS_SERVER, RETE_DNS_ZONES nel .env; RSAT sul server del portale; l'utente del qcluster "
+                  "nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",
+        "controllo": "manage.py rete_windows --prova; esito ed errori dell'ultima lettura in cima alla pagina Indirizzi IP.",
     },
     {
         "nome": "Posta in uscita (SMTP)",

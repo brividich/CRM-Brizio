@@ -5300,3 +5300,99 @@ class DispositivoIntune(models.Model):
         if not self.disco_totale_bytes or self.disco_libero_bytes is None:
             return None
         return max(0, min(100, round(100 - self.disco_libero_bytes * 100 / self.disco_totale_bytes)))
+
+
+class AmbitoDhcp(models.Model):
+    """Un ambito (scope) IPv4 di un server DHCP Windows, letto da ``assets.services.rete_windows``.
+
+    Istantanea in sola lettura: la fonte resta il server DHCP. ``presente`` falso =
+    l'ambito non c'era più all'ultima lettura di quel server.
+    """
+
+    server = models.CharField(max_length=120)
+    scope_id = models.CharField(max_length=45)
+    nome = models.CharField(max_length=200, blank=True, default="")
+    maschera = models.CharField(max_length=45, blank=True, default="")
+    inizio = models.CharField(max_length=45, blank=True, default="")
+    fine = models.CharField(max_length=45, blank=True, default="")
+    stato = models.CharField(max_length=30, blank=True, default="")
+    durata_lease_ore = models.FloatField(null=True, blank=True)
+    in_uso = models.PositiveIntegerField(default=0)
+    liberi = models.PositiveIntegerField(default=0)
+    percentuale_uso = models.FloatField(null=True, blank=True)
+    presente = models.BooleanField(default=True)
+    letto_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["server", "scope_id"]
+        constraints = [models.UniqueConstraint(fields=["server", "scope_id"], name="uniq_ambito_dhcp")]
+        verbose_name = "Ambito DHCP"
+        verbose_name_plural = "Ambiti DHCP"
+
+    def __str__(self) -> str:
+        return f"{self.scope_id} {self.nome}".strip()
+
+
+class IndirizzoRete(models.Model):
+    """Un indirizzo IPv4 visto dal DHCP (lease o prenotazione) e/o dal DNS di Windows Server.
+
+    Una riga per IP. Il collegamento all'asset non è automatico: ``asset_proposto`` è
+    la proposta dell'abbinatore unico (MAC, IP, nome), confermata dalla
+    riconciliazione dispositivi IT come per SNMP, SOC e Intune.
+    """
+
+    TIPO_LEASE = "lease"
+    TIPO_PRENOTAZIONE = "prenotazione"
+    TIPO_DNS = "dns"
+    TIPO_CHOICES = [
+        (TIPO_LEASE, "Indirizzo dinamico (DHCP)"),
+        (TIPO_PRENOTAZIONE, "Prenotazione DHCP"),
+        (TIPO_DNS, "Solo nel DNS"),
+    ]
+
+    ip = models.CharField(max_length=45, unique=True)
+    mac = models.CharField(max_length=17, blank=True, default="", db_index=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_LEASE)
+    nome_dhcp = models.CharField(max_length=255, blank=True, default="")
+    stato_dhcp = models.CharField(max_length=40, blank=True, default="")
+    scadenza_lease = models.DateTimeField(null=True, blank=True)
+    server_dhcp = models.CharField(max_length=120, blank=True, default="")
+    ambito = models.ForeignKey(AmbitoDhcp, null=True, blank=True, on_delete=models.SET_NULL, related_name="indirizzi")
+    nel_dhcp = models.BooleanField(default=False)
+    nomi_dns = models.JSONField(default=list, blank=True)
+    dns_statico = models.BooleanField(default=False)
+    dns_aggiornato_il = models.DateTimeField(null=True, blank=True)
+    nel_dns = models.BooleanField(default=False)
+    prima_vista = models.DateTimeField(null=True, blank=True)
+    ultima_vista = models.DateTimeField(null=True, blank=True)
+    asset = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.SET_NULL, related_name="indirizzi_rete")
+    asset_proposto = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    motivo_proposta = models.CharField(max_length=60, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ip"]
+        verbose_name = "Indirizzo di rete"
+        verbose_name_plural = "Indirizzi di rete"
+
+    def __str__(self) -> str:
+        return f"{self.ip} {self.nome}".strip()
+
+    @property
+    def presente(self) -> bool:
+        return self.nel_dhcp or self.nel_dns
+
+    @property
+    def nome(self) -> str:
+        return self.nome_dhcp or (self.nomi_dns[0] if self.nomi_dns else "")
+
+    @staticmethod
+    def _corto(nome: str) -> str:
+        return str(nome or "").split(".", 1)[0].strip().casefold()
+
+    @property
+    def nome_diverso(self) -> bool:
+        """Il DHCP e il DNS danno a questo IP nomi diversi (record DNS rimasto da un altro PC)."""
+        if not (self.nel_dhcp and self.nome_dhcp and self.nomi_dns):
+            return False
+        return self._corto(self.nome_dhcp) not in {self._corto(n) for n in self.nomi_dns}

@@ -970,6 +970,12 @@ VEEAM_API_PASSWORD = os.environ.get("VEEAM_API_PASSWORD", "")
 VEEAM_API_VERSION = os.environ.get("VEEAM_API_VERSION", "").strip()
 VEEAM_API_CA_BUNDLE = os.environ.get("VEEAM_API_CA_BUNDLE", "").strip()
 
+# DHCP e DNS di Windows Server (assets/services/rete_windows.py): letti in locale con
+# PowerShell (moduli RSAT DhcpServer/DnsServer), solo letture. Elenchi separati da virgole.
+RETE_DHCP_SERVERS = os.environ.get("RETE_DHCP_SERVERS", "").strip()
+RETE_DNS_SERVER = os.environ.get("RETE_DNS_SERVER", "").strip()
+RETE_DNS_ZONES = os.environ.get("RETE_DNS_ZONES", "").strip()
+
 # Contatori asset: ore dopo le quali una lettura e' "vecchia" (default una settimana)
 # e client IP (o reti CIDR) da cui i collector possono inviare letture.
 ASSETS_METER_STALE_HOURS = int(os.environ.get("ASSETS_METER_STALE_HOURS", "168") or 168)

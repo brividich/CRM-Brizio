@@ -760,6 +760,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Asset IT — indirizzi IP dal DHCP e dal DNS di Windows Server (PowerShell locale,
+        # moduli RSAT). Senza RETE_DHCP_SERVERS / RETE_DNS_SERVER nel .env non fa nulla.
+        "name": "rete_windows_sync",
+        "func": "assets.tasks.run_rete_windows_sync",
+        "schedule_type": "I",
+        "minutes": 60,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Microsoft Intune — dispositivi gestiti (conformità, cifratura, ultima sync):
         # prima degli avvisi IT delle 07:15, che ne riportano i problemi.
         # Serve il permesso Graph DeviceManagementManagedDevices.Read.All.

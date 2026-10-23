@@ -111,6 +111,21 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "rete-indirizzi",
+            "titolo": "Indirizzi IP e dispositivi non censiti (DHCP e DNS)",
+            "blocchi": [
+                ("passi", [
+                    "Apri Asset → «Indirizzi IP»: una riga per indirizzo, letta ogni ora dal DHCP e dal DNS di Windows Server.",
+                    "I riquadri in alto sono gli ambiti DHCP: bordo rosso = quasi pieno (90% o più degli indirizzi in uso).",
+                    "Filtro «Non censiti»: dispositivi in rete che nessun asset riconosce per MAC, IP o nome: da censire o da indagare.",
+                    "Filtro «Da collegare»: il portale propone l'asset; conferma da «Riconciliazione dispositivi», righe «Rete (DHCP)».",
+                    "Filtri «Nome DHCP diverso dal DNS» e «Record DNS vecchi»: record DNS rimasti da sistemare sul server DNS.",
+                ]),
+                ("p", "Per far riconoscere un dispositivo dal MAC scrivilo nel punto rete dell'asset (scheda › Rete); valgono anche i MAC "
+                      "dei PC collegati a Intune. Un indirizzo collegato compare nella riga «Visto da» della scheda asset come fonte «Rete»."),
+            ],
+        },
     ],
     "admin": [
         {
@@ -185,8 +200,40 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "rete-windows",
+            "titolo": "Collegare il DHCP e il DNS di Windows Server",
+            "blocchi": [
+                ("passi", [
+                    "Sul server del portale installa gli strumenti RSAT: Install-WindowsFeature RSAT-DHCP, RSAT-DNS-Server.",
+                    "Metti l'utente che fa girare il qcluster nel gruppo «DHCP Users» del server DHCP (sola lettura).",
+                    "Nel .env del portale: RETE_DHCP_SERVERS (uno o più server, separati da virgole), RETE_DNS_SERVER e RETE_DNS_ZONES (es. dominio.local).",
+                    "Riavvia il portale e il qcluster, poi prova dal terminale: manage.py rete_windows --prova.",
+                    "Dopo la prima lettura (lo schedule rete_windows_sync gira ogni ora; subito: manage.py rete_windows) apri Asset → «Indirizzi IP».",
+                ]),
+                ("p", "Il portale lancia in locale due script PowerShell fissi che leggono soltanto: nessuna modifica a DHCP e DNS. "
+                      "Gli errori di un server (permessi, RSAT mancanti, server non raggiungibile) compaiono in cima alla pagina Indirizzi IP."),
+            ],
+        },
     ],
     "problemi": [
+        {
+            "sintomo": "La pagina Indirizzi IP dice «Accesso negato» o «Mancano i moduli PowerShell»",
+            "fare": [
+                "«Mancano i moduli»: sul server del portale installa RSAT-DHCP e RSAT-DNS-Server (Install-WindowsFeature).",
+                "«Accesso negato»: l'utente che fa girare il qcluster deve stare nel gruppo «DHCP Users» del server DHCP; dopo l'aggiunta va riavviato il qcluster.",
+                "«Server non raggiungibile»: controlla il nome in RETE_DHCP_SERVERS / RETE_DNS_SERVER e il firewall (RPC) tra i due server.",
+                "Prova dal terminale con manage.py rete_windows --prova: dice quanti ambiti, indirizzi e record legge.",
+            ],
+        },
+        {
+            "sintomo": "Un dispositivo risulta «non censito» ma l'asset c'è",
+            "fare": [
+                "L'abbinamento usa MAC, IP e nome: scrivi il MAC nel punto rete dell'asset (scheda › Rete) o dai all'asset lo stesso nome del PC.",
+                "Se due asset hanno lo stesso MAC, IP o nome la proposta resta vuota (ambigua): correggi il doppione.",
+                "Le proposte si ricalcolano a ogni lettura (ogni ora).",
+            ],
+        },
         {
             "sintomo": "Un PC di Intune non viene proposto per nessun asset",
             "fare": [
