@@ -81,6 +81,10 @@ GUIDA = {
                 ("p", "Sotto il nome del dipendente possono comparire avvisi gialli: saldo insufficiente, contatore oltre il limite "
                       "(es. assemblea sindacale), oppure «Copertura …: il gg/mm sarebbero assenti N persone (soglia M)». "
                       "Sono informazioni: puoi approvare lo stesso."),
+                ("p", "Nelle mail della richiesta (approvazione, avvisi, promemoria) c'è «Aggiungi al calendario Outlook»: "
+                      "apre Outlook web con l'assenza già compilata. Da Outlook sul PC puoi anche aprire l'allegato "
+                      "«assenza.ics» e salvarlo. L'evento è segnato «libero»: non occupa la tua agenda. "
+                      "Non compare per le richieste rifiutate."),
                 ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 un promemoria con l'elenco "
                       "(di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi)."),
                 ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "

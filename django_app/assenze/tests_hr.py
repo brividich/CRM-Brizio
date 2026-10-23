@@ -303,6 +303,7 @@ class SollecitiTests(TestCase):
         self.assertEqual(esito["email_sent"], 1)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("2 richieste", mail.outbox[0].subject)
+        self.assertIn("Aggiungi a Outlook", mail.outbox[0].alternatives[0][0])
         self.assertEqual(AssenzaSollecito.objects.get(assenza_id=1).invii, 1)
 
     def test_solleciti_spenti(self):
