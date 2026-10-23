@@ -1268,7 +1268,13 @@ def _update_assenza(item_id: int, updates: dict) -> bool:
     sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in row.keys())
     with connections["default"].cursor() as cursor:
         cursor.execute(f"UPDATE assenze SET {sets} WHERE id = %s", [*list(row.values()), int(item_id)])
-        return bool(cursor.rowcount)
+        ok = bool(cursor.rowcount)
+    if ok and ({"consenso", "moderation_status"} & set(updates)):
+        # Permesso ripetuto: la decisione sulla prima richiesta vale per i giorni in attesa.
+        from .. import serie
+
+        serie.propaga(item_id)
+    return ok
 
 
 def _delete_assenza(item_id: int) -> bool:
@@ -1815,6 +1821,9 @@ def allinea_dopo_automazione(item_id, colonne) -> dict:
                 _update_assenza(local_id, updates)
             finally:
                 _set_automation_queue_skip(False)
+        from .. import serie
+
+        serie.propaga(local_id)
     return _sp_enqueue_upsert(local_id)
 
 

@@ -27,6 +27,7 @@ from ..constants import (
 from core import naming
 
 from .. import hr as calcoli_hr
+from .. import serie
 from . import _helpers  # noqa: E402
 
 # Permesso ripetuto: oltre questa ampiezza (giorni di calendario) si chiede di
@@ -1436,14 +1437,26 @@ def invio_placeholder(request):
     local_ids: list[int] = []
     try:
         with transaction.atomic():
-            for (occ_start, occ_end), (capo_final, _esc, _scelto) in zip(occorrenze, capi_giorno, strict=True):
-                local_id = _insert_assenza(_payload(occ_start, occ_end, capo_final))
+            for n, ((occ_start, occ_end), (capo_final, _esc, _scelto)) in enumerate(
+                zip(occorrenze, capi_giorno, strict=True)
+            ):
+                # Permesso ripetuto: solo il primo giorno fa partire le automazioni
+                # (una mail al capo, una conferma); gli altri seguono la sua decisione.
+                if n:
+                    _helpers._set_automation_queue_skip(True)
+                try:
+                    local_id = _insert_assenza(_payload(occ_start, occ_end, capo_final))
+                finally:
+                    if n:
+                        _helpers._set_automation_queue_skip(False)
                 if local_id is None:
                     raise RuntimeError("impossibile ottenere ID locale")
                 # Stessa transazione dell'insert: l'evento in coda del trigger SQL
                 # diventa visibile solo insieme all'autore (``inserito_da_gruppo``).
                 _registra_inserita_da(local_id, gruppo=perms.get("group"), inserito_da=request.user.get_username())
                 local_ids.append(local_id)
+            if ripetuto:
+                serie.registra(local_ids)
     except RuntimeError:
         return _render_richiesta(request, error="Richiesta non salvata: impossibile ottenere ID locale.", form_data=request.POST.dict())
     except Exception as exc:
@@ -1509,7 +1522,8 @@ def invio_placeholder(request):
             request,
             success=(
                 f"{len(local_ids)} permessi registrati su DB locale{proxy_note}, "
-                f"dalle {dt_start:%H:%M} alle {dt_end:%H:%M} nei giorni {elenco}. {sync_msg}{warn_suffix}"
+                f"dalle {dt_start:%H:%M} alle {dt_end:%H:%M} nei giorni {elenco}. "
+                f"Il capo riceve una sola mail per tutti i giorni. {sync_msg}{warn_suffix}"
             ),
         )
     return _render_richiesta(request, success=f"Richiesta registrata su DB locale{proxy_note}. {sync_msg}{warn_suffix}")

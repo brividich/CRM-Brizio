@@ -2532,6 +2532,27 @@ def _send_approval_email(
     return f"Email approvazione inviata a {', '.join(approver_emails)}."
 
 
+def _blocco_serie_assenze(action, payload_context, *, approvazione: bool = False) -> tuple[str, str, dict | None]:
+    """Riquadro «Permesso ripetuto dal … al …» per le mail della prima richiesta di una serie. Best-effort."""
+    try:
+        from assenze.serie import blocco_mail
+
+        return blocco_mail(getattr(action.rule, "source_code", ""), payload_context, approvazione=approvazione)
+    except Exception:
+        logger.warning("automazioni: riquadro del permesso ripetuto non costruito", exc_info=True)
+        return "", "", None
+
+
+def _inserisci_in_testa_html(body_html: str, blocco: str) -> str:
+    """Mette ``blocco`` all'inizio del contenuto: dopo ``<body>`` se il corpo è un documento completo."""
+    import re
+
+    m = re.search(r"<body[^>]*>", body_html, flags=re.IGNORECASE)
+    if m:
+        return body_html[: m.end()] + blocco + body_html[m.end():]
+    return blocco + body_html
+
+
 def _resolve_approval_email_template(config: dict[str, Any]) -> Any | None:
     """
     Risolve l'ApprovalEmailTemplate referenziato nel config di send_approval.
@@ -4148,12 +4169,24 @@ def execute_action(
                 "section_label": (config.get("section_label") or ""),
                 "title": render_template_string(config.get("title_template"), payload_context),
             }
+            # Assenze, permesso ripetuto: «dal … al …» in oggetto e in testa al corpo.
+            serie_text, serie_html, serie_info = _blocco_serie_assenze(action, payload_context)
+            if serie_info:
+                from assenze.serie import suffisso_oggetto
+
+                subject = f"{subject}{suffisso_oggetto(serie_info)}"
+                if body_text:
+                    body_text = f"{serie_text}{body_text}"
+                if body_html:
+                    body_html = _inserisci_in_testa_html(body_html, serie_html)
             # Assenze: «Aggiungi al calendario Outlook» (pulsante + allegato .ics), best-effort.
             calendar_event = None
             try:
                 from .calendario_outlook import ETICHETTA, evento_assenza, link_outlook, pulsante_html
 
-                calendar_event = evento_assenza(getattr(action.rule, "source_code", ""), payload_context)
+                calendar_event = None if serie_info else evento_assenza(
+                    getattr(action.rule, "source_code", ""), payload_context
+                )
                 if calendar_event:
                     _base_ctx["cta_buttons"] = mark_safe(pulsante_html(calendar_event))
                     if body_text:
@@ -4275,6 +4308,14 @@ def execute_action(
             except Exception:
                 logger.warning("send_approval: evento calendario non costruito", exc_info=True)
                 calendar_event = None
+            serie_text, serie_html, serie_info = _blocco_serie_assenze(action, payload_context, approvazione=True)
+            if serie_info:
+                from assenze.serie import suffisso_oggetto
+
+                subject = f"{subject}{suffisso_oggetto(serie_info)}"
+                message_body = f"{serie_text}{message_body}"
+                # L'evento Outlook coprirebbe solo il primo giorno della serie.
+                calendar_event = None
 
             approval = _create_approval_record(
                 action=action,
@@ -4322,6 +4363,8 @@ def execute_action(
                         reject_url=reject_url,
                         extra_cta_html=extra_html,
                         extra_cta_text=extra_text,
+                        extra_body_html=serie_html,
+                        extra_body_text=serie_text,
                     )
                     # Usa il subject del template solo se non è stato esplicitamente
                     # configurato nella regola (config ha subject_template vuoto/default)
@@ -4329,6 +4372,10 @@ def execute_action(
                     tpl_subject = None
                     if not raw_rule_subject or raw_rule_subject == "Richiesta di approvazione":
                         tpl_subject = rendered["subject"] or None
+                        if tpl_subject and serie_info:
+                            from assenze.serie import suffisso_oggetto
+
+                            tpl_subject = f"{tpl_subject}{suffisso_oggetto(serie_info)}"
                     return tpl_subject, rendered["html_body"], rendered["text_body"]
                 except Exception:
                     logger.warning(

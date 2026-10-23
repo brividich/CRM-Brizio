@@ -29,7 +29,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
     "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, fornitori, richieste di rettifica (GDPR)"),
     "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint, "
-                "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti"),
+                "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
+                "permessi ripetuti (serie di richieste con una sola approvazione)"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),

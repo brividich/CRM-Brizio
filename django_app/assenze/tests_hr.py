@@ -16,6 +16,7 @@ from automazioni.models import AutomationAction, AutomationRule
 from . import hr
 from .models import (
     AssenzaModifica,
+    AssenzaSerie,
     AssenzaSollecito,
     AssenzeImpostazioniHR,
     ChiusuraAziendale,
@@ -418,6 +419,16 @@ class PermessoRipetutoTests(TestCase):
             (datetime(2026, 11, 2, 8), datetime(2026, 11, 2, 10)),
         ])
         self.assertEqual(AssenzaModifica.objects.filter(azione="creata").count(), 3)
+        # Una sola serie, capofila il primo giorno.
+        self.assertEqual(
+            list(AssenzaSerie.objects.values_list("assenza_id", "capofila_id")), [(101, 101), (102, 101), (103, 101)]
+        )
+
+    def test_solo_il_primo_giorno_fa_partire_le_automazioni(self, *_mocks):
+        with patch("assenze.views.richieste._insert_assenza", side_effect=[101, 102]),                 patch("assenze.hr.avvisi_richiesta", return_value=[]),                 patch("assenze.views._helpers._set_automation_queue_skip") as skip:
+            self._invia(ripeti_fino_al="2026-10-30")
+        # Il flag che spegne i trigger si accende e spegne attorno al solo secondo insert.
+        self.assertEqual([c.args[0] for c in skip.call_args_list], [True, False])
 
     def test_senza_ripeti_una_sola_richiesta(self, *_mocks):
         with patch("assenze.views.richieste._insert_assenza", return_value=101) as ins, \
@@ -430,3 +441,49 @@ class PermessoRipetutoTests(TestCase):
             self.assertContains(self._invia(ripeti_fino_al="2026-10-28"), "uguale o successiva")
             self.assertContains(self._invia(ripeti_fino_al="2026-12-31"), "al massimo per 31 giorni")
         ins.assert_not_called()
+
+
+class SerieMailTests(TestCase):
+    def setUp(self):
+        from . import serie
+
+        serie.registra([201, 202, 203])
+        self.righe = [
+            {"id": 202, "data_inizio": datetime(2026, 10, 30, 8), "data_fine": datetime(2026, 10, 30, 10)},
+            {"id": 201, "data_inizio": datetime(2026, 10, 29, 8), "data_fine": datetime(2026, 10, 29, 10)},
+            {"id": 203, "data_inizio": datetime(2026, 11, 2, 8), "data_fine": datetime(2026, 11, 2, 10)},
+        ]
+
+    def test_mail_della_capofila_dice_dal_al(self):
+        from . import serie
+
+        with patch("assenze.views._helpers._fetch_all_dict", return_value=self.righe):
+            testo, html_blocco, info = serie.blocco_mail("assenze", {"id": "201"}, approvazione=True)
+            self.assertEqual(serie.blocco_mail("assenze", {"id": 202}), ("", "", None))
+        self.assertIn("Permesso ripetuto dal 29/10/2026 al 02/11/2026: 3 giorni lavorativi (29/10, 30/10, 02/11), "
+                      "dalle 08:00 alle 10:00.", testo)
+        self.assertIn("tutti i giorni", testo)
+        self.assertIn("Permesso ripetuto dal 29/10/2026", html_blocco)
+        self.assertEqual(serie.suffisso_oggetto(info), " · permesso ripetuto dal 29/10/2026 al 02/11/2026")
+        self.assertEqual(serie.blocco_mail("altro", {"id": 201}), ("", "", None))
+
+    def test_decisione_della_capofila_passa_ai_giorni_in_attesa(self):
+        from . import serie
+
+        stato = {201: {"id": 201, "moderation_status": 0, "consenso": "Approvato"},
+                 202: {"id": 202, "moderation_status": 2, "consenso": "In attesa"},
+                 203: {"id": 203, "moderation_status": 1, "consenso": "Rifiutato"}}
+        with patch("assenze.views._helpers._get_assenza", side_effect=lambda i: stato[int(i)]),                 patch("assenze.views._helpers._approval_timestamp_update", return_value={}),                 patch("assenze.views._helpers._update_assenza", return_value=True) as upd,                 patch("assenze.views._helpers._sp_enqueue_upsert") as sp,                 patch("assenze.views._helpers._set_automation_queue_skip") as skip:
+            self.assertEqual(serie.propaga(201), 1)
+            self.assertEqual(serie.propaga(202), 0)  # non è la capofila
+        self.assertEqual(upd.call_args.args[0], 202)
+        self.assertEqual((upd.call_args.args[1]["moderation_status"], upd.call_args.args[1]["consenso"]), (0, "Approvato"))
+        sp.assert_called_once_with(202)
+        self.assertEqual([c.args[0] for c in skip.call_args_list], [True, False])
+
+    def test_capofila_in_attesa_non_propaga(self):
+        from . import serie
+
+        with patch("assenze.views._helpers._get_assenza", return_value={"moderation_status": 2}),                 patch("assenze.views._helpers._update_assenza") as upd:
+            self.assertEqual(serie.propaga(201), 0)
+        upd.assert_not_called()
