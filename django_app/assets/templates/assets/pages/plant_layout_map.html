@@ -100,7 +100,7 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl
 .pl-actions{display:flex;flex-wrap:wrap;gap:6px}
 .pl-live{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:800;color:var(--text-mid)}
 .pl-live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pl-live,var(--text-light))}
-.pl-live.is-in_lavoro{--pl-live:var(--pl-ok)}.pl-live.is-ferma{--pl-live:var(--pl-overdue)}.pl-live.is-allarme,.pl-live.is-non_raggiungibile{--pl-live:var(--pl-alarm)}.pl-live.is-pronta{--pl-live:var(--pl-workorder)}
+.pl-live.is-in_lavoro{--pl-live:var(--pl-ok)}.pl-live.is-ferma{--pl-live:var(--pl-overdue)}.pl-live.is-allarme,.pl-live.is-emergenza,.pl-live.is-non_raggiungibile{--pl-live:var(--pl-alarm)}.pl-live.is-pronta{--pl-live:var(--pl-workorder)}.pl-live.is-setup{--pl-live:var(--pl-due_soon)}
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .pl-view{background:var(--surface)}
@@ -463,8 +463,8 @@ body.theme-dark .pl-back{color:#93c5fd}
     var live = machine.live;
     if (live) {
       var lb = el("div", "pl-box");
-      lb.style.setProperty("--pl-dot", live.stato === "allarme" || live.stato === "non_raggiungibile" ? "var(--pl-alarm)" : live.stato === "in_lavoro" ? "var(--pl-ok)" : live.stato === "ferma" ? "var(--pl-overdue)" : "var(--border)");
-      lb.appendChild(el("div", "pl-box-title", "Dal controllo della macchina"));
+      lb.style.setProperty("--pl-dot", live.allarme || live.stato === "non_raggiungibile" ? "var(--pl-alarm)" : live.stato === "in_lavoro" ? "var(--pl-ok)" : live.stato === "ferma" ? "var(--pl-overdue)" : "var(--border)");
+      lb.appendChild(el("div", "pl-box-title", "Dal controllo della macchina" + (live.fonte ? " · " + live.fonte : "")));
       lb.appendChild(el("span", "pl-live is-" + live.stato, live.label + (live.dal ? " dal " + live.dal : "")));
       var ldl = el("dl", "pl-dl");
       function lrow(k, v) { if (!v) return; ldl.appendChild(el("dt", "", k)); ldl.appendChild(el("dd", "", String(v))); }

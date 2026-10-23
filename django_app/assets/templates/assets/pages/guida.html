@@ -363,7 +363,8 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     </section>
 
     <section class="ag-sec" id="mtconnect">
-      <h2>Macchine collegate (MTConnect)</h2>
+      <h2>Macchine collegate (collector OPC UA e MTConnect)</h2>
+      <p>Le macchine DMG MORI dell'officina arrivano dal <strong>collector OPC UA</strong>, un programma che gira su un PC dell'officina e legge i controlli in sola lettura: ogni macchina compare da sola nella pagina <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a> quando il collector comincia a inviarne lo stato (a ogni cambio e almeno una volta al minuto), con la scritta <strong>Collector OPC UA</strong>. Gli stati sono quelli che l'officina conosce: <em>In lavoro</em>, <em>Lavoro MDI/manuale</em>, <em>Interrotta</em>, <em>Ferma</em>, <em>In allarme</em>, <em>Emergenza</em>, <em>Offline</em>. I contatori Ore e Cicli li aggiorna il collector una volta all'ora. Per queste macchine nella pagina si può solo <span class="ag-btn">Sospendi</span> (il portale ignora i loro invii) o <span class="ag-btn">Togli</span>.</p>
       <p>Le CNC che hanno un <strong>agent MTConnect</strong> (lo standard aperto con cui il controllo pubblica il suo stato in rete) si collegano dalla pagina <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a>. Ogni <strong>2 minuti</strong> il portale legge dall'agent, solo in lettura e solo nella rete interna:</p>
       <ul>
         <li><strong>lo stato</strong>: <em>In lavoro</em>, <em>Pronta</em> (accesa senza programma in corso), <em>Programma interrotto</em> (fermo in avanzamento, stop), <em>In allarme</em> (allarme attivo sul controllo o emergenza premuta), <em>Spenta</em>, <em>Agent non raggiungibile</em>;</li>

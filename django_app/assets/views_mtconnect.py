@@ -48,6 +48,10 @@ def _salva(request: HttpRequest) -> None:
         messages.error(request, str(exc))
         return
     coll = CollegamentoMTConnect.objects.filter(asset=asset).first() or CollegamentoMTConnect(asset=asset)
+    if coll.pk and coll.fonte == CollegamentoMTConnect.FONTE_COLLECTOR and coll.attivo:
+        messages.error(request, f"{asset.name} è già letta dal collector OPC UA: sospendi quel collegamento prima di usare un agent MTConnect.")
+        return
+    coll.fonte = CollegamentoMTConnect.FONTE_MTCONNECT
     nuovo = coll.pk is None
     if coll.url_agent != url or coll.dispositivo != dispositivo:
         # Agent diverso: i valori grezzi del vecchio non sono confrontabili con il nuovo.
@@ -143,7 +147,7 @@ def mtconnect_collegamenti(request: HttpRequest) -> HttpResponse:
         r.puo_modificare = _can_edit_asset(request, r.asset_id)
     return render(request, "assets/pages/mtconnect_collegamenti.html", {
         **_assets_shell_context(request),
-        "page_title": "Macchine collegate (MTConnect)",
+        "page_title": "Macchine collegate",
         "righe": righe,
         "macchine": _macchine(),
         "form": form,

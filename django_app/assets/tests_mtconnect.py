@@ -73,7 +73,7 @@ class LetturaTests(TestCase):
         self.assertEqual(svc.stato_da(svc.leggi_current(_current(availability="UNAVAILABLE"))), "spenta")
         self.assertEqual(svc.stato_da(svc.leggi_current(_current(execution="FEED_HOLD"))), "ferma")
         self.assertEqual(svc.stato_da(svc.leggi_current(_current(execution="READY"))), "pronta")
-        self.assertEqual(svc.stato_da(svc.leggi_current(_current(estop="TRIGGERED"))), "allarme")
+        self.assertEqual(svc.stato_da(svc.leggi_current(_current(estop="TRIGGERED"))), "emergenza")
         fault = '<Fault type="SYSTEM" nativeCode="1010" timestamp="2026-10-23T07:58:00Z">Lubrificazione insufficiente</Fault>'
         dati = svc.leggi_current(_current(condition=fault))
         self.assertEqual(svc.stato_da(dati), "allarme")

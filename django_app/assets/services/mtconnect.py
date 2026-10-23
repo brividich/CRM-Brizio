@@ -44,13 +44,23 @@ _PEZZI_IGNORATI = {"TARGET", "BAD", "REMAINING", "ABORTED", "FAILED", "REJECT"}
 
 STATO_ETICHETTE = {
     "in_lavoro": "In lavoro",
-    "pronta": "Pronta",
-    "ferma": "Programma interrotto",
+    "setup": "Lavoro MDI/manuale",
+    "pronta": "Ferma",
+    "ferma": "Interrotta",
     "allarme": "In allarme",
-    "spenta": "Spenta",
-    "non_raggiungibile": "Agent non raggiungibile",
+    "emergenza": "Emergenza",
+    "spenta": "Offline",
+    "non_raggiungibile": "Non raggiungibile",
     "mai": "Mai letta",
 }
+STATI_ALLARME = {"allarme", "emergenza"}
+# Dal collector OPC UA (tools/collector_cnc): stessi stati, stesse parole di Messenger.
+STATI_COLLECTOR = {
+    "LAVORO": "in_lavoro", "SETUP": "setup", "INTERROTTA": "ferma", "FERMA": "pronta",
+    "ALLARME": "allarme", "EMERGENZA": "emergenza", "OFFLINE": "spenta",
+}
+SEVERITA_ALLARME = 801  # da questa severità OPC UA un messaggio è un allarme vero (come nel collector)
+_MODALITA_MANUALE = {"MANUAL", "MANUAL_DATA_INPUT", "MDI", "JOG", "EDIT"}
 
 
 class MTConnectError(RuntimeError):
@@ -214,10 +224,12 @@ def leggi_current(xml: bytes, dispositivo: str = "") -> dict:
 def stato_da(dati: dict) -> str:
     if dati.get("disponibilita") == "UNAVAILABLE":
         return "spenta"
-    if dati.get("emergenza") == "TRIGGERED" or any(a["livello"] == "allarme" for a in dati.get("allarmi") or []):
+    if dati.get("emergenza") == "TRIGGERED":
+        return "emergenza"
+    if any(a["livello"] == "allarme" for a in dati.get("allarmi") or []):
         return "allarme"
     if dati.get("esecuzione") == "ACTIVE":
-        return "in_lavoro"
+        return "setup" if dati.get("modalita") in _MODALITA_MANUALE else "in_lavoro"
     if dati.get("esecuzione") in _ESECUZIONE_FERMA:
         return "ferma"
     return "pronta"
@@ -243,6 +255,8 @@ def _cambia_stato(coll, nuovo: str, ora) -> None:
 
     if coll.stato == nuovo and coll.stato_dal:
         return
+    if coll.stato_dal and ora < coll.stato_dal:
+        ora = coll.stato_dal  # mai un periodo che finisce prima di cominciare
     PeriodoStatoMacchina.objects.filter(collegamento=coll, al__isnull=True).update(al=ora)
     PeriodoStatoMacchina.objects.create(collegamento=coll, stato=nuovo, dal=ora)
     coll.stato, coll.stato_dal = nuovo, ora
@@ -316,7 +330,8 @@ def leggi_tutti(ora=None) -> dict:
     from assets.models import CollegamentoMTConnect
 
     ora = ora or timezone.now()
-    collegamenti = {c.pk: c for c in CollegamentoMTConnect.objects.filter(attivo=True).select_related(
+    collegamenti = {c.pk: c for c in CollegamentoMTConnect.objects.filter(
+        attivo=True, fonte=CollegamentoMTConnect.FONTE_MTCONNECT).select_related(
         "asset", "contatore_ore", "contatore_pezzi")}
     if not collegamenti:
         return {"collegamenti": 0}
@@ -328,6 +343,48 @@ def leggi_tutti(ora=None) -> dict:
         applica_lettura(coll, dati, errore, ora)
         conteggi[coll.stato] = conteggi.get(coll.stato, 0) + 1
     return {"collegamenti": len(collegamenti), **conteggi}
+
+
+# --- Dal collector OPC UA ------------------------------------------------------------------------
+
+
+def _allarmi_collector(righe) -> list[dict]:
+    out = []
+    for a in righe or []:
+        if not isinstance(a, dict):
+            continue
+        try:
+            severita = int(a.get("severita") or 0)
+        except (TypeError, ValueError):
+            severita = 0
+        out.append({
+            "livello": "allarme" if severita >= SEVERITA_ALLARME else "avviso",
+            "tipo": str(a.get("tipo") or "")[:60],
+            "codice": str(a.get("codice") or "")[:60],
+            "testo": " ".join(str(a.get("testo") or "").split())[:200],
+            "dal": str(a.get("dal") or "")[:40],
+            "severita": severita,
+        })
+    out.sort(key=lambda a: -a["severita"])
+    return out[:20]
+
+
+def applica_stato_collector(coll, dati: dict, quando, ora=None) -> None:
+    """Stato inviato dal collector OPC UA: ``quando`` è l'inizio dello stato sulla macchina."""
+    ora = ora or timezone.now()
+    coll.controllato_il = ora
+    coll.letto_il = ora
+    coll.errore = ""
+    coll.programma = str(dati.get("programma") or "")[:200]
+    coll.modalita = str(dati.get("modalita") or "")[:30]
+    coll.esecuzione = str(dati.get("esecuzione") or "")[:30]
+    coll.allarmi = _allarmi_collector(dati.get("allarmi"))
+    pezzi = _numero(dati.get("pezzi")) if dati.get("pezzi") is not None else None
+    coll.pezzi_grezzo = pezzi.quantize(Decimal("0.01")) if pezzi is not None else None
+    if coll.pk is None:
+        coll.save()  # primo invio: il periodo di stato ha bisogno del collegamento salvato
+    _cambia_stato(coll, STATI_COLLECTOR[dati["stato"]], min(quando, ora))
+    coll.save()
 
 
 # --- Lettura per le pagine ----------------------------------------------------------------------
@@ -359,6 +416,8 @@ def per_mappa(asset_ids, ora=None) -> dict[int, dict]:
     for coll in CollegamentoMTConnect.objects.filter(asset_id__in=list(asset_ids), attivo=True):
         fresco = attuale(coll, ora)
         out[coll.asset_id] = {
+            "fonte": coll.get_fonte_display(),
+            "allarme": fresco and coll.stato in STATI_ALLARME,
             "stato": coll.stato if fresco else "vecchio",
             "label": STATO_ETICHETTE.get(coll.stato, coll.stato) if fresco else "Dato non aggiornato",
             "programma": coll.programma,
