@@ -4,6 +4,10 @@
 
 {% block assenze_shell_head %}
   <style>
+    /* Avvisi HR in coda (saldo, contatori, copertura): non bloccano l'approvazione. */
+    .car-hr-avviso { margin-top: 6px; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 700; line-height: 1.4;
+      background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    body.theme-dark .car-hr-avviso { background: rgba(146,64,14,.18); color: #fde68a; border-color: rgba(253,230,138,.3); }
     .abs-panel-body.car-history-tools,
     .abs-panel-body.car-history-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
     .car-history-tools select { width: auto; max-width: 100%; min-height: 38px; }
@@ -315,7 +319,10 @@
                     data-tipo="{{ r.tipo|lower }}"
                     data-inizio="{{ r.data_inizio_raw|date:'Y-m-d' }}"
                     {% if r.n_corsi_conflitto %}class="row-has-corso-conflict"{% endif %}>
-                  <td data-label="Dipendente">{{ r.dipendente }}</td>
+                  <td data-label="Dipendente">
+                    {{ r.dipendente }}
+                    {% for avviso in r.avvisi_hr %}<div class="car-hr-avviso" role="note">⚠ {{ avviso }}</div>{% endfor %}
+                  </td>
                   <td data-label="Tipo">
                     <div style="display:grid;gap:6px;">
                       <span class="car-type-pill">{{ r.tipo }}</span>

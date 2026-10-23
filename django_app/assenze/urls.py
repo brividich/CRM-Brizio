@@ -34,4 +34,13 @@ urlpatterns = [
     path("assenze/export-csv", views.export_gestione_assenze_csv, name="assenze_export_csv"),
     path("assenze/gestione-admin/", views.gestione_admin, name="assenze_gestione_admin"),
     path("assenze/certificazione-presenza/", views.certificazione_presenza, name="assenze_certifica_presenza"),
+    # Area HR (stesso permesso di Impostazioni, gate in API_ACL_GATE_PATHS).
+    path("assenze/hr/", views.hr_cruscotto, name="assenze_hr"),
+    path("assenze/hr/saldi/", views.hr_saldi, name="assenze_hr_saldi"),
+    path("assenze/hr/saldi/modello.xlsx", views.hr_saldi_modello, name="assenze_hr_saldi_modello"),
+    path("assenze/hr/calendario/", views.hr_calendario, name="assenze_hr_calendario"),
+    path("assenze/hr/contatori/", views.hr_contatori, name="assenze_hr_contatori"),
+    path("assenze/hr/copertura/", views.hr_copertura, name="assenze_hr_copertura"),
+    path("assenze/api/storico/<int:item_id>", views.api_storico, name="assenze_api_storico"),
+    path("assenze/api/verifica-richiesta", views.api_verifica_richiesta, name="assenze_api_verifica_richiesta"),
 ]

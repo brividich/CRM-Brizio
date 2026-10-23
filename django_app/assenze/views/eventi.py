@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
@@ -20,6 +20,7 @@ from django.views.decorators.http import require_http_methods
 
 
 
+from .. import hr as calcoli_hr  # noqa: E402
 from . import _helpers  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -480,8 +481,15 @@ def calendario(request):
         )
     from ..htmx_views import _month_nav_ctx, _parse_mese
     mese_date = _parse_mese(request.GET.get("mese", timezone.localdate().strftime("%Y-%m")))
+    oggi = timezone.localdate()
+    try:
+        giorni_non_lavorativi = calcoli_hr.eventi_calendario(oggi - timedelta(days=400), oggi + timedelta(days=400))
+    except Exception:
+        _helpers.logger.warning("calendario: festività e chiusure non calcolate", exc_info=True)
+        giorni_non_lavorativi = []
     return _helpers.render(request, "assenze/pages/calendario.html", {
         "eventi_preview": eventi_preview,
+        "giorni_non_lavorativi": giorni_non_lavorativi,
         **_month_nav_ctx(mese_date),
         **_helpers._template_perm_context(request),
     })
@@ -615,9 +623,30 @@ def api_evento_update(request, item_id: int | None = None):
     }
     if perms.get("can_update_any"):
         updates.update(_helpers._approval_timestamp_update(consenso, current))
+
+    # Una richiesta già approvata si cambia solo dicendo perché: il motivo resta
+    # nello storico della richiesta, visibile a chi la gestisce.
+    modifiche = calcoli_hr.differenze(current, updates)
+    motivo = str((payload.get("motivo_modifica") if payload else None) or request.POST.get("motivo_modifica") or "").strip()
+    era_approvata = _helpers._effective_status(current.get("consenso"), current.get("moderation_status"))[1] == "Approvato"
+    if era_approvata and modifiche and not motivo:
+        return _helpers._json_error(
+            "La richiesta era già approvata: scrivi il motivo della modifica.", status=400,
+        )
+
     ok = _helpers._update_assenza(target_id, updates)
     if not ok:
         return _helpers._json_error("Aggiornamento non eseguito", status=500)
+    if modifiche:
+        nuovo_stato = consenso if consenso != _helpers._norm_consenso(current.get("consenso")) else ""
+        calcoli_hr.registra(
+            target_id,
+            {"Approvato": "approvata", "Rifiutato": "rifiutata"}.get(nuovo_stato, "modificata"),
+            utente=request.user.get_username(),
+            prima=current,
+            dopo=updates,
+            motivo=motivo,
+        )
 
     sync_result = _helpers._sp_enqueue_upsert(target_id)
 
@@ -679,6 +708,11 @@ def api_evento_delete(request, item_id: int | None = None):
         if not _helpers._delete_assenza(target_id):
             transaction.set_rollback(True)
             return _helpers._json_error("Eliminazione non riuscita", status=500)
+
+    calcoli_hr.registra(
+        target_id, "eliminata", utente=request.user.get_username(),
+        motivo=str((payload.get("motivo_modifica") if payload else None) or "").strip(),
+    )
 
     # Notifica mail SOLO per richieste gia' approvate (moderation_status == 0;
     # default 2 = in attesa). Best-effort: un errore mail non deve ribaltare

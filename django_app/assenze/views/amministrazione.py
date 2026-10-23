@@ -22,6 +22,7 @@ from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 
+from .. import hr as calcoli_hr  # noqa: E402
 from . import _helpers  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -460,6 +461,8 @@ def api_admin_assenza_delete(request, item_id: int):
         if not _helpers._delete_assenza(item_id):
             transaction.set_rollback(True)
             return _helpers._json_error("Eliminazione non riuscita.", status=500)
+
+    calcoli_hr.registra(item_id, "eliminata", utente=request.user.get_username(), motivo=note_gestione)
 
     # --- Audit log ---
     try:
