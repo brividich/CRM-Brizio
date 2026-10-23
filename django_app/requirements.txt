@@ -4,8 +4,11 @@
 #
 #    pip-compile --annotation-style=line --output-file=requirements.txt --strip-extras requirements.in
 #
+aiosqlite==0.22.1         # via asyncua
 annotated-types==0.7.0    # via pydantic
+anyio==4.14.0             # via asyncua
 asgiref==3.11.1           # via django, django-axes, django-htmx
+asyncua==2.0              # via -r requirements.in (collector OPC UA delle CNC)
 azure-core==1.41.0          # via azure-identity
 azure-identity==1.26.0      # via mssql-python
 cachetools==7.0.6         # via -r requirements.in
@@ -14,7 +17,7 @@ cffi==2.0.0               # via cryptography
 charset-normalizer==3.4.7  # via reportlab, requests
 colorama==0.4.6           # via qrcode
 croniter==6.2.4           # via -r requirements.in
-cryptography==50.0.2      # via msal, pyjwt, pyopenssl, pyspnego
+cryptography==50.0.2      # via asyncua, msal, pyjwt, pyopenssl, pyspnego
 defusedxml==0.7.1         # via -r requirements.in (fattura elettronica contatori)
 django==5.2.17            # via -r requirements.in, django-axes, django-extensions, django-htmx, django-picklefield, django-q2, mssql-django
 django-axes==7.1.0        # via -r requirements.in
@@ -48,15 +51,15 @@ pydantic-core==2.46.4     # via pydantic
 pyjwt==2.15.0             # via msal, pyjwt
 pymupdf==1.28.2         # via -r requirements.in
 pyodbc==5.3.0             # via -r requirements.in, mssql-django
-pyopenssl==26.4.0         # via -r requirements.in
+pyopenssl==26.4.0         # via asyncua, -r requirements.in
 pyotp==2.10.0              # via -r requirements.in
 pyspnego==0.12.4          # via -r requirements.in
-python-dateutil==2.9.0.post0  # via croniter
+python-dateutil==2.9.0.post0  # via asyncua, croniter
 python-magic-bin==0.4.14 ; platform_system == "Windows"  # via -r requirements.in
 python-magic==0.4.27 ; platform_system != "Windows"  # via -r requirements.in
 puresnmp==2.0.1           # via -r requirements.in (modulo contatori SNMP)
 puresnmp-crypto==1.0.1.post1  # via -r requirements.in (SNMPv3 AES/DES)
-pytz==2026.1.post1        # via mssql-django
+pytz==2026.1.post1        # via asyncua, mssql-django
 t61codec==1.0.1           # via puresnmp, x690
 x690==1.0.0.post1         # via puresnmp
 qrcode==8.0               # via -r requirements.in
@@ -64,10 +67,11 @@ reportlab==5.0.1         # via -r requirements.in
 requests==2.33.1          # via -r requirements.in, msal
 six==1.17.0               # via python-dateutil
 snowballstemmer==3.1.1    # via -r requirements.in
+sortedcontainers==2.4.0   # via asyncua
 sqlparse==0.6.0           # via django
 sspilib==0.5.0            # via pyspnego
 tzdata==2026.2            # via django
-typing-extensions==4.16.0  # via pydantic, pyopenssl
+typing-extensions==4.16.0  # via asyncua, pydantic, pyopenssl
 typing-inspection==0.4.2  # via pydantic
 urllib3==2.8.0            # via requests
 waitress==3.0.2           # via -r requirements.in

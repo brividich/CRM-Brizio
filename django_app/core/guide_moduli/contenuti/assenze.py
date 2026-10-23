@@ -276,6 +276,17 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Una richiesta approvata dalla mail torna «In attesa»",
+            "perche": "prima della correzione del 23/10/2026 l'approvazione dalla mail non arrivava a SharePoint, e la "
+                      "lettura successiva da SharePoint rimetteva la richiesta in attesa.",
+            "fare": [
+                "Sul server lancia riallinea_assenze_decise_da_mail: mostra le richieste decise via mail ma ancora in attesa.",
+                "Se l'elenco è giusto rilancialo con --applica: stato e consenso tornano quelli decisi e la modifica va a "
+                "SharePoint. Le mail non ripartono.",
+                "In alternativa, per una sola richiesta: Impostazioni → «Gestione admin · Tutte le assenze» → Approva.",
+            ],
+        },
+        {
             "sintomo": "Il saldo stimato non torna con il cedolino",
             "perche": "il portale parte dal saldo alla data «Situazione al» e toglie le richieste non rifiutate dopo quella data "
                       "e le chiusure che scalano le ferie.",

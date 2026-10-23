@@ -616,6 +616,7 @@ def run_backup_health_alert(*, force_email: bool = False) -> dict[str, Any]:
 # Controlli dell'infrastruttura (monitoring.infra_checks): nel registro come attributi
 # di questo modulo, così Centrale di comando e /readyz li vedono e i test li patchano.
 from monitoring.infra_checks import (  # noqa: E402, F401
+    check_collector_cnc,
     check_disk_space,
     check_m365_servizi,
     check_qcluster,
@@ -623,7 +624,7 @@ from monitoring.infra_checks import (  # noqa: E402, F401
     check_tls_cert,
 )
 
-INFRA_CHECK_NAMES = ("qcluster", "qcluster_coda", "disk_space", "tls_cert")
+INFRA_CHECK_NAMES = ("qcluster", "qcluster_coda", "disk_space", "tls_cert", "collector_cnc")
 _INFRA_ALERT_STATE_KEY = "monitoring:infra-alert:fingerprint"
 
 
@@ -697,6 +698,7 @@ _CHECK_REGISTRY: dict[str, str] = {
     "disk_space": "check_disk_space",
     "tls_cert": "check_tls_cert",
     "m365_servizi": "check_m365_servizi",
+    "collector_cnc": "check_collector_cnc",
 }
 
 

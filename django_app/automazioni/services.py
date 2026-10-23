@@ -2016,13 +2016,24 @@ def _execute_update_trigger_record(
     with transaction.atomic():
         with connection.cursor() as cursor:
             cursor.execute(sql, params)
-            return {
-                "rowcount": cursor.rowcount if cursor.rowcount is not None else 0,
-                "source_pk": source_pk,
-                "sql": sql,
-                "params": params,
-                "columns": list(coerced_update_fields.keys()),
-            }
+            rowcount = cursor.rowcount if cursor.rowcount is not None else 0
+        if source_code == "assenze" and rowcount:
+            # Assenze: consenso coerente e modifica in coda verso SharePoint, come
+            # quando si approva dal portale; altrimenti la lettura da SharePoint
+            # riporta la richiesta «In attesa». Best-effort: l'UPDATE resta valido.
+            try:
+                from assenze.views._helpers import allinea_dopo_automazione
+
+                allinea_dopo_automazione(source_pk, [field_map[f]["db_column"] for f in coerced_update_fields])
+            except Exception:
+                logger.warning("update_trigger_record: assenza %s non allineata a SharePoint", source_pk, exc_info=True)
+        return {
+            "rowcount": rowcount,
+            "source_pk": source_pk,
+            "sql": sql,
+            "params": params,
+            "columns": list(coerced_update_fields.keys()),
+        }
 
 
 def _coerce_db_value(value: Any, data_type: str) -> Any:

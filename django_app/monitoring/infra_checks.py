@@ -13,6 +13,8 @@ manda una mail agli amministratori per i soli guasti (come i check di backup).
   privati e area di lavoro dei backup (sotto 15% avviso, sotto 5% guasto).
 - **certificato**: giorni alla scadenza del certificato https di ``SITE_URL``
   (30 avviso, 7 guasto). Memorizzato 6 ore: una connessione per giro, non per probe.
+- **collector CNC**: solo con il collector OPC UA «Sul server del portale»; guasto se
+  ``manage.py collector_cnc`` non dà segnali da oltre 5 minuti (attività di Windows ferma).
 """
 from __future__ import annotations
 
@@ -59,6 +61,30 @@ def check_qcluster():
         return _result(name, STATUS_FAIL,
                        f"Nessun task completato da {minuti} minuti: il qcluster sembra fermo (va riavviato).", details)
     return _result(name, STATUS_OK, f"Ultimo task completato {minuti} minuti fa.", details)
+
+
+def check_collector_cnc():
+    from monitoring.health import STATUS_FAIL, STATUS_OK, STATUS_SKIPPED, STATUS_WARN
+
+    name = "collector_cnc"
+    try:
+        from assets.services import collector_cnc
+    except Exception:
+        return _result(name, STATUS_SKIPPED, "Modulo Asset non installato.")
+    if collector_cnc.modalita() != "server":
+        return _result(name, STATUS_SKIPPED, "Il collector delle CNC gira su un PC dell'officina, non sul server.")
+    b = collector_cnc.battito()
+    if b["at"] is None:
+        return _result(name, STATUS_FAIL, "Collector delle CNC mai partito sul server: registra l'attività "
+                                          "deployment/start_collector_cnc.ps1 all'avvio.")
+    minuti = int((timezone.now() - b["at"]).total_seconds() // 60)
+    details = {"ultimo_segnale": b["at"].isoformat(), "minuti_fa": minuti, "macchine": b["macchine"]}
+    if not b["vivo"]:
+        return _result(name, STATUS_FAIL, f"Nessun segnale dal collector delle CNC da {minuti} minuti: "
+                                          "l'attività collector_cnc sul server è ferma.", details)
+    if b["errore"]:
+        return _result(name, STATUS_WARN, f"Collector delle CNC acceso, ma: {b['errore']}", details)
+    return _result(name, STATUS_OK, f"Ultimo segnale {minuti} minuti fa, {b['macchine']} macchine in lettura.", details)
 
 
 def check_qcluster_coda():

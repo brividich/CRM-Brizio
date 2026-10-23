@@ -54,7 +54,7 @@ STATO_ETICHETTE = {
     "mai": "Mai letta",
 }
 STATI_ALLARME = {"allarme", "emergenza"}
-# Dal collector OPC UA (tools/collector_cnc): stessi stati, stesse parole di Messenger.
+# Dal collector OPC UA (django_app/assets/collector_cnc): stessi stati, stesse parole di Messenger.
 STATI_COLLECTOR = {
     "LAVORO": "in_lavoro", "SETUP": "setup", "INTERROTTA": "ferma", "FERMA": "pronta",
     "ALLARME": "allarme", "EMERGENZA": "emergenza", "OFFLINE": "spenta",

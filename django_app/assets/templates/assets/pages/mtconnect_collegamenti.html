@@ -68,9 +68,28 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
   </div>
   {% endif %}
 
+  <div class="mc-card" id="dove">
+    <h2>Dove gira il collector</h2>
+    {% if modalita == "server" %}
+      <p class="mc-note"><strong>Sul server del portale.</strong> {% if battito.vivo %}<span class="mc-ok">Attivo</span>: ultimo segnale {{ battito.at|date:"d/m/Y H:i" }}, {{ battito.macchine }} macchin{{ battito.macchine|pluralize:"a,e" }} in lettura.{% elif battito.at %}<span class="mc-err">Fermo</span>: ultimo segnale {{ battito.at|date:"d/m/Y H:i" }}. Controlla l'attività «collector_cnc» sul server (deployment/start_collector_cnc.ps1).{% else %}<span class="mc-err">Mai partito</span>: sul server va registrata l'attività di Windows che lancia deployment/start_collector_cnc.ps1 all'avvio.{% endif %}{% if battito.errore %} <span class="mc-err">{{ battito.errore }}</span>{% endif %}</p>
+    {% else %}
+      <p class="mc-note"><strong>Su un PC dell'officina.</strong> Il collector gira su un PC che raggiunge le macchine e parla con il portale con il suo token (riquadro «Collector» qui sotto).{% if battito.vivo %} Il collector integrato nel server è acceso ma non legge niente finché non scegli «Sul server del portale».{% endif %}</p>
+    {% endif %}
+    {% if puo_amministrare %}
+    <form method="post" class="mc-form" style="margin-top:10px">
+      {% csrf_token %}
+      <fieldset class="mc-fonte">
+        {% for valore, etichetta in modalita_scelte.items %}<label><input type="radio" name="modalita" value="{{ valore }}"{% if modalita == valore %} checked{% endif %}> {{ etichetta }}</label>{% endfor %}
+      </fieldset>
+      <p class="mc-note" style="grid-column:1/-1">«Sul server del portale»: niente PC dedicato né token, il server deve però raggiungere le macchine sulla porta OPC UA (di solito 4840). Le due modalità si escludono: con il collector sul server, quello di un PC non riceve più macchine da leggere.</p>
+      <div class="mc-actions"><button class="btn btn-primary" name="azione" value="collector_modalita">Salva</button></div>
+    </form>
+    {% endif %}
+  </div>
+
   <div class="mc-card mc-table-wrap">
     <h2>Macchine</h2>
-    {% if nessun_collector and macchine_collector %}<p class="mc-err">Nessun collector attivo: crea il token nel riquadro «Collector» qui sotto.</p>{% endif %}
+    {% if modalita == "pc" and nessun_collector and macchine_collector %}<p class="mc-err">Nessun collector attivo: crea il token nel riquadro «Collector» qui sotto.</p>{% endif %}
     <table class="mc-table">
       <thead><tr><th>Macchina</th><th>Fonte</th><th>Stato</th><th>Programma</th><th>Contatori</th><th>Oggi in lavoro</th><th></th></tr></thead>
       <tbody>
@@ -79,7 +98,7 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
           <td><a href="{% url 'assets:asset_view' r.asset_id %}"><strong>{{ r.asset.name }}</strong></a><br><span class="mc-meta">{{ r.asset.asset_tag }}{% if r.asset.reparto %} · {{ r.asset.reparto }}{% endif %}</span></td>
           <td>{% if r.fonte == "collector_opcua" %}<span class="mc-tag mc-tag--pronta">Collector OPC UA</span>
                 {% if r.opcua_host %}<br><span class="mc-mono">{{ r.nome_collector }} · {{ r.opcua_host }}:{{ r.opcua_porta }}</span>{% else %}<br><span class="mc-meta">indirizzo OPC UA da scrivere</span>{% endif %}
-                {% if not r.coperta %}<br><span class="mc-err">nessun collector attivo può leggerla</span>{% endif %}
+                {% if modalita == "pc" and not r.coperta %}<br><span class="mc-err">nessun collector attivo può leggerla</span>{% endif %}
               {% else %}<span class="mc-mono">{{ r.url_agent }}</span>{% if r.dispositivo %}<br><span class="mc-meta">{{ r.dispositivo }}</span>{% endif %}{% endif %}</td>
           <td>
             {% if not r.attivo %}<span class="mc-tag mc-tag--mai">sospesa</span>
@@ -165,8 +184,8 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
 
   {% if puo_amministrare %}
   <div class="mc-card" id="collector">
-    <h2>Collector</h2>
-    <p class="mc-note">Ogni collector ha il suo token e la rete da cui può chiamare il portale (IP del PC del collector o della sua rete). Il token si vede una volta sola, quando lo crei o lo rigeneri. «Tutte le macchine» = legge tutte le macchine con fonte «Collector OPC UA»; altrimenti solo quelle spuntate.</p>
+    <h2>Collector su un PC dell'officina</h2>
+    <p class="mc-note">{% if modalita == "server" %}<strong>Ora il collector gira sul server del portale: i token servono solo se torni alla modalità «Su un PC dell'officina».</strong> {% endif %}Ogni collector ha il suo token e la rete da cui può chiamare il portale (IP del PC del collector o della sua rete). Il token si vede una volta sola, quando lo crei o lo rigeneri. «Tutte le macchine» = legge tutte le macchine con fonte «Collector OPC UA»; altrimenti solo quelle spuntate.</p>
     {% for c in collector %}
     <details class="mc-collector">
       <summary><strong>{{ c.name }}</strong> · {% if c.is_active %}<span class="mc-tag mc-tag--in_lavoro">attivo</span>{% else %}<span class="mc-tag mc-tag--mai">disattivato</span>{% endif %}

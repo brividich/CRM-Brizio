@@ -5435,7 +5435,7 @@ class IndirizzoRete(models.Model):
 class CollegamentoMTConnect(models.Model):
     """Una macchina CNC collegata al portale per lo stato reale, in sola lettura.
 
-    Due fonti: ``collector_opcua`` = il collector OPC UA dell'officina (``tools/collector_cnc``)
+    Due fonti: ``collector_opcua`` = il collector OPC UA dell'officina (``django_app/assets/collector_cnc``)
     invia stato e allarmi a ``/api/assets/contatori/ingest/stato/`` e i contatori all'ingest
     dei contatori; ``mtconnect`` = ogni 2 minuti lo schedule ``mtconnect_poll`` legge ``/current``
     dall'agent MTConnect e aggiorna
