@@ -30,15 +30,13 @@ from typing import Any, List
 
 from django.conf import settings
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
 from ninja import NinjaAPI, Schema
 from ninja.errors import HttpError
 from ninja.security import HttpBearer
 
 from core.net import client_ip
 
-from .models import Asset, AssetMeter, MeterIngestClient
-from .services.meters import MeterReadingOlder, MeterReadingRejected, record_meter_reading
+from .models import AssetMeter, MeterIngestClient
 
 logger = logging.getLogger(__name__)
 
@@ -108,73 +106,16 @@ class IngestPayload(Schema):
     readings: List[dict[str, Any]]
 
 
-def _row_result(index: int, row: dict, status: str, reason: str = "") -> dict:
-    return {
-        "index": index,
-        "asset_tag": str(row.get("asset_tag") or ""),
-        "meter_type": str(row.get("meter_type") or ""),
-        "status": status,
-        "reason": reason,
-    }
-
-
 @api.post("/ingest/")
 def ingest(request, payload: IngestPayload):
+    from .services.collector_cnc import applica_letture
+
     client: MeterIngestClient = request.auth
-    readings = payload.readings
-    if len(readings) > MAX_READINGS:
+    if len(payload.readings) > MAX_READINGS:
         raise HttpError(413, f"Al massimo {MAX_READINGS} letture per chiamata.")
-
-    tags = {str(row.get("asset_tag") or "").strip() for row in readings if isinstance(row, dict)}
-    assets = {asset.asset_tag: asset for asset in Asset.objects.filter(asset_tag__in=[t for t in tags if t])}
-    allowed_ids = None if client.all_meter_assets else set(client.allowed_assets.values_list("id", flat=True))
-    meter_types = dict(AssetMeter.METER_TYPE_CHOICES)
-
-    results = []
-    for index, row in enumerate(readings):
-        if not isinstance(row, dict):
-            results.append(_row_result(index, {}, "rejected", "riga non valida"))
-            continue
-        tag = str(row.get("asset_tag") or "").strip()
-        meter_type = str(row.get("meter_type") or "").strip().upper()
-        asset = assets.get(tag)
-        if asset is None:
-            results.append(_row_result(index, row, "rejected", "asset sconosciuto"))
-            continue
-        if allowed_ids is not None and asset.id not in allowed_ids:
-            results.append(_row_result(index, row, "rejected", "asset non consentito a questo collector"))
-            continue
-        if meter_type not in meter_types:
-            results.append(_row_result(index, row, "rejected", "tipo di contatore non valido"))
-            continue
-        meter = AssetMeter.objects.filter(asset=asset, meter_type=meter_type).first()
-        if meter is None:
-            results.append(_row_result(index, row, "rejected", "contatore non configurato sull'asset"))
-            continue
-        raw_read_at = row.get("read_at")
-        read_at = parse_datetime(str(raw_read_at)) if raw_read_at else None
-        if read_at is None or timezone.is_naive(read_at):
-            results.append(_row_result(index, row, "rejected", "read_at mancante o senza fuso orario (ISO 8601 con offset)"))
-            continue
-        try:
-            record_meter_reading(
-                meter,
-                row.get("value"),
-                read_at=read_at,
-                source=SOURCE_BY_CLIENT_DEFAULT,
-                user=None,
-                note=f"Collector «{client.name}»",
-            )
-        except MeterReadingOlder as exc:
-            results.append(_row_result(index, row, "ignored_older", str(exc)))
-        except MeterReadingRejected as exc:
-            results.append(_row_result(index, row, "rejected", str(exc)))
-        else:
-            results.append(_row_result(index, row, "accepted"))
-
+    esito = applica_letture(payload.readings, client, nota=f"Collector «{client.name}»", source=SOURCE_BY_CLIENT_DEFAULT)
     MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=timezone.now())
-    summary = {status: sum(1 for r in results if r["status"] == status) for status in ("accepted", "ignored_older", "rejected")}
-    return {"results": results, **summary}
+    return esito
 
 
 # --- Stato delle macchine dal collector OPC UA ---------------------------------------------------
@@ -186,13 +127,9 @@ class StatoPayload(Schema):
     macchine: List[dict[str, Any]]
 
 
-def _stato_result(index: int, row: dict, status: str, reason: str = "") -> dict:
-    return {"index": index, "asset_tag": str(row.get("asset_tag") or ""), "status": status, "reason": reason}
-
-
 @api.post("/ingest/stato/")
 def ingest_stato(request, payload: StatoPayload):
-    """Stato reale delle CNC dal collector OPC UA (``tools/collector_cnc``): stessa autenticazione,
+    """Stato reale delle CNC dal collector OPC UA (``assets/collector_cnc``): stessa autenticazione,
     stessa rete e stessi asset consentiti delle letture dei contatori.
 
     Una riga per macchina: ``asset_tag``, ``stato`` (LAVORO, SETUP, INTERROTTA, FERMA, ALLARME,
@@ -200,55 +137,14 @@ def ingest_stato(request, payload: StatoPayload):
     ``programma``, ``modalita``, ``esecuzione``, ``pezzi``, ``allarmi`` [{codice, testo, severita, dal}].
     La macchina compare in «Macchine collegate» al primo invio.
     """
-    from .models import CollegamentoMTConnect
-    from .services import mtconnect
+    from .services.collector_cnc import applica_stati
 
     client: MeterIngestClient = request.auth
-    macchine = payload.macchine
-    if len(macchine) > MAX_MACCHINE:
+    if len(payload.macchine) > MAX_MACCHINE:
         raise HttpError(413, f"Al massimo {MAX_MACCHINE} macchine per chiamata.")
-    tags = {str(row.get("asset_tag") or "").strip() for row in macchine if isinstance(row, dict)}
-    assets = {asset.asset_tag: asset for asset in Asset.objects.filter(asset_tag__in=[t for t in tags if t])}
-    allowed_ids = None if client.all_meter_assets else set(client.allowed_assets.values_list("id", flat=True))
-    ora = timezone.now()
-
-    results = []
-    for index, row in enumerate(macchine):
-        if not isinstance(row, dict):
-            results.append(_stato_result(index, {}, "rejected", "riga non valida"))
-            continue
-        asset = assets.get(str(row.get("asset_tag") or "").strip())
-        if asset is None:
-            results.append(_stato_result(index, row, "rejected", "asset sconosciuto"))
-            continue
-        if allowed_ids is not None and asset.id not in allowed_ids:
-            results.append(_stato_result(index, row, "rejected", "asset non consentito a questo collector"))
-            continue
-        stato = str(row.get("stato") or "").strip().upper()
-        if stato not in mtconnect.STATI_COLLECTOR:
-            results.append(_stato_result(index, row, "rejected", "stato non valido"))
-            continue
-        dal = parse_datetime(str(row.get("dal") or "")) if row.get("dal") else None
-        if dal is not None and timezone.is_naive(dal):
-            results.append(_stato_result(index, row, "rejected", "dal senza fuso orario (ISO 8601 con offset)"))
-            continue
-        coll = CollegamentoMTConnect.objects.filter(asset=asset).first()
-        if coll is None:
-            coll = CollegamentoMTConnect(asset=asset, fonte=CollegamentoMTConnect.FONTE_COLLECTOR)
-        elif coll.fonte != CollegamentoMTConnect.FONTE_COLLECTOR:
-            if coll.attivo:
-                results.append(_stato_result(index, row, "rejected", "macchina letta dal portale via MTConnect"))
-                continue
-            coll.fonte = CollegamentoMTConnect.FONTE_COLLECTOR
-        elif not coll.attivo:
-            results.append(_stato_result(index, row, "ignored", "lettura sospesa nel portale"))
-            continue
-        mtconnect.applica_stato_collector(coll, {**row, "stato": stato}, dal or ora, ora)
-        results.append(_stato_result(index, row, "accepted"))
-
-    MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=ora)
-    summary = {status: sum(1 for r in results if r["status"] == status) for status in ("accepted", "ignored", "rejected")}
-    return {"results": results, **summary}
+    esito = applica_stati(payload.macchine, client)
+    MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=timezone.now())
+    return esito
 
 
 @api.get("/ingest/config/")
@@ -257,8 +153,10 @@ def ingest_config(request):
     scritte in «Macchine collegate». Solo quelle con fonte «Collector OPC UA», attive, con l'host
     e consentite al collector. La password OPC UA viaggia in chiaro solo qui, verso il collector
     autenticato dalla rete ammessa (in HTTPS)."""
-    from .services.collector_cnc import macchine_per
+    from .services.collector_cnc import macchine_per, modalita
 
     client: MeterIngestClient = request.auth
     MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=timezone.now())
-    return {"collector": client.name, "machines": macchine_per(client)}
+    # Con il collector integrato nel portale, quello del PC non legge niente: mai due letture.
+    macchine = macchine_per(client) if modalita() == "pc" else []
+    return {"collector": client.name, "modalita": modalita(), "machines": macchine}

@@ -140,12 +140,14 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "CNC: collector OPC UA e agent MTConnect",
         "cosa": "Stato delle macchine (in lavoro, MDI/manuale, interrotta, ferma, in allarme, emergenza, offline), programma, pezzi e "
-                "allarmi. Le DMG MORI: il collector OPC UA dell'officina (tools/collector_cnc) li invia a POST "
+                "allarmi. Le DMG MORI: il collector OPC UA dell'officina (django_app/assets/collector_cnc) li invia a POST "
                 "/api/assets/contatori/ingest/stato/ e i contatori a /api/assets/contatori/ingest/. Le macchine con agent MTConnect: "
                 "HTTP GET /current ogni 2 minuti. Finiscono in assets_collegamentomtconnect, assets_periodostatomacchina e nei "
                 "contatori assets_assetmeter.",
         "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
-        "config": "Tutto in Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/): macchine del collector (indirizzo e "
+        "config": "Tutto in Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/). «Dove gira il collector»: sul server "
+                  "del portale (manage.py collector_cnc, attività deployment/start_collector_cnc.ps1, scrittura diretta nel DB, uscita "
+                  "verso le macchine sulla porta OPC UA 4840, controllo collector_cnc) oppure su un PC dell'officina. Macchine del collector (indirizzo e "
                   "porta OPC UA, codice, credenziali OPC UA cifrate) scaricate dal collector con GET /api/assets/contatori/ingest/config/, "
                   "token e IP ammessi del collector; sul PC del collector solo PORTALE_URL e PORTALE_TOKEN. MTConnect: indirizzo dell'agent "
                   "nella stessa pagina, schedule mtconnect_poll (ogni 2 minuti).",
