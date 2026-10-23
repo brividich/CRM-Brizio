@@ -327,8 +327,60 @@ def _ctx_matrice(request) -> dict:
         "ambiti": AMBITI,
         "preset_ruolo": PRESETS_PER_CHIAVE.get(getattr(ruolo, "preset", "")),
         "persone_ruolo": AccessGroupMembership.objects.filter(group=ruolo).count() if ruolo else 0,
+        "membri_ruolo": _membri_ruolo(ruolo),
         **_ctx_collegamento_organigramma(ruolo),
     }
+
+
+def _membri_ruolo(ruolo) -> list[dict]:
+    """Chi ha oggi il ruolo: a mano (con scadenza) e dall'organigramma, una riga per persona."""
+    if ruolo is None:
+        return []
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
+    righe: dict[int, dict] = {}
+
+    def _riga(utente_id: int) -> dict:
+        return righe.setdefault(utente_id, {"a_mano": False, "scade_il": None, "scaduto": False, "nota": "", "da": ""})
+
+    for m in AccessGroupMembership.objects.filter(group=ruolo):
+        riga = _riga(int(m.legacy_user_id))
+        riga.update(
+            a_mano=True,
+            scade_il=m.scade_il,
+            scaduto=bool(m.scade_il and m.scade_il < oggi),
+            nota=m.note or "",
+        )
+    if not ruolo.amministratore and ruolo.is_active:
+        # Stessa fonte della scheda «Persone»: chi ricopre oggi un ruolo d'organigramma collegato.
+        from core.legacy_models import AnagraficaDipendente
+        from core.permessi.team import _assegnazioni_attive
+
+        try:
+            collegati = list(ruolo.ruoli_organigramma.values_list("id", flat=True))
+            utenti_ids = (
+                list(
+                    AnagraficaDipendente.objects.filter(
+                        id__in=_assegnazioni_attive()
+                        .filter(ruolo_id__in=collegati)
+                        .values_list("legacy_anagrafica_id", flat=True)
+                    )
+                    .exclude(utente_id__isnull=True)
+                    .values_list("utente_id", flat=True)
+                )
+                if collegati
+                else []
+            )
+        except DatabaseError:
+            utenti_ids = []
+        for utente_id, per_gruppo in provenienze_per_utenti(utenti_ids).items():
+            if ruolo.id in per_gruppo:
+                _riga(int(utente_id))["da"] = ", ".join(sorted(per_gruppo[ruolo.id]))
+    persone = {u.id: u for u in UtenteLegacy.objects.filter(id__in=list(righe))}
+    esito = [{"persona": persone[i], **r} for i, r in righe.items() if i in persone]
+    esito.sort(key=lambda r: (not r["persona"].attivo, str(r["persona"].nome or "").upper()))
+    return esito
 
 
 def _ctx_collegamento_organigramma(ruolo) -> dict:
