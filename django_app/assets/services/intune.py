@@ -222,7 +222,53 @@ def problemi_aperti(now=None) -> list[dict]:
     return out
 
 
+# Build di Windows → nome della versione (solo per l'etichetta).
+RAMI_WINDOWS = {19044: "Windows 10 21H2", 19045: "Windows 10 22H2", 22621: "Windows 11 22H2", 22631: "Windows 11 23H2",
+                26100: "Windows 11 24H2", 26200: "Windows 11 25H2"}
+
+
+def build_windows(versione: str):
+    """(build, revisione) da «10.0.26100.2033», o None se non è una versione Windows confrontabile."""
+    parti = str(versione or "").strip().split(".")
+    if len(parti) != 4 or parti[0] != "10" or not all(p.isdigit() for p in parti):
+        return None
+    return int(parti[2]), int(parti[3])
+
+
+def revisioni_massime() -> dict:
+    """{build: revisione più alta vista sui PC presenti in Intune}: il riferimento «al passo»."""
+    from assets.models import DispositivoIntune
+
+    out: dict = {}
+    for versione in DispositivoIntune.objects.filter(presente=True, sistema__iexact="Windows").values_list(
+            "versione_sistema", flat=True):
+        b = build_windows(versione)
+        if b:
+            out[b[0]] = max(out.get(b[0], 0), b[1])
+    return out
+
+
+def aggiornamento_windows(disp, massime=None) -> dict | None:
+    """Aggiornamenti cumulativi del PC rispetto agli altri PC con la stessa versione di Windows.
+
+    Il riferimento è il PC più aggiornato in azienda (Intune non dice qual è l'ultima cumulativa
+    pubblicata): «indietro» = altri PC dello stesso ramo hanno già una revisione più alta.
+    """
+    b = build_windows(getattr(disp, "versione_sistema", ""))
+    if b is None or str(getattr(disp, "sistema", "")).lower() != "windows":
+        return None
+    massime = revisioni_massime() if massime is None else massime
+    massima = massime.get(b[0], b[1])
+    return {"ramo": RAMI_WINDOWS.get(b[0], f"build {b[0]}"), "build": f"{b[0]}.{b[1]}", "riferimento": f"{b[0]}.{massima}",
+            "indietro": b[1] < massima}
+
+
 def per_asset(asset) -> list:
     from assets.models import DispositivoIntune
 
-    return list(DispositivoIntune.objects.filter(asset=asset).order_by("-presente", "nome"))
+    dispositivi = list(DispositivoIntune.objects.filter(asset=asset).order_by("-presente", "nome"))
+    if dispositivi:
+        massime = revisioni_massime()
+        for d in dispositivi:
+            d.windows = aggiornamento_windows(d, massime)
+    return dispositivi

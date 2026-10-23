@@ -187,10 +187,22 @@ Il sistema non tira mai a indovinare: quando non può dimostrare l'esito, scrive
 
 Il pannello si apre dal bottone rosso «N CVE» (arancione per «da verificare») e si chiude con <kbd>Esc</kbd> o con la ×.
 
-- **Dal Catalogo software** mostra le CVE del programma su tutti i PC che lo hanno oggi, anche quando le fonti lo chiamano in modo diverso. In cima tre numeri: CVE che **colpiscono**, quante sono **gravi** (sfruttate attivamente, cioè in CISA KEV, oppure con CVSS 9 o più) e quante sono **da verificare**. Le CVE sono in ordine di pericolo: prima le sfruttate, poi per CVSS. Ogni riga dice quanti PC sono colpiti, quali versioni e, se l'NVD lo indica, da quale versione è corretta. Le «da verificare» sono in un gruppo chiuso a parte.
+- **Dal Catalogo software** mostra le CVE del programma su tutti i PC che lo hanno oggi, anche quando le fonti lo chiamano in modo diverso. In cima tre numeri: CVE che **colpiscono**, quante sono **gravi** (sfruttate attivamente, cioè in CISA KEV, oppure con CVSS 9 o più) e quante sono **da verificare**. Le CVE sono in ordine di **priorità** (vedi sotto). Ogni riga dice quanti PC sono colpiti, quali versioni e, se l'NVD lo indica, da quale versione è corretta. Le «da verificare» sono in un gruppo chiuso a parte.
 - **Nella scheda del programma** una fascia in alto dice quante CVE lo colpiscono e la tabella «Versioni presenti» ha la colonna **CVE**: quante CVE colpiscono ciascuna versione. Le versioni con «nessuna nota» sono quelle a cui aggiornare.
 - **Dalla scheda asset** mostra le CVE del PC raggruppate per software installato; aperto dalla riga di un software della scheda Software, quel software è in cima ed è l'unico aperto.
 - **Clic su una CVE** apre la scheda breve nel pannello: gravità e CVSS, se è sfruttata attivamente (con la scadenza CISA), la descrizione, **Cosa fare** (la versione da installare, se nota), la probabilità di attacco (EPSS), i PC colpiti o da verificare con la versione (il PC da cui si arriva è evidenziato «questo PC») e i range vulnerabili letti dall'NVD. «Torna all'elenco» riporta all'elenco; «Scheda completa» apre la pagina della CVE nel SOC; «Apri su NVD» apre il sito NVD.
+
+**Priorità.** Ogni CVE ha una priorità, scritta in «Cosa fare»:
+
+- **Subito**: sfruttata attivamente (CISA KEV) oppure con probabilità di attacco alta (EPSS 10% o più nei prossimi 30 giorni). Nell'elenco ha l'etichetta «Sfruttata» o «Probabile attacco».
+- **Presto**: CVSS 9 o più, oppure CVSS 7 o più con EPSS almeno 1%.
+- **Normale**: tutto il resto.
+
+KEV ed EPSS si leggono con «Arricchisci le CVE da NVD e CISA KEV» e «Leggi anche il punteggio EPSS» (Impostazioni › Avvisi e automatismi › Impatto CVE sugli asset): senza, la priorità usa solo il CVSS.
+
+**Patch WatchGuard.** Con la lettura delle patch accesa (vedi «Patch e protezione (WatchGuard)»), la riga della CVE dice «patch WatchGuard pronta su N PC», «Cosa fare» lo ripete e ogni PC ha l'etichetta della patch con il suo stato (da installare, attende il riavvio, errore di installazione…).
+
+**Confronto con Defender.** Con «Confronta le CVE con Defender» acceso (riquadro Microsoft Defender), ogni PC della scheda breve dice «Defender conferma» o «Defender non la vede»; un gruppo chiuso elenca i PC su cui Defender la vede e il SOC no. Il pannello di un PC ha «Confronto con Defender»: in comune, solo SOC, solo Defender. Dove i due non coincidono la CVE va guardata: di solito è un programma fuori dall'inventario WatchGuard, un CPE sbagliato o una versione letta male. Il confronto vale solo per i PC che Defender conosce.
 
 I numeri del pannello sono gli stessi del catalogo: contano solo i software ancora presenti sui PC, dall'ultimo calcolo d'impatto (il pannello non legge l'NVD in diretta). Pannello e numeri compaiono solo a chi vede il Security Center; il server lo controlla a ogni apertura.
 
@@ -212,6 +224,25 @@ Nel pannello (programma, PC, scheda breve della CVE) la sezione **Risolte negli 
 Solo le prime due contano come **corrette**. Ogni PC esposto ha anche «esposto dal»: la data passa da un ricalcolo all'altro (per le righe che c'erano prima di questa funzione è la data dell'ultimo ricalcolo).
 
 Nella scheda asset, la riga **Visto da** in cima alla Panoramica dice quali fonti vedono il PC (Intune, WatchGuard, Defender, Security Center, SNMP) e quando: un PC senza WatchGuard né Defender non ha inventario software, quindi il SOC non può controllarne le CVE.
+
+### Patch e protezione (WatchGuard)
+
+Pagina **Dispositivi › Patch e protezione**. Legge l'API di WatchGuard Cloud (Endpoint Security, sola lettura): serve collegare WatchGuard una volta, da **Impostazioni › Avvisi e automatismi**:
+
+1. In WatchGuard Cloud › Amministrazione › **Managed Access** abilitare l'accesso API; copiare URL API (dipende dalla regione, per esempio `https://api.deu.cloud.watchguard.com`), **Access ID** e **password** (meglio quelli di sola lettura) e l'**API Key**. L'ID account (ACC-… o WGC-…) è in **My Account**.
+2. Incollarli nel riquadro **Credenziali API WatchGuard** e **Salva le credenziali** (password e API Key restano cifrate e non si rivedono), poi **Prova la connessione**: dice quanti PC vede l'account.
+3. Accendere le letture nel riquadro **WatchGuard Endpoint Security (API)**: PC e protezione, software dei PC, patch mancanti. Girano alle 06:10 e alle 13:10.
+
+Cosa c'è nella pagina:
+
+- **Patch mancanti**: una riga per patch con i PC che ne hanno bisogno. In cima le patch che correggono una CVE sfruttata (CISA KEV), poi per criticità WatchGuard (Critica, Importante…) e per numero di PC. Aprendo la riga: le CVE che corregge (clic = scheda breve) e i PC con lo stato. Una patch esce dall'elenco quando WatchGuard non la segnala più: installata o non più necessaria; il ricalcolo CVE poi registra la risoluzione con la versione nuova.
+- **Installazioni non riuscite**: l'esito dei task di installazione WatchGuard degli ultimi 14 giorni (errore di download, di installazione…).
+- **Protezione da sistemare**: PC con l'agente ma protezione spenta, in errore, non aggiornata, con riavvio richiesto o non connessi da più di 7 giorni.
+- **In rete senza agente**: dispositivi che le sonde WatchGuard hanno trovato in rete senza agente. Stampanti e apparati sono normali; un PC qui non è protetto.
+
+La lettura del **software** sostituisce l'export WatchGuard caricato a mano: entra nell'inventario come fonte WatchGuard, con la stessa procedura. Le patch **si installano dalla console WatchGuard**: l'API non permette di comandarle dal portale.
+
+Nella scheda asset la riga **Visto da** usa questi dati: «WatchGuard · protezione attiva · 3 patch mancanti», rosso se la protezione non va o se il PC è in rete senza agente.
 
 ### Alert e ticket automatici
 

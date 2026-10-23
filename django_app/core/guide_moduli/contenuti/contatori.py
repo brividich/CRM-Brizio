@@ -89,6 +89,16 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "La scheda dello switch non dice chi è collegato alle porte",
+            "perche": "la tabella MAC si legge ogni notte alle 05:30 solo dagli apparati di categoria «Rete» attivi e raggiungibili.",
+            "fare": [
+                "Controlla che lo switch sia di categoria «Rete» e risponda via SNMP.",
+                "L'interruttore è nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch». A mano: manage.py soc_api_sync --solo switch.",
+                "Un PC «non riconosciuto» ha un MAC che il portale non conosce: arriva da Intune, da WatchGuard o dal punto rete dell'asset.",
+                "Gli switch Cisco con tabella MAC separata per VLAN (community@vlan) non sono coperti.",
+            ],
+        },
+        {
             "sintomo": "Il SOC segnala «Apparato non raggiungibile»",
             "perche": "un apparato di rete non ha risposto per più controlli di fila.",
             "fare": [

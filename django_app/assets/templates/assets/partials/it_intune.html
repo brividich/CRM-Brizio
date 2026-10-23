@@ -6,6 +6,7 @@
       <div class="af-it-summary">
         <div><span class="af-it-label">Dispositivo</span><strong>{{ d.nome|default:"—" }}</strong><span>{{ d.produttore }} {{ d.modello }}{% if d.seriale %} · S/N {{ d.seriale }}{% endif %}</span></div>
         <div><span class="af-it-label">Sistema</span><strong>{{ d.sistema|default:"—" }}</strong><span>{{ d.versione_sistema }}</span></div>
+        {% if d.windows %}<div><span class="af-it-label">Aggiornamenti Windows</span><strong class="{% if d.windows.indietro %}af-it-warn{% else %}af-it-ok{% endif %}">{% if d.windows.indietro %}Indietro{% else %}Al passo{% endif %}</strong><span>{{ d.windows.ramo }} · build {{ d.windows.build }}{% if d.windows.indietro %}; in azienda c'è già la {{ d.windows.riferimento }}{% else %}, la più recente in azienda{% endif %}</span></div>{% endif %}
         <div><span class="af-it-label">Utente principale</span><strong>{{ d.utente_nome|default:"—" }}</strong><span>{{ d.utente_upn }}</span></div>
         <div><span class="af-it-label">Conformità</span><strong>{% if d.conformita == "compliant" %}Conforme{% elif d.conformita == "noncompliant" %}Non conforme{% elif d.conformita == "inGracePeriod" %}In periodo di tolleranza{% else %}{{ d.conformita|default:"Non nota" }}{% endif %}</strong><span>ai criteri Intune</span></div>
         <div><span class="af-it-label">Disco cifrato</span><strong>{% if d.cifrato is True %}Sì (BitLocker){% elif d.cifrato is False %}No{% else %}Non noto{% endif %}</strong><span></span></div>

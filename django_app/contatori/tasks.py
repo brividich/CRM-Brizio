@@ -163,3 +163,10 @@ def leggi_consumabili(pk):
     finally:
         registra_esito(pk, ok=riuscita)
         cache.delete(key)
+
+
+def run_tabella_mac():
+    """Tabella MAC degli switch «Rete» (``contatori.tabella_mac``): su quale porta sta ogni PC."""
+    from .tabella_mac import run
+
+    return run()

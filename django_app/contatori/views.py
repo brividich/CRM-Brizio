@@ -1056,7 +1056,20 @@ def dispositivo_snmp_detail(request, pk):
         "firmware_storico": list(dispositivo.firmware_storico.all()[:20]),
         "disponibilita": services.disponibilita_dispositivo(dispositivo),
         "periodi_disponibilita": (("24h", "ultime 24 ore"), ("7g", "ultimi 7 giorni")),
+        **_porte_switch(dispositivo),
     })
+
+
+def _porte_switch(dispositivo):
+    """Tabella MAC dello switch («Rete»): PC riconosciuti sulle porte d'accesso (contatori.tabella_mac)."""
+    if dispositivo.categoria != DispositivoSNMP.Categoria.RETE:
+        return {}
+    from .tabella_mac import collegati_allo_switch
+
+    righe = collegati_allo_switch(dispositivo)
+    ultima = dispositivo.mac_porte.order_by("-letto_il").values_list("letto_il", flat=True).first()
+    return {"porte_switch": righe, "porte_switch_letto": ultima, "porte_switch_mac": dispositivo.mac_porte.count(),
+            "porte_switch_riconosciuti": sum(1 for r in righe if r["asset"])}
 
 
 @richiede_gestione

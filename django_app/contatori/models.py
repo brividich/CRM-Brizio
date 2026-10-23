@@ -795,3 +795,31 @@ class RigaFattura(models.Model):
 
     def __str__(self):
         return f"{self.fattura.numero} · {self.contratto}"
+
+
+class MacPortaSwitch(models.Model):
+    """MAC visto su una porta di uno switch (tabella MAC: BRIDGE-MIB / Q-BRIDGE-MIB, sola lettura).
+
+    Scritto da ``contatori.tabella_mac``: ogni lettura di uno switch sostituisce le sue righe.
+    ``mac_sulla_porta`` serve a distinguere le porte d'accesso (1-3 MAC: lì c'è il PC) dalle
+    porte verso altri switch o access point (molti MAC: non dicono dove sta il PC).
+    """
+
+    dispositivo = models.ForeignKey(DispositivoSNMP, on_delete=models.CASCADE, related_name="mac_porte")
+    mac = models.CharField(max_length=17, db_index=True)
+    porta = models.CharField(max_length=120, blank=True, default="", help_text="Nome della porta (ifName) o numero.")
+    if_index = models.PositiveIntegerField(null=True, blank=True)
+    vlan = models.PositiveIntegerField(null=True, blank=True)
+    mac_sulla_porta = models.PositiveIntegerField(default=1)
+    letto_il = models.DateTimeField()
+
+    class Meta:
+        ordering = ["dispositivo", "porta", "mac"]
+        indexes = [models.Index(fields=["dispositivo", "letto_il"], name="cont_macporta_disp_idx")]
+
+    def __str__(self):
+        return f"{self.mac} @ {self.dispositivo.nome} {self.porta}"
+
+    @property
+    def porta_accesso(self):
+        return self.mac_sulla_porta <= 3

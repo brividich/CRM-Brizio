@@ -362,6 +362,23 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "porte-switch",
+        "titolo": "Chi è collegato alle porte degli switch",
+        "blocchi": [
+            ("p", "Ogni notte alle 05:30 il portale legge (solo lettura) la tabella MAC degli apparati di categoria «Rete» "
+                  "attivi e raggiungibili: su quale porta e VLAN sta ogni MAC."),
+            ("ul", [
+                "Nella scheda dello switch, riquadro «Chi è collegato alle porte»: porta, VLAN, MAC e l'asset riconosciuto. "
+                "Si mostrano solo le porte con al massimo 3 MAC: quelle con più MAC portano ad altri switch o access point.",
+                "Nella scheda asset di un PC, la riga «Visto da» ha la voce «Rete» con switch e porta.",
+                "Il MAC del PC arriva da Intune, da WatchGuard o dal punto rete dichiarato dell'asset: un MAC sconosciuto resta «non riconosciuto».",
+                "Si legge dal Q-BRIDGE-MIB o, se l'apparato non lo espone, dal BRIDGE-MIB. Gli switch Cisco con tabella separata per VLAN "
+                "(community@vlan) non sono coperti.",
+                "Interruttore nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch».",
+            ]),
+        ],
+    },
+    {
         "id": "nuovo-apparato",
         "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
         "blocchi": [

@@ -4,14 +4,16 @@
 <header class="pv-head">
   <div class="pv-badges">
     <span class="cvp-pill cvp-pill--{{ d.tono }}">{{ d.gravita }}{% if rec.cvss is not None %} · CVSS {{ rec.cvss|floatformat:1 }}{% endif %}</span>
-    {% if rec.kev %}<span class="cvp-pill cvp-pill--kev">Sfruttata attivamente (CISA KEV)</span>{% endif %}
+    {% if rec.kev %}<span class="cvp-pill cvp-pill--kev">Sfruttata attivamente (CISA KEV)</span>{% elif d.priorita == "subito" %}<span class="cvp-pill cvp-pill--kev">Probabile attacco (EPSS)</span>{% endif %}
   </div>
   <h2 class="cvp-id">{{ rec.cve_id }}</h2>
   {% if rec.published_at %}<p class="pv-sub">Pubblicata il {{ rec.published_at|date:"d/m/Y" }}</p>{% endif %}
 </header>
 <p class="pv-text">{{ rec.description|default:"Descrizione non ancora letta da NVD." }}</p>
 <div class="cvp-todo cvp-todo--{{ d.tono }}">
-  <strong>Cosa fare</strong>
+  <strong>Cosa fare · priorità {{ d.priorita_label|lower }}</strong>
+  {% if d.priorita_motivo %}<span>{% if d.priorita == "subito" %}Da correggere subito{% else %}Da correggere presto{% endif %}: {{ d.priorita_motivo }}.</span>{% endif %}
+  {% if d.pc_con_patch %}<span>WatchGuard ha già la patch per {{ d.pc_con_patch }} PC: si installa dalla console WatchGuard (Patch Management).</span>{% endif %}
   {% if d.correzione %}<span>Aggiornare: {{ d.correzione }}.</span>{% else %}<span>L'NVD non indica una versione corretta: controllare l'avviso del produttore.</span>{% endif %}
   {% if rec.kev and rec.kev_due %}<span>CISA chiede di correggerla entro il {{ rec.kev_due|date:"d/m/Y" }}.</span>{% endif %}
 </div>
@@ -19,6 +21,7 @@
   <div><dt>PC colpiti</dt><dd>{{ d.colpiti }}</dd></div>
   <div><dt>Da verificare</dt><dd>{{ d.da_verificare }}</dd></div>
   <div><dt>Probabilità di attacco</dt><dd>{% if rec.epss is not None %}EPSS {{ rec.epss|floatformat:3 }}{% if rec.epss_percentile is not None %} <small>(sopra il {% widthratio rec.epss_percentile 1 100 %}% delle CVE)</small>{% endif %}{% else %}—{% endif %}</dd></div>
+  {% if d.defender %}<div><dt>Defender</dt><dd>la vede su {{ d.defender.defender|length }} PC{% if d.defender.comuni %} ({{ d.defender.comuni }} in comune){% endif %}</dd></div>{% endif %}
   <div><dt>Dati NVD</dt><dd>{% if rec.nvd_fetched_at %}letti il {{ rec.nvd_fetched_at|date:"d/m/Y" }}{% else %}non ancora letti{% endif %}</dd></div>
 </dl>
 {% if d.pc %}
@@ -29,10 +32,17 @@
       <span class="cvp-host">{% if p.asset %}<a href="{% url 'assets:asset_view' p.asset.pk %}">{{ p.host }}</a>{% else %}{{ p.host }}{% endif %}{% if p.questo %} <small>(questo PC)</small>{% endif %}</span>
       <span class="cvp-pill cvp-pill--{% if p.esito == 'impacts' %}high{% else %}muted{% endif %}">{% if p.esito == 'impacts' %}Colpito{% else %}Da verificare{% endif %}</span>
       <small class="cvp-host-why">{% if p.versione %}versione {{ p.versione }} · {% endif %}{% if p.aperta_dal %}esposto dal {{ p.aperta_dal|date:"d/m/Y" }} · {% endif %}{{ p.spiegazione|truncatechars:120 }}</small>
+      {% if p.patch or p.defender is not None %}<small class="cvp-host-why">{% if p.patch %}<span class="cvp-tag{% if p.patch.esito_errore %} is-ko{% else %} is-ok{% endif %}">Patch {{ p.patch.nome|truncatechars:60 }}: {% if p.patch.esito %}{{ p.patch.esito_label|lower }}{% else %}{{ p.patch.disponibilita_label|lower|default:"da installare" }}{% endif %}</span>{% endif %}{% if p.defender is True %} <span class="cvp-tag">Defender conferma</span>{% elif p.defender is False %} <span class="cvp-tag is-warn" title="Defender conosce il PC ma non segnala questa CVE: controllare versione e CPE">Defender non la vede</span>{% endif %}</small>{% endif %}
     </li>
   {% endfor %}
   </ul>
   {% if d.pc_altri %}<p class="cvp-note">E altri {{ d.pc_altri }} PC nella scheda completa.</p>{% endif %}
+{% endif %}
+{% if d.defender.solo_defender %}
+  <details class="cvp-more"><summary>Solo Defender: {{ d.defender.solo_defender|length }} PC che il SOC non conta</summary>
+    <p class="cvp-note">PC su cui Defender segnala questa CVE e il calcolo del SOC no: di solito il programma non è nell'inventario WatchGuard o non è collegato al CPE.</p>
+    <ul class="cvp-ranges">{% for h in d.defender.solo_defender|slice:":20" %}<li>{{ h }}</li>{% endfor %}</ul>
+  </details>
 {% endif %}
 {% include "security/partials/cve_pannello_risolte.html" with mostra_host=True asset_q="" %}
 {% if d.ranges %}
