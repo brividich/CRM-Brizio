@@ -139,6 +139,11 @@ class PostazioneTests(TestCase):
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(self._utente_sessione(), self.account.pk)
         self.assertEqual(len(mail.outbox), 1)
+        # Al SOC: un evento e un alert «PIN bloccato».
+        from security.models import SecurityAlert, SecurityEventRecord
+
+        self.assertEqual(SecurityEventRecord.objects.filter(event_type="postazione_pin_bloccato").count(), 1)
+        self.assertIn("PIN bloccato", SecurityAlert.objects.get().title)
 
     def test_operatore_fuori_dal_gruppo_o_admin_rifiutato(self):
         postazioni.imposta_pin(self.l_esterno.id, PIN)
@@ -198,6 +203,23 @@ class PostazioneTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertNotIn("_auth_user_id", self.client.session)
         self.assertTrue(AuditLog.objects.filter(azione="postazione_altro_pc").exists())
+        from security.models import SecurityEventRecord
+
+        evento = SecurityEventRecord.objects.get(event_type="postazione_altro_pc")
+        self.assertEqual(evento.payload["ip"], "10.0.0.99")
+
+    def test_registro_uso(self):
+        self._entra_operatore()
+        self.client.post(reverse("postazione_cambio"))
+        self.client.post(reverse("postazione_entra"), {"operatore": self.l_op1.id, "pin": "9999"})
+        dati = postazioni.registro_uso(self.postazione.pk, 30)
+        self.assertEqual(len(dati["sessioni"]), 1)
+        sessione = dati["sessioni"][0]
+        self.assertEqual(sessione["uscita_motivo"], "Cambio operatore")
+        self.assertIsNotNone(sessione["uscita"])
+        self.assertEqual([e["evento"] for e in dati["eventi"]], ["PIN sbagliato"])
+        self.assertEqual(dati["eventi"][0]["chi"], "Rossi Operatore")  # la persona, non l'account del PC
+        self.assertEqual(postazioni.registro_uso(999, 30), {"sessioni": [], "eventi": []})
 
     # ── uscita ──
 
@@ -341,6 +363,12 @@ class AdminPostazioniTests(TestCase):
         self.client.post(reverse("admin_portale:postazioni_condivise_azione"), {
             "azione": "azzera_pin", "id": PostazioneCondivisa.objects.get().pk, "legacy_user_id": 4242})
         self.assertFalse(PinPostazione.objects.filter(legacy_user_id=4242).exists())
+
+    def test_registro_pagina_ed_excel(self):
+        self.assertEqual(self.client.get(reverse("admin_portale:postazioni_registro") + "?giorni=7").status_code, 200)
+        resp = self.client.get(reverse("admin_portale:postazioni_registro_excel") + "?giorni=90")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("spreadsheetml", resp["Content-Type"])
 
     def test_non_amministratore_negato(self):
         utente = get_user_model().objects.create_user("normale.test", password="x")
