@@ -556,6 +556,40 @@ class RilevazioneSNMP(models.Model):
         verbose_name_plural = "Rilevazioni SNMP"
 
 
+class AvvisoStampante(models.Model):
+    """Registro avvisi di una stampante: un avviso dalla prima volta che compare a quando sparisce.
+
+    Viene dalla tabella avvisi della stampante (Printer-MIB) o, se manca, dagli errori rilevati
+    (Host-Resources). Una riga aperta (``chiuso_il`` vuoto) è un avviso ancora presente.
+    """
+
+    dispositivo = models.ForeignKey(DispositivoSNMP, on_delete=models.CASCADE, related_name="avvisi_stampante")
+    chiave = models.CharField(max_length=255)
+    testo = models.CharField(max_length=255)
+    descrizione = models.CharField(max_length=120, blank=True)
+    gravita = models.CharField(max_length=20, blank=True)
+    gruppo = models.CharField(max_length=40, blank=True)
+    chi = models.CharField(max_length=40, blank=True, help_text="Chi deve intervenire, secondo la stampante.")
+    critico = models.BooleanField(default=False)
+    informativo = models.BooleanField(default=False, help_text="Evento di normale funzionamento (accensione, pronta).")
+    aperto_il = models.DateTimeField(default=timezone.now)
+    ultimo_visto_il = models.DateTimeField(default=timezone.now)
+    chiuso_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-aperto_il", "-pk"]
+        indexes = [models.Index(fields=["dispositivo", "chiuso_il"], name="contatori_avvprt_disp_chiuso")]
+        verbose_name = "Avviso stampante"
+        verbose_name_plural = "Avvisi stampante"
+
+    def __str__(self):
+        return f"{self.dispositivo.nome} · {self.testo}"
+
+    @property
+    def durata_secondi(self):
+        return max(0, int(((self.chiuso_il or self.ultimo_visto_il) - self.aperto_il).total_seconds()))
+
+
 class FirmwareSNMP(models.Model):
     """Storico delle versioni firmware viste su un dispositivo: una riga per versione."""
 
