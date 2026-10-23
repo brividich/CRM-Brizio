@@ -1720,3 +1720,43 @@ class DefenderVulnerabilita(models.Model):
 
     def __str__(self):
         return f"{self.host}: {self.cve_id}"
+
+
+class SecurityLetturaLog(models.Model):
+    """Un giro di una lettura automatica (WatchGuard, Defender, Entra, Intune, NVD, switch…): quando, chi, cosa ha letto.
+
+    Scritto da ``services.letture`` sia per i giri pianificati sia per «Esegui ora». I giri pianificati
+    con la lettura spenta non si registrano (sarebbero rumore ogni 15 minuti). Si tengono gli ultimi
+    ``letture.TENUTI`` giri per lettura.
+    """
+
+    CODA = "coda"
+    IN_CORSO = "in_corso"
+    OK = "ok"
+    PARZIALE = "parziale"
+    ERRORE = "errore"
+    SPENTA = "spenta"
+    STATI = [(CODA, "In coda"), (IN_CORSO, "In corso"), (OK, "Riuscita"), (PARZIALE, "Riuscita in parte"),
+             (ERRORE, "Non riuscita"), (SPENTA, "Spenta")]
+
+    codice = models.CharField(max_length=40, db_index=True)
+    stato = models.CharField(max_length=10, choices=STATI, default=CODA)
+    manuale = models.BooleanField(default=False)
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    avviata_il = models.DateTimeField(default=timezone.now, db_index=True)
+    finita_il = models.DateTimeField(null=True, blank=True)
+    riepilogo = models.JSONField(default=dict, blank=True)
+    messaggio = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-avviata_il"]
+        indexes = [models.Index(fields=["codice", "avviata_il"], name="sec_lettura_cod_idx")]
+
+    def __str__(self):
+        return f"{self.codice} {self.avviata_il:%d/%m %H:%M} {self.stato}"
+
+    @property
+    def durata_s(self):
+        if not self.finita_il:
+            return None
+        return max(0, round((self.finita_il - self.avviata_il).total_seconds()))

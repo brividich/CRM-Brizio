@@ -56,6 +56,24 @@ Come si comportano:
 - per scadenze e backup la riga **Adesso** dice cosa verrebbe segnalato in questo momento;
 - **Ultimi avvisi inviati** elenca gli invii con canale ed esito (inviato o non inviato).
 
+## Letture automatiche
+
+Pagina **Impostazioni › Letture automatiche**: tutte le letture che il SOC fa da solo, una scheda per lettura, raggruppate per fonte (Report via mail, Microsoft 365, WatchGuard, Vulnerabilità, Rete).
+
+Ogni scheda dice:
+
+- **cosa legge** e **quando gira** (ogni 15 minuti, ogni mattina alle 06:20…);
+- lo **stato**: Riuscita (bordo verde), Riuscita in parte (arancione: una parte ha letto, un'altra ha dato errore), Non riuscita (rosso), In coda / In corso (blu), Spenta, Da configurare (mancano le credenziali o la casella), Mai eseguita;
+- l'**ultimo giro**: quando, se automatico o a mano (e da chi), quanto è durato e **cosa ha letto** in numeri («312 PC», «18 patch», «4 vulnerabilità»…); in rosso il messaggio d'errore così come arriva dalla fonte (permesso mancante, credenziali non valide…);
+- l'**ultimo giro riuscito**, se l'ultimo è andato male;
+- lo **storico** degli ultimi giri (Storico) e il link ai dati letti.
+
+**Esegui ora** fa partire subito un giro (serve il permesso di configurazione del SOC). Il giro va nella coda dei lavori in background: la pagina si aggiorna da sola ogni pochi secondi finché non ha finito. Il pulsante è spento se la lettura è spenta, se manca la configurazione o se un giro è già in corso (anche un doppio clic non fa partire due giri). Un giro a mano rispetta gli interruttori: una lettura spenta si accende in **Avvisi e automatismi**.
+
+Se un giro resta «Interrotta» il servizio dei lavori in background (qcluster) è fermo o è stato riavviato a metà: va controllato in Amministrazione › Monitoring.
+
+In fondo alla pagina **Ultimi giri, tutte le letture** elenca gli ultimi 30 giri. I giri automatici con la lettura spenta non si registrano; per ogni lettura si tengono gli ultimi 300 giri.
+
 ## L'AI nel SOC
 
 Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato esce dalla rete. L'AI non decide e non cambia nulla da sola: propone, e decide sempre una persona.
