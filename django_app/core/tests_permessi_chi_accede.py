@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from django.test import TestCase
 
-from core.models import AuditLog, GroupPermissionGrant
+from core.models import AuditLog, GroupPermissionGrant, PermissionDefinition
 from core.permessi.chi_accede import chi_puo_aprire
 from core.permessi.organigramma import provenienze_per_utenti
 from core.tests_permessi_organigramma import OrganigrammaMixin
@@ -14,8 +14,9 @@ from core.tests_permessi_organigramma import OrganigrammaMixin
 
 class ChiAccedeTests(OrganigrammaMixin, TestCase):
     def _codice_hr(self):
-        return GroupPermissionGrant.objects.filter(group=self.hr, enabled=True).values_list(
-            "permission_id", flat=True).first()
+        PermissionDefinition.objects.create(code="test.chi_accede", label="Pagina sintetica", module="test")
+        GroupPermissionGrant.objects.create(group=self.hr, permission_id="test.chi_accede", enabled=True)
+        return "test.chi_accede"
 
     def test_ad_interim_si_vede_nella_provenienza_e_nel_registro(self):
         self.r_personale.profili_permessi.add(self.hr)
