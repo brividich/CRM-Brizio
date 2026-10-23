@@ -123,6 +123,17 @@ Procedura: backup del DB → `pulizia_pre_golive` (verificare i conteggi) → `p
 - Audit 09/10 (Fase 2): blocco TOTP per utente con anti-replay e limite ai codici email; allowlist gruppi AD anche al login/SSO (`LDAP_GROUP_ALLOWLIST_ON_LOGIN`); utente disattivato = sessioni chiuse; rotazione della chiave documenti con `DOCUMENT_ENCRYPTION_OLD_KEYS` + `rotate_document_encryption_key --apply`; `backup_portale` non copia il `.env` accanto ai dati (`BACKUP_ENV_DIR` per la copia separata); versione cache ACL basata sul tempo; log separati `app.log`/`qcluster.log`/`commands.log`; CSP senza host esterni; niente SVG negli upload serviti da `/media/`.
 - Audit 09/10 (finding fuori roadmap): `ForcedPasswordChangeMiddleware` impone il cambio password obbligatorio; password di almeno 12 caratteri con i validatori Django; logout via GET da altri siti ignorato; `core/numbering_retry.save_with_next_number` per le numerazioni `MAX()+1` con retry; token Graph cifrato in cache; wizard `/setup/` sempre chiuso con settings di produzione.
 
+## Postazioni condivise (`/postazione/`, 23/10/2026)
+
+PC usati a turno con un solo account (es. «zeiss» del controllo): ognuno entra con il proprio nome e un PIN personale, e la sessione diventa sua.
+
+- Configurazione in Amministrazione → **Postazioni condivise** (`/admin-portale/postazioni-condivise/`): nome, account della postazione (utente legacy creato dal primo login LDAP; mai amministratori), gruppo degli operatori (`AccessGroup`, membri gestiti in «Accessi»), minuti di inattività (1–60), «Attiva». «Operatori e PIN»: stato del PIN di ogni operatore e «Azzera PIN». Guida `?guida=1`.
+- Sul PC: l'account apre solo «Chi sei?» (`/postazione/`). Tocca il nome → tastierino PIN → «Entra». Prima volta, PIN bloccato o da cambiare: «Imposta il PIN» con nome utente e password dell'account personale (stessa cascata del login, axes compreso), PIN 4–8 cifre senza cifre ripetute o sequenze.
+- Operatore dentro: fascia blu «Postazione condivisa … stai lavorando come …» con **Cambio operatore** (anche «Esci» del menu utente torna a «Chi sei?»; «Chiudi la postazione» su «Chi sei?» chiude tutto); dopo i minuti di inattività (controllo in pagina e sul server) si torna a «Chi sei?».
+- 5 PIN sbagliati di fila → bloccato + mail «PIN della postazione bloccato». Audit `postazione_*`.
+- Codice: `core/postazioni.py`, `core/postazioni_views.py`, `admin_portale/views_postazioni.py`; template `core/pages/postazione.html`, `core/components/postazione_banner.html`, `admin_portale/pages/postazioni_condivise.html`; migrazione `core 0092`; test `core.test_postazioni`. Regole di sicurezza: [`docs/ai/05_SECURITY_BOUNDARIES.md`](../ai/05_SECURITY_BOUNDARIES.md#postazioni-condivise-pin).
+- Messa in esercizio: deploy + `migrate`; far entrare una volta l'account del PC; creare gruppo e postazione; gli operatori impostano il PIN al primo uso.
+
 ## Centro guide (`/guide/`)
 
 Una guida per ogni modulo, scritta a passi numerati con le etichette vere dei pulsanti, più il **Manuale di emergenza** per chi amministra il portale in assenza del referente.

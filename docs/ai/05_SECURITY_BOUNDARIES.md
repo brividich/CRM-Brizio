@@ -188,6 +188,16 @@ Pattern: `AppConfig.ready()` → chiama `bootstrap_*_acl_endpoints()` → upsert
 - Stop path: `/impersonation/stop` e `/impersonation/stop/`
 - Solo `is_legacy_admin()` può avviare l'impersonation
 
+### Postazioni condivise (PIN)
+
+- File: `core/postazioni.py` (servizio, segnale `user_logged_in`, `PostazioneCondivisaMiddleware`), `core/postazioni_views.py`, admin `admin_portale/views_postazioni.py`; modelli `PostazioneCondivisa`, `PinPostazione` (migrazione `core 0092`).
+- Un PC usato a turno con un solo account (es. «zeiss», LDAP). Al login di quell'account la sessione riceve la chiave `postazione_condivisa` «in attesa»: il middleware (prima di `SessionIdleTimeoutMiddleware`) lascia aprire solo `/postazione/`, `/logout`, `/2fa/` e statici; le altre pagine tornano a `/postazione/`, le API rispondono JSON 403 `postazione_condivisa`.
+- L'operatore sceglie il proprio nome fra i membri attivi (appartenenza non scaduta) dell'`AccessGroup` della postazione e digita il PIN: con il PIN giusto `login()` **vero** dell'operatore (sessione rigenerata, `ModelBackend`), quindi ACL, 2FA della policy, onboarding, dispositivi e audit sono i suoi. Nel segno di sessione restano postazione, account e 2FA dell'account per tornare a «Chi sei?» senza ripetere la password dell'account.
+- Il PIN **non è una credenziale fuori dalla postazione**: le view rifiutano qualsiasi sessione che non sia quella dell'account in attesa. Solo hash (`make_password`); `pin_hash` è fra i campi sensibili di `core/audit_signals.py` (mai nell'audit). 5 errori di fila → bloccato + mail all'operatore; si sblocca solo impostando un PIN nuovo con la propria password (`authenticate`, axes compreso) o con «Azzera PIN» dell'admin.
+- Esclusi sempre: superuser, staff e amministratori legacy/ruolo del portale (né operatori né account della postazione).
+- Uscita: «Cambio operatore» (POST `/postazione/cambio/`), «Esci» (`/logout` di un operatore torna a «Chi sei?»; solo da «Chi sei?» il logout chiude la postazione) o inattività dell'operatore (`minuti_inattivita`, 1–60; le GET HTMX/fetch in background non contano come attività; la pagina invia la stessa POST da JavaScript). Postazione disattivata o eliminata → logout completo alla richiesta successiva.
+- `/postazione/` è un prefisso **condiviso** (`_ACL_ONBOARDING_SHARED_PREFIXES` in `core/middleware.py`), non esente: richiede comunque l'autenticazione. Audit: `postazione_operatore_entra/esce`, `postazione_pin_errato/bloccato/impostato/azzerato`, `postazione_configurata/eliminata`.
+
 ### Elementi hardcoded da NON replicare
 
 - Nomi moduli: `"admin"`, `"dashboard"`, `"assenze"` in `core/acl.py`

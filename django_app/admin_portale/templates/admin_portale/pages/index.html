@@ -444,6 +444,13 @@ body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);
           <div class="mod-sub">Policy, ruoli soggetti, reti interne, OTP/TOTP per utente</div>
         </div>
       </a>
+      <a class="mod" href="{% url 'admin_portale:postazioni_condivise' %}">
+        <div class="mod-icon">🖥️</div>
+        <div>
+          <div class="mod-name">Postazioni condivise</div>
+          <div class="mod-sub">PC usati a turno con un solo account: scelta dell'operatore dal gruppo e PIN personale</div>
+        </div>
+      </a>
       <a class="mod" href="{% url 'admin_portale:ruoli_list' %}">
         <div class="mod-icon">🎭</div>
         <div>

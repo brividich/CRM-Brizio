@@ -56,6 +56,8 @@ _EXCLUDED_MODELS: frozenset[str] = audit_policy.EXCLUDED_MODELS
 # Nomi di campo (o sottostringhe) da non includere nei valori loggati
 _SENSITIVE_FIELD_KEYWORDS: frozenset[str] = frozenset({
     "password", "token", "secret", "hash_versione_letta",
+    # PIN delle postazioni condivise: poche cifre, l'hash si forza offline in un attimo.
+    "pin_hash",
 })
 
 
