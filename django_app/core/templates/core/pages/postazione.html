@@ -68,7 +68,11 @@
   <section class="pz-card">
     <h2 class="pz-h2">Questo PC non è registrato come postazione condivisa</h2>
     <p>L'account con cui sei entrato si usa solo dai PC registrati. Indirizzo di questo PC visto dal portale: <strong>{{ ip|default:"sconosciuto" }}</strong>.</p>
+    {% if ip_loopback %}
+    <p><strong>Problema di configurazione del server, non del PC:</strong> il portale vede l'indirizzo del server stesso al posto di quello del PC, quindi nessuna postazione può essere riconosciuta. L'amministratore deve impostare <code>TRUSTED_PROXY_IPS=127.0.0.1,::1</code> nel file <code>.env</code> del server e riavviare il portale.</p>
+    {% else %}
     <p>Chiedi all'amministratore di registrarlo in admin-portale → «Postazioni condivise», oppure entra con il tuo account personale.</p>
+    {% endif %}
   </section>
   {% else %}
   <section class="pz-card">

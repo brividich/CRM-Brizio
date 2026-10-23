@@ -81,6 +81,8 @@ GUIDA = {
                     "Con il PIN giusto la sessione è dell'operatore: i suoi permessi, il suo 2FA (se la policy lo chiede), il suo nome nell'audit "
                     "(«postazione_operatore_entra» / «postazione_operatore_esce», con la postazione).",
                     "L'account del PC da solo apre soltanto «Chi sei?», e solo dal PC registrato: da un altro PC trova «PC non registrato» (con l'IP visto dal portale).",
+                    "Se l'IP visto dal portale è 127.0.0.1 su ogni PC, nessuna postazione può funzionare: nel .env del server manca "
+                    "TRUSTED_PROXY_IPS=127.0.0.1,::1 (dietro IIS l'IP vero del PC arriva in X-Forwarded-For). Si imposta e si riavvia il sito.",
                     "La sessione resta legata al PC: se la stessa sessione arriva da un altro IP si chiude («postazione_altro_pc» nell'audit).",
                     "Il PIN vale solo dentro una sessione aperta con l'account della postazione. Si salva solo l'hash, mai nell'audit.",
                     "Amministratori e superuser non compaiono fra gli operatori e non possono essere l'account di una postazione.",
