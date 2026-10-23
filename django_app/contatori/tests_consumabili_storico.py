@@ -114,8 +114,7 @@ class TaskTests(TestCase):
                                return_value=([{"nome": "Nero", "pct": 33}], None)):
             self.assertEqual(tasks.leggi_consumabili(self.m.pk)["salvati"], 1)
         with mock.patch.object(services, "leggi_consumabili_macchina", return_value=(None, "timeout")):
-            with self.assertRaises(RuntimeError):
-                tasks.leggi_consumabili(self.m.pk)
+            self.assertTrue(tasks.leggi_consumabili(self.m.pk)["non_raggiungibile"])
 
     def test_smistamento_un_job_per_mfc(self):
         with mock.patch("contatori.tasks.async_task") as accoda:

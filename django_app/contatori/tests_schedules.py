@@ -108,11 +108,10 @@ class SchedulerIntegrationTests(TestCase):
         self.assertEqual(enqueue.call_count, 2)
 
     @patch("contatori.tasks.interroga_dispositivo")
-    def test_errore_device_visibile_al_worker(self, poll):
+    def test_device_irraggiungibile_non_fa_fallire_il_task(self, poll):
         device = DispositivoSNMP.objects.create(nome="Reader QA", host="192.0.2.21")
         poll.return_value.stato = StatoSNMP.ERROR
-        with self.assertRaises(RuntimeError):
-            tasks.poll_dispositivo(device.pk)
+        self.assertTrue(tasks.poll_dispositivo(device.pk)["non_raggiungibile"])
 
     @patch("contatori.tasks.async_task")
     def test_mensile_accoda_solo_attive_configurate_senza_snapshot(self, enqueue):
