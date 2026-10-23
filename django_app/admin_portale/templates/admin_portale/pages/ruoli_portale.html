@@ -131,6 +131,40 @@
     </form>
 
     {% if ruolo %}
+      <details class="acl-tech" style="margin-bottom:12px;" open>
+        <summary>Chi ha il ruolo «{{ ruolo.label }}» oggi · {{ membri_ruolo|length }} {{ membri_ruolo|length|pluralize:"persona,persone" }}</summary>
+        {% if ruolo.preset == "dipendente" %}
+          <div class="acl-muted" style="margin-top:10px;">Il ruolo base vale per tutti gli utenti attivi del portale: qui sotto solo chi lo ha anche a mano o dall'organigramma.</div>
+        {% endif %}
+        {% if membri_ruolo %}
+          <div class="acl-table-wrap rp-scroll-x" style="margin-top:10px;max-height:calc(40 * var(--vh, 1vh));overflow-y:auto;">
+            <table class="acl-table" data-table-id="admin.ruoli.membri_ruolo">
+              <thead><tr><th>Persona</th><th>Da dove arriva</th><th>Nota</th></tr></thead>
+              <tbody>
+              {% for m in membri_ruolo %}
+                <tr>
+                  <td>
+                    <a class="rp-person-link" href="?tab=persone&persona={{ m.persona.id }}">{{ m.persona.nome|default:"—" }}</a>
+                    {% if not m.persona.attivo %} <span class="acl-chip unset">utente disattivo</span>{% endif %}
+                    <div class="acl-muted">{{ m.persona.email|default:"" }}</div>
+                  </td>
+                  <td>
+                    <div class="rp-chips">
+                      {% if m.a_mano %}<span class="acl-chip{% if m.scaduto %} unset{% endif %}">a mano{% if m.scaduto %} · scaduto il {{ m.scade_il|date:"d/m/Y" }}{% elif m.scade_il %} · fino al {{ m.scade_il|date:"d/m/Y" }}{% endif %}</span>{% endif %}
+                      {% if m.da %}<span class="acl-chip rp-chip-org" title="Dal ruolo in azienda">organigramma: {{ m.da }}</span>{% endif %}
+                    </div>
+                  </td>
+                  <td>{% if m.nota %}{{ m.nota }}{% else %}<span class="acl-muted">—</span>{% endif %}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="acl-empty" style="margin-top:10px;">Nessuno ha questo ruolo, né a mano né dall'organigramma.</div>
+        {% endif %}
+      </details>
+
       <details class="acl-tech" style="margin-bottom:12px;">
         <summary>Proprietà del ruolo «{{ ruolo.label }}» · assegnato a mano a {{ persone_ruolo }} {{ persone_ruolo|pluralize:"persona,persone" }}</summary>
         <form method="post" action="{% url 'admin_portale:ruoli_portale_ruolo' ruolo.id %}" style="margin-top:10px;">
