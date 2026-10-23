@@ -923,6 +923,7 @@ class AssetAdministrativeDeadlineForm(forms.ModelForm):
             "issuer",
             "issued_on",
             "due_date",
+            "recurrence_months",
             "warning_days",
             "notes",
             "is_active",
@@ -937,6 +938,7 @@ class AssetAdministrativeDeadlineForm(forms.ModelForm):
             "issued_on": "Data emissione",
             "due_date": "Data scadenza",
             "warning_days": "Preavviso (giorni)",
+            "recurrence_months": "Si ripete ogni (mesi)",
             "notes": "Note",
             "is_active": "Attiva",
         }
@@ -961,6 +963,10 @@ class AssetAdministrativeDeadlineForm(forms.ModelForm):
         self.fields["component"].required = False
         self.fields["component"].help_text = "Opzionale: collega la scadenza a un componente dello stesso asset."
         self.fields["warning_days"].help_text = "Numero di giorni usato per evidenziare le scadenze imminenti."
+        self.fields["recurrence_months"].help_text = (
+            "Es. 12 = annuale, 24 = biennale. Vuoto = scadenza unica. Con la periodicita' basta una sola voce: "
+            "«Registra» la rinnova da sola."
+        )
 
         selected_asset_id = None
         selected_component_id = None
