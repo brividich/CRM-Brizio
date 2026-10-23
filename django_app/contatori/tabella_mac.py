@@ -149,10 +149,11 @@ def run() -> dict:
 # --- Lettura per le schede ---------------------------------------------------------------------
 
 def mac_di_asset(asset) -> set[str]:
-    """MAC noti di un asset: punto rete dichiarato, Intune, WatchGuard."""
-    from assets.models import AssetEndpoint, DispositivoIntune
+    """MAC noti di un asset: punto rete dichiarato, Intune, WatchGuard, indirizzi DHCP collegati."""
+    from assets.models import AssetEndpoint, DispositivoIntune, IndirizzoRete
 
     macs = set(AssetEndpoint.objects.filter(asset=asset).exclude(mac="").values_list("mac", flat=True))
+    macs.update(IndirizzoRete.objects.filter(asset=asset).exclude(mac="").values_list("mac", flat=True)[:10])
     for wifi, eth in DispositivoIntune.objects.filter(asset=asset).values_list("mac_wifi", "mac_ethernet"):
         macs.update(m for m in (wifi, eth) if m)
     try:
@@ -162,7 +163,10 @@ def mac_di_asset(asset) -> set[str]:
             macs.update(testo.split())
     except Exception:  # noqa: BLE001 - SOC non installato
         pass
-    return {m.strip().lower() for m in macs if m}
+    from assets.services.mac import normalizza_mac
+
+    # Intune dà il MAC senza separatori: tutto in forma aa:bb:cc:dd:ee:ff come la tabella dello switch.
+    return {n for n in (normalizza_mac(m) for m in macs if m) if n}
 
 
 def porte_di_asset(asset) -> list[MacPortaSwitch]:
@@ -183,7 +187,8 @@ def porte_di_asset(asset) -> list[MacPortaSwitch]:
 
 def collegati_allo_switch(dispositivo) -> list[dict]:
     """Per lo switch: porta → PC riconosciuti (solo porte d'accesso)."""
-    from assets.models import AssetEndpoint, DispositivoIntune
+    from assets.models import AssetEndpoint, DispositivoIntune, IndirizzoRete
+    from assets.services.mac import normalizza_mac
 
     righe = list(MacPortaSwitch.objects.filter(dispositivo=dispositivo, mac_sulla_porta__lte=PORTA_ACCESSO_MAX))
     macs = {r.mac for r in righe}
@@ -192,9 +197,12 @@ def collegati_allo_switch(dispositivo) -> list[dict]:
         asset_per_mac[mac.lower()] = asset_id
     for wifi, eth, asset_id in DispositivoIntune.objects.filter(asset__isnull=False).values_list(
             "mac_wifi", "mac_ethernet", "asset_id"):
-        for m in (wifi, eth):
-            if m and m.lower() in macs:
-                asset_per_mac.setdefault(m.lower(), asset_id)
+        for m in (normalizza_mac(wifi), normalizza_mac(eth)):
+            if m and m in macs:
+                asset_per_mac.setdefault(m, asset_id)
+    for mac, asset_id in IndirizzoRete.objects.filter(asset__isnull=False, mac__in=list(macs)[:2000]).values_list(
+            "mac", "asset_id"):
+        asset_per_mac.setdefault(mac, asset_id)
     try:
         from security.models import WatchGuardDispositivo
 

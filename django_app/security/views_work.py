@@ -205,7 +205,8 @@ def pc_copertura(request):
     visibili = svc.filtra(rows, codice)
     if q:
         needle = q.casefold()
-        visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())]
+        visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())
+                    or (r["rete"] and needle in (r["rete"].ip, r["rete"].mac))]
     counts = svc.conteggi(rows)
     return render(request, "security/pc_copertura.html", {
         "rows": visibili, "totale": len(rows), "q": q, "codice": codice, "can_manage": can_manage,
@@ -345,6 +346,33 @@ def veeam_credenziali(request):
         else:
             messages.success(request, "Credenziali API Veeam salvate (cifrate). Prova la connessione, poi accendi la lettura.")
     return redirect(reverse("security:soc_settings") + "#veeam-api")
+
+
+def rete_indirizzi(request):
+    """Rete (IP): gli indirizzi del DHCP/DNS di Windows Server, la stessa vista di Asset › Indirizzi IP.
+
+    Dati e azioni di riga (Conferma, Scollega, Crea asset) vengono da ``assets.views_rete``, con gli stessi
+    permessi sugli asset; la configurazione dei server resta in Asset.
+    """
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from assets import views_rete
+
+    if request.method == "POST":
+        views_rete.azione_riga(request)
+        return redirect(request.get_full_path())
+    data = views_rete.contesto_pagina(request)
+    if request.GET.get("export") == "xlsx":
+        return views_rete.export_excel(request, data)
+    from core.middleware import acl_allows_path
+
+    asset_url = reverse("assets:rete_indirizzi")
+    # La guida è il «?» nell'intestazione del SOC (security_help.PAGE_HELP).
+    return render(request, "security/rete_indirizzi.html", {
+        **data,
+        "puo_configurare": False,
+        "asset_url": asset_url if acl_allows_path(asset_url, django_user=request.user, request=request) else "",
+    })
 
 
 def watchguard_pc(request):

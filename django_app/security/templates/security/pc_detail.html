@@ -12,7 +12,7 @@
   <div class="sec-section-head">
     <div class="pc-title">
       <span class="sec-badge sec-badge-{{ pc.status.0 }}">{{ pc.status.1 }}</span>
-      <span class="sec-muted sec-small">{% if pc.asset_type %}{{ pc.asset_type }} · {% endif %}{% if pc.ip %}{{ pc.ip }} · {% endif %}{% if pc.sources %}visto da {{ pc.sources|join:", " }}{% elif b %}visto solo nei report di backup{% else %}visto solo dall'inventario software{% endif %}</span>
+      <span class="sec-muted sec-small">{% if pc.asset_type %}{{ pc.asset_type }} · {% endif %}{% if pc.rete %}{% for r in pc.rete %}<a href="{% url 'security:rete_indirizzi' %}?q={{ r.mac|default:r.ip|urlencode }}" title="Indirizzo letto dal {% if r.nel_dhcp %}DHCP{% else %}DNS{% endif %}{% if r.mac %} · MAC {{ r.mac }}{% endif %}">{{ r.ip }}</a>{% if r.switch %} ({{ r.switch.dispositivo.nome }} porta {{ r.switch.porta }}){% endif %} · {% endfor %}{% elif pc.ip %}{{ pc.ip }} · {% endif %}{% if pc.sources %}visto da {{ pc.sources|join:", " }}{% elif b %}visto solo nei report di backup{% else %}visto solo dall'inventario software{% endif %}</span>
     </div>
   </div>
   <div class="pc-areas">

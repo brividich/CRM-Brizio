@@ -72,9 +72,18 @@ def righe(proposte=True):
         if key in pcs:
             prec = pcs[key]["cve"] or {"cves": 0, "kev": 0, "gravi": 0}
             pcs[key]["cve"] = {k: prec[k] + dati[k] for k in ("cves", "kev", "gravi")}
+    try:
+        from assets.services.rete_windows import rete_dei_dispositivi
+
+        rete_asset, rete_nome = rete_dei_dispositivi()
+    except Exception:  # noqa: BLE001 - la rete è un dettaglio della riga, non ferma l'elenco
+        rete_asset, rete_nome = {}, {}
     out = []
     for key, r in pcs.items():
         r["key"] = key
+        # Indirizzo dal DHCP/DNS: prima quello collegato all'asset, poi lo stesso nome host.
+        rete = (rete_asset.get(r["asset"].pk) if r["asset"] else None) or rete_nome.get(key) or []
+        r["rete"] = rete[0] if rete else None
         r["url"] = reverse("security:pc_detail") + "?nome=" + r["nome"]
         r["fonti"] = sum(bool(x) for x in (r["intune"], r["watchguard"], r["defender"], r["backup"]))
         r["problemi"] = list(r["intune"].problemi_label) if r["intune"] else []

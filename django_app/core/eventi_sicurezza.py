@@ -57,6 +57,9 @@ CATALOGO: tuple[TipoEvento, ...] = (
                "La sessione nata su un PC condiviso è arrivata da un altro indirizzo: è stata chiusa."),
     TipoEvento("impersonazione_avviata", "Un amministratore ha iniziato a impersonare un utente", "info", False,
                "Assistenza o verifica dei permessi; resta anche nell'audit."),
+    TipoEvento("rete_dispositivo_nuovo", "Dispositivo sconosciuto nuovo in rete", "warning", True,
+               "Un MAC mai visto prima ha preso un indirizzo dal DHCP e nessun asset del registro lo spiega "
+               "(Asset › Indirizzi IP). Esclusi i MAC privati dei telefoni; al massimo 10 per lettura, uno per MAC."),
 )
 TIPI: dict[str, TipoEvento] = {t.codice: t for t in CATALOGO}
 

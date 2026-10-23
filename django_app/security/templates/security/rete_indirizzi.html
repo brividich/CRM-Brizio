@@ -1,0 +1,14 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Rete (IP) | Security Center AI{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Rete (IP){% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-muted sec-small" style="margin:0">Ogni indirizzo della rete letto dal DHCP e dal DNS di Windows Server, con la porta dello switch, l'antivirus e l'asset del registro. Da qui si vedono i dispositivi <strong>non censiti</strong> e quelli <strong>senza antivirus</strong>; un MAC sconosciuto mai visto prima diventa un evento del SOC (interruttore in Impostazioni › Avvisi e automatismi).{% if asset_url %} I server DHCP e DNS si configurano in <a href="{{ asset_url }}#config-rete">Asset › Indirizzi IP</a>.{% endif %}</p>
+</section>
+<div style="margin-top:12px">
+  {% include "assets/partials/rete_indirizzi_corpo.html" %}
+</div>
+{% endblock %}

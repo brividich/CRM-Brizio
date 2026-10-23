@@ -13,7 +13,7 @@
   </div>
   <form class="sec-filter-bar" method="get">
     <input type="hidden" name="f" value="{{ codice }}">
-    <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="nome PC o utente"></label>
+    <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="nome PC, utente o IP"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:pc_copertura' %}">Reimposta</a>
   </form>
@@ -40,7 +40,7 @@
       <tbody>
       {% for r in rows %}
         <tr data-preview="{% url 'security:preview_pc' %}?nome={{ r.nome|urlencode }}" class="{% if r.problemi or r.backup_ko %}pcc-warn{% endif %}">
-          <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.nome }}</strong></a>{% if r.intune %}<small>{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.sistema %} · {{ r.intune.sistema }} {{ r.intune.versione_sistema }}{% endif %}</small>{% elif r.soc %}<small>{% if r.soc.0.asset_type %}{{ r.soc.0.asset_type }}{% endif %}{% if r.soc.0.ip_address %} · {{ r.soc.0.ip_address }}{% endif %}</small>{% endif %}</td>
+          <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.nome }}</strong></a>{% if r.intune %}<small>{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.sistema %} · {{ r.intune.sistema }} {{ r.intune.versione_sistema }}{% endif %}</small>{% elif r.soc %}<small>{% if r.soc.0.asset_type %}{{ r.soc.0.asset_type }}{% endif %}{% if r.soc.0.ip_address and not r.rete %} · {{ r.soc.0.ip_address }}{% endif %}</small>{% endif %}{% if r.rete %}<small><a href="{% url 'security:rete_indirizzi' %}?q={{ r.rete.mac|default:r.rete.ip|urlencode }}" title="Indirizzo letto dal {% if r.rete.nel_dhcp %}DHCP{% else %}DNS{% endif %}">{{ r.rete.ip }}</a>{% if r.rete.switch %} · {{ r.rete.switch.dispositivo.nome }} porta {{ r.rete.switch.porta }}{% endif %}</small>{% endif %}</td>
           <td>{% if r.intune.utente_nome %}{{ r.intune.utente_nome }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td class="pcc-src">{% if r.intune %}<span class="pcc-yes" title="Ultima sincronizzazione {{ r.intune.ultima_sync|date:'d/m/Y H:i'|default:'mai' }}">✓</span>{% else %}<span class="pcc-no" title="Non gestito da Intune">✕</span>{% endif %}</td>
           <td class="pcc-src">{% if r.watchguard %}<span class="pcc-yes">✓</span>{% else %}<span class="pcc-no" title="Non compare nell'inventario WatchGuard">✕</span>{% endif %}</td>

@@ -145,14 +145,19 @@ GUIDA = {
             "titolo": "Indirizzi IP e dispositivi non censiti (DHCP e DNS)",
             "blocchi": [
                 ("passi", [
-                    "Apri Asset → «Indirizzi IP»: una riga per indirizzo, letta ogni ora dal DHCP e dal DNS di Windows Server.",
-                    "I riquadri in alto sono gli ambiti DHCP: bordo rosso = quasi pieno (90% o più degli indirizzi in uso).",
-                    "Filtro «Non censiti»: dispositivi in rete che nessun asset riconosce per MAC, IP o nome: da censire o da indagare.",
-                    "Filtro «Da collegare»: il portale propone l'asset; conferma da «Riconciliazione dispositivi», righe «Rete (DHCP)».",
-                    "Filtri «Nome DHCP diverso dal DNS» e «Record DNS vecchi»: record DNS rimasti da sistemare sul server DNS.",
+                    "Apri Asset → «Indirizzi IP» (o Security Center → Dispositivi → «Rete (IP)»): una riga per indirizzo, letta ogni ora "
+                    "dal DHCP e dal DNS di Windows Server e incrociata con switch, WatchGuard e Intune.",
+                    "I riquadri in testa contano Indirizzi attivi, Non censiti, Da collegare, Senza antivirus e DNS da pulire: un clic = quel filtro.",
+                    "Gli ambiti DHCP hanno un anello con l'occupazione: rosso «Quasi pieno» dal 90%; «Disattivato» = non assegna indirizzi.",
+                    "«Non censiti»: nessun asset riconosce MAC, IP o nome; contano anche gli IP fissi presenti solo nel DNS. "
+                    "Premi «Crea asset»: il modulo arriva già compilato (nome, IP, MAC, switch e porta) e l'indirizzo resta collegato.",
+                    "«Da collegare»: il portale propone l'asset (con il motivo); premi «Conferma» sulla riga. «Scollega» lo stacca.",
+                    "«Senza antivirus»: WatchGuard lo vede senza agente, o è un PC del registro assente da WatchGuard e Defender.",
+                    "La colonna «Switch» dice switch, porta e VLAN dove si vede il MAC: serve a trovare fisicamente un dispositivo.",
                 ]),
-                ("p", "Per far riconoscere un dispositivo dal MAC scrivilo nel punto rete dell'asset (scheda › Rete); valgono anche i MAC "
-                      "dei PC collegati a Intune. Un indirizzo collegato compare nella riga «Visto da» della scheda asset come fonte «Rete»."),
+                ("p", "Il riconoscimento usa il MAC del punto rete dell'asset, i MAC di Intune e WatchGuard, l'IP e il nome (anche se lo "
+                      "stesso nome è già collegato in Intune, WatchGuard o nel SOC). Un indirizzo collegato compare nella riga «Visto da» "
+                      "della scheda asset come fonte «Rete» e fa trovare la porta dello switch. Il pulsante «Excel» scarica le righe mostrate."),
             ],
         },
     ],
@@ -363,6 +368,22 @@ GUIDA = {
                 "L'abbinamento usa MAC, IP e nome: scrivi il MAC nel punto rete dell'asset (scheda › Rete) o dai all'asset lo stesso nome del PC.",
                 "Se due asset hanno lo stesso MAC, IP o nome la proposta resta vuota (ambigua): correggi il doppione.",
                 "Le proposte si ricalcolano a ogni lettura (ogni ora).",
+            ],
+        },
+        {
+            "sintomo": "Un PC risulta «Senza antivirus» ma l'antivirus c'è",
+            "fare": [
+                "Il PC deve comparire in WatchGuard con l'agente o nell'inventario WatchGuard/Defender del SOC, collegato allo stesso asset.",
+                "Controlla in Security Center → Dispositivi che il PC abbia l'asset collegato: senza collegamento il portale non può incrociare.",
+                "«WatchGuard lo vede in rete senza agente»: l'agente non è installato o non comunica; si verifica dalla console WatchGuard.",
+            ],
+        },
+        {
+            "sintomo": "Il SOC non segnala un dispositivo nuovo in rete (o ne segnala troppi)",
+            "fare": [
+                "La prima lettura in assoluto non segnala niente; poi un evento per MAC mai visto, senza asset né proposta, al massimo 10 per lettura.",
+                "I MAC «privati» dei telefoni (seconda cifra 2, 6, A o E) non si segnalano: cambiano da soli.",
+                "L'alert si accende o spegne in Security Center → Impostazioni → Avvisi e automatismi («Dispositivo sconosciuto nuovo in rete»).",
             ],
         },
         {
