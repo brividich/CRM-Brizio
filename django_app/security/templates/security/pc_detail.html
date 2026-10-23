@@ -14,7 +14,6 @@
       <span class="sec-badge sec-badge-{{ pc.status.0 }}">{{ pc.status.1 }}</span>
       <span class="sec-muted sec-small">{% if pc.asset_type %}{{ pc.asset_type }} · {% endif %}{% if pc.ip %}{{ pc.ip }} · {% endif %}{% if pc.sources %}visto da {{ pc.sources|join:", " }}{% elif b %}visto solo nei report di backup{% else %}visto solo dall'inventario software{% endif %}</span>
     </div>
-    {% if pc.hub_asset %}<a class="sec-button" href="{% url 'assets:asset_view' pc.hub_asset.id %}">Apri l'asset nel portale</a>{% endif %}
   </div>
   <div class="pc-areas">
     <a class="pc-area" href="#backup">
@@ -39,6 +38,8 @@
     </a>
   </div>
 </section>
+
+{% if pc.hub_asset %}<div style="margin-top: 12px;">{% load asset_testata %}{% asset_testata pc.hub_asset "security" %}</div>{% endif %}
 
 <section class="sec-panel ai-panel" style="margin-top: 12px;">
   <div class="sec-section-head">

@@ -233,18 +233,19 @@ def problemi_stampante(dati):
     """Cose da sistemare secondo una lettura: [(testo, livello)], livello "WARNING" o "ERROR"."""
     dati = dati or {}
     out = []
-    stato = dati.get("stato") or {}
-    if stato.get("segnalazioni"):
-        out.append((stato["segnalazioni"], stato.get("segnalazioni_livello") or "WARNING"))
     for a in dati.get("avvisi", []):
         if not a.get("informativo"):
             out.append((a["testo"], "ERROR" if a.get("critico") else "WARNING"))
+    stato = dati.get("stato") or {}
+    if stato.get("segnalazioni") and not out:
+        # Gli errori rilevati ripetono gli avvisi (es. «carta inceppata» e «Paper jam in tray 2»): solo se mancano.
+        out.append((stato["segnalazioni"].capitalize(), stato.get("segnalazioni_livello") or "WARNING"))
     for s in dati.get("sportelli", []):
         if s.get("aperto"):
             out.append((f"{s['nome']}: {s['stato']}", "ERROR"))
     for c in dati.get("cassetti", []):
         if c.get("problema"):
-            out.append((f"{c['nome']}: {c['stato'] or c['nota']}", "WARNING"))
+            out.append((f"{c['nome']}: {'vuoto' if c.get('pct') == 0 else (c['stato'] or c['nota'])}", "WARNING"))
     return out
 
 

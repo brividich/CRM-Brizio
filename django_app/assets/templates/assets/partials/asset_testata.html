@@ -1,0 +1,33 @@
+{% load static %}{% if asset %}
+<link rel="stylesheet" href="{% static 'assets/css/asset-testata.css' %}">
+<div class="at-card" aria-label="Asset {{ asset.asset_tag }}">
+  <div class="at-id">
+    <span class="at-sigla" aria-hidden="true">{{ sigla }}</span>
+    <div class="at-nome">
+      <a class="at-titolo" href="{{ url }}">{{ asset.name }}</a>
+      <div class="at-sotto">
+        <span class="at-tag">{{ asset.asset_tag }}</span>
+        <span class="at-stato at-stato--{{ asset.status }}">{{ asset.get_status_display }}</span>
+        {% for etichetta, valore in fatti %}<span class="at-fatto"><span>{{ etichetta }}</span> {{ valore }}</span>{% endfor %}
+      </div>
+    </div>
+    {% if collegamenti %}
+    <nav class="at-link" aria-label="Lo stesso apparato negli altri moduli">
+      {% for c in collegamenti %}<a href="{{ c.url }}" class="at-link--{{ c.modulo }}">{{ c.label }} <span aria-hidden="true">→</span></a>{% endfor %}
+    </nav>
+    {% endif %}
+  </div>
+  {% if tiles %}
+  <div class="at-kpi" role="list" aria-label="{{ titolo_kpi }}">
+    {% for tile in tiles %}
+      {% if tile.href %}<a role="listitem" class="at-tile at-tile--{{ tile.level }}" href="{{ tile.href }}">{% else %}<div role="listitem" class="at-tile at-tile--{{ tile.level }}">{% endif %}
+        <span class="at-tile-label">{{ tile.label }}</span>
+        <strong class="at-tile-value">{{ tile.value }}</strong>
+        {% if tile.sub %}<span class="at-tile-sub">{{ tile.sub }}</span>{% endif %}
+        {% if tile.bars %}<span class="at-tile-bars" aria-label="Esito delle ultime esecuzioni">{% for bar in tile.bars %}<i class="is-{{ bar }}"></i>{% endfor %}</span>{% endif %}
+      {% if tile.href %}</a>{% else %}</div>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}

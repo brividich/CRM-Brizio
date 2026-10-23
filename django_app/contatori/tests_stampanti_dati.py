@@ -52,7 +52,8 @@ class InterpretaAltriDatiTest(SimpleTestCase):
         testi = [t for t, _l in problemi]
         self.assertIn("Paper jam in tray 2", testi)
         self.assertIn("Sportello anteriore: aperto", testi)
-        self.assertIn("Bypass: avviso", testi)
+        self.assertIn("Bypass: vuoto", testi)
+        self.assertNotIn("Carta inceppata", testi)  # già detto dall'avviso «Paper jam in tray 2»
         self.assertNotIn("Pronta a stampare", testi)
         self.assertIn(("Sportello anteriore: aperto", StatoSNMP.ERROR), problemi)
 
@@ -153,6 +154,8 @@ class MfcStessaStampanteTest(TestCase):
         self.mfc.refresh_from_db()
         self.assertEqual(self.mfc.dati_stampante["cassetti"][0]["nome"], "Cassetto 1")
         self.assertIsNotNone(self.mfc.dati_stampante_il)
+        self.assertEqual(self.mfc.snmp_ultimo_controllo, self.mfc.dati_stampante_il)  # la scheda asset non la vede «muta»
+        self.assertEqual(self.mfc.snmp_stato, StatoSNMP.OK)
         self.assertTrue(AvvisoStampante.objects.filter(macchina=self.mfc, testo="Paper jam in tray 2", dispositivo__isnull=True).exists())
 
     def test_mfc_che_non_risponde_tiene_l_ultima_lettura(self):

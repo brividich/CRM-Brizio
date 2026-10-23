@@ -13,7 +13,7 @@
     </div>
     {% if problemi_stampante %}
       <h3>Da sistemare</h3>
-      <ul>{% for testo, livello in problemi_stampante %}<li class="{% if livello == 'ERROR' %}health-error{% else %}health-warning{% endif %}"><strong>{{ testo|capfirst }}</strong></li>{% endfor %}</ul>
+      <ul style="margin:0 0 16px">{% for testo, livello in problemi_stampante %}<li class="{% if livello == 'ERROR' %}health-error{% else %}health-warning{% endif %}"><strong>{{ testo|capfirst }}</strong></li>{% endfor %}</ul>
     {% endif %}
     {% if not d.stato %}<p class="muted">Avvisi, cassetti e sportelli compaiono dalla prossima interrogazione.</p>{% endif %}
     {% if d.cassetti %}

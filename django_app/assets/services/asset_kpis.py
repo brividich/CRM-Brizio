@@ -15,6 +15,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from django.db import DatabaseError
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -152,6 +153,17 @@ def _printer_tiles(asset, now):
     if levels:
         pct, name = min(levels)
         tiles.append(_tile("Consumabile più basso", f"{int(pct)}%", name[:40], "bad" if pct <= LOW_TONER_PCT else "ok", TAB_MONITORING))
+    # Avvisi della stampante (carta inceppata, sportello aperto, assistenza…): stesso registro di Contatori.
+    from contatori.models import AvvisoStampante
+
+    if machines or devices:
+        aperti = list(AvvisoStampante.objects.filter(chiuso_il__isnull=True, informativo=False)
+                      .filter(Q(macchina__in=machines) | Q(dispositivo__in=devices)).order_by("-critico", "-aperto_il")[:20])
+        if aperti:
+            tiles.append(_tile("Stato stampante", f"{len(aperti)} avvis{'o' if len(aperti) == 1 else 'i'}", aperti[0].testo[:40],
+                               "bad" if any(a.critico for a in aperti) else "warn", TAB_MONITORING))
+        elif any(m.dati_stampante for m in machines) or devices:
+            tiles.append(_tile("Stato stampante", "Nessun avviso", "Secondo l'ultima lettura", "ok", TAB_MONITORING))
     return tiles
 
 
@@ -187,7 +199,7 @@ def _soc_tiles(asset, profile, now):
     from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 
     if not asset.security_assets.exists():
-        return [_tile("Sicurezza (SOC)", "Non collegato", "Collega il dispositivo dal SOC", "none", reverse("security:assets"))]
+        return [_tile("Sicurezza (SOC)", "Non collegato", "Collega il dispositivo dal SOC", "none", reverse("security:pc_copertura") + "?f=da_collegare")]
     tiles = []
     signals = SecurityAssetSignal.objects.filter(asset__hub_asset=asset)
     if profile in ("workstation", "server", "vm"):
@@ -219,9 +231,13 @@ def _soc_tiles(asset, profile, now):
                                                     occurred_at__gte=now - timedelta(days=7)).count()
         tiles.append(_tile("Eventi 7 giorni", str(events), "Dai report del firewall", "none", TAB_SECURITY))
     else:
+        from security.models import SecurityCveImpact
+
         vulns = SecurityVulnerabilityFinding.objects.filter(asset__hub_asset=asset, status__in=ACTIVE_ALERT_STATUSES)
-        critical = vulns.filter(cvss__gte=9.0).count()
-        total = vulns.count()
+        # Anche le CVE calcolate sull'inventario software: lo stesso numero dell'elenco Dispositivi del SOC.
+        cve = SecurityCveImpact.objects.filter(hub_asset=asset, outcome=SecurityCveImpact.IMPACTS)
+        critical = vulns.filter(cvss__gte=9.0).count() + cve.filter(Q(cve__kev=True) | Q(cve__cvss__gte=9)).values("cve").distinct().count()
+        total = vulns.count() + cve.values("cve").distinct().count()
         tiles.append(_tile("Vulnerabilità aperte", str(total), (f"{critical} critiche" if critical > 1 else "1 critica") if critical else "Nessuna critica",
                            "bad" if critical else ("warn" if total else "ok"), TAB_SECURITY))
     return tiles
