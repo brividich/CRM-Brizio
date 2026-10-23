@@ -35,7 +35,7 @@ GUIDA = {
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
                     ("Navigation Builder", "le voci dei menu."),
                     ("Branding", "logo, favicon, nome e colori."),
-                    ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (IP), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
+                    ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
                                       "(registro, con impronta SHA-256, senza conservare il file) e i profili di layout dei PDF. Ha la sua guida."),
@@ -67,9 +67,12 @@ GUIDA = {
                     "Fai entrare una volta l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: "
                     "deve essere in un gruppo AD ammesso al login. Così compare in «Account della postazione».",
                     "In «Accessi» crea o scegli il gruppo degli operatori e aggiungi le persone che lavorano al controllo.",
-                    "admin-portale → «Postazioni condivise» (barra in alto, gruppo Accessi) → «Nuova postazione», una per PC: nome, "
-                    "IP del PC (su quel PC «ipconfig»; meglio un IP riservato nel DHCP), account, gruppo, minuti di inattività (1–60), «Attiva». "
-                    "Lo stesso account può servire più PC.",
+                    "admin-portale → «Postazioni condivise» (barra in alto, gruppo Accessi) → «Nuova postazione», una per PC: "
+                    "«PC del registro asset» (PC e portatili non dismessi), account, gruppo, minuti di inattività (1–60), «Attiva». "
+                    "Nome vuoto = nome dell'asset. Lo stesso account può servire più PC.",
+                    "Dall'asset arrivano dati della macchina, MAC e IP: quelli dei punti rete dell'asset e quelli che il DHCP dà ai suoi MAC "
+                    "(un PC con IP dinamico resta riconosciuto). Un IP dei punti rete che il DHCP ora dà a un altro PC compare barrato e non vale. "
+                    "«IP a mano» solo se il PC non è nel registro asset o l'asset non ha IP (su quel PC «ipconfig»).",
                     "«Operatori del PC»: spunta chi può usare quel PC e «Salva operatori del PC». Chi non è spuntato non compare in «Chi sei?».",
                     "Gli operatori impostano da soli il PIN sul PC, con la propria password. La stessa tabella mostra chi l'ha impostato, "
                     "chi è bloccato e «Azzera PIN».",

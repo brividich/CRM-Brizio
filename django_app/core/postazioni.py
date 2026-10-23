@@ -1,7 +1,8 @@
 """Postazioni condivise: un PC usato a turno con un solo account (es. «zeiss»).
 
-Ogni postazione è un PC fisico, riconosciuto dal suo indirizzo IP; lo stesso
-account può servire più PC. L'account entra dal login normale (LDAP): dal PC
+Ogni postazione è un PC fisico, riconosciuto dal suo indirizzo IP: quelli
+dell'asset collegato (punti rete, DHCP sui suoi MAC) o uno scritto a mano; lo
+stesso account può servire più PC. L'account entra dal login normale (LDAP): dal PC
 registrato la sessione è «in attesa» e si apre solo ``/postazione/``, dove
 l'operatore sceglie il proprio nome fra i membri del gruppo abilitati su quel PC
 e digita il proprio PIN; da un PC non registrato si apre solo la pagina di blocco.
@@ -134,6 +135,77 @@ def ip_richiesta(request) -> str:
     return ip_normalizzato(client_ip(request)) if request is not None else ""
 
 
+def mac_dell_asset(asset) -> set[str]:
+    """MAC del PC: punti rete dichiarati nell'asset e PC di Intune collegati."""
+    from assets.models import DispositivoIntune
+    from assets.services.mac import normalizza_mac
+
+    macs = {normalizza_mac(m) for m in asset.endpoints.values_list("mac", flat=True)}
+    for wifi, eth in DispositivoIntune.objects.filter(asset=asset).values_list("mac_wifi", "mac_ethernet"):
+        macs.update({normalizza_mac(wifi), normalizza_mac(eth)})
+    macs.discard("")
+    return macs
+
+
+def ip_dell_asset(asset) -> list[dict]:
+    """IP del PC presi dall'asset, con la fonte: ``[{"ip", "fonte", "escluso"}]``.
+
+    - punti rete dell'asset (IP dichiarato);
+    - DHCP/DNS di Windows (``IndirizzoRete``): indirizzi collegati all'asset o
+      dati dal DHCP a uno dei suoi MAC, così un PC con IP dinamico resta riconosciuto.
+
+    Un IP dichiarato nell'asset che il DHCP ora dà a un altro PC resta in elenco
+    con ``escluso`` (il motivo) e non vale per riconoscere il PC.
+    """
+    from assets.models import IndirizzoRete
+
+    if asset is None:
+        return []
+    macs = mac_dell_asset(asset)
+    righe: dict[str, dict] = {}
+    for valore in asset.endpoints.values_list("ip", flat=True):
+        ip = ip_normalizzato(valore)
+        if ip:
+            righe.setdefault(ip, {"ip": ip, "fonte": "Punto rete dell'asset", "escluso": ""})
+    filtro = Q(asset=asset)
+    if macs:
+        filtro |= Q(mac__in=macs, nel_dhcp=True)
+    for r in IndirizzoRete.objects.filter(filtro):
+        ip = ip_normalizzato(r.ip)
+        if ip and (r.nel_dhcp or r.nel_dns):
+            fonte = {IndirizzoRete.TIPO_PRENOTAZIONE: "Prenotazione DHCP", IndirizzoRete.TIPO_DNS: "DNS"}.get(
+                r.tipo, "DHCP")
+            righe[ip] = {"ip": ip, "fonte": fonte, "escluso": ""}
+    dichiarati = [ip for ip, r in righe.items() if r["fonte"] == "Punto rete dell'asset"]
+    for r in IndirizzoRete.objects.filter(ip__in=dichiarati, nel_dhcp=True):
+        altro_asset = r.asset_id and r.asset_id != asset.pk
+        altro_mac = r.mac and macs and r.mac not in macs
+        if altro_asset or altro_mac:
+            riga = righe.get(ip_normalizzato(r.ip))
+            if riga is not None:
+                riga["escluso"] = f"il DHCP ora lo dà a un altro PC ({r.nome or r.mac or 'altro asset'})"
+    return sorted(righe.values(), key=lambda r: (bool(r["escluso"]), r["ip"]))
+
+
+def ip_della_postazione(postazione) -> set[str]:
+    """Gli IP da cui si riconosce il PC: quelli validi dell'asset più l'IP scritto a mano."""
+    ips = {r["ip"] for r in ip_dell_asset(postazione.asset) if not r["escluso"]} if postazione.asset_id else set()
+    manuale = ip_normalizzato(postazione.ip_pc)
+    if manuale:
+        ips.add(manuale)
+    return ips
+
+
+def e_il_pc(postazione, request) -> bool:
+    """La richiesta arriva dal PC della postazione."""
+    ip = ip_richiesta(request)
+    if not ip:
+        return False
+    if ip == ip_normalizzato(postazione.ip_pc):
+        return True
+    return postazione.asset_id is not None and ip in ip_della_postazione(postazione)
+
+
 def postazioni_dell_account(user):
     """Le postazioni attive di cui ``user`` è l'account condiviso (una per PC)."""
     from core.models import PostazioneCondivisa
@@ -141,15 +213,14 @@ def postazioni_dell_account(user):
     legacy = legacy_di(user)
     if legacy is None:
         return PostazioneCondivisa.objects.none()
-    return PostazioneCondivisa.objects.filter(account_legacy_user_id=int(legacy.id), attiva=True)
+    return PostazioneCondivisa.objects.filter(account_legacy_user_id=int(legacy.id), attiva=True).select_related("asset")
 
 
 def postazione_del_pc(user, request):
     """La postazione dell'account per il PC da cui arriva la richiesta, se registrato."""
-    ip = ip_richiesta(request)
-    if not ip:
+    if not ip_richiesta(request):
         return None
-    return postazioni_dell_account(user).filter(ip_pc=ip).first()
+    return next((p for p in postazioni_dell_account(user).order_by("nome", "pk") if e_il_pc(p, request)), None)
 
 
 def candidati(postazione) -> list:
@@ -244,7 +315,7 @@ def passa_a_operatore(request, postazione, operatore_legacy) -> bool:
     _ancora_attivita(request)
     registra_audit(request, "postazione_operatore_entra", {
         "postazione": postazione.nome, "postazione_id": postazione.pk, "operatore": utente.get_username(),
-        "ip_pc": postazione.ip_pc,
+        "ip": ip_richiesta(request), "asset_id": postazione.asset_id,
     })
     return True
 
@@ -256,14 +327,14 @@ def torna_alla_postazione(request, motivo: str = "cambio") -> bool:
     corrente = stato(request)
     if not corrente.get("operatore"):
         return False
-    postazione = PostazioneCondivisa.objects.filter(pk=corrente.get("postazione"), attiva=True).first()
+    postazione = PostazioneCondivisa.objects.filter(pk=corrente.get("postazione"), attiva=True).select_related("asset").first()
     account = get_user_model().objects.filter(pk=corrente.get("account"), is_active=True).first()
     registra_audit(request, "postazione_operatore_esce", {
         "postazione": getattr(postazione, "nome", ""), "postazione_id": corrente.get("postazione"),
         "operatore": request.user.get_username() if request.user.is_authenticated else "",
         "motivo": motivo,
     })
-    if (postazione is None or account is None or ip_richiesta(request) != postazione.ip_pc
+    if (postazione is None or account is None or not e_il_pc(postazione, request)
             or not postazioni_dell_account(account).filter(pk=postazione.pk).exists()):
         logout(request)
         return False
@@ -351,23 +422,24 @@ class PostazioneCondivisaMiddleware:
                 return risposta
             corrente = stato(request)
 
-        postazione = PostazioneCondivisa.objects.filter(pk=corrente.get("postazione"), attiva=True).first()
+        postazione = PostazioneCondivisa.objects.filter(pk=corrente.get("postazione"), attiva=True).select_related("asset").first()
         motivo = ""
         if postazione is None:
             motivo = "postazione_disattivata"  # spenta o cancellata: la sessione nata da lì non vale più
-        elif ip_richiesta(request) != postazione.ip_pc:
+        elif not e_il_pc(postazione, request):
             motivo = "postazione_altro_pc"  # sessione portata su un altro PC
+            ip_pc = ", ".join(sorted(ip_della_postazione(postazione))) or "nessun IP"
             registra_audit(request, "postazione_altro_pc", {
-                "postazione_id": postazione.pk, "ip_pc": postazione.ip_pc, "ip": ip_richiesta(request),
+                "postazione_id": postazione.pk, "ip_pc": ip_pc, "ip": ip_richiesta(request),
             })
             from core.eventi_sicurezza import segnala
 
             segnala("postazione_altro_pc", utente=request.user, request=request,
                     chiave=(postazione.pk, request.user.pk), finestra_minuti=60,
                     titolo=f"Sessione della postazione «{postazione.nome}» usata da un altro PC "
-                           f"({ip_richiesta(request)} invece di {postazione.ip_pc})",
+                           f"({ip_richiesta(request)} invece di {ip_pc})",
                     dettaglio={"postazione": postazione.nome, "postazione_id": postazione.pk,
-                               "ip_pc": postazione.ip_pc})
+                               "ip_pc": ip_pc, "asset_id": postazione.asset_id})
         if motivo:
             logout(request)
             if _vuole_json(request):
