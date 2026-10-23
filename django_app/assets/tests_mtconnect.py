@@ -203,16 +203,16 @@ class PaginaTests(_Macchina):
 
     def test_salva_sospendi_togli(self):
         self.coll.delete()
-        self.client.post(self.url, {"azione": "salva", "asset": self.asset.pk, "url_agent": "http://10.0.5.21:5000/",
-                                    "usa_ore": "on"})
+        self.client.post(self.url, {"azione": "salva", "fonte": "mtconnect", "asset": self.asset.pk,
+                                    "url_agent": "http://10.0.5.21:5000/", "usa_contatori": "on"})
         coll = CollegamentoMTConnect.objects.get(asset=self.asset)
-        self.assertEqual((coll.url_agent, coll.contatore_ore, coll.contatore_pezzi), ("http://10.0.5.21:5000", self.ore, None))
+        self.assertEqual((coll.url_agent, coll.contatore_ore, coll.contatore_pezzi), ("http://10.0.5.21:5000", self.ore, self.cicli))
         self.client.post(self.url, {"azione": "sospendi", "collegamento": coll.pk})
         coll.refresh_from_db()
         self.assertFalse(coll.attivo)
         self.client.post(self.url, {"azione": "elimina", "collegamento": coll.pk})
         self.assertFalse(CollegamentoMTConnect.objects.exists())
-        self.client.post(self.url, {"azione": "salva", "asset": self.asset.pk, "url_agent": "http://8.8.8.8:5000"})
+        self.client.post(self.url, {"azione": "salva", "fonte": "mtconnect", "asset": self.asset.pk, "url_agent": "http://8.8.8.8:5000"})
         self.assertFalse(CollegamentoMTConnect.objects.exists())
 
     def test_binding_acl(self):

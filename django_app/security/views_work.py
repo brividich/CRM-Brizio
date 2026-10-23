@@ -56,10 +56,11 @@ def settings_page(request):
     except Exception:  # noqa: BLE001 - l'anteprima non deve impedire di salvare le impostazioni
         pass
     events = [proactive_alerts.EVENT_INCIDENT, proactive_alerts.EVENT_BACKUP, proactive_alerts.EVENT_REPORT]
-    from .services import watchguard_api
+    from .services import veeam_api, watchguard_api
 
     return render(request, "security/soc_settings.html", {
         "wg": watchguard_api.riepilogo(),
+        "veeam_cred": veeam_api.riepilogo(),
         "sections": soc_settings.form_sections(),
         "channels": list(SecurityNotificationChannel.objects.order_by("name")),
         "can_edit": can_edit,
@@ -314,6 +315,36 @@ def watchguard_credenziali(request):
         else:
             messages.success(request, "Credenziali API WatchGuard salvate (cifrate). Prova la connessione, poi accendi le letture.")
     return redirect(reverse("security:soc_settings") + "#watchguard-api")
+
+
+@require_POST
+def veeam_credenziali(request):
+    """Salva, prova o cancella le credenziali API Veeam (solo chi configura il SOC)."""
+    if not can_manage_security_config(request.user):
+        return _denied(request)
+    from .services import veeam_api
+
+    azione = request.POST.get("azione", "")
+    if azione == "cancella":
+        veeam_api.cancella_credenziali(request.user)
+        messages.success(request, "Credenziali API Veeam cancellate.")
+    elif azione == "prova":
+        try:
+            esito = veeam_api.prova()
+            messages.success(request, f"Connessione a Veeam riuscita: {esito['sessioni_backup']} sessioni di backup nelle ultime "
+                                      f"24 ore, {len(esito['repository'])} repository.")
+        except veeam_api.VeeamError as exc:
+            messages.error(request, f"Connessione a Veeam non riuscita: {exc}")
+        except Exception as exc:  # noqa: BLE001 - rete, DNS, certificati
+            messages.error(request, f"Connessione a Veeam non riuscita ({type(exc).__name__}).")
+    else:
+        errori = veeam_api.salva_credenziali({c: request.POST.get(c, "") for c in veeam_api.CAMPI}, request.user,
+                                             togli_ca=request.POST.get("togli_ca") == "on")
+        if errori:
+            messages.error(request, " ".join(errori))
+        else:
+            messages.success(request, "Credenziali API Veeam salvate (cifrate). Prova la connessione, poi accendi la lettura.")
+    return redirect(reverse("security:soc_settings") + "#veeam-api")
 
 
 def watchguard_pc(request):

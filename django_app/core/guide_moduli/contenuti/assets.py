@@ -251,14 +251,29 @@ GUIDA = {
             ],
         },
         {
+            "id": "collector-collega",
+            "titolo": "Collegare le CNC al collector OPC UA (tutto dal portale)",
+            "blocchi": [
+                ("passi", [
+                    "Configurazione → «Macchine collegate» → «Collega una macchina» → «Collector OPC UA»: scegli la macchina, scrivi "
+                    "l'indirizzo OPC UA (IP), la porta (4840), il codice breve (es. DM6) e, se serve, utente e password OPC UA. «Salva».",
+                    "Riquadro «Collector» (amministratori del modulo Asset): «Crea il collector e il token» con l'IP del PC del collector. "
+                    "Copia il token: si vede una volta sola.",
+                    "Sul PC del collector imposta PORTALE_URL (lo mostra la pagina) e PORTALE_TOKEN e avvia il collector: scarica da solo "
+                    "l'elenco delle macchine e lo rilegge ogni 5 minuti.",
+                    "Token perso o compromesso: «Nuovo token» (il vecchio smette subito di funzionare). Collector dismesso: «Disattiva».",
+                ]),
+            ],
+        },
+        {
             "id": "mtconnect-collega",
             "titolo": "Collegare una CNC con MTConnect",
             "blocchi": [
                 ("passi", [
                     "Serve un agent MTConnect raggiungibile dal server del portale (sul PC della macchina o su un gateway dell'officina).",
                     "Configurazione → «Macchine collegate»: scegli la macchina, scrivi l'indirizzo dell'agent (es. http://10.0.5.21:5000) e premi «Prova».",
-                    "Se la prova legge ore e pezzi, lascia spuntati i contatori Ore e Cicli (vanno creati prima dalla scheda della macchina).",
-                    "Premi «Salva collegamento»: lo stato arriva sulla mappa entro 2 minuti (schedule mtconnect_poll).",
+                    "Se la prova legge ore e pezzi, lascia spuntati «Aggiorna i contatori» e «Crea i contatori Ore e Cicli se mancano».",
+                    "Premi «Salva»: lo stato arriva sulla mappa entro 2 minuti (schedule mtconnect_poll).",
                 ]),
                 ("p", "Solo indirizzi della rete interna; il portale legge e basta. Collegare, sospendere o togliere una macchina "
                       "richiede il permesso di modificarla. I contatori avanzano per differenza, al massimo una volta all'ora."),
@@ -271,9 +286,10 @@ GUIDA = {
                 ("passi", [
                     "Sul server del portale installa gli strumenti RSAT: Install-WindowsFeature RSAT-DHCP, RSAT-DNS-Server.",
                     "Metti l'utente che fa girare il qcluster nel gruppo «DHCP Users» del server DHCP (sola lettura).",
-                    "Nel .env del portale: RETE_DHCP_SERVERS (uno o più server, separati da virgole), RETE_DNS_SERVER e RETE_DNS_ZONES (es. dominio.local).",
-                    "Riavvia il portale e il qcluster, poi prova dal terminale: manage.py rete_windows --prova.",
-                    "Dopo la prima lettura (lo schedule rete_windows_sync gira ogni ora; subito: manage.py rete_windows) apri Asset → «Indirizzi IP».",
+                    "Apri Asset → «Indirizzi IP», riquadro «Server DHCP e DNS» (solo amministratori del modulo Asset): scrivi i server DHCP "
+                    "(separati da virgole), il server DNS e le zone (es. dominio.local) e premi «Salva».",
+                    "Premi «Leggi adesso»: la lettura va in coda e l'esito compare in cima alla pagina (e in SOC › Letture automatiche). "
+                    "Poi si ripete da sola ogni ora (schedule rete_windows_sync).",
                 ]),
                 ("p", "Il portale lancia in locale due script PowerShell fissi che leggono soltanto: nessuna modifica a DHCP e DNS. "
                       "Gli errori di un server (permessi, RSAT mancanti, server non raggiungibile) compaiono in cima alla pagina Indirizzi IP."),
@@ -312,7 +328,7 @@ GUIDA = {
             "fare": [
                 "«Mancano i moduli»: sul server del portale installa RSAT-DHCP e RSAT-DNS-Server (Install-WindowsFeature).",
                 "«Accesso negato»: l'utente che fa girare il qcluster deve stare nel gruppo «DHCP Users» del server DHCP; dopo l'aggiunta va riavviato il qcluster.",
-                "«Server non raggiungibile»: controlla il nome in RETE_DHCP_SERVERS / RETE_DNS_SERVER e il firewall (RPC) tra i due server.",
+                "«Server non raggiungibile»: controlla i nomi nel riquadro «Server DHCP e DNS» della pagina e il firewall (RPC) tra i due server.",
                 "Prova dal terminale con manage.py rete_windows --prova: dice quanti ambiti, indirizzi e record legge.",
             ],
         },
@@ -393,8 +409,8 @@ GUIDA = {
         {
             "sintomo": "Il collector delle CNC non aggiorna le ore",
             "fare": [
-                "Admin Django → «Collector letture contatori»: il collector deve essere attivo e avere un «ultimo contatto» recente.",
-                "L'IP della macchina del collector deve essere in ASSETS_METER_INGEST_ALLOWED_IPS; il contatore deve esistere sull'asset.",
+                "Asset › Configurazione › «Macchine collegate» › Collector: il collector deve essere attivo e avere un «ultimo contatto» recente.",
+                "Negli «IP o reti ammessi» del collector ci deve essere l'IP del suo PC; sulla macchina devono esistere i contatori Ore e Cicli («Crea contatori»).",
             ],
         },
         {

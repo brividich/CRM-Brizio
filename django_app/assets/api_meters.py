@@ -4,12 +4,16 @@
 
 * autenticazione per collector: ``Authorization: Bearer <token>``; a DB c'e' solo
   l'hash SHA-256 (``MeterIngestClient``), confronto con ``hmac.compare_digest``;
-* client IP ammessi in ``ASSETS_METER_INGEST_ALLOWED_IPS`` (IP o reti CIDR);
+* client IP ammessi: quelli del collector scritti nel portale (Macchine collegate) più
+  ``ASSETS_METER_INGEST_ALLOWED_IPS`` del .env (IP o reti CIDR);
 * al massimo 500 letture per chiamata (413 oltre), esito per riga:
   ``accepted`` / ``ignored_older`` / ``rejected`` con il motivo.
 
 ``POST /api/assets/contatori/ingest/stato/`` — stato reale delle CNC dallo stesso collector
 (stessa autenticazione, stessa rete, stessi asset consentiti), vedi ``ingest_stato``.
+
+``GET /api/assets/contatori/ingest/config/`` — le macchine che il collector deve leggere,
+scritte nel portale (host e porta OPC UA, codice, credenziali OPC UA), vedi ``ingest_config``.
 
 Il percorso e' in ``MIDDLEWARE_EXEMPT_PREFIXES`` (niente sessione: e' una macchina
 a chiamare), quindi l'unica protezione e' qui. Non pubblicarlo su Entra
@@ -43,14 +47,17 @@ MAX_READINGS = 500
 SOURCE_BY_CLIENT_DEFAULT = AssetMeter.SOURCE_OPCUA
 
 
-def _ip_allowed(ip: str | None) -> bool:
+def _ip_allowed(ip: str | None, client: MeterIngestClient | None = None) -> bool:
     if not ip:
         return False
     try:
         address = ipaddress.ip_address(ip)
     except ValueError:
         return False
-    for entry in getattr(settings, "ASSETS_METER_INGEST_ALLOWED_IPS", ["127.0.0.1", "::1"]) or []:
+    voci = list(getattr(settings, "ASSETS_METER_INGEST_ALLOWED_IPS", ["127.0.0.1", "::1"]) or [])
+    if client is not None:
+        voci += client.allowed_ips_list
+    for entry in voci:
         entry = str(entry).strip()
         if not entry:
             continue
@@ -66,11 +73,13 @@ def _ip_allowed(ip: str | None) -> bool:
 
 
 class CollectorAuth(HttpBearer):
-    """Bearer token del collector. Rete non ammessa = 403, token errato = 401."""
+    """Bearer token del collector. Token errato = 401, rete non ammessa per quel collector = 403.
+
+    Gli IP ammessi sono per collector (scritti nel portale) più quelli del .env: per questo il
+    token si controlla prima della rete.
+    """
 
     def authenticate(self, request, token):
-        if not _ip_allowed(client_ip(request)):
-            raise HttpError(403, "Rete non autorizzata per l'invio delle letture.")
         token = (token or "").strip()
         if not token:
             return None
@@ -78,6 +87,8 @@ class CollectorAuth(HttpBearer):
         client = MeterIngestClient.objects.filter(token_hash=digest, is_active=True).first()
         if client is None or not hmac.compare_digest(client.token_hash, digest):
             return None
+        if not _ip_allowed(client_ip(request), client):
+            raise HttpError(403, "Rete non autorizzata per questo collector.")
         return client
 
 
@@ -238,3 +249,16 @@ def ingest_stato(request, payload: StatoPayload):
     MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=ora)
     summary = {status: sum(1 for r in results if r["status"] == status) for status in ("accepted", "ignored", "rejected")}
     return {"results": results, **summary}
+
+
+@api.get("/ingest/config/")
+def ingest_config(request):
+    """Le macchine che questo collector deve leggere (host/porta OPC UA, codice, credenziali OPC UA),
+    scritte in «Macchine collegate». Solo quelle con fonte «Collector OPC UA», attive, con l'host
+    e consentite al collector. La password OPC UA viaggia in chiaro solo qui, verso il collector
+    autenticato dalla rete ammessa (in HTTPS)."""
+    from .services.collector_cnc import macchine_per
+
+    client: MeterIngestClient = request.auth
+    MeterIngestClient.objects.filter(pk=client.pk).update(last_seen_at=timezone.now())
+    return {"collector": client.name, "machines": macchine_per(client)}
