@@ -44,6 +44,12 @@ class CredenzialiTests(TestCase):
         self.assertEqual((riepilogo["password"], riepilogo["api_key"]), (True, True))
         self.assertNotIn("pw-sintetica", str(riepilogo))
 
+    def test_url_copiato_da_managed_access(self):
+        for incollato in ("https://api.deu.cloud.watchguard.com/rest/", "https://api.deu.cloud.watchguard.com/oauth/token"):
+            self.assertEqual(watchguard_api.salva_credenziali({**CRED, "url_api": incollato}), [])
+            self.assertEqual(watchguard_api.credenziali()["url_api"], "https://api.deu.cloud.watchguard.com")
+        self.assertTrue(watchguard_api.salva_credenziali({**CRED, "url_api": "https://api.deu.cloud.watchguard.com/altro"}))
+
     def test_url_fuori_da_watchguard_rifiutato(self):
         errori = watchguard_api.salva_credenziali({**CRED, "url_api": "https://example.com"})
         self.assertTrue(any("URL API" in e for e in errori))
