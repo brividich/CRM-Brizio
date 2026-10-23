@@ -20,7 +20,7 @@
   <div class="wgp-stat{% if senza_agente %} is-warn{% endif %}"><strong>{{ senza_agente|length }}</strong><span>in rete senza agente</span><small>trovati dalle sonde WatchGuard</small></div>
   <div class="wgp-stat is-ok"><strong>{{ chiuse }}</strong><span>patch chiuse</span><small>negli ultimi 30 giorni</small></div>
 </div>
-<p class="sec-muted sec-small">{% if ultima %}Ultima lettura da WatchGuard Cloud: {{ ultima|date:"d/m/Y H:i" }}.{% else %}Nessuna lettura ancora.{% endif %} Le patch si installano dalla console WatchGuard (Patch Management): qui si vede cosa manca e com'è andata. Una patch esce dall'elenco quando WatchGuard non la segnala più (installata o non più necessaria).</p>
+<p class="sec-muted sec-small">{% if ultima %}Ultima lettura da WatchGuard Cloud: {{ ultima|date:"d/m/Y H:i" }}.{% else %}Nessuna lettura ancora.{% endif %} <a href="{% url 'security:letture' %}#lettura-watchguard">Storico dei giri ed «Esegui ora»</a>. Le patch si installano dalla console WatchGuard (Patch Management): qui si vede cosa manca e com'è andata. Una patch esce dall'elenco quando WatchGuard non la segnala più (installata o non più necessaria).</p>
 
 <section class="sec-panel">
   <div class="sec-section-head"><h2>Patch mancanti</h2><span class="sec-muted sec-small">prima quelle che correggono CVE sfruttate, poi per criticità e numero di PC</span></div>

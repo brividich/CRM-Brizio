@@ -198,6 +198,10 @@ def leggi_consumabili(pk):
 
 def run_tabella_mac():
     """Tabella MAC degli switch «Rete» (``contatori.tabella_mac``): su quale porta sta ogni PC."""
-    from .tabella_mac import run
+    try:
+        from security.services import letture
+    except ImportError:  # SOC non installato
+        from .tabella_mac import run
 
-    return run()
+        return run()
+    return letture.esegui("tabella_mac")

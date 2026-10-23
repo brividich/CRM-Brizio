@@ -86,6 +86,7 @@ MENU = [
     ]),
     ("Impostazioni", None, [
         ("Configurazione", None, tuple(CONFIG_ROUTES), False),
+        ("Letture automatiche", "letture", ("letture",), False),
         ("Elaborazione", "pipeline", ("pipeline",), True),
         ("Soppressioni", "suppressions", ("suppressions",), False),
         ("Guida", "help", ("help", "doc_detail"), False),

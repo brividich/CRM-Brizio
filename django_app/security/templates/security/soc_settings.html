@@ -77,7 +77,7 @@
     <h2>Credenziali API WatchGuard</h2>
     <span class="sec-badge {% if wg.configurato %}sec-badge-success{% else %}sec-badge-muted{% endif %}">{% if wg.configurato %}Configurate{% else %}Assenti{% endif %}</span>
   </div>
-  <p class="sec-muted sec-small st-intro">Da WatchGuard Cloud › Amministrazione › <strong>Managed Access</strong>: abilita l'accesso API, poi copia qui URL API, Access ID e password (meglio quelli <strong>sola lettura</strong>) e l'API Key. L'ID account è in <strong>My Account</strong> (ACC-… o WGC-…). Password e API Key sono salvate cifrate e non si rivedono: lasciale vuote per tenere quelle salvate. Le letture si accendono nel riquadro «WatchGuard Endpoint Security (API)» qui sopra; i dati sono in <a href="{% url 'security:watchguard_pc' %}">Dispositivi › Patch e protezione</a>.</p>
+  <p class="sec-muted sec-small st-intro">Da WatchGuard Cloud › Amministrazione › <strong>Managed Access</strong>: abilita l'accesso API, poi copia qui URL API, Access ID e password (meglio quelli <strong>sola lettura</strong>) e l'API Key. L'ID account è in <strong>My Account</strong> (ACC-… o WGC-…). Password e API Key sono salvate cifrate e non si rivedono: lasciale vuote per tenere quelle salvate. Le letture si accendono nel riquadro «WatchGuard Endpoint Security (API)» qui sopra; i dati sono in <a href="{% url 'security:watchguard_pc' %}">Dispositivi › Patch e protezione</a>, i giri e «Esegui ora» in <a href="{% url 'security:letture' %}#lettura-watchguard">Letture automatiche</a>.</p>
   {% if can_edit %}
   <form method="post" action="{% url 'security:watchguard_credenziali' %}" class="st-wg-form" autocomplete="off">
     {% csrf_token %}
