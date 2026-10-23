@@ -34,9 +34,9 @@ class Voce:
 
 
 VOCI = [
-    Voce("configurazione", "anagrafica:impostazioni", "Navigazione del modulo", "Categorie e link della barra di navigazione.", "tab=navigazione"),
-    Voce("configurazione", "anagrafica:impostazioni", "Workflow e campi", "Campi personalizzati dei flussi.", "tab=workflow"),
-    Voce("configurazione", "anagrafica:impostazioni", "Permessi del modulo", "Ruoli e override per utente.", "tab=permessi"),
+    Voce("configurazione", "anagrafica:impostazioni", "Menu del modulo", "Pilastri e voci della barra del modulo.", "tab=navigazione"),
+    Voce("configurazione", "anagrafica:impostazioni", "Onboarding e offboarding", "Avviso IT ai nuovi ingressi e campi di ingresso e uscita.", "tab=workflow"),
+    Voce("configurazione", "anagrafica:impostazioni", "Permessi del modulo", "Sezioni riservate, permessi per ruolo ed eccezioni per utente.", "tab=permessi"),
     Voce("configurazione", "anagrafica:widget_permissions", "Widget della scheda", "Chi vede quali riquadri della scheda dipendente."),
     Voce("configurazione", "anagrafica:attestato_impostazioni", "Attestati", "Modello e firme degli attestati di formazione."),
     Voce("configurazione", "anagrafica:formazione_elearning_settings", "E-learning", "Impostazioni dei corsi online."),
