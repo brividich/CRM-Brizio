@@ -1,4 +1,4 @@
-"""Task django-q2 del modulo assenze: sincronizzazione con la lista SharePoint.
+"""Task django-q2 del modulo assenze: sincronizzazione con SharePoint e solleciti ai capi.
 
 Registrati via automazioni.schedules + setup_q_schedules. Le pagine del modulo
 non chiamano mai Graph: tutto il traffico verso SharePoint passa da qui.
@@ -42,3 +42,11 @@ def run_assenze_sharepoint_push() -> dict:
     from assenze import views
 
     return views._sp_push_outbox()
+
+
+@system_job_run("assenze_solleciti")
+def run_assenze_solleciti() -> dict:
+    """Promemoria mattutino ai capi per le richieste ferme «In attesa»."""
+    from assenze.solleciti import invia_solleciti
+
+    return invia_solleciti()

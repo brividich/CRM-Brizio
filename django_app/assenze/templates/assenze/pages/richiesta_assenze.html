@@ -6,6 +6,8 @@
 
 {% block assenze_shell_head %}
   <style>
+    /* «hidden» deve vincere sul display delle righe della bozza e del banner corsi. */
+    .abs-live-row[hidden], .abs-corsi-banner[hidden], #abs-live-hr[hidden] { display: none !important; }
     .abs-form-shell { max-width: 1280px; margin: 0 auto; width: 100%; }
     .abs-request-page { gap: 16px; }
     .abs-request-hero {
@@ -1015,6 +1017,14 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                 <span class="abs-live-text" id="abs-live-approval">Capo reparto da selezionare</span>
               </span>
             </div>
+            <div class="abs-live-row" id="abs-live-saldo" hidden>
+              <span class="abs-live-row-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span>
+              <span class="abs-live-row-copy">
+                <span class="abs-live-label">Saldo stimato</span>
+                <span class="abs-live-text" id="abs-live-saldo-text"></span>
+              </span>
+            </div>
+            <div id="abs-live-hr" hidden></div>
             <div class="abs-live-hints" id="abs-live-hints">
               <div class="abs-live-hint">Scegli un tipo di assenza per attivare regole e suggerimenti.</div>
             </div>
@@ -1673,6 +1683,48 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
     });
   })();
   {% endif %}
+
+  // ── Controlli HR: saldo, contatori, chiusure (avviso non bloccante) ──────
+  (function() {
+    "use strict";
+    var form = document.getElementById("richiestaForm");
+    var saldoRow = document.getElementById("abs-live-saldo");
+    var saldoText = document.getElementById("abs-live-saldo-text");
+    var box = document.getElementById("abs-live-hr");
+    if (!form || !box) return;
+    var timer = null;
+    function val(name) { var el = form.elements[name]; return el ? String(el.value || "").trim() : ""; }
+    function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function(ch) { return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]; }); }
+    function run() {
+      var tipo = val("tipoassenza");
+      var ds = val("date_start"), de = val("date_end") || ds;
+      var ts = val("time_start") || "00:00", te = val("time_end") || "23:59";
+      if (tipo.toLowerCase() === "ferie") { ts = "00:00"; te = "23:59"; }
+      var params = new URLSearchParams({ tipo: tipo, motivazione: val("motivazione") });
+      if (ds) { params.set("inizio", ds + "T" + ts); params.set("fine", de + "T" + te); }
+      if (val("dipendente_id")) params.set("dipendente_id", val("dipendente_id"));
+      fetch("/assenze/api/verifica-richiesta?" + params.toString(), { credentials: "same-origin", headers: { "Accept": "application/json" } })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || !data.ok) { box.hidden = true; saldoRow.hidden = true; return; }
+          if (data.saldo) {
+            saldoText.textContent = "Ferie " + data.saldo.ferie_residue + " ore · Permessi " + data.saldo.permessi_residui +
+              " ore (cedolino al " + data.saldo.situazione_al + ", contate le richieste già inviate)";
+            saldoRow.hidden = false;
+          } else {
+            saldoRow.hidden = true;
+          }
+          var avvisi = Array.isArray(data.avvisi) ? data.avvisi : [];
+          box.innerHTML = avvisi.map(function(a) { return '<div class="abs-alert abs-alert-warn" role="note" style="padding:8px 10px;margin-top:8px;">' + esc(a) + "</div>"; }).join("");
+          box.hidden = !avvisi.length;
+        })
+        .catch(function() { box.hidden = true; });
+    }
+    function schedule() { if (timer) clearTimeout(timer); timer = setTimeout(run, 400); }
+    form.addEventListener("change", schedule);
+    form.addEventListener("input", function(evt) { if (evt.target && /^(time_|date_)/.test(evt.target.name || "")) schedule(); });
+    run();
+  })();
 
   // ── Check corsi formativi (avviso non bloccante) ─────────────────────────
   (function() {

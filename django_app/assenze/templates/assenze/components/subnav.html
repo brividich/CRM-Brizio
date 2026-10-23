@@ -27,8 +27,12 @@
     <a class="abs-subnav-link{% if current == 'assenze_impostazioni' %} active{% endif %}" href="{% url 'assenze_impostazioni' %}">
       <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Impostazioni
     </a>
+    <a class="abs-subnav-link{% if current|slice:':10' == 'assenze_hr' %} active{% endif %}" href="{% url 'assenze_hr' %}">
+      <svg aria-hidden="true"><use href="#abs-i-users"></use></svg>Area HR
+    </a>
   {% endif %}
   <span class="abs-subnav-spacer"></span>
+  <a class="abs-subnav-link" href="{% url 'guida_modulo' 'assenze' %}" title="Guida del modulo Assenze">? Guida</a>
   <a class="abs-subnav-link" href="{% url 'dashboard_home' %}">
     <svg aria-hidden="true"><use href="#abs-i-chart"></use></svg>Dashboard
   </a>

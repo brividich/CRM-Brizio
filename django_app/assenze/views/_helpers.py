@@ -3152,6 +3152,17 @@ def _applica_moderazione(request, item_id: int, current: dict, consenso: str, no
     if not _update_assenza(item_id, updates):
         return None
 
+    from .. import hr as _hr
+
+    _hr.registra(
+        item_id,
+        "approvata" if consenso == "Approvato" else "rifiutata",
+        utente=request.user.get_username(),
+        prima=current,
+        dopo=updates,
+        motivo=note_gestione,
+    )
+
     try:
         from core.audit import log_action as _log
 
@@ -3209,6 +3220,26 @@ def _e_propria_assenza(request, current: dict) -> bool:
     user_nome = str(name or "").strip().upper()
     user_email = str(email or "").strip().upper()
     return bool((user_email and rec_email == user_email) or (user_nome and rec_nome == user_nome))
+
+
+def _e_mia_richiesta(request, current: dict) -> bool:
+    """La richiesta è intestata a chi la guarda? Stessa regola dell'eliminazione delle proprie.
+
+    Prima gli identificatori univoci (utente legacy, username, email), il nome
+    solo per le righe che non ne hanno.
+    """
+    name, email, legacy_user_id = _legacy_identity(request)
+    username = str(request.user.get_username() or "").strip()
+    rec_utente_id = _as_int(current.get("utente_id"))
+    rec_username = str(current.get("aliasusername") or "").strip()
+    rec_email = str(current.get("email_esterna") or "").strip()
+    if legacy_user_id is not None and rec_utente_id is not None:
+        return rec_utente_id == legacy_user_id
+    if username and rec_username:
+        return rec_username.casefold() == username.casefold()
+    if email and rec_email:
+        return rec_email.casefold() == email.casefold()
+    return bool(name) and str(current.get("copia_nome") or "").strip().casefold() == str(name).strip().casefold()
 
 
 def _notify_assenza_deleted(request, record: dict) -> None:
