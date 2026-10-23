@@ -160,7 +160,7 @@ def manca(lettura: Lettura) -> str:
         if lettura.requisito == "rete":
             from assets.services import rete_windows
 
-            return "" if rete_windows.configurato() else "Server DHCP/DNS non indicati nel file .env del server (RETE_DHCP_SERVERS, RETE_DNS_SERVER)."
+            return "" if rete_windows.configurato() else "Server DHCP/DNS non configurati (Asset › Indirizzi IP, riquadro «Server DHCP e DNS»)."
         if lettura.requisito == "caselle":
             from security.models import SecurityMailboxSource
 

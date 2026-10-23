@@ -156,8 +156,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "con PowerShell in locale (moduli RSAT DhcpServer/DnsServer, solo letture). Finiscono in assets_ambitodhcp "
                 "e assets_indirizzorete.",
         "chi": "Asset → Indirizzi IP (dispositivi non censiti, record DNS vecchi), riconciliazione dispositivi IT, riga «Visto da» della scheda asset.",
-        "config": "RETE_DHCP_SERVERS, RETE_DNS_SERVER, RETE_DNS_ZONES nel .env; RSAT sul server del portale; l'utente del qcluster "
-                  "nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",
+        "config": "Asset › Indirizzi IP, riquadro «Server DHCP e DNS» (amministratori del modulo Asset; SiteConfig "
+                  "assets.rete_windows.config; le vecchie RETE_* del .env valgono solo se vuoto); RSAT sul server del portale; l'utente "
+                  "del qcluster nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",
         "controllo": "manage.py rete_windows --prova; esito ed errori dell'ultima lettura in cima alla pagina Indirizzi IP.",
     },
     {

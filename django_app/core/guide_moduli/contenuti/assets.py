@@ -271,9 +271,10 @@ GUIDA = {
                 ("passi", [
                     "Sul server del portale installa gli strumenti RSAT: Install-WindowsFeature RSAT-DHCP, RSAT-DNS-Server.",
                     "Metti l'utente che fa girare il qcluster nel gruppo «DHCP Users» del server DHCP (sola lettura).",
-                    "Nel .env del portale: RETE_DHCP_SERVERS (uno o più server, separati da virgole), RETE_DNS_SERVER e RETE_DNS_ZONES (es. dominio.local).",
-                    "Riavvia il portale e il qcluster, poi prova dal terminale: manage.py rete_windows --prova.",
-                    "Dopo la prima lettura (lo schedule rete_windows_sync gira ogni ora; subito: manage.py rete_windows) apri Asset → «Indirizzi IP».",
+                    "Apri Asset → «Indirizzi IP», riquadro «Server DHCP e DNS» (solo amministratori del modulo Asset): scrivi i server DHCP "
+                    "(separati da virgole), il server DNS e le zone (es. dominio.local) e premi «Salva».",
+                    "Premi «Leggi adesso»: la lettura va in coda e l'esito compare in cima alla pagina (e in SOC › Letture automatiche). "
+                    "Poi si ripete da sola ogni ora (schedule rete_windows_sync).",
                 ]),
                 ("p", "Il portale lancia in locale due script PowerShell fissi che leggono soltanto: nessuna modifica a DHCP e DNS. "
                       "Gli errori di un server (permessi, RSAT mancanti, server non raggiungibile) compaiono in cima alla pagina Indirizzi IP."),
@@ -312,7 +313,7 @@ GUIDA = {
             "fare": [
                 "«Mancano i moduli»: sul server del portale installa RSAT-DHCP e RSAT-DNS-Server (Install-WindowsFeature).",
                 "«Accesso negato»: l'utente che fa girare il qcluster deve stare nel gruppo «DHCP Users» del server DHCP; dopo l'aggiunta va riavviato il qcluster.",
-                "«Server non raggiungibile»: controlla il nome in RETE_DHCP_SERVERS / RETE_DNS_SERVER e il firewall (RPC) tra i due server.",
+                "«Server non raggiungibile»: controlla i nomi nel riquadro «Server DHCP e DNS» della pagina e il firewall (RPC) tra i due server.",
                 "Prova dal terminale con manage.py rete_windows --prova: dice quanti ambiti, indirizzi e record legge.",
             ],
         },

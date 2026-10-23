@@ -372,6 +372,8 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li><strong>Prenotazioni</strong> e <strong>Non più visti</strong> (indirizzi spariti da DHCP e DNS, in grigio).</li>
       </ul>
       <p>La ricerca trova IP, MAC, nomi DHCP e DNS e il nome dell'asset.</p>
+      <h3>Server da cui leggere</h3>
+      <p>Gli amministratori del modulo Asset trovano in cima alla pagina il riquadro <strong>Server DHCP e DNS</strong>: si scrivono i server DHCP (uno o più, separati da virgole), il server DNS e le zone (per esempio <kbd>dominio.local</kbd>), poi <span class="ag-btn">Salva</span> e <span class="ag-btn">Leggi adesso</span> per la prima lettura. Sul server del portale servono gli strumenti RSAT e l'utente del servizio dei lavori in background deve stare nel gruppo «DHCP Users»: se manca qualcosa, l'errore compare in cima alla pagina.</p>
       <p class="ag-note">Per riconoscere un dispositivo dal MAC, scrivilo nel punto rete dell'asset (scheda asset › Rete) oppure collega il PC a Intune: il portale usa anche i MAC che Intune conosce. Il registro non viene mai modificato da solo: la lettura propone, la riconciliazione conferma.</p>
     </section>
 
