@@ -26,7 +26,10 @@ GUIDA = {
                     ("Permesso", "da 30 minuti a 8 ore, sempre nello stesso giorno."),
                     ("Permesso su più giorni", "con lo stesso orario: compila il primo giorno e scegli la data in "
                      "«Ripeti lo stesso orario fino al». Si crea una richiesta per ogni giorno lavorativo (sabati, "
-                     "domeniche, festività e chiusure aziendali esclusi), al massimo 31 giorni; il capo le approva una per una."),
+                     "domeniche, festività e chiusure aziendali esclusi), al massimo 31 giorni. Il capo riceve una sola mail "
+                     "«Permesso ripetuto dal … al …» e decide per tutti i giorni; anche la conferma a te e ad "
+                     "assenza@ arriva una volta sola, con le date. Un singolo giorno si può ancora cambiare o "
+                     "decidere a parte da «Assenze del reparto»."),
                     ("Ferie di più giorni", "contano a giornata intera."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
                     ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "

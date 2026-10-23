@@ -191,6 +191,8 @@ def render_approval_email(
     reject_url: str = "",
     extra_cta_html: str = "",
     extra_cta_text: str = "",
+    extra_body_html: str = "",
+    extra_body_text: str = "",
 ) -> dict[str, str]:
     """
     Renderizza il template e ritorna un dict con:
@@ -263,6 +265,8 @@ def render_approval_email(
                 parts_text.append("")
 
         inner_html = "\n".join(parts_html)
+    if extra_body_html:
+        inner_html = extra_body_html + inner_html
 
     # ── Assemblaggio HTML completo via base template ──────────────────────────
     all_cta_html = ""
@@ -305,6 +309,8 @@ def render_approval_email(
     if title:
         text_parts.append(title)
         text_parts.append("=" * len(title))
+    if extra_body_text:
+        text_parts.append(extra_body_text.rstrip())
     if template.body_template:
         # Strip HTML tags approssimativo per il testo plain
         import re

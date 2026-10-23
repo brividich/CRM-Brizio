@@ -85,3 +85,32 @@ class MailApprovazioneTests(SimpleTestCase):
                                     extra_cta_html="<a>EXTRA</a>", extra_cta_text="EXTRA: link")
         self.assertIn("<a>EXTRA</a>", out["html_body"])
         self.assertIn("EXTRA: link", out["text_body"])
+
+    def test_template_approvazione_mette_il_riquadro_della_serie_in_testa(self):
+        class Tpl:
+            subject_template = "S"
+            approval_label = rejection_label = ""
+            title_template = body_template = facts_lines = ""
+            intro_template = "Richiesta di permesso"
+            include_facts = include_mailto_actions = False
+            section_label = email_type_label = ""
+
+            def uses_portal_links(self):
+                return True
+
+            def uses_mailto(self):
+                return False
+
+        out = render_approval_email(Tpl(), {}, approve_url="https://x/ok", reject_url="https://x/no",
+                                    extra_body_html="<p>SERIE</p>", extra_body_text="SERIE dal al\n\n")
+        self.assertLess(out["html_body"].index("<p>SERIE</p>"), out["html_body"].index("Richiesta di permesso"))
+        self.assertLess(out["text_body"].index("SERIE dal al"), out["text_body"].index("Richiesta di permesso"))
+
+
+class SerieInTestaTests(SimpleTestCase):
+    def test_riquadro_dopo_body_o_in_testa_al_frammento(self):
+        from .services import _inserisci_in_testa_html
+
+        self.assertEqual(_inserisci_in_testa_html("<p>x</p>", "<b>S</b>"), "<b>S</b><p>x</p>")
+        self.assertEqual(_inserisci_in_testa_html("<html><body class='a'><p>x</p>", "<b>S</b>"),
+                         "<html><body class='a'><b>S</b><p>x</p>")
