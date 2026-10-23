@@ -148,6 +148,23 @@ else {
 # ---------------------------------------------------------------------------
 # web.config dal template
 # ---------------------------------------------------------------------------
+# Il web.config riscrive X-Forwarded-For con l'IP vero del client (REMOTE_ADDR di IIS):
+# HttpPlatformHandler non lo invia, e senza la regola il portale vede 127.0.0.1 per tutti.
+# URL Rewrite accetta la variabile solo se sbloccata a livello server (altrimenti 500.50).
+Write-Log "Sblocco variabile HTTP_X_FORWARDED_FOR per URL Rewrite..." "STEP"
+$appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+$sbloccate = & $appcmd list config -section:system.webServer/rewrite/allowedServerVariables 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw "URL Rewrite non installato: serve per il web.config (X-Forwarded-For). Installa URL Rewrite 2.1 e rilancia."
+}
+if (($sbloccate | Out-String) -notmatch "HTTP_X_FORWARDED_FOR") {
+    & $appcmd set config -section:system.webServer/rewrite/allowedServerVariables /+"[name='HTTP_X_FORWARDED_FOR']" /commit:apphost | Out-Null
+    Write-Log "HTTP_X_FORWARDED_FOR sbloccata." "SUCCESS"
+}
+else {
+    Write-Log "HTTP_X_FORWARDED_FOR gia' sbloccata." "INFO"
+}
+
 Write-Log "Installazione web.config..." "STEP"
 $webConfigDest = "$siteRoot\web.config"
 if (Test-Path -LiteralPath $WebConfigTemplate) {

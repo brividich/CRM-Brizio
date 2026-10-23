@@ -105,6 +105,27 @@
     <urlCompression doStaticCompression="true" doDynamicCompression="false" />
 
     <!-- ================================================================
+         IP del client: HttpPlatformHandler non invia X-Forwarded-For e
+         Waitress vede solo 127.0.0.1. La regola SOSTITUISCE l'header con
+         l'IP della connessione (un valore scritto dal client non passa),
+         così con TRUSTED_PROXY_IPS=127.0.0.1,::1 nel .env core.net.client_ip
+         legge l'IP vero (postazioni condivise, audit, lockout, rate limit).
+         Richiede HTTP_X_FORWARDED_FOR in allowedServerVariables (lo sblocca
+         configure-iis-site.ps1), altrimenti tutto il sito va in 500.50.
+         ================================================================ -->
+    <rewrite>
+      <rules>
+        <rule name="IpClientReale" stopProcessing="false">
+          <match url=".*" />
+          <serverVariables>
+            <set name="HTTP_X_FORWARDED_FOR" value="{REMOTE_ADDR}" replace="true" />
+          </serverVariables>
+          <action type="None" />
+        </rule>
+      </rules>
+    </rewrite>
+
+    <!-- ================================================================
          Redirect www → non-www (opzionale — decommenta se necessario)
          ================================================================
     <rewrite>

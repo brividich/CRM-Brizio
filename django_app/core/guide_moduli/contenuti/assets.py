@@ -396,6 +396,8 @@ GUIDA = {
                 "Se il reparto della macchina ha una planimetria dedicata (categoria uguale al reparto o reparto disegnato con quel codice) "
                 "la scheda usa quella: controlla il campo reparto della macchina e il codice dei reparti disegnati.",
                 "Se la pianta è di traverso o con grandi margini bianchi, raddrizzala e ritagliala nell'editor.",
+                "Una macchina già collocata a mano su una pianta resta lì: la scheda mostra sempre quella posizione, "
+                "anche se la macchina compare «da posizionare» su altre planimetrie.",
             ],
         },
         {

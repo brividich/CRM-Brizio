@@ -807,7 +807,8 @@ class AssetsRoutingTests(TestCase):
 
     def test_asset_detail_plant_layout_uses_reparto_layout_not_default(self):
         # Bug: la scheda mostrava sempre la piantina di DEFAULT (primo layout attivo),
-        # non quella del reparto dell'asset. Il marker storico va auto-riallineato.
+        # non quella del reparto dell'asset. Il marker mai posizionato va
+        # riallineato; quello posizionato a mano resta dov'è.
         self.client.force_login(self.user)
         with _workspace_temporary_directory("assets-p145-map-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
@@ -818,9 +819,9 @@ class AssetsRoutingTests(TestCase):
                     category="Reparto Cromatura", name="Cromatura", image=_valid_png_upload("c.png"), is_active=True
                 )
                 asset = Asset.objects.create(asset_tag="AST-MAP-1", name="Vasca", reparto="Reparto Cromatura")
-                # Marker "storico" sul layout SBAGLIATO (default Officina).
+                # Marker "storico" mai posizionato sul layout SBAGLIATO (default Officina).
                 PlantLayoutMarker.objects.create(
-                    layout=officina, asset=asset, x_percent=10, y_percent=10, is_visible=True
+                    layout=officina, asset=asset, x_percent=50, y_percent=50, is_visible=True
                 )
                 resp = self.client.get(reverse("assets:asset_view", args=[asset.id]))
                 self.assertEqual(resp.status_code, 200)
@@ -829,10 +830,19 @@ class AssetsRoutingTests(TestCase):
                 # Self-heal: il marker è stato spostato sul layout corretto.
                 moved = PlantLayoutMarker.objects.get(asset=asset, layout=cromatura)
                 self.assertFalse(PlantLayoutMarker.objects.filter(asset=asset, layout=officina).exists())
-                # Le coordinate erano dell'altra pianta: torna «da posizionare».
                 self.assertEqual((moved.x_percent, moved.y_percent), (50, 50))
                 self.assertFalse(resp.context["map_card"]["placed"])
                 self.assertContains(resp, "Posizione da definire")
+
+                # Una macchina posizionata a mano su un'altra pianta resta lì.
+                placed_asset = Asset.objects.create(asset_tag="AST-MAP-2", name="Vasca 2", reparto="Reparto Cromatura")
+                PlantLayoutMarker.objects.create(
+                    layout=officina, asset=placed_asset, x_percent=10, y_percent=10, is_visible=True
+                )
+                resp = self.client.get(reverse("assets:asset_view", args=[placed_asset.id]))
+                self.assertEqual(resp.context["map_card"]["layout"].id, officina.id)
+                self.assertTrue(resp.context["map_card"]["placed"])
+                self.assertFalse(PlantLayoutMarker.objects.filter(asset=placed_asset, layout=cromatura).exists())
 
     def test_asset_list_firewall_context_uses_common_default_columns(self):
         firewall_asset = Asset.objects.create(
@@ -9517,13 +9527,47 @@ class AssetPlantLayoutResolveTests(TestCase):
                 category="Reparto Cromatura", name="Cromatura", image=_valid_png_upload("c.png"), is_active=True
             )
             asset = Asset.objects.create(asset_tag="AST-MOVE-1", name="Vasca", reparto="Reparto Cromatura")
-            # Marker preesistente sul layout SBAGLIATO (Officina).
-            PlantLayoutMarker.objects.create(layout=officina, asset=asset, label="vecchio", x_percent=10, y_percent=10)
+            # Marker mai posizionato (50/50) sul layout SBAGLIATO (Officina).
+            PlantLayoutMarker.objects.create(layout=officina, asset=asset, label="vecchio", x_percent=50, y_percent=50)
             msg = asset_views._ensure_asset_plant_layout_marker(asset)
             self.assertEqual(msg, "")
             markers = PlantLayoutMarker.objects.filter(asset=asset)
             self.assertEqual(markers.count(), 1)
             self.assertEqual(markers.first().layout_id, cromatura.id)
+
+    def test_placed_marker_on_other_layout_is_kept(self):
+        with _workspace_temporary_directory("assets-resolve-keep-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            officina = PlantLayout.objects.create(
+                category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+            )
+            PlantLayout.objects.create(
+                category="Reparto Cromatura", name="Cromatura", image=_valid_png_upload("c.png"), is_active=True
+            )
+            asset = Asset.objects.create(asset_tag="AST-KEEP-1", name="Vasca", reparto="Reparto Cromatura")
+            PlantLayoutMarker.objects.create(layout=officina, asset=asset, label="a mano", x_percent=12, y_percent=34)
+            asset_views._ensure_asset_plant_layout_marker(asset)
+            marker = PlantLayoutMarker.objects.get(asset=asset)
+            self.assertEqual(marker.layout_id, officina.id)
+            self.assertEqual((float(marker.x_percent), float(marker.y_percent)), (12.0, 34.0))
+
+    def test_placed_marker_wins_over_fallback_default(self):
+        with _workspace_temporary_directory("assets-resolve-win-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            # Il fallback alfabetico è «Carroponti», ma la macchina è posizionata su «Officina».
+            carroponti = PlantLayout.objects.create(
+                category="Apparecchi di sollevamento", name="Carroponti", image=_valid_png_upload("c.png"), is_active=True
+            )
+            officina = PlantLayout.objects.create(
+                category="Officina Imm.1", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+            )
+            asset = Asset.objects.create(asset_tag="AST-WIN-1", name="Tornio", reparto="Torni")
+            PlantLayoutMarker.objects.create(layout=carroponti, asset=asset, label="default", x_percent=50, y_percent=50)
+            placed = PlantLayoutMarker.objects.create(layout=officina, asset=asset, label="a mano", x_percent=70, y_percent=20)
+            from assets.views._helpers import _asset_plant_layout_marker
+
+            self.assertEqual(_asset_plant_layout_marker(asset).id, placed.id)
+            # Salvare l'asset non crea un altro marker «da posizionare».
+            asset_views._ensure_asset_plant_layout_marker(asset)
+            self.assertEqual(PlantLayoutMarker.objects.filter(asset=asset).count(), 2)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
