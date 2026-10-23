@@ -166,7 +166,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     },
     {
         "nome": "Apparati di rete (SNMP)",
-        "cosa": "Lettura di contatori e stato da stampanti MFC, switch, UPS, NVR e altri apparati.",
+        "cosa": "Lettura di contatori e stato da stampanti MFC (anche avvisi, cassetti carta, sportelli e display, sola lettura Printer-MIB), switch, UPS, NVR e altri apparati.",
         "chi": "Contatori MFC e SNMP; asset collegati; Security Center (firmware e vulnerabilità).",
         "config": "Community o utenti SNMPv3 nel catalogo cifrato del modulo Contatori",
         "controllo": "Codici di errore SNMP-001…008 nella scheda dell'apparato.",

@@ -1,4 +1,4 @@
-"""Postazioni condivise: configurazione (account, gruppo, inattività) e PIN degli operatori.
+"""Postazioni condivise: configurazione (PC, account, gruppo, inattività), operatori abilitati e PIN.
 
 La logica di accesso sta in :mod:`core.postazioni`; qui ci sono solo le pagine
 di amministrazione.
@@ -14,7 +14,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from core import postazioni
 from core.legacy_models import UtenteLegacy
-from core.models import AccessGroup, PinPostazione, PostazioneCondivisa, Profile
+from core.models import AccessGroup, OperatorePostazione, PinPostazione, PostazioneCondivisa, Profile
 
 from .decorators import legacy_admin_required
 
@@ -47,9 +47,12 @@ def postazioni_condivise(request):
         dettaglio = next((p for p in elenco if str(p.pk) == request.GET.get("operatori")), None)
     righe_operatori = []
     if dettaglio is not None:
-        ops = postazioni.operatori(dettaglio)
+        # Tutti i membri del gruppo, con la spunta «può usare questo PC».
+        ops = postazioni.candidati(dettaglio)
+        abilitati = set(OperatorePostazione.objects.filter(postazione=dettaglio).values_list("legacy_user_id", flat=True))
         pin = {p.legacy_user_id: p for p in PinPostazione.objects.filter(legacy_user_id__in=[u.id for u in ops])}
-        righe_operatori = [{"id": u.id, "nome": u.nome or u.email, "pin": pin.get(u.id)} for u in ops]
+        righe_operatori = [{"id": u.id, "nome": u.nome or u.email, "pin": pin.get(u.id), "abilitato": u.id in abilitati}
+                           for u in ops]
     return render(request, "admin_portale/pages/postazioni_condivise.html", {
         "page_title": "Postazioni condivise",
         "postazioni": [{"p": p, "account": nomi.get(p.account_legacy_user_id, f"utente #{p.account_legacy_user_id}"),
@@ -63,6 +66,8 @@ def postazioni_condivise(request):
         "minuti_max": MINUTI_MAX,
         "max_tentativi": postazioni.MAX_TENTATIVI,
         "mostra_guida": request.GET.get("guida") == "1",
+        # Aiuta a registrare il PC da cui si sta configurando.
+        "ip_questo_pc": postazioni.ip_richiesta(request),
     })
 
 
@@ -81,21 +86,24 @@ def _salva(request) -> str:
         minuti = int(request.POST.get("minuti_inattivita") or 0)
     except ValueError:
         return "Valori non validi."
+    ip_pc = postazioni.ip_normalizzato(request.POST.get("ip_pc"))
+    if not ip_pc:
+        return "Indica l'indirizzo IP del PC (es. 192.168.10.25)."
+    if PostazioneCondivisa.objects.filter(ip_pc=ip_pc).exclude(pk=postazione.pk).exists():
+        return f"Il PC {ip_pc} è già registrato come un'altra postazione."
     if account_id not in {u.id for u in _account_ammessi()}:
         return "Scegli l'account della postazione fra gli utenti attivi (gli amministratori non sono ammessi)."
-    if PostazioneCondivisa.objects.filter(account_legacy_user_id=account_id).exclude(pk=postazione.pk).exists():
-        return "Questo account è già usato da un'altra postazione."
     gruppo = AccessGroup.objects.filter(pk=gruppo_id, is_active=True).first()
     if gruppo is None:
         return "Scegli il gruppo degli operatori."
     if not (MINUTI_MIN <= minuti <= MINUTI_MAX):
         return f"I minuti di inattività vanno da {MINUTI_MIN} a {MINUTI_MAX}."
-    postazione.nome, postazione.account_legacy_user_id = nome, account_id
+    postazione.nome, postazione.account_legacy_user_id, postazione.ip_pc = nome, account_id, ip_pc
     postazione.gruppo, postazione.minuti_inattivita = gruppo, minuti
     postazione.attiva = request.POST.get("attiva") == "1"
     postazione.save()
     postazioni.registra_audit(request, "postazione_configurata", {
-        "postazione": nome, "postazione_id": postazione.pk, "account_legacy_id": account_id,
+        "postazione": nome, "postazione_id": postazione.pk, "account_legacy_id": account_id, "ip_pc": ip_pc,
         "gruppo": gruppo.code, "minuti_inattivita": minuti, "attiva": postazione.attiva,
     })
     return ""
@@ -122,6 +130,19 @@ def postazioni_condivise_azione(request):
         postazione.delete()
         messages.success(request, "Postazione eliminata: le sessioni aperte da lì si chiudono alla prossima richiesta.")
         return redirect(url)
+    if azione == "operatori" and postazione is not None:
+        ammessi = {u.id for u in postazioni.candidati(postazione)}
+        scelti = {int(v) for v in request.POST.getlist("abilitati") if str(v).isdigit()} & ammessi
+        attuali = set(OperatorePostazione.objects.filter(postazione=postazione).values_list("legacy_user_id", flat=True))
+        OperatorePostazione.objects.filter(postazione=postazione, legacy_user_id__in=attuali - scelti).delete()
+        OperatorePostazione.objects.bulk_create(
+            [OperatorePostazione(postazione=postazione, legacy_user_id=i) for i in sorted(scelti - attuali)])
+        postazioni.registra_audit(request, "postazione_operatori", {
+            "postazione": postazione.nome, "postazione_id": postazione.pk,
+            "aggiunti": sorted(scelti - attuali), "tolti": sorted(attuali - scelti),
+        })
+        messages.success(request, f"Operatori del PC salvati: {len(scelti)} abilitati.")
+        return redirect(f"{url}?operatori={postazione.pk}")
     if azione == "azzera_pin":
         try:
             legacy_id = int(request.POST.get("legacy_user_id") or 0)

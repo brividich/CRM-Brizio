@@ -8,8 +8,8 @@
 
 {% block extra_head %}
 <style>
-.pc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; max-width: 1280px; }
-@media (max-width: 960px) { .pc-grid { grid-template-columns: 1fr; } }
+.pc-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; max-width: 1280px; }
+.pc-modulo { max-width: 640px; }
 .pc-azioni { display: flex; gap: 6px; flex-wrap: wrap; }
 .pc-nota { font-size: .82rem; color: var(--text-mid); margin-top: 2px; }
 .pc-stato-off { color: var(--text-mid); }
@@ -20,7 +20,7 @@
 
 {% block content %}
   {% url 'admin_portale:postazioni_condivise' as pagina_url %}
-  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ognuno entra con il proprio nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" %}
+  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ogni PC ha i suoi operatori, che entrano con nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" %}
 
   {% if mostra_guida %}
   <div class="card pc-guida" style="max-width:1280px;margin-bottom:20px;">
@@ -28,9 +28,11 @@
     <div class="card-body">
       <ol>
         <li>Fai entrare <strong>una volta</strong> l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: così compare nell'elenco «Account della postazione». L'account deve essere in un gruppo AD ammesso al login, come ogni utente.</li>
-        <li>In «Accessi» crea (o scegli) il gruppo degli operatori e aggiungi le persone che lavorano su quel PC.</li>
-        <li>Qui crea la postazione: nome, account, gruppo e minuti di inattività ({{ minuti_min }}–{{ minuti_max }}). Vale dal prossimo accesso dell'account.</li>
-        <li>Da quel momento l'account del PC vede solo «Chi sei?»: l'operatore tocca il proprio nome e digita il PIN. La prima volta imposta il PIN con la propria password.</li>
+        <li>In «Accessi» crea (o scegli) il gruppo degli operatori e aggiungi le persone che lavorano al controllo.</li>
+        <li>Qui registra <strong>un PC per riga</strong>: nome, <strong>IP del PC</strong> (su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP), account, gruppo e minuti di inattività ({{ minuti_min }}–{{ minuti_max }}). Lo stesso account può servire più PC. Se configuri dal PC stesso, sotto il campo trovi l'IP che il portale vede.</li>
+        <li>In «Operatori del PC» spunta chi può usare quel PC e salva. Chi non è spuntato non compare in «Chi sei?» su quel PC.</li>
+        <li>L'account del PC vede solo «Chi sei?» e solo dal PC registrato: da un altro PC trova la pagina «PC non registrato». L'operatore tocca il proprio nome e digita il PIN; la prima volta imposta il PIN con la propria password.</li>
+        <li>La sessione resta legata al PC: se arriva da un altro indirizzo si chiude e resta traccia nell'audit («postazione_altro_pc»).</li>
         <li>Con il PIN giusto la sessione è dell'operatore: permessi, audit e firme sono i suoi. «Cambio operatore», «Esci» o l'inattività riportano a «Chi sei?»; solo «Chiudi la postazione» chiude la sessione dell'account.</li>
         <li>Dopo {{ max_tentativi }} PIN sbagliati il PIN si blocca e la persona riceve una mail. «Azzera PIN» lo cancella: la persona ne imposta uno nuovo con la propria password.</li>
         <li>Amministratori e superuser non compaiono mai fra gli operatori: entrano solo con le loro credenziali. Il 2FA dell'operatore segue la policy, come a un login normale.</li>
@@ -47,11 +49,12 @@
           {% if postazioni %}
           <div class="table-wrap">
             <table class="fm-table">
-              <thead><tr><th>Nome</th><th>Account</th><th>Gruppo operatori</th><th>Operatori</th><th>Inattività</th><th>Stato</th><th></th></tr></thead>
+              <thead><tr><th>Nome</th><th>PC (IP)</th><th>Account</th><th>Gruppo operatori</th><th>Operatori abilitati</th><th>Inattività</th><th>Stato</th><th></th></tr></thead>
               <tbody>
               {% for r in postazioni %}
                 <tr>
                   <td>{{ r.p.nome }}</td>
+                  <td>{% if r.p.ip_pc %}{{ r.p.ip_pc }}{% else %}<span class="pc-stato-rosso">da indicare</span>{% endif %}</td>
                   <td>{{ r.account }}</td>
                   <td>{{ r.p.gruppo.label }}</td>
                   <td>{{ r.operatori }}</td>
@@ -59,8 +62,8 @@
                   <td>{% if r.p.attiva %}Attiva{% else %}<span class="pc-stato-off">Disattivata</span>{% endif %}</td>
                   <td>
                     <div class="pc-azioni">
-                      <a class="btn btn-sm" href="?operatori={{ r.p.pk }}">Operatori e PIN</a>
-                      <a class="btn btn-sm" href="?modifica={{ r.p.pk }}">Modifica</a>
+                      <a class="btn btn-sm" href="?operatori={{ r.p.pk }}#operatori">Operatori del PC</a>
+                      <a class="btn btn-sm" href="?modifica={{ r.p.pk }}#modulo">Modifica</a>
                       <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}" class="inline-form">
                         {% csrf_token %}
                         <input type="hidden" name="azione" value="elimina">
@@ -82,15 +85,21 @@
 
       {% if dettaglio %}
       <div class="card" id="operatori">
-        <div class="card-head"><div class="card-title">Operatori di «{{ dettaglio.nome }}» (gruppo {{ dettaglio.gruppo.label }})</div></div>
+        <div class="card-head"><div class="card-title">Operatori del PC «{{ dettaglio.nome }}» {% if dettaglio.ip_pc %}({{ dettaglio.ip_pc }}){% endif %} · gruppo {{ dettaglio.gruppo.label }}</div></div>
         <div class="card-body">
           {% if righe_operatori %}
+          <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}" id="pc-operatori-form">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="operatori">
+            <input type="hidden" name="id" value="{{ dettaglio.pk }}">
+          </form>
           <div class="table-wrap">
             <table class="fm-table">
-              <thead><tr><th>Operatore</th><th>PIN</th><th>Ultima modifica PIN</th><th></th></tr></thead>
+              <thead><tr><th>Può usare questo PC</th><th>Operatore</th><th>PIN</th><th>Ultima modifica PIN</th><th></th></tr></thead>
               <tbody>
               {% for o in righe_operatori %}
                 <tr>
+                  <td><input type="checkbox" name="abilitati" value="{{ o.id }}" form="pc-operatori-form" aria-label="{{ o.nome }} può usare questo PC" {% if o.abilitato %}checked{% endif %}></td>
                   <td>{{ o.nome }}</td>
                   <td>
                     {% if not o.pin %}<span class="pc-stato-off">Da impostare</span>
@@ -115,15 +124,16 @@
               </tbody>
             </table>
           </div>
+          <div style="margin-top:12px;"><button type="submit" class="btn btn-primary" form="pc-operatori-form">Salva operatori del PC</button></div>
           {% else %}
-            <p>Il gruppo non ha operatori ammessi (persone attive, non amministratori, appartenenza non scaduta).</p>
+            <p>Il gruppo non ha persone da abilitare (attive, non amministratori, appartenenza non scaduta). Aggiungile in «Accessi».</p>
           {% endif %}
         </div>
       </div>
       {% endif %}
     </div>
 
-    <div class="card">
+    <div class="card pc-modulo" id="modulo">
       <div class="card-head"><div class="card-title">{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Nuova postazione{% endif %}</div></div>
       <div class="card-body">
         <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}">
@@ -135,6 +145,11 @@
             <input class="input" type="text" name="nome" maxlength="100" required value="{{ modifica.nome|default:'' }}" placeholder="Sala metrologica – Zeiss">
           </div>
           <div class="field">
+            <label>IP del PC</label>
+            <input class="input" type="text" name="ip_pc" maxlength="45" required value="{{ modifica.ip_pc|default:'' }}" placeholder="192.168.10.25" inputmode="decimal" autocomplete="off">
+            <div class="pc-nota">Un PC per postazione. Su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP.{% if ip_questo_pc %} Questo browser il portale lo vede come <strong>{{ ip_questo_pc }}</strong>.{% endif %}</div>
+          </div>
+          <div class="field">
             <label>Account della postazione</label>
             <select class="input" name="account" required>
               <option value="">— scegli —</option>
@@ -142,7 +157,7 @@
                 <option value="{{ u.id }}" {% if modifica and modifica.account_legacy_user_id == u.id %}selected{% endif %}>{{ u.nome|default:u.email }}{% if u.email %} · {{ u.email }}{% endif %}</option>
               {% endfor %}
             </select>
-            <div class="pc-nota">Compare qui dopo il primo accesso con le sue credenziali di dominio. Mai un amministratore.</div>
+            <div class="pc-nota">Compare qui dopo il primo accesso con le sue credenziali di dominio. Può servire più PC. Mai un amministratore.</div>
           </div>
           <div class="field">
             <label>Gruppo degli operatori</label>
@@ -152,7 +167,7 @@
                 <option value="{{ g.pk }}" {% if modifica and modifica.gruppo_id == g.pk %}selected{% endif %}>{{ g.label }}</option>
               {% endfor %}
             </select>
-            <div class="pc-nota">I membri si gestiscono in Amministrazione → Accessi.</div>
+            <div class="pc-nota">I membri si gestiscono in admin-portale → Accessi; chi può usare questo PC si spunta in «Operatori del PC».</div>
           </div>
           <div class="field">
             <label>Minuti di inattività</label>

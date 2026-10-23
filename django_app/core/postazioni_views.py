@@ -65,6 +65,12 @@ def _contesto(request, postazione, *, selezionato=None, errore: str = "", **extr
 def postazione_home(request):
     postazione = _postazione_in_attesa(request)
     if postazione is None:
+        corrente = postazioni.stato(request)
+        if corrente and corrente.get("postazione") is None and not corrente.get("operatore"):
+            # Account condiviso da un PC non registrato (il middleware lascia aprire solo qui).
+            return render(request, _TEMPLATE, {
+                "page_title": "PC non registrato", "pc_non_registrato": True, "ip": postazioni.ip_richiesta(request),
+            }, status=403)
         return redirect("dashboard_home")
     selezionato = None
     if request.GET.get("operatore"):

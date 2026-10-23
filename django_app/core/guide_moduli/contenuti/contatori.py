@@ -45,6 +45,18 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "stampanti-avvisi",
+            "titolo": "Una stampante: avvisi, cassetti e quando finisce il toner",
+            "blocchi": [
+                ("passi", [
+                    "Apri il Monitor SNMP e clicca la stampante.",
+                    "«La stampante adesso» dice lo stato, cosa c'è scritto sul display e cosa va sistemato (carta inceppata, sportello aperto, cassetto vuoto).",
+                    "«Registro avvisi» elenca gli avvisi con quando sono comparsi, quando sono spariti e quanto sono durati.",
+                    "Sotto ogni toner «Finisce verso il» dice la data prevista di esaurimento, calcolata sul consumo dall'ultima sostituzione.",
+                ]),
+            ],
+        },
     ],
     "admin": [
         {

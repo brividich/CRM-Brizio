@@ -234,6 +234,35 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "stampanti-dati",
+        "titolo": "Stampanti del Monitor SNMP: avvisi, cassetti e quando finisce il toner",
+        "blocchi": [
+            ("p", "Nella scheda di una stampante del Monitor SNMP, oltre a contatori e toner, il portale legge "
+                  "dalla stampante (solo lettura, standard Printer-MIB) altri dati, a ogni interrogazione:"),
+            ("def", [
+                ("La stampante adesso", "stato («pronta», «in stampa», «in riscaldamento»), il testo del "
+                                        "display, le pagine stampate al giorno e l'elenco «Da sistemare»: "
+                                        "avvisi aperti, sportelli aperti, cassetti vuoti o in avviso."),
+                ("Cassetti carta", "nome, formato della carta, capacità in fogli e livello; «Vuoto» in rosso."),
+                ("Sportelli", "aperto (rosso) o chiuso."),
+                ("Registro avvisi", "ogni avviso della stampante (carta inceppata, toner in esaurimento, "
+                                    "sportello aperto, assistenza richiesta…) con «Dal», «Al» e «Durata»: si apre "
+                                    "quando la stampante lo segnala e si chiude quando non lo segnala più. "
+                                    "«Chi interviene» è quello indicato dalla stampante. In grigio gli eventi "
+                                    "normali (accensione, pronta a stampare). Gli avvisi chiusi da oltre 400 "
+                                    "giorni si cancellano."),
+                ("Finisce verso il", "sotto ogni toner: la data in cui si esaurisce al ritmo di consumo "
+                                     "dall'ultima sostituzione (letture degli ultimi 60 giorni). Servono almeno 3 "
+                                     "giorni di letture e un calo di almeno 2 punti; il contenitore di scarto non "
+                                     "si stima. In giallo se mancano 14 giorni o meno."),
+            ]),
+            ("p", "Un avviso critico o uno sportello aperto mette la stampante in «Errore», gli altri avvisi e "
+                  "un cassetto vuoto in «Attenzione». Se una stampante non espone la tabella avvisi, il registro "
+                  "usa gli errori che segnala (carta inceppata, sportello aperto, toner esaurito…). Le stampanti "
+                  "MFC a contratto restano nella loro scheda MFC."),
+        ],
+    },
+    {
         "id": "tvcc",
         "titolo": "Videosorveglianza (NVR e telecamere TVT)",
         "blocchi": [

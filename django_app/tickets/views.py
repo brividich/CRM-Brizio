@@ -2360,9 +2360,80 @@ def _resolve_asset_by_name(name: str, all_assets: list) -> "object | None":
     return None
 
 
+_VALORI_SI = {"1", "true", "vero", "si", "sì", "s", "yes", "y", "x", "chiuso", "chiusa"}
+
+# Stati scritti a mano / in italiano nell'export → valore interno
+_STATO_ALIAS = {
+    "APERTO": "APERTA", "CHIUSA": "CHIUSO", "RISOLTA": "RISOLTO",
+    "ANNULLATA": "ANNULLATO", "IN_LAVORAZIONE": "IN_CARICO",
+}
+
+# Colonne che contengono la data di chiusura (interna, SharePoint MAN, SharePoint IT)
+_COLONNE_CHIUSURA = ("closed_at", "Data chiusura ticket", "Data fine lavori")
+
+
+def _stato_da_riga(row: dict) -> str:
+    """Stato del ticket importato.
+
+    Ordine: colonna ``stato`` (anche in italiano), poi flag ``Chiuso`` di
+    SharePoint (1/Sì/Vero/TRUE/x), poi presenza di una data di chiusura:
+    un ticket con data di chiusura non può restare APERTA, altrimenti finisce
+    nei promemoria SLA ed escalation.
+    """
+    valid = set(dict(StatoTicket.choices).keys())
+    for col in ("stato", "Stato"):
+        raw = str(row.get(col) or "").strip().upper().replace(" ", "_")
+        raw = _STATO_ALIAS.get(raw, raw)
+        if raw in valid:
+            return raw
+    for col in ("Chiuso", "Chiuso?", "chiuso"):
+        if str(row.get(col) or "").strip().lower() in _VALORI_SI:
+            return StatoTicket.CHIUSO
+    if any(str(row.get(col) or "").strip() for col in _COLONNE_CHIUSURA):
+        return StatoTicket.CHIUSO
+    return StatoTicket.APERTA
+
+
+def _silenzia_automazioni_import(ticket_ids) -> int:
+    """Marca come già eseguiti gli eventi automazione generati dall'import.
+
+    I trigger SQL su ``tickets_ticket`` accodano un evento per ogni INSERT/UPDATE:
+    senza questo passaggio un import storico fa partire le regole «nuovo
+    ticket» (mail, escalation) per ogni riga. Va chiamata nella stessa
+    transazione dell'import: il worker legge la coda con READPAST, quindi non
+    vede gli eventi finché la transazione non è confermata.
+    """
+    from django.db import connection, transaction
+
+    ids = [str(int(pk)) for pk in ticket_ids if pk]
+    if not ids:
+        return 0
+    marcati = 0
+    try:
+        # savepoint: se la coda non esiste l'errore non invalida l'import
+        with transaction.atomic(), connection.cursor() as cursor:
+            for i in range(0, len(ids), 500):
+                blocco = ids[i:i + 500]
+                segnaposto = ", ".join(["%s"] * len(blocco))
+                cursor.execute(
+                    "UPDATE dbo.automation_event_queue "
+                    "SET status = 'done', processed_at = SYSUTCDATETIME(), "
+                    "error_message = 'Import CSV ticket: automazioni non eseguite' "
+                    "WHERE source_table = 'tickets_ticket' AND status = 'pending' "
+                    f"AND CAST(source_pk AS NVARCHAR(50)) IN ({segnaposto})",
+                    blocco,
+                )
+                marcati += int(cursor.rowcount or 0)
+    except Exception:
+        # SQLite di sviluppo: niente coda né trigger, quindi niente da silenziare.
+        logger.debug("import ticket: coda automazioni non disponibile", exc_info=True)
+    return marcati
+
+
 @require_POST
 @login_required
 def api_import_csv(request):
+    from django.db import transaction
     from django.utils.timezone import make_aware
 
     if not _can_manage_settings(request):
@@ -2402,13 +2473,12 @@ def api_import_csv(request):
     tipo_override   = (request.POST.get("tipo_override") or "").strip().upper()
 
     VALID_TIPI     = {TipoTicket.IT, TipoTicket.MAN}
-    VALID_STATI    = set(dict(StatoTicket.choices).keys())
     VALID_PRIORITA = set(dict(PrioritaTicket.choices).keys())
 
     # Normalizza priorità italiana (SharePoint) → valore interno
     _PRIO_MAP = {
         "alta": "ALTA", "media": "MEDIA", "bassa": "BASSA",
-        "urgente": "URGENTE", "critica": "URGENTE",
+        "urgente": "URGENTE", "critica": "URGENTE", "normale": "MEDIA",
     }
 
     def _get(row, *keys):
@@ -2451,110 +2521,118 @@ def api_import_csv(request):
             sharepoint_item_id=_get(row, "sharepoint_item_id", "ID")[:100],
         )
 
-    for row_num, row in enumerate(reader, start=2):
-        # tipo: da override POST oppure da colonna CSV
-        if tipo_override in VALID_TIPI:
-            tipo = tipo_override
-        else:
-            tipo = (row.get("tipo") or "").strip().upper()
-            if tipo not in VALID_TIPI:
-                errors.append(f"Riga {row_num}: tipo '{tipo}' non valido (usa IT o MAN)")
-                continue
-
-        titolo           = _get(row, "titolo", "Titolo", "Problema")
-        descrizione      = _get(row, "descrizione", "Descrizione del problema")
-        categoria        = _get(row, "categoria", "Tipologia problema", "Tipologia")
-        richiedente_nome = _get(row, "richiedente_nome", "Problema registrato da")
-
-        if not titolo or not descrizione or not categoria or not richiedente_nome:
-            errors.append(
-                f"Riga {row_num}: campi obbligatori mancanti "
-                "(titolo/Problema, descrizione/Descrizione del problema, "
-                "categoria/Tipologia, richiedente_nome/Problema registrato da)"
-            )
-            continue
-
-        # Priorità: normalizza sia formato interno che italiano SharePoint
-        priorita_raw = _get(row, "priorita", "Priorità").upper()
-        priorita = _PRIO_MAP.get(priorita_raw.lower(), priorita_raw)
-        if priorita not in VALID_PRIORITA:
-            priorita = PrioritaTicket.MEDIA
-
-        # Stato: da colonna "stato" oppure derivato da "Chiuso" (formato SharePoint)
-        stato_raw = (row.get("stato") or "").strip().upper()
-        if stato_raw in VALID_STATI:
-            stato = stato_raw
-        else:
-            chiuso_raw = _get(row, "Chiuso").lower()
-            stato = StatoTicket.CHIUSO if chiuso_raw in ("1", "true", "si", "sì", "yes") else StatoTicket.APERTA
-
-        incide_raw       = _get(row, "incide_sicurezza", "Impatto su sicurezza").lower()
-        incide_sicurezza = incide_raw in ("1", "true", "si", "sì", "yes")
-        if incide_sicurezza:
-            priorita = PrioritaTicket.URGENTE
-
-        numero_ticket = (row.get("numero_ticket") or "").strip()
-        sp_item_id    = _get(row, "sharepoint_item_id", "ID")
-        fields        = _build_fields(row, tipo, priorita, stato, incide_sicurezza)
-
-        # ── Deduplicazione: prima per numero_ticket, poi per sharepoint_item_id ──
-        existing = None
-        if numero_ticket:
-            existing = Ticket.objects.filter(numero_ticket=numero_ticket).first()
-        if not existing and sp_item_id:
-            existing = Ticket.objects.filter(sharepoint_item_id=sp_item_id, tipo=tipo).first()
-
-        if existing:
-            if not update_existing:
-                skipped += 1
-                continue
-            for attr, val in fields.items():
-                setattr(existing, attr, val)
-            existing.save()
-            ticket = existing
-            updated += 1
-        else:
-            ticket = Ticket(**fields)
-            if numero_ticket:
-                ticket.numero_ticket = numero_ticket
+    # Tutto in una transazione: i trigger SQL accodano un evento per riga e
+    # vanno silenziati prima che il worker automazioni li veda (vedi helper).
+    importati: list[int] = []
+    with transaction.atomic():
+        for row_num, row in enumerate(reader, start=2):
+            # tipo: da override POST oppure da colonna CSV
+            if tipo_override in VALID_TIPI:
+                tipo = tipo_override
             else:
-                # Usa l'anno da created_at del CSV per il numero ticket (storico)
-                from .models import _next_ticket_number
-                created_at_raw_pre = _get(row, "created_at", "Data/ora creazione", "Data segnalazione")
-                pre_year = None
-                if created_at_raw_pre:
-                    dt_pre = _parse_dt(created_at_raw_pre)
-                    if dt_pre:
-                        pre_year = dt_pre.year
-                ticket.numero_ticket = _next_ticket_number(tipo, pre_year)
-            ticket.save()
-            created += 1
+                tipo = (row.get("tipo") or "").strip().upper()
+                if tipo not in VALID_TIPI:
+                    errors.append(f"Riga {row_num}: tipo '{tipo}' non valido (usa IT o MAN)")
+                    continue
 
-        # Campi auto_now_add / nullable: aggiornati con .update()
-        dt_updates = {}
-        created_at_raw = _get(row, "created_at", "Data/ora creazione", "Data segnalazione")
-        if created_at_raw:
-            dt_val = _parse_dt(created_at_raw)
-            if dt_val:
-                dt_updates["created_at"] = dt_val
+            titolo           = _get(row, "titolo", "Titolo", "Problema")
+            descrizione      = _get(row, "descrizione", "Descrizione del problema")
+            categoria        = _get(row, "categoria", "Tipologia problema", "Tipologia")
+            richiedente_nome = _get(row, "richiedente_nome", "Problema registrato da")
 
-        closed_at_raw = _get(row, "closed_at", "Data chiusura ticket", "Data fine lavori")
-        if closed_at_raw:
-            dt_val = _parse_dt(closed_at_raw)
-            if dt_val:
-                dt_updates["closed_at"] = dt_val
-        elif not closed_at_raw and update_existing:
-            dt_updates["closed_at"] = None
+            if not titolo or not descrizione or not categoria or not richiedente_nome:
+                errors.append(
+                    f"Riga {row_num}: campi obbligatori mancanti "
+                    "(titolo/Problema, descrizione/Descrizione del problema, "
+                    "categoria/Tipologia, richiedente_nome/Problema registrato da)"
+                )
+                continue
 
-        if dt_updates:
-            Ticket.objects.filter(pk=ticket.pk).update(**dt_updates)
+            # Priorità: normalizza sia formato interno che italiano SharePoint
+            # L'export SharePoint può avere la «à» rovinata («Priorit�»): basta il prefisso
+            priorita_raw = (_get(row, "priorita", "Priorità") or next(
+                (str(v).strip() for k, v in row.items()
+                 if k and k.strip().lower().startswith("priorit") and str(v or "").strip()),
+                "",
+            )).upper()
+            priorita = _PRIO_MAP.get(priorita_raw.lower(), priorita_raw)
+            if priorita not in VALID_PRIORITA:
+                priorita = PrioritaTicket.MEDIA
 
-        # ── Auto-link asset: se asset_descrizione_libera è valorizzato e FK è vuota ──
-        if not ticket.asset_id and ticket.asset_descrizione_libera:
-            matched = _resolve_asset_by_name(ticket.asset_descrizione_libera, _all_assets)
-            if matched:
-                Ticket.objects.filter(pk=ticket.pk).update(asset=matched)
-                linked += 1
+            # Stato: colonna "stato", flag "Chiuso" (SharePoint) o data di chiusura
+            stato = _stato_da_riga(row)
+
+            incide_raw       = _get(row, "incide_sicurezza", "Impatto su sicurezza").lower()
+            incide_sicurezza = incide_raw in _VALORI_SI - {"chiuso", "chiusa"}
+            if incide_sicurezza:
+                priorita = PrioritaTicket.URGENTE
+
+            numero_ticket = (row.get("numero_ticket") or "").strip()
+            sp_item_id    = _get(row, "sharepoint_item_id", "ID")
+            fields        = _build_fields(row, tipo, priorita, stato, incide_sicurezza)
+
+            # ── Deduplicazione: prima per numero_ticket, poi per sharepoint_item_id ──
+            existing = None
+            if numero_ticket:
+                existing = Ticket.objects.filter(numero_ticket=numero_ticket).first()
+            if not existing and sp_item_id:
+                existing = Ticket.objects.filter(sharepoint_item_id=sp_item_id, tipo=tipo).first()
+
+            if existing:
+                if not update_existing:
+                    skipped += 1
+                    continue
+                for attr, val in fields.items():
+                    setattr(existing, attr, val)
+                existing.save()
+                ticket = existing
+                updated += 1
+            else:
+                ticket = Ticket(**fields)
+                if numero_ticket:
+                    ticket.numero_ticket = numero_ticket
+                else:
+                    # Usa l'anno da created_at del CSV per il numero ticket (storico)
+                    from .models import _next_ticket_number
+                    created_at_raw_pre = _get(row, "created_at", "Data/ora creazione", "Data segnalazione")
+                    pre_year = None
+                    if created_at_raw_pre:
+                        dt_pre = _parse_dt(created_at_raw_pre)
+                        if dt_pre:
+                            pre_year = dt_pre.year
+                    ticket.numero_ticket = _next_ticket_number(tipo, pre_year)
+                ticket.save()
+                created += 1
+
+            # Campi auto_now_add / nullable: aggiornati con .update()
+            dt_updates = {}
+            created_at_raw = _get(row, "created_at", "Data/ora creazione", "Data segnalazione")
+            if created_at_raw:
+                dt_val = _parse_dt(created_at_raw)
+                if dt_val:
+                    dt_updates["created_at"] = dt_val
+
+            closed_at_raw = _get(row, *_COLONNE_CHIUSURA)
+            if closed_at_raw:
+                dt_val = _parse_dt(closed_at_raw)
+                if dt_val:
+                    dt_updates["closed_at"] = dt_val
+            elif not closed_at_raw and update_existing:
+                dt_updates["closed_at"] = None
+
+            if dt_updates:
+                Ticket.objects.filter(pk=ticket.pk).update(**dt_updates)
+
+            # ── Auto-link asset: se asset_descrizione_libera è valorizzato e FK è vuota ──
+            if not ticket.asset_id and ticket.asset_descrizione_libera:
+                matched = _resolve_asset_by_name(ticket.asset_descrizione_libera, _all_assets)
+                if matched:
+                    Ticket.objects.filter(pk=ticket.pk).update(asset=matched)
+                    linked += 1
+
+            importati.append(ticket.pk)
+
+        _silenzia_automazioni_import(importati)
 
     return JsonResponse({
         "ok":      True,
