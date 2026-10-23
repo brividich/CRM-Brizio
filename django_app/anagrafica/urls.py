@@ -395,6 +395,8 @@ urlpatterns = [
          name="struttura_reparto_salva"),
     path("struttura/area/<int:area_id>/", views_struttura_org.struttura_area_salva, name="struttura_area_salva"),
     path("struttura/ruolo/<int:ruolo_id>/", views_struttura_org.struttura_ruolo_salva, name="struttura_ruolo_salva"),
+    path("struttura/ruolo/<int:ruolo_id>/accessi/", views_struttura_org.struttura_ruolo_accessi,
+         name="struttura_ruolo_accessi"),
     path("struttura/processo/<int:processo_id>/", views_struttura_org.struttura_processo_salva,
          name="struttura_processo_salva"),
     path("struttura/scheda/ruolo/<int:ruolo_id>/", views_struttura_org.struttura_scheda_ruolo,

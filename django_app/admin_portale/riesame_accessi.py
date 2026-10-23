@@ -50,6 +50,33 @@ def _foglio_account_m365(wb) -> None:
         ws.column_dimensions[col].width = larghezza
 
 
+def _foglio_variazioni(wb, oggi) -> None:
+    from datetime import timedelta
+
+    from core.legacy_models import AnagraficaDipendente
+    from core.models import AuditLog
+    from core.permessi.variazioni import AZIONE, OGGETTO_TIPO
+
+    ws = wb.create_sheet("Variazioni da organigramma")
+    _intestazioni(ws, ["Data", "Persona", "Causa", "Ruoli del portale ricevuti", "Ruoli del portale persi", "Modificato da"])
+    voci = list(AuditLog.objects.filter(azione=AZIONE, oggetto_tipo=OGGETTO_TIPO,
+                                        created_at__date__gte=oggi - timedelta(days=365)).order_by("-created_at"))
+    ids = {int(v.oggetto_id) for v in voci if str(v.oggetto_id).isdigit()}
+    nomi = {p.id: f"{p.cognome or ''} {p.nome or ''}".strip() for p in AnagraficaDipendente.objects.filter(id__in=ids)}
+    for r, v in enumerate(voci, start=2):
+        d = v.dettaglio or {}
+        pid = int(v.oggetto_id) if str(v.oggetto_id).isdigit() else None
+        valori = [timezone.localtime(v.created_at).strftime("%d/%m/%Y %H:%M"), nomi.get(pid) or f"#{v.oggetto_id}",
+                  d.get("causa", ""), ", ".join(d.get("ricevuti") or []), ", ".join(d.get("tolti") or []),
+                  v.utente_display]
+        for c, valore in enumerate(valori, start=1):
+            write_cell(ws, r, c, valore)
+    if not voci:
+        write_cell(ws, 2, 1, "Nessuna variazione registrata negli ultimi 12 mesi.")
+    for col, larghezza in zip("ABCDEF", (16, 30, 48, 36, 36, 26)):
+        ws.column_dimensions[col].width = larghezza
+
+
 def genera_riesame_xlsx(*, preparato_da: str, sistema_attivo: bool) -> bytes:
     from openpyxl import Workbook
 
@@ -160,7 +187,10 @@ def genera_riesame_xlsx(*, preparato_da: str, sistema_attivo: bool) -> bytes:
     for col, larghezza in zip("ABCD", (34, 40, 26, 14)):
         ws.column_dimensions[col].width = larghezza
 
-    # 5. Account Microsoft 365 confrontati con l'anagrafica (core.account_m365).
+    # 5. Variazioni degli accessi dovute all'organigramma negli ultimi 12 mesi (core.permessi.variazioni).
+    _foglio_variazioni(wb, oggi)
+
+    # 6. Account Microsoft 365 confrontati con l'anagrafica (core.account_m365).
     _foglio_account_m365(wb)
 
     buffer = BytesIO()

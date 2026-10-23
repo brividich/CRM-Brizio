@@ -47,8 +47,10 @@ class CoreConfig(AppConfig):
         _install_user_full_name()
 
         from .permessi.segnali import collega_segnali
+        from .permessi.variazioni import collega_segnali as collega_variazioni
 
         collega_segnali()
+        collega_variazioni()
 
 
 def _user_get_full_name(self) -> str:
