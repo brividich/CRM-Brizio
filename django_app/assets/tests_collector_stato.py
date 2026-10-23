@@ -104,13 +104,13 @@ class IngestStatoTests(TestCase):
         self.assertEqual(mtconnect.leggi_tutti(), {"collegamenti": 0})
 
 
-PORTALE_PY = Path(__file__).resolve().parents[2] / "tools" / "collector_cnc" / "portale.py"
+PORTALE_PY = Path(__file__).resolve().parent / "collector_cnc" / "portale.py"
 
 
 @skipUnless(PORTALE_PY.exists(), "collector non presente in questo pacchetto")
 @override_settings(ASSETS_METER_INGEST_ALLOWED_IPS=["127.0.0.1"])
 class ContrattoConIlCollectorTests(TestCase):
-    """Il payload prodotto da tools/collector_cnc/portale.py è quello che l'endpoint si aspetta."""
+    """Il payload prodotto da django_app/assets/collector_cnc/portale.py è quello che l'endpoint si aspetta."""
 
     def setUp(self):
         spec = importlib.util.spec_from_file_location("portale_collector", PORTALE_PY)
@@ -247,3 +247,109 @@ class CollectorDalPortaleTests(TestCase):
                 patch("assets.views_mtconnect._puo_amministrare", return_value=False):
             self.client.post(self.url, {"azione": "collector_crea", "nome": "Abusivo", "ips": "127.0.0.1", "tutte": "on"})
         self.assertFalse(MeterIngestClient.objects.exists())
+
+
+
+@override_settings(ASSETS_METER_INGEST_ALLOWED_IPS=["127.0.0.1"])
+class CollectorIntegratoTests(TestCase):
+    """Collector «Sul server del portale»: stesso codice, scrittura diretta nel database."""
+
+    def setUp(self):
+        from assets.services import collector_cnc
+
+        self.svc = collector_cnc
+        self.asset = Asset.objects.create(asset_tag="CNC-INT-1", name="Fresa sintetica", asset_type=Asset.TYPE_CNC)
+        AssetMeter.objects.create(asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=Decimal("10"))
+        CollegamentoMTConnect.objects.create(asset=self.asset, fonte="collector_opcua", opcua_host="192.0.2.30", codice="DM9")
+
+    def _diretto(self):
+        from assets.collector_cnc.diretto import PortaleDiretto
+
+        return PortaleDiretto(prog_name=lambda x: str(x or ""))
+
+    def test_modalita_e_elenco(self):
+        self.assertEqual(self.svc.modalita(), "pc")
+        self.assertEqual(self._diretto().scarica_macchine(), [])  # sul PC: il server non legge niente
+        self.svc.imposta_modalita("server")
+        self.assertEqual([m["name"] for m in self._diretto().scarica_macchine()], ["DM9"])
+        with self.assertRaises(ValueError):
+            self.svc.imposta_modalita("boh")
+
+    def test_il_pc_non_riceve_macchine_se_il_collector_e_sul_server(self):
+        token = MeterIngestClient.issue_token()
+        client = MeterIngestClient(name="PC officina", all_meter_assets=True)
+        client.set_token(token)
+        client.save()
+        url = "/api/assets/contatori/ingest/config/"
+        self.assertEqual(len(self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {token}").json()["machines"]), 1)
+        self.svc.imposta_modalita("server")
+        dati = self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {token}").json()
+        self.assertEqual((dati["modalita"], dati["machines"]), ("server", []))
+
+    def test_scrive_stato_e_contatori_nel_database(self):
+        import asyncio
+        from unittest.mock import patch
+
+        from assets.collector_cnc.portale import URL_CONTATORI, URL_STATO
+
+        p = self._diretto()
+        adesso = timezone.now()
+        riga = {"asset_tag": "CNC-INT-1", "stato": "LAVORO", "dal": (adesso - timedelta(minutes=2)).isoformat(), "programma": "P1"}
+        lettura = {"asset_tag": "CNC-INT-1", "meter_type": "HOURS", "value": 12.5, "read_at": adesso.isoformat()}
+        # La scrittura (nel servizio gira in un thread di asyncio.to_thread) si prova direttamente:
+        # dentro un ciclo asyncio Django aprirebbe un'altra connessione, fuori dalla transazione del test.
+        self.assertEqual(p.scrivi(URL_STATO, {"macchine": [riga]})["accepted"], 1)
+        self.assertEqual(p.scrivi(URL_CONTATORI, {"readings": [lettura]})["accepted"], 1)
+        # invia() passa la stessa scrittura a un thread e dice se è andata.
+        chiamate = []
+
+        async def finto_thread(funzione, *args):
+            chiamate.append((funzione, args))
+            return {"results": []}
+
+        with patch.object(asyncio, "to_thread", finto_thread):
+            self.assertTrue(asyncio.run(p.invia(URL_STATO, {"macchine": [riga]})))
+        self.assertEqual(chiamate[0][1], (URL_STATO, {"macchine": [riga]}))
+        coll = CollegamentoMTConnect.objects.get(asset=self.asset)
+        self.assertEqual((coll.stato, coll.programma), ("in_lavoro", "P1"))
+        self.assertEqual(AssetMeter.objects.get(asset=self.asset).current_value, Decimal("12.50"))
+
+    def test_battito_e_controllo_infrastruttura(self):
+        from datetime import timedelta as td
+        from unittest.mock import patch
+
+        from monitoring.health import STATUS_FAIL, STATUS_OK, STATUS_SKIPPED
+        from monitoring.infra_checks import check_collector_cnc
+
+        self.assertEqual(check_collector_cnc().status, STATUS_SKIPPED)  # modalità PC
+        self.svc.imposta_modalita("server")
+        self.assertEqual(check_collector_cnc().status, STATUS_FAIL)  # mai partito
+        self.svc.registra_battito(3)
+        self.assertEqual(check_collector_cnc().status, STATUS_OK)
+        with patch("django.utils.timezone.now", return_value=timezone.now() + td(minutes=10)):
+            self.assertEqual(check_collector_cnc().status, STATUS_FAIL)
+
+    def test_comando_prova(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("collector_cnc", "--prova", stdout=out)
+        self.assertIn("DM9: 192.0.2.30:4840", out.getvalue())
+        self.assertIn("PC dell'officina", out.getvalue())
+
+    def test_pagina_scelta_modalita(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from core.models import UserOnboarding
+
+        admin = get_user_model().objects.create_superuser(username="adm_int", email="a@a.it", password="x")
+        UserOnboarding.objects.create(user=admin, completed=True)
+        self.client.force_login(admin)
+        url = reverse("assets:mtconnect_collegamenti")
+        self.assertContains(self.client.get(url), "Dove gira il collector")
+        self.client.post(url, {"azione": "collector_modalita", "modalita": "server"})
+        self.assertEqual(self.svc.modalita(), "server")
+        self.assertContains(self.client.get(url), "Mai partito")

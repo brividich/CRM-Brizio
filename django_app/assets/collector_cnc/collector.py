@@ -29,7 +29,10 @@ from pathlib import Path
 
 from asyncua import Client, ua
 
-from portale import AGGIORNA_ELENCO, Portale
+try:
+    from .portale import AGGIORNA_ELENCO, Portale   # dentro il portale (manage.py collector_cnc)
+except ImportError:
+    from portale import AGGIORNA_ELENCO, Portale    # sul PC dell'officina (py collector.py)
 
 # ----------------------------------------------------------------------------
 # Parametri
@@ -573,42 +576,34 @@ async def status_printer(elenco):
         print("-" * 79 + "\n")
 
 
-async def main():
-    ap = argparse.ArgumentParser(description="Collector OPC UA DMG MORI (sola lettura)")
-    here = Path(__file__).resolve().parent   # file accanto allo script, da qualunque cartella lo lanci
-    ap.add_argument("--config", default=str(here / "machines.json"))
-    ap.add_argument("--db", default=str(here / "machines.db"))
-    ap.add_argument("--debug", action="store_true")
-    args = ap.parse_args()
+async def avvia(portale, db_path, config_path=None, copia_path=None):
+    """Legge le macchine finché non viene fermato.
 
-    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
-                        format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
-    for noisy in ("asyncua", "asyncio"):
-        logging.getLogger(noisy).setLevel(logging.ERROR)
-
-    db = DB(args.db)
+    ``portale``: dove prendere l'elenco e mandare stato e contatori (``Portale`` via HTTP dal PC
+    dell'officina, ``PortaleDiretto`` dentro il portale) oppure None (solo machines.json, nessun invio).
+    ``copia_path``: dove tenere l'ultimo elenco scaricato, per ripartire se il portale non risponde.
+    """
+    db = DB(db_path)
     db.close_dangling()
-    copia = Path(args.config).with_name("machines.portale.json")   # ultimo elenco scaricato (resta sul PC)
-    portale = Portale.da_ambiente([], prog_name)
     elenco = None
     if portale is not None:
         elenco = await asyncio.to_thread(portale.scarica_macchine)
         if elenco is not None:
-            copia.write_text(json.dumps({"machines": elenco}, indent=1), encoding="utf-8")
+            if copia_path:
+                copia_path.write_text(json.dumps({"machines": elenco}, indent=1), encoding="utf-8")
             print(f"Elenco delle macchine dal portale: {len(elenco)}.")
-        elif copia.exists():
-            elenco = json.loads(copia.read_text(encoding="utf-8"))["machines"]
+        elif copia_path and copia_path.exists():
+            elenco = json.loads(copia_path.read_text(encoding="utf-8"))["machines"]
             print(f"Portale non raggiungibile: uso l'ultimo elenco scaricato ({len(elenco)} macchine).")
     if elenco is None:
-        cfg_path = Path(args.config)
-        elenco = json.loads(cfg_path.read_text(encoding="utf-8"))["machines"] if cfg_path.exists() else []
-        print(f"Elenco delle macchine da {cfg_path.name}: {len(elenco)}.")
+        elenco = json.loads(config_path.read_text(encoding="utf-8"))["machines"] if config_path and config_path.exists() else []
+        print(f"Elenco delle macchine da {config_path.name if config_path else '(nessun file)'}: {len(elenco)}.")
     if portale is None:
         print("Invio al portale spento (mancano PORTALE_URL e PORTALE_TOKEN).")
 
     attive = {}   # nome -> (Machine, task, configurazione)
 
-    def avvia(c):
+    def parti(c):
         m = Machine(c, db)
         attive[m.name] = (m, asyncio.create_task(m.run(), name=m.name), dict(c))
 
@@ -630,7 +625,7 @@ async def main():
                 ferma(nome)
         for nome, c in voluto.items():
             if nome not in attive:
-                avvia(c)
+                parti(c)
         if portale is not None:
             portale.machines = [m for m, _t, _c in attive.values() if m.asset_tag]
 
@@ -640,10 +635,11 @@ async def main():
             nuovo = await asyncio.to_thread(portale.scarica_macchine)
             if nuovo is not None:
                 applica(nuovo)
-                copia.write_text(json.dumps({"machines": nuovo}, indent=1), encoding="utf-8")
+                if copia_path:
+                    copia_path.write_text(json.dumps({"machines": nuovo}, indent=1), encoding="utf-8")
 
     applica(elenco)
-    print(f"Collector avviato: {len(attive)} macchine, database {Path(args.db).resolve()}. CTRL+C per uscire.\n")
+    print(f"Collector avviato: {len(attive)} macchine, database {Path(db_path).resolve()}.\n")
     servizi = [status_printer(lambda: [m for m, _t, _c in attive.values()])]
     if portale is not None:
         servizi += [portale.run(), aggiorna_elenco()]
@@ -652,6 +648,26 @@ async def main():
     finally:
         for nome in list(attive):
             ferma(nome)
+
+
+def configura_log(debug=False):
+    logging.basicConfig(level=logging.DEBUG if debug else logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+    for noisy in ("asyncua", "asyncio"):
+        logging.getLogger(noisy).setLevel(logging.ERROR)
+
+
+async def main():
+    """Avvio dal PC dell'officina: py collector.py [--config machines.json] [--db machines.db]."""
+    ap = argparse.ArgumentParser(description="Collector OPC UA DMG MORI (sola lettura)")
+    here = Path(__file__).resolve().parent   # file accanto allo script, da qualunque cartella lo lanci
+    ap.add_argument("--config", default=str(here / "machines.json"))
+    ap.add_argument("--db", default=str(here / "machines.db"))
+    ap.add_argument("--debug", action="store_true")
+    args = ap.parse_args()
+    configura_log(args.debug)
+    config = Path(args.config)
+    await avvia(Portale.da_ambiente([], prog_name), args.db, config, config.with_name("machines.portale.json"))
 
 
 if __name__ == "__main__":
