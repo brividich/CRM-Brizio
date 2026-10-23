@@ -45,7 +45,7 @@
           {% endif %}
           {% if r.role_available %}
             <div class="acl-state">
-              <div class="acl-state-name">Ruolo «{{ r.role.name }}»<small>{{ r.role.members_label }}</small></div>
+              <div class="acl-state-name">{% if r.role.portale %}Accessi «{{ r.role.name }}»<small>{% if r.role.ruolo_azienda %}dal ruolo in azienda «{{ r.role.ruolo_azienda }}» · {% endif %}{{ r.role.members_label }}</small>{% else %}Ruolo «{{ r.role.name }}»<small>{{ r.role.members_label }}</small>{% endif %}</div>
               <span class="acl-chip {{ r.role_state }}">{{ r.role_state_label }}</span>
             </div>
           {% endif %}

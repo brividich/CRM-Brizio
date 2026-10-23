@@ -41,7 +41,7 @@
                 <tr>
                   <td>
                     <div class="acl-text">{{ row.person_name }}</div>
-                    {% if a %}<div class="acl-muted">Ruolo «{{ a.role.name }}»</div>{% endif %}
+                    {% if a %}<div class="acl-muted">{% if a.role.portale %}{% if a.role.ruolo_azienda %}Ruolo «{{ a.role.ruolo_azienda }}» · {% endif %}accessi «{{ a.role.name }}»{% else %}Ruolo «{{ a.role.name }}»{% endif %}</div>{% endif %}
                   </td>
                   <td>
                     <div class="acl-text">{% if a %}{{ a.permission_label }}{% else %}{{ ev.path }}{% endif %}</div>

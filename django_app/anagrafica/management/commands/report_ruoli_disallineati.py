@@ -147,6 +147,8 @@ class Command(BaseCommand):
         senza_principale: list[tuple[int, list[str]]] = []
         senza_assegnazione: list[tuple[int, str]] = []
         principale_concluso: list[tuple[int, str, list[str]]] = []
+        nome_diverso: list[tuple[int, str, str]] = []
+        piu_principali: list[tuple[int, list[str]]] = []
         se_stessi: list[int] = []
         capo_senza_reparto: list[tuple[int, int]] = []
 
@@ -172,6 +174,24 @@ class Command(BaseCommand):
                     )
                 else:
                     senza_assegnazione.append((legacy_id, principale))
+
+            # 6. La scheda dice un nome, l'organigramma un altro (es. «Dept Chief» dopo
+            #    l'accorpamento in «Caporeparto»): vale il ruolo principale in corso.
+            principali: dict[int, list[str]] = {}
+            for a in DipendenteRuoloOperativo.objects.filter(
+                tipologia=DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE,
+            ).select_related("ruolo", "ruolo__ambito"):
+                if a.ruolo.alimenta_ruolo_principale and a.ruolo.is_active and not (a.data_fine and a.data_fine < oggi):
+                    principali.setdefault(a.legacy_anagrafica_id, []).append(a.ruolo.nome)
+            for legacy_id, nomi in principali.items():
+                if len(nomi) > 1:
+                    piu_principali.append((legacy_id, sorted(nomi, key=str.casefold)))
+                    continue
+                az = schede.get(legacy_id)
+                testo = (az.ruolo_aziendale or "").strip() if az else ""
+                if testo and testo.casefold() != nomi[0].casefold() and testo.casefold() not in {
+                        n.casefold() for n in assegnazioni.get(legacy_id, [])}:
+                    nome_diverso.append((legacy_id, testo, nomi[0]))
 
         if solo != "ruoli":
             for legacy_id, az in schede.items():
@@ -208,12 +228,22 @@ class Command(BaseCommand):
             self.stdout.write(f"  Ruolo aziendale che punta a un ruolo CONCLUSO: {len(principale_concluso)}")
             for legacy_id, nome, restanti in sorted(principale_concluso, key=lambda x: label(x[0])):
                 sostituto = restanti[0] if len(restanti) == 1 else ("—" if not restanti else "scelta manuale")
-                self.stdout.write(f"    - {label(legacy_id)}: «{nome}» concluso → {sostituto}")
+                self.stdout.write(f"    - {label(legacy_id)}: «{nome}» concluso -> {sostituto}")
 
             self.stdout.write("")
             self.stdout.write(f"  Ruolo aziendale senza assegnazione nel catalogo: {len(senza_assegnazione)}")
             for legacy_id, nome in sorted(senza_assegnazione, key=lambda x: label(x[0])):
                 self.stdout.write(f"    - {label(legacy_id)}: {nome}")
+
+            self.stdout.write("")
+            self.stdout.write(f"  Ruolo aziendale con un nome diverso dal ruolo principale: {len(nome_diverso)}")
+            for legacy_id, testo, nome in sorted(nome_diverso, key=lambda x: label(x[0])):
+                self.stdout.write(f"    - {label(legacy_id)}: «{testo}» -> «{nome}»")
+
+            self.stdout.write("")
+            self.stdout.write(f"  Più di un ruolo principale (da scegliere a mano): {len(piu_principali)}")
+            for legacy_id, nomi in sorted(piu_principali, key=lambda x: label(x[0])):
+                self.stdout.write(f"    - {label(legacy_id)}: {', '.join(nomi)}")
 
         if solo != "ruoli":
             self.stdout.write("")
@@ -235,7 +265,7 @@ class Command(BaseCommand):
                 "--azzera-responsabili-scollegati."
             )
             for legacy_id, capo in sorted(capo_senza_reparto, key=lambda x: label(x[0])):
-                self.stdout.write(f"    - {label(legacy_id)} → responsabile: {label(capo)}")
+                self.stdout.write(f"    - {label(legacy_id)} -> responsabile: {label(capo)}")
 
         if not apply_changes:
             self.stdout.write("")
@@ -275,6 +305,12 @@ class Command(BaseCommand):
                 )
                 creati += int(creata)
 
+            rinominati = 0
+            for legacy_id, _testo, nome in nome_diverso:
+                DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).update(
+                    ruolo_aziendale=nome[:200], updated_at=timezone.now())
+                rinominati += 1
+
             # Di default si azzera solo chi è responsabile di sé stesso: è un
             # dato senza significato. Chi è privo di collocazione ha quasi
             # sempre un responsabile corretto e un reparto da compilare —
@@ -292,7 +328,8 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(
             f"Riparati: {promossi} ruoli principali impostati, {creati} assegnazioni create, "
-            f"{azzerati} responsabili azzerati, {conclusi_ripuliti} ruoli principali conclusi ripuliti."
+            f"{azzerati} responsabili azzerati, {conclusi_ripuliti} ruoli principali conclusi ripuliti, "
+            f"{rinominati} ruoli aziendali allineati al principale."
         ))
         if saltati_multiruolo:
             self.stdout.write(self.style.WARNING(
