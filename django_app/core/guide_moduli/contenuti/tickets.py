@@ -67,7 +67,13 @@ GUIDA = {
                 ("p", "Ticket → «Impostazioni». Ci sono due schede separate, IT e MAN: ognuna si salva con il suo pulsante («Salva IT», «Salva MAN»)."),
                 ("ul", [
                     "Categorie: «Aggiungi», attiva/disattiva, «Elimina». Ogni categoria ha il suo tempo di risposta (SLA).",
-                    "Import delle categorie da file: «Scarica template CSV», compilalo, poi «Importa».",
+                    "Import dei ticket da file («Importa Ticket da CSV»): scegli IT o MAN, «Scarica template CSV», "
+                    "poi «Scegli file CSV/Excel…» e «Importa». Il CSV va separato da virgole: dall'Excel italiano "
+                    "conviene caricare direttamente il file .xlsx.",
+                    "L'import non manda mail: le automazioni (avvisi «nuovo ticket», escalation) non partono per i ticket importati.",
+                    "Un ticket importato risulta chiuso se la colonna «Chiuso» vale 1, Sì, Vero o x, oppure se ha una "
+                    "«Data chiusura ticket» / «Data fine lavori». Per correggere ticket già importati come aperti, "
+                    "reimporta lo stesso file con «Aggiorna ticket esistenti» spuntato (serve la colonna «ID»).",
                     "Escalation dei ticket urgenti: accesa o spenta, soglia in ore (predefinita 4) e ora del resoconto (predefinita 8). «Salva escalation».",
                 ]),
             ],

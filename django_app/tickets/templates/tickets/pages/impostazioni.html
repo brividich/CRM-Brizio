@@ -512,7 +512,7 @@ body.theme-dark .tkt-import-result ul{color:#fca5a5}
     <div class="tkt-card-header" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
       <div>
         <div class="tkt-card-title">📥 Importa Ticket da CSV</div>
-        <div class="tkt-card-sub">Importa ticket storici o batch. I ticket già presenti vengono saltati (o aggiornati se l'opzione è attiva).</div>
+        <div class="tkt-card-sub">Importa ticket storici o batch. I ticket già presenti vengono saltati (o aggiornati se l'opzione è attiva). L'import non invia mail né fa partire le automazioni.</div>
       </div>
     </div>
 
@@ -555,7 +555,7 @@ body.theme-dark .tkt-import-result ul{color:#fca5a5}
         Sono accettati sia i nomi colonna standard che quelli SharePoint.&nbsp;|&nbsp;
         <code>priorita/Priorità</code>: BASSA/MEDIA/ALTA/URGENTE oppure Bassa/Media/Alta/Urgente &nbsp;|&nbsp;
         <code>stato</code>: APERTA/IN_CARICO/RISOLTO/CHIUSO/ANNULLATO &nbsp;|&nbsp;
-        <code>Chiuso</code>: 0 o 1 (formato SharePoint) &nbsp;|&nbsp;
+        <code>Chiuso</code>: 1/Sì/Vero/x = chiuso (formato SharePoint); anche una data di chiusura chiude il ticket &nbsp;|&nbsp;
         <code>incide_sicurezza/Impatto su sicurezza</code>: 0 o 1 &nbsp;|&nbsp;
         Date: gg/mm/aaaa HH:MM oppure aaaa-mm-gg
       </span>
