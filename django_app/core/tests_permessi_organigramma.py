@@ -274,6 +274,23 @@ class PaginaCollegamentoOrganigrammaTests(OrganigrammaMixin, TestCase):
         self.assertContains(risposta, "Dall'organigramma")
         self.assertContains(risposta, self.r_personale.nome)
 
+    def test_matrice_mostra_chi_ha_il_ruolo(self):
+        from core.models import AccessGroupMembership
+
+        self.r_personale.profili_permessi.add(self.hr)
+        _u1, da_org = self.persona("Dall organigramma")
+        self.assegna(da_org, self.r_personale)
+        _u2, a_mano = self.persona("Messo a mano")
+        AccessGroupMembership.objects.create(group=self.hr, legacy_user_id=a_mano.id, note="nomina TEST")
+        _u3, estraneo = self.persona("Senza ruolo")
+        risposta = self.client.get(f"/admin-portale/ruoli-portale/?tab=matrice&ruolo={self.hr.id}")
+        self.assertContains(risposta, "Chi ha il ruolo")
+        self.assertContains(risposta, da_org.nome)
+        self.assertContains(risposta, f"organigramma: {self.r_personale.nome}")
+        self.assertContains(risposta, a_mano.nome)
+        self.assertContains(risposta, "nomina TEST")
+        self.assertNotContains(risposta, estraneo.nome)
+
     def test_scadenza_dei_ruoli_dalla_scheda_persona(self):
         from core.models import AccessGroupMembership
 
