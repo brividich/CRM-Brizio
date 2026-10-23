@@ -86,3 +86,11 @@ class TablePrefsCapTests(TestCase):
     def test_blob_enorme_rifiutato(self):
         resp = self._post({"q": "x" * 40000})
         self.assertEqual(resp.status_code, 400)
+
+
+class TablePrefsCondiviseTests(TestCase):
+    def test_preferenze_tabella_aperte_a_ogni_utente_collegato(self):
+        from core.middleware import is_acl_shared_path
+
+        self.assertTrue(is_acl_shared_path("/api/table-prefs/auto.test.t1.abc/"))
+
