@@ -6,8 +6,8 @@
 {% block assets_shell_head %}
 <style>
 /* Mappa officina: solo token di tema (valgono anche in dark). Colori di stato su body. */
-body{--pl-ticket:#dc2626;--pl-overdue:#ea580c;--pl-workorder:#2563eb;--pl-due_soon:#ca8a04;--pl-repair:#7c3aed;--pl-ok:#16a34a}
-body.theme-dark{--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;--pl-due_soon:#facc15;--pl-repair:#a78bfa;--pl-ok:#4ade80}
+body{--pl-alarm:#be123c;--pl-ticket:#dc2626;--pl-overdue:#ea580c;--pl-workorder:#2563eb;--pl-due_soon:#ca8a04;--pl-repair:#7c3aed;--pl-ok:#16a34a}
+body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;--pl-due_soon:#facc15;--pl-repair:#a78bfa;--pl-ok:#4ade80}
 .pl-page{display:grid;gap:14px}
 .pl-kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .pl-kpi{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:12px 14px;display:grid;gap:2px}
@@ -25,7 +25,7 @@ body.theme-dark{--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;
 .pl-chip b{font-weight:900}
 .pl-chip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
 .pl-dot{width:9px;height:9px;border-radius:50%;background:var(--pl-dot,var(--text-light));flex:none;display:inline-block}
-.pl-dot.is-ticket{--pl-dot:var(--pl-ticket)}.pl-dot.is-overdue{--pl-dot:var(--pl-overdue)}.pl-dot.is-workorder{--pl-dot:var(--pl-workorder)}
+.pl-dot.is-alarm{--pl-dot:var(--pl-alarm)}.pl-dot.is-ticket{--pl-dot:var(--pl-ticket)}.pl-dot.is-overdue{--pl-dot:var(--pl-overdue)}.pl-dot.is-workorder{--pl-dot:var(--pl-workorder)}
 .pl-dot.is-due_soon{--pl-dot:var(--pl-due_soon)}.pl-dot.is-repair{--pl-dot:var(--pl-repair)}.pl-dot.is-ok{--pl-dot:var(--pl-ok)}
 .pl-dot.is-state-overdue{--pl-dot:var(--pl-ticket)}.pl-dot.is-state-due_soon{--pl-dot:var(--pl-due_soon)}.pl-dot.is-state-ok{--pl-dot:var(--pl-ok)}
 .pl-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start}
@@ -56,9 +56,9 @@ body.theme-dark{--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;
 .pl-area-alert{background:var(--pl-ticket);color:#fff;border-radius:999px;padding:3px 7px;font-size:var(--fs-2xs);font-weight:900}
 .pl-pin{position:absolute;padding:0;width:16px;height:16px;border-radius:50%;border:0;background:var(--pl-c,var(--pl-ok));
   transform:translate(-50%,-50%) scale(calc(1 / var(--pl-z)));box-shadow:0 0 0 3px #fff,0 4px 10px rgba(15,23,42,.3);cursor:pointer;z-index:2}
-.pl-pin.is-ticket{--pl-c:var(--pl-ticket)}.pl-pin.is-overdue{--pl-c:var(--pl-overdue)}.pl-pin.is-workorder{--pl-c:var(--pl-workorder)}
+.pl-pin.is-alarm{--pl-c:var(--pl-alarm)}.pl-pin.is-ticket{--pl-c:var(--pl-ticket)}.pl-pin.is-overdue{--pl-c:var(--pl-overdue)}.pl-pin.is-workorder{--pl-c:var(--pl-workorder)}
 .pl-pin.is-due_soon{--pl-c:var(--pl-due_soon)}.pl-pin.is-repair{--pl-c:var(--pl-repair)}.pl-pin.is-ok{--pl-c:var(--pl-ok);width:12px;height:12px}
-.pl-pin.is-ticket::after,.pl-pin.is-overdue::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--pl-c);animation:pl-pulse 1.8s ease-out infinite}
+.pl-pin.is-alarm::after,.pl-pin.is-ticket::after,.pl-pin.is-overdue::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--pl-c);animation:pl-pulse 1.8s ease-out infinite}
 @keyframes pl-pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.7);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pl-pin::after{animation:none!important;opacity:.5}}
 .pl-pin:focus-visible,.pl-pin:hover{outline:2px solid var(--primary-mid);outline-offset:3px;z-index:4}
@@ -67,7 +67,7 @@ body.theme-dark{--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;
 .pl-pin-badge{position:absolute;top:-9px;left:-10px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--pl-ticket);color:#fff;font-size:9px;font-weight:900;line-height:15px;text-align:center;box-shadow:0 0 0 2px #fff}
 .pl-pin-label{position:absolute;left:18px;top:50%;transform:translateY(-50%);background:#fff;color:#0f172a;border-radius:4px;padding:0 4px;font-size:10px;font-weight:800;line-height:14px;white-space:nowrap;box-shadow:0 0 0 1px rgba(15,23,42,.18);display:none}
 .pl-view.show-labels .pl-pin:not(.is-ok) .pl-pin-label,.pl-view.is-zoomed .pl-pin-label,.pl-pin.is-selected .pl-pin-label{display:block}
-.pl-view.hide-ticket .pl-pin.is-ticket,.pl-view.hide-overdue .pl-pin.is-overdue,.pl-view.hide-workorder .pl-pin.is-workorder,
+.pl-view.hide-alarm .pl-pin.is-alarm,.pl-view.hide-ticket .pl-pin.is-ticket,.pl-view.hide-overdue .pl-pin.is-overdue,.pl-view.hide-workorder .pl-pin.is-workorder,
 .pl-view.hide-due_soon .pl-pin.is-due_soon,.pl-view.hide-repair .pl-pin.is-repair,.pl-view.hide-ok .pl-pin.is-ok{display:none}
 .pl-hint{margin:8px 0 0;color:var(--text-light);font-size:var(--fs-xs);text-align:center}
 .pl-side{display:grid;gap:0}
@@ -98,6 +98,9 @@ body.theme-dark{--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;
 .pl-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:var(--fs-sm)}
 .pl-dl dt{color:var(--text-mid)}.pl-dl dd{margin:0;font-weight:700;color:var(--text)}
 .pl-actions{display:flex;flex-wrap:wrap;gap:6px}
+.pl-live{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:800;color:var(--text-mid)}
+.pl-live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pl-live,var(--text-light))}
+.pl-live.is-in_lavoro{--pl-live:var(--pl-ok)}.pl-live.is-ferma{--pl-live:var(--pl-overdue)}.pl-live.is-allarme,.pl-live.is-non_raggiungibile{--pl-live:var(--pl-alarm)}.pl-live.is-pronta{--pl-live:var(--pl-workorder)}
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .pl-view{background:var(--surface)}
@@ -108,7 +111,7 @@ body.theme-dark .pl-back{color:#93c5fd}
 
 {% block assets_shell_title %}Planimetrie impianti{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Dove sono le macchine e cosa c'e' da fare: ticket, OdL e manutenzioni direttamente sulla planimetria.</p>
+<p>Dove sono le macchine e cosa c'e' da fare: allarmi delle CNC collegate, ticket, OdL e manutenzioni direttamente sulla planimetria.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
 <a class="btn" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
@@ -154,6 +157,13 @@ body.theme-dark .pl-back{color:#93c5fd}
       <span class="pl-kpi-value">{{ plant_layout_payload.markers_with_tickets }}</span>
       <span class="pl-kpi-sub">in rosso sulla mappa</span>
     </div>
+    {% if plant_layout_payload.alert_counts.alarm %}
+    <div class="pl-kpi is-danger">
+      <span class="pl-kpi-label">Allarmi sulle CNC</span>
+      <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.alarm }}</span>
+      <span class="pl-kpi-sub">dal controllo della macchina (MTConnect)</span>
+    </div>
+    {% endif %}
     <div class="pl-kpi {% if plant_layout_payload.alert_counts.overdue %}is-warn{% endif %}">
       <span class="pl-kpi-label">Manutenzione scaduta</span>
       <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.overdue }}</span>
@@ -241,7 +251,7 @@ body.theme-dark .pl-back{color:#93c5fd}
   var areas = payload.areas || [];
   var markers = payload.markers || [];
   var labels = payload.alert_labels || {};
-  var ORDER = ["ticket", "overdue", "workorder", "due_soon", "repair", "ok"];
+  var ORDER = ["alarm", "ticket", "overdue", "workorder", "due_soon", "repair", "ok"];
   var view = document.querySelector("[data-pl-view]");
   var stage = document.querySelector("[data-pl-stage]");
   var pins = Array.prototype.slice.call(document.querySelectorAll("[data-marker-id]"));
@@ -354,7 +364,9 @@ body.theme-dark .pl-back{color:#93c5fd}
     var name = el("span", "pl-list-name", machine.name || machine.asset_tag);
     name.appendChild(el("small", "", [machine.asset_tag, machine.reparto].filter(Boolean).join(" · ")));
     b.appendChild(name);
-    b.appendChild(el("span", "pl-list-state", machine.alert && machine.alert !== "ok" ? labels[machine.alert] : ""));
+    if (machine.alert && machine.alert !== "ok") b.appendChild(el("span", "pl-list-state", labels[machine.alert]));
+    else if (machine.live) b.appendChild(el("span", "pl-live is-" + machine.live.stato, machine.live.label));
+    else b.appendChild(el("span", "pl-list-state", ""));
     b.addEventListener("click", onClick);
     li.appendChild(b);
     return li;
@@ -447,6 +459,30 @@ body.theme-dark .pl-back{color:#93c5fd}
     [machine.status, machine.manufacturer, machine.model, machine.cnc_controlled ? "CNC" : "", machine.five_axes ? "5 assi" : "", machine.location ? "Posizione " + machine.location : ""]
       .filter(Boolean).forEach(function (t) { pills.appendChild(el("span", "pl-pill", t)); });
     if (pills.children.length) panel.appendChild(pills);
+
+    var live = machine.live;
+    if (live) {
+      var lb = el("div", "pl-box");
+      lb.style.setProperty("--pl-dot", live.stato === "allarme" || live.stato === "non_raggiungibile" ? "var(--pl-alarm)" : live.stato === "in_lavoro" ? "var(--pl-ok)" : live.stato === "ferma" ? "var(--pl-overdue)" : "var(--border)");
+      lb.appendChild(el("div", "pl-box-title", "Dal controllo della macchina"));
+      lb.appendChild(el("span", "pl-live is-" + live.stato, live.label + (live.dal ? " dal " + live.dal : "")));
+      var ldl = el("dl", "pl-dl");
+      function lrow(k, v) { if (!v) return; ldl.appendChild(el("dt", "", k)); ldl.appendChild(el("dd", "", String(v))); }
+      lrow("Programma", live.programma);
+      lrow("Modalità", live.modalita);
+      lrow("Pezzi sulla CNC", live.pezzi);
+      lrow("Oggi in lavoro", live.ore_oggi ? live.ore_oggi + " h" : "");
+      lrow("Letto alle", live.letto);
+      lb.appendChild(ldl);
+      (live.allarmi || []).slice(0, 5).forEach(function (a) {
+        var r = el("div", "pl-row");
+        r.appendChild(el("span", "pl-row-num", a.livello === "allarme" ? "Allarme" : "Avviso"));
+        r.appendChild(el("span", "pl-row-title", [a.codice, a.testo || a.tipo].filter(Boolean).join(" · ")));
+        lb.appendChild(r);
+      });
+      if (live.errore) lb.appendChild(el("p", "pl-detail-sub", live.errore));
+      panel.appendChild(lb);
+    }
 
     var tickets = (marker && marker.tickets) || machine.tickets || [];
     if (tickets.length) {

@@ -32,7 +32,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
-    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software"),
+    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
     "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
     "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione"),
@@ -124,6 +124,36 @@ CONNESSIONI_ESTERNE: list[dict] = [
                "Audit sigillato (export mensile su SharePoint: SiteConfig audit_export_sp_drive_id / audit_export_sp_cartella).",
         "config": "GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET e gli ID delle liste (Setup Wizard → Microsoft Graph / SharePoint)",
         "controllo": "Errori 401/403/invalid_client = segreto dell'app scaduto: rinnovarlo su Entra ID.",
+    },
+    {
+        "nome": "Veeam Backup & Replication (REST API)",
+        "cosa": "Sessioni di backup concluse con l'esito per macchina e spazio dei repository, lette ogni 15 minuti dal "
+                "security_cycle (solo letture, in uscita verso il server Veeam sulla porta 9419). Finiscono in "
+                "security_backupjobrecord ed eventi del SOC, come le mail di esito Veeam.",
+        "chi": "SOC → Backup (riquadro «Lettura diretta da Veeam»), alert «Repository di backup quasi pieno».",
+        "config": "VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD (utente con ruolo Veeam Backup Viewer), facoltativi "
+                  "VEEAM_API_VERSION e VEEAM_API_CA_BUNDLE nel .env; interruttore in /soc/impostazioni/.",
+        "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
+    },
+    {
+        "nome": "Agent MTConnect delle CNC",
+        "cosa": "Stato delle macchine (in lavoro, pronta, ferma, in allarme, spenta), programma, pezzi, allarmi e ore di lavoro, letti "
+                "ogni 2 minuti con HTTP GET /current dall'agent di ogni macchina (solo letture, solo rete interna). Finiscono in "
+                "assets_collegamentomtconnect, assets_periodostatomacchina e nei contatori assets_assetmeter (fonte MTConnect).",
+        "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
+        "config": "Pagina Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/): indirizzo dell'agent per macchina. "
+                  "Schedule mtconnect_poll (ogni 2 minuti).",
+        "controllo": "«Prova» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina.",
+    },
+    {
+        "nome": "DHCP e DNS di Windows Server",
+        "cosa": "Ambiti DHCP con l'occupazione, lease e prenotazioni (IP, MAC, nome) e record A del DNS, letti ogni ora "
+                "con PowerShell in locale (moduli RSAT DhcpServer/DnsServer, solo letture). Finiscono in assets_ambitodhcp "
+                "e assets_indirizzorete.",
+        "chi": "Asset → Indirizzi IP (dispositivi non censiti, record DNS vecchi), riconciliazione dispositivi IT, riga «Visto da» della scheda asset.",
+        "config": "RETE_DHCP_SERVERS, RETE_DNS_SERVER, RETE_DNS_ZONES nel .env; RSAT sul server del portale; l'utente del qcluster "
+                  "nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",
+        "controllo": "manage.py rete_windows --prova; esito ed errori dell'ultima lettura in cima alla pagina Indirizzi IP.",
     },
     {
         "nome": "WatchGuard Cloud (API Endpoint Security)",

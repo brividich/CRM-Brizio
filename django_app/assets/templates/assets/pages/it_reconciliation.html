@@ -42,7 +42,7 @@ body.theme-dark .rc-empty{color:var(--text-light)}
 
 {% block assets_shell_content %}
 <section class="rc-page">
-  <p class="rc-intro">Dispositivi della centrale SNMP, MFC, dispositivi citati dal SOC e PC gestiti da Microsoft Intune non ancora collegati a un asset. La proposta arriva dall'abbinamento unico (seriale, indirizzo IP, nome host): conferma solo quelle corrette. Vedi solo le righe dei moduli che puoi gestire.</p>
+  <p class="rc-intro">Dispositivi della centrale SNMP, MFC, dispositivi citati dal SOC, PC gestiti da Microsoft Intune e indirizzi del DHCP non ancora collegati a un asset. La proposta arriva dall'abbinamento unico (seriale, MAC, indirizzo IP, nome host): conferma solo quelle corrette. Vedi solo le righe dei moduli che puoi gestire.</p>
   <nav class="rc-tabs" aria-label="Viste">
     <a class="rc-tab {% if view == 'proposte' %}active{% endif %}" href="?vista=proposte">Con proposta <strong>{{ counts.proposte }}</strong></a>
     <a class="rc-tab {% if view != 'proposte' %}active{% endif %}" href="?vista=senza">Senza proposta <strong>{{ counts.ambigue|add:counts.senza }}</strong></a>

@@ -147,6 +147,23 @@ SECTIONS = [
         ],
     },
     {
+        "code": "veeam",
+        "title": "Backup letti direttamente da Veeam",
+        "intro": "Ogni 15 minuti il SOC legge dall'API REST di Veeam Backup & Replication le sessioni di backup concluse, con "
+                 "l'esito di ogni macchina, e lo spazio dei repository: la pagina Backup non dipende più dalle mail di esito. "
+                 "Se arrivano anche le mail, la stessa esecuzione conta una volta sola. Indirizzo, utente (di sola lettura) e "
+                 "password stanno nel file .env del server (VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD).",
+        "channels_optional": True,
+        "options": [
+            Option("veeam.api.attivo", False, "Leggi i backup dall'API di Veeam"),
+            Option("veeam.primo_giro_giorni", 7, "Primo giro", "Giorni di storico letti la prima volta.", "int", min_value=1, max_value=30),
+            Option("veeam.repository.alert", True, "Avvisa quando un repository si riempie",
+                   "Un alert per repository sotto la soglia, chiuso da solo quando lo spazio torna sopra."),
+            Option("veeam.repository.soglia_pct", 15, "Spazio libero minimo", "Sotto questa percentuale di spazio libero nasce l'alert.",
+                   "int", min_value=1, max_value=50, unit="%"),
+        ],
+    },
+    {
         "code": "entra",
         "title": "Microsoft Entra ID (account, modifiche amministrative, accessi)",
         "intro": "Due controlli su Microsoft 365, ciascuno con il suo interruttore. «Account di ex dipendenti»: ogni 6 ore "

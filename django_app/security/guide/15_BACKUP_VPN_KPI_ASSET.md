@@ -30,6 +30,10 @@ Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezio
 
 Se un PC non compare, il report del job non lo elenca: controlla la configurazione del job sul NAS o su Veeam.
 
+### Lettura diretta da Veeam
+
+Con la lettura dall'API di Veeam accesa ([Impostazioni](/soc/docs/16-impostazioni-e-ai/#backup-letti-direttamente-da-veeam)) compare il riquadro **Lettura diretta da Veeam**: stato del collegamento («collegata», «errore» con il motivo), esito dell'ultimo giro e lo **spazio libero di ogni repository**, dal più pieno. Le righe sotto la soglia sono evidenziate e hanno un alert «Repository di backup quasi pieno».
+
 ## Accessi VPN
 
 **Accessi VPN** raccoglie ogni accesso consentito o negato letto dai report di autenticazione del firewall. Il tipo distingue VPN, accessi al firewall e rete Guest.
