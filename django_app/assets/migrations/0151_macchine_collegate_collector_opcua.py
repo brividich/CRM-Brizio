@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('assets', '0148_mtconnect_collegamenti'),
+        ('assets', '0150_merge_mtconnect_scadenze'),
     ]
 
     operations = [

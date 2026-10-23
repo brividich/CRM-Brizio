@@ -877,6 +877,11 @@ class AssetAdministrativeDeadline(models.Model):
     issued_on = models.DateField(null=True, blank=True)
     due_date = models.DateField(db_index=True)
     warning_days = models.PositiveIntegerField(default=30)
+    recurrence_months = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Ogni quanti mesi si rinnova: alla registrazione la prossima scadenza si calcola da sola.",
+    )
     is_active = models.BooleanField(default=True, db_index=True)
     notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -904,6 +909,24 @@ class AssetAdministrativeDeadline(models.Model):
             return None
         current_day = reference_date or timezone.localdate()
         return (self.due_date - current_day).days
+
+    def next_due_after(self, completed_on):
+        """Prossima scadenza dalla periodicita' (dalla data di esecuzione); None se non e' periodica."""
+        if not self.recurrence_months or not completed_on:
+            return None
+        return _add_months(completed_on, self.recurrence_months)
+
+    def series_siblings(self):
+        """Altre righe attive della stessa serie (stesso asset, componente e titolo).
+
+        Prima della periodicita' le scadenze ricorrenti si inserivano una riga per data.
+        """
+        return AssetAdministrativeDeadline.objects.filter(
+            asset_id=self.asset_id,
+            component_id=self.component_id,
+            title__iexact=self.title,
+            is_active=True,
+        ).exclude(pk=self.pk)
 
 
 class AssetAdministrativeDeadlineCompletion(models.Model):

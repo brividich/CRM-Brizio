@@ -1,0 +1,584 @@
+{% extends "assenze/base_shell.html" %}
+
+{% block title %}Area HR assenze | Portale Applicativo{% endblock %}
+
+{% block assenze_shell_head %}
+  <style>
+    /* Area HR: solo token di theme.css, cosi' vale in chiaro e in scuro. */
+    .hr-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .hr-kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+    .hr-kpi {
+      display: block; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); text-decoration: none;
+    }
+    a.hr-kpi:hover { border-color: var(--primary, #0f766e); }
+    .hr-kpi-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); }
+    .hr-kpi-value { font-size: 26px; font-weight: 900; margin-top: 4px; }
+    .hr-kpi-note { font-size: 12px; color: var(--text-mid); margin-top: 2px; }
+    .hr-kpi.warn .hr-kpi-value { color: var(--warning-text, #b45309); }
+    .hr-kpi.bad .hr-kpi-value { color: var(--danger, #b91c1c); }
+    .hr-form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); align-items: end; }
+    .hr-form .full { grid-column: 1 / -1; }
+    .hr-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .hr-help { font-size: 13px; color: var(--text-mid); line-height: 1.55; margin: 0 0 12px; }
+    .hr-muted { color: var(--text-light); font-size: 12px; }
+    .hr-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .hr-neg { color: var(--danger, #b91c1c); font-weight: 800; }
+    .hr-tag {
+      display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800;
+      border: 1px solid var(--border); color: var(--text-mid); background: var(--surface-alt, transparent);
+    }
+    .hr-tag.bad { color: var(--danger, #b91c1c); border-color: currentColor; }
+    .hr-tag.warn { color: var(--warning-text, #b45309); border-color: currentColor; }
+    .hr-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .hr-filters input[type=search] { min-width: 240px; }
+    .hr-chart { display: grid; gap: 6px; }
+    .hr-chart-row { display: grid; grid-template-columns: 74px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; }
+    .hr-chart-bar { display: flex; height: 16px; border-radius: 6px; overflow: hidden; background: var(--surface-alt, rgba(127,127,127,.12)); }
+    .hr-chart-bar span { display: block; height: 100%; }
+    .hr-c-Ferie { background: #0f766e; }
+    .hr-c-Permesso { background: #2563eb; }
+    .hr-c-Malattia { background: #d97706; }
+    .hr-c-Altre { background: #7c3aed; }
+    .hr-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-mid); margin-top: 8px; }
+    .hr-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    .hr-inline { display: inline; }
+    .abs-table.hr-table { min-width: 0; }
+    @media (max-width: 640px) {
+      .hr-filters input[type=search] { min-width: 0; width: 100%; }
+      .hr-chart-row { grid-template-columns: 56px 1fr 48px; }
+    }
+  </style>
+{% endblock %}
+
+{% block assenze_shell_content %}
+  <section class="abs-hero">
+    <div class="abs-hero-copy">
+      <span class="abs-eyebrow">Area HR</span>
+      <h1>Assenze · gestione HR</h1>
+      <p>Saldi di ferie e permessi, calendario aziendale, contatori di legge e copertura dei reparti. I controlli non bloccano le richieste: avvisano chi chiede e chi approva.</p>
+    </div>
+    <div class="abs-hero-actions">
+      <a href="{% url 'guida_modulo' 'assenze' %}?vista=admin#hr" class="abs-hero-action">? Guida</a>
+      <a href="{% url 'assenze_impostazioni' %}" class="abs-hero-action">
+        <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Impostazioni
+      </a>
+    </div>
+  </section>
+
+  <nav class="abs-tabs" aria-label="Sezioni area HR">
+    {% for codice, etichetta, rotta in sezioni %}
+      <a class="abs-tab{% if sezione == codice %} active{% endif %}" href="{% url rotta %}">{{ etichetta }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if sezione == "cruscotto" %}
+    <div class="hr-kpis">
+      <a class="hr-kpi" href="{% url 'assenze_impostazioni' %}?stato=in_attesa">
+        <div class="hr-kpi-label">Richieste in attesa</div>
+        <div class="hr-kpi-value">{{ n_in_attesa }}</div>
+        <div class="hr-kpi-note">in tutta l'azienda</div>
+      </a>
+      <a class="hr-kpi{% if n_saldi_negativi %} bad{% endif %}" href="{% url 'assenze_hr_saldi' %}?filtro=negativi">
+        <div class="hr-kpi-label">Saldi in negativo</div>
+        <div class="hr-kpi-value">{{ n_saldi_negativi }}</div>
+        <div class="hr-kpi-note">su {{ n_saldi }} saldi caricati</div>
+      </a>
+      <a class="hr-kpi{% if n_ferie_elevate %} warn{% endif %}" href="{% url 'assenze_hr_saldi' %}?filtro=elevate">
+        <div class="hr-kpi-label">Ferie accumulate</div>
+        <div class="hr-kpi-value">{{ n_ferie_elevate }}</div>
+        <div class="hr-kpi-note">persone con almeno {{ giornate_ferie_elevate }} giornate residue</div>
+      </a>
+      <a class="hr-kpi{% if n_contatori_oltre %} warn{% endif %}" href="{% url 'assenze_hr_contatori' %}">
+        <div class="hr-kpi-label">Oltre un contatore</div>
+        <div class="hr-kpi-value">{{ n_contatori_oltre }}</div>
+        <div class="hr-kpi-note">assemblea, 104 e gli altri limiti</div>
+      </a>
+      <div class="hr-kpi">
+        <div class="hr-kpi-label">Assenteismo</div>
+        <div class="hr-kpi-value">{% if cruscotto.tasso_azienda is not None %}{{ cruscotto.tasso_azienda }}%{% else %}—{% endif %}</div>
+        <div class="hr-kpi-note">malattia e altre assenze dall'inizio dell'anno, ferie e permessi esclusi</div>
+      </div>
+    </div>
+
+    <div class="hr-grid">
+      <section class="abs-panel">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg>Giornate di assenza per mese</h2>
+            <p class="abs-panel-subtitle">Ultimi 12 mesi, tutta l'azienda, solo richieste approvate. I permessi sono convertiti in giornate.</p>
+          </div>
+        </div>
+        <div class="abs-panel-body">
+          <div class="hr-chart" role="img" aria-label="Giornate di assenza per mese e per tipo">
+            {% for m in cruscotto.mesi %}
+              <div class="hr-chart-row">
+                <span>{{ m.mese|date:"M Y" }}</span>
+                <div class="hr-chart-bar" title="{% for b in m.barre %}{{ b.categoria }} {{ b.valore|floatformat:1 }}{% if not forloop.last %} · {% endif %}{% endfor %}">
+                  {% for b in m.barre %}{% if b.percentuale %}<span class="hr-c-{{ b.categoria }}" style="width:{{ b.percentuale }}%"></span>{% endif %}{% endfor %}
+                </div>
+                <span class="hr-num">{{ m.totale|floatformat:1 }}</span>
+              </div>
+            {% endfor %}
+          </div>
+          <div class="hr-legend">
+            {% for c in cruscotto.categorie %}<span><i class="hr-c-{{ c }}"></i>{% if c == "Altre" %}Altre assenze{% else %}{{ c }}{% endif %}</span>{% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section class="abs-panel">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-users"></use></svg>Reparti, dall'inizio dell'anno</h2>
+            <p class="abs-panel-subtitle">Giornate di assenza approvate. I reparti con meno di {{ cruscotto.min_persone }} persone non mostrano i numeri: direbbero chi era assente.</p>
+          </div>
+        </div>
+        <div class="abs-panel-body">
+          <div class="abs-table-wrap">
+            <table class="abs-table hr-table">
+              <thead><tr><th>Reparto</th><th class="hr-num">Persone</th><th class="hr-num">Ferie</th><th class="hr-num">Permessi</th><th class="hr-num">Malattia e altre</th><th class="hr-num">Assenteismo</th></tr></thead>
+              <tbody>
+                {% for r in cruscotto.reparti %}
+                  <tr>
+                    <td>{{ r.reparto }}</td>
+                    <td class="hr-num">{{ r.persone }}</td>
+                    {% if r.visibile %}
+                      <td class="hr-num">{{ r.Ferie|floatformat:1 }}</td>
+                      <td class="hr-num">{{ r.Permesso|floatformat:1 }}</td>
+                      <td class="hr-num">{{ r.Malattia|add:r.Altre|floatformat:1 }}</td>
+                      <td class="hr-num">{% if r.tasso is not None %}{{ r.tasso }}%{% else %}—{% endif %}</td>
+                    {% else %}
+                      <td class="hr-num hr-muted" colspan="4">reparto troppo piccolo</td>
+                    {% endif %}
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="hr-muted">Nessun dipendente attivo in anagrafica.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="hr-muted" style="margin:10px 0 0;">Assenteismo = giornate di malattia e altre assenze ÷ (persone × {{ cruscotto.giorni_lavorativi_anno }} giorni lavorativi da inizio anno).</p>
+        </div>
+      </section>
+    </div>
+
+  {% elif sezione == "saldi" %}
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-file-text"></use></svg>Carica i saldi dal cedolino</h2>
+          <p class="abs-panel-subtitle">Un file Excel o CSV con le colonne «Dipendente», «Ferie (ore)», «Permessi (ore)», «Situazione al». Il nome si cerca fra i dipendenti attivi; le righe non riconosciute vengono elencate e saltate.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        <form method="post" enctype="multipart/form-data" class="hr-form">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="importa">
+          <div class="abs-field">
+            <label for="hr-file">File</label>
+            <input id="hr-file" class="abs-input" type="file" name="file" accept=".xlsx,.csv" required>
+          </div>
+          <div class="abs-field">
+            <label for="hr-import-al">Situazione al (se manca nel file)</label>
+            <input id="hr-import-al" class="abs-input" type="date" name="situazione_al">
+          </div>
+          <div class="hr-actions">
+            <button type="submit" class="btn btn-primary">Importa saldi</button>
+            <a class="btn btn-secondary" href="{% url 'assenze_hr_saldi_modello' %}">Scarica il modello</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="abs-panel" id="saldo-form">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Inserisci o correggi un saldo</h2>
+          <p class="abs-panel-subtitle">Ore residue alla data del cedolino. Dal giorno dopo il portale toglie le richieste non rifiutate e le chiusure aziendali che scalano le ferie. Una giornata vale {{ ore_giornata|floatformat:"-2" }} ore.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        <form method="post" class="hr-form" id="hr-saldo-form">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="salva">
+          <div class="abs-field">
+            <label for="hr-dip">Dipendente</label>
+            <select id="hr-dip" class="abs-select" name="anagrafica_id" required>
+              <option value="">-- Seleziona --</option>
+              {% for d in dipendenti %}<option value="{{ d.id }}">{{ d.nominativo }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="abs-field">
+            <label for="hr-ferie">Ferie (ore)</label>
+            <input id="hr-ferie" class="abs-input" name="ferie_ore" inputmode="decimal" required>
+          </div>
+          <div class="abs-field">
+            <label for="hr-permessi">Permessi ROL ed ex festività (ore)</label>
+            <input id="hr-permessi" class="abs-input" name="permessi_ore" inputmode="decimal" required>
+          </div>
+          <div class="abs-field">
+            <label for="hr-al">Situazione al</label>
+            <input id="hr-al" class="abs-input" type="date" name="situazione_al" value="{{ oggi_iso }}" required>
+          </div>
+          <div class="abs-field full">
+            <label for="hr-note">Nota</label>
+            <input id="hr-note" class="abs-input" name="note" maxlength="300">
+          </div>
+          <div class="hr-actions"><button type="submit" class="btn btn-primary">Salva saldo</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Saldi e residui stimati</h2>
+          <p class="abs-panel-subtitle">{{ n_con_saldo }} saldi caricati · {{ n_negativi }} in negativo · {{ n_elevate }} con almeno {{ giornate_ferie_elevate }} giornate di ferie residue.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        <div class="hr-filters">
+          <label for="hr-filtro" class="hr-muted">Mostra</label>
+          <select id="hr-filtro" class="abs-select" aria-label="Filtra" style="max-width:240px;">
+            <option value="">Tutti</option>
+            <option value="negativi">Solo in negativo</option>
+            <option value="elevate">Ferie accumulate</option>
+            <option value="senza">Senza saldo</option>
+          </select>
+        </div>
+        <div class="abs-table-wrap">
+          <table class="abs-table hr-table" id="hr-saldi">
+            <thead>
+              <tr>
+                <th>Dipendente</th><th>Reparto</th><th>Situazione al</th>
+                <th class="hr-num">Ferie al cedolino</th><th class="hr-num">Ferie richieste</th><th class="hr-num">Chiusure</th><th class="hr-num">Ferie residue</th>
+                <th class="hr-num">Permessi al cedolino</th><th class="hr-num">Permessi richiesti</th><th class="hr-num">Permessi residui</th>
+                <th class="hr-num">di cui in attesa</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in righe_saldi %}
+                <tr data-cerca="{{ r.nominativo|lower }} {{ r.reparto|lower }}" data-stato="{% if not r.saldo %}senza{% elif r.negativo %}negativi{% elif r.elevate %}elevate{% endif %}">
+                  <td>{{ r.nominativo }}{% if r.cessato %} <span class="hr-tag">non attivo</span>{% endif %}</td>
+                  <td>{{ r.reparto|default:"—" }}</td>
+                  {% if r.saldo %}
+                    <td>{{ r.saldo.situazione_al|date:"d/m/Y" }}{% if r.saldo.origine == "import" %} <span class="hr-tag">import</span>{% endif %}</td>
+                    <td class="hr-num">{{ r.saldo.ferie_ore|floatformat:"-2" }}</td>
+                    <td class="hr-num">{{ r.residuo.ferie_usate|floatformat:"-2" }}</td>
+                    <td class="hr-num">{{ r.residuo.chiusure_ore|floatformat:"-2" }}</td>
+                    <td class="hr-num{% if r.residuo.ferie_residue < 0 %} hr-neg{% endif %}">{{ r.residuo.ferie_residue|floatformat:"-2" }}{% if r.elevate %} <span class="hr-tag warn">accumulate</span>{% endif %}</td>
+                    <td class="hr-num">{{ r.saldo.permessi_ore|floatformat:"-2" }}</td>
+                    <td class="hr-num">{{ r.residuo.permessi_usati|floatformat:"-2" }}</td>
+                    <td class="hr-num{% if r.residuo.permessi_residui < 0 %} hr-neg{% endif %}">{{ r.residuo.permessi_residui|floatformat:"-2" }}</td>
+                    <td class="hr-num">{{ r.residuo.in_attesa_ore|floatformat:"-2" }}</td>
+                    <td class="hr-actions">
+                      <button type="button" class="btn btn-secondary btn-sm" data-modifica
+                              data-id="{{ r.anagrafica_id }}" data-ferie="{{ r.saldo.ferie_ore|stringformat:'s' }}"
+                              data-permessi="{{ r.saldo.permessi_ore|stringformat:'s' }}" data-al="{{ r.saldo.situazione_al|date:'Y-m-d' }}"
+                              data-note="{{ r.saldo.note }}">Modifica</button>
+                      <form method="post" class="hr-inline" onsubmit="return confirm('Eliminare il saldo di {{ r.nominativo|escapejs }}?');">
+                        {% csrf_token %}<input type="hidden" name="form" value="elimina"><input type="hidden" name="anagrafica_id" value="{{ r.anagrafica_id }}">
+                        <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
+                      </form>
+                    </td>
+                  {% else %}
+                    <td class="hr-muted" colspan="9">nessun saldo caricato</td>
+                    <td><button type="button" class="btn btn-secondary btn-sm" data-modifica data-id="{{ r.anagrafica_id }}">Inserisci</button></td>
+                  {% endif %}
+                </tr>
+              {% empty %}
+                <tr><td colspan="12" class="hr-muted">Nessun dipendente attivo in anagrafica.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  {% elif sezione == "calendario" %}
+    <div class="hr-grid">
+      <section class="abs-panel">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg>Chiusure aziendali</h2>
+            <p class="abs-panel-subtitle">L'azienda è chiusa per tutti: i giorni compaiono nel calendario e non contano nelle richieste. Con «Scala dalle ferie» i giorni lavorativi del periodo si tolgono dal saldo ferie di ognuno.</p>
+          </div>
+        </div>
+        <div class="abs-panel-body">
+          <form method="post" class="hr-form">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="chiusura">
+            <div class="abs-field full">
+              <label for="ch-descr">Descrizione</label>
+              <input id="ch-descr" class="abs-input" name="descrizione" maxlength="200" placeholder="Es. Chiusura estiva" required>
+            </div>
+            <div class="abs-field">
+              <label for="ch-dal">Dal</label>
+              <input id="ch-dal" class="abs-input" type="date" name="data_inizio" required>
+            </div>
+            <div class="abs-field">
+              <label for="ch-al">Al</label>
+              <input id="ch-al" class="abs-input" type="date" name="data_fine" required>
+            </div>
+            <label class="abs-field" style="flex-direction:row;gap:8px;align-items:center;display:flex;">
+              <input type="checkbox" name="scala_ferie" value="1" checked> Scala dalle ferie
+            </label>
+            <div class="hr-actions"><button type="submit" class="btn btn-primary">Aggiungi chiusura</button></div>
+          </form>
+          <div class="abs-table-wrap" style="margin-top:14px;">
+            <table class="abs-table hr-table">
+              <thead><tr><th>Periodo</th><th>Descrizione</th><th class="hr-num">Giorni lavorativi</th><th>Ferie</th><th></th></tr></thead>
+              <tbody>
+                {% for c in chiusure %}
+                  <tr>
+                    <td>{{ c.obj.data_inizio|date:"d/m/Y" }}{% if c.obj.data_fine != c.obj.data_inizio %} – {{ c.obj.data_fine|date:"d/m/Y" }}{% endif %}</td>
+                    <td>{{ c.obj.descrizione }}</td>
+                    <td class="hr-num">{{ c.giorni_lavorativi }}</td>
+                    <td>{% if c.obj.scala_ferie %}<span class="hr-tag">scala</span>{% else %}<span class="hr-muted">non scala</span>{% endif %}</td>
+                    <td>
+                      <form method="post" class="hr-inline" onsubmit="return confirm('Eliminare la chiusura?');">
+                        {% csrf_token %}<input type="hidden" name="form" value="chiusura_elimina"><input type="hidden" name="id" value="{{ c.obj.pk }}">
+                        <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="hr-muted">Nessuna chiusura inserita.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="abs-panel">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Festività {{ anno }}</h2>
+            <p class="abs-panel-subtitle">Calcolate dal portale (Pasqua compresa), più il patrono se impostato. {{ giorni_lavorativi_anno }} giorni lavorativi nell'anno, chiusure escluse.</p>
+          </div>
+          <div class="hr-actions">
+            <a class="btn btn-secondary btn-sm" href="?anno={{ anno_prec }}">‹ {{ anno_prec }}</a>
+            <a class="btn btn-secondary btn-sm" href="?anno={{ anno_succ }}">{{ anno_succ }} ›</a>
+          </div>
+        </div>
+        <div class="abs-panel-body">
+          <div class="abs-table-wrap">
+            <table class="abs-table hr-table">
+              <thead><tr><th>Data</th><th>Festività</th><th></th></tr></thead>
+              <tbody>
+                {% for f in festivita %}
+                  <tr>
+                    <td>{{ f.data|date:"D d/m" }}</td>
+                    <td>{{ f.nome }}</td>
+                    <td>{% if not f.feriale %}<span class="hr-muted">cade nel fine settimana</span>{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="abs-panel" id="impostazioni-hr">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Orario, patrono e solleciti</h2>
+          <p class="abs-panel-subtitle">Le ore di una giornata servono a convertire le ferie in ore per i saldi. I solleciti partono ogni mattina feriale alle 08:15: una mail per capo con le richieste ancora in attesa.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        <form method="post" class="hr-form">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="impostazioni">
+          <div class="abs-field">
+            <label for="imp-ore">Ore di una giornata lavorativa</label>
+            <input id="imp-ore" class="abs-input" name="ore_giornata" inputmode="decimal" value="{{ imp.ore_giornata|floatformat:'-2' }}" required>
+          </div>
+          <label class="abs-field" style="display:flex;flex-direction:row;gap:8px;align-items:center;">
+            <input type="checkbox" name="sabato_lavorativo" value="1"{% if imp.sabato_lavorativo %} checked{% endif %}> Il sabato è lavorativo
+          </label>
+          <div class="abs-field">
+            <label for="imp-pg">Patrono: giorno</label>
+            <input id="imp-pg" class="abs-input" type="number" min="1" max="31" name="patrono_giorno" value="{{ imp.patrono_giorno|default_if_none:'' }}">
+          </div>
+          <div class="abs-field">
+            <label for="imp-pm">Patrono: mese</label>
+            <select id="imp-pm" class="abs-select" name="patrono_mese">
+              <option value="">--</option>
+              {% for n, nome in mesi %}<option value="{{ n }}"{% if imp.patrono_mese == n %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="abs-field">
+            <label for="imp-pn">Patrono: nome</label>
+            <input id="imp-pn" class="abs-input" name="patrono_nome" maxlength="100" value="{{ imp.patrono_nome }}">
+          </div>
+          <label class="abs-field" style="display:flex;flex-direction:row;gap:8px;align-items:center;">
+            <input type="checkbox" name="sollecito_attivo" value="1"{% if imp.sollecito_attivo %} checked{% endif %}> Solleciti ai capi attivi
+          </label>
+          <div class="abs-field">
+            <label for="imp-sd">Sollecita dopo (giorni in attesa)</label>
+            <input id="imp-sd" class="abs-input" type="number" min="1" max="60" name="sollecito_dopo_giorni" value="{{ imp.sollecito_dopo_giorni }}" required>
+          </div>
+          <div class="abs-field">
+            <label for="imp-sr">Ripeti il sollecito ogni (giorni)</label>
+            <input id="imp-sr" class="abs-input" type="number" min="1" max="60" name="sollecito_ripeti_giorni" value="{{ imp.sollecito_ripeti_giorni }}" required>
+          </div>
+          <div class="hr-actions"><button type="submit" class="btn btn-primary">Salva impostazioni</button></div>
+        </form>
+      </div>
+    </section>
+
+  {% elif sezione == "contatori" %}
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg>Contatori</h2>
+          <p class="abs-panel-subtitle">Un contatore somma le richieste non rifiutate con una certa «Motivazione richiesta» e avvisa quando si supera il limite. Non blocca: l'avviso compare a chi chiede, al capo nella coda e qui sotto.</p>
+        </div>
+        {% if not contatori %}
+          <form method="post">{% csrf_token %}<input type="hidden" name="form" value="consigliati">
+            <button type="submit" class="btn btn-secondary btn-sm">Aggiungi i contatori consigliati</button>
+          </form>
+        {% endif %}
+      </div>
+      <div class="abs-panel-body">
+        <datalist id="hr-motivazioni">{% for m in motivazioni %}<option value="{{ m }}">{% endfor %}</datalist>
+        <div class="abs-table-wrap">
+          <table class="abs-table hr-table">
+            <thead><tr><th>Nome</th><th>Motivazione richiesta</th><th class="hr-num">Limite</th><th>Unità</th><th>Periodo</th><th>Attivo</th><th></th></tr></thead>
+            <tbody>
+              {% for c in contatori %}
+                <tr>
+                  <td><input form="cont-{{ c.pk }}" class="abs-input" name="nome" value="{{ c.nome }}" maxlength="100" required aria-label="Nome"></td>
+                  <td><input form="cont-{{ c.pk }}" class="abs-input" name="motivazione" value="{{ c.motivazione }}" list="hr-motivazioni" maxlength="200" required aria-label="Motivazione richiesta"></td>
+                  <td><input form="cont-{{ c.pk }}" class="abs-input hr-num" name="limite" value="{{ c.limite|floatformat:'-2' }}" inputmode="decimal" style="width:80px" required aria-label="Limite"></td>
+                  <td><select form="cont-{{ c.pk }}" class="abs-select" name="unita" aria-label="Unità">{% for v, l in unita_choices %}<option value="{{ v }}"{% if c.unita == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+                  <td><select form="cont-{{ c.pk }}" class="abs-select" name="periodo" aria-label="Periodo">{% for v, l in periodo_choices %}<option value="{{ v }}"{% if c.periodo == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+                  <td><input form="cont-{{ c.pk }}" type="checkbox" name="attivo" value="1"{% if c.attivo %} checked{% endif %} aria-label="Attivo"></td>
+                  <td class="hr-actions">
+                    <button form="cont-{{ c.pk }}" type="submit" class="btn btn-secondary btn-sm">Salva</button>
+                    <form method="post" class="hr-inline" onsubmit="return confirm('Eliminare il contatore?');">{% csrf_token %}
+                      <input type="hidden" name="form" value="elimina"><input type="hidden" name="id" value="{{ c.pk }}">
+                      <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+              <tr>
+                <td><input form="cont-nuovo" class="abs-input" name="nome" placeholder="Nuovo contatore" maxlength="100" required aria-label="Nome nuovo contatore"></td>
+                <td><input form="cont-nuovo" class="abs-input" name="motivazione" list="hr-motivazioni" maxlength="200" required aria-label="Motivazione richiesta"></td>
+                <td><input form="cont-nuovo" class="abs-input hr-num" name="limite" inputmode="decimal" style="width:80px" required aria-label="Limite"></td>
+                <td><select form="cont-nuovo" class="abs-select" name="unita" aria-label="Unità">{% for v, l in unita_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></td>
+                <td><select form="cont-nuovo" class="abs-select" name="periodo" aria-label="Periodo">{% for v, l in periodo_choices %}<option value="{{ v }}"{% if v == "anno" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+                <td><input form="cont-nuovo" type="checkbox" name="attivo" value="1" checked aria-label="Attivo"></td>
+                <td><button form="cont-nuovo" type="submit" class="btn btn-primary btn-sm">Aggiungi</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {# I form stanno fuori dalla tabella: un <form> dentro <tr> non è HTML valido. #}
+        {% for c in contatori %}
+          <form method="post" id="cont-{{ c.pk }}">{% csrf_token %}<input type="hidden" name="form" value="salva"><input type="hidden" name="id" value="{{ c.pk }}"></form>
+        {% endfor %}
+        <form method="post" id="cont-nuovo">{% csrf_token %}<input type="hidden" name="form" value="salva"></form>
+        <p class="hr-muted" style="margin:10px 0 0;">La motivazione deve essere scritta come nelle richieste (maiuscole a parte): l'elenco propone quelle già usate.</p>
+      </div>
+    </section>
+
+    {% for r in riepilogo %}
+      <section class="abs-panel">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title">{{ r.contatore.nome }}</h2>
+            <p class="abs-panel-subtitle">Limite {{ r.contatore.limite|floatformat:"-2" }} {{ r.contatore.unita }} {{ r.contatore.get_periodo_display|lower }} · periodo {{ r.finestra.0|date:"d/m/Y" }} – {{ r.finestra.1|date:"d/m/Y" }} · {{ r.persone|length }} persone, {{ r.oltre }} oltre il limite</p>
+          </div>
+        </div>
+        <div class="abs-panel-body">
+          {% if r.persone %}
+            <div class="abs-table-wrap">
+              <table class="abs-table hr-table">
+                <thead><tr><th>Dipendente</th><th class="hr-num">Usato</th><th></th></tr></thead>
+                <tbody>
+                  {% for p in r.persone %}
+                    <tr><td>{{ p.nominativo }}</td><td class="hr-num{% if p.oltre %} hr-neg{% endif %}">{{ p.usato|floatformat:"-2" }} {{ r.contatore.unita }}</td><td>{% if p.oltre %}<span class="hr-tag bad">oltre il limite</span>{% endif %}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="hr-muted" style="margin:0;">Nessuna richiesta con questa motivazione nel periodo.</p>
+          {% endif %}
+        </div>
+      </section>
+    {% endfor %}
+
+  {% elif sezione == "copertura" %}
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-users"></use></svg>Copertura dei reparti</h2>
+          <p class="abs-panel-subtitle">Quante persone di un reparto possono essere assenti nello stesso giorno. Quando una richiesta in coda porterebbe il reparto oltre la soglia, il capo vede un avviso accanto ad «Approva»; può comunque approvare. Si contano le assenze approvate a giornata intera. Lascia vuoto per non controllare il reparto.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="abs-table-wrap">
+            <table class="abs-table hr-table">
+              <thead><tr><th>Reparto (da anagrafica)</th><th class="hr-num">Persone attive</th><th>Assenti al massimo nello stesso giorno</th></tr></thead>
+              <tbody>
+                {% for r in righe_copertura %}
+                  <tr>
+                    <td>{{ r.reparto }}</td>
+                    <td class="hr-num">{{ r.persone }}</td>
+                    <td><input class="abs-input" type="number" min="0" max="999" name="soglia__{{ r.chiave }}" value="{{ r.soglia.max_assenti|default_if_none:'' }}" style="width:110px" aria-label="Soglia {{ r.reparto }}"></td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3" class="hr-muted">Nessun reparto scritto in anagrafica.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="hr-actions" style="margin-top:12px;"><button type="submit" class="btn btn-primary">Salva soglie</button></div>
+        </form>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block assenze_shell_scripts %}
+  {% if sezione == "saldi" %}
+    <script>
+      (function() {
+        const filtro = document.getElementById("hr-filtro");
+        const righe = Array.from(document.querySelectorAll("#hr-saldi tbody tr[data-cerca]"));
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("filtro")) filtro.value = params.get("filtro");
+        function applica() {
+          const f = filtro.value;
+          righe.forEach(function(tr) {
+            const ok = !f || tr.dataset.stato === f;
+            tr.hidden = !ok;
+          });
+        }
+        filtro.addEventListener("change", applica);
+        applica();
+        const form = document.getElementById("hr-saldo-form");
+        document.querySelectorAll("[data-modifica]").forEach(function(btn) {
+          btn.addEventListener("click", function() {
+            form.elements.anagrafica_id.value = btn.dataset.id;
+            form.elements.ferie_ore.value = (btn.dataset.ferie || "").replace(".", ",");
+            form.elements.permessi_ore.value = (btn.dataset.permessi || "").replace(".", ",");
+            if (btn.dataset.al) form.elements.situazione_al.value = btn.dataset.al;
+            form.elements.note.value = btn.dataset.note || "";
+            document.getElementById("saldo-form").scrollIntoView({ behavior: "smooth", block: "start" });
+            form.elements.ferie_ore.focus();
+          });
+        });
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

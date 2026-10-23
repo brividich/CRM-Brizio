@@ -26,6 +26,7 @@ from ..constants import (
 )
 from core import naming
 
+from .. import hr as calcoli_hr
 from . import _helpers  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -949,6 +950,7 @@ def gestione_assenze(request):
         if e_capo
         else []
     )
+    calcoli_hr.annota_coda(richieste_da_approvare)
     _prepare_team_rows(request, richieste_da_approvare)
     _prepare_team_rows(request, richieste_dipendenti_gestite)
 
@@ -1063,6 +1065,7 @@ def car_dashboard(request):
 
     history_has_next = len(gestite) > 30
     gestite = gestite[:30]
+    calcoli_hr.annota_coda(da_gestire)
     _prepare_team_rows(request, da_gestire)
     _prepare_team_rows(request, gestite)
     sync_diag = None
@@ -1203,19 +1206,18 @@ def api_mia_assenza_update(request, item_id: int):
     if err_msg:
         return _helpers._json_error(err_msg, status=400)
 
-    ok = _helpers._update_assenza(
-        item_id,
-        {
-            "tipo_assenza": tipo,
-            "data_inizio": dt_start,
-            "data_fine": dt_end,
-            "motivazione_richiesta": motivazione,
-            "certificato_medico": certificato_medico,
-            "modified_datetime": timezone.now(),
-        },
-    )
+    updates = {
+        "tipo_assenza": tipo,
+        "data_inizio": dt_start,
+        "data_fine": dt_end,
+        "motivazione_richiesta": motivazione,
+        "certificato_medico": certificato_medico,
+        "modified_datetime": timezone.now(),
+    }
+    ok = _helpers._update_assenza(item_id, updates)
     if not ok:
         return _helpers._json_error("Aggiornamento non eseguito.", status=500)
+    calcoli_hr.registra(item_id, "modificata", utente=request.user.get_username(), prima=current, dopo=updates)
 
     sync_result = _helpers._sp_enqueue_upsert(item_id)
 
@@ -1320,9 +1322,13 @@ def invio_placeholder(request):
         person_anagrafica_id=person_anagrafica_id,
         shortcut=shortcut,
     )
-    warn_msg = " ".join(x for x in [auto_fine_msg, warn_msg] if x)
     if err_msg:
         return _render_richiesta(request, error=err_msg, form_data=request.POST.dict())
+    # Controlli HR (saldo, contatori, chiusure): avvisano, non bloccano.
+    avvisi_hr = calcoli_hr.avvisi_richiesta(
+        anagrafica_id=person_anagrafica_id, tipo=tipo_ui, motivazione=motivazione, inizio=dt_start, fine=dt_end,
+    )
+    warn_msg = " ".join(x for x in [auto_fine_msg, warn_msg, *avvisi_hr] if x)
 
     # Caporeparto AUTORITATIVO lato server: quello assegnato al dipendente (il
     # campo del form è bloccato). Se quel caporeparto è assente nel giorno di
@@ -1389,6 +1395,10 @@ def invio_placeholder(request):
 
     if local_id is None:
         return _render_richiesta(request, error="Richiesta non salvata: impossibile ottenere ID locale.", form_data=request.POST.dict())
+    calcoli_hr.registra(
+        local_id, "creata", utente=request.user.get_username(),
+        motivo=f"Inserita per conto di {display_name}" if inserting_for_other else "",
+    )
 
     if inserting_for_other:
         _helpers.log_action(

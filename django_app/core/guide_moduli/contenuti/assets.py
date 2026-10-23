@@ -182,7 +182,11 @@ GUIDA = {
                     "dati del dettaglio asset e strumenti della lista (prima nello «Studio amministratore» della lista).",
                     "Dopo aver cambiato le categorie, rigenera il menu laterale con il comando sync_sidebar_categories.",
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
-                    "Le scadenze amministrative (assicurazioni, contratti) sono separate dai piani di manutenzione.",
+                    "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
+                    "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola. "
+                    "Le manutenzioni finite nel registro si spostano nei piani con il comando "
+                    "riordina_scadenze_amministrative (prima in prova, poi con --apply; --mesi \"Titolo=12\" per i "
+                    "titoli senza serie).",
                     "«Dismetti / riattiva asset» ed «Elimina asset (senza storico)» sono già concessi ai ruoli della "
                     "manutenzione; ad altri ruoli si danno da Amministrazione → Accessi.",
                     "Un piano va applicato ai singoli asset che lo fanno davvero, non a un'intera categoria. Per allineare "
@@ -277,6 +281,14 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una scadenza amministrativa compare due volte nello Scadenzario o «Registra» crea un doppione",
+            "fare": [
+                "Se la stessa verifica ha anche un piano di manutenzione sull'asset, registrala solo dal piano e "
+                "disattiva la voce amministrativa (lo fa anche riordina_scadenze_amministrative).",
+                "Le serie inserite una riga per data si sostituiscono con una sola voce e «Si ripete ogni (mesi)».",
+            ],
+        },
         {
             "sintomo": "Una macchina collegata risulta «Non raggiungibile», «Offline» o «Dato non aggiornato»",
             "fare": [

@@ -917,6 +917,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSENZE — promemoria ai capi per le richieste ferme «In attesa» (una
+        # mail per capo). Soglie e interruttore in Assenze → HR → Impostazioni.
+        "name": "assenze_solleciti",
+        "func": "assenze.tasks.run_assenze_solleciti",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 8 * * 1-5",     # ogni mattina feriale alle 08:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # SUGGESTION CORNER — solleciti DO/CHECK + escalation (§3)
         "name": "suggestion_corner_reminders",
         "func": "suggestion_corner.tasks.run_suggestion_corner_reminders",

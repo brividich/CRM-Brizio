@@ -74,6 +74,10 @@
 {% block assets_shell_content %}
 <div class="md-page">
 
+  <div class="ad-chipbar" style="justify-content:flex-end">
+    <a class="btn btn-secondary" href="{% url 'assets:guida' %}#scadenze-amministrative">? Guida</a>
+  </div>
+
   {% if selected_asset %}
     <div class="md-scope-note">
       Solo l'asset <strong>{{ selected_asset.asset_tag }} &middot; {{ selected_asset.name }}</strong>{% if selected_component %}, componente <strong>{{ selected_component.name }}</strong>{% endif %}.
@@ -334,7 +338,7 @@
           <input type="file" name="completion_files" multiple>
         </label>
       </div>
-      <p class="ad-dialog-sub">Con la prossima scadenza la voce si rinnova a quella data; senza, si chiude.</p>
+      <p class="ad-dialog-sub">Con la prossima scadenza la voce si rinnova a quella data. Se la lasci vuota: la voce periodica si rinnova da sola («Si ripete ogni»), quella di una serie lascia il posto alla data successiva, le altre si chiudono.</p>
       <div class="ad-dialog-actions">
         <button type="button" class="btn btn-secondary" data-ad-close>Annulla</button>
         <button type="submit" class="btn btn-primary">Registra</button>

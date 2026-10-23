@@ -27,6 +27,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
   <nav class="ag-toc" aria-label="Indice della guida">
     <strong>In questa guida</strong>
     <a href="#rinvio">Rinvio di una manutenzione</a>
+    <a href="#scadenze-amministrative">Scadenze amministrative</a>
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
     <a href="#contatori">Contatori e piani a contatore</a>
     <a href="#codici-guasto">Codici guasto e guasti più frequenti</a>
@@ -71,6 +72,18 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Per annullare il rinvio riporta la data alla scadenza originale.</li>
       </ul>
       <p class="ag-note">Rinviare è riservato a chi pianifica la manutenzione, nel proprio reparto.</p>
+    </section>
+
+    <section class="ag-sec" id="scadenze-amministrative">
+      <h2>Scadenze amministrative</h2>
+      <p>Manutenzione &rsaquo; <strong>Scadenze amministrative</strong> è il registro degli <strong>adempimenti</strong> di un asset: revisioni, verifiche periodiche di legge, certificati, garanzie. Le manutenzioni (controllo batterie, tagliandi, manutenzione ordinaria) vanno nei <strong>piani di manutenzione</strong>, dove hanno periodicità, ordini di lavoro e storico.</p>
+      <ul>
+        <li><strong>Si ripete ogni (mesi)</strong>: nella scheda della scadenza indica ogni quanti mesi si rinnova (12 = annuale, 24 = biennale). Basta una sola voce: non serve inserire una riga per ogni data.</li>
+        <li><span class="ag-btn">Registra</span> con la <strong>prossima scadenza</strong> compilata rinnova la voce a quella data. Se la lasci vuota, la voce periodica si rinnova da sola alla data di esecuzione più la periodicità; una voce senza periodicità si chiude.</li>
+        <li>Se la voce fa parte di una <strong>serie</strong> inserita una riga per data (stesso asset e titolo), «Registra» la chiude e la serie prosegue con la data successiva: non nasce un doppione.</li>
+        <li>Una verifica che ha già il suo piano di manutenzione sull'asset (es. VTS, VAP, SAT, TUS dei forni) si registra solo dal piano: non va ripetuta qui.</li>
+      </ul>
+      <p class="ag-note">Registrare è riservato all'amministrazione del modulo Asset. Per spostare nei piani le manutenzioni finite nel registro c'è il comando <code>riordina_scadenze_amministrative</code> (prima in prova, poi con <code>--apply</code>).</p>
     </section>
 
     <section class="ag-sec" id="fatta-oggi">
