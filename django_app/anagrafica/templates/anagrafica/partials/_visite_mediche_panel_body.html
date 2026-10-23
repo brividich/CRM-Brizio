@@ -25,8 +25,8 @@
         hx-post="{% url 'anagrafica:tipo_visita_medica_create' %}"
         hx-target="#visite-mediche-panel-content" hx-swap="outerHTML">
     {% csrf_token %}
-    <div class="imp-add-form" style="margin-bottom:10px;">
-      <div class="imp-field" style="flex:2 1 200px;">
+    <div class="imp-add-form">
+      <div class="imp-field">
         <label class="imp-label">Nome *</label>
         <input class="imp-input" type="text" name="nome" maxlength="150" required placeholder="Es. Visita periodica">
       </div>
@@ -34,62 +34,49 @@
         <label class="imp-label">Periodicità (mesi)</label>
         <input class="imp-input" type="number" min="0" name="durata_mesi" value="12">
       </div>
-      <div class="imp-field" style="justify-content:flex-end;">
-        <label class="imp-label" style="display:flex;align-items:center;gap:5px;margin-top:14px;">
-          <input type="checkbox" name="obbligatoria" value="1" checked>
-          Obbligatoria
-        </label>
+      <div class="imp-field">
+        <label class="imp-label">Categoria (facoltativa)</label>
+        <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" placeholder="Es. Rischio chimico">
+        <datalist id="visite-categorie-list">
+          {% for cat in categorie_visita %}<option value="{{ cat }}">{% endfor %}
+        </datalist>
       </div>
-    </div>
-    <div class="imp-form-row" style="margin-bottom:10px;">
-      <div class="imp-field" style="max-width:140px;">
+      <div class="imp-field">
         <label class="imp-label">Età da (anni)</label>
         <input class="imp-input" type="number" min="0" max="120" name="eta_minima" placeholder="—">
       </div>
-      <div class="imp-field" style="max-width:140px;">
+      <div class="imp-field">
         <label class="imp-label">Età fino a (anni)</label>
         <input class="imp-input" type="number" min="0" max="120" name="eta_massima" placeholder="—">
       </div>
-      <div class="imp-field" style="font-size:12px;color:#64748b;align-self:flex-end;">
-        Facoltative, estremi compresi. Con una categoria comune (es. oculistica quinquennale «fino a 49», biennale «da 50») il portale richiede da solo il tipo valido per l'età del dipendente; il protocollo del certificato prevale sempre.
+      <div class="imp-field">
+        <label class="imp-check"><input type="checkbox" name="obbligatoria" value="1" checked> Obbligatoria</label>
       </div>
-    </div>
-    <div class="imp-field" style="max-width:260px;margin-bottom:10px;">
-      <label class="imp-label">Categoria (facoltativa)</label>
-      <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" placeholder="Es. Rischio chimico">
-      <datalist id="visite-categorie-list">
-        {% for cat in categorie_visita %}<option value="{{ cat }}">{% endfor %}
-      </datalist>
-    </div>
-    {% if ruoli_operativi %}
-    <div style="margin-bottom:10px;">
-      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-        <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f87cd;">
-          <input type="checkbox" id="visita-create-tutti" style="margin:0;"> Tutti i ruoli
-        </label>
-        {% for ro in ruoli_operativi %}
-        <label class="visita-create-ruolo-lbl" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
-          <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}" class="visita-create-ruolo"> {{ ro.icona }} {{ ro.nome }}
-        </label>
-        {% endfor %}
+      <p class="imp-help imp-col-full">Età facoltative, estremi compresi. Con una categoria comune (es. oculistica quinquennale «fino a 49», biennale «da 50») il portale richiede da solo il tipo valido per l'età del dipendente; il protocollo del certificato prevale sempre.</p>
+      {% if ruoli_operativi %}
+      <div class="imp-field imp-col-full">
+        <span class="imp-label">Ruoli operativi obbligatori</span>
+        <div class="imp-chips">
+          <label id="visita-create-tutti-label" class="imp-chip imp-chip-all"><input type="checkbox" id="visita-create-tutti"> Tutti i ruoli</label>
+          {% for ro in ruoli_operativi %}
+          <label class="imp-chip visita-create-ruolo-lbl"><input type="checkbox" name="ruolo_ids" value="{{ ro.id }}" class="visita-create-ruolo"> {{ ro.icona }} {{ ro.nome }}</label>
+          {% endfor %}
+        </div>
       </div>
-    </div>
-    {% endif %}
-    {% if mansioni %}
-    <div style="margin-bottom:10px;">
-      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Mansioni di rischio obbligate</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-        {% for m in mansioni %}
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
-          <input type="checkbox" name="mansione_ids" value="{{ m.id }}"> {{ m.nome }}
-        </label>
-        {% endfor %}
+      {% endif %}
+      {% if mansioni %}
+      <div class="imp-field imp-col-full">
+        <span class="imp-label">Mansioni di rischio obbligate</span>
+        <div class="imp-chips">
+          {% for m in mansioni %}
+          <label class="imp-chip"><input type="checkbox" name="mansione_ids" value="{{ m.id }}"> {{ m.nome }}</label>
+          {% endfor %}
+        </div>
       </div>
-    </div>
-    {% endif %}
-    <div>
-      <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi tipo visita</button>
+      {% endif %}
+      <div class="imp-field">
+        <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi tipo visita</button>
+      </div>
     </div>
   </form>
   {% endif %}
@@ -97,16 +84,16 @@
 
 {% regroup tipi_visita by categoria as visite_per_categoria_lista %}
 {% for gruppo in visite_per_categoria_lista %}
-<details class="imp-card" style="padding:0;">
-  <summary style="cursor:pointer;padding:12px 16px;font-size:13px;font-weight:700;color:#334155;list-style:none;display:flex;align-items:center;gap:8px;">
-    <span style="flex:1;">{{ gruppo.grouper|default:"Senza categoria" }}</span>
+<details class="imp-card">
+  <summary class="imp-acc-sum">
+    <span class="imp-acc-title">{{ gruppo.grouper|default:"Senza categoria" }}</span>
     <span class="imp-tab-count">{{ gruppo.list|length }}</span>
   </summary>
-  <div class="imp-list" style="padding:0 16px 12px;">
+  <div class="imp-list imp-acc-body">
     {% for t in gruppo.list %}
       <div class="imp-row {% if not t.is_active %}inactive{% endif %}">
         {% if is_admin %}
-        <label style="display:flex;align-items:center;padding-right:4px;cursor:pointer;" title="Seleziona per modifica massiva">
+        <label class="imp-check" title="Seleziona per modifica massiva">
           <input type="checkbox" name="ids" value="{{ t.id }}" data-vm-bulk-check>
         </label>
         {% endif %}
@@ -130,7 +117,7 @@
         <div class="imp-row-actions">
           <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm"
                   data-modal="visita-edit-{{ t.id }}">Modifica</button>
-          <form method="post" action="{% url 'anagrafica:tipo_visita_medica_delete' t.id %}" style="display:inline;"
+          <form method="post" action="{% url 'anagrafica:tipo_visita_medica_delete' t.id %}"
                 hx-post="{% url 'anagrafica:tipo_visita_medica_delete' t.id %}"
                 hx-target="#visite-mediche-panel-content" hx-swap="outerHTML"
                 hx-confirm="Eliminare il tipo visita &quot;{{ t.nome }}&quot;?">
@@ -144,7 +131,7 @@
       {% if is_admin %}
       <div class="imp-modal-overlay" id="modal-visita-edit-{{ t.id }}">
         <div class="imp-modal">
-          <button class="imp-modal-close" type="button" data-close-modal>×</button>
+          <button class="imp-modal-close" type="button" data-close-modal aria-label="Chiudi">×</button>
           <div class="imp-modal-title">Modifica tipo visita medica</div>
           <form method="post" action="{% url 'anagrafica:tipo_visita_medica_edit' t.id %}"
                 hx-post="{% url 'anagrafica:tipo_visita_medica_edit' t.id %}"
@@ -167,18 +154,18 @@
                 <label class="imp-label">Categoria (facoltativa)</label>
                 <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" value="{{ t.categoria }}" placeholder="Es. Rischio chimico">
               </div>
-              <div class="imp-field" style="flex-direction:row;gap:12px;">
-                <label class="imp-label" style="display:flex;flex-direction:column;gap:3px;">Età da (anni)
-                  <input class="imp-input" type="number" min="0" max="120" name="eta_minima" value="{{ t.eta_minima|default_if_none:'' }}" style="max-width:110px;"></label>
-                <label class="imp-label" style="display:flex;flex-direction:column;gap:3px;">Età fino a (anni)
-                  <input class="imp-input" type="number" min="0" max="120" name="eta_massima" value="{{ t.eta_massima|default_if_none:'' }}" style="max-width:110px;"></label>
+              <div class="imp-grid-2">
+                <div class="imp-field"><label class="imp-label">Età da (anni)</label>
+                  <input class="imp-input" type="number" min="0" max="120" name="eta_minima" value="{{ t.eta_minima|default_if_none:'' }}"></div>
+                <div class="imp-field"><label class="imp-label">Età fino a (anni)</label>
+                  <input class="imp-input" type="number" min="0" max="120" name="eta_massima" value="{{ t.eta_massima|default_if_none:'' }}"></div>
               </div>
-              <div class="imp-field" style="flex-direction:row;gap:16px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+              <div class="imp-checks">
+                <label class="imp-check">
                   <input type="checkbox" name="obbligatoria" value="1" {% if t.obbligatoria %}checked{% endif %}>
                   Obbligatoria
                 </label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                <label class="imp-check">
                   <input type="checkbox" name="is_active" value="1" {% if t.is_active %}checked{% endif %}>
                   Attiva
                 </label>
@@ -186,9 +173,9 @@
               {% if ruoli_operativi %}
               <div class="imp-field">
                 <label class="imp-label">Ruoli operativi obbligatori</label>
-                <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                <div class="imp-perm-utenti">
                   {% for ro in ruoli_operativi %}
-                  <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
+                  <label>
                     <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}"
                            {% if ro in t.ruoli_operativi.all %}checked{% endif %}>
                     {{ ro.icona }} {{ ro.nome }}
@@ -200,9 +187,9 @@
               {% if mansioni %}
               <div class="imp-field">
                 <label class="imp-label">Mansioni di rischio obbligate</label>
-                <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                <div class="imp-perm-utenti">
                   {% for m in mansioni %}
-                  <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
+                  <label>
                     <input type="checkbox" name="mansione_ids" value="{{ m.id }}"
                            {% if m in t.mansioni_richiedenti.all %}checked{% endif %}>
                     {{ m.nome }}

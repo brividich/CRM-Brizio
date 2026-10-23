@@ -23,7 +23,7 @@
   {% include "anagrafica/components/flash_messages.html" %}
   {% url 'guida_modulo' 'anagrafica' as guida_url %}
   {% url 'anagrafica:impostazioni' as back_url %}
-  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Impostazioni" title="Richieste di rettifica" desc="Segnalazioni dei dipendenti su un proprio dato sbagliato (GDPR art. 16), da «La mia scheda». Correggi il dato nella scheda, poi chiudi la richiesta con una risposta: il dipendente la riceve come notifica. Termine: un mese." guida_url=guida_url|add:"#rettifiche" back_url=back_url %}
+  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Impostazioni" eyebrow_url=back_url title="Richieste di rettifica" desc="Segnalazioni dei dipendenti su un proprio dato sbagliato (GDPR art. 16), da «La mia scheda». Correggi il dato nella scheda, poi chiudi la richiesta con una risposta: il dipendente la riceve come notifica. Termine: un mese." guida_url=guida_url|add:"#rettifiche" back_url=back_url %}
 
   <section class="hr-card">
     <div class="hr-card-head"><div>
