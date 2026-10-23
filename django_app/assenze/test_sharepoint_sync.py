@@ -407,7 +407,9 @@ class AutomationQueueSkipTests(TestCase):
     def test_both_triggers_skip_writes_of_the_sync(self):
         from pathlib import Path
 
-        sql_dir = Path(views.__file__).resolve().parents[2] / "sql"
+        # Gli script SQL stanno in ``sql/`` alla radice del repo (non sotto django_app):
+        # ci si arriva da questo file, che non si sposta come il package delle view.
+        sql_dir = Path(__file__).resolve().parents[2] / "sql"
         for name in ("trg_assenze_automation_after_insert.sql", "trg_assenze_automation_after_update.sql"):
             text = (sql_dir / name).read_text(encoding="utf-8")
             self.assertIn("SESSION_CONTEXT(N''hub_skip_automation'')", text, name)

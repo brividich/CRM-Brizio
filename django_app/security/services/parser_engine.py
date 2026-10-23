@@ -254,6 +254,12 @@ def _persist_record(source, report, record):
         )
         if BackupJobRecord.objects.filter(source=source, dedup_hash=dedup_hash).exists():
             return
+        if payload.get("vendor") == "veeam" and payload.get("source") != "veeam_api":
+            from security.services.veeam_api import same_run_exists
+
+            # La stessa esecuzione già letta dall'API di Veeam: la mail non la conta di nuovo.
+            if same_run_exists(payload.get("job_name"), _parse_iso_datetime(payload.get("start_time")), from_api=False):
+                return
         BackupJobRecord.objects.create(
             source=source,
             report=report,

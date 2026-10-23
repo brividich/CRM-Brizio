@@ -673,6 +673,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                       <div class="abs-row-main">
                         <div class="abs-row-title">{{ r.dipendente }}</div>
                         <div class="abs-row-sub">Richiesta in carico al workflow assenze</div>
+                        {% for avviso in r.avvisi_hr %}<div class="abs-alert abs-alert-warn" role="note" style="padding:4px 8px;margin-top:6px;font-size:12px;">⚠ {{ avviso }}</div>{% endfor %}
                       </div>
                     </td>
                     <td data-label="Tipo">

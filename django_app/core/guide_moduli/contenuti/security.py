@@ -85,6 +85,10 @@ GUIDA = {
                     "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
                     "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
                     "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
+                    "Backup letti direttamente da Veeam: Impostazioni › «Backup letti direttamente da Veeam». Nel .env del server "
+                    "VEEAM_API_URL (https://<server>:9419), VEEAM_API_USERNAME e VEEAM_API_PASSWORD di un utente con il solo ruolo "
+                    "«Veeam Backup Viewer»; se il certificato del server Veeam non è di una CA attendibile, VEEAM_API_CA_BUNDLE. "
+                    "Prova con manage.py veeam_api --prova. Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
                 ]),
             ],
         },
@@ -169,6 +173,24 @@ GUIDA = {
                 "Dal terminale: manage.py defender_alerts mostra l'esito dell'ultimo giro. «Graph ha risposto 403» = manca il permesso "
                 "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID.",
                 "Arriva l'evento ma non l'alert: la severità è sotto la «Severità minima per l'alert» (l'evento resta nei KPI).",
+            ],
+        },
+        {
+            "sintomo": "Il riquadro «Lettura diretta da Veeam» della pagina Backup dice «errore»",
+            "fare": [
+                "Il messaggio sotto il titolo dice cosa non va; lo stesso esito dal terminale con manage.py veeam_api.",
+                "«Server Veeam non raggiungibile»: controlla VEEAM_API_URL e che dal server del portale la porta 9419 sia aperta.",
+                "«Certificato del server Veeam non attendibile»: metti in VEEAM_API_CA_BUNDLE il percorso del certificato della CA (file .pem).",
+                "«Veeam ha rifiutato l'accesso»: utente o password sbagliati, oppure l'utente non ha il ruolo «Veeam Backup Viewer».",
+                "Dopo ogni modifica al .env riavvia il portale e il qcluster, poi prova con manage.py veeam_api --prova.",
+            ],
+        },
+        {
+            "sintomo": "Alert «Repository di backup quasi pieno»",
+            "fare": [
+                "Lo spazio libero del repository Veeam è sotto la soglia scelta in Impostazioni (default 15%).",
+                "Libera spazio (retention più corta, vecchi punti di ripristino, spostamento su un altro repository) o aumentalo.",
+                "L'alert si chiude da solo al primo giro in cui lo spazio libero torna sopra la soglia.",
             ],
         },
         {

@@ -86,10 +86,20 @@ from .sharepoint import (
     api_sync_pull,
     api_sync_push,
 )
+from .hr_gestione import (
+    api_storico,
+    api_verifica_richiesta,
+    hr_calendario,
+    hr_contatori,
+    hr_copertura,
+    hr_cruscotto,
+    hr_saldi,
+    hr_saldi_modello,
+)
 
-from . import _helpers, amministrazione, eventi, richieste, sharepoint  # noqa: E402
+from . import _helpers, amministrazione, eventi, hr_gestione, richieste, sharepoint  # noqa: E402
 
-_PILASTRI = (_helpers, amministrazione, eventi, richieste, sharepoint)
+_PILASTRI = (_helpers, amministrazione, eventi, richieste, sharepoint, hr_gestione)
 
 
 def __getattr__(name):

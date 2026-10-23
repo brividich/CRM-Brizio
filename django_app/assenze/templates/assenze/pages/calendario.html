@@ -151,6 +151,14 @@
       box-sizing: border-box;
     }
     .event-edit-grid textarea { min-height: 78px; resize: vertical; }
+    .event-storico { display: grid; gap: 6px; font-size: 13px; border-top: 1px solid var(--border, #e2e8f0); padding-top: 10px; }
+    .event-storico ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-height: 200px; overflow: auto; }
+    .event-storico-diff { color: var(--text-mid, #475569); }
+    .fc .abs-festivo { background: rgba(220, 38, 38, .10); }
+    .fc .abs-chiusura { background: rgba(100, 116, 139, .16); }
+    .fc .fc-bg-event { opacity: 1; }
+    .fc .fc-bg-event .fc-event-title { font-size: 11px; font-style: normal; font-weight: 700; color: var(--text-mid, #475569); }
+    #modalMotivoWrap[hidden], #modalStorico[hidden] { display: none !important; }
     .event-modal-foot {
       padding: 12px 16px 14px;
       border-top: 1px solid #e5edf5;
@@ -436,6 +444,14 @@
             Numero certificato medico
             <input type="text" id="modalCertificatoInput" placeholder="Inserisci il numero del certificato">
           </label>
+          <label class="full" id="modalMotivoWrap" hidden>
+            Motivo della modifica (obbligatorio: la richiesta è già approvata)
+            <textarea id="modalMotivoInput" maxlength="1000"></textarea>
+          </label>
+        </section>
+        <section class="event-storico" id="modalStorico" hidden>
+          <strong>Storico della richiesta</strong>
+          <ul id="modalStoricoList"></ul>
         </section>
       </div>
       <div class="event-modal-foot">
@@ -474,12 +490,14 @@
 {% endblock %}
 
 {% block assenze_shell_scripts %}
+  {{ giorni_non_lavorativi|json_script:"abs-giorni-non-lavorativi" }}
   <script>
     (function() {
       const endpoints = {
         events: "{% url 'assenze_api_eventi' %}",
         colors: "{% url 'assenze_api_eventi_colors' %}",
         update: "{% url 'assenze_api_evento_update_static' %}",
+        storico: "/assenze/api/storico/",
         del: "{% url 'assenze_api_evento_delete_static' %}",
         syncPull: "{% url 'assenze_api_sync_pull' %}?force=0"
       };
@@ -498,6 +516,10 @@
       const modalBackdrop = document.getElementById("eventModalBackdrop");
       const closeModalBtn = document.getElementById("closeEventModalBtn");
       const saveEventBtn = document.getElementById("saveEventBtn");
+      const modalMotivoWrapEl = document.getElementById("modalMotivoWrap");
+      const modalMotivoInputEl = document.getElementById("modalMotivoInput");
+      const storicoEl = document.getElementById("modalStorico");
+      const storicoListEl = document.getElementById("modalStoricoList");
       const deleteEventBtn = document.getElementById("deleteEventBtn");
       const modalMessageEl = document.getElementById("modalMessage");
       const modalTipoInputEl = document.getElementById("modalTipoInput");
@@ -712,12 +734,38 @@
         document.querySelectorAll(".event-edit-grid input, .event-edit-grid select, .event-edit-grid textarea").forEach(function(el) {
           el.disabled = !canEditEvents || gestitaSp;
         });
+        const approvata = (item.extendedProps.consenso || "") === "Approvato";
+        modalMotivoWrapEl.hidden = !(canEditEvents && approvata && !gestitaSp);
+        modalMotivoInputEl.value = "";
+        loadStorico(hasRecordId && (canEditEvents || canDeleteEvents) ? item.id : null);
         if (gestitaSp) {
           modalMessageEl.textContent = "Richiesta nata su SharePoint: si gestisce dall'app SharePoint.";
         } else if (!canEditEvents && !canDeleteEvents) {
           modalMessageEl.textContent = "Modalita sola lettura.";
         }
         modalBackdrop.hidden = false;
+      }
+
+      function loadStorico(itemId) {
+        storicoListEl.innerHTML = "";
+        storicoEl.hidden = true;
+        if (itemId === null || itemId === undefined) return;
+        fetch(endpoints.storico + encodeURIComponent(itemId), { credentials: "same-origin" })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) {
+            if (!data || !Array.isArray(data.voci) || !data.voci.length) return;
+            storicoListEl.innerHTML = data.voci.map(function(v) {
+              const righe = (v.modifiche || []).map(function(m) {
+                return escapeHtml(m.campo) + ": " + escapeHtml(m.prima || "—") + " → " + escapeHtml(m.dopo || "—");
+              }).join("<br>");
+              return "<li><strong>" + escapeHtml(v.quando) + "</strong> · " + escapeHtml(v.azione) +
+                (v.utente ? " da " + escapeHtml(v.utente) : "") +
+                (v.motivo ? "<br><em>" + escapeHtml(v.motivo) + "</em>" : "") +
+                (righe ? "<br><span class=\"event-storico-diff\">" + righe + "</span>" : "") + "</li>";
+            }).join("");
+            storicoEl.hidden = false;
+          })
+          .catch(function() { return null; });
       }
 
       function syncCertificatoFields() {
@@ -746,7 +794,8 @@
           inizio: document.getElementById("modalStartInput").value,
           fine: document.getElementById("modalEndInput").value,
           motivazione: document.getElementById("modalMotivazioneInput").value,
-          certificato_medico: modalCertificatoInputEl.value
+          certificato_medico: modalCertificatoInputEl.value,
+          motivo_modifica: modalMotivoInputEl.value
         };
 
         const resp = await fetch(endpoints.update, {
@@ -845,6 +894,7 @@
           renderAgenda(info.date);
         },
         eventClick: function(info) {
+          if (info.event.display === "background") return;
           const uid = info.event.extendedProps && info.event.extendedProps.uid;
           renderAgenda(info.event.start || state.selectedDate);
           if (uid) openEventModal(uid);
@@ -896,6 +946,8 @@
         .then(loadColors)
         .catch(function(err) { showColorStatus(err && err.message ? err.message : "Impossibile caricare colori.", true); });
 
+      const giorniNonLavorativiEl = document.getElementById("abs-giorni-non-lavorativi");
+      if (giorniNonLavorativiEl) calendar.addEventSource({ events: JSON.parse(giorniNonLavorativiEl.textContent || "[]") });
       calendar.render();
       renderAgenda(state.selectedDate);
 

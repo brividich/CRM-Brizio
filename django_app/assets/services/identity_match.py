@@ -8,6 +8,8 @@ stesso asset.
 Ordine, dal segnale piu' forte al piu' debole:
 
 1. **seriale** (``Asset.serial_number``, senza maiuscole);
+1b. **MAC** (normalizzato): punto rete dell'asset (``AssetEndpoint.mac``), poi i
+   MAC Wi-Fi/Ethernet dei PC Intune già collegati;
 2. **indirizzo IP**: endpoint dell'asset, poi collegamenti gia' confermati
    negli altri moduli (dispositivi/MFC SNMP, dispositivi SOC);
 3. **nome**: identico al nome dell'asset, poi il nome host corto
@@ -22,6 +24,8 @@ import ipaddress
 
 REASON_SERIAL = "seriale"
 REASON_SERIAL_AMBIGUOUS = "seriale ambiguo"
+REASON_MAC = "indirizzo MAC"
+REASON_MAC_AMBIGUOUS = "indirizzo MAC ambiguo"
 REASON_IP = "indirizzo IP"
 REASON_IP_LINKED = "IP già collegato in un altro modulo"
 REASON_IP_AMBIGUOUS = "indirizzo IP ambiguo"
@@ -30,7 +34,7 @@ REASON_HOSTNAME = "nome host"
 REASON_NAME_AMBIGUOUS = "più asset con lo stesso nome"
 REASON_NONE = "nessuna corrispondenza"
 
-AMBIGUOUS_REASONS = {REASON_SERIAL_AMBIGUOUS, REASON_IP_AMBIGUOUS, REASON_NAME_AMBIGUOUS}
+AMBIGUOUS_REASONS = {REASON_SERIAL_AMBIGUOUS, REASON_MAC_AMBIGUOUS, REASON_IP_AMBIGUOUS, REASON_NAME_AMBIGUOUS}
 
 
 def _valid_ip(value) -> str:
@@ -73,8 +77,23 @@ def _linked_ids_for_ip(ip: str) -> set[int]:
     return ids
 
 
-def match_hub_asset(*, serial: str = "", ip: str = "", hostname: str = ""):
-    """``(asset | None, motivo)`` per un dispositivo descritto da seriale, IP e/o nome."""
+def _ids_for_mac(mac: str) -> set[int]:
+    """Asset con questo MAC: punto rete dichiarato, poi PC di Intune già collegati."""
+    from django.db.models import Q
+
+    ids = set(_active_assets().filter(endpoints__mac=mac).values_list("pk", flat=True)[:5])
+    if not ids:
+        from assets.models import DispositivoIntune
+
+        bare = mac.replace(":", "")  # Intune dà il MAC senza separatori
+        ids.update(DispositivoIntune.objects.filter(asset__isnull=False).filter(
+            Q(mac_wifi__iexact=bare) | Q(mac_ethernet__iexact=bare) | Q(mac_wifi__iexact=mac) | Q(mac_ethernet__iexact=mac)
+        ).values_list("asset_id", flat=True)[:5])
+    return ids
+
+
+def match_hub_asset(*, serial: str = "", ip: str = "", hostname: str = "", mac: str = ""):
+    """``(asset | None, motivo)`` per un dispositivo descritto da seriale, MAC, IP e/o nome."""
     assets = _active_assets()
 
     serial = (serial or "").strip()
@@ -84,6 +103,16 @@ def match_hub_asset(*, serial: str = "", ip: str = "", hostname: str = ""):
             return assets.get(pk=ids[0]), REASON_SERIAL
         if len(ids) > 1:
             return None, REASON_SERIAL_AMBIGUOUS
+
+    from .mac import normalizza_mac
+
+    mac = normalizza_mac(mac)
+    if mac:
+        pk, ambiguous = _unique(_ids_for_mac(mac))
+        if pk and assets.filter(pk=pk).exists():
+            return assets.get(pk=pk), REASON_MAC
+        if ambiguous:
+            return None, REASON_MAC_AMBIGUOUS
 
     ip = _valid_ip(ip)
     if ip:

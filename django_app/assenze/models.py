@@ -272,3 +272,208 @@ class FlessibilitaAbilitato(models.Model):
 
     def __str__(self):
         return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
+
+
+# ─── HR: impostazioni, calendario aziendale, saldi, contatori, copertura ─────
+
+
+class AssenzeImpostazioniHR(models.Model):
+    """Impostazioni HR del modulo (riga unica, pk=1).
+
+    Servono a contare le assenze in ore: quante ore vale una giornata, se il
+    sabato si lavora, il santo patrono. Più i solleciti ai capi per le richieste
+    ferme in attesa.
+    """
+
+    ore_giornata = models.DecimalField(
+        max_digits=4, decimal_places=2, default=8,
+        verbose_name="Ore di una giornata lavorativa",
+        help_text="Una giornata di ferie vale queste ore.",
+    )
+    sabato_lavorativo = models.BooleanField(default=False, verbose_name="Il sabato è lavorativo")
+    patrono_giorno = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Patrono: giorno")
+    patrono_mese = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Patrono: mese")
+    patrono_nome = models.CharField(max_length=100, blank=True, default="", verbose_name="Patrono: nome")
+    sollecito_attivo = models.BooleanField(default=True, verbose_name="Solleciti ai capi attivi")
+    sollecito_dopo_giorni = models.PositiveSmallIntegerField(
+        default=2, verbose_name="Sollecita dopo (giorni in attesa)",
+    )
+    sollecito_ripeti_giorni = models.PositiveSmallIntegerField(
+        default=2, verbose_name="Ripeti il sollecito ogni (giorni)",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Impostazioni HR assenze"
+        verbose_name_plural = "Impostazioni HR assenze"
+
+    def __str__(self):
+        return f"Impostazioni HR assenze ({self.ore_giornata} ore/giorno)"
+
+    @classmethod
+    def get_solo(cls) -> "AssenzeImpostazioniHR":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class ChiusuraAziendale(models.Model):
+    """Periodo in cui l'azienda è chiusa per tutti (es. agosto, ponti, Natale).
+
+    Vale per tutta l'azienda: non crea richieste per le persone. Se
+    ``scala_ferie`` è vero, i giorni lavorativi del periodo si tolgono dal saldo
+    ferie di ognuno.
+    """
+
+    data_inizio = models.DateField()
+    data_fine = models.DateField()
+    descrizione = models.CharField(max_length=200)
+    scala_ferie = models.BooleanField(default=True, verbose_name="Scala dalle ferie")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-data_inizio"]
+        verbose_name = "Chiusura aziendale"
+        verbose_name_plural = "Chiusure aziendali"
+
+    def __str__(self):
+        return f"{self.descrizione} ({self.data_inizio} - {self.data_fine})"
+
+
+class SaldoAssenze(models.Model):
+    """Saldo ferie e permessi di un dipendente a una data (dal cedolino).
+
+    Il residuo stimato si calcola togliendo le richieste non rifiutate che
+    iniziano dopo ``situazione_al`` e le chiusure aziendali che scalano le ferie.
+    """
+
+    ORIGINE_MANUALE = "manuale"
+    ORIGINE_IMPORT = "import"
+    ORIGINE_CHOICES = [(ORIGINE_MANUALE, "Manuale"), (ORIGINE_IMPORT, "Import da file")]
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(max_length=200, blank=True, default="")
+    ferie_ore = models.DecimalField(max_digits=7, decimal_places=2, default=0, verbose_name="Ferie (ore)")
+    permessi_ore = models.DecimalField(
+        max_digits=7, decimal_places=2, default=0, verbose_name="Permessi ROL ed ex festività (ore)",
+    )
+    situazione_al = models.DateField(verbose_name="Situazione al")
+    note = models.CharField(max_length=300, blank=True, default="")
+    origine = models.CharField(max_length=10, choices=ORIGINE_CHOICES, default=ORIGINE_MANUALE)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["nominativo"]
+        verbose_name = "Saldo ferie e permessi"
+        verbose_name_plural = "Saldi ferie e permessi"
+
+    def __str__(self):
+        return f"{self.nominativo or self.legacy_anagrafica_id} al {self.situazione_al}"
+
+
+class ContatoreAssenza(models.Model):
+    """Limite di legge o di contratto su un tipo di assenza (es. assemblea, 104).
+
+    Si aggancia alla «Motivazione richiesta» (confronto senza maiuscole) e conta
+    le richieste non rifiutate della persona nel periodo. Superare il limite non
+    blocca: avvisa chi chiede e chi approva.
+    """
+
+    UNITA_ORE = "ore"
+    UNITA_GIORNI = "giorni"
+    UNITA_CHOICES = [(UNITA_ORE, "Ore"), (UNITA_GIORNI, "Giorni")]
+    PERIODO_MESE = "mese"
+    PERIODO_ANNO = "anno"
+    PERIODO_CHOICES = [(PERIODO_MESE, "Al mese"), (PERIODO_ANNO, "All'anno")]
+
+    nome = models.CharField(max_length=100)
+    motivazione = models.CharField(max_length=200, verbose_name="Motivazione richiesta")
+    unita = models.CharField(max_length=10, choices=UNITA_CHOICES, default=UNITA_ORE)
+    limite = models.DecimalField(max_digits=7, decimal_places=2)
+    periodo = models.CharField(max_length=10, choices=PERIODO_CHOICES, default=PERIODO_ANNO)
+    attivo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Contatore assenza"
+        verbose_name_plural = "Contatori assenze"
+
+    def __str__(self):
+        return f"{self.nome}: {self.limite} {self.unita} {self.get_periodo_display().lower()}"
+
+
+class SogliaCopertura(models.Model):
+    """Quante persone di un reparto possono essere assenti nello stesso giorno.
+
+    Non blocca: avvisa il capo quando approvare una richiesta porterebbe il
+    reparto oltre la soglia. Il reparto è quello scritto in anagrafica.
+    """
+
+    reparto = models.CharField(max_length=200, unique=True)
+    max_assenti = models.PositiveSmallIntegerField(verbose_name="Assenti al massimo nello stesso giorno")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["reparto"]
+        verbose_name = "Soglia di copertura"
+        verbose_name_plural = "Soglie di copertura"
+
+    def __str__(self):
+        return f"{self.reparto}: max {self.max_assenti} assenti"
+
+
+class AssenzaModifica(models.Model):
+    """Storico di una richiesta: chi l'ha creata, cambiata, decisa o eliminata.
+
+    La tabella ``assenze`` è legacy e non ha uno storico: la riga vive qui, per
+    ``assenza_id``, e sopravvive all'eliminazione della richiesta.
+    """
+
+    AZIONE_CREATA = "creata"
+    AZIONE_MODIFICATA = "modificata"
+    AZIONE_APPROVATA = "approvata"
+    AZIONE_RIFIUTATA = "rifiutata"
+    AZIONE_ELIMINATA = "eliminata"
+    AZIONE_CHOICES = [
+        (AZIONE_CREATA, "Creata"),
+        (AZIONE_MODIFICATA, "Modificata"),
+        (AZIONE_APPROVATA, "Approvata"),
+        (AZIONE_RIFIUTATA, "Rifiutata"),
+        (AZIONE_ELIMINATA, "Eliminata"),
+    ]
+
+    assenza_id = models.IntegerField(db_index=True)
+    quando = models.DateTimeField(auto_now_add=True)
+    utente = models.CharField(max_length=200, blank=True, default="")
+    azione = models.CharField(max_length=20, choices=AZIONE_CHOICES)
+    modifiche = models.JSONField(default=list, blank=True)
+    motivo = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-quando", "-id"]
+        verbose_name = "Modifica richiesta assenza"
+        verbose_name_plural = "Storico richieste assenza"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id}: {self.azione} da {self.utente}"
+
+
+class AssenzaSollecito(models.Model):
+    """Ultimo sollecito mandato al capo per una richiesta ferma in attesa."""
+
+    assenza_id = models.IntegerField(unique=True)
+    ultimo_invio = models.DateTimeField()
+    invii = models.PositiveIntegerField(default=0)
+    destinatario = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Sollecito richiesta assenza"
+        verbose_name_plural = "Solleciti richieste assenza"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id}: {self.invii} solleciti"

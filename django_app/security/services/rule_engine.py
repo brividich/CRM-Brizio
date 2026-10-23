@@ -428,6 +428,38 @@ def _evaluate_apparato_raggiungibile(event):
     event.save(update_fields=["decision_trace"])
 
 
+def _evaluate_backup_repository_space(event):
+    """Repository di Veeam sotto la soglia di spazio libero (``veeam_api``): un alert per repository.
+
+    Lo stesso evento con ``sotto_soglia`` falso (spazio tornato sopra) chiude l'alert.
+    """
+    from security.services.auto_resolution import resolve_alert
+
+    payload = event.payload or {}
+    if not payload.get("sotto_soglia"):
+        alert = _active_alert(event.source, event.dedup_hash)
+        trace = {"decision": "resolved_upstream", "reason": "Spazio libero del repository tornato sopra la soglia",
+                 "free_pct": payload.get("free_pct")}
+        if alert is not None:
+            resolve_alert(alert, f"Spazio libero tornato al {payload.get('free_pct')}% (soglia {payload.get('soglia_pct')}%).",
+                          evidence_event=event, rule_code="backup_repository_space")
+            trace["alert_id"] = alert.pk
+        event.decision_trace = trace
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Repository di backup Veeam sotto la soglia di spazio libero => alert",
+        "repository": payload.get("repository"),
+        "host": payload.get("host"),
+        "free_gb": payload.get("free_gb"),
+        "free_pct": payload.get("free_pct"),
+        "soglia_pct": payload.get("soglia_pct"),
+    }
+    _alert_da_evento(event, f"Repository di backup quasi pieno: {payload.get('repository')} "
+                            f"({payload.get('free_pct')}% libero, {payload.get('free_gb')} GB)", event.severity, trace)
+
+
 def soc_settings_value(key):
     from security.services import soc_settings
 
@@ -901,4 +933,5 @@ _HANDLERS = {
     "entra_accesso": _evaluate_entra_accesso,
     "apparato_irraggiungibile": _evaluate_apparato_irraggiungibile,
     "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
+    "backup_repository_space": _evaluate_backup_repository_space,
 }

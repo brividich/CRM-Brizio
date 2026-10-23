@@ -97,6 +97,41 @@
   </div>
 </section>
 
+{% if veeam.attivo or veeam.repository %}
+<section class="sec-panel" style="margin-top: 12px;" id="veeam">
+  <div class="sec-section-head">
+    <h2>Lettura diretta da Veeam</h2>
+    {% if not veeam.attivo %}<span class="sec-badge">spenta</span>{% elif not veeam.configurato %}<span class="sec-badge sec-badge-critical">da configurare</span>{% elif veeam.ultimo_giro.ok %}<span class="sec-badge sec-badge-success">collegata</span>{% elif veeam.ultimo_giro.errore %}<span class="sec-badge sec-badge-critical">errore</span>{% else %}<span class="sec-badge">in attesa del primo giro</span>{% endif %}
+  </div>
+  {% if veeam.attivo and not veeam.configurato %}
+    <p class="bk-late">Mancano indirizzo, utente o password dell'API di Veeam nel file .env del server: il giro non parte.</p>
+  {% elif veeam.ultimo_giro.errore %}
+    <p class="bk-late">Ultimo giro non riuscito: {{ veeam.ultimo_giro.errore }}</p>
+  {% elif veeam.ultimo_giro.ok %}
+    <p class="sec-muted sec-small" style="margin-top:0;">Ultimo giro {{ veeam.ultimo_giro_at|date:"d/m H:i" }}:{{ veeam.ultimo_giro.sessioni_lette|default:0 }} sessioni lette, {{ veeam.ultimo_giro.salvate|default:0 }} nuove{% if veeam.ultimo_giro.gia_da_mail %}, {{ veeam.ultimo_giro.gia_da_mail }} già arrivate per mail{% endif %}. Si aggiorna ogni 15 minuti.</p>
+  {% endif %}
+  {% if veeam.repository %}
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>Repository</th><th>Server</th><th class="sec-num">Capacità</th><th class="sec-num">Libero</th><th>Spazio libero</th></tr></thead>
+      <tbody>
+      {% for r in veeam.repository %}
+        <tr{% if r.low %} class="bk-row-stale"{% endif %}>
+          <td class="sec-title-cell"><strong>{{ r.name }}</strong>{% if r.path %}<small>{{ r.path }}</small>{% endif %}</td>
+          <td><small>{{ r.host|default:"—" }}</small></td>
+          <td class="sec-num sec-nowrap">{% if r.capacity_gb is not None %}{{ r.capacity_gb|floatformat:0 }} GB{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if r.free_gb is not None %}{{ r.free_gb|floatformat:0 }} GB{% else %}—{% endif %}</td>
+          <td>{% if r.free_pct is not None %}<span class="sec-badge sec-badge-{% if r.low %}critical{% else %}success{% endif %}">{{ r.free_pct|floatformat:1 }}%</span>{% if r.low %} <small class="bk-late">sotto la soglia del {{ veeam.soglia_pct }}%</small>{% endif %}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if veeam.repository_at %}<p class="sec-muted sec-small">Spazio letto il {{ veeam.repository_at|date:"d/m/Y H:i" }}.</p>{% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="sec-panel" style="margin-top: 12px;" id="pc">
   <div class="sec-section-head">
     <h2>Per PC e server</h2>

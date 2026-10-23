@@ -7,7 +7,8 @@ Sola lettura, poche query. Ogni fonte dice se vede l'asset e quando l'ha visto l
 - dispositivi del Security Center (``SecurityAsset`` collegati): ultimo fatto ricevuto;
 - monitoraggio SNMP del modulo contatori (``DispositivoSNMP`` collegato);
 - WatchGuard via API (``WatchGuardDispositivo``): stato della protezione e patch mancanti, prima dell'inventario;
-- switch e porta a cui il PC è collegato (tabella MAC letta via SNMP, ``contatori.tabella_mac``).
+- switch e porta a cui il PC è collegato (tabella MAC letta via SNMP, ``contatori.tabella_mac``);
+- rete: indirizzi del DHCP/DNS di Windows Server collegati (``IndirizzoRete``).
 
 Le fonti SOC compaiono solo a chi vede il Security Center. Per i PC (postazioni e server) le
 fonti che mancano si mostrano tratteggiate: un PC non in Intune o senza inventario è il dato utile.
@@ -127,6 +128,21 @@ def _snmp(asset, oggi):
     return _fonte("SNMP", _stato_data(disp.snmp_ultimo_controllo, oggi, 2), "monitoraggio", url, disp.snmp_ultimo_controllo)
 
 
+def _rete(asset, oggi):
+    from assets.models import IndirizzoRete
+
+    righe = list(IndirizzoRete.objects.filter(asset=asset).order_by("-nel_dhcp", "-ultima_vista")[:3])
+    if not righe:
+        return None
+    attivi = [r for r in righe if r.presente]
+    from urllib.parse import quote
+
+    url = reverse("assets:rete_indirizzi") + "?q=" + quote(righe[0].mac or righe[0].ip)
+    if not attivi:
+        return _fonte("Rete", "old", "non più nel DHCP", url, righe[0].ultima_vista)
+    return _fonte("Rete", _stato_data(attivi[0].ultima_vista, oggi, 2), ", ".join(r.ip for r in attivi), url, attivi[0].ultima_vista)
+
+
 def per_asset(asset, *, profilo=None, soc=False, oggi=None):
     """Elenco delle fonti per la striscia «Visto da»; vuoto se nessuna fonte vede l'asset e non è un PC."""
     oggi = oggi or timezone.localdate()
@@ -156,6 +172,9 @@ def per_asset(asset, *, profilo=None, soc=False, oggi=None):
     switch = _switch(asset)
     if switch:
         out.append(switch)
+    rete = _rete(asset, oggi)
+    if rete:
+        out.append(rete)
     if not any(f["stato"] != "no" for f in out) and not pc:
         return []
     return out
