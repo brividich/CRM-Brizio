@@ -85,6 +85,11 @@ GUIDA = {
                       "apre Outlook web con l'assenza già compilata. Da Outlook sul PC puoi anche aprire l'allegato "
                       "«assenza.ics» e salvarlo. L'evento è segnato «libero»: non occupa la tua agenda. "
                       "Non compare per le richieste rifiutate."),
+                ("p", "Se l'ufficio HR ha acceso «Assenze approvate nel calendario Outlook del capo», non devi fare niente: "
+                      "le assenze che approvi compaiono da sole in Outlook, entro 10 minuti, nel calendario «Assenze del team "
+                      "(NOVICROM HUB)» (puoi mostrarlo o nasconderlo accanto al tuo calendario). Se una richiesta cambia "
+                      "l'evento si aggiorna, se viene rifiutata o eliminata sparisce. Se cancelli tu un evento da Outlook, "
+                      "il portale non lo rimette. In questo caso le mail non hanno più il pulsante."),
                 ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 un promemoria con l'elenco "
                       "(di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi)."),
                 ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "
@@ -175,6 +180,12 @@ GUIDA = {
                                   "Legge 104 (3 giorni al mese): controlla che la motivazione sia scritta come nelle richieste."),
                     ("Copertura reparti", "per ogni reparto dell'anagrafica, quante persone possono essere assenti nello stesso "
                                           "giorno. Contano le assenze approvate a giornata intera; vuoto = nessun controllo."),
+                    ("Calendario Outlook del capo", "con «Assenze approvate nel calendario Outlook del capo» acceso, il lavoro "
+                                                    "«assenze_outlook_sync» (ogni 10 minuti) scrive le assenze approvate nel "
+                                                    "calendario «Assenze del team (NOVICROM HUB)» della casella del capo che le "
+                                                    "approva, via Microsoft Graph. Serve il permesso applicativo «Calendars.ReadWrite» "
+                                                    "con consenso amministratore (lo stesso del calendario dello Scadenzario). "
+                                                    "Sotto l'interruttore: quanti eventi ci sono e gli ultimi errori."),
                     ("Orario, patrono e solleciti", "ore di una giornata (predefinite 8), sabato lavorativo, patrono e solleciti ai "
                                                     "capi: «Sollecita dopo» (predefinito 2 giorni) e «Ripeti il sollecito ogni» "
                                                     "(predefinito 2 giorni). Il lavoro «assenze_solleciti» gira nei giorni feriali alle 08:15."),
@@ -273,6 +284,19 @@ GUIDA = {
                 "Ricarica il saldo dall'ultimo cedolino: le richieste fino a quella data non vengono più contate.",
                 "Controlla in «Calendario aziendale» le chiusure con «Scala dalle ferie» e le ore di una giornata.",
                 "Le richieste in attesa contano già: la colonna «di cui in attesa» dice quante ore sono.",
+            ],
+        },
+        {
+            "sintomo": "Le assenze approvate non compaiono nel calendario Outlook del capo",
+            "fare": [
+                "Area HR → «Calendario aziendale» → «Orario, patrono e solleciti»: «Assenze approvate nel calendario Outlook "
+                "del capo» deve essere spuntato; sotto ci sono gli ultimi errori.",
+                "«manca il permesso Calendars.ReadWrite»: in Entra ID l'app del portale deve avere il permesso applicativo "
+                "Calendars.ReadWrite con consenso amministratore; dopo averlo dato serve fino a un'ora (o il riavvio).",
+                "«Capo senza email aziendale»: il capo deve avere l'email in anagrafica, e deve essere una casella "
+                "personale con licenza (non una casella condivisa).",
+                "Il lavoro gira ogni 10 minuti: Monitoring → «Salute degli schedule» → «assenze_outlook_sync».",
+                "Un evento cancellato dal capo in Outlook non viene rimesso finché la richiesta non cambia.",
             ],
         },
         {

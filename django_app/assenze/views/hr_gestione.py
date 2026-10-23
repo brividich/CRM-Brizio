@@ -370,12 +370,14 @@ def _salva_impostazioni(request) -> None:
     imp.sollecito_attivo = request.POST.get("sollecito_attivo") == "1"
     imp.sollecito_dopo_giorni = dopo
     imp.sollecito_ripeti_giorni = ripeti
+    imp.outlook_capo_attivo = request.POST.get("outlook_capo_attivo") == "1"
     imp.updated_by = _utente(request)
     imp.save()
     _helpers.log_action(request, "assenze_impostazioni_hr", "assenze", {
         "ore_giornata": str(ore), "sabato_lavorativo": imp.sabato_lavorativo,
         "patrono": f"{giorno}/{mese}" if giorno else "", "sollecito_attivo": imp.sollecito_attivo,
         "sollecito_dopo_giorni": dopo, "sollecito_ripeti_giorni": ripeti,
+        "outlook_capo_attivo": imp.outlook_capo_attivo,
     })
     messages.success(request, "Impostazioni salvate.")
 
@@ -427,8 +429,11 @@ def hr_calendario(request):
         {"data": d, "nome": nome, "feriale": cal.settimanale(d)}
         for d, nome in sorted(calcoli.festivita(anno, imp).items())
     ]
+    from .. import outlook_sync
+
     return _render(request, "calendario", {
         "imp": imp,
+        "outlook": outlook_sync.stato(),
         "anno": anno,
         "anno_prec": anno - 1,
         "anno_succ": anno + 1,

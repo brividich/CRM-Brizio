@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 86
+**Totale automazioni disponibili:** 87
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -431,6 +431,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** Cadenza fissa (lunedi 06:00); attivazione e parametri si gestiscono dalla pagina Impostazioni automazioni (SiteConfig), non da qui.
 
 ## Altro
+
+### `assenze_outlook_sync`
+
+- **Quando gira:** ogni 10 minuti
+- **Task eseguito:** `assenze.tasks.run_assenze_outlook_sync`
+- **Cosa fa:** ASSENZE — le assenze approvate nel calendario Outlook del capo (Graph, Calendars.ReadWrite). No-op finché l'interruttore in Area HR è spento.
 
 ### `assenze_sharepoint_sync`
 

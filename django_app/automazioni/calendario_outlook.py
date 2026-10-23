@@ -45,9 +45,26 @@ def _dt(value) -> datetime | None:
     return dt
 
 
-def evento_assenza(source_code, payload) -> dict | None:
-    """Evento da calendario per una richiesta di assenza, oppure ``None``."""
+def sincronizzazione_graph_attiva() -> bool:
+    """Con il calendario del capo scritto via Graph il pulsante creerebbe un doppione."""
+    try:
+        from assenze.outlook_sync import attivo
+
+        return attivo()
+    except Exception:
+        return False
+
+
+def evento_assenza(source_code, payload, *, forza: bool = False) -> dict | None:
+    """Evento da calendario per una richiesta di assenza, oppure ``None``.
+
+    Senza ``forza`` restituisce ``None`` anche quando le assenze arrivano già nel
+    calendario del capo via Graph (``assenze.outlook_sync``): pulsante e allegato
+    servirebbero solo a fare doppioni.
+    """
     if str(source_code or "") != "assenze" or not isinstance(payload, dict):
+        return None
+    if not forza and sincronizzazione_graph_attiva():
         return None
     stato = str(payload.get("moderation_status") if payload.get("moderation_status") is not None else "").strip()
     if stato == "1" or "rifiut" in str(payload.get("consenso") or "").lower():
