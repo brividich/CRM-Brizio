@@ -645,6 +645,23 @@
       </table>
     </div>
 
+    {% if chi %}
+    <h3 style="margin-top:20px;" id="chi-accede">Chi può aprire «{{ chi.permesso.label }}»</h3>
+    <p class="acl-muted">{{ chi.persone|length }} person{{ chi.persone|length|pluralize:"a,e" }} attiv{{ chi.persone|length|pluralize:"a,e" }} sì, {{ chi.negati }} no. Stessa decisione del portale, persona per persona; per i ruoli del portale anche da dove arrivano. <a href="?tab=modulo&amp;modulo={{ modulo_scelto }}">Chiudi</a></p>
+    <div class="acl-table-wrap">
+      <table class="acl-table">
+        <thead><tr><th>Persona</th><th>Perché</th><th>Da dove</th></tr></thead>
+        <tbody>
+        {% for r in chi.persone %}
+          <tr><td><a href="?tab=anteprima&amp;persona={{ r.utente.id }}">{{ r.utente.nome }}</a></td><td>{{ r.motivo }}</td><td class="acl-muted">{{ r.provenienza|default:"—" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3" class="acl-muted">Nessuna persona attiva può aprirla (solo superuser).</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
     <h3 style="margin-top:20px;">Pagine e API del modulo, ruolo per ruolo</h3>
     {% if pagine_senza_ruolo %}
       <div class="acl-flash warning">{{ pagine_senza_ruolo }} pagine/API di questo modulo non sono aperte a <strong>nessun</strong> ruolo (le vede solo l'amministratore): se devono essere usate, manca un permesso.</div>
@@ -663,6 +680,7 @@
             <td>
               <div class="acl-text">{{ p.label }}</div>
               <div class="acl-muted"><code>{{ p.code }}</code>{% if p.rotte %} · {{ p.rotte|join:", " }}{% endif %}{% if p.api %} · <strong>API</strong>{% endif %}</div>
+              <a class="acl-muted" href="?tab=modulo&amp;modulo={{ modulo_scelto }}&amp;chi={{ p.code|urlencode }}#chi-accede">Chi può aprirla →</a>
             </td>
             <td>{{ p.capacita|default:"?" }}</td>
             {% for stato in p.stati %}

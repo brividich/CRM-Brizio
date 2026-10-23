@@ -25,6 +25,7 @@ from django.db import DatabaseError
 logger = logging.getLogger(__name__)
 
 _CACHE_TTL = 120
+_TIPOLOGIE = {"AD_INTERIM": "ad interim", "SECONDARIO": "secondario"}
 
 
 def _profili_per_ruolo(ruolo_ids) -> dict[int, set[int]]:
@@ -65,14 +66,17 @@ def provenienze_per_utenti(utenti_ids) -> dict[int, dict[int, list[str]]]:
         assegnazioni = list(
             _assegnazioni_attive()
             .filter(legacy_anagrafica_id__in=list(anagrafica_utente))
-            .values_list("legacy_anagrafica_id", "ruolo_id", "ruolo__nome")
+            .values_list("legacy_anagrafica_id", "ruolo_id", "ruolo__nome", "tipologia")
         )
-        profili = _profili_per_ruolo({r for _a, r, _n in assegnazioni})
+        profili = _profili_per_ruolo({r for _a, r, _n, _t in assegnazioni})
     except DatabaseError:
         logger.warning("permessi.organigramma: lettura fallita", exc_info=True)
         return {}
     esito: dict[int, dict[int, list[str]]] = {}
-    for anagrafica_id, ruolo_id, nome in assegnazioni:
+    for anagrafica_id, ruolo_id, nome, tipologia in assegnazioni:
+        # Principale o senza tipologia: il solo nome; secondario e ad interim si dicono, così si vede
+        # chi ha un accesso per un incarico temporaneo (da chiudere con la data di fine).
+        nome = f"{nome} ({_TIPOLOGIE[tipologia]})" if tipologia in _TIPOLOGIE else nome
         utente = anagrafica_utente.get(anagrafica_id)
         if not utente:
             continue

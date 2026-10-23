@@ -121,15 +121,17 @@ def _assegnazione_dopo(sender, instance, created=False, **kwargs):
     prima = getattr(instance, "_accessi_prima", None)
     if prima is None:
         return
-    nome = instance.ruolo.nome if instance.ruolo_id else ""
+    ruolo = f"«{instance.ruolo.nome}»" if instance.ruolo_id else "«?»"
+    if instance.tipologia and instance.tipologia != "PRINCIPALE":
+        ruolo += f" ({instance.get_tipologia_display().lower()})"
     if kwargs.get("signal") is post_delete:
-        causa = f"Ruolo «{nome}» tolto"
+        causa = f"Ruolo {ruolo} tolto"
     elif created:
-        causa = f"Ruolo «{nome}» assegnato"
+        causa = f"Ruolo {ruolo} assegnato"
     elif instance.data_fine:
-        causa = f"Ruolo «{nome}» chiuso il {instance.data_fine:%d/%m/%Y}"
+        causa = f"Ruolo {ruolo} chiuso il {instance.data_fine:%d/%m/%Y}"
     else:
-        causa = f"Ruolo «{nome}» modificato"
+        causa = f"Ruolo {ruolo} modificato"
     registra(prima, causa)
     instance._accessi_prima = None
 

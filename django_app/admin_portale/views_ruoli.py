@@ -525,11 +525,19 @@ def _ctx_modulo(request) -> dict:
                 "nessuno": aperto_a == 0,
             }
         )
+    chi = None
+    chi_code = str(request.GET.get("chi") or "").strip()
+    if chi_code and chi_code in codes:
+        from core.permessi.chi_accede import chi_puo_aprire
+
+        chi = chi_puo_aprire(chi_code)
+        log_action(request, "permessi_chi_accede", MODULO_AUDIT, {"permesso": chi_code, "persone": len(chi["persone"])})
     return {
         **base,
         "riepilogo_ruoli": riepilogo,
         "pagine": pagine,
         "pagine_senza_ruolo": sum(1 for p in pagine if p["nessuno"]),
+        "chi": chi,
     }
 
 
