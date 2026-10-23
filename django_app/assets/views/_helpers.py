@@ -1715,57 +1715,77 @@ def _resolve_asset_plant_layout(asset: Asset) -> tuple["PlantLayout | None", boo
 
 
 def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
-    from ..services.plant_layout_image import reset_marker_position
+    from ..services.plant_layout_image import marker_is_unplaced
 
     layout, is_specific = _resolve_asset_plant_layout(asset)
     if layout is None:
         return "Asset salvato, ma non inserito in piantina: nessuna planimetria attiva disponibile."
 
-    # Se la risoluzione è specifica per reparto e l'asset ha già un marker su un
-    # layout diverso, spostalo su quello corretto (rispettando il vincolo unico
-    # layout+asset).
-    if is_specific:
-        strays = list(PlantLayoutMarker.objects.filter(asset=asset).exclude(layout=layout))
-        if strays:
-            target_exists = PlantLayoutMarker.objects.filter(layout=layout, asset=asset).exists()
-            if not target_exists:
-                moved = strays.pop(0)
-                moved.layout = layout
-                moved.is_visible = True
-                # Le coordinate erano della ALTRA pianta: sulla nuova non vogliono
-                # dire niente, quindi il marker torna «da posizionare».
-                reset_marker_position(moved)
-                moved.save(update_fields=["layout", "is_visible", "x_percent", "y_percent", "updated_at"])
-            for stray in strays:
-                stray.delete()
+    existing = list(PlantLayoutMarker.objects.filter(asset=asset))
+    on_layout = next((m for m in existing if m.layout_id == layout.id), None)
+    if on_layout is not None:
+        if not on_layout.is_visible:
+            on_layout.is_visible = True
+            on_layout.save(update_fields=["is_visible", "updated_at"])
+        return ""
 
-    marker, created = PlantLayoutMarker.objects.get_or_create(
+    # Una macchina già posizionata a mano su un'altra pianta resta dov'è: la
+    # scelta dell'utente vale più della pianta dedotta dal reparto. Niente
+    # marker di cortesia in più, che finirebbe «da posizionare» altrove.
+    if any(not marker_is_unplaced(m) for m in existing):
+        return ""
+
+    strays = [m for m in existing if marker_is_unplaced(m)]
+    if strays:
+        if not is_specific:
+            return ""
+        # Pianta del reparto trovata e marker mai posizionato altrove: lo
+        # spostiamo lì (vincolo unico layout+asset) e togliamo i doppioni.
+        moved = strays.pop(0)
+        moved.layout = layout
+        moved.is_visible = True
+        moved.save(update_fields=["layout", "is_visible", "updated_at"])
+        for stray in strays:
+            stray.delete()
+        return ""
+
+    PlantLayoutMarker.objects.create(
         layout=layout,
         asset=asset,
-        defaults={
-            "label": asset.name[:120],
-            "x_percent": 50,
-            "y_percent": 50,
-            "is_visible": True,
-            "sort_order": 100,
-        },
+        label=asset.name[:120],
+        x_percent=50,
+        y_percent=50,
+        is_visible=True,
+        sort_order=100,
     )
-    if not created and not marker.is_visible:
-        marker.is_visible = True
-        marker.save(update_fields=["is_visible", "updated_at"])
     return ""
 
 
 def _asset_plant_layout_marker(asset: Asset) -> "PlantLayoutMarker | None":
-    """Il marker da mostrare per l'asset: prima quello sulla planimetria del suo
-    reparto, altrimenti il primo su una planimetria attiva. Solo lettura."""
-    markers = PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True).select_related("layout")
-    resolved_layout, _specific = _resolve_asset_plant_layout(asset)
-    if resolved_layout is not None:
-        marker = markers.filter(layout=resolved_layout).first()
-        if marker is not None:
-            return marker
-    return markers.order_by("layout__category", "layout__name", "id").first()
+    """Il marker da mostrare per l'asset. Solo lettura.
+
+    Vince la posizione data a mano: prima un marker posizionato sulla pianta del
+    reparto, poi uno posizionato su qualunque pianta attiva; solo se non ce ne
+    sono, il marker «da posizionare» (preferendo la pianta del reparto)."""
+    from ..services.plant_layout_image import marker_is_unplaced
+
+    markers = list(
+        PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True)
+        .select_related("layout")
+        .order_by("layout__category", "layout__name", "id")
+    )
+    if not markers:
+        return None
+    resolved_layout, specific = _resolve_asset_plant_layout(asset)
+    resolved_id = resolved_layout.id if resolved_layout is not None and specific else None
+    placed = [m for m in markers if not marker_is_unplaced(m)]
+    for group in (placed, markers):
+        for marker in group:
+            if marker.layout_id == resolved_id:
+                return marker
+        if group:
+            return group[0]
+    return None
 
 
 def _plant_layout_image_size(layout: "PlantLayout | None") -> tuple[int, int]:
