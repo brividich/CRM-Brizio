@@ -84,10 +84,12 @@ MENU = [
         ("Storico", "history", ("history",), False),
         ("KPI", "kpis", ("kpis", "kpi_detail"), False),
     ]),
+    # Cinque schede: le altre pagine di configurazione si aprono dalla Panoramica (per compito) e
+    # mostrano il percorso «Configurazione › …» (prima erano 15 schede su due righe).
     ("Impostazioni", None, [
-        ("Configurazione", None, tuple(CONFIG_ROUTES), False),
+        ("Panoramica", "admin_config", tuple(sorted((CONFIG_ROUTES - {"soc_settings"}) | {"pipeline"})), True),
+        ("Avvisi e automatismi", "soc_settings", ("soc_settings",), False),
         ("Letture automatiche", "letture", ("letture",), False),
-        ("Elaborazione", "pipeline", ("pipeline",), True),
         ("Soppressioni", "suppressions", ("suppressions",), False),
         ("Guida", "help", ("help", "doc_detail"), False),
     ]),
@@ -127,20 +129,16 @@ def soc_menu(context, url_name):
         for tab_label, route, names, admin_only in pagine:
             if admin_only and not can_configure:
                 continue
-            if route is None and is_config_page(url_name):
-                # Dentro la configurazione le sue sezioni prendono il posto della scheda unica: una riga sola, non due.
-                tabs += [
-                    {"label": t_label, "url": reverse(f"security:{t_route}"), "active": url_name in t_names}
-                    for t_route, t_label, t_names, t_admin in CONFIG_TABS if can_configure or not t_admin
-                ]
-                tabs[-1]["sep_after"] = True
-                continue
-            url = reverse(f"security:{route}") if route else reverse("security:admin_config" if can_configure else "security:soc_settings")
-            tabs.append({"label": tab_label, "url": url, "active": url_name in names})
+            tabs.append({"label": tab_label, "url": reverse(f"security:{route}"), "active": url_name in names})
         attiva = any(t["active"] for t in tabs)
         voce = {"label": label, "icon": ICONE.get(label, "shield"), "badge": badges.get(label),
                 "url": reverse(f"security:{entry}") if entry else (tabs[0]["url"] if tabs else "#"), "active": attiva, "tabs": tabs}
         if attiva:
             sezione = voce
         voci.append(voce)
-    return {"voci": voci, "sezione": sezione, "url_name": url_name}
+    from security.services.config_hub import NOMI
+
+    briciola = None
+    if can_configure and url_name != "admin_config" and url_name in NOMI and url_name not in ("soc_settings", "letture", "suppressions"):
+        briciola = {"url": reverse("security:admin_config"), "nome": NOMI[url_name]}
+    return {"voci": voci, "sezione": sezione, "url_name": url_name, "briciola": briciola}

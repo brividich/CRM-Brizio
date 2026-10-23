@@ -312,3 +312,38 @@ body.theme-dark .soc-module .lt-warn { color: #fcd34d; }
 .soc-module .lt-hist-list li { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
 .soc-module .lt-hist-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; }
 .soc-module .lt-hist-top small { font-weight: 400; color: var(--text-light); }
+
+/* Impostazioni › Panoramica della configurazione (config_hub) */
+.soc-module .soc-crumb { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0; font-size: 13px; color: rgba(255, 255, 255, .8); }
+.soc-module .soc-crumb a { color: #fff; font-weight: 600; text-decoration: none; }
+.soc-module .soc-crumb a:hover { text-decoration: underline; }
+.soc-module .soc-crumb strong { color: #fff; }
+.soc-module .cfg-todo { margin-bottom: 18px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(217, 119, 6, .35); border-left: 5px solid #d97706; background: var(--warning-bg); }
+.soc-module .cfg-todo.is-ok { border-color: rgba(22, 163, 74, .3); border-left-color: var(--success); background: var(--success-bg); }
+.soc-module .cfg-todo h2 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.soc-module .cfg-todo h2 span { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #d97706; color: #fff; font-size: 12px; }
+.soc-module .cfg-todo p { margin: 0; color: var(--text-mid); font-size: 13px; }
+.soc-module .cfg-todo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.soc-module .cfg-todo li a { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; font-size: 13px; border: 1px solid var(--border); }
+.soc-module .cfg-todo li a:hover { border-color: #d97706; }
+.soc-module .cfg-go { color: #d97706; font-weight: 700; }
+.soc-module .cfg-sec { margin-bottom: 18px; }
+.soc-module .cfg-sec header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 8px; }
+.soc-module .cfg-sec h2 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-light); }
+.soc-module .cfg-sec header p { margin: 0; font-size: 13px; color: var(--text-light); }
+.soc-module .cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.soc-module .cfg-tile { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.soc-module .cfg-tile:hover { border-color: var(--primary, #2563eb); box-shadow: 0 2px 10px rgba(15, 23, 42, .08); }
+.soc-module .cfg-tile strong { font-size: 14px; }
+.soc-module .cfg-desc { font-size: 12px; color: var(--text-mid); line-height: 1.35; }
+.soc-module .cfg-state { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--text-mid); }
+.soc-module .cfg-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex: none; }
+.soc-module .cfg-tile.is-ok .cfg-dot { background: var(--success); }
+.soc-module .cfg-tile.is-warn .cfg-dot { background: #d97706; }
+.soc-module .cfg-tile.is-ko .cfg-dot { background: var(--danger); }
+.soc-module .cfg-tile.is-ko .cfg-state { color: var(--danger); }
+.soc-module .cfg-recent { margin-top: 6px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 13px; }
+.soc-module .cfg-recent summary { cursor: pointer; font-weight: 600; color: var(--text-mid); }
+.soc-module .cfg-recent ul { margin: 8px 0; padding-left: 18px; color: var(--text-mid); }
+body.theme-dark .soc-module .cfg-todo li a { background: var(--surface); }
+@media (max-width: 520px) { .soc-module .cfg-grid { grid-template-columns: 1fr; } }

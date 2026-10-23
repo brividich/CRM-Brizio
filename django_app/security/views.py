@@ -21,9 +21,6 @@ from .forms import (
     SecurityTicketConfigForm,
 )
 from .models import (
-    SoftwareCpeMapping,
-    SoftwareInstallation,
-    SoftwareInventoryImport,
     BackupExpectedJobConfig,
     SecurityAlert,
     SecurityAlertRuleConfig,
@@ -56,7 +53,6 @@ from .services.alert_lifecycle import (
     reopen_alert,
     snooze_alert,
 )
-from .services.auto_resolution import registry_rows as auto_resolution_registry_rows
 from .services.learned_suppression import dismissal_progress
 from .services.kpi_service import build_daily_kpi_snapshots
 from .services.source_heartbeat import source_status_rows
@@ -65,7 +61,7 @@ from .services.mailbox_setup import graph_credentials_status, preview_mailbox, r
 from .services.posture import build_trend
 from .services.parser_engine import run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
-from .services.backup_monitoring import last_seen_backup_status, missing_backup_candidates
+from .services.backup_monitoring import last_seen_backup_status
 from .services.configuration import (
     audit_config_change,
     audit_model_form_changes,
@@ -444,23 +440,15 @@ def pipeline_run(request, action):
 
 @ensure_csrf_cookie
 def admin_config_dashboard(request):
+    """Panoramica della configurazione: sezioni per compito e «Da sistemare» (services/config_hub.py)."""
     if not can_manage_security_config(request.user):
         return _security_config_denied(request)
-    cards = [
-        _config_card("General", "admin_config_general", SecurityCenterSetting.objects.count(), SecurityCenterSetting.objects.filter(is_secret=True).count(), SecurityCenterSetting.objects.order_by("-updated_at").first()),
-        _config_card("Sources", "admin_config_sources", SecuritySourceConfig.objects.filter(enabled=True).count(), SecuritySourceConfig.objects.filter(enabled=False).count(), SecuritySourceConfig.objects.order_by("-updated_at").first()),
-        _config_card("Parsers", "admin_config_parsers", SecurityParserConfig.objects.filter(enabled=True).count(), SecurityParserConfig.objects.filter(enabled=False).count(), SecurityParserConfig.objects.order_by("-updated_at").first()),
-        _config_card("Alert Rules", "admin_config_alert_rules", SecurityAlertRuleConfig.objects.filter(enabled=True).count(), SecurityAlertRuleConfig.objects.filter(enabled=False).count(), SecurityAlertRuleConfig.objects.order_by("-updated_at").first()),
-        _config_card("Suppression Rules", "admin_config_suppressions", SecurityAlertSuppressionRule.objects.filter(is_active=True).count(), SecurityAlertSuppressionRule.objects.filter(is_active=False).count(), SecurityAlertSuppressionRule.objects.order_by("-updated_at").first()),
-        _config_card("Backup Monitoring", "admin_config_backups", BackupExpectedJobConfig.objects.filter(enabled=True).count(), len(missing_backup_candidates()), BackupExpectedJobConfig.objects.order_by("-updated_at").first()),
-        _config_card("Notifications", "admin_config_notifications", SecurityNotificationChannel.objects.filter(enabled=True).count(), SecurityNotificationChannel.objects.filter(enabled=False).count(), SecurityNotificationChannel.objects.order_by("-updated_at").first()),
-        _config_card("Ticketing", "admin_config_ticketing", SecurityTicketConfig.objects.count(), 0, SecurityTicketConfig.objects.order_by("-updated_at").first()),
-        _config_card("Audit Log", "admin_config_audit", SecurityConfigurationAuditLog.objects.count(), 0, SecurityConfigurationAuditLog.objects.order_by("-created_at").first()),
-        _config_card("Automatismi di rientro", "automation", sum(1 for row in auto_resolution_registry_rows() if row["enabled"]), 0, None),
-        _config_card("Inventario software", "inventory", SoftwareInstallation.objects.filter(still_detected=True).count(), SoftwareInstallation.objects.filter(still_detected=False).count(), SoftwareInventoryImport.objects.order_by("-created_at").first()),
-        _config_card("Software e CPE", "software_mapping", SoftwareCpeMapping.objects.filter(confirmed=True).count(), SoftwareCpeMapping.objects.filter(confirmed=False, not_applicable=False).count(), SoftwareCpeMapping.objects.order_by("-updated_at").first()),
-    ]
-    return render(request, "security/admin_config/dashboard.html", {"cards": cards, "recent_changes": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:8]})
+    from .services.config_hub import panoramica
+
+    return render(request, "security/admin_config/dashboard.html", {
+        **panoramica(),
+        "recent_changes": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:8],
+    })
 
 
 @ensure_csrf_cookie
