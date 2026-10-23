@@ -875,6 +875,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   </div>
 
   {% include "assets/partials/asset_kpi_band.html" %}
+  {% load asset_testata %}{% asset_altri_moduli asset %}
   <nav class="af-tabs" data-af-tabs hidden aria-label="Sezioni della scheda"></nav>
 
   {% if asset.asset_type == "PRODOTTO_CHIMICO" %}

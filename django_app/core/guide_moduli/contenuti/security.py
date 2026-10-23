@@ -82,11 +82,21 @@ GUIDA = {
                     "Access ID e password di sola lettura, API Key; ID account da My Account), poi «Prova la connessione» e gli interruttori "
                     "«WatchGuard Endpoint Security (API)»: PC e protezione, software (al posto dell'export), patch. Girano alle 06:10 e 13:10; "
                     "a mano: manage.py soc_api_sync --solo watchguard.",
+                    "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
+                    "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
+                    "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
                 ]),
             ],
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una lettura resta «In coda» o diventa «Interrotta»",
+            "fare": [
+                "Il giro aspetta il servizio dei lavori in background (qcluster): se resta in coda il servizio è fermo.",
+                "Amministrazione › Monitoring: controlla qcluster e riavvialo; poi rilancia «Esegui ora» dalla scheda.",
+            ],
+        },
         {
             "sintomo": "«Prova la connessione» a WatchGuard non riesce",
             "fare": [

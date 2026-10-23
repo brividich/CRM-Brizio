@@ -52,7 +52,8 @@ class InterpretaAltriDatiTest(SimpleTestCase):
         testi = [t for t, _l in problemi]
         self.assertIn("Paper jam in tray 2", testi)
         self.assertIn("Sportello anteriore: aperto", testi)
-        self.assertIn("Bypass: avviso", testi)
+        self.assertIn("Bypass: vuoto", testi)
+        self.assertNotIn("Carta inceppata", testi)  # già detto dall'avviso «Paper jam in tray 2»
         self.assertNotIn("Pronta a stampare", testi)
         self.assertIn(("Sportello anteriore: aperto", StatoSNMP.ERROR), problemi)
 
@@ -153,6 +154,8 @@ class MfcStessaStampanteTest(TestCase):
         self.mfc.refresh_from_db()
         self.assertEqual(self.mfc.dati_stampante["cassetti"][0]["nome"], "Cassetto 1")
         self.assertIsNotNone(self.mfc.dati_stampante_il)
+        self.assertEqual(self.mfc.snmp_ultimo_controllo, self.mfc.dati_stampante_il)  # la scheda asset non la vede «muta»
+        self.assertEqual(self.mfc.snmp_stato, StatoSNMP.OK)
         self.assertTrue(AvvisoStampante.objects.filter(macchina=self.mfc, testo="Paper jam in tray 2", dispositivo__isnull=True).exists())
 
     def test_mfc_che_non_risponde_tiene_l_ultima_lettura(self):
@@ -196,3 +199,40 @@ class MfcStessaStampanteTest(TestCase):
         self.assertEqual(page.status_code, 200)
         for testo in ("La stampante adesso", "Registro avvisi", "Paper jam in tray 2", "Cassetto 1", "Sportello anteriore: aperto"):
             self.assertContains(page, testo)
+
+
+class MfcDoppioneMonitorTest(TestCase):
+    """La stessa stampante censita come MFC e come dispositivo del Monitor è una sola."""
+
+    def setUp(self):
+        from assets.models import Asset
+        from .models import Macchina
+
+        user = get_user_model().objects.create(username="doppioni_admin", is_staff=True, is_superuser=True)
+        UserOnboarding.objects.create(user=user, completed=True)
+        self.client.force_login(user)
+        asset = Asset.objects.create(asset_tag="IT-MFC-SYN9", name="Kyocera sintetica")
+        self.mfc = Macchina.objects.create(reparto="UT sintetico", matricola="SYN9", host="192.0.2.217", asset=asset)
+        self.stesso_ip = DispositivoSNMP.objects.create(nome="Kyocera", host="192.0.2.217", categoria=DispositivoSNMP.Categoria.STAMPANTE)
+        self.stesso_asset = DispositivoSNMP.objects.create(nome="Kyocera bis", host="192.0.2.218", asset=asset)
+        self.altro = DispositivoSNMP.objects.create(nome="Switch", host="192.0.2.1", categoria=DispositivoSNMP.Categoria.RETE)
+
+    def test_conteggi_e_elenchi_senza_doppioni(self):
+        from . import services
+
+        self.assertEqual(list(services.dispositivi_senza_doppioni()), [self.altro])
+        _mfc, dispositivi = services.flotta_monitorata()
+        self.assertEqual(list(dispositivi), [self.altro])
+        self.assertEqual(services.centrale_snmp_riepilogo()["totale"], 2)  # la MFC + lo switch
+        page = self.client.get(reverse("contatori:snmp_centrale"))
+        self.assertNotContains(page, reverse("contatori:snmp_dispositivo", args=[self.stesso_ip.pk]) + '"')
+
+    def test_la_scheda_del_doppione_porta_alla_mfc(self):
+        url = reverse("contatori:snmp_dispositivo", args=[self.stesso_ip.pk])
+        self.assertRedirects(self.client.get(url), reverse("contatori:macchina", args=[self.mfc.pk]), fetch_redirect_response=False)
+        tecnico = self.client.get(url + "?tecnico=1")
+        self.assertEqual(tecnico.status_code, 200)
+        self.assertContains(tecnico, "parte tecnica")
+        mfc = self.client.get(reverse("contatori:macchina", args=[self.mfc.pk]))
+        self.assertContains(mfc, "Dettagli tecnici SNMP")
+        self.assertEqual(self.client.get(reverse("contatori:snmp_dispositivo", args=[self.altro.pk])).status_code, 200)

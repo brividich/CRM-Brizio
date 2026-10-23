@@ -261,8 +261,12 @@ SEZIONI: list[dict] = [
             ("p", "Un avviso critico o uno sportello aperto mette la stampante in «Errore», gli altri avvisi e "
                   "un cassetto vuoto in «Attenzione». Se una stampante non espone la tabella avvisi, il registro "
                   "usa gli errori che segnala (carta inceppata, sportello aperto, toner esaurito…). Sulle MFC "
-                  "la lettura non cambia contatori di fatturazione, letture e «Stato SNMP» della scheda; la data "
-                  "di fine del toner delle MFC resta quella della pagina «Consumabili»."),
+                  "la lettura non cambia contatori di fatturazione e letture; la data di fine del toner delle MFC "
+                  "resta quella della pagina «Consumabili»."),
+            ("p", "Una stampante censita due volte, come MFC a contratto e come dispositivo del Monitor SNMP (stesso "
+                  "IP o stesso asset), è una sola: compare e conta una volta, come MFC, e la scheda del dispositivo "
+                  "porta alla scheda MFC. Sonde, firmware e storico delle interrogazioni restano raggiungibili dal "
+                  "link «Dettagli tecnici SNMP» sotto il pannello della stampante. Non si cancella nulla."),
         ],
     },
     {

@@ -158,7 +158,7 @@ def leggi_stato_mfc(macchina, adesso=None):
     """
     from .printer_snmp import leggi_stampante
     from .services import _community_snmp, _parametri_snmp
-    from .models import ImpostazioniSNMP
+    from .models import ImpostazioniSNMP, StatoSNMP
     from .snmp import SNMPError
 
     if not macchina.host:
@@ -174,6 +174,13 @@ def leggi_stato_mfc(macchina, adesso=None):
         return None  # nessuna risposta utile: si tiene l'ultima lettura buona
     adesso = adesso or timezone.now()
     macchina.dati_stampante, macchina.dati_stampante_il = dati, adesso
-    macchina.save(update_fields=["dati_stampante", "dati_stampante_il"])
+    campi = ["dati_stampante", "dati_stampante_il", "snmp_ultimo_controllo"]
+    # La stampante ha risposto: è un contatto, come per il Monitor. Un errore delle letture
+    # contatori (es. matricola diversa) resta finché la lettura dei contatori non riesce.
+    macchina.snmp_ultimo_controllo = adesso
+    if macchina.snmp_stato != StatoSNMP.ERROR:
+        macchina.snmp_stato = StatoSNMP.OK
+        campi.append("snmp_stato")
+    macchina.save(update_fields=campi)
     registra_avvisi(macchina, dati, adesso)
     return dati

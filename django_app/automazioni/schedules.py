@@ -767,7 +767,9 @@ SCHEDULES: list[dict] = [
         "schedule_type": "C",       # Schedule.CRON
         "cron": "10 6,13 * * *",    # alle 06:10 e alle 13:10
         "repeats": -1,
-        "kwargs": {},
+        # Software e patch di tutti i PC possono superare i 120 s del cluster; la riconsegna
+        # della coda (retry 180 s) trova il giro in corso nel registro delle letture e non riparte.
+        "kwargs": {"q_options": {"timeout": 600}},
     },
     {
         # CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.

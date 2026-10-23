@@ -228,7 +228,7 @@ def dashboard(request):
     letture = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
     return render(request, "contatori/dashboard.html", {
         "c": cruscotto, "macchine": macchine, "ultime": letture,
-        "dispositivi_snmp": DispositivoSNMP.objects.filter(attivo=True)
+        "dispositivi_snmp": services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
         .order_by("snmp_stato", "nome")[:8],
         "snmp_riepilogo": services.centrale_snmp_riepilogo(),
         "flotta": services.stato_flotta(),
@@ -440,6 +440,7 @@ def macchina_detail(request, pk):
                                .exclude(pk=macchina.pk).order_by("reparto"))
                           if macchina.contratto else []),
         **contesto_pannello(macchina, macchina.dati_stampante),
+        "dispositivo_tecnico": services.dispositivo_dello_stesso_apparato(macchina),
         **_licenze_software_asset(macchina.asset, macchina, "mfc", request),
     })
 
@@ -640,7 +641,7 @@ def impostazioni(request):
         form = ImpostazioniSNMPForm(instance=cfg)
     in_chiaro = sum(1 for o in (*Macchina.objects.filter(attiva=True, host__isnull=False)
                                 .select_related("profilo_snmp", "community_salvata"),
-                                *DispositivoSNMP.objects.filter(attivo=True)
+                                *services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
                                 .select_related("profilo_snmp", "community_salvata"))
                     if integrazione.postura_snmp(o))
     return render(request, "contatori/impostazioni.html", {
@@ -979,7 +980,8 @@ def snmp_centrale(request):
     categoria = (request.GET.get("categoria") or "").strip().upper()
     stato = (request.GET.get("stato") or "").strip().upper()
     flotta = (request.GET.get("flotta") or "").strip()
-    dispositivi = DispositivoSNMP.objects.select_related("asset").all()
+    # Una stampante che è anche MFC a contratto compare una volta sola: come MFC.
+    dispositivi = services.dispositivi_senza_doppioni(DispositivoSNMP.objects.select_related("asset"))
     macchine = Macchina.objects.filter(attiva=True).select_related("asset")
     if flotta in services.FLOTTA:
         # Stesso criterio del riquadro della Centrale: lista e conteggio coincidono.
@@ -1027,6 +1029,10 @@ def dispositivo_snmp_detail(request, pk):
     dispositivo = get_object_or_404(
         DispositivoSNMP.objects.select_related("asset", "profilo_snmp", "community_salvata"), pk=pk,
     )
+    mfc = services.mfc_dello_stesso_apparato(dispositivo)
+    if mfc is not None and request.GET.get("tecnico") != "1":
+        # Stessa stampante della MFC a contratto: una scheda sola, quella della MFC.
+        return redirect("contatori:macchina", pk=mfc.pk)
     rilevazioni = list(
         dispositivo.rilevazioni.prefetch_related("valori__sonda")[:20]
     )
