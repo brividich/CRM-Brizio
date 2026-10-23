@@ -1186,10 +1186,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     collection_url = reverse("assets:work_machine_list") if asset.asset_type == Asset.TYPE_WORK_MACHINE else reverse("assets:asset_list")
     collection_label = "Macchine di lavoro" if asset.asset_type == Asset.TYPE_WORK_MACHINE else "Inventario"
 
-    # Planimetria della scheda: mostra quella COERENTE COL REPARTO dell'asset,
-    # non un marker qualunque. Gli asset con marker su una planimetria non
-    # coerente (storici / creati prima del riallineamento al reparto) vengono
-    # auto-riparati qui, spostando il marker sul layout corretto (idempotente).
+    # Planimetria della scheda: vince la posizione data a mano su qualunque
+    # pianta; un marker mai posizionato su una pianta non coerente col reparto
+    # viene portato su quella del reparto (idempotente, vedi il helper).
     resolved_layout, layout_is_specific = _resolve_asset_plant_layout(asset)
     if resolved_layout is not None and layout_is_specific:
         has_marker = PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True).exists()
