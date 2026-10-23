@@ -2,7 +2,7 @@
 
 {% block extra_head %}
   <style>
-    .abs-shell { display: grid; gap: 20px; }
+    .abs-shell { display: grid; gap: 20px; align-content: start; }
     .abs-stack { display: grid; gap: 16px; }
     .abs-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
     .abs-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -124,7 +124,7 @@
       letter-spacing: .08em;
       text-transform: uppercase;
     }
-    .abs-hero h1 { margin: 0; font-size: 31px; font-weight: 900; letter-spacing: -.03em; line-height: 1.04; }
+    .abs-hero h1 { margin: 0; color: #fff; font-size: 31px; font-weight: 900; letter-spacing: -.03em; line-height: 1.04; }
     .abs-hero p { margin: 0; color: rgba(255,255,255,.82); font-size: 14px; line-height: 1.65; }
     .abs-hero-meta,
     .abs-hero-actions {
