@@ -339,6 +339,24 @@ class CollectorIntegratoTests(TestCase):
         self.assertIn("DM9: 192.0.2.30:4840", out.getvalue())
         self.assertIn("PC dell'officina", out.getvalue())
 
+    def test_esce_quando_si_attiva_una_release_nuova(self):
+        from io import StringIO
+        from unittest.mock import patch
+
+        from django.core.management import call_command
+
+        async def legge_per_sempre(*args, **kwargs):
+            import asyncio
+
+            await asyncio.sleep(3600)
+
+        out = StringIO()
+        # Il junction «current» punta a un'altra cartella al primo controllo: il comando esce e il launcher lo riavvia.
+        with patch("assets.management.commands.collector_cnc.cartella_release", side_effect=["rel-A", "rel-B"]), \
+                patch("assets.collector_cnc.collector.avvia", legge_per_sempre):
+            call_command("collector_cnc", stdout=out)
+        self.assertIn("Attivata una release nuova", out.getvalue())
+
     def test_pagina_scelta_modalita(self):
         from django.contrib.auth import get_user_model
         from django.urls import reverse
