@@ -94,7 +94,6 @@ from .hr_gestione import (
     hr_copertura,
     hr_cruscotto,
     hr_saldi,
-    hr_saldi_modello,
 )
 
 from . import _helpers, amministrazione, eventi, hr_gestione, richieste, sharepoint  # noqa: E402

@@ -348,6 +348,9 @@ class ChiusuraAziendale(models.Model):
 class SaldoAssenze(models.Model):
     """Saldo ferie e permessi di un dipendente a una data (dal cedolino).
 
+    NON PIÙ USATO: dal 23/10/2026 i saldi si leggono da ``anagrafica.SaldoCedolino``
+    (``assenze.hr.saldi_anagrafica``). Resta per non perdere le righe già inserite.
+
     Il residuo stimato si calcola togliendo le richieste non rifiutate che
     iniziano dopo ``situazione_al`` e le chiusure aziendali che scalano le ferie.
     """
