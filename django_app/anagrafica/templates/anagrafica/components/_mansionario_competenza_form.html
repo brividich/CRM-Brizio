@@ -8,7 +8,7 @@ della voce, così più form nella stessa pagina non collidono.
   {% csrf_token %}
   {% if voce %}<input type="hidden" name="voce" value="{{ voce.pk }}"><input type="hidden" name="ordine" value="{{ voce.ordine }}">{% endif %}
   <div class="mns-form-inline">
-    <div class="fm-form-field"><label for="mc-nome-{{ sfx }}">Competenza</label><input id="mc-nome-{{ sfx }}" name="nome" class="fm-input" maxlength="150" required placeholder="es. Set-up macchina" value="{{ voce.nome|default:'' }}"></div>
+    <div class="fm-form-field"><label for="mc-nome-{{ sfx }}">Competenza</label><input id="mc-nome-{{ sfx }}" name="nome" class="fm-input" maxlength="150" required placeholder="es. Set-up macchina" value="{{ voce.nome|default:'' }}" list="mc-catalogo" autocomplete="off"></div>
     <div class="fm-form-field"><label for="mc-min-{{ sfx }}">Livello minimo</label>
       <select id="mc-min-{{ sfx }}" name="livello_minimo" class="fm-input fm-select">{% for k, v in livelli_label %}<option value="{{ k }}" title="{{ v }}"{% if voce and voce.livello_minimo == k or not voce and k == "U" %} selected{% endif %}>{{ k }} · {{ v }}</option>{% endfor %}</select></div>
     <label class="mns-check" for="mc-blocc-{{ sfx }}"><input id="mc-blocc-{{ sfx }}" type="checkbox" name="bloccante"{% if voce.bloccante %} checked{% endif %}>Bloccante</label>

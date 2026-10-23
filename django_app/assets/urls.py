@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_asset_qr, views_asset_rete, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
+from . import views, views_asset_qr, views_asset_rete, views_mtconnect, views_rete, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
 
 from .api_meters import api as meters_api
 from . import views_spare_parts
@@ -78,6 +78,8 @@ urlpatterns = [
     path("assets/software/dettaglio/", views_software.software_catalog_detail, name="software_catalog_detail"),
     path("assets/dispositivi/", views.device_list, name="device_list"),
     path("assets/dispositivi/riconciliazione/", views_it.it_reconciliation, name="it_reconciliation"),
+    path("assets/rete/indirizzi/", views_rete.rete_indirizzi, name="rete_indirizzi"),
+    path("assets/work-machines/mtconnect/", views_mtconnect.mtconnect_collegamenti, name="mtconnect_collegamenti"),
     path("assets/work-machines/", views.work_machine_list, name="work_machine_list"),
     path("assets/work-machines/dashboard/", views.work_machine_dashboard, name="work_machine_dashboard"),
     path("assets/work-machines/map/", views.plant_layout_map, name="plant_layout_map"),

@@ -399,6 +399,33 @@ class AbilitazioneMacchina(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Catalogo unico delle competenze (Struttura Fase 5)
+# ---------------------------------------------------------------------------
+class CompetenzaCatalogo(models.Model):
+    """Una competenza, una volta sola: la stessa voce usata da più mansioni.
+
+    Ogni mansione tiene la sua voce (``VoceMacchinaCatalogo``) con livello minimo e
+    requisiti propri; il catalogo le lega per nome, così una rinomina vale per tutte
+    e il livello già valutato su una mansione si propone sulle altre.
+    """
+
+    nome = models.CharField(max_length=150)
+    chiave = models.CharField(max_length=160, unique=True, help_text="Nome normalizzato (minuscole, spazi singoli).")
+    descrizione = models.TextField(blank=True, default="")
+    attiva = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Competenza (catalogo)"
+        verbose_name_plural = "Competenze (catalogo)"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
 # Macchine "più voci" (catalogo voci per tipo macchina) — popolamento CAR
 # ---------------------------------------------------------------------------
 class VoceMacchinaCatalogo(models.Model):
@@ -442,6 +469,10 @@ class VoceMacchinaCatalogo(models.Model):
     )
     ordine = models.PositiveSmallIntegerField(default=0)
     attiva = models.BooleanField(default=True)
+    catalogo = models.ForeignKey(
+        CompetenzaCatalogo, on_delete=models.SET_NULL, null=True, blank=True, related_name="voci",
+        help_text="Competenza del catalogo unico (stessa competenza su più mansioni).",
+    )
 
     class Meta:
         ordering = ["asset_type", "ordine", "codice"]
@@ -472,6 +503,29 @@ class AbilitazioneMacchinaVoce(models.Model):
 
     def __str__(self) -> str:
         return f"{self.abilitazione_id}/{self.voce_id} = {self.livello}"
+
+
+class ValutazioneCompetenzaStorico(models.Model):
+    """Storico append-only delle valutazioni per competenza: chi, quando, da che livello a quale."""
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    voce = models.ForeignKey(VoceMacchinaCatalogo, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    catalogo = models.ForeignKey(CompetenzaCatalogo, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="valutazioni")
+    mansione = models.ForeignKey(CompetenzaSkm, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    competenza_nome = models.CharField(max_length=150, blank=True, default="")
+    livello_prima = models.CharField(max_length=1, blank=True, default="")
+    livello = models.CharField(max_length=1, blank=True, default="", help_text="Vuoto = livello tolto.")
+    valutato_da = models.CharField(max_length=200, blank=True, default="")
+    valutato_il = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-valutato_il", "-pk"]
+        verbose_name = "Valutazione competenza (storico)"
+        verbose_name_plural = "Valutazioni competenze (storico)"
+
+    def __str__(self) -> str:
+        return f"{self.legacy_anagrafica_id} {self.competenza_nome}: {self.livello_prima or '—'} → {self.livello or '—'}"
 
 
 # ---------------------------------------------------------------------------

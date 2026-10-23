@@ -70,8 +70,8 @@ def calcola(punteggi: list[dict], profili: list[dict]) -> dict:
     }
 
 
-def aggiorna(now=None) -> dict:
-    """Passo del ciclo SOC. Non solleva."""
+def aggiorna(now=None, *, forza=False) -> dict:
+    """Passo del ciclo SOC. Non solleva. ``forza``: legge anche se l'ultima lettura ha meno di ``OGNI_ORE`` ore."""
     from core import m365_graph
 
     if not soc_settings.value("defender.secure_score.attivo"):
@@ -79,7 +79,7 @@ def aggiorna(now=None) -> dict:
     now = now or timezone.now()
     stato = stato_attuale()
     letto = parse_datetime(str(stato.get("letto_alle") or "")) if stato else None
-    if letto and now - letto < timedelta(hours=OGNI_ORE):
+    if letto and now - letto < timedelta(hours=OGNI_ORE) and not forza:
         return {"saltato": True}
     try:
         punteggi = m365_graph.get_all(f"{m365_graph.GRAPH}/security/secureScores", permesso=PERMESSO,

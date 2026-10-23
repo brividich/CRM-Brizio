@@ -82,11 +82,25 @@ GUIDA = {
                     "Access ID e password di sola lettura, API Key; ID account da My Account), poi «Prova la connessione» e gli interruttori "
                     "«WatchGuard Endpoint Security (API)»: PC e protezione, software (al posto dell'export), patch. Girano alle 06:10 e 13:10; "
                     "a mano: manage.py soc_api_sync --solo watchguard.",
+                    "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
+                    "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
+                    "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
+                    "Backup letti direttamente da Veeam: Impostazioni › «Backup letti direttamente da Veeam». Nel .env del server "
+                    "VEEAM_API_URL (https://<server>:9419), VEEAM_API_USERNAME e VEEAM_API_PASSWORD di un utente con il solo ruolo "
+                    "«Veeam Backup Viewer»; se il certificato del server Veeam non è di una CA attendibile, VEEAM_API_CA_BUNDLE. "
+                    "Prova con manage.py veeam_api --prova. Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
                 ]),
             ],
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una lettura resta «In coda» o diventa «Interrotta»",
+            "fare": [
+                "Il giro aspetta il servizio dei lavori in background (qcluster): se resta in coda il servizio è fermo.",
+                "Amministrazione › Monitoring: controlla qcluster e riavvialo; poi rilancia «Esegui ora» dalla scheda.",
+            ],
+        },
         {
             "sintomo": "«Prova la connessione» a WatchGuard non riesce",
             "fare": [
@@ -112,6 +126,19 @@ GUIDA = {
                 "La persona ha premuto «Non ero io» su un accesso da un dispositivo nuovo: la sessione di quel dispositivo è già chiusa.",
                 "Verifica che abbia cambiato la password; se l'account è AD, controlla anche gli accessi in Entra (stesso IP).",
                 "Gli accessi da dispositivi nuovi senza segnalazione restano eventi della sorgente «Portale · accessi» (KPI), senza alert.",
+            ],
+        },
+        {
+            "sintomo": "Alert dalla sorgente «Portale · accessi» (PIN bloccato, accesso bloccato, sessione da un altro PC, 2FA bloccata)",
+            "fare": [
+                "«PIN di una postazione condivisa bloccato»: cinque PIN sbagliati di fila sul PC condiviso. Chiedi alla persona se era lei; "
+                "il PIN si sblocca solo con uno nuovo (dalla postazione con la sua password, o «Azzera PIN» in admin-portale → Postazioni condivise).",
+                "«Sessione di una postazione condivisa usata da un altro PC»: la sessione è già chiusa. Nel titolo c'è l'IP da cui è arrivata: "
+                "se non è un PC aziendale noto, tratta l'account del PC condiviso come compromesso (cambio password).",
+                "«Accesso al portale bloccato per troppe password sbagliate»: blocco di un'ora per quel nome utente da quell'IP. "
+                "Tanti blocchi da IP diversi o su molti nomi = tentativo a tappeto.",
+                "«Verifica in due passaggi bloccata»: la password era giusta, il codice no. Se non era la persona, la password è nota a qualcun altro.",
+                "Ogni tipo si può lasciare solo come evento (KPI) spegnendo il suo interruttore in Impostazioni → «Eventi di sicurezza del portale».",
             ],
         },
         {
@@ -146,6 +173,24 @@ GUIDA = {
                 "Dal terminale: manage.py defender_alerts mostra l'esito dell'ultimo giro. «Graph ha risposto 403» = manca il permesso "
                 "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID.",
                 "Arriva l'evento ma non l'alert: la severità è sotto la «Severità minima per l'alert» (l'evento resta nei KPI).",
+            ],
+        },
+        {
+            "sintomo": "Il riquadro «Lettura diretta da Veeam» della pagina Backup dice «errore»",
+            "fare": [
+                "Il messaggio sotto il titolo dice cosa non va; lo stesso esito dal terminale con manage.py veeam_api.",
+                "«Server Veeam non raggiungibile»: controlla VEEAM_API_URL e che dal server del portale la porta 9419 sia aperta.",
+                "«Certificato del server Veeam non attendibile»: metti in VEEAM_API_CA_BUNDLE il percorso del certificato della CA (file .pem).",
+                "«Veeam ha rifiutato l'accesso»: utente o password sbagliati, oppure l'utente non ha il ruolo «Veeam Backup Viewer».",
+                "Dopo ogni modifica al .env riavvia il portale e il qcluster, poi prova con manage.py veeam_api --prova.",
+            ],
+        },
+        {
+            "sintomo": "Alert «Repository di backup quasi pieno»",
+            "fare": [
+                "Lo spazio libero del repository Veeam è sotto la soglia scelta in Impostazioni (default 15%).",
+                "Libera spazio (retention più corta, vecchi punti di ripristino, spostamento su un altro repository) o aumentalo.",
+                "L'alert si chiude da solo al primo giro in cui lo spazio libero torna sopra la soglia.",
             ],
         },
         {

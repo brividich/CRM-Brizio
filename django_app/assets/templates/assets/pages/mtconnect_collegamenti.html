@@ -1,0 +1,128 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Macchine collegate (MTConnect){% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.mc-page{display:grid;gap:14px;color:var(--text,#16253c)}
+.mc-card{border:1px solid var(--border,#dbe3ef);border-radius:16px;background:var(--surface,#fff);padding:16px 18px}
+.mc-card h2{margin:0 0 10px;font-size:var(--fs-lg,16px)}
+.mc-note{margin:0;color:var(--text-mid,#66758b);font-size:var(--fs-sm,13px);line-height:1.5}
+.mc-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 14px;align-items:end}
+.mc-form label{display:grid;gap:4px;font-size:var(--fs-sm,13px);font-weight:700;color:var(--text-mid,#475569)}
+.mc-form input[type=text],.mc-form input[type=url],.mc-form select{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:8px 10px;font:inherit;font-weight:400;background:var(--surface,#fff);color:var(--text,#0f172a)}
+.mc-checks{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:var(--fs-sm,13px)}
+.mc-checks label{display:flex;gap:6px;align-items:center;font-weight:600;color:var(--text,#0f172a)}
+.mc-actions{display:flex;flex-wrap:wrap;gap:8px}
+.mc-form .mc-actions{grid-column:1/-1}
+.mc-table-wrap{overflow:auto}
+.mc-table{width:100%;border-collapse:collapse}
+.mc-table th{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border,#e5e7eb);color:var(--text-mid,#64748b);font-size:var(--fs-xs,12px);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.mc-table td{padding:9px 8px;border-bottom:1px solid color-mix(in srgb,var(--border,#e5e7eb) 60%,transparent);vertical-align:top}
+.mc-table a{color:var(--link,#2563eb)}
+.mc-meta{color:var(--text-mid,#64748b);font-size:var(--fs-sm,13px)}
+.mc-mono{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:13px}
+.mc-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.mc-tag--in_lavoro{color:#15803d;background:#dcfce7}.mc-tag--pronta{color:#1d4ed8;background:#dbeafe}.mc-tag--ferma{color:#9a3412;background:#ffedd5}
+.mc-tag--allarme{color:#991b1b;background:#fee2e2}.mc-tag--spenta,.mc-tag--mai,.mc-tag--vecchio{color:#475569;background:#f1f5f9}.mc-tag--non_raggiungibile{color:#991b1b;background:#fee2e2}
+body.theme-dark .mc-tag--in_lavoro{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .mc-tag--pronta{color:#93c5fd;background:rgba(37,99,235,.2)}
+body.theme-dark .mc-tag--ferma{color:#fdba74;background:rgba(234,88,12,.18)}body.theme-dark .mc-tag--allarme,body.theme-dark .mc-tag--non_raggiungibile{color:#fca5a5;background:rgba(220,38,38,.2)}
+body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc-tag--vecchio{color:#cbd5e1;background:rgba(148,163,184,.16)}
+.mc-alarms{margin:4px 0 0;padding-left:18px;font-size:var(--fs-sm,13px)}
+.mc-err{color:var(--danger,#b91c1c);font-size:var(--fs-sm,13px)}
+.mc-ok{color:var(--success,#15803d);font-weight:700}
+.mc-inline{display:inline}
+.mc-linkbtn{border:0;background:none;color:var(--link,#2563eb);font:inherit;font-size:var(--fs-sm,13px);cursor:pointer;padding:0}
+.mc-dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:8px 0 0;font-size:var(--fs-sm,13px)}
+.mc-dl dt{color:var(--text-mid,#64748b)}.mc-dl dd{margin:0;font-weight:700}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Macchine collegate (MTConnect){% endblock %}
+{% block assets_shell_subtitle %}<p>Le CNC che il portale legge dal loro agent MTConnect: stato reale sulla mappa officina, ore di lavoro e pezzi sui contatori di manutenzione.</p>{% endblock %}
+
+{% block assets_shell_content %}
+<section class="mc-page">
+  <div class="mc-card">
+    <p class="mc-note">Ogni 2 minuti il portale legge lo stato di ogni macchina dal suo agent (solo lettura, rete interna). Le ore di lavoro e i pezzi avanzano i contatori «Ore» e «Cicli» dell'asset al massimo una volta all'ora. <a href="{% url 'assets:plant_layout_map' %}">Mappa officina</a> · <a href="{% url 'assets:guida' %}#mtconnect">? Guida</a></p>
+  </div>
+
+  <div class="mc-card mc-table-wrap">
+    <h2>Collegamenti</h2>
+    <table class="mc-table">
+      <thead><tr><th>Macchina</th><th>Agent</th><th>Stato</th><th>Programma</th><th>Contatori</th><th>Oggi in lavoro</th><th></th></tr></thead>
+      <tbody>
+      {% for r in righe %}
+        <tr>
+          <td><a href="{% url 'assets:asset_view' r.asset_id %}"><strong>{{ r.asset.name }}</strong></a><br><span class="mc-meta">{{ r.asset.asset_tag }}{% if r.asset.reparto %} · {{ r.asset.reparto }}{% endif %}</span></td>
+          <td class="mc-mono">{{ r.url_agent }}{% if r.dispositivo %}<br><span class="mc-meta">{{ r.dispositivo }}</span>{% endif %}</td>
+          <td>
+            {% if not r.attivo %}<span class="mc-tag mc-tag--mai">sospesa</span>
+            {% elif r.attuale %}<span class="mc-tag mc-tag--{{ r.stato }}">{{ r.stato_label }}</span>{% if r.stato_dal %}<br><span class="mc-meta">dal {{ r.stato_dal|date:"d/m H:i" }}</span>{% endif %}
+            {% else %}<span class="mc-tag mc-tag--vecchio">non aggiornato</span>{% if r.controllato_il %}<br><span class="mc-meta">ultima lettura {{ r.controllato_il|date:"d/m H:i" }}</span>{% endif %}{% endif %}
+            {% if r.allarmi and r.attuale %}<ul class="mc-alarms">{% for a in r.allarmi|slice:":3" %}<li>{% if a.livello == "allarme" %}<strong>Allarme</strong>{% else %}Avviso{% endif %}{% if a.codice %} {{ a.codice }}{% endif %}: {{ a.testo|default:a.tipo }}</li>{% endfor %}</ul>{% endif %}
+            {% if r.errore %}<div class="mc-err">{{ r.errore }}</div>{% endif %}
+          </td>
+          <td>{{ r.programma|default:"—" }}{% if r.modalita %}<br><span class="mc-meta">{{ r.modalita }}</span>{% endif %}{% if r.pezzi_grezzo is not None %}<br><span class="mc-meta">pezzi sulla CNC: {{ r.pezzi_grezzo|floatformat:0 }}</span>{% endif %}</td>
+          <td class="mc-meta">{% if r.contatore_ore %}Ore: {{ r.contatore_ore.current_value|floatformat:1 }}<br>{% endif %}{% if r.contatore_pezzi %}Cicli: {{ r.contatore_pezzi.current_value|floatformat:0 }}{% endif %}{% if not r.contatore_ore and not r.contatore_pezzi %}—{% endif %}</td>
+          <td>{{ r.ore_oggi }} h</td>
+          <td class="mc-actions">
+            {% if r.puo_modificare %}
+              <a href="?modifica={{ r.pk }}#form">Modifica</a>
+              <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="{% if r.attivo %}sospendi{% else %}riattiva{% endif %}">{% if r.attivo %}Sospendi{% else %}Riattiva{% endif %}</button></form>
+              <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="elimina">Togli</button></form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="mc-meta">Nessuna macchina collegata. Aggiungine una qui sotto: serve l'indirizzo del suo agent MTConnect.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mc-card" id="form">
+    <h2>{% if form.asset %}Collegamento della macchina{% else %}Collega una macchina{% endif %}</h2>
+    <form method="post" class="mc-form">
+      {% csrf_token %}
+      <label>Macchina
+        <select name="asset" required>
+          <option value="">— scegli —</option>
+          {% for m in macchine %}<option value="{{ m.pk }}"{% if form.asset == m.pk|stringformat:"s" %} selected{% endif %}>{{ m.name }} ({{ m.asset_tag }}){% if m.work_machine.cnc_controlled %} · CNC{% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Indirizzo dell'agent
+        <input type="text" name="url_agent" value="{{ form.url_agent }}" placeholder="http://10.0.5.21:5000" required>
+      </label>
+      <label>Dispositivo nell'agent (facoltativo)
+        <input type="text" name="dispositivo" value="{{ form.dispositivo }}" placeholder="vuoto = il primo">
+      </label>
+      <div class="mc-checks">
+        <label><input type="checkbox" name="usa_ore"{% if form.usa_ore %} checked{% endif %}> Aggiorna il contatore Ore</label>
+        <label><input type="checkbox" name="usa_pezzi"{% if form.usa_pezzi %} checked{% endif %}> Aggiorna il contatore Cicli con i pezzi</label>
+      </div>
+      <div class="mc-actions">
+        <button class="btn btn-secondary" name="azione" value="prova">Prova</button>
+        <button class="btn btn-primary" name="azione" value="salva">Salva collegamento</button>
+      </div>
+    </form>
+    {% if prova %}
+      {% if prova.ok %}
+        <p class="mc-ok" style="margin-top:12px">L'agent risponde: stato «{{ prova.stato_label }}».</p>
+        <dl class="mc-dl">
+          <dt>Dispositivo letto</dt><dd>{{ prova.dati.dispositivo|default:"—" }}</dd>
+          <dt>Disponibilità</dt><dd>{{ prova.dati.disponibilita|default:"—" }}</dd>
+          <dt>Esecuzione</dt><dd>{{ prova.dati.esecuzione|default:"—" }}</dd>
+          <dt>Programma</dt><dd>{{ prova.dati.programma|default:"—" }}</dd>
+          <dt>Ore di lavoro</dt><dd>{% if prova.dati.ore is not None %}{{ prova.dati.ore }} h{% else %}l'agent non le espone: il contatore Ore non avanzerà{% endif %}</dd>
+          <dt>Pezzi</dt><dd>{% if prova.dati.pezzi is not None %}{{ prova.dati.pezzi }}{% else %}l'agent non li espone{% endif %}</dd>
+          <dt>Allarmi attivi</dt><dd>{{ prova.dati.allarmi|length }}</dd>
+          <dt>Dispositivi dell'agent</dt><dd>{% for d in prova.dispositivi %}{{ d.nome|default:d.uuid }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>
+        </dl>
+      {% else %}
+        <p class="mc-err" style="margin-top:12px">{{ prova.errore }}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

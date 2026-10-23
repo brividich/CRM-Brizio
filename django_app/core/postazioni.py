@@ -360,6 +360,14 @@ class PostazioneCondivisaMiddleware:
             registra_audit(request, "postazione_altro_pc", {
                 "postazione_id": postazione.pk, "ip_pc": postazione.ip_pc, "ip": ip_richiesta(request),
             })
+            from core.eventi_sicurezza import segnala
+
+            segnala("postazione_altro_pc", utente=request.user, request=request,
+                    chiave=(postazione.pk, request.user.pk), finestra_minuti=60,
+                    titolo=f"Sessione della postazione «{postazione.nome}» usata da un altro PC "
+                           f"({ip_richiesta(request)} invece di {postazione.ip_pc})",
+                    dettaglio={"postazione": postazione.nome, "postazione_id": postazione.pk,
+                               "ip_pc": postazione.ip_pc})
         if motivo:
             logout(request)
             if _vuole_json(request):
@@ -424,3 +432,72 @@ class PostazioneCondivisaMiddleware:
         if _vuole_json(request):
             return JsonResponse({"ok": False, "reason": "postazione_pc_non_registrato"}, status=403)
         return redirect("postazione_home")
+
+
+# ── Registro d'uso (dall'audit) ───────────────────────────────────────────────
+
+AZIONI_REGISTRO = ("postazione_operatore_entra", "postazione_operatore_esce", "postazione_pin_errato",
+                   "postazione_pin_bloccato", "postazione_pin_impostato", "postazione_altro_pc")
+MOTIVI_USCITA = {"cambio": "Cambio operatore", "esci": "Esci", "inattivita": "Inattività"}
+ETICHETTE_EVENTI = {
+    "postazione_pin_errato": "PIN sbagliato",
+    "postazione_pin_bloccato": "PIN bloccato",
+    "postazione_pin_impostato": "PIN impostato",
+    "postazione_altro_pc": "Sessione da un altro PC (chiusa)",
+}
+
+
+def registro_uso(postazione_id: int | None = None, giorni: int = 30) -> dict:
+    """Chi ha usato quale PC e quando, ricostruito dall'audit (``postazione_*``).
+
+    Ritorna ``{"sessioni": [...], "eventi": [...]}``, i più recenti prima. Una sessione
+    è un'entrata con PIN e la sua uscita (cambio operatore, «Esci», inattività);
+    senza uscita registrata (browser chiuso, sessione scaduta) l'uscita resta vuota.
+    Il filtro per postazione si fa in Python: niente lookup JSON (SQL Server).
+    """
+    from datetime import timedelta
+
+    from core.legacy_models import UtenteLegacy
+    from core.models import AuditLog, PostazioneCondivisa
+
+    da = timezone.now() - timedelta(days=max(1, int(giorni)))
+    nomi = dict(PostazioneCondivisa.objects.values_list("pk", "nome"))
+    righe = AuditLog.objects.filter(azione__in=AZIONI_REGISTRO, created_at__gte=da).order_by("created_at", "pk")
+    aperte: dict[tuple, dict] = {}
+    sessioni, eventi = [], []
+    for riga in righe.iterator():
+        dettaglio = riga.dettaglio if isinstance(riga.dettaglio, dict) else {}
+        try:
+            pid = int(dettaglio.get("postazione_id") or 0)
+        except (TypeError, ValueError):
+            pid = 0
+        if postazione_id and pid != int(postazione_id):
+            continue
+        pc = nomi.get(pid) or dettaglio.get("postazione") or f"PC #{pid}"
+        chiave = (pid, str(dettaglio.get("operatore") or riga.utente_display))
+        if riga.azione == "postazione_operatore_entra":
+            sessione = {"postazione": pc, "postazione_id": pid, "operatore": riga.utente_display or chiave[1],
+                        "entrata": riga.created_at, "uscita": None, "durata_minuti": None, "uscita_motivo": ""}
+            aperte[chiave] = sessione
+            sessioni.append(sessione)
+        elif riga.azione == "postazione_operatore_esce":
+            sessione = aperte.pop(chiave, None)
+            if sessione is not None:
+                sessione["uscita"] = riga.created_at
+                sessione["durata_minuti"] = max(0, int((riga.created_at - sessione["entrata"]).total_seconds() // 60))
+                sessione["uscita_motivo"] = MOTIVI_USCITA.get(dettaglio.get("motivo"), dettaglio.get("motivo") or "")
+        else:
+            # PIN sbagliati/impostati si registrano a nome dell'account del PC: la persona è nel dettaglio.
+            eventi.append({"quando": riga.created_at, "postazione": pc, "postazione_id": pid,
+                           "evento": ETICHETTE_EVENTI.get(riga.azione, riga.azione),
+                           "chi": riga.utente_display, "operatore_legacy_id": dettaglio.get("operatore_legacy_id"),
+                           "ip": riga.ip_address or ""})
+    ids = {e["operatore_legacy_id"] for e in eventi if e["operatore_legacy_id"]}
+    if ids:
+        persone = {u.id: (u.nome or u.email) for u in UtenteLegacy.objects.filter(id__in=ids)}
+        for e in eventi:
+            if e["operatore_legacy_id"] in persone:
+                e["chi"] = persone[e["operatore_legacy_id"]]
+    sessioni.reverse()
+    eventi.reverse()
+    return {"sessioni": sessioni, "eventi": eventi}

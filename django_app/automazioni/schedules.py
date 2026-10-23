@@ -767,7 +767,9 @@ SCHEDULES: list[dict] = [
         "schedule_type": "C",       # Schedule.CRON
         "cron": "10 6,13 * * *",    # alle 06:10 e alle 13:10
         "repeats": -1,
-        "kwargs": {},
+        # Software e patch di tutti i PC possono superare i 120 s del cluster; la riconsegna
+        # della coda (retry 180 s) trova il giro in corso nel registro delle letture e non riparte.
+        "kwargs": {"q_options": {"timeout": 600}},
     },
     {
         # CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.
@@ -785,6 +787,26 @@ SCHEDULES: list[dict] = [
         "func": "assets.tasks.run_m365_licenze_sync",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "40 6 * * *",       # ogni mattina alle 06:40
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Officina — stato reale delle CNC dagli agent MTConnect (solo lettura, rete interna):
+        # mappa officina, allarmi, ore e pezzi sui contatori. Senza collegamenti non fa nulla.
+        "name": "mtconnect_poll",
+        "func": "assets.tasks.run_mtconnect_poll",
+        "schedule_type": "I",
+        "minutes": 2,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Asset IT — indirizzi IP dal DHCP e dal DNS di Windows Server (PowerShell locale,
+        # moduli RSAT). Senza RETE_DHCP_SERVERS / RETE_DNS_SERVER nel .env non fa nulla.
+        "name": "rete_windows_sync",
+        "func": "assets.tasks.run_rete_windows_sync",
+        "schedule_type": "I",
+        "minutes": 60,
         "repeats": -1,
         "kwargs": {},
     },

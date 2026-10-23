@@ -26,13 +26,15 @@ from ..forms import (
     PlantLayoutForm,
 )
 from ..models import (
+    Asset,
     PlantLayout,
-    PlantLayoutMarker,
 )
 
 from ._helpers import (  # noqa: F401
     _as_int,
+    _asset_plant_layout_marker,
     _clean_string,
+    _plant_layout_image_size,
 )
 from ._helpers_c import (  # noqa: F401
     _PLANT_ALERT_LABELS,
@@ -75,6 +77,8 @@ def _plant_layout_editor_area_rows(layout: PlantLayout | None) -> list[dict[str,
 
 
 def _plant_layout_editor_marker_rows(layout: PlantLayout | None) -> list[dict[str, object]]:
+    from ..services.plant_layout_image import marker_is_unplaced
+
     if layout is None:
         return []
     return [
@@ -85,6 +89,7 @@ def _plant_layout_editor_marker_rows(layout: PlantLayout | None) -> list[dict[st
             "x_percent": float(marker.x_percent),
             "y_percent": float(marker.y_percent),
             "sort_order": marker.sort_order,
+            "unplaced": marker_is_unplaced(marker),
         }
         for marker in layout.markers.select_related("asset").all().order_by("sort_order", "id")
     ]
@@ -147,12 +152,8 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
     focus_asset_id = _as_int(request.GET.get("asset"), default=0)
     requested_category = _clean_string(request.GET.get("category"))
     if not requested_category and focus_asset_id:
-        focus_marker = (
-            PlantLayoutMarker.objects.filter(asset_id=focus_asset_id, layout__is_active=True)
-            .select_related("layout")
-            .order_by("layout__category", "layout__name", "id")
-            .first()
-        )
+        focus_asset = Asset.objects.filter(pk=focus_asset_id).first()
+        focus_marker = _asset_plant_layout_marker(focus_asset) if focus_asset else None
         if focus_marker is not None:
             requested_category = focus_marker.layout.category
 
@@ -163,12 +164,7 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
         active_layouts[0] if active_layouts else None,
     )
     payload = _plant_layout_public_payload(layout)
-    image_size = (0, 0)
-    if layout is not None and layout.image:
-        try:
-            image_size = (layout.image.width, layout.image.height)
-        except (OSError, ValueError):
-            image_size = (0, 0)
+    image_size = _plant_layout_image_size(layout)
     category_switches = _plant_layout_category_switches(
         active_layouts=active_layouts,
         selected_category=selected_category,
@@ -225,6 +221,44 @@ def _plant_layout_check_links() -> list[dict[str, object]]:
             "url": reverse("assets:periodic_check_type_detail", args=[check_type.id]) + "?tab=panoramica",
         })
     return links
+
+
+def _apply_plant_layout_image_tool(request: HttpRequest, layout: PlantLayout) -> str | None:
+    """Ruota/ritaglia dopo aver salvato reparti e marker del form (stesso invio).
+
+    ``None`` se non è stato chiesto nessuno strumento immagine.
+    """
+    from ..services import plant_layout_image as image_tools
+
+    tool = _clean_string(request.POST.get("image_tool"))
+    if not tool:
+        return None
+    try:
+        if tool in {"rotate_left", "rotate_right"}:
+            result = image_tools.rotate_layout(layout, clockwise=tool == "rotate_right")
+        elif tool == "crop":
+            result = image_tools.crop_layout(
+                layout,
+                x_percent=_as_float(request.POST.get("crop_x")),
+                y_percent=_as_float(request.POST.get("crop_y")),
+                width_percent=_as_float(request.POST.get("crop_w")),
+                height_percent=_as_float(request.POST.get("crop_h")),
+            )
+        else:
+            messages.error(request, "Strumento immagine non riconosciuto.")
+            return ""
+    except (OSError, ValueError):
+        messages.error(request, "Modifiche salvate, ma l'immagine non si è potuta trasformare: ricaricala.")
+        return ""
+    (messages.success if result.ok else messages.warning)(request, result.message)
+    return result.message
+
+
+def _as_float(value) -> float:
+    try:
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 @login_required
@@ -293,7 +327,9 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
         )
         if form.is_valid():
             layout = form.save()
-            messages.success(request, f"Planimetria \"{layout.name}\" aggiornata nella categoria {layout.category}.")
+            tool_message = _apply_plant_layout_image_tool(request, layout)
+            if tool_message is None:
+                messages.success(request, f"Planimetria \"{layout.name}\" aggiornata nella categoria {layout.category}.")
             return redirect(f"{reverse('assets:plant_layout_editor')}?layout={layout.id}&category={quote(layout.category)}")
         area_rows = _safe_editor_json_rows(request.POST.get("areas_payload"))
         marker_rows = _safe_editor_json_rows(request.POST.get("markers_payload"))
@@ -319,7 +355,9 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
         "areas": area_rows,
         "markers": marker_rows,
         "machines": _plant_layout_machine_catalog(),
+        "focus_asset_id": _as_int(request.GET.get("asset"), default=0),
     }
+    image_size = _plant_layout_image_size(selected_layout)
     available_categories = []
     seen_categories: set[str] = set()
     for row in all_layouts:
@@ -367,6 +405,8 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             "current_layout_category": current_category or getattr(selected_layout, "category", PlantLayout.DEFAULT_CATEGORY),
             "create_new": create_new,
             "editor_payload": editor_payload,
+            "image_width": image_size[0],
+            "image_height": image_size[1],
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),

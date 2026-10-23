@@ -199,6 +199,11 @@ Pattern: `AppConfig.ready()` → chiama `bootstrap_*_acl_endpoints()` → upsert
 - Uscita: «Cambio operatore» (POST `/postazione/cambio/`), «Esci» (`/logout` di un operatore torna a «Chi sei?»; solo da «Chi sei?» il logout chiude la postazione) o inattività dell'operatore (`minuti_inattivita`, 1–60; le GET HTMX/fetch in background non contano come attività; la pagina invia la stessa POST da JavaScript). Postazione disattivata o eliminata → logout completo alla richiesta successiva.
 - `/postazione/` è un prefisso **condiviso** (`_ACL_ONBOARDING_SHARED_PREFIXES` in `core/middleware.py`), non esente: richiede comunque l'autenticazione. Audit: `postazione_operatore_entra/esce`, `postazione_pin_errato/bloccato/impostato/azzerato`, `postazione_configurata/eliminata`.
 
+### Eventi di sicurezza verso il SOC
+
+- Ogni evento di sicurezza del portale per il SOC passa da `core.eventi_sicurezza.segnala()` (catalogo `CATALOGO`): sorgente «Portale · accessi», valutazione immediata con le regole del SOC, interruttore per tipo in `/soc/impostazioni/`. Non creare `SecurityEventRecord` a mano dai moduli del portale.
+- Nel payload solo nome utente, IP e dettagli non segreti (mai password, PIN, token, codici OTP). `segnala` non deve mai bloccare né far fallire la richiesta.
+
 ### Elementi hardcoded da NON replicare
 
 - Nomi moduli: `"admin"`, `"dashboard"`, `"assenze"` in `core/acl.py`

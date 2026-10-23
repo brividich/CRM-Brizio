@@ -363,3 +363,31 @@ def watchguard_pc(request):
         "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori, "chiuse": chiuse,
         "can_edit": can_manage_security_config(request.user),
     })
+
+
+# --- Letture automatiche: stato, storico, «Esegui ora» --------------------------------------
+
+def letture_page(request):
+    """Impostazioni › Letture automatiche: una scheda per lettura con ultimo giro, cosa ha letto e storico."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import letture
+
+    contesto = {**letture.stato_pagina(), "can_edit": can_manage_security_config(request.user)}
+    if request.GET.get("parziale") == "1":
+        return render(request, "security/partials/letture_contenuto.html", contesto)
+    return render(request, "security/letture.html", contesto)
+
+
+@require_POST
+def lettura_esegui(request, codice):
+    """«Esegui ora»: mette in coda un giro della lettura (solo chi configura il SOC)."""
+    if not can_manage_security_config(request.user):
+        return _denied(request)
+    from .services import letture
+
+    if codice not in letture.PER_CODICE:
+        raise Http404
+    ok, testo = letture.accoda(codice, request.user)
+    (messages.success if ok else messages.error)(request, testo)
+    return redirect(reverse("security:letture") + f"#lettura-{codice}")

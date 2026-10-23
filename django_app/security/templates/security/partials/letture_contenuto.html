@@ -1,0 +1,85 @@
+{# Contenuto di Impostazioni › Letture automatiche (ricaricato ogni 4 s mentre un giro è in corso). Dati: letture.stato_pagina. #}
+<div class="lt-summary" data-running="{% if in_corso %}1{% else %}0{% endif %}">
+  <div class="lt-sum is-ok"><strong>{{ conteggi.accese }}</strong><span>letture attive</span></div>
+  <div class="lt-sum{% if conteggi.errori %} is-ko{% endif %}"><strong>{{ conteggi.errori }}</strong><span>da sistemare</span></div>
+  <div class="lt-sum"><strong>{{ conteggi.spente }}</strong><span>spente</span></div>
+  {% if in_corso %}<div class="lt-sum is-run"><span class="lt-spin" aria-hidden="true"></span><span>giro in corso: la pagina si aggiorna da sola</span></div>{% endif %}
+</div>
+
+{% for g in gruppi %}
+<section class="lt-group">
+  <h2 class="lt-group-title">{{ g.nome }}</h2>
+  <div class="lt-grid">
+  {% for s in g.schede %}{% with l=s.lettura u=s.ultimo %}
+    <article class="lt-card is-{{ s.tono }}" id="lettura-{{ l.codice }}">
+      <header class="lt-head">
+        <span class="lt-dot" aria-hidden="true"></span>
+        <h3>{{ l.nome }}</h3>
+        <span class="lt-pill">{% if s.manca and s.accesa %}Da configurare{% elif not s.accesa %}Spenta{% elif s.corre %}{% if u.stato == "coda" %}In coda…{% else %}In corso…{% endif %}{% elif not u %}Mai eseguita{% elif u.bloccato %}Interrotta{% else %}{{ u.get_stato_display }}{% endif %}</span>
+      </header>
+      <p class="lt-desc">{{ l.descrizione }}</p>
+      <dl class="lt-meta">
+        <div><dt>Quando gira</dt><dd>{{ l.quando }}</dd></div>
+        <div><dt>Ultimo giro</dt><dd>{% if u %}{{ u.avviata_il|date:"d/m/Y H:i" }}<small>{% if u.manuale %}a mano{% if u.utente %} da {{ u.utente.get_full_name|default:u.utente.username }}{% endif %}{% else %}automatico{% endif %}{% if u.durata_s is not None %} · {% if u.durata_s < 60 %}{{ u.durata_s }} s{% else %}{% widthratio u.durata_s 60 1 %} min{% endif %}{% endif %}</small>{% else %}mai{% endif %}</dd></div>
+      </dl>
+      {% if s.manca %}<p class="lt-warn">{{ s.manca }}</p>{% endif %}
+      {% if u.bloccato %}<p class="lt-warn">Il giro partito il {{ u.avviata_il|date:"d/m H:i" }} non ha mai finito: il servizio dei lavori in background (qcluster) potrebbe essere fermo.</p>{% endif %}
+      {% if u and not s.corre %}
+        {% if u.messaggio and u.stato != "spenta" and not u.errore_in_righe %}<p class="lt-err">{{ u.messaggio }}</p>{% endif %}
+        {% if u.righe %}
+          <div class="lt-read">
+            {% for r in u.righe %}
+              <div class="lt-read-row">{% if r.titolo %}<span class="lt-read-title">{{ r.titolo }}</span>{% endif %}
+                {% for etichetta, valore in r.voci %}<span class="lt-chip"><strong>{{ valore }}</strong> {{ etichetta }}</span>{% endfor %}
+                {% if r.errore %}<span class="lt-chip is-ko">{{ r.errore|truncatechars:120 }}</span>{% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% elif u.stato == "ok" %}<p class="lt-none">Nessun dato nuovo.</p>{% endif %}
+      {% endif %}
+      {% if s.riuscito %}<p class="lt-last-ok">Ultimo giro riuscito: {{ s.riuscito.avviata_il|date:"d/m/Y H:i" }}</p>{% endif %}
+      <footer class="lt-foot">
+        {% if can_edit %}
+          <form method="post" action="{% url 'security:lettura_esegui' l.codice %}">{% csrf_token %}
+            <button type="submit" class="sec-button sec-button-primary"{% if s.corre or not s.accesa or s.manca %} disabled title="{% if s.corre %}Un giro è già in corso{% elif s.manca %}{{ s.manca }}{% else %}Lettura spenta: accendila in Avvisi e automatismi{% endif %}"{% endif %}>Esegui ora</button>
+          </form>
+        {% endif %}
+        {% if s.dati_url %}<a class="sec-button" href="{{ s.dati_url }}">{{ l.dati_label }} &#8594;</a>{% endif %}
+        {% if s.storico|length > 1 %}
+        <details class="lt-hist" data-id="{{ l.codice }}">
+          <summary>Storico ({{ s.storico|length }})</summary>
+          <ol class="lt-hist-list">{% for x in s.storico %}
+            <li><span class="lt-hist-top"><span class="sec-nowrap">{{ x.avviata_il|date:"d/m H:i" }}</span> <small>{% if x.manuale %}a mano{% else %}automatico{% endif %}{% if x.durata_s is not None %} · {{ x.durata_s }} s{% endif %}</small> <span class="lt-st is-{{ x.stato }}">{% if x.bloccato %}Interrotta{% else %}{{ x.get_stato_display }}{% endif %}</span></span>
+              <span class="lt-hist-read">{% include "security/partials/letture_riga.html" %}</span></li>
+          {% endfor %}</ol>
+        </details>
+        {% endif %}
+      </footer>
+    </article>
+  {% endwith %}{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<section class="sec-panel lt-recent">
+  <div class="sec-section-head"><h2>Ultimi giri, tutte le letture</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-table-enhanced="0" data-fm-table-skip="1">
+      <thead><tr><th>Quando</th><th>Lettura</th><th>Come</th><th>Durata</th><th>Esito</th><th>Cosa ha letto</th></tr></thead>
+      <tbody>
+      {% for x in recenti %}
+        <tr>
+          <td class="sec-nowrap">{{ x.avviata_il|date:"d/m/Y H:i" }}</td>
+          <td><a href="#lettura-{{ x.codice }}">{{ x.lettura.nome|default:x.codice }}</a></td>
+          <td>{% if x.manuale %}a mano{% if x.utente %} · {{ x.utente.get_full_name|default:x.utente.username }}{% endif %}{% else %}automatico{% endif %}</td>
+          <td class="sec-nowrap">{% if x.durata_s is not None %}{{ x.durata_s }} s{% else %}—{% endif %}</td>
+          <td><span class="lt-st is-{{ x.stato }}">{% if x.bloccato %}Interrotta{% else %}{{ x.get_stato_display }}{% endif %}</span></td>
+          <td class="lt-hist-read">{% include "security/partials/letture_riga.html" %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="sec-empty">Nessun giro registrato: compaiono qui dal primo giro delle letture accese.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
