@@ -3,7 +3,7 @@
 <li><a class="cvp-item cvp-item--{{ r.tono }}" href="{% url 'security:cve_detail' rec.cve_id %}" data-drawer-load="{% url 'security:cve_pannello_cve' rec.cve_id %}?da={{ qui|urlencode }}{% if asset %}&amp;asset={{ asset.pk }}{% endif %}">
   <span class="cvp-item-top">
     <strong class="cvp-id">{{ rec.cve_id }}</strong>
-    {% if rec.kev %}<span class="cvp-pill cvp-pill--kev" title="CISA KEV: sfruttata attivamente">Sfruttata</span>{% endif %}
+    {% if rec.kev %}<span class="cvp-pill cvp-pill--kev" title="CISA KEV: sfruttata attivamente">Sfruttata</span>{% elif r.priorita == "subito" %}<span class="cvp-pill cvp-pill--kev" title="{{ r.priorita_motivo }}">Probabile attacco</span>{% endif %}
     <span class="cvp-pill cvp-pill--{{ r.tono }}">{{ r.gravita }}{% if rec.cvss is not None %} · {{ rec.cvss|floatformat:1 }}{% endif %}</span>
   </span>
   <span class="cvp-desc">{{ rec.description|default:"Descrizione non ancora letta da NVD."|truncatechars:150 }}</span>
@@ -12,6 +12,7 @@
     {% if r.pc_da_verificare %}<span>{{ r.pc_da_verificare }} da verificare</span>{% endif %}
     {% if r.versioni %}<span>versioni {{ r.versioni|slice:":3"|join:", " }}{% if r.versioni|length > 3 %} e altre {{ r.versioni|length|add:"-3" }}{% endif %}</span>{% endif %}
     {% if r.correzione %}<span class="cvp-fix">{{ r.correzione }}</span>{% endif %}
+    {% if r.pc_con_patch %}<span class="cvp-fix" title="{{ r.patch.nome }}">patch WatchGuard pronta su {{ r.pc_con_patch }} PC</span>{% endif %}
   </span>
 </a></li>
 {% endwith %}

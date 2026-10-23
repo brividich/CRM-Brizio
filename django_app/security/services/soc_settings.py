@@ -137,6 +137,10 @@ SECTIONS = [
                    "Ogni mattina alle 06:20 il software installato sui PC collegati a Defender entra nell'inventario del SOC "
                    "(fonte «Microsoft Defender for Endpoint»): CVE e impatti si aggiornano da soli. Serve Software.Read.All "
                    "dell'API WindowsDefenderATP."),
+            Option("defender.vulnerabilita.attivo", False, "Confronta le CVE con Defender",
+                   "Ogni mattina alle 06:25 legge le vulnerabilità che Defender vede sui PC e le mette accanto al calcolo del SOC "
+                   "nel pannello CVE («Defender conferma» / «Defender non la vede»). Non apre alert. Servono Vulnerability.Read.All "
+                   "e Machine.Read.All dell'API WindowsDefenderATP."),
             Option("defender.secure_score.attivo", False, "Mostra il Secure Score",
                    "Punteggio di Microsoft Secure Score, andamento e le 5 azioni che valgono di più, nella Panoramica. "
                    "Letto ogni 12 ore. Serve SecurityEvents.Read.All."),
@@ -183,6 +187,26 @@ SECTIONS = [
                    "Spento: le cadute restano eventi (KPI) senza alert. Severità alta per i firewall, attenzione per gli altri."),
             Option("apparati.irraggiungibile.controlli", 2, "Controlli senza risposta",
                    "Quante interrogazioni consecutive fallite fanno una caduta.", "int", min_value=1, max_value=12, unit="controlli"),
+            Option("apparati.tabella_mac.attivo", True, "Leggi la tabella MAC degli switch",
+                   "Ogni notte alle 05:30 legge (solo lettura) su quale porta di ogni switch «Rete» sta ogni MAC: la scheda del PC "
+                   "dice a quale switch e porta è collegato, la scheda dello switch quali PC ha sulle porte."),
+        ],
+    },
+    {
+        "code": "watchguard",
+        "title": "WatchGuard Endpoint Security (API)",
+        "intro": "Letture dall'API di WatchGuard Cloud, al posto degli export a mano. Servono le credenziali API (riquadro sotto). "
+                 "Girano alle 06:10 e alle 13:10. Sola lettura: le patch si installano dalla console WatchGuard.",
+        "channels_optional": True,
+        "active_any": True,
+        "options": [
+            Option("watchguard.api.dispositivi", False, "Leggi i PC e lo stato della protezione",
+                   "Agente, protezione, ultima connessione e MAC di ogni PC; anche i dispositivi trovati in rete senza agente."),
+            Option("watchguard.api.software", False, "Leggi il software dei PC",
+                   "L'inventario software WatchGuard arriva da solo, come se fosse l'export caricato a mano: CVE e impatti si aggiornano."),
+            Option("watchguard.api.patch", False, "Leggi le patch mancanti",
+                   "Patch pubblicate e non installate per PC, con le CVE che correggono, e l'esito dei task di installazione: "
+                   "il pannello CVE dice dove la patch è pronta."),
         ],
     },
     {
@@ -305,6 +329,7 @@ def form_sections():
                 {"option": option, "name": option.key.replace(".", "__"), "value": value(option.key)}
                 for option in section["options"]
             ],
-            "active": value(next(o.key for o in section["options"] if o.kind == "bool")),
+            "active": (any(value(o.key) for o in section["options"] if o.kind == "bool") if section.get("active_any")
+                       else value(next(o.key for o in section["options"] if o.kind == "bool"))),
         })
     return out

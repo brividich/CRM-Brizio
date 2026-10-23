@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 80
+**Totale automazioni disponibili:** 83
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -462,11 +462,23 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `contatori.tasks.pulisci_rilevazioni_tvcc`
 - **Cosa fa:** CONTATORI — retention delle rilevazioni SNMP di NVR e telecamere (TVCC) alle 03:40. Giorni da Impostazioni SNMP (default 14); gli altri dispositivi non vengono toccati.
 
+### `contatori_tabella_mac`
+
+- **Quando gira:** ogni giorno, alle 05:30
+- **Task eseguito:** `contatori.tasks.run_tabella_mac`
+- **Cosa fa:** CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.
+
 ### `defender_software_sync`
 
 - **Quando gira:** ogni giorno, alle 06:20
 - **Task eseguito:** `security.tasks.run_defender_software_task`
 - **Cosa fa:** SOC — software installato sui PC collegati a Microsoft Defender for Endpoint nell'inventario (CVE e impatti). Gira solo con «Leggi il software dei PC» acceso in /soc/impostazioni/.
+
+### `defender_vulnerabilita_sync`
+
+- **Quando gira:** ogni giorno, alle 06:25
+- **Task eseguito:** `security.tasks.run_defender_vulnerabilita_task`
+- **Cosa fa:** SOC — CVE viste da Defender, accanto al calcolo del SOC nel pannello CVE. Gira solo con «Confronta le CVE con Defender» acceso in /soc/impostazioni/.
 
 ### `scadenze_digest_personale`
 
@@ -515,6 +527,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 08:00
 - **Task eseguito:** `suggestion_corner.tasks.run_suggestion_corner_reminders`
 - **Cosa fa:** SUGGESTION CORNER — solleciti DO/CHECK + escalation (§3)
+
+### `watchguard_api_sync`
+
+- **Quando gira:** ogni giorno, (10 6,13)
+- **Task eseguito:** `security.tasks.run_watchguard_api_task`
+- **Cosa fa:** SOC — WatchGuard Cloud (API): PC e protezione, software, patch mancanti. Ogni parte gira solo con il suo interruttore in /soc/impostazioni/ e le credenziali API salvate.
 
 ---
 
