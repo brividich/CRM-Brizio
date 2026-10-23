@@ -2478,7 +2478,7 @@ def api_import_csv(request):
     # Normalizza priorità italiana (SharePoint) → valore interno
     _PRIO_MAP = {
         "alta": "ALTA", "media": "MEDIA", "bassa": "BASSA",
-        "urgente": "URGENTE", "critica": "URGENTE",
+        "urgente": "URGENTE", "critica": "URGENTE", "normale": "MEDIA",
     }
 
     def _get(row, *keys):
@@ -2549,7 +2549,12 @@ def api_import_csv(request):
                 continue
 
             # Priorità: normalizza sia formato interno che italiano SharePoint
-            priorita_raw = _get(row, "priorita", "Priorità").upper()
+            # L'export SharePoint può avere la «à» rovinata («Priorit�»): basta il prefisso
+            priorita_raw = (_get(row, "priorita", "Priorità") or next(
+                (str(v).strip() for k, v in row.items()
+                 if k and k.strip().lower().startswith("priorit") and str(v or "").strip()),
+                "",
+            )).upper()
             priorita = _PRIO_MAP.get(priorita_raw.lower(), priorita_raw)
             if priorita not in VALID_PRIORITA:
                 priorita = PrioritaTicket.MEDIA

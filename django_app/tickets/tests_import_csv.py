@@ -72,6 +72,24 @@ class ImportCsvTest(TestCase):
         silenzia.assert_called_once()
         self.assertCountEqual(silenzia.call_args.args[0], list(Ticket.objects.values_list("pk", flat=True)))
 
+    def test_export_sharepoint_vero_falso_e_priorita_rovinata(self):
+        intestazione = (
+            "Problema,Descrizione del problema,Tipologia problema,Problema registrato da,"
+            "Chiuso,Impatto su sicurezza,Priorit�,ID\n"
+        )
+        f = SimpleUploadedFile("t.csv", (intestazione + (
+            "Perdita olio,Perde olio,MECCANICO,Mario Rossi,Vero,Falso,Alta,301\n"
+            "Porta,Non apre,MECCANICO,Anna Bianchi,Falso,Falso,Bassa,302\n"
+        )).encode("utf-8"), "text/csv")
+        request = self.factory.post("/tickets/api/import-csv/", {"csv_file": f, "tipo_override": "MAN"})
+        request.user = self.su
+        api_import_csv(request)
+
+        t1 = Ticket.objects.get(sharepoint_item_id="301")
+        t2 = Ticket.objects.get(sharepoint_item_id="302")
+        self.assertEqual((t1.stato, t1.priorita, t1.incide_sicurezza), (StatoTicket.CHIUSO, "ALTA", False))
+        self.assertEqual((t2.stato, t2.priorita), (StatoTicket.APERTA, "BASSA"))
+
     def test_coda_assente_non_rompe_import(self):
         resp = self._importa("Perdita olio,Perde olio,MECCANICO,Mario Rossi,1,,201\n")
 
