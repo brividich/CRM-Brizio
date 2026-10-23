@@ -22,6 +22,7 @@ from .forms import (
     RigaFatturaForm,
     SondaSNMPForm,
 )
+from .stampanti import contesto_pannello
 from .models import (
     ColonnaProfiloSNMP,
     DispositivoSNMP,
@@ -438,6 +439,7 @@ def macchina_detail(request, pk):
         "colleghi_pool": (list(Macchina.objects.filter(contratto=macchina.contratto)
                                .exclude(pk=macchina.pk).order_by("reparto"))
                           if macchina.contratto else []),
+        **contesto_pannello(macchina, macchina.dati_stampante),
         **_licenze_software_asset(macchina.asset, macchina, "mfc", request),
     })
 
@@ -1045,18 +1047,11 @@ def dispositivo_snmp_detail(request, pk):
     stampante = dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE
     dati_extra = {}
     if stampante:
-        from .printer_snmp import problemi_stampante
         from .stampanti import stime
 
         ultima = rilevazioni[0] if rilevazioni else None
-        registro = list(dispositivo.avvisi_stampante.all()[:60])
-        dati_extra = {
-            "problemi_stampante": problemi_stampante(ultima.dati_stampante if ultima else {}),
-            "avvisi_aperti": [a for a in registro if a.chiuso_il is None and not a.informativo],
-            "avvisi_registro": registro,
-            "stime_stampante": stime(dispositivo),
-        }
-        dati_extra["problemi_gravi"] = any(livello == StatoSNMP.ERROR for _t, livello in dati_extra["problemi_stampante"])
+        dati_extra = {**contesto_pannello(dispositivo, ultima.dati_stampante if ultima else {}),
+                      "stime_stampante": stime(dispositivo)}
         per_indice = {r["indice"]: r for r in dati_extra["stime_stampante"]["consumabili"]}
         for c in ((ultima.dati_stampante or {}).get("consumabili") or []) if ultima else []:
             c["stima"] = per_indice.get(c.get("indice"))  # solo in memoria, non si salva

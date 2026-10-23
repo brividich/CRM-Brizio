@@ -339,6 +339,10 @@ class Macchina(models.Model):
     snmp_ultimo_controllo = models.DateTimeField(null=True, blank=True)
     snmp_tempo_risposta_ms = models.PositiveIntegerField(null=True, blank=True)
     snmp_ultimo_errore = models.CharField(max_length=500, blank=True)
+    # Ultima lettura completa della stampante (stato, display, avvisi, cassetti, sportelli, toner):
+    # stessa struttura di RilevazioneSNMP.dati_stampante, aggiornata dal polling ogni 15 minuti.
+    dati_stampante = models.JSONField(default=dict, blank=True)
+    dati_stampante_il = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["reparto"]
@@ -563,7 +567,10 @@ class AvvisoStampante(models.Model):
     (Host-Resources). Una riga aperta (``chiuso_il`` vuoto) è un avviso ancora presente.
     """
 
-    dispositivo = models.ForeignKey(DispositivoSNMP, on_delete=models.CASCADE, related_name="avvisi_stampante")
+    dispositivo = models.ForeignKey(DispositivoSNMP, on_delete=models.CASCADE, null=True, blank=True,
+                                    related_name="avvisi_stampante")
+    macchina = models.ForeignKey("Macchina", on_delete=models.CASCADE, null=True, blank=True,
+                                 related_name="avvisi_stampante")
     chiave = models.CharField(max_length=255)
     testo = models.CharField(max_length=255)
     descrizione = models.CharField(max_length=120, blank=True)
@@ -578,12 +585,13 @@ class AvvisoStampante(models.Model):
 
     class Meta:
         ordering = ["-aperto_il", "-pk"]
-        indexes = [models.Index(fields=["dispositivo", "chiuso_il"], name="contatori_avvprt_disp_chiuso")]
+        indexes = [models.Index(fields=["dispositivo", "chiuso_il"], name="contatori_avvprt_disp_chiuso"),
+                   models.Index(fields=["macchina", "chiuso_il"], name="contatori_avvprt_mac_chiuso")]
         verbose_name = "Avviso stampante"
         verbose_name_plural = "Avvisi stampante"
 
     def __str__(self):
-        return f"{self.dispositivo.nome} · {self.testo}"
+        return f"{self.macchina or self.dispositivo} · {self.testo}"
 
     @property
     def durata_secondi(self):
