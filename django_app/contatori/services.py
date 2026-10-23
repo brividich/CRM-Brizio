@@ -950,14 +950,15 @@ def interroga_dispositivo(dispositivo):
     durata = _tempo_ms(inizio)
 
     esiti = []
-    from .printer_snmp import consumabili_in_esaurimento
+    from .printer_snmp import consumabili_in_esaurimento, problemi_stampante
 
+    problemi = problemi_stampante(dati_stampante) if stampante else []
     ha_warning = bool(stampante and (
         dati_stampante.get("errori") or not dati_stampante.get("contatori")
         or not dati_stampante.get("consumabili")
-        or consumabili_in_esaurimento(dati_stampante)
+        or consumabili_in_esaurimento(dati_stampante) or problemi
     ))
-    ha_critico = False
+    ha_critico = any(livello == StatoSNMP.ERROR for _testo_p, livello in problemi)
     for sonda in sonde:
         if sonda.oid not in valori:
             ha_warning = True
@@ -1027,6 +1028,10 @@ def interroga_dispositivo(dispositivo):
         sys_uptime_seconds=uptime_seconds,
         dati_stampante=dati_stampante,
     )
+    if stampante:
+        from .stampanti import registra_avvisi
+
+        registra_avvisi(dispositivo, dati_stampante, adesso)
     ValoreSNMP.objects.bulk_create([
         ValoreSNMP(
             rilevazione=rilevazione, sonda=e["sonda"],

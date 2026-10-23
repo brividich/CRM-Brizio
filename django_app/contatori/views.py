@@ -1042,13 +1042,32 @@ def dispositivo_snmp_detail(request, pk):
     sonde = list(dispositivo.sonde.all())
     for sonda in sonde:
         sonda.ultimo_valore = ultimi_valori.get(sonda.pk)
+    stampante = dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE
+    dati_extra = {}
+    if stampante:
+        from .printer_snmp import problemi_stampante
+        from .stampanti import stime
+
+        ultima = rilevazioni[0] if rilevazioni else None
+        registro = list(dispositivo.avvisi_stampante.all()[:60])
+        dati_extra = {
+            "problemi_stampante": problemi_stampante(ultima.dati_stampante if ultima else {}),
+            "avvisi_aperti": [a for a in registro if a.chiuso_il is None and not a.informativo],
+            "avvisi_registro": registro,
+            "stime_stampante": stime(dispositivo),
+        }
+        dati_extra["problemi_gravi"] = any(livello == StatoSNMP.ERROR for _t, livello in dati_extra["problemi_stampante"])
+        per_indice = {r["indice"]: r for r in dati_extra["stime_stampante"]["consumabili"]}
+        for c in ((ultima.dati_stampante or {}).get("consumabili") or []) if ultima else []:
+            c["stima"] = per_indice.get(c.get("indice"))  # solo in memoria, non si salva
     return render(request, "contatori/snmp_dispositivo_detail.html", {
+        **dati_extra,
         "dispositivo": dispositivo,
         "sonde": sonde,
         "rilevazioni": rilevazioni,
         "profili_disponibili": ProfiloSNMP.objects.filter(attivo=True),
         "ultima_rilevazione": rilevazioni[0] if rilevazioni else None,
-        "stampante": dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE,
+        "stampante": stampante,
         "info_snmp": services.info_snmp(dispositivo),
         "ultima_ok": dispositivo.rilevazioni.filter(stato=StatoSNMP.OK).order_by("-rilevata_il").first(),
         "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
