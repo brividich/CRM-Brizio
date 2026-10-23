@@ -37,6 +37,19 @@ GUIDA = {
             ],
         },
         {
+            "id": "planimetria",
+            "titolo": "Vedere dove si trova una macchina; collocarla sulla planimetria",
+            "blocchi": [
+                ("p", "Nella scheda della macchina il riquadro «Posizione in officina» mostra la zona ingrandita e il reparto; "
+                      "«Pianta intera» apre tutta la planimetria, «Vedi sulla mappa» la mappa officina con lo stato delle macchine."),
+                ("passi", [
+                    "Dalla scheda premi «Posiziona ora» (o «Sposta»): si apre l'editor con la macchina già scelta.",
+                    "Clicca sulla pianta il punto in cui si trova la macchina; usa la rotellina per ingrandire.",
+                    "Premi «Salva».",
+                ]),
+            ],
+        },
+        {
             "id": "report",
             "titolo": "Estrarre un report (rete, licenze, costi, schede incomplete)",
             "blocchi": [
@@ -116,6 +129,19 @@ GUIDA = {
     ],
     "admin": [
         {
+            "id": "planimetrie",
+            "titolo": "Preparare la planimetria dell'officina",
+            "blocchi": [
+                ("ul", [
+                    "Editor planimetrie (mappa officina → «Apri editor mappa»): carica la pianta in PNG, JPG o PDF (prima pagina).",
+                    "«Ruota» raddrizza una pianta di traverso; «Ritaglia» e «Margini automatici» tolgono i bordi inutili. "
+                    "Reparti e macchine seguono la pianta; le macchine fuori dal ritaglio tornano «da collocare».",
+                    "Disegna i reparti e scrivi il codice reparto uguale al campo reparto delle macchine.",
+                    "Una sola planimetria per categoria è «Attiva»: le altre restano bozze finché non le pubblichi.",
+                ]),
+            ],
+        },
+        {
             "id": "config",
             "titolo": "Configurazione",
             "blocchi": [
@@ -193,6 +219,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Nella scheda della macchina compare «Posizione da definire» o la planimetria sbagliata",
+            "fare": [
+                "«Posizione da definire»: la macchina è sulla pianta ma nessuno l'ha collocata. Premi «Posiziona ora» e clicca il punto giusto.",
+                "Se il reparto della macchina ha una planimetria dedicata (categoria uguale al reparto o reparto disegnato con quel codice) "
+                "la scheda usa quella: controlla il campo reparto della macchina e il codice dei reparti disegnati.",
+                "Se la pianta è di traverso o con grandi margini bianchi, raddrizzala e ritagliala nell'editor.",
+            ],
+        },
         {
             "sintomo": "Un PC di Intune non viene proposto per nessun asset",
             "fare": [
