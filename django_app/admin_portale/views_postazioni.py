@@ -1,4 +1,4 @@
-"""Postazioni condivise: configurazione (PC, account, gruppo, inattività), operatori abilitati e PIN.
+"""Postazioni condivise: configurazione (PC dal registro asset, account, gruppo, inattività), operatori e PIN.
 
 La logica di accesso sta in :mod:`core.postazioni`; qui ci sono solo le pagine
 di amministrazione.
@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
+from assets.models import Asset
 from core import postazioni
 from core.legacy_models import UtenteLegacy
 from core.models import AccessGroup, OperatorePostazione, PinPostazione, PostazioneCondivisa, Profile
@@ -34,10 +35,33 @@ def _nomi_account(ids) -> dict[int, str]:
     return {u.id: (u.nome or u.email) for u in UtenteLegacy.objects.filter(id__in=list(ids))}
 
 
+TIPI_ASSET_PC = (Asset.TYPE_PC, Asset.TYPE_NOTEBOOK)
+
+
+def _asset_ammessi(corrente_id=None):
+    """PC e portatili del registro asset non dismessi (più quello già collegato, anche se dismesso)."""
+    filtro = Q(asset_type__in=TIPI_ASSET_PC) & ~Q(status=Asset.STATUS_RETIRED)
+    if corrente_id:
+        filtro |= Q(pk=corrente_id)
+    return Asset.objects.filter(filtro).order_by("name", "asset_tag")
+
+
+def _scheda_asset(asset) -> dict | None:
+    """Quello che la postazione prende dall'asset: dati della macchina, MAC e IP con la fonte."""
+    if asset is None:
+        return None
+    return {
+        "asset": asset,
+        "modello": " ".join(v for v in (asset.manufacturer, asset.model) if v),
+        "mac": sorted(postazioni.mac_dell_asset(asset)),
+        "ip": postazioni.ip_dell_asset(asset),
+    }
+
+
 @legacy_admin_required
 @require_GET
 def postazioni_condivise(request):
-    elenco = list(PostazioneCondivisa.objects.select_related("gruppo").order_by("nome"))
+    elenco = list(PostazioneCondivisa.objects.select_related("gruppo", "asset").order_by("nome"))
     nomi = _nomi_account(p.account_legacy_user_id for p in elenco)
     modifica = None
     if request.GET.get("modifica"):
@@ -56,8 +80,11 @@ def postazioni_condivise(request):
     return render(request, "admin_portale/pages/postazioni_condivise.html", {
         "page_title": "Postazioni condivise",
         "postazioni": [{"p": p, "account": nomi.get(p.account_legacy_user_id, f"utente #{p.account_legacy_user_id}"),
+                        "ip": sorted(postazioni.ip_della_postazione(p)),
                         "operatori": len(postazioni.operatori(p))} for p in elenco],
         "modifica": modifica,
+        "scheda_asset": _scheda_asset(modifica.asset if modifica else None),
+        "asset_ammessi": _asset_ammessi(modifica.asset_id if modifica else None),
         "dettaglio": dettaglio,
         "righe_operatori": righe_operatori,
         "account_ammessi": _account_ammessi(),
@@ -77,20 +104,39 @@ def _salva(request) -> str:
     postazione = PostazioneCondivisa.objects.filter(pk=pk).first() if pk.isdigit() else PostazioneCondivisa()
     if pk and postazione is None:
         return "Postazione non trovata."
-    nome = (request.POST.get("nome") or "").strip()[:100]
-    if not nome:
-        return "Dai un nome alla postazione."
     try:
         account_id = int(request.POST.get("account") or 0)
         gruppo_id = int(request.POST.get("gruppo") or 0)
         minuti = int(request.POST.get("minuti_inattivita") or 0)
+        asset_id = int(request.POST.get("asset") or 0) or None
     except ValueError:
         return "Valori non validi."
-    ip_pc = postazioni.ip_normalizzato(request.POST.get("ip_pc"))
-    if not ip_pc:
-        return "Indica l'indirizzo IP del PC (es. 192.168.10.25)."
-    if PostazioneCondivisa.objects.filter(ip_pc=ip_pc).exclude(pk=postazione.pk).exists():
-        return f"Il PC {ip_pc} è già registrato come un'altra postazione."
+    asset = None
+    if asset_id:
+        asset = _asset_ammessi(postazione.asset_id).filter(pk=asset_id).first()
+        if asset is None:
+            return "Scegli il PC fra i PC e i portatili del registro asset."
+        gia = PostazioneCondivisa.objects.filter(asset=asset).exclude(pk=postazione.pk).first()
+        if gia is not None:
+            return f"L'asset {asset.asset_tag} è già la postazione «{gia.nome}»."
+    nome = (request.POST.get("nome") or "").strip()[:100] or (asset.name[:100] if asset else "")
+    if not nome:
+        return "Dai un nome alla postazione."
+    testo_ip = (request.POST.get("ip_pc") or "").strip()
+    ip_pc = postazioni.ip_normalizzato(testo_ip)
+    if testo_ip and not ip_pc:
+        return f"«{testo_ip}» non è un indirizzo IP valido (es. 192.168.10.25)."
+    postazione.asset, postazione.ip_pc = asset, ip_pc
+    ip_validi = postazioni.ip_della_postazione(postazione)
+    if not ip_validi:
+        if asset is not None:
+            return (f"L'asset {asset.asset_tag} non ha un IP (né nei punti rete né dal DHCP): "
+                    "aggiungilo all'asset o scrivilo a mano in «IP a mano».")
+        return "Collega il PC del registro asset o indica l'indirizzo IP del PC (es. 192.168.10.25)."
+    for altra in PostazioneCondivisa.objects.exclude(pk=postazione.pk).select_related("asset"):
+        comuni = ip_validi & postazioni.ip_della_postazione(altra)
+        if comuni:
+            return f"Il PC {', '.join(sorted(comuni))} è già registrato come «{altra.nome}»."
     if account_id not in {u.id for u in _account_ammessi()}:
         return "Scegli l'account della postazione fra gli utenti attivi (gli amministratori non sono ammessi)."
     gruppo = AccessGroup.objects.filter(pk=gruppo_id, is_active=True).first()
@@ -98,12 +144,13 @@ def _salva(request) -> str:
         return "Scegli il gruppo degli operatori."
     if not (MINUTI_MIN <= minuti <= MINUTI_MAX):
         return f"I minuti di inattività vanno da {MINUTI_MIN} a {MINUTI_MAX}."
-    postazione.nome, postazione.account_legacy_user_id, postazione.ip_pc = nome, account_id, ip_pc
+    postazione.nome, postazione.account_legacy_user_id = nome, account_id
     postazione.gruppo, postazione.minuti_inattivita = gruppo, minuti
     postazione.attiva = request.POST.get("attiva") == "1"
     postazione.save()
     postazioni.registra_audit(request, "postazione_configurata", {
         "postazione": nome, "postazione_id": postazione.pk, "account_legacy_id": account_id, "ip_pc": ip_pc,
+        "asset_id": postazione.asset_id, "ip_validi": sorted(ip_validi),
         "gruppo": gruppo.code, "minuti_inattivita": minuti, "attiva": postazione.attiva,
     })
     return ""
@@ -181,7 +228,7 @@ def postazioni_registro(request):
     dati = postazioni.registro_uso(pid, giorni)
     return render(request, "admin_portale/pages/postazioni_registro.html", {
         "page_title": "Registro d'uso delle postazioni",
-        "postazioni": PostazioneCondivisa.objects.order_by("nome"),
+        "postazioni": PostazioneCondivisa.objects.select_related("asset").order_by("nome"),
         "postazione_id": pid,
         "giorni": giorni,
         "giorni_scelte": GIORNI_REGISTRO,

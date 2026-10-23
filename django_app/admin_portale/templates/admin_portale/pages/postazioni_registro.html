@@ -29,7 +29,7 @@
             <select class="input" name="postazione">
               <option value="">Tutte</option>
               {% for p in postazioni %}
-                <option value="{{ p.pk }}" {% if postazione_id == p.pk %}selected{% endif %}>{{ p.nome }}{% if p.ip_pc %} ({{ p.ip_pc }}){% endif %}</option>
+                <option value="{{ p.pk }}" {% if postazione_id == p.pk %}selected{% endif %}>{{ p.nome }}{% if p.asset %} ({{ p.asset.asset_tag }}){% elif p.ip_pc %} ({{ p.ip_pc }}){% endif %}</option>
               {% endfor %}
             </select>
           </div>
