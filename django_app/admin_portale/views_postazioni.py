@@ -156,3 +156,64 @@ def postazioni_condivise_azione(request):
         return redirect(dest)
     messages.error(request, "Azione non riconosciuta.")
     return redirect(url)
+
+
+GIORNI_REGISTRO = (7, 30, 90, 365)
+
+
+def _filtri_registro(request) -> tuple[int | None, int]:
+    try:
+        pid = int(request.GET.get("postazione") or 0) or None
+    except ValueError:
+        pid = None
+    try:
+        giorni = int(request.GET.get("giorni") or 30)
+    except ValueError:
+        giorni = 30
+    return pid, giorni if giorni in GIORNI_REGISTRO else 30
+
+
+@legacy_admin_required
+@require_GET
+def postazioni_registro(request):
+    """Registro d'uso: chi ha usato quale PC e quando, più PIN sbagliati/bloccati e sessioni da altri PC."""
+    pid, giorni = _filtri_registro(request)
+    dati = postazioni.registro_uso(pid, giorni)
+    return render(request, "admin_portale/pages/postazioni_registro.html", {
+        "page_title": "Registro d'uso delle postazioni",
+        "postazioni": PostazioneCondivisa.objects.order_by("nome"),
+        "postazione_id": pid,
+        "giorni": giorni,
+        "giorni_scelte": GIORNI_REGISTRO,
+        "sessioni": dati["sessioni"],
+        "eventi": dati["eventi"],
+        "querystring": request.GET.urlencode(),
+    })
+
+
+@legacy_admin_required
+@require_GET
+def postazioni_registro_excel(request):
+    from django.utils import timezone
+
+    from core.excel_export import make_xlsx_response
+
+    pid, giorni = _filtri_registro(request)
+    dati = postazioni.registro_uso(pid, giorni)
+
+    def _ora(valore):
+        return timezone.localtime(valore).strftime("%d/%m/%Y %H:%M") if valore else ""
+
+    righe = [[s["postazione"], s["operatore"], _ora(s["entrata"]), _ora(s["uscita"]),
+              s["durata_minuti"] if s["durata_minuti"] is not None else "", s["uscita_motivo"] or "non registrata"]
+             for s in dati["sessioni"]]
+    pc = PostazioneCondivisa.objects.filter(pk=pid).values_list("nome", flat=True).first() if pid else "tutte"
+    return make_xlsx_response(
+        filename=f"registro-postazioni-{giorni}gg.xlsx",
+        columns=["Postazione", "Operatore", "Entrata", "Uscita", "Durata (min)", "Uscita"],
+        rows=righe,
+        sheet_title="Registro d'uso",
+        title="Registro d'uso delle postazioni condivise",
+        subtitle=f"Ultimi {giorni} giorni",
+        filters_label=f"Postazione: {pc}",
+    )

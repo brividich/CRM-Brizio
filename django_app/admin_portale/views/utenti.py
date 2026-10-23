@@ -2256,6 +2256,12 @@ def utente_impersonate(request, user_id: int):
             "avviso_utente": avviso_attivo,
         },
     )
+    from core.eventi_sicurezza import segnala
+
+    segnala("impersonazione_avviata", utente=request.user, request=request,
+            titolo=f"Impersonazione: {request.user.get_username()} come "
+                   f"{(target_user.nome or target_user.email or '').strip()}",
+            dettaglio={"target_legacy_user_id": int(target_user.id), "avviso_utente": avviso_attivo})
     messages.warning(
         request,
         f"Impersonazione attiva per {target_user.nome or target_user.email or f'utente #{target_user.id}'}.",
