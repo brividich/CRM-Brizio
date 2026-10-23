@@ -10,6 +10,7 @@ GUIDA = {
         ("Guida Accessi", "admin_portale:accessi", "?guida=1"),
         ("Guida Ruoli e permessi", "admin_portale:ruoli_portale", "?tab=guida"),
         ("Guida Centro report", "admin_portale:centro_report", "?tab=guida"),
+        ("Guida Postazioni condivise", "admin_portale:postazioni_condivise", "?guida=1"),
     ],
     "uso": [
         {
@@ -34,6 +35,7 @@ GUIDA = {
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
                     ("Navigation Builder", "le voci dei menu."),
                     ("Branding", "logo, favicon, nome e colori."),
+                    ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): l'operatore sceglie il proprio nome dal gruppo e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
                                       "(registro, con impronta SHA-256, senza conservare il file) e i profili di layout dei PDF. Ha la sua guida."),
@@ -55,6 +57,29 @@ GUIDA = {
                     "Falle ricaricare la pagina.",
                 ]),
                 ("nota", "Per vedere il portale come lo vede la persona usa l'impersonazione da «Utenti». Ricordati di uscirne (banner in alto). La persona riceve una mail di avviso, salvo che in «Gestione notifiche» l'interruttore «Avvisa l'utente quando viene impersonato» sia spento: l'impersonazione resta comunque nell'audit."),
+            ],
+        },
+        {
+            "id": "postazioni-condivise",
+            "titolo": "Postazioni condivise (un account del PC, più operatori con PIN)",
+            "blocchi": [
+                ("passi", [
+                    "Fai entrare una volta l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: "
+                    "deve essere in un gruppo AD ammesso al login. Così compare in «Account della postazione».",
+                    "In «Accessi» crea o scegli il gruppo degli operatori e aggiungi le persone che usano quel PC.",
+                    "Amministrazione → «Postazioni condivise» → «Nuova postazione»: nome, account, gruppo, minuti di inattività (1–60), «Attiva». "
+                    "Vale dal prossimo accesso dell'account.",
+                    "Gli operatori impostano da soli il PIN sul PC, con la propria password. «Operatori e PIN» mostra chi l'ha impostato, "
+                    "chi è bloccato e «Azzera PIN».",
+                ]),
+                ("ul", [
+                    "Con il PIN giusto la sessione è dell'operatore: i suoi permessi, il suo 2FA (se la policy lo chiede), il suo nome nell'audit "
+                    "(«postazione_operatore_entra» / «postazione_operatore_esce», con la postazione).",
+                    "L'account del PC da solo apre soltanto «Chi sei?»: ogni altra pagina riporta lì, le API rispondono 403.",
+                    "Il PIN vale solo dentro una sessione aperta con l'account della postazione. Si salva solo l'hash, mai nell'audit.",
+                    "Amministratori e superuser non compaiono fra gli operatori e non possono essere l'account di una postazione.",
+                    "«Attiva» spenta o postazione eliminata: le sessioni aperte da lì si chiudono alla richiesta successiva.",
+                ]),
             ],
         },
         {

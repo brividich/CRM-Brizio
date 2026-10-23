@@ -1,0 +1,33 @@
+{% if request.postazione_condivisa %}
+<div class="postazione-banner" data-postazione-banner data-minuti="{{ request.postazione_condivisa.minuti_inattivita }}">
+  <div class="postazione-banner-copy">
+    Postazione condivisa <strong>{{ request.postazione_condivisa.nome }}</strong>: stai lavorando come
+    <strong>{{ request.postazione_condivisa.operatore }}</strong>.
+    <span class="postazione-banner-note">Dopo {{ request.postazione_condivisa.minuti_inattivita }} minuti senza usare il portale si torna alla scelta dell'operatore.</span>
+  </div>
+  <form method="post" action="{% url 'postazione_cambio' %}" class="inline-form postazione-banner-form" data-postazione-cambio>
+    {% csrf_token %}
+    <input type="hidden" name="motivo" value="cambio">
+    <button type="submit" class="logout-a postazione-banner-btn">Cambio operatore</button>
+  </form>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  // Inattività vista dalla pagina: senza tastiera/mouse/tocco per i minuti della
+  // postazione si torna alla scelta dell'operatore (il server fa lo stesso controllo).
+  var banner = document.querySelector("[data-postazione-banner]");
+  var form = document.querySelector("[data-postazione-cambio]");
+  if (!banner || !form) return;
+  var limite = (parseInt(banner.getAttribute("data-minuti"), 10) || 10) * 60 * 1000;
+  var ultima = Date.now();
+  ["keydown", "mousedown", "mousemove", "touchstart", "wheel", "scroll"].forEach(function (ev) {
+    window.addEventListener(ev, function () { ultima = Date.now(); }, { passive: true, capture: true });
+  });
+  window.setInterval(function () {
+    if (Date.now() - ultima < limite) return;
+    form.querySelector("input[name=motivo]").value = "inattivita";
+    form.submit();
+  }, 15000);
+})();
+</script>
+{% endif %}

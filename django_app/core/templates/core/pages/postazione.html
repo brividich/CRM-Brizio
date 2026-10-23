@@ -1,0 +1,173 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ postazione.nome }} | {{ portal_branding.portal_name|default:"NOVICROM HUB" }}{% endblock %}
+{% block layout_sidebar %}{% endblock %}
+{% block layout_header %}{% endblock %}
+{% block subnav %}{% endblock %}
+{% block notify_shell %}{% endblock %}
+{% block notify_banner %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .pz-wrap { width: 100%; max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+  .pz-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .pz-kicker { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-mid); }
+  .pz-title { margin: 2px 0 0; font-size: 28px; font-weight: 800; color: var(--text); }
+  .pz-head-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pz-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: grid; gap: 16px; }
+  .pz-h2 { margin: 0; font-size: 22px; font-weight: 800; color: var(--text); }
+  .pz-avviso { padding: 12px 16px; border-radius: 12px; font-size: 16px; line-height: 1.45; background: var(--warning-bg); color: var(--text); border: 1px solid var(--border); }
+  .pz-errore { padding: 12px 16px; border-radius: 12px; font-size: 17px; font-weight: 700; background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+  .pz-cerca { width: 100%; font-size: 18px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .pz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .pz-op { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); text-decoration: none; font-size: 17px; font-weight: 700; min-height: 72px; }
+  .pz-op:hover, .pz-op:focus-visible { border-color: var(--primary); outline: none; }
+  .pz-avatar { flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: #fff; font-size: 17px; font-weight: 800; }
+  .pz-op-testo { display: grid; gap: 2px; min-width: 0; }
+  .pz-tag { font-size: 13px; font-weight: 600; color: var(--text-mid); }
+  .pz-tag-rosso { color: var(--danger); }
+  .pz-scelto { display: flex; align-items: center; gap: 14px; font-size: 22px; font-weight: 800; color: var(--text); }
+  .pz-pin-form { display: grid; gap: 14px; max-width: 360px; }
+  .pz-pin { width: 100%; font-size: 30px; letter-spacing: .4em; text-align: center; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .pz-tastiera { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pz-tasto { font-size: 26px; font-weight: 800; padding: 16px 0; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+  .pz-tasto:active { border-color: var(--primary); }
+  .pz-tasto-piccolo { font-size: 16px; }
+  .pz-entra { font-size: 20px; font-weight: 800; padding: 14px; }
+  .pz-campo { display: grid; gap: 6px; font-size: 16px; font-weight: 700; color: var(--text); }
+  .pz-campo input { font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .pz-link-riga { display: flex; gap: 18px; flex-wrap: wrap; font-size: 16px; }
+  .pz-guida summary { cursor: pointer; font-weight: 700; }
+  .pz-guida ol { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pz-wrap">
+  <header class="pz-head">
+    <div>
+      <div class="pz-kicker">Postazione condivisa</div>
+      <h1 class="pz-title">{{ postazione.nome }}</h1>
+    </div>
+    <div class="pz-head-actions">
+      <form method="post" action="{% url 'logout' %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">Chiudi la postazione</button>
+      </form>
+    </div>
+  </header>
+
+  {% if motivo == "inattivita" %}
+    <div class="pz-avviso">La sessione dell'operatore precedente è stata chiusa per inattività.</div>
+  {% endif %}
+  {% if errore %}
+    <div class="pz-errore" role="alert">{{ errore }}</div>
+  {% endif %}
+
+  <section class="pz-card">
+  {% if not scelto %}
+    <h2 class="pz-h2">Chi sei?</h2>
+    {% if operatori|length > 8 %}
+      <input type="search" class="pz-cerca" placeholder="Cerca il tuo nome" autocomplete="off" data-pz-cerca>
+    {% endif %}
+    <div class="pz-grid">
+      {% for o in operatori %}
+        <a class="pz-op" href="?operatore={{ o.id }}" data-pz-nome="{{ o.nome|lower }}">
+          <span class="pz-avatar">{{ o.iniziali }}</span>
+          <span class="pz-op-testo">
+            <span>{{ o.nome }}</span>
+            {% if o.bloccato %}<span class="pz-tag pz-tag-rosso">PIN bloccato</span>
+            {% elif not o.ha_pin %}<span class="pz-tag">PIN da impostare</span>{% endif %}
+          </span>
+        </a>
+      {% empty %}
+        <p>Nessun operatore abilitato su questa postazione. L'amministratore deve aggiungere le persone al gruppo «{{ postazione.gruppo.label }}».</p>
+      {% endfor %}
+    </div>
+  {% elif imposta_pin %}
+    <div class="pz-scelto"><span class="pz-avatar">{{ scelto.iniziali }}</span>{{ scelto.nome }}</div>
+    <h2 class="pz-h2">Imposta o cambia il PIN</h2>
+    <p>Serve la password del tuo account (la stessa di Windows / Microsoft 365). Il PIN ha da {{ pin_min }} a {{ pin_max }} cifre: niente cifre tutte uguali o sequenze come 1234.</p>
+    <form method="post" action="{% url 'postazione_imposta_pin' scelto.id %}" class="pz-pin-form" autocomplete="off">
+      {% csrf_token %}
+      <label class="pz-campo">Nome utente
+        <input type="text" name="username" value="{{ username }}" required autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <label class="pz-campo">Password
+        <input type="password" name="password" required autocomplete="off">
+      </label>
+      <label class="pz-campo">Nuovo PIN
+        <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="{{ pin_min }}" maxlength="{{ pin_max }}" required autocomplete="off">
+      </label>
+      <label class="pz-campo">Ripeti il PIN
+        <input type="password" name="pin_conferma" inputmode="numeric" pattern="[0-9]*" minlength="{{ pin_min }}" maxlength="{{ pin_max }}" required autocomplete="off">
+      </label>
+      <button type="submit" class="btn btn-primary pz-entra">Salva il PIN ed entra</button>
+    </form>
+    <div class="pz-link-riga"><a href="{% url 'postazione_home' %}">← Torna all'elenco</a></div>
+  {% else %}
+    <div class="pz-scelto"><span class="pz-avatar">{{ scelto.iniziali }}</span>{{ scelto.nome }}</div>
+    {% if not scelto.ha_pin or scelto.bloccato %}
+      <p>{% if scelto.bloccato %}Il tuo PIN è bloccato per troppi tentativi sbagliati: impostane uno nuovo con la tua password.{% else %}Non hai ancora un PIN per questa postazione.{% endif %}</p>
+      <div class="pz-link-riga">
+        <a class="btn btn-primary" href="{% url 'postazione_imposta_pin' scelto.id %}">{% if scelto.bloccato %}Imposta un nuovo PIN{% else %}Imposta il PIN{% endif %}</a>
+        <a href="{% url 'postazione_home' %}">← Non sono io</a>
+      </div>
+    {% else %}
+      <form method="post" action="{% url 'postazione_entra' %}" class="pz-pin-form" autocomplete="off" data-pz-pin-form>
+        {% csrf_token %}
+        <input type="hidden" name="operatore" value="{{ scelto.id }}">
+        <label class="pz-campo">PIN
+          <input type="password" name="pin" class="pz-pin" inputmode="numeric" pattern="[0-9]*" maxlength="{{ pin_max }}" required autocomplete="off" autofocus data-pz-pin>
+        </label>
+        <div class="pz-tastiera">
+          {% for cifra in "123456789" %}<button type="button" class="pz-tasto" data-pz-cifra="{{ cifra }}">{{ cifra }}</button>{% endfor %}
+          <button type="button" class="pz-tasto pz-tasto-piccolo" data-pz-cancella>Cancella</button>
+          <button type="button" class="pz-tasto" data-pz-cifra="0">0</button>
+          <button type="submit" class="pz-tasto pz-tasto-piccolo">Entra</button>
+        </div>
+      </form>
+      <div class="pz-link-riga">
+        <a href="{% url 'postazione_home' %}">← Non sono io</a>
+        <a href="{% url 'postazione_imposta_pin' scelto.id %}">Imposta o cambia il PIN</a>
+      </div>
+    {% endif %}
+  {% endif %}
+  </section>
+
+  <details class="pz-card pz-guida">
+    <summary>? Guida</summary>
+    <ol>
+      <li>Tocca il tuo nome. Se non c'è, chiedi all'amministratore di aggiungerti al gruppo «{{ postazione.gruppo.label }}».</li>
+      <li>La prima volta scegli «Imposta il PIN»: inserisci nome utente e password del tuo account e un PIN da {{ pin_min }} a {{ pin_max }} cifre. Poi basta il PIN.</li>
+      <li>Da quel momento lavori con il tuo nome: quello che fai resta registrato a te.</li>
+      <li>Quando hai finito premi «Cambio operatore» in alto (anche «Esci» riporta qui). Dopo {{ postazione.minuti_inattivita }} minuti senza usare il portale si torna comunque qui.</li>
+      <li>Dopo {{ max_tentativi }} PIN sbagliati il PIN si blocca e ricevi una mail: impostane uno nuovo con la password, o chiedi all'amministratore.</li>
+      <li>Il PIN è personale: non dirlo ai colleghi.</li>
+    </ol>
+  </details>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var cerca = document.querySelector("[data-pz-cerca]");
+  if (cerca) {
+    cerca.addEventListener("input", function () {
+      var q = cerca.value.trim().toLowerCase();
+      document.querySelectorAll("[data-pz-nome]").forEach(function (el) {
+        el.hidden = q && el.getAttribute("data-pz-nome").indexOf(q) === -1;
+      });
+    });
+  }
+  var pin = document.querySelector("[data-pz-pin]");
+  if (!pin) return;
+  document.querySelectorAll("[data-pz-cifra]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (pin.value.length < pin.maxLength) pin.value += btn.getAttribute("data-pz-cifra");
+      pin.focus();
+    });
+  });
+  var canc = document.querySelector("[data-pz-cancella]");
+  if (canc) canc.addEventListener("click", function () { pin.value = pin.value.slice(0, -1); pin.focus(); });
+})();
+</script>
+{% endblock %}

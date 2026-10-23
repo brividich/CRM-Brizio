@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import legacy_flask_views
+from . import postazioni_views
 from . import views
 from . import views_capa
 from . import views_guide
@@ -45,6 +46,11 @@ urlpatterns = [
     path("logout", logout_view, name="logout_legacy_noslash"),
     path("logout/", logout_view, name="logout"),
     path("impersonation/stop/", views.stop_impersonation, name="stop_impersonation"),
+    # Postazioni condivise (core.postazioni): scelta operatore + PIN dopo il login dell'account condiviso.
+    path("postazione/", postazioni_views.postazione_home, name="postazione_home"),
+    path("postazione/entra/", postazioni_views.postazione_entra, name="postazione_entra"),
+    path("postazione/pin/<int:legacy_user_id>/", postazioni_views.postazione_imposta_pin, name="postazione_imposta_pin"),
+    path("postazione/cambio/", postazioni_views.postazione_cambio, name="postazione_cambio"),
     path("cambia-password", cambia_password, name="cambia_password_legacy_noslash"),
     path("cambia-password/", cambia_password, name="cambia_password"),
     path("profilo/", views.profilo, name="profilo"),

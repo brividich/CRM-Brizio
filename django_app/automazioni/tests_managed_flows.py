@@ -167,6 +167,20 @@ class ManagedFlowsTests(TestCase):
         s, _ = register_schedule(spec_by_name(self.binding.code))
         self.assertEqual(s.next_run, initial_next_run)
 
+    def test_q_options_resta_allo_schedule_e_non_arriva_alla_funzione(self):
+        # Regressione: ai_index_sgi_documents falliva ogni notte con «unexpected keyword
+        # argument 'q_options'» e perdeva il timeout dedicato di 900 s.
+        import ast
+
+        code = "ai_index_sgi_documents"
+        s, _ = register_schedule(spec_by_name(code))
+        self.assertEqual(s.func, "automazioni.managed_flows.run_managed_flow")
+        self.assertEqual(ast.literal_eval(s.kwargs), {"q_options": {"timeout": 900}})
+        callback = Mock(return_value={"ok": True})
+        with patch("automazioni.managed_flows.import_string", return_value=callback):
+            self.assertEqual(run_managed_flow(code)["status"], "success")
+        callback.assert_called_once_with()
+
     def test_schedule_validation_rejects_zero_or_invalid_cron(self):
         self.assertFalse(ManagedScheduleForm({"schedule_type":"I", "minutes":0, "cron":""}, instance=self.binding).is_valid())
         self.assertFalse(ManagedScheduleForm({"schedule_type":"C", "minutes":1, "cron":"not-cron"}, instance=self.binding).is_valid())

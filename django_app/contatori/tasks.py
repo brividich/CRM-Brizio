@@ -96,8 +96,10 @@ def poll_dispositivo(pk):
             return {"saltato": True}
         rilevazione = interroga_dispositivo(dispositivo)
         if rilevazione.stato == StatoSNMP.ERROR:
-            # Dettagli nello storico del dispositivo; errore visibile anche in django-q.
-            raise RuntimeError(f"Polling SNMP fallito per dispositivo {pk}; consultare il monitor.")
+            # Apparato spento o irraggiungibile: stato ed errore restano nello storico del
+            # dispositivo (monitor). Non è un guasto del task: niente eccezione, che
+            # riempiva i «task falliti» del qcluster coprendo i guasti veri.
+            return {"dispositivo_id": pk, "stato": rilevazione.stato, "non_raggiungibile": True}
         return {"dispositivo_id": pk, "stato": rilevazione.stato}
     finally:
         cache.delete(key)
@@ -153,7 +155,8 @@ def leggi_consumabili(pk):
             return {"saltato": True}
         consumabili, errore = leggi_consumabili_macchina(macchina)
         if errore:
-            raise RuntimeError(f"Lettura consumabili fallita per MFC {pk}; consultare la pagina Consumabili.")
+            # Esito «non riuscita» registrato nel finally e mostrato nella pagina Consumabili.
+            return {"macchina_id": pk, "non_raggiungibile": True}
         salvati = salva_consumabili(macchina, consumabili)
         riuscita = True
         return {"macchina_id": pk, "salvati": salvati}

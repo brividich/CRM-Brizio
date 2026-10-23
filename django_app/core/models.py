@@ -540,6 +540,59 @@ class DispositivoAccesso(models.Model):
         return f"{self.user_id}: {self.etichetta}"
 
 
+class PostazioneCondivisa(models.Model):
+    """Un PC usato a turno da più persone con un solo account (es. «zeiss»), ``core.postazioni``.
+
+    Chi entra con l'account della postazione vede solo la scelta dell'operatore:
+    l'operatore sceglie il proprio nome fra i membri del ``gruppo`` e digita il
+    proprio PIN, e da lì la sessione è sua (permessi, audit, firme).
+    """
+
+    nome = models.CharField(max_length=100)
+    # UtenteLegacy dell'account condiviso (creato dal primo accesso LDAP).
+    account_legacy_user_id = models.IntegerField(unique=True)
+    gruppo = models.ForeignKey("AccessGroup", on_delete=models.PROTECT, related_name="postazioni_condivise")
+    minuti_inattivita = models.PositiveSmallIntegerField(
+        default=10,
+        help_text="Dopo questi minuti senza usare il portale si torna alla scelta dell'operatore.",
+    )
+    attiva = models.BooleanField(default=True)
+    creata_il = models.DateTimeField(auto_now_add=True)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_postazionecondivisa"
+        ordering = ["nome"]
+        verbose_name = "Postazione condivisa"
+        verbose_name_plural = "Postazioni condivise"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class PinPostazione(models.Model):
+    """PIN personale per entrare dalle postazioni condivise. Si salva solo l'hash.
+
+    Dopo ``core.postazioni.MAX_TENTATIVI`` errori di fila il PIN si blocca: lo
+    sblocca la persona impostandone uno nuovo con la propria password, o un
+    amministratore.
+    """
+
+    legacy_user_id = models.IntegerField(unique=True)
+    pin_hash = models.CharField(max_length=128)
+    tentativi_falliti = models.PositiveSmallIntegerField(default=0)
+    bloccato_il = models.DateTimeField(null=True, blank=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_pinpostazione"
+        verbose_name = "PIN postazione"
+        verbose_name_plural = "PIN postazione"
+
+    def __str__(self) -> str:
+        return f"PIN<{self.legacy_user_id}>"
+
+
 class ScadenzaOutlook(models.Model):
     """Una scadenza dello Scadenzario copiata come evento nel calendario Outlook di una persona.
 

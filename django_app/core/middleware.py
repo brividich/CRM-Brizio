@@ -55,6 +55,9 @@ _ACL_ONBOARDING_SHARED_ROUTE_NAMES = (
 )
 _ACL_ONBOARDING_SHARED_PREFIXES = (
     "/api/notifiche/",
+    # Postazione condivisa (core.postazioni): l'account del PC sceglie l'operatore qui,
+    # prima di qualsiasi wizard; il gate vero è nelle view (sessione della postazione).
+    "/postazione/",
 )
 _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "root",
