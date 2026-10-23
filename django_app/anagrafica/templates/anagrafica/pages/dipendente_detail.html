@@ -403,6 +403,8 @@ body.theme-dark .dp-sem-addestramento { background:rgba(217,119,6,.18); color:#f
 body.theme-dark .dp-sem-sospesa { background:rgba(220,38,38,.18); color:#fca5a5; }
 .dp-pos-accessi { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none; }
 .dp-pos-accessi li { padding:2px 9px; border:1px solid #dbe4ef; border-radius:999px; font-size:12px; }
+.dp-pos-varia { margin:6px 0 0; padding-left:18px; font-size:12.5px; line-height:1.5; }
+.dp-pos-det > summary { cursor:pointer; }
 body.theme-dark .dp-pos-accessi li { border-color:rgba(148,163,184,.3); }
 /* Spostamenti organizzativi (assegnazioni a periodo) */
 .sp-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
@@ -1707,6 +1709,12 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       <ul class="dp-pos-accessi">{% for g in posizione.accessi %}<li>{{ g.label }}</li>{% endfor %}</ul>
       <p class="dp-pos-meta" style="margin:6px 0 0;">Arrivano in automatico finché la persona ricopre il ruolo; gli altri accessi (dati a mano) sono in Ruoli e permessi.</p>
       {% else %}<p class="dp-pos-meta" style="margin:0;">Nessuno: il ruolo non porta ruoli del portale, valgono solo quelli dati a mano.</p>{% endif %}
+      {% if variazioni_accessi %}
+      <details class="dp-pos-det" style="margin-top:8px;">
+        <summary class="dp-pos-meta">Variazioni degli accessi dal ruolo ({{ variazioni_accessi|length }} più recent{{ variazioni_accessi|length|pluralize:"e,i" }})</summary>
+        <ul class="dp-pos-varia">{% for v in variazioni_accessi %}<li><span class="dp-pos-meta">{{ v.created_at|date:"d/m/Y H:i" }} · {{ v.utente_display|default:"—" }}</span> {{ v.dettaglio.causa }}{% if v.dettaglio.ricevuti %} · <strong>riceve</strong> {{ v.dettaglio.ricevuti|join:", " }}{% endif %}{% if v.dettaglio.tolti %} · <strong>perde</strong> {{ v.dettaglio.tolti|join:", " }}{% endif %}</li>{% endfor %}</ul>
+      </details>
+      {% endif %}
       {% endif %}
     </div>
   </div>

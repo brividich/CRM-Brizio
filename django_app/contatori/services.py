@@ -950,14 +950,15 @@ def interroga_dispositivo(dispositivo):
     durata = _tempo_ms(inizio)
 
     esiti = []
-    from .printer_snmp import consumabili_in_esaurimento
+    from .printer_snmp import consumabili_in_esaurimento, problemi_stampante
 
+    problemi = problemi_stampante(dati_stampante) if stampante else []
     ha_warning = bool(stampante and (
         dati_stampante.get("errori") or not dati_stampante.get("contatori")
         or not dati_stampante.get("consumabili")
-        or consumabili_in_esaurimento(dati_stampante)
+        or consumabili_in_esaurimento(dati_stampante) or problemi
     ))
-    ha_critico = False
+    ha_critico = any(livello == StatoSNMP.ERROR for _testo_p, livello in problemi)
     for sonda in sonde:
         if sonda.oid not in valori:
             ha_warning = True
@@ -1027,6 +1028,10 @@ def interroga_dispositivo(dispositivo):
         sys_uptime_seconds=uptime_seconds,
         dati_stampante=dati_stampante,
     )
+    if stampante:
+        from .stampanti import registra_avvisi
+
+        registra_avvisi(dispositivo, dati_stampante, adesso)
     ValoreSNMP.objects.bulk_create([
         ValoreSNMP(
             rilevazione=rilevazione, sonda=e["sonda"],
@@ -1145,10 +1150,45 @@ def trimestre_lettura_snmp(oggi):
     return trimestre
 
 
+def dispositivi_senza_doppioni(qs=None):
+    """Dispositivi del Monitor che non sono una MFC a contratto.
+
+    Una stampante censita sia come MFC sia come dispositivo (stesso IP o stesso asset di una MFC
+    attiva) è una sola: negli elenchi e nei conteggi vale la MFC. Il dispositivo resta (sonde,
+    firmware al SOC) e la sua scheda porta a quella della MFC.
+    """
+    qs = qs if qs is not None else DispositivoSNMP.objects.all()
+    mfc = Macchina.objects.filter(attiva=True)
+    return (qs.exclude(host__in=mfc.exclude(host__isnull=True).values("host"))
+            .exclude(asset__in=mfc.exclude(asset__isnull=True).values("asset")))
+
+
+def mfc_dello_stesso_apparato(dispositivo):
+    """La MFC a contratto che è la stessa stampante del dispositivo (stesso IP o asset), se c'è."""
+    from django.db.models import Q
+
+    filtro = Q(host=dispositivo.host)
+    if dispositivo.asset_id:
+        filtro |= Q(asset_id=dispositivo.asset_id)
+    return Macchina.objects.filter(filtro, attiva=True).order_by("pk").first()
+
+
+def dispositivo_dello_stesso_apparato(macchina):
+    """Il dispositivo del Monitor che è la stessa stampante della MFC, se c'è (per sonde e firmware)."""
+    from django.db.models import Q
+
+    filtro = Q()
+    if macchina.host:
+        filtro |= Q(host=macchina.host)
+    if macchina.asset_id:
+        filtro |= Q(asset_id=macchina.asset_id)
+    return DispositivoSNMP.objects.filter(filtro).order_by("pk").first() if filtro else None
+
+
 def centrale_snmp_riepilogo():
     """KPI compatti della centrale, inclusi MFC e dispositivi generici."""
     mfc = Macchina.objects.filter(attiva=True)
-    dispositivi = DispositivoSNMP.objects.filter(attivo=True)
+    dispositivi = dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
     stati = list(mfc.values_list("snmp_stato", flat=True))
     stati += list(dispositivi.values_list("snmp_stato", flat=True))
     totale = len(stati)
@@ -1205,7 +1245,7 @@ def filtra_flotta(qs, chiave, ora=None):
 def flotta_monitorata():
     """(MFC, dispositivi) monitorati via SNMP: attivi e, per le MFC, con IP."""
     return (Macchina.objects.filter(attiva=True, host__isnull=False),
-            DispositivoSNMP.objects.filter(attivo=True))
+            dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True)))
 
 
 def stato_flotta(ora=None):
@@ -1283,7 +1323,7 @@ def cruscotto_operativo(oggi=None):
                       .values_list("macchina_id", flat=True))
     senza_lettura = [m for m in attive if m.id not in con_lettura]
     non_raggiungibili = [m for m in attive if m.host and m.snmp_stato == StatoSNMP.ERROR]
-    dispositivi = DispositivoSNMP.objects.filter(attivo=True)
+    dispositivi = dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
     disp_errore = dispositivi.filter(snmp_stato=StatoSNMP.ERROR).count()
     disp_attenzione = dispositivi.filter(snmp_stato=StatoSNMP.WARNING).count()
 

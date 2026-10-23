@@ -120,3 +120,6 @@ body.theme-dark .sto-sch-kpi b{ color:var(--text); }
 .sto-sch-edit{ padding-top:12px; border-top:1px dashed var(--border,#d7e0ea); }
 .sto-sch-azioni{ display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
 .sto-sch-det > summary{ cursor:pointer; font-size:12.5px; color:var(--fmd-muted); margin-bottom:4px; }
+/* Scheda ruolo: accessi al portale da spuntare */
+.sto-sch-checks{ display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:4px 12px; max-height:260px; overflow:auto; padding:2px 0; }
+.sto-form label.sto-check{ flex-direction:row; align-items:center; gap:6px; color:var(--fmd-ink); }

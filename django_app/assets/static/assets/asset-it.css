@@ -186,3 +186,9 @@ a.af-fonte:hover { border-color: var(--primary, #2563eb); }
 .af-fonte.is-old .af-fonte-dot { background: #d97706; }
 .af-fonte.is-ko .af-fonte-dot { background: #dc2626; }
 .af-fonte.is-no { border-style: dashed; color: var(--text-mid, #64748b); background: transparent; }
+
+/* Aggiornamenti Windows nel riquadro Intune */
+.af-it-summary strong.af-it-warn { color: #b45309; }
+.af-it-summary strong.af-it-ok { color: #15803d; }
+body.theme-dark .af-it-summary strong.af-it-warn { color: #fcd34d; }
+body.theme-dark .af-it-summary strong.af-it-ok { color: #86efac; }

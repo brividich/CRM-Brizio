@@ -180,3 +180,17 @@ def run_defender_software_task() -> dict:
     from security.services import defender_software
 
     return defender_software.run()
+
+
+def run_watchguard_api_task() -> dict:
+    """PC, software e patch da WatchGuard Cloud (``services.watchguard_api``), con i loro interruttori."""
+    from security.services import watchguard_api
+
+    return watchguard_api.run()
+
+
+def run_defender_vulnerabilita_task() -> dict:
+    """CVE viste da Defender per il confronto nel pannello CVE (``services.defender_vuln``)."""
+    from security.services import defender_vuln
+
+    return defender_vuln.run()

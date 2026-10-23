@@ -48,7 +48,20 @@
   <ul class="sto-sch-lista">{% for g in accessi %}<li>{% if vede_accessi %}<a href="{% url 'admin_portale:ruoli_portale' %}?tab=matrice&amp;ruolo={{ g.pk }}">{{ g.label }}</a>{% else %}{{ g.label }}{% endif %}</li>{% endfor %}</ul>
   <p class="sto-nota">Chi ricopre il ruolo riceve questi ruoli del portale in automatico; li perde quando il ruolo si chiude.</p>
   {% else %}<p class="sto-sch-vuoto">Nessun ruolo del portale collegato: chi lo ricopre ha solo la dotazione di base.</p>{% endif %}
-  {% if vede_accessi %}<a class="sto-link" href="{% url 'admin_portale:ruoli_portale' %}?tab=matrice">Collega i ruoli del portale →</a>{% endif %}
+  {% if vede_accessi and accessi_opts %}
+  <details class="sto-sch-det sto-sch-edit">
+    <summary>Cambia gli accessi che concede</summary>
+    <form method="post" action="{% url 'anagrafica:struttura_ruolo_accessi' ruolo.pk %}" class="sto-form">
+      {% csrf_token %}
+      <div class="sto-sch-checks">
+        {% for o in accessi_opts %}<label class="sto-check"><input type="checkbox" name="accessi" value="{{ o.gruppo.pk }}"{% if o.on %} checked{% endif %}> {{ o.gruppo.label }}</label>{% endfor %}
+      </div>
+      <p class="sto-nota">Vale subito per {{ persone|length }} person{{ persone|length|pluralize:"a,e" }} che ricoprono il ruolo; ogni accesso ricevuto o perso finisce nel registro della persona. I ruoli amministratore si assegnano solo a mano in «Ruoli e permessi».</p>
+      <button type="submit" class="fmd-btn fmd-btn-navy fmd-btn-mini">Salva accessi</button>
+    </form>
+  </details>
+  <a class="sto-link" href="{% url 'admin_portale:ruoli_portale' %}?tab=matrice">Cosa concede ogni ruolo del portale →</a>
+  {% endif %}
 </section>
 
 {% if nomi_precedenti %}

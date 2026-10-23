@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -55,7 +56,10 @@ def settings_page(request):
     except Exception:  # noqa: BLE001 - l'anteprima non deve impedire di salvare le impostazioni
         pass
     events = [proactive_alerts.EVENT_INCIDENT, proactive_alerts.EVENT_BACKUP, proactive_alerts.EVENT_REPORT]
+    from .services import watchguard_api
+
     return render(request, "security/soc_settings.html", {
+        "wg": watchguard_api.riepilogo(),
         "sections": soc_settings.form_sections(),
         "channels": list(SecurityNotificationChannel.objects.order_by("name")),
         "can_edit": can_edit,
@@ -280,3 +284,82 @@ def pc_detail(request):
     if data is None:
         raise Http404("Nessun dato SOC per questo dispositivo.")
     return render(request, "security/pc_detail.html", {"pc": data})
+
+
+# --- WatchGuard (API): credenziali, patch e protezione ------------------------------------
+
+@require_POST
+def watchguard_credenziali(request):
+    """Salva, prova o cancella le credenziali API WatchGuard (solo chi configura il SOC)."""
+    if not can_manage_security_config(request.user):
+        return _denied(request)
+    from .services import watchguard_api as wg
+
+    azione = request.POST.get("azione", "")
+    if azione == "cancella":
+        wg.cancella_credenziali(request.user)
+        messages.success(request, "Credenziali API WatchGuard cancellate.")
+    elif azione == "prova":
+        try:
+            esito = wg.prova()
+            messages.success(request, f"Connessione a WatchGuard riuscita: l'account vede {esito['pc'] if esito['pc'] is not None else 'i'} PC.")
+        except wg.WatchGuardError as exc:
+            messages.error(request, f"Connessione a WatchGuard non riuscita: {exc}")
+        except Exception as exc:  # noqa: BLE001 - rete, DNS, certificati
+            messages.error(request, f"Connessione a WatchGuard non riuscita ({type(exc).__name__}).")
+    else:
+        errori = wg.salva_credenziali({c: request.POST.get(c, "") for c in wg.CAMPI}, request.user)
+        if errori:
+            messages.error(request, " ".join(errori))
+        else:
+            messages.success(request, "Credenziali API WatchGuard salvate (cifrate). Prova la connessione, poi accendi le letture.")
+    return redirect(reverse("security:soc_settings") + "#watchguard-api")
+
+
+def watchguard_pc(request):
+    """Patch e protezione: quello che l'API WatchGuard dice dei PC (patch mancanti, agenti, dispositivi senza agente)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from datetime import timedelta
+
+    from .models import WatchGuardDispositivo, WatchGuardPatch
+    from .services import watchguard_api as wg
+
+    now = timezone.now()
+    dispositivi = list(WatchGuardDispositivo.objects.filter(presente=True).select_related("hub_asset"))
+    gestiti = [d for d in dispositivi if d.gestito]
+    vecchi = now - timedelta(days=7)
+    protezione = sorted(
+        (d for d in gestiti if not d.protetto or d.riavvio_richiesto or (d.ultima_connessione and d.ultima_connessione < vecchi)),
+        key=lambda d: (d.protetto, not d.riavvio_richiesto, d.host))
+    senza_agente = sorted((d for d in dispositivi if not d.gestito), key=lambda d: (d.hub_asset_id is None, d.host))
+
+    gruppi = {}
+    for p in WatchGuardPatch.objects.filter(presente=True).select_related("hub_asset").order_by("host"):
+        g = gruppi.setdefault((p.nome, p.programma), {"nome": p.nome, "programma": p.programma, "criticita": p.criticita,
+                                                     "criticita_label": p.criticita_label, "rilasciata_il": p.rilasciata_il,
+                                                     "cve": set(), "pc": [], "errori": 0, "di_sistema": p.di_sistema})
+        g["cve"].update(p.cve_lista)
+        g["pc"].append(p)
+        g["errori"] += int(p.esito_errore)
+    from .models import SecurityCveRecord
+
+    kev = set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=list({c for g in gruppi.values() for c in g["cve"]})[:2000])
+              .values_list("cve_id", flat=True))
+    ordine = {201: 0, 202: 1, 203: 2, 204: 3}
+    patch = sorted(gruppi.values(), key=lambda g: (not (g["cve"] & kev), ordine.get(g["criticita"], 4), -len(g["pc"]), g["nome"]))
+    for g in patch:
+        g["kev"] = sorted(g["cve"] & kev)
+        g["cve"] = sorted(g["cve"])
+    errori = list(WatchGuardPatch.objects.filter(esito__in=WatchGuardPatch.ESITI_ERRORE, esito_il__gte=now - timedelta(days=14))
+                  .select_related("hub_asset").order_by("-esito_il")[:50])
+    chiuse = WatchGuardPatch.objects.filter(presente=False, chiusa_il__gte=now - timedelta(days=30)).count()
+    ultima = max((d.letto_il for d in dispositivi), default=None)
+    attivi = {k: soc_settings.value(f"watchguard.api.{k}") for k in ("dispositivi", "software", "patch")}
+    return render(request, "security/watchguard_pc.html", {
+        "configurato": wg.configurato(), "attivi": attivi, "ultima": ultima,
+        "gestiti": len(gestiti), "protezione": protezione, "senza_agente": senza_agente,
+        "patch": patch[:150], "patch_totale": len(patch), "pc_con_patch": len({p.host for g in patch for p in g["pc"]}),
+        "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori, "chiuse": chiuse,
+        "can_edit": can_manage_security_config(request.user),
+    })

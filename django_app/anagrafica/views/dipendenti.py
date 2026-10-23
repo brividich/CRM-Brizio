@@ -1574,7 +1574,12 @@ def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
     try:
         from ..services.struttura_persona import posizione
 
-        return {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": puo_valutare}
+        ctx = {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": puo_valutare}
+        if is_admin:
+            from core.permessi.variazioni import ultime_variazioni
+
+            ctx["variazioni_accessi"] = ultime_variazioni(legacy_id)
+        return ctx
     except Exception:
         logger.warning("posizione nella struttura non calcolata per %s", legacy_id, exc_info=True)
         return {"posizione": None}

@@ -64,7 +64,9 @@ def posizione(legacy_id: int) -> dict:
     da_proporre = proposte([a.ruolo_id for a in struttura], area=area, escludi_ids=assegnate)
     processi = sorted({a.competenza.processo_sgi.nome for a in abilitazioni if a.competenza.processo_sgi_id}
                       | {m.processo_sgi.nome for m in da_proporre if m.processo_sgi_id}, key=str.casefold)
-    accessi = {g.pk: g for a in assegnazioni for g in a.ruolo.profili_permessi.all()}
+    # Come il motore dei permessi: niente ruoli disattivati né amministratore (si danno solo a mano).
+    accessi = {g.pk: g for a in assegnazioni for g in a.ruolo.profili_permessi.all()
+               if g.is_active and not g.amministratore}
     return {
         "accessi": sorted(accessi.values(), key=lambda g: g.label.casefold()),
         "n_operative": sum(1 for a in abilitazioni if a.semaforo == "operativa"),

@@ -54,13 +54,44 @@ def _dispositivi_da_interrogare(adesso=None):
     return dovuti
 
 
+def _mfc_da_leggere(adesso=None):
+    """MFC a contratto con IP la cui lettura completa (avvisi, cassetti, toner) è più vecchia di 15 minuti."""
+    from django.db.models import Q
+
+    from .stampanti import INTERVALLO_MFC_MINUTI
+
+    adesso = adesso or timezone.now()
+    limite = adesso - timedelta(minutes=INTERVALLO_MFC_MINUTI) + _TOLLERANZA_INTERVALLO
+    pks = Macchina.objects.filter(attiva=True, host__isnull=False).filter(
+        Q(dati_stampante_il__isnull=True) | Q(dati_stampante_il__lte=limite)).values_list("pk", flat=True)
+    # Una MFC spenta (la notte) si riprova dopo 15 minuti, non a ogni giro di 5.
+    return [pk for pk in pks if not cache.get(f"contatori:mfc_ko:{pk}")]
+
+
 def run_poll_snmp():
-    """Smista i dispositivi in job indipendenti entro il timeout del cluster."""
+    """Smista dispositivi e MFC in job indipendenti entro il timeout del cluster."""
     queued = sum(
         _enqueue("contatori.tasks.poll_dispositivo", pk)
         for pk in _dispositivi_da_interrogare()
     )
-    return {"accodati": queued}
+    mfc = sum(_enqueue("contatori.tasks.poll_stampante_mfc", pk) for pk in _mfc_da_leggere())
+    return {"accodati": queued, **({"mfc": mfc} if mfc else {})}
+
+
+def poll_stampante_mfc(pk):
+    from .stampanti import INTERVALLO_MFC_MINUTI, leggi_stato_mfc
+
+    key = f"contatori:queued:contatori.tasks.poll_stampante_mfc:{pk}"
+    try:
+        macchina = Macchina.objects.filter(pk=pk, attiva=True).first()
+        if macchina is None or not macchina.host:
+            return {"saltato": True}
+        dati = leggi_stato_mfc(macchina)
+        if dati is None:
+            cache.add(f"contatori:mfc_ko:{pk}", True, timeout=INTERVALLO_MFC_MINUTI * 60)
+        return {"macchina_id": pk, "letta": dati is not None}
+    finally:
+        cache.delete(key)
 
 
 _BLOCCO_PULIZIA = 500
@@ -163,3 +194,10 @@ def leggi_consumabili(pk):
     finally:
         registra_esito(pk, ok=riuscita)
         cache.delete(key)
+
+
+def run_tabella_mac():
+    """Tabella MAC degli switch «Rete» (``contatori.tabella_mac``): su quale porta sta ogni PC."""
+    from .tabella_mac import run
+
+    return run()

@@ -234,6 +234,42 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "stampanti-dati",
+        "titolo": "Stampanti (MFC a contratto e Monitor SNMP): avvisi, cassetti e quando finisce il toner",
+        "blocchi": [
+            ("p", "Le MFC a contratto sono stampanti come le altre: nella scheda MFC e nella scheda di una "
+                  "stampante del Monitor SNMP compare lo stesso pannello «La stampante adesso» con lo stesso "
+                  "registro avvisi. Il portale legge dalla stampante (solo lettura, standard Printer-MIB): le MFC "
+                  "ogni 15 minuti (una MFC spenta si riprova dopo 15 minuti), le altre a ogni interrogazione:"),
+            ("def", [
+                ("La stampante adesso", "stato («pronta», «in stampa», «in riscaldamento»), il testo del "
+                                        "display, le pagine stampate al giorno e l'elenco «Da sistemare»: "
+                                        "avvisi aperti, sportelli aperti, cassetti vuoti o in avviso."),
+                ("Cassetti carta", "nome, formato della carta, capacità in fogli e livello; «Vuoto» in rosso."),
+                ("Sportelli", "aperto (rosso) o chiuso."),
+                ("Registro avvisi", "ogni avviso della stampante (carta inceppata, toner in esaurimento, "
+                                    "sportello aperto, assistenza richiesta…) con «Dal», «Al» e «Durata»: si apre "
+                                    "quando la stampante lo segnala e si chiude quando non lo segnala più. "
+                                    "«Chi interviene» è quello indicato dalla stampante. In grigio gli eventi "
+                                    "normali (accensione, pronta a stampare). Gli avvisi chiusi da oltre 400 "
+                                    "giorni si cancellano."),
+                ("Finisce verso il", "sotto ogni toner: la data in cui si esaurisce al ritmo di consumo "
+                                     "dall'ultima sostituzione (letture degli ultimi 60 giorni). Servono almeno 3 "
+                                     "giorni di letture e un calo di almeno 2 punti; il contenitore di scarto non "
+                                     "si stima. In giallo se mancano 14 giorni o meno."),
+            ]),
+            ("p", "Un avviso critico o uno sportello aperto mette la stampante in «Errore», gli altri avvisi e "
+                  "un cassetto vuoto in «Attenzione». Se una stampante non espone la tabella avvisi, il registro "
+                  "usa gli errori che segnala (carta inceppata, sportello aperto, toner esaurito…). Sulle MFC "
+                  "la lettura non cambia contatori di fatturazione e letture; la data di fine del toner delle MFC "
+                  "resta quella della pagina «Consumabili»."),
+            ("p", "Una stampante censita due volte, come MFC a contratto e come dispositivo del Monitor SNMP (stesso "
+                  "IP o stesso asset), è una sola: compare e conta una volta, come MFC, e la scheda del dispositivo "
+                  "porta alla scheda MFC. Sonde, firmware e storico delle interrogazioni restano raggiungibili dal "
+                  "link «Dettagli tecnici SNMP» sotto il pannello della stampante. Non si cancella nulla."),
+        ],
+    },
+    {
         "id": "tvcc",
         "titolo": "Videosorveglianza (NVR e telecamere TVT)",
         "blocchi": [
@@ -358,6 +394,23 @@ SEZIONI: list[dict] = [
                 "come il software dei PC. Una versione nuova sostituisce la precedente.",
                 "Le MFC del modulo (letture contatori) non leggono il sysDescr: per il firmware di una stampante "
                 "aggiungila anche in Monitor SNMP.",
+            ]),
+        ],
+    },
+    {
+        "id": "porte-switch",
+        "titolo": "Chi è collegato alle porte degli switch",
+        "blocchi": [
+            ("p", "Ogni notte alle 05:30 il portale legge (solo lettura) la tabella MAC degli apparati di categoria «Rete» "
+                  "attivi e raggiungibili: su quale porta e VLAN sta ogni MAC."),
+            ("ul", [
+                "Nella scheda dello switch, riquadro «Chi è collegato alle porte»: porta, VLAN, MAC e l'asset riconosciuto. "
+                "Si mostrano solo le porte con al massimo 3 MAC: quelle con più MAC portano ad altri switch o access point.",
+                "Nella scheda asset di un PC, la riga «Visto da» ha la voce «Rete» con switch e porta.",
+                "Il MAC del PC arriva da Intune, da WatchGuard o dal punto rete dichiarato dell'asset: un MAC sconosciuto resta «non riconosciuto».",
+                "Si legge dal Q-BRIDGE-MIB o, se l'apparato non lo espone, dal BRIDGE-MIB. Gli switch Cisco con tabella separata per VLAN "
+                "(community@vlan) non sono coperti.",
+                "Interruttore nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch».",
             ]),
         ],
     },

@@ -31,11 +31,11 @@ GUIDA = {
                     ("Utenti", "elenco account, disattivazione, impersonazione («vedi come»), import da Active Directory (Import Utenti LDAP). "
                                "Con «Ruoli e permessi» acceso la colonna «Ruolo del portale» mostra i ruoli che decidono davvero (il primo comanda; «· organigramma» se arriva dall'organigramma): clic per assegnarli. Il vecchio ruolo («Ruolo storico») non decide più i permessi."),
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
-                    ("Ruoli e permessi", "il sistema unico: matrice ruolo × modulo × azione. Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo. Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
+                    ("Ruoli e permessi", "il sistema unico: matrice ruolo × modulo × azione. Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
                     ("Navigation Builder", "le voci dei menu."),
                     ("Branding", "logo, favicon, nome e colori."),
-                    ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): l'operatore sceglie il proprio nome dal gruppo e digita il PIN. Ha la sua guida."),
+                    ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (IP), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
                                       "(registro, con impronta SHA-256, senza conservare il file) e i profili di layout dei PDF. Ha la sua guida."),
@@ -66,16 +66,19 @@ GUIDA = {
                 ("passi", [
                     "Fai entrare una volta l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: "
                     "deve essere in un gruppo AD ammesso al login. Così compare in «Account della postazione».",
-                    "In «Accessi» crea o scegli il gruppo degli operatori e aggiungi le persone che usano quel PC.",
-                    "Amministrazione → «Postazioni condivise» → «Nuova postazione»: nome, account, gruppo, minuti di inattività (1–60), «Attiva». "
-                    "Vale dal prossimo accesso dell'account.",
-                    "Gli operatori impostano da soli il PIN sul PC, con la propria password. «Operatori e PIN» mostra chi l'ha impostato, "
+                    "In «Accessi» crea o scegli il gruppo degli operatori e aggiungi le persone che lavorano al controllo.",
+                    "admin-portale → «Postazioni condivise» (barra in alto, gruppo Accessi) → «Nuova postazione», una per PC: nome, "
+                    "IP del PC (su quel PC «ipconfig»; meglio un IP riservato nel DHCP), account, gruppo, minuti di inattività (1–60), «Attiva». "
+                    "Lo stesso account può servire più PC.",
+                    "«Operatori del PC»: spunta chi può usare quel PC e «Salva operatori del PC». Chi non è spuntato non compare in «Chi sei?».",
+                    "Gli operatori impostano da soli il PIN sul PC, con la propria password. La stessa tabella mostra chi l'ha impostato, "
                     "chi è bloccato e «Azzera PIN».",
                 ]),
                 ("ul", [
                     "Con il PIN giusto la sessione è dell'operatore: i suoi permessi, il suo 2FA (se la policy lo chiede), il suo nome nell'audit "
                     "(«postazione_operatore_entra» / «postazione_operatore_esce», con la postazione).",
-                    "L'account del PC da solo apre soltanto «Chi sei?»: ogni altra pagina riporta lì, le API rispondono 403.",
+                    "L'account del PC da solo apre soltanto «Chi sei?», e solo dal PC registrato: da un altro PC trova «PC non registrato» (con l'IP visto dal portale).",
+                    "La sessione resta legata al PC: se la stessa sessione arriva da un altro IP si chiude («postazione_altro_pc» nell'audit).",
                     "Il PIN vale solo dentro una sessione aperta con l'account della postazione. Si salva solo l'hash, mai nell'audit.",
                     "Amministratori e superuser non compaiono fra gli operatori e non possono essere l'account di una postazione.",
                     "«Attiva» spenta o postazione eliminata: le sessioni aperte da lì si chiudono alla richiesta successiva.",
