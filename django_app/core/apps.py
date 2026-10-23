@@ -33,6 +33,9 @@ class CoreConfig(AppConfig):
         from .dispositivi import collega_segnale
 
         collega_segnale()
+        from .postazioni import collega_segnale as collega_segnale_postazioni
+
+        collega_segnale_postazioni()
         from . import audit_signals
         from . import checks  # noqa: F401  (registra i system check di igiene runtime)
 

@@ -18,7 +18,7 @@ from django.apps import apps
 
 # Area, colore e descrizione per ogni app del progetto, nell'ordine della pagina.
 APP_INFO: dict[str, tuple[str, str, str]] = {
-    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report"),
+    "core": ("Piattaforma", "#2563eb", "Utenti legacy, profili, permessi (ACL), menu, notifiche, audit, configurazione, registro e layout dei report, postazioni condivise e PIN"),
     "admin_portale": ("Piattaforma", "#1d4ed8", "Pannello di amministrazione"),
     "dati_bi": ("Piattaforma", "#0369a1", "Dati per Power BI (viste SQL bi_*) e API dati in sola lettura per applicazioni"),
     "hub_tools": ("Piattaforma", "#3b82f6", "Strumenti hub: moduli, database, guide"),

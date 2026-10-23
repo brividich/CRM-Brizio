@@ -593,6 +593,9 @@ MIDDLEWARE = [
     "axes.middleware.AxesMiddleware",
     "core.middleware.ImpersonationMiddleware",
     "monitoring.middleware.IssueCaptureMiddleware",
+    # Postazioni condivise: prima del timeout di sessione, così l'operatore inattivo
+    # torna alla scelta dell'operatore invece di chiudere la sessione della postazione.
+    "core.postazioni.PostazioneCondivisaMiddleware",
     "core.session_middleware.SessionIdleTimeoutMiddleware",
     "setup_wizard.middleware.SetupRequiredMiddleware",   # ← prima di ACL/notizie
     "twofa.middleware.TwoFactorMiddleware",

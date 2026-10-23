@@ -1,0 +1,176 @@
+{% extends "core/base.html" %}
+
+{% block title %}Postazioni condivise | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.pc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; max-width: 1280px; }
+@media (max-width: 960px) { .pc-grid { grid-template-columns: 1fr; } }
+.pc-azioni { display: flex; gap: 6px; flex-wrap: wrap; }
+.pc-nota { font-size: .82rem; color: var(--text-mid); margin-top: 2px; }
+.pc-stato-off { color: var(--text-mid); }
+.pc-stato-rosso { color: var(--danger); font-weight: 700; }
+.pc-guida ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% url 'admin_portale:postazioni_condivise' as pagina_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Postazioni condivise" page_subtitle="PC usati a turno con un solo account (es. «zeiss»): ognuno entra con il proprio nome e PIN." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" %}
+
+  {% if mostra_guida %}
+  <div class="card pc-guida" style="max-width:1280px;margin-bottom:20px;">
+    <div class="card-head"><div class="card-title">Guida</div></div>
+    <div class="card-body">
+      <ol>
+        <li>Fai entrare <strong>una volta</strong> l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: così compare nell'elenco «Account della postazione». L'account deve essere in un gruppo AD ammesso al login, come ogni utente.</li>
+        <li>In «Accessi» crea (o scegli) il gruppo degli operatori e aggiungi le persone che lavorano su quel PC.</li>
+        <li>Qui crea la postazione: nome, account, gruppo e minuti di inattività ({{ minuti_min }}–{{ minuti_max }}). Vale dal prossimo accesso dell'account.</li>
+        <li>Da quel momento l'account del PC vede solo «Chi sei?»: l'operatore tocca il proprio nome e digita il PIN. La prima volta imposta il PIN con la propria password.</li>
+        <li>Con il PIN giusto la sessione è dell'operatore: permessi, audit e firme sono i suoi. «Cambio operatore», «Esci» o l'inattività riportano a «Chi sei?»; solo «Chiudi la postazione» chiude la sessione dell'account.</li>
+        <li>Dopo {{ max_tentativi }} PIN sbagliati il PIN si blocca e la persona riceve una mail. «Azzera PIN» lo cancella: la persona ne imposta uno nuovo con la propria password.</li>
+        <li>Amministratori e superuser non compaiono mai fra gli operatori: entrano solo con le loro credenziali. Il 2FA dell'operatore segue la policy, come a un login normale.</li>
+      </ol>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="pc-grid">
+    <div style="display:flex;flex-direction:column;gap:20px;min-width:0;">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Postazioni</div></div>
+        <div class="card-body">
+          {% if postazioni %}
+          <div class="table-wrap">
+            <table class="fm-table">
+              <thead><tr><th>Nome</th><th>Account</th><th>Gruppo operatori</th><th>Operatori</th><th>Inattività</th><th>Stato</th><th></th></tr></thead>
+              <tbody>
+              {% for r in postazioni %}
+                <tr>
+                  <td>{{ r.p.nome }}</td>
+                  <td>{{ r.account }}</td>
+                  <td>{{ r.p.gruppo.label }}</td>
+                  <td>{{ r.operatori }}</td>
+                  <td>{{ r.p.minuti_inattivita }} min</td>
+                  <td>{% if r.p.attiva %}Attiva{% else %}<span class="pc-stato-off">Disattivata</span>{% endif %}</td>
+                  <td>
+                    <div class="pc-azioni">
+                      <a class="btn btn-sm" href="?operatori={{ r.p.pk }}">Operatori e PIN</a>
+                      <a class="btn btn-sm" href="?modifica={{ r.p.pk }}">Modifica</a>
+                      <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}" class="inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="azione" value="elimina">
+                        <input type="hidden" name="id" value="{{ r.p.pk }}">
+                        <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+            <p>Nessuna postazione condivisa. Creane una con il modulo qui accanto.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if dettaglio %}
+      <div class="card" id="operatori">
+        <div class="card-head"><div class="card-title">Operatori di «{{ dettaglio.nome }}» (gruppo {{ dettaglio.gruppo.label }})</div></div>
+        <div class="card-body">
+          {% if righe_operatori %}
+          <div class="table-wrap">
+            <table class="fm-table">
+              <thead><tr><th>Operatore</th><th>PIN</th><th>Ultima modifica PIN</th><th></th></tr></thead>
+              <tbody>
+              {% for o in righe_operatori %}
+                <tr>
+                  <td>{{ o.nome }}</td>
+                  <td>
+                    {% if not o.pin %}<span class="pc-stato-off">Da impostare</span>
+                    {% elif o.pin.bloccato_il %}<span class="pc-stato-rosso">Bloccato il {{ o.pin.bloccato_il|date:"d/m/Y H:i" }}</span>
+                    {% elif o.pin.tentativi_falliti %}Impostato ({{ o.pin.tentativi_falliti }} errori di fila)
+                    {% else %}Impostato{% endif %}
+                  </td>
+                  <td>{% if o.pin %}{{ o.pin.aggiornato_il|date:"d/m/Y H:i" }}{% endif %}</td>
+                  <td>
+                    {% if o.pin %}
+                    <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}" class="inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="azione" value="azzera_pin">
+                      <input type="hidden" name="id" value="{{ dettaglio.pk }}">
+                      <input type="hidden" name="legacy_user_id" value="{{ o.id }}">
+                      <button type="submit" class="btn btn-sm">Azzera PIN</button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+            <p>Il gruppo non ha operatori ammessi (persone attive, non amministratori, appartenenza non scaduta).</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Nuova postazione{% endif %}</div></div>
+      <div class="card-body">
+        <form method="post" action="{% url 'admin_portale:postazioni_condivise_azione' %}">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="salva">
+          {% if modifica %}<input type="hidden" name="id" value="{{ modifica.pk }}">{% endif %}
+          <div class="field">
+            <label>Nome</label>
+            <input class="input" type="text" name="nome" maxlength="100" required value="{{ modifica.nome|default:'' }}" placeholder="Sala metrologica – Zeiss">
+          </div>
+          <div class="field">
+            <label>Account della postazione</label>
+            <select class="input" name="account" required>
+              <option value="">— scegli —</option>
+              {% for u in account_ammessi %}
+                <option value="{{ u.id }}" {% if modifica and modifica.account_legacy_user_id == u.id %}selected{% endif %}>{{ u.nome|default:u.email }}{% if u.email %} · {{ u.email }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="pc-nota">Compare qui dopo il primo accesso con le sue credenziali di dominio. Mai un amministratore.</div>
+          </div>
+          <div class="field">
+            <label>Gruppo degli operatori</label>
+            <select class="input" name="gruppo" required>
+              <option value="">— scegli —</option>
+              {% for g in gruppi %}
+                <option value="{{ g.pk }}" {% if modifica and modifica.gruppo_id == g.pk %}selected{% endif %}>{{ g.label }}</option>
+              {% endfor %}
+            </select>
+            <div class="pc-nota">I membri si gestiscono in Amministrazione → Accessi.</div>
+          </div>
+          <div class="field">
+            <label>Minuti di inattività</label>
+            <input class="input" type="number" name="minuti_inattivita" min="{{ minuti_min }}" max="{{ minuti_max }}" required value="{{ modifica.minuti_inattivita|default:10 }}">
+            <div class="pc-nota">Senza usare il portale per questi minuti, l'operatore esce e si torna a «Chi sei?».</div>
+          </div>
+          <div class="field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" name="attiva" value="1" {% if not modifica or modifica.attiva %}checked{% endif %}> Attiva
+            </label>
+            <div class="pc-nota">Disattivandola, le sessioni aperte da questa postazione si chiudono alla prossima richiesta.</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">Salva</button>
+            {% if modifica %}<a class="btn btn-secondary" href="{{ pagina_url }}">Annulla</a>{% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

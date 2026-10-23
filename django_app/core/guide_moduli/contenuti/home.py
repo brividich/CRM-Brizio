@@ -21,6 +21,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "postazione-condivisa",
+            "titolo": "Entrare da un PC condiviso (es. «zeiss») con il PIN",
+            "blocchi": [
+                ("p", "Su alcuni PC si lavora a turno con un solo account del PC. Il portale lì mostra «Chi sei?»: "
+                      "ognuno entra con il proprio nome e un PIN personale, e quello che fa resta registrato a sé."),
+                ("passi", [
+                    "Tocca il tuo nome nell'elenco «Chi sei?».",
+                    "La prima volta premi «Imposta il PIN»: scrivi nome utente e password del tuo account (gli stessi di Windows / "
+                    "Microsoft 365) e un PIN da 4 a 8 cifre, due volte. «Salva il PIN ed entra».",
+                    "Le volte dopo digita il PIN sul tastierino e premi «Entra».",
+                    "Quando hai finito premi «Cambio operatore» nella fascia blu in alto (anche «Esci» riporta lì). Dopo i minuti di inattività "
+                    "della postazione (di solito 10) si torna comunque a «Chi sei?».",
+                ]),
+                ("nota", "Niente cifre tutte uguali né sequenze come 1234. Dopo 5 PIN sbagliati il PIN si blocca e ti arriva una mail: "
+                         "impostane uno nuovo con «Imposta un nuovo PIN» (serve la password) o chiedi all'amministratore. "
+                         "Se il tuo nome non c'è, chiedi all'amministratore di aggiungerti al gruppo della postazione."),
+            ],
+        },
+        {
             "id": "muoversi",
             "titolo": "Muoversi tra i moduli",
             "blocchi": [
