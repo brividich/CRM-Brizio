@@ -121,6 +121,10 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "push_service_worker",
 )
 _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
+    # Preferenze delle tabelle (colonne, larghezze, ordine): solo quelle dell'utente
+    # collegato, come le preferenze interfaccia. Il permesso «api» era solo per
+    # amministratori e bloccava tutti gli altri.
+    "/api/table-prefs/",
     "/api/onboarding/",
     "/api/gestione-reparto/",
     "/api/employee-board/widget/",
