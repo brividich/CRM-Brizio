@@ -134,6 +134,8 @@ GUIDA = {
                     "Apri la mappa officina: una macchina con il pallino rosso scuro è «In allarme» sul suo controllo.",
                     "Clicca la macchina: «Dal controllo della macchina» dice stato e da quando, programma, pezzi, ore in lavoro di oggi e gli allarmi attivi.",
                     "Elenco di tutte le macchine collegate, con stato e contatori: Configurazione → «Macchine collegate».",
+                    "Scheda della macchina, scheda Panoramica: riquadro «Stato della CNC» con stato e da quando, ore in lavoro di oggi, "
+                    "programma, pezzi, avvisi e allarmi e gli ultimi 10 cambi di stato con la durata.",
                 ]),
                 ("p", "Le DMG MORI arrivano dal collector OPC UA dell'officina (a ogni cambio di stato e almeno ogni minuto); "
                       "le macchine con un agent MTConnect si leggono ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli "
@@ -278,7 +280,8 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Configurazione → «Macchine collegate» → «Collega una macchina» → «Collector OPC UA»: scegli la macchina, scrivi "
-                    "l'indirizzo OPC UA (IP), la porta (4840), il codice breve (es. DM6) e, se serve, utente e password OPC UA. «Salva».",
+                    "l'indirizzo OPC UA (IP), la porta (4840), il codice breve (es. DM6) e, se serve, utente e password OPC UA. «Salva». "
+                    "Nel menu ci sono solo le macchine di lavoro (con la scheda macchina).",
                     "Riquadro «Collector» (amministratori del modulo Asset): «Crea il collector e il token» con l'IP del PC del collector. "
                     "Copia il token: si vede una volta sola.",
                     "Sul PC del collector imposta PORTALE_URL (lo mostra la pagina) e PORTALE_TOKEN e avvia il collector: scarica da solo "
@@ -450,6 +453,14 @@ GUIDA = {
             "fare": [
                 "Controlla il valore: deve essere uguale o maggiore dell'ultimo letto.",
                 "Se il contatore è stato azzerato o sostituito, apri «Contatore azzerato o sostituito?» e scrivi una nota.",
+            ],
+        },
+        {
+            "sintomo": "Una CNC non compare nel menu di «Collega una macchina»",
+            "fare": [
+                "Il menu mostra solo le macchine di lavoro: la CNC è finita in una categoria che non è di macchine (es. la categoria padre «CNC», tipo «Altro»).",
+                "Apri la scheda dell'asset → «Modifica» → Categoria asset: scegli quella delle altre CNC (es. «Macchine CNC») → «Salva».",
+                "Si apre il form della macchina di lavoro: controlla i dati e premi «Salva». Ora la CNC è nel menu.",
             ],
         },
         {

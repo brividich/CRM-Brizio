@@ -1344,6 +1344,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     from ..services.costi_asset import costi_asset as _costi_asset
 
     asset_costi = _costi_asset(asset)
+    stato_cnc = None
+    if asset.asset_type in (Asset.TYPE_CNC, Asset.TYPE_WORK_MACHINE):
+        from ..services.mtconnect import per_scheda
+
+        stato_cnc = per_scheda(asset.pk)
     from ..views_asset_rete import rete_context, switch_context
 
     can_edit_asset = _can_edit_asset(request, asset.id)
@@ -1354,6 +1359,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         "assets/pages/asset_detail.html",
         {
             "asset_costi": asset_costi,
+            "stato_cnc": stato_cnc,
             "page_title": f"Dettaglio asset {asset.asset_tag}",
             "asset": asset,
             "prodotto_chimico": asset.prodotto_chimico,
