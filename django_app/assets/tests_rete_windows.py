@@ -194,3 +194,45 @@ class PaginaTests(TestCase):
 
     def test_binding_acl_della_pagina(self):
         self.assertTrue(RoutePermissionBinding.objects.filter(path_pattern="/assets/rete/", is_active=True).exists())
+
+
+
+class ConfigurazioneDalPortaleTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(username="adm_rete_cfg", email="a@a.it", password="x")
+        UserOnboarding.objects.create(user=self.admin, completed=True)
+        self.client.force_login(self.admin)
+        self.url = reverse("assets:rete_indirizzi")
+
+    def test_salva_e_valida(self):
+        self.assertEqual(svc.salva_config("dc01, dc02", "dc01", "dominio.local"), [])
+        cfg = svc.config()
+        self.assertEqual((cfg["dhcp"], cfg["dns"], cfg["zone"], cfg["fonte"]), (["dc01", "dc02"], "dc01", ["dominio.local"], "portale"))
+        self.assertTrue(svc.salva_config("dc01; Remove-Item", "", ""))
+        self.assertTrue(svc.salva_config("", "dc01", ""))  # DNS senza zone
+        self.assertEqual(svc.config()["dhcp"], ["dc01", "dc02"])  # gli errori non salvano niente
+
+    @override_settings(RETE_DHCP_SERVERS="dhcp-env", RETE_DNS_SERVER="", RETE_DNS_ZONES="")
+    def test_il_portale_vince_sul_env(self):
+        self.assertEqual((svc.config()["dhcp"], svc.config()["fonte"]), (["dhcp-env"], "env"))
+        svc.salva_config("dhcp-portale", "", "")
+        self.assertEqual(svc.config()["dhcp"], ["dhcp-portale"])
+
+    def test_pagina_salva_e_leggi(self):
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "Server DHCP e DNS")
+        self.client.post(self.url, {"azione": "salva", "dhcp": "dc01", "dns": "", "zone": ""})
+        self.assertEqual(svc.config()["dhcp"], ["dc01"])
+        with patch("security.services.letture.accoda", return_value=(True, "In coda.")) as accoda:
+            self.client.post(self.url, {"azione": "leggi"})
+        accoda.assert_called_once()
+        self.assertEqual(accoda.call_args.args[0], "rete_windows")
+
+    def test_solo_amministratori(self):
+        utente = get_user_model().objects.create_user(username="rete_nessuno", password="x")
+        UserOnboarding.objects.create(user=utente, completed=True)
+        self.client.force_login(utente)
+        with patch("assets.views_rete.user_can_modulo_action", return_value=False):
+            self.assertNotIn(b"Server DHCP e DNS", self.client.get(self.url).content)  # 403 dall'ACL o riquadro nascosto
+            self.client.post(self.url, {"azione": "salva", "dhcp": "dc09", "dns": "", "zone": ""})
+        self.assertNotEqual(svc.config()["dhcp"], ["dc09"])

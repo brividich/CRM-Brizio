@@ -15,6 +15,10 @@ l'abbinatore unico (MAC, IP, nome) propone l'asset: la conferma si fa dalla
 riconciliazione dispositivi IT. Gli indirizzi senza nessuna proposta sono i
 dispositivi **non censiti** del registro.
 
+Server DHCP, server DNS e zone si scrivono nella pagina Indirizzi IP (riquadro
+«Server DHCP e DNS», solo amministratori del modulo Asset) e stanno in ``SiteConfig``;
+le vecchie variabili ``RETE_*`` del ``.env`` valgono solo se nel portale non c'è niente.
+
 Lo script PowerShell è fisso: server e zone gli arrivano come variabili
 d'ambiente, mai dentro il testo del comando. L'utente che fa girare il qcluster
 deve stare nel gruppo «DHCP Users» del server DHCP (sola lettura); per il DNS di
@@ -96,12 +100,54 @@ def _elenco(valore) -> list[str]:
     return [v.strip() for v in str(valore or "").split(",") if v.strip()]
 
 
+CONFIG_KEY = "assets.rete_windows.config"
+
+
+def _dal_portale() -> dict | None:
+    from core.models import SiteConfig
+
+    try:
+        valore = SiteConfig.objects.filter(chiave=CONFIG_KEY).values_list("valore", flat=True).first()
+        dati = json.loads(valore) if valore else None
+    except Exception:  # noqa: BLE001 - configurazione illeggibile = come assente
+        logger.warning("rete_windows: configurazione nel portale non leggibile", exc_info=True)
+        return None
+    if not isinstance(dati, dict):
+        return None
+    return {"dhcp": [str(s) for s in dati.get("dhcp") or []], "dns": str(dati.get("dns") or ""),
+            "zone": [str(z) for z in dati.get("zone") or []]}
+
+
 def config() -> dict:
-    return {
+    """Server e zone in uso: quelli scritti nel portale, altrimenti quelli del .env (compatibilità)."""
+    dati = _dal_portale()
+    if dati is not None:
+        return {**dati, "fonte": "portale"}
+    cfg = {
         "dhcp": _elenco(getattr(settings, "RETE_DHCP_SERVERS", "")),
         "dns": str(getattr(settings, "RETE_DNS_SERVER", "") or "").strip(),
         "zone": _elenco(getattr(settings, "RETE_DNS_ZONES", "")),
     }
+    return {**cfg, "fonte": "env" if (cfg["dhcp"] or cfg["dns"]) else ""}
+
+
+def salva_config(dhcp: str, dns: str, zone: str, utente=None) -> list[str]:
+    """Salva server e zone scritti nella pagina; ritorna gli errori (niente salvato se ce ne sono)."""
+    from core.models import SiteConfig
+
+    dati = {"dhcp": _elenco(dhcp)[:10], "dns": str(dns or "").strip(), "zone": _elenco(zone)[:10]}
+    errori = []
+    for nome in [*dati["dhcp"], *([dati["dns"]] if dati["dns"] else []), *dati["zone"]]:
+        if not _NOME_SERVER.match(nome):
+            errori.append(f"«{nome}» non è un nome valido (solo lettere, cifre, punti e trattini).")
+    if dati["dns"] and not dati["zone"]:
+        errori.append("Con il server DNS servono anche le zone da leggere (es. dominio.local).")
+    if errori:
+        return errori
+    SiteConfig.objects.update_or_create(chiave=CONFIG_KEY, defaults={
+        "valore": json.dumps(dati), "descrizione": "Server DHCP/DNS letti per la pagina Indirizzi IP (Asset)"})
+    logger.info("rete_windows: configurazione salvata da %s", getattr(utente, "username", "?"))
+    return []
 
 
 def configurato() -> bool:
@@ -405,4 +451,5 @@ def pagina(codice="tutti", q="", ambito_id=None, ora=None) -> dict:
         "ultimo_giro": giro,
         "ultimo_giro_at": _data(giro.get("at")),
         "configurato": configurato(),
+        "config": config(),
     }

@@ -104,7 +104,7 @@
     {% if not veeam.attivo %}<span class="sec-badge">spenta</span>{% elif not veeam.configurato %}<span class="sec-badge sec-badge-critical">da configurare</span>{% elif veeam.ultimo_giro.ok %}<span class="sec-badge sec-badge-success">collegata</span>{% elif veeam.ultimo_giro.errore %}<span class="sec-badge sec-badge-critical">errore</span>{% else %}<span class="sec-badge">in attesa del primo giro</span>{% endif %}
   </div>
   {% if veeam.attivo and not veeam.configurato %}
-    <p class="bk-late">Mancano indirizzo, utente o password dell'API di Veeam nel file .env del server: il giro non parte.</p>
+    <p class="bk-late">Mancano le credenziali dell'API di Veeam: inseriscile in <a href="{% url 'security:soc_settings' %}#veeam-api">Impostazioni › Credenziali API Veeam</a>. Finché mancano il giro non parte.</p>
   {% elif veeam.ultimo_giro.errore %}
     <p class="bk-late">Ultimo giro non riuscito: {{ veeam.ultimo_giro.errore }}</p>
   {% elif veeam.ultimo_giro.ok %}

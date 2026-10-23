@@ -189,6 +189,8 @@ def render_approval_email(
     *,
     approve_url: str = "",
     reject_url: str = "",
+    extra_cta_html: str = "",
+    extra_cta_text: str = "",
 ) -> dict[str, str]:
     """
     Renderizza il template e ritorna un dict con:
@@ -264,8 +266,8 @@ def render_approval_email(
 
     # ── Assemblaggio HTML completo via base template ──────────────────────────
     all_cta_html = ""
-    if portal_cta_html or mailto_cta_html:
-        all_cta_html = portal_cta_html + mailto_cta_html
+    if portal_cta_html or mailto_cta_html or extra_cta_html:
+        all_cta_html = portal_cta_html + mailto_cta_html + extra_cta_html
 
     expires_at = ctx.get("expires_at")
     expires_html = ""
@@ -318,6 +320,8 @@ def render_approval_email(
         text_parts.append(portal_cta_text)
     if mailto_cta_text:
         text_parts.append(mailto_cta_text)
+    if extra_cta_text:
+        text_parts.append(extra_cta_text)
     text_parts.append(expires_text)
 
     text_body = "\n".join(text_parts).strip()

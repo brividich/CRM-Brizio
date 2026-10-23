@@ -36,6 +36,17 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
 .mc-linkbtn{border:0;background:none;color:var(--link,#2563eb);font:inherit;font-size:var(--fs-sm,13px);cursor:pointer;padding:0}
 .mc-dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:8px 0 0;font-size:var(--fs-sm,13px)}
 .mc-dl dt{color:var(--text-mid,#64748b)}.mc-dl dd{margin:0;font-weight:700}
+.mc-fonte{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:16px;border:0;padding:0;margin:0}
+.mc-fonte label{display:flex;gap:6px;align-items:center;font-weight:700;color:var(--text,#0f172a)}
+.mc-gruppo{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 14px;align-items:end}
+.mc-gruppo[hidden],.mc-actions [hidden]{display:none}
+.mc-form input[type=password],.mc-token-val{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:8px 10px;font:inherit;font-weight:400;background:var(--surface,#fff);color:var(--text,#0f172a)}
+.mc-check{display:flex!important;gap:6px;align-items:center;font-weight:600!important}
+.mc-token{border-color:var(--warning,#d97706);border-width:2px}
+.mc-token-val{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:14px;margin-top:8px}
+.mc-collector{border-top:1px solid var(--border,#e5e7eb);padding:10px 0}
+.mc-collector summary{cursor:pointer}
+code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px;background:color-mix(in srgb,var(--text-mid,#64748b) 12%,transparent);padding:1px 5px;border-radius:5px}
 </style>
 {% endblock %}
 
@@ -45,66 +56,92 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
 {% block assets_shell_content %}
 <section class="mc-page">
   <div class="mc-card">
-    <p class="mc-note"><strong>Collector OPC UA</strong>: le macchine compaiono qui da sole quando il collector dell'officina comincia a inviarne lo stato (a ogni cambio e almeno una volta al minuto); i contatori «Ore» e «Cicli» li aggiorna il collector una volta all'ora. <strong>Agent MTConnect</strong>: per le macchine che ne hanno uno, collegale qui sotto; il portale le legge ogni 2 minuti. <a href="{% url 'assets:plant_layout_map' %}">Mappa officina</a> · <a href="{% url 'assets:guida' %}#mtconnect">? Guida</a></p>
+    <p class="mc-note"><strong>Collector OPC UA</strong>: il programma che gira su un PC dell'officina e legge le DMG MORI. Le macchine da leggere, il token e la rete ammessa si decidono qui: sul PC del collector restano solo l'indirizzo del portale e il token. Il collector invia lo stato a ogni cambio e almeno una volta al minuto, i contatori «Ore» e «Cicli» una volta all'ora. <strong>Agent MTConnect</strong>: per le macchine che ne hanno uno; il portale le legge ogni 2 minuti. <a href="{% url 'assets:plant_layout_map' %}">Mappa officina</a> · <a href="{% url 'assets:guida' %}#mtconnect">? Guida</a></p>
   </div>
 
+  {% if token_nuovo %}
+  <div class="mc-card mc-token" id="token">
+    <h2>Token del collector «{{ token_nuovo.nome }}»</h2>
+    <p class="mc-note">Copialo adesso: <strong>non si vedrà più</strong> (nel portale resta solo un'impronta). Se lo perdi, genera un token nuovo: quello vecchio smette di funzionare.</p>
+    <input class="mc-token-val" type="text" readonly value="{{ token_nuovo.token }}" onclick="this.select()" aria-label="Token del collector">
+    <p class="mc-note" style="margin-top:8px">Sul PC del collector imposta le variabili d'ambiente <code>PORTALE_URL</code> = <code>{{ url_portale }}</code> e <code>PORTALE_TOKEN</code> = il token qui sopra, poi riavvia il collector.</p>
+  </div>
+  {% endif %}
+
   <div class="mc-card mc-table-wrap">
-    <h2>Collegamenti</h2>
+    <h2>Macchine</h2>
+    {% if nessun_collector and macchine_collector %}<p class="mc-err">Nessun collector attivo: crea il token nel riquadro «Collector» qui sotto.</p>{% endif %}
     <table class="mc-table">
-      <thead><tr><th>Macchina</th><th>Agent</th><th>Stato</th><th>Programma</th><th>Contatori</th><th>Oggi in lavoro</th><th></th></tr></thead>
+      <thead><tr><th>Macchina</th><th>Fonte</th><th>Stato</th><th>Programma</th><th>Contatori</th><th>Oggi in lavoro</th><th></th></tr></thead>
       <tbody>
       {% for r in righe %}
         <tr>
           <td><a href="{% url 'assets:asset_view' r.asset_id %}"><strong>{{ r.asset.name }}</strong></a><br><span class="mc-meta">{{ r.asset.asset_tag }}{% if r.asset.reparto %} · {{ r.asset.reparto }}{% endif %}</span></td>
-          <td>{% if r.fonte == "collector_opcua" %}<span class="mc-tag mc-tag--pronta">Collector OPC UA</span>{% else %}<span class="mc-mono">{{ r.url_agent }}</span>{% if r.dispositivo %}<br><span class="mc-meta">{{ r.dispositivo }}</span>{% endif %}{% endif %}</td>
+          <td>{% if r.fonte == "collector_opcua" %}<span class="mc-tag mc-tag--pronta">Collector OPC UA</span>
+                {% if r.opcua_host %}<br><span class="mc-mono">{{ r.nome_collector }} · {{ r.opcua_host }}:{{ r.opcua_porta }}</span>{% else %}<br><span class="mc-meta">indirizzo OPC UA da scrivere</span>{% endif %}
+                {% if not r.coperta %}<br><span class="mc-err">nessun collector attivo può leggerla</span>{% endif %}
+              {% else %}<span class="mc-mono">{{ r.url_agent }}</span>{% if r.dispositivo %}<br><span class="mc-meta">{{ r.dispositivo }}</span>{% endif %}{% endif %}</td>
           <td>
             {% if not r.attivo %}<span class="mc-tag mc-tag--mai">sospesa</span>
             {% elif r.attuale %}<span class="mc-tag mc-tag--{{ r.stato }}">{{ r.stato_label }}</span>{% if r.stato_dal %}<br><span class="mc-meta">dal {{ r.stato_dal|date:"d/m H:i" }}</span>{% endif %}
-            {% else %}<span class="mc-tag mc-tag--vecchio">non aggiornato</span>{% if r.controllato_il %}<br><span class="mc-meta">ultima lettura {{ r.controllato_il|date:"d/m H:i" }}</span>{% endif %}{% endif %}
+            {% elif r.controllato_il %}<span class="mc-tag mc-tag--vecchio">non aggiornato</span><br><span class="mc-meta">ultima lettura {{ r.controllato_il|date:"d/m H:i" }}</span>
+            {% else %}<span class="mc-tag mc-tag--mai">mai letta</span>{% endif %}
             {% if r.allarmi and r.attuale %}<ul class="mc-alarms">{% for a in r.allarmi|slice:":3" %}<li>{% if a.livello == "allarme" %}<strong>Allarme</strong>{% else %}Avviso{% endif %}{% if a.codice %} {{ a.codice }}{% endif %}: {{ a.testo|default:a.tipo }}</li>{% endfor %}</ul>{% endif %}
             {% if r.errore %}<div class="mc-err">{{ r.errore }}</div>{% endif %}
           </td>
           <td>{{ r.programma|default:"—" }}{% if r.modalita %}<br><span class="mc-meta">{{ r.modalita }}</span>{% endif %}{% if r.pezzi_grezzo is not None %}<br><span class="mc-meta">pezzi sulla CNC: {{ r.pezzi_grezzo|floatformat:0 }}</span>{% endif %}</td>
-          <td class="mc-meta">{% if r.contatore_ore %}Ore: {{ r.contatore_ore.current_value|floatformat:1 }}<br>{% endif %}{% if r.contatore_pezzi %}Cicli: {{ r.contatore_pezzi.current_value|floatformat:0 }}{% endif %}{% if not r.contatore_ore and not r.contatore_pezzi %}—{% endif %}</td>
+          <td class="mc-meta">{% if r.mancano_contatori %}<span class="mc-tag mc-tag--ferma">mancano Ore/Cicli</span>{% else %}Ore e Cicli presenti{% endif %}</td>
           <td>{{ r.ore_oggi }} h</td>
           <td class="mc-actions">
             {% if r.puo_modificare %}
-              {% if r.fonte != "collector_opcua" %}<a href="?modifica={{ r.pk }}#form">Modifica</a>{% endif %}
+              <a href="?modifica={{ r.pk }}#form">Modifica</a>
+              {% if r.mancano_contatori %}<form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="contatori">Crea contatori</button></form>{% endif %}
               <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="{% if r.attivo %}sospendi{% else %}riattiva{% endif %}">{% if r.attivo %}Sospendi{% else %}Riattiva{% endif %}</button></form>
               <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="elimina">Togli</button></form>
             {% endif %}
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="mc-meta">Nessuna macchina collegata. Aggiungine una qui sotto: serve l'indirizzo del suo agent MTConnect.</td></tr>
+        <tr><td colspan="7" class="mc-meta">Nessuna macchina collegata: aggiungine una qui sotto.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 
   <div class="mc-card" id="form">
-    <h2>{% if form.asset %}Collegamento della macchina (agent MTConnect){% else %}Collega una macchina con un agent MTConnect{% endif %}</h2>
-    <form method="post" class="mc-form">
+    <h2>{% if form.asset %}Modifica la macchina{% else %}Collega una macchina{% endif %}</h2>
+    <form method="post" class="mc-form" autocomplete="off">
       {% csrf_token %}
+      <fieldset class="mc-fonte">
+        <legend class="mc-meta">Da dove arriva lo stato</legend>
+        <label><input type="radio" name="fonte" value="collector_opcua" data-mc-fonte{% if form.fonte != "mtconnect" %} checked{% endif %}> Collector OPC UA (DMG MORI)</label>
+        <label><input type="radio" name="fonte" value="mtconnect" data-mc-fonte{% if form.fonte == "mtconnect" %} checked{% endif %}> Agent MTConnect</label>
+      </fieldset>
       <label>Macchina
         <select name="asset" required>
           <option value="">— scegli —</option>
           {% for m in macchine %}<option value="{{ m.pk }}"{% if form.asset == m.pk|stringformat:"s" %} selected{% endif %}>{{ m.name }} ({{ m.asset_tag }}){% if m.work_machine.cnc_controlled %} · CNC{% endif %}</option>{% endfor %}
         </select>
       </label>
-      <label>Indirizzo dell'agent
-        <input type="text" name="url_agent" value="{{ form.url_agent }}" placeholder="http://10.0.5.21:5000" required>
-      </label>
-      <label>Dispositivo nell'agent (facoltativo)
-        <input type="text" name="dispositivo" value="{{ form.dispositivo }}" placeholder="vuoto = il primo">
-      </label>
+      <div class="mc-gruppo" data-mc-per="collector_opcua">
+        <label>Indirizzo OPC UA della macchina<input type="text" name="opcua_host" value="{{ form.opcua_host }}" placeholder="192.168.23.115" maxlength="255"></label>
+        <label>Porta<input type="text" name="opcua_porta" value="{{ form.opcua_porta }}" inputmode="numeric" maxlength="5"></label>
+        <label>Codice per il collector (facoltativo)<input type="text" name="codice" value="{{ form.codice }}" placeholder="DM6" maxlength="40"></label>
+        <label>Utente OPC UA (facoltativo)<input type="text" name="opcua_utente" value="{{ form.opcua_utente }}" maxlength="120"></label>
+        <label>Password OPC UA (facoltativa)<input type="password" name="opcua_password" maxlength="200" autocomplete="new-password"{% if form.ha_password %} placeholder="salvata: vuoto = resta quella"{% endif %}></label>
+        {% if form.ha_password %}<label class="mc-check"><input type="checkbox" name="togli_password"> Togli la password salvata</label>{% endif %}
+      </div>
+      <div class="mc-gruppo" data-mc-per="mtconnect">
+        <label>Indirizzo dell'agent<input type="text" name="url_agent" value="{{ form.url_agent }}" placeholder="http://10.0.5.21:5000"></label>
+        <label>Dispositivo nell'agent (facoltativo)<input type="text" name="dispositivo" value="{{ form.dispositivo }}" placeholder="vuoto = il primo"></label>
+        <label class="mc-check"><input type="checkbox" name="usa_contatori" checked> Aggiorna i contatori Ore e Cicli</label>
+      </div>
       <div class="mc-checks">
-        <label><input type="checkbox" name="usa_ore"{% if form.usa_ore %} checked{% endif %}> Aggiorna il contatore Ore</label>
-        <label><input type="checkbox" name="usa_pezzi"{% if form.usa_pezzi %} checked{% endif %}> Aggiorna il contatore Cicli con i pezzi</label>
+        <label><input type="checkbox" name="crea_contatori" checked> Crea i contatori Ore e Cicli se mancano</label>
       </div>
       <div class="mc-actions">
-        <button class="btn btn-secondary" name="azione" value="prova">Prova</button>
-        <button class="btn btn-primary" name="azione" value="salva">Salva collegamento</button>
+        <button class="btn btn-primary" name="azione" value="salva">Salva</button>
+        <button class="btn btn-secondary" name="azione" value="prova" data-mc-per="mtconnect" formnovalidate>Prova l'agent MTConnect</button>
       </div>
     </form>
     {% if prova %}
@@ -125,5 +162,50 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
       {% endif %}
     {% endif %}
   </div>
+
+  {% if puo_amministrare %}
+  <div class="mc-card" id="collector">
+    <h2>Collector</h2>
+    <p class="mc-note">Ogni collector ha il suo token e la rete da cui può chiamare il portale (IP del PC del collector o della sua rete). Il token si vede una volta sola, quando lo crei o lo rigeneri. «Tutte le macchine» = legge tutte le macchine con fonte «Collector OPC UA»; altrimenti solo quelle spuntate.</p>
+    {% for c in collector %}
+    <details class="mc-collector">
+      <summary><strong>{{ c.name }}</strong> · {% if c.is_active %}<span class="mc-tag mc-tag--in_lavoro">attivo</span>{% else %}<span class="mc-tag mc-tag--mai">disattivato</span>{% endif %}
+        <span class="mc-meta">· ultimo contatto {{ c.last_seen_at|date:"d/m/Y H:i"|default:"mai" }} · {% if c.all_meter_assets %}tutte le macchine{% else %}{{ c.consentite_ids|length }} macchin{{ c.consentite_ids|length|pluralize:"a,e" }}{% endif %} · rete {{ c.allowed_ips|default:"solo quella del file .env" }}</span></summary>
+      <form method="post" class="mc-form" style="margin-top:10px">
+        {% csrf_token %}<input type="hidden" name="collector" value="{{ c.pk }}">
+        <label>IP o reti ammessi (separati da virgole)<input type="text" name="ips" value="{{ c.allowed_ips }}" placeholder="192.168.23.50"></label>
+        <div class="mc-checks"><label><input type="checkbox" name="tutte"{% if c.all_meter_assets %} checked{% endif %}> Tutte le macchine del collector</label></div>
+        {% if macchine_collector %}<div class="mc-checks">{% for r in macchine_collector %}<label><input type="checkbox" name="macchine" value="{{ r.asset_id }}"{% if r.asset_id in c.consentite_ids %} checked{% endif %}> {{ r.nome_collector }} · {{ r.asset.name }}</label>{% endfor %}</div>{% endif %}
+        <div class="mc-actions">
+          <button class="btn btn-primary" name="azione" value="collector_salva">Salva</button>
+          <button class="btn btn-secondary" name="azione" value="collector_token" onclick="return confirm('Generare un token nuovo? Quello in uso smette subito di funzionare.');">Nuovo token</button>
+          <button class="btn btn-secondary" name="azione" value="{% if c.is_active %}collector_disattiva{% else %}collector_riattiva{% endif %}">{% if c.is_active %}Disattiva{% else %}Riattiva{% endif %}</button>
+        </div>
+      </form>
+    </details>
+    {% endfor %}
+    <form method="post" class="mc-form" style="margin-top:12px">
+      {% csrf_token %}
+      <label>Nuovo collector<input type="text" name="nome" placeholder="Collector CNC officina" maxlength="120" required></label>
+      <label>IP o reti ammessi<input type="text" name="ips" placeholder="192.168.23.50"></label>
+      <div class="mc-checks"><label><input type="checkbox" name="tutte" checked> Tutte le macchine del collector</label></div>
+      <div class="mc-actions"><button class="btn btn-primary" name="azione" value="collector_crea">Crea il collector e il token</button></div>
+    </form>
+  </div>
+  {% endif %}
 </section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var radios = document.querySelectorAll("[data-mc-fonte]");
+  function aggiorna() {
+    var scelta = (document.querySelector("[data-mc-fonte]:checked") || {}).value;
+    document.querySelectorAll("[data-mc-per]").forEach(function (el) { el.hidden = el.getAttribute("data-mc-per") !== scelta; });
+  }
+  radios.forEach(function (r) { r.addEventListener("change", aggiorna); });
+  aggiorna();
+})();
+</script>
 {% endblock %}

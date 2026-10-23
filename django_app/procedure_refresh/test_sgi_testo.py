@@ -385,7 +385,9 @@ class ChunkingSgiTests(TestCase):
     def test_titolo_documento_nell_etichetta(self):
         from ai_assistant.services import _sgi_doc_label
 
-        self.assertEqual(_sgi_doc_label("XX ZZ 01", "3", "Documento sintetico"), "XX ZZ 01 Rev.3")
+        # Il default e' True da 51c59aec: il caso «senza titolo» va forzato.
+        with override_settings(OLLAMA_RAG_SGI_CHUNK_TITLE=False):
+            self.assertEqual(_sgi_doc_label("XX ZZ 01", "3", "Documento sintetico"), "XX ZZ 01 Rev.3")
         with override_settings(OLLAMA_RAG_SGI_CHUNK_TITLE=True):
             self.assertEqual(_sgi_doc_label("XX ZZ 01", "3", "Documento sintetico"), "XX ZZ 01 Rev.3 Documento sintetico")
             self.assertEqual(_sgi_doc_label("XX ZZ 01", "", "XX ZZ 01"), "XX ZZ 01")  # titolo = codice: niente doppione

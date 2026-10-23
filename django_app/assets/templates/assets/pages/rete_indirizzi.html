@@ -35,6 +35,11 @@
 body.theme-dark .ri-tag--ok{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .ri-tag--warn{color:#fdba74;background:rgba(234,88,12,.18)}
 body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body.theme-dark .ri-tag--muted{color:#cbd5e1;background:rgba(148,163,184,.16)}
 .ri-off{opacity:.6}
+.ri-cfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 14px;align-items:end;margin-top:10px}
+.ri-cfg label{display:grid;gap:4px;font-size:var(--fs-sm,13px);font-weight:700;color:var(--text-mid,#475569)}
+.ri-cfg input{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:8px 10px;font:inherit;font-weight:400;background:var(--surface,#fff);color:var(--text,#0f172a)}
+.ri-cfg .ri-cfg-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+.ri-cfg-card summary{cursor:pointer;font-weight:800}
 </style>
 {% endblock %}
 
@@ -45,7 +50,7 @@ body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
 <section class="ri-page">
   <div class="ri-card">
     <p class="ri-note">
-      {% if not configurato and not ultimo_giro_at %}La lettura non è configurata: servono i nomi dei server DHCP e DNS nel file .env del server del portale.
+      {% if not configurato and not ultimo_giro_at %}La lettura non è configurata: {% if puo_configurare %}scrivi i server DHCP e DNS nel riquadro qui sotto.{% else %}la configura un amministratore del modulo Asset.{% endif %}
       {% elif ultimo_giro_at %}Ultima lettura {{ ultimo_giro_at|date:"d/m/Y H:i" }}: si aggiorna da sola ogni ora.
       {% else %}In attesa della prima lettura (ogni ora).{% endif %}
       I collegamenti agli asset si confermano dalla <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a>.
@@ -53,6 +58,23 @@ body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
     </p>
     {% for errore in ultimo_giro.errori %}<p class="ri-warn">{{ errore }}</p>{% endfor %}
   </div>
+
+  {% if puo_configurare %}
+  <details class="ri-card ri-cfg-card" id="config-rete"{% if not configurato %} open{% endif %}>
+    <summary>Server DHCP e DNS{% if config.fonte == "env" %} <span class="ri-tag ri-tag--muted">dal file .env</span>{% endif %}</summary>
+    <p class="ri-note" style="margin-top:8px">Nomi dei server di Windows da cui leggere. Serve che sul server del portale ci siano gli strumenti RSAT (DhcpServer, DnsServer) e che l'utente del servizio dei lavori in background (qcluster) sia nel gruppo «DHCP Users» del server DHCP: gli errori compaiono in cima a questa pagina.{% if config.fonte == "env" %} Ora valgono i server del file .env: salvandoli qui li sostituisci.{% endif %}</p>
+    <form method="post" class="ri-cfg">
+      {% csrf_token %}
+      <label>Server DHCP (uno o più, separati da virgole)<input type="text" name="dhcp" value="{{ config.dhcp|join:', ' }}" placeholder="srv-dc01" maxlength="500"></label>
+      <label>Server DNS<input type="text" name="dns" value="{{ config.dns }}" placeholder="srv-dc01" maxlength="250"></label>
+      <label>Zone DNS (separate da virgole)<input type="text" name="zone" value="{{ config.zone|join:', ' }}" placeholder="dominio.local" maxlength="500"></label>
+      <div class="ri-cfg-actions">
+        <button class="btn btn-primary" name="azione" value="salva">Salva</button>
+        {% if configurato %}<button class="btn btn-secondary" name="azione" value="leggi">Leggi adesso</button>{% endif %}
+      </div>
+    </form>
+  </details>
+  {% endif %}
 
   {% if ambiti %}
   <div class="ri-scopes" aria-label="Ambiti DHCP">

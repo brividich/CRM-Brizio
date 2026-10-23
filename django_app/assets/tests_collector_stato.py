@@ -151,3 +151,99 @@ class ContrattoConIlCollectorTests(TestCase):
         self.ore.refresh_from_db()
         self.cicli.refresh_from_db()
         self.assertEqual((self.ore.current_value, self.cicli.current_value), (Decimal("100.00"), Decimal("25.00")))
+
+
+
+class CollectorDalPortaleTests(TestCase):
+    """Token, rete ammessa e macchine del collector gestiti dalla pagina Macchine collegate."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from assets.models import WorkMachine
+        from core.models import UserOnboarding
+
+        self.admin = get_user_model().objects.create_superuser(username="adm_collector", email="a@a.it", password="x")
+        UserOnboarding.objects.create(user=self.admin, completed=True)
+        self.client.force_login(self.admin)
+        self.url = reverse("assets:mtconnect_collegamenti")
+        self.dm6 = Asset.objects.create(asset_tag="CNC-DM6", name="Fresa DMC 125", asset_type=Asset.TYPE_CNC, serial_number="SN-SINT-6")
+        self.dm7 = Asset.objects.create(asset_tag="CNC-DM7", name="Fresa DMC 160", asset_type=Asset.TYPE_CNC)
+        for a in (self.dm6, self.dm7):
+            WorkMachine.objects.create(asset=a, source_key=f"col-{a.asset_tag}", cnc_controlled=True)
+
+    def _macchina(self, asset, host, codice, **extra):
+        return self.client.post(self.url, {"azione": "salva", "fonte": "collector_opcua", "asset": asset.pk,
+                                           "opcua_host": host, "opcua_porta": "4840", "codice": codice, **extra})
+
+    def _crea_collector(self, **extra):
+        resp = self.client.post(self.url, {"azione": "collector_crea", "nome": "Collector CNC officina", "ips": "127.0.0.1",
+                                           "tutte": "on", **extra})
+        return resp, resp.context["token_nuovo"]["token"]
+
+    def _config(self, token, **extra):
+        return self.client.get("/api/assets/contatori/ingest/config/", HTTP_AUTHORIZATION=f"Bearer {token}", **extra)
+
+    def test_macchina_collector_con_password_cifrata_e_contatori(self):
+        self._macchina(self.dm6, "192.0.2.15", "DM6", opcua_utente="lettore", opcua_password="pw-sintetica", crea_contatori="on")
+        coll = CollegamentoMTConnect.objects.get(asset=self.dm6)
+        self.assertEqual((coll.fonte, coll.opcua_host, coll.codice, coll.opcua_utente), ("collector_opcua", "192.0.2.15", "DM6", "lettore"))
+        self.assertNotIn("pw-sintetica", coll.opcua_password)
+        self.assertEqual(set(AssetMeter.objects.filter(asset=self.dm6).values_list("meter_type", flat=True)), {"HOURS", "CYCLES"})
+        self._macchina(self.dm6, "192.0.2.16", "DM6")  # password vuota = resta quella
+        coll.refresh_from_db()
+        self.assertEqual(coll.opcua_host, "192.0.2.16")
+        self.assertTrue(coll.opcua_password)
+        self._macchina(self.dm6, "host con spazi", "DM6")
+        coll.refresh_from_db()
+        self.assertEqual(coll.opcua_host, "192.0.2.16")
+
+    def test_token_una_volta_e_config_per_il_collector(self):
+        self._macchina(self.dm6, "192.0.2.15", "DM6", opcua_utente="lettore", opcua_password="pw-sintetica")
+        self._macchina(self.dm7, "192.0.2.20", "DM7")
+        resp, token = self._crea_collector()
+        self.assertContains(resp, token)
+        self.assertNotContains(self.client.get(self.url), token)  # non si rivede
+        client = MeterIngestClient.objects.get(name="Collector CNC officina")
+        self.assertNotEqual(client.token_hash, token)
+        dati = self._config(token).json()
+        self.assertEqual(dati["collector"], "Collector CNC officina")
+        dm6 = next(m for m in dati["machines"] if m["name"] == "DM6")
+        self.assertEqual((dm6["ip"], dm6["port"], dm6["asset_tag"], dm6["serial"], dm6["username"], dm6["password"]),
+                         ("192.0.2.15", 4840, "CNC-DM6", "SN-SINT-6", "lettore", "pw-sintetica"))
+        # Sospesa = non più nell'elenco.
+        CollegamentoMTConnect.objects.filter(asset=self.dm7).update(attivo=False)
+        self.assertEqual([m["name"] for m in self._config(token).json()["machines"]], ["DM6"])
+
+    def test_solo_le_macchine_consentite_e_rete_del_collector(self):
+        self._macchina(self.dm6, "192.0.2.15", "DM6")
+        self._macchina(self.dm7, "192.0.2.20", "DM7")
+        _resp, token = self._crea_collector(tutte="", macchine=[str(self.dm7.pk)])
+        self.assertEqual([m["name"] for m in self._config(token).json()["machines"]], ["DM7"])
+        with override_settings(ASSETS_METER_INGEST_ALLOWED_IPS=[]):
+            self.assertEqual(self._config(token).status_code, 200)  # 127.0.0.1 scritto nel collector
+            self.assertEqual(self._config(token, REMOTE_ADDR="198.51.100.9").status_code, 403)
+        self.assertEqual(self._config("sbagliato").status_code, 401)
+
+    def test_nuovo_token_e_disattiva(self):
+        _resp, vecchio = self._crea_collector()
+        client = MeterIngestClient.objects.get()
+        resp = self.client.post(self.url, {"azione": "collector_token", "collector": client.pk})
+        nuovo = resp.context["token_nuovo"]["token"]
+        self.assertEqual(self._config(vecchio).status_code, 401)
+        self.assertEqual(self._config(nuovo).status_code, 200)
+        self.client.post(self.url, {"azione": "collector_disattiva", "collector": client.pk})
+        self.assertEqual(self._config(nuovo).status_code, 401)
+
+    def test_ip_non_validi(self):
+        self.client.post(self.url, {"azione": "collector_crea", "nome": "X", "ips": "192.168.300.1"})
+        self.assertFalse(MeterIngestClient.objects.exists())
+
+    def test_solo_amministratori_per_i_collector(self):
+        from unittest.mock import patch
+
+        with patch("assets.views_mtconnect.user_can_modulo_action", return_value=False), \
+                patch("assets.views_mtconnect._puo_amministrare", return_value=False):
+            self.client.post(self.url, {"azione": "collector_crea", "nome": "Abusivo", "ips": "127.0.0.1", "tutte": "on"})
+        self.assertFalse(MeterIngestClient.objects.exists())

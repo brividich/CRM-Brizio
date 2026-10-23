@@ -73,7 +73,7 @@ def _rete_windows_sync() -> dict:
     from assets.services import rete_windows
 
     if not rete_windows.configurato():
-        return {"attivo": False, "skipped": "DHCP/DNS non configurati (RETE_DHCP_SERVERS / RETE_DNS_SERVER)"}
+        return {"attivo": False, "skipped": "DHCP/DNS non configurati (Asset › Indirizzi IP)"}
     return rete_windows.sincronizza()
 
 

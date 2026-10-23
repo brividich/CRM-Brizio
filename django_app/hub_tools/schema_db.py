@@ -73,7 +73,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Collector letture contatori (OPC UA)",
         "cosa": "Script esterni (es. il collector OPC UA delle CNC) che inviano le ore/km/cicli delle macchine a POST /api/assets/contatori/ingest/. Le letture finiscono in assets_assetmeter e assets_assetmeterhistory e alimentano i piani di manutenzione a contatore.",
         "chi": "Asset → contatori e scadenze a contatore.",
-        "config": "Token per collector (admin Django «Collector letture contatori» o manage.py meter_ingest_client); ASSETS_METER_INGEST_ALLOWED_IPS (IP/CIDR ammessi); ASSETS_METER_STALE_HOURS (ore oltre cui una lettura è vecchia). Solo rete interna, mai su Entra.",
+        "config": "Token e IP ammessi per collector in Asset › Configurazione › Macchine collegate › Collector (assets_meteringestclient; anche admin Django o manage.py meter_ingest_client); in più ASSETS_METER_INGEST_ALLOWED_IPS del .env; ASSETS_METER_STALE_HOURS (ore oltre cui una lettura è vecchia). Solo rete interna, mai su Entra.",
         "controllo": "Admin «Collector letture contatori» → «ultimo contatto»; badge di freschezza sulla scheda asset e sulla pagina del QR.",
     },
     {
@@ -132,8 +132,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "security_cycle (solo letture, in uscita verso il server Veeam sulla porta 9419). Finiscono in "
                 "security_backupjobrecord ed eventi del SOC, come le mail di esito Veeam.",
         "chi": "SOC → Backup (riquadro «Lettura diretta da Veeam»), alert «Repository di backup quasi pieno».",
-        "config": "VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD (utente con ruolo Veeam Backup Viewer), facoltativi "
-                  "VEEAM_API_VERSION e VEEAM_API_CA_BUNDLE nel .env; interruttore in /soc/impostazioni/.",
+        "config": "SOC › Impostazioni › «Credenziali API Veeam» (indirizzo, utente con ruolo Veeam Backup Viewer, password e "
+                  "certificato della CA cifrati in security_securitycentersetting) e interruttore «Leggi i backup dall'API di Veeam»; "
+                  "le vecchie variabili VEEAM_API_* del .env valgono solo se nel portale non c'è niente.",
         "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
     },
     {
@@ -144,9 +145,10 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "HTTP GET /current ogni 2 minuti. Finiscono in assets_collegamentomtconnect, assets_periodostatomacchina e nei "
                 "contatori assets_assetmeter.",
         "chi": "Mappa officina (livello «Allarme sulla CNC» e riquadro «Dal controllo della macchina»), contatori Ore e Cicli dei piani di manutenzione.",
-        "config": "Collector: token MeterIngestClient (manage.py meter_ingest_client), IP del suo PC in ASSETS_METER_INGEST_ALLOWED_IPS, "
-                  "PORTALE_URL/PORTALE_TOKEN sul PC, asset_tag in machines.json. MTConnect: pagina Configurazione → «Macchine collegate» "
-                  "(/assets/work-machines/mtconnect/), schedule mtconnect_poll (ogni 2 minuti).",
+        "config": "Tutto in Configurazione → «Macchine collegate» (/assets/work-machines/mtconnect/): macchine del collector (indirizzo e "
+                  "porta OPC UA, codice, credenziali OPC UA cifrate) scaricate dal collector con GET /api/assets/contatori/ingest/config/, "
+                  "token e IP ammessi del collector; sul PC del collector solo PORTALE_URL e PORTALE_TOKEN. MTConnect: indirizzo dell'agent "
+                  "nella stessa pagina, schedule mtconnect_poll (ogni 2 minuti).",
         "controllo": "«Prova» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina.",
     },
     {
@@ -155,8 +157,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "con PowerShell in locale (moduli RSAT DhcpServer/DnsServer, solo letture). Finiscono in assets_ambitodhcp "
                 "e assets_indirizzorete.",
         "chi": "Asset → Indirizzi IP (dispositivi non censiti, record DNS vecchi), riconciliazione dispositivi IT, riga «Visto da» della scheda asset.",
-        "config": "RETE_DHCP_SERVERS, RETE_DNS_SERVER, RETE_DNS_ZONES nel .env; RSAT sul server del portale; l'utente del qcluster "
-                  "nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",
+        "config": "Asset › Indirizzi IP, riquadro «Server DHCP e DNS» (amministratori del modulo Asset; SiteConfig "
+                  "assets.rete_windows.config; le vecchie RETE_* del .env valgono solo se vuoto); RSAT sul server del portale; l'utente "
+                  "del qcluster nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",
         "controllo": "manage.py rete_windows --prova; esito ed errori dell'ultima lettura in cima alla pagina Indirizzi IP.",
     },
     {
