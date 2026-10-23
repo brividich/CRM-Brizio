@@ -82,6 +82,10 @@ LETTURE = (
             "alle 06:10 e alle 13:10", "security.services.watchguard_api:run",
             ("watchguard.api.dispositivi", "watchguard.api.software", "watchguard.api.patch"), "watchguard",
             "security:watchguard_pc", "Patch e protezione", lunga=True),
+    Lettura("veeam", "Backup da Veeam (API)", "Backup",
+            "Sessioni di backup concluse con l'esito di ogni macchina e lo spazio dei repository, dall'API REST di Veeam.",
+            "ogni 15 minuti", "security.services.veeam_api:run", ("veeam.api.attivo",), "veeam",
+            "security:backup", "Backup"),
     Lettura("cve", "CVE: NVD, CISA KEV, EPSS", "Vulnerabilità",
             "Dati delle CVE (range vulnerabili), CVE sfruttate attivamente e probabilità di attacco; poi il ricalcolo degli impatti.",
             "ogni ora", "security.services.letture:_cve", ("cve.arricchimento.attivo",),
@@ -90,6 +94,10 @@ LETTURE = (
             "Su quale porta di ogni switch «Rete» sta ogni MAC: dice a quale porta è collegato ogni PC.",
             "ogni notte alle 05:30", "contatori.tabella_mac:run", ("apparati.tabella_mac.attivo",),
             dati_url="contatori:snmp_centrale", dati_label="Monitor SNMP", lunga=True),
+    Lettura("rete_windows", "DHCP e DNS di Windows Server", "Rete",
+            "Ambiti, lease e prenotazioni del DHCP e record del DNS: indirizzi IP, dispositivi non censiti, record DNS vecchi.",
+            "ogni ora", "assets.tasks:_rete_windows_sync", requisito="rete",
+            dati_url="assets:rete_indirizzi", dati_label="Indirizzi IP"),
 )
 PER_CODICE = {lettura.codice: lettura for lettura in LETTURE}
 
@@ -145,6 +153,14 @@ def manca(lettura: Lettura) -> str:
             from security.services import watchguard_api
 
             return "" if watchguard_api.configurato() else "Credenziali API WatchGuard non configurate (riquadro in Avvisi e automatismi)."
+        if lettura.requisito == "veeam":
+            from security.services import veeam_api
+
+            return "" if veeam_api.configured() else "Indirizzo, utente o password dell'API di Veeam mancanti nel file .env del server."
+        if lettura.requisito == "rete":
+            from assets.services import rete_windows
+
+            return "" if rete_windows.configurato() else "Server DHCP/DNS non indicati nel file .env del server (RETE_DHCP_SERVERS, RETE_DNS_SERVER)."
         if lettura.requisito == "caselle":
             from security.models import SecurityMailboxSource
 
@@ -275,7 +291,11 @@ def _pulisci(codice):
 ETICHETTE = {
     # comuni
     "letti": "letti", "eventi": "eventi", "righe": "righe lette", "importate": "importate", "nuove": "nuove",
-    "pc": "PC", "non_piu_rilevate": "non più rilevate", "creati": "nuovi", "aggiornati": "aggiornati", "usciti": "usciti",
+    "pc": "PC", "non_piu_rilevate": "non più rilevate",
+    # Veeam e DHCP/DNS
+    "sessioni_lette": "sessioni lette", "salvate": "esecuzioni salvate", "gia_da_mail": "già arrivate per mail",
+    "repository": "repository", "eventi_repository": "avvisi sui repository", "dhcp": "DHCP", "dns": "DNS",
+    "ambiti": "ambiti", "indirizzi": "indirizzi", "spariti": "non più visti", "proposte_cambiate": "proposte di asset cambiate", "creati": "nuovi", "aggiornati": "aggiornati", "usciti": "usciti",
     # WatchGuard
     "dispositivi": "PC e protezione", "software": "Software", "patch": "Patch", "task": "Task di installazione",
     "senza_agente": "senza agente", "spariti": "non più visti", "chiuse": "chiuse", "patch_aggiornate": "esiti aggiornati",

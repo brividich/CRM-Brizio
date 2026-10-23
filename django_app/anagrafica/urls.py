@@ -381,6 +381,9 @@ urlpatterns = [
     path("mansionario/persona/<int:legacy_id>/", views_mansionario.mansionario_persona, name="mansionario_persona"),
     path("mansionario/lacune/", views_mansionario.mansionario_lacune, name="mansionario_lacune"),
     path("mansionario/regole/", views_mansionario.mansionario_regole, name="mansionario_regole"),
+    path("mansionario/competenze/", views_mansionario.mansionario_catalogo, name="mansionario_catalogo"),
+    path("mansionario/matrice-competenze/", views_mansionario.mansionario_matrice_competenze,
+         name="mansionario_matrice_competenze"),
     # Struttura ruolo → mansione → competenze: editor unico, export/import Excel
     path("mansionario/struttura/", views_struttura.struttura, name="mansionario_struttura"),
     path("mansionario/struttura/nuova/", views_struttura.struttura_nuova, name="mansionario_struttura_nuova"),

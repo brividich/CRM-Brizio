@@ -827,8 +827,12 @@ class AssetsRoutingTests(TestCase):
                 # La scheda mostra il layout del REPARTO, non quello di default.
                 self.assertEqual(resp.context["map_marker"].layout_id, cromatura.id)
                 # Self-heal: il marker è stato spostato sul layout corretto.
-                self.assertTrue(PlantLayoutMarker.objects.filter(asset=asset, layout=cromatura).exists())
+                moved = PlantLayoutMarker.objects.get(asset=asset, layout=cromatura)
                 self.assertFalse(PlantLayoutMarker.objects.filter(asset=asset, layout=officina).exists())
+                # Le coordinate erano dell'altra pianta: torna «da posizionare».
+                self.assertEqual((moved.x_percent, moved.y_percent), (50, 50))
+                self.assertFalse(resp.context["map_card"]["placed"])
+                self.assertContains(resp, "Posizione da definire")
 
     def test_asset_list_firewall_context_uses_common_default_columns(self):
         firewall_asset = Asset.objects.create(

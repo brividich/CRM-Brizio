@@ -2451,6 +2451,9 @@ class SoftwareLicenseRenewalForm(forms.ModelForm):
 
 
 class PlantLayoutForm(forms.ModelForm):
+    # FileField e non ImageField: il campo immagine di Django scarterebbe il PDF
+    # prima di clean_image, che lo converte in PNG e poi verifica il raster.
+    image = forms.FileField(required=False)
     areas_payload = forms.CharField(required=False, widget=forms.HiddenInput())
     markers_payload = forms.CharField(required=False, widget=forms.HiddenInput())
 
@@ -2461,7 +2464,7 @@ class PlantLayoutForm(forms.ModelForm):
             "category": "Categoria mappa",
             "name": "Nome planimetria",
             "description": "Descrizione",
-            "image": "Immagine PNG/JPG",
+            "image": "Planimetria (PNG, JPG o PDF)",
             "is_active": "Usa come mappa attiva",
         }
         widgets = {
@@ -2471,8 +2474,8 @@ class PlantLayoutForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["category"].help_text = "Esempi: Officina, TVCC, Sistema allarme."
-        self.fields["image"].widget.attrs["accept"] = ".png,.jpg,.jpeg"
-        self.fields["image"].help_text = "Carica una planimetria in PNG o JPG."
+        self.fields["image"].widget.attrs["accept"] = ".png,.jpg,.jpeg,.pdf"
+        self.fields["image"].help_text = "PNG, JPG o PDF (del PDF si usa la prima pagina). Dopo il caricamento puoi ruotarla e ritagliarla."
         self.fields["description"].help_text = "Nota interna facoltativa per capire versione o piano."
         self.fields["is_active"].widget.attrs["class"] = ""
         _attach_input_css(self)
@@ -2519,8 +2522,18 @@ class PlantLayoutForm(forms.ModelForm):
         upload = self.cleaned_data.get("image")
         if upload:
             ext = Path(getattr(upload, "name", "") or "").suffix.lower()
+            if ext == ".pdf":
+                from .services.plant_layout_image import pdf_to_png_upload
+
+                try:
+                    upload = pdf_to_png_upload(upload)
+                except ValueError as exc:
+                    raise forms.ValidationError(str(exc)) from exc
+                except Exception as exc:
+                    raise forms.ValidationError("Il PDF non si legge: esportalo di nuovo o caricalo come PNG/JPG.") from exc
+                ext = ".png"
             if ext not in {".png", ".jpg", ".jpeg"}:
-                raise forms.ValidationError("Carica una planimetria PNG o JPG.")
+                raise forms.ValidationError("Carica una planimetria PNG, JPG o PDF.")
             size = int(getattr(upload, "size", 0) or 0)
             if size > 10 * 1024 * 1024:
                 raise forms.ValidationError("La planimetria non puo superare 10 MB.")
@@ -2529,7 +2542,7 @@ class PlantLayoutForm(forms.ModelForm):
             )
         if self.instance and self.instance.pk and self.instance.image:
             return self.instance.image
-        raise forms.ValidationError("Carica una planimetria PNG o JPG.")
+        raise forms.ValidationError("Carica una planimetria PNG, JPG o PDF.")
 
     def clean(self):
         cleaned_data = super().clean()

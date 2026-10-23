@@ -43,6 +43,9 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#storico">Storico delle modifiche</a>
     <a href="#software">Software installati e licenze</a>
     <a href="#catalogo">Catalogo software</a>
+    <a href="#rete-indirizzi">Indirizzi IP</a>
+    <a href="#mtconnect">Macchine collegate (MTConnect)</a>
+    <a href="#planimetrie">Planimetria dell'officina</a>
     <a href="#part145">PART 145</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
@@ -352,6 +355,59 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Con l'API WatchGuard accesa (SOC › Impostazioni) la voce <strong>WatchGuard</strong> dice lo stato della protezione e quante patch mancano; rossa se la protezione non va o se il PC è in rete senza agente. La voce <strong>Rete</strong> dice a quale switch e porta è collegato il PC (tabella MAC letta ogni notte dagli switch del Monitor SNMP; il MAC arriva da Intune, WatchGuard o dal punto rete). Nel riquadro Intune, <strong>Aggiornamenti Windows</strong> dice «Indietro» se altri PC con la stessa versione di Windows hanno già un aggiornamento cumulativo più recente.</p>
       <h3>Cosa succede nel SOC</h3>
       <p>Dopo ogni salvataggio e ogni import dell'inventario il SOC controlla il catalogo: se nuovi PC hanno un software <em>Non autorizzato</em> o <em>Da rimuovere</em>, o una versione sotto la minima, nasce un alert (uno per software, che si aggiorna se altri PC si aggiungono). Il riepilogo è nella pagina Vulnerabilità del SOC, riquadro «Software non conforme».</p>
+    </section>
+
+    <section class="ag-sec" id="rete-indirizzi">
+      <h2>Indirizzi IP (DHCP e DNS)</h2>
+      <p>La pagina <a href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a> (menu, accanto a Catalogo software) elenca gli indirizzi della rete letti dal <strong>DHCP</strong> e dal <strong>DNS</strong> di Windows Server, <strong>una riga per IP</strong>: MAC, nome che il PC dà al DHCP, nome nel DNS, tipo (dinamico, prenotazione, solo nel DNS) e l'asset a cui appartiene. Si aggiorna da sola <strong>ogni ora</strong>; in cima c'è l'ora dell'ultima lettura ed eventuali errori.</p>
+      <h3>Ambiti DHCP</h3>
+      <p>I riquadri in alto sono gli ambiti DHCP con quanti indirizzi sono in uso e quanti liberi. Un ambito con il bordo rosso è <strong>quasi pieno</strong> (in uso il 90% o più): i nuovi dispositivi potrebbero non ricevere un indirizzo. Un clic sul riquadro mostra solo gli indirizzi di quell'ambito; un altro clic toglie il filtro.</p>
+      <h3>Filtri</h3>
+      <ul>
+        <li><strong>Non censiti</strong>: indirizzi DHCP di dispositivi che nessun asset del registro riconosce (né per MAC, né per IP, né per nome). Sono da censire o da indagare.</li>
+        <li><strong>Da collegare</strong>: il portale ha trovato l'asset giusto (lo dice la colonna Asset, con il motivo: MAC, IP o nome); la conferma si fa dalla <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a>, modulo «Rete (DHCP)».</li>
+        <li><strong>Collegati a un asset</strong>: già confermati; nella scheda dell'asset la riga <strong>Visto da</strong> mostra la fonte «Rete» con l'IP.</li>
+        <li><strong>Nome DHCP diverso dal DNS</strong>: il DNS dà a quell'IP il nome di un altro dispositivo, di solito un record rimasto. Si corregge sul server DNS.</li>
+        <li><strong>Record DNS vecchi</strong>: record dinamici non aggiornati da oltre 30 giorni e senza un lease DHCP: probabilmente da eliminare (o da far pulire con lo «scavenging» del DNS).</li>
+        <li><strong>Prenotazioni</strong> e <strong>Non più visti</strong> (indirizzi spariti da DHCP e DNS, in grigio).</li>
+      </ul>
+      <p>La ricerca trova IP, MAC, nomi DHCP e DNS e il nome dell'asset.</p>
+      <p class="ag-note">Per riconoscere un dispositivo dal MAC, scrivilo nel punto rete dell'asset (scheda asset › Rete) oppure collega il PC a Intune: il portale usa anche i MAC che Intune conosce. Il registro non viene mai modificato da solo: la lettura propone, la riconciliazione conferma.</p>
+    </section>
+
+    <section class="ag-sec" id="mtconnect">
+      <h2>Macchine collegate (MTConnect)</h2>
+      <p>Le CNC che hanno un <strong>agent MTConnect</strong> (lo standard aperto con cui il controllo pubblica il suo stato in rete) si collegano dalla pagina <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a>. Ogni <strong>2 minuti</strong> il portale legge dall'agent, solo in lettura e solo nella rete interna:</p>
+      <ul>
+        <li><strong>lo stato</strong>: <em>In lavoro</em>, <em>Pronta</em> (accesa senza programma in corso), <em>Programma interrotto</em> (fermo in avanzamento, stop), <em>In allarme</em> (allarme attivo sul controllo o emergenza premuta), <em>Spenta</em>, <em>Agent non raggiungibile</em>;</li>
+        <li>il programma in esecuzione, la modalità, i pezzi contati dalla CNC, gli allarmi e gli avvisi attivi con il codice e il testo;</li>
+        <li>le <strong>ore di lavoro</strong> e i <strong>pezzi</strong>, se l'agent li espone.</li>
+      </ul>
+      <h3>Collegare una macchina</h3>
+      <ol>
+        <li>Apri <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a> (menu Configurazione, sotto Indirizzi IP).</li>
+        <li>Scegli la <strong>Macchina</strong> e scrivi l'<strong>Indirizzo dell'agent</strong>, per esempio <kbd>http://10.0.5.21:5000</kbd>. Se l'agent serve più macchine, scrivi anche il nome del <strong>Dispositivo</strong>.</li>
+        <li>Premi <span class="ag-btn">Prova</span>: il portale dice cosa legge (stato, programma, ore, pezzi) senza salvare. Se ore o pezzi non ci sono, l'agent non li espone e quel contatore non avanzerà.</li>
+        <li>Lascia spuntate <strong>Aggiorna il contatore Ore</strong> e <strong>Aggiorna il contatore Cicli con i pezzi</strong> se vuoi che i piani di manutenzione a contatore usino i dati della macchina (i contatori «Ore» e «Cicli» si creano dalla scheda della macchina).</li>
+        <li>Premi <span class="ag-btn">Salva collegamento</span>. Collegare, sospendere e togliere una macchina lo può fare chi ha il permesso di modificarla.</li>
+      </ol>
+      <p class="ag-note">I contatori avanzano per <strong>differenza</strong> tra due letture e al massimo <strong>una volta all'ora</strong>: se il contatore pezzi della CNC viene azzerato a fine turno, quello del portale non scende, riparte da lì. La prima lettura fa solo da base di partenza.</p>
+      <h3>Sulla mappa officina</h3>
+      <p>Nella <a href="{% url 'assets:plant_layout_map' %}">mappa officina</a> una macchina in allarme ha il pallino <strong>rosso scuro «Allarme sulla CNC»</strong>, il più grave, e in alto compare il riquadro <strong>Allarmi sulle CNC</strong>. Cliccando la macchina, il riquadro <strong>Dal controllo della macchina</strong> mostra stato e da quando, programma, modalità, pezzi, ore in lavoro di oggi, ora dell'ultima lettura e gli allarmi attivi. Se la lettura è più vecchia di 15 minuti lo stato appare come <em>Dato non aggiornato</em> e non conta come allarme.</p>
+    </section>
+
+    <section class="ag-sec" id="planimetrie">
+      <h2>Planimetria dell'officina</h2>
+      <p>La <a href="{% url 'assets:plant_layout_map' %}"><strong>mappa officina</strong></a> mostra dove sono le macchine e il loro stato (ticket aperto, manutenzione scaduta, OdL aperto, in scadenza, in riparazione). Nella scheda di ogni macchina, il riquadro <strong>«Posizione in officina»</strong> mostra la zona ingrandita intorno alla macchina, il reparto disegnato in cui si trova e, aprendo <strong>«Pianta intera»</strong>, tutta la planimetria. Se la macchina è sulla pianta ma non è ancora stata collocata compare <strong>«Posizione da definire»</strong>.</p>
+      <p>Chi gestisce la mappa usa l'<strong>editor planimetrie</strong> (pulsante «Apri editor mappa» o «Posiziona ora»/«Sposta» dalla scheda):</p>
+      <ul>
+        <li><strong>Carica</strong> la pianta in «Dati della planimetria»: PNG, JPG o <strong>PDF</strong> (del PDF si usa la prima pagina). Una sola planimetria per categoria è «Attiva».</li>
+        <li><strong>Ruota</strong> (⟲ / ⟳) raddrizza una pianta caricata di traverso; <strong>Ritaglia</strong> tiene solo il riquadro trascinato; <strong>Margini automatici</strong> propone il ritaglio dei bordi bianchi, da confermare con «Applica ritaglio». Reparti e macchine seguono la pianta; le macchine rimaste fuori dal ritaglio tornano «da collocare».</li>
+        <li><strong>Disegna reparto</strong>: trascina il rettangolo; il <strong>codice reparto</strong> deve essere uguale al campo reparto delle macchine. Un reparto selezionato si sposta trascinandolo e si ridimensiona dal quadratino in basso a destra.</li>
+        <li><strong>Macchine</strong>: l'elenco a destra filtra «Da posizionare», «Sulla pianta», «Tutte». Clicca una macchina da posizionare e poi il punto sulla pianta; quelle già presenti si trascinano. «Togli dalla pianta» la rimuove.</li>
+        <li>Rotellina o +/− per lo zoom, trascina lo sfondo per spostarti, Canc elimina la selezione, Esc annulla. Premi <strong>«Salva»</strong>: uscendo senza salvare la pagina avvisa.</li>
+      </ul>
+      <p>Una macchina il cui reparto ha una planimetria dedicata (categoria uguale al reparto, o un reparto disegnato con quel codice) viene mostrata su quella; se il segnaposto era su un'altra pianta viene spostato e torna «da collocare», perché le coordinate di un'altra pianta non valgono.</p>
     </section>
 
     <section class="ag-sec" id="part145">

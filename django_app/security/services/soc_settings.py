@@ -31,6 +31,14 @@ class Option:
     unit: str = ""
 
 
+def _opzioni_eventi_portale():
+    """Un interruttore per ogni tipo del catalogo ``core.eventi_sicurezza`` che può aprire un alert."""
+    from core.eventi_sicurezza import CATALOGO, chiave_interruttore
+
+    return [Option(chiave_interruttore(t.codice), True, f"Alert: {t.etichetta}", t.descrizione)
+            for t in CATALOGO if t.alert and t.interruttore]
+
+
 SECTIONS = [
     {
         "code": "incidenti",
@@ -147,6 +155,23 @@ SECTIONS = [
         ],
     },
     {
+        "code": "veeam",
+        "title": "Backup letti direttamente da Veeam",
+        "intro": "Ogni 15 minuti il SOC legge dall'API REST di Veeam Backup & Replication le sessioni di backup concluse, con "
+                 "l'esito di ogni macchina, e lo spazio dei repository: la pagina Backup non dipende più dalle mail di esito. "
+                 "Se arrivano anche le mail, la stessa esecuzione conta una volta sola. Indirizzo, utente (di sola lettura) e "
+                 "password stanno nel file .env del server (VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD).",
+        "channels_optional": True,
+        "options": [
+            Option("veeam.api.attivo", False, "Leggi i backup dall'API di Veeam"),
+            Option("veeam.primo_giro_giorni", 7, "Primo giro", "Giorni di storico letti la prima volta.", "int", min_value=1, max_value=30),
+            Option("veeam.repository.alert", True, "Avvisa quando un repository si riempie",
+                   "Un alert per repository sotto la soglia, chiuso da solo quando lo spazio torna sopra."),
+            Option("veeam.repository.soglia_pct", 15, "Spazio libero minimo", "Sotto questa percentuale di spazio libero nasce l'alert.",
+                   "int", min_value=1, max_value=50, unit="%"),
+        ],
+    },
+    {
         "code": "entra",
         "title": "Microsoft Entra ID (account, modifiche amministrative, accessi)",
         "intro": "Due controlli su Microsoft 365, ciascuno con il suo interruttore. «Account di ex dipendenti»: ogni 6 ore "
@@ -190,6 +215,18 @@ SECTIONS = [
             Option("apparati.tabella_mac.attivo", True, "Leggi la tabella MAC degli switch",
                    "Ogni notte alle 05:30 legge (solo lettura) su quale porta di ogni switch «Rete» sta ogni MAC: la scheda del PC "
                    "dice a quale switch e porta è collegato, la scheda dello switch quali PC ha sulle porte."),
+        ],
+    },
+    {
+        "code": "portale",
+        "title": "Eventi di sicurezza del portale",
+        "intro": "Momenti del portale che il SOC deve vedere: accessi bloccati, PIN delle postazioni condivise bloccati, "
+                 "sessioni spostate su un altro PC, impersonazioni. Arrivano nella sorgente «Portale · accessi»; per ogni "
+                 "tipo si sceglie se apre un alert o resta un evento (KPI). L'elenco viene da core/eventi_sicurezza.py.",
+        "channels_optional": True,
+        "options": [
+            Option("portale.eventi.attivo", True, "Manda al SOC gli eventi di sicurezza del portale"),
+            *_opzioni_eventi_portale(),
         ],
     },
     {

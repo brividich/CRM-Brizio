@@ -35,6 +35,15 @@ Security Center (Security Center AI innestato): **Panoramica IT** (`/soc/`: verd
 - **Log esecuzioni** `/soc/backup/log/` (filtri esito, job, periodo, PC) e **scheda dispositivo** `/soc/backup/dispositivo/?nome=…` (storico, collegamento all'asset HUB se il nome host coincide con un dispositivo SOC collegato).
 - Granularità: **Veeam** dà l'esito di ogni macchina (`payload.objects`); **Synology Active Backup** solo quello del job, che i PC del job ereditano (in pagina «esito del job»).
 
+## Eventi di sicurezza del portale (23/10/2026)
+
+Canale unico `core/eventi_sicurezza.py` → sorgente «Portale · accessi». `CATALOGO` (codice, etichetta, severità, alert sì/no) + `segnala(codice, utente=, request=, chiave=, titolo=, dettaglio=, finestra_minuti=, una_volta=)`: crea il `SecurityEventRecord` e lo valuta subito (`rule_engine.evaluate_event`, stesse regole e soppressioni del giro completo). Non solleva mai.
+
+- Tipi: `login_bloccato` (segnale `user_locked_out` di axes, uno all'ora per nome utente e IP), `twofa_bloccato` (codice app o mail esauriti), `postazione_pin_bloccato`, `postazione_altro_pc`, `impersonazione_avviata` (KPI), più `accesso_nuovo_dispositivo` / `accesso_non_riconosciuto` di `core/dispositivi.py` (regole dedicate invariate).
+- Regola generica `_evaluate_evento_portale` (payload `evento_portale`): alert con il titolo passato se il tipo lo prevede e l'interruttore `portale.alert.<codice>` è acceso; altrimenti `kpi_only`. Stessa chiave = stesso alert finché aperto.
+- Impostazioni: sezione «Eventi di sicurezza del portale» in `/soc/impostazioni/`, generata dal catalogo (`portale.eventi.attivo` + un interruttore per tipo).
+- Nuovo evento: una riga nel catalogo + `segnala(...)` nel punto del portale. Test `core.test_eventi_sicurezza`.
+
 ## Impostazioni e avvisi automatici
 
 `/soc/impostazioni/` (Gestione › Impostazioni, modifica con il permesso di configurazione SOC). Tutto **spento di default**; ogni sezione sceglie i canali tra quelli di Config › Notifiche.
@@ -128,6 +137,16 @@ Una sola voce **Configurazione** nel gruppo Gestione (prima: Caselle mail, Confi
 - `rule_engine._evaluate_defender_alert`: `resolved` in Defender → `auto_resolution.resolve_alert` sull'alert attivo; sotto `defender.severita_minima` → `kpi_only`; altrimenti alert «Defender: <titolo> su <PC>» aggiornato (severità e titolo) se Defender lo cambia, evidenza e notifica alla creazione.
 - Impostazioni (`soc_settings`, sezione `defender`): `defender.alert.attivo` (spenta), `defender.severita_minima` (Media), `defender.primo_giro_giorni` (7). Stato tecnico in `SecurityCenterSetting` `defender.cursore` / `defender.ultimo_giro` (scritto senza audit di configurazione).
 - Comando `defender_alerts [--prova | --esegui]`. Prerequisito: permesso applicativo Graph **`SecurityAlert.Read.All`** con consenso amministratore; senza, il giro registra «Graph ha risposto 403» e il ciclo prosegue.
+
+## Backup letti dall'API di Veeam (23/10/2026)
+
+- `security/services/veeam_api.py`: passo `veeam` del `security_cycle` (ogni 15 min), spento finché non si accende `veeam.api.attivo` in `/soc/impostazioni/` (sezione `veeam`). Solo letture, in uscita verso il server Veeam Backup & Replication 12+ (porta 9419): `POST /api/oauth2/token` (grant password, header `x-api-version`, default `1.1-rev0`), `GET /api/v1/sessions?createdAfterFilter=…` (paginazione `skip`/`limit`, max 10 × 200), `GET /api/v1/sessions/{id}/taskSessions` solo per le sessioni nuove concluse, `GET /api/v1/backupInfrastructure/repositories/states`, `POST /api/oauth2/logout`.
+- Sessioni di backup (`sessionType` con «Backup», fuori ripristini e backup della configurazione) concluse (`state = Stopped`) → `BackupJobRecord` + evento `backup_job` sulla sorgente «Veeam Backup & Replication (API)» tramite `parser_engine._persist_record`, con lo stesso payload del parser delle mail (`objects` per macchina, `source = veeam_api`, `veeam_session_id`); dedup sull'id della sessione. Esiti: Success → riuscito, Warning o annullata → con avvisi, Failed → fallito.
+- **Mail e API insieme**: `veeam_api.same_run_exists` (stesso job, inizio entro 2 minuti, controllo del payload in Python, niente lookup JSON su SQL Server) evita il doppio conteggio nei due sensi; il ramo `backup_job` di `_persist_record` lo usa per le mail Veeam.
+- Cursore: ultimo giro riuscito (`veeam.ultimo_ok`) meno 48 ore di sovrapposizione; primo giro `veeam.primo_giro_giorni` (7). Massimo 200 sessioni nuove per giro. Stato tecnico in `SecurityCenterSetting` categoria `veeam` (`veeam.ultimo_giro`, `veeam.repository`).
+- Repository: evento `backup_repository_space` solo quando un repository passa sotto `veeam.repository.soglia_pct` (15%) o torna sopra; `rule_engine._evaluate_backup_repository_space` apre l'alert «Repository di backup quasi pieno» (uno per repository) e lo chiude al rientro. Interruttore `veeam.repository.alert`.
+- Pagina Backup: riquadro **Lettura diretta da Veeam** (stato del collegamento, ultimo giro, spazio dei repository) visibile con la lettura accesa o dati già letti.
+- Configurazione solo nel `.env`: `VEEAM_API_URL`, `VEEAM_API_USERNAME`, `VEEAM_API_PASSWORD` (utente con ruolo **Veeam Backup Viewer**), facoltativi `VEEAM_API_VERSION`, `VEEAM_API_CA_BUNDLE`; solo `https://`. Comando `veeam_api [--prova | --esegui]`. Nessuna migrazione, nessuna rotta nuova.
 
 ## Note di rilascio
 

@@ -37,6 +37,19 @@ GUIDA = {
             ],
         },
         {
+            "id": "planimetria",
+            "titolo": "Vedere dove si trova una macchina; collocarla sulla planimetria",
+            "blocchi": [
+                ("p", "Nella scheda della macchina il riquadro «Posizione in officina» mostra la zona ingrandita e il reparto; "
+                      "«Pianta intera» apre tutta la planimetria, «Vedi sulla mappa» la mappa officina con lo stato delle macchine."),
+                ("passi", [
+                    "Dalla scheda premi «Posiziona ora» (o «Sposta»): si apre l'editor con la macchina già scelta.",
+                    "Clicca sulla pianta il punto in cui si trova la macchina; usa la rotellina per ingrandire.",
+                    "Premi «Salva».",
+                ]),
+            ],
+        },
+        {
             "id": "report",
             "titolo": "Estrarre un report (rete, licenze, costi, schede incomplete)",
             "blocchi": [
@@ -113,8 +126,49 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "mtconnect",
+            "titolo": "Stato reale delle CNC (MTConnect) sulla mappa officina",
+            "blocchi": [
+                ("passi", [
+                    "Apri la mappa officina: una macchina con il pallino rosso scuro è «In allarme» sul suo controllo.",
+                    "Clicca la macchina: «Dal controllo della macchina» dice stato e da quando, programma, pezzi, ore in lavoro di oggi e gli allarmi attivi.",
+                    "Elenco di tutte le macchine collegate, con stato e contatori: Configurazione → «Macchine collegate».",
+                ]),
+                ("p", "Lo stato si aggiorna ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli ultimi 15 minuti "
+                      "(agent spento o lettura ferma): in quel caso la macchina non conta come in allarme."),
+            ],
+        },
+        {
+            "id": "rete-indirizzi",
+            "titolo": "Indirizzi IP e dispositivi non censiti (DHCP e DNS)",
+            "blocchi": [
+                ("passi", [
+                    "Apri Asset → «Indirizzi IP»: una riga per indirizzo, letta ogni ora dal DHCP e dal DNS di Windows Server.",
+                    "I riquadri in alto sono gli ambiti DHCP: bordo rosso = quasi pieno (90% o più degli indirizzi in uso).",
+                    "Filtro «Non censiti»: dispositivi in rete che nessun asset riconosce per MAC, IP o nome: da censire o da indagare.",
+                    "Filtro «Da collegare»: il portale propone l'asset; conferma da «Riconciliazione dispositivi», righe «Rete (DHCP)».",
+                    "Filtri «Nome DHCP diverso dal DNS» e «Record DNS vecchi»: record DNS rimasti da sistemare sul server DNS.",
+                ]),
+                ("p", "Per far riconoscere un dispositivo dal MAC scrivilo nel punto rete dell'asset (scheda › Rete); valgono anche i MAC "
+                      "dei PC collegati a Intune. Un indirizzo collegato compare nella riga «Visto da» della scheda asset come fonte «Rete»."),
+            ],
+        },
     ],
     "admin": [
+        {
+            "id": "planimetrie",
+            "titolo": "Preparare la planimetria dell'officina",
+            "blocchi": [
+                ("ul", [
+                    "Editor planimetrie (mappa officina → «Apri editor mappa»): carica la pianta in PNG, JPG o PDF (prima pagina).",
+                    "«Ruota» raddrizza una pianta di traverso; «Ritaglia» e «Margini automatici» tolgono i bordi inutili. "
+                    "Reparti e macchine seguono la pianta; le macchine fuori dal ritaglio tornano «da collocare».",
+                    "Disegna i reparti e scrivi il codice reparto uguale al campo reparto delle macchine.",
+                    "Una sola planimetria per categoria è «Attiva»: le altre restano bozze finché non le pubblichi.",
+                ]),
+            ],
+        },
         {
             "id": "config",
             "titolo": "Configurazione",
@@ -195,6 +249,35 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "mtconnect-collega",
+            "titolo": "Collegare una CNC con MTConnect",
+            "blocchi": [
+                ("passi", [
+                    "Serve un agent MTConnect raggiungibile dal server del portale (sul PC della macchina o su un gateway dell'officina).",
+                    "Configurazione → «Macchine collegate»: scegli la macchina, scrivi l'indirizzo dell'agent (es. http://10.0.5.21:5000) e premi «Prova».",
+                    "Se la prova legge ore e pezzi, lascia spuntati i contatori Ore e Cicli (vanno creati prima dalla scheda della macchina).",
+                    "Premi «Salva collegamento»: lo stato arriva sulla mappa entro 2 minuti (schedule mtconnect_poll).",
+                ]),
+                ("p", "Solo indirizzi della rete interna; il portale legge e basta. Collegare, sospendere o togliere una macchina "
+                      "richiede il permesso di modificarla. I contatori avanzano per differenza, al massimo una volta all'ora."),
+            ],
+        },
+        {
+            "id": "rete-windows",
+            "titolo": "Collegare il DHCP e il DNS di Windows Server",
+            "blocchi": [
+                ("passi", [
+                    "Sul server del portale installa gli strumenti RSAT: Install-WindowsFeature RSAT-DHCP, RSAT-DNS-Server.",
+                    "Metti l'utente che fa girare il qcluster nel gruppo «DHCP Users» del server DHCP (sola lettura).",
+                    "Nel .env del portale: RETE_DHCP_SERVERS (uno o più server, separati da virgole), RETE_DNS_SERVER e RETE_DNS_ZONES (es. dominio.local).",
+                    "Riavvia il portale e il qcluster, poi prova dal terminale: manage.py rete_windows --prova.",
+                    "Dopo la prima lettura (lo schedule rete_windows_sync gira ogni ora; subito: manage.py rete_windows) apri Asset → «Indirizzi IP».",
+                ]),
+                ("p", "Il portale lancia in locale due script PowerShell fissi che leggono soltanto: nessuna modifica a DHCP e DNS. "
+                      "Gli errori di un server (permessi, RSAT mancanti, server non raggiungibile) compaiono in cima alla pagina Indirizzi IP."),
+            ],
+        },
     ],
     "problemi": [
         {
@@ -203,6 +286,48 @@ GUIDA = {
                 "Se la stessa verifica ha anche un piano di manutenzione sull'asset, registrala solo dal piano e "
                 "disattiva la voce amministrativa (lo fa anche riordina_scadenze_amministrative).",
                 "Le serie inserite una riga per data si sostituiscono con una sola voce e «Si ripete ogni (mesi)».",
+            ],
+        },
+        {
+            "sintomo": "Una macchina collegata risulta «Agent non raggiungibile» o «Dato non aggiornato»",
+            "fare": [
+                "«Agent non raggiungibile»: l'agent è spento o la rete non passa. Dal server del portale apri l'indirizzo dell'agent seguito da /current: deve rispondere un XML.",
+                "«Dato non aggiornato»: nessuna lettura da oltre 15 minuti; controlla che il qcluster giri (Centrale di comando, schedule mtconnect_poll).",
+                "«Dispositivo non trovato»: l'agent serve più macchine; scrivi nel collegamento il nome giusto (la «Prova» elenca i dispositivi dell'agent).",
+            ],
+        },
+        {
+            "sintomo": "Il contatore Ore o Cicli di una macchina collegata non avanza",
+            "fare": [
+                "La «Prova» del collegamento dice se l'agent espone ore e pezzi: se scrive «non le espone», il controllo non pubblica quel dato.",
+                "Il collegamento deve avere la spunta del contatore e l'asset deve avere un contatore «Ore» o «Cicli» (creato dalla scheda); poi salva di nuovo il collegamento.",
+                "Il contatore avanza al massimo una volta all'ora e la prima lettura fa solo da base.",
+            ],
+        },
+        {
+            "sintomo": "La pagina Indirizzi IP dice «Accesso negato» o «Mancano i moduli PowerShell»",
+            "fare": [
+                "«Mancano i moduli»: sul server del portale installa RSAT-DHCP e RSAT-DNS-Server (Install-WindowsFeature).",
+                "«Accesso negato»: l'utente che fa girare il qcluster deve stare nel gruppo «DHCP Users» del server DHCP; dopo l'aggiunta va riavviato il qcluster.",
+                "«Server non raggiungibile»: controlla il nome in RETE_DHCP_SERVERS / RETE_DNS_SERVER e il firewall (RPC) tra i due server.",
+                "Prova dal terminale con manage.py rete_windows --prova: dice quanti ambiti, indirizzi e record legge.",
+            ],
+        },
+        {
+            "sintomo": "Un dispositivo risulta «non censito» ma l'asset c'è",
+            "fare": [
+                "L'abbinamento usa MAC, IP e nome: scrivi il MAC nel punto rete dell'asset (scheda › Rete) o dai all'asset lo stesso nome del PC.",
+                "Se due asset hanno lo stesso MAC, IP o nome la proposta resta vuota (ambigua): correggi il doppione.",
+                "Le proposte si ricalcolano a ogni lettura (ogni ora).",
+            ],
+        },
+        {
+            "sintomo": "Nella scheda della macchina compare «Posizione da definire» o la planimetria sbagliata",
+            "fare": [
+                "«Posizione da definire»: la macchina è sulla pianta ma nessuno l'ha collocata. Premi «Posiziona ora» e clicca il punto giusto.",
+                "Se il reparto della macchina ha una planimetria dedicata (categoria uguale al reparto o reparto disegnato con quel codice) "
+                "la scheda usa quella: controlla il campo reparto della macchina e il codice dei reparti disegnati.",
+                "Se la pianta è di traverso o con grandi margini bianchi, raddrizzala e ritagliala nell'editor.",
             ],
         },
         {

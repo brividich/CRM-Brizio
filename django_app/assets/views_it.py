@@ -1,10 +1,10 @@
-"""Riconciliazione dispositivi IT: proposte di collegamento SNMP, MFC, SOC e Intune in una pagina.
+"""Riconciliazione dispositivi IT: proposte di collegamento SNMP, MFC, SOC, Intune e rete (DHCP) in una pagina.
 
 Le proposte vengono dall'abbinatore unico (``services.identity_match``). Ogni riga
 si conferma solo con il permesso del modulo che possiede il dispositivo: pagina di
 modifica della centrale SNMP per dispositivi e MFC, configurazione del Security
 Center per i dispositivi SOC, modifica dell'asset di destinazione per i PC di
-Microsoft Intune. Alla conferma la proposta viene ricalcolata: si
+Microsoft Intune e per gli indirizzi DHCP. Alla conferma la proposta viene ricalcolata: si
 collega solo se punta ancora allo stesso asset.
 """
 from __future__ import annotations
@@ -43,7 +43,7 @@ def _rows(request: HttpRequest) -> tuple[list[dict], dict[str, int]]:
         rows.append({
             "key": f"{kind}:{obj.pk}:{asset.pk if asset else 0}",
             "kind": kind,
-            "module": {"snmp": "Centrale SNMP", "mfc": "MFC", "soc": "SOC", "intune": "Intune"}[kind],
+            "module": {"snmp": "Centrale SNMP", "mfc": "MFC", "soc": "SOC", "intune": "Intune", "rete": "Rete (DHCP)"}[kind],
             "label": label,
             "ident": ident,
             "asset": asset,
@@ -75,6 +75,13 @@ def _rows(request: HttpRequest) -> tuple[list[dict], dict[str, int]]:
         ident = " · ".join(x for x in (device.seriale, device.utente_nome or device.utente_upn) if x)
         add("intune", device, device.nome or device.seriale, ident, asset, reason,
             reverse("assets:asset_view", args=[asset.pk]) if asset else reverse("assets:it_reconciliation"))
+    from .models import IndirizzoRete
+
+    # Solo indirizzi DHCP: un record solo-DNS non dice a che dispositivo appartiene.
+    for addr in IndirizzoRete.objects.filter(asset__isnull=True, nel_dhcp=True).exclude(mac="").order_by("ip")[:ROW_LIMIT]:
+        asset, reason = match_hub_asset(mac=addr.mac, ip=addr.ip, hostname=addr.nome)
+        add("rete", addr, addr.nome or addr.ip, " · ".join(x for x in (addr.ip, addr.mac) if x), asset, reason,
+            reverse("assets:asset_view", args=[asset.pk]) if asset else reverse("assets:rete_indirizzi") + "?f=non_censiti")
     rows.sort(key=lambda row: (row["asset"] is None, row["module"], row["label"].lower()))
     return rows, counts
 
@@ -111,6 +118,22 @@ def _link(request: HttpRequest, key: str) -> str | None:
                    {"module": "intune", "device_id": device.pk, "asset_id": asset.pk, "asset_tag": asset.asset_tag},
                    oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.pk)
         return str(device)
+    if kind == "rete":
+        from .models import IndirizzoRete
+        from .views import _can_edit_asset
+
+        addr = IndirizzoRete.objects.filter(pk=obj_id, asset__isnull=True).first()
+        if addr is None:
+            return None
+        asset, _reason = match_hub_asset(mac=addr.mac, ip=addr.ip, hostname=addr.nome)
+        if asset is None or asset.pk != asset_id or not _can_edit_asset(request, asset.pk):
+            return None
+        addr.asset = asset
+        addr.save(update_fields=["asset", "aggiornato_il"])
+        log_action(request, "it_reconcile_link", "assets",
+                   {"module": "rete", "device_id": addr.pk, "asset_id": asset.pk, "asset_tag": asset.asset_tag, "ip": addr.ip},
+                   oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.pk)
+        return str(addr)
     if kind == "soc":
         device = SecurityAsset.objects.filter(pk=obj_id, hub_asset__isnull=True).first()
         if device is None or not can_manage_security_config(request.user):

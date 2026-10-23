@@ -3314,11 +3314,13 @@ class AssetMeter(models.Model):
     SOURCE_OPCUA = "OPCUA"
     SOURCE_SNMP = "SNMP"
     SOURCE_IMPORT = "IMPORT"
+    SOURCE_MTCONNECT = "MTCONNECT"
     SOURCE_CHOICES = [
         (SOURCE_MANUAL, "Manuale"),
         (SOURCE_OPCUA, "OPC UA"),
         (SOURCE_SNMP, "SNMP"),
         (SOURCE_IMPORT, "Import"),
+        (SOURCE_MTCONNECT, "MTConnect"),
     ]
 
     asset = models.ForeignKey(
@@ -5323,3 +5325,178 @@ class DispositivoIntune(models.Model):
         if not self.disco_totale_bytes or self.disco_libero_bytes is None:
             return None
         return max(0, min(100, round(100 - self.disco_libero_bytes * 100 / self.disco_totale_bytes)))
+
+
+class AmbitoDhcp(models.Model):
+    """Un ambito (scope) IPv4 di un server DHCP Windows, letto da ``assets.services.rete_windows``.
+
+    Istantanea in sola lettura: la fonte resta il server DHCP. ``presente`` falso =
+    l'ambito non c'era più all'ultima lettura di quel server.
+    """
+
+    server = models.CharField(max_length=120)
+    scope_id = models.CharField(max_length=45)
+    nome = models.CharField(max_length=200, blank=True, default="")
+    maschera = models.CharField(max_length=45, blank=True, default="")
+    inizio = models.CharField(max_length=45, blank=True, default="")
+    fine = models.CharField(max_length=45, blank=True, default="")
+    stato = models.CharField(max_length=30, blank=True, default="")
+    durata_lease_ore = models.FloatField(null=True, blank=True)
+    in_uso = models.PositiveIntegerField(default=0)
+    liberi = models.PositiveIntegerField(default=0)
+    percentuale_uso = models.FloatField(null=True, blank=True)
+    presente = models.BooleanField(default=True)
+    letto_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["server", "scope_id"]
+        constraints = [models.UniqueConstraint(fields=["server", "scope_id"], name="uniq_ambito_dhcp")]
+        verbose_name = "Ambito DHCP"
+        verbose_name_plural = "Ambiti DHCP"
+
+    def __str__(self) -> str:
+        return f"{self.scope_id} {self.nome}".strip()
+
+
+class IndirizzoRete(models.Model):
+    """Un indirizzo IPv4 visto dal DHCP (lease o prenotazione) e/o dal DNS di Windows Server.
+
+    Una riga per IP. Il collegamento all'asset non è automatico: ``asset_proposto`` è
+    la proposta dell'abbinatore unico (MAC, IP, nome), confermata dalla
+    riconciliazione dispositivi IT come per SNMP, SOC e Intune.
+    """
+
+    TIPO_LEASE = "lease"
+    TIPO_PRENOTAZIONE = "prenotazione"
+    TIPO_DNS = "dns"
+    TIPO_CHOICES = [
+        (TIPO_LEASE, "Indirizzo dinamico (DHCP)"),
+        (TIPO_PRENOTAZIONE, "Prenotazione DHCP"),
+        (TIPO_DNS, "Solo nel DNS"),
+    ]
+
+    ip = models.CharField(max_length=45, unique=True)
+    mac = models.CharField(max_length=17, blank=True, default="", db_index=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_LEASE)
+    nome_dhcp = models.CharField(max_length=255, blank=True, default="")
+    stato_dhcp = models.CharField(max_length=40, blank=True, default="")
+    scadenza_lease = models.DateTimeField(null=True, blank=True)
+    server_dhcp = models.CharField(max_length=120, blank=True, default="")
+    ambito = models.ForeignKey(AmbitoDhcp, null=True, blank=True, on_delete=models.SET_NULL, related_name="indirizzi")
+    nel_dhcp = models.BooleanField(default=False)
+    nomi_dns = models.JSONField(default=list, blank=True)
+    dns_statico = models.BooleanField(default=False)
+    dns_aggiornato_il = models.DateTimeField(null=True, blank=True)
+    nel_dns = models.BooleanField(default=False)
+    prima_vista = models.DateTimeField(null=True, blank=True)
+    ultima_vista = models.DateTimeField(null=True, blank=True)
+    asset = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.SET_NULL, related_name="indirizzi_rete")
+    asset_proposto = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    motivo_proposta = models.CharField(max_length=60, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ip"]
+        verbose_name = "Indirizzo di rete"
+        verbose_name_plural = "Indirizzi di rete"
+
+    def __str__(self) -> str:
+        return f"{self.ip} {self.nome}".strip()
+
+    @property
+    def presente(self) -> bool:
+        return self.nel_dhcp or self.nel_dns
+
+    @property
+    def nome(self) -> str:
+        return self.nome_dhcp or (self.nomi_dns[0] if self.nomi_dns else "")
+
+    @staticmethod
+    def _corto(nome: str) -> str:
+        return str(nome or "").split(".", 1)[0].strip().casefold()
+
+    @property
+    def nome_diverso(self) -> bool:
+        """Il DHCP e il DNS danno a questo IP nomi diversi (record DNS rimasto da un altro PC)."""
+        if not (self.nel_dhcp and self.nome_dhcp and self.nomi_dns):
+            return False
+        return self._corto(self.nome_dhcp) not in {self._corto(n) for n in self.nomi_dns}
+
+
+class CollegamentoMTConnect(models.Model):
+    """Una macchina CNC letta da un agent MTConnect (``assets.services.mtconnect``), in sola lettura.
+
+    Ogni 2 minuti lo schedule ``mtconnect_poll`` legge ``/current`` dall'agent e aggiorna
+    lo stato (in lavoro, pronta, ferma, in allarme, spenta, non raggiungibile), il
+    programma, i pezzi e gli allarmi attivi. Le ore di lavoro e i pezzi, se l'agent li
+    espone, avanzano i contatori dell'asset scelti qui (``record_meter_reading``, fonte
+    MTConnect) per differenza tra due letture: un contatore azzerato sulla CNC non fa mai
+    scendere quello del portale.
+    """
+
+    STATO_IN_LAVORO = "in_lavoro"
+    STATO_PRONTA = "pronta"
+    STATO_FERMA = "ferma"
+    STATO_ALLARME = "allarme"
+    STATO_SPENTA = "spenta"
+    STATO_NON_RAGGIUNGIBILE = "non_raggiungibile"
+    STATO_MAI = "mai"
+    STATO_CHOICES = [
+        (STATO_IN_LAVORO, "In lavoro"),
+        (STATO_PRONTA, "Pronta, ferma senza programma"),
+        (STATO_FERMA, "Programma interrotto"),
+        (STATO_ALLARME, "In allarme"),
+        (STATO_SPENTA, "Spenta o non disponibile"),
+        (STATO_NON_RAGGIUNGIBILE, "Agent non raggiungibile"),
+        (STATO_MAI, "Mai letta"),
+    ]
+
+    asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="mtconnect")
+    url_agent = models.CharField(max_length=300, help_text="Indirizzo dell'agent MTConnect, es. http://10.0.5.21:5000")
+    dispositivo = models.CharField(max_length=120, blank=True, default="", help_text="Nome del dispositivo nell'agent; vuoto = il primo.")
+    attivo = models.BooleanField(default=True)
+    contatore_ore = models.ForeignKey(AssetMeter, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    contatore_pezzi = models.ForeignKey(AssetMeter, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_MAI)
+    stato_dal = models.DateTimeField(null=True, blank=True)
+    disponibilita = models.CharField(max_length=30, blank=True, default="")
+    esecuzione = models.CharField(max_length=30, blank=True, default="")
+    modalita = models.CharField(max_length=30, blank=True, default="")
+    emergenza = models.CharField(max_length=30, blank=True, default="")
+    programma = models.CharField(max_length=200, blank=True, default="")
+    pezzi_grezzo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    ore_grezzo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # Differenze accumulate e non ancora registrate sui contatori ({"ore": "0.35", "pezzi": "12"}).
+    sospesi = models.JSONField(default=dict, blank=True)
+    allarmi = models.JSONField(default=list, blank=True)
+    letto_il = models.DateTimeField(null=True, blank=True)
+    controllato_il = models.DateTimeField(null=True, blank=True)
+    errore = models.CharField(max_length=300, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["asset__name"]
+        verbose_name = "Collegamento MTConnect"
+        verbose_name_plural = "Collegamenti MTConnect"
+
+    def __str__(self) -> str:
+        return f"{self.asset} ← {self.url_agent}"
+
+
+class PeriodoStatoMacchina(models.Model):
+    """Da quando a quando una macchina MTConnect è stata in uno stato (``al`` vuoto = in corso)."""
+
+    collegamento = models.ForeignKey(CollegamentoMTConnect, on_delete=models.CASCADE, related_name="periodi")
+    stato = models.CharField(max_length=20, choices=CollegamentoMTConnect.STATO_CHOICES)
+    dal = models.DateTimeField(db_index=True)
+    al = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-dal"]
+        indexes = [models.Index(fields=["collegamento", "dal"], name="assets_periodo_mtc_idx")]
+        verbose_name = "Periodo di stato della macchina"
+        verbose_name_plural = "Periodi di stato delle macchine"
+
+    def __str__(self) -> str:
+        return f"{self.collegamento_id} {self.stato} dal {self.dal:%d/%m %H:%M}"

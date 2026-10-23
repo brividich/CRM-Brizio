@@ -156,6 +156,11 @@ def verify(request):
                                 log_action(request, "2fa_totp_locked", "twofa", {"seconds": locked_for})
                             except Exception:
                                 logger.warning("2FA: audit 2fa_totp_locked non registrato", exc_info=True)
+                            from core.eventi_sicurezza import segnala
+
+                            segnala("twofa_bloccato", utente=user, request=request, chiave=(user.pk,),
+                                    finestra_minuti=60, titolo=f"Verifica in due passaggi bloccata: {user.get_username()}",
+                                    dettaglio={"metodo": "app", "secondi_blocco": locked_for})
                         else:
                             error = f"Codice non valido. Tentativi rimanenti: {remaining}."
             else:  # email

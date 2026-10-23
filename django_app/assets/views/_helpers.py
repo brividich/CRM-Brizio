@@ -1715,6 +1715,8 @@ def _resolve_asset_plant_layout(asset: Asset) -> tuple["PlantLayout | None", boo
 
 
 def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
+    from ..services.plant_layout_image import reset_marker_position
+
     layout, is_specific = _resolve_asset_plant_layout(asset)
     if layout is None:
         return "Asset salvato, ma non inserito in piantina: nessuna planimetria attiva disponibile."
@@ -1730,7 +1732,10 @@ def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
                 moved = strays.pop(0)
                 moved.layout = layout
                 moved.is_visible = True
-                moved.save(update_fields=["layout", "is_visible", "updated_at"])
+                # Le coordinate erano della ALTRA pianta: sulla nuova non vogliono
+                # dire niente, quindi il marker torna «da posizionare».
+                reset_marker_position(moved)
+                moved.save(update_fields=["layout", "is_visible", "x_percent", "y_percent", "updated_at"])
             for stray in strays:
                 stray.delete()
 
@@ -1749,6 +1754,27 @@ def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
         marker.is_visible = True
         marker.save(update_fields=["is_visible", "updated_at"])
     return ""
+
+
+def _asset_plant_layout_marker(asset: Asset) -> "PlantLayoutMarker | None":
+    """Il marker da mostrare per l'asset: prima quello sulla planimetria del suo
+    reparto, altrimenti il primo su una planimetria attiva. Solo lettura."""
+    markers = PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True).select_related("layout")
+    resolved_layout, _specific = _resolve_asset_plant_layout(asset)
+    if resolved_layout is not None:
+        marker = markers.filter(layout=resolved_layout).first()
+        if marker is not None:
+            return marker
+    return markers.order_by("layout__category", "layout__name", "id").first()
+
+
+def _plant_layout_image_size(layout: "PlantLayout | None") -> tuple[int, int]:
+    if layout is None or not layout.image:
+        return (0, 0)
+    try:
+        return (int(layout.image.width or 0), int(layout.image.height or 0))
+    except (OSError, ValueError, TypeError):
+        return (0, 0)
 
 
 def _outlook_calendar_graph_settings() -> dict[str, str]:
