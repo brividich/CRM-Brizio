@@ -276,6 +276,10 @@ def describe_access(*, legacy_user, permission_code: str) -> dict:
     portale = _sistema_ruoli_attivo()
     if portale:
         role = _portal_role_info(getattr(legacy_user, "id", None))
+        from core.permessi.ruolo_azienda import ruoli_in_azienda
+
+        uid = getattr(legacy_user, "id", None)
+        role = {**role, "ruolo_azienda": ruoli_in_azienda([uid]).get(int(uid), "") if uid else ""}
     else:
         role = _role_info(getattr(legacy_user, "ruolo_id", None))
 

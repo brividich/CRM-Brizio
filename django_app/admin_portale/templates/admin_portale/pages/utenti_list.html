@@ -126,6 +126,7 @@
     color: var(--text);
   }
   .users-ruoli-portale { display:inline-flex; flex-wrap:wrap; gap:4px; text-decoration:none; }
+  .users-ruolo-azienda { font-weight:600; font-size:12.5px; margin-bottom:3px; }
   .users-table-count {
     margin-top: 2px;
     color: var(--text-light);
@@ -369,7 +370,7 @@
               <label class="col-picker-row"><input type="checkbox" data-col-target="reparto"> Reparto</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="mansione"> Mansione</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="username_ad"> Username AD</label>
-              <label class="col-picker-row"><input type="checkbox" data-col-target="ruolo_quick"> {% if sistema_ruoli %}Ruolo del portale{% else %}Ruolo (quick){% endif %}</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="ruolo_quick"> {% if sistema_ruoli %}Ruolo e accessi{% else %}Ruolo (quick){% endif %}</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="attivo"> Attivo</label>
               <label class="col-picker-row"><input type="checkbox" data-col-target="force_pwd"> Force pwd</label>
             </div>
@@ -398,7 +399,7 @@
                 <th data-col="reparto">Reparto</th>
                 <th data-col="mansione">Mansione</th>
                 <th data-col="username_ad">Username AD</th>
-                <th data-col="ruolo_quick">{% if sistema_ruoli %}Ruolo del portale{% else %}Ruolo (quick){% endif %}</th>
+                <th data-col="ruolo_quick">{% if sistema_ruoli %}Ruolo e accessi{% else %}Ruolo (quick){% endif %}</th>
                 <th data-col="attivo">Attivo</th>
                 <th data-col="force_pwd">Force pwd</th>
                 <th data-col="twofa">2FA</th>
@@ -417,9 +418,10 @@
                   <td data-col="username_ad" style="font-family:monospace;">{{ u.anagrafica_aliasusername|default:"-" }}</td>
                   <td data-col="ruolo_quick">
                     {% if sistema_ruoli %}
-                      <a class="users-ruoli-portale" href="{% url 'admin_portale:ruoli_portale_persona' u.id %}" title="Ruoli del portale: il primo è quello che comanda. Apri per assegnarli.">
+                      <div class="users-ruolo-azienda" title="Ruolo in azienda (organigramma): decide gli accessi">{{ u.ruolo_azienda|default:"— ruolo in azienda da assegnare" }}</div>
+                      <a class="users-ruoli-portale" href="{% url 'admin_portale:ruoli_portale_persona' u.id %}" title="Accessi al portale: arrivano dal ruolo in azienda; «a mano» sono eccezioni. Il primo è quello che comanda.">
                         {% for r in u.ruoli_portale %}
-                          <span class="badge{% if forloop.first %} badge-info{% endif %}">{{ r.label }}{% if r.da_organigramma %} · organigramma{% endif %}</span>
+                          <span class="badge{% if forloop.first %} badge-info{% endif %}">{{ r.label }}{% if not r.da_organigramma %} · a mano{% endif %}</span>
                         {% empty %}
                           <span class="badge">{{ u.ruolo_portale_base|default:"Nessun ruolo" }}</span>
                         {% endfor %}

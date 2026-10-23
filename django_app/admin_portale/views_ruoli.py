@@ -168,6 +168,9 @@ def _ctx_persone(request) -> dict:
     organigramma_selezionata = organigramma_map.get(persona_id, []) if persona_id else []
     ruoli_mano_selezionata = _ruoli_per_persona([persona_id]).get(persona_id, []) if persona_id else []
     scadenze = sorted({g.scade_il for g in ruoli_mano_selezionata if g.scade_il})
+    from core.permessi.ruolo_azienda import ruoli_in_azienda
+
+    in_azienda = ruoli_in_azienda([p.id for p in persone])
     return {
         "q": q,
         "solo_con_ruoli": solo_con_ruoli,
@@ -176,6 +179,7 @@ def _ctx_persone(request) -> dict:
                 "persona": p,
                 "ruoli": ruoli_map.get(int(p.id), []),
                 "da_organigramma": organigramma_map.get(int(p.id), []),
+                "ruolo_azienda": in_azienda.get(int(p.id), ""),
             }
             for p in persone
         ],

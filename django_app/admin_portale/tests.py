@@ -3442,7 +3442,7 @@ class AdminPortaleUtentiListLayoutTests(TestCase):
             response = self.client.get(reverse("admin_portale:utenti_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Ruolo del portale", html=False)
+        self.assertContains(response, "Ruolo e accessi", html=False)
         self.assertContains(response, "Qualità test", html=False)
         self.assertContains(
             response, reverse("admin_portale:ruoli_portale_persona", args=[self.target_legacy.id]), html=False

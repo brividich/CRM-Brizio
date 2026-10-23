@@ -1498,6 +1498,7 @@ def _attach_ruoli_portale_to_users(users: list) -> bool:
     for u in users:
         u.ruoli_portale = []
         u.ruolo_portale_base = ""
+        u.ruolo_azienda = ""
     ids = [int(u.id) for u in users if u.id]
     if not ids:
         return True
@@ -1521,8 +1522,13 @@ def _attach_ruoli_portale_to_users(users: list) -> bool:
         logger.warning("utenti_list: ruoli del portale non leggibili", exc_info=True)
         return True
     base = next((g for g in gruppi.values() if g.preset == PRESET_BASE), None)
+    # Un ruolo solo per persona: quello in azienda; i ruoli del portale sono i suoi accessi.
+    from core.permessi.ruolo_azienda import ruoli_in_azienda
+
+    in_azienda = ruoli_in_azienda(ids)
     for u in users:
         uid = int(u.id or 0)
+        u.ruolo_azienda = in_azienda.get(uid, "")
         mano, org = a_mano.get(uid, set()), da_org.get(uid, set())
         propri = [g for gid, g in gruppi.items() if gid in (mano | org) and g.preset != PRESET_BASE]
         propri.sort(key=lambda g: (-int(g.priority or 0), str(g.label or ""), int(g.id)))

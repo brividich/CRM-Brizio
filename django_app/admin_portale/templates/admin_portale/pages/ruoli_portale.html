@@ -49,7 +49,7 @@
       {% if persone %}
       <div class="acl-table-wrap">
         <table class="acl-table">
-          <thead><tr><th>Persona</th><th>Ruoli</th></tr></thead>
+          <thead><tr><th>Persona</th><th>Ruolo in azienda</th><th>Accessi al portale</th></tr></thead>
           <tbody>
           {% for row in persone %}
             <tr{% if selezionata and selezionata.id == row.persona.id %} class="rp-row-active"{% endif %}>
@@ -57,10 +57,11 @@
                 <a class="rp-person-link" href="?tab=persone&persona={{ row.persona.id }}&q={{ q|urlencode }}">{{ row.persona.nome|default:"—" }}</a>
                 <div class="acl-muted">{{ row.persona.email|default:"" }}</div>
               </td>
+              <td>{% if row.ruolo_azienda %}{{ row.ruolo_azienda }}{% else %}<span class="acl-muted">da assegnare in Anagrafica</span>{% endif %}</td>
               <td>
                 <div class="rp-chips">
-                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active or g.scaduto %} unset{% endif %}"{% if g.scade_il %} title="Valido fino al {{ g.scade_il|date:'d/m/Y' }}"{% endif %}>{{ g.label }}{% if g.scaduto %} · scaduto{% elif g.scade_il %} · fino al {{ g.scade_il|date:"d/m/Y" }}{% endif %}</span>{% endfor %}
-                  {% for o in row.da_organigramma %}<span class="acl-chip rp-chip-org" title="Dall'organigramma: {{ o.da }}">{{ o.gruppo.label }} · organigramma</span>{% endfor %}
+                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active or g.scaduto %} unset{% endif %}"{% if g.scade_il %} title="Valido fino al {{ g.scade_il|date:'d/m/Y' }}"{% endif %}>{{ g.label }} · a mano{% if g.scaduto %} · scaduto{% elif g.scade_il %} · fino al {{ g.scade_il|date:"d/m/Y" }}{% endif %}</span>{% endfor %}
+                  {% for o in row.da_organigramma %}<span class="acl-chip rp-chip-org" title="Dal ruolo in azienda: {{ o.da }}">{{ o.gruppo.label }}</span>{% endfor %}
                   {% if not row.ruoli and not row.da_organigramma %}<span class="acl-muted">Solo Operatore</span>{% endif %}
                 </div>
               </td>
