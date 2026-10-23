@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import AbilitazioneMacchina, CompetenzaSkm, Mansione, Reparto, RuoloOperativo
+from .models import AbilitazioneMacchina, CompetenzaCatalogo, CompetenzaSkm, Mansione, Reparto, RuoloOperativo
 from .services import mansionario_struttura as svc
 
 MODULE = "anagrafica"
@@ -271,6 +271,8 @@ def mansionario_mansione(request, mansione_id: int):
         "nomi_precedenti": svc.nomi_precedenti(mansione),
         "completezza": svc.completezza(mansione, n_competenze=len(competenze), n_persone=len(persone)),
         "regole": svc.regole_correnti(),
+        "catalogo_nomi": list(CompetenzaCatalogo.objects.filter(attiva=True).order_by("nome")
+                              .values_list("nome", flat=True)) if is_admin else [],
         "regole_formazione": list(
             mansione.regole_formazione.filter(is_active=True, is_mandatory=True)
             .select_related("corso", "piano").order_by("corso__titolo", "piano__nome")
@@ -416,10 +418,25 @@ def mansionario_valuta(request, mansione_id: int, abilitazione_id: int):
         return _ritorno_refresh(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
     righe = fetch_anagrafica_rows(ids=[ab.legacy_anagrafica_id])
     nome = naming.nome_completo(righe[0].get("nome"), righe[0].get("cognome")) if righe else f"#{ab.legacy_anagrafica_id}"
+    valutazione = comp_svc.valuta(ab, voci=competenze)
+    # Catalogo unico: il livello già valutato su un'altra mansione si propone qui; più l'ultima modifica.
+    from .models import ValutazioneCompetenzaStorico
+    from .services.competenze_catalogo import livelli_noti
+
+    noti = livelli_noti(ab.legacy_anagrafica_id, escludi_abilitazione_id=ab.pk)
+    ultimi: dict[int, ValutazioneCompetenzaStorico] = {}
+    for s in ValutazioneCompetenzaStorico.objects.filter(legacy_anagrafica_id=ab.legacy_anagrafica_id,
+                                                         voce_id__in=[v.pk for v in competenze]):
+        ultimi.setdefault(s.voce_id, s)
+    for r in valutazione.voci:
+        noto = noti.get(r["voce"].catalogo_id)
+        r["noto"] = noto if noto and noto["livello"] != r["livello"] else None
+        r["ultimo"] = ultimi.get(r["voce"].pk)
     return render(request, "anagrafica/pages/mansionario_valuta.html", {
         "page_title": f"Valutazione · {nome}",
         "abilitazione": ab, "mansione": ab.competenza, "nome": nome,
-        "valutazione": comp_svc.valuta(ab, voci=competenze),
+        "valutazione": valutazione,
+        "proposte_altrove": sum(1 for r in valutazione.voci if r["noto"] and not r["livello"]),
         "livelli": svc.LIVELLI,
         "da": "refresh" if request.GET.get("da") == "refresh" else "",
         "reparto_refresh": (request.GET.get("reparto") or "").strip(),
@@ -485,6 +502,8 @@ def mansionario_persona(request, legacy_id: int):
     from core.legacy_anagrafica import fetch_anagrafica_rows
     from .services import mansionario_competenze as comp_svc
 
+    from .services.competenze_catalogo import storico_persona
+
     righe = fetch_anagrafica_rows(ids=[legacy_id])
     if not righe:
         messages.error(request, "Dipendente non trovato.")
@@ -496,6 +515,7 @@ def mansionario_persona(request, legacy_id: int):
         "nome": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
         "mansione_anagrafica": (dip.get("mansione") or "").strip(),
         "scheda": comp_svc.scheda_persona(legacy_id),
+        "storico": storico_persona(legacy_id),
         **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
 
@@ -525,4 +545,78 @@ def mansionario_lacune(request):
     return render(request, "anagrafica/pages/mansionario_lacune.html", {
         "page_title": "Lacune di competenza",
         "lacune": lacune, "esito": esito, "esiti": comp_svc.ESITI_LABEL,
+    })
+
+
+@login_required
+def mansionario_catalogo(request):
+    """Catalogo unico delle competenze: chi le usa, rinomina e unione (amministrazione)."""
+    if not _puo_vedere(request):
+        return _nega(request)
+    from .models import CompetenzaCatalogo
+    from .services import competenze_catalogo as cat_svc
+
+    is_admin = _puo_gestire(request)
+    if request.method == "POST":
+        if not is_admin:
+            return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+        cat = get_object_or_404(CompetenzaCatalogo, pk=_int_o_none(request.POST.get("competenza")) or 0)
+        azione = request.POST.get("azione")
+        try:
+            if azione == "rinomina":
+                prima = cat.nome
+                n = cat_svc.rinomina(cat, request.POST.get("nome"))
+                log_action(request, "competenza_catalogo_rinominata", MODULE,
+                           {"competenza": cat.pk, "prima": prima, "nome": cat.nome, "voci": n}, oggetto=cat)
+                messages.success(request, f"«{prima}» ora si chiama «{cat.nome}» in {n} mansion{'e' if n == 1 else 'i'}.")
+            elif azione == "unisci":
+                in_ = get_object_or_404(CompetenzaCatalogo, pk=_int_o_none(request.POST.get("in")) or 0, attiva=True)
+                n = cat_svc.unisci(cat, in_)
+                log_action(request, "competenza_catalogo_unita", MODULE,
+                           {"da": cat.pk, "da_nome": cat.nome, "in": in_.pk, "in_nome": in_.nome, "voci": n}, oggetto=in_)
+                messages.success(request, f"«{cat.nome}» unita a «{in_.nome}»: {n} voc{'e' if n == 1 else 'i'} spostat{'a' if n == 1 else 'e'}, livelli e storico restano.")
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        return redirect("anagrafica:mansionario_catalogo")
+    righe = cat_svc.elenco()
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        righe = [r for r in righe if q.casefold() in r["catalogo"].nome.casefold()]
+    return render(request, "anagrafica/pages/mansionario_catalogo.html", {
+        "page_title": "Catalogo competenze",
+        "righe": righe, "q": q, "is_admin": is_admin,
+        "tutte": [r["catalogo"] for r in cat_svc.elenco()] if is_admin else [],
+    })
+
+
+@login_required
+def mansionario_matrice_competenze(request):
+    """Persone × competenze del catalogo (livello più alto su qualsiasi mansione), per reparto; Excel."""
+    if not _puo_vedere(request):
+        return _nega(request)
+    from .services import competenze_catalogo as cat_svc
+
+    reparto_id = _int_o_none(request.GET.get("reparto"))
+    reparto = Reparto.objects.filter(pk=reparto_id).first() if reparto_id else None
+    dati = cat_svc.matrice(reparto.pk if reparto else None)
+    if request.GET.get("formato") == "xlsx":
+        from core.excel_export import make_xlsx_response
+
+        intestazioni = ["Persona"] + [c.nome for c in dati["colonne"]]
+        righe = [[r["nome"], *r["livelli"]] for r in dati["righe"]]
+        log_action(request, "matrice_competenze_export", MODULE, {"reparto": reparto.pk if reparto else None,
+                                                                  "righe": len(righe)})
+        from django.utils import timezone
+        from django.utils.text import slugify
+
+        return make_xlsx_response(
+            filename=f"matrice-competenze{'-' + slugify(reparto.nome) if reparto else ''}-{timezone.localdate():%Y%m%d}.xlsx",
+            columns=intestazioni, rows=righe, sheet_title="Matrice competenze",
+            title="Matrice delle competenze", subtitle=f"{reparto.nome if reparto else 'Tutti i reparti'} · livello più "
+            f"alto su qualsiasi mansione, al {timezone.localdate():%d/%m/%Y}",
+        )
+    return render(request, "anagrafica/pages/mansionario_matrice_competenze.html", {
+        "page_title": "Matrice delle competenze",
+        **dati, "reparto": reparto,
+        "reparti": list(Reparto.objects.filter(is_active=True).order_by("nome")),
     })

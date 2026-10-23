@@ -47,6 +47,8 @@
                     <option value="">— nessuno —</option>
                     {% for lv in livelli %}<option value="{{ lv }}"{% for v in abilitazione.voci.all %}{% if v.voce_id == r.voce.pk and v.livello == lv %} selected{% endif %}{% endfor %}>{{ lv }}</option>{% endfor %}
                   </select>
+                  {% if r.noto %}<div class="mns-noto">Già valutato <b>{{ r.noto.livello }}</b> in «{{ r.noto.mansione.nome }}» <button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mns-usa="lv-{{ r.voce.pk }}" data-livello="{{ r.noto.livello }}"{% if r.livello %} data-cambia="1"{% endif %}>Usa</button></div>{% endif %}
+                  {% if r.ultimo %}<div class="mns-noto">Ultima modifica {{ r.ultimo.valutato_il|date:"d/m/Y" }}{% if r.ultimo.valutato_da %} · {{ r.ultimo.valutato_da }}{% endif %}: {{ r.ultimo.livello_prima|default:"—" }} → {{ r.ultimo.livello|default:"—" }}</div>{% endif %}
                 </td>
                 <td>{% if r.requisito %}<span class="fmd-badge fmd-b-red">manca {{ r.requisito }}</span>{% elif r.voce.corso or r.voce.qualifica or r.voce.processo_mpq %}<span class="fmd-badge fmd-b-green">presente</span>{% else %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
               </tr>
@@ -55,6 +57,7 @@
           </table>
         </div>
         <div class="fmd-tfoot" style="justify-content:flex-end;">
+          {% if proposte_altrove %}<button type="button" class="fmd-btn fmd-btn-ghost" data-mns-usa-tutti>Riprendi {{ proposte_altrove }} livell{{ proposte_altrove|pluralize:"o,i" }} già valutat{{ proposte_altrove|pluralize:"o,i" }} su altre mansioni</button>{% endif %}
           {% if da == "refresh" %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:skm_refresh' %}?reparto={{ reparto_refresh|urlencode }}">Torna al refresh</a>{% else %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_mansione' mansione.pk %}">Indietro</a>{% endif %}
           <button type="submit" class="fmd-btn fmd-btn-primary">Salva valutazione</button>
         </div>
@@ -62,4 +65,20 @@
     </section>
   </div>
 </div>
+<style>
+.mns-noto{ margin-top:4px; font-size:11.5px; color:var(--fmd-muted, #64748b); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+</style>
+<script>
+(function () {
+  // Catalogo unico: «Usa» copia nel campo il livello già valutato su un'altra mansione (si salva solo con «Salva valutazione»).
+  function usa(btn) { var sel = document.getElementById(btn.dataset.mnsUsa); if (sel) sel.value = btn.dataset.livello; }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mns-usa]');
+    if (b) { usa(b); return; }
+    if (e.target.closest('[data-mns-usa-tutti]')) {
+      document.querySelectorAll('[data-mns-usa]:not([data-cambia])').forEach(usa);
+    }
+  });
+})();
+</script>
 {% endblock %}

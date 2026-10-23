@@ -94,6 +94,9 @@ def salva_competenza(mansione: CompetenzaSkm, *, voce: VoceMacchinaCatalogo | No
     voce.ordine = int(ordine or 0)
     voce.attiva = True
     voce.save()
+    from .competenze_catalogo import collega
+
+    collega(voce)  # catalogo unico: stessa competenza su più mansioni
     return voce
 
 
@@ -256,7 +259,10 @@ def valuta(abilitazione: AbilitazioneMacchina, *, voci=None, config=None, oggi=N
 @transaction.atomic
 def registra_livelli(abilitazione: AbilitazioneMacchina, livelli: dict[int, str], *, user=None) -> Valutazione:
     """Salva i livelli per competenza, ricalcola il livello sulla mansione e lo storicizza."""
+    from .competenze_catalogo import registra_storico
+
     voci = {v.pk: v for v in competenze(abilitazione.competenza)}
+    prima = dict(AbilitazioneMacchinaVoce.objects.filter(abilitazione=abilitazione).values_list("voce_id", "livello"))
     for voce_id, lv in livelli.items():
         voce = voci.get(int(voce_id))
         if voce is None:
@@ -266,6 +272,8 @@ def registra_livelli(abilitazione: AbilitazioneMacchina, livelli: dict[int, str]
             AbilitazioneMacchinaVoce.objects.update_or_create(abilitazione=abilitazione, voce=voce, defaults={"livello": lv})
         else:
             AbilitazioneMacchinaVoce.objects.filter(abilitazione=abilitazione, voce=voce).delete()
+            lv = ""
+        registra_storico(abilitazione, voce, prima.get(voce.pk, ""), lv, user=user)
     val = valuta(abilitazione, voci=list(voci.values()))
     if val.livello and val.livello != abilitazione.livello:
         abilitazione.livello = val.livello

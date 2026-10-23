@@ -155,6 +155,9 @@
         <div class="fmd-empty"><span class="fmd-et">Nessuna competenza definita</span><span class="fmd-em">Vale il livello assegnato a mano alla persona. Definisci le competenze per valutare in modo uniforme.</span></div>
         {% endif %}
         {% if is_admin %}
+        {# Catalogo unico: scrivendo il nome si sceglie una competenza già usata da altre mansioni. #}
+        <datalist id="mc-catalogo">{% for c in catalogo_nomi %}<option value="{{ c }}">{% endfor %}</datalist>
+        <p class="fmd-muted" style="margin:10px 0 0;font-size:12px;">Il nome si sceglie dal <a class="fmd-data-link" href="{% url 'anagrafica:mansionario_catalogo' %}">catalogo competenze</a>: la stessa competenza su più mansioni si valuta una volta e si propone sulle altre.</p>
         <details class="mns-add" style="display:block;margin-top:14px;"{% if not competenze %} open{% endif %}>
           <summary class="mns-add-title" style="cursor:pointer;"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi competenza</summary>
           <div style="margin-top:10px;">{% include "anagrafica/components/_mansionario_competenza_form.html" with voce=None %}</div>
