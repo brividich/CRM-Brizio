@@ -160,7 +160,7 @@ SECTIONS = [
         "intro": "Ogni 15 minuti il SOC legge dall'API REST di Veeam Backup & Replication le sessioni di backup concluse, con "
                  "l'esito di ogni macchina, e lo spazio dei repository: la pagina Backup non dipende più dalle mail di esito. "
                  "Se arrivano anche le mail, la stessa esecuzione conta una volta sola. Indirizzo, utente (di sola lettura) e "
-                 "password stanno nel file .env del server (VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD).",
+                 "password si inseriscono nel riquadro «Credenziali API Veeam» in fondo a questa pagina.",
         "channels_optional": True,
         "options": [
             Option("veeam.api.attivo", False, "Leggi i backup dall'API di Veeam"),

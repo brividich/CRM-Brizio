@@ -174,7 +174,7 @@ class GiroTests(TestCase):
         set_setting("veeam.api.attivo", True)
         esito = svc.run()
         self.assertFalse(esito["ok"])
-        self.assertIn("VEEAM_API_URL", esito["errore"])
+        self.assertIn("Credenziali API Veeam", esito["errore"])
         self.assertEqual(svc.last_run()["errore"], esito["errore"])
 
     def test_giro_completo(self):
@@ -241,4 +241,63 @@ class PaginaBackupTests(TestCase):
         set_setting("veeam.api.attivo", True)
         page = self.client.get(reverse("security:backup"))
         self.assertContains(page, "Lettura diretta da Veeam")
-        self.assertContains(page, "Mancano indirizzo, utente o password")
+        self.assertContains(page, "Mancano le credenziali dell")
+
+
+class CredenzialiDalPortaleTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create(username="soc_veeam_cred", is_staff=True, is_superuser=True)
+        self.client.force_login(self.admin)
+
+    def _salva(self, **extra):
+        dati = {"url": "https://veeam-sintetico:9419/", "username": "DOMINIO\\lettura", "password": "segreta-1", "version": "", "ca_pem": ""}
+        dati.update(extra)
+        return svc.salva_credenziali(dati, self.admin)
+
+    def test_salvate_cifrate_e_password_tenuta(self):
+        from security.models import SecurityCenterSetting
+
+        self.assertEqual(self._salva(), [])
+        grezzo = SecurityCenterSetting.objects.get(key=svc.SETTING).value
+        self.assertNotIn("segreta-1", grezzo)
+        self.assertTrue(grezzo.startswith("fernet:"))
+        self.assertEqual(self._salva(password=""), [])  # vuota = resta quella salvata
+        self.assertEqual(svc.credenziali()["password"], "segreta-1")
+        self.assertEqual(svc._config()["url"], "https://veeam-sintetico:9419")
+        self.assertEqual(svc.riepilogo()["fonte"], "portale")
+        self.assertNotIn("segreta", str(svc.riepilogo()))
+
+    def test_errori(self):
+        self.assertTrue(self._salva(url="http://veeam:9419"))
+        self.assertTrue(self._salva(ca_pem="non un certificato"))
+
+    @override_settings(**VEEAM_ENV)
+    def test_il_portale_vince_sul_env(self):
+        self.assertEqual(svc.riepilogo()["fonte"], "env")
+        self._salva()
+        self.assertEqual(svc._config()["url"], "https://veeam-sintetico:9419")
+        svc.cancella_credenziali(self.admin)
+        self.assertEqual(svc._config()["url"], VEEAM_ENV["VEEAM_API_URL"])
+
+    def test_certificato_su_file(self):
+        pem = "-----BEGIN CERTIFICATE-----\nMIIBsintetico\n-----END CERTIFICATE-----\n"
+        self._salva(ca_pem=pem)
+        verify = svc._config()["verify"]
+        self.assertTrue(str(verify).endswith(".pem"))
+        with open(verify, encoding="ascii") as fh:
+            self.assertEqual(fh.read(), pem)
+        svc.salva_credenziali({"url": "https://veeam-sintetico:9419", "username": "u", "password": "", "version": "", "ca_pem": ""},
+                              self.admin, togli_ca=True)
+        self.assertIs(svc._config()["verify"], True)
+
+    def test_pagina_e_permessi(self):
+        url = reverse("security:veeam_credenziali")
+        self.client.post(url, {"azione": "salva", "url": "https://veeam-sintetico:9419", "username": "u", "password": "p"})
+        self.assertTrue(svc.configured())
+        page = self.client.get(reverse("security:soc_settings"))
+        self.assertContains(page, "Credenziali API Veeam")
+        self.assertNotContains(page, 'value="p"')
+        user = get_user_model().objects.create(username="soc_veeam_nessuno")
+        self.client.force_login(user)
+        self.client.post(url, {"azione": "cancella"})
+        self.assertTrue(svc.configured())

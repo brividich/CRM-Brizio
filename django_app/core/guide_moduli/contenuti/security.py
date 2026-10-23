@@ -85,10 +85,9 @@ GUIDA = {
                     "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
                     "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
                     "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
-                    "Backup letti direttamente da Veeam: Impostazioni › «Backup letti direttamente da Veeam». Nel .env del server "
-                    "VEEAM_API_URL (https://<server>:9419), VEEAM_API_USERNAME e VEEAM_API_PASSWORD di un utente con il solo ruolo "
-                    "«Veeam Backup Viewer»; se il certificato del server Veeam non è di una CA attendibile, VEEAM_API_CA_BUNDLE. "
-                    "Prova con manage.py veeam_api --prova. Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
+                    "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
+                    "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
+                    "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
                 ]),
             ],
         },
@@ -178,11 +177,10 @@ GUIDA = {
         {
             "sintomo": "Il riquadro «Lettura diretta da Veeam» della pagina Backup dice «errore»",
             "fare": [
-                "Il messaggio sotto il titolo dice cosa non va; lo stesso esito dal terminale con manage.py veeam_api.",
-                "«Server Veeam non raggiungibile»: controlla VEEAM_API_URL e che dal server del portale la porta 9419 sia aperta.",
-                "«Certificato del server Veeam non attendibile»: metti in VEEAM_API_CA_BUNDLE il percorso del certificato della CA (file .pem).",
+                "Il messaggio sotto il titolo dice cosa non va; Impostazioni › «Credenziali API Veeam» › «Prova la connessione» lo ripete.",
+                "«Server Veeam non raggiungibile»: controlla l'indirizzo nelle credenziali e che dal server del portale la porta 9419 sia aperta.",
+                "«Certificato del server Veeam non attendibile»: incolla nelle credenziali il certificato della CA interna (formato PEM).",
                 "«Veeam ha rifiutato l'accesso»: utente o password sbagliati, oppure l'utente non ha il ruolo «Veeam Backup Viewer».",
-                "Dopo ogni modifica al .env riavvia il portale e il qcluster, poi prova con manage.py veeam_api --prova.",
             ],
         },
         {

@@ -132,8 +132,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
                 "security_cycle (solo letture, in uscita verso il server Veeam sulla porta 9419). Finiscono in "
                 "security_backupjobrecord ed eventi del SOC, come le mail di esito Veeam.",
         "chi": "SOC → Backup (riquadro «Lettura diretta da Veeam»), alert «Repository di backup quasi pieno».",
-        "config": "VEEAM_API_URL, VEEAM_API_USERNAME, VEEAM_API_PASSWORD (utente con ruolo Veeam Backup Viewer), facoltativi "
-                  "VEEAM_API_VERSION e VEEAM_API_CA_BUNDLE nel .env; interruttore in /soc/impostazioni/.",
+        "config": "SOC › Impostazioni › «Credenziali API Veeam» (indirizzo, utente con ruolo Veeam Backup Viewer, password e "
+                  "certificato della CA cifrati in security_securitycentersetting) e interruttore «Leggi i backup dall'API di Veeam»; "
+                  "le vecchie variabili VEEAM_API_* del .env valgono solo se nel portale non c'è niente.",
         "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
     },
     {

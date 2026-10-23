@@ -156,7 +156,7 @@ def manca(lettura: Lettura) -> str:
         if lettura.requisito == "veeam":
             from security.services import veeam_api
 
-            return "" if veeam_api.configured() else "Indirizzo, utente o password dell'API di Veeam mancanti nel file .env del server."
+            return "" if veeam_api.configured() else "Credenziali API Veeam non configurate (riquadro in Avvisi e automatismi)."
         if lettura.requisito == "rete":
             from assets.services import rete_windows
 

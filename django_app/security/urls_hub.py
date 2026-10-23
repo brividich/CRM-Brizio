@@ -65,6 +65,7 @@ urlpatterns = [
     path("impostazioni/", views_work.settings_page, name="soc_settings"),
     path("impostazioni/esegui/", views_work.settings_run_now, name="soc_settings_run"),
     path("impostazioni/watchguard-api/", views_work.watchguard_credenziali, name="watchguard_credenziali"),
+    path("impostazioni/veeam-api/", views_work.veeam_credenziali, name="veeam_credenziali"),
     path("impostazioni/letture/", views_work.letture_page, name="letture"),
     path("impostazioni/letture/<slug:codice>/esegui/", views_work.lettura_esegui, name="lettura_esegui"),
     path("dispositivi/patch/", views_work.watchguard_pc, name="watchguard_pc"),
