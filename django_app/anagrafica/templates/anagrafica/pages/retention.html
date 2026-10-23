@@ -24,7 +24,7 @@
   {% include "anagrafica/components/flash_messages.html" %}
   {% url 'guida_modulo' 'anagrafica' as guida_url %}
   {% url 'anagrafica:impostazioni' as back_url %}
-  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Impostazioni" title="Conservazione dei dati" desc="Dati oltre il periodo di conservazione (GDPR). Niente sparisce da solo: scegli le righe, scrivi ELIMINA e conferma. Ogni azione è ricontrollata e va nel registro attività." guida_url=guida_url|add:"#retention" back_url=back_url %}
+  {% include "anagrafica/components/hr_pagehead.html" with eyebrow="Impostazioni" eyebrow_url=back_url title="Conservazione dei dati" desc="Dati oltre il periodo di conservazione (GDPR). Niente sparisce da solo: scegli le righe, scrivi ELIMINA e conferma. Ogni azione è ricontrollata e va nel registro attività." guida_url=guida_url|add:"#retention" back_url=back_url %}
 
   <section class="hr-card">
     <div class="hr-card-head">

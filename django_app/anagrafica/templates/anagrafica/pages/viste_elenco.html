@@ -27,7 +27,7 @@
       <thead><tr><th>Vista</th><th>Per chi</th><th>Colonne</th><th>Stato</th><th class="fmd-r">Azioni</th></tr></thead>
       <tbody>
       {% for v in viste %}<tr>
-        <td><span class="fmd-cell-main">{{ v.nome }}</span>{% if v.descrizione %}<span class="fmd-cell-sub">{{ v.descrizione }}</span>{% endif %}<span class="fmd-cell-sub"><span class="fmd-code">{{ v.codice }}</span>{% if v.preset %} · di sistema{% endif %}</span></td>
+        <td><div class="fmd-cell-main">{{ v.nome }}</div>{% if v.descrizione %}<div class="fmd-cell-sub">{{ v.descrizione }}</div>{% endif %}<div class="fmd-cell-sub"><span class="fmd-code">{{ v.codice }}</span>{% if v.preset %} · di sistema{% endif %}</div></td>
         <td>{% if v.ambito == "RUOLO" %}Ruolo {% for id, nome in ruoli.items %}{% if id == v.ruolo_legacy_id %}{{ nome }}{% endif %}{% endfor %}{% else %}Tutti{% endif %}</td>
         <td>{{ v.n_colonne }}{% if v.n_sensibili %} <span class="fmd-badge fmd-b-red" title="Colonne con dati sensibili, visibili solo con il permesso">{{ v.n_sensibili }} sensibili</span>{% endif %}</td>
         <td>{% if v.predefinita %}<span class="fmd-badge fmd-b-green">Predefinita</span>{% endif %}{% if not v.attiva %}<span class="fmd-badge">Disattivata</span>{% endif %}{% if v.blocca_personalizzazione %}<span class="fmd-badge fmd-b-amber">Colonne bloccate</span>{% endif %}</td>

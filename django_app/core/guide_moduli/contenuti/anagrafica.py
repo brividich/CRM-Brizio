@@ -200,10 +200,21 @@ GUIDA = {
             "blocchi": [
                 ("p", "Anagrafica → «Impostazioni» raccoglie in un'unica pagina: ruoli (catalogo unico, con «riporta a»), "
                       "mansioni di rischio, aree, reparti, tipi documento, campi di ingresso e uscita, permessi HR."),
+                ("p", "La barra a sinistra raggruppa le sezioni: Organizzazione (mansioni, ruoli, reparti, aree aziendali), "
+                      "Competenze e sicurezza (qualifiche, visite mediche, DPI), Contratti (livelli CCNL, tipologie), Documenti e "
+                      "flussi (cartelle documenti, onboarding e offboarding), Accessi e menu (permessi, menu del modulo). "
+                      "«Cerca una sezione» la trova per nome o argomento (es. «rspp», «retention»); Invio apre la prima. Le voci "
+                      "di «Altre pagine» (E-learning, Viste elenco dipendenti, Amministrazione e import, Conservazione dei dati, "
+                      "Richieste di rettifica) hanno la freccia ↗ e aprono un'altra pagina; le rettifiche aperte compaiono in rosso."),
+                ("p", "In ogni sezione il riquadro tratteggiato in alto aggiunge una voce; «Modifica» apre una finestra (Esc o "
+                      "«Annulla» la chiudono senza salvare). Gli elenchi lunghi hanno «Filtra in questa sezione». Qualifiche, "
+                      "ruoli e cartelle documenti già in uso non si eliminano: si disattivano e lo storico resta."),
                 ("p", "La scheda «Mansioni» mostra le mansioni di rischio (con «Catalogo completo →» per livello di rischio "
                       "e requisiti) e il numero di mansioni lavorative, con «Apri il Mansionario →»: le mansioni lavorative "
-                      "(macchine e processi della skill matrix) si gestiscono lì. Le ultime voci della barra (E-learning, "
-                      "Viste elenco dipendenti, Amministrazione e import) aprono altre pagine."),
+                      "(macchine e processi della skill matrix) si gestiscono lì."),
+                ("p", "«Menu del modulo» governa la barra in alto: i «pilastri» sono i menu a tendina (Persone, Competenze…), "
+                      "le «voci» sono i collegamenti. Le voci di sistema (🔒) non si eliminano ma si possono nascondere o spostare. "
+                      "Nella finestra di una voce, «Pagina del modulo» compila da sola la destinazione."),
                 ("p", "Un ruolo del catalogo può essere collegato a ruoli del portale (Amministrazione → «Ruoli e permessi», "
                       "matrice, «Dall'organigramma»): chi ricopre il ruolo riceve quei permessi da solo e li perde quando "
                       "lascia il ruolo. Assegnare o togliere un ruolo qui cambia quindi anche cosa la persona può fare nel portale."),
