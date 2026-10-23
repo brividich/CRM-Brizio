@@ -44,20 +44,19 @@ body.theme-dark #imp-root {
     radial-gradient(circle at 85% 18%, rgba(255,138,31,.28), transparent 42%),
     radial-gradient(circle at 2% 100%, rgba(31,135,205,.30), transparent 52%),
     linear-gradient(135deg,#08142d 0%,#0c2545 55%,#1a3a66 100%);
-  padding:22px 26px;
-  clip-path:polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
-  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;
+  padding:12px 18px 12px 22px;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px;
 }
+.imp-hero-main { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 14px; min-width:0; }
 .imp-hero::after { content:""; position:absolute; top:0; left:0; width:26px; height:5px;
   background:#ff8a1f; transform:translate(-3px,5px) rotate(-45deg); transform-origin:left center; }
 .imp-hero > * { position:relative; }
-.imp-hero-eyebrow { display:inline-flex; align-items:center; gap:8px; font-family:var(--imp-mono); font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#ffb067; }
-.imp-hero-eyebrow::before { content:""; width:7px; height:7px; border-radius:50%; background:#ff8a1f; box-shadow:0 0 0 4px rgba(255,138,31,.18); }
-.imp-hero-title { margin-top:8px; font-size:26px; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:10px; color:#fff; }
-.imp-hero-title svg.imp-i { font-size:24px; color:#7cc4f2; }
-.imp-hero-sub { margin-top:6px; font-size:13.5px; line-height:1.5; color:rgba(255,255,255,.8); max-width:68ch; }
+.imp-hero-title { margin:0; line-height:1.3; font-size:19px; font-weight:800; letter-spacing:-.015em; display:flex; align-items:center; gap:9px; color:#fff; }
+.imp-hero-title svg.imp-i { font-size:18px; color:#7cc4f2; align-self:center; }
+.imp-hero-sub { font-size:12.5px; line-height:1.4; color:rgba(255,255,255,.72); }
 .imp-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.imp-hero-btn { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:9px; font-size:12.5px; font-weight:700; text-decoration:none; color:#fff; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); transition:background .15s; }
+.imp-hero-btn { display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:8px; font-size:12.5px; font-weight:700; text-decoration:none; color:#fff; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); transition:background .15s; }
 .imp-hero-btn:hover { background:rgba(255,255,255,.2); color:#fff; }
 /* La testata è scura in entrambi i temi: stessi valori anche col tema scuro. */
 body.theme-dark .imp-hero-btn { background:rgba(255,255,255,.10); }
@@ -106,17 +105,40 @@ body.theme-dark .imp-noperm { background:rgba(146,64,14,.2); color:#fcd34d; bord
 .imp-tab.hidden, .imp-nav-group.hidden { display:none; }
 
 .imp-content { display:flex; flex-direction:column; gap:16px; min-width:0; }
-.imp-panel { display:none; flex-direction:column; gap:16px; }
-.imp-panel.active { display:flex; animation:imp-in .18s ease-out; }
+#imp-root [hidden] { display:none !important; }
+/* Una scheda = un solo riquadro: le card interne diventano sezioni separate da un filo. */
+.imp-panel { display:none; flex-direction:column; }
+.imp-panel.active {
+  display:flex; animation:imp-in .18s ease-out;
+  background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:14px; box-shadow:var(--imp-sh); overflow:clip;
+}
+.imp-panel > :first-child { margin-top:-1px; }
 @keyframes imp-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 
-/* ── Card e testate di sezione ───────────────────────────────────────── */
-.imp-card { background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:14px; padding:18px 22px; box-shadow:var(--imp-sh); }
-.imp-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+/* ── Card (sezioni della scheda) e testate ───────────────────────────── */
+.imp-card { background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:14px; padding:16px 20px; box-shadow:var(--imp-sh); }
+#imp-root .imp-panel .imp-card { background:transparent; border:0; border-top:1px solid var(--imp-line-soft); border-radius:0; box-shadow:none; }
+/* L'elenco che segue la sua testata fa parte della stessa sezione: niente filo in mezzo. */
+#imp-root .imp-panel .imp-card:has(> .imp-card-head) + .imp-card:not(details):not(:has(> .imp-card-head)) { border-top:0; padding-top:0; }
+.imp-card-head { display:flex; align-items:center; justify-content:space-between; gap:10px 14px; flex-wrap:wrap; margin-bottom:12px; }
 .imp-card-head:last-child { margin-bottom:0; }
-.imp-card-head-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.imp-card-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:16px; font-weight:800; letter-spacing:-.01em; color:var(--imp-ink); }
-.imp-card-sub, .imp-card-desc { margin-top:3px; max-width:92ch; font-size:12.5px; line-height:1.5; color:var(--imp-muted); }
+.imp-card-head > :first-child { min-width:0; flex:1 1 320px; }
+.imp-card-head-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+.imp-card-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:15px; font-weight:800; letter-spacing:-.01em; color:var(--imp-ink); }
+.imp-card-sub, .imp-card-desc { margin-top:2px; max-width:96ch; font-size:12px; line-height:1.45; color:var(--imp-muted); }
+/* Filtro dell'elenco e «+ Nuovo …» stanno nella testata della sezione. */
+.imp-head-search { position:relative; display:inline-flex; align-items:center; }
+.imp-head-search svg.imp-i { position:absolute; left:9px; font-size:13px; color:var(--imp-faint); pointer-events:none; }
+#imp-root .imp-head-search input {
+  width:190px; height:30px; min-height:30px; box-sizing:border-box; padding:0 9px 0 28px; font:inherit; font-size:12.5px;
+  border:1px solid var(--imp-line-2); border-radius:8px; background:var(--imp-soft); color:var(--imp-ink); outline:none;
+}
+#imp-root .imp-head-search input:focus { border-color:var(--imp-cyan); background:var(--imp-surface); box-shadow:0 0 0 3px rgba(31,135,205,.14); }
+.imp-head-search .imp-search-info { margin-left:6px; }
+.imp-add-toggle[aria-expanded="true"] { background:var(--imp-soft-2); color:var(--imp-ink); border-color:var(--imp-line-2); }
+.imp-add-toggle[aria-expanded="true"]:hover { background:var(--imp-line); color:var(--imp-ink); }
+.imp-add-toggle[aria-expanded="true"] svg.imp-i { transform:rotate(45deg); }
+.imp-add-toggle svg.imp-i { transition:transform .15s; }
 .imp-sec-title { font-size:13px; font-weight:800; color:var(--imp-ink); margin:0 0 4px; }
 .imp-subsec { margin-top:18px; padding-top:16px; border-top:1px solid var(--imp-line-soft); }
 .imp-kicker { margin-bottom:10px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--imp-cyan); }
@@ -127,6 +149,9 @@ body.theme-dark .imp-kicker { color:#93c5fd; }
   display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px 12px; align-items:end;
   padding:14px; background:var(--imp-soft); border:1px dashed var(--imp-line-2); border-radius:12px;
 }
+/* Form «nuovo» aperto dal bottone in testata: sta subito sotto, staccato dall'elenco. */
+.imp-add-box { margin-bottom:14px; }
+.imp-add-box.imp-subsec { margin-top:0; padding-top:0; border-top:0; }
 .imp-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px 12px; align-items:end; }
 .imp-grid-2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px 12px; }
 .imp-col-full { grid-column:1 / -1; }
@@ -169,22 +194,32 @@ body.theme-dark .imp-kicker { color:#93c5fd; }
 .imp-btn-sm { min-height:30px; padding:4px 10px; font-size:12px; border-radius:8px; }
 
 /* ── Elenchi ─────────────────────────────────────────────────────────── */
-.imp-cat-title { display:flex; align-items:center; gap:10px; margin:18px 0 8px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--imp-muted); }
+.imp-cat-title { display:flex; align-items:center; gap:10px; margin:14px 0 6px; font-size:10.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--imp-muted); }
 .imp-cat-title::after { content:""; flex:1; height:1px; background:var(--imp-line-soft); }
 .imp-card > .imp-cat-title:first-child { margin-top:0; }
-.imp-list { display:flex; flex-direction:column; gap:6px; }
+/* Elenco compatto: righe in un unico riquadro, separate da un filo. */
+.imp-list { display:flex; flex-direction:column; border:1px solid var(--imp-line); border-radius:11px; overflow:hidden; }
+.imp-list .imp-empty { border:0; border-radius:0; }
 .imp-row {
-  display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px 10px 14px;
-  background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:11px;
-  transition:border-color .12s, box-shadow .12s;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 10px 7px 14px; min-height:42px; box-sizing:border-box;
+  background:var(--imp-surface); transition:background .12s;
 }
-.imp-row:hover { border-color:var(--imp-tint-line); box-shadow:var(--imp-sh-hover); }
-.imp-row.inactive { opacity:.62; background:var(--imp-soft); }
-.imp-row-main { flex:1; min-width:180px; }
+.imp-row ~ .imp-row { border-top:1px solid var(--imp-line-soft); }
+.imp-row:hover { background:var(--imp-soft); }
+.imp-row.inactive { background:var(--imp-soft); }
+.imp-row.inactive > :not(.imp-row-actions) { opacity:.6; }
+/* Nome e dettagli sulla stessa riga; vanno a capo solo se non ci stanno. */
+.imp-row-main { flex:1; min-width:180px; display:flex; align-items:baseline; flex-wrap:wrap; gap:1px 12px; }
 .imp-row-name { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:13.5px; font-weight:700; color:var(--imp-ink); }
-.imp-row-meta { margin-top:3px; font-size:12px; line-height:1.55; color:var(--imp-muted); }
-.imp-row-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:auto; }
+.imp-row-meta { font-size:12px; line-height:1.55; color:var(--imp-muted); }
+.imp-row-actions { display:flex; gap:2px; align-items:center; flex-shrink:0; margin-left:auto; }
 .imp-row-actions form { display:inline; margin:0; }
+/* Azioni di riga leggere: testo, senza riquadro; «Elimina» si colora solo al passaggio. */
+.imp-row-actions .imp-btn-ghost, .imp-table .r .imp-btn-ghost { background:transparent; border-color:transparent; color:var(--imp-link); }
+.imp-row-actions .imp-btn-ghost:hover, .imp-table .r .imp-btn-ghost:hover { background:var(--imp-tint); border-color:transparent; color:var(--imp-link); }
+.imp-row-actions .imp-btn-danger, .imp-table .r .imp-btn-danger { background:transparent; border-color:transparent; color:var(--imp-faint); }
+.imp-row-actions .imp-btn-danger:hover, .imp-table .r .imp-btn-danger:hover { background:var(--imp-ko-bg); color:var(--imp-ko); }
+.imp-row-actions .imp-btn-sm, .imp-table .r .imp-btn-sm { min-height:28px; padding:3px 9px; }
 .imp-dot { display:inline-block; flex:0 0 auto; width:12px; height:12px; border-radius:4px; box-shadow:inset 0 0 0 1px rgba(15,23,42,.1); }
 .imp-ico-tile { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; }
 .imp-ico-tile svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -204,13 +239,13 @@ body.theme-dark .imp-warn-text { color:#fcd34d; }
 .imp-badge-red { background:var(--hr-ko-bg,#fee2e2); color:var(--hr-ko-fg,#b91c1c); }
 .imp-badge-code { font-family:var(--imp-mono); font-size:11px; letter-spacing:.02em; }
 
-.imp-empty { padding:24px 18px; text-align:center; font-size:13px; color:var(--imp-muted); background:var(--imp-soft); border:1px dashed var(--imp-line-2); border-radius:12px; }
+.imp-empty { padding:18px; text-align:center; font-size:13px; color:var(--imp-muted); background:var(--imp-soft); border:1px dashed var(--imp-line-2); border-radius:12px; }
 
 /* ── Tabelle (cartelle documenti, menu) ──────────────────────────────── */
 .imp-table-wrap { overflow-x:auto; border:1px solid var(--imp-line); border-radius:12px; }
 .imp-table { width:100%; border-collapse:collapse; font-size:13px; }
-.imp-table th { padding:9px 12px; text-align:left; white-space:nowrap; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--imp-muted); background:var(--imp-soft); border-bottom:1px solid var(--imp-line); }
-.imp-table td { padding:10px 12px; vertical-align:middle; color:var(--imp-text); border-bottom:1px solid var(--imp-line-soft); }
+#imp-root .imp-table th { padding:8px 12px; text-align:left; white-space:nowrap; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--imp-muted); background:var(--imp-soft); border-bottom:1px solid var(--imp-line); }
+#imp-root .imp-table td { padding:6px 12px; height:40px; vertical-align:middle; color:var(--imp-text); border-bottom:1px solid var(--imp-line-soft); }
 .imp-table tbody tr:last-child td { border-bottom:none; }
 .imp-table tbody tr:hover td { background:var(--imp-soft); }
 .imp-table .c { text-align:center; }
@@ -249,17 +284,34 @@ body.theme-dark .imp-warn-text { color:#fcd34d; }
 body.theme-dark .imp-modal-overlay { background:rgba(0,0,0,.65); }
 
 /* ── Permessi ─────────────────────────────────────────────────────────── */
-.imp-perm-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:14px; }
-.imp-perm-card { display:flex; flex-direction:column; padding:16px 18px; background:var(--imp-surface); border:1px solid var(--imp-line); border-radius:12px; }
-.imp-perm-title { margin-bottom:6px; font-size:14px; font-weight:800; color:var(--imp-ink); }
-.imp-perm-desc { margin:0 0 10px; font-size:12px; line-height:1.45; color:var(--imp-muted); }
-.imp-perm-note { margin:12px 0 0; padding-top:10px; border-top:1px solid var(--imp-line-soft); font-size:11.5px; line-height:1.45; color:var(--imp-muted); }
-.imp-perm-row { display:flex; align-items:center; gap:9px; margin-bottom:4px; padding:7px 10px; border:1px solid transparent; border-radius:9px; font-size:13px; color:var(--imp-text); cursor:pointer; }
-.imp-perm-row:hover { background:var(--imp-soft); }
-.imp-perm-row:has(input:checked) { background:var(--imp-tint); border-color:var(--imp-tint-line); color:var(--imp-ink); font-weight:700; }
+/* Una riga per sezione riservata: a sinistra cosa protegge, a destra chi la vede. */
+.imp-perm-grid { display:flex; flex-direction:column; border:1px solid var(--imp-line); border-radius:12px; overflow:hidden; }
+.imp-perm-card { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:8px 28px; align-items:start; padding:14px 16px; }
+.imp-perm-card + .imp-perm-card { border-top:1px solid var(--imp-line-soft); }
+.imp-perm-title { font-size:13.5px; font-weight:800; color:var(--imp-ink); }
+.imp-perm-desc { margin:2px 0 0; font-size:12px; line-height:1.45; color:var(--imp-muted); }
+.imp-perm-note { margin:6px 0 0; font-size:11.5px; line-height:1.45; color:var(--imp-faint); }
+.imp-perm-ctrl { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; }
+/* Scelta a selettore: il pallino resta per tastiera e lettori di schermo, ma non si vede. */
+.imp-perm-seg { display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; background:var(--imp-soft-2); border:1px solid var(--imp-line); border-radius:10px; }
+.imp-perm-row { position:relative; display:inline-flex; align-items:center; padding:5px 12px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--imp-muted); white-space:nowrap; cursor:pointer; }
+#imp-root .imp-perm-row input { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+.imp-perm-row:hover { color:var(--imp-ink); }
+.imp-perm-row:has(input:checked) { background:var(--imp-surface); color:var(--imp-ink); font-weight:800; box-shadow:0 1px 3px rgba(12,37,69,.14); }
+.imp-perm-row:has(input:focus-visible) { outline:2px solid var(--imp-cyan); outline-offset:1px; }
+/* Col tema scuro la superficie è uguale al fondo del selettore: la voce scelta si colora. */
+body.theme-dark .imp-perm-row:has(input:checked), body.theme-dark .imp-seg-btn.active { background:rgba(59,130,246,.24); color:#fff; box-shadow:none; }
+.imp-perm-row:has(input:disabled) { cursor:default; }
 .imp-perm-ruoli, .imp-perm-utenti { display:flex; flex-direction:column; gap:2px; max-height:190px; overflow-y:auto; padding:8px; background:var(--imp-soft); border:1px solid var(--imp-line); border-radius:9px; }
-.imp-perm-ruoli { display:none; margin-top:6px; }
+.imp-perm-ruoli { display:none; width:100%; box-sizing:border-box; }
 .imp-perm-ruoli.open { display:flex; }
+.imp-perm-extra { width:100%; }
+.imp-perm-extra > summary { display:inline-flex; align-items:center; gap:6px; list-style:none; font-size:12px; font-weight:600; color:var(--imp-link); cursor:pointer; }
+.imp-perm-extra > summary::-webkit-details-marker { display:none; }
+.imp-perm-extra > summary::after { content:"›"; font-size:15px; line-height:1; transition:transform .15s; }
+.imp-perm-extra[open] > summary { margin-bottom:6px; }
+.imp-perm-extra[open] > summary::after { transform:rotate(90deg); }
+.imp-perm-extra .imp-empty { padding:10px; }
 .imp-perm-ruoli label, .imp-perm-utenti label { display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px; font-size:12.5px; color:var(--imp-text); cursor:pointer; }
 .imp-perm-ruoli label:hover, .imp-perm-utenti label:hover { background:var(--imp-surface); }
 .imp-perm-utenti label.hidden { display:none; }
@@ -267,7 +319,8 @@ body.theme-dark .imp-modal-overlay { background:rgba(0,0,0,.65); }
 .imp-perm-hint { font-weight:500; text-transform:none; letter-spacing:0; color:var(--imp-faint); }
 .imp-perm-search { width:100%; box-sizing:border-box; margin-bottom:6px; padding:6px 9px; font:inherit; font-size:12.5px; border:1px solid var(--imp-line-2); border-radius:8px; background:var(--imp-surface); color:var(--imp-ink); outline:none; }
 .imp-perm-search:focus { border-color:var(--imp-cyan); }
-.imp-form-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+.imp-form-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+.imp-form-foot-split { justify-content:space-between; align-items:center; flex-wrap:wrap; margin-top:4px; }
 /* Matrice permessi canonici ACL v2 (write-through) */
 .imp-acl-scroll { overflow-x:auto; border:1px solid var(--imp-line); border-radius:12px; }
 .imp-acl-table { width:100%; border-collapse:collapse; font-size:12px; }
@@ -318,6 +371,19 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
 .imp-acc-title { flex:1; }
 .imp-acc-sum .imp-tab-count { padding:1px 8px; border-radius:999px; font-size:11px; background:var(--imp-soft-2); color:var(--imp-muted); }
 .imp-acc-body { padding:2px 16px 14px; }
+.imp-list.imp-acc-body { margin:0 20px 14px; padding:0; }
+#imp-root details.imp-card > .imp-acc-sum { padding:11px 20px; }
+/* Barra «modifica in blocco»: finché non si spunta nulla resta una riga sola. */
+.imp-bulkbar:not(.has-sel) > div.imp-field ~ div.imp-field, .imp-bulkbar:not(.has-sel) > #vm-bulk-submit { display:none; }
+#imp-root .imp-panel .imp-bulkbar { padding:8px 20px; border-top:0; background:var(--imp-soft); border-bottom:1px solid var(--imp-line-soft); }
+#imp-root .imp-panel .imp-bulkbar.has-sel { padding:10px 20px 12px; box-shadow:0 8px 16px -12px rgba(12,37,69,.35); }
+.imp-bulkbar > .imp-field:first-of-type { flex-direction:row; align-items:center; gap:12px; min-height:30px; }
+/* La barra sta fuori dal contenitore che l'HTMX rimpiazza: con display:contents
+   il contenitore non fa scatola e la barra si mette fra la testata e i gruppi. */
+#tab-visite-mediche > #visite-mediche-panel-content { display:contents; }
+#tab-visite-mediche #visite-mediche-panel-content > * { order:2; }
+#tab-visite-mediche #visite-mediche-panel-content > .imp-card:first-child { order:0; border-top:0; }
+#tab-visite-mediche > #vm-bulk-form { order:1; margin-top:0; border-top:1px solid var(--imp-line-soft); }
 .imp-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .imp-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--imp-line-2); border-radius:999px; background:var(--imp-surface); font-size:12px; color:var(--imp-text); cursor:pointer; }
 .imp-chip:hover { border-color:var(--imp-tint-line); }
@@ -326,7 +392,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
 
 /* ── DPI: tipo con i suoi modelli ────────────────────────────────────── */
 .imp-dpi-tipo { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.imp-sublist { margin:12px 0 0 14px; padding-left:14px; border-left:3px solid var(--imp-line); }
+.imp-list.imp-sublist { margin:8px 0 0 14px; border:0; border-left:3px solid var(--imp-line); border-radius:0; }
 .imp-sublist-empty { margin-top:8px; padding-left:14px; font-size:12px; color:var(--imp-faint); }
 
 /* ── Permessi avanzati: intestazioni compatte ed eccezioni ───────────── */
@@ -338,9 +404,18 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
 .imp-acl-ov-form { max-width:none; }
 
 /* ── Pannello Ruoli (partial condiviso con la pagina Ruoli): solo allineamento visivo ── */
-#imp-root .ro-card { border-color:var(--imp-line); box-shadow:var(--imp-sh); }
-#imp-root .ro-item { transition:border-color .12s, box-shadow .12s; }
+#imp-root .ro-page { gap:0; }
+#imp-root .ro-card { background:transparent; border:0; border-top:1px solid var(--imp-line-soft); border-radius:0; box-shadow:none; }
+#imp-root .ro-card-head { padding:14px 20px 0; border-bottom:0; background:transparent; }
+#imp-root .ro-card-body { padding:12px 20px 16px; }
+#imp-root details.ro-acc > summary { padding:12px 20px; }
+#imp-root .ro-item { border-color:var(--imp-line); transition:border-color .12s, box-shadow .12s; }
 #imp-root .ro-item:hover { border-color:var(--imp-tint-line); box-shadow:var(--imp-sh-hover); }
+#imp-root .ro-item-actions { gap:2px; margin-left:-8px; }
+#imp-root .ro-item-actions .ro-btn-ghost { background:transparent; border-color:transparent; color:var(--imp-link); }
+#imp-root .ro-item-actions .ro-btn-ghost:hover { background:var(--imp-tint); }
+#imp-root .ro-item-actions .ro-btn-danger { background:transparent; border-color:transparent; color:var(--imp-faint); }
+#imp-root .ro-item-actions .ro-btn-danger:hover { background:var(--imp-ko-bg); color:var(--imp-ko); }
 
 @media (max-width:900px) {
   .imp-layout { grid-template-columns:1fr; }
@@ -350,8 +425,13 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
   .imp-tab { width:auto; flex:0 0 auto; }
   .imp-tab-lbl { overflow:visible; }
   .imp-workflow-form, .imp-grid-2 { grid-template-columns:1fr; }
-  .imp-hero { padding:18px 20px; }
-  .imp-hero-title { font-size:22px; }
+  .imp-hero-sub { display:none; }
+  .imp-perm-card { grid-template-columns:1fr; }
+  #imp-root .imp-panel .imp-card { padding:14px 14px; }
+  .imp-list.imp-acc-body { margin:0 14px 12px; }
+  .imp-card-head-actions { width:100%; justify-content:flex-start; }
+  .imp-head-search { flex:1 1 160px; }
+  #imp-root .imp-head-search input { width:100%; }
 }
 </style>
 
@@ -391,10 +471,9 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
   </svg>
 
   <header class="imp-hero">
-    <div>
-      <div class="imp-hero-eyebrow">Anagrafica · Configurazione</div>
-      <div class="imp-hero-title"><svg class="imp-i" aria-hidden="true"><use href="#imp-i-gear"/></svg>Impostazioni anagrafica</div>
-      <div class="imp-hero-sub">Cataloghi, permessi e configurazioni del modulo. Scegli una sezione a sinistra: le voci in fondo aprono altre pagine.</div>
+    <div class="imp-hero-main">
+      <h1 class="imp-hero-title"><svg class="imp-i" aria-hidden="true"><use href="#imp-i-gear"/></svg>Impostazioni anagrafica</h1>
+      <div class="imp-hero-sub">Cataloghi, permessi e configurazioni del modulo</div>
     </div>
     <div class="imp-hero-actions">
       {% if not is_admin %}<span class="imp-hero-pill" title="Le modifiche sono riservate agli amministratori dell'anagrafica">Sola lettura</span>{% endif %}
@@ -532,12 +611,12 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Mansioni di rischio</div>
-              <div class="imp-card-sub">Mansioni del DVR (ADDETTO …): da qui partono visite, DPI, schede di sicurezza e corsi obbligatori</div>
+              <div class="imp-card-sub">Mansioni del DVR: da qui partono visite, DPI, schede di sicurezza e corsi obbligatori</div>
             </div>
             <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansioni_list' %}">Catalogo completo →</a>
           </div>
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:mansione_create' %}" class="imp-add-form">
+          <form method="post" action="{% url 'anagrafica:mansione_create' %}" class="imp-add-form" data-add-label="Nuova mansione">
             {% csrf_token %}
             <input type="hidden" name="next_tab" value="mansioni">
             <div class="imp-field">
@@ -650,7 +729,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Mansioni lavorative ({{ n_mansioni_lavorative }})</div>
-              <div class="imp-card-sub">Macchine e processi della skill matrix, sotto i ruoli: si gestiscono nel Mansionario (persone assegnate, competenze, valutazioni). La mansione di rischio della persona si ricava da queste.</div>
+              <div class="imp-card-sub">Macchine e processi della skill matrix: si gestiscono nel Mansionario, e da queste si ricava la mansione di rischio della persona.</div>
             </div>
             <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansionario' %}">Apri il Mansionario →</a>
           </div>
@@ -667,7 +746,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
             </div>
           </div>
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}" class="imp-add-form">
+          <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}" class="imp-add-form" data-add-label="Nuova area">
             {% csrf_token %}
             <input type="hidden" name="next_tab" value="aree-aziendali">
             <div class="imp-field">
@@ -820,12 +899,12 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Reparti</div>
-              <div class="imp-card-sub">Contenitori di primo livello, con caporeparto assegnato (selezionato dalla lista dipendenti)</div>
+              <div class="imp-card-sub">Contenitori di primo livello, ognuno con il suo caporeparto</div>
             </div>
             <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:organigramma' %}">Organigramma →</a>
           </div>
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:area_create' %}" class="imp-add-form">
+          <form method="post" action="{% url 'anagrafica:area_create' %}" class="imp-add-form" data-add-label="Nuovo reparto">
             {% csrf_token %}
             <input type="hidden" name="next_tab" value="aree">
             <div class="imp-field">
@@ -977,7 +1056,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
             </a>
           </div>
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}" class="imp-add-form">
+          <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}" class="imp-add-form" data-add-label="Nuova qualifica">
             {% csrf_token %}
             <input type="hidden" name="next_tab" value="qualifiche">
             <div class="imp-field">
@@ -1093,7 +1172,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
             </div>
           </div>
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:livello_contrattuale_create' %}" class="imp-add-form">
+          <form method="post" action="{% url 'anagrafica:livello_contrattuale_create' %}" class="imp-add-form" data-add-label="Nuovo livello">
             {% csrf_token %}
             <input type="hidden" name="next_tab" value="livelli">
             <div class="imp-field">
@@ -1190,7 +1269,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
             </div>
           </div>
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:tipologia_contratto_create' %}" class="imp-add-form">
+          <form method="post" action="{% url 'anagrafica:tipologia_contratto_create' %}" class="imp-add-form" data-add-label="Nuova tipologia">
             {% csrf_token %}
             <input type="hidden" name="next_tab" value="tipologie">
             <div class="imp-field">
@@ -1325,9 +1404,9 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Dispositivi di protezione (DPI)</div>
-              <div class="imp-card-sub">Catalogo condiviso col modulo DPI: categorie, tipi con i loro modelli e taglie disponibili.</div>
+              <div class="imp-card-sub">Catalogo condiviso col modulo DPI</div>
             </div>
-            <div class="imp-card-head-actions">
+            <div class="imp-card-head-actions" data-imp-search-here>
               <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'dpi:impostazioni' %}">Apri modulo DPI →</a>
             </div>
           </div>
@@ -1348,7 +1427,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
               </div>
             </div>
             {% if is_admin %}
-            <form method="post" action="{% url 'anagrafica:dpi_categoria_create' %}" enctype="multipart/form-data" class="imp-add-form">
+            <form method="post" action="{% url 'anagrafica:dpi_categoria_create' %}" enctype="multipart/form-data" class="imp-add-form" data-add-label="Nuova categoria">
               {% csrf_token %}
               <div class="imp-field">
                 <label class="imp-label">Nome *</label>
@@ -1460,9 +1539,9 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
 
           <!-- Form: aggiungi tipo -->
           <div class="imp-card">
-            <div class="imp-card-head"><div><div class="imp-card-title">Nuovo tipo DPI</div><div class="imp-card-sub">Sottocategoria all'interno di una famiglia (es. Guanti nitrile)</div></div></div>
+            <div class="imp-card-head"><div><div class="imp-card-title">Tipi DPI e modelli</div><div class="imp-card-sub">Sottocategorie di una famiglia (es. Guanti nitrile), ognuna con i suoi modelli</div></div></div>
             {% if is_admin %}
-            <form method="post" action="{% url 'anagrafica:dpi_tipo_create' %}" class="imp-add-form">
+            <form method="post" action="{% url 'anagrafica:dpi_tipo_create' %}" class="imp-add-form" data-add-label="Nuovo tipo">
               {% csrf_token %}
               <div class="imp-field">
                 <label class="imp-label">Categoria *</label>
@@ -1628,7 +1707,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card">
             <div class="imp-card-head"><div><div class="imp-card-title">Taglie DPI</div><div class="imp-card-sub">Misure disponibili per ciascun modello (XS, S, M, L, XL…)</div></div></div>
             {% if is_admin %}
-            <form method="post" action="{% url 'anagrafica:dpi_taglia_create' %}" class="imp-add-form">
+            <form method="post" action="{% url 'anagrafica:dpi_taglia_create' %}" class="imp-add-form" data-add-label="Nuova taglia">
               {% csrf_token %}
               <div class="imp-field">
                 <label class="imp-label">Modello *</label>
@@ -1706,7 +1785,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Cartelle documenti</div>
-              <div class="imp-card-sub">Lo scheletro di cartelle, uguale per tutti i dipendenti: i documenti caricati nella scheda dipendente finiscono qui. Una cartella con documenti non si elimina, si disattiva.</div>
+              <div class="imp-card-sub">Le cartelle, uguali per tutti, dove finiscono i documenti caricati nella scheda dipendente. Una cartella con documenti non si elimina: si disattiva.</div>
             </div>
             <div class="imp-card-head-actions">
               <a href="{% url 'anagrafica:documenti_list' %}" class="imp-btn imp-btn-ghost imp-btn-sm">Archivio documenti →</a>
@@ -1837,7 +1916,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           {# Nuova cartella #}
           <div class="imp-subsec">
             <div class="imp-kicker">+ Nuova cartella o sottocartella</div>
-            <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}" class="imp-add-form">
+            <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}" class="imp-add-form" data-add-label="Nuova cartella">
               {% csrf_token %}
               <div class="imp-field">
                 <label class="imp-label">Cartella superiore</label>
@@ -1885,7 +1964,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Pilastri del menu</div>
-              <div class="imp-card-sub">I pilastri raggruppano le voci in un menu a tendina nella barra del modulo. Una voce senza pilastro appare direttamente nella barra.</div>
+              <div class="imp-card-sub">Raggruppano le voci in un menu a tendina; una voce senza pilastro sta direttamente nella barra.</div>
             </div>
           </div>
 
@@ -1992,7 +2071,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
 
           <div class="imp-subsec">
             <div class="imp-kicker">+ Nuovo pilastro</div>
-            <form method="post" action="{% url 'anagrafica:subnav_categoria_create' %}" class="imp-add-form">
+            <form method="post" action="{% url 'anagrafica:subnav_categoria_create' %}" class="imp-add-form" data-add-label="Nuovo pilastro">
               {% csrf_token %}
               <div class="imp-field">
                 <label class="imp-label">Nome *</label>
@@ -2039,12 +2118,12 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Voci del menu</div>
-              <div class="imp-card-sub">Le voci di sistema (🔒) non si eliminano, ma puoi nasconderle o spostarle in un altro pilastro. Puoi aggiungere voci tue verso qualsiasi pagina o indirizzo esterno.</div>
+              <div class="imp-card-sub">Le voci di sistema (🔒) non si eliminano, ma si possono nascondere o spostare. Le voci tue possono puntare a qualsiasi pagina o indirizzo.</div>
             </div>
           </div>
 
           <div class="imp-table-wrap">
-            <table class="imp-table" data-table-id="anagrafica-impostazioni-menu-voci">
+            <table class="imp-table" data-table-id="anagrafica-impostazioni-menu-voci" data-fm-hide-controls="1">
               <thead>
                 <tr>
                   <th>Voce</th>
@@ -2174,7 +2253,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           {# Nuova voce #}
           <div class="imp-subsec">
             <div class="imp-kicker">+ Nuova voce di menu</div>
-            <form method="post" action="{% url 'anagrafica:subnav_link_create' %}" class="imp-add-form">
+            <form method="post" action="{% url 'anagrafica:subnav_link_create' %}" class="imp-add-form" data-add-label="Nuova voce">
               {% csrf_token %}
               <div class="imp-field">
                 <label class="imp-label">Etichetta *</label>
@@ -2240,7 +2319,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Avviso IT ai nuovi ingressi {% include "anagrafica/partials/_guida_persone_link.html" with ancora="avviso-it" classe="imp-btn imp-btn-ghost imp-btn-sm" %}</div>
-              <div class="imp-card-sub">Quando HR crea un dipendente da "+ Nuovo dipendente", l'IT riceve nominativo, reparto, mansione, data di ingresso, email di notifica, esito dell'account portale e i link alla scheda e alla pratica onboarding. Nessun dato sensibile. Un canale lasciato vuoto non viene usato.</div>
+              <div class="imp-card-sub">A ogni «+ Nuovo dipendente» l'IT riceve nominativo, reparto, mansione, data di ingresso, esito dell'account e i link a scheda e pratica onboarding. Nessun dato sensibile; un canale vuoto non si usa.</div>
             </div>
           </div>
           {% if is_admin %}
@@ -2249,12 +2328,12 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
             <div class="imp-grid-2">
               <div class="imp-field">
                 <label class="imp-label" for="avviso_it_emails">Email IT da avvisare</label>
-                <textarea class="imp-textarea" id="avviso_it_emails" name="avviso_it_emails" maxlength="2000" rows="5" placeholder="it@azienda.example, helpdesk@azienda.example">{{ avviso_it.emails|join:", " }}</textarea>
+                <textarea class="imp-textarea" id="avviso_it_emails" name="avviso_it_emails" maxlength="2000" rows="3" placeholder="it@azienda.example, helpdesk@azienda.example">{{ avviso_it.emails|join:", " }}</textarea>
                 <p class="imp-help">Separate da virgola.</p>
               </div>
               <div class="imp-field">
                 <label class="imp-label" for="avviso_it_utenti">Utenti IT da notificare nel portale (campanella)</label>
-                <select class="imp-select" id="avviso_it_utenti" name="avviso_it_utenti" multiple size="5">
+                <select class="imp-select" id="avviso_it_utenti" name="avviso_it_utenti" multiple size="4">
                   {% for u in utenti_acl %}
                     <option value="{{ u.id }}" {% if u.id in avviso_it.utenti_ids %}selected{% endif %}>{{ u.nome|upper|default:u.email }}{% if u.email %} — {{ u.email }}{% endif %}</option>
                   {% endfor %}
@@ -2262,10 +2341,8 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <p class="imp-help">Ctrl+clic per selezionarne più di uno.</p>
               </div>
             </div>
-            <div class="imp-workflow-checks">
-              <label><input type="checkbox" name="avviso_it_ticket" value="1" {% if avviso_it.ticket %}checked{% endif %}> Apri anche un ticket IT (annotato sulla voce "Creare account AD" della pratica onboarding)</label>
-            </div>
-            <div class="imp-form-foot">
+            <div class="imp-form-foot imp-form-foot-split">
+              <label class="imp-workflow-checks"><input type="checkbox" name="avviso_it_ticket" value="1" {% if avviso_it.ticket %}checked{% endif %}> Apri anche un ticket IT (annotato sulla voce "Creare account AD" della pratica onboarding)</label>
               <button type="submit" class="imp-btn imp-btn-primary">Salva avviso IT</button>
             </div>
           </form>
@@ -2280,12 +2357,12 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Campi onboarding / offboarding</div>
-              <div class="imp-card-sub">Associa i campi del form "+ Nuovo dipendente" alla lista operativa di ingresso e uscita. Le voci Offboarding attive generano task automatici nella pratica di uscita.</div>
+              <div class="imp-card-sub">Campi di «+ Nuovo dipendente» nella lista operativa di ingresso e uscita, per fase e ordine. Le voci Offboarding attive creano task nella pratica di uscita.</div>
             </div>
           </div>
 
           {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:workflow_campo_create' %}" class="imp-workflow-form">
+          <form method="post" action="{% url 'anagrafica:workflow_campo_create' %}" class="imp-workflow-form" data-add-label="Associa un campo">
             {% csrf_token %}
             <div class="imp-field">
               <label class="imp-label">Campo di "+ Nuovo dipendente" *</label>
@@ -2333,15 +2410,6 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
             </div>
           </form>
           {% endif %}
-        </div>
-
-        <div class="imp-card">
-          <div class="imp-card-head">
-            <div>
-              <div class="imp-card-title">Lista configurata</div>
-              <div class="imp-card-sub">Ordinata per fase e ordine. «Modifica» apre la voce.</div>
-            </div>
-          </div>
 
           <div class="imp-list">
             {% for item in workflow_campi %}
@@ -2437,7 +2505,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Chi vede le sezioni riservate</div>
-              <div class="imp-card-sub">Statistiche, dati HR, visite mediche e schede di selezione: per ognuna scegli tutti, solo amministratori o ruoli precisi. Gli utenti «sempre abilitati» si aggiungono alla scelta.</div>
+              <div class="imp-card-sub">Per ogni sezione: tutti, solo amministratori o ruoli scelti. Gli utenti «sempre abilitati» si aggiungono alla scelta.</div>
             </div>
           </div>
 
@@ -2462,7 +2530,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Permessi avanzati (ACL v2)</div>
-              <div class="imp-card-sub">Permessi canonici del modulo (Skill Matrix, MOD.128, export…). Qui si scrive sulle <strong>stesse tabelle</strong> di ACL v2 canonico: cambiare qui o là è la stessa cosa.</div>
+              <div class="imp-card-sub">Permessi canonici del modulo (Skill Matrix, MOD.128, export…): sono le <strong>stesse tabelle</strong> di ACL v2 canonico, cambiare qui o là è uguale.</div>
             </div>
             {% if is_admin %}
             <div class="imp-card-head-actions">
@@ -2658,11 +2726,16 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
     var selectAll = document.getElementById('vm-bulk-select-all');
     if (!bulkCount && !bulkSubmit && !selectAll) return;
 
+    var bulkForm = document.getElementById('vm-bulk-form');
     function updateCount() {
       var n = document.querySelectorAll('[data-vm-bulk-check]:checked').length;
-      if (bulkCount) bulkCount.textContent = n + (n === 1 ? ' selezionato' : ' selezionati');
+      if (bulkCount) bulkCount.textContent = n ? n + (n === 1 ? ' selezionato' : ' selezionati')
+                                               : 'spunta i tipi qui sotto per modificarli insieme';
       if (bulkSubmit) bulkSubmit.disabled = n === 0;
+      // Finché non si spunta nulla la barra resta una riga sola (campi nascosti).
+      if (bulkForm) bulkForm.classList.toggle('has-sel', n > 0);
     }
+    updateCount();
     document.addEventListener('change', function (e) {
       if (e.target.matches && e.target.matches('[data-vm-bulk-check]')) {
         updateCount();
@@ -2779,36 +2852,93 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
 </script>
 
 <script>
-/* Ricerca/filtro live per ogni scheda con elenco, in testa alla card dell'elenco.
-   Iniettata via JS: nessuna modifica al markup dei singoli tab (additiva, fail-safe). */
+/* Testate di sezione: filtro dell'elenco e «+ Nuovo …» (il form di aggiunta resta
+   chiuso finché non serve). Iniettati via JS: senza JS i form restano aperti e la
+   pagina funziona uguale (additivo, fail-safe). */
 (function () {
+  // Contenitore azioni della testata; se manca lo crea e ci sposta i link già presenti.
+  function headActions(head) {
+    var box = head.querySelector(':scope > .imp-card-head-actions');
+    if (box) return box;
+    box = document.createElement('div');
+    box.className = 'imp-card-head-actions';
+    Array.prototype.slice.call(head.children, 1).forEach(function (c) { box.appendChild(c); });
+    head.appendChild(box);
+    return box;
+  }
+  // Testata della sezione di un elemento: quella della sua card o della card subito prima.
+  function headFor(el) {
+    var card = el.closest('.imp-card');
+    if (!card) return null;
+    var head = card.querySelector(':scope > .imp-card-head');
+    if (head) return head;
+    var prev = card.previousElementSibling;
+    while (prev && !prev.matches('.imp-card')) prev = prev.previousElementSibling;
+    return prev ? prev.querySelector(':scope > .imp-card-head') : null;
+  }
+
+  function initAddToggles(scope) {
+    scope.querySelectorAll('.imp-add-form, .imp-workflow-form').forEach(function (el) {
+      if (el.closest('.imp-modal-overlay') || el.dataset.addInit) return;
+      var box = el.closest('.imp-subsec') || el.closest('form') || el;
+      var head = headFor(box);
+      if (!head) return;
+      el.dataset.addInit = '1';
+      var kicker = box.querySelector('.imp-kicker');
+      var label = el.dataset.addLabel || (kicker && kicker.textContent.replace(/^\s*\+\s*/, '').trim()) || 'Aggiungi';
+      if (kicker) kicker.hidden = true;
+      // Subito sotto la testata, così si apre dove si è cliccato.
+      if (box.parentNode === head.parentNode && head.nextElementSibling !== box) head.insertAdjacentElement('afterend', box);
+      box.classList.add('imp-add-box');
+
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'imp-btn imp-btn-green imp-btn-sm imp-add-toggle';
+      btn.innerHTML = '<svg class="imp-i" aria-hidden="true"><use href="#imp-i-plus"/></svg>';
+      btn.appendChild(document.createTextNode(label));
+      headActions(head).appendChild(btn);
+
+      // Aperto se la sezione è vuota o se il form torna con un errore.
+      var section = box.closest('.dpi-sub-section') || box.closest('.imp-panel') || scope;
+      var empty = !section.querySelector('.imp-row, .imp-table tbody tr, .imp-dpi-tipo');
+      var open = empty || !!box.querySelector('.errorlist, .imp-form-error');
+      function setOpen(v, focus) {
+        box.hidden = !v;
+        btn.setAttribute('aria-expanded', v ? 'true' : 'false');
+        if (v && focus) {
+          var first = box.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea');
+          if (first) first.focus();
+        }
+      }
+      setOpen(open, false);
+      btn.addEventListener('click', function () { setOpen(box.hidden, true); });
+    });
+  }
+
   function initPanelSearch(panel) {
     var lists = panel.querySelectorAll('.imp-list');
     if (!lists.length) return;
     var rows = panel.querySelectorAll('.imp-list .imp-row');
     if (rows.length < 4) return;  // liste cortissime: niente filtro
 
-    var wrap = document.createElement('div');
-    wrap.className = 'imp-search-wrap';
+    var wrap = document.createElement('label');
+    wrap.className = 'imp-head-search';
+    wrap.innerHTML = '<svg class="imp-i" aria-hidden="true"><use href="#imp-i-search"/></svg>';
     var input = document.createElement('input');
     input.type = 'search';
-    input.className = 'imp-input imp-search-input';
-    input.placeholder = 'Filtra in questa sezione…';
+    input.placeholder = 'Filtra…';
     input.setAttribute('aria-label', 'Filtra elenco');
     var info = document.createElement('span');
     info.className = 'imp-search-info';
     wrap.appendChild(input);
     wrap.appendChild(info);
 
-    // In testa alla card dell'elenco; se l'elenco sta in gruppi richiudibili
-    // (<details>, Visite mediche) va prima del primo gruppo, sempre visibile.
-    var listCard = lists[0].closest('.imp-card');
-    if (listCard && listCard.tagName === 'DETAILS') {
-      wrap.style.marginBottom = '0';
-      listCard.parentNode.insertBefore(wrap, listCard);
-    } else if (listCard) {
-      wrap.style.marginBottom = '14px';
-      listCard.insertBefore(wrap, listCard.firstChild);
+    // Nella testata della sezione dell'elenco (o dove la scheda lo chiede).
+    var target = panel.querySelector('[data-imp-search-here]');
+    var head = target ? null : headFor(lists[0]) || panel.querySelector('.imp-card-head');
+    if (!target && head) target = headActions(head);
+    if (target) {
+      target.insertBefore(wrap, target.firstChild);
     } else {
       lists[0].parentNode.insertBefore(wrap, lists[0]);
     }
@@ -2846,15 +2976,20 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
     });
   }
 
-  document.querySelectorAll('.imp-panel').forEach(initPanelSearch);
+  document.querySelectorAll('.imp-panel').forEach(function (panel) {
+    initAddToggles(panel);
+    initPanelSearch(panel);
+  });
 
   // Il pannello Visite mediche rigenera il proprio contenuto via HTMX (crea/
-  // modifica/elimina/modifica-massiva): la casella di ricerca iniettata sopra
-  // sparisce con lo swap (era dentro il nodo rimpiazzato) e va reinserita.
+  // modifica/elimina/modifica-massiva): filtro e «+ Nuovo» stavano nella testata
+  // rimpiazzata e vanno reinseriti.
   document.body.addEventListener('htmx:afterSwap', function (e) {
     if (!e.detail || !e.detail.target || e.detail.target.id !== 'visite-mediche-panel-content') return;
     var panel = document.getElementById('tab-visite-mediche');
-    if (panel) initPanelSearch(panel);
+    if (!panel) return;
+    initAddToggles(panel);
+    initPanelSearch(panel);
   });
 })();
 </script>

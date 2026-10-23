@@ -1,69 +1,78 @@
 {% comment %}
-Card di un permesso di sezione (singleton TUTTI/ADMIN/RUOLI) del tab Permessi.
+Riga di un permesso di sezione (singleton TUTTI/ADMIN/RUOLI) del tab Permessi.
 Fonte unica: le card erano tre blocchi identici copiati, e ogni nuovo permesso
 ne aggiungeva un quarto. Ora la pagina cicla su `permessi_cards` costruita in
-`views.impostazioni`.
+`views.impostazioni`. A sinistra cosa protegge, a destra chi la vede (selettore
+a tre voci); gli utenti «sempre abilitati» stanno in un riquadro richiudibile.
 
 Parametri include: card (dict con prefix/titolo/descrizione/perm + supporta_utenti/
 utente_ids per l'allow-list per-utente), ruoli_acl, utenti_acl, is_admin,
 ACCESSO_TUTTI, ACCESSO_ADMIN, ACCESSO_RUOLI.
 {% endcomment %}
 <div class="imp-perm-card">
-  <div class="imp-perm-title">{{ card.icona }} {{ card.titolo }}</div>
-  <p class="imp-perm-desc">{{ card.descrizione }}</p>
+  <div class="imp-perm-info">
+    <div class="imp-perm-title">{{ card.icona }} {{ card.titolo }}</div>
+    <p class="imp-perm-desc">{{ card.descrizione }}</p>
+    {% if card.nota %}<p class="imp-perm-note">{{ card.nota }}</p>{% endif %}
+  </div>
 
-  <label class="imp-perm-row">
-    <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_TUTTI }}"
-           {% if card.perm.accesso == ACCESSO_TUTTI %}checked{% endif %}
-           data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
-    Tutti gli utenti autenticati
-  </label>
-  <label class="imp-perm-row">
-    <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_ADMIN }}"
-           {% if card.perm.accesso == ACCESSO_ADMIN %}checked{% endif %}
-           data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
-    Solo amministratori
-  </label>
-  <label class="imp-perm-row">
-    <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_RUOLI }}"
-           {% if card.perm.accesso == ACCESSO_RUOLI %}checked{% endif %}
-           data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
-    Ruoli ACL specifici
-  </label>
+  <div class="imp-perm-ctrl">
+    <div class="imp-perm-seg" role="radiogroup" aria-label="Chi vede: {{ card.titolo }}">
+      <label class="imp-perm-row" title="Tutti gli utenti autenticati">
+        <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_TUTTI }}"
+               {% if card.perm.accesso == ACCESSO_TUTTI %}checked{% endif %}
+               data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
+        Tutti
+      </label>
+      <label class="imp-perm-row">
+        <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_ADMIN }}"
+               {% if card.perm.accesso == ACCESSO_ADMIN %}checked{% endif %}
+               data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
+        Solo amministratori
+      </label>
+      <label class="imp-perm-row" title="Ruoli ACL scelti qui sotto">
+        <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_RUOLI }}"
+               {% if card.perm.accesso == ACCESSO_RUOLI %}checked{% endif %}
+               data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
+        Ruoli scelti
+      </label>
+    </div>
 
-  <div class="imp-perm-ruoli {% if card.perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="{{ card.prefix }}">
-    {% if ruoli_acl %}
-      {% for r in ruoli_acl %}
-        <label>
-          <input type="checkbox" name="{{ card.prefix }}_ruolo_ids" value="{{ r.id }}"
-                 {% if r.id in card.perm.ruolo_ids %}checked{% endif %}
-                 {% if not is_admin %}disabled{% endif %}>
-          {{ r.nome }}
-        </label>
-      {% endfor %}
-    {% else %}
-      <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
+    <div class="imp-perm-ruoli {% if card.perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="{{ card.prefix }}">
+      {% if ruoli_acl %}
+        {% for r in ruoli_acl %}
+          <label>
+            <input type="checkbox" name="{{ card.prefix }}_ruolo_ids" value="{{ r.id }}"
+                   {% if r.id in card.perm.ruolo_ids %}checked{% endif %}
+                   {% if not is_admin %}disabled{% endif %}>
+            {{ r.nome }}
+          </label>
+        {% endfor %}
+      {% else %}
+        <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
+      {% endif %}
+    </div>
+
+    {% if card.supporta_utenti %}
+    <details class="imp-perm-extra">
+      <summary>👤 Utenti sempre abilitati: {{ card.utente_ids|length }}</summary>
+      {% if utenti_acl %}
+      <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="{{ card.prefix }}">
+      <div class="imp-perm-utenti" data-perm-utenti="{{ card.prefix }}">
+        {% for u in utenti_acl %}
+          <label data-uname="{{ u.nome|default:u.email|lower }}">
+            <input type="checkbox" name="{{ card.prefix }}_utente_ids" value="{{ u.id }}"
+                   {% if u.id in card.utente_ids %}checked{% endif %}
+                   {% if not is_admin %}disabled{% endif %}>
+            {{ u.nome|default:u.email }}
+          </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="imp-empty">Nessun utente attivo.</div>
+      {% endif %}
+      <p class="imp-help">In aggiunta ad amministratori e ruoli.</p>
+    </details>
     {% endif %}
   </div>
-
-  {% if card.supporta_utenti %}
-  <div class="imp-perm-utenti-head">👤 Utenti sempre abilitati <span class="imp-perm-hint">(in aggiunta a admin/ruoli)</span></div>
-  {% if utenti_acl %}
-  <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="{{ card.prefix }}">
-  <div class="imp-perm-utenti" data-perm-utenti="{{ card.prefix }}">
-    {% for u in utenti_acl %}
-      <label data-uname="{{ u.nome|default:u.email|lower }}">
-        <input type="checkbox" name="{{ card.prefix }}_utente_ids" value="{{ u.id }}"
-               {% if u.id in card.utente_ids %}checked{% endif %}
-               {% if not is_admin %}disabled{% endif %}>
-        {{ u.nome|default:u.email }}
-      </label>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="imp-empty">Nessun utente attivo.</div>
-  {% endif %}
-  {% endif %}
-
-  {% if card.nota %}<p class="imp-perm-note">{{ card.nota }}</p>{% endif %}
 </div>

@@ -26,27 +26,43 @@
 .ro-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
 .ro-card-title { font-size:15px; font-weight:700; color:#1e293b; }
 .ro-card-body { padding:18px 20px; }
+/* Sezioni richiudibili (nuovo ruolo, ambiti): chiuse occupano una riga. */
+details.ro-acc > summary { list-style:none; cursor:pointer; border-bottom:0; }
+details.ro-acc > summary::-webkit-details-marker { display:none; }
+details.ro-acc > summary::after { content:"›"; font-size:18px; line-height:1; color:#94a3b8; transition:transform .15s; }
+details.ro-acc[open] > summary::after { transform:rotate(90deg); }
+details.ro-acc > summary:hover .ro-card-title { color:#1f87cd; }
+.ro-new .hub-form-stack { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px 22px; align-items:start; }
+.ro-new .hub-form-stack > .hub-fsec { margin-top:0; padding-top:0; border-top:0; }
+.ro-btn-new { background:#16a34a; color:#fff; }
+.ro-btn-new:hover { background:#15803d; }
 
 /* Griglia ruoli */
-.ro-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+.ro-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px; }
 .ro-item {
   background:#fff; border:1px solid #e2e8f0; border-radius:12px;
-  padding:16px 18px; position:relative; overflow:hidden;
+  padding:12px 14px; position:relative; overflow:hidden;
 }
 .ro-item-accent { position:absolute; top:0; left:0; bottom:0; width:4px; }
-.ro-item-body { padding-left:14px; }
+.ro-item-body { padding-left:8px; }
 .ro-item-name { font-size:15px; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:6px; }
 .ro-item-desc { font-size:13px; color:#64748b; margin-top:3px; }
 .ro-item-meta { font-size:12px; color:#94a3b8; margin-top:6px; }
-.ro-item-actions { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+.ro-item-actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center; }
 .ro-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
 .ro-badge-blue { background:var(--hr-info-bg,#dbeafe); color:var(--hr-info-fg,#1e40af); }
 .ro-badge-gray { background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); }
 .ro-badge-red { background:var(--hr-ko-bg,#fee2e2); color:var(--hr-ko-fg,#b91c1c); }
 
 /* Qualifiche richieste dal ruolo */
-.ro-qual { margin-top:10px; padding-top:10px; border-top:1px dashed #e2e8f0; }
+.ro-qual { margin-top:8px; padding-top:8px; border-top:1px dashed #e2e8f0; }
 .ro-qual-title { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.ro-qual-title .ro-qual-empty { margin:0; font-weight:500; text-transform:none; letter-spacing:0; }
+.ro-qual-add > summary { display:inline-block; margin-top:6px; list-style:none; font-size:12px; font-weight:600; color:#1f87cd; cursor:pointer; }
+.ro-qual-add > summary::-webkit-details-marker { display:none; }
+.ro-qual-add[open] > summary { color:#64748b; }
+body.theme-dark .ro-qual-add > summary { color:#93c5fd; }
+body.theme-dark .ro-qual-add[open] > summary { color:var(--text-light); }
 .ro-qual-list { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
 .ro-qual-chip { display:inline-flex; align-items:center; gap:4px; background:#eef2ff; color:#3730a3; border:1px solid #e0e7ff; border-radius:999px; padding:2px 9px; font-size:11px; font-weight:600; }
 .ro-qual-chip-opz { background:#f8fafc; color:#64748b; border-color:#e2e8f0; font-weight:500; }
@@ -118,6 +134,9 @@ body.theme-dark .ro-modal-title { color:var(--text); }
   <div class="ro-card">
     <div class="ro-card-head">
       <div class="ro-card-title">Ruoli nel catalogo ({{ ruoli|length }})</div>
+      {% if is_admin %}
+      <button type="button" class="ro-btn ro-btn-new ro-btn-sm" onclick="roApri('ro-new')">+ Nuovo ruolo</button>
+      {% endif %}
     </div>
     <div class="ro-card-body">
       {% if ruoli %}
@@ -171,7 +190,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               {% if r.riporta_a %}<span class="ro-badge ro-badge-gray">▲ Riporta a: {{ r.riporta_a.nome }}</span>{% endif %}
             </div>
             <div class="ro-qual">
-              <div class="ro-qual-title">Qualifiche richieste</div>
+              <div class="ro-qual-title">Qualifiche richieste{% if not r.qualifiche %} <span class="ro-qual-empty">· nessuna</span>{% endif %}</div>
               {% if r.qualifiche %}
               <div class="ro-qual-list">
                 {% for q in r.qualifiche %}
@@ -188,10 +207,10 @@ body.theme-dark .ro-modal-title { color:var(--text); }
                 </span>
                 {% endfor %}
               </div>
-              {% else %}
-              <div class="ro-qual-empty">Nessuna qualifica associata.</div>
               {% endif %}
               {% if is_admin and qualifiche_catalogo %}
+              <details class="ro-qual-add">
+              <summary>+ Aggiungi qualifica</summary>
               <form method="post" action="{% url 'anagrafica:ruolo_qualifica_aggiungi' r.id %}" class="ro-qual-form">
                 {% csrf_token %}
                 <select name="qualifica_id" class="hub-input hub-input-sm" required>
@@ -206,6 +225,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
                 </label>
                 <button type="submit" class="ro-btn ro-btn-ghost ro-btn-sm">Aggiungi</button>
               </form>
+              </details>
               {% endif %}
             </div>
             <div class="ro-item-actions">
@@ -242,61 +262,10 @@ body.theme-dark .ro-modal-title { color:var(--text); }
     </div>
   </div>
 
-  <!-- Ambiti dei ruoli (solo admin) -->
-  {% if is_admin %}
-  <div class="ro-card">
-    <div class="ro-card-head"><div class="ro-card-title">🗂 Ambiti dei ruoli</div></div>
-    <div class="ro-card-body">
-      <div class="ro-sub" style="margin-bottom:10px;">
-        Ogni ambito è un organigramma a sé — produttivo, esecutivo, ISO 45001, ISO 27001.
-        Una persona può ricoprire un ruolo per ambito: <strong>si sovrappongono, non si sostituiscono</strong>.
-        L'ambito con la ⭐ è l'unico il cui ruolo compare come «Ruolo aziendale» nella scheda dipendente.
-      </div>
-      {% for a in ambiti %}
-      <div class="ro-amb-row">
-        <div>
-          <div class="ro-amb-row-main">
-            <span class="ro-amb-tag" style="background-color:{{ a.colore }};">{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</span>
-            {% if a.alimenta_scheda %}<span class="ro-badge ro-badge-blue">⭐ Ruolo aziendale della scheda</span>{% endif %}
-            {% if not a.is_active %}<span class="ro-badge ro-badge-red">Inattivo</span>{% endif %}
-            <span class="ro-badge ro-badge-gray">{{ a.n_ruoli }} ruol{{ a.n_ruoli|pluralize:"o,i" }}</span>
-          </div>
-          {% if a.descrizione %}<div class="ro-amb-row-desc">{{ a.descrizione }}</div>{% endif %}
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
-            onclick="roOpenAmbito({{ a.id }}, '{{ a.nome|escapejs }}', '{{ a.descrizione|escapejs }}', '{{ a.colore }}', '{{ a.icona|escapejs }}', {{ a.ordine }}, {{ a.alimenta_scheda|yesno:'true,false' }}, {{ a.is_active|yesno:'true,false' }})">✏ Modifica</button>
-          {% if not a.n_ruoli and not a.alimenta_scheda %}
-          <form method="post" action="{% url 'anagrafica:ambito_ruolo_delete' a.id %}" style="display:inline;">
-            {% csrf_token %}
-            <button type="submit" class="ro-btn ro-btn-danger ro-btn-sm"
-              onclick="return confirm('Eliminare l'ambito {{ a.nome|escapejs }}?')">🗑</button>
-          </form>
-          {% endif %}
-        </div>
-      </div>
-      {% empty %}
-      <div style="font-size:13px;color:#94a3b8;">Nessun ambito: tutti i ruoli valgono per l'assetto principale.</div>
-      {% endfor %}
-
-      <form method="post" action="{% url 'anagrafica:ambito_ruolo_create' %}" style="margin-top:14px;">
-        {% csrf_token %}
-        <div class="ro-qual-form">
-          <input type="text" name="nome" class="hub-input hub-input-sm" placeholder="+ Nuovo ambito (es. Ambiente ISO 14001)" maxlength="100" required style="min-width:240px;">
-          <input type="text" name="icona" class="hub-input hub-input-sm" placeholder="emoji" maxlength="10" style="max-width:80px;">
-          <input type="color" name="colore" value="#64748b" style="height:32px;padding:2px 4px;cursor:pointer;">
-          <input type="number" name="ordine" class="hub-input hub-input-sm" placeholder="ordine" value="100" style="max-width:90px;">
-          <button type="submit" class="ro-btn ro-btn-ghost ro-btn-sm">Aggiungi ambito</button>
-        </div>
-      </form>
-    </div>
-  </div>
-  {% endif %}
-
   <!-- Form nuovo ruolo (solo admin) -->
   {% if is_admin %}
-  <div class="ro-card">
-    <div class="ro-card-head"><div class="ro-card-title">+ Nuovo ruolo</div></div>
+  <details class="ro-card ro-acc ro-new" id="ro-new"{% if not ruoli %} open{% endif %}>
+    <summary class="ro-card-head"><div class="ro-card-title">+ Nuovo ruolo</div></summary>
     <div class="ro-card-body">
       <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}">
         {% csrf_token %}
@@ -358,7 +327,58 @@ body.theme-dark .ro-modal-title { color:var(--text); }
         </div>
       </form>
     </div>
-  </div>
+  </details>
+  {% endif %}
+
+  <!-- Ambiti dei ruoli (solo admin) -->
+  {% if is_admin %}
+  <details class="ro-card ro-acc" id="ro-ambiti">
+    <summary class="ro-card-head"><div class="ro-card-title">🗂 Ambiti dei ruoli ({{ ambiti|length }})</div></summary>
+    <div class="ro-card-body">
+      <div class="ro-sub" style="margin-bottom:10px;">
+        Ogni ambito è un organigramma a sé — produttivo, esecutivo, ISO 45001, ISO 27001.
+        Una persona può ricoprire un ruolo per ambito: <strong>si sovrappongono, non si sostituiscono</strong>.
+        L'ambito con la ⭐ è l'unico il cui ruolo compare come «Ruolo aziendale» nella scheda dipendente.
+      </div>
+      {% for a in ambiti %}
+      <div class="ro-amb-row">
+        <div>
+          <div class="ro-amb-row-main">
+            <span class="ro-amb-tag" style="background-color:{{ a.colore }};">{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</span>
+            {% if a.alimenta_scheda %}<span class="ro-badge ro-badge-blue">⭐ Ruolo aziendale della scheda</span>{% endif %}
+            {% if not a.is_active %}<span class="ro-badge ro-badge-red">Inattivo</span>{% endif %}
+            <span class="ro-badge ro-badge-gray">{{ a.n_ruoli }} ruol{{ a.n_ruoli|pluralize:"o,i" }}</span>
+          </div>
+          {% if a.descrizione %}<div class="ro-amb-row-desc">{{ a.descrizione }}</div>{% endif %}
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
+            onclick="roOpenAmbito({{ a.id }}, '{{ a.nome|escapejs }}', '{{ a.descrizione|escapejs }}', '{{ a.colore }}', '{{ a.icona|escapejs }}', {{ a.ordine }}, {{ a.alimenta_scheda|yesno:'true,false' }}, {{ a.is_active|yesno:'true,false' }})">✏ Modifica</button>
+          {% if not a.n_ruoli and not a.alimenta_scheda %}
+          <form method="post" action="{% url 'anagrafica:ambito_ruolo_delete' a.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="ro-btn ro-btn-danger ro-btn-sm"
+              onclick="return confirm('Eliminare l'ambito {{ a.nome|escapejs }}?')">🗑</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div style="font-size:13px;color:#94a3b8;">Nessun ambito: tutti i ruoli valgono per l'assetto principale.</div>
+      {% endfor %}
+
+      <form method="post" action="{% url 'anagrafica:ambito_ruolo_create' %}" style="margin-top:14px;">
+        {% csrf_token %}
+        <div class="ro-qual-form">
+          <input type="text" name="nome" class="hub-input hub-input-sm" placeholder="+ Nuovo ambito (es. Ambiente ISO 14001)" maxlength="100" required style="min-width:240px;">
+          <input type="text" name="icona" class="hub-input hub-input-sm" placeholder="emoji" maxlength="10" style="max-width:80px;">
+          <input type="color" name="colore" value="#64748b" style="height:32px;padding:2px 4px;cursor:pointer;">
+          <input type="number" name="ordine" class="hub-input hub-input-sm" placeholder="ordine" value="100" style="max-width:90px;">
+          <button type="submit" class="ro-btn ro-btn-ghost ro-btn-sm">Aggiungi ambito</button>
+        </div>
+      </form>
+    </div>
+  </details>
   {% endif %}
 
   <!-- Ruoli predefiniti suggeriti -->
@@ -549,6 +569,15 @@ document.addEventListener('keydown', function(e) {
 
 {# Filtro per ambito: le card restano tutte in pagina, si nascondono soltanto. #}
 <script>
+// «+ Nuovo ruolo» in testata: apre la sezione richiudibile e porta il fuoco sul nome.
+function roApri(id) {
+  const d = document.getElementById(id);
+  if (!d) return;
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const f = d.querySelector('input[name=nome]');
+  if (f) setTimeout(function () { f.focus({ preventScroll: true }); }, 250);
+}
 (function () {
   const bar = document.getElementById('ro-ambiti-bar');
   if (!bar) return;
@@ -586,6 +615,7 @@ body.theme-dark .rod-item-meta { color:var(--text-light); }
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ro-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
 body.theme-dark .ro-btn-danger:hover{background:rgba(229,62,62,.16)}
+body.theme-dark details.ro-acc > summary:hover .ro-card-title{color:#93c5fd}
 body.theme-dark .ro-amb-chip:hover{background:var(--surface-alt,#0f1b2d)}
 </style>
 
