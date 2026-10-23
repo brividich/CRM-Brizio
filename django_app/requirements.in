@@ -6,7 +6,7 @@ Django>=5.2.17,<6.0
 waitress>=3.0,<4                # WSGI server per IIS via HttpPlatformHandler
 
 # --- Database ---
-mssql-django==1.7.4               # backend SQL Server; versione fissa per compat pyodbc
+mssql-django==2.0.0               # backend SQL Server; driver pyodbc (predefinito), mssql-python solo con OPTIONS python_driver
 pyodbc>=5.2.0                   # driver ODBC; 5.2+ richiesto per Python 3.11 su Windows
 
 # --- Auth / Identity ---
@@ -23,7 +23,7 @@ pyOpenSSL>=26.4.0,<27           # TLS per ldap3 e pyspnego
 openpyxl>=3.1.5                 # lettura/scrittura Excel (VRF MOD.073)
 packaging>=24.0                 # confronto versioni software (impatto CVE SOC)
 xlrd>=2.0.2                     # lettura .xls legacy (intake export gestionale Specifiche)
-reportlab>=4.0                  # generazione PDF
+reportlab>=5.0.1                # generazione PDF
 pymupdf>=1.28.0                   # rendering PDF->PNG (import slide e-learning da PPTX/PDF)
 
 # --- Task queue ---
@@ -32,7 +32,7 @@ croniter>=6.2.4                   # richiesto da django-q2 per gli Schedule di t
 
 # --- Utilità runtime ---
 cachetools>=5.3                 # TTLCache per _SPNEGO_CONTEXTS
-Pillow>=12.3.0                    # elaborazione immagini (upload, fotocard)
+Pillow>=13.0.0                    # elaborazione immagini (upload, fotocard)
 
 # --- MIME validation (upload hardening) ---
 python-magic-bin>=0.4.14; platform_system=="Windows"
