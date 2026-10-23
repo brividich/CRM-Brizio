@@ -754,6 +754,26 @@ body.theme-dark .af-tab[aria-selected="true"] { background:#2563eb; color:#fff; 
 body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
 @media (max-width:640px) { .af-kpiband-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 .af-qr-head { display:flex; flex-direction:column; align-items:center; gap:2px; margin-left:auto; font-size:.7em; font-weight:700; letter-spacing:.06em; opacity:.85; }
+/* Posizione in officina: zona ingrandita (background centrato sul punto) e pianta intera */
+.af-map { display:grid; gap:10px; }
+.af-map-zone { position:relative; aspect-ratio:2/1; width:100%; max-width:900px; border:1px solid var(--border); border-radius:10px; background-color:#fff; background-repeat:no-repeat; overflow:hidden; }
+.af-map-pin { position:absolute; left:50%; top:50%; width:16px; height:16px; border-radius:50%; background:#dc2626; transform:translate(-50%,-50%); box-shadow:0 0 0 3px #fff, 0 3px 10px rgba(15,23,42,.35); }
+.af-map-zone .af-map-pin::after { content:""; position:absolute; inset:-9px; border-radius:50%; border:2px solid #dc2626; animation:af-map-pulse 1.8s ease-out infinite; }
+@keyframes af-map-pulse { from { transform:scale(.5); opacity:.9; } to { transform:scale(1.6); opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .af-map-zone .af-map-pin::after { animation:none; opacity:.4; } }
+.af-map-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 10px; align-items:baseline; }
+.af-map-place { display:inline-flex; align-items:center; gap:6px; font-weight:800; color:var(--text); }
+.af-map-swatch { width:10px; height:10px; border-radius:3px; flex:none; }
+.af-map-layout { color:var(--text-mid); font-size:var(--fs-sm); }
+.af-map-whole summary { cursor:pointer; color:var(--primary-mid); font-size:var(--fs-sm); font-weight:700; }
+.af-map-full { position:relative; margin-top:8px; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+.af-map-full img { display:block; width:100%; height:auto; }
+.af-map-full .af-map-pin { width:12px; height:12px; }
+.af-map-empty { display:grid; gap:4px; padding:14px; border:1px dashed var(--border); border-radius:10px; color:var(--text-mid); font-size:var(--fs-sm); }
+.af-map-empty strong { color:var(--text); font-size:var(--fs-base); }
+.af-map-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.af-map-actions .af-btn { flex:1 1 auto; justify-content:center; }
+body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rgba(0,0,0,.5); }
 </style>
 <section class="af-page{% if it_presentation %} af-it-page{% endif %}">
   <div class="af-header">
@@ -1769,14 +1789,36 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             </div>
           </details>
         {% elif card.code == "MAP" %}
-          <div class="af-card-body">
-            <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #dbe1ea;margin-bottom:12px;background:#eef4ff;">
-              <img src="{{ map_marker.layout.image.url }}" alt="Planimetria" style="width:100%;display:block;opacity:.85;">
-              <div style="position:absolute;inset:0;pointer-events:none;">
-                <div style="position:absolute;width:16px;height:16px;border-radius:50%;background:#dc2626;border:3px solid #fff;box-shadow:0 0 0 3px rgba(220,38,38,.35),0 4px 12px rgba(15,23,42,.25);transform:translate(-50%,-50%);left:{{ map_marker.x_percent|stringformat:'g' }}%;top:{{ map_marker.y_percent|stringformat:'g' }}%;"></div>
+          {# Posizione in officina: zona ingrandita sulla macchina + pianta intera a richiesta. #}
+          <div class="af-card-body af-map">
+            {% if map_card.marker and map_card.placed %}
+              <div class="af-map-zone" role="img" aria-label="Posizione di {{ asset.name }} sulla planimetria {{ map_card.layout.name }}"
+                style="background-image:url('{{ map_card.image_url }}');background-size:{{ map_card.zoom_size }} auto;background-position:{{ map_card.bg_x }} {{ map_card.bg_y }};">
+                <span class="af-map-pin" aria-hidden="true"></span>
               </div>
+              <div class="af-map-meta">
+                <span class="af-map-place">
+                  {% if map_card.area_name %}<span class="af-map-swatch" style="background:{{ map_card.area_color }}"></span>{{ map_card.area_name }}{% else %}Fuori dai reparti disegnati{% endif %}
+                </span>
+                <span class="af-map-layout">{{ map_card.layout.category }} · {{ map_card.layout.name }}</span>
+              </div>
+              <details class="af-map-whole">
+                <summary>Pianta intera</summary>
+                <div class="af-map-full" style="aspect-ratio:{{ map_card.ratio }}">
+                  <img src="{{ map_card.image_url }}" alt="Planimetria {{ map_card.layout.name }}" loading="lazy">
+                  <span class="af-map-pin" style="left:{{ map_card.marker.x_percent|stringformat:'g' }}%;top:{{ map_card.marker.y_percent|stringformat:'g' }}%;" aria-hidden="true"></span>
+                </div>
+              </details>
+            {% else %}
+              <div class="af-map-empty">
+                <strong>{% if map_card.marker %}Posizione da definire{% else %}Non ancora sulla planimetria{% endif %}</strong>
+                <span>{% if map_card.marker %}La macchina è sulla planimetria «{{ map_card.layout.name }}» ma nessuno l'ha ancora collocata nel punto giusto.{% else %}La macchina non compare su «{{ map_card.layout.name }}».{% endif %}</span>
+              </div>
+            {% endif %}
+            <div class="af-map-actions">
+              {% if map_card.map_url %}<a class="af-btn af-btn-primary" href="{{ map_card.map_url }}">Vedi sulla mappa</a>{% endif %}
+              {% if map_card.editor_url %}<a class="af-btn" href="{{ map_card.editor_url }}">{% if map_card.placed %}Sposta{% else %}Posiziona ora{% endif %}</a>{% endif %}
             </div>
-            <a class="af-btn af-btn-primary" href="{{ map_url }}" style="width:100%;justify-content:center;">Vedi sulla mappa</a>
           </div>
         {% elif card.code == "DOCUMENTS" %}
           <div class="af-doc-tabs">
@@ -2221,6 +2263,9 @@ body.theme-dark .af-chip--ticket{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .af-export-pop a{color:#93c5fd}
 body.theme-dark .af-tab[aria-selected="true"] .af-tab-count{background:rgba(255,255,255,.06)}
 body.theme-dark .af-qr-frame{background:var(--surface)}
+body.theme-dark .af-map-zone{background:var(--surface)}
+body.theme-dark .af-map-whole summary{color:#93c5fd}
+body.theme-dark .af-map-full{background:var(--surface)}
 body.theme-dark .af-lightbox-img{background:var(--surface)}
 </style>
 <script>

@@ -19,6 +19,7 @@ from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
+from core.acl import user_can_modulo_action
 from core.audit import log_action, storico_oggetto
 
 from core.legacy_models import AnagraficaDipendente
@@ -84,6 +85,8 @@ from ._helpers import (  # noqa: F401
     _periodic_execution_window_cutoff,
     _periodic_verification_state,
     _resolve_asset_plant_layout,
+    _asset_plant_layout_marker,
+    _plant_layout_image_size,
     _software_license_state_payload,
     _software_licenses_page_url,
     _ui_choices,
@@ -1193,24 +1196,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         on_resolved = PlantLayoutMarker.objects.filter(asset=asset, layout=resolved_layout).exists()
         if has_marker and not on_resolved:
             _ensure_asset_plant_layout_marker(asset)
-    map_marker = None
-    if resolved_layout is not None:
-        map_marker = (
-            PlantLayoutMarker.objects.filter(asset=asset, layout=resolved_layout, layout__is_active=True)
-            .select_related("layout")
-            .first()
-        )
-    if map_marker is None:
-        map_marker = (
-            PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True)
-            .select_related("layout")
-            .order_by("layout__category", "layout__name", "id")
-            .first()
-        )
-    if map_marker:
-        map_url = reverse("assets:plant_layout_map") + f"?asset={asset.id}&category={quote(map_marker.layout.category)}"
-    else:
-        map_url = ""
+    map_marker = _asset_plant_layout_marker(asset)
+    map_card = _asset_plant_map_card(request, asset, map_marker, resolved_layout)
+    map_url = map_card["map_url"] if map_card else ""
 
     shell_kwargs = {}
     if asset.asset_type == Asset.TYPE_WORK_MACHINE:
@@ -1281,7 +1269,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         profile_card_title=profile_card_title,
         detail_assignment_title=detail_assignment_title,
         quick_action_buttons=quick_action_buttons,
-        map_marker=map_marker,
+        map_marker=map_card,
         doc_category_labels=doc_category_labels,
         spec_pairs=spec_pairs,
         profile_rows=profile_rows,
@@ -1485,6 +1473,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 else ""
             ),
             "map_marker": map_marker,
+            "map_card": map_card,
             "map_url": map_url,
             "can_retire_asset": can_retire_asset,
             "can_delete_asset": can_delete_asset,
@@ -1515,3 +1504,63 @@ def _processi_qualificati(asset) -> list:
         return processi_dell_asset(asset)
     except Exception:
         return []
+
+
+# Ingrandimento della vista «Zona» nella scheda: la planimetria intera in una
+# card larga mezza pagina rende la macchina un puntino illeggibile.
+_MAP_CARD_ZOOM = 3.0
+_MAP_CARD_RATIO = 2.0  # aspect-ratio di .af-map-zone
+
+
+def _map_card_background_position(x_percent: float, y_percent: float, width: int, height: int) -> tuple[float, float]:
+    """``background-position`` (in %) che mette il punto al centro della card.
+
+    Con ``background-size: Z*100% auto`` lo scostamento vale ``P*(C-S)``: si
+    risolve ``P`` perché il punto cada a metà del contenitore, in entrambi gli assi.
+    """
+    def solve(point: float, ratio: float) -> float:
+        if abs(ratio - 1) < 1e-6:
+            return 50.0
+        return round((0.5 - point * ratio) / (1 - ratio) * 100, 3)
+
+    ratio_x = _MAP_CARD_ZOOM
+    ratio_y = _MAP_CARD_ZOOM * _MAP_CARD_RATIO * (height / width) if width and height else _MAP_CARD_ZOOM
+    return solve(x_percent / 100, ratio_x), solve(y_percent / 100, ratio_y)
+
+
+def _asset_plant_map_card(request, asset, marker, resolved_layout) -> dict | None:
+    """Dati della card «Posizione in officina»: zona ingrandita, reparto, stato."""
+    from ..services.plant_layout_image import area_at_point, marker_is_unplaced
+
+    can_manage = user_can_modulo_action(request, "assets", "admin_assets")
+    editor_base = reverse("assets:plant_layout_editor")
+    if marker is None:
+        # Nessun marker: la card serve solo a chi può posizionare la macchina.
+        if not (can_manage and resolved_layout is not None and asset.asset_type == Asset.TYPE_WORK_MACHINE):
+            return None
+        return {
+            "layout": resolved_layout,
+            "marker": None,
+            "placed": False,
+            "editor_url": f"{editor_base}?layout={resolved_layout.id}&asset={asset.id}",
+            "map_url": "",
+        }
+    layout = marker.layout
+    width, height = _plant_layout_image_size(layout)
+    placed = not marker_is_unplaced(marker)
+    area = area_at_point(list(layout.areas.all()), marker.x_percent, marker.y_percent) if placed else None
+    bg_x, bg_y = _map_card_background_position(float(marker.x_percent), float(marker.y_percent), width, height)
+    return {
+        "layout": layout,
+        "marker": marker,
+        "placed": placed,
+        "area_name": area.name if area else "",
+        "area_color": area.color if area else "",
+        "image_url": layout.image.url if layout.image else "",
+        "ratio": f"{width}/{height}" if width and height else "4/3",
+        "zoom_size": f"{_MAP_CARD_ZOOM * 100:g}%",
+        "bg_x": f"{bg_x:g}%",
+        "bg_y": f"{bg_y:g}%",
+        "map_url": reverse("assets:plant_layout_map") + f"?asset={asset.id}&category={quote(layout.category)}",
+        "editor_url": f"{editor_base}?layout={layout.id}&asset={asset.id}" if can_manage else "",
+    }
