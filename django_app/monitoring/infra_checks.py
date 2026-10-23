@@ -75,13 +75,13 @@ def check_collector_cnc():
         return _result(name, STATUS_SKIPPED, "Il collector delle CNC gira su un PC dell'officina, non sul server.")
     b = collector_cnc.battito()
     if b["at"] is None:
-        return _result(name, STATUS_FAIL, "Collector delle CNC mai partito sul server: registra l'attività "
-                                          "deployment/start_collector_cnc.ps1 all'avvio.")
+        return _result(name, STATUS_FAIL, "Collector delle CNC mai partito sul server: Setup Wizard › Collector CNC "
+                                          "› «Installa task».")
     minuti = int((timezone.now() - b["at"]).total_seconds() // 60)
     details = {"ultimo_segnale": b["at"].isoformat(), "minuti_fa": minuti, "macchine": b["macchine"]}
     if not b["vivo"]:
         return _result(name, STATUS_FAIL, f"Nessun segnale dal collector delle CNC da {minuti} minuti: "
-                                          "l'attività collector_cnc sul server è ferma.", details)
+                                          "il task CollectorCnc del server è fermo (Setup Wizard › Collector CNC).", details)
     if b["errore"]:
         return _result(name, STATUS_WARN, f"Collector delle CNC acceso, ma: {b['errore']}", details)
     return _result(name, STATUS_OK, f"Ultimo segnale {minuti} minuti fa, {b['macchine']} macchine in lettura.", details)

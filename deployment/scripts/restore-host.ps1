@@ -523,6 +523,12 @@ $phaseBodies["tasks"] = {
     else { Register-ScheduledTask @common -User $TaskCredential.UserName -Password $TaskCredential.GetNetworkCredential().Password -RunLevel Highest | Out-Null }
     if ($TaskCredential) { & "$PSScriptRoot\install-qcluster-watchdog.ps1" -Environment $Environment -Credential $TaskCredential }
     else { Add-Manual "Watchdog del qcluster: installarlo con install-qcluster-watchdog.ps1 (richiede un account con password)." }
+    # collector CNC integrato: stesso account del qcluster (serve solo con la modalita' "Sul server del portale")
+    $cncManual = "Collector CNC: Setup Wizard > Collector CNC > Installa task (o install-collector-cnc-task.ps1)."
+    if ($TaskCredential) {
+        try { & "$PSScriptRoot\install-collector-cnc-task.ps1" -Environment $Environment -PortaleRoot $DEPLOY_BASE -Credential $TaskCredential | Out-Null }
+        catch { Add-Manual "$cncManual Non riuscito qui: $_" }
+    } else { Add-Manual $cncManual }
     & "$PSScriptRoot\schedule-automation-queue.ps1" -Environment $Environment
     & "$PSScriptRoot\register-iis-restart-helper.ps1" -Environment $Environment
     $notes = @("task di backup, qcluster, coda automazioni e helper IIS registrati")

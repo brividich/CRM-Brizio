@@ -7722,6 +7722,9 @@ class ServerDashboard:
         self._q_log_txt: tk.Text | None = None
         self._q_start_btn: "SecondaryButton | None" = None
         self._q_stop_btn: "SecondaryButton | None" = None
+        # Collector CNC — widget refs (impostati in _build)
+        self._cnc_status_lbl: tk.Label | None = None
+        self._cnc_log_txt: tk.Text | None = None
         # Pagina scrollabile + sezioni target dei blocchi di navigazione
         self._page_canvas: "tk.Canvas | None" = None
         self._page_sb: "tk.Scrollbar | None" = None
@@ -7928,6 +7931,40 @@ class ServerDashboard:
         self._q_log_txt.configure(yscrollcommand=q_log_sb.set)
         q_log_sb.pack(side="right", fill="y")
         self._q_log_txt.pack(fill="both", expand=True, padx=8, pady=6)
+
+        # ── Collector CNC (officina) ─────────────────────────────
+        frame(main, height=14).pack()
+        cnc_card = frame(main, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        cnc_card.pack(fill="x")
+        cnc_head = frame(cnc_card, bg=GRAY50)
+        cnc_head.pack(fill="x", padx=14, pady=(10, 2))
+        tk.Label(cnc_head, text="Collector CNC (officina)", font=(SF, 9, "bold"),
+                 bg=GRAY50, fg=GRAY600).pack(side="left")
+        self._cnc_status_lbl = tk.Label(cnc_head, text="—", font=FSM, bg=GRAY50, fg=GRAY400)
+        self._cnc_status_lbl.pack(side="right")
+        tk.Label(cnc_card,
+                 text="Legge le CNC dal server quando in Asset › Macchine collegate è scelto «Sul server "
+                      "del portale». Usa lo stesso account del qcluster e a ogni release nuova riparte da solo.",
+                 font=FSM, bg=GRAY50, fg=GRAY500, wraplength=760, justify="left",
+                 ).pack(anchor="w", padx=14, pady=(0, 6))
+        cnc_btn_row = frame(cnc_card, bg=GRAY50)
+        cnc_btn_row.pack(anchor="w", padx=14, pady=(0, 8))
+        for text, command in (
+            ("📋  Installa task", self._cnc_install_task),
+            ("▶  Avvia collector", lambda: self._cnc_task_action("start")),
+            ("■  Ferma collector", lambda: self._cnc_task_action("stop")),
+        ):
+            SecondaryButton(cnc_btn_row, text, command).pack(side="left", padx=(0, 8))
+        cnc_log_wrap = frame(cnc_card, bg=CODE_BG, highlightthickness=1, highlightbackground=GRAY700)
+        cnc_log_wrap.pack(fill="x", padx=14, pady=(0, 10))
+        self._cnc_log_txt = tk.Text(
+            cnc_log_wrap, bg=CODE_BG, fg=CODE_FG, font=FMO,
+            relief="flat", state="disabled", wrap="none", height=4,
+        )
+        cnc_log_sb = tk.Scrollbar(cnc_log_wrap, command=self._cnc_log_txt.yview)
+        self._cnc_log_txt.configure(yscrollcommand=cnc_log_sb.set)
+        cnc_log_sb.pack(side="right", fill="y")
+        self._cnc_log_txt.pack(fill="both", expand=True, padx=8, pady=6)
 
         # ── Assistente AI (Ollama + RAG) ─────────────────────────
         frame(main, height=14).pack()
@@ -8325,16 +8362,19 @@ Write-Output "$sState|$pState|$port"
         url = f"http://localhost:{port}/" if port else f"http://localhost/"
         self.root.after(0, lambda: self._update_ui(site_state, pool_state, url, log_lines))
 
-        # Stato task qcluster e log
+        # Stato task qcluster e collector CNC (una sola PowerShell, una riga per task) e log
         q_task = f"QCluster_{env.upper()}"
+        cnc_task = self._cnc_task_name(env)
         q_ps = f"""
-$t = Get-ScheduledTask -TaskName '{q_task}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+foreach ($n in @('{q_task}', '{cnc_task}')) {{
+$t = Get-ScheduledTask -TaskName $n -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
 if ($t) {{
-    $i = Get-ScheduledTaskInfo -TaskName '{q_task}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+    $i = Get-ScheduledTaskInfo -TaskName $n -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
     $lastRun = if ($i.LastRunTime) {{ $i.LastRunTime.ToString('dd/MM HH:mm') }} else {{ 'mai' }}
     Write-Output "$($t.State)|$lastRun|$($i.LastTaskResult)"
 }} else {{
     Write-Output "NotFound||"
+}}
 }}
 """
         try:
@@ -8342,12 +8382,16 @@ if ($t) {{
                 ["powershell", "-ExecutionPolicy", "Bypass", "-Command", q_ps],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=8, creationflags=subprocess.CREATE_NO_WINDOW)
-            qp = (qr.stdout or "").strip().split("|")
+            q_lines = (qr.stdout or "").strip().splitlines()
+            qp = q_lines[0].split("|") if q_lines else []
             q_state   = qp[0] if len(qp) > 0 else "Unknown"
             q_lastrun = qp[1] if len(qp) > 1 else ""
             q_result  = qp[2].strip() if len(qp) > 2 else ""
+            cp = q_lines[1].split("|") if len(q_lines) > 1 else []
+            cnc_state = cp[0].strip() if cp else "Unknown"
+            cnc_lastrun = cp[1] if len(cp) > 1 else ""
         except Exception:
-            q_state = q_lastrun = q_result = ""
+            q_state = q_lastrun = q_result = cnc_state = cnc_lastrun = ""
 
         q_log_path = ep / "logs" / "qcluster.log"
         q_log_tail = ""
@@ -8359,6 +8403,16 @@ if ($t) {{
 
         self.root.after(0, lambda s=q_state, r=q_lastrun, x=q_result, l=q_log_tail:
                         self._q_update_status(s, r, x, l))
+
+        cnc_log_tail = ""
+        try:
+            cnc_log_path = ep / "logs" / "collector_cnc.log"
+            if cnc_log_path.exists():
+                cnc_log_tail = _read_log_tail(cnc_log_path, 20)
+        except Exception:
+            cnc_log_tail = ""
+        self.root.after(0, lambda s=cnc_state, r=cnc_lastrun, t=cnc_log_tail:
+                        self._cnc_update_status(s, r, t))
 
         # Servizi Windows rilevanti (IIS, SQL Server, …)
         pat_list = ",".join("'" + p + "'" for p in self.SERVICE_PATTERNS)
@@ -9997,6 +10051,205 @@ try {{
                     "qcluster — Ferma", f"Errore nell'arresto del task:\n{e}"))
             self.root.after(1500, self._refresh)
         threading.Thread(target=_run, daemon=True).start()
+
+    # ── Collector CNC ────────────────────────────────────────────
+
+    def _cnc_task_name(self, env: str | None = None) -> str:
+        return f"CollectorCnc_{(env or self._selected_env.get()).upper()}"
+
+    def _cnc_update_status(self, state: str, last_run: str, log_tail: str):
+        """Aggiorna badge stato e log del collector CNC (main thread)."""
+        if not self._cnc_status_lbl:
+            return
+        state_map = {
+            "Running": ("● In esecuzione", GREEN),
+            "Ready": ("○ Fermo", GRAY500),
+            "Disabled": ("✗ Disabilitato", YELLOW_TX),
+            "NotFound": ("○ Non installato", GRAY400),
+        }
+        text, fg = state_map.get(state, (f"— {state}" if state else "—", GRAY400))
+        if last_run and state != "NotFound":
+            text += f"  (ultima: {last_run})"
+        self._cnc_status_lbl.configure(text=text, fg=fg)
+        if self._cnc_log_txt:
+            self._cnc_log_txt.configure(state="normal")
+            self._cnc_log_txt.delete("1.0", "end")
+            self._cnc_log_txt.insert("end", log_tail or "(nessun log del collector: task non ancora partito)")
+            self._cnc_log_txt.see("end")
+            self._cnc_log_txt.configure(state="disabled")
+
+    def _cnc_powershell(self, ps: str, done, stdin_text: str = "", timeout: int = 60):
+        """PowerShell in un thread, poi done(stdout, stderr) sul main thread.
+
+        La password (quando serve) arriva solo da stdin: mai su riga di comando, file o log.
+        """
+        def _run():
+            try:
+                r = subprocess.run(
+                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    input=stdin_text + "\n", capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=timeout, creationflags=subprocess.CREATE_NO_WINDOW)
+                out, err = (r.stdout or "").strip(), (r.stderr or "").strip()
+            except Exception as exc:
+                out, err = f"ERR:{exc}", ""
+            self.root.after(0, lambda: done(out, err))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _cnc_install_task(self):
+        """Registra \\PortaleNovicrom\\CollectorCnc_<ENV> con lo stesso account del qcluster e lo avvia.
+
+        Il lavoro lo fa deployment/scripts/install-collector-cnc-task.ps1 della release attiva
+        (stesse regole del watchdog qcluster: account non interattivo, SID verificato).
+        """
+        title = "Collector CNC — Installa task"
+        if not self._admin_mode:
+            messagebox.showwarning(title, "Registrare il task richiede privilegi di Administrator.\n"
+                                          "Riavvia Setup Wizard come amministratore.")
+            return
+        env = self._selected_env.get()
+        script = self._env_root(env) / "current" / "deployment" / "scripts" / "install-collector-cnc-task.ps1"
+        if not script.exists():
+            messagebox.showerror(title, f"Script non trovato:\n{script}\n\n"
+                                        "Attiva prima una release che contiene il collector integrato.")
+            return
+        q_task = self._q_task_name(env)
+        probe = f"""
+$t = Get-ScheduledTask -TaskPath '\\PortaleNovicrom\\' -TaskName '{q_task}' -ErrorAction SilentlyContinue
+if (-not $t) {{ Write-Output 'NOWORKER'; return }}
+$id = [string]([xml](Export-ScheduledTask -TaskPath '\\PortaleNovicrom\\' -TaskName '{q_task}')).Task.Principals.Principal.UserId
+try {{ if ($id -match '^S-1-') {{ $id = [Security.Principal.SecurityIdentifier]::new($id).Translate([Security.Principal.NTAccount]).Value }} }} catch {{ }}
+Write-Output ('LOGON:' + $t.Principal.LogonType + '|' + $id)
+"""
+
+        def _probed(out, err):
+            line = next((x for x in out.splitlines() if x.startswith(("LOGON:", "NOWORKER"))), "")
+            if line == "NOWORKER":
+                messagebox.showerror(title, f"Il task \\PortaleNovicrom\\{q_task} non esiste.\n\n"
+                                            "Installa prima il qcluster: il collector usa lo stesso account.")
+                return
+            if not line:
+                messagebox.showerror(title, f"Lettura del task qcluster non riuscita:\n{out or err}")
+                return
+            logon, _, account = line[len("LOGON:"):].partition("|")
+            if logon == "Password":
+                self._cnc_ask_password(account, lambda pw: self._cnc_run_install(env, script, account, pw))
+            elif messagebox.askyesno(title, f"Registrare \\PortaleNovicrom\\{self._cnc_task_name(env)}?\n\n"
+                                            f"Account: {account} (lo stesso del qcluster)\n"
+                                            "Trigger: all'avvio del server. Il task viene avviato subito."):
+                self._cnc_run_install(env, script, "", "")
+
+        self._cnc_powershell(probe, _probed, timeout=20)
+
+    def _cnc_ask_password(self, account: str, on_ok):
+        """Chiede la password dell'account del qcluster: resta in memoria solo per la registrazione."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Collector CNC — account del task")
+        dialog.configure(bg="white")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        body = frame(dialog, bg="white")
+        body.pack(fill="both", expand=True, padx=20, pady=18)
+        tk.Label(body, text=f"Password di {account}", font=(SF, 11, "bold"), fg=GRAY700, bg="white").pack(anchor="w")
+        tk.Label(body, text="È l'account del qcluster: Windows la chiede per registrare un task che parte "
+                            "senza utente connesso. Non viene salvata dal wizard.",
+                 font=FSM, fg=GRAY500, bg="white", wraplength=400, justify="left").pack(anchor="w", pady=(4, 10))
+        pw_var = tk.StringVar()
+        entry = tk.Entry(body, textvariable=pw_var, show="*", font=FMO, relief="flat", bg=GRAY50, fg=GRAY800,
+                         highlightthickness=1, highlightbackground=GRAY200, highlightcolor=BRAND)
+        entry.pack(fill="x", ipady=7, ipadx=8)
+        actions = frame(body, bg="white")
+        actions.pack(fill="x", pady=(16, 0))
+
+        def _submit(_event=None):
+            pw = pw_var.get()
+            if not pw:
+                return
+            pw_var.set("")
+            dialog.destroy()
+            on_ok(pw)
+
+        PrimaryButton(actions, "Registra e avvia", _submit).pack(side="right")
+        SecondaryButton(actions, "Annulla", dialog.destroy).pack(side="right", padx=(0, 8))
+        entry.bind("<Return>", _submit)
+        entry.focus_set()
+
+    def _cnc_run_install(self, env: str, script: Path, account: str, password: str):
+        title = "Collector CNC — Installa task"
+
+        def q(value) -> str:
+            return str(value).replace("'", "''")
+
+        ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    $p = @{{ Environment = '{env}'; PortaleRoot = '{q(self.BASE_DIR)}' }}
+    if ('{q(account)}') {{
+        $pw = [Console]::In.ReadLine() | ConvertTo-SecureString -AsPlainText -Force
+        $p.Credential = [pscredential]::new('{q(account)}', $pw)
+    }}
+    & '{q(script)}' @p
+}} catch {{
+    Write-Output "ERR:$_"
+}}
+"""
+
+        def _done(out, err):
+            lines = out.splitlines()
+            state = next((x[6:] for x in reversed(lines) if x.startswith("STATE:")), "")
+            fail = next((x[4:] for x in lines if x.startswith("ERR:")), "")
+            if fail:
+                messagebox.showerror(title, f"Registrazione non riuscita:\n{fail}")
+            elif state == "Running":
+                messagebox.showinfo(title, f"✓ Task \\PortaleNovicrom\\{self._cnc_task_name(env)} registrato e in esecuzione.\n\n"
+                                           "Il collector legge le macchine solo con «Sul server del portale» "
+                                           "in Asset › Macchine collegate.")
+            elif state:
+                messagebox.showwarning(title, f"Task registrato ma non in esecuzione (stato: {state}).\n"
+                                              "Controlla logs\\collector_cnc.log.")
+            else:
+                messagebox.showwarning(title, f"Output inatteso:\n{out or err}")
+            self.root.after(500, self._refresh)
+
+        self._cnc_powershell(ps, _done, stdin_text=password, timeout=120)
+
+    def _cnc_task_action(self, action: str):
+        """Avvia o ferma il task del collector (il launcher chiude con sé i python figli)."""
+        title = "Collector CNC — " + ("Avvia" if action == "start" else "Ferma")
+        if not self._admin_mode:
+            messagebox.showwarning(title, "Serve Setup Wizard avviato come amministratore.")
+            return
+        task = self._cnc_task_name()
+        if action == "stop" and not messagebox.askyesno(title, f"Fermare {task}?\n\nLe CNC non vengono lette finché non lo riavvii."):
+            return
+        verb = "Start" if action == "start" else "Stop"
+        ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    $t = Get-ScheduledTask -TaskName '{task}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+    if (-not $t) {{ Write-Output 'NOTASK'; return }}
+    {verb}-ScheduledTask -TaskName '{task}' -TaskPath '\\PortaleNovicrom\\'
+    Start-Sleep -Seconds 3
+    Write-Output ('STATE:' + (Get-ScheduledTask -TaskName '{task}' -TaskPath '\\PortaleNovicrom\\').State)
+}} catch {{
+    Write-Output "ERR:$_"
+}}
+"""
+
+        def _done(out, err):
+            if out == "NOTASK":
+                if messagebox.askyesno(title, f"Il task {task} non è registrato.\n\nVuoi installarlo adesso?"):
+                    self._cnc_install_task()
+                return
+            if out.startswith("ERR:"):
+                messagebox.showerror(title, out[4:])
+            elif action == "start" and out != "STATE:Running":
+                messagebox.showerror(title, f"Il task non è rimasto in esecuzione ({out or err}).\n"
+                                            "Controlla logs\\collector_cnc.log.")
+            self.root.after(500, self._refresh)
+
+        self._cnc_powershell(ps, _done, timeout=30)
 
     def _open_live_password_reset(self):
         if not self._admin_mode:

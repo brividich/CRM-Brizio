@@ -10,7 +10,9 @@ Il collector gira dentro il portale e scrive direttamente nel database: niente P
 
 - Requisito di rete: il server del portale deve raggiungere le macchine sulla porta OPC UA (di solito **4840**). Verifica dal server: `Test-NetConnection 192.168.23.115 -Port 4840`.
 - Libreria: `asyncua` è in `requirements.txt`: arriva con `pip install -r requirements.txt` nel venv del portale.
-- Servizio: `python manage.py collector_cnc`, lanciato all'avvio da un'attività di Windows con `deployment/start_collector_cnc.ps1` (stesso schema e stesso account del qcluster: riavvio automatico, log in `<ambiente>\logs\collector_cnc.log`).
+- Servizio: `python manage.py collector_cnc`, lanciato all'avvio dal task `\PortaleNovicrom\CollectorCnc_<ENV>` con `deployment/start_collector_cnc.ps1` (stesso schema e stesso account del qcluster: riavvio automatico, log in `<ambiente>\logs\collector_cnc.log`).
+- Installazione del task: Setup Wizard › Server Dashboard › riquadro **Collector CNC** › «Installa task» (stato, Avvia, Ferma e log nello stesso riquadro). Senza wizard: `deployment/scripts/install-collector-cnc-task.ps1 -Environment prod -Credential (Get-Credential 'DOMINIO\utente')`. «Registra schedule» non basta: registra solo gli schedule django-q.
+- Aggiornamenti: quando si attiva una release nuova (il junction `current` cambia cartella) il collector esce da solo e il launcher lo riavvia col codice nuovo, entro un minuto più 15 secondi.
 - Prova senza leggere: `python manage.py collector_cnc --prova` (modalità, macchine da leggere, ultimo segnale).
 - Ogni minuto il servizio lascia un segnale di vita: la pagina Macchine collegate dice «Attivo / Fermo / Mai partito» e il controllo infrastruttura `collector_cnc` (Centrale di comando, /readyz) avvisa se si ferma.
 - Registro dettagliato dei segnali: `<PRIVATE_ATTACHMENTS_ROOT>/collector_cnc/machines.db`.
