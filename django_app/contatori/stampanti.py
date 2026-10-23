@@ -1,6 +1,6 @@
 """Dati delle stampanti oltre a contatori e toner: registro avvisi e stime di consumo.
 
-- :func:`registra_avvisi` tiene il registro degli avvisi (inceppamenti, carta, sportelli,
+- :func:`registra_avvisi` tiene il registro degli avvisi (per un dispositivo del Monitor o per una MFC) (inceppamenti, carta, sportelli,
   assistenza) da una lettura all'altra: un avviso si apre quando compare e si chiude quando
   la stampante non lo segnala più.
 - :func:`stime` dice quante pagine si stampano al giorno e fra quanti giorni finisce ogni
@@ -40,27 +40,48 @@ def _chiavi_avvisi(dati):
     return out
 
 
-def registra_avvisi(dispositivo, dati, adesso=None):
+def _proprietario(stampante):
+    """{campo: oggetto} del registro: una MFC a contratto o un dispositivo del Monitor SNMP."""
+    from .models import Macchina
+
+    return {"macchina": stampante} if isinstance(stampante, Macchina) else {"dispositivo": stampante}
+
+
+def registra_avvisi(stampante, dati, adesso=None):
     """Aggiorna il registro avvisi con una lettura. Se la lettura non ha i dati estesi non chiude niente."""
     from .models import AvvisoStampante
 
     if not dati or "avvisi" not in dati:
         return
     adesso = adesso or timezone.now()
+    chi = _proprietario(stampante)
     presenti = _chiavi_avvisi(dati)
-    aperti = {a.chiave: a for a in AvvisoStampante.objects.filter(dispositivo=dispositivo, chiuso_il__isnull=True)}
+    aperti = {a.chiave: a for a in AvvisoStampante.objects.filter(chiuso_il__isnull=True, **chi)}
     for chiave, campi in presenti.items():
         if chiave in aperti:
             AvvisoStampante.objects.filter(pk=aperti[chiave].pk).update(ultimo_visto_il=adesso)
             continue
         da = campi.pop("da_secondi")
         aperto_il = adesso - timedelta(seconds=da) if isinstance(da, int) and 0 <= da < 86400 * 30 else adesso
-        AvvisoStampante.objects.create(dispositivo=dispositivo, chiave=chiave, aperto_il=aperto_il,
-                                       ultimo_visto_il=adesso, **campi)
+        AvvisoStampante.objects.create(chiave=chiave, aperto_il=aperto_il, ultimo_visto_il=adesso, **chi, **campi)
     spariti = [a.pk for chiave, a in aperti.items() if chiave not in presenti]
     if spariti:
         AvvisoStampante.objects.filter(pk__in=spariti).update(chiuso_il=adesso)
-    AvvisoStampante.objects.filter(dispositivo=dispositivo, chiuso_il__lt=adesso - timedelta(days=GIORNI_REGISTRO)).delete()
+    AvvisoStampante.objects.filter(chiuso_il__lt=adesso - timedelta(days=GIORNI_REGISTRO), **chi).delete()
+
+
+def contesto_pannello(stampante, dati):
+    """Dati del pannello «La stampante adesso» e del registro avvisi, uguali per MFC e Monitor."""
+    from .printer_snmp import problemi_stampante
+
+    problemi = problemi_stampante(dati or {})
+    registro = list(stampante.avvisi_stampante.all()[:60])
+    return {
+        "problemi_stampante": problemi,
+        "problemi_gravi": any(livello == "ERROR" for _t, livello in problemi),
+        "avvisi_aperti": [a for a in registro if a.chiuso_il is None and not a.informativo],
+        "avvisi_registro": registro,
+    }
 
 
 def _letture_giornaliere(dispositivo, adesso):
@@ -124,3 +145,35 @@ def stime(dispositivo, adesso=None):
         consumabili.append(riga)
     consumabili.sort(key=lambda r: (r.get("giorni_residui") is None, r.get("giorni_residui") or 0, r["nome"]))
     return {"pagine": pagine, "consumabili": consumabili, "giorni": round(_giorni(serie[0][0], serie[-1][0]))}
+
+
+INTERVALLO_MFC_MINUTI = 15
+
+
+def leggi_stato_mfc(macchina, adesso=None):
+    """Legge dalla MFC a contratto gli stessi dati di una stampante del Monitor e li salva sulla MFC.
+
+    Non tocca contatori di fatturazione, letture e stato SNMP della MFC: quelli restano delle
+    letture trimestrali, mensili e dei consumabili. Ritorna i dati letti o ``None`` se non risponde.
+    """
+    from .printer_snmp import leggi_stampante
+    from .services import _community_snmp, _parametri_snmp
+    from .models import ImpostazioniSNMP
+    from .snmp import SNMPError
+
+    if not macchina.host:
+        return None
+    cfg = ImpostazioniSNMP.get_solo()
+    porta, timeout, versione = _parametri_snmp(macchina, cfg)
+    try:
+        dati = leggi_stampante(macchina, community=_community_snmp(macchina, cfg), port=porta,
+                               timeout=timeout, version=versione)
+    except SNMPError:
+        return None
+    if not dati.get("contatori") and not dati.get("consumabili") and "avvisi" not in dati:
+        return None  # nessuna risposta utile: si tiene l'ultima lettura buona
+    adesso = adesso or timezone.now()
+    macchina.dati_stampante, macchina.dati_stampante_il = dati, adesso
+    macchina.save(update_fields=["dati_stampante", "dati_stampante_il"])
+    registra_avvisi(macchina, dati, adesso)
+    return dati

@@ -235,10 +235,12 @@ SEZIONI: list[dict] = [
     },
     {
         "id": "stampanti-dati",
-        "titolo": "Stampanti del Monitor SNMP: avvisi, cassetti e quando finisce il toner",
+        "titolo": "Stampanti (MFC a contratto e Monitor SNMP): avvisi, cassetti e quando finisce il toner",
         "blocchi": [
-            ("p", "Nella scheda di una stampante del Monitor SNMP, oltre a contatori e toner, il portale legge "
-                  "dalla stampante (solo lettura, standard Printer-MIB) altri dati, a ogni interrogazione:"),
+            ("p", "Le MFC a contratto sono stampanti come le altre: nella scheda MFC e nella scheda di una "
+                  "stampante del Monitor SNMP compare lo stesso pannello «La stampante adesso» con lo stesso "
+                  "registro avvisi. Il portale legge dalla stampante (solo lettura, standard Printer-MIB): le MFC "
+                  "ogni 15 minuti (una MFC spenta si riprova dopo 15 minuti), le altre a ogni interrogazione:"),
             ("def", [
                 ("La stampante adesso", "stato («pronta», «in stampa», «in riscaldamento»), il testo del "
                                         "display, le pagine stampate al giorno e l'elenco «Da sistemare»: "
@@ -258,8 +260,9 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "Un avviso critico o uno sportello aperto mette la stampante in «Errore», gli altri avvisi e "
                   "un cassetto vuoto in «Attenzione». Se una stampante non espone la tabella avvisi, il registro "
-                  "usa gli errori che segnala (carta inceppata, sportello aperto, toner esaurito…). Le stampanti "
-                  "MFC a contratto restano nella loro scheda MFC."),
+                  "usa gli errori che segnala (carta inceppata, sportello aperto, toner esaurito…). Sulle MFC "
+                  "la lettura non cambia contatori di fatturazione, letture e «Stato SNMP» della scheda; la data "
+                  "di fine del toner delle MFC resta quella della pagina «Consumabili»."),
         ],
     },
     {

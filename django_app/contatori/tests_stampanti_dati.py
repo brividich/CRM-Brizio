@@ -132,3 +132,67 @@ class PaginaStampanteTest(TestCase):
         for testo in ("La stampante adesso", "Registro avvisi", "Paper jam in tray 2", "Cassetto 1",
                       "Sportello anteriore: aperto", "Finisce verso il", "Carta inceppata"):
             self.assertContains(page, testo)
+
+
+class MfcStessaStampanteTest(TestCase):
+    """Le MFC a contratto sono stampanti come le altre: stessi dati, stesso pannello, stesso registro."""
+
+    def setUp(self):
+        from .models import Macchina
+
+        self.mfc = Macchina.objects.create(reparto="Ufficio sintetico", matricola="SYN0001", host="192.0.2.90")
+
+    def test_lettura_completa_salvata_sulla_mfc_con_registro(self):
+        from unittest import mock
+
+        from .stampanti import leggi_stato_mfc
+
+        dati = interpreta_stampante(TABELLE, {})
+        with mock.patch("contatori.printer_snmp.leggi_stampante", return_value=dati):
+            self.assertIsNotNone(leggi_stato_mfc(self.mfc))
+        self.mfc.refresh_from_db()
+        self.assertEqual(self.mfc.dati_stampante["cassetti"][0]["nome"], "Cassetto 1")
+        self.assertIsNotNone(self.mfc.dati_stampante_il)
+        self.assertTrue(AvvisoStampante.objects.filter(macchina=self.mfc, testo="Paper jam in tray 2", dispositivo__isnull=True).exists())
+
+    def test_mfc_che_non_risponde_tiene_l_ultima_lettura(self):
+        from unittest import mock
+
+        from .snmp import SNMPError
+        from .stampanti import leggi_stato_mfc
+
+        self.mfc.dati_stampante = {"contatori": [], "consumabili": [], "stato": {"stato": "pronta"}}
+        self.mfc.save()
+        with mock.patch("contatori.printer_snmp.leggi_stampante", side_effect=SNMPError("timeout")):
+            self.assertIsNone(leggi_stato_mfc(self.mfc))
+        self.mfc.refresh_from_db()
+        self.assertEqual(self.mfc.dati_stampante["stato"]["stato"], "pronta")
+
+    def test_polling_ogni_15_minuti_e_pausa_se_spenta(self):
+        from django.core.cache import cache
+
+        from .tasks import _mfc_da_leggere
+
+        cache.delete(f"contatori:mfc_ko:{self.mfc.pk}")
+        self.assertEqual(_mfc_da_leggere(), [self.mfc.pk])
+        self.mfc.dati_stampante_il = timezone.now() - timedelta(minutes=5)
+        self.mfc.save()
+        self.assertEqual(_mfc_da_leggere(), [])
+        self.mfc.dati_stampante_il = timezone.now() - timedelta(minutes=20)
+        self.mfc.save()
+        cache.add(f"contatori:mfc_ko:{self.mfc.pk}", True, 60)
+        self.assertEqual(_mfc_da_leggere(), [])
+        cache.delete(f"contatori:mfc_ko:{self.mfc.pk}")
+
+    def test_scheda_mfc_mostra_il_pannello_della_stampante(self):
+        user = get_user_model().objects.create(username="mfc_admin", is_staff=True, is_superuser=True)
+        UserOnboarding.objects.create(user=user, completed=True)
+        self.client.force_login(user)
+        dati = interpreta_stampante(TABELLE, {})
+        self.mfc.dati_stampante, self.mfc.dati_stampante_il = dati, timezone.now()
+        self.mfc.save()
+        registra_avvisi(self.mfc, dati)
+        page = self.client.get(reverse("contatori:macchina", args=[self.mfc.pk]))
+        self.assertEqual(page.status_code, 200)
+        for testo in ("La stampante adesso", "Registro avvisi", "Paper jam in tray 2", "Cassetto 1", "Sportello anteriore: aperto"):
+            self.assertContains(page, testo)
