@@ -3,12 +3,7 @@
   <div class="panel-head"><div><h2>Asset collegato</h2><p>Scheda nel modulo Asset, licenze software e programmi rilevati dall'inventario.</p></div>
   {% if asset %}<div class="spacer"></div><div class="actions"><a class="btn ghost small" href="{% url 'assets:software_license_list' %}?asset={{ asset.pk }}">Gestisci licenze</a><a class="btn ghost small" href="{% url 'assets:asset_view' asset.pk %}">Apri scheda asset</a></div>{% endif %}</div>
   {% if asset %}
-  <div class="asset-coll-id">
-    <span class="asset-coll-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
-    <div class="asset-coll-nome"><a class="plain" href="{% url 'assets:asset_view' asset.pk %}">{{ asset.name }}</a>
-      <span class="muted">{{ asset.get_asset_type_display }}{% if asset.manufacturer or asset.model %} · {{ asset.manufacturer|default:"" }} {{ asset.model|default:"" }}{% endif %}{% if asset.serial_number %} · S/N <span class="mono">{{ asset.serial_number }}</span>{% endif %}</span></div>
-    <span class="asset-coll-tag mono">{{ asset.asset_tag }}</span>
-  </div>
+  {% load asset_testata %}{% asset_testata asset "contatori" %}
   <div class="asset-coll-stat">
     <span><b>{{ licenze_asset|length }}</b> licenz{{ licenze_asset|length|pluralize:"a,e" }}</span>
     {% if software_asset and software_asset.rows %}<span><b>{{ software_asset.present }}</b> software rilevati{% if software_asset.inventory_date %} · inventario del {{ software_asset.inventory_date|date:"d/m/Y" }}{% endif %}</span>{% else %}<span class="muted">Nessun software dall'inventario</span>{% endif %}

@@ -1,0 +1,2 @@
+{% load static %}{% if collegamenti %}<link rel="stylesheet" href="{% static 'assets/css/asset-testata.css' %}">
+<nav class="at-link at-link--pagina" aria-label="Lo stesso apparato negli altri moduli"><span class="at-link-titolo">Lo stesso apparato in</span>{% for c in collegamenti %}<a href="{{ c.url }}" class="at-link--{{ c.modulo }}">{{ c.label }} <span aria-hidden="true">→</span></a>{% endfor %}</nav>{% endif %}

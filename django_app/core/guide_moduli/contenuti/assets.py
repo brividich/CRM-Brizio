@@ -18,6 +18,8 @@ GUIDA = {
                     "Cerca per nome, numero interno, seriale o IP e apri la scheda.",
                 ]),
                 ("p", "Dal telefono basta inquadrare il QR sulla macchina: si apre la scheda con manutenzioni e documenti."),
+                ("p", "Sotto il cruscotto della scheda, «Lo stesso apparato in» porta alla stampante in Contatori e al dispositivo nel SOC; "
+                      "lì trovi la stessa testata dell'asset, con il link «Scheda asset» per tornare."),
             ],
         },
         {
