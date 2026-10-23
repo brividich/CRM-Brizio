@@ -413,6 +413,12 @@ GUIDA = {
                       "obbligatoria per chi fa questa mansione»). Gli altri moduli leggono la struttura: scheda macchina "
                       "(operatori abilitati e copertura), scheda processo del Sistema di gestione (owner ed esecutori), "
                       "piano di audit (proposte di auditati)."),
+                ("p", "Accessi dal ruolo: nella scheda laterale di un ruolo d'organigramma l'amministrazione del portale "
+                      "usa «Cambia gli accessi che concede» → «Salva accessi» (stesse regole di «Ruoli e permessi»: mai "
+                      "ruoli amministratore, mai il ruolo base). Ogni variazione reale degli accessi di una persona "
+                      "(assegnazione, chiusura, disattivazione del ruolo, collegamento) è registrata con causa e autore: "
+                      "scheda del dipendente → «Variazioni degli accessi dal ruolo», riesame degli accessi → foglio "
+                      "«Variazioni da organigramma»."),
                 ("p", "Scheda dipendente → «Posizione nella struttura»: ruolo (sigla, diretto/indiretto, principale), "
                       "reparto e area, ruolo responsabile, processi, mansioni svolte con livello e «Mansioni previste dal "
                       "ruolo, non ancora assegnate»: si assegnano una per una scegliendo il livello e «Assegna». Lo stesso "

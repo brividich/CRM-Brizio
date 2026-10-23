@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -155,6 +156,60 @@ def struttura_ruolo_salva(request, ruolo_id: int):
     return _torna("ruoli")
 
 
+def _vede_accessi(request) -> bool:
+    """Ruoli del portale: come la pagina «Ruoli e permessi», solo superuser e amministratori legacy."""
+    from core.legacy_utils import get_legacy_user, is_legacy_admin
+
+    return bool(request.user.is_superuser) or is_legacy_admin(get_legacy_user(request.user))
+
+
+def gruppi_collegabili():
+    """Ruoli del portale che un ruolo d'organigramma può concedere: attivi, non amministratore, non base."""
+    from core.models import AccessGroup
+    from core.permessi.motore import PRESET_BASE
+
+    return AccessGroup.objects.filter(is_active=True, amministratore=False).exclude(preset=PRESET_BASE)
+
+
+@login_required
+@require_POST
+def struttura_ruolo_accessi(request, ruolo_id: int):
+    """Ruoli del portale concessi dal ruolo d'organigramma: stesse regole di «Ruoli e permessi»."""
+    if not _vede_accessi(request):
+        return _nega(request, "Gli accessi al portale li cambia solo l'amministrazione del portale.")
+    from core.permessi.cache import invalida_permessi
+
+    ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
+    attuali = set(ruolo.profili_permessi.values_list("id", flat=True))
+    voluti = set(_ids(request, "accessi"))
+    validi = set(gruppi_collegabili().filter(id__in=voluti).values_list("id", flat=True))
+    # Un collegamento esistente a un ruolo del portale non più collegabile resta finché non si toglie a mano lì.
+    bloccati = attuali - set(gruppi_collegabili().values_list("id", flat=True))
+    aggiunti, tolti = validi - attuali, (attuali - validi) - bloccati
+    if not aggiunti and not tolti:
+        messages.info(request, f"{ruolo.etichetta}: accessi invariati.")
+        return redirect(reverse("anagrafica:struttura_org") + f"#scheda-ruolo-{ruolo.pk}")
+    from core.models import AccessGroup
+
+    with transaction.atomic():
+        if aggiunti:
+            ruolo.profili_permessi.add(*aggiunti)
+        if tolti:
+            ruolo.profili_permessi.remove(*tolti)
+    nomi = dict(AccessGroup.objects.filter(id__in=aggiunti | tolti).values_list("id", "label"))
+    log_action(request, "permessi_ruolo_organigramma", "permessi", {
+        "ruolo_organigramma": ruolo.nome,
+        "concessi": sorted(nomi[i] for i in aggiunti), "tolti": sorted(nomi[i] for i in tolti),
+    }, oggetto=ruolo)
+    invalida_permessi()
+    from .services.struttura_schede import _attivi_ruolo
+
+    n = _attivi_ruolo().filter(ruolo=ruolo).values("legacy_anagrafica_id").distinct().count()
+    messages.success(request, f"Accessi di «{ruolo.etichetta}» aggiornati: vale subito per {n} person"
+                              f"{'a' if n == 1 else 'e'}. Le variazioni sono nel registro di ognuna.")
+    return redirect(reverse("anagrafica:struttura_org") + f"#scheda-ruolo-{ruolo.pk}")
+
+
 @login_required
 @require_POST
 def struttura_processo_salva(request, processo_id: int):
@@ -191,10 +246,12 @@ def struttura_processo_salva(request, processo_id: int):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _scheda(request, template: str, ctx: dict):
-    from core.legacy_utils import get_legacy_user, is_legacy_admin
-
-    # Il link a «Ruoli e permessi» solo a chi può aprirla (stesso controllo della pagina).
-    vede_accessi = bool(request.user.is_superuser) or is_legacy_admin(get_legacy_user(request.user))
+    # Il link a «Ruoli e permessi» e la modifica degli accessi solo a chi può aprirla (stesso controllo della pagina).
+    vede_accessi = _vede_accessi(request)
+    if vede_accessi and template == "ruolo":
+        collegati = {g.pk for g in ctx.get("accessi", [])}
+        ctx["accessi_opts"] = [{"gruppo": g, "on": g.pk in collegati}
+                               for g in gruppi_collegabili().order_by("-priority", "label")]
     ctx.update({"is_admin": _puo_gestire(request), "vede_accessi": vede_accessi})
     return render(request, f"anagrafica/partials/struttura_scheda_{template}.html", ctx)
 
