@@ -60,7 +60,27 @@ def pc_overview(name, days=90):
         "endpoint": [{"signal": s, "label": SIGNAL_LABELS.get(s.kind, s.kind)} for s in endpoint],
         "events": list(events.order_by("-occurred_at")[:8]),
         "days": days,
+        "rete": _rete(name, hub_asset),
     }
+
+
+def _rete(name, hub_asset):
+    """Indirizzi attivi dal DHCP/DNS di Windows (collegati all'asset o con lo stesso nome host) e porta dello switch."""
+    try:
+        from django.db.models import Q
+
+        from assets.models import IndirizzoRete
+        from assets.services.rete_windows import porta_switch
+    except ImportError:  # pragma: no cover
+        return []
+    corto = (name or "").split(".")[0]
+    filtro = Q(nome_dhcp__iexact=corto) | Q(nome_dhcp__istartswith=corto + ".") if corto else Q(pk__in=[])
+    if hub_asset is not None:
+        filtro |= Q(asset=hub_asset)
+    righe = list(IndirizzoRete.objects.filter(filtro).filter(Q(nel_dhcp=True) | Q(nel_dns=True)).order_by("-nel_dhcp", "ip")[:3])
+    for r in righe:
+        r.switch = porta_switch(r.mac) if r.mac else None
+    return righe
 
 
 def _intune(name):

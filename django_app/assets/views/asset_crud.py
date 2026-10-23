@@ -1409,6 +1409,36 @@ def chemical_asset_edit(request: HttpRequest, id: int | None = None) -> HttpResp
     )
 
 
+def _indirizzo_da_rete(valore):
+    """L'indirizzo della pagina Indirizzi IP da cui nasce l'asset (solo se non è già collegato)."""
+    from ..models import IndirizzoRete
+
+    valore = str(valore or "")
+    return IndirizzoRete.objects.filter(pk=int(valore), asset__isnull=True).first() if valore.isdigit() else None
+
+
+def _iniziali_da_rete(riga) -> dict:
+    from ..services.rete_windows import porta_switch
+
+    nome = (riga.nome or "").split(".", 1)[0] or riga.ip
+    iniziali = {"name": nome, "network_ip": riga.ip, "network_mac": riga.mac, "status": Asset.STATUS_IN_USE}
+    porta = porta_switch(riga.mac) if riga.mac else None
+    if porta is not None:
+        iniziali.update({"network_switch_name": porta.dispositivo.nome, "network_switch_port": porta.porta})
+    return iniziali
+
+
+def _collega_indirizzo_creato(request, riga, asset) -> None:
+    riga.refresh_from_db(fields=["asset"])
+    if riga.asset_id:
+        return
+    riga.asset, riga.asset_proposto, riga.motivo_proposta = asset, None, ""
+    riga.save(update_fields=["asset", "asset_proposto", "motivo_proposta", "aggiornato_il"])
+    log_action(request, "rete_indirizzo_collegato", "assets",
+               {"ip": riga.ip, "mac": riga.mac, "asset_id": asset.pk, "asset_tag": asset.asset_tag, "nuovo_asset": True},
+               oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.pk)
+
+
 @login_required
 def asset_create(request: HttpRequest) -> HttpResponse:
     if _clean_string(request.GET.get("asset_type")) == Asset.TYPE_WORK_MACHINE:
@@ -1418,6 +1448,8 @@ def asset_create(request: HttpRequest) -> HttpResponse:
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     list_suggestions = _build_asset_list_suggestions()
     assignment_kwargs = _assignment_form_kwargs()
+    # «Crea asset» dalla pagina Indirizzi IP: modulo già compilato con nome, IP, MAC e porta dello switch.
+    da_rete = _indirizzo_da_rete(request.GET.get("da_rete"))
     if request.method == "POST":
         form = AssetForm(request.POST, request.FILES, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid():
@@ -1429,11 +1461,17 @@ def asset_create(request: HttpRequest) -> HttpResponse:
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
                     messages.warning(request, marker_warning)
+            if da_rete is not None:
+                _collega_indirizzo_creato(request, da_rete, asset)
 
             messages.success(request, "Asset creato correttamente.")
             return redirect("assets:asset_view", id=asset.id)
     else:
-        form = AssetForm(custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
+        initial = _iniziali_da_rete(da_rete) if da_rete is not None else None
+        if da_rete is not None:
+            messages.info(request, f"Dati presi dall'indirizzo {da_rete.ip}: IP, MAC, switch e porta sono già nella sezione "
+                                   "Rete (compare scegliendo una categoria IT). Salvato l'asset, l'indirizzo gli resta collegato.")
+        form = AssetForm(initial=initial, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
     return render(
         request,
         "assets/pages/asset_form.html",

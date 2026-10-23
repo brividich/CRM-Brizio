@@ -36,7 +36,24 @@ GUIDA = {
                     "Usa i filtri «Backup ko», «Con CVE» e «Senza asset» per trovare cosa sistemare: il numero accanto è uguale alle righe.",
                     "Se nella colonna «Asset del registro» c'è «Proposto», controlla e premi «Conferma» (serve il permesso di configurazione del SOC).",
                     "Il nome del dispositivo apre la sua scheda con backup, alert, vulnerabilità e protezione endpoint.",
+                    "Sotto il nome c'è l'indirizzo IP letto dal DHCP/DNS e, se noto, lo switch e la porta: un clic apre «Rete (IP)».",
                 ]),
+            ],
+        },
+        {
+            "id": "rete-ip",
+            "titolo": "Rete (IP): dispositivi non censiti e senza antivirus",
+            "blocchi": [
+                ("p", "Dispositivi › «Rete (IP)» è la stessa vista di Asset › Indirizzi IP: ogni indirizzo del DHCP e del DNS di Windows "
+                      "Server con switch e porta, fonti che lo vedono (DHCP, DNS, Switch, WatchGuard, Intune) e asset del registro."),
+                ("passi", [
+                    "Riquadro «Non censiti»: nessun asset ha quel MAC, IP o nome. «Crea asset» lo censisce con i dati già compilati.",
+                    "Riquadro «Senza antivirus»: WatchGuard lo vede senza agente, o è un PC del registro assente da WatchGuard e Defender.",
+                    "Riquadro «Da collegare»: premi «Conferma» per collegare l'indirizzo all'asset proposto (serve il permesso di modificare l'asset).",
+                ]),
+                ("p", "Un MAC mai visto prima, senza asset né proposta, apre l'evento «Dispositivo sconosciuto nuovo in rete» "
+                      "(esclusi i MAC privati dei telefoni, al massimo 10 per lettura, uno per MAC). L'alert si accende o spegne in "
+                      "Impostazioni › Avvisi e automatismi. I server DHCP e DNS si configurano in Asset › Indirizzi IP."),
             ],
         },
         {

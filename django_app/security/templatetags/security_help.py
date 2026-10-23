@@ -12,6 +12,7 @@ PAGE_HELP = {
     "my_work": ("13-lavoro-quotidiano", "da-dove-partire"),
     "pc_copertura": ("15-backup-vpn-kpi-asset", "dispositivi"),
     "watchguard_pc": ("12-automatismi-e-vulnerabilita", "patch-e-protezione-watchguard"),
+    "rete_indirizzi": ("15-backup-vpn-kpi-asset", "rete-ip"),
     "letture": ("16-impostazioni-e-ai", "letture-automatiche"),
     "segnalazioni": ("13-lavoro-quotidiano", "le-segnalazioni"),
     "search": ("13-lavoro-quotidiano", "cercare-qualcosa"),

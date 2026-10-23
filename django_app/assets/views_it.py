@@ -75,11 +75,19 @@ def _rows(request: HttpRequest) -> tuple[list[dict], dict[str, int]]:
         ident = " · ".join(x for x in (device.seriale, device.utente_nome or device.utente_upn) if x)
         add("intune", device, device.nome or device.seriale, ident, asset, reason,
             reverse("assets:asset_view", args=[asset.pk]) if asset else reverse("assets:it_reconciliation"))
-    from .models import IndirizzoRete
+    from django.db.models import Q
 
-    # Solo indirizzi DHCP: un record solo-DNS non dice a che dispositivo appartiene.
-    for addr in IndirizzoRete.objects.filter(asset__isnull=True, nel_dhcp=True).exclude(mac="").order_by("ip")[:ROW_LIMIT]:
-        asset, reason = match_hub_asset(mac=addr.mac, ip=addr.ip, hostname=addr.nome)
+    from .models import IndirizzoRete
+    from .services.rete_windows import proponi
+
+    # Lease DHCP con MAC, più gli IP fissi del DNS solo se il nome trova un asset: senza
+    # proposta un record solo-DNS non dice a che dispositivo appartiene.
+    for addr in (IndirizzoRete.objects.filter(asset__isnull=True)
+                 .filter(Q(nel_dhcp=True) & ~Q(mac="") | Q(nel_dhcp=False, nel_dns=True, asset_proposto__isnull=False))
+                 .order_by("ip")[:ROW_LIMIT]):
+        asset, reason = proponi(addr)
+        if asset is None and not addr.nel_dhcp:
+            continue
         add("rete", addr, addr.nome or addr.ip, " · ".join(x for x in (addr.ip, addr.mac) if x), asset, reason,
             reverse("assets:asset_view", args=[asset.pk]) if asset else reverse("assets:rete_indirizzi") + "?f=non_censiti")
     rows.sort(key=lambda row: (row["asset"] is None, row["module"], row["label"].lower()))
@@ -120,12 +128,13 @@ def _link(request: HttpRequest, key: str) -> str | None:
         return str(device)
     if kind == "rete":
         from .models import IndirizzoRete
+        from .services.rete_windows import proponi
         from .views import _can_edit_asset
 
         addr = IndirizzoRete.objects.filter(pk=obj_id, asset__isnull=True).first()
         if addr is None:
             return None
-        asset, _reason = match_hub_asset(mac=addr.mac, ip=addr.ip, hostname=addr.nome)
+        asset, _reason = proponi(addr)
         if asset is None or asset.pk != asset_id or not _can_edit_asset(request, asset.pk):
             return None
         addr.asset = asset

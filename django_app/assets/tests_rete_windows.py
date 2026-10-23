@@ -175,7 +175,7 @@ class PaginaTests(TestCase):
     def test_pagina_e_filtro(self):
         resp = self.client.get(reverse("assets:rete_indirizzi"))
         self.assertContains(resp, "192.168.10.21")
-        self.assertContains(resp, "quasi pieno")
+        self.assertContains(resp, "Quasi pieno")
         self.assertContains(resp, "non censito")
         resp = self.client.get(reverse("assets:rete_indirizzi") + "?f=non_censiti")
         self.assertContains(resp, "192.168.10.30")
@@ -236,3 +236,154 @@ class ConfigurazioneDalPortaleTests(TestCase):
             self.assertNotIn(b"Server DHCP e DNS", self.client.get(self.url).content)  # 403 dall'ACL o riquadro nascosto
             self.client.post(self.url, {"azione": "salva", "dhcp": "dc09", "dns": "", "zone": ""})
         self.assertNotEqual(svc.config()["dhcp"], ["dc09"])
+
+
+class CorrelazioneTests(TestCase):
+    """IP fissi, abbinamento da altre fonti, switch, antivirus e memoria dei MAC (dati sintetici)."""
+
+    def setUp(self):
+        self.pc = Asset.objects.create(asset_tag="PC-COR-1", name="pc-cor-01", asset_type=Asset.TYPE_PC)
+
+    def test_ip_fisso_solo_dns_e_non_censito(self):
+        svc.salva_dns([{"name": "nas-ignoto", "zone": "dominio.local", "ip": "192.168.10.40", "stamp": None},
+                       {"name": "pc-dimenticato", "zone": "dominio.local", "ip": "192.168.10.99", "stamp": "2026-08-01T08:00:00Z"}], ORA)
+        svc.aggiorna_proposte()
+        data = svc.pagina("non_censiti", ora=ORA)
+        self.assertEqual([r.ip for r in data["righe"]], ["192.168.10.40"])  # il record DNS vecchio non conta
+
+    def test_proposta_dal_secondo_nome_dns(self):
+        svc.salva_dns([{"name": "alias-stampa", "zone": "dominio.local", "ip": "192.168.10.41", "stamp": None},
+                       {"name": "pc-cor-01", "zone": "dominio.local", "ip": "192.168.10.41", "stamp": None}], ORA)
+        svc.aggiorna_proposte()
+        self.assertEqual(IndirizzoRete.objects.get(ip="192.168.10.41").asset_proposto, self.pc)
+
+    def test_mac_di_watchguard_e_nome_collegato_in_intune(self):
+        from assets.services.identity_match import REASON_NAME_LINKED
+        from security.models import WatchGuardDispositivo
+
+        WatchGuardDispositivo.objects.create(device_id="wg-1", host="pc-cor-01", hub_asset=self.pc,
+                                             mac="aa:bb:cc:00:00:07 aa:bb:cc:00:00:08")
+        self.assertEqual(match_hub_asset(mac="AA-BB-CC-00-00-08"), (self.pc, REASON_MAC))
+        altro = Asset.objects.create(asset_tag="PC-COR-2", name="Portatile commerciale", asset_type=Asset.TYPE_NOTEBOOK)
+        DispositivoIntune.objects.create(intune_id="i-cor", nome="NB-COMM-07", asset=altro, presente=True)
+        self.assertEqual(match_hub_asset(hostname="nb-comm-07.dominio.local"), (altro, REASON_NAME_LINKED))
+
+    def test_switch_watchguard_senza_agente_e_pc_senza_antivirus(self):
+        from contatori.models import DispositivoSNMP, MacPortaSwitch
+        from security.models import SoftwareInstallation, WatchGuardDispositivo
+
+        sw = DispositivoSNMP.objects.create(nome="SW-SINT", host="192.0.2.2")
+        MacPortaSwitch.objects.create(dispositivo=sw, mac="aa:bb:cc:00:00:01", porta="Gi1/0/12", vlan=10,
+                                      mac_sulla_porta=1, letto_il=ORA)
+        MacPortaSwitch.objects.create(dispositivo=sw, mac="aa:bb:cc:00:00:01", porta="Te1/1/1", mac_sulla_porta=40, letto_il=ORA)
+        WatchGuardDispositivo.objects.create(device_id="unmanaged:1", gestito=False, host="ignoto", mac="aa:bb:cc:00:00:30")
+        SoftwareInstallation.objects.create(dedup_key="k-altro", source_kind="watchguard", host="altro", vendor="acme",
+                                            product="x", product_raw="x", version_raw="1", fonti=["watchguard"])
+        svc.salva_dhcp("dhcp-sint", _dhcp([_lease(), _lease("192.168.10.30", "aa:bb:cc:00:00:30", "sconosciuto")]), ORA)
+        IndirizzoRete.objects.filter(ip="192.168.10.21").update(asset=self.pc)
+        righe = {r.ip: r for r in svc.pagina(ora=ORA)["righe"]}
+        pc, ignoto = righe["192.168.10.21"], righe["192.168.10.30"]
+        self.assertEqual((pc.switch.dispositivo.nome, pc.switch.porta), ("SW-SINT", "Gi1/0/12"))  # la porta d'accesso
+        self.assertEqual(pc.senza_protezione, "PC del registro senza WatchGuard né Defender")
+        self.assertEqual(ignoto.senza_protezione, "WatchGuard lo vede in rete senza agente")
+        self.assertIn({"nome": "WatchGuard", "stato": "ko", "titolo": "In rete senza agente WatchGuard"}, ignoto.fonti)
+        conteggi = {f["code"]: f["count"] for f in svc.pagina(ora=ORA)["filtri"]}
+        self.assertEqual(conteggi["senza_protezione"], 2)
+
+    def test_senza_dati_antivirus_non_si_giudica(self):
+        svc.salva_dhcp("dhcp-sint", _dhcp(), ORA)
+        IndirizzoRete.objects.update(asset=self.pc)
+        self.assertEqual(svc.pagina(ora=ORA)["righe"][0].senza_protezione, "")
+
+    def test_mac_di_asset_normalizza_intune_e_usa_il_dhcp(self):
+        from contatori.tabella_mac import mac_di_asset
+
+        DispositivoIntune.objects.create(intune_id="i-norm", nome="X", mac_ethernet="AABBCC0000AA", asset=self.pc)
+        IndirizzoRete.objects.create(ip="192.168.10.50", mac="aa:bb:cc:00:00:bb", asset=self.pc, nel_dhcp=True)
+        self.assertEqual(mac_di_asset(self.pc), {"aa:bb:cc:00:00:aa", "aa:bb:cc:00:00:bb"})
+
+
+@override_settings(RETE_DHCP_SERVERS="dhcp-sint", RETE_DNS_SERVER="", RETE_DNS_ZONES="")
+class DispositivoNuovoTests(TestCase):
+    def _giro(self, leases, ora):
+        with patch.object(svc, "leggi_dhcp", return_value=_dhcp(leases)):
+            return svc.sincronizza(ora)
+
+    def test_prima_lettura_niente_poi_un_evento_per_mac(self):
+        from security.models import SecurityEventRecord
+
+        self.assertEqual(self._giro([_lease()], ORA)["segnalati_soc"], 0)  # prima lettura: tutto «nuovo», niente al SOC
+        nuovi = [_lease(), _lease("192.168.10.60", "00:1b:21:00:00:60", "ignoto"),
+                 _lease("192.168.10.61", "da:a1:19:00:00:61", "telefono")]  # MAC privato: escluso
+        esito = self._giro(nuovi, ORA + timedelta(hours=1))
+        self.assertEqual((esito["mac_nuovi"], esito["segnalati_soc"]), (2, 1))
+        evento = SecurityEventRecord.objects.get(event_type="rete_dispositivo_nuovo")
+        self.assertEqual(evento.payload["dettaglio"]["ip"], "192.168.10.60")
+        self.assertEqual(self._giro(nuovi, ORA + timedelta(hours=2))["segnalati_soc"], 0)  # già visto: mai due volte
+
+    def test_mac_casuale(self):
+        self.assertTrue(svc.mac_casuale("da:a1:19:00:00:61"))
+        self.assertFalse(svc.mac_casuale("00:1b:21:00:00:60"))
+
+
+class AzioniRigaTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(username="adm_rete_az", email="a@a.it", password="x")
+        UserOnboarding.objects.create(user=self.admin, completed=True)
+        self.client.force_login(self.admin)
+        self.asset = Asset.objects.create(asset_tag="PC-AZ-1", name="pc-sint-01", asset_type=Asset.TYPE_PC)
+        svc.salva_dhcp("dhcp-sint", _dhcp([_lease(), _lease("192.168.10.30", "aa:bb:cc:00:00:30", "sconosciuto")]), ORA)
+        svc.aggiorna_proposte()
+        self.riga = IndirizzoRete.objects.get(ip="192.168.10.21")
+        self.url = reverse("assets:rete_indirizzi")
+
+    def test_conferma_e_scollega(self):
+        self.assertContains(self.client.get(self.url), 'value="collega"')
+        self.client.post(self.url, {"azione": "collega", "riga": self.riga.pk, "asset": self.asset.pk})
+        self.riga.refresh_from_db()
+        self.assertEqual(self.riga.asset, self.asset)
+        self.client.post(self.url, {"azione": "scollega", "riga": self.riga.pk})
+        self.riga.refresh_from_db()
+        self.assertIsNone(self.riga.asset)
+
+    def test_conferma_rifiutata_se_la_proposta_e_cambiata(self):
+        altro = Asset.objects.create(asset_tag="PC-AZ-2", name="altro", asset_type=Asset.TYPE_PC)
+        self.client.post(self.url, {"azione": "collega", "riga": self.riga.pk, "asset": altro.pk})
+        self.riga.refresh_from_db()
+        self.assertIsNone(self.riga.asset)
+
+    def test_crea_asset_precompilato_e_collegato(self):
+        from django.test import RequestFactory
+
+        from assets.views.asset_crud import _collega_indirizzo_creato
+
+        ignoto = IndirizzoRete.objects.get(ip="192.168.10.30")
+        self.assertContains(self.client.get(self.url + "?f=non_censiti"), f"?da_rete={ignoto.pk}")
+        resp = self.client.get(reverse("assets:asset_create") + f"?da_rete={ignoto.pk}")
+        self.assertContains(resp, 'value="192.168.10.30"')
+        self.assertContains(resp, 'value="aa:bb:cc:00:00:30"')
+        nuovo = Asset.objects.create(asset_tag="NEW-1", name="sconosciuto", asset_type=Asset.TYPE_HW)
+        req = RequestFactory().post("/")
+        req.user = self.admin
+        _collega_indirizzo_creato(req, ignoto, nuovo)
+        ignoto.refresh_from_db()
+        self.assertEqual(ignoto.asset, nuovo)
+
+    def test_kpi_ambiti_in_italiano_ed_excel(self):
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "Indirizzi attivi")
+        self.assertContains(resp, "Senza antivirus")
+        self.assertContains(resp, "Quasi pieno")
+        xlsx = self.client.get(self.url + "?f=tutti&export=xlsx")
+        self.assertEqual(xlsx["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def test_vista_nel_soc_e_nella_scheda_dispositivi(self):
+        resp = self.client.get(reverse("security:rete_indirizzi"))
+        self.assertContains(resp, "Rete (IP)")
+        self.assertContains(resp, "192.168.10.30")
+        self.assertNotContains(resp, 'id="config-rete"')  # la configurazione resta in Asset
+        self.client.post(reverse("security:rete_indirizzi"), {"azione": "collega", "riga": self.riga.pk, "asset": self.asset.pk})
+        self.riga.refresh_from_db()
+        self.assertEqual(self.riga.asset, self.asset)
+        DispositivoIntune.objects.create(intune_id="i-az", nome="pc-sint-01", asset=self.asset, presente=True)
+        self.assertContains(self.client.get(reverse("security:pc_copertura")), "192.168.10.21")

@@ -5432,6 +5432,30 @@ class IndirizzoRete(models.Model):
         return self._corto(self.nome_dhcp) not in {self._corto(n) for n in self.nomi_dns}
 
 
+class MacRete(models.Model):
+    """Un MAC visto almeno una volta nel DHCP: serve a riconoscere i dispositivi nuovi in rete.
+
+    ``IndirizzoRete`` è per IP e perde il MAC quando l'IP passa a un altro dispositivo:
+    qui resta la memoria di ogni MAC. ``segnalato_il`` = evento «dispositivo sconosciuto
+    nuovo in rete» già mandato al SOC (mai più di uno per MAC).
+    """
+
+    mac = models.CharField(max_length=17, unique=True)
+    prima_vista = models.DateTimeField()
+    ultima_vista = models.DateTimeField()
+    ultimo_ip = models.CharField(max_length=45, blank=True, default="")
+    ultimo_nome = models.CharField(max_length=255, blank=True, default="")
+    segnalato_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-prima_vista"]
+        verbose_name = "MAC visto in rete"
+        verbose_name_plural = "MAC visti in rete"
+
+    def __str__(self) -> str:
+        return self.mac
+
+
 class CollegamentoMTConnect(models.Model):
     """Una macchina CNC collegata al portale per lo stato reale, in sola lettura.
 

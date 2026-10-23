@@ -157,8 +157,9 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "DHCP e DNS di Windows Server",
         "cosa": "Ambiti DHCP con l'occupazione, lease e prenotazioni (IP, MAC, nome) e record A del DNS, letti ogni ora "
                 "con PowerShell in locale (moduli RSAT DhcpServer/DnsServer, solo letture). Finiscono in assets_ambitodhcp "
-                "e assets_indirizzorete.",
-        "chi": "Asset → Indirizzi IP (dispositivi non censiti, record DNS vecchi), riconciliazione dispositivi IT, riga «Visto da» della scheda asset.",
+                "e assets_indirizzorete; ogni MAC visto resta in assets_macrete (evento SOC «dispositivo sconosciuto nuovo in rete»).",
+        "chi": "Asset → Indirizzi IP e SOC → Dispositivi → Rete (IP) (non censiti, senza antivirus, switch e porta, record DNS vecchi), "
+               "riconciliazione dispositivi IT, riga «Visto da» della scheda asset, elenco e scheda Dispositivi del SOC.",
         "config": "Asset › Indirizzi IP, riquadro «Server DHCP e DNS» (amministratori del modulo Asset; SiteConfig "
                   "assets.rete_windows.config; le vecchie RETE_* del .env valgono solo se vuoto); RSAT sul server del portale; l'utente "
                   "del qcluster nel gruppo «DHCP Users» del server DHCP. Schedule rete_windows_sync (ogni 60 minuti).",

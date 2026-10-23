@@ -359,22 +359,39 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="rete-indirizzi">
       <h2>Indirizzi IP (DHCP e DNS)</h2>
-      <p>La pagina <a href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a> (menu, accanto a Catalogo software) elenca gli indirizzi della rete letti dal <strong>DHCP</strong> e dal <strong>DNS</strong> di Windows Server, <strong>una riga per IP</strong>: MAC, nome che il PC dà al DHCP, nome nel DNS, tipo (dinamico, prenotazione, solo nel DNS) e l'asset a cui appartiene. Si aggiorna da sola <strong>ogni ora</strong>; in cima c'è l'ora dell'ultima lettura ed eventuali errori.</p>
-      <h3>Ambiti DHCP</h3>
-      <p>I riquadri in alto sono gli ambiti DHCP con quanti indirizzi sono in uso e quanti liberi. Un ambito con il bordo rosso è <strong>quasi pieno</strong> (in uso il 90% o più): i nuovi dispositivi potrebbero non ricevere un indirizzo. Un clic sul riquadro mostra solo gli indirizzi di quell'ambito; un altro clic toglie il filtro.</p>
-      <h3>Filtri</h3>
+      <p>La pagina <a href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a> (menu, accanto a Catalogo software) elenca gli indirizzi della rete letti dal <strong>DHCP</strong> e dal <strong>DNS</strong> di Windows Server, <strong>una riga per IP</strong>, incrociati con gli switch, WatchGuard e Intune. Si aggiorna da sola <strong>ogni ora</strong>; in cima c'è l'ora dell'ultima lettura (pallino verde, rosso se ci sono errori) ed eventuali errori. La stessa vista è nel Security Center, in <strong>Dispositivi › Rete (IP)</strong>.</p>
+      <h3>I riquadri in testa</h3>
       <ul>
-        <li><strong>Non censiti</strong>: indirizzi DHCP di dispositivi che nessun asset del registro riconosce (né per MAC, né per IP, né per nome). Sono da censire o da indagare.</li>
-        <li><strong>Da collegare</strong>: il portale ha trovato l'asset giusto (lo dice la colonna Asset, con il motivo: MAC, IP o nome); la conferma si fa dalla <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a>, modulo «Rete (DHCP)».</li>
-        <li><strong>Collegati a un asset</strong>: già confermati; nella scheda dell'asset la riga <strong>Visto da</strong> mostra la fonte «Rete» con l'IP.</li>
-        <li><strong>Nome DHCP diverso dal DNS</strong>: il DNS dà a quell'IP il nome di un altro dispositivo, di solito un record rimasto. Si corregge sul server DNS.</li>
-        <li><strong>Record DNS vecchi</strong>: record dinamici non aggiornati da oltre 30 giorni e senza un lease DHCP: probabilmente da eliminare (o da far pulire con lo «scavenging» del DNS).</li>
-        <li><strong>Prenotazioni</strong> e <strong>Non più visti</strong> (indirizzi spariti da DHCP e DNS, in grigio).</li>
+        <li><strong>Indirizzi attivi</strong>: visti nell'ultima lettura del DHCP o del DNS.</li>
+        <li><strong>Non censiti</strong>: nessun asset del registro ha quel MAC, IP o nome. Vale per i lease DHCP e anche per gli <strong>IP fissi</strong> che stanno solo nel DNS (server, stampanti, apparati con indirizzo scritto a mano); non contano i record DNS vecchi.</li>
+        <li><strong>Da collegare</strong>: il portale ha trovato l'asset giusto, va solo confermato.</li>
+        <li><strong>Senza antivirus</strong>: WatchGuard vede il dispositivo in rete <em>senza agente</em>, oppure è un PC del registro (PC, portatile, server, macchina virtuale) che non compare né in WatchGuard né nell'inventario Defender. Se nel portale non c'è ancora nessun dato antivirus, la pagina non giudica.</li>
+        <li><strong>DNS da pulire</strong>: record dinamici fermi da oltre 30 giorni e senza un lease DHCP.</li>
       </ul>
-      <p>La ricerca trova IP, MAC, nomi DHCP e DNS e il nome dell'asset.</p>
+      <p>Un clic su un riquadro applica quel filtro.</p>
+      <h3>Ambiti DHCP</h3>
+      <p>Ogni ambito ha un anello con la percentuale di occupazione, lo stato (<strong>Attivo</strong> o <strong>Disattivato</strong>) e gli indirizzi in uso e liberi. Un ambito attivo pieno al 90% o più diventa rosso con la scritta <strong>Quasi pieno</strong>: i nuovi dispositivi potrebbero non ricevere un indirizzo. Un ambito disattivato non assegna indirizzi (grigio, senza percentuale). Un clic sul riquadro mostra solo gli indirizzi di quell'ambito; un altro clic toglie il filtro.</p>
+      <h3>Le colonne</h3>
+      <ul>
+        <li><strong>Dispositivo</strong>: nome dato al DHCP e nomi nel DNS; se il PC è in Intune anche modello e utente. Etichette: <em>nome diverso dal DNS</em> (record rimasto da un altro PC, si corregge sul DNS), <em>IP fisso</em> (record DNS scritto a mano), <em>DNS fermo dal …</em>.</li>
+        <li><strong>Switch</strong>: lo switch e la porta dove si vede il MAC, con la VLAN, presi dalla tabella MAC degli switch monitorati via SNMP. Se la porta ha molti dispositivi (verso un altro switch o un access point) è indicato quanti: lì il dispositivo non è collegato direttamente.</li>
+        <li><strong>Visto da</strong>: DHCP, DNS, Switch, WatchGuard (verde con l'agente, rosso se lo trova senza agente), Intune.</li>
+        <li><strong>Asset</strong>: l'asset collegato, oppure quello <em>proposto</em> con il motivo (MAC, IP, nome, nome già collegato in un altro modulo), oppure <em>non censito</em>.</li>
+      </ul>
+      <h3>Azioni sulla riga</h3>
+      <ul>
+        <li><span class="ag-btn">Conferma</span>: collega l'indirizzo all'asset proposto. Se nel frattempo la proposta è cambiata il collegamento non si fa e la pagina lo dice.</li>
+        <li><span class="ag-btn">Scollega</span>: stacca l'indirizzo dall'asset; al giro successivo torna la proposta.</li>
+        <li><span class="ag-btn">Crea asset</span> (sui non censiti): apre il modulo del nuovo asset con nome, IP, MAC, switch e porta già compilati; salvato l'asset, l'indirizzo gli resta collegato.</li>
+      </ul>
+      <p>Conferma e Scollega richiedono il permesso di modificare l'asset, Crea asset quello di creare asset; restano anche nella <a href="{% url 'assets:it_reconciliation' %}">Riconciliazione dispositivi IT</a> (modulo «Rete (DHCP)»). Ogni azione resta nell'audit. Il pulsante <span class="ag-btn">Excel</span> scarica le righe mostrate.</p>
+      <h3>Filtri e ricerca</h3>
+      <p>Oltre ai riquadri: <strong>Collegati a un asset</strong>, <strong>Nome DHCP diverso dal DNS</strong>, <strong>Record DNS vecchi</strong>, <strong>Prenotazioni</strong> e <strong>Non più visti</strong> (spariti da DHCP e DNS, in grigio). La ricerca trova IP, MAC, nomi DHCP e DNS, nome e codice dell'asset e nome dello switch.</p>
+      <h3>Dispositivo nuovo in rete (Security Center)</h3>
+      <p>Quando un MAC <strong>mai visto prima</strong> prende un indirizzo dal DHCP e nessun asset lo spiega, il SOC riceve l'evento <strong>Dispositivo sconosciuto nuovo in rete</strong> (IP, MAC, nome, ambito, switch e porta). Non si segnalano i MAC «privati» dei telefoni (cambiano da soli), al massimo 10 per lettura e mai due volte lo stesso MAC; la prima lettura in assoluto non segnala niente. L'alert si accende o spegne in Security Center › Impostazioni › Avvisi e automatismi.</p>
       <h3>Server da cui leggere</h3>
-      <p>Gli amministratori del modulo Asset trovano in cima alla pagina il riquadro <strong>Server DHCP e DNS</strong>: si scrivono i server DHCP (uno o più, separati da virgole), il server DNS e le zone (per esempio <kbd>dominio.local</kbd>), poi <span class="ag-btn">Salva</span> e <span class="ag-btn">Leggi adesso</span> per la prima lettura. Sul server del portale servono gli strumenti RSAT e l'utente del servizio dei lavori in background deve stare nel gruppo «DHCP Users»: se manca qualcosa, l'errore compare in cima alla pagina.</p>
-      <p class="ag-note">Per riconoscere un dispositivo dal MAC, scrivilo nel punto rete dell'asset (scheda asset › Rete) oppure collega il PC a Intune: il portale usa anche i MAC che Intune conosce. Il registro non viene mai modificato da solo: la lettura propone, la riconciliazione conferma.</p>
+      <p>Gli amministratori del modulo Asset trovano in cima alla pagina il riquadro <strong>Server DHCP e DNS</strong>: si scrivono i server DHCP (uno o più, separati da virgole), il server DNS e le zone (per esempio <kbd>dominio.local</kbd>), poi <span class="ag-btn">Salva</span> e <span class="ag-btn">Leggi adesso</span> per la prima lettura. Sul server del portale servono gli strumenti RSAT e l'utente del servizio dei lavori in background deve poter leggere il DHCP (gruppo «DHCP Users» o amministratore di dominio): se manca qualcosa, l'errore compare in cima alla pagina.</p>
+      <p class="ag-note">Il portale riconosce un dispositivo dal MAC scritto nel punto rete dell'asset, da quelli che conoscono Intune e WatchGuard, dall'IP e dal nome (anche quando lo stesso nome è già collegato in Intune, WatchGuard o nel SOC). I MAC letti dal DHCP servono anche a trovare la porta dello switch nella scheda asset. Il registro non viene mai modificato da solo: la lettura propone, tu confermi.</p>
     </section>
 
     <section class="ag-sec" id="mtconnect">

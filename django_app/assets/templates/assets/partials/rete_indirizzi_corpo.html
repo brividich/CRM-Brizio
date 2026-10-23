@@ -1,0 +1,187 @@
+{% comment %}
+Corpo della pagina Indirizzi IP, uguale in Asset (/assets/rete/indirizzi/) e nel SOC (/soc/dispositivi/rete/).
+Contesto: assets.views_rete.contesto_pagina + guida_url. I moduli delle azioni di riga tornano alla pagina che li mostra.
+{% endcomment %}
+<style>
+.ri-page{display:grid;gap:14px;color:var(--text,#16253c)}
+.ri-card{border:1px solid var(--border,#dbe3ef);border-radius:16px;background:var(--surface,#fff);padding:16px 18px}
+.ri-note{margin:0;color:var(--text-mid,#66758b);font-size:var(--fs-sm,13px);line-height:1.5}
+.ri-warn{margin:6px 0 0;color:var(--danger,#b91c1c);font-size:var(--fs-sm,13px);line-height:1.5}
+.ri-status{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.ri-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--success,#16a34a);margin-right:6px;vertical-align:middle}
+.ri-dot.is-ko{background:var(--danger,#dc2626)}.ri-dot.is-off{background:#94a3b8}
+.ri-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.ri-kpi{display:grid;gap:2px;border:1px solid var(--border,#dbe3ef);border-left:5px solid #94a3b8;border-radius:14px;padding:12px 14px;background:var(--surface,#fff);color:inherit;text-decoration:none}
+.ri-kpi:hover,.ri-kpi:focus-visible{border-color:var(--link,#2563eb)}
+.ri-kpi.is-active{box-shadow:0 0 0 2px color-mix(in srgb,var(--link,#2563eb) 30%,transparent)}
+.ri-kpi--danger{border-left-color:var(--danger,#dc2626)}.ri-kpi--warn{border-left-color:#f59e0b}
+.ri-kpi-n{font-size:26px;font-weight:800;line-height:1.1}
+.ri-kpi-l{font-weight:700}
+.ri-kpi small{color:var(--text-mid,#64748b);font-size:12px;line-height:1.35}
+.ri-kpi.is-zero .ri-kpi-n{color:var(--text-mid,#64748b)}
+.ri-kpi--danger:not(.is-zero) .ri-kpi-n{color:var(--danger,#dc2626)}
+.ri-kpi--warn:not(.is-zero) .ri-kpi-n{color:#c2410c}
+.ri-section-title{margin:0 0 10px;font-size:15px;font-weight:800}
+.ri-scopes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.ri-scope{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:center;border:1px solid var(--border,#dbe3ef);border-radius:14px;padding:12px 14px;color:inherit;text-decoration:none;background:var(--surface,#fff)}
+.ri-scope:hover,.ri-scope:focus-visible{border-color:var(--link,#2563eb)}
+.ri-scope.active{border-color:var(--link,#2563eb);box-shadow:0 0 0 2px color-mix(in srgb,var(--link,#2563eb) 25%,transparent)}
+.ri-scope.is-off{opacity:.72}
+.ri-ring{grid-row:1/4;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--ring,#16a34a) calc(var(--p,0) * 1%),color-mix(in srgb,var(--text-mid,#64748b) 18%,transparent) 0)}
+.ri-ring span{width:40px;height:40px;border-radius:50%;background:var(--surface,#fff);display:grid;place-items:center;font-size:12px;font-weight:800}
+.ri-scope.is-full .ri-ring{--ring:var(--danger,#dc2626)}
+.ri-scope.is-off .ri-ring{--ring:#94a3b8}
+.ri-scope strong{font-size:15px;overflow-wrap:anywhere}
+.ri-mono{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:13px;white-space:nowrap}
+.ri-scope .ri-mono{font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.ri-meta{color:var(--text-mid,#64748b);font-size:var(--fs-sm,13px)}
+.ri-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.ri-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ri-filters a{padding:6px 11px;border:1px solid var(--border,#dbe3ef);border-radius:999px;color:inherit;text-decoration:none;font-weight:600;font-size:var(--fs-sm,13px)}
+.ri-filters a.active{border-color:var(--link,#2563eb);color:var(--link,#2563eb);background:color-mix(in srgb,var(--link,#2563eb) 10%,transparent)}
+.ri-filters a.is-empty{opacity:.55}
+.ri-filters a span{opacity:.7;margin-left:4px}
+.ri-search{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ri-search input{box-sizing:border-box;min-width:0;width:220px;max-width:100%;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:var(--text,#0f172a)}
+.ri-table-wrap{overflow:auto}
+.ri-table{width:100%;border-collapse:collapse}
+.ri-table th{text-align:left;padding:9px 8px;border-bottom:1px solid var(--border,#e5e7eb);color:var(--text-mid,#64748b);font-size:var(--fs-xs,12px);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.ri-table td{padding:9px 8px;border-bottom:1px solid color-mix(in srgb,var(--border,#e5e7eb) 60%,transparent);vertical-align:top}
+.ri-table a{color:var(--link,#2563eb)}
+.ri-table tr.ri-alert td:first-child{box-shadow:inset 4px 0 0 var(--danger,#dc2626)}
+.ri-table tr.ri-off{opacity:.6}
+.ri-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;margin:1px 0}
+.ri-tag--ok{color:#15803d;background:#dcfce7}.ri-tag--warn{color:#9a3412;background:#ffedd5}.ri-tag--danger{color:#991b1b;background:#fee2e2}.ri-tag--muted{color:#475569;background:#f1f5f9}
+.ri-pills{display:flex;flex-wrap:wrap;gap:4px}
+.ri-pill{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;color:#15803d;background:#f0fdf4;white-space:nowrap}
+.ri-pill--ko{border-color:#fecaca;color:#b91c1c;background:#fef2f2}
+.ri-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+.ri-actions form{margin:0;display:inline}
+.ri-btn{display:inline-block;padding:3px 10px;border-radius:8px;border:1px solid var(--border,#cbd5e1);background:var(--surface,#fff);color:var(--text,#0f172a);font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none}
+.ri-table a.ri-btn{color:var(--text,#0f172a)}
+.ri-btn--primary{background:var(--link,#2563eb);border-color:var(--link,#2563eb);color:#fff}
+.ri-table a.ri-btn--primary{color:#fff}
+.ri-btn:hover,.ri-btn:focus-visible{filter:brightness(.95)}
+.ri-legend{margin-top:10px}
+/* Dentro il SOC i link e i pulsanti hanno stili propri: qui vincono quelli della pagina. */
+.ri-page a.ri-kpi,.ri-page a.ri-scope,.ri-page .ri-filters a{color:var(--text,#16253c);text-decoration:none}
+.ri-page a.ri-kpi:hover,.ri-page a.ri-scope:hover,.ri-page .ri-filters a:hover{text-decoration:none}
+.ri-page .ri-filters a.active{color:var(--link,#2563eb)}
+.ri-page .ri-btn.ri-btn--primary,.ri-page a.ri-btn.ri-btn--primary{background:var(--link,#2563eb);border-color:var(--link,#2563eb);color:#fff}
+.ri-page .ri-btn:not(.ri-btn--primary){background:var(--surface,#fff);color:var(--text,#0f172a)}
+@media (max-width:700px){.ri-search input{width:100%}.ri-kpi-n{font-size:22px}}
+body.theme-dark .ri-tag--ok{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .ri-tag--warn{color:#fdba74;background:rgba(234,88,12,.18)}
+body.theme-dark .ri-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body.theme-dark .ri-tag--muted{color:#cbd5e1;background:rgba(148,163,184,.16)}
+body.theme-dark .ri-pill{color:#86efac;background:rgba(22,163,74,.14);border-color:rgba(134,239,172,.35)}
+body.theme-dark .ri-pill--ko{color:#fca5a5;background:rgba(220,38,38,.16);border-color:rgba(252,165,165,.35)}
+body.theme-dark .ri-kpi--warn:not(.is-zero) .ri-kpi-n{color:#fdba74}
+body.theme-dark .ri-kpi--danger:not(.is-zero) .ri-kpi-n{color:#fca5a5}
+</style>
+
+<section class="ri-page">
+  <div class="ri-card ri-status">
+    <p class="ri-note">
+      {% if ultimo_giro_at %}<span class="ri-dot{% if ultimo_giro.errori %} is-ko{% endif %}" aria-hidden="true"></span>Ultima lettura <strong>{{ ultimo_giro_at|date:"d/m/Y H:i" }}</strong>: si aggiorna da sola ogni ora.
+      {% elif configurato %}<span class="ri-dot is-off" aria-hidden="true"></span>In attesa della prima lettura (ogni ora).
+      {% else %}<span class="ri-dot is-off" aria-hidden="true"></span>La lettura non è configurata: {% if puo_configurare %}scrivi i server DHCP e DNS nel riquadro qui sotto.{% else %}la configura un amministratore del modulo Asset (Asset › Indirizzi IP).{% endif %}{% endif %}
+      {% if ultimo_giro.segnalati_soc %} · {{ ultimo_giro.segnalati_soc }} dispositiv{{ ultimo_giro.segnalati_soc|pluralize:"o,i" }} nuov{{ ultimo_giro.segnalati_soc|pluralize:"o,i" }} segnalat{{ ultimo_giro.segnalati_soc|pluralize:"o,i" }} al SOC.{% endif %}
+      {% if guida_url %}<a href="{{ guida_url }}">? Guida</a>{% endif %}
+    </p>
+    {% for errore in ultimo_giro.errori %}<p class="ri-warn">{{ errore }}</p>{% endfor %}
+  </div>
+
+  <nav class="ri-kpis" aria-label="Riepilogo degli indirizzi">
+    {% for k in kpi %}
+      <a class="ri-kpi{% if k.tono %} ri-kpi--{{ k.tono }}{% endif %}{% if not k.count %} is-zero{% endif %}{% if k.active %} is-active{% endif %}" href="?f={{ k.code }}{% if ambito_id %}&amp;ambito={{ ambito_id }}{% endif %}"{% if k.active %} aria-current="page"{% endif %}>
+        <span class="ri-kpi-n">{{ k.count }}</span>
+        <span class="ri-kpi-l">{{ k.label }}</span>
+        <small>{{ k.testo }}</small>
+      </a>
+    {% endfor %}
+  </nav>
+
+  {% if ambiti %}
+  <div class="ri-card">
+    <h2 class="ri-section-title">Ambiti DHCP</h2>
+    <div class="ri-scopes" aria-label="Ambiti DHCP">
+      {% for a in ambiti %}
+        <a class="ri-scope{% if a.pieno %} is-full{% endif %}{% if not a.attivo %} is-off{% endif %}{% if ambito_id == a.pk %} active{% endif %}" href="?f={{ filter_code }}{% if ambito_id != a.pk %}&amp;ambito={{ a.pk }}{% endif %}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" title="{% if ambito_id == a.pk %}Mostra tutti gli ambiti{% else %}Mostra solo questo ambito{% endif %}">
+          <span class="ri-ring" style="--p:{% if a.attivo %}{{ a.percentuale_uso|default:0|floatformat:0 }}{% else %}0{% endif %}" aria-hidden="true"><span>{% if a.attivo %}{{ a.percentuale_uso|default:0|floatformat:0 }}%{% else %}—{% endif %}</span></span>
+          <strong>{{ a.nome|default:a.scope_id }}</strong>
+          <span class="ri-meta ri-mono">{{ a.scope_id }} · {{ a.inizio }} – {{ a.fine }}</span>
+          <span class="ri-meta">
+            <span class="ri-tag {% if not a.attivo %}ri-tag--muted{% elif a.pieno %}ri-tag--danger{% else %}ri-tag--ok{% endif %}">{% if a.pieno %}Quasi pieno{% else %}{{ a.stato_label }}{% endif %}</span>
+            {% if a.attivo %}{{ a.in_uso }} in uso · {{ a.liberi }} liberi{% else %}non assegna indirizzi{% endif %}
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="ri-card">
+    <div class="ri-toolbar">
+      <nav class="ri-filters" aria-label="Filtri degli indirizzi">
+        {% for f in filtri %}<a href="?f={{ f.code }}{% if ambito_id %}&amp;ambito={{ ambito_id }}{% endif %}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="{% if f.active %}active{% endif %}{% if not f.count and f.code != 'tutti' %} is-empty{% endif %}"{% if f.active %} aria-current="page"{% endif %}>{{ f.label }}<span>{{ f.count }}</span></a>{% endfor %}
+      </nav>
+      <form class="ri-search" method="get">
+        <input type="hidden" name="f" value="{{ filter_code }}">
+        {% if ambito_id %}<input type="hidden" name="ambito" value="{{ ambito_id }}">{% endif %}
+        <input type="search" name="q" value="{{ q }}" placeholder="IP, MAC, nome, switch o asset" aria-label="Cerca">
+        <button class="ri-btn" type="submit">Cerca</button>
+        {% if q or ambito_id %}<a class="ri-btn" href="?f={{ filter_code }}">Mostra tutti</a>{% endif %}
+        <a class="ri-btn" href="?f={{ filter_code }}{% if ambito_id %}&amp;ambito={{ ambito_id }}{% endif %}{% if q %}&amp;q={{ q|urlencode }}{% endif %}&amp;export=xlsx" title="Le righe mostrate, in un file Excel">Excel</a>
+      </form>
+    </div>
+  </div>
+
+  <div class="ri-card ri-table-wrap">
+    <table class="ri-table" data-table-id="rete-indirizzi" data-fm-hide-search="1">
+      <thead><tr><th>IP</th><th>Dispositivo</th><th>MAC</th><th>Switch</th><th>Visto da</th><th>Tipo</th><th>Ultima volta</th><th>Asset</th></tr></thead>
+      <tbody>
+      {% for r in righe %}
+        <tr class="{% if not r.presente %}ri-off{% elif r.senza_protezione or r.non_censito %}ri-alert{% endif %}">
+          <td class="ri-mono"><strong>{{ r.ip }}</strong>{% if r.ambito %}<br><span class="ri-meta">{{ r.ambito.nome|default:r.ambito.scope_id }}</span>{% endif %}</td>
+          <td>
+            {% if r.nome_dhcp %}<strong>{{ r.nome_dhcp }}</strong>{% endif %}
+            {% for n in r.nomi_dns %}{% if r.nome_dhcp or not forloop.first %}<br>{% endif %}<span class="{% if r.nome_dhcp %}ri-meta{% endif %}">{{ n }}</span>{% empty %}{% if not r.nome_dhcp %}<span class="ri-meta">—</span>{% endif %}{% endfor %}
+            {% if r.intune %}<br><span class="ri-meta">{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.utente_nome %} · {{ r.intune.utente_nome }}{% endif %}</span>{% endif %}
+            {% if r.nome_diverso %}<br><span class="ri-tag ri-tag--warn" title="Il DNS dà a questo IP un nome diverso: il record DNS è probabilmente rimasto da un altro dispositivo">nome diverso dal DNS</span>{% endif %}
+            {% if r.nel_dns and r.dns_statico %}<br><span class="ri-tag ri-tag--muted" title="Record DNS scritto a mano: di solito un IP fisso">IP fisso</span>{% endif %}
+            {% if r.dns_vecchio %}<br><span class="ri-tag ri-tag--warn" title="Record dinamico non aggiornato da oltre {{ giorni_dns_vecchio }} giorni e nessun lease DHCP: probabilmente da eliminare">DNS fermo dal {{ r.dns_aggiornato_il|date:"d/m/Y" }}</span>{% endif %}
+          </td>
+          <td class="ri-mono">{{ r.mac|default:"—" }}{% if r.mac_privato %}<br><span class="ri-meta" title="MAC «privato» generato dal dispositivo: di solito un telefono o un tablet. Cambia da solo, non si segnala al SOC.">privato · telefono o tablet</span>{% endif %}</td>
+          <td>{% if r.switch %}<a href="{% url 'contatori:snmp_dispositivo' r.switch.dispositivo_id %}">{{ r.switch.dispositivo.nome }}</a><br><span class="ri-meta">porta {{ r.switch.porta }}{% if r.switch.vlan %} · VLAN {{ r.switch.vlan }}{% endif %}{% if not r.switch.porta_accesso %} · {{ r.switch.mac_sulla_porta }} dispositivi sulla porta{% endif %}</span>{% else %}<span class="ri-meta">—</span>{% endif %}</td>
+          <td><span class="ri-pills">{% for f in r.fonti %}<span class="ri-pill{% if f.stato == 'ko' %} ri-pill--ko{% endif %}" title="{{ f.titolo }}">{{ f.nome }}</span>{% endfor %}</span></td>
+          <td>{{ r.get_tipo_display }}{% if r.scadenza_lease and r.nel_dhcp %}<br><span class="ri-meta">scade {{ r.scadenza_lease|date:"d/m H:i" }}</span>{% endif %}</td>
+          <td class="ri-meta">{% if r.presente %}{{ r.ultima_vista|date:"d/m/Y H:i" }}{% else %}non più visto dal {{ r.ultima_vista|date:"d/m/Y" }}{% endif %}</td>
+          <td>
+            {% if r.asset %}
+              <a href="{% url 'assets:asset_view' r.asset.pk %}"><strong>{{ r.asset.name }}</strong></a><br><span class="ri-meta">{{ r.asset.asset_tag }}</span>
+            {% elif r.asset_proposto %}
+              <span class="ri-tag ri-tag--warn">proposto</span> <a href="{% url 'assets:asset_view' r.asset_proposto.pk %}">{{ r.asset_proposto.name }}</a><br><span class="ri-meta">{{ r.asset_proposto.asset_tag }} · per {{ r.motivo_proposta }}</span>
+            {% elif r.non_censito %}
+              <span class="ri-tag ri-tag--danger" title="Nessun asset del registro ha questo MAC, IP o nome">non censito</span>{% if r.motivo_proposta and r.motivo_proposta != "nessuna corrispondenza" %}<br><span class="ri-meta">{{ r.motivo_proposta }}</span>{% endif %}
+            {% else %}<span class="ri-meta">—</span>{% endif %}
+            {% if r.senza_protezione %}<br><span class="ri-tag ri-tag--danger" title="{{ r.senza_protezione }}">senza antivirus</span>{% endif %}
+            {% if r.presente %}
+            <div class="ri-actions">
+              {% if r.asset and puo_collegare %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="azione" value="scollega"><input type="hidden" name="riga" value="{{ r.pk }}"><button class="ri-btn" type="submit" title="Stacca {{ r.ip }} da {{ r.asset.asset_tag }}">Scollega</button></form>
+              {% elif r.asset_proposto and puo_collegare %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="azione" value="collega"><input type="hidden" name="riga" value="{{ r.pk }}"><input type="hidden" name="asset" value="{{ r.asset_proposto.pk }}"><button class="ri-btn ri-btn--primary" type="submit">Conferma</button></form>
+              {% elif r.non_censito and puo_creare_asset %}
+                <a class="ri-btn ri-btn--primary" href="{% url 'assets:asset_create' %}?da_rete={{ r.pk }}" title="Nuovo asset con nome, IP, MAC e porta dello switch già compilati">Crea asset</a>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="ri-meta">{% if q or filter_code != "tutti" or ambito_id %}Nessun indirizzo con questi filtri.{% elif configurato %}Nessun indirizzo letto finora: guarda l'esito della lettura qui sopra.{% else %}Nessun indirizzo: la lettura DHCP/DNS non è ancora configurata.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="ri-note ri-legend"><strong>Visto da</strong>: DHCP (lease o prenotazione), DNS (record A), Switch (la porta dove si vede il MAC, dalla tabella MAC degli switch), WatchGuard (verde con l'agente, rosso se lo trova in rete senza agente), Intune. <strong>Non censito</strong>: nessun asset ha questo MAC, IP o nome; vale anche per gli IP fissi presenti solo nel DNS. <strong>Senza antivirus</strong>: WatchGuard lo vede senza agente, oppure è un PC del registro che non compare né in WatchGuard né in Defender.</p>
+  </div>
+</section>

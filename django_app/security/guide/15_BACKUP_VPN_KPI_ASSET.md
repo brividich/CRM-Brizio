@@ -88,6 +88,34 @@ In cima ci sono i dispositivi con backup ko, poi quelli con problemi Intune, poi
 
 Un clic sulla riga apre l'anteprima; il nome apre la scheda completa del dispositivo. Le pagine **Backup** e **Vulnerabilità** restano per il lavoro trasversale (job di backup e log, CVE per programma), e ogni dispositivo lì porta alla stessa scheda.
 
+Sotto il nome compare l'**indirizzo IP** letto dal DHCP o dal DNS di Windows Server (prima quello collegato all'asset, poi quello con lo stesso nome) e, se uno switch monitorato vede il suo MAC, **switch e porta**. Il clic sull'IP apre **Rete (IP)** filtrata su quel dispositivo; la ricerca dell'elenco trova anche IP e MAC. Lo stesso dato è in cima alla scheda del dispositivo.
+
+## Rete (IP)
+
+**Dispositivi › Rete (IP)** è la stessa vista di **Asset › Indirizzi IP**: gli indirizzi della rete letti ogni ora dal DHCP e dal DNS di Windows Server, una riga per IP, incrociati con switch, WatchGuard e Intune. I server DHCP e DNS si configurano solo nella pagina Asset.
+
+I riquadri in testa sono anche filtri:
+
+- **Indirizzi attivi**: visti nell'ultima lettura.
+- **Non censiti**: nessun asset del registro ha quel MAC, IP o nome. Contano i lease DHCP e gli **IP fissi** presenti solo nel DNS; non contano i record DNS vecchi.
+- **Da collegare**: c'è un asset proposto (con il motivo: MAC, IP, nome, nome già collegato in un altro modulo).
+- **Senza antivirus**: WatchGuard vede il dispositivo **in rete senza agente**, oppure è un PC del registro (PC, portatile, server, macchina virtuale) che non compare né in WatchGuard né nell'inventario Defender. Senza nessun dato antivirus nel SOC la pagina non giudica.
+- **DNS da pulire**: record dinamici fermi da oltre 30 giorni senza lease DHCP.
+
+Ogni riga dice **switch, porta e VLAN** dove si vede il MAC (dalla tabella MAC degli switch letta via SNMP) e **Visto da**: DHCP, DNS, Switch, WatchGuard (rosso se senza agente), Intune. Le azioni sulla riga sono **Conferma** (collega all'asset proposto), **Scollega** e, sui non censiti, **Crea asset** (modulo del nuovo asset già compilato con nome, IP, MAC, switch e porta). Richiedono i permessi degli asset, non quelli del SOC, e restano nell'audit. **Excel** scarica le righe mostrate.
+
+Gli ambiti DHCP mostrano l'occupazione: **Quasi pieno** dal 90%, **Disattivato** se l'ambito non assegna indirizzi.
+
+### Dispositivo sconosciuto nuovo in rete
+
+Quando un MAC **mai visto prima** prende un indirizzo dal DHCP e nessun asset lo spiega, arriva l'evento **Dispositivo sconosciuto nuovo in rete** (sorgente «Portale · accessi», gravità avviso) con IP, MAC, nome, ambito, switch e porta. Regole:
+
+- la prima lettura in assoluto non segnala niente (tutti i MAC sarebbero «nuovi»);
+- i MAC **privati** dei telefoni e dei tablet (seconda cifra 2, 6, A o E) non si segnalano: cambiano da soli;
+- al massimo **10** per lettura e mai due volte lo stesso MAC.
+
+L'alert si accende o spegne in **Impostazioni › Avvisi e automatismi**, sezione «Eventi di sicurezza del portale».
+
 ## Stato elaborazione
 
 **Elaborazione** (voce **Impostazioni**) dice se i dati stanno arrivando. Il SOC lavora da solo: ogni 15 minuti legge le caselle mail, riconosce i report, applica le regole e calcola i KPI. Di solito non c'è niente da premere.

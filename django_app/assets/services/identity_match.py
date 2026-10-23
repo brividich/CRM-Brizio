@@ -9,11 +9,12 @@ Ordine, dal segnale piu' forte al piu' debole:
 
 1. **seriale** (``Asset.serial_number``, senza maiuscole);
 1b. **MAC** (normalizzato): punto rete dell'asset (``AssetEndpoint.mac``), poi i
-   MAC Wi-Fi/Ethernet dei PC Intune già collegati;
+   MAC Wi-Fi/Ethernet dei PC Intune già collegati, poi quelli di WatchGuard;
 2. **indirizzo IP**: endpoint dell'asset, poi collegamenti gia' confermati
    negli altri moduli (dispositivi/MFC SNMP, dispositivi SOC);
 3. **nome**: identico al nome dell'asset, poi il nome host corto
-   (``pc-01.dominio.local`` -> ``pc-01``) su nome o nome endpoint.
+   (``pc-01.dominio.local`` -> ``pc-01``) su nome o nome endpoint, poi lo stesso
+   nome già collegato in Intune, WatchGuard o nel SOC.
 
 Mai una scelta arbitraria: con piu' candidati il risultato e' ``None`` e il
 motivo dice perche'. Gli asset dismessi non vengono proposti.
@@ -32,6 +33,7 @@ REASON_IP_AMBIGUOUS = "indirizzo IP ambiguo"
 REASON_NAME = "nome identico"
 REASON_HOSTNAME = "nome host"
 REASON_NAME_AMBIGUOUS = "più asset con lo stesso nome"
+REASON_NAME_LINKED = "nome già collegato in un altro modulo"
 REASON_NONE = "nessuna corrispondenza"
 
 AMBIGUOUS_REASONS = {REASON_SERIAL_AMBIGUOUS, REASON_MAC_AMBIGUOUS, REASON_IP_AMBIGUOUS, REASON_NAME_AMBIGUOUS}
@@ -78,7 +80,7 @@ def _linked_ids_for_ip(ip: str) -> set[int]:
 
 
 def _ids_for_mac(mac: str) -> set[int]:
-    """Asset con questo MAC: punto rete dichiarato, poi PC di Intune già collegati."""
+    """Asset con questo MAC: punto rete dichiarato, poi PC di Intune e di WatchGuard già collegati."""
     from django.db.models import Q
 
     ids = set(_active_assets().filter(endpoints__mac=mac).values_list("pk", flat=True)[:5])
@@ -89,6 +91,41 @@ def _ids_for_mac(mac: str) -> set[int]:
         ids.update(DispositivoIntune.objects.filter(asset__isnull=False).filter(
             Q(mac_wifi__iexact=bare) | Q(mac_ethernet__iexact=bare) | Q(mac_wifi__iexact=mac) | Q(mac_ethernet__iexact=mac)
         ).values_list("asset_id", flat=True)[:5])
+    if not ids:
+        try:
+            from security.models import WatchGuardDispositivo
+
+            # WatchGuard tiene i MAC normalizzati separati da spazio: il contains va riverificato.
+            for asset_id, testo in WatchGuardDispositivo.objects.filter(
+                hub_asset__isnull=False, presente=True, mac__icontains=mac
+            ).values_list("hub_asset_id", "mac")[:5]:
+                if mac in testo.lower().split():
+                    ids.add(asset_id)
+        except ImportError:  # pragma: no cover - SOC non installato
+            pass
+    return ids
+
+
+def _linked_ids_for_name(short: str) -> set[int]:
+    """Asset già collegati a questo nome host in Intune, WatchGuard o nel SOC (solo collegamenti confermati)."""
+    ids: set[int] = set()
+    if not short:
+        return ids
+    from django.db.models import Q
+
+    from assets.models import DispositivoIntune
+
+    ids.update(DispositivoIntune.objects.filter(asset__isnull=False, presente=True).filter(
+        Q(nome__iexact=short) | Q(nome__istartswith=short + ".")).values_list("asset_id", flat=True)[:5])
+    try:
+        from security.models import SecurityAsset, WatchGuardDispositivo
+
+        ids.update(WatchGuardDispositivo.objects.filter(hub_asset__isnull=False, presente=True, host__iexact=short)
+                   .values_list("hub_asset_id", flat=True)[:5])
+        ids.update(SecurityAsset.objects.filter(hub_asset__isnull=False).filter(
+            Q(hostname__iexact=short) | Q(hostname__istartswith=short + ".")).values_list("hub_asset_id", flat=True)[:5])
+    except ImportError:  # pragma: no cover
+        pass
     return ids
 
 
@@ -147,5 +184,10 @@ def match_hub_asset(*, serial: str = "", ip: str = "", hostname: str = "", mac: 
                 return assets.get(pk=pk), REASON_HOSTNAME
             if ambiguous:
                 return None, REASON_NAME_AMBIGUOUS
+        pk, ambiguous = _unique(assets.filter(pk__in=_linked_ids_for_name(short or hostname)).values_list("pk", flat=True))
+        if pk:
+            return assets.get(pk=pk), REASON_NAME_LINKED
+        if ambiguous:
+            return None, REASON_NAME_AMBIGUOUS
 
     return None, REASON_NONE
