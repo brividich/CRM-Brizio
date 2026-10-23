@@ -4,13 +4,23 @@
 #
 #    pip-compile --annotation-style=line --output-file=requirements-dev.txt --strip-extras requirements-dev.in
 #
+aiosqlite==0.22.1
+    # via asyncua
 annotated-types==0.7.0
     # via pydantic
+anyio==4.15.1
+    # via asyncua
 asgiref==3.11.1
     # via
     #   django
     #   django-axes
     #   django-htmx
+asyncua==2.1.0
+    # via -r requirements.in
+azure-core==1.41.0
+    # via azure-identity
+azure-identity==1.26.0
+    # via mssql-python
 build==1.4.4
     # via pip-tools
 cachetools==7.0.6
@@ -33,10 +43,15 @@ croniter==6.2.4
     # via -r requirements.in
 cryptography==50.0.2
     # via
+    #   asyncua
+    #   azure-identity
     #   msal
+    #   puresnmp-crypto
     #   pyjwt
     #   pyopenssl
     #   pyspnego
+defusedxml==0.7.1
+    # via -r requirements.in
 distlib==0.4.0
     # via virtualenv
 django==5.2.17
@@ -84,7 +99,9 @@ filelock==3.29.0
 identify==2.6.19
     # via pre-commit
 idna==3.15
-    # via requests
+    # via
+    #   anyio
+    #   requests
 iniconfig==2.3.0
     # via pytest
 ldap3==2.9.1
@@ -94,15 +111,29 @@ markupsafe==3.0.3
 model-bakery==1.24.0
     # via -r requirements-dev.in
 msal==1.39.0
+    # via
+    #   -r requirements.in
+    #   azure-identity
+    #   msal-extensions
+msal-extensions==1.3.1
+    # via azure-identity
+mssql-django==2.0.0
     # via -r requirements.in
-mssql-django==1.7.4
-    # via -r requirements.in
+mssql-python==1.16.0
+    # via mssql-django
+mssql-python-odbc==18.6.2.2
+    # via mssql-python
+mssql-python-rs==0.3.0
+    # via mssql-python
 nodeenv==1.10.0
     # via pre-commit
+numpy==2.5.4
+    # via -r requirements.in
 openpyxl==3.1.5
     # via -r requirements.in
 packaging==26.3
     # via
+    #   -r requirements.in
     #   build
     #   pytest
     #   wheel
@@ -114,9 +145,7 @@ pillow==12.3.0
 pip-tools==7.6.2
     # via -r requirements-dev.in
 platformdirs==4.9.6
-    # via
-    #   python-discovery
-    #   virtualenv
+    # via virtualenv
 pluggy==1.6.0
     # via
     #   pytest
@@ -124,6 +153,7 @@ pluggy==1.6.0
 pre-commit==4.6.0
     # via -r requirements-dev.in
 puresnmp==2.0.1
+    # via -r requirements.in
 puresnmp-crypto==1.0.1.post1
     # via -r requirements.in
 pyasn1==0.6.4
@@ -165,13 +195,15 @@ pytest-cov==7.1.0
 pytest-django==4.14.0
     # via -r requirements-dev.in
 python-dateutil==2.9.0.post0
-    # via croniter
+    # via
+    #   asyncua
+    #   croniter
 python-discovery==1.6.2
     # via virtualenv
 python-magic==0.4.27 ; platform_system != "Windows"
     # via -r requirements.in
 pytz==2026.1.post1
-    # via mssql-django
+    # via asyncua
 pyyaml==6.0.3
     # via pre-commit
 qrcode==8.0
@@ -181,6 +213,7 @@ reportlab==4.4.10
 requests==2.33.1
     # via
     #   -r requirements.in
+    #   azure-core
     #   msal
 ruff==0.16.7
     # via -r requirements-dev.in
@@ -188,18 +221,26 @@ six==1.17.0
     # via python-dateutil
 snowballstemmer==3.1.1
     # via -r requirements.in
+sortedcontainers==2.4.0
+    # via asyncua
 sqlparse==0.6.0
     # via django
 t61codec==1.0.1
     # via x690
 typing-extensions==4.16.0
     # via
+    #   anyio
+    #   asyncua
+    #   azure-core
+    #   azure-identity
     #   django-stubs-ext
     #   pydantic
     #   pydantic-core
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
+tzdata==2026.5
+    # via mssql-django
 urllib3==2.8.0
     # via requests
 virtualenv==21.7.13
