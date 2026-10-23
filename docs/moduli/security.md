@@ -35,6 +35,15 @@ Security Center (Security Center AI innestato): **Panoramica IT** (`/soc/`: verd
 - **Log esecuzioni** `/soc/backup/log/` (filtri esito, job, periodo, PC) e **scheda dispositivo** `/soc/backup/dispositivo/?nome=…` (storico, collegamento all'asset HUB se il nome host coincide con un dispositivo SOC collegato).
 - Granularità: **Veeam** dà l'esito di ogni macchina (`payload.objects`); **Synology Active Backup** solo quello del job, che i PC del job ereditano (in pagina «esito del job»).
 
+## Eventi di sicurezza del portale (23/10/2026)
+
+Canale unico `core/eventi_sicurezza.py` → sorgente «Portale · accessi». `CATALOGO` (codice, etichetta, severità, alert sì/no) + `segnala(codice, utente=, request=, chiave=, titolo=, dettaglio=, finestra_minuti=, una_volta=)`: crea il `SecurityEventRecord` e lo valuta subito (`rule_engine.evaluate_event`, stesse regole e soppressioni del giro completo). Non solleva mai.
+
+- Tipi: `login_bloccato` (segnale `user_locked_out` di axes, uno all'ora per nome utente e IP), `twofa_bloccato` (codice app o mail esauriti), `postazione_pin_bloccato`, `postazione_altro_pc`, `impersonazione_avviata` (KPI), più `accesso_nuovo_dispositivo` / `accesso_non_riconosciuto` di `core/dispositivi.py` (regole dedicate invariate).
+- Regola generica `_evaluate_evento_portale` (payload `evento_portale`): alert con il titolo passato se il tipo lo prevede e l'interruttore `portale.alert.<codice>` è acceso; altrimenti `kpi_only`. Stessa chiave = stesso alert finché aperto.
+- Impostazioni: sezione «Eventi di sicurezza del portale» in `/soc/impostazioni/`, generata dal catalogo (`portale.eventi.attivo` + un interruttore per tipo).
+- Nuovo evento: una riga nel catalogo + `segnala(...)` nel punto del portale. Test `core.test_eventi_sicurezza`.
+
 ## Impostazioni e avvisi automatici
 
 `/soc/impostazioni/` (Gestione › Impostazioni, modifica con il permesso di configurazione SOC). Tutto **spento di default**; ogni sezione sceglie i canali tra quelli di Config › Notifiche.

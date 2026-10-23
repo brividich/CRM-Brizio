@@ -31,6 +31,14 @@ class Option:
     unit: str = ""
 
 
+def _opzioni_eventi_portale():
+    """Un interruttore per ogni tipo del catalogo ``core.eventi_sicurezza`` che può aprire un alert."""
+    from core.eventi_sicurezza import CATALOGO, chiave_interruttore
+
+    return [Option(chiave_interruttore(t.codice), True, f"Alert: {t.etichetta}", t.descrizione)
+            for t in CATALOGO if t.alert and t.interruttore]
+
+
 SECTIONS = [
     {
         "code": "incidenti",
@@ -190,6 +198,18 @@ SECTIONS = [
             Option("apparati.tabella_mac.attivo", True, "Leggi la tabella MAC degli switch",
                    "Ogni notte alle 05:30 legge (solo lettura) su quale porta di ogni switch «Rete» sta ogni MAC: la scheda del PC "
                    "dice a quale switch e porta è collegato, la scheda dello switch quali PC ha sulle porte."),
+        ],
+    },
+    {
+        "code": "portale",
+        "title": "Eventi di sicurezza del portale",
+        "intro": "Momenti del portale che il SOC deve vedere: accessi bloccati, PIN delle postazioni condivise bloccati, "
+                 "sessioni spostate su un altro PC, impersonazioni. Arrivano nella sorgente «Portale · accessi»; per ogni "
+                 "tipo si sceglie se apre un alert o resta un evento (KPI). L'elenco viene da core/eventi_sicurezza.py.",
+        "channels_optional": True,
+        "options": [
+            Option("portale.eventi.attivo", True, "Manda al SOC gli eventi di sicurezza del portale"),
+            *_opzioni_eventi_portale(),
         ],
     },
     {

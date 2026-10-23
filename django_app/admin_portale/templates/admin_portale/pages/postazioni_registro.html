@@ -1,0 +1,105 @@
+{% extends "core/base.html" %}
+
+{% block title %}Registro d'uso delle postazioni | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.pr-wrap { display: grid; gap: 20px; max-width: 1280px; }
+.pr-filtri { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.pr-filtri .field { margin: 0; }
+.pr-muted { color: var(--text-mid); }
+.pr-nota { font-size: .85rem; color: var(--text-mid); margin: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% url 'admin_portale:postazioni_condivise' as postazioni_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Registro d'uso delle postazioni" page_subtitle="Chi ha usato quale PC condiviso e quando, con PIN sbagliati, bloccati e sessioni arrivate da altri PC." page_back_url=postazioni_url %}
+
+  <div class="pr-wrap">
+    <div class="card">
+      <div class="card-body">
+        <form method="get" class="pr-filtri">
+          <div class="field">
+            <label>Postazione</label>
+            <select class="input" name="postazione">
+              <option value="">Tutte</option>
+              {% for p in postazioni %}
+                <option value="{{ p.pk }}" {% if postazione_id == p.pk %}selected{% endif %}>{{ p.nome }}{% if p.ip_pc %} ({{ p.ip_pc }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Periodo</label>
+            <select class="input" name="giorni">
+              {% for g in giorni_scelte %}
+                <option value="{{ g }}" {% if giorni == g %}selected{% endif %}>Ultimi {{ g }} giorni</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Mostra</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:postazioni_registro_excel' %}?{{ querystring }}">Scarica Excel</a>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Sessioni degli operatori ({{ sessioni|length }})</div></div>
+      <div class="card-body">
+        <p class="pr-nota">Una sessione va dall'entrata con il PIN all'uscita («Cambio operatore», «Esci» o inattività). «Non registrata»: browser chiuso o sessione scaduta senza passare dalla postazione.</p>
+        {% if sessioni %}
+        <div class="table-wrap">
+          <table class="fm-table">
+            <thead><tr><th>Postazione</th><th>Operatore</th><th>Entrata</th><th>Uscita</th><th>Durata</th><th>Come è uscito</th></tr></thead>
+            <tbody>
+            {% for s in sessioni %}
+              <tr>
+                <td>{{ s.postazione }}</td>
+                <td>{{ s.operatore }}</td>
+                <td>{{ s.entrata|date:"d/m/Y H:i" }}</td>
+                <td>{% if s.uscita %}{{ s.uscita|date:"d/m/Y H:i" }}{% else %}<span class="pr-muted">—</span>{% endif %}</td>
+                <td>{% if s.durata_minuti is not None %}{{ s.durata_minuti }} min{% endif %}</td>
+                <td>{% if s.uscita_motivo %}{{ s.uscita_motivo }}{% else %}<span class="pr-muted">Non registrata</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <p>Nessuna sessione nel periodo scelto.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">PIN e anomalie ({{ eventi|length }})</div></div>
+      <div class="card-body">
+        <p class="pr-nota">PIN bloccati e sessioni da un altro PC arrivano anche al SOC (sorgente «Portale · accessi»).</p>
+        {% if eventi %}
+        <div class="table-wrap">
+          <table class="fm-table">
+            <thead><tr><th>Quando</th><th>Postazione</th><th>Evento</th><th>Persona</th><th>IP</th></tr></thead>
+            <tbody>
+            {% for e in eventi %}
+              <tr>
+                <td>{{ e.quando|date:"d/m/Y H:i" }}</td>
+                <td>{{ e.postazione }}</td>
+                <td>{{ e.evento }}</td>
+                <td>{{ e.chi }}</td>
+                <td>{{ e.ip }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <p>Nessun evento nel periodo scelto.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

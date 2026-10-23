@@ -85,6 +85,13 @@ def _avvisa_blocco(request, postazione, operatore) -> None:
     postazioni.registra_audit(request, "postazione_pin_bloccato", {
         "postazione": postazione.nome, "postazione_id": postazione.pk, "operatore_legacy_id": operatore.id,
     })
+    from core.eventi_sicurezza import segnala
+
+    segnala("postazione_pin_bloccato", utente=operatore.email or operatore.nome, request=request,
+            chiave=(operatore.id,),
+            titolo=f"PIN bloccato: {operatore.nome or operatore.email} sulla postazione «{postazione.nome}»",
+            dettaglio={"postazione": postazione.nome, "postazione_id": postazione.pk, "ip_pc": postazione.ip_pc,
+                       "operatore_legacy_id": operatore.id})
     try:
         utente = sync_django_user_from_legacy(operatore)
         if utente is not None:

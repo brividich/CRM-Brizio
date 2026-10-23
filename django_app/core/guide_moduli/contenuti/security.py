@@ -115,6 +115,19 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Alert dalla sorgente «Portale · accessi» (PIN bloccato, accesso bloccato, sessione da un altro PC, 2FA bloccata)",
+            "fare": [
+                "«PIN di una postazione condivisa bloccato»: cinque PIN sbagliati di fila sul PC condiviso. Chiedi alla persona se era lei; "
+                "il PIN si sblocca solo con uno nuovo (dalla postazione con la sua password, o «Azzera PIN» in admin-portale → Postazioni condivise).",
+                "«Sessione di una postazione condivisa usata da un altro PC»: la sessione è già chiusa. Nel titolo c'è l'IP da cui è arrivata: "
+                "se non è un PC aziendale noto, tratta l'account del PC condiviso come compromesso (cambio password).",
+                "«Accesso al portale bloccato per troppe password sbagliate»: blocco di un'ora per quel nome utente da quell'IP. "
+                "Tanti blocchi da IP diversi o su molti nomi = tentativo a tappeto.",
+                "«Verifica in due passaggi bloccata»: la password era giusta, il codice no. Se non era la persona, la password è nota a qualcun altro.",
+                "Ogni tipo si può lasciare solo come evento (KPI) spegnendo il suo interruttore in Impostazioni → «Eventi di sicurezza del portale».",
+            ],
+        },
+        {
             "sintomo": "Alert «Accesso a Microsoft 365 da un Paese non ammesso»",
             "fare": [
                 "Apri l'accesso in Entra (Utenti › Log di accesso) con l'IP indicato nell'alert e chiedi alla persona se era lei (viaggio, VPN).",

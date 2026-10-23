@@ -82,6 +82,9 @@ GUIDA = {
                     "Il PIN vale solo dentro una sessione aperta con l'account della postazione. Si salva solo l'hash, mai nell'audit.",
                     "Amministratori e superuser non compaiono fra gli operatori e non possono essere l'account di una postazione.",
                     "«Attiva» spenta o postazione eliminata: le sessioni aperte da lì si chiudono alla richiesta successiva.",
+                    "«Registro d'uso» (in alto nella pagina, o «Registro» sulla riga del PC): chi ha usato quale PC, entrata, uscita, durata e "
+                    "come è uscito, più PIN sbagliati, bloccati e sessioni da altri PC; periodo 7/30/90/365 giorni e «Scarica Excel».",
+                    "PIN bloccati e sessioni da un altro PC arrivano anche al SOC come alert (sorgente «Portale · accessi»).",
                 ]),
             ],
         },
