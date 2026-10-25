@@ -8,7 +8,8 @@ body.theme-dark .mnav-bar.mnav-bar--inline{background:transparent}
 .mnav-trigger{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:6px 12px;border:1px solid var(--border,#e2e8f0);border-radius:12px;background:var(--bg,#f6f8fb);color:var(--text,#0f172a);font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .mnav-trigger:active{transform:scale(.99)}
 .mnav-trigger:focus-visible{outline:2px solid var(--accent,#1f87cd);outline-offset:2px}
-.mnav-trigger-ico{width:20px;height:20px;flex:0 0 20px;fill:none;stroke:var(--accent,#1f87cd);stroke-width:1.8}
+.mnav-trigger-ico{width:20px;height:20px;flex:0 0 20px;fill:none;stroke:var(--accent,#1f87cd);stroke-width:1.8;stroke-linecap:round}
+.mnav-bar--tabs .mnav-trigger{background:var(--surface,#fff)}
 .mnav-trigger-text{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.2}
 .mnav-trigger-kicker{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-light,#64748b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mnav-trigger-label{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -38,6 +39,7 @@ html.mnav-lock,html.mnav-lock body{overflow:hidden}
 .mnav-h2{padding-top:6px;font-size:12px;font-weight:700}
 .mnav-h1+.mnav-h2{padding-top:0}
 .mnav-item{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 12px;border-radius:12px;color:var(--text,#0f172a);text-decoration:none;font-size:15px;font-weight:600;-webkit-tap-highlight-color:transparent}
+button.mnav-item{width:100%;border:0;background:transparent;font-family:inherit;text-align:left;cursor:pointer}
 .mnav-item:active{background:var(--bg,#f1f5f9)}
 .mnav-item.is-active{background:#e8f3fb;color:#0c2545;box-shadow:inset 3px 0 0 var(--accent,#1f87cd)}
 .mnav-item-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -54,3 +56,51 @@ body.theme-dark .mnav-item{color:var(--text)}
 body.theme-dark .mnav-item:active{background:rgba(255,255,255,.06)}
 body.theme-dark .mnav-item.is-active{background:rgba(96,165,250,.14);color:#93c5fd;box-shadow:inset 3px 0 0 #60a5fa}
 body.theme-dark .mnav-x{color:var(--text-mid)}
+
+/* ── Barra in basso (telefono): Home, Cerca, Notifiche, Menu ─────────── */
+.mbar{display:none}
+@media (max-width:720px){
+  .mbar{position:fixed;left:0;right:0;bottom:0;z-index:300;display:grid;grid-template-columns:repeat(4,1fr);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));background:var(--surface,#fff);border-top:1px solid var(--border,#e2e8f0);box-shadow:0 -8px 20px -14px rgba(12,37,69,.35)}
+  .mbar-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;padding:4px 2px;border:0;border-radius:12px;background:transparent;color:var(--text-mid,#475569);font:inherit;font-size:11px;font-weight:700;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .mbar-item svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .mbar-item:active{background:var(--bg,#f1f5f9)}
+  .mbar-item.is-active{color:var(--accent,#1f87cd)}
+  .mbar-item:focus-visible{outline:2px solid var(--accent,#1f87cd);outline-offset:-2px}
+  .mbar-item .nav-icon-badge{position:absolute;top:3px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#ef4444;color:#fff;font-size:10.5px;font-weight:800;line-height:18px;text-align:center}
+  /* Il contenuto non finisce sotto la barra. */
+  body:has(.mbar){padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  body:has(.mbar) .nav-links.open{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  /* In alto restano logo, guida e utente: Cerca, Notifiche e Menu sono in basso. */
+  body:has(.mbar) .topnav .nav-hamburger,
+  body:has(.mbar) .topnav .nav-search,
+  body:has(.mbar) .topnav .nav-notify-btn{display:none}
+  /* Il pannello dal basso dei menu di modulo copre anche la barra. */
+  .mnav-sheet{z-index:410}
+}
+body.theme-dark .mbar{background:var(--surface);border-color:var(--border);box-shadow:none}
+body.theme-dark .mbar-item{color:var(--text-light)}
+body.theme-dark .mbar-item:active{background:rgba(255,255,255,.06)}
+body.theme-dark .mbar-item.is-active{color:#93c5fd}
+
+/* ── Tabelle a schede sul telefono (logica in core/js/mobile-tables.js) ── */
+@media (max-width:720px){
+  table.mcards{display:block;width:100%;min-width:0!important;border:0;background:transparent}
+  table.mcards thead{display:none}
+  table.mcards tbody{display:grid;gap:10px}
+  table.mcards tbody tr{position:relative;display:block;padding:12px 14px;border:1px solid var(--border,#e2e8f0);border-radius:12px;background:var(--surface,#fff);box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  table.mcards tbody tr.mcards-full{padding:14px;text-align:center}
+  table.mcards tbody td{display:flex;gap:10px;align-items:baseline;justify-content:space-between;width:auto!important;min-width:0!important;max-width:none!important;padding:5px 0;border:0;border-top:1px dashed var(--border,#e9eef5);text-align:right;white-space:normal;overflow-wrap:anywhere;position:static;background:transparent!important}
+  table.mcards tbody td::before{content:attr(data-label);flex:0 0 auto;max-width:45%;color:var(--text-light,#64748b);font-size:12px;font-weight:700;text-align:left}
+  table.mcards tbody td.mcards-title{display:block;padding:0 0 6px;border-top:0;text-align:left;font-weight:700;font-size:15px}
+  table.mcards tbody tr:has(> td.mcards-check) > td.mcards-title{padding-right:40px}
+  table.mcards tbody td.mcards-check{position:absolute;top:10px;right:10px;padding:0;border:0}
+  table.mcards tbody td.mcards-title::before,table.mcards tbody td.mcards-check::before,table.mcards tbody td.mcards-nolabel::before{display:none}
+  table.mcards tbody td.mcards-empty{display:none}
+  table.mcards tbody td.mcards-nolabel{justify-content:flex-end}
+  table.mcards tbody tr.mcards-full td{display:block;border:0;text-align:center}
+  table.mcards tbody tr.mcards-full td::before{display:none}
+  table.mcards tbody td:empty{display:none}
+  .fm-tbl-viewport.mcards-vp{max-height:none!important;overflow:visible!important}
+}
+body.theme-dark table.mcards tbody tr{background:var(--surface);border-color:var(--border);box-shadow:none}
+body.theme-dark table.mcards tbody td{border-color:var(--border)}

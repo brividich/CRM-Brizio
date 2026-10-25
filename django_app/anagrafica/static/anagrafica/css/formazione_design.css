@@ -643,6 +643,13 @@ a.fmd-sidelist-i:hover b{ color:var(--fmd-cyan); }
 .fmd-ricerca-grid > .fmd-block{ margin:0; min-width:0; }
 .fmd-ricerca .fmd-toolbar{ flex-wrap:wrap; }
 @media (max-width:640px){ .fmd-ricerca-grid{ grid-template-columns:1fr; } }
+/* Telefono: casella e «Cerca» sulla stessa riga; la scritta «Ricerca…» compare solo mentre cerca. */
+@media (max-width:640px){
+  .fmd-ricerca .fmd-toolbar{ flex-wrap:nowrap; gap:8px; padding:10px; }
+  .fmd-ricerca .fmd-search-wrap{ min-width:0; }
+  .fmd-ricerca .htmx-indicator.fmd-block-aside{ display:none; }
+  .fmd-ricerca .fmd-btn-primary{ flex:0 0 auto; min-height:44px; padding-left:12px; padding-right:12px; }
+}
 @media (max-width:640px){ .fmd .fmd-block-head{ flex-wrap:wrap; } .fmd .fmd-block-aside{ width:100%; overflow-wrap:anywhere; } }
 body.theme-dark .fmd .fmd-k-nv{ background:#6f93c9; }
 body.theme-dark .fmd .fmd-c-ok{ color:#68d391; }
