@@ -41,6 +41,14 @@
 .hr-hero-stat:hover { background:rgba(255,255,255,.22); }
 .hr-hero-stat-val { font-size:24px; font-weight:800; line-height:1; color:#fff; }
 .hr-hero-stat-lbl { margin-top:4px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:rgba(255,255,255,.78); }
+/* Testata compatta (25/10/2026): via l'occhiello, titolo e numeri più bassi, numeri su una riga. */
+.hr-hero { padding:16px 22px; align-items:center; }
+.hr-hero-eyebrow { display:none; }
+.hr-hero-title { margin:0; font-size:22px; }
+.hr-hero-sub { margin-top:4px; font-size:13px; }
+.hr-hero-stats { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(118px,1fr); gap:8px; }
+.hr-hero-stat { padding:10px 13px; border-radius:12px; }
+.hr-hero-stat-val { font-size:21px; }
 
 /* ── Metric card ─────────────────────────────────────────────────────────── */
 .hr-metric-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }

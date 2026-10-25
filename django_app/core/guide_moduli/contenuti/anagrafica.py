@@ -155,9 +155,10 @@ GUIDA = {
             "blocchi": [
                 ("p", "Ogni sezione si apre con lo stesso schema: in alto i numeri di oggi (quelli cliccabili aprono "
                       "l'elenco già filtrato), poi una scheda per ogni «oggetto» della sezione con una barra colorata, "
-                      "in basso l'elenco di lavoro e a destra le altre pagine della sezione."),
+                      "in basso l'elenco di lavoro e a destra le altre pagine della sezione. La testata scura è bassa: "
+                      "titolo, una frase e le azioni; i numeri stanno una volta sola, nella riga sotto la ricerca."),
                 ("def", [
-                    ("Persone", "una scheda per reparto con l'organico per tipo di contratto; il clic filtra l'elenco."),
+                    ("Persone", "prima l'elenco dei dipendenti, subito sotto i numeri; poi una scheda per reparto con l'organico per tipo di contratto (il clic filtra l'elenco)."),
                     ("Ingressi (Cruscotto recruiting)", "una scheda per posizione aperta con i candidati per fase dell'iter; sotto, gli onboarding aperti."),
                     ("Formazione", "una scheda per corso obbligatorio con la copertura e la prossima sessione."),
                     ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),

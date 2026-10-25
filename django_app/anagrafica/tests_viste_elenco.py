@@ -30,6 +30,11 @@ from .tests_exports_persone import _insert_dipendente
 User = get_user_model()
 
 
+def _corpo_elenco(html):
+    """Solo le righe dell'elenco: sotto la tabella ci sono le schede dei reparti, con i loro nomi."""
+    return html.split("<tbody", 1)[1].split("</tbody>", 1)[0]
+
+
 def _req(user, path="/anagrafica/dipendenti/", data=None, method="get"):
     request = getattr(RequestFactory(), method)(path, data=data or {})
     request.user = user
@@ -107,15 +112,15 @@ class FiltriOrdinamentoTests(VisteElencoBase):
     def test_filtro_della_vista_solo_all_apertura_e_reset_lo_toglie(self):
         VistaElenco.objects.create(codice="prod", nome="Produzione", filtri={"reparto": "PRODUZIONE"}, colonne=viste_elenco.specifica(["reparto"]))
         aperta = views.dipendenti_list(_req(self.admin, data={"vista": "prod"})).content.decode()
-        self.assertNotIn("UFFICIO", aperta.split("<tbody", 1)[1])
+        self.assertNotIn("UFFICIO", _corpo_elenco(aperta))
         reset = views.dipendenti_list(_req(self.admin, data={"vf": "0"})).content.decode()
-        self.assertIn("UFFICIO", reset.split("<tbody", 1)[1])
+        self.assertIn("UFFICIO", _corpo_elenco(reset))
         tutti = views.dipendenti_list(_req(self.admin, data={"reparto": ""})).content.decode()
-        self.assertIn("UFFICIO", tutti.split("<tbody", 1)[1])
+        self.assertIn("UFFICIO", _corpo_elenco(tutti))
 
     def test_ordinamento_della_vista(self):
         VistaElenco.objects.create(codice="ord", nome="Ordinata", ordinamento="reparto", colonne=viste_elenco.specifica(["reparto"]))
-        corpo = views.dipendenti_list(_req(self.admin, data={"vista": "ord"})).content.decode().split("<tbody", 1)[1]
+        corpo = _corpo_elenco(views.dipendenti_list(_req(self.admin, data={"vista": "ord"})).content.decode())
         self.assertLess(corpo.index("PRODUZIONE"), corpo.index("UFFICIO"))
 
     def test_colonne_duplicate_e_vista_bloccata(self):

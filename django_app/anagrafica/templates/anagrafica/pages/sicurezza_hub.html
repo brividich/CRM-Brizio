@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -31,10 +31,6 @@
             {% endif %}
             <a class="fmd-btn-template" href="{% url 'anagrafica:sicurezza_wizard' %}"><svg class="fmd-ico"><use href="#i-gear"/></svg>Configurazione guidata</a>
           </div>
-        </div>
-        <div class="fmd-hero-side">
-          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni_rischio }}</span><span class="fmd-lbl">Mansioni di rischio</span></div>
-          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mansioni }}</span><span class="fmd-lbl">Senza DPI né visite</span></div>
         </div>
       </div>
     </section>
