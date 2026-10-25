@@ -49,6 +49,15 @@ GUIDA = {
                     "Il logo in alto a sinistra riporta sempre alla home.",
                     "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona o un documento scrivendo il nome.",
                 ]),
+                ("p", "Dal telefono:"),
+                ("ul", [
+                    "Il pulsante con le tre linee in alto a sinistra apre i moduli. In cima c'è «Cerca nel menu»: "
+                    "scrivi parte del nome e restano solo le voci che corrispondono. L'area del modulo in cui sei è già aperta.",
+                    "Il menu del modulo è un pulsante sotto la barra: mostra dove sei (es. «Anagrafica · Dashboard»). "
+                    "Toccandolo si apre dal basso l'elenco di tutte le voci del modulo, divise per gruppo; "
+                    "con più di 8 voci c'è anche «Filtra le voci».",
+                    "Il pannello si chiude con la X, toccando fuori o trascinandolo verso il basso.",
+                ]),
             ],
         },
         {

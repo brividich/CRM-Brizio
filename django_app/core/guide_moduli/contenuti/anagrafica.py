@@ -31,8 +31,9 @@ GUIDA = {
                 ]),
                 ("p", "Vedi solo le voci per cui hai il permesso. Le voci con un codice di modulo (es. «Processi "
                       "qualificati» = MOD.128, «Abilitazioni macchina» = MOD.187) lo spiegano al passaggio del mouse."),
-                ("p", "Sul telefono il menu sta su una riga sola che scorre di lato, con la voce aperta già in vista; "
-                      "i menu a tendina si aprono a tutta larghezza sotto la voce."),
+                ("p", "Sul telefono il menu è un pulsante sotto la barra in alto che mostra la pagina aperta: "
+                      "toccandolo si apre dal basso l'elenco di tutte le voci, divise come le tendine "
+                      "(Persone, Salute e sicurezza…), con «Filtra le voci» in cima."),
             ],
         },
         {
