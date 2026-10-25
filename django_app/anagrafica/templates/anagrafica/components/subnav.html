@@ -98,7 +98,17 @@ body.theme-dark .hrnav-sub, body.theme-dark .hrnav-sub-voci { border-color:var(-
 body.theme-dark .hrnav-sub-sez a, body.theme-dark .hrnav-sub-voci a { color:var(--text-light); }
 body.theme-dark .hrnav-sub-sez a.active, body.theme-dark .hrnav-sub-voci a.active { color:#93c5fd; background:var(--surface-alt); }
 .hrnav-sub, .hrnav-sub-sez, .hrnav-sub-voci { min-width:0; max-width:100%; }
+/* Contenitore delle voci: sul computer è invisibile al layout (display:contents),
+   sul telefono diventa una riga sola che scorre invece di 4 righe a capo. */
+.hrnav-tabs { display:contents; }
 @media (max-width:720px) {
+  .hrnav { padding:6px 12px; }
+  .hrnav-tabs { display:flex; flex-wrap:nowrap; gap:2px; width:100%; overflow-x:auto; scrollbar-width:none; }
+  .hrnav-tabs::-webkit-scrollbar { display:none; }
+  /* La riga che scorre taglierebbe le tendine: sul telefono stanno fisse allo schermo,
+     sotto la voce (il top lo mette lo script all'apertura). */
+  .hrnav-dd-menu { position:fixed; left:8px; right:8px; min-width:0; max-height:calc(70 * var(--vh, 1vh)); overflow:auto; }
+  .hrnav-dd-menu.hrnav-dd-mega.open { flex-direction:column; }
   .hrnav-sub { flex-direction:column; align-items:stretch; }
   .hrnav-sub-sez, .hrnav-sub-voci { flex-wrap:nowrap; overflow-x:auto; width:100%; }
   .hrnav-sub-voci { padding-left:0; border-left:0; }
@@ -113,6 +123,7 @@ body.theme-dark .hrnav-dd-menu a.active .hrnav-ico{color:#93c5fd}
 body.theme-dark .hrnav-sub-sez a:hover{background:var(--surface-alt,#0f1b2d);color:var(--text)}
 </style>
 <div class="hrnav">
+  <div class="hrnav-tabs">
   {% for item in nav.items %}
     {% if item.type == "link" %}
       {% with ic=item.label|subnav_svg_icon %}
@@ -160,6 +171,7 @@ body.theme-dark .hrnav-sub-sez a:hover{background:var(--surface-alt,#0f1b2d);col
   {% empty %}
     <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
+  </div>
   {% if safnav_gruppi %}
   <nav class="hrnav-sub" aria-label="Salute e sicurezza">
     <div class="hrnav-sub-sez">
@@ -202,7 +214,18 @@ suoi sotto-moduli. Vedi anagrafica/static/anagrafica/js/ana_table_ux.js.
   }).filter(function(g){ return g.trigger && g.menu; });
   if(!groups.length) return;
   function close(g){ g.menu.classList.remove("open"); g.trigger.setAttribute("aria-expanded","false"); }
-  function open(g){ g.menu.classList.add("open"); g.trigger.setAttribute("aria-expanded","true"); }
+  var stretto = window.matchMedia("(max-width:720px)");
+  function open(g){
+    // Sul telefono la tendina è fissa allo schermo: va messa subito sotto la voce.
+    g.menu.style.top = stretto.matches ? (g.trigger.getBoundingClientRect().bottom + 6) + "px" : "";
+    g.menu.classList.add("open"); g.trigger.setAttribute("aria-expanded","true");
+  }
+  // Sul telefono la voce attiva resta in vista nella riga che scorre.
+  var tabs = bar.querySelector(".hrnav-tabs");
+  var attiva = tabs && tabs.querySelector(".active");
+  if (stretto.matches && attiva && tabs.scrollWidth > tabs.clientWidth) {
+    tabs.scrollLeft += attiva.getBoundingClientRect().left - tabs.getBoundingClientRect().left - 24;
+  }
   function closeAll(except){ groups.forEach(function(g){ if(g!==except) close(g); }); }
   groups.forEach(function(g){
     g.trigger.addEventListener("click", function(e){

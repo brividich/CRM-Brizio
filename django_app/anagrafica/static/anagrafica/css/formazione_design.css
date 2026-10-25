@@ -720,3 +720,10 @@ details.fmd-nuovo > summary .fmd-block-title{ color:var(--fmd-cyan); }
 details.fmd-nuovo > summary:hover .fmd-block-title{ text-decoration:underline; }
 details.fmd-nuovo > summary::after{ content:"apri"; margin-left:auto; font-size:12px; font-weight:600; color:var(--fmd-muted-2,#94a3b8); }
 details.fmd-nuovo[open] > summary::after{ content:"chiudi"; }
+
+/* ── Stati vuoti in riga (25/10/2026) ───────────────────────────────────────
+   «Nessun dato» occupava 140-230px con icona grande al centro: ora una riga
+   con icona piccola, titolo e spiegazione affiancati. */
+.fmd-empty{ flex-direction:row; flex-wrap:wrap; min-height:0; padding:14px 18px; gap:4px 10px; }
+.fmd-empty .fmd-ebadge{ width:28px; height:28px; border-radius:8px; font-size:15px; }
+.fmd-empty .fmd-em{ max-width:none; }
