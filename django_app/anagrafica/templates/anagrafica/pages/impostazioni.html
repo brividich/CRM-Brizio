@@ -663,7 +663,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm"
                             data-modal="mansione-edit-{{ m.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:mansione_delete' m.id %}" style="display:inline;"
-                          onsubmit="return confirm('Eliminare la mansione &quot;{{ m.nome|escapejs }}&quot;?');">
+                          data-hub-confirm="Eliminare la mansione &quot;{{ m.nome }}&quot;?">
                       {% csrf_token %}
                       <input type="hidden" name="next_tab" value="mansioni">
                       <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
@@ -819,7 +819,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <div class="imp-row-actions">
                   <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="area-az-edit-{{ az.id }}">Modifica</button>
                   <form method="post" action="{% url 'anagrafica:area_aziendale_delete' az.id %}" style="display:inline;"
-                        onsubmit="return confirm('Eliminare l\'area &quot;{{ az.nome|escapejs }}&quot;?');">
+                        data-hub-confirm="Eliminare l'area &quot;{{ az.nome }}&quot;?">
                     {% csrf_token %}
                     <input type="hidden" name="next_tab" value="aree-aziendali">
                     <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
@@ -969,7 +969,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <div class="imp-row-actions">
                   <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="area-edit-{{ a.id }}">Modifica</button>
                   <form method="post" action="{% url 'anagrafica:area_delete' a.id %}" style="display:inline;"
-                        onsubmit="return confirm('Eliminare il reparto &quot;{{ a.nome|escapejs }}&quot;?');">
+                        data-hub-confirm="Eliminare il reparto &quot;{{ a.nome }}&quot;?">
                     {% csrf_token %}
                     <input type="hidden" name="next_tab" value="aree">
                     <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
@@ -1102,7 +1102,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                     <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" class="imp-btn imp-btn-ghost imp-btn-sm" title="Apri scheda qualifica">Apri →</a>
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="qual-edit-{{ t.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;"
-                          onsubmit="return confirm('Eliminare la qualifica &quot;{{ t.nome|escapejs }}&quot;?');">
+                          data-hub-confirm="Eliminare la qualifica &quot;{{ t.nome }}&quot;?">
                       {% csrf_token %}
                       <input type="hidden" name="next_tab" value="qualifiche">
                       <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
@@ -1210,7 +1210,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <div class="imp-row-actions">
                   <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="livello-edit-{{ l.id }}">Modifica</button>
                   <form method="post" action="{% url 'anagrafica:livello_contrattuale_delete' l.id %}" style="display:inline;"
-                        onsubmit="return confirm('Eliminare il livello &quot;{{ l.codice|escapejs }}&quot;?');">
+                        data-hub-confirm="Eliminare il livello &quot;{{ l.codice }}&quot;?">
                     {% csrf_token %}
                     <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
                   </form>
@@ -1307,7 +1307,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <div class="imp-row-actions">
                   <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="tipologia-edit-{{ tc.id }}">Modifica</button>
                   <form method="post" action="{% url 'anagrafica:tipologia_contratto_delete' tc.id %}" style="display:inline;"
-                        onsubmit="return confirm('Eliminare la tipologia &quot;{{ tc.codice|escapejs }}&quot;?');">
+                        data-hub-confirm="Eliminare la tipologia &quot;{{ tc.codice }}&quot;?">
                     {% csrf_token %}
                     <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
                   </form>
@@ -1480,7 +1480,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                   <div class="imp-row-actions">
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpicat-edit-{{ cat.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:dpi_categoria_delete' cat.id %}" style="display:inline;"
-                          onsubmit="return confirm('Eliminare la categoria DPI &quot;{{ cat.nome|escapejs }}&quot;?');">
+                          data-hub-confirm="Eliminare la categoria DPI &quot;{{ cat.nome }}&quot;?">
                       {% csrf_token %}
                       <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
                     </form>
@@ -1581,7 +1581,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <button type="button" class="imp-btn imp-btn-primary imp-btn-sm" data-modal="dpimod-add-{{ tipo.id }}">+ Modello</button>
                 <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpitipo-edit-{{ tipo.id }}">Modifica tipo</button>
                 <form method="post" action="{% url 'anagrafica:dpi_tipo_delete' tipo.id %}" style="display:inline;"
-                      onsubmit="return confirm('Eliminare il tipo DPI &quot;{{ tipo.nome|escapejs }}&quot; e tutti i suoi modelli?');">
+                      data-hub-confirm="Eliminare il tipo DPI &quot;{{ tipo.nome }}&quot; e tutti i suoi modelli?">
                   {% csrf_token %}
                   <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina tipo</button>
                 </form>
@@ -1608,7 +1608,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                   <div class="imp-row-actions">
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpimod-edit-{{ mod.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:dpi_modello_delete' mod.id %}" style="display:inline;"
-                          onsubmit="return confirm('Eliminare il modello &quot;{{ mod.codice|escapejs }}&quot;?');">
+                          data-hub-confirm="Eliminare il modello &quot;{{ mod.codice }}&quot;?">
                       {% csrf_token %}
                       <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
                     </form>
@@ -1743,7 +1743,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                   <div class="imp-row-actions">
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpitag-edit-{{ taglia.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:dpi_taglia_delete' taglia.id %}" style="display:inline;"
-                          onsubmit="return confirm('Eliminare la taglia &quot;{{ taglia.valore|escapejs }}&quot;?');">
+                          data-hub-confirm="Eliminare la taglia &quot;{{ taglia.valore }}&quot;?">
                       {% csrf_token %}
                       <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
                     </form>
@@ -1822,12 +1822,12 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                     {% if c.n_documenti == 0 %}
                     <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}">
                       {% csrf_token %}
-                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare la cartella «{{ c.nome|escapejs }}»?')">Elimina</button>
+                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" data-hub-confirm="Eliminare la cartella «{{ c.nome }}»?">Elimina</button>
                     </form>
                     {% elif c.attiva %}
                     <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}">
                       {% csrf_token %}
-                      <button type="submit" class="imp-btn imp-btn-ghost imp-btn-sm" title="Contiene {{ c.n_documenti }} documento/i: non eliminabile, ma puoi disattivarla" onclick="return confirm('La cartella «{{ c.nome|escapejs }}» contiene {{ c.n_documenti }} documento/i e non può essere eliminata. Disattivarla (lo storico resta)?')">Disattiva</button>
+                      <button type="submit" class="imp-btn imp-btn-ghost imp-btn-sm" title="Contiene {{ c.n_documenti }} documento/i: non eliminabile, ma puoi disattivarla" data-hub-confirm-ok="Disattiva" data-hub-confirm-tone="primary" data-hub-confirm="La cartella «{{ c.nome }}» contiene {{ c.n_documenti }} documento/i e non può essere eliminata. Disattivarla (lo storico resta)?">Disattiva</button>
                     </form>
                     {% else %}
                     <span class="imp-badge imp-badge-gray" title="Cartella disattivata con {{ c.n_documenti }} documento/i">Disattivata</span>
@@ -1994,7 +1994,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="scat-edit-{{ c.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:subnav_categoria_delete' c.id %}">
                       {% csrf_token %}
-                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare il pilastro «{{ c.nome|escapejs }}»?')">Elimina</button>
+                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" data-hub-confirm="Eliminare il pilastro «{{ c.nome }}»?">Elimina</button>
                     </form>
                     {% endif %}
                   </td>
@@ -2152,7 +2152,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                     {% if not l.is_sistema %}
                     <form method="post" action="{% url 'anagrafica:subnav_link_delete' l.id %}">
                       {% csrf_token %}
-                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare la voce «{{ l.etichetta|escapejs }}»?')">Elimina</button>
+                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" data-hub-confirm="Eliminare la voce «{{ l.etichetta }}»?">Elimina</button>
                     </form>
                     {% endif %}
                     {% endif %}
@@ -2431,7 +2431,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 {% if is_admin %}
                 <div class="imp-row-actions">
                   <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="wf-edit-{{ item.id }}">Modifica</button>
-                  <form method="post" action="{% url 'anagrafica:workflow_campo_delete' item.id %}" onsubmit="return confirm('Eliminare questa associazione?');">
+                  <form method="post" action="{% url 'anagrafica:workflow_campo_delete' item.id %}" data-hub-confirm="Eliminare questa associazione?">
                     {% csrf_token %}
                     <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm">Elimina</button>
                   </form>
@@ -2587,7 +2587,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                 <div class="imp-acl-ov-user-head">
                   <strong>{{ grp.user_label }}</strong>
                   {% if is_admin %}
-                  <form method="post" action="{% url 'anagrafica:impostazioni_acl_user_override_save' %}" onsubmit="return confirm('Rimuovere tutte le eccezioni anagrafica di {{ grp.user_label|escapejs }}?');">
+                  <form method="post" action="{% url 'anagrafica:impostazioni_acl_user_override_save' %}" data-hub-confirm="Rimuovere tutte le eccezioni anagrafica di {{ grp.user_label }}?">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="legacy_user_id" value="{{ grp.legacy_user_id }}">

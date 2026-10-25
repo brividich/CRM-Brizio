@@ -533,12 +533,13 @@ class TimbriAnagraficaIntegrationTests(TestCase):
         self.assertContains(response, reverse("timbri:operatore_detail_by_legacy", args=[self.legacy_id]))
 
     def test_anagrafica_detail_has_timbri_embed_tab(self):
-        # Il tab Timbri della scheda dipendente carica il frammento in lazy via HTMX.
+        # I timbri stanno nella scheda «Dotazioni» e il frammento arriva via HTMX quando il riquadro entra in vista.
         self.client.force_login(self.user)
         response = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.legacy_id]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("timbri:operatore_embed", args=[self.legacy_id]))
-        self.assertContains(response, 'data-tab-target="timbri"')
+        self.assertContains(response, 'data-tab-target="dotazioni"')
+        self.assertContains(response, 'hx-trigger="intersect once"')
 
     def test_operatore_embed_renders_records(self):
         self.client.force_login(self.user)

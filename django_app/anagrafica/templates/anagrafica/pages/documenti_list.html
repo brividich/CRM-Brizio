@@ -123,7 +123,7 @@
                   </form>
                   <form method="post" action="{% url 'anagrafica:documento_delete' d.id %}" style="display:inline;">
                     {% csrf_token %}
-                    <button type="submit" class="fmd-btn-mini fmd-danger" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">Elimina</button>
+                    <button type="submit" class="fmd-btn-mini fmd-danger" data-hub-confirm="Eliminare il documento {{ d.nome_originale }}?">Elimina</button>
                   </form>
                   {% endif %}
                 </div>

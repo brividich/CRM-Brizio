@@ -32,7 +32,7 @@
       <div class="fmd-pagehead-actions">
         {% if modello %}
         <a href="{% url 'anagrafica:reportistica_genera' modello.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Genera</a>
-        <form method="post" action="{% url 'anagrafica:reportistica_modello_elimina' modello.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il modello? I documenti già generati restano in archivio.');">{% csrf_token %}
+        <form method="post" action="{% url 'anagrafica:reportistica_modello_elimina' modello.pk %}" style="display:inline;" data-hub-confirm="Eliminare il modello? I documenti già generati restano in archivio.">{% csrf_token %}
           <button type="submit" class="fmd-btn fmd-btn-ghost">Elimina modello</button>
         </form>
         {% endif %}

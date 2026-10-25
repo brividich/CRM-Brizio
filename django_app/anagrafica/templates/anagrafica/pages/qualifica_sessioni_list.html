@@ -95,7 +95,7 @@ body.theme-dark .qs-table tr:hover td{background:var(--surface-alt,#0f1b2d)}
               {% if is_admin %}
               <form method="post" action="{% url 'anagrafica:qualifica_sessione_delete' s.id %}" style="display:inline;">
                 {% csrf_token %}
-                <button type="submit" class="qs-btn qs-btn-danger qs-btn-sm" onclick="return confirm('Eliminare la sessione? Le qualifiche dei dipendenti restano.')">🗑</button>
+                <button type="submit" class="qs-btn qs-btn-danger qs-btn-sm" data-hub-confirm="Eliminare la sessione? Le qualifiche dei dipendenti restano.">🗑</button>
               </form>
               {% endif %}
             </td>

@@ -165,7 +165,7 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
                     {% if t.n_assegnazioni == 0 %}
                     <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;">
                       {% csrf_token %}
-                      <button type="submit" class="ql-btn ql-btn-danger ql-btn-sm" onclick="return confirm('Eliminare definitivamente {{ t.nome }}?')">Elimina</button>
+                      <button type="submit" class="ql-btn ql-btn-danger ql-btn-sm" data-hub-confirm="Eliminare definitivamente {{ t.nome }}?">Elimina</button>
                     </form>
                     {% endif %}
                   </div>

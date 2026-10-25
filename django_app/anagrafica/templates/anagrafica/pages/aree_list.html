@@ -163,7 +163,7 @@ body.theme-dark .cat-tab.active{color:#93c5fd}
                           data-edit-rep-active="{{ rep.is_active|yesno:'1,0' }}">
                     Modifica
                   </button>
-                  <form method="post" action="{% url 'anagrafica:area_delete' rep.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il reparto «{{ rep.nome }}»? Le aree aziendali associate resteranno senza reparto.')">
+                  <form method="post" action="{% url 'anagrafica:area_delete' rep.pk %}" style="display:inline;" data-hub-confirm="Eliminare il reparto «{{ rep.nome }}»? Le aree aziendali associate resteranno senza reparto.">
                     {% csrf_token %}
                     <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
                   </form>
@@ -209,7 +209,7 @@ body.theme-dark .cat-tab.active{color:#93c5fd}
                         data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
                   Modifica
                 </button>
-                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare l\'area «{{ area.nome }}»?')">
+                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" data-hub-confirm="Eliminare l'area «{{ area.nome }}»?">
                   {% csrf_token %}
                   <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
                 </form>
@@ -269,7 +269,7 @@ body.theme-dark .cat-tab.active{color:#93c5fd}
                         data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
                   Modifica
                 </button>
-                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare l\'area «{{ area.nome }}»?')">
+                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" data-hub-confirm="Eliminare l'area «{{ area.nome }}»?">
                   {% csrf_token %}
                   <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
                 </form>

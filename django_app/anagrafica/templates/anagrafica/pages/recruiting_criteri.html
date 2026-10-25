@@ -129,7 +129,7 @@
 
                   {% if riga.usi == 0 %}
                   <form method="post" action="{% url 'anagrafica:recruiting_criterio_delete' riga.criterio.id %}"
-                        onsubmit="return confirm('Eliminare il criterio «{{ riga.criterio.label|escapejs }}»?');">
+                        data-hub-confirm="Eliminare il criterio «{{ riga.criterio.label }}»?">
                     {% csrf_token %}
                     <button type="submit" class="fmd-btn-mini rcr-danger">Elimina</button>
                   </form>

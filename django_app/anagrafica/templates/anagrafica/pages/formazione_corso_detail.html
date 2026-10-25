@@ -41,7 +41,7 @@
       {% endif %}
       <button type="button" class="fmd-btn fmd-btn-primary" onclick="document.getElementById('modal-edit-corso').style.display='flex'"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica corso</button>
       <form method="post" action="{% url 'anagrafica:formazione_corso_delete' corso.pk %}"
-            onsubmit="return confirm('Eliminare il corso «{{ corso.titolo|escapejs }}»? Operazione irreversibile.')" style="display:inline;">
+            data-hub-confirm="Eliminare il corso «{{ corso.titolo }}»? Operazione irreversibile." style="display:inline;">
         {% csrf_token %}
         <button type="submit" class="fmd-btn fmd-btn-ghost" style="color:#c53030;">Elimina</button>
       </form>
@@ -94,7 +94,7 @@
               <td class="nowrap">
                 {% if is_editor %}
                 <form method="post" action="{% url 'anagrafica:formazione_corso_argomento_delete' corso.pk a.pk %}"
-                      onsubmit="return confirm('Rimuovere questo argomento dal programma del corso? Le edizioni già erogate non vengono toccate.')" style="display:inline;">
+                      data-hub-confirm="Rimuovere questo argomento dal programma del corso? Le edizioni già erogate non vengono toccate." style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
                 </form>
@@ -151,7 +151,7 @@
                 {% if is_editor %}
                 <form method="post"
                       action="{% url 'anagrafica:formazione_corso_dep_delete' corso.pk dep.pk %}"
-                      onsubmit="return confirm('Rimuovere prerequisito?')" style="display:inline;">
+                      data-hub-confirm="Rimuovere prerequisito?" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
                 </form>
@@ -205,7 +205,7 @@
                 {% if is_editor %}
                 <form method="post"
                       action="{% url 'anagrafica:formazione_corso_version_delete' corso.pk v.pk %}"
-                      onsubmit="return confirm('Eliminare versione {{ v.version_label|escapejs }}?')" style="display:inline;">
+                      data-hub-confirm="Eliminare versione {{ v.version_label }}?" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
                 </form>
@@ -365,7 +365,7 @@
                 {% if is_editor %}
                 <form method="post"
                       action="{% url 'anagrafica:formazione_corso_req_rule_delete' corso.pk r.pk %}"
-                      onsubmit="return confirm('Rimuovere regola?')" style="display:inline;">
+                      data-hub-confirm="Rimuovere regola?" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
                 </form>
@@ -436,7 +436,7 @@
           <td class="nowrap">
             {% if is_editor %}
             <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
-                  onsubmit="return confirm('Eliminare l\'allegato «{{ a.nome_originale|escapejs }}»? Le copie già riportate sulle edizioni restano.')">
+                  data-hub-confirm="Eliminare l'allegato «{{ a.nome_originale }}»? Le copie già riportate sulle edizioni restano.">
               {% csrf_token %}
               <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
             </form>

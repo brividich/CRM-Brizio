@@ -1,0 +1,27 @@
+/* Finestra di conferma del portale — core/js/hub-confirm.js.
+   Valori di ripiego per le pagine fuori da core/base.html senza i token del tema. */
+.hub-confirm{width:min(440px,calc(100vw - 32px));max-height:calc(calc(100 * var(--vh, 1vh)) - 48px);margin:auto;padding:0;border:1px solid var(--border,#d7e0ea);border-radius:12px;background:var(--surface,#fff);color:var(--text,#1a202c);box-shadow:0 24px 60px rgba(15,23,42,.28);overflow:auto}
+.hub-confirm::backdrop{background:rgba(15,23,42,.45)}
+.hub-confirm[open]{animation:hubConfirmIn .14s ease-out}
+.hub-confirm-box{padding:20px 22px 16px;border-top:4px solid var(--primary-mid,#2f5f89)}
+.hub-confirm-pericolo .hub-confirm-box{border-top-color:var(--danger,#e53e3e)}
+.hub-confirm-titolo{margin:0;font-size:16px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+.hub-confirm-testo{margin:8px 0 0;font-size:14px;line-height:1.45;color:var(--text-mid,#4a5568);overflow-wrap:anywhere}
+.hub-confirm-testo[hidden]{display:none}
+.hub-confirm-azioni{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:18px}
+.hub-confirm-azioni button{min-height:38px;padding:8px 16px;border-radius:8px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.hub-confirm-no{border:1px solid var(--border,#d7e0ea);background:var(--surface,#fff);color:var(--text,#1a202c)}
+.hub-confirm-no:hover{background:var(--hover-bg,rgba(15,23,42,.06))}
+.hub-confirm-si{border:1px solid var(--primary,#002b5c);background:var(--primary,#002b5c);color:#fff}
+.hub-confirm-si:hover{filter:brightness(1.12)}
+.hub-confirm-pericolo .hub-confirm-si{border-color:var(--danger,#e53e3e);background:var(--danger,#e53e3e)}
+.hub-confirm-azioni button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(249,115,22,.35)}
+body.theme-dark .hub-confirm{box-shadow:0 24px 60px rgba(0,0,0,.55)}
+body.theme-dark .hub-confirm::backdrop{background:rgba(0,0,0,.6)}
+body.theme-dark .hub-confirm-no:hover{background:rgba(255,255,255,.08)}
+body.theme-dark .hub-confirm-si{border-color:#3b82f6;background:#2563eb}
+body.theme-dark .hub-confirm-pericolo .hub-confirm-si{border-color:#ef4444;background:#dc2626}
+@keyframes hubConfirmIn{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.hub-confirm[open]{animation:none}}
+@media (max-width:480px){.hub-confirm-azioni button{flex:1 1 auto}}
+@media print{.hub-confirm{display:none}}

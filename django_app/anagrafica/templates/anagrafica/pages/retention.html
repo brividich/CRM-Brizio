@@ -34,7 +34,7 @@
       </div>
     </div>
     {% if righe_doc %}
-    <form method="post" class="rt-form" onsubmit="return confirm('Eliminare definitivamente i documenti selezionati, file compresi?');">
+    <form method="post" class="rt-form" data-hub-confirm="Eliminare definitivamente i documenti selezionati, file compresi?">
       {% csrf_token %}
       <input type="hidden" name="azione" value="documenti">
       <div class="rt-table-wrap">
@@ -72,7 +72,7 @@
       </div>
     </div>
     {% if righe_cessati %}
-    <form method="post" class="rt-form" onsubmit="return confirm('Togliere i dati personali dei dipendenti selezionati? Non si recuperano.');">
+    <form method="post" class="rt-form" data-hub-confirm="Togliere i dati personali dei dipendenti selezionati? Non si recuperano.">
       {% csrf_token %}
       <input type="hidden" name="azione" value="cessati">
       <div class="rt-table-wrap">
@@ -109,7 +109,7 @@
       </div>
     </div>
     {% if candidati %}
-    <form method="post" class="rt-form" onsubmit="return confirm('Rendere anonimi i candidati selezionati? I dati personali non si recuperano.');">
+    <form method="post" class="rt-form" data-hub-confirm="Rendere anonimi i candidati selezionati? I dati personali non si recuperano.">
       {% csrf_token %}
       <input type="hidden" name="azione" value="candidati">
       <div class="rt-table-wrap">

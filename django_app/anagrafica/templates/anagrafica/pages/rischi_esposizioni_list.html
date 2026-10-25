@@ -76,7 +76,7 @@
                 Modifica
               </button>
               <form method="post" action="{% url 'anagrafica:esposizione_rischio_delete' e.pk %}" style="display:inline;"
-                    onsubmit="return confirm('Eliminare esposizione?')">
+                    data-hub-confirm="Eliminare esposizione?">
                 {% csrf_token %}
                 <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger">Elimina</button>
               </form>

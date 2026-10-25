@@ -41,7 +41,7 @@ Parametri include: documenti, add_url (POST multipart), is_editor.
           {% if is_editor %}
           <td class="fmd-nowrap">
             <form method="post" action="{% url 'anagrafica:formazione_ente_documento_delete' d.pk %}" style="display:inline;"
-                  onsubmit="return confirm('Eliminare il documento «{{ d.nome_originale|escapejs }}»?')">
+                  data-hub-confirm="Eliminare il documento «{{ d.nome_originale }}»?">
               {% csrf_token %}
               <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;color:#c53030;">Elimina</button>
             </form>

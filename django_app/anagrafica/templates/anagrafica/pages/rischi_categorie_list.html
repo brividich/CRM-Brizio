@@ -78,7 +78,7 @@
                 Modifica
               </button>
               <form method="post" action="{% url 'anagrafica:categoria_corso_delete' c.pk %}" style="display:inline;"
-                    onsubmit="return confirm('Eliminare categoria «{{ c.nome|escapejs }}»? (Se collegata a corsi verrà solo disattivata.)')">
+                    data-hub-confirm="Eliminare categoria «{{ c.nome }}»? (Se collegata a corsi verrà solo disattivata.)">
                 {% csrf_token %}
                 <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger">Elimina</button>
               </form>

@@ -114,7 +114,7 @@
   var reg=document.querySelector('[data-mst-conferma]');
   if(reg)reg.addEventListener('click',function(e){
     var n=document.querySelectorAll('input[name="persone"]:checked').length;
-    if(!window.confirm('Registrare il cambio per '+n+' persone?'))e.preventDefault();
+    reg.setAttribute('data-hub-confirm','Registrare il cambio per '+n+(n===1?' persona?':' persone?'));
   });
 })();
 </script>

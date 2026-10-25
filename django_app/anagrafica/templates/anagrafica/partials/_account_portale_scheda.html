@@ -54,7 +54,7 @@ body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15);
         <div class="dp-info-item"><div class="dp-info-label">Utente portale</div><div class="dp-info-value is-warn">#{{ acc.collegato.id }} non trovato tra gli utenti del portale</div></div>
         {% endif %}
       </div>
-      <form method="post" action="{% url 'anagrafica:dipendente_account_scollega' legacy_id %}" class="dp-acc-actions" data-acc-scollega>
+      <form method="post" action="{% url 'anagrafica:dipendente_account_scollega' legacy_id %}" class="dp-acc-actions" data-acc-scollega data-hub-confirm="Scollegare l’account portale da questa scheda? L’utente portale non viene cancellato.">
         {% csrf_token %}
         <input type="hidden" name="conferma" value="1">
         <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm">Scollega</button>
@@ -128,12 +128,6 @@ body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15);
 </div>
 <script>
 (function () {
-  const scollega = document.querySelector('[data-acc-scollega]');
-  if (scollega) {
-    scollega.addEventListener('submit', function (e) {
-      if (!window.confirm('Scollegare l’account portale da questa scheda? L’utente portale non viene cancellato.')) e.preventDefault();
-    });
-  }
   const form = document.getElementById('dp-acc-form');
   if (!form) return;
   // Ritorno da un collegamento non riuscito (#account-portale): il riquadro si riapre.

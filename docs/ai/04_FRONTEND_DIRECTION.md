@@ -57,6 +57,7 @@ Sidebar nav side: i gruppi aperti devono restare visivamente distinti dal primo 
 - Risposte HTMX/fetch/XHR: `core.flash_messages.FlashMessagesDeliveryMiddleware` mette nell'header `X-Hub-Flash` solo i messaggi aggiunti da quella richiesta (un polling non ruba quelli della pagina successiva). Con `HX-Redirect`/`HX-Location`/`HX-Refresh` o redirect 3xx restano alla pagina successiva. Download (`Content-Disposition: attachment`): cookie `hub_flash` (120 s) letto dalla pagina aperta.
 - Da JS: `window.hubFlash.show([{level: 'success', text: '...'}])`. Messaggi identici raggruppati (×N), oltre 160 caratteri riassunti con «Dettagli», max 5 visibili + «Chiudi tutti», Esc li chiude; successo/info spariscono dopo 7 s, avvisi ed errori restano.
 - Una pagina standalone (senza `core/base.html`) che vuole i toast deve includere `core/css/hub-flash.css` e `core/js/hub-flash.js` nel `<head>` e `{% load flash_messages %}{% flash_messages_fallback %}` prima di `</body>`.
+- Le conferme prima di un'azione usano la finestra del portale, non `confirm()`: `data-hub-confirm="Eliminare X? Cosa resta."` sul `<form>` o sul pulsante di invio, oppure `hubConfirm(testo, {ok, tone})` (Promise) da script (`core/js/hub-confirm.js`, nel `<head>` di `core/base.html`). Il testo e' un attributo HTML: niente `|escapejs`, basta l'autoescape.
 
 ## Dashboard / Module Boundary
 

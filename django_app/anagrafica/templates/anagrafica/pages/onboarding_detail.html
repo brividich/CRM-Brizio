@@ -133,11 +133,11 @@
         <div class="fmd-cell-sub">Con voci non fatte si chiude «con eccezioni». Le voci restano consultabili.</div>
       </div>
       <div class="obd-close-actions">
-        <form method="post" action="{% url 'anagrafica:onboarding_annulla' pratica.id %}" onsubmit="return confirm('Annullare la pratica onboarding?');">
+        <form method="post" action="{% url 'anagrafica:onboarding_annulla' pratica.id %}" data-hub-confirm="Annullare la pratica onboarding?">
           {% csrf_token %}
           <button type="submit" class="fmd-btn fmd-btn-ghost">Annulla pratica</button>
         </form>
-        <form method="post" action="{% url 'anagrafica:onboarding_chiudi' pratica.id %}" onsubmit="return confirm('Chiudere la pratica onboarding? Le voci non fatte la marcheranno come chiusa con eccezioni.');">
+        <form method="post" action="{% url 'anagrafica:onboarding_chiudi' pratica.id %}" data-hub-confirm="Chiudere la pratica onboarding? Le voci non fatte la marcheranno come chiusa con eccezioni.">
           {% csrf_token %}
           <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Chiudi pratica</button>
         </form>
