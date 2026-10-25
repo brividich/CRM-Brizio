@@ -348,6 +348,9 @@ class ChiusuraAziendale(models.Model):
 class SaldoAssenze(models.Model):
     """Saldo ferie e permessi di un dipendente a una data (dal cedolino).
 
+    NON PIÙ USATO: dal 23/10/2026 i saldi si leggono da ``anagrafica.SaldoCedolino``
+    (``assenze.hr.saldi_anagrafica``). Resta per non perdere le righe già inserite.
+
     Il residuo stimato si calcola togliendo le richieste non rifiutate che
     iniziano dopo ``situazione_al`` e le chiusure aziendali che scalano le ferie.
     """
@@ -515,3 +518,23 @@ class CalendarioOutlookCapo(models.Model):
 
     def __str__(self):
         return self.email
+
+
+class AssenzaSerie(models.Model):
+    """Permesso ripetuto: lega ogni giorno della serie alla prima richiesta (capofila).
+
+    Solo la capofila fa partire mail e approvazione; la decisione presa su di lei
+    passa ai giorni ancora in attesa (vedi ``assenze.serie``).
+    """
+
+    assenza_id = models.IntegerField(unique=True)
+    capofila_id = models.IntegerField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["capofila_id", "assenza_id"]
+        verbose_name = "Giorno di un permesso ripetuto"
+        verbose_name_plural = "Giorni dei permessi ripetuti"
+
+    def __str__(self):
+        return f"#{self.assenza_id} nella serie #{self.capofila_id}"

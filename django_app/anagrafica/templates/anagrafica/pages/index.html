@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=1">
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=11">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
 <style>
 /* Hero: tre numeri affiancati sugli schermi larghi (la griglia base ne prevede due). */
 @media (min-width: 1100px) { .hr-hero-stats { grid-template-columns:repeat(3,minmax(150px,1fr)); } }
@@ -133,7 +133,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
       </a>
       {% if cruscotto %}
       <a class="hr-hero-stat" href="{% url 'anagrafica:libretto_sanitario_generale' %}">
-        <div class="hr-hero-stat-val">{{ cruscotto.copertura_totale.pct_in_regola }}%</div>
+        <div class="hr-hero-stat-val">{% if cruscotto.copertura_totale.totale %}{{ cruscotto.copertura_totale.pct_in_regola }}%{% else %}—{% endif %}</div>
         <div class="hr-hero-stat-lbl">Obblighi in regola</div>
       </a>
       <a class="hr-hero-stat" href="{% url 'anagrafica:scadenzario' %}?stato=scaduta">

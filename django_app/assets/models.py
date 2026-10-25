@@ -5494,6 +5494,8 @@ class CollegamentoMTConnect(models.Model):
     FONTE_MTCONNECT = "mtconnect"
     FONTE_COLLECTOR = "collector_opcua"
     FONTE_CHOICES = [(FONTE_MTCONNECT, "Agent MTConnect"), (FONTE_COLLECTOR, "Collector OPC UA")]
+    # Unità delle ore lette dalla CNC (collector): vuoto = quella del modello dati (umati ore, BasicDataSet secondi).
+    UNITA_ORE_CHOICES = [("", "Automatica (dal modello dati)"), ("h", "Ore"), ("min", "Minuti"), ("s", "Secondi")]
 
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="mtconnect")
     fonte = models.CharField(max_length=20, choices=FONTE_CHOICES, default=FONTE_MTCONNECT)
@@ -5517,7 +5519,16 @@ class CollegamentoMTConnect(models.Model):
     emergenza = models.CharField(max_length=30, blank=True, default="")
     programma = models.CharField(max_length=200, blank=True, default="")
     pezzi_grezzo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # MTConnect: ore dell'agent; collector: il valore letto dalla CNC prima della conversione in ore.
     ore_grezzo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    unita_ore = models.CharField(max_length=3, choices=UNITA_ORE_CHOICES, blank=True, default="")
+    # Dal collector: matricola nel namespace DMG MORI del server OPC UA e modello dati (umati | bds).
+    matricola_opcua = models.CharField(max_length=60, blank=True, default="")
+    modello_dati = models.CharField(max_length=20, blank=True, default="")
+    # Avviso a ore (non bloccante: niente scadenze né OdL): ogni N ore di lavoro dal valore «da».
+    avviso_ore_ogni = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    avviso_ore_da = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    avviso_ore_testo = models.CharField(max_length=120, blank=True, default="")
     # Differenze accumulate e non ancora registrate sui contatori ({"ore": "0.35", "pezzi": "12"}).
     sospesi = models.JSONField(default=dict, blank=True)
     allarmi = models.JSONField(default=list, blank=True)

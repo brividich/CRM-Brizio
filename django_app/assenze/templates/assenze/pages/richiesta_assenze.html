@@ -7,7 +7,7 @@
 {% block assenze_shell_head %}
   <style>
     /* «hidden» deve vincere sul display delle righe della bozza e del banner corsi. */
-    .abs-live-row[hidden], .abs-corsi-banner[hidden], #abs-live-hr[hidden] { display: none !important; }
+    .abs-live-row[hidden], .abs-corsi-banner[hidden], #abs-live-hr[hidden], #abs-ripeti-wrap[hidden], #abs-fless-orari[hidden] { display: none !important; }
     .abs-form-shell { max-width: 1280px; margin: 0 auto; width: 100%; }
     .abs-request-page { gap: 16px; }
     .abs-request-hero {
@@ -844,6 +844,13 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                   </div>
                   <div class="abs-field-hint" id="abs-auto-fine-hint" role="status" aria-live="polite" hidden></div>
 
+                  {# Permesso ripetuto: stesso orario, una richiesta per ogni giorno lavorativo fino alla data scelta. #}
+                  <div class="abs-field" id="abs-ripeti-wrap" hidden>
+                    <label for="ripeti_fino_al">Ripeti lo stesso orario fino al (facoltativo)</label>
+                    <input id="ripeti_fino_al" type="date" name="ripeti_fino_al" class="abs-input" value="{{ form_data.ripeti_fino_al|default:'' }}">
+                    <div class="abs-field-hint" id="abs-ripeti-hint">Si crea una richiesta per ogni giorno lavorativo dalla data inizio a questa data (sabati, domeniche, festività e chiusure aziendali esclusi). Il capo riceve una sola mail «Permesso ripetuto dal … al …» e decide per tutti i giorni.</div>
+                  </div>
+
                   {# ── Flessibilita: orari a scelta fissa, configurati in Impostazioni ── #}
                   <div class="abs-fields-2" id="abs-fless-orari" hidden>
                     <div class="abs-field">
@@ -1480,6 +1487,11 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       if (certificatoWrap) {
         certificatoWrap.classList.toggle("visible", isMalattia());
       }
+      var ripetiWrap = document.getElementById("abs-ripeti-wrap");
+      if (ripetiWrap) {
+        ripetiWrap.hidden = !isPermesso();
+        if (!isPermesso()) document.getElementById("ripeti_fino_al").value = "";
+      }
       applyTypeDefaults();
       applyShortcutLock();
       updateDynamicPreview();
@@ -1612,6 +1624,12 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       if (tipo === "permesso" && dateStart !== dateEnd) {
         evt.preventDefault();
         window.alert("Il permesso deve iniziare e finire nello stesso giorno.");
+        return;
+      }
+      var ripetiFino = String((document.getElementById("ripeti_fino_al") || {}).value || "").trim();
+      if (tipo === "permesso" && ripetiFino && ripetiFino < dateStart) {
+        evt.preventDefault();
+        window.alert("La data «Ripeti fino al» deve essere uguale o successiva alla data inizio.");
         return;
       }
 

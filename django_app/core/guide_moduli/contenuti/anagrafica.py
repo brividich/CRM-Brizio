@@ -45,6 +45,12 @@ GUIDA = {
                       "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
                       "con motivo, data e restituzioni."),
                 ("p", "Le schede DPI, Visite mediche, Documenti e Asset mostrano accanto al nome quante voci contengono."),
+                ("p", "La scheda aperta resta nell'indirizzo (…/#scheda-documenti): ricaricando la pagina o tornando "
+                      "indietro si riapre la stessa. I campi senza valore («—») sono raccolti sotto «Mostra i N campi "
+                      "vuoti»; le aggiunte (mansione di rischio individuale, visita facoltativa, esposizione diretta) e "
+                      "«Collega un account…» si aprono con il loro link. In «Statistiche attività» i contatori a zero "
+                      "sono una riga piccola. «Licenze software» è nella scheda Asset, lo «Storico cambiamenti "
+                      "organizzativi» in Anagrafica sotto gli Spostamenti."),
             ],
         },
         {
@@ -149,9 +155,10 @@ GUIDA = {
             "blocchi": [
                 ("p", "Ogni sezione si apre con lo stesso schema: in alto i numeri di oggi (quelli cliccabili aprono "
                       "l'elenco già filtrato), poi una scheda per ogni «oggetto» della sezione con una barra colorata, "
-                      "in basso l'elenco di lavoro e a destra le altre pagine della sezione."),
+                      "in basso l'elenco di lavoro e a destra le altre pagine della sezione. La testata scura è bassa: "
+                      "titolo, una frase e le azioni; i numeri stanno una volta sola, nella riga sotto la ricerca."),
                 ("def", [
-                    ("Persone", "una scheda per reparto con l'organico per tipo di contratto; il clic filtra l'elenco."),
+                    ("Persone", "prima l'elenco dei dipendenti, subito sotto i numeri; poi una scheda per reparto con l'organico per tipo di contratto (il clic filtra l'elenco)."),
                     ("Ingressi (Cruscotto recruiting)", "una scheda per posizione aperta con i candidati per fase dell'iter; sotto, gli onboarding aperti."),
                     ("Formazione", "una scheda per corso obbligatorio con la copertura e la prossima sessione."),
                     ("Qualifiche", "una scheda per tipo di qualifica: valide, entro 60 e 30 giorni, scadute; il clic apre lo scadenzario del tipo."),
@@ -211,6 +218,11 @@ GUIDA = {
                       "pilastro»): apre il form subito sotto, che si richiude con lo stesso bottone; se la sezione è vuota il "
                       "form è già aperto. «Modifica» apre una finestra (Esc o «Annulla» la chiudono senza salvare). Qualifiche, "
                       "ruoli e cartelle documenti già in uso non si eliminano: si disattivano e lo storico resta."),
+                ("p", "Le pagine dei cataloghi seguono lo stesso schema: in «Qualifiche / Abilitazioni» il bottone «+ Nuovo "
+                      "tipo» in alto apre il form «Nuovo tipo di qualifica» in fondo alla pagina (chiuso finché non serve, "
+                      "aperto se il catalogo è vuoto); in «Mansioni di rischio» lo stesso fa «+ Nuova mansione di rischio» "
+                      "nella testata. In «Aree & Reparti» Modifica ed Elimina stanno sulla stessa riga; «Elimina» diventa "
+                      "rosso solo al passaggio del mouse e chiede sempre conferma."),
                 ("p", "In «Visite mediche» la barra «Seleziona tutti» mostra i campi della modifica in blocco solo dopo aver "
                       "spuntato almeno un tipo. In «Ruoli» il form «+ Nuovo ruolo» e gli «Ambiti dei ruoli» sono richiudibili, e "
                       "ogni ruolo aggiunge una qualifica da «+ Aggiungi qualifica». In «Permessi» ogni sezione riservata ha una "

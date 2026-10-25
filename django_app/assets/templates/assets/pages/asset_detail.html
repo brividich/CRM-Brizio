@@ -738,6 +738,7 @@ body.theme-dark .af-costi > div { border-color:var(--border); }
 body.theme-dark .af-costi strong { color:var(--text); }
 .af-cnc-testo { font-size:15px !important; overflow-wrap:anywhere; }
 .af-cnc-allarmi { list-style:none; margin:0; padding:0 16px 12px; display:grid; gap:6px; font-size:var(--fs-sm); }
+.af-cnc-avviso { margin:0; padding:0 16px 12px; font-size:var(--fs-sm); }
 .af-cnc-periodi { padding:0 16px 14px; }
 .af-cnc-sottotitolo { font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#64748b; margin:2px 0 6px; }
 .af-cnc-tabella { width:100%; border-collapse:collapse; font-size:var(--fs-sm); font-variant-numeric:tabular-nums; }
@@ -980,6 +981,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
         {% if stato_cnc.pezzi %}<div><span>Pezzi sulla CNC</span><strong>{{ stato_cnc.pezzi }}</strong><small>contatore della macchina</small></div>{% endif %}
         <div class="af-costi-voce is-info"><span>Letto alle</span><strong>{{ stato_cnc.letto|default:"—" }}</strong><small>{% if stato_cnc.stato == "vecchio" %}nessun dato dal collector da più di 15 minuti{% else %}aggiornato ogni minuto{% endif %}</small></div>
       </div>
+      {% if stato_cnc.avviso_ore %}<p class="af-cnc-avviso"><span class="as-badge as-badge--{% if stato_cnc.avviso_ore.livello == 'danger' %}danger{% elif stato_cnc.avviso_ore.livello == 'warn' %}warn{% elif stato_cnc.avviso_ore.livello == 'ok' %}ok{% else %}muted{% endif %}">Avviso a ore</span> {{ stato_cnc.avviso_ore.messaggio }}</p>{% endif %}
       {% if stato_cnc.allarmi %}<ul class="af-cnc-allarmi">{% for a in stato_cnc.allarmi|slice:":5" %}<li><span class="as-badge as-badge--{% if a.livello == 'allarme' %}danger{% else %}warn{% endif %}">{% if a.livello == "allarme" %}Allarme{% else %}Avviso{% endif %}</span> {% if a.codice %}{{ a.codice }} · {% endif %}{% firstof a.testo a.tipo %}</li>{% endfor %}</ul>{% endif %}
       {% if stato_cnc.errore %}<p class="af-costi-note">{{ stato_cnc.errore }}</p>{% endif %}
       {% if stato_cnc.periodi %}

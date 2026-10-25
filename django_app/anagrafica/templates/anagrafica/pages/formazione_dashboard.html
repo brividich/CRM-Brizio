@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -40,18 +40,6 @@
             <a class="fmd-btn-template" href="{% url 'anagrafica:formazione_guida' %}" title="Come funziona la formazione d'aula">
               <svg class="fmd-ico"><use href="#i-book"/></svg>Guida
             </a>
-          </div>
-        </div>
-        <div class="fmd-hero-side">
-          <div class="fmd-hero-tile">
-            <span class="fmd-corner"></span>
-            <span class="fmd-bignum">{{ kpi_dipendenti_formazione }}</span>
-            <span class="fmd-lbl">Dipendenti formati</span>
-          </div>
-          <div class="fmd-hero-tile fmd-alt">
-            <span class="fmd-corner"></span>
-            <span class="fmd-bignum">{{ kpi_corsi_attivi }}</span>
-            <span class="fmd-lbl">Corsi a catalogo</span>
           </div>
         </div>
       </div>
@@ -92,11 +80,10 @@
     <div class="fmd-alert">
       <span class="fmd-alert-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
       <div class="fmd-alert-body">
-        <div class="fmd-alert-t">Lo scadenzario formazione non è ancora stato calcolato.</div>
+        <div class="fmd-alert-t">Le scadenze della formazione non sono ancora calcolate.</div>
         <div class="fmd-alert-m">
-          I KPI di scadenza mostrano 0 perché la cache <b>TrainingDeadline</b> è vuota.
-          Eseguire <code>python manage.py refresh_training_deadlines --all</code>
-          oppure aggiungere corsi e sessioni per popolare i dati.
+          Per ora i numeri di scadenza restano a 0: si riempiono quando si registrano corsi e sessioni.
+          {% if user.is_superuser %}Per ricalcolarle subito: <code>python manage.py refresh_training_deadlines --all</code>.{% endif %}
         </div>
       </div>
     </div>

@@ -288,6 +288,53 @@ GUIDA = {
                     "l'elenco delle macchine e lo rilegge ogni 5 minuti.",
                     "Token perso o compromesso: «Nuovo token» (il vecchio smette subito di funzionare). Collector dismesso: «Disattiva».",
                 ]),
+                ("p", "Più veloce: riquadro «Cerca le macchine in rete» (amministratori), vedi la voce qui sotto."),
+            ],
+        },
+        {
+            "id": "collector-cerca",
+            "titolo": "Trovare le CNC in rete e collegarle in un colpo",
+            "blocchi": [
+                ("passi", [
+                    "Configurazione → «Macchine collegate» → «Cerca le macchine in rete»: scrivi la rete (es. 192.168.23.0/24, al massimo "
+                    "256 indirizzi, solo reti interne) e la porta (4840) → «Cerca».",
+                    "Il server del portale prova ogni indirizzo e, dove risponde una DMG MORI, legge matricola e modello dati (umati o "
+                    "BasicDataSet), senza scrivere sulle macchine: prima senza credenziali, poi con quelle già salvate.",
+                    "Controlla la colonna Esito: «Da collegare» (asset trovato per numero di serie), «Collegata con un altro indirizzo» (IP "
+                    "cambiato), «Nessun asset con questa matricola» (scegli tu la macchina), «Già collegata».",
+                    "Spunta, correggi il codice breve se serve → «Collega le macchine spuntate»: crea anche i contatori Ore e Cicli.",
+                ]),
+                ("p", "Nessun risultato con le macchine accese: il server del portale non raggiunge quella rete (firewall o VLAN)."),
+            ],
+        },
+        {
+            "id": "collector-ore",
+            "titolo": "Ore della CNC e avviso a ore",
+            "blocchi": [
+                ("passi", [
+                    "Configurazione → «Macchine collegate», colonna Contatori: confronta «Ore» con il contaore sul display della CNC. "
+                    "Sotto c'è il valore «dalla CNC» con l'unità usata (umati in ore, BasicDataSet in secondi).",
+                    "Se non tornano: «Modifica» → «Le ore lette dalla CNC sono in» (ore, minuti, secondi) → «Salva». Il contatore Ore "
+                    "si ricalcola subito, con una nota nello storico delle letture.",
+                    "Avviso a ore: «Modifica» → «Ogni» (es. 500), «Cosa fare» (es. Controllo mandrino), «Ultima volta fatto a» (vuoto = "
+                    "le ore attuali) → «Salva». Fatto il lavoro: «Fatto» nell'elenco.",
+                ]),
+                ("p", "L'avviso è solo un'indicazione nell'elenco e nella scheda della macchina (giallo quando mancano meno di un decimo "
+                      "dell'intervallo, rosso quando è superato): non crea scadenze né ordini di lavoro e non blocca niente."),
+            ],
+        },
+        {
+            "id": "utilizzo-cnc",
+            "titolo": "Report «Utilizzo delle CNC»",
+            "blocchi": [
+                ("passi", [
+                    "Report → Catalogo → area «Officina» → «Utilizzo delle CNC».",
+                    "Scegli il periodo e «Raggruppa per»: macchina, oppure macchina e giorno, settimana o mese.",
+                    "Excel e PDF dai pulsanti del report; «Salva» per riaprirlo con gli stessi filtri o pianificarne l'invio.",
+                ]),
+                ("p", "Ore per stato (in lavoro, MDI/manuale, ferma, interrotta, allarme/emergenza, offline, senza dati) dai cambi di stato "
+                      "delle macchine collegate. «Utilizzo %» = ore in lavoro sulle ore con la macchina accesa. «Senza dati» = collector "
+                      "spento o macchina non ancora collegata."),
             ],
         },
         {
@@ -460,7 +507,8 @@ GUIDA = {
         {
             "sintomo": "Una CNC non compare nel menu di «Collega una macchina»",
             "fare": [
-                "Il menu mostra solo le macchine di lavoro: la CNC è finita in una categoria che non è di macchine (es. la categoria padre «CNC», tipo «Altro»).",
+                "Il menu mostra solo le macchine di lavoro: la CNC è finita in una categoria che non è di macchine (es. la categoria padre «CNC», tipo «Altro»). "
+                "La pagina la elenca nel riquadro «CNC da sistemare».",
                 "Apri la scheda dell'asset → «Modifica» → Categoria asset: scegli quella delle altre CNC (es. «Macchine CNC») → «Salva».",
                 "Si apre il form della macchina di lavoro: controlla i dati e premi «Salva». Ora la CNC è nel menu.",
             ],
@@ -470,6 +518,23 @@ GUIDA = {
             "fare": [
                 "Asset › Configurazione › «Macchine collegate» › Collector: il collector deve essere attivo e avere un «ultimo contatto» recente.",
                 "Negli «IP o reti ammessi» del collector ci deve essere l'IP del suo PC; sulla macchina devono esistere i contatori Ore e Cicli («Crea contatori»).",
+                "Una rete va scritta con la maschera (192.168.23.0/24): «192.168.23.0» da solo ammette solo quell'indirizzo, e la pagina lo segnala in rosso.",
+            ],
+        },
+        {
+            "sintomo": "Le ore della CNC non tornano con il display della macchina",
+            "fare": [
+                "Macchine collegate → colonna Contatori: guarda il valore «dalla CNC» e l'unità usata per convertirlo.",
+                "«Modifica» → «Le ore lette dalla CNC sono in» → scegli l'unità giusta (di solito: umati ore, BasicDataSet secondi) → «Salva».",
+                "Il contatore Ore si ricalcola subito; i piani a contatore e l'avviso a ore usano il valore nuovo.",
+            ],
+        },
+        {
+            "sintomo": "«Cerca le macchine in rete» non trova niente",
+            "fare": [
+                "La ricerca parte dal server del portale: il server deve raggiungere la rete delle CNC sulla porta OPC UA (firewall, VLAN).",
+                "Rete al massimo /24 e solo interna (es. 192.168.23.0/24); le macchine devono essere accese.",
+                "«Chiede utente e password»: collega quella macchina a mano da «Collega una macchina» con le credenziali OPC UA.",
             ],
         },
         {

@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -294,7 +294,7 @@
         <span class="fmd-pill fmd-pill-red"><span class="fmd-pn">{{ fm_n_scaduti }}</span> Scaduti</span>
         <span class="fmd-pill fmd-pill-orange"><span class="fmd-pn">{{ fm_n_30gg }}</span> Entro 30gg</span>
         <span class="fmd-pill fmd-pill-amber"><span class="fmd-pn">{{ fm_n_90gg }}</span> Entro 90gg</span>
-        {% if fm_is_cache_empty %}<span class="fmd-pill fmd-pill-grey">Cache formazione vuota — refresh_training_deadlines --all</span>{% endif %}
+        {% if fm_is_cache_empty %}<span class="fmd-pill fmd-pill-grey"{% if user.is_superuser %} title="python manage.py refresh_training_deadlines --all"{% endif %}>Scadenze formazione non ancora calcolate</span>{% endif %}
       </div>
       {% regroup voci_formazione by tipo_nome as corsi_group %}
       {% for cg in corsi_group %}

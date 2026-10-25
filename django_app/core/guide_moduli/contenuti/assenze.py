@@ -24,6 +24,12 @@ GUIDA = {
                 ]),
                 ("def", [
                     ("Permesso", "da 30 minuti a 8 ore, sempre nello stesso giorno."),
+                    ("Permesso su più giorni", "con lo stesso orario: compila il primo giorno e scegli la data in "
+                     "«Ripeti lo stesso orario fino al». Si crea una richiesta per ogni giorno lavorativo (sabati, "
+                     "domeniche, festività e chiusure aziendali esclusi), al massimo 31 giorni. Il capo riceve una sola mail "
+                     "«Permesso ripetuto dal … al …» e decide per tutti i giorni; anche la conferma a te e ad "
+                     "assenza@ arriva una volta sola, con le date. Un singolo giorno si può ancora cambiare o "
+                     "decidere a parte da «Assenze del reparto»."),
                     ("Ferie di più giorni", "contano a giornata intera."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
                     ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
@@ -36,7 +42,7 @@ GUIDA = {
             "id": "saldo",
             "titolo": "Il saldo di ferie e permessi e gli avvisi",
             "blocchi": [
-                ("p", "Se l'ufficio HR ha caricato il tuo saldo, nella «Bozza live» a destra compare «Saldo stimato»: "
+                ("p", "Se in Anagrafica c'è il tuo ultimo cedolino, nella «Bozza live» a destra compare «Saldo stimato»: "
                       "le ore di ferie e di permessi che ti restano, partendo dal cedolino e togliendo le richieste già inviate "
                       "e le chiusure aziendali."),
                 ("p", "Mentre compili, sotto la bozza possono comparire avvisi gialli. Non bloccano l'invio: servono a te e al capo."),
@@ -168,10 +174,10 @@ GUIDA = {
                     ("Cruscotto", "richieste in attesa, saldi in negativo, persone con almeno 10 giornate di ferie residue, "
                                   "persone oltre un contatore, giornate di assenza degli ultimi 12 mesi e tabella per reparto. "
                                   "I reparti con meno di 5 persone non mostrano i numeri, per non far capire chi era assente."),
-                    ("Saldi ferie e permessi", "ore residue alla data del cedolino («Situazione al»). Si inseriscono a mano "
-                                               "(«Salva saldo») o con «Importa saldi» da Excel o CSV: colonne «Dipendente», "
-                                               "«Ferie (ore)», «Permessi (ore)», «Situazione al». «Scarica il modello» dà il file "
-                                               "già compilato con i dipendenti attivi."),
+                    ("Saldi ferie e permessi", "sola lettura: le ore residue dell'ultimo cedolino di ogni dipendente, "
+                                               "prese da Anagrafica → «Ratei ferie e permessi» (colonna «Cedolino al»). "
+                                               "Permessi = ROL + ex festività. Per aggiornarli si caricano i cedolini in "
+                                               "Anagrafica («Carica i cedolini»): qui non si inseriscono a mano."),
                     ("Calendario aziendale", "festività nazionali calcolate dal portale (Pasqua compresa, San Francesco il 4 ottobre "
                                              "dal 2026), il patrono e le chiusure aziendali. Una chiusura vale per tutta l'azienda; "
                                              "con «Scala dalle ferie» i suoi giorni lavorativi si tolgono dal saldo ferie di ognuno."),
@@ -288,11 +294,11 @@ GUIDA = {
         },
         {
             "sintomo": "Il saldo stimato non torna con il cedolino",
-            "perche": "il portale parte dal saldo alla data «Situazione al» e toglie le richieste non rifiutate dopo quella data "
+            "perche": "il portale parte dall'ultimo cedolino in Anagrafica e toglie le richieste non rifiutate dopo quella data "
                       "e le chiusure che scalano le ferie.",
             "fare": [
-                "Area HR → «Saldi ferie e permessi»: controlla la data «Situazione al» del dipendente.",
-                "Ricarica il saldo dall'ultimo cedolino: le richieste fino a quella data non vengono più contate.",
+                "Area HR → «Saldi ferie e permessi»: controlla la data «Cedolino al» del dipendente.",
+                "Carica in Anagrafica il cedolino del mese più recente: le richieste fino a quella data non vengono più contate.",
                 "Controlla in «Calendario aziendale» le chiusure con «Scala dalle ferie» e le ore di una giornata.",
                 "Le richieste in attesa contano già: la colonna «di cui in attesa» dice quante ore sono.",
             ],

@@ -44,6 +44,10 @@ body.theme-dark .mc-tag--spenta,body.theme-dark .mc-tag--mai,body.theme-dark .mc
 .mc-check{display:flex!important;gap:6px;align-items:center;font-weight:600!important}
 .mc-token{border-color:var(--warning,#d97706);border-width:2px}
 .mc-token-val{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:14px;margin-top:8px}
+.mc-avviso{white-space:normal;margin-top:4px;border-radius:8px}
+.mc-avviso-ore{border:0;padding:0;margin:4px 0 0;min-width:0}
+.mc-avviso-ore legend{grid-column:1/-1;padding:0;margin-bottom:6px}
+.mc-table select,.mc-table input[type=text]{box-sizing:border-box;max-width:100%;border:1px solid var(--border,#cbd5e1);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px;background:var(--surface,#fff);color:var(--text,#0f172a)}
 .mc-collector{border-top:1px solid var(--border,#e5e7eb);padding:10px 0}
 .mc-collector summary{cursor:pointer}
 code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px;background:color-mix(in srgb,var(--text-mid,#64748b) 12%,transparent);padding:1px 5px;border-radius:5px}
@@ -87,6 +91,65 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
     {% endif %}
   </div>
 
+  {% if puo_amministrare %}
+  <div class="mc-card" id="cerca">
+    <h2>Cerca le macchine in rete</h2>
+    <p class="mc-note">Il server del portale prova ogni indirizzo della rete sulla porta OPC UA e, dove risponde una DMG MORI, legge la matricola e il modello dati. Poi la abbina all'asset: prima con la matricola già vista dal collector, poi con l'indirizzo, poi con il numero di serie dell'asset. Non scrive niente sulle macchine; dura da pochi secondi a mezzo minuto. Prova prima senza credenziali, poi con utente e password già salvati per le altre macchine.</p>
+    <form method="post" class="mc-form" style="margin-top:10px" data-mc-cerca>
+      {% csrf_token %}
+      <label>Rete da cercare<input type="text" name="rete" value="{% if ricerca %}{{ ricerca.rete }}{% else %}{{ rete_proposta }}{% endif %}" placeholder="192.168.23.0/24" maxlength="43" required></label>
+      <label>Porta<input type="text" name="porta" value="{% if ricerca %}{{ ricerca.porta }}{% else %}4840{% endif %}" inputmode="numeric" maxlength="5"></label>
+      <div class="mc-actions"><button class="btn btn-primary" name="azione" value="cerca">Cerca</button><span class="mc-meta" data-mc-attesa hidden>Ricerca in corso…</span></div>
+    </form>
+    {% if ricerca %}
+      {% if ricerca.errore %}<p class="mc-err" style="margin-top:12px">{{ ricerca.errore }}</p>
+      {% elif not ricerca.righe %}<p class="mc-note" style="margin-top:12px">Nessun server OPC UA in {{ ricerca.rete }} sulla porta {{ ricerca.porta }}. Se le macchine sono accese, il server del portale forse non raggiunge quella rete (firewall o VLAN).</p>
+      {% else %}
+      <form method="post" style="margin-top:12px">
+        {% csrf_token %}
+        <div class="mc-table-wrap">
+        <table class="mc-table" data-fm-table-skip="1">
+          <thead><tr><th></th><th>Indirizzo</th><th>Matricola</th><th>Modello dati</th><th>Macchina</th><th>Codice</th><th>Esito</th></tr></thead>
+          <tbody>
+          {% for t in ricerca.righe %}
+            <tr>
+              <td>{% if t.collegabile %}<input type="checkbox" name="scegli" value="{{ forloop.counter0 }}"{% if t.spunta %} checked{% endif %} aria-label="Collega {{ t.ip }}">{% endif %}</td>
+              <td class="mc-mono">{{ t.ip }}:{{ t.porta }}
+                <input type="hidden" name="ip_{{ forloop.counter0 }}" value="{{ t.ip }}"><input type="hidden" name="porta_{{ forloop.counter0 }}" value="{{ t.porta }}">
+                <input type="hidden" name="matricola_{{ forloop.counter0 }}" value="{{ t.matricola }}"><input type="hidden" name="modello_{{ forloop.counter0 }}" value="{{ t.modello }}">
+                {% if t.credenziali %}<input type="hidden" name="cred_{{ forloop.counter0 }}" value="{{ t.credenziali }}">{% endif %}</td>
+              <td class="mc-mono">{{ t.matricola|default:"—" }}</td>
+              <td>{{ t.modello_label|default:"—" }}</td>
+              <td>{% if t.collegabile and not t.asset %}
+                    <select name="asset_{{ forloop.counter0 }}" aria-label="Macchina per {{ t.ip }}"><option value="">— scegli —</option>{% for m in ricerca.scelte %}<option value="{{ m.pk }}">{{ m.name }} ({{ m.asset_tag }})</option>{% endfor %}</select>
+                  {% elif t.asset %}<a href="{% url 'assets:asset_view' t.asset.pk %}">{{ t.asset.name }}</a><br><span class="mc-meta">{{ t.asset.asset_tag }}</span>
+                    {% if t.collegabile %}<input type="hidden" name="asset_{{ forloop.counter0 }}" value="{{ t.asset.pk }}">{% endif %}
+                  {% else %}—{% endif %}</td>
+              <td>{% if t.collegabile %}<input type="text" name="codice_{{ forloop.counter0 }}" value="{{ t.codice }}" placeholder="DM6" maxlength="40" size="8" aria-label="Codice per {{ t.ip }}">{% else %}{{ t.codice|default:"" }}{% endif %}</td>
+              <td><span class="mc-tag mc-tag--{% if t.livello == 'ok' %}in_lavoro{% elif t.livello == 'warn' %}setup{% elif t.livello == 'danger' %}allarme{% else %}mai{% endif %}">{% if t.livello == 'ok' %}ok{% elif t.livello == 'danger' %}da sistemare{% elif t.collegabile %}da collegare{% elif t.livello == 'warn' %}attenzione{% else %}info{% endif %}</span><br><span class="mc-meta">{{ t.esito }}</span></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <div class="mc-actions" style="margin-top:10px"><button class="btn btn-primary" name="azione" value="cerca_collega">Collega le macchine spuntate</button><span class="mc-meta">Crea anche i contatori Ore e Cicli che mancano.</span></div>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if da_sistemare %}
+  <div class="mc-card" id="da-sistemare">
+    <h2>CNC da sistemare</h2>
+    <p class="mc-note">Questi asset sembrano CNC ma non sono macchine di lavoro (senza scheda macchina): non compaiono in «Collega una macchina». Apri «Modifica», scegli in <em>Categoria asset</em> quella delle altre CNC (es. <em>Macchine CNC</em>) e salva; poi salva anche la scheda macchina che si apre.</p>
+    <table class="mc-table" data-fm-table-skip="1" style="margin-top:8px">
+      <thead><tr><th>Asset</th><th>Categoria</th><th>Stato</th><th></th></tr></thead>
+      <tbody>{% for a in da_sistemare %}<tr><td><a href="{% url 'assets:asset_view' a.pk %}"><strong>{{ a.name }}</strong></a><br><span class="mc-meta">{{ a.asset_tag }}</span></td><td>{{ a.asset_category.label|default:"—" }}</td><td class="mc-meta">{{ a.get_status_display }}</td><td><a href="{% url 'assets:asset_edit' a.pk %}">Modifica</a></td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% endif %}
+
   <div class="mc-card mc-table-wrap">
     <h2>Macchine</h2>
     {% if modalita == "pc" and nessun_collector and macchine_collector %}<p class="mc-err">Nessun collector attivo: crea il token nel riquadro «Collector» qui sotto.</p>{% endif %}
@@ -105,15 +168,19 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
             {% elif r.attuale %}<span class="mc-tag mc-tag--{{ r.stato }}">{{ r.stato_label }}</span>{% if r.stato_dal %}<br><span class="mc-meta">dal {{ r.stato_dal|date:"d/m H:i" }}</span>{% endif %}
             {% elif r.controllato_il %}<span class="mc-tag mc-tag--vecchio">non aggiornato</span><br><span class="mc-meta">ultima lettura {{ r.controllato_il|date:"d/m H:i" }}</span>
             {% else %}<span class="mc-tag mc-tag--mai">mai letta</span>{% endif %}
-            {% if r.allarmi and r.attuale %}<ul class="mc-alarms">{% for a in r.allarmi|slice:":3" %}<li>{% if a.livello == "allarme" %}<strong>Allarme</strong>{% else %}Avviso{% endif %}{% if a.codice %} {{ a.codice }}{% endif %}: {{ a.testo|default:a.tipo }}</li>{% endfor %}</ul>{% endif %}
+            {% if r.allarmi and r.attuale %}<ul class="mc-alarms">{% for a in r.allarmi|slice:":3" %}<li>{% if a.livello == "allarme" %}<strong>Allarme</strong>{% else %}Avviso{% endif %}{% if a.codice %} {{ a.codice }}{% endif %}: {% firstof a.testo a.tipo %}</li>{% endfor %}</ul>{% endif %}
             {% if r.errore %}<div class="mc-err">{{ r.errore }}</div>{% endif %}
           </td>
           <td>{{ r.programma|default:"—" }}{% if r.modalita %}<br><span class="mc-meta">{{ r.modalita }}</span>{% endif %}{% if r.pezzi_grezzo is not None %}<br><span class="mc-meta">pezzi sulla CNC: {{ r.pezzi_grezzo|floatformat:0 }}</span>{% endif %}</td>
-          <td class="mc-meta">{% if r.mancano_contatori %}<span class="mc-tag mc-tag--ferma">mancano Ore/Cicli</span>{% else %}Ore e Cicli presenti{% endif %}</td>
+          <td class="mc-meta">{% if r.ore_contatore %}Ore: <strong>{{ r.ore_contatore }} h</strong>{% elif not r.mancano_contatori %}Ore e Cicli presenti{% endif %}
+            {% if r.mancano_contatori %}{% if r.ore_contatore %}<br>{% endif %}<span class="mc-tag mc-tag--ferma">mancano Ore/Cicli</span>{% endif %}
+            {% if r.ore_cnc %}<br>dalla CNC: <span class="mc-mono">{{ r.ore_cnc }}</span>{% if r.unita_label %} in {{ r.unita_label }}{% endif %}{% if r.modello_label %} · {{ r.modello_label }}{% endif %}{% if r.unita_ore %} · unità scelta a mano{% endif %}{% endif %}
+            {% if r.avviso %}<br><span class="mc-tag mc-avviso mc-tag--{% if r.avviso.livello == 'danger' %}allarme{% elif r.avviso.livello == 'warn' %}setup{% elif r.avviso.livello == 'ok' %}pronta{% else %}mai{% endif %}">{{ r.avviso.messaggio }}</span>{% endif %}</td>
           <td>{{ r.ore_oggi }} h</td>
           <td class="mc-actions">
             {% if r.puo_modificare %}
               <a href="?modifica={{ r.pk }}#form">Modifica</a>
+              {% if r.avviso and r.avviso.livello != "muted" %}<form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="fatto_ore" title="Fatto: il prossimo avviso si conta dalle ore attuali">Fatto</button></form>{% endif %}
               {% if r.mancano_contatori %}<form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="contatori">Crea contatori</button></form>{% endif %}
               <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="{% if r.attivo %}sospendi{% else %}riattiva{% endif %}">{% if r.attivo %}Sospendi{% else %}Riattiva{% endif %}</button></form>
               <form method="post" class="mc-inline">{% csrf_token %}<input type="hidden" name="collegamento" value="{{ r.pk }}"><button class="mc-linkbtn" name="azione" value="elimina">Togli</button></form>
@@ -149,7 +216,17 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
         <label>Utente OPC UA (facoltativo)<input type="text" name="opcua_utente" value="{{ form.opcua_utente }}" maxlength="120"></label>
         <label>Password OPC UA (facoltativa)<input type="password" name="opcua_password" maxlength="200" autocomplete="new-password"{% if form.ha_password %} placeholder="salvata: vuoto = resta quella"{% endif %}></label>
         {% if form.ha_password %}<label class="mc-check"><input type="checkbox" name="togli_password"> Togli la password salvata</label>{% endif %}
+        <label>Le ore lette dalla CNC sono in
+          <select name="unita_ore">{% for valore, etichetta in unita_scelte %}<option value="{{ valore }}"{% if form.unita_ore == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
+        </label>
+        <p class="mc-note" style="grid-column:1/-1">Confronta «Ore» nell'elenco qui sopra con il contaore sul display della CNC: se non tornano, cambia l'unità. Il contatore Ore si ricalcola subito dal valore letto (con una nota nello storico delle letture). Automatica: umati in ore, BasicDataSet in secondi.</p>
       </div>
+      <fieldset class="mc-gruppo mc-avviso-ore">
+        <legend class="mc-meta">Avviso a ore (facoltativo): solo un avviso in questa pagina e nella scheda della macchina, niente scadenze né ordini di lavoro</legend>
+        <label>Ogni (ore di lavoro)<input type="text" name="avviso_ore_ogni" value="{{ form.avviso_ore_ogni }}" placeholder="500" inputmode="decimal" maxlength="12"></label>
+        <label>Cosa fare<input type="text" name="avviso_ore_testo" value="{{ form.avviso_ore_testo }}" placeholder="Controllo mandrino" maxlength="120"></label>
+        <label>Ultima volta fatto a (ore)<input type="text" name="avviso_ore_da" value="{{ form.avviso_ore_da }}" placeholder="vuoto = ore attuali" inputmode="decimal" maxlength="14"></label>
+      </fieldset>
       <div class="mc-gruppo" data-mc-per="mtconnect">
         <label>Indirizzo dell'agent<input type="text" name="url_agent" value="{{ form.url_agent }}" placeholder="http://10.0.5.21:5000"></label>
         <label>Dispositivo nell'agent (facoltativo)<input type="text" name="dispositivo" value="{{ form.dispositivo }}" placeholder="vuoto = il primo"></label>
@@ -189,7 +266,8 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
     {% for c in collector %}
     <details class="mc-collector">
       <summary><strong>{{ c.name }}</strong> · {% if c.is_active %}<span class="mc-tag mc-tag--in_lavoro">attivo</span>{% else %}<span class="mc-tag mc-tag--mai">disattivato</span>{% endif %}
-        <span class="mc-meta">· ultimo contatto {{ c.last_seen_at|date:"d/m/Y H:i"|default:"mai" }} · {% if c.all_meter_assets %}tutte le macchine{% else %}{{ c.consentite_ids|length }} macchin{{ c.consentite_ids|length|pluralize:"a,e" }}{% endif %} · rete {{ c.allowed_ips|default:"solo quella del file .env" }}</span></summary>
+        <span class="mc-meta">· ultimo contatto {{ c.last_seen_at|date:"d/m/Y H:i"|default:"mai" }} · {% if c.all_meter_assets %}tutte le macchine{% else %}{{ c.consentite_ids|length }} macchin{{ c.consentite_ids|length|pluralize:"a,e" }}{% endif %} · rete {{ c.allowed_ips|default:"solo quella del file .env" }}</span>
+        {% for a in c.avvisi_ips %}<br><span class="mc-err">{{ a }}</span>{% endfor %}</summary>
       <form method="post" class="mc-form" style="margin-top:10px">
         {% csrf_token %}<input type="hidden" name="collector" value="{{ c.pk }}">
         <label>IP o reti ammessi (separati da virgole)<input type="text" name="ips" value="{{ c.allowed_ips }}" placeholder="192.168.23.50"></label>
@@ -225,6 +303,13 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
   }
   radios.forEach(function (r) { r.addEventListener("change", aggiorna); });
   aggiorna();
+  var cerca = document.querySelector("[data-mc-cerca]");
+  if (cerca) {
+    cerca.addEventListener("submit", function () {
+      var attesa = cerca.querySelector("[data-mc-attesa]");
+      if (attesa) { attesa.hidden = false; }
+    });
+  }
 })();
 </script>
 {% endblock %}

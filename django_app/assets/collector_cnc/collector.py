@@ -87,7 +87,8 @@ MODELS = {
             "power_on_time": "PowerOnDuration",      # probabilmente ore
         },
         "alarm_folder": "Messages",
-        # OperationDuration: da verificare sulla macchina (letto come ore). Fattore per avere ore.
+        # OperationDuration: da verificare sulla macchina (letto come ore). Fattore per avere ore;
+        # se il valore non torna col display, l'unita' si cambia dal portale (Macchine collegate > Modifica).
         "hours_factor": 1.0,
         # ChannelState: 0 Active, 1 Interrupted, 2 Reset
         "exec_map": {0: "RUNNING", 1: "INTERRUPTED", 2: "IDLE"},
@@ -254,6 +255,8 @@ class Machine:
         self.model_name = cfg.get("model", "")
         self.department = cfg.get("department", "")
         self.asset_tag = cfg.get("asset_tag", "")   # codice dell'asset nel portale (vuoto = non inviata)
+        self.hours_unit = cfg.get("hours_unit") or ""  # unita' delle ore scelta nel portale (h | min | s), vuoto = dal modello
+        self.found_serial = ""      # matricola letta dal namespace DMG MORI del server
         # credenziali OPC UA opzionali (per server che rifiutano l'accesso anonimo)
         self.username = cfg.get("username") or None
         self.password = cfg.get("password") or None
@@ -359,9 +362,9 @@ class Machine:
                 if self.state != OFFLINE or err != getattr(self, "last_err", None):
                     self.last_err = err
                     if "Identity" in err or "UserAccessDenied" in err:
-                        log.warning("%s rifiuta l'accesso %s (%s): servono username/password "
-                                    "OPC UA validi in machines.json", self.name,
-                                    "con queste credenziali" if self.username else "anonimo", err)
+                        log.warning("%s rifiuta l'accesso %s (%s): servono utente e password OPC UA validi "
+                                    "(portale: Macchine collegate > Modifica; senza portale: machines.json)",
+                                    self.name, "con queste credenziali" if self.username else "anonimo", err)
                     else:
                         log.warning("%s non raggiungibile (%s), ritento ogni %ss",
                                     self.name, err, delay)
@@ -380,6 +383,7 @@ class Machine:
         self.data_model = "umati" if UMATI_URI in nsarr else "bds"
         self.spec = MODELS[self.data_model]
         found_serial = nsarr[ns].rstrip("/").split("/")[-1]
+        self.found_serial = found_serial
         if self.serial and found_serial != self.serial:
             log.warning("%s: matricola attesa %s ma il server riporta %s (IP cambiato?)",
                         self.name, self.serial, found_serial)

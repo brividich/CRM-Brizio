@@ -28,6 +28,10 @@ tipologia sono nel dettaglio solo se can_view_visite. Mai esiti/prescrizioni.
 body.theme-dark .cf-dom { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .cf-dom-title { color:var(--text); }
 body.theme-dark .cf-dettagli { color:var(--text-light); }
+.cf-add>summary{cursor:pointer;list-style:none;display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:#1f87cd}
+.cf-add>summary::-webkit-details-marker{display:none}
+.cf-add>summary:hover{text-decoration:underline}
+body.theme-dark .cf-add>summary{color:#60a5fa}
 </style>
 
 {% with c=stato.complessivo %}
@@ -73,12 +77,15 @@ body.theme-dark .cf-dettagli { color:var(--text-light); }
 {% endif %}
 {% endwith %}
 
+{# Con nessun requisito applicabile i 4 riquadri direbbero solo «N/D»: si mostrano quando c'è qualcosa da valutare. #}
+{% if stato.complessivo == 'ok' or stato.complessivo == 'warn' or stato.complessivo == 'ko' %}
 <div class="cf-domini">
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.formazione titolo="Formazione" icon="📚" %}
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.visite titolo="Visite mediche" icon="🏥" %}
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.qualifiche titolo="Qualifiche" icon="🎓" %}
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.dpi titolo="DPI" icon="🦺" %}
 </div>
+{% endif %}
 
 {% if requisiti_rischio.fattori or requisiti_rischio.dpi or requisiti_rischio.visite or is_admin %}
 <div class="cf-dom" style="margin-top:14px;border-left:4px solid #7c3aed;">
@@ -124,6 +131,7 @@ body.theme-dark .cf-dettagli { color:var(--text-light); }
   <div class="cf-dettagli" style="padding-left:0;">Nessuna esposizione diretta.</div>
   {% endif %}
   {% if is_admin and fattori_disponibili %}
+  <details class="cf-add"><summary>+ Aggiungi esposizione diretta</summary>
   <form hx-post="{% url 'anagrafica:dipendente_esposizione_rischio_add' legacy_id %}" hx-target="#conformita-panel" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center;">
     {% csrf_token %}
     <select name="fattore_id" required style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
@@ -133,6 +141,7 @@ body.theme-dark .cf-dettagli { color:var(--text-light); }
     <input type="text" name="note" placeholder="note (opz.)" style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
     <button type="submit" style="font-size:12px;padding:4px 12px;border:none;border-radius:6px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700;">+ Aggiungi</button>
   </form>
+  </details>
   {% endif %}
   {% endif %}
 </div>
@@ -162,6 +171,7 @@ body.theme-dark .cf-dettagli { color:var(--text-light); }
   <div class="cf-dettagli" style="padding-left:0;">Nessuna visita facoltativa assegnata.</div>
   {% endif %}
   {% if is_admin and tipi_visita_disponibili %}
+  <details class="cf-add"><summary>+ Aggiungi visita facoltativa</summary>
   <form hx-post="{% url 'anagrafica:dipendente_visita_facoltativa_add' legacy_id %}" hx-target="#conformita-panel" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center;">
     {% csrf_token %}
     <select name="tipo_visita_id" required style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
@@ -171,6 +181,7 @@ body.theme-dark .cf-dettagli { color:var(--text-light); }
     <input type="text" name="note" placeholder="note (opz.)" style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
     <button type="submit" style="font-size:12px;padding:4px 12px;border:none;border-radius:6px;background:#0891b2;color:#fff;cursor:pointer;font-weight:700;">+ Aggiungi</button>
   </form>
+  </details>
   {% endif %}
 </div>
 {% endif %}

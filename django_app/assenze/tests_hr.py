@@ -5,21 +5,22 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.http import HttpResponse
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from anagrafica.models import DipendenteAnagraficaCivile, SaldoCedolino
 from automazioni.models import AutomationAction, AutomationRule
 
 from . import hr
 from .models import (
     AssenzaModifica,
+    AssenzaSerie,
     AssenzaSollecito,
     AssenzeImpostazioniHR,
     ChiusuraAziendale,
     ContatoreAssenza,
-    SaldoAssenze,
     SogliaCopertura,
 )
 
@@ -103,10 +104,28 @@ IDENTITA = {
 @patch("assenze.availability._resolve_identities", side_effect=lambda ids: {i: IDENTITA[i] for i in ids if i in IDENTITA})
 class SaldiTests(TestCase):
     def setUp(self):
-        self.saldo = SaldoAssenze.objects.create(
-            legacy_anagrafica_id=1, nominativo="ROSSI MARIO", ferie_ore=Decimal("40"),
-            permessi_ore=Decimal("10"), situazione_al=date(2026, 5, 31),
+        # Mese precedente: deve vincere il cedolino più recente.
+        SaldoCedolino.objects.create(
+            tax_code="RSSMRA80A01H501U", legacy_anagrafica_id=1, data_competenza=date(2026, 4, 30),
+            ferie_residui=Decimal("99"),
         )
+        SaldoCedolino.objects.create(
+            tax_code="RSSMRA80A01H501U", legacy_anagrafica_id=1, data_competenza=date(2026, 5, 31),
+            ferie_residui=Decimal("40"), rol_residui=Decimal("6"), ex_fest_residui=Decimal("4"),
+        )
+        self.saldo = hr.saldo_anagrafica(1)
+
+    def test_saldo_dall_ultimo_cedolino_in_anagrafica(self, _ident):
+        self.assertEqual(self.saldo.situazione_al, date(2026, 5, 31))
+        self.assertEqual((self.saldo.ferie_ore, self.saldo.permessi_ore), (Decimal("40"), Decimal("10")))
+
+    def test_cedolino_senza_id_si_aggancia_col_codice_fiscale(self, _ident):
+        DipendenteAnagraficaCivile.objects.create(legacy_anagrafica_id=2, codice_fiscale="bnclcu80a01h501x")
+        SaldoCedolino.objects.create(
+            tax_code="BNCLCU80A01H501X", data_competenza=date(2026, 5, 31), ferie_residui=Decimal("12"),
+        )
+        self.assertEqual(hr.saldo_anagrafica(2).ferie_ore, Decimal("12"))
+        self.assertEqual(set(hr.saldi_anagrafica([1, 2, 3])), {1, 2})
 
     def test_residuo_toglie_richieste_dopo_il_cedolino_e_chiusure(self, _ident):
         ChiusuraAziendale.objects.create(data_inizio=date(2026, 8, 10), data_fine=date(2026, 8, 14), descrizione="Estate")
@@ -209,23 +228,22 @@ class AreaHrViewTests(TestCase):
         self.assertEqual(imp.ore_giornata, Decimal("7.50"))
         self.assertEqual((imp.patrono_giorno, imp.patrono_mese, imp.sollecito_dopo_giorni), (24, 6, 3))
 
-    @patch("assenze.hr.dipendenti_attivi", return_value={5: {"nominativo": "ROSSI MARIO", "reparto": "A"}})
-    def test_saldo_manuale_e_import_csv(self, _att):
-        self.client.post(reverse("assenze_hr_saldi"), {
-            "form": "salva", "anagrafica_id": "5", "ferie_ore": "120,5", "permessi_ore": "16",
-            "situazione_al": "2026-09-30",
-        })
-        s = SaldoAssenze.objects.get(legacy_anagrafica_id=5)
-        self.assertEqual(s.ferie_ore, Decimal("120.50"))
-        csv_file = SimpleUploadedFile(
-            "saldi.csv",
-            "Dipendente;Ferie (ore);Permessi (ore);Situazione al\nMario Rossi;80;8;31/10/2026\nNessuno Qui;1;1;31/10/2026\n"
-            .encode("utf-8"),
-            content_type="text/csv",
+    @patch("assenze.hr.carica_richieste", return_value=[])
+    @patch("assenze.hr.dipendenti_attivi", return_value={
+        5: {"nominativo": "MARIO ROSSI", "reparto": "A"}, 6: {"nominativo": "LUCA BIANCHI", "reparto": "A"},
+    })
+    def test_pagina_saldi_legge_i_cedolini_e_non_accetta_post(self, _att, _rich):
+        SaldoCedolino.objects.create(
+            tax_code="RSSMRA80A01H501U", legacy_anagrafica_id=5, data_competenza=date(2026, 9, 30),
+            ferie_residui=Decimal("120.5"), rol_residui=Decimal("16"),
         )
-        self.client.post(reverse("assenze_hr_saldi"), {"form": "importa", "file": csv_file})
-        s.refresh_from_db()
-        self.assertEqual((s.ferie_ore, s.situazione_al, s.origine), (Decimal("80.00"), date(2026, 10, 31), "import"))
+        resp = self.client.get(reverse("assenze_hr_saldi"))
+        self.assertEqual(resp.status_code, 200)
+        righe = {r["anagrafica_id"]: r for r in resp.context["righe_saldi"]}
+        self.assertEqual(righe[5]["saldo"].ferie_ore, Decimal("120.5"))
+        self.assertIsNone(righe[6]["saldo"])
+        self.assertContains(resp, "nessun cedolino in Anagrafica")
+        self.assertEqual(self.client.post(reverse("assenze_hr_saldi"), {"form": "salva"}).status_code, 405)
 
     def test_contatori_consigliati(self):
         self.client.post(reverse("assenze_hr_contatori"), {"form": "consigliati"})
@@ -233,10 +251,6 @@ class AreaHrViewTests(TestCase):
         self.client.post(reverse("assenze_hr_contatori"), {"form": "consigliati"})
         self.assertEqual(ContatoreAssenza.objects.count(), 2)
 
-    def test_modello_xlsx(self):
-        resp = self.client.get(reverse("assenze_hr_saldi_modello"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("spreadsheetml", resp["Content-Type"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -355,3 +369,121 @@ class AssenzeSpecialiSaltaApprovazioneTests(TestCase):
         from automazioni.assenze_avviso_speciali import applica
 
         self.assertEqual(set(applica().values()), {"assente"})
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+@patch("assenze.views.richieste._render_richiesta", side_effect=lambda request, **kw: HttpResponse(kw.get("error") or kw.get("success") or ""))
+@patch("assenze.views.richieste._registra_inserita_da")
+@patch("assenze.views.richieste._resolve_capo_local_id", return_value=None)
+@patch("assenze.views.richieste._resolve_capo_lookup_id", return_value=None)
+@patch("assenze.views.richieste._resolve_nome_lookup_id", return_value=77)
+@patch("assenze.views.richieste._resolve_request_display_name", return_value="Mario Rossi")
+@patch("assenze.views._helpers._sp_enqueue_upsert", return_value={"queued": False})
+@patch("assenze.views._helpers._load_capi_options", return_value=[])
+@patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
+@patch("assenze.views._helpers._table_exists", return_value=True)
+@patch("assenze.views._helpers._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+@patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+class PermessoRipetutoTests(TestCase):
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.user = get_user_model().objects.create_user(username="ripeti-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+        self.client.force_login(self.user)
+
+    def _invia(self, **extra):
+        from .views.richieste import _build_submit_token
+
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        dati = {
+            "submit_token": _build_submit_token(request, "assenze_invio"),
+            "tipoassenza": "Permesso", "motivazione": "Motivo",
+            "date_start": "2026-10-29", "date_end": "2026-10-29", "time_start": "08:00", "time_end": "10:00",
+        }
+        dati.update(extra)
+        session.save()
+        return self.client.post(reverse("assenze_invio"), dati)
+
+    def test_un_permesso_per_ogni_giorno_lavorativo_stesso_orario(self, *_mocks):
+        # 29/10 gio, 30/10 ven, 31/10 sab, 1/11 dom (festa), 2/11 lun.
+        with patch("assenze.views.richieste._insert_assenza", side_effect=[101, 102, 103]) as ins, \
+                patch("assenze.hr.avvisi_richiesta", return_value=[]):
+            resp = self._invia(ripeti_fino_al="2026-11-02")
+        self.assertContains(resp, "3 permessi registrati")
+        giorni = [(c.args[0]["data_inizio"], c.args[0]["data_fine"]) for c in ins.call_args_list]
+        self.assertEqual(giorni, [
+            (datetime(2026, 10, 29, 8), datetime(2026, 10, 29, 10)),
+            (datetime(2026, 10, 30, 8), datetime(2026, 10, 30, 10)),
+            (datetime(2026, 11, 2, 8), datetime(2026, 11, 2, 10)),
+        ])
+        self.assertEqual(AssenzaModifica.objects.filter(azione="creata").count(), 3)
+        # Una sola serie, capofila il primo giorno.
+        self.assertEqual(
+            list(AssenzaSerie.objects.values_list("assenza_id", "capofila_id")), [(101, 101), (102, 101), (103, 101)]
+        )
+
+    def test_solo_il_primo_giorno_fa_partire_le_automazioni(self, *_mocks):
+        with patch("assenze.views.richieste._insert_assenza", side_effect=[101, 102]),                 patch("assenze.hr.avvisi_richiesta", return_value=[]),                 patch("assenze.views._helpers._set_automation_queue_skip") as skip:
+            self._invia(ripeti_fino_al="2026-10-30")
+        # Il flag che spegne i trigger si accende e spegne attorno al solo secondo insert.
+        self.assertEqual([c.args[0] for c in skip.call_args_list], [True, False])
+
+    def test_senza_ripeti_una_sola_richiesta(self, *_mocks):
+        with patch("assenze.views.richieste._insert_assenza", return_value=101) as ins, \
+                patch("assenze.hr.avvisi_richiesta", return_value=[]):
+            self._invia()
+        self.assertEqual(ins.call_count, 1)
+
+    def test_ripeti_prima_dell_inizio_o_troppo_lungo_rifiutato(self, *_mocks):
+        with patch("assenze.views.richieste._insert_assenza") as ins:
+            self.assertContains(self._invia(ripeti_fino_al="2026-10-28"), "uguale o successiva")
+            self.assertContains(self._invia(ripeti_fino_al="2026-12-31"), "al massimo per 31 giorni")
+        ins.assert_not_called()
+
+
+class SerieMailTests(TestCase):
+    def setUp(self):
+        from . import serie
+
+        serie.registra([201, 202, 203])
+        self.righe = [
+            {"id": 202, "data_inizio": datetime(2026, 10, 30, 8), "data_fine": datetime(2026, 10, 30, 10)},
+            {"id": 201, "data_inizio": datetime(2026, 10, 29, 8), "data_fine": datetime(2026, 10, 29, 10)},
+            {"id": 203, "data_inizio": datetime(2026, 11, 2, 8), "data_fine": datetime(2026, 11, 2, 10)},
+        ]
+
+    def test_mail_della_capofila_dice_dal_al(self):
+        from . import serie
+
+        with patch("assenze.views._helpers._fetch_all_dict", return_value=self.righe):
+            testo, html_blocco, info = serie.blocco_mail("assenze", {"id": "201"}, approvazione=True)
+            self.assertEqual(serie.blocco_mail("assenze", {"id": 202}), ("", "", None))
+        self.assertIn("Permesso ripetuto dal 29/10/2026 al 02/11/2026: 3 giorni lavorativi (29/10, 30/10, 02/11), "
+                      "dalle 08:00 alle 10:00.", testo)
+        self.assertIn("tutti i giorni", testo)
+        self.assertIn("Permesso ripetuto dal 29/10/2026", html_blocco)
+        self.assertEqual(serie.suffisso_oggetto(info), " · permesso ripetuto dal 29/10/2026 al 02/11/2026")
+        self.assertEqual(serie.blocco_mail("altro", {"id": 201}), ("", "", None))
+
+    def test_decisione_della_capofila_passa_ai_giorni_in_attesa(self):
+        from . import serie
+
+        stato = {201: {"id": 201, "moderation_status": 0, "consenso": "Approvato"},
+                 202: {"id": 202, "moderation_status": 2, "consenso": "In attesa"},
+                 203: {"id": 203, "moderation_status": 1, "consenso": "Rifiutato"}}
+        with patch("assenze.views._helpers._get_assenza", side_effect=lambda i: stato[int(i)]),                 patch("assenze.views._helpers._approval_timestamp_update", return_value={}),                 patch("assenze.views._helpers._update_assenza", return_value=True) as upd,                 patch("assenze.views._helpers._sp_enqueue_upsert") as sp,                 patch("assenze.views._helpers._set_automation_queue_skip") as skip:
+            self.assertEqual(serie.propaga(201), 1)
+            self.assertEqual(serie.propaga(202), 0)  # non è la capofila
+        self.assertEqual(upd.call_args.args[0], 202)
+        self.assertEqual((upd.call_args.args[1]["moderation_status"], upd.call_args.args[1]["consenso"]), (0, "Approvato"))
+        sp.assert_called_once_with(202)
+        self.assertEqual([c.args[0] for c in skip.call_args_list], [True, False])
+
+    def test_capofila_in_attesa_non_propaga(self):
+        from . import serie
+
+        with patch("assenze.views._helpers._get_assenza", return_value={"moderation_status": 2}),                 patch("assenze.views._helpers._update_assenza") as upd:
+            self.assertEqual(serie.propaga(201), 0)
+        upd.assert_not_called()

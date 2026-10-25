@@ -356,8 +356,82 @@ def chiave_reparto(value) -> str:
 
 
 @dataclass
+class SaldoAnagrafica:
+    """Ultimo saldo del cedolino di una persona (Anagrafica > Ratei, ``SaldoCedolino``).
+
+    Fonte unica dei saldi: il modulo Assenze non ne tiene una copia. I permessi
+    sono ROL + ex festività + permessi, come nel cedolino.
+    """
+
+    legacy_anagrafica_id: int
+    situazione_al: date
+    ferie_ore: Decimal = ZERO
+    rol_ore: Decimal = ZERO
+    ex_fest_ore: Decimal = ZERO
+    altri_permessi_ore: Decimal = ZERO
+
+    @property
+    def permessi_ore(self) -> Decimal:
+        return self.rol_ore + self.ex_fest_ore + self.altri_permessi_ore
+
+
+def saldi_anagrafica(ids=None) -> dict[int, SaldoAnagrafica]:
+    """``anagrafica_id`` → ultimo saldo del cedolino; ``ids`` limita le persone.
+
+    Il cedolino si aggancia alla persona con ``legacy_anagrafica_id`` o, se manca,
+    col codice fiscale della scheda anagrafica civile (come fa la scheda dipendente).
+    """
+    from django.db.models import Q
+
+    from anagrafica.models import DipendenteAnagraficaCivile, SaldoCedolino
+
+    ids = None if ids is None else {int(i) for i in ids if i is not None}
+    if ids is not None and not ids:
+        return {}
+    try:
+        civili = DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="")
+        if ids is not None:
+            civili = civili.filter(legacy_anagrafica_id__in=ids)
+        cf_id = {
+            str(cf).strip().upper(): int(lid)
+            for lid, cf in civili.values_list("legacy_anagrafica_id", "codice_fiscale")
+            if cf and lid is not None
+        }
+        qs = SaldoCedolino.objects.all()
+        if ids is not None:
+            qs = qs.filter(Q(legacy_anagrafica_id__in=ids) | Q(tax_code__in=list(cf_id)))
+        righe = qs.order_by("-data_competenza", "-id").values(
+            "legacy_anagrafica_id", "tax_code", "data_competenza",
+            "ferie_residui", "rol_residui", "ex_fest_residui", "permessi_residui",
+        )
+        out: dict[int, SaldoAnagrafica] = {}
+        for r in righe:
+            lid = r["legacy_anagrafica_id"] or cf_id.get(str(r["tax_code"] or "").strip().upper())
+            if lid is None or (ids is not None and lid not in ids) or lid in out:
+                continue
+            out[int(lid)] = SaldoAnagrafica(
+                legacy_anagrafica_id=int(lid),
+                situazione_al=r["data_competenza"],
+                ferie_ore=Decimal(r["ferie_residui"] or 0),
+                rol_ore=Decimal(r["rol_residui"] or 0),
+                ex_fest_ore=Decimal(r["ex_fest_residui"] or 0),
+                altri_permessi_ore=Decimal(r["permessi_residui"] or 0),
+            )
+        return out
+    except Exception:
+        logger.warning("assenze.hr: saldi dei cedolini non leggibili", exc_info=True)
+        return {}
+
+
+def saldo_anagrafica(anagrafica_id) -> SaldoAnagrafica | None:
+    if anagrafica_id is None:
+        return None
+    return saldi_anagrafica([anagrafica_id]).get(int(anagrafica_id))
+
+
+@dataclass
 class Residuo:
-    saldo: object  # SaldoAssenze
+    saldo: SaldoAnagrafica
     ferie_usate: Decimal = ZERO
     permessi_usati: Decimal = ZERO
     chiusure_ore: Decimal = ZERO
@@ -419,11 +493,9 @@ def _fmt_ore(value: Decimal) -> str:
 
 def avviso_saldo(anagrafica_id: int | None, tipo: str, inizio, fine, *, escludi_id: int | None = None) -> str:
     """Avviso se la richiesta porta sotto zero ferie o permessi. Stringa vuota se va bene."""
-    from .models import SaldoAssenze
-
     if anagrafica_id is None or tipo not in {"Ferie", "Permesso"}:
         return ""
-    saldo = SaldoAssenze.objects.filter(legacy_anagrafica_id=anagrafica_id).first()
+    saldo = saldo_anagrafica(anagrafica_id)
     if saldo is None:
         return ""
     res = residui([saldo], escludi_id=escludi_id).get(anagrafica_id)
@@ -655,12 +727,10 @@ def avvisi_richiesta(*, anagrafica_id, tipo, motivazione, inizio, fine, escludi_
 
 def riepilogo_saldo(anagrafica_id) -> dict | None:
     """Saldo e residuo stimato di una persona, per il riquadro nel form di richiesta."""
-    from .models import SaldoAssenze
-
     if anagrafica_id is None:
         return None
     try:
-        saldo = SaldoAssenze.objects.filter(legacy_anagrafica_id=anagrafica_id).first()
+        saldo = saldo_anagrafica(anagrafica_id)
         if saldo is None:
             return None
         res = residui([saldo]).get(anagrafica_id)
@@ -691,8 +761,6 @@ def annota_coda(rows: list[dict]) -> None:
     for r in rows:
         r.setdefault("avvisi_hr", [])
     try:
-        from .models import SaldoAssenze
-
         grezze = [
             {
                 "id": r.get("id"),
@@ -712,8 +780,7 @@ def annota_coda(rows: list[dict]) -> None:
             if len(ids) == 1:
                 aid_riga[g["id"]] = next(iter(ids))
 
-        saldi = list(SaldoAssenze.objects.filter(legacy_anagrafica_id__in=set(aid_riga.values())))
-        res = residui(saldi)
+        res = residui(saldi_anagrafica(set(aid_riga.values())).values())
         copertura = avvisi_copertura(grezze)
 
         contatori = contatori_attivi()

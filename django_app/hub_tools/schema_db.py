@@ -29,7 +29,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "ai_assistant": ("Piattaforma", "#8b5cf6", "Assistente AI: conversazioni, FAQ, feedback"),
     "anagrafica": ("Persone e HR", "#10b981", "Dipendenti, organigramma, struttura organizzativa e sue revisioni, formazione, visite, skill matrix con catalogo competenze e storico valutazioni, fornitori, richieste di rettifica (GDPR)"),
     "assenze": ("Persone e HR", "#0ea5e9", "Ferie, permessi, certificazioni presenza, sync SharePoint, "
-                "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti"),
+                "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
+                "permessi ripetuti (serie di richieste con una sola approvazione)"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
@@ -150,8 +151,10 @@ CONNESSIONI_ESTERNE: list[dict] = [
                   "verso le macchine sulla porta OPC UA 4840, controllo collector_cnc) oppure su un PC dell'officina. Macchine del collector (indirizzo e "
                   "porta OPC UA, codice, credenziali OPC UA cifrate) scaricate dal collector con GET /api/assets/contatori/ingest/config/, "
                   "token e IP ammessi del collector; sul PC del collector solo PORTALE_URL e PORTALE_TOKEN. MTConnect: indirizzo dell'agent "
-                  "nella stessa pagina, schedule mtconnect_poll (ogni 2 minuti).",
-        "controllo": "«Prova» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina.",
+                  "nella stessa pagina, schedule mtconnect_poll (ogni 2 minuti). «Cerca le macchine in rete» (amministratori): il processo "
+                  "web prova una rete interna al massimo /24 sulla porta OPC UA e legge solo l'array dei namespace (collector_cnc/cerca.py).",
+        "controllo": "«Prova» e «Cerca le macchine in rete» nella pagina Macchine collegate; colonna Stato ed errori della stessa pagina; "
+                     "report «Utilizzo delle CNC» nel catalogo report.",
     },
     {
         "nome": "DHCP e DNS di Windows Server",

@@ -37,7 +37,6 @@ urlpatterns = [
     # Area HR (stesso permesso di Impostazioni, gate in API_ACL_GATE_PATHS).
     path("assenze/hr/", views.hr_cruscotto, name="assenze_hr"),
     path("assenze/hr/saldi/", views.hr_saldi, name="assenze_hr_saldi"),
-    path("assenze/hr/saldi/modello.xlsx", views.hr_saldi_modello, name="assenze_hr_saldi_modello"),
     path("assenze/hr/calendario/", views.hr_calendario, name="assenze_hr_calendario"),
     path("assenze/hr/contatori/", views.hr_contatori, name="assenze_hr_contatori"),
     path("assenze/hr/copertura/", views.hr_copertura, name="assenze_hr_copertura"),

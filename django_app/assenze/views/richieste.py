@@ -27,7 +27,12 @@ from ..constants import (
 from core import naming
 
 from .. import hr as calcoli_hr
+from .. import serie
 from . import _helpers  # noqa: E402
+
+# Permesso ripetuto: oltre questa ampiezza (giorni di calendario) si chiede di
+# spezzare la richiesta, per non creare per errore decine di permessi.
+RIPETI_MAX_GIORNI = 31
 
 logger = logging.getLogger(__name__)
 
@@ -1313,131 +1318,214 @@ def invio_placeholder(request):
             name=display_name,
         )
 
-    err_msg, warn_msg = _helpers._validate_business_rules(
-        tipo=tipo,
-        dt_start=dt_start,
-        dt_end=dt_end,
-        person_name=display_name,
-        person_email=email,
-        person_anagrafica_id=person_anagrafica_id,
-        shortcut=shortcut,
-    )
-    if err_msg:
-        return _render_richiesta(request, error=err_msg, form_data=request.POST.dict())
-    # Controlli HR (saldo, contatori, chiusure): avvisano, non bloccano.
-    avvisi_hr = calcoli_hr.avvisi_richiesta(
-        anagrafica_id=person_anagrafica_id, tipo=tipo_ui, motivazione=motivazione, inizio=dt_start, fine=dt_end,
-    )
-    warn_msg = " ".join(x for x in [auto_fine_msg, warn_msg, *avvisi_hr] if x)
+    # Permesso ripetuto: stesso orario del primo giorno, una richiesta per ogni
+    # giorno lavorativo fino a «ripeti_fino_al» (il primo giorno conta sempre).
+    giorni = [dt_start.date()]
+    ripeti_raw = str(request.POST.get("ripeti_fino_al") or "").strip() if tipo_ui == "Permesso" else ""
+    if ripeti_raw:
+        try:
+            ripeti_fino = datetime.strptime(ripeti_raw, "%Y-%m-%d").date()
+        except ValueError:
+            return _render_richiesta(request, error="Data «Ripeti fino al» non valida.", form_data=request.POST.dict())
+        if ripeti_fino < dt_start.date():
+            return _render_richiesta(
+                request,
+                error="La data «Ripeti fino al» deve essere uguale o successiva alla data inizio.",
+                form_data=request.POST.dict(),
+            )
+        if (ripeti_fino - dt_start.date()).days > RIPETI_MAX_GIORNI:
+            return _render_richiesta(
+                request,
+                error=f"Un permesso si può ripetere al massimo per {RIPETI_MAX_GIORNI} giorni di calendario.",
+                form_data=request.POST.dict(),
+            )
+        cal = calcoli_hr.calendario(dt_start.date(), ripeti_fino)
+        giorni += cal.giorni_lavorativi(dt_start.date() + timedelta(days=1), ripeti_fino)
+    occorrenze = [(dt_start, dt_end)] + [
+        (datetime.combine(g, dt_start.time()), datetime.combine(g, dt_end.time())) for g in giorni[1:]
+    ]
+    ripetuto = len(occorrenze) > 1
+
+    avvisi: list[str] = [auto_fine_msg] if auto_fine_msg else []
+    for occ_start, occ_end in occorrenze:
+        err_msg, warn_msg = _helpers._validate_business_rules(
+            tipo=tipo,
+            dt_start=occ_start,
+            dt_end=occ_end,
+            person_name=display_name,
+            person_email=email,
+            person_anagrafica_id=person_anagrafica_id,
+            shortcut=shortcut,
+        )
+        if err_msg:
+            prefisso = f"{occ_start:%d/%m/%Y}: " if ripetuto else ""
+            return _render_richiesta(request, error=f"{prefisso}{err_msg}", form_data=request.POST.dict())
+        # Controlli HR (saldo, contatori, chiusure): avvisano, non bloccano.
+        avvisi_hr = calcoli_hr.avvisi_richiesta(
+            anagrafica_id=person_anagrafica_id, tipo=tipo_ui, motivazione=motivazione, inizio=occ_start, fine=occ_end,
+        )
+        for testo in [warn_msg, *avvisi_hr]:
+            if testo and testo not in avvisi:
+                avvisi.append(testo)
+    warn_msg = " ".join(avvisi)
 
     # Caporeparto AUTORITATIVO lato server: quello assegnato al dipendente (il
-    # campo del form è bloccato). Se quel caporeparto è assente nel giorno di
-    # inizio, l'approvazione passa al suo superiore. Fallback al valore del form
-    # solo se il server non riesce a risolvere (compatibilità).
+    # campo del form è bloccato). Se quel caporeparto è assente nel giorno della
+    # richiesta, l'approvazione passa al suo superiore. Fallback al valore del
+    # form solo se il server non riesce a risolvere (compatibilità).
     capi_options = _helpers._load_capi_options()
     capo_username = "" if inserting_for_other else request.user.get_username()
-    capo_effective, capo_escalated = _helpers._effective_capo_option(
-        name=display_name,
-        email=email,
-        username=capo_username,
-        legacy_user_id=legacy_id,
-        capi=capi_options,
-        request_day=dt_start.date(),
-    )
-    capo_final = capo_effective or capo_raw
 
-    # Chi puo' scegliere il caporeparto (tutti tranne il ruolo UTENTE) invia al
-    # capo selezionato, purche' sia fra quelli configurati. Se lascia quello
-    # assegnato, resta valida l'escalation al superiore per assenza del capo.
-    capo_scelto = False
-    if perms.get("can_choose_capo") and capo_raw:
-        chosen = _helpers._find_capo_dict_for_option(capo_raw, capi_options)
-        if chosen is None:
-            return _render_richiesta(request, error="Caporeparto selezionato non valido.", form_data=request.POST.dict())
-        capo_assegnato = _helpers._resolve_default_capo_for_user(
-            name=display_name, email=email, username=capo_username,
-            capi=capi_options, legacy_user_id=legacy_id,
+    def _capo_del_giorno(giorno):
+        capo_effective, capo_escalated = _helpers._effective_capo_option(
+            name=display_name,
+            email=email,
+            username=capo_username,
+            legacy_user_id=legacy_id,
+            capi=capi_options,
+            request_day=giorno,
         )
-        assegnato = _helpers._find_capo_dict_for_option(capo_assegnato, capi_options) if capo_assegnato else None
-        effettivo = _helpers._find_capo_dict_for_option(capo_final, capi_options) if capo_final else None
-        if chosen is not assegnato and chosen is not effettivo:
-            capo_final = _helpers._capo_option_value(chosen) or capo_raw
-            capo_escalated = False
-            capo_scelto = True
+        capo_final = capo_effective or capo_raw
 
-    payload = {
-        "sharepoint_item_id": None,
-        "nome_lookup_id": _resolve_nome_lookup_id(legacy_id, display_name),
-        "copia_nome": display_name,
-        "email_esterna": email,
-        "tipo_assenza": tipo,
-        "capo_reparto_id": _resolve_capo_local_id(capo_final),
-        "capo_reparto_lookup_id": _resolve_capo_lookup_id(capo_final),
-        "data_inizio": dt_start,
-        "data_fine": dt_end,
-        "motivazione_richiesta": motivazione,
-        "certificato_medico": certificato_medico,
-        "salta_approvazione": salta_approvazione,
-        "consenso": "In attesa",
-        "moderation_status": 2,
-        "created_datetime": timezone.now(),
-        "modified_datetime": timezone.now(),
-    }
+        # Chi puo' scegliere il caporeparto (tutti tranne il ruolo UTENTE) invia al
+        # capo selezionato, purche' sia fra quelli configurati. Se lascia quello
+        # assegnato, resta valida l'escalation al superiore per assenza del capo.
+        capo_scelto = False
+        if perms.get("can_choose_capo") and capo_raw:
+            chosen = _helpers._find_capo_dict_for_option(capo_raw, capi_options)
+            if chosen is None:
+                return None
+            capo_assegnato = _helpers._resolve_default_capo_for_user(
+                name=display_name, email=email, username=capo_username,
+                capi=capi_options, legacy_user_id=legacy_id,
+            )
+            assegnato = _helpers._find_capo_dict_for_option(capo_assegnato, capi_options) if capo_assegnato else None
+            effettivo = _helpers._find_capo_dict_for_option(capo_final, capi_options) if capo_final else None
+            if chosen is not assegnato and chosen is not effettivo:
+                capo_final = _helpers._capo_option_value(chosen) or capo_raw
+                capo_escalated = False
+                capo_scelto = True
+        return capo_final, capo_escalated, capo_scelto
 
+    capi_giorno = []
+    for occ_start, _occ_end in occorrenze:
+        capo = _capo_del_giorno(occ_start.date())
+        if capo is None:
+            return _render_richiesta(request, error="Caporeparto selezionato non valido.", form_data=request.POST.dict())
+        capi_giorno.append(capo)
+
+    def _payload(occ_start, occ_end, capo_final):
+        return {
+            "sharepoint_item_id": None,
+            "nome_lookup_id": _resolve_nome_lookup_id(legacy_id, display_name),
+            "copia_nome": display_name,
+            "email_esterna": email,
+            "tipo_assenza": tipo,
+            "capo_reparto_id": _resolve_capo_local_id(capo_final),
+            "capo_reparto_lookup_id": _resolve_capo_lookup_id(capo_final),
+            "data_inizio": occ_start,
+            "data_fine": occ_end,
+            "motivazione_richiesta": motivazione,
+            "certificato_medico": certificato_medico,
+            "salta_approvazione": salta_approvazione,
+            "consenso": "In attesa",
+            "moderation_status": 2,
+            "created_datetime": timezone.now(),
+            "modified_datetime": timezone.now(),
+        }
+
+    local_ids: list[int] = []
     try:
         with transaction.atomic():
-            local_id = _insert_assenza(payload)
-            # Stessa transazione dell'insert: l'evento in coda del trigger SQL
-            # diventa visibile solo insieme all'autore (``inserito_da_gruppo``).
-            _registra_inserita_da(local_id, gruppo=perms.get("group"), inserito_da=request.user.get_username())
+            for n, ((occ_start, occ_end), (capo_final, _esc, _scelto)) in enumerate(
+                zip(occorrenze, capi_giorno, strict=True)
+            ):
+                # Permesso ripetuto: solo il primo giorno fa partire le automazioni
+                # (una mail al capo, una conferma); gli altri seguono la sua decisione.
+                if n:
+                    _helpers._set_automation_queue_skip(True)
+                try:
+                    local_id = _insert_assenza(_payload(occ_start, occ_end, capo_final))
+                finally:
+                    if n:
+                        _helpers._set_automation_queue_skip(False)
+                if local_id is None:
+                    raise RuntimeError("impossibile ottenere ID locale")
+                # Stessa transazione dell'insert: l'evento in coda del trigger SQL
+                # diventa visibile solo insieme all'autore (``inserito_da_gruppo``).
+                _registra_inserita_da(local_id, gruppo=perms.get("group"), inserito_da=request.user.get_username())
+                local_ids.append(local_id)
+            if ripetuto:
+                serie.registra(local_ids)
+    except RuntimeError:
+        return _render_richiesta(request, error="Richiesta non salvata: impossibile ottenere ID locale.", form_data=request.POST.dict())
     except Exception as exc:
         return _render_richiesta(request, error=f"Errore salvataggio locale: {exc}", form_data=request.POST.dict())
 
-    if local_id is None:
-        return _render_richiesta(request, error="Richiesta non salvata: impossibile ottenere ID locale.", form_data=request.POST.dict())
-    calcoli_hr.registra(
-        local_id, "creata", utente=request.user.get_username(),
-        motivo=f"Inserita per conto di {display_name}" if inserting_for_other else "",
-    )
+    motivo_storico = f"Inserita per conto di {display_name}" if inserting_for_other else ""
+    if ripetuto:
+        nota = f"Permesso ripetuto: {len(local_ids)} giorni dal {giorni[0]:%d/%m/%Y} al {giorni[-1]:%d/%m/%Y}"
+        motivo_storico = f"{motivo_storico}. {nota}" if motivo_storico else nota
+    accodate = 0
+    for local_id, (capo_final, capo_escalated, capo_scelto) in zip(local_ids, capi_giorno, strict=True):
+        calcoli_hr.registra(local_id, "creata", utente=request.user.get_username(), motivo=motivo_storico)
 
-    if inserting_for_other:
-        _helpers.log_action(
-            request,
-            "assenza_inserita_per_conto",
-            "assenze",
-            {"local_id": local_id, "for_dipendente": display_name, "by": inserter_name},
-        )
-
-    if capo_scelto:
-        try:
-            _registra_capo_scelto(
-                local_id,
-                _helpers._find_capo_dict_for_option(capo_final, capi_options),
-                scelto_da=request.user.get_username(),
+        if inserting_for_other:
+            _helpers.log_action(
+                request,
+                "assenza_inserita_per_conto",
+                "assenze",
+                {"local_id": local_id, "for_dipendente": display_name, "by": inserter_name},
             )
-        except Exception:
-            pass
+
+        if capo_scelto:
+            try:
+                _registra_capo_scelto(
+                    local_id,
+                    _helpers._find_capo_dict_for_option(capo_final, capi_options),
+                    scelto_da=request.user.get_username(),
+                )
+            except Exception:
+                pass
+            _helpers.log_action(
+                request,
+                "assenza_caporeparto_scelto",
+                "assenze",
+                {"local_id": local_id, "capo_scelto": capo_final, "for_dipendente": display_name},
+            )
+
+        if capo_escalated:
+            _helpers.log_action(
+                request,
+                "assenza_escalation_caporeparto",
+                "assenze",
+                {"local_id": local_id, "motivo": "caporeparto assente nel giorno", "capo_effettivo": capo_final},
+            )
+
+        if _helpers._sp_enqueue_upsert(local_id).get("queued"):
+            accodate += 1
+
+    if ripetuto:
         _helpers.log_action(
             request,
-            "assenza_caporeparto_scelto",
+            "assenza_permesso_ripetuto",
             "assenze",
-            {"local_id": local_id, "capo_scelto": capo_final, "for_dipendente": display_name},
+            {"local_ids": local_ids, "giorni": len(local_ids), "for_dipendente": display_name},
         )
 
-    if capo_escalated:
-        _helpers.log_action(
-            request,
-            "assenza_escalation_caporeparto",
-            "assenze",
-            {"local_id": local_id, "motivo": "caporeparto assente nel giorno", "capo_effettivo": capo_final},
-        )
-
-    sync_msg = "Sincronizzazione SharePoint non configurata."
-    if _helpers._sp_enqueue_upsert(local_id).get("queued"):
-        sync_msg = "Arriverà su SharePoint entro pochi minuti."
-
+    sync_msg = "Arriverà su SharePoint entro pochi minuti." if accodate else "Sincronizzazione SharePoint non configurata."
     warn_suffix = f" {warn_msg}" if warn_msg else ""
     proxy_note = f" (inserito per conto di {display_name})" if inserting_for_other else ""
+    if ripetuto:
+        elenco = ", ".join(f"{g:%d/%m}" for g in giorni)
+        return _render_richiesta(
+            request,
+            success=(
+                f"{len(local_ids)} permessi registrati su DB locale{proxy_note}, "
+                f"dalle {dt_start:%H:%M} alle {dt_end:%H:%M} nei giorni {elenco}. "
+                f"Il capo riceve una sola mail per tutti i giorni. {sync_msg}{warn_suffix}"
+            ),
+        )
     return _render_richiesta(request, success=f"Richiesta registrata su DB locale{proxy_note}. {sync_msg}{warn_suffix}")
 
 

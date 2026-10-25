@@ -7,27 +7,23 @@ salvataggio e contesto per il template ``assenze/pages/hr.html``.
 
 from __future__ import annotations
 
-import csv
-import io
 import logging
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from core import naming
 
 from .. import hr as calcoli
 from ..models import (
     AssenzaModifica,
     ChiusuraAziendale,
     ContatoreAssenza,
-    SaldoAssenze,
     SogliaCopertura,
 )
 from . import _helpers
@@ -124,8 +120,8 @@ def hr_cruscotto(request):
              "percentuale": int(m["valori"][c] * 100 / massimo) if massimo else 0}
             for c in dati["categorie"]
         ]
-    saldi = list(SaldoAssenze.objects.all())
-    res = calcoli.residui(saldi)
+    saldi = calcoli.saldi_anagrafica(calcoli.dipendenti_attivi())
+    res = calcoli.residui(saldi.values())
     soglia_ore = calcoli.impostazioni().ore_giornata * GIORNATE_FERIE_ELEVATE
     return _render(request, "cruscotto", {
         "cruscotto": dati,
@@ -143,198 +139,40 @@ def hr_cruscotto(request):
 # ─── Saldi ───────────────────────────────────────────────────────────────────
 
 
-def _salva_saldo(request, anagrafica_id, nominativo, ferie, permessi, al, note="", origine="manuale") -> None:
-    SaldoAssenze.objects.update_or_create(
-        legacy_anagrafica_id=anagrafica_id,
-        defaults={
-            "nominativo": nominativo[:200],
-            "ferie_ore": ferie,
-            "permessi_ore": permessi,
-            "situazione_al": al,
-            "note": str(note or "")[:300],
-            "origine": origine,
-            "updated_by": _utente(request),
-        },
-    )
-
-
-def _righe_file(upload) -> list[dict]:
-    """Righe del file caricato (xlsx o csv) come dizionari con intestazioni normalizzate."""
-    nome = str(getattr(upload, "name", "") or "").lower()
-    righe: list[list] = []
-    if nome.endswith(".xlsx"):
-        from openpyxl import load_workbook
-
-        wb = load_workbook(upload, read_only=True, data_only=True)
-        ws = wb.active
-        righe = [list(r) for r in ws.iter_rows(values_only=True)]
-        wb.close()
-    else:
-        testo = upload.read().decode("utf-8-sig", errors="replace")
-        dialetto = csv.Sniffer().sniff(testo[:2048], delimiters=";,\t") if testo.strip() else csv.excel
-        righe = [list(r) for r in csv.reader(io.StringIO(testo), dialetto)]
-    righe = [r for r in righe if any(str(c or "").strip() for c in r)]
-    if not righe:
-        return []
-    intest = [naming.chiave_testo(c) for c in righe[0]]
-    return [dict(zip(intest, r, strict=False)) for r in righe[1:]]
-
-
-def _colonna(riga: dict, *nomi) -> object:
-    for nome in nomi:
-        chiave = naming.chiave_testo(nome)
-        for k, v in riga.items():
-            if k == chiave or k.startswith(chiave):
-                return v
-    return None
-
-
-def _importa_saldi(request) -> None:
-    upload = request.FILES.get("file")
-    if not upload:
-        messages.error(request, "Scegli il file da importare.")
-        return
-    try:
-        righe = _righe_file(upload)
-    except Exception:
-        logger.warning("assenze.hr: file saldi non leggibile", exc_info=True)
-        messages.error(request, "File non leggibile: usa il modello Excel o un CSV con le stesse colonne.")
-        return
-    attivi = calcoli.dipendenti_attivi()
-    per_chiave: dict[str, set[int]] = {}
-    for aid, d in attivi.items():
-        per_chiave.setdefault(naming.chiave_testo(d["nominativo"]), set()).add(aid)
-        parti = d["nominativo"].split(" ")
-        for k in naming.chiavi_confronto(" ".join(parti[1:]), parti[0]):
-            per_chiave.setdefault(k, set()).add(aid)
-    al_predefinita = _data(request.POST.get("situazione_al"))
-    salvati, scartati = 0, []
-    for n, riga in enumerate(righe, start=2):
-        nominativo = str(_colonna(riga, "Dipendente", "Nominativo", "Cognome Nome") or "").strip()
-        ferie = _decimale(_colonna(riga, "Ferie"))
-        permessi = _decimale(_colonna(riga, "Permessi", "ROL"))
-        al = _data(_colonna(riga, "Situazione al", "Al", "Data")) or al_predefinita
-        ids = per_chiave.get(naming.chiave_testo(nominativo), set())
-        if not nominativo:
-            continue
-        if len(ids) != 1:
-            scartati.append(f"riga {n} «{nominativo}»: {'omonimi' if ids else 'non trovato fra i dipendenti attivi'}")
-            continue
-        if ferie is None and permessi is None:
-            scartati.append(f"riga {n} «{nominativo}»: ore mancanti")
-            continue
-        if al is None:
-            scartati.append(f"riga {n} «{nominativo}»: data della situazione mancante")
-            continue
-        aid = next(iter(ids))
-        _salva_saldo(request, aid, attivi[aid]["nominativo"], ferie or Decimal("0"), permessi or Decimal("0"), al,
-                     origine=SaldoAssenze.ORIGINE_IMPORT)
-        salvati += 1
-    _helpers.log_action(request, "assenze_saldi_importati", "assenze", {"salvati": salvati, "scartati": len(scartati)})
-    if salvati:
-        messages.success(request, f"Saldi importati: {salvati}.")
-    if scartati:
-        elenco = "; ".join(scartati[:8]) + (f" e altre {len(scartati) - 8}" if len(scartati) > 8 else "")
-        messages.warning(request, f"Righe non importate ({len(scartati)}): {elenco}.")
-    if not salvati and not scartati:
-        messages.warning(request, "Il file non contiene righe da importare.")
-
-
 @login_required
-@require_http_methods(["GET", "POST"])
+@require_http_methods(["GET"])
 def hr_saldi(request):
+    """Saldi in sola lettura: la fonte è l'ultimo cedolino in Anagrafica > Ratei."""
     if not _puo_gestire(request):
         return _vietato(request)
     attivi = calcoli.dipendenti_attivi()
-    if request.method == "POST":
-        azione = str(request.POST.get("form") or "")
-        if azione == "importa":
-            _importa_saldi(request)
-        elif azione == "elimina":
-            aid = _helpers._as_int(request.POST.get("anagrafica_id"))
-            cancellati, _ = SaldoAssenze.objects.filter(legacy_anagrafica_id=aid).delete()
-            if cancellati:
-                _helpers.log_action(request, "assenze_saldo_eliminato", "assenze", {"anagrafica_id": aid})
-                messages.success(request, "Saldo eliminato.")
-        else:
-            aid = _helpers._as_int(request.POST.get("anagrafica_id"))
-            ferie = _decimale(request.POST.get("ferie_ore"))
-            permessi = _decimale(request.POST.get("permessi_ore"))
-            al = _data(request.POST.get("situazione_al"))
-            if aid not in attivi and not SaldoAssenze.objects.filter(legacy_anagrafica_id=aid).exists():
-                messages.error(request, "Scegli un dipendente attivo.")
-            elif ferie is None or permessi is None or al is None:
-                messages.error(request, "Compila ferie, permessi e la data della situazione.")
-            else:
-                nominativo = attivi.get(aid, {}).get("nominativo") or str(request.POST.get("nominativo") or "")
-                _salva_saldo(request, aid, nominativo, ferie, permessi, al, note=request.POST.get("note"))
-                _helpers.log_action(request, "assenze_saldo_salvato", "assenze", {
-                    "anagrafica_id": aid, "ferie_ore": str(ferie), "permessi_ore": str(permessi),
-                    "situazione_al": al.isoformat(),
-                })
-                messages.success(request, f"Saldo di {nominativo} salvato.")
-        return redirect("assenze_hr_saldi")
-
-    saldi = {s.legacy_anagrafica_id: s for s in SaldoAssenze.objects.all()}
-    res = calcoli.residui(list(saldi.values()))
+    saldi = calcoli.saldi_anagrafica(attivi)
+    res = calcoli.residui(saldi.values())
     imp = calcoli.impostazioni()
     soglia_elevate = imp.ore_giornata * GIORNATE_FERIE_ELEVATE
     righe = []
-    for aid in sorted(set(attivi) | set(saldi), key=lambda i: (attivi.get(i, {}).get("nominativo")
-                                                               or saldi[i].nominativo).casefold()):
+    for aid in sorted(attivi, key=lambda i: attivi[i]["nominativo"].casefold()):
         r = res.get(aid)
         righe.append({
             "anagrafica_id": aid,
-            "nominativo": attivi.get(aid, {}).get("nominativo") or saldi[aid].nominativo,
-            "reparto": attivi.get(aid, {}).get("reparto", ""),
-            "cessato": aid not in attivi,
+            "nominativo": attivi[aid]["nominativo"],
+            "reparto": attivi[aid].get("reparto", ""),
             "saldo": saldi.get(aid),
             "residuo": r,
             "negativo": bool(r and (r.ferie_residue < 0 or r.permessi_residui < 0)),
             "elevate": bool(r and r.ferie_residue >= soglia_elevate),
         })
+    date_saldi = sorted({s.situazione_al for s in saldi.values()}, reverse=True)
     return _render(request, "saldi", {
         "righe_saldi": righe,
-        "dipendenti": [{"id": aid, "nominativo": d["nominativo"]} for aid, d in
-                       sorted(attivi.items(), key=lambda x: x[1]["nominativo"].casefold())],
         "n_con_saldo": len(saldi),
+        "n_senza_saldo": len(attivi) - len(saldi),
         "n_negativi": sum(1 for r in righe if r["negativo"]),
         "n_elevate": sum(1 for r in righe if r["elevate"]),
+        "ultimo_cedolino": date_saldi[0] if date_saldi else None,
         "giornate_ferie_elevate": GIORNATE_FERIE_ELEVATE,
         "ore_giornata": imp.ore_giornata,
-        "oggi_iso": timezone.localdate().isoformat(),
     })
-
-
-@login_required
-def hr_saldi_modello(request):
-    """Modello Excel per l'import dei saldi, già compilato con i dipendenti attivi."""
-    if not _puo_gestire(request):
-        return _vietato(request)
-    from openpyxl import Workbook
-    from openpyxl.styles import Font
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Saldi"
-    ws.append(["Dipendente", "Ferie (ore)", "Permessi (ore)", "Situazione al"])
-    for cella in ws[1]:
-        cella.font = Font(bold=True)
-    saldi = {s.legacy_anagrafica_id: s for s in SaldoAssenze.objects.all()}
-    for aid, d in sorted(calcoli.dipendenti_attivi().items(), key=lambda x: x[1]["nominativo"].casefold()):
-        s = saldi.get(aid)
-        ws.append([d["nominativo"], float(s.ferie_ore) if s else None, float(s.permessi_ore) if s else None,
-                   s.situazione_al if s else None])
-    ws.column_dimensions["A"].width = 34
-    for col in "BCD":
-        ws.column_dimensions[col].width = 16
-    buf = io.BytesIO()
-    wb.save(buf)
-    _helpers.log_action(request, "export_xlsx", "assenze", {"report": "modello_saldi"})
-    resp = HttpResponse(buf.getvalue(),
-                        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    resp["Content-Disposition"] = 'attachment; filename="saldi_ferie_permessi.xlsx"'
-    return resp
 
 
 # ─── Calendario aziendale e impostazioni ─────────────────────────────────────
