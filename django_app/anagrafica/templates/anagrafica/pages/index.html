@@ -5,8 +5,8 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=1">
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
+<link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=13">
 <style>
 /* Hero: tre numeri affiancati sugli schermi larghi (la griglia base ne prevede due). */
 @media (min-width: 1100px) { .hr-hero-stats { grid-template-columns:repeat(3,minmax(150px,1fr)); } }
@@ -225,6 +225,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
       {% empty %}
       <div class="hrg-vuoto">Nessun requisito configurato per mansioni, ruoli o processi.</div>
       {% endfor %}
+      {% if cruscotto_coperture and not cruscotto.copertura_totale.totale %}<div class="hrg-vuoto">Nessun obbligo da valutare: le mansioni di rischio non hanno ancora requisiti di formazione, visite o DPI.</div>{% endif %}
     </div>
   </div>
 
@@ -235,6 +236,8 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
       <span class="ana-widget-label">In evidenza</span>
       <button class="ana-widget-hide" data-wid="evidenza" title="Nascondi">✕</button>
     </div>
+    {# Con tutti e cinque i riquadri vuoti si mostra una riga sola invece di cinque «nessuno». #}
+    {% if cruscotto.righe_formazione or cruscotto.righe_visite or cruscotto.righe_stato_operativo or cruscotto.righe_cambi or cruscotto.righe_qualifiche or cruscotto.assunti_30 or cruscotto.cessati_30 or cruscotto.programmati or cruscotto.n_non_idonei_operare %}
     <div class="hrg-dash-grid">
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">
@@ -290,6 +293,12 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         </ul>
       </section>
     </div>
+    {% else %}
+    <section class="hr-card hrg-box hrg-tutto-ok">
+      <span>✅ <b>Niente da sistemare</b>: formazione{% if cruscotto.visite %}, visite{% endif %} e qualifiche in regola per i prossimi 60 giorni, nessun cambio mansione aperto, nessun movimento di personale negli ultimi 30 giorni.</span>
+      <a class="hrg-box-link" href="{% url 'anagrafica:scadenzario' %}">Scadenzario →</a>
+    </section>
+    {% endif %}
   </div>
   {% endif %}
 

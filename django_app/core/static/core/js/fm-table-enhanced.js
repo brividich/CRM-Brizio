@@ -162,7 +162,9 @@
 
   function bodyRows(table) {
     return table.tBodies && table.tBodies[0]
-      ? $$("tr", table.tBodies[0]).filter(tr => !isDetailRow(tr))
+      // Solo le righe dirette del tbody: una tabella annidata dentro una
+      // riga di dettaglio non deve finire nel conteggio né nei filtri.
+      ? Array.from(table.tBodies[0].rows).filter(tr => !isDetailRow(tr))
       : [];
   }
 
@@ -2196,7 +2198,7 @@
       const countSpan = document.createElement("span");
       countSpan.className = "fm-tbl-count";
       countSpan.title = "Righe che passano ricerca e filtri / righe totali";
-      countSpan.textContent = String($$("tr", table.tBodies[0]).length);
+      countSpan.textContent = String(bodyRows(table).length);
       table._fmTblCountEl = countSpan;
       bar.appendChild(countSpan);
     }

@@ -329,6 +329,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
       <div class="fm-empty">Nessun programma: il fascicolo lo segnalerà come mancante. Dichiaralo sul corso e riprendilo qui.</div>
       {% endif %}
       {% if is_editor %}
+      <details class="fm-agg"><summary>+ Integra un argomento</summary>
       <form method="post" action="{% url 'anagrafica:formazione_sessione_argomento_add' sessione.pk %}" class="fm-inline-form">
         {% csrf_token %}
         <div class="fm-f" style="flex:2;min-width:200px;">
@@ -345,6 +346,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         </div>
         <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Integra</button>
       </form>
+      </details>
       {% endif %}
     </div>
 
