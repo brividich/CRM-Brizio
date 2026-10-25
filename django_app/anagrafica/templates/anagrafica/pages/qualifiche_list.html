@@ -14,7 +14,8 @@
 .ql-btn-primary:hover { filter:brightness(1.05); }
 .ql-btn-ghost { background:#fff; color:#334155; border:1px solid #e2e8f0; }
 .ql-btn-ghost:hover { background:#f8fafc; }
-.ql-btn-danger { background:#fff5f5; color:#c53030; border:1px solid #f6cccc; }
+.ql-btn-danger { background:transparent; color:#64748b; border:1px solid transparent; }
+.ql-btn-danger:hover { background:#fff5f5; color:#c53030; border-color:#f6cccc; }
 .ql-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
 /* Campi form (create + modale modifica) = primitiva canonica .hub-field del form-kit. */
 .ql-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
@@ -43,7 +44,8 @@ body.theme-dark .ql-modal { background:var(--surface); }
 body.theme-dark .ql-modal-title { color:var(--text); }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .ql-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .ql-btn-danger{background:transparent;color:var(--text-light)}
+body.theme-dark .ql-btn-danger:hover{background:rgba(229,62,62,.16);color:#fca5a5}
 body.theme-dark .ql-scad-hd{color:#fdba74}
 body.theme-dark .ql-scad-date-red{color:#fca5a5}
 body.theme-dark .ql-scad-date-orange{color:#fdba74}
@@ -72,6 +74,7 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/partials/_export_buttons.html" with export_key="qualifiche" %}
         <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Sessioni di rinnovo</a>
+        {% if is_admin and not solo_processi %}<a href="#nuovo-tipo" class="fmd-btn fmd-btn-primary" data-apri-nuovo><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo</a>{% endif %}
       </div>
     </div>
 
@@ -134,7 +137,7 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
           <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>{{ cat_label }} <span class="fmd-count">{{ items|length }}</span></div>
         </div>
         <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
-          <table class="fmd-table" data-table-id="anagrafica.qualifiche.catalogo">
+          <table class="fmd-table" data-table-id="anagrafica.qualifiche.catalogo" data-fm-hide-controls="1">
             <thead>
               <tr>
                 <th data-col="nome" data-col-label="Nome qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome qualifica</th>
@@ -216,8 +219,9 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
 
     {# ── Form nuovo tipo + suggeriti (logica/markup invariati) ──────────── #}
     {% if is_admin %}
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo di qualifica</div></div>
+    <section class="fmd-panel fmd-block" id="nuovo-tipo">
+      <details class="fmd-nuovo"{% if not tipi %} open{% endif %}>
+      <summary class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo di qualifica</div></summary>
       <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}">
         {% csrf_token %}
         <div class="hub-form-stack">
@@ -250,6 +254,7 @@ body.theme-dark .ql-scad-date-orange{color:#fdba74}
         </div>
         <div style="margin-top:14px;"><button type="submit" class="fmd-btn fmd-btn-primary">Crea tipo qualifica</button></div>
       </form>
+      </details>
     </section>
 
     {% if not tipi %}
@@ -328,4 +333,13 @@ function closeEdit() { document.getElementById('ql-modal').classList.remove('ope
 document.getElementById('ql-modal').addEventListener('click', function(e) { if (e.target === this) closeEdit(); });
 </script>
 {% endif %}
+<script>
+/* «+ Nuovo …» in testata: apre la sezione richiudibile e ci porta. */
+document.querySelectorAll('[data-apri-nuovo]').forEach(function (a) {
+  a.addEventListener('click', function () {
+    var d = document.querySelector(a.getAttribute('href') + ' details.fmd-nuovo');
+    if (d) d.open = true;
+  });
+});
+</script>
 {% endblock %}

@@ -709,3 +709,14 @@ body.theme-dark .fmd-c-mai{color:var(--text-light)}
   .fmd-hero .fmd-sub{ display:none; }
   .fmd-hero h1{ font-size:21px; }
 }
+
+/* ── Sezione «+ Nuovo …» richiudibile (cataloghi anagrafica, 25/10/2026) ───
+   <details class="fmd-nuovo"><summary class="fmd-block-head">…</summary>form</details>
+   chiusa è una riga sola; il link «+ Nuovo» della testata la apre (data-apri-nuovo). */
+details.fmd-nuovo > summary{ list-style:none; cursor:pointer; margin-bottom:0; }
+details.fmd-nuovo > summary::-webkit-details-marker{ display:none; }
+details.fmd-nuovo[open] > summary{ margin-bottom:12px; }
+details.fmd-nuovo > summary .fmd-block-title{ color:var(--fmd-cyan); }
+details.fmd-nuovo > summary:hover .fmd-block-title{ text-decoration:underline; }
+details.fmd-nuovo > summary::after{ content:"apri"; margin-left:auto; font-size:12px; font-weight:600; color:var(--fmd-muted-2,#94a3b8); }
+details.fmd-nuovo[open] > summary::after{ content:"chiudi"; }

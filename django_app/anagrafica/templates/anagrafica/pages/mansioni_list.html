@@ -50,6 +50,7 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
         <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Safety</div>
         <h1><svg class="fmd-ico fmd-cap"><use href="#i-alert-tri"/></svg>Mansioni di rischio</h1>
         <p class="fmd-sub">Gruppi omogenei del DVR e del medico competente: DPI, protocollo sanitario, schede di sicurezza e livello ASR di ogni mansione di rischio. La mansione lavorativa (macchina o processo) arriverà con il Mansionario.</p>
+        {% if is_admin %}<div class="fmd-hero-actions"><a class="fmd-btn-template" href="#nuova-mansione" data-apri-nuovo><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione di rischio</a></div>{% endif %}
       </div>
       <div class="fmd-hero-side">
         <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_visibili }}</span><span class="fmd-lbl">Mansioni di rischio</span></div>
@@ -145,8 +146,9 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
 
   {# ── Form nuova mansione (logica invariata) ─────────────────────────── #}
   {% if is_admin %}
-  <section class="fmd-panel fmd-block">
-    <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione di rischio</div></div>
+  <section class="fmd-panel fmd-block" id="nuova-mansione">
+    <details class="fmd-nuovo"{% if not n_visibili %} open{% endif %}>
+    <summary class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione di rischio</div></summary>
     <form method="post" action="{% url 'anagrafica:mansione_create' %}">
       {% csrf_token %}
       <div class="hub-form-stack">
@@ -174,6 +176,7 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
         <span class="fmd-muted" style="font-size:12px;">DPI e visite mediche richieste si associano dal pulsante <strong>Requisiti</strong> della mansione.</span>
       </div>
     </form>
+    </details>
   </section>
 
   {% endif %}
@@ -259,4 +262,13 @@ document.getElementById('mn-modal').addEventListener('click', function(e){ if (e
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeEdit(); });
 </script>
 {% endif %}
+<script>
+/* «+ Nuova …» in testata: apre la sezione richiudibile e ci porta. */
+document.querySelectorAll('[data-apri-nuovo]').forEach(function (a) {
+  a.addEventListener('click', function () {
+    var d = document.querySelector(a.getAttribute('href') + ' details.fmd-nuovo');
+    if (d) d.open = true;
+  });
+});
+</script>
 {% endblock %}

@@ -218,6 +218,11 @@ GUIDA = {
                       "pilastro»): apre il form subito sotto, che si richiude con lo stesso bottone; se la sezione è vuota il "
                       "form è già aperto. «Modifica» apre una finestra (Esc o «Annulla» la chiudono senza salvare). Qualifiche, "
                       "ruoli e cartelle documenti già in uso non si eliminano: si disattivano e lo storico resta."),
+                ("p", "Le pagine dei cataloghi seguono lo stesso schema: in «Qualifiche / Abilitazioni» il bottone «+ Nuovo "
+                      "tipo» in alto apre il form «Nuovo tipo di qualifica» in fondo alla pagina (chiuso finché non serve, "
+                      "aperto se il catalogo è vuoto); in «Mansioni di rischio» lo stesso fa «+ Nuova mansione di rischio» "
+                      "nella testata. In «Aree & Reparti» Modifica ed Elimina stanno sulla stessa riga; «Elimina» diventa "
+                      "rosso solo al passaggio del mouse e chiede sempre conferma."),
                 ("p", "In «Visite mediche» la barra «Seleziona tutti» mostra i campi della modifica in blocco solo dopo aver "
                       "spuntato almeno un tipo. In «Ruoli» il form «+ Nuovo ruolo» e gli «Ambiti dei ruoli» sono richiudibili, e "
                       "ogni ruolo aggiunge una qualifica da «+ Aggiungi qualifica». In «Permessi» ogni sezione riservata ha una "
