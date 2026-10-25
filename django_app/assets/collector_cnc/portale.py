@@ -13,7 +13,7 @@ GET /api/assets/contatori/ingest/config/ all'avvio e ogni AGGIORNA_ELENCO second
 
 Configurazione solo da variabili d'ambiente (mai nel codice):
   PORTALE_URL    es. https://portale.dominio.local   (senza / finale)
-  PORTALE_TOKEN  token del collector (manage.py meter_ingest_client "<nome>" --asset TAG ...)
+  PORTALE_TOKEN  token del collector (Asset › Configurazione › Macchine collegate › Collector)
   PORTALE_CA     facoltativo: certificato della CA interna (file .pem) se HTTPS non e' pubblico
 Senza PORTALE_URL o PORTALE_TOKEN il collector lavora come prima, senza inviare nulla.
 
@@ -39,11 +39,18 @@ BATTITO = 60             # s - invio di tutte le macchine anche senza cambi
 OGNI_CONTATORI = 3600    # s - invio dei contatori
 TIMEOUT = 15             # s
 RIPROVA = 60             # s - attesa dopo un invio non riuscito
+# Unita' delle ore lette dalla CNC scelta nel portale ("hours_unit"); vuota = quella del modello dati.
+UNITA_ORE = {"h": 1.0, "min": 1 / 60, "s": 1 / 3600}
 
 
 def iso_utc(d):
     """datetime naive in UTC (come nel collector) -> ISO 8601 con fuso."""
     return d.replace(tzinfo=dt.timezone.utc).isoformat() if d else None
+
+
+def fattore_ore(m):
+    """Moltiplicatore valore letto -> ore: l'unita' scelta nel portale vince su quella del modello dati."""
+    return UNITA_ORE.get(getattr(m, "hours_unit", "") or "") or (m.spec or {}).get("hours_factor")
 
 
 class Portale:
@@ -127,6 +134,10 @@ class Portale:
             "esecuzione": spec.get("exec_map", {}).get(m.values.get("exec"), "") if online else "",
             "pezzi": m.values.get("cnt_part_counter") if online else None,
             "allarmi": allarmi,
+            # per il portale: valore delle ore come lo da' la CNC (da confrontare col display), matricola e modello
+            "ore_lette": m.values.get("cnt_operation_time") if online else None,
+            "matricola": getattr(m, "found_serial", "") or "",
+            "modello": getattr(m, "data_model", "") or "",
         }
 
     @staticmethod
@@ -135,7 +146,7 @@ class Portale:
             return []
         read_at, out = iso_utc(m.counters_at), []
         ore = m.values.get("cnt_operation_time")
-        fattore = (m.spec or {}).get("hours_factor")
+        fattore = fattore_ore(m)
         if ore is not None and fattore:
             out.append({"asset_tag": m.asset_tag, "meter_type": "HOURS", "value": round(float(ore) * fattore, 2), "read_at": read_at})
         pezzi = m.values.get("cnt_parts_overall")

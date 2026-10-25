@@ -381,6 +381,15 @@ def applica_stato_collector(coll, dati: dict, quando, ora=None) -> None:
     coll.allarmi = _allarmi_collector(dati.get("allarmi"))
     pezzi = _numero(dati.get("pezzi")) if dati.get("pezzi") is not None else None
     coll.pezzi_grezzo = pezzi.quantize(Decimal("0.01")) if pezzi is not None else None
+    # Collector recenti: il valore delle ore come lo dà la CNC, la matricola del server e il modello dati.
+    ore = _numero(dati.get("ore_lette")) if dati.get("ore_lette") is not None else None
+    if ore is not None and ore < Decimal("1e12"):
+        coll.ore_grezzo = ore.quantize(Decimal("0.01"))
+    matricola = str(dati.get("matricola") or "").strip()[:60]
+    if matricola:
+        coll.matricola_opcua = matricola
+    if dati.get("modello") in ("umati", "bds"):
+        coll.modello_dati = dati["modello"]
     if coll.pk is None:
         coll.save()  # primo invio: il periodo di stato ha bisogno del collegamento salvato
     _cambia_stato(coll, STATI_COLLECTOR[dati["stato"]], min(quando, ora))
@@ -426,12 +435,15 @@ def _durata(intervallo: timedelta) -> str:
 def per_scheda(asset_id: int, ora=None) -> dict | None:
     """Riquadro «Dal controllo della macchina» nella scheda dell'asset: lo stesso stato della mappa
     officina più gli ultimi cambi di stato. None se l'asset non ha un collegamento attivo."""
-    from assets.models import PeriodoStatoMacchina
+    from assets.models import CollegamentoMTConnect, PeriodoStatoMacchina
+
+    from .collector_cnc import avviso_ore
 
     ora = ora or timezone.now()
     dati = per_mappa([asset_id], ora).get(asset_id)
     if dati is None:
         return None
+    coll = CollegamentoMTConnect.objects.filter(asset_id=asset_id, attivo=True).first()
     periodi = []
     for p in PeriodoStatoMacchina.objects.filter(collegamento__asset_id=asset_id, collegamento__attivo=True)[:10]:
         periodi.append({
@@ -441,7 +453,8 @@ def per_scheda(asset_id: int, ora=None) -> dict | None:
             "al": timezone.localtime(p.al).strftime("%d/%m %H:%M") if p.al else "",
             "durata": _durata((p.al or ora) - p.dal),
         })
-    return {**dati, "badge": BADGE_STATO.get(dati["stato"], "muted"), "periodi": periodi}
+    return {**dati, "badge": BADGE_STATO.get(dati["stato"], "muted"), "periodi": periodi,
+            "avviso_ore": avviso_ore(coll) if coll else None}
 
 
 def per_mappa(asset_ids, ora=None) -> dict[int, dict]:
