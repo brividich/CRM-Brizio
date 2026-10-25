@@ -24,6 +24,9 @@ amministra l'anagrafica (contesto_scheda restituisce None agli altri); le view l
 .dp-acc .dc-acc-confirm { font-size:12.5px; color:#92400e; margin-top:12px; }
 .dp-acc [hidden] { display:none !important; }
 .dp-acc-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+.dp-acc-collega > summary { list-style:none; display:inline-flex; }
+.dp-acc-collega > summary::-webkit-details-marker { display:none; }
+.dp-acc-collega[open] > summary { margin-bottom:6px; }
 body.theme-dark .dp-acc .dc-area-title { color:var(--text-light); border-color:var(--border); }
 body.theme-dark .dp-acc .dc-acc-item { border-color:var(--border); }
 body.theme-dark .dp-acc .dc-acc-pick, body.theme-dark .dp-acc .dc-acc-choices, body.theme-dark .dp-acc .dc-acc-sel { color:var(--text); }
@@ -60,7 +63,10 @@ body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15);
     {% elif not dati.attivo %}
       <p class="dc-acc-note">Nessun account portale collegato. Il dipendente non è attivo: riattivalo per collegare un account.</p>
     {% else %}
-      <p class="dc-acc-note">Nessun account portale collegato. Il portale cerca un utente già esistente con la stessa email o lo
+      <p class="dc-acc-note">Nessun account portale collegato.</p>
+      <details class="dp-acc-collega" id="dp-acc-collega-box">
+      <summary class="dp-btn dp-btn-primary dp-btn-sm">Collega un account…</summary>
+      <p class="dc-acc-note">Il portale cerca un utente già esistente con la stessa email o lo
         stesso codice fiscale della scheda e, in sola lettura, l'account in Active Directory. Il portale non crea né modifica account in AD.</p>
       <form method="post" action="{% url 'anagrafica:dipendente_account_portale' legacy_id %}" id="dp-acc-form">
         {% csrf_token %}
@@ -116,6 +122,7 @@ body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15);
           <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Collega account</button>
         </div>
       </form>
+      </details>
     {% endif %}
   </div>
 </div>
@@ -129,6 +136,9 @@ body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15);
   }
   const form = document.getElementById('dp-acc-form');
   if (!form) return;
+  // Ritorno da un collegamento non riuscito (#account-portale): il riquadro si riapre.
+  const box = document.getElementById('dp-acc-collega-box');
+  if (box && location.hash === '#account-portale') box.open = true;
   const btn = document.getElementById('dp-acc-cerca');
   const esito = document.getElementById('dp-acc-esito');
   const upn = document.getElementById('dp-acc-upn');

@@ -256,7 +256,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
 
           {# ── Form inline registrazione/modifica presenza ─────────────────── #}
           {% if is_editor %}
-          <tr id="form-row-{{ riga.enrollment.pk }}" class="fm-form-row" style="display:none;">
+          <tr id="form-row-{{ riga.enrollment.pk }}" class="fm-form-row" data-fm-detail-row="1" style="display:none;">
             <td colspan="7">
               <div class="fm-form-panel">
                 <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;

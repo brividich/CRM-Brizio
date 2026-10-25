@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=11">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
 <style>
 /* ── Chips filtro scadenze ───────────────────────────────── */
 .vm-chip { padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none;
@@ -129,10 +129,6 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
           <a class="fmd-btn-template" href="{% url 'anagrafica:visite_mediche_sessioni' %}">📋 Sessioni &amp; proposte</a>
         </div>
         {% endif %}
-      </div>
-      <div class="fmd-hero-side">
-        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi_scadute }}</span><span class="fmd-lbl">Scadute</span></div>
-        <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi_totali }}</span><span class="fmd-lbl">Registrate</span></div>
       </div>
     </div>
   </section>
@@ -293,7 +289,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
               </td>
             </tr>
             {# ── Pannello dettaglio (hidden by default) ── #}
-            <tr class="tipo-detail-row" id="tipo-detail-{{ row.tipo.pk }}" style="display:none;">
+            <tr class="tipo-detail-row" id="tipo-detail-{{ row.tipo.pk }}" data-fm-detail-row="1" style="display:none;">
               <td colspan="6">
                 <div class="tipo-detail-inner">
                   <div class="tipo-detail-heading">

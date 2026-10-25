@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=12">
 <style>
 .gpa-sec{ padding:20px 22px; scroll-margin-top:80px; }
 .gpa-sec h2{ font-size:17px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
@@ -194,7 +194,7 @@
       <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Account portale di un dipendente già inserito</h2>
       <p>Nella scheda del dipendente, tab <strong>🪪 Anagrafica</strong>, riquadro <strong>Account portale</strong>.</p>
       <ul>
-        <li><strong>Scheda senza account</strong>: la ricerca parte con email, nome, cognome e codice fiscale della scheda. Premi <strong>Cerca utenti portale e account AD</strong>, scegli come nel nuovo inserimento e premi <strong>Collega account</strong>.</li>
+        <li><strong>Scheda senza account</strong>: premi <strong>Collega un account…</strong>; la ricerca parte con email, nome, cognome e codice fiscale della scheda. Premi <strong>Cerca utenti portale e account AD</strong>, scegli come nel nuovo inserimento e premi <strong>Collega account</strong>.</li>
         <li><strong>Scheda con account</strong>: vedi login, tipo (AD o locale) e stato. <strong>Scollega</strong> toglie solo il collegamento (chiede conferma): l'utente portale non viene cancellato.</li>
       </ul>
       <p>Ogni collegamento e scollegamento resta nel registro attività.</p>

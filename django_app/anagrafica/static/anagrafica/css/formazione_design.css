@@ -686,3 +686,37 @@ body.theme-dark .fmd-c-ko{color:#fca5a5}
 body.theme-dark .fmd-c-s30{color:#fdba74}
 body.theme-dark .fmd-c-s90{color:#fcd34d}
 body.theme-dark .fmd-c-mai{color:var(--text-light)}
+
+/* ── Testata e numeri compatti (alleggerimento anagrafica, 25/10/2026) ──────
+   La testata scura era alta 200-270px e l'occhiello ripeteva il menu: ora
+   titolo, frase e azioni in poco spazio; il contenuto sale sopra la piega.
+   Le tessere numeriche restano le stesse, solo più basse. */
+.fmd-hero{ padding:16px 24px 15px; margin-bottom:14px; }
+.fmd-hero-eyebrow{ display:none; }
+.fmd-hero h1{ margin:0 0 4px; font-size:24px; }
+.fmd-hero h1 .fmd-cap{ font-size:24px; }
+.fmd-hero .fmd-sub{ font-size:13px; max-width:760px; }
+.fmd-hero-actions{ margin-top:11px; gap:8px; }
+.fmd-hero-tile{ padding:10px 14px 9px; min-width:118px; }
+.fmd-hero-tile .fmd-bignum{ font-size:24px; }
+.fmd-hero-tile .fmd-lbl{ margin-top:4px; }
+.fmd-mtr{ padding:11px 13px 10px; }
+.fmd-mtr-top{ margin-bottom:8px; }
+.fmd-mtr-ic{ width:30px; height:30px; font-size:15px; border-radius:8px; }
+.fmd-mtr-val{ font-size:23px; }
+@media (max-width:720px){
+  .fmd-hero{ padding:14px 16px 13px; }
+  .fmd-hero .fmd-sub{ display:none; }
+  .fmd-hero h1{ font-size:21px; }
+}
+
+/* ── Sezione «+ Nuovo …» richiudibile (cataloghi anagrafica, 25/10/2026) ───
+   <details class="fmd-nuovo"><summary class="fmd-block-head">…</summary>form</details>
+   chiusa è una riga sola; il link «+ Nuovo» della testata la apre (data-apri-nuovo). */
+details.fmd-nuovo > summary{ list-style:none; cursor:pointer; margin-bottom:0; }
+details.fmd-nuovo > summary::-webkit-details-marker{ display:none; }
+details.fmd-nuovo[open] > summary{ margin-bottom:12px; }
+details.fmd-nuovo > summary .fmd-block-title{ color:var(--fmd-cyan); }
+details.fmd-nuovo > summary:hover .fmd-block-title{ text-decoration:underline; }
+details.fmd-nuovo > summary::after{ content:"apri"; margin-left:auto; font-size:12px; font-weight:600; color:var(--fmd-muted-2,#94a3b8); }
+details.fmd-nuovo[open] > summary::after{ content:"chiudi"; }
