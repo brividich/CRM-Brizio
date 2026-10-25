@@ -51,12 +51,18 @@ GUIDA = {
                 ]),
                 ("p", "Dal telefono:"),
                 ("ul", [
-                    "Il pulsante con le tre linee in alto a sinistra apre i moduli. In cima c'è «Cerca nel menu»: "
+                    "In fondo allo schermo c'è una barra con quattro pulsanti: «Home», «Cerca» (cerca una pagina, "
+                    "una persona, un asset…), «Notifiche» (con il numero di quelle non lette) e «Menu».",
+                    "«Menu» apre i moduli. In cima c'è «Cerca nel menu»: "
                     "scrivi parte del nome e restano solo le voci che corrispondono. L'area del modulo in cui sei è già aperta.",
                     "Il menu del modulo è un pulsante sotto la barra: mostra dove sei (es. «Anagrafica · Dashboard»). "
                     "Toccandolo si apre dal basso l'elenco di tutte le voci del modulo, divise per gruppo; "
                     "con più di 8 voci c'è anche «Filtra le voci».",
                     "Il pannello si chiude con la X, toccando fuori o trascinandolo verso il basso.",
+                    "Le schede dentro una pagina (per esempio quelle della scheda dipendente o della scheda asset) "
+                    "funzionano allo stesso modo: un pulsante con la scheda aperta, che mostra l'elenco delle altre.",
+                    "Le tabelle troppo larghe per lo schermo mostrano ogni riga come un riquadro: in alto il nome, "
+                    "sotto gli altri dati con il titolo della colonna. I campi vuoti non compaiono.",
                 ]),
             ],
         },

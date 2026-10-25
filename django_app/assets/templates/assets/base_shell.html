@@ -300,7 +300,15 @@ body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38
   .as-form-grid-3, .as-form-grid-4, .as-form-grid-5 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 @media (max-width: 760px) {
-  .as-top { flex-direction: column; align-items: stretch; }
+  /* Telefono: ricerca, avvisi e «Nuovo» su una riga sola; «Nuovo» diventa un «+» quadrato
+     (il testo resta per i lettori di schermo e come suggerimento). */
+  .as-top { gap: 6px; }
+  .as-search-form { min-width: 0; }
+  .as-search { height: 44px; padding: 0 10px; }
+  .as-search input { font-size: 16px; }
+  .as-tool { width: 44px; height: 44px; flex: 0 0 44px; }
+  .as-new { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0; overflow: hidden; }
+  .as-new::before { content: "+"; font-size: 26px; font-weight: 700; line-height: 1; }
   .as-page-head { flex-wrap: wrap; align-items:flex-start; padding:14px 14px 14px 20px; }
   .as-page-head-actions { width: 100%; }
   .as-section-main { align-items: stretch; flex-direction: column; }
@@ -471,7 +479,7 @@ body.theme-dark details.as-collapse > summary:hover::after{color:#93c5fd}
         <div class="as-search-pop" id="as-search-pop" role="listbox" hidden></div>
       </form>
       <a class="as-tool" href="{% url 'assets:wo_list' %}" title="Avvisi">&#128276;</a>
-      {% if not assets_shell_hide_new %}<a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>{% endif %}
+      {% if not assets_shell_hide_new %}<a class="as-new" href="{{ assets_shell_new_url|default:'' }}" title="{{ assets_shell_new_label|default:'+ Nuovo asset' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>{% endif %}
     </header>
 
     {% comment %}Pagine con una testata "di oggetto" (es. la singola verifica periodica): la barra del modulo sta sopra, la testata sotto.{% endcomment %}

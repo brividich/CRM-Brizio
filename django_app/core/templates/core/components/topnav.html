@@ -172,6 +172,31 @@
   </div>
 </nav>
 
+{% if user.is_authenticated %}
+{% comment %}Smartphone (≤720px): barra in basso, a portata di pollice. Cerca e Notifiche usano gli stessi
+   comandi della barra in alto ([data-gs-open], [data-notification-toggle]); Menu apre il pannello
+   dell'hamburger. Stili e logica in core/css|js/mobile-nav.*; sopra i 720px non si vede.{% endcomment %}
+<nav class="mbar" aria-label="Comandi rapidi">
+  <a class="mbar-item{% if request.resolver_match.url_name == 'dashboard_home' %} is-active{% endif %}" href="{% url 'dashboard_home' %}"{% if request.resolver_match.url_name == 'dashboard_home' %} aria-current="page"{% endif %}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+    <span>Home</span>
+  </a>
+  <button type="button" class="mbar-item" data-gs-open aria-label="Cerca o vai a una pagina">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <span>Cerca</span>
+  </button>
+  <button type="button" class="mbar-item" data-notification-toggle data-notification-badge-host aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    <span>Notifiche</span>
+    {% if notifiche_count %}<span class="nav-icon-badge" aria-hidden="true" data-notification-badge>{{ notifiche_count }}</span>{% endif %}
+  </button>
+  <button type="button" class="mbar-item" data-mbar-menu aria-controls="nav-links-panel" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <span>Menu</span>
+  </button>
+</nav>
+{% endif %}
+
 <script>
 (function(){
   var nav = document.getElementById('topnav');
@@ -251,7 +276,7 @@
 
   document.addEventListener('click', function(e){
     if (!e.target.closest('.nav-dropdown, .nav-user-menu, .nav-menu-filter')) closeAll(null);
-    if (!e.target.closest('#topnav') && panel.classList.contains('open')) setPanel(false);
+    if (!e.target.closest('#topnav, [data-mbar-menu]') && panel.classList.contains('open')) setPanel(false);
   });
 
   /* ── Hamburger (≤1100px) ──────────────────────────────────────────── */
@@ -260,6 +285,10 @@
     btn.classList.toggle('open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     btn.setAttribute('aria-label', open ? 'Chiudi menu' : 'Apri menu');
+    if (mbarMenu) {
+      mbarMenu.setAttribute('aria-expanded', open ? 'true' : 'false');
+      mbarMenu.classList.toggle('is-active', open);
+    }
     /* Sotto il menu aperto la pagina non scorre (sul telefono scorreva insieme). */
     document.documentElement.classList.toggle('nav-panel-lock', open && mqMobile.matches);
     if (open && mqMobile.matches) {
@@ -314,6 +343,12 @@
     });
   }
   btn.addEventListener('click', function(){ setPanel(!panel.classList.contains('open')); });
+  /* «Menu» della barra in basso (telefono): stesso pannello dell'hamburger. */
+  var mbarMenu = document.querySelector('[data-mbar-menu]');
+  if (mbarMenu) mbarMenu.addEventListener('click', function(){
+    setPanel(!panel.classList.contains('open'));
+    if (panel.classList.contains('open')) panel.scrollTop = 0;
+  });
   panel.addEventListener('click', function(e){ if (e.target.closest('a')) setPanel(false); });
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape' && panel.classList.contains('open')) { setPanel(false); btn.focus(); }
