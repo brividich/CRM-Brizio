@@ -53,7 +53,7 @@ class RisultatoReport:
 
 
 #: Aree del catalogo, nell'ordine in cui compaiono.
-AREE = ("Inventario", "IT e rete", "Manutenzione e scadenze", "Qualità e PART 145", "Stampanti e contatori")
+AREE = ("Inventario", "IT e rete", "Manutenzione e scadenze", "Officina", "Qualità e PART 145", "Stampanti e contatori")
 
 
 @dataclass
@@ -571,6 +571,149 @@ def _sintesi_costi(righe):
     return riepilogo, _barre("Costo totale", [(r[0], r[9]) for r in righe], euro=True)
 
 
+# ── Officina: utilizzo delle CNC dai periodi di stato ─────────────────────────
+
+RAGGRUPPA_UTILIZZO = [("macchina", "Macchina"), ("giorno", "Macchina e giorno"), ("settimana", "Macchina e settimana"),
+                      ("mese", "Macchina e mese")]
+#: Colonne delle ore, nell'ordine, e gli stati del collegamento che finiscono in ognuna.
+COLONNE_UTILIZZO = (
+    ("In lavoro h", ("in_lavoro",)),
+    ("MDI/manuale h", ("setup",)),
+    ("Ferma h", ("pronta",)),
+    ("Interrotta h", ("ferma",)),
+    ("Allarme/emergenza h", ("allarme", "emergenza")),
+    ("Offline h", ("spenta", "non_raggiungibile", "mai")),
+)
+
+
+def _secchi(inizio, fine, raggruppa):
+    """Intervalli [(chiave, da, a)] in ora locale che coprono [inizio, fine)."""
+    from .storico_asset import inizio_giorno
+
+    if raggruppa not in ("giorno", "settimana", "mese"):
+        return [("", inizio, fine)]
+    giorno = timezone.localtime(inizio).date()
+    if raggruppa == "settimana":
+        giorno -= timedelta(days=giorno.weekday())
+    elif raggruppa == "mese":
+        giorno = giorno.replace(day=1)
+    out = []
+    while True:
+        da = inizio_giorno(giorno)
+        if da >= fine:
+            break
+        if raggruppa == "giorno":
+            dopo = giorno + timedelta(days=1)
+        elif raggruppa == "settimana":
+            dopo = giorno + timedelta(days=7)
+        else:
+            dopo = (giorno.replace(day=28) + timedelta(days=4)).replace(day=1)
+        out.append((giorno, max(da, inizio), min(inizio_giorno(dopo), fine)))
+        giorno = dopo
+    return out
+
+
+def _etichetta_secchio(chiave, raggruppa, dal, al) -> str:
+    if raggruppa == "giorno":
+        return f"{chiave:%d/%m/%Y}"
+    if raggruppa == "settimana":
+        return f"Settimana {chiave.isocalendar()[1]} (dal {chiave:%d/%m/%Y})"
+    if raggruppa == "mese":
+        return f"{chiave:%m/%Y}"
+    return f"{dal:%d/%m/%Y} – {al:%d/%m/%Y}"
+
+
+def _utilizzo(filtri: dict) -> RisultatoReport:
+    from bisect import bisect_right
+
+    from ..models import CollegamentoMTConnect, PeriodoStatoMacchina
+    from .storico_asset import inizio_giorno
+
+    oggi = timezone.localdate()
+    dal = _d(filtri.get("dal"), oggi - timedelta(days=6))
+    al = _d(filtri.get("al"), oggi)
+    if dal > al:
+        dal, al = al, dal
+    raggruppa = filtri.get("raggruppa") or "macchina"
+    adesso = timezone.now()
+    inizio, fine = inizio_giorno(dal), min(inizio_giorno(al + timedelta(days=1)), adesso)
+    colonna_di = {stato: i for i, (_n, stati) in enumerate(COLONNE_UTILIZZO) for stato in stati}
+
+    collegamenti = CollegamentoMTConnect.objects.select_related("asset").order_by("asset__name", "asset__asset_tag")
+    if filtri.get("reparto"):
+        collegamenti = collegamenti.filter(asset__reparto__icontains=filtri["reparto"])
+    if filtri.get("macchina"):
+        q = filtri["macchina"]
+        collegamenti = collegamenti.filter(Q(asset__name__icontains=q) | Q(asset__asset_tag__icontains=q) | Q(codice__icontains=q))
+    collegamenti = list(collegamenti[:500])
+    secchi = {}  # collegamento -> [(chiave, da, a)]
+    ore = {}     # (collegamento, chiave) -> [secondi per colonna]
+    for coll in collegamenti:
+        da_quando = max(inizio, coll.creato_il) if coll.creato_il else inizio
+        secchi[coll.pk] = _secchi(da_quando, fine, raggruppa) if da_quando < fine else []
+        for chiave, _da, _a in secchi[coll.pk]:
+            ore[(coll.pk, chiave)] = [0.0] * len(COLONNE_UTILIZZO)
+    inizi = {pk: [s[1] for s in elenco] for pk, elenco in secchi.items()}
+    periodi = (PeriodoStatoMacchina.objects.filter(collegamento_id__in=list(secchi), dal__lt=fine)
+               .filter(Q(al__isnull=True) | Q(al__gt=inizio)).values_list("collegamento_id", "stato", "dal", "al"))
+    for coll_id, stato, p_dal, p_al in periodi.iterator():
+        elenco = secchi.get(coll_id) or []
+        colonna = colonna_di.get(stato)
+        if colonna is None or not elenco:
+            continue
+        p_dal, p_al = max(p_dal, inizio), min(p_al or adesso, fine)
+        i = max(bisect_right(inizi[coll_id], p_dal) - 1, 0)
+        while i < len(elenco) and p_dal < p_al:
+            chiave, s_da, s_a = elenco[i]
+            pezzo = (min(p_al, s_a) - max(p_dal, s_da)).total_seconds()
+            if pezzo > 0:
+                ore[(coll_id, chiave)][colonna] += pezzo
+            i += 1
+
+    righe = []
+    for coll in collegamenti:
+        nome = f"{coll.asset.asset_tag} — {coll.asset.name}"
+        for chiave, s_da, s_a in secchi[coll.pk]:
+            secondi = ore[(coll.pk, chiave)]
+            senza_dati = max((s_a - s_da).total_seconds() - sum(secondi), 0)
+            h = [round(s / 3600, 1) for s in (*secondi, senza_dati)]
+            accese = sum(secondi[:5])
+            uso = round(100 * secondi[0] / accese, 1) if accese else 0.0
+            righe.append([nome, _etichetta_secchio(chiave, raggruppa, dal, al), *h, uso])
+        if len(righe) >= MAX_RIGHE:
+            righe = righe[:MAX_RIGHE]
+            break
+    somma = tuple(range(2, 2 + len(COLONNE_UTILIZZO) + 1))
+    totali = ["Totale", "", *[round(sum(r[i] for r in righe), 1) for i in somma]]
+    accese_tot = sum(totali[2:7])
+    totali.append(round(100 * totali[2] / accese_tot, 1) if accese_tot else 0.0)
+    return RisultatoReport(
+        f"Utilizzo delle CNC dal {dal:%d/%m/%Y} al {al:%d/%m/%Y}",
+        ["Macchina", "Periodo", *[n for n, _s in COLONNE_UTILIZZO], "Senza dati h", "Utilizzo %"],
+        righe, totali, somma=somma, troncato=len(righe) >= MAX_RIGHE,
+        note=["Ore per stato dalle macchine collegate (collector OPC UA o agent MTConnect), divise ai confini del periodo. "
+              "«Senza dati»: collector spento o macchina non ancora collegata. «Utilizzo %» = ore in lavoro sulle ore "
+              "con la macchina accesa (escluse Offline e Senza dati)."],
+    )
+
+
+def _uno(valore) -> str:
+    """Una cifra decimale all'italiana (1.234,5; 52 senza «,0»)."""
+    valore = round(float(valore), 1)
+    return _num(int(valore)) if valore.is_integer() else f"{valore:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _sintesi_utilizzo(righe):
+    lavoro = sum(r[2] for r in righe)
+    accese = sum(r[i] for r in righe for i in range(2, 7))
+    per_macchina: dict = defaultdict(float)
+    for r in righe:
+        per_macchina[r[0]] += r[2]
+    riepilogo = [("Ore in lavoro", _uno(lavoro)), ("Utilizzo sulle ore accese", f"{_uno(100 * lavoro / accese)} %" if accese else "—"),
+                 ("Ore in allarme", _uno(sum(r[6] for r in righe))), ("Macchine", _num(len(per_macchina)))]
+    return riepilogo, _barre("Ore in lavoro", [(k, round(v, 1)) for k, v in per_macchina.items()])
+
+
 # ── 8. Qualità dei dati (schede incomplete) ──────────────────────────────────
 
 
@@ -830,6 +973,17 @@ def definizioni() -> "OrderedDict[str, DefinizioneReport]":
             _costi, "Manutenzione e scadenze", _sintesi_costi,
         ),
         DefinizioneReport(
+            "utilizzo-cnc", "Utilizzo delle CNC",
+            "Per ogni macchina collegata (collector OPC UA o agent MTConnect): ore in lavoro, in MDI/manuale, ferma, "
+            "interrotta, in allarme, offline e senza dati nel periodo, e l'utilizzo sulle ore con la macchina accesa. "
+            "Per macchina oppure giorno per giorno, per settimana o per mese.",
+            "CNC-DM6 — Fresa DMC 125 · 31,5 h in lavoro · 2,0 h MDI · 4,0 h ferma · 0,5 h in allarme · utilizzo 83,6%",
+            [Filtro("dal", "Dal", "date"), Filtro("al", "Al", "date"),
+             Filtro("raggruppa", "Raggruppa per", "select", RAGGRUPPA_UTILIZZO),
+             Filtro("macchina", "Macchina contiene"), Filtro("reparto", "Reparto contiene")],
+            _utilizzo, "Officina", _sintesi_utilizzo,
+        ),
+        DefinizioneReport(
             "mfc-pagine-consumabili", "MFC: pagine stampate e consumabili",
             "Per ogni multifunzione: pagine B/N e colore nel periodo dalle letture mensili, consumabile più basso, "
             "giorni stimati all'esaurimento e data dell'ultima lettura.",
@@ -1038,7 +1192,7 @@ def destinatario_ammesso(code: str, utente) -> bool:
 
 #: Report che mostrano dati di altri moduli: serve anche la consultazione di quel modulo.
 ACCESSI_EXTRA = {"mfc-pagine-consumabili": "contatori:consumabili", "licenze-software": "assets:software_license_list",
-                 "costi-manutenzione": "assets:wo_list"}
+                 "costi-manutenzione": "assets:wo_list", "utilizzo-cnc": "assets:mtconnect_collegamenti"}
 
 
 def accesso_extra(code: str, utente) -> bool:

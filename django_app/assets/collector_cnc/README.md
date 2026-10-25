@@ -37,8 +37,11 @@ Il collector gira su un PC della rete d'officina e parla con il portale via HTTP
 ## In entrambe le modalità
 
 - **Macchine**: «Collega una macchina» › *Collector OPC UA* › indirizzo OPC UA (IP), porta (4840), codice breve (es. DM6), utente e password OPC UA solo se la macchina non accetta l'accesso anonimo (password cifrata). «Crea i contatori Ore e Cicli se mancano».
+- **Cerca le macchine in rete** (amministratori): il portale prova la rete indicata (al massimo /24, solo interna) sulla porta OPC UA, legge matricola e modello dati dal namespace DMG MORI (`cerca.py`, sola lettura) e abbina ogni server all'asset: matricola già vista, indirizzo già collegato, numero di serie.
 - Le macchine aggiunte, tolte o cambiate nel portale partono o si fermano entro 5 minuti, senza riavviare il collector.
-- Ore: BasicDataSet `OperationTimeOverall` in secondi (÷ 3600). umati `OperationDuration` letto come ore: **da verificare su una macchina umati** confrontandolo con il pannello (`hours_factor` in `MODELS`).
+- Il collector manda nello stato anche il valore grezzo delle ore (`ore_lette`), la matricola letta dal server (`matricola`) e il modello dati (`modello`): il portale li mostra in Macchine collegate e usa la matricola come `serial` dell'elenco (niente più avvisi «matricola attesa … ma il server riporta …» quando l'asset ha un'altra matricola).
+- Ore: BasicDataSet `OperationTimeOverall` in secondi (÷ 3600). umati `OperationDuration` letto come ore: **da verificare su una macchina umati** confrontandolo con il pannello. Se non torna, l'unità si cambia dal portale («Le ore lette dalla CNC sono in», `hours_unit` nell'elenco): il portale converte le ore dal valore grezzo e ricalcola subito il contatore Ore.
+- Avviso a ore (ogni N ore di lavoro) e report «Utilizzo delle CNC»: tutto nel portale, il collector non cambia.
 
 ## Stati
 
