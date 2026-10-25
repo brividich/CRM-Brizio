@@ -31,6 +31,8 @@ GUIDA = {
                 ]),
                 ("p", "Vedi solo le voci per cui hai il permesso. Le voci con un codice di modulo (es. «Processi "
                       "qualificati» = MOD.128, «Abilitazioni macchina» = MOD.187) lo spiegano al passaggio del mouse."),
+                ("p", "Sul telefono il menu sta su una riga sola che scorre di lato, con la voce aperta già in vista; "
+                      "i menu a tendina si aprono a tutta larghezza sotto la voce."),
             ],
         },
         {
@@ -156,7 +158,10 @@ GUIDA = {
                 ("p", "Ogni sezione si apre con lo stesso schema: in alto i numeri di oggi (quelli cliccabili aprono "
                       "l'elenco già filtrato), poi una scheda per ogni «oggetto» della sezione con una barra colorata, "
                       "in basso l'elenco di lavoro e a destra le altre pagine della sezione. La testata scura è bassa: "
-                      "titolo, una frase e le azioni; i numeri stanno una volta sola, nella riga sotto la ricerca."),
+                      "titolo, una frase e le azioni; i numeri stanno una volta sola, nella riga sotto la ricerca. Quando "
+                      "un riquadro non ha dati lo dice in una riga. Nella Dashboard, se formazione, visite, qualifiche, "
+                      "cambi mansione e movimenti di personale non hanno niente da segnalare, i cinque riquadri «In "
+                      "evidenza» diventano una riga sola «Niente da sistemare»."),
                 ("def", [
                     ("Persone", "prima l'elenco dei dipendenti, subito sotto i numeri; poi una scheda per reparto con l'organico per tipo di contratto (il clic filtra l'elenco)."),
                     ("Ingressi (Cruscotto recruiting)", "una scheda per posizione aperta con i candidati per fase dell'iter; sotto, gli onboarding aperti."),

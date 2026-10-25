@@ -94,3 +94,7 @@ body.theme-dark a.hrg-riga:hover { background: var(--surface-alt, rgba(255,255,2
 body.theme-dark .hrg-riga { color: var(--text); }
 body.theme-dark .hrg-barra { background: rgba(148,163,184,.2); }
 body.theme-dark .hrg-box-link { color: #7dd3fc; }
+
+/* Home: con i cinque riquadri «In evidenza» tutti vuoti, una riga sola (25/10/2026). */
+.hrg-tutto-ok { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--hr-text-mid, #334155); }
+body.theme-dark .hrg-tutto-ok { color: var(--text); }

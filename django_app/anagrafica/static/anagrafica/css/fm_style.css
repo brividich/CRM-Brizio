@@ -339,3 +339,9 @@ body.theme-dark .fm-tbl-status-saving{color:#93c5fd}
 body.theme-dark .fm-th-filter-clear:hover{color:#fca5a5}
 body.theme-dark .hr-pagehead-eyebrow .fm-crumb:hover{color:var(--text)}
 body.theme-dark .fm-modal-x:hover{color:var(--text)}
+
+/* Form di aggiunta usati di rado: chiusi dietro un link «+ …» (25/10/2026). */
+details.fm-agg > summary { list-style:none; cursor:pointer; display:inline-block; margin:8px 0 4px; font-size:12.5px; font-weight:700; color:#1f87cd; }
+details.fm-agg > summary::-webkit-details-marker { display:none; }
+details.fm-agg > summary:hover { text-decoration:underline; }
+body.theme-dark details.fm-agg > summary { color:#60a5fa; }
