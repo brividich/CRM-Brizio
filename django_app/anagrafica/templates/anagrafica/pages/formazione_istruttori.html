@@ -95,7 +95,7 @@
                   Modifica
                 </button>
                 <form method="post" action="{% url 'anagrafica:formazione_azienda_delete' az.pk %}" style="display:inline;"
-                      onsubmit="return confirm('Eliminare l’azienda formativa «{{ az.nome|escapejs }}»? Se ha docenti associati verrà solo disattivata.')">
+                      data-hub-confirm="Eliminare l’azienda formativa «{{ az.nome }}»? Se ha docenti associati verrà solo disattivata.">
                   {% csrf_token %}
                   <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;color:#c53030;">Elimina</button>
                 </form>
@@ -223,7 +223,7 @@
                   Modifica
                 </button>
                 <form method="post" action="{% url 'anagrafica:formazione_istruttore_delete' i.pk %}" style="display:inline;"
-                      onsubmit="return confirm('Eliminare istruttore «{{ i.nome|escapejs }}»?')">
+                      data-hub-confirm="Eliminare istruttore «{{ i.nome }}»?">
                   {% csrf_token %}
                   <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;color:#c53030;">Elimina</button>
                 </form>

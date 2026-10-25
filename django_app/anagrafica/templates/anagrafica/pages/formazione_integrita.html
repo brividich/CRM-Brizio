@@ -45,7 +45,7 @@ body.theme-dark .fint-bassa{ background:rgba(224,242,254,.12); color:#7dd3fc; }
         {% else %}Nessuna anomalia: i dati sono coerenti.{% endif %}
       </p>
       {% if n_correggibili %}
-      <form method="post" onsubmit="return confirm('Applicare le correzioni automatiche? Riguardano solo i controlli marcati «automatica»; l\'operazione resta nel registro attività.');">
+      <form method="post" data-hub-confirm="Applicare le correzioni automatiche? Riguardano solo i controlli marcati «automatica»; l'operazione resta nel registro attività.">
         {% csrf_token %}
         <input type="hidden" name="azione" value="correggi">
         <button type="submit" class="fmd-btn fmd-btn-primary">Applica le correzioni automatiche</button>

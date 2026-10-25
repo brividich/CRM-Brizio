@@ -248,6 +248,12 @@ body.theme-dark .dp-ruoli-gruppo-h { color:var(--text-light); }
 .dp-modal-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:6px; }
 .dp-modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
 .dp-modal .dp-offboarding-return-grid label { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--hr-text-mid); }
+.dp-onb-avvia > summary { cursor:pointer; list-style:none; font-size:13px; color:#64748b; }
+.dp-onb-avvia > summary::-webkit-details-marker { display:none; }
+.dp-onb-avvia > summary span { color:#1f87cd; font-weight:700; }
+.dp-onb-avvia[open] > summary span { display:none; }
+body.theme-dark .dp-onb-avvia > summary { color:var(--text-mid); }
+body.theme-dark .dp-onb-avvia > summary span { color:#93c5fd; }
 .dp-tab-count { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--hr-na-bg); color:var(--hr-na-fg); font-size:11px; font-weight:800; }
 .dp-tab.active .dp-tab-count { background:rgba(255,255,255,.22); color:#fff; }
 
@@ -744,7 +750,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <summary class="dp-btn dp-btn-ghost dp-btn-sm" aria-haspopup="menu">Azioni ▾</summary>
         <div class="dp-actions-pop" role="menu">
           {% if aziendale.data_cessazione %}
-            <form method="post" action="{% url 'anagrafica:dipendente_rimetti_in_forza' legacy_id %}" onsubmit="return confirm('Rimettere in forza questo dipendente? La data cessazione verra rimossa e lo stato legacy tornera attivo.');">
+            <form method="post" action="{% url 'anagrafica:dipendente_rimetti_in_forza' legacy_id %}" data-hub-confirm="Rimettere in forza questo dipendente? La data cessazione verrà rimossa e lo stato legacy tornerà attivo.">
               {% csrf_token %}
               <button type="submit" class="dp-actions-item" role="menuitem">↩ Rimetti in forza</button>
             </form>
@@ -754,7 +760,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             {% else %}
               <button type="button" class="dp-actions-item dp-actions-danger" role="menuitem" data-dp-dialog="dp-offboarding-dialog">Avvia uscita dipendente…</button>
             {% endif %}
-            <form method="post" action="{% url 'anagrafica:dipendente_toggle_active' legacy_id %}" onsubmit="return confirm({% if dip.attivo %}'Disattivare questo dipendente? L'account portale verrà scollegato. L'operazione è reversibile.'{% else %}'Riattivare questo dipendente?'{% endif %});">
+            <form method="post" action="{% url 'anagrafica:dipendente_toggle_active' legacy_id %}" data-hub-confirm="{% if dip.attivo %}Disattivare questo dipendente? L'account portale verrà scollegato. L'operazione è reversibile.{% else %}Riattivare questo dipendente?{% endif %}">
               {% csrf_token %}
               {% if dip.attivo %}
                 <button type="submit" class="dp-actions-item dp-actions-danger" role="menuitem">Disattiva account</button>
@@ -771,7 +777,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   {% if is_admin and not aziendale.data_cessazione and not offboarding_pratica_attiva %}
   <dialog id="dp-offboarding-dialog" class="dp-modal" aria-labelledby="dp-offboarding-title">
-    <form method="post" action="{% url 'anagrafica:dipendente_offboarding_licenziamento' legacy_id %}" class="dp-modal-body" onsubmit="return confirm('Avviare la pratica offboarding? Il dipendente restera in forza finche la pratica non viene chiusa.');">
+    <form method="post" action="{% url 'anagrafica:dipendente_offboarding_licenziamento' legacy_id %}" class="dp-modal-body" data-hub-confirm="Avviare la pratica offboarding? Il dipendente resterà in forza finché la pratica non viene chiusa.">
       {% csrf_token %}
       <h2 class="dp-modal-title" id="dp-offboarding-title">Avvia uscita di {% nominativo dip %}</h2>
       <p class="dp-sub">Il dipendente resta in forza finché la pratica non viene chiusa.</p>
@@ -876,7 +882,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             Tutti i task sono completati.
           {% endif %}
         </div>
-        <form method="post" action="{% url 'anagrafica:dipendente_offboarding_chiudi' legacy_id offboarding_pratica_attiva.id %}" onsubmit="return confirm('Chiudere la pratica e cessare effettivamente il dipendente? Verranno disattivati stato legacy e account collegato.');">
+        <form method="post" action="{% url 'anagrafica:dipendente_offboarding_chiudi' legacy_id offboarding_pratica_attiva.id %}" data-hub-confirm-ok="Chiudi e cessa" data-hub-confirm-tone="danger" data-hub-confirm="Chiudere la pratica e cessare effettivamente il dipendente? Verranno disattivati stato legacy e account collegato.">
           {% csrf_token %}
           <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm"{% if offboarding_task_pending_count %} disabled style="opacity:.45;cursor:not-allowed;"{% endif %}>Conferma chiusura rapporto</button>
         </form>
@@ -906,21 +912,12 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     <button type="button" class="dp-tab" data-tab-target="riepilogo">📋 Riepilogo</button>
     <button type="button" class="dp-tab" data-tab-target="anagrafica">🪪 Anagrafica</button>
     {% if posizione %}<button type="button" class="dp-tab" data-tab-target="ruolo">🧭 Ruolo e competenze{% if posizione.proposte %}<span class="dp-tab-count" title="Mansioni previste dal ruolo da assegnare">{{ posizione.proposte|length }}</span>{% endif %}</button>{% endif %}
-    <button type="button" class="dp-tab" data-tab-target="onboarding">🚀 Onboarding</button>
     <button type="button" class="dp-tab" data-tab-target="contratto">📑 Contratto e retribuzione</button>
-    <button type="button" class="dp-tab" data-tab-target="ferie">📅 Ferie</button>
-    <button type="button" class="dp-tab" data-tab-target="assenze">🗓 Assenze</button>
+    <button type="button" class="dp-tab" data-tab-target="assenze">📅 Ferie e assenze</button>
     <button type="button" class="dp-tab" data-tab-target="formazione">🎓 Formazione</button>
-    <button type="button" class="dp-tab" data-tab-target="dpi">🦺 DPI{% if dpi_consegnati %}<span class="dp-tab-count">{{ dpi_consegnati|length }}</span>{% endif %}</button>
     <button type="button" class="dp-tab" data-tab-target="visite">🏥 Visite mediche{% if visite_stato_list %}<span class="dp-tab-count">{{ visite_stato_list|length }}</span>{% endif %}</button>
     <button type="button" class="dp-tab" data-tab-target="documenti">📄 Documenti{% if documenti_dipendente %}<span class="dp-tab-count">{{ documenti_dipendente|length }}</span>{% endif %}</button>
-    <button type="button" class="dp-tab" data-tab-target="asset">💻 Asset{% if assets_assegnati %}<span class="dp-tab-count">{{ assets_assegnati|length }}</span>{% endif %}</button>
-    {% if legacy_id %}
-      <button type="button" class="dp-tab" data-tab-target="timbri"
-              hx-get="{% url 'timbri:operatore_embed' legacy_id %}"
-              hx-target="#dp-tab-timbri-body" hx-trigger="click once" hx-swap="innerHTML"
-              title="Timbri / firme / sigle">🕐 Timbri</button>
-    {% endif %}
+    <button type="button" class="dp-tab" data-tab-target="dotazioni" title="DPI, asset, licenze software e timbri">🧰 Dotazioni{% with n_dpi=dpi_consegnati|length n_asset=assets_assegnati|length %}{% if n_dpi or n_asset %}<span class="dp-tab-count" title="DPI e asset in dotazione">{{ n_dpi|add:n_asset }}</span>{% endif %}{% endwith %}</button>
   </div>
 
   <!-- FORMAZIONE -->
@@ -1008,44 +1005,6 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       </div>
     </div>
   </div>
-
-  <!-- ONBOARDING (pratica + checklist inserimento) — tab dedicata -->
-  {% if can_hr %}
-  <div class="dp-card" data-tab="onboarding">
-    <div class="dp-card-head">
-      <div class="dp-card-title">🚀 Onboarding</div>
-      {% if onboarding_pratica_attiva %}
-        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:onboarding_detail' onboarding_pratica_attiva.id %}">Apri pratica →</a>
-      {% endif %}
-    </div>
-    <div class="dp-card-body">
-      {% if onboarding_pratica_attiva %}
-        <p class="dp-td-mid" style="font-size:13px;margin:0 0 8px;">
-          Pratica di inserimento <strong>in corso</strong> aperta il {{ onboarding_pratica_attiva.created_at|date:"d-m-Y" }}.
-          Gestisci la checklist nella pagina dedicata.
-        </p>
-      {% else %}
-        <p class="dp-td-mid" style="font-size:13px;margin:0 0 10px;">
-          Nessuna pratica onboarding attiva. Avviane una per generare la checklist di inserimento (account, badge, DPI, formazione, visita).
-          La procedura è pensata per i <strong>nuovi ingressi</strong>: per i dipendenti già in forza i dati verranno completati in seguito, senza segnalazioni di scadenza.
-        </p>
-        <form method="post" action="{% url 'anagrafica:onboarding_avvia' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          {% csrf_token %}
-          <input type="date" name="data_assunzione" class="dp-input dp-input-sm" style="max-width:160px;" title="Data assunzione (opzionale)">
-          <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">🚀 Avvia onboarding</button>
-        </form>
-      {% endif %}
-      {% if onboarding_pratiche_recenti %}
-        <div style="margin-top:12px;font-size:12px;color:#64748b;">
-          <strong>Pratiche precedenti:</strong>
-          {% for p in onboarding_pratiche_recenti %}
-            <a href="{% url 'anagrafica:onboarding_detail' p.id %}" style="color:#1f87cd;text-decoration:none;">{{ p.created_at|date:"d-m-Y" }} ({{ p.get_stato_display }})</a>{% if not forloop.last %} · {% endif %}
-          {% endfor %}
-        </div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
 
   <!-- ANAGRAFICA AZIENDALE (spostata nella tab Anagrafica) -->
   {% if is_admin %}
@@ -1343,7 +1302,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               {% if is_admin %}
               <td style="white-space:nowrap;">
                 <button type="button" class="dp-btn-edit-sm" onclick="toggleContrattoEdit({{ c.pk }})">✏</button>
-                <form method="post" action="{% url 'anagrafica:dipendente_contratto_delete' legacy_id c.pk %}" onsubmit="return confirm('Eliminare questo record contrattuale?');" style="display:inline;margin:0;">
+                <form method="post" action="{% url 'anagrafica:dipendente_contratto_delete' legacy_id c.pk %}" data-hub-confirm="Eliminare questo record contrattuale?" style="display:inline;margin:0;">
                   {% csrf_token %}
                   <button type="submit" class="dp-btn-danger-sm">✕</button>
                 </form>
@@ -1647,6 +1606,47 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   </div>
   {% endif %}
 
+  <!-- ONBOARDING (pratica + checklist inserimento) — nella scheda Contratto -->
+  {% if can_hr %}
+  <div class="dp-card" data-tab="contratto" id="onboarding">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🚀 Onboarding</div>
+      {% if onboarding_pratica_attiva %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:onboarding_detail' onboarding_pratica_attiva.id %}">Apri pratica →</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      {% if onboarding_pratica_attiva %}
+        <p class="dp-td-mid" style="font-size:13px;margin:0 0 8px;">
+          Pratica di inserimento <strong>in corso</strong> aperta il {{ onboarding_pratica_attiva.created_at|date:"d-m-Y" }}.
+          Gestisci la checklist nella pagina dedicata.
+        </p>
+      {% else %}
+        <details class="dp-onb-avvia">
+          <summary>Nessuna pratica in corso<span> · + Avvia l'onboarding</span></summary>
+          <p class="dp-td-mid" style="font-size:13px;margin:8px 0 10px;">
+            La pratica genera la checklist di inserimento (account, badge, DPI, formazione, visita).
+            È pensata per i <strong>nuovi ingressi</strong>: per i dipendenti già in forza i dati verranno completati in seguito, senza segnalazioni di scadenza.
+          </p>
+          <form method="post" action="{% url 'anagrafica:onboarding_avvia' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            {% csrf_token %}
+            <input type="date" name="data_assunzione" class="dp-input dp-input-sm" style="max-width:160px;" title="Data assunzione (opzionale)">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">🚀 Avvia onboarding</button>
+          </form>
+        </details>
+      {% endif %}
+      {% if onboarding_pratiche_recenti %}
+        <div style="margin-top:12px;font-size:12px;color:#64748b;">
+          <strong>Pratiche precedenti:</strong>
+          {% for p in onboarding_pratiche_recenti %}
+            <a href="{% url 'anagrafica:onboarding_detail' p.id %}" style="color:#1f87cd;text-decoration:none;">{{ p.created_at|date:"d-m-Y" }} ({{ p.get_stato_display }})</a>{% if not forloop.last %} · {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- POSIZIONE NELLA STRUTTURA (struttura della Qualità) -->
   {% if posizione %}
   <div class="dp-card" data-tab="ruolo" id="posizione-struttura">
@@ -1740,7 +1740,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           <li>
             <span><a href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}">{{ m.nome }}</a>{% if m.livello %} · livello {{ m.livello }}{% endif %}<span class="dp-mdr-why"> — {{ m.motivi|join:"; " }}</span></span>
             {% if puo_togliere_mansioni %}
-            <form method="post" action="{% url 'anagrafica:mansionario_togli' m.mansione.pk m.abilitazione.pk %}" onsubmit="return confirm('Togliere la persona da {{ m.nome|escapejs }}? Resta nello storico.');">
+            <form method="post" action="{% url 'anagrafica:mansionario_togli' m.mansione.pk m.abilitazione.pk %}" data-hub-confirm="Togliere la persona da {{ m.nome }}? Resta nello storico.">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ request.get_full_path }}">
               <button type="submit" class="dp-btn dp-btn-sm">Togli dalla lista</button>
@@ -1963,7 +1963,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleSection('sp-edit-{{ a.pk }}')">Modifica</button>
               {% if a.is_programmata and not a.attivata_il %}
               <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_annulla' legacy_id a.pk %}"
-                    onsubmit="return confirm('Annullare lo spostamento programmato dal {{ a.data_inizio|date:"d-m-Y" }}?');">
+                    data-hub-confirm="Annullare lo spostamento programmato dal {{ a.data_inizio|date:'d-m-Y' }}?">
                 {% csrf_token %}
                 <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs">Annulla spostamento</button>
               </form>
@@ -2126,7 +2126,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- RATEI FERIE / ROL / EX-FESTIVITA -->
   {% if can_hr %}
-  <div class="dp-card" data-tab="ferie">
+  <div class="dp-card" data-tab="assenze">
     <div class="dp-card-head">
       <div class="dp-card-title">📅 Ratei Ferie / Permessi</div>
       <div style="display:flex;align-items:center;gap:10px;">
@@ -2324,7 +2324,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
                 {% if is_admin %}
                   <form method="post" action="{% url 'anagrafica:dipendente_ruolo_rimuovi' legacy_id a.id %}" style="display:inline;">
                     {% csrf_token %}
-                    <button type="submit" class="dp-ruolo-remove" title="Rimuovi ruolo" onclick="return confirm('Rimuovere il ruolo {{ a.ruolo.nome }}?')">×</button>
+                    <button type="submit" class="dp-ruolo-remove" title="Rimuovi ruolo" data-hub-confirm="Rimuovere il ruolo {{ a.ruolo.nome }}?">×</button>
                   </form>
                 {% endif %}
               </span>
@@ -2468,7 +2468,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
                 </form>
                 <form method="post" action="{% url 'anagrafica:dipendente_qualifica_delete' legacy_id q.id %}" style="display:inline;">
                   {% csrf_token %}
-                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Rimuovere la qualifica {{ q.tipo.nome }}?')">🗑 Rimuovi</button>
+                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" data-hub-confirm="Rimuovere la qualifica {{ q.tipo.nome }}?">🗑 Rimuovi</button>
                 </form>
               </div>
             {% endif %}
@@ -2560,7 +2560,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- DPI -->
   {% if dpi_richieste or is_admin %}
-  <div class="dp-card" data-tab="dpi">
+  <div class="dp-card" data-tab="dotazioni">
     <div class="dp-card-head">
       <div class="dp-card-title">🦺 DPI — Dispositivi di Protezione Individuale</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -2905,7 +2905,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
                     {% if is_admin %}
                       <form method="post" action="{% url 'anagrafica:documento_delete' d.id %}" style="display:inline;">
                         {% csrf_token %}
-                        <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">🗑</button>
+                        <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" data-hub-confirm="Eliminare il documento {{ d.nome_originale }}?">🗑</button>
                       </form>
                     {% endif %}
                   </td>
@@ -2924,7 +2924,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- ASSET -->
   {% if assets_assegnati or assets_reparto or is_admin %}
-  <div class="dp-card" data-tab="asset">
+  <div class="dp-card" data-tab="dotazioni">
     <div class="dp-card-head">
       <div class="dp-card-title">Asset</div>
       {% if is_admin %}
@@ -3010,7 +3010,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- LICENZE SOFTWARE -->
   {% if software_licenses or is_admin %}
-  <div class="dp-card" data-tab="asset">
+  <div class="dp-card" data-tab="dotazioni">
     <div class="dp-card-head">
       <div class="dp-card-title">Licenze software</div>
       {% if is_admin %}
@@ -3056,14 +3056,15 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   </div>
   {% endif %}
 
-  <!-- TIMBRI (caricato in lazy via HTMX al primo click sul tab) -->
+  <!-- TIMBRI (scheda Dotazioni; caricati via HTMX quando il riquadro entra in vista) -->
   {% if legacy_id %}
-  <div class="dp-card" data-tab="timbri">
+  <div class="dp-card" data-tab="dotazioni">
     <div class="dp-card-head">
       <div class="dp-card-title">🕐 Timbri / firme / sigle</div>
       <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' legacy_id %}">Apri scheda completa &rarr;</a>
     </div>
-    <div class="dp-card-body" id="dp-tab-timbri-body">
+    <div class="dp-card-body" id="dp-tab-timbri-body"
+         hx-get="{% url 'timbri:operatore_embed' legacy_id %}" hx-trigger="intersect once" hx-swap="innerHTML">
       <div style="color:#94a3b8;font-size:13px;padding:20px;text-align:center;">Caricamento timbri…</div>
     </div>
   </div>
@@ -3227,12 +3228,14 @@ function saveLayout() {
 }
 
 function resetLayout() {
-  if (!confirm('Ripristinare il layout predefinito?')) return;
-  fetch(API_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify({ order: [], hidden: [] }),
-  }).then(() => location.reload());
+  hubConfirm('Ripristinare il layout predefinito?').then(si => {
+    if (!si) return;
+    fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({ order: [], hidden: [] }),
+    }).then(() => location.reload());
+  });
 }
 
 // Drag & drop
@@ -3552,7 +3555,9 @@ function toggleContrattoEdit(id) {
     });
   }
 
-  window.dpShowTab = function (tab) { if (present[tab]) show(tab); };
+  // Schede unite a ottobre 2026: i vecchi nomi aprono quella che le contiene.
+  var ALIAS = {ferie: 'assenze', onboarding: 'contratto', dpi: 'dotazioni', asset: 'dotazioni', timbri: 'dotazioni'};
+  window.dpShowTab = function (tab) { tab = ALIAS[tab] || tab; if (present[tab]) show(tab); };
 
   var firstAvailable = null;
   buttons.forEach(function (b) {
@@ -3567,14 +3572,16 @@ function toggleContrattoEdit(id) {
   // Link interni con data-tab-vai (es. «Ruolo e competenze» dal riepilogo): cambiano scheda.
   page.addEventListener('click', function (e) {
     var a = e.target.closest('[data-tab-vai]');
-    if (!a || !present[a.getAttribute('data-tab-vai')]) return;
-    e.preventDefault(); show(a.getAttribute('data-tab-vai'), true);
+    var vai = a ? (ALIAS[a.getAttribute('data-tab-vai')] || a.getAttribute('data-tab-vai')) : null;
+    if (!a || !present[vai]) return;
+    e.preventDefault(); show(vai, true);
     var bersaglio = a.hash ? document.getElementById(a.hash.slice(1)) : null;
     if (bersaglio) bersaglio.scrollIntoView({block: 'start'});
   });
 
   // Ritorno da un'azione con ancora (es. #account-portale): apre la tab che contiene il riquadro.
   var tabScelta = location.hash.indexOf('#scheda-') === 0 ? location.hash.slice(8) : null;
+  if (tabScelta && ALIAS[tabScelta]) tabScelta = ALIAS[tabScelta];
   var ancora = location.hash && !tabScelta ? document.getElementById(location.hash.slice(1)) : null;
   var tabAncora = ancora && ancora.closest('[data-tab]') ? ancora.closest('[data-tab]').getAttribute('data-tab') : null;
   if (tabScelta && present[tabScelta]) tabAncora = tabScelta;

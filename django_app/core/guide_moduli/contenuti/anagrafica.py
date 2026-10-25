@@ -34,6 +34,10 @@ GUIDA = {
                 ("p", "Sul telefono il menu è un pulsante sotto la barra in alto che mostra la pagina aperta: "
                       "toccandolo si apre dal basso l'elenco di tutte le voci, divise come le tendine "
                       "(Persone, Salute e sicurezza…), con «Filtra le voci» in cima."),
+                ("p", "Prima di eliminare, togliere o chiudere qualcosa il portale chiede conferma in una finestra al "
+                      "centro della pagina: il titolo dice cosa succede, sotto c'è cosa resta. Il pulsante rosso "
+                      "(es. «Elimina», «Togli») esegue; «Annulla», Esc o un clic fuori la chiudono senza fare nulla. "
+                      "Sulle azioni che cancellano il cursore parte su «Annulla», così Invio non conferma per sbaglio."),
             ],
         },
         {
@@ -47,13 +51,20 @@ GUIDA = {
                       "sulla mansione. Le azioni che chiudono o sospendono il rapporto (Avvia uscita dipendente…, "
                       "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
                       "con motivo, data e restituzioni."),
-                ("p", "Le schede DPI, Visite mediche, Documenti e Asset mostrano accanto al nome quante voci contengono."),
+                ("p", "Le schede sono nove: Riepilogo, Anagrafica, Ruolo e competenze, Contratto e retribuzione "
+                      "(con l'Onboarding in fondo), Ferie e assenze (ratei dall'ultimo cedolino e storico assenze), "
+                      "Formazione, Visite mediche, Documenti e Dotazioni (DPI, asset, licenze software e timbri; i "
+                      "timbri si caricano quando arrivi al loro riquadro). Vedi solo quelle per cui hai il permesso. "
+                      "Visite mediche, Documenti e Dotazioni mostrano accanto al nome quante voci contengono "
+                      "(Dotazioni: DPI e asset in dotazione)."),
                 ("p", "La scheda aperta resta nell'indirizzo (…/#scheda-documenti): ricaricando la pagina o tornando "
                       "indietro si riapre la stessa. I campi senza valore («—») sono raccolti sotto «Mostra i N campi "
                       "vuoti»; le aggiunte (mansione di rischio individuale, visita facoltativa, esposizione diretta) e "
                       "«Collega un account…» si aprono con il loro link. In «Statistiche attività» i contatori a zero "
-                      "sono una riga piccola. «Licenze software» è nella scheda Asset, lo «Storico cambiamenti "
-                      "organizzativi» in Anagrafica sotto gli Spostamenti."),
+                      "sono una riga piccola. Lo «Storico cambiamenti organizzativi» è in Anagrafica sotto gli Spostamenti. "
+                      "Senza una pratica di onboarding in corso, «+ Avvia l'onboarding» si apre con il suo link. I "
+                      "vecchi indirizzi (…/#scheda-ferie, #scheda-dpi, #scheda-timbri, #scheda-onboarding) aprono la "
+                      "scheda che ora li contiene."),
             ],
         },
         {

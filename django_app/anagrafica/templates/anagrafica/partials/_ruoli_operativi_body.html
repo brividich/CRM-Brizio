@@ -201,7 +201,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
                   <form method="post" action="{% url 'anagrafica:ruolo_qualifica_rimuovi' r.id q.id %}" style="display:inline;">
                     {% csrf_token %}
                     <button type="submit" class="ro-qual-x" title="Togli la qualifica dal ruolo"
-                      onclick="return confirm('Togliere «{{ q.qualifica.nome|escapejs }}» dal ruolo {{ r.nome|escapejs }}?')">×</button>
+                      data-hub-confirm="Togliere «{{ q.qualifica.nome }}» dal ruolo {{ r.nome }}?">×</button>
                   </form>
                   {% endif %}
                 </span>
@@ -243,7 +243,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               <form method="post" action="{% url 'anagrafica:ruolo_operativo_delete' r.id %}" style="display:inline;">
                 {% csrf_token %}
                 <button type="submit" class="ro-btn ro-btn-danger ro-btn-sm"
-                  onclick="return confirm('Eliminare definitivamente il ruolo {{ r.nome }}?')">🗑 Elimina</button>
+                  data-hub-confirm="Eliminare definitivamente il ruolo {{ r.nome }}?">🗑 Elimina</button>
               </form>
               {% else %}
               <span style="font-size:11px;color:#94a3b8;">{{ r.n_assegnati }} assegnazion{{ r.n_assegnati|pluralize:"e,i" }} — non eliminabile</span>
@@ -358,7 +358,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
           <form method="post" action="{% url 'anagrafica:ambito_ruolo_delete' a.id %}" style="display:inline;">
             {% csrf_token %}
             <button type="submit" class="ro-btn ro-btn-danger ro-btn-sm"
-              onclick="return confirm('Eliminare l'ambito {{ a.nome|escapejs }}?')">🗑</button>
+              data-hub-confirm="Eliminare l'ambito {{ a.nome }}?">🗑</button>
           </form>
           {% endif %}
         </div>

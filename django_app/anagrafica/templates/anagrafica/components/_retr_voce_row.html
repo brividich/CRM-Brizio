@@ -21,7 +21,7 @@ Parametri attesi: v (VoceRetributiva), can_edit, legacy_id, categorie_voce, mese
   <td class="dr-row-actions">
     {% if v.manuale %}
       <button type="button" class="dr-btn-edit-xs" onclick="toggleVoceEdit({{ v.pk }})" title="Modifica voce">✏</button>
-      <form method="post" action="{% url 'anagrafica:dipendente_retribuzione_voce_delete' legacy_id v.pk %}" style="display:inline;margin:0;" onsubmit="return confirm('Eliminare questa voce manuale?');">
+      <form method="post" action="{% url 'anagrafica:dipendente_retribuzione_voce_delete' legacy_id v.pk %}" style="display:inline;margin:0;" data-hub-confirm="Eliminare questa voce manuale?">
         {% csrf_token %}
         <button type="submit" class="dr-btn-danger-xs" title="Elimina voce">✕</button>
       </form>

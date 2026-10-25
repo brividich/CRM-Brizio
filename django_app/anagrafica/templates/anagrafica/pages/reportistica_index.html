@@ -96,7 +96,7 @@
               <td class="fmd-nowrap">
                 <a href="{% url 'anagrafica:reportistica_archivio_download' d.pk %}" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Scarica la copia archiviata (identica a quella consegnata)"><svg class="fmd-ico"><use href="#i-download"/></svg></a>
                 {% if can_manage %}
-                <form method="post" action="{% url 'anagrafica:reportistica_archivio_elimina' d.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il documento dall\'archivio?');">{% csrf_token %}
+                <form method="post" action="{% url 'anagrafica:reportistica_archivio_elimina' d.pk %}" style="display:inline;" data-hub-confirm="Eliminare il documento dall'archivio?">{% csrf_token %}
                   <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Elimina dall'archivio">✕</button>
                 </form>
                 {% endif %}

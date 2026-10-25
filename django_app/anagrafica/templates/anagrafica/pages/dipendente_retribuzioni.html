@@ -363,8 +363,9 @@ function closeManualeModal() {
 }
 
 function deleteManuale() {
-  if (!confirm('Eliminare definitivamente questa voce manuale?')) return;
-  document.getElementById('dr-delete-form').submit();
+  hubConfirm('Eliminare definitivamente questa voce manuale?').then(si => {
+    if (si) document.getElementById('dr-delete-form').submit();
+  });
 }
 
 document.addEventListener('keydown', e => {

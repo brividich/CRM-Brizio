@@ -48,7 +48,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
     {% if is_editor %}
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <form method="post" action="{% url 'anagrafica:formazione_sessione_attestati' sessione.pk %}" style="margin:0;"
-            onsubmit="return confirm('Generare e archiviare nel box documenti gli attestati di tutti i completati di questa sessione?');">
+            data-hub-confirm="Generare e archiviare nel box documenti gli attestati di tutti i completati di questa sessione?">
         {% csrf_token %}
         <button type="submit" class="hr-btn hr-btn-ghost"
                 title="Genera e archivia gli attestati di tutti i partecipanti completati">🏅 Attestati completati</button>
@@ -213,7 +213,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               <td style="font-size:12px;color:#b45309;">manca: {{ c.prerequisiti_mancanti|join:", " }}</td>
               <td style="text-align:right;width:140px;">
                 <form method="post" action="{% url 'anagrafica:formazione_iscrizione_add' sessione.pk %}" style="display:inline;"
-                      onsubmit="return confirm('Iscrivere {{ c.nome|escapejs }} forzando i prerequisiti mancanti? L\'operazione sarà tracciata.');">
+                      data-hub-confirm="Iscrivere {{ c.nome }} forzando i prerequisiti mancanti? L'operazione sarà tracciata.">
                   {% csrf_token %}
                   <input type="hidden" name="legacy_anagrafica_id" value="{{ c.legacy_id }}">
                   <input type="hidden" name="force" value="1">
@@ -328,7 +328,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               <form method="post"
                     action="{% url 'anagrafica:formazione_iscrizione_delete' sessione.pk isc.pk %}"
                     style="display:inline;"
-                    onsubmit="return confirm('Rimuovere l\'iscrizione di {{ isc.nome_dip|escapejs }}?')">
+                    data-hub-confirm="Rimuovere l'iscrizione di {{ isc.nome_dip }}?">
                 {% csrf_token %}
                 <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
               </form>

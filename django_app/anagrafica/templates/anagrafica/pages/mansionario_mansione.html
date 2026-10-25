@@ -98,7 +98,7 @@
                 <td class="fmd-r fmd-nowrap">
                   <span class="mns-actions">
                     {% if competenze %}<a class="fmd-btn {% if p.da_valutare %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %} fmd-btn-mini" href="{% url 'anagrafica:mansionario_valuta' mansione.pk p.abilitazione.pk %}">Valuta</a>{% endif %}
-                    <form method="post" action="{% url 'anagrafica:mansionario_togli' mansione.pk p.abilitazione.pk %}" onsubmit="return confirm('Togliere {{ p.nome|escapejs }} dalla mansione? Lo storico dei livelli resta.');">
+                    <form method="post" action="{% url 'anagrafica:mansionario_togli' mansione.pk p.abilitazione.pk %}" data-hub-confirm="Togliere {{ p.nome }} dalla mansione? Lo storico dei livelli resta.">
                       {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Togli</button>
                     </form>
                   </span>
@@ -133,7 +133,7 @@
                 <td class="fmd-r fmd-nowrap">
                   <span class="mns-actions">
                     <button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-mini" data-mns-edit="edit-{{ v.pk }}" aria-expanded="false" aria-controls="edit-{{ v.pk }}">Modifica</button>
-                    <form method="post" action="{% url 'anagrafica:mansionario_competenza_disattiva' mansione.pk v.pk %}" onsubmit="return confirm('Togliere la competenza «{{ v.nome|escapejs }}»? I livelli già registrati restano.');">
+                    <form method="post" action="{% url 'anagrafica:mansionario_competenza_disattiva' mansione.pk v.pk %}" data-hub-confirm="Togliere la competenza «{{ v.nome }}»? I livelli già registrati restano.">
                       {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Togli</button>
                     </form>
                   </span>

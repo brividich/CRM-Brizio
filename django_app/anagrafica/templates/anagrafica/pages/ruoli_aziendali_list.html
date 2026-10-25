@@ -127,7 +127,7 @@ body.theme-dark .cat-card-title{color:var(--text)}
                       onclick="openEdit({{ ruolo.pk }},'{{ ruolo.nome|escapejs }}','{{ ruolo.descrizione|escapejs }}',{{ ruolo.is_active|yesno:'true,false' }})">
                 Modifica
               </button>
-              <form method="post" action="{% url 'anagrafica:ruolo_aziendale_delete' ruolo.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il ruolo «{{ ruolo.nome }}»?')">
+              <form method="post" action="{% url 'anagrafica:ruolo_aziendale_delete' ruolo.pk %}" style="display:inline;" data-hub-confirm="Eliminare il ruolo «{{ ruolo.nome }}»?">
                 {% csrf_token %}
                 <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
               </form>

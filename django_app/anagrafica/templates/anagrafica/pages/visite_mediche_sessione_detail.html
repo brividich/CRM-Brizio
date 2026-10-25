@@ -35,7 +35,7 @@
       <button type="submit" style="padding:8px 16px;background:#1f87cd;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;">+ Aggiungi</button>
     </form>
     {% endif %}
-    <form method="post" action="{% url 'anagrafica:visite_mediche_sessione_delete' sess.pk %}" onsubmit="return confirm('Eliminare la giornata? Le visite restano.');">
+    <form method="post" action="{% url 'anagrafica:visite_mediche_sessione_delete' sess.pk %}" data-hub-confirm="Eliminare la giornata? Le visite restano.">
       {% csrf_token %}
       <button type="submit" style="padding:8px 16px;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;font-weight:700;cursor:pointer;">Elimina giornata</button>
     </form>
