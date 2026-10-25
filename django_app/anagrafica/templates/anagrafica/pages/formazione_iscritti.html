@@ -338,7 +338,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
           </tr>
           {# ── Riga espandibile: griglia presenze per lezione ──────────────── #}
           {% if lezioni %}
-          <tr id="expand-{{ isc.pk }}" class="fm-expand-row" style="display:none;">
+          <tr id="expand-{{ isc.pk }}" class="fm-expand-row" data-fm-detail-row="1" style="display:none;">
             <td colspan="{% if is_editor %}9{% else %}8{% endif %}"
                 style="background:#f8fafc;border-top:none;">
               <div style="padding:10px 16px 14px;">

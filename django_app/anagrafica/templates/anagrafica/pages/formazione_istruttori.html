@@ -103,7 +103,7 @@
               {% endif %}
             </tr>
             {% if docenti_az %}
-            <tr class="fmd-az-detail" id="az-detail-{{ az.pk }}" style="display:none;">
+            <tr class="fmd-az-detail" id="az-detail-{{ az.pk }}" data-fm-detail-row="1" style="display:none;">
               <td colspan="{% if is_editor %}8{% else %}7{% endif %}" style="padding:0;">
                 <div style="padding:10px 20px 14px 46px;background:var(--surface-alt,#f7f9fb);">
                   <table class="fmd-table" style="background:transparent;">

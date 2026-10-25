@@ -133,7 +133,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
       </a>
       {% if cruscotto %}
       <a class="hr-hero-stat" href="{% url 'anagrafica:libretto_sanitario_generale' %}">
-        <div class="hr-hero-stat-val">{{ cruscotto.copertura_totale.pct_in_regola }}%</div>
+        <div class="hr-hero-stat-val">{% if cruscotto.copertura_totale.totale %}{{ cruscotto.copertura_totale.pct_in_regola }}%{% else %}—{% endif %}</div>
         <div class="hr-hero-stat-lbl">Obblighi in regola</div>
       </a>
       <a class="hr-hero-stat" href="{% url 'anagrafica:scadenzario' %}?stato=scaduta">

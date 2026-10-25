@@ -77,9 +77,9 @@
       {% if conformita_kpi %}
       <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:conformita_report' %}" title="Report conformità completo">
         <span class="fmd-ribbon"></span>
-        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ conformita_kpi.perc }}%</span></div>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{% if conformita_kpi.valutati %}{{ conformita_kpi.perc }}%{% else %}—{% endif %}</span></div>
         <div class="fmd-mtr-lbl">Persone in regola</div>
-        <div class="fmd-mtr-sub">{{ conformita_kpi.in_regola }} su {{ conformita_kpi.valutati }} con requisiti</div>
+        <div class="fmd-mtr-sub">{% if conformita_kpi.valutati %}{{ conformita_kpi.in_regola }} su {{ conformita_kpi.valutati }} con requisiti{% else %}nessuno ha requisiti da verificare{% endif %}</div>
       </a>
       <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:conformita_report' %}?esito=ko" title="Elenco non conformi">
         <span class="fmd-ribbon"></span>

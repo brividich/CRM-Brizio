@@ -39,8 +39,8 @@
     <div class="fmd-alert">
       <span class="fmd-alert-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
       <div class="fmd-alert-body">
-        <div class="fmd-alert-t">Cache scadenze vuota.</div>
-        <div class="fmd-alert-m">Eseguire <code>python manage.py refresh_training_deadlines --all</code> per popolare lo scadenzario.</div>
+        <div class="fmd-alert-t">Le scadenze della formazione non sono ancora calcolate.</div>
+        <div class="fmd-alert-m">Si riempiono quando si registrano corsi e sessioni.{% if user.is_superuser %} Per ricalcolarle subito: <code>python manage.py refresh_training_deadlines --all</code>.{% endif %}</div>
       </div>
     </div>
     {% endif %}
