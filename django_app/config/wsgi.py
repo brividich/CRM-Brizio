@@ -12,5 +12,7 @@ import os
 from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.prod")
+# Processo web (Waitress dietro IIS): i settings ne derivano il timeout delle query.
+os.environ.setdefault("HUB_PROCESS_ROLE", "web")
 
 application = get_wsgi_application()

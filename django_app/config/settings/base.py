@@ -658,8 +658,12 @@ def build_sqlserver_database() -> dict:
     # Timeout query in secondi (0 = illimitato, default pyodbc). Senza, una connessione
     # caduta o un lock appeso bloccano il processo per sempre: il launcher del qcluster
     # lo imposta, cosi' il cluster va in errore e riparte invece di restare appeso.
+    # Il sito (config/wsgi.py imposta HUB_PROCESS_ROLE=web) ha default 200 s, sotto il
+    # requestTimeout di IIS (4 minuti): una query appesa non tiene occupato un thread di
+    # Waitress dopo che IIS ha gia' chiuso la risposta. Comandi e shell restano a 0.
+    default_query_timeout = "200" if env("HUB_PROCESS_ROLE", "") == "web" else "0"
     try:
-        query_timeout = max(0, int(env("DB_QUERY_TIMEOUT", "0") or 0))
+        query_timeout = max(0, int(env("DB_QUERY_TIMEOUT", default_query_timeout) or 0))
     except ValueError:
         query_timeout = 0
     # Connessioni persistenti: senza, ogni richiesta apre e chiude una connessione ODBC con
