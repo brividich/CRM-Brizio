@@ -35,6 +35,10 @@ body.theme-dark .sp-sez{color:var(--text-light)}
 body.theme-dark .sp-chip small{color:var(--text-light)}
 body.theme-dark .sp-form{border-color:var(--border)}
 body.theme-dark .sp-form label{color:var(--text-light)}
+.sp-add>summary{cursor:pointer;list-style:none;display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:#1f87cd}
+.sp-add>summary::-webkit-details-marker{display:none}
+.sp-add>summary:hover{text-decoration:underline}
+body.theme-dark .sp-add>summary{color:#60a5fa}
 body.theme-dark .sp-tl time{color:var(--text-light)}
 </style>
 
@@ -130,6 +134,7 @@ body.theme-dark .sp-tl time{color:var(--text-light)}
 {% else %}<div style="color:#94a3b8;">Nessuna.</div>{% endif %}
 
 {% if puo_sorveglianza %}
+<details class="sp-add"><summary>+ Aggiungi o escludi una mansione di rischio</summary>
 <form method="post" action="{% url 'anagrafica:dipendente_override_aggiungi' legacy_id %}" class="sp-form" aria-label="Nuova aggiunta o esclusione">
   {% csrf_token %}
   <div><label for="ov-mr">Mansione di rischio</label>
@@ -143,6 +148,7 @@ body.theme-dark .sp-tl time{color:var(--text-light)}
   <div style="grid-column:span 2;"><label for="ov-motivo">Motivo *</label><input id="ov-motivo" name="motivo" class="dp-input" required maxlength="500" placeholder="Es. nomina addetto antincendio del …"></div>
   <div><button class="dp-btn dp-btn-primary dp-btn-sm" type="submit">Registra</button></div>
 </form>
+</details>
 {% endif %}
 {% endif %}
 

@@ -45,6 +45,12 @@ GUIDA = {
                       "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
                       "con motivo, data e restituzioni."),
                 ("p", "Le schede DPI, Visite mediche, Documenti e Asset mostrano accanto al nome quante voci contengono."),
+                ("p", "La scheda aperta resta nell'indirizzo (…/#scheda-documenti): ricaricando la pagina o tornando "
+                      "indietro si riapre la stessa. I campi senza valore («—») sono raccolti sotto «Mostra i N campi "
+                      "vuoti»; le aggiunte (mansione di rischio individuale, visita facoltativa, esposizione diretta) e "
+                      "«Collega un account…» si aprono con il loro link. In «Statistiche attività» i contatori a zero "
+                      "sono una riga piccola. «Licenze software» è nella scheda Asset, lo «Storico cambiamenti "
+                      "organizzativi» in Anagrafica sotto gli Spostamenti."),
             ],
         },
         {

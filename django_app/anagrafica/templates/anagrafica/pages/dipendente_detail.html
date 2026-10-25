@@ -79,6 +79,11 @@
 .dp-info-item { display:flex; flex-direction:column; gap:2px; }
 .dp-info-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; }
 .dp-info-value { font-size:13px; color:#1e293b; font-weight:500; }
+/* Campi vuoti («—») nascosti finché non si chiede di vederli (vedi script «campi vuoti»). */
+.dp-info-grid:not(.dp-mostra-vuoti) > .dp-info-vuoto { display:none; }
+.dp-vuoti-toggle { margin-top:10px; padding:0; border:0; background:none; font:inherit; font-size:12px; font-weight:700; color:#1f87cd; cursor:pointer; }
+.dp-vuoti-toggle:hover { text-decoration:underline; }
+body.theme-dark .dp-vuoti-toggle { color:#60a5fa; }
 /* Figli a carico — blocco unico: flag + elenco figli */
 .dp-figli-block { margin-top:14px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; }
 .dp-figli-head { display:flex; align-items:center; gap:8px; }
@@ -121,6 +126,12 @@
 .dp-widget-title { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
 .dp-widget-link { display:block; margin-top:8px; font-size:11px; color:#1f87cd; font-weight:700; text-decoration:none; }
 .dp-widget-link:hover { text-decoration:underline; }
+/* Widget a zero: una riga piccola e smorzata (in «Personalizza» tornano pieni). */
+.dp-stat-section:not(.dp-edit-mode) .dp-widget-zero { padding:8px 12px; display:flex; align-items:baseline; gap:8px; box-shadow:none; transform:none; }
+.dp-stat-section:not(.dp-edit-mode) .dp-widget-zero :is(.dp-widget-icon,.dp-widget-accent,.dp-widget-link) { display:none; }
+.dp-stat-section:not(.dp-edit-mode) .dp-widget-zero .dp-widget-count { font-size:15px; color:#94a3b8; }
+.dp-stat-section:not(.dp-edit-mode) .dp-widget-zero .dp-widget-title { margin-top:0; }
+body.theme-dark .dp-stat-section:not(.dp-edit-mode) .dp-widget-zero .dp-widget-count { color:var(--text-light); }
 
 /* Tasto rimuovi widget (visibile in edit mode) */
 .dp-widget-remove {
@@ -492,7 +503,6 @@ body.theme-dark .dp-tab:hover { background:var(--surface-alt); color:#93c5fd; }
 body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(--border); }
 
 /* === Riepilogo · scheda sintetica (dashboard dipendente) === */
-.dp-sum-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
 .dp-sum-stats { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:10px; margin-top:16px; }
 .dp-sum-stat { display:flex; align-items:center; gap:11px; background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #1f87cd; border-radius:12px; padding:11px 13px; }
 .dp-sum-stat-ic { font-size:22px; line-height:1; flex-shrink:0; }
@@ -925,14 +935,6 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% endif %}
     </div>
     <div class="dp-card-body">
-      <div class="dp-sum-chips">
-        {% if aziendale.data_cessazione %}
-          <span class="dp-pill dp-pill-gray">Cessato il {{ aziendale.data_cessazione|date:"d-m-Y" }}</span>
-        {% else %}
-          <span class="dp-pill dp-pill-green">In forza</span>
-        {% endif %}
-      </div>
-
       <div class="dp-info-grid">
         <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div></div>
@@ -2057,7 +2059,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- STORICO CAMBIAMENTI ORGANIZZATIVI -->
   {% if is_admin %}
-  <div class="dp-card" data-tab="contratto">
+  <div class="dp-card" data-tab="anagrafica">
     <div class="dp-card-head">
       <div class="dp-card-title">📋 Storico cambiamenti organizzativi</div>
       <span style="font-size:11px;color:#94a3b8;">Mansione di rischio · Reparto · Area aziendale · Ruolo aziendale</span>
@@ -2920,54 +2922,6 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   </div>
   {% endif %}
 
-  <!-- LICENZE SOFTWARE -->
-  {% if software_licenses or is_admin %}
-  <div class="dp-card" data-tab="documenti">
-    <div class="dp-card-head">
-      <div class="dp-card-title">Licenze software</div>
-      {% if is_admin %}
-        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'assets:software_license_list' %}?anagrafica={{ legacy_id }}">Gestione licenze</a>
-      {% endif %}
-    </div>
-    <div class="dp-card-body">
-      {% if software_licenses %}
-        <div class="dp-qual-list">
-          {% for lic in software_licenses %}
-            <div class="dp-qual-item">
-              <div>
-                <div class="dp-qual-name">{{ lic.product_name }}{% if lic.edition %} - {{ lic.edition }}{% endif %}</div>
-                <div class="dp-qual-cat">{{ lic.get_category_display }}{% if lic.vendor %} | {{ lic.vendor }}{% endif %}</div>
-                <div class="dp-qual-dates">
-                  {% if lic.expiry_date %}
-                    <span>Scadenza {{ lic.expiry_date|date:"d-m-Y" }}</span>
-                  {% else %}
-                    <span>Scadenza non impostata</span>
-                  {% endif %}
-                  {% if lic.asset %}
-                    <span>Asset {{ lic.asset.asset_tag }}</span>
-                  {% endif %}
-                </div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-                {% if lic.is_active %}
-                  <span class="dp-pill dp-pill-green">Attiva</span>
-                {% else %}
-                  <span class="dp-pill dp-pill-gray">Disattiva</span>
-                {% endif %}
-                {% if lic.asset %}
-                  <a class="dp-btn dp-btn-ghost dp-btn-xs" href="{% url 'assets:asset_view' lic.asset.id %}">Apri asset</a>
-                {% endif %}
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna licenza assegnata a questo dipendente.</div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
   <!-- ASSET -->
   {% if assets_assegnati or assets_reparto or is_admin %}
   <div class="dp-card" data-tab="asset">
@@ -3054,6 +3008,54 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   </div>
   {% endif %}
 
+  <!-- LICENZE SOFTWARE -->
+  {% if software_licenses or is_admin %}
+  <div class="dp-card" data-tab="asset">
+    <div class="dp-card-head">
+      <div class="dp-card-title">Licenze software</div>
+      {% if is_admin %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'assets:software_license_list' %}?anagrafica={{ legacy_id }}">Gestione licenze</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      {% if software_licenses %}
+        <div class="dp-qual-list">
+          {% for lic in software_licenses %}
+            <div class="dp-qual-item">
+              <div>
+                <div class="dp-qual-name">{{ lic.product_name }}{% if lic.edition %} - {{ lic.edition }}{% endif %}</div>
+                <div class="dp-qual-cat">{{ lic.get_category_display }}{% if lic.vendor %} | {{ lic.vendor }}{% endif %}</div>
+                <div class="dp-qual-dates">
+                  {% if lic.expiry_date %}
+                    <span>Scadenza {{ lic.expiry_date|date:"d-m-Y" }}</span>
+                  {% else %}
+                    <span>Scadenza non impostata</span>
+                  {% endif %}
+                  {% if lic.asset %}
+                    <span>Asset {{ lic.asset.asset_tag }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                {% if lic.is_active %}
+                  <span class="dp-pill dp-pill-green">Attiva</span>
+                {% else %}
+                  <span class="dp-pill dp-pill-gray">Disattiva</span>
+                {% endif %}
+                {% if lic.asset %}
+                  <a class="dp-btn dp-btn-ghost dp-btn-xs" href="{% url 'assets:asset_view' lic.asset.id %}">Apri asset</a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna licenza assegnata a questo dipendente.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- TIMBRI (caricato in lazy via HTMX al primo click sul tab) -->
   {% if legacy_id %}
   <div class="dp-card" data-tab="timbri">
@@ -3094,7 +3096,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     <!-- Widget grid -->
     <div class="dp-widget-grid" id="dp-widget-grid">
       {% for w in widgets_visible %}
-      <div class="dp-widget" data-wid="{{ w.id }}" draggable="false">
+      <div class="dp-widget{% if not w.count %} dp-widget-zero{% endif %}" data-wid="{{ w.id }}" draggable="false">
         <div class="dp-widget-accent" style="background-color:{{ w.color }};"></div>
         <button class="dp-widget-remove" onclick="removeWidget('{{ w.id }}')" title="Nascondi">×</button>
         <div class="dp-widget-icon">{{ w.icon }}</div>
@@ -3500,6 +3502,28 @@ function toggleContrattoEdit(id) {
   editRow.style.display = isHidden ? 'table-row' : 'none';
 }
 
+/* ── Campi vuoti: nelle griglie con almeno due «—» si nascondono dietro un link ── */
+(function () {
+  document.querySelectorAll('.dp-page .dp-info-grid').forEach(function (grid) {
+    var vuoti = Array.prototype.filter.call(grid.children, function (item) {
+      var v = item.classList.contains('dp-info-item') && item.querySelector('.dp-info-value');
+      return v && !v.querySelector('input,select,textarea,a,button') && v.textContent.trim() === '—';
+    });
+    if (vuoti.length < 2) return;
+    vuoti.forEach(function (item) { item.classList.add('dp-info-vuoto'); });
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dp-vuoti-toggle';
+    var etichetta = function () {
+      btn.textContent = grid.classList.contains('dp-mostra-vuoti')
+        ? 'Nascondi i campi vuoti' : 'Mostra i ' + vuoti.length + ' campi vuoti';
+    };
+    btn.addEventListener('click', function () { grid.classList.toggle('dp-mostra-vuoti'); etichetta(); });
+    etichetta();
+    grid.insertAdjacentElement('afterend', btn);
+  });
+})();
+
 /* ── Tab interne scheda dipendente — show/hide dei panel `[data-tab]` ─────────
    Approccio additivo: nessuna card riscritta, le card portano data-tab e
    vengono mostrate/nascoste lato client. Le decisioni ACL restano server-side
@@ -3513,7 +3537,12 @@ function toggleContrattoEdit(id) {
   var present = {};
   panels.forEach(function (p) { present[p.getAttribute('data-tab')] = true; });
 
-  function show(tab) {
+  // La scheda aperta resta nell'indirizzo (#scheda-<nome>): ricaricando o
+  // tornando indietro si riapre la stessa, senza aggiungere voci alla cronologia.
+  function show(tab, ricorda) {
+    if (ricorda && window.history && history.replaceState) {
+      history.replaceState(null, '', location.pathname + location.search + '#scheda-' + tab);
+    }
     panels.forEach(function (p) {
       if (p.getAttribute('data-tab') === tab) p.style.removeProperty('display');
       else p.style.display = 'none';
@@ -3531,7 +3560,7 @@ function toggleContrattoEdit(id) {
     if (!t) return;                                          // voce-link esterna (es. Timbri) → lasciala visibile
     if (!present[t]) { b.style.display = 'none'; return; }   // tab senza contenuto visibile → nascosta
     if (!firstAvailable) firstAvailable = t;
-    b.addEventListener('click', function () { show(t); });
+    b.addEventListener('click', function () { show(t, true); });
   });
   if (!firstAvailable) return;
 
@@ -3539,16 +3568,18 @@ function toggleContrattoEdit(id) {
   page.addEventListener('click', function (e) {
     var a = e.target.closest('[data-tab-vai]');
     if (!a || !present[a.getAttribute('data-tab-vai')]) return;
-    e.preventDefault(); show(a.getAttribute('data-tab-vai'));
+    e.preventDefault(); show(a.getAttribute('data-tab-vai'), true);
     var bersaglio = a.hash ? document.getElementById(a.hash.slice(1)) : null;
     if (bersaglio) bersaglio.scrollIntoView({block: 'start'});
   });
 
   // Ritorno da un'azione con ancora (es. #account-portale): apre la tab che contiene il riquadro.
-  var ancora = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+  var tabScelta = location.hash.indexOf('#scheda-') === 0 ? location.hash.slice(8) : null;
+  var ancora = location.hash && !tabScelta ? document.getElementById(location.hash.slice(1)) : null;
   var tabAncora = ancora && ancora.closest('[data-tab]') ? ancora.closest('[data-tab]').getAttribute('data-tab') : null;
+  if (tabScelta && present[tabScelta]) tabAncora = tabScelta;
   show(tabAncora && present[tabAncora] ? tabAncora : firstAvailable);
-  if (tabAncora && present[tabAncora]) ancora.scrollIntoView({block: 'start'});
+  if (ancora && tabAncora && present[tabAncora]) ancora.scrollIntoView({block: 'start'});
 })();
 
 // Auto-fill caporeparto in sola lettura + cascading Reparto -> Area aziendale
