@@ -1,0 +1,50 @@
+name: Nightly SQL Server
+
+# 25/10/2026: la suite normale gira su SQLite (config.settings.test), quindi i rami con
+# SQL scritto a mano per SQL Server e le migrazioni non vengono mai provati prima del
+# deploy. Qui: SQL Server Express sul runner, migrate da zero e test delle app con piu'
+# SQL a mano. Separato dalla suite notturna: se e' rosso non blocca le PR.
+on:
+  schedule:
+    - cron: "15 2 * * *"   # 02:15 UTC
+  workflow_dispatch:
+
+jobs:
+  mssql:
+    runs-on: windows-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: django_app/requirements.txt
+
+      - name: Install SQL Server Express + ODBC Driver 18
+        shell: pwsh
+        run: |
+          choco install sql-server-express -y --no-progress
+          if (-not (Get-OdbcDriver -Name "ODBC Driver 18 for SQL Server" -ErrorAction SilentlyContinue)) {
+            choco install sqlserver-odbcdriver -y --no-progress
+          }
+          Get-OdbcDriver | Where-Object Name -like "*SQL Server*" | Select-Object Name, Platform
+          sqlcmd -S "localhost\SQLEXPRESS" -E -C -Q "SELECT @@VERSION"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r django_app/requirements.txt
+
+      - name: Test su SQL Server (migrate da zero + app con SQL a mano)
+        shell: pwsh
+        working-directory: django_app
+        env:
+          DEFAULT_FROM_EMAIL: noreply@example.com
+          TEST_MSSQL_HOST: localhost\SQLEXPRESS
+        run: python manage.py test automazioni assenze anomalie admin_portale dashboard core --noinput --verbosity 1 --settings=config.settings.test_mssql

@@ -17,6 +17,7 @@ import os
 import shutil
 import socket
 from collections import deque
+from contextlib import contextmanager
 from datetime import datetime
 from html import escape
 from io import BytesIO
@@ -110,6 +111,23 @@ _BACKUP_DIR = _get_backup_dir()
 def _json_internal_error(operation: str, *, status: int = 500) -> JsonResponse:
     logger.error("[hub_tools] errore durante %s", operation, exc_info=True)
     return JsonResponse({"ok": False, "error": _GENERIC_ERROR_MESSAGE}, status=status)
+
+
+@contextmanager
+def _query_senza_timeout(connection):
+    """BACKUP/RESTORE dal sito possono superare DB_QUERY_TIMEOUT (200 s di default
+    per il processo web): sulla connessione pyodbc il limite si toglie solo per loro."""
+    connection.ensure_connection()
+    raw = connection.connection
+    previous = getattr(raw, "timeout", None)
+    if previous is None:
+        yield
+        return
+    raw.timeout = 0
+    try:
+        yield
+    finally:
+        raw.timeout = previous
 
 
 def _resolve_backup_source(backup_name: str) -> Path | None:
@@ -824,7 +842,7 @@ def api_db_backup(request):
                     backup_path = f"C:\\SQLBackups\\{db_name}_{ts}.bak"
 
             from django.db import connection
-            with connection.cursor() as cur:
+            with _query_senza_timeout(connection), connection.cursor() as cur:
                 cur.execute(
                     "BACKUP DATABASE ? TO DISK = ? WITH FORMAT, INIT, NAME = ?",
                     [db_name, backup_path, f"NOVICROM_HUB_backup_{ts}"]
@@ -999,7 +1017,7 @@ def api_db_restore(request):
             bak_path = src.read_text(encoding="utf-8").strip()
 
             from django.db import connection
-            with connection.cursor() as cur:
+            with _query_senza_timeout(connection), connection.cursor() as cur:
                 cur.execute(
                     "RESTORE DATABASE ? FROM DISK = ? WITH REPLACE, RECOVERY",
                     [db_name, bak_path]
