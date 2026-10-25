@@ -212,7 +212,7 @@
           </div>
           <button type="submit" name="esito" value="ACCETTATA" class="fmd-btn fmd-btn-primary"{% if candidato.anagrafica_da_completare %} disabled title="Serve il nominativo"{% endif %}><svg class="fmd-ico"><use href="#i-check"/></svg>Accettata → apri pre-ingresso</button>
           <button type="submit" name="esito" value="RIFIUTATA" class="fmd-btn fmd-btn-ghost"
-                  onclick="return confirm('Registrare l\'offerta come rifiutata? L\'iter si chiude per rinuncia del candidato.');">Rifiutata</button>
+                  data-hub-confirm="Registrare l'offerta come rifiutata? L'iter si chiude per rinuncia del candidato.">Rifiutata</button>
         </form>
         {% elif candidato.stato != "OFFERTA" %}
         <form method="post" action="{% url 'anagrafica:recruiting_offerta' candidato.id %}">
@@ -285,7 +285,7 @@
 
       <div class="rcr-annulla-row">
         <form method="post" action="{% url 'anagrafica:recruiting_annulla' candidato.id %}"
-              onsubmit="return confirm('Annullare questa scheda? Resterà consultabile ma fuori dalle liste operative.');">
+              data-hub-confirm="Annullare questa scheda? Resterà consultabile ma fuori dalle liste operative.">
           {% csrf_token %}
           <input type="text" name="motivo" class="rcr-annulla-motivo" maxlength="180" placeholder="Motivo (facoltativo)">
           <button type="submit" class="fmd-btn-mini rcr-danger"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Annulla scheda</button>

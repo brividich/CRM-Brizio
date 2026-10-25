@@ -91,7 +91,7 @@
             <input class="fm-input" type="text" name="titolo" value="{{ m.titolo }}" maxlength="200" aria-label="Titolo del modulo">
             <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
           </form>
-          <form method="post" action="{% url 'anagrafica:formazione_modulo_delete' corso.pk m.pk %}" onsubmit="return confirm('Eliminare il modulo? Le slide restano.');">
+          <form method="post" action="{% url 'anagrafica:formazione_modulo_delete' corso.pk m.pk %}" data-hub-confirm="Eliminare il modulo? Le slide restano.">
             {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 8px;color:#c0392b;" aria-label="Elimina modulo">✕</button>
           </form>
         </div>
@@ -132,7 +132,7 @@
           <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:6px 12px;"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva</button>
         </div>
       </form>
-      <form method="post" action="{% url 'anagrafica:formazione_slide_delete' corso.pk s.pk %}" onsubmit="return confirm('Eliminare questa slide?');" style="margin:-6px 0 18px;">
+      <form method="post" action="{% url 'anagrafica:formazione_slide_delete' corso.pk s.pk %}" data-hub-confirm="Eliminare questa slide?" style="margin:-6px 0 18px;">
         {% csrf_token %}
         <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;">Elimina slide</button>
       </form>
@@ -178,7 +178,7 @@
               <input class="fm-input" type="number" name="ordine" value="{{ d.ordine }}" min="1" style="max-width:90px;"></div>
             <div class="fmd-field"><label>Tipo</label>
               <select class="fm-input" name="tipo" data-prima="{{ d.tipo }}"
-                      onchange="if(this.value==='VERO_FALSO'&&this.dataset.prima!=='VERO_FALSO'&&!confirm('Le opzioni di risposta verranno sostituite da «Vero» e «Falso». Continuare?')){this.value=this.dataset.prima;}">
+                      onchange="var s=this;if(s.value==='VERO_FALSO'&&s.dataset.prima!=='VERO_FALSO'){s.value=s.dataset.prima;hubConfirm('Passare a vero/falso? Le opzioni di risposta verranno sostituite da «Vero» e «Falso».',{ok:'Passa a vero/falso'}).then(function(si){if(si)s.value='VERO_FALSO';});}">
                 {% for val, lab in tipi_domanda %}<option value="{{ val }}"{% if d.tipo == val %} selected{% endif %}>{{ lab }}</option>{% endfor %}
               </select></div>
             <div class="fmd-field"><label>Se vero/falso, l'affermazione è</label>
@@ -210,7 +210,7 @@
             <label class="fmd-check" style="white-space:nowrap;"><input type="checkbox" name="corretta" {% if o.corretta %}checked{% endif %}><span>Corretta</span></label>
             <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
           </form>
-          <form method="post" action="{% url 'anagrafica:formazione_option_delete' corso.pk o.pk %}" onsubmit="return confirm('Eliminare l\'opzione?');" class="fm-opt-del">
+          <form method="post" action="{% url 'anagrafica:formazione_option_delete' corso.pk o.pk %}" data-hub-confirm="Eliminare l'opzione?" class="fm-opt-del">
             {% csrf_token %}
             <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 8px;color:#c0392b;">✕</button>
           </form>
@@ -227,7 +227,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="{% url 'anagrafica:formazione_question_delete' corso.pk d.pk %}" onsubmit="return confirm('Eliminare la domanda e tutte le sue opzioni?');" style="margin-top:8px;">
+        <form method="post" action="{% url 'anagrafica:formazione_question_delete' corso.pk d.pk %}" data-hub-confirm="Eliminare la domanda e tutte le sue opzioni?" style="margin-top:8px;">
           {% csrf_token %}
           <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;">Elimina domanda</button>
         </form>

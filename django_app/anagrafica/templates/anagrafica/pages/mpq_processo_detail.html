@@ -52,7 +52,7 @@
               <svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica
             </a>
             <form method="post" action="{% url 'anagrafica:mpq_processo_delete' processo.id %}"
-                  onsubmit="return confirm('Eliminare definitivamente il processo «{{ processo.nome|escapejs }}» e tutte le sue abilitazioni?');" style="display:inline;">
+                  data-hub-confirm="Eliminare definitivamente il processo «{{ processo.nome }}» e tutte le sue abilitazioni?" style="display:inline;">
               {% csrf_token %}
               <button type="submit" class="fmd-btn fmd-btn-ghost" style="color:#c53030;">🗑 Elimina</button>
             </form>
@@ -97,7 +97,7 @@
         <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Riferimenti / codici di approvazione</div>
         {% for rif in riferimenti %}
           <span class="fmd-badge fmd-b-violet" title="{{ rif.get_tipo_display }}">{{ rif.codice }}{% if can_manage %}
-            <form method="post" action="{% url 'anagrafica:mpq_riferimento_delete' rif.id %}" style="display:inline;" onsubmit="return confirm('Rimuovere il riferimento {{ rif.codice|escapejs }}?');">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>
+            <form method="post" action="{% url 'anagrafica:mpq_riferimento_delete' rif.id %}" style="display:inline;" data-hub-confirm="Rimuovere il riferimento {{ rif.codice }}?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>
           {% endif %}</span>
         {% empty %}{% if not can_manage %}<span class="fmd-muted">—</span>{% endif %}{% endfor %}
         {% if can_manage %}
@@ -166,7 +166,7 @@
               {% if can_manage %}
               <td style="white-space:nowrap;">
                 <a href="{% url 'anagrafica:mpq_requisito_edit' r.id %}" title="Modifica">✎</a>
-                <form method="post" action="{% url 'anagrafica:mpq_requisito_delete' r.id %}" style="display:inline;" onsubmit="return confirm('Rimuovere il requisito «{{ r.descrizione|escapejs }}»?');">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
+                <form method="post" action="{% url 'anagrafica:mpq_requisito_delete' r.id %}" style="display:inline;" data-hub-confirm="Rimuovere il requisito «{{ r.descrizione }}»?">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
               </td>
               {% endif %}
             </tr>
@@ -201,7 +201,7 @@
               <td>{% if r.asset.status == "IN_USE" %}<span class="fmd-badge fmd-b-green">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "IN_REPAIR" %}<span class="fmd-badge fmd-b-amber">{{ r.asset.get_status_display }}</span>{% elif r.asset.status == "RETIRED" %}<span class="fmd-badge fmd-b-red">{{ r.asset.get_status_display }}</span>{% else %}<span class="fmd-badge fmd-b-slate">{{ r.asset.get_status_display }}</span>{% endif %}</td>
               <td>{% if r.collegata %}<span class="fmd-badge fmd-b-violet">Collegata qui</span>{% endif %} {% if r.da_flag and processo.regime == "PART145" %}<span class="fmd-badge fmd-b-red">PART 145</span>{% endif %}</td>
               {% if can_manage %}
-              <td>{% if r.collegata %}<form method="post" action="{% url 'anagrafica:mpq_attrezzatura_remove' processo.id r.asset.id %}" style="display:inline;" onsubmit="return confirm('Scollegare {{ r.asset.asset_tag|escapejs }} dal processo?');">{% csrf_token %}<button type="submit" title="Scollega" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">Scollega</button></form>{% else %}<span class="fmd-muted" style="font-size:11px;">dal flag dell'asset</span>{% endif %}</td>
+              <td>{% if r.collegata %}<form method="post" action="{% url 'anagrafica:mpq_attrezzatura_remove' processo.id r.asset.id %}" style="display:inline;" data-hub-confirm="Scollegare {{ r.asset.asset_tag }} dal processo?">{% csrf_token %}<button type="submit" title="Scollega" style="border:0;background:none;color:#c53030;cursor:pointer;font:inherit;">Scollega</button></form>{% else %}<span class="fmd-muted" style="font-size:11px;">dal flag dell'asset</span>{% endif %}</td>
               {% endif %}
             </tr>
           {% endfor %}
@@ -280,7 +280,7 @@
               <td class="fmd-nowrap">
                 <a class="fmd-data-link" href="{% url 'anagrafica:mpq_abilitazione_edit' a.obj.id %}">Modifica</a>
                 · <a class="fmd-data-link" href="{% url 'anagrafica:mpq_certificazione_add' a.obj.id %}">＋ cert</a>
-                · <form method="post" action="{% url 'anagrafica:mpq_abilitazione_delete' a.obj.id %}" style="display:inline;" onsubmit="return confirm('Rimuovere l'abilitazione di {{ a.nome|escapejs }}?');">{% csrf_token %}<button type="submit" class="fmd-linkbtn" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0;font:inherit;">Rimuovi</button></form>
+                · <form method="post" action="{% url 'anagrafica:mpq_abilitazione_delete' a.obj.id %}" style="display:inline;" data-hub-confirm="Rimuovere l'abilitazione di {{ a.nome }}?">{% csrf_token %}<button type="submit" class="fmd-linkbtn" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0;font:inherit;">Rimuovi</button></form>
               </td>
               {% endif %}
             </tr>

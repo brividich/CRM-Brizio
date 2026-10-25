@@ -91,7 +91,7 @@
                 <a href="{% url 'anagrafica:formazione_piano_detail' p.pk %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Apri</a>
                 {% if is_editor %}
                 <form method="post" action="{% url 'anagrafica:formazione_piano_delete' p.pk %}" style="display:inline;"
-                      onsubmit="return confirm('Eliminare il piano «{{ p.nome|escapejs }}»?')">
+                      data-hub-confirm="Eliminare il piano «{{ p.nome }}»?">
                   {% csrf_token %}
                   <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;color:#c53030;">Elimina</button>
                 </form>

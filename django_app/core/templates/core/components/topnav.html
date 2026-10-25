@@ -26,6 +26,11 @@
   </button>
 
   <div class="nav-links" id="nav-links-panel">
+    {# Solo nel menu a hamburger (≤1100px): filtra voci e tendine mentre scrivi. #}
+    <div class="nav-menu-filter">
+      <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" placeholder="Cerca nel menu" autocomplete="off" aria-label="Cerca nel menu" data-nav-filter>
+    </div>
     {% for grp in topbar_groups %}
       {% if grp.type == "category" %}
         <div class="nav-dropdown{% if grp.active %} active{% endif %}" data-nav-top>
@@ -245,7 +250,7 @@
   });
 
   document.addEventListener('click', function(e){
-    if (!e.target.closest('.nav-dropdown, .nav-user-menu')) closeAll(null);
+    if (!e.target.closest('.nav-dropdown, .nav-user-menu, .nav-menu-filter')) closeAll(null);
     if (!e.target.closest('#topnav') && panel.classList.contains('open')) setPanel(false);
   });
 
@@ -255,6 +260,58 @@
     btn.classList.toggle('open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     btn.setAttribute('aria-label', open ? 'Chiudi menu' : 'Apri menu');
+    /* Sotto il menu aperto la pagina non scorre (sul telefono scorreva insieme). */
+    document.documentElement.classList.toggle('nav-panel-lock', open && mqMobile.matches);
+    if (open && mqMobile.matches) {
+      if (filterInput) { filterInput.value = ''; filterMenu(''); }
+      /* La categoria della pagina corrente si apre da sola. */
+      var cur = panel.querySelector('.nav-dropdown.active:not(.nav-more)');
+      /* Dopo il click in corso: il listener sul documento chiuderebbe subito le tendine. */
+      if (cur) setTimeout(function(){
+        if (!cur.classList.contains('open')) openHost(cur, false);
+        cur.scrollIntoView({ block: 'start' });
+      }, 0);
+    }
+  }
+
+  /* ── Filtro del menu a hamburger ──────────────────────────────────── */
+  var filterInput = panel.querySelector('[data-nav-filter]');
+  function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function filterMenu(q) {
+    q = norm(q);
+    panel.querySelectorAll('[data-nav-top]').forEach(function(el){
+      if (!el.classList.contains('nav-dropdown')) {
+        el.classList.toggle('nav-filter-miss', !!q && norm(el.textContent).indexOf(q) === -1);
+        return;
+      }
+      var catHit = !!q && norm(el.querySelector('.nav-dropdown-btn').textContent).indexOf(q) !== -1;
+      var anyHit = false;
+      el.querySelectorAll('.nav-dropdown-item').forEach(function(it){
+        var hit = !q || catHit || norm(it.textContent).indexOf(q) !== -1;
+        it.classList.toggle('nav-filter-miss', !hit);
+        if (hit) anyHit = true;
+      });
+      el.querySelectorAll('.nav-dd-section').forEach(function(sec){
+        sec.classList.toggle('nav-filter-miss', !!q && !sec.querySelector('.nav-dropdown-item:not(.nav-filter-miss)'));
+      });
+      el.classList.toggle('nav-filter-miss', !!q && !anyHit);
+      /* Con un filtro attivo le categorie con risultati si aprono da sole. */
+      if (q) {
+        el.classList.toggle('open', anyHit);
+        el.querySelector('.nav-dropdown-btn').setAttribute('aria-expanded', anyHit ? 'true' : 'false');
+      } else if (!el.classList.contains('active')) {
+        el.classList.remove('open');
+        el.querySelector('.nav-dropdown-btn').setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+  if (filterInput) {
+    filterInput.addEventListener('input', function(){ filterMenu(filterInput.value); });
+    filterInput.addEventListener('keydown', function(e){
+      if (e.key !== 'Enter') return;
+      var first = panel.querySelector('a.nav-a:not(.nav-filter-miss):not([hidden]), .nav-dropdown.open .nav-dropdown-item:not(.nav-filter-miss)');
+      if (first && norm(filterInput.value)) { e.preventDefault(); first.click(); }
+    });
   }
   btn.addEventListener('click', function(){ setPanel(!panel.classList.contains('open')); });
   panel.addEventListener('click', function(e){ if (e.target.closest('a')) setPanel(false); });

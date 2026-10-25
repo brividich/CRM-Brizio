@@ -91,7 +91,7 @@
               </button>
               <form method="post" action="{% url 'anagrafica:fattore_rischio_delete' f.pk %}"
                     style="display:inline;"
-                    onsubmit="return confirm('Eliminare fattore «{{ f.nome|escapejs }}»? (Se collegato verrà solo disattivato.)')">
+                    data-hub-confirm="Eliminare fattore «{{ f.nome }}»? (Se collegato verrà solo disattivato.)">
                 {% csrf_token %}
                 <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger">Elimina</button>
               </form>

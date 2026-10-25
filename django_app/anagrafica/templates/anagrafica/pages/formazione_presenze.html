@@ -347,7 +347,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
             {% if is_editor %}
             <td>
               <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
-                    onsubmit="return confirm('Eliminare l\'allegato?')">
+                    data-hub-confirm="Eliminare l'allegato?">
                 {% csrf_token %}
                 <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
               </form>

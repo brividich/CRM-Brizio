@@ -35,7 +35,7 @@
         Modifica piano
       </button>
       <form method="post" action="{% url 'anagrafica:formazione_piano_delete' piano.pk %}"
-            onsubmit="return confirm('Eliminare il piano?')">
+            data-hub-confirm="Eliminare il piano?">
         {% csrf_token %}
         <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
       </form>

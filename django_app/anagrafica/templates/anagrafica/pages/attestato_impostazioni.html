@@ -113,7 +113,7 @@ body.theme-dark .att-danger{color:#fca5a5}
         <a href="{% url 'anagrafica:attestato_report_export' %}" class="hr-btn hr-btn-ghost">📄 Esporta CSV archivio</a>
 
         <form method="post"
-              onsubmit="return confirm('Eliminare TUTTI gli {{ n_archiviati }} attestati archiviati dai box documenti? L\'operazione non è reversibile.');">
+              data-hub-confirm="Eliminare TUTTI gli {{ n_archiviati }} attestati archiviati dai box documenti? L'operazione non è reversibile.">
           {% csrf_token %}
           <input type="hidden" name="action" value="purge">
           <button type="submit" class="hr-btn hr-btn-ghost att-danger"

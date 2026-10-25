@@ -48,7 +48,7 @@ body.theme-dark .qs-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
       {% if is_admin %}
       <form method="post" action="{% url 'anagrafica:qualifica_sessione_delete' sess.id %}" style="display:inline;">
         {% csrf_token %}
-        <button type="submit" class="qs-btn qs-btn-danger qs-btn-sm" onclick="return confirm('Eliminare la sessione? Le qualifiche dei dipendenti restano.')">🗑 Elimina sessione</button>
+        <button type="submit" class="qs-btn qs-btn-danger qs-btn-sm" data-hub-confirm="Eliminare la sessione? Le qualifiche dei dipendenti restano.">🗑 Elimina sessione</button>
       </form>
       {% endif %}
     </div>
@@ -83,7 +83,7 @@ body.theme-dark .qs-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
             <td style="text-align:right;">
               <form method="post" action="{% url 'anagrafica:qualifica_sessione_partecipante_remove' sess.id r.q.id %}" style="display:inline;">
                 {% csrf_token %}
-                <button type="submit" class="qs-btn qs-btn-ghost qs-btn-sm" onclick="return confirm('Rimuovere dalla sessione? La qualifica del dipendente resta.')">Rimuovi</button>
+                <button type="submit" class="qs-btn qs-btn-ghost qs-btn-sm" data-hub-confirm="Rimuovere dalla sessione? La qualifica del dipendente resta.">Rimuovi</button>
               </form>
             </td>
             {% endif %}

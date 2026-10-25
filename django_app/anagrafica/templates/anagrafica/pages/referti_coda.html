@@ -381,7 +381,7 @@ body.theme-dark .rf-azioni{border-color:var(--border)}
       var n = caselle.filter(function (c) { return c.checked; }).length;
       if (!n) { e.preventDefault(); return; }
       var verbo = id === 'rf-conferma' ? 'Confermare e registrare' : 'Scartare';
-      if (!confirm(verbo + ' ' + n + ' referti?')) e.preventDefault();
+      b.setAttribute('data-hub-confirm', verbo + ' ' + n + ' referti?');
     });
   });
 
@@ -411,15 +411,17 @@ body.theme-dark .rf-azioni{border-color:var(--border)}
         alert('Scegli la visita a cui unire il referto.');
         return;
       }
-      if (!confirm('Unire questo referto alla visita scelta senza crearne una nuova?')) return;
-      caselle.forEach(function (c) { c.checked = (c.value === pk); });
-      aggiorna();
-      var azione = document.createElement('input');
-      azione.type = 'hidden';
-      azione.name = 'azione';
-      azione.value = 'unisci';
-      form.appendChild(azione);
-      form.submit();
+      hubConfirm('Unire questo referto alla visita scelta senza crearne una nuova?', {ok: 'Unisci'}).then(function (si) {
+        if (!si) return;
+        caselle.forEach(function (c) { c.checked = (c.value === pk); });
+        aggiorna();
+        var azione = document.createElement('input');
+        azione.type = 'hidden';
+        azione.name = 'azione';
+        azione.value = 'unisci';
+        form.appendChild(azione);
+        form.submit();
+      });
     });
   });
 

@@ -84,7 +84,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         Modifica sessione
       </button>
       <form method="post" action="{% url 'anagrafica:formazione_sessione_delete' sessione.pk %}"
-            onsubmit="return confirm('Eliminare la sessione «{{ sessione.codice_sessione|escapejs }}»?')">
+            data-hub-confirm="Eliminare la sessione «{{ sessione.codice_sessione }}»?">
         {% csrf_token %}
         <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
       </form>
@@ -141,7 +141,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:8px;">
         <button type="submit" class="hr-btn hr-btn-primary"
-                onclick="return confirm('Dividere gli iscritti attuali di questa sessione in più gruppi?')">
+                data-hub-confirm="Dividere gli iscritti attuali di questa sessione in più gruppi?">
           ⑂ Dividi
         </button>
       </div>
@@ -275,7 +275,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
         </div>
         {% if is_editor %}
         <form method="post" action="{% url 'anagrafica:formazione_sessione_programma_riprendi' sessione.pk %}"
-              onsubmit="return confirm('Riprendere il programma dal corso? Gli argomenti integrati da questa edizione restano.')" style="display:inline;">
+              data-hub-confirm="Riprendere il programma dal corso? Gli argomenti integrati da questa edizione restano." style="display:inline;">
           {% csrf_token %}
           <button type="submit" class="hr-btn hr-btn-sm">↻ Riprendi dal corso</button>
         </form>
@@ -314,7 +314,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
             {% if is_editor %}
             <td class="nowrap">
               <form method="post" action="{% url 'anagrafica:formazione_sessione_argomento_delete' sessione.pk a.pk %}"
-                    onsubmit="return confirm('Rimuovere questo argomento dal programma dell&#39;edizione?')" style="display:inline;">
+                    data-hub-confirm="Rimuovere questo argomento dal programma dell&#39;edizione?" style="display:inline;">
                 {% csrf_token %}
                 <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
               </form>
@@ -408,7 +408,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
               <form method="post"
                     action="{% url 'anagrafica:formazione_lezione_delete' sessione.pk lz.pk %}"
                     style="display:inline;"
-                    onsubmit="return confirm('Eliminare lezione {{ lz.numero }}?')">
+                    data-hub-confirm="Eliminare lezione {{ lz.numero }}?">
                 {% csrf_token %}
                 <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
               </form>
@@ -516,7 +516,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
             <td class="nowrap">
               {% if is_editor %}
               <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
-                    onsubmit="return confirm('Eliminare l\'allegato «{{ a.nome_originale|escapejs }}»?')">
+                    data-hub-confirm="Eliminare l'allegato «{{ a.nome_originale }}»?">
                 {% csrf_token %}
                 <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
               </form>
