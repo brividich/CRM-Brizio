@@ -63,7 +63,7 @@ GUIDA = {
                     "Le schede in alto (In attesa, Approvate, Rifiutate, Tutte) filtrano l'elenco.",
                     "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina».",
                 ]),
-                ("p", "Quando il capo decide ricevi una notifica (campanella in alto) e, se attiva, una mail."),
+                ("p", "Quando il capo decide ricevi una notifica (campanella in alto; sul telefono «Notifiche» nella barra in basso) e, se attiva, una mail."),
                 ("nota", "Le richieste con l'etichetta «Gestita su SharePoint» sono nate nella vecchia app SharePoint: "
                          "si vedono qui ma si modificano solo là."),
             ],

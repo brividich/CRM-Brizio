@@ -216,6 +216,14 @@ th.st-th { cursor:default; }
   .hr-grid-2 { grid-template-columns:1fr; }
   .hr-hero-stats { min-width:0; width:100%; }
   .hr-hero-title { font-size:23px; }
+  /* Telefono: testata bassa, numeri tutti dentro lo schermo (colonne che si stringono). */
+  .hr-hero { padding:16px; gap:12px; }
+  .hr-hero-title { font-size:19px; line-height:1.25; }
+  .hr-hero-sub { display:none; }
+  .hr-hero-stats { grid-auto-columns:minmax(0,1fr); }
+  .hr-hero-stat { padding:9px 10px; min-width:0; }
+  .hr-hero-stat-val { font-size:19px; }
+  .hr-hero-stat-lbl { font-size:10px; letter-spacing:.02em; overflow-wrap:anywhere; hyphens:auto; }
 }
 
 /* ── Dark mode (allineato ai token core) ─────────────────────────────────── */

@@ -354,8 +354,16 @@
       .abs-hero-aside { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 760px) {
-      .abs-hero-aside { grid-template-columns: 1fr; }
-      .abs-hero-stat { min-height: 54px; }
+      /* I tre riquadri restano su una riga: numero sopra, etichetta sotto, senza icona. */
+      .abs-hero-aside { gap: 8px; }
+      .abs-hero-stat { min-height: 0; padding: 9px 10px; border-radius: 12px; }
+      .abs-hero-stat-icon { display: none; }
+      .abs-hero-stat-label { font-size: 10px; overflow-wrap: anywhere; }
+    }
+    @media (max-width: 640px) {
+      .abs-menu-hero { padding: 16px; gap: 12px; }
+      .abs-menu-hero h1 { font-size: 22px; }
+      .abs-menu-hero-main { gap: 10px; }
     }
     body.theme-dark .abs-menu-card {
       background: var(--surface);

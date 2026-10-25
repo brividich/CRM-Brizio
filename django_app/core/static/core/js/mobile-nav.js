@@ -14,11 +14,15 @@
   var GROUP_LABEL_SEL = ".hrnav-pill, .hrnav-dd-btn, .as-nav-parent .as-link";
   /* Intestazioni: di sezione (fuori dai gruppi) o di colonna (dentro un gruppo). */
   var HEAD_SEL = "[data-mnav-head], .as-nav-head, .hrnav-dd-head";
-  var BADGE_SEL = "[class*='badge'], .hrnav-sub-n, .nav-soon, .dot";
+  var BADGE_SEL = "[class*='badge'], [class*='-count'], .hrnav-sub-n, .nav-soon, .dot";
   var SKIP_SEL = "[data-mnav-skip], .as-brand-link";
   /* Nome del modulo nel pannello, per le barre che non hanno data-mnav. */
   var TITLES = { "hrnav": "Anagrafica", "abs-subnav": "Assenze", "as-side": "Assets", "soc-subnav": "SOC", "cnav": "Contatori" };
   var MIN_LINKS = 4;
+  /* Schede interne alle pagine (scheda dipendente, scheda asset, impostazioni…): le voci sono
+     pulsanti o link; diventano pannello solo se sul telefono non stanno nella larghezza. */
+  var TABS_SEL = "[data-mnav-tabs], [role='tablist'], [class$='-tabs'], [class*='-tabs ']";
+  var TAB_ITEM_SEL = "a[href], button, [role='tab']";
 
   var mq = window.matchMedia("(max-width:720px)");
   var bars = [];
@@ -48,7 +52,26 @@
   }
 
   function isActive(a) {
-    return a.classList.contains("active") || a.hasAttribute("aria-current");
+    return a.classList.contains("active") || a.classList.contains("is-active") || a.classList.contains("on") ||
+      a.hasAttribute("aria-current") || a.getAttribute("aria-selected") === "true";
+  }
+
+  /* Voci di una barra di schede: in ordine, senza quelle nascoste. */
+  function collectTabs(root) {
+    var rows = [];
+    root.querySelectorAll(TAB_ITEM_SEL).forEach(function (el) {
+      if (el.parentElement && el.parentElement.closest(TAB_ITEM_SEL)) return;
+      if (el.hidden || el.closest("[hidden]") || el.disabled || el.matches(SKIP_SEL)) return;
+      if (el.style.display === "none") return;
+      var label = labelOf(el);
+      if (!label) return;
+      rows.push({ link: el, label: label, badge: badgeOf(el), active: isActive(el), group: "", proxy: true });
+    });
+    return rows;
+  }
+
+  function rowsOf(bar) {
+    return bar.tabs ? collectTabs(bar.root) : collect(bar.root);
   }
 
   /* Legge la barra in ordine di documento: voci + intestazioni. */
@@ -186,7 +209,7 @@
 
   function openSheet(bar) {
     var wrap = ensureSheet();
-    var rows = collect(bar.root);
+    var rows = rowsOf(bar);
     wrap.querySelector(".mnav-title").textContent = bar.title;
     var list = wrap.querySelector(".mnav-list");
     list.innerHTML = "";
@@ -200,10 +223,22 @@
         return;
       }
       nLinks++;
-      var a = document.createElement("a");
+      var a;
+      if (r.proxy) {
+        /* Scheda della pagina: la voce «preme» la scheda originale, che fa il suo lavoro (JS, link, HTMX). */
+        a = document.createElement("button");
+        a.type = "button";
+        a.addEventListener("click", function () {
+          closeSheet();
+          r.link.click();
+          setTimeout(function () { refreshTrigger(bar); }, 60);
+        });
+      } else {
+        a = document.createElement("a");
+        a.href = r.link.getAttribute("href");
+        if (r.link.getAttribute("target")) { a.target = r.link.getAttribute("target"); a.rel = "noopener"; }
+      }
       a.className = "mnav-item" + (r.active ? " is-active" : "");
-      a.href = r.link.getAttribute("href");
-      if (r.link.getAttribute("target")) { a.target = r.link.getAttribute("target"); a.rel = "noopener"; }
       if (r.active) a.setAttribute("aria-current", "page");
       a.setAttribute("data-text", (r.label + " " + (r.group || "")).toLowerCase());
       var span = document.createElement("span");
@@ -247,31 +282,77 @@
   }
 
   /* ── Pulsante che sostituisce la barra ───────────────────────────── */
+  var ICO_GRID = '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>';
+  var ICO_TABS = '<path d="M4 6h16M4 12h16M4 18h10"/>';
+
   function buildTrigger(bar) {
-    var rows = collect(bar.root);
-    var cur = currentOf(rows);
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "mnav-trigger";
     btn.setAttribute("aria-haspopup", "dialog");
     btn.setAttribute("aria-expanded", "false");
-    var kicker = cur && cur.group && cur.group !== cur.label ? cur.group : bar.title;
     btn.innerHTML =
-      '<svg class="mnav-trigger-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>' +
+      '<svg class="mnav-trigger-ico" viewBox="0 0 24 24" aria-hidden="true">' + (bar.tabs ? ICO_TABS : ICO_GRID) + '</svg>' +
       '<span class="mnav-trigger-text"><span class="mnav-trigger-kicker"></span><span class="mnav-trigger-label"></span></span>' +
       '<svg class="mnav-trigger-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
-    btn.querySelector(".mnav-trigger-kicker").textContent = kicker;
-    btn.querySelector(".mnav-trigger-label").textContent = cur ? cur.label : "Scegli una sezione";
-    btn.setAttribute("aria-label", "Menu " + bar.title + (cur ? ": sei in " + cur.label : ""));
     btn.addEventListener("click", function () { openSheet(bar); });
     var host = document.createElement("div");
-    host.className = "mnav-bar";
+    host.className = "mnav-bar" + (bar.tabs ? " mnav-bar--tabs" : "");
     host.appendChild(btn);
+    bar.trigger = btn;
+    refreshTrigger(bar);
     return host;
+  }
+
+  function refreshTrigger(bar) {
+    var cur = currentOf(rowsOf(bar));
+    var kicker = cur && cur.group && cur.group !== cur.label ? cur.group : bar.title;
+    bar.trigger.querySelector(".mnav-trigger-kicker").textContent = kicker;
+    bar.trigger.querySelector(".mnav-trigger-label").textContent = cur ? cur.label : "Scegli una sezione";
+    bar.trigger.setAttribute("aria-label", "Menu " + bar.title + (cur ? ": sei in " + cur.label : ""));
   }
 
   function linkCount(root) {
     return collect(root).filter(function (r) { return r.link; }).length;
+  }
+
+  function tabsTitle(root) {
+    var t = clean(root.getAttribute("data-mnav-tabs") || root.getAttribute("aria-label"));
+    return t && t.length <= 40 ? t : "Sezioni della pagina";
+  }
+
+  /* La barra di schede ha bisogno del pannello? Solo se le voci non stanno in larghezza. */
+  function tabsOverflow(root) {
+    if (root.hasAttribute("data-mnav-tabs")) return true;
+    if (root.scrollWidth > root.clientWidth + 4) return true;
+    /* Barre che vanno a capo: più di due righe di voci. */
+    var items = collectTabs(root);
+    if (!items.length) return false;
+    var h = items[0].link.getBoundingClientRect().height || 1;
+    return root.getBoundingClientRect().height > h * 2.6;
+  }
+
+  function setupTabs() {
+    if (!mq.matches) return;
+    document.querySelectorAll(TABS_SEL).forEach(function (root) {
+      if (root.__mnav || root.hasAttribute("data-mnav-off") || root.closest(".mnav-sheet")) return;
+      if (root.parentElement && root.parentElement.closest(NAV_SEL + ", " + TABS_SEL)) return;
+      if (root.matches(NAV_SEL) || root.getClientRects().length === 0) return;
+      if (collectTabs(root).length < MIN_LINKS || !tabsOverflow(root)) return;
+      var bar = { root: root, title: tabsTitle(root), tabs: true };
+      var host = buildTrigger(bar);
+      bar.host = host;
+      root.parentNode.insertBefore(host, root);
+      host.classList.add("mnav-bar--inline");
+      root.__mnav = bar;
+      bars.push(bar);
+      /* La scheda può cambiare anche da altri pulsanti della pagina: il pulsante segue. */
+      if (window.MutationObserver) {
+        new MutationObserver(function () { refreshTrigger(bar); })
+          .observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "aria-selected", "aria-current"] });
+      }
+    });
+    sync();
   }
 
   function setup() {
@@ -306,9 +387,19 @@
     if (!on) closeSheet();
   }
 
-  if (mq.addEventListener) mq.addEventListener("change", sync);
-  else if (mq.addListener) mq.addListener(sync);
+  function onMq() { sync(); setupTabs(); }
+  if (mq.addEventListener) mq.addEventListener("change", onMq);
+  else if (mq.addListener) mq.addListener(onMq);
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setup);
-  else setup();
+  function start() { setup(); setupTabs(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
+  /* Barre create dagli script della pagina o rese visibili dopo (altra scheda, HTMX). */
+  window.addEventListener("load", setupTabs);
+  document.addEventListener("htmx:afterSettle", start);
+  var tabTimer = null;
+  document.addEventListener("click", function () {
+    clearTimeout(tabTimer);
+    tabTimer = setTimeout(setupTabs, 120);
+  });
 })();

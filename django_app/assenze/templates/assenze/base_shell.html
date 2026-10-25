@@ -581,9 +581,15 @@
     }
     @media (max-width: 640px) {
       .abs-kpis { grid-template-columns: 1fr; }
-      .abs-hero-actions,
-      .abs-hero-actions .abs-hero-action { width: 100%; }
-      .abs-hero-actions .abs-hero-action { justify-content: center; }
+      /* Testata compatta sul telefono: titolo e azioni, senza occhiello né contatori-etichetta
+         (i numeri restano nei riquadri sotto). L'azione principale a tutta riga, le altre affiancate. */
+      .abs-hero { padding: 16px; gap: 12px; border-radius: 14px; }
+      .abs-hero h1 { font-size: 22px; }
+      .abs-hero p { font-size: 13px; line-height: 1.45; }
+      .abs-eyebrow, .abs-hero-meta { display: none; }
+      .abs-hero-actions { width: 100%; gap: 8px; }
+      .abs-hero-actions .abs-hero-action { flex: 1 1 0; min-width: 0; min-height: 44px; justify-content: center; padding-left: 10px; padding-right: 10px; }
+      .abs-hero-actions .abs-hero-action-primary { flex-basis: 100%; }
       .abs-panel-footer { padding: 0 18px 18px; }
       .abs-tabs { padding-bottom: 0; border-bottom: none; }
       .abs-tab { width: 100%; }
