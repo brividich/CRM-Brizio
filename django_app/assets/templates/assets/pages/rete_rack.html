@@ -5,15 +5,27 @@
 {% block assets_shell_head %}{% include "assets/partials/rete_rack_stile.html" %}{% endblock %}
 
 {% block assets_shell_title %}Rack e switch{% endblock %}
-{% block assets_shell_subtitle %}<p>Gli armadi di rete, gli switch che contengono e quanti dispositivi ci sono collegati. Le porte dei punti rete (es. A0.2.15) dicono rack, switch e porta: si vede tutto senza aprire le schede una per una. Dati di inventario, non lettura in tempo reale.</p>{% endblock %}
+{% block assets_shell_subtitle %}<p>Gli armadi di rete, gli switch che contengono e i dispositivi collegati. La porta di un punto rete (es. A0.2.15) dice rack, switch e porta. Dati di inventario, non lettura in tempo reale.</p>{% endblock %}
 
 {% block assets_shell_content %}
 <div class="rk-page">
-  <div class="rk-toolbar">{% if guida_url %}<a href="{{ guida_url }}">? Guida</a>{% endif %}<a href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a></div>
+  <div class="rk-toolbar">
+    {% if puo_modificare %}<a class="rk-btn rk-btn-primary" href="#nuovo-rack" data-rk-apri="nuovo-rack">+ Nuovo rack</a>{% endif %}
+    <a class="rk-btn" href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a>
+    {% if guida_url %}<a class="rk-btn" href="{{ guida_url }}">? Guida</a>{% endif %}
+  </div>
+
+  <div class="rk-kpi" role="group" aria-label="Riepilogo">
+    <div><span class="rk-kpi-n">{{ riepilogo.rack }}</span><span class="rk-kpi-l">Rack</span></div>
+    <div><span class="rk-kpi-n">{{ riepilogo.switch }}</span><span class="rk-kpi-l">Switch nei rack</span></div>
+    <div><span class="rk-kpi-n">{{ riepilogo.dispositivi }}</span><span class="rk-kpi-l">Dispositivi collegati</span></div>
+    <a href="#porte-senza-switch" class="{% if riepilogo.porte_libere %}rk-kpi-warn{% else %}rk-kpi-ok{% endif %}"><span class="rk-kpi-n">{{ riepilogo.porte_libere }}</span><span class="rk-kpi-l">Punti rete senza switch</span></a>
+    <a href="#senza-rack" class="{% if riepilogo.senza_rack %}rk-kpi-warn{% else %}rk-kpi-ok{% endif %}"><span class="rk-kpi-n">{{ riepilogo.senza_rack }}</span><span class="rk-kpi-l">Apparati senza rack</span></a>
+  </div>
 
   {% if puo_modificare %}
   <details class="rk-card" id="nuovo-rack"{% if form_aperto or not racks %} open{% endif %}>
-    <summary>{% if form.instance.pk %}Modifica rack {{ form.instance.codice }}{% else %}+ Nuovo rack{% endif %}</summary>
+    <summary>{% if form.instance.pk %}Modifica rack {{ form.instance.codice }}{% else %}Nuovo rack{% endif %}</summary>
     {% include "assets/partials/rete_rack_form.html" with torna="" %}
   </details>
   {% endif %}
@@ -37,13 +49,17 @@
         <li>
           <span class="rk-sw-pos" title="Porte servite">{{ s.titolo|default:"—" }}</span>
           <span class="rk-sw-nome"><a href="{% url 'assets:asset_view' s.asset.id %}#asset-switch-mappa">{{ s.asset.asset_tag }}</a><small>{{ s.asset.name }}</small></span>
-          <span class="rk-sw-porte">{{ s.porte }} port{{ s.porte|pluralize:"a,e" }}</span>
+          <span class="rk-sw-porte">{{ s.porte }} collegat{{ s.porte|pluralize:"o,i" }}</span>
         </li>
         {% endfor %}
       </ul>
       {% else %}
-      <p class="rk-empty">Nessuno switch in questo rack: aprilo dalla scheda dello switch, tab «Tecnica e rete» → «Rack».</p>
+      <p class="rk-empty">Nessuno switch in questo rack. Per metterne uno: scheda dello switch, tab «Tecnica e rete», campo «Rack».</p>
       {% endif %}
+      {% if r.porte_libere %}
+      <p class="rk-alert">Senza switch censito: {% for p in r.porte_libere %}<strong class="rk-mono">{{ p.prefisso }}</strong> ({{ p.porte }}){% if not forloop.last %}, {% endif %}{% endfor %}</p>
+      {% endif %}
+      <a class="rk-rack-open" href="{% url 'assets:rete_rack_detail' r.rack.id %}">Apri il rack →</a>
     </article>
     {% endfor %}
   </section>
@@ -51,27 +67,33 @@
   <p class="rk-empty">Nessun rack censito.{% if puo_modificare %} Crea il primo qui sopra.{% endif %}</p>
   {% endif %}
 
-  {% if porte_libere %}
-  <section class="rk-card">
-    <h2 class="rk-title">Porte senza switch</h2>
-    <p class="rk-note">Punti rete con porta nel formato dell'inventario ma senza switch indicato e senza switch censito che le serva. Metti lo switch nel rack giusto (e il membro dello stack) dalla sua scheda.</p>
-    <div class="rk-meta" style="margin-top:8px">{% for p in porte_libere %}<span class="rk-chip rk-mono">{{ p.prefisso }} · {{ p.porte }}</span>{% endfor %}</div>
+  <section class="rk-card" id="porte-senza-switch">
+    <h2 class="rk-title">Punti rete senza switch · {{ riepilogo.porte_libere }}</h2>
+    {% if porte_libere %}
+    <p class="rk-note">Porte nel formato dell'inventario (es. A0.3.12) che nessuno switch censito serve. Di solito manca uno switch dello stack: censiscilo e indica rack e membro dalla sua scheda.</p>
+    <div class="rk-meta rk-gap">{% for p in porte_libere %}{% if p.rack %}<a class="rk-chip rk-mono" href="{% url 'assets:rete_rack_detail' p.rack.id %}" title="Rack {{ p.rack.codice }}">{{ p.prefisso }} · {{ p.porte }} punt{{ p.porte|pluralize:"o,i" }} rete</a>{% else %}<span class="rk-chip rk-mono" title="Nessun rack con prefisso porte {{ p.prefisso }}">{{ p.prefisso }} · {{ p.porte }} punt{{ p.porte|pluralize:"o,i" }} rete</span>{% endif %}{% endfor %}</div>
+    {% else %}
+    <p class="rk-ok">Tutte le porte nel formato dell'inventario arrivano a uno switch censito.</p>
+    {% endif %}
   </section>
-  {% endif %}
 
-  {% if senza_rack %}
-  <section class="rk-card">
+  <section class="rk-card" id="senza-rack">
     <h2 class="rk-title">Apparati di rete senza rack · {{ senza_rack|length }}</h2>
+    {% if senza_rack %}
     <div class="rk-table-wrap"><table class="rk-table">
-      <thead><tr><th>Asset</th><th>Modello</th><th>Porte servite</th><th>Dispositivi</th></tr></thead>
+      <thead><tr><th>Asset</th><th>Modello</th><th>Porte servite</th><th>Dispositivi</th><th></th></tr></thead>
       <tbody>{% for s in senza_rack %}<tr>
-        <td><a href="{% url 'assets:asset_view' s.asset.id %}#asset-switch-mappa">{{ s.asset.asset_tag }}</a> {{ s.asset.name }}</td>
+        <td><a href="{% url 'assets:asset_view' s.asset.id %}">{{ s.asset.asset_tag }}</a> {{ s.asset.name }}</td>
         <td>{{ s.asset.model|default:"—" }}</td>
         <td class="rk-mono">{{ s.titolo|default:"—" }}</td>
         <td>{{ s.porte }}</td>
+        <td><a href="{% url 'assets:asset_view' s.asset.id %}#asset-switch-mappa">Colloca →</a></td>
       </tr>{% endfor %}</tbody>
     </table></div>
+    {% else %}
+    <p class="rk-ok">Tutti gli apparati di rete sono in un rack.</p>
+    {% endif %}
   </section>
-  {% endif %}
 </div>
+{% include "assets/partials/rete_rack_apri.html" %}
 {% endblock %}
