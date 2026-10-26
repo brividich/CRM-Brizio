@@ -59,13 +59,13 @@
       </table>
       <div style="margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; background:var(--surface-alt, #f8fafc); border:1px solid var(--border); border-radius:8px;">
         <span style="font-size:12px; font-weight:700; color:var(--text-light); text-transform:uppercase; letter-spacing:0.05em;">Azioni su selezionati:</span>
-        <button type="submit" name="reminder_action" value="fire_now" class="btn btn-sm" onclick="return confirm('Invia subito Notifica portale per i promemoria selezionati?')">Invia ora</button>
+        <button type="submit" name="reminder_action" value="fire_now" class="btn btn-sm" data-hub-confirm="Invia subito Notifica portale per i promemoria selezionati?">Invia ora</button>
         <div style="display:flex; gap:6px; align-items:center;">
           <button type="submit" name="reminder_action" value="postpone" class="btn btn-secondary btn-sm">Rimanda</button>
           <input type="number" name="postpone_days" value="7" min="1" max="365" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px;">
           <span style="font-size:12px; color:var(--text-light);">giorni</span>
         </div>
-        <button type="submit" name="reminder_action" value="delete" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" onclick="return confirm('Eliminare definitivamente i promemoria selezionati?')">Elimina</button>
+        <button type="submit" name="reminder_action" value="delete" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" data-hub-confirm="Eliminare definitivamente i promemoria selezionati?">Elimina</button>
       </div>
     </form>
   </div>

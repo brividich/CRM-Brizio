@@ -122,7 +122,7 @@ body.theme-dark .tp-help code{background:rgba(59,130,246,.18)}
               <td>
                 <div class="tp-actions">
                   <a href="{% url 'admin_portale:automazioni_teams_preset_edit' pk=preset.pk %}" class="tp-btn tp-btn-edit">Modifica</a>
-                  <form method="post" action="{% url 'admin_portale:automazioni_teams_preset_delete' pk=preset.pk %}" onsubmit="return confirm('Eliminare il canale {{ preset.name|escapejs }}?');" style="margin:0;">
+                  <form method="post" action="{% url 'admin_portale:automazioni_teams_preset_delete' pk=preset.pk %}" data-hub-confirm="Eliminare il canale {{ preset.name }}?" style="margin:0;">
                     {% csrf_token %}
                     <button type="submit" class="tp-btn tp-btn-danger">Elimina</button>
                   </form>
@@ -177,7 +177,7 @@ body.theme-dark .tp-help code{background:rgba(59,130,246,.18)}
               <td>
                 <div class="tp-actions">
                   <a href="{% url 'admin_portale:automazioni_teams_flow_endpoint_edit' pk=endpoint.pk %}" class="tp-btn tp-btn-edit">Modifica</a>
-                  <form method="post" action="{% url 'admin_portale:automazioni_teams_flow_endpoint_delete' pk=endpoint.pk %}" onsubmit="return confirm('Eliminare l\\'endpoint {{ endpoint.name|escapejs }}?');" style="margin:0;">
+                  <form method="post" action="{% url 'admin_portale:automazioni_teams_flow_endpoint_delete' pk=endpoint.pk %}" data-hub-confirm="Eliminare l'endpoint {{ endpoint.name }}?" style="margin:0;">
                     {% csrf_token %}
                     <button type="submit" class="tp-btn tp-btn-danger">Elimina</button>
                   </form>

@@ -53,7 +53,7 @@
         {% endif %}
         {% if can_delete %}
           <form method="post" action="{% url 'tasks:project_meeting_delete' project.id meeting.id %}" style="display:inline;"
-                onsubmit="return confirm('Eliminare definitivamente questo incontro?')">
+                data-hub-confirm="Eliminare definitivamente questo incontro?">
             {% csrf_token %}
             <button type="submit" class="md-btn danger-ghost">Elimina</button>
           </form>
@@ -95,14 +95,14 @@
     {% if can_manage %}
       {% if meeting.stato == "PIANIFICATO" %}
       <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
-            onsubmit="return confirm('Inviare la convocazione con l\'ordine del giorno a tutti i partecipanti?')">
+            data-hub-confirm="Inviare la convocazione con l'ordine del giorno a tutti i partecipanti?">
         {% csrf_token %}
         <button type="submit" class="md-btn white">{% if meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione{% endif %}</button>
       </form>
       {% endif %}
       {% if not meeting.is_annullato %}
       <form method="post" action="{% url 'tasks:project_meeting_send_minute' project.id meeting.id %}"
-            onsubmit="return confirm('Inviare la minuta dell\'incontro a tutti i partecipanti?')">
+            data-hub-confirm="Inviare la minuta dell'incontro a tutti i partecipanti?">
         {% csrf_token %}
         <button type="submit" class="md-btn white">Invia minuta</button>
       </form>
@@ -123,7 +123,7 @@
         </form>
       {% else %}
         <form method="post" action="{% url 'tasks:project_meeting_minute_close' project.id meeting.id %}"
-              onsubmit="return confirm('Approvare e chiudere la minuta? L\'esito non sarà più modificabile senza riaprirla.')">
+              data-hub-confirm="Approvare e chiudere la minuta? L'esito non sarà più modificabile senza riaprirla.">
           {% csrf_token %}
           <button type="submit" class="md-btn white">Approva e chiudi minuta</button>
         </form>

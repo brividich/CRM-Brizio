@@ -43,13 +43,13 @@ body.theme-dark .co-vice{color:var(--text-light)}
     <a class="co-link-btn" href="{% url 'checklist_operativa:voce_nuova' evento.pk %}">+ Aggiungi voce</a>
     <form method="post" action="{% url 'checklist_operativa:evento_chiudi' evento.pk %}" style="display:inline">
       {% csrf_token %}
-      <button type="submit" class="co-btn-danger" onclick="return confirm('Chiudere e archiviare questo evento? Non sarà più modificabile da Gestione.');">Chiudi evento</button>
+      <button type="submit" class="co-btn-danger" data-hub-confirm="Chiudere e archiviare questo evento? Non sarà più modificabile da Gestione.">Chiudi evento</button>
     </form>
     {% else %}
     {# Contropartita della chiusura: senza, un evento archiviato per sbaglio si recupererebbe solo dall'admin Django. #}
     <form method="post" action="{% url 'checklist_operativa:evento_riapri' evento.pk %}" style="display:inline">
       {% csrf_token %}
-      <button type="submit" class="co-link-btn" style="border:none;cursor:pointer;" onclick="return confirm('Riaprire questo evento? Le conferme già registrate restano.');">Riapri evento</button>
+      <button type="submit" class="co-link-btn" style="border:none;cursor:pointer;" data-hub-confirm="Riaprire questo evento? Le conferme già registrate restano.">Riapri evento</button>
     </form>
     {% endif %}
   </div>

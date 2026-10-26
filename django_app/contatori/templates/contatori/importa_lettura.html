@@ -12,7 +12,7 @@
   </div>
 </form>
 {% if lettura %}
-<form method="post" action="{% url 'contatori:lettura_elimina' lettura.pk %}" onsubmit="return confirm('Eliminare la lettura {{ lettura.trimestre }} di {{ lettura.macchina.reparto|escapejs }}?')">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
+<form method="post" action="{% url 'contatori:lettura_elimina' lettura.pk %}" data-hub-confirm="Eliminare la lettura {{ lettura.trimestre }} di {{ lettura.macchina.reparto }}?">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
   <button class="btn ghost danger" type="submit">Elimina lettura</button>
 </form>
 {% endif %}

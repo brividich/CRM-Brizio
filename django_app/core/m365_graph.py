@@ -91,7 +91,7 @@ def token_defender() -> str:
         return salvato[0]
     app = msal.ConfidentialClientApplication(
         cfg["client_id"], authority=f"https://login.microsoftonline.com/{cfg['tenant_id']}",
-        client_credential=cfg["client_secret"],
+        client_credential=cfg["client_secret"], timeout=(5, 20),
     )
     risultato = app.acquire_token_for_client(scopes=[_SCOPE_DEFENDER])
     tok = risultato.get("access_token")

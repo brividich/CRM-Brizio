@@ -74,7 +74,7 @@
                 {% if role.code == "CR" and ruoli_source == "anagrafica" %}
                   <span style="display:block; margin:3px auto 0; font-size:9px; font-weight:500; color:#0369a1; background:#e0f2fe; border-radius:4px; padding:1px 5px; text-transform:none;">da anagrafica</span>
                 {% elif not role.is_system %}
-                  <button type="submit" name="role_admin_action" value="delete_role" formaction="" formmethod="post" onclick="this.form.role_code.value='{{ role.code }}'; return confirm('Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni, regole accesso e agganci ai tipi.');" style="display:block; margin:4px auto 0; border:0; background:transparent; color:var(--danger); font-size:10px; cursor:pointer;">elimina</button>
+                  <button type="submit" name="role_admin_action" value="delete_role" formaction="" formmethod="post" onclick="this.form.role_code.value='{{ role.code|escapejs }}';" data-hub-confirm="Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni, regole accesso e agganci ai tipi." style="display:block; margin:4px auto 0; border:0; background:transparent; color:var(--danger); font-size:10px; cursor:pointer;">elimina</button>
                 {% endif %}
               </th>
             {% endfor %}

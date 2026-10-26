@@ -32,8 +32,9 @@ GUIDA = {
                     "Compila IP, MAC, VLAN, Switch (matricola dello switch), Porta SW e Porta patch panel; premi «Salva rete».",
                 ]),
                 ("p", "Nella scheda dello switch, «Mappa porte dello switch» mostra le porte occupate colorate per VLAN. "
-                      "Per collegare lo switch al suo stack scrivi il «Prefisso porte di questo switch» (es. A0) e premi «Salva prefisso»: "
-                      "le porte A0.x.x senza switch indicato, anche quelle censite dopo, appartengono a quello switch."),
+                      "Per collegarlo alle sue porte scegli il «Rack», scrivi il «Membro dello stack» (2 per le porte A0.2.x; vuoto se "
+                      "nel rack c'è un solo switch) e premi «Salva collocazione»: le porte senza switch indicato, anche quelle censite dopo, "
+                      "vanno allo switch giusto. Il «Prefisso porte proprio» serve solo se diverso da quello del rack."),
             ],
         },
         {
@@ -143,6 +144,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "rete-rack",
+            "titolo": "Dividere la rete per rack e vedere gli switch di ogni armadio",
+            "blocchi": [
+                ("passi", [
+                    "Apri Asset → «Rack e switch» e premi «+ Nuovo rack»: Codice, Nome, «Prefisso porte switch» (es. A0) "
+                    "e «Prefisso patch panel» (es. Q0); premi «Crea rack».",
+                    "Apri la scheda di ogni switch del rack, tab «Tecnica e rete»: scegli il «Rack», scrivi il «Membro dello stack» "
+                    "(1, 2, 3…) e premi «Salva collocazione».",
+                    "Torna su «Rack e switch»: ogni rack elenca i suoi switch con le porte servite (A0.1, A0.2…) e i dispositivi collegati; "
+                    "un clic sul rack mostra il frontale di ogni switch.",
+                ]),
+                ("p", "In fondo alla pagina: «Porte senza switch» (porte che nessuno switch censito serve) e «Apparati di rete senza rack». "
+                      "Nella scheda di un PC il percorso è Rack → Switch → Porta SW → Porta patch panel."),
+            ],
+        },
+        {
             "id": "rete-indirizzi",
             "titolo": "Indirizzi IP e dispositivi non censiti (DHCP e DNS)",
             "blocchi": [
@@ -174,6 +191,10 @@ GUIDA = {
                     "Reparti e macchine seguono la pianta; le macchine fuori dal ritaglio tornano «da collocare».",
                     "Disegna i reparti e scrivi il codice reparto uguale al campo reparto delle macchine.",
                     "Una sola planimetria per categoria è «Attiva»: le altre restano bozze finché non le pubblichi.",
+                    "Nuova versione della stessa pianta: «+ Nuova planimetria» con la stessa categoria e la casella "
+                    "«Copia reparti e macchine da …» per non ricollocare tutto.",
+                    "L'elenco macchine distingue «Da posizionare» (su nessuna pianta) da «Su altre piante»; "
+                    "«Togli i segnaposti» elimina quelli creati in automatico e mai collocati.",
                 ]),
             ],
         },
@@ -445,6 +466,7 @@ GUIDA = {
                 "Se la pianta è di traverso o con grandi margini bianchi, raddrizzala e ritagliala nell'editor.",
                 "Una macchina già collocata a mano su una pianta resta lì: la scheda mostra sempre quella posizione, "
                 "anche se la macchina compare «da posizionare» su altre planimetrie.",
+                "Una pianta piena di macchine «da collocare» che stanno già altrove: nell'editor premi «Togli i segnaposti» e «Salva».",
             ],
         },
         {

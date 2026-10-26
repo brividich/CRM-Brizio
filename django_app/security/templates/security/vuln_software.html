@@ -25,16 +25,16 @@
   <div class="sec-actions" style="flex-wrap:wrap;gap:6px;margin-top:8px">
     <form method="post" id="bulk-form" class="sec-inline">{% csrf_token %}
       <button type="submit" name="action" value="cpe_confirm_bulk" class="sec-button sec-button-primary" title="Conferma la prima proposta delle righe spuntate (le righe senza proposta sono ignorate)">Conferma selezionati</button>
-      <button type="submit" name="action" value="cpe_na_bulk" class="sec-button" title="Segna non applicabili le righe spuntate" onclick="return confirm('Segnare non applicabili i software selezionati?');">N/A selezionati</button>
+      <button type="submit" name="action" value="cpe_na_bulk" class="sec-button" title="Segna non applicabili le righe spuntate" data-hub-confirm="Segnare non applicabili i software selezionati?">N/A selezionati</button>
     </form>
     {% if unique_proposals %}
     <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_confirm_unique"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="stato" value="{{ stato }}">
-      <button type="submit" class="sec-button" title="Conferma, su tutte le pagine di questa vista, i software con una sola proposta" onclick="return confirm('Confermare {{ unique_proposals }} proposte a candidato unico (tutte le pagine di questa vista)?');">Conferma tutte le proposte a candidato unico ({{ unique_proposals }})</button>
+      <button type="submit" class="sec-button" title="Conferma, su tutte le pagine di questa vista, i software con una sola proposta" data-hub-confirm="Confermare {{ unique_proposals }} proposte a candidato unico (tutte le pagine di questa vista)?">Conferma tutte le proposte a candidato unico ({{ unique_proposals }})</button>
     </form>
     {% endif %}
     {% if q|length >= 3 and open_in_view %}
     <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_na_search"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="stato" value="{{ stato }}">
-      <button type="submit" class="sec-button" title="Segna non applicabili tutti i software aperti trovati da questa ricerca, su tutte le pagine" onclick="return confirm('Segnare non applicabili {{ open_in_view }} software che contengono «{{ q|escapejs }}»?');">N/A tutti i risultati di «{{ q }}» ({{ open_in_view }})</button>
+      <button type="submit" class="sec-button" title="Segna non applicabili tutti i software aperti trovati da questa ricerca, su tutte le pagine" data-hub-confirm="Segnare non applicabili {{ open_in_view }} software che contengono «{{ q }}»?">N/A tutti i risultati di «{{ q }}» ({{ open_in_view }})</button>
     </form>
     {% endif %}
   </div>
@@ -95,7 +95,7 @@
   <div class="sec-table-wrap" style="margin-top: 8px;">
     <table class="sec-table sec-table-compact" data-fm-table-skip="1">
       <thead><tr><th>Contiene</th><th>Produttore</th><th>Nota</th><th class="sec-num">Software esclusi</th><th><span class="sr-only">Azioni</span></th></tr></thead>
-      <tbody>{% for r in na_rules %}<tr><td>{{ r.pattern }}</td><td>{{ r.vendor|default:"tutti" }}</td><td class="sec-small">{{ r.note|default:"—" }}</td><td class="sec-num">{{ r.n }}</td><td><form method="post" class="sec-inline" onsubmit="return confirm('Eliminare la regola? I {{ r.n }} software esclusi tornano da valutare.');">{% csrf_token %}<input type="hidden" name="action" value="na_rule_delete"><input type="hidden" name="rule_id" value="{{ r.pk }}"><button type="submit" class="sec-button">Elimina</button></form></td></tr>{% empty %}<tr><td colspan="5" class="sec-empty">Nessuna regola.</td></tr>{% endfor %}</tbody>
+      <tbody>{% for r in na_rules %}<tr><td>{{ r.pattern }}</td><td>{{ r.vendor|default:"tutti" }}</td><td class="sec-small">{{ r.note|default:"—" }}</td><td class="sec-num">{{ r.n }}</td><td><form method="post" class="sec-inline" data-hub-confirm="Eliminare la regola? I {{ r.n }} software esclusi tornano da valutare.">{% csrf_token %}<input type="hidden" name="action" value="na_rule_delete"><input type="hidden" name="rule_id" value="{{ r.pk }}"><button type="submit" class="sec-button">Elimina</button></form></td></tr>{% empty %}<tr><td colspan="5" class="sec-empty">Nessuna regola.</td></tr>{% endfor %}</tbody>
     </table>
   </div>
 </section>

@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "accesso login password home menu notifiche push telefono cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
+    "parole": "accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
@@ -64,6 +64,11 @@ GUIDA = {
                     "Le tabelle troppo larghe per lo schermo mostrano ogni riga come un riquadro: in alto il nome, "
                     "sotto gli altri dati con il titolo della colonna. I campi vuoti non compaiono.",
                 ]),
+                ("p", "Prima di eliminare, togliere o fare un'azione che non si annulla, in tutti i moduli il portale "
+                      "chiede conferma in una finestra al centro della pagina: il titolo dice cosa succede, sotto "
+                      "c'è cosa resta. Il pulsante col verbo (es. «Elimina», rosso se cancella qualcosa) esegue; "
+                      "«Annulla», Esc o un clic fuori la chiudono senza fare nulla. Sulle azioni che cancellano "
+                      "il cursore parte su «Annulla», così Invio non conferma per sbaglio."),
             ],
         },
         {

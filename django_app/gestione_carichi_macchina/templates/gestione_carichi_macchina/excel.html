@@ -504,10 +504,10 @@ body.theme-dark .gcm-usaslot{color:#93c5fd}
       var chk = new URLSearchParams({ macchina: mid, turno: turno, data: data, ore: ore });
       fetch("{% url 'gestione_carichi_macchina:api_sovrapposizione' %}?" + chk.toString(),
         { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(function (r) { return r.json(); }).then(function (d) {
+        .then(function (r) { return r.json(); }).then(async function (d) {
           if (d && d.overlap) {
             var etich = (d.conflitti && d.conflitti[0] && d.conflitti[0].testo) || 'un altro lavoro';
-            if (!window.confirm('Si sovrappone a «' + etich + '» sullo stesso turno. Inserire comunque?')) return;
+            if (!(await hubConfirm('Si sovrappone a «' + etich + '» sullo stesso turno. Inserire comunque?'))) return;
           }
           salva();
         }).catch(salva);

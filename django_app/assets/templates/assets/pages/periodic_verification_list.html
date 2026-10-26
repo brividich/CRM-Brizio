@@ -862,7 +862,7 @@ body.theme-dark .pv-back-link:hover{color:#93c5fd}
                 {% if can_manage_periodic_verifications %}
                   <div class="pv-inline-actions">
                     {% if row.can_convert_to_rule %}
-                    <form class="pv-convert-form" method="post" onsubmit="return confirm('Convertire questo piano in una regola di manutenzione? Il trigger temporale passera alle regole e il piano resta come riferimento fornitore.');">
+                    <form class="pv-convert-form" method="post" data-hub-confirm="Convertire questo piano in una regola di manutenzione? Il trigger temporale passera alle regole e il piano resta come riferimento fornitore.">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="convert_periodic_to_rule">
                       <input type="hidden" name="scope" value="{{ periodic_scope }}">
@@ -873,7 +873,7 @@ body.theme-dark .pv-back-link:hover{color:#93c5fd}
                     {% elif row.convert_block_reason %}
                     <span class="pv-inline-note" title="{{ row.convert_block_reason }}">Inglobamento non disponibile</span>
                     {% endif %}
-                    <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
+                    <form class="pv-delete-form" method="post" data-hub-confirm="Eliminare questa manutenzione periodica?">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_periodic_verification">
                       <input type="hidden" name="scope" value="{{ periodic_scope }}">

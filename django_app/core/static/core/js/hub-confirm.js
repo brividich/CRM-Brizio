@@ -1,7 +1,8 @@
 /* Finestra di conferma del portale, al posto di window.confirm().
- * - nel markup: data-hub-confirm="Eliminare X? Spiegazione." su un <form> o sul
- *   suo pulsante di invio (facoltativi data-hub-confirm-ok="Etichetta" e
- *   data-hub-confirm-tone="danger|primary");
+ * - nel markup: data-hub-confirm="Eliminare X? Spiegazione." su un <form>, sul
+ *   suo pulsante di invio, su un link o su un pulsante d'azione (facoltativi
+ *   data-hub-confirm-ok="Etichetta" e data-hub-confirm-tone="danger|primary");
+ * - hx-confirm="..." di HTMX apre la stessa finestra;
  * - da script: hubConfirm(testo, {ok, tone}).then(function (si) { ... }).
  * La prima frase che finisce con «?» fa da titolo, il resto da spiegazione.
  * Va caricato nel <head>: ascolta gli invii in fase di cattura sul documento,
@@ -17,9 +18,15 @@
     applicare: 'Applica', generare: 'Genera', iscrivere: 'Iscrivi', dividere: 'Dividi',
     riprendere: 'Riprendi', registrare: 'Registra', avviare: 'Avvia', unire: 'Unisci',
     ripristinare: 'Ripristina', rimettere: 'Rimetti in forza', rendere: 'Rendi anonimi',
-    confermare: 'Conferma', scartare: 'Scarta'
+    confermare: 'Conferma', scartare: 'Scarta', cancellare: 'Cancella', stoppare: 'Ferma',
+    segnare: 'Segna', inviare: 'Invia', collegare: 'Collega', sostituire: 'Sostituisci',
+    riportare: 'Riporta', rigenerare: 'Rigenera', rifiutare: 'Rifiuta', riaprire: 'Riapri',
+    pubblicare: 'Pubblica', eseguire: 'Esegui', convertire: 'Converti', archiviare: 'Archivia',
+    approvare: 'Approva', abilitare: 'Abilita', disabilitare: 'Disabilita', copiare: 'Copia', riavviare: 'Riavvia',
+    creare: 'Crea', spostare: 'Sposta', inserire: 'Inserisci', reimpostare: 'Reimposta',
+    svuotare: 'Svuota', ottimizzare: 'Ottimizza', interrogare: 'Interroga'
   };
-  var PERICOLO = /^(eliminare|rimuovere|togliere|scollegare|disattivare|annullare|scartare|rendere anonim)/i;
+  var PERICOLO = /^(eliminare|rimuovere|togliere|scollegare|disattivare|disabilitare|annullare|scartare|cancellare|svuotare|rendere anonim|attenzione)/i;
   var dialog = null;
   var inAttesa = null;
 
@@ -63,7 +70,7 @@
     if (typeof HTMLDialogElement !== 'function' || !document.body) {
       return Promise.resolve(window.confirm(testo));
     }
-    if (!dialog) costruisci();
+    if (!dialog || !dialog.isConnected) costruisci();   // anche se uno swap l'ha tolta dalla pagina
     if (dialog.open) return Promise.resolve(false);       // una domanda alla volta
 
     var m = /^([\s\S]*?\?)\s+([\s\S]+)$/.exec(testo);
@@ -122,6 +129,34 @@
       if (si) reinvia(form, pulsante);
     });
   }, true);
+
+  // Link e pulsanti che non inviano un form (azioni da script): si ferma il clic,
+  // si chiede e, se confermato, si ripete il clic con il via libera.
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest && ev.target.closest('[data-hub-confirm]');
+    if (!el || el instanceof HTMLFormElement) return;
+    if ((el.type === 'submit' || el.type === 'image') && el.form) return;   // ci pensa l'ascolto dell'invio
+    if (!/^(A|BUTTON|INPUT)$/.test(el.tagName)) return;
+    if (el[VIA_LIBERA]) { el[VIA_LIBERA] = false; return; }
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    hubConfirm(el.getAttribute('data-hub-confirm'), opzioniDa(el)).then(function (si) {
+      if (!si) return;
+      el[VIA_LIBERA] = true;
+      setTimeout(function () { el[VIA_LIBERA] = false; }, 0);
+      el.click();
+    });
+  }, true);
+
+  // hx-confirm di HTMX: stessa finestra al posto di quella del browser.
+  document.addEventListener('htmx:confirm', function (ev) {
+    var d = ev.detail || {};
+    if (!d.question || typeof d.issueRequest !== 'function') return;
+    ev.preventDefault();
+    hubConfirm(d.question, d.elt ? opzioniDa(d.elt) : {}).then(function (si) {
+      if (si) d.issueRequest(true);
+    });
+  });
 
   window.hubConfirm = hubConfirm;
 })();

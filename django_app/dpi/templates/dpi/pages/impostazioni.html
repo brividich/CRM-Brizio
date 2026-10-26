@@ -191,7 +191,7 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
           <div class="dpi-cat-item-actions">
             <a href="{% url 'dpi:categoria_modifica' cat.pk %}"
                style="background:#eff6ff; color:#1d4ed8;">Modifica</a>
-            <form method="post" action="{% url 'dpi:categoria_elimina' cat.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare {{ cat.nome }}?')">
+            <form method="post" action="{% url 'dpi:categoria_elimina' cat.pk %}" style="display:inline;" data-hub-confirm="Eliminare {{ cat.nome }}?">
               {% csrf_token %}
               <button type="submit" style="background:#fee2e2; color:#dc2626;">Elimina</button>
             </form>

@@ -84,7 +84,7 @@ from ._helpers import (  # noqa: F401
     _periodic_execution_rows_for_verification,
     _periodic_execution_window_cutoff,
     _periodic_verification_state,
-    _resolve_asset_plant_layout,
+    _resolve_asset_plant_layout_detail,
     _asset_plant_layout_marker,
     _plant_layout_image_size,
     _software_license_state_payload,
@@ -1189,14 +1189,18 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     # Planimetria della scheda: vince la posizione data a mano su qualunque
     # pianta; un marker mai posizionato su una pianta non coerente col reparto
     # viene portato su quella del reparto (idempotente, vedi il helper).
-    resolved_layout, layout_is_specific = _resolve_asset_plant_layout(asset)
-    if resolved_layout is not None and layout_is_specific:
+    resolved_layout, layout_reason = _resolve_asset_plant_layout_detail(asset)
+    if resolved_layout is not None and layout_reason in {"reparto", "area"}:
         has_marker = PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True).exists()
         on_resolved = PlantLayoutMarker.objects.filter(asset=asset, layout=resolved_layout).exists()
         if has_marker and not on_resolved:
             _ensure_asset_plant_layout_marker(asset)
     map_marker = _asset_plant_layout_marker(asset)
-    map_card = _asset_plant_map_card(request, asset, map_marker, resolved_layout)
+    # Con più piante e nessun indizio, «la prima in ordine alfabetico» non è
+    # una proposta: la card manda all'editor senza scegliere la pianta.
+    map_card = _asset_plant_map_card(
+        request, asset, map_marker, None if layout_reason == "primo" else resolved_layout, any_layout=resolved_layout is not None
+    )
     map_url = map_card["map_url"] if map_card else ""
 
     shell_kwargs = {}
@@ -1533,7 +1537,7 @@ def _map_card_background_position(x_percent: float, y_percent: float, width: int
     return solve(x_percent / 100, ratio_x), solve(y_percent / 100, ratio_y)
 
 
-def _asset_plant_map_card(request, asset, marker, resolved_layout) -> dict | None:
+def _asset_plant_map_card(request, asset, marker, resolved_layout, *, any_layout: bool = True) -> dict | None:
     """Dati della card «Posizione in officina»: zona ingrandita, reparto, stato."""
     from ..services.plant_layout_image import area_at_point, marker_is_unplaced
 
@@ -1541,13 +1545,14 @@ def _asset_plant_map_card(request, asset, marker, resolved_layout) -> dict | Non
     editor_base = reverse("assets:plant_layout_editor")
     if marker is None:
         # Nessun marker: la card serve solo a chi può posizionare la macchina.
-        if not (can_manage and resolved_layout is not None and asset.asset_type == Asset.TYPE_WORK_MACHINE):
+        if not (can_manage and any_layout and asset.asset_type == Asset.TYPE_WORK_MACHINE):
             return None
+        layout_qs = f"layout={resolved_layout.id}&" if resolved_layout is not None else ""
         return {
             "layout": resolved_layout,
             "marker": None,
             "placed": False,
-            "editor_url": f"{editor_base}?layout={resolved_layout.id}&asset={asset.id}",
+            "editor_url": f"{editor_base}?{layout_qs}asset={asset.id}",
             "map_url": "",
         }
     layout = marker.layout

@@ -308,13 +308,13 @@ python manage.py apply_sql_triggers</pre>
                       </form>
                     {% endif %}
                     {% if event.can_stop %}
-                      <form method="post" action="{% url 'admin_portale:automazioni_queue_stop' event.id %}" onsubmit="return confirm('Stoppare questo evento queue? Rimarra in errore finche non lo resetti manualmente.');">
+                      <form method="post" action="{% url 'admin_portale:automazioni_queue_stop' event.id %}" data-hub-confirm="Stoppare questo evento queue? Rimarra in errore finche non lo resetti manualmente.">
                         {% csrf_token %}
                         <button class="btn btn-light" type="submit">Stoppa</button>
                       </form>
                     {% endif %}
                     {% if event.can_delete %}
-                      <form method="post" action="{% url 'admin_portale:automazioni_queue_delete' event.id %}" onsubmit="return confirm('Eliminare definitivamente questo evento queue?');">
+                      <form method="post" action="{% url 'admin_portale:automazioni_queue_delete' event.id %}" data-hub-confirm="Eliminare definitivamente questo evento queue?">
                         {% csrf_token %}
                         <button class="btn btn-secondary" type="submit">Elimina</button>
                       </form>

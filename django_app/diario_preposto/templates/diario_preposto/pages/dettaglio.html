@@ -177,7 +177,7 @@ body.theme-dark .dp-btn-danger:hover{background:rgba(229,62,62,.16);color:#fca5a
         {% if can_write %}
         <a href="{% url 'diario_preposto:modifica' segnalazione.pk %}" class="dp-btn dp-btn-primary">Modifica</a>
         <form method="post" action="{% url 'diario_preposto:elimina' segnalazione.pk %}"
-              onsubmit="return confirm('Eliminare questa segnalazione e tutti i suoi allegati?')">
+              data-hub-confirm="Eliminare questa segnalazione e tutti i suoi allegati?">
           {% csrf_token %}
           <button type="submit" class="dp-btn dp-btn-danger">Elimina</button>
         </form>
@@ -193,8 +193,8 @@ body.theme-dark .dp-btn-danger:hover{background:rgba(229,62,62,.16);color:#fca5a
 
 {% if can_write %}
 <script>
-function deleteAllegato(id, btn) {
-  if (!confirm('Rimuovere questo allegato?')) return;
+async function deleteAllegato(id, btn) {
+  if (!(await hubConfirm('Rimuovere questo allegato?'))) return;
   var form = new FormData();
   form.append('allegato_id', id);
   form.append('csrfmiddlewaretoken', '{{ csrf_token }}');

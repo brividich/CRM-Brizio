@@ -123,12 +123,12 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
       {% if campaign.status == 'draft' %}
         <form method="post" action="{% url 'procedure_refresh:campaign_publish' pk=campaign.pk %}">
           {% csrf_token %}
-          <button type="submit" class="pr-hbtn pr-hbtn-white" onclick="return confirm('Pubblicare la sessione?')">Pubblica</button>
+          <button type="submit" class="pr-hbtn pr-hbtn-white" data-hub-confirm="Pubblicare la sessione?">Pubblica</button>
         </form>
       {% elif campaign.status == 'published' %}
         <form method="post" action="{% url 'procedure_refresh:campaign_close' pk=campaign.pk %}">
           {% csrf_token %}
-          <button type="submit" class="pr-hbtn pr-hbtn-outline" onclick="return confirm('Chiudere la sessione?')">Chiudi sessione</button>
+          <button type="submit" class="pr-hbtn pr-hbtn-outline" data-hub-confirm="Chiudere la sessione?">Chiudi sessione</button>
         </form>
       {% endif %}
       <a href="{% url 'procedure_refresh:campaign_edit' pk=campaign.pk %}" class="pr-hbtn pr-hbtn-outline">Modifica</a>
@@ -378,7 +378,7 @@ body.theme-dark .pr-kpi-green .pr-kpi-val{color:#86efac}
                         {% csrf_token %}
                         <button type="submit"
                                 style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px;font-weight:700;"
-                                onclick="return confirm('Annullare questa assegnazione?')">Annulla</button>
+                                data-hub-confirm="Annullare questa assegnazione?">Annulla</button>
                       </form>
                     {% endif %}
                   </td>

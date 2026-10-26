@@ -1,0 +1,69 @@
+{% extends "assets/base_shell.html" %}
+{% load static %}
+
+{% block title %}Rack {{ rack.codice }}{% endblock %}
+
+{% block assets_shell_head %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% include "assets/partials/rete_rack_stile.html" %}{% endblock %}
+
+{% block assets_shell_title %}Rack {{ rack.codice }} · {{ rack.nome }}{% endblock %}
+{% block assets_shell_subtitle %}<p>{% if rack.ubicazione %}{{ rack.ubicazione }} · {% endif %}{% if rack.prefisso_porte %}porte <strong class="rk-mono">{{ rack.prefisso_porte }}</strong>{% endif %}{% if rack.prefisso_patch %} · patch panel <strong class="rk-mono">{{ rack.prefisso_patch }}</strong>{% endif %}{% if rack.note %}<br>{{ rack.note }}{% endif %}</p>{% endblock %}
+
+{% block assets_shell_content %}
+<div class="rk-page">
+  <div class="rk-toolbar"><a href="{% url 'assets:rete_rack' %}">← Tutti i rack</a>{% if guida_url %}<a href="{{ guida_url }}">? Guida</a>{% endif %}</div>
+
+  {% for b in switch %}
+  <section class="rk-card" id="switch-{{ b.asset.id }}">
+    <div class="rk-rack-head">
+      <h2 class="rk-title"><span class="rk-mono">{{ b.titolo|default:"—" }}</span> · <a href="{% url 'assets:asset_view' b.asset.id %}#asset-switch-mappa">{{ b.asset.asset_tag }}</a> {{ b.asset.name }}</h2>
+      <span class="rk-chip">{{ b.mappa.totale }} dispositiv{{ b.mappa.totale|pluralize:"o,i" }}</span>
+    </div>
+    {% if b.mappa.pannelli %}
+      {% if b.mappa.vlan %}<div class="af-swmap-legenda"><span class="af-net-label">VLAN</span>{% for v in b.mappa.vlan %}<span class="af-swmap-chip {{ v.classe }}">{{ v.vlan }}</span>{% endfor %}<span class="af-swmap-chip af-vlx">senza VLAN</span></div>{% endif %}
+      {% for pannello in b.mappa.pannelli %}
+      <div class="af-swmap-pannello">
+        <div class="af-swmap-titolo"><strong class="af-it-mono">{{ pannello.titolo }}</strong>{% if pannello.membro %} <span>membro {{ pannello.membro }}</span>{% endif %}<span class="af-swmap-occ">{{ pannello.occupate }} / {{ pannello.totale }} porte censite</span></div>
+        <div class="af-swmap-frontale" role="list">
+          <div class="af-swmap-fila">{% for slot in pannello.sopra %}{% include "assets/partials/rete_switch_porta.html" %}{% endfor %}</div>
+          <div class="af-swmap-fila">{% for slot in pannello.sotto %}{% include "assets/partials/rete_switch_porta.html" %}{% endfor %}</div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="rk-empty">Nessun dispositivo collegato a questo switch.</p>
+    {% endif %}
+  </section>
+  {% empty %}
+  <p class="rk-empty">Nessuno switch in questo rack. Apri la scheda dello switch, tab «Tecnica e rete», e scegli il rack in «Rack».</p>
+  {% endfor %}
+
+  {% if orfani %}
+  <section class="rk-card">
+    <h2 class="rk-title">Nel rack ma senza switch riconosciuto · {{ orfani|length }}</h2>
+    <p class="rk-note">Punti rete con porta o patch panel di questo rack per cui nessuno switch censito serve quella porta: manca lo switch del membro indicato, oppure lo switch scritto sul punto rete non è censito.</p>
+    <div class="rk-table-wrap"><table class="rk-table">
+      <thead><tr><th>Dispositivo</th><th>Switch indicato</th><th>Porta SW</th><th>Patch panel</th><th>IP</th><th>VLAN</th></tr></thead>
+      <tbody>{% for ep in orfani %}<tr>
+        <td><a href="{% url 'assets:asset_view' ep.asset_id %}">{{ ep.asset.asset_tag }}</a> {{ ep.asset.name }}</td>
+        <td>{{ ep.switch_name|default:"—" }}</td>
+        <td class="rk-mono">{{ ep.switch_port|default:"—" }}</td>
+        <td class="rk-mono">{{ ep.punto|default:"—" }}</td>
+        <td class="rk-mono">{{ ep.ip|default:"—" }}</td>
+        <td>{{ ep.vlan|default_if_none:"—" }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% endif %}
+
+  {% if puo_modificare %}
+  <details class="rk-card">
+    <summary>Modifica rack</summary>
+    {% include "assets/partials/rete_rack_form.html" with torna=rack.id %}
+    <form method="post" action="{% url 'assets:rete_rack' %}" class="rk-actions" style="margin-top:12px" data-hub-confirm="Eliminare il rack {{ rack.codice }}? Gli switch restano censiti, solo senza rack.">
+      {% csrf_token %}<input type="hidden" name="rack" value="{{ rack.id }}">
+      <button class="btn btn-secondary" name="azione" value="elimina">Elimina rack</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+{% endblock %}

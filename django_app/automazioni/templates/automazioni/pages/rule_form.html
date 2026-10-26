@@ -904,8 +904,8 @@ body.theme-dark .auto-source-note{color:var(--text-mid)}
     .catch(function() { alert('Errore di rete'); });
   };
 
-  window.deleteTableConfig = function(id) {
-    if (!confirm('Rimuovere questa tabella dalla whitelist?')) return;
+  window.deleteTableConfig = async function(id) {
+    if (!(await hubConfirm('Rimuovere questa tabella dalla whitelist?'))) return;
     // _apiBase = .../api/table-configs/  →  .../api/table-configs/<id>/delete/
     var deleteUrl = _apiBase.replace(/\/+$/, '') + '/' + id + '/delete/';
     fetch(deleteUrl, {

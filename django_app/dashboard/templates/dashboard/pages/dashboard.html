@@ -1119,7 +1119,7 @@ body.theme-dark .dash-add-card-name{color:var(--text)}
 
   // ── Reset layout ──────────────────────────────────────────────────────────
   async function resetLayout() {
-    if (!confirm("Ripristinare il layout standard? Tutte le personalizzazioni saranno perse.")) return;
+    if (!(await hubConfirm("Ripristinare il layout standard? Tutte le personalizzazioni saranno perse."))) return;
     try {
       await fetch("{% url 'api_my_dashboard_layout' %}", {
         method: "POST",

@@ -242,7 +242,7 @@ body.theme-dark .admin-item { box-shadow:none; }
                     {% csrf_token %}<input type="hidden" name="next" value="{{ studio_next_url }}">
                     <input type="hidden" name="action" value="delete_custom_field">
                     <input type="hidden" name="field_id" value="{{ field_item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ field_item.label }}">Elimina</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ field_item.label }}" data-hub-confirm="Eliminare «{{ field_item.label }}»?">Elimina</button>
                   </form>
                 {% empty %}
                   <div class="admin-hint">Nessun campo personalizzato configurato.</div>
@@ -317,7 +317,7 @@ body.theme-dark .admin-item { box-shadow:none; }
                     {% csrf_token %}<input type="hidden" name="next" value="{{ studio_next_url }}">
                     <input type="hidden" name="action" value="delete_list_option">
                     <input type="hidden" name="option_id" value="{{ option.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ option.value }}">Elimina</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ option.value }}" data-hub-confirm="Eliminare «{{ option.value }}»?">Elimina</button>
                   </form>
                 {% empty %}
                   <div class="admin-hint">Nessun valore lista configurato.</div>
@@ -440,7 +440,7 @@ body.theme-dark .admin-item { box-shadow:none; }
                     {% csrf_token %}<input type="hidden" name="next" value="{{ studio_next_url }}">
                     <input type="hidden" name="action" value="delete_action_button">
                     <input type="hidden" name="button_id" value="{{ btn_item.id }}">
-                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ btn_item.label }}">Elimina</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ btn_item.label }}" data-hub-confirm="Eliminare «{{ btn_item.label }}»?">Elimina</button>
                   </form>
                 {% empty %}
                   <div class="admin-hint">Nessun pulsante azione personalizzato. Restano attivi i predefiniti.</div>
@@ -627,12 +627,6 @@ body.theme-dark .admin-item { box-shadow:none; }
 </article>
 <script>
 (function () {
-  document.querySelectorAll(".studio-card button[data-delete-field]").forEach(function (btn) {
-    btn.addEventListener("click", function (event) {
-      const name = btn.getAttribute("data-delete-field") || "questo elemento";
-      if (!window.confirm('Eliminare "' + name + '"?')) event.preventDefault();
-    });
-  });
   document.querySelectorAll(".studio-card [data-admin-target]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       const el = document.getElementById(btn.getAttribute("data-admin-target"));

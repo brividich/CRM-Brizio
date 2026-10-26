@@ -204,3 +204,40 @@ def crop_layout(layout, *, x_percent: float, y_percent: float, width_percent: fl
         bits.append(f"{dropped_areas} repart{'o' if dropped_areas == 1 else 'i'} fuori dal riquadro eliminat{'o' if dropped_areas == 1 else 'i'}.")
     return TransformResult(True, " ".join(bits))
 
+
+
+@transaction.atomic
+def copy_layout_content(source, target) -> tuple[int, int]:
+    """Copia reparti e macchine di ``source`` su ``target`` (nuova versione della
+    stessa pianta). Le coordinate restano quelle in percentuale: se la nuova
+    immagine ha la stessa inquadratura combaciano, altrimenti si sistemano
+    trascinandole. Non tocca ciò che ``target`` ha già. Ritorna (reparti, macchine)."""
+    areas = 0
+    for area in PlantLayoutArea.objects.filter(layout=source):
+        PlantLayoutArea.objects.create(
+            layout=target,
+            name=area.name,
+            reparto_code=area.reparto_code,
+            color=area.color,
+            notes=area.notes,
+            x_percent=area.x_percent,
+            y_percent=area.y_percent,
+            width_percent=area.width_percent,
+            height_percent=area.height_percent,
+            sort_order=area.sort_order,
+        )
+        areas += 1
+    already = set(PlantLayoutMarker.objects.filter(layout=target).values_list("asset_id", flat=True))
+    markers = 0
+    for marker in PlantLayoutMarker.objects.filter(layout=source).exclude(asset_id__in=already):
+        PlantLayoutMarker.objects.create(
+            layout=target,
+            asset_id=marker.asset_id,
+            label=marker.label,
+            x_percent=marker.x_percent,
+            y_percent=marker.y_percent,
+            is_visible=marker.is_visible,
+            sort_order=marker.sort_order,
+        )
+        markers += 1
+    return areas, markers

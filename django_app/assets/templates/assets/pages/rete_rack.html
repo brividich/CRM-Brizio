@@ -1,0 +1,77 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Rack e switch{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/partials/rete_rack_stile.html" %}{% endblock %}
+
+{% block assets_shell_title %}Rack e switch{% endblock %}
+{% block assets_shell_subtitle %}<p>Gli armadi di rete, gli switch che contengono e quanti dispositivi ci sono collegati. Le porte dei punti rete (es. A0.2.15) dicono rack, switch e porta: si vede tutto senza aprire le schede una per una. Dati di inventario, non lettura in tempo reale.</p>{% endblock %}
+
+{% block assets_shell_content %}
+<div class="rk-page">
+  <div class="rk-toolbar">{% if guida_url %}<a href="{{ guida_url }}">? Guida</a>{% endif %}<a href="{% url 'assets:rete_indirizzi' %}">Indirizzi IP</a></div>
+
+  {% if puo_modificare %}
+  <details class="rk-card" id="nuovo-rack"{% if form_aperto or not racks %} open{% endif %}>
+    <summary>{% if form.instance.pk %}Modifica rack {{ form.instance.codice }}{% else %}+ Nuovo rack{% endif %}</summary>
+    {% include "assets/partials/rete_rack_form.html" with torna="" %}
+  </details>
+  {% endif %}
+
+  {% if racks %}
+  <section class="rk-grid" aria-label="Rack">
+    {% for r in racks %}
+    <article class="rk-card rk-rack">
+      <div class="rk-rack-head">
+        <h3><a href="{% url 'assets:rete_rack_detail' r.rack.id %}"><span class="rk-mono">{{ r.rack.codice }}</span> · {{ r.rack.nome }}</a></h3>
+        <span class="rk-chip">{{ r.dispositivi }} dispositiv{{ r.dispositivi|pluralize:"o,i" }}</span>
+      </div>
+      <div class="rk-meta">
+        {% if r.rack.ubicazione %}<span class="rk-chip">{{ r.rack.ubicazione }}</span>{% endif %}
+        {% if r.rack.prefisso_porte %}<span class="rk-chip rk-mono" title="Prefisso porte switch">porte {{ r.rack.prefisso_porte }}</span>{% endif %}
+        {% if r.rack.prefisso_patch %}<span class="rk-chip rk-mono" title="Prefisso patch panel">patch {{ r.rack.prefisso_patch }}</span>{% endif %}
+      </div>
+      {% if r.switch %}
+      <ul class="rk-sw">
+        {% for s in r.switch %}
+        <li>
+          <span class="rk-sw-pos" title="Porte servite">{{ s.titolo|default:"—" }}</span>
+          <span class="rk-sw-nome"><a href="{% url 'assets:asset_view' s.asset.id %}#asset-switch-mappa">{{ s.asset.asset_tag }}</a><small>{{ s.asset.name }}</small></span>
+          <span class="rk-sw-porte">{{ s.porte }} port{{ s.porte|pluralize:"a,e" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="rk-empty">Nessuno switch in questo rack: aprilo dalla scheda dello switch, tab «Tecnica e rete» → «Rack».</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <p class="rk-empty">Nessun rack censito.{% if puo_modificare %} Crea il primo qui sopra.{% endif %}</p>
+  {% endif %}
+
+  {% if porte_libere %}
+  <section class="rk-card">
+    <h2 class="rk-title">Porte senza switch</h2>
+    <p class="rk-note">Punti rete con porta nel formato dell'inventario ma senza switch indicato e senza switch censito che le serva. Metti lo switch nel rack giusto (e il membro dello stack) dalla sua scheda.</p>
+    <div class="rk-meta" style="margin-top:8px">{% for p in porte_libere %}<span class="rk-chip rk-mono">{{ p.prefisso }} · {{ p.porte }}</span>{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  {% if senza_rack %}
+  <section class="rk-card">
+    <h2 class="rk-title">Apparati di rete senza rack · {{ senza_rack|length }}</h2>
+    <div class="rk-table-wrap"><table class="rk-table">
+      <thead><tr><th>Asset</th><th>Modello</th><th>Porte servite</th><th>Dispositivi</th></tr></thead>
+      <tbody>{% for s in senza_rack %}<tr>
+        <td><a href="{% url 'assets:asset_view' s.asset.id %}#asset-switch-mappa">{{ s.asset.asset_tag }}</a> {{ s.asset.name }}</td>
+        <td>{{ s.asset.model|default:"—" }}</td>
+        <td class="rk-mono">{{ s.titolo|default:"—" }}</td>
+        <td>{{ s.porte }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -90,7 +90,7 @@
                       {% endif %}
                       {% if occ.status == "OPEN" and wo_can_plan_maintenance %}
                         <form method="post" action="{% url 'assets:workorder_occurrence_remove' workorder.pk occ.pk %}" style="display:inline"
-                              onsubmit="return confirm('Togliere {{ occ.asset.asset_tag|escapejs }} da questo ordine di lavoro? La manutenzione NON viene chiusa: torna fra quelle da pianificare.');">
+                              data-hub-confirm="Togliere {{ occ.asset.asset_tag }} da questo ordine di lavoro? La manutenzione NON viene chiusa: torna fra quelle da pianificare.">
                           {% csrf_token %}
                           <button type="submit" class="btn btn-sm btn-danger">Rimuovi</button>
                         </form>
@@ -233,7 +233,7 @@
         if (!n) { event.preventDefault(); return; }
         var messaggio = 'Registrare ' + n + ' manutenzion' + (n === 1 ? 'e' : 'i') +
           ' come eseguite? Le scadenze successive verranno create.';
-        if (!window.confirm(messaggio)) { event.preventDefault(); }
+        registra.setAttribute('data-hub-confirm', messaggio);
       });
     }
 

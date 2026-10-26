@@ -86,7 +86,7 @@
               <input type="text" name="description" value="{{ tipi_focus_category.description }}" maxlength="255" class="input" style="width:100%;">
             </div>
             <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
-              <button type="submit" formaction="?tab=tipi" form="" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" formmethod="post" onclick="this.form.cat_action.value='category_delete'; return confirm('Eliminare il tipo &quot;{{ tipi_focus_category.name }}&quot;? Le attivita collegate verranno scollegate.');">Elimina tipo</button>
+              <button type="submit" formaction="?tab=tipi" form="" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" formmethod="post" onclick="this.form.cat_action.value='category_delete';" data-hub-confirm="Eliminare il tipo «{{ tipi_focus_category.name }}»? Le attività collegate verranno scollegate.">Elimina tipo</button>
               <button type="submit" class="btn btn-sm">Salva tipo</button>
             </div>
           </form>
@@ -150,7 +150,7 @@
                       </div>
                       <label style="display:flex; gap:6px; align-items:center; font-size:12px;"><input type="checkbox" name="required" {% if f.required %}checked{% endif %}> Campo richiesto</label>
                       <div style="grid-column: span 2; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--surface-alt, #f1f5f9); padding-top:10px;">
-                        <button type="submit" formmethod="post" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" onclick="this.form.cat_action.value='field_delete'; return confirm('Eliminare il campo &quot;{{ f.label }}&quot;?');">Elimina</button>
+                        <button type="submit" formmethod="post" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" onclick="this.form.cat_action.value='field_delete';" data-hub-confirm="Eliminare il campo «{{ f.label }}»?">Elimina</button>
                         <button type="submit" class="btn btn-sm">Salva</button>
                       </div>
                     </form>

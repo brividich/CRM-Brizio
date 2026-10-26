@@ -178,7 +178,7 @@ body.theme-dark .ni-dev button{color:#fca5a5}
   </form>
   {% for a in accessi %}{% if not a.questo and not a.non_riconosciuto %}
     <form method="post" id="ni-form-non-ero-io-{{ a.id }}" hidden
-          onsubmit="return confirm('Chiudere la sessione di {{ a.etichetta|escapejs }} e segnalarlo alla sicurezza IT?');">
+          data-hub-confirm="Chiudere la sessione di {{ a.etichetta }} e segnalarlo alla sicurezza IT?">
       {% csrf_token %}<input type="hidden" name="azione" value="non_ero_io"><input type="hidden" name="dispositivo" value="{{ a.id }}">
     </form>
   {% endif %}{% endfor %}

@@ -1688,38 +1688,76 @@ def _assignment_form_kwargs(asset: Asset | None = None) -> dict[str, object]:
     }
 
 
-def _resolve_asset_plant_layout(asset: Asset) -> tuple["PlantLayout | None", bool]:
-    """Sceglie la planimetria attiva più coerente con il reparto dell'asset.
+def _resolve_asset_plant_layout_detail(asset: Asset) -> tuple["PlantLayout | None", str]:
+    """Sceglie la planimetria attiva più coerente con l'asset e dice perché.
 
-    Ritorna ``(layout, is_specific)``:
-      - (a) layout attivo la cui ``category`` coincide col reparto dell'asset;
-      - (b) layout attivo con un'area il cui ``reparto_code`` coincide col reparto;
-      - (c) fallback: primo layout attivo per (category, name, id).
-    ``is_specific`` è True solo per (a)/(b). ``layout`` è ``None`` se non esiste
-    alcuna planimetria attiva.
+    Motivi, in ordine:
+      - ``reparto``: layout attivo la cui ``category`` coincide col reparto;
+      - ``area``: layout attivo con un'area il cui ``reparto_code`` coincide;
+      - ``simili``: la pianta dove sono già posizionate a mano più macchine
+        dello stesso reparto, poi della stessa categoria, poi dello stesso tipo
+        (escluso «Altro», troppo generico);
+      - ``unica``: c'è una sola planimetria attiva;
+      - ``primo``: ripiego sul primo layout attivo per (category, name, id).
+    ``layout`` è ``None`` (motivo vuoto) se non esiste alcuna planimetria attiva.
     """
+    from collections import Counter
+
     active = PlantLayout.objects.filter(is_active=True)
     reparto = _clean_string(getattr(asset, "reparto", ""))
     if reparto:
         specific = active.filter(category__iexact=reparto).order_by("category", "name", "id").first()
         if specific is not None:
-            return specific, True
+            return specific, "reparto"
         by_area = (
             active.filter(areas__reparto_code__iexact=reparto)
             .order_by("category", "name", "id")
             .first()
         )
         if by_area is not None:
-            return by_area, True
-    return active.order_by("category", "name", "id").first(), False
+            return by_area, "area"
+
+    placed = (
+        PlantLayoutMarker.objects.filter(layout__is_active=True)
+        .exclude(x_percent=50, y_percent=50)
+        .exclude(asset_id=asset.pk)
+    )
+    similar_filters = []
+    if reparto:
+        similar_filters.append({"asset__reparto__iexact": reparto})
+    if getattr(asset, "asset_category_id", None):
+        similar_filters.append({"asset__asset_category_id": asset.asset_category_id})
+    if asset.asset_type and asset.asset_type != Asset.TYPE_OTHER:
+        similar_filters.append({"asset__asset_type": asset.asset_type})
+    for filters in similar_filters:
+        counts = Counter(placed.filter(**filters).values_list("layout_id", flat=True))
+        if counts:
+            best = max(counts.values())
+            candidates = active.filter(id__in=[lid for lid, n in counts.items() if n == best])
+            layout = candidates.order_by("category", "name", "id").first()
+            if layout is not None:
+                return layout, "simili"
+
+    layouts = list(active.order_by("category", "name", "id")[:2])
+    if not layouts:
+        return None, ""
+    return layouts[0], ("unica" if len(layouts) == 1 else "primo")
+
+
+def _resolve_asset_plant_layout(asset: Asset) -> tuple["PlantLayout | None", bool]:
+    """Come ``_resolve_asset_plant_layout_detail``; ``is_specific`` è True solo
+    se la pianta è quella del reparto (categoria o area disegnata)."""
+    layout, reason = _resolve_asset_plant_layout_detail(asset)
+    return layout, reason in {"reparto", "area"}
 
 
 def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
     from ..services.plant_layout_image import marker_is_unplaced
 
-    layout, is_specific = _resolve_asset_plant_layout(asset)
+    layout, reason = _resolve_asset_plant_layout_detail(asset)
     if layout is None:
         return "Asset salvato, ma non inserito in piantina: nessuna planimetria attiva disponibile."
+    is_specific = reason in {"reparto", "area"}
 
     existing = list(PlantLayoutMarker.objects.filter(asset=asset))
     on_layout = next((m for m in existing if m.layout_id == layout.id), None)
@@ -1748,6 +1786,12 @@ def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
         for stray in strays:
             stray.delete()
         return ""
+
+    if reason == "primo":
+        # Più piante attive e nessun indizio su quale sia quella giusta: un
+        # segnaposto sulla prima in ordine alfabetico finirebbe sulla pianta
+        # sbagliata (in produzione 131 segnaposti sui carroponti).
+        return "Asset salvato: scegli dall'editor delle planimetrie su quale pianta collocarlo."
 
     PlantLayoutMarker.objects.create(
         layout=layout,

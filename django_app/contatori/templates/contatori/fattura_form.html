@@ -43,7 +43,7 @@
   </div>
 </form>
 {% if fattura %}
-<form method="post" action="{% url 'contatori:fattura_elimina' fattura.pk %}" onsubmit="return confirm('Eliminare la fattura {{ fattura.numero|escapejs }} e tutte le sue righe?')">{% csrf_token %}
+<form method="post" action="{% url 'contatori:fattura_elimina' fattura.pk %}" data-hub-confirm="Eliminare la fattura {{ fattura.numero }} e tutte le sue righe?">{% csrf_token %}
   <button class="btn ghost danger" type="submit">Elimina fattura</button>
 </form>
 {% endif %}

@@ -785,7 +785,7 @@ body.theme-dark .acl-origin-pill.api{background:rgba(139,92,246,.2)}
 
           // Abilita/disabilita tutto
           document.getElementById("grants-enable-all")&&document.getElementById("grants-enable-all").addEventListener("click", async function(){
-            if(ROLE_ID===null || !confirm("Abilitare TUTTI i permission code per il ruolo #"+ROLE_ID+"?")) return;
+            if(ROLE_ID===null || !(await hubConfirm("Abilitare TUTTI i permission code per il ruolo #"+ROLE_ID+"?"))) return;
             var codes = Array.from(document.querySelectorAll(".grants-perm-toggle"));
             for(var i=0;i<codes.length;i++){
               await postJson(TOGGLE_URL, {role_id:ROLE_ID, permission_code:codes[i].dataset.code, value:true});
@@ -796,7 +796,7 @@ body.theme-dark .acl-origin-pill.api{background:rgba(139,92,246,.2)}
             setStatus("Tutti i permessi abilitati.", true);
           });
           document.getElementById("grants-disable-all")&&document.getElementById("grants-disable-all").addEventListener("click", async function(){
-            if(ROLE_ID===null || !confirm("Disabilitare TUTTI i permission code per il ruolo #"+ROLE_ID+"?")) return;
+            if(ROLE_ID===null || !(await hubConfirm("Disabilitare TUTTI i permission code per il ruolo #"+ROLE_ID+"?"))) return;
             var codes = Array.from(document.querySelectorAll(".grants-perm-toggle"));
             for(var i=0;i<codes.length;i++){
               await postJson(TOGGLE_URL, {role_id:ROLE_ID, permission_code:codes[i].dataset.code, value:false});
@@ -1070,8 +1070,8 @@ body.theme-dark .acl-origin-pill.api{background:rgba(139,92,246,.2)}
 
       // ── Azzera tutti (form POST) ─────────────────────────────────────────────
       var resetBtn=document.getElementById("ov-reset-btn");
-      if(resetBtn) resetBtn.addEventListener("click",function(){
-        if(!confirm("Rimuovere tutti gli override per questo utente?")) return;
+      if(resetBtn) resetBtn.addEventListener("click",async function(){
+        if(!(await hubConfirm("Rimuovere tutti gli override per questo utente?"))) return;
         document.getElementById("ov-clear-form").submit();
       });
     })();
@@ -1284,8 +1284,8 @@ body.theme-dark .acl-origin-pill.api{background:rgba(139,92,246,.2)}
 
       // ── Azzera tutti (form POST) ─────────────────────────────────────────────
       var resetBtn = document.getElementById("nav-ov-reset-btn");
-      if(resetBtn) resetBtn.addEventListener("click", function(){
-        if(!confirm("Rimuovere tutti gli override navigazione per questo utente?")) return;
+      if(resetBtn) resetBtn.addEventListener("click", async function(){
+        if(!(await hubConfirm("Rimuovere tutti gli override navigazione per questo utente?"))) return;
         document.getElementById("nav-ov-clear-form").submit();
       });
     })();

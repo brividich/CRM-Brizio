@@ -1669,8 +1669,8 @@ body.theme-dark .flow-branch-pill--false{background:rgba(214,158,46,.16);color:#
       });
   };
 
-  window.deleteTableConfig = function(configId) {
-    if (!window.confirm('Rimuovere questa tabella dalla whitelist?')) return;
+  window.deleteTableConfig = async function(configId) {
+    if (!(await hubConfirm('Rimuovere questa tabella dalla whitelist?'))) return;
     var deleteUrl = tableConfigApiBase.replace(/\/+$/, '') + '/' + configId + '/delete/';
     fetch(deleteUrl, {
       method: 'POST',
