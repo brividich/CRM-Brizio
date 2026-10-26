@@ -247,6 +247,27 @@ Lo script prende le righe `[ ]` di `showmigrations --plan`, salva l'SQL di `sqlm
 
 Le operazioni `RunPython` sono elencate come «da rivedere a mano» (sqlmigrate non ne mostra l'SQL) ma non bloccano. Il profilo `prod_readonly` ha un router che nega le migrazioni e svuoterebbe l'SQL: lo script esegue `sqlmigrate` con i router disattivati, mentre la barriera di sola lettura sulle query (execute_wrapper + grant `db_datareader`) resta attiva.
 
+## Test su SQL Server (`config.settings.test_mssql`, 25/10/2026)
+
+`config.settings.test` usa sempre SQLite: i rami con SQL scritto a mano (`connection.vendor == "microsoft"`, `TOP`, `ISNULL`, `READPAST`…) e le migrazioni non girano mai nei test. Il profilo `test_mssql` è identico ma usa un SQL Server vero, letto solo da variabili `TEST_MSSQL_*` (mai `DB_*` del `.env`, che in sviluppo punta al DB locale condiviso tra le sessioni):
+
+| Variabile | Default | Note |
+|---|---|---|
+| `TEST_MSSQL_HOST` | — (obbligatoria) | es. `localhost\HUBTEST`; rifiuta `NOVISQL`/`PCLOGSYS` |
+| `TEST_MSSQL_USER` / `TEST_MSSQL_PASSWORD` | vuote = autenticazione Windows | serve il ruolo `dbcreator` |
+| `TEST_MSSQL_DRIVER` | `ODBC Driver 18 for SQL Server` | |
+| `TEST_MSSQL_DB` | `test_hub_mssql` | deve iniziare con `test_`; Django crea e cancella solo questo |
+
+```powershell
+$env:TEST_MSSQL_HOST = "localhost\HUBTEST"
+python django_app\manage.py test assenze --keepdb --settings=config.settings.test_mssql
+```
+
+- Il primo giro senza `--keepdb` applica **tutte** le migrazioni da zero su SQL Server: è anche la prova che una installazione nuova parte.
+- **Istanza locale consigliata:** SQL Server 2025 Developer (gratuita, stessa versione 17 della produzione su NOVISQL\CNHUB), istanza con nome **`HUBTEST`**, autenticazione Windows, separata da `SQLEXPRESS` che contiene il DB di sviluppo. Dopo l'installazione basta impostare `TEST_MSSQL_HOST`.
+- **CI:** `.github/workflows/nightly-mssql.yml` (notte e a richiesta) installa SQL Server Express sul runner Windows e lancia `migrate` da zero più i test delle app con più SQL a mano (`automazioni assenze anomalie admin_portale dashboard core`). È separato dalla suite notturna su SQLite: se è rosso non blocca le PR.
+- Non sostituisce `tools/migration_dryrun.ps1`, che controlla le migrazioni *pendenti* contro lo schema reale di produzione.
+
 ## Repo annidato `django_app/powerautomate-to-django-automations`
 
 È un **gitlink** (mode 160000) senza `.gitmodules`: git ne registra solo il commit, un clone o un worktree lo vede come cartella vuota. Nel checkout di sviluppo contiene un repo git proprio con una **`.venv`** dentro e un'app Flask (`app/webapp.py`) avviata con **`debug=True`** (debugger Werkzeug = esecuzione di codice remoto se esposto). Non fa parte del portale: è escluso dal packager (`$excludeDirs` in `deployment/scripts/package-release.ps1`, oltre all'allowlist), dal bundle di `SetupWizard.exe` (`exclude_dir_names` in `deployment/setup_wizard_bundle_rules.json`, test `core.test_wizard_bundle_rules`) e da ruff (`pyproject.toml`). Un exe costruito dal checkout prima del 18/10 può contenerlo (con la sua `.venv`): va ricostruito. Non avviarlo su interfacce raggiungibili da rete; non aggiungerlo a `INSTALLED_APPS`.
