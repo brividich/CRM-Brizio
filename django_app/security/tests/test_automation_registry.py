@@ -45,8 +45,10 @@ class _Base(TestCase):
 
 class RegistryTests(_Base):
     def test_registry_lists_existing_and_new_rules(self):
-        self.assertEqual(set(auto_resolution.REGISTRY), {"backup_job", "vulnerability_finding", "source_silent", "vpn_within_limits", "cve_patched_inventory"})
+        self.assertEqual(set(auto_resolution.REGISTRY), {"backup_job", "vulnerability_finding", "source_silent", "vpn_within_limits",
+                                                         "cve_patched_inventory", "cve_impatto_risolto"})
         self.assertTrue(auto_resolution.rule_enabled("backup_job"))
+        self.assertTrue(auto_resolution.rule_enabled("cve_impatto_risolto"))
         self.assertFalse(auto_resolution.rule_enabled("vpn_within_limits"))
         self.assertFalse(auto_resolution.rule_enabled("cve_patched_inventory"))
 

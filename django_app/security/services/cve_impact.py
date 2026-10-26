@@ -248,6 +248,14 @@ def recompute(record, today=None, ctx=None):
         record.save(update_fields=["impact_computed_at"])
     impacted = {host: per_host[host] for host in per_host if per_host[host][0] == SecurityCveImpact.IMPACTS}
     record._new_impact_event = record_new_impacts(record, impacted, set(impacted) - before, now)
+    if risolte or set(impacted) != before:
+        # L'alert aperto della CVE segue il progresso: PC usciti in timeline, «N PC su M» nel titolo.
+        try:
+            from security.services import cve_chiusura
+
+            cve_chiusura.aggiorna_alert(record, risolte)
+        except Exception:  # noqa: BLE001 - l'alert è un di più: il ricalcolo non deve fallire per lui
+            logger.exception("Aggiornamento dell'alert della CVE %s non riuscito", record.cve_id)
     return len(rows)
 
 
@@ -269,6 +277,13 @@ def recompute_all(today=None):
             from security.services.rule_engine import evaluate_security_rules
 
             evaluate_security_rules()
+        try:
+            # Chiusura con prove degli alert «PC con versione vulnerabile» (regola cve_impatto_risolto).
+            from security.services.auto_resolution import run_cve_impatto_risolto
+
+            run_cve_impatto_risolto()
+        except Exception:  # noqa: BLE001 - una chiusura mancata si ritenta al ciclo SOC successivo
+            logger.exception("Chiusura automatica degli alert CVE non riuscita")
         return total
     finally:
         cache.delete(LOCK_KEY)
@@ -383,9 +398,11 @@ def closure_proposal(record, info):
     if any(item["similar"] for item in info["unmapped"]):
         return False, "Prodotti simili senza mappatura CPE confermata."
     if record.kev:
-        return False, "CVE sfruttata attivamente (CISA KEV): la chiusura resta manuale dopo verifica."
+        return False, ("CVE sfruttata attivamente (CISA KEV): l'alert si chiude da solo solo con due prove concordi per ogni PC "
+                       "(regola «CVE critica corretta con prove»), altrimenti a mano dopo verifica.")
     if (record.severity or "").lower() == "critical" or (record.cvss or 0) >= 9:
-        return False, "CVE critica: la chiusura resta manuale dopo verifica."
+        return False, ("CVE critica: l'alert si chiude da solo solo con due prove concordi per ogni PC "
+                       "(regola «CVE critica corretta con prove»), altrimenti a mano dopo verifica.")
     return True, f"Nessun host impattato secondo l'inventario del {info['inventory_date']:%d/%m/%Y}: si può proporre la chiusura."
 
 
