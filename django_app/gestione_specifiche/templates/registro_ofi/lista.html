@@ -92,8 +92,15 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
       <label class="fmd-chip{% if solo_scaduti %} fmd-on{% endif %}" style="cursor:pointer;">
         <input type="checkbox" name="scaduti" value="1" {% if solo_scaduti %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Solo scaduti
       </label>
+      <label class="fmd-chip{% if solo_aperte %} fmd-on{% endif %}" style="cursor:pointer;">
+        <input type="checkbox" name="aperte" value="1" {% if solo_aperte %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Solo aperte
+      </label>
+      <label class="fmd-chip{% if solo_mie %} fmd-on{% endif %}" style="cursor:pointer;" title="Voci di cui sei responsabile">
+        <input type="checkbox" name="mie" value="1" {% if solo_mie %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Le mie voci{% if n_mie %} ({{ n_mie }} aperte){% endif %}
+      </label>
       <span class="fmd-spacer"></span>
       <a href="{% url 'registro_ofi:guida' %}" class="fmd-btn fmd-btn-ghost">Guida</a>
+      <a href="{% url 'registro_ofi:cruscotto' %}{% if modulo %}?modulo={{ modulo|urlencode }}{% endif %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto</a>
       <a href="?{% if filtri_query %}{{ filtri_query }}&amp;{% endif %}export=xlsx" class="fmd-btn fmd-btn-ghost" title="Scarica le voci filtrate nel formato del MOD.174"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta Excel</a>
       {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo inserimento</a>{% endif %}
     </form>
@@ -179,7 +186,7 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
     {% else %}
     <div class="fmd-empty">
       <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
-      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or modulo or tipo or q %} con questi filtri{% endif %}</span>
+      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or solo_mie or solo_aperte or modulo or tipo or q %} con questi filtri{% endif %}</span>
       <span class="fmd-em">Le voci nascono dai rilievi degli audit interni e dalle righe MOD.133 con impatto{% if can_add %}, oppure con «Nuovo inserimento»{% endif %}.</span>
     </div>
     {% endif %}

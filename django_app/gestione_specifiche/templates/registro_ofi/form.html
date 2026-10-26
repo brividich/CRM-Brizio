@@ -80,8 +80,9 @@
 
           <div class="hub-fsec">
             <div class="hub-fsec-h">Gestione e scadenza</div>
-            <div class="hub-fsec-d">Owner di processo, priorità, scadenza con reminder.</div>
+            <div class="hub-fsec-d">Responsabile, owner di processo, priorità, scadenza con reminder.</div>
             <div class="hub-form-grid">
+              <div class="hub-field"><label>{{ form.responsabile.label }}</label>{{ form.responsabile }}<div class="hub-help">{{ form.responsabile.help_text }}</div>{% for e in form.responsabile.errors %}<div class="hub-err">{{ e }}</div>{% endfor %}</div>
               <div class="hub-field"><label>{{ form.owner_processo.label }}</label>{{ form.owner_processo }}</div>
               <div class="hub-field"><label>{{ form.proprietario.label }}</label>{{ form.proprietario }}</div>
               <div class="hub-field"><label>{{ form.priorita.label }}</label>{{ form.priorita }}</div>

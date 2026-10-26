@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v18"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v19"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -72,6 +72,13 @@ _ROUTE_BINDINGS = {
     "registro_ofi:guida": PERM_VIEW,
     "registro_ofi:nuovo": PERM_OFI_ADD,
     "registro_ofi:modifica": PERM_OFI_ADD,
+    "registro_ofi:cruscotto": PERM_VIEW,
+    "registro_ofi:allegato_scarica": PERM_VIEW,
+    # Avanzamento, riapertura e allegati: anche il responsabile della voce, che può non
+    # avere ``registroofi.add``. La rotta richiede la lettura; la view verifica il resto.
+    "registro_ofi:avanza": PERM_VIEW,
+    "registro_ofi:riapri": PERM_VIEW,
+    "registro_ofi:allegato_carica": PERM_VIEW,
     "gestione_specifiche:distribuzione_nuova": PERM_DISTRIBUISCI,
     "gestione_specifiche:scheda_storico": PERM_VIEW,
     "gestione_specifiche:storico_export_csv": PERM_VIEW,

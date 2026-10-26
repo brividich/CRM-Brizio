@@ -167,7 +167,7 @@ class RegistroOFIForm(forms.ModelForm):
             "processo", "opportunita",
             "fase", "plan", "allegato_link", "do", "verifica", "act",
             "data_richiesta", "data_chiusura",
-            "proprietario", "owner_processo", "priorita",
+            "responsabile", "proprietario", "owner_processo", "priorita",
             "reminder_attivo", "note",
         ]
         # Nessuna classe sui widget: lo stile viene dal form-kit canonico `hub-`
@@ -208,6 +208,7 @@ class RegistroOFIForm(forms.ModelForm):
             "data_richiesta": "DATA REQUIRED", "data_chiusura": "DATA CLOSED",
             "proprietario": "Proprietario", "owner_processo": "OWNER",
             "priorita": "Priorità", "reminder_attivo": "Reminder scadenza attivo",
+            "responsabile": "Responsabile (utente)",
         }
 
     def __init__(self, *args, **kwargs):
@@ -216,6 +217,12 @@ class RegistroOFIForm(forms.ModelForm):
         if not self.instance.pk and not self.initial.get("data_apertura"):
             from django.utils import timezone
             self.fields["data_apertura"].initial = timezone.localdate()
+        # Responsabile tra gli utenti attivi: riceve i solleciti e vede la voce in «Le mie voci».
+        from django.contrib.auth import get_user_model
+        resp = self.fields["responsabile"]
+        resp.queryset = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+        resp.label_from_instance = lambda u: (u.get_full_name() or u.get_username())
+        resp.help_text = "Riceve i solleciti di scadenza e può far avanzare la voce nel PDCA."
 
 
     def clean_allegato_link(self):
@@ -235,6 +242,10 @@ class RegistroOFIForm(forms.ModelForm):
             self.add_error("fase", "Con la DATA CLOSED compilata la fase deve essere «Chiuso».")
         if chiusura and apertura and chiusura < apertura:
             self.add_error("data_chiusura", "La chiusura non può precedere l'apertura.")
+        if chiude and self.instance.pk and not self.instance.is_chiuso:
+            from .registro_ofi import car_aperta
+            if car_aperta(self.instance) is not None:
+                self.add_error("fase", "C'è un'azione correttiva aperta: la voce si chiude chiudendo la CAR.")
         if chiude and not (dati.get("verifica") or "").strip():
             # MT CN 11 §5.4: l'esito della verifica si registra prima di chiudere.
             self.add_error("verifica", "Prima di chiudere registra nel CHECK come è stata verificata l'efficacia.")
@@ -247,3 +258,30 @@ class RegistroOFIForm(forms.ModelForm):
                 if dati.get("fase") != self.instance.fase or dati.get("data_chiusura") != self.instance.data_chiusura:
                     raise forms.ValidationError("Questa voce ha una CAR: gestisci chiusura e verifica indipendente nella scheda MT CN 11.")
         return dati
+
+
+class RegistroOFIAllegatoForm(forms.Form):
+    """Evidenza di una voce del registro: PDF, immagini, Word o Excel, validati per MIME reale."""
+
+    ESTENSIONI = {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx"}
+    MIME = {
+        "application/pdf", "image/png", "image/jpeg",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/zip",  # libmagic riconosce a volte i file Office come zip
+    }
+
+    file = forms.FileField(label="File")
+    descrizione = forms.CharField(label="Descrizione", max_length=250, required=False)
+
+    def clean_file(self):
+        from core.upload_limits import DOCUMENT_MAX_BYTES
+        from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+        caricato = self.cleaned_data["file"]
+        try:
+            validate_extension_and_mime(
+                caricato, allowed_extensions=self.ESTENSIONI, allowed_mimes={m.lower() for m in self.MIME},
+                max_bytes=DOCUMENT_MAX_BYTES, label="Allegato", allow_empty=False)
+        except UploadMimeValidationError as exc:
+            raise forms.ValidationError(str(exc)) from exc
+        return caricato

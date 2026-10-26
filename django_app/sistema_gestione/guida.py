@@ -445,6 +445,36 @@ _PAGINE_AUDIT = [
             ]),
         ],
     },
+    {
+        "id": "pagina-esterni",
+        "titolo": "Pagina «Certificazioni e audit esterni»",
+        "blocchi": [
+            ("p", "Dalla pagina degli audit, pulsante «Audit esterni e certificazioni». Raccoglie i certificati del sistema di "
+                  "gestione e gli audit di enti di certificazione, clienti e autorità."),
+            ("ul", [
+                "Tessere: certificati in vigore, scaduti o in scadenza entro 90 giorni, sorveglianze entro 30 giorni, piani "
+                "azioni da inviare all'ente entro 7 giorni.",
+                "«Nuova certificazione»: norma (EN 9100, ISO 9001, 45001, 14001, 27001, PdR 125, Part 145 o «Altro» con "
+                "descrizione), ente, numero, emissione, scadenza, prossimo audit di sorveglianza, campo di applicazione. "
+                "Togli «Certificato in vigore» quando non vale più.",
+                "Nella tabella «Registra audit» apre un nuovo audit di sorveglianza già legato al certificato.",
+                "«Nuovo audit esterno»: tipo (certificazione iniziale, sorveglianza, rinnovo, cliente, autorità, speciale), "
+                "ente, date, norme verificate (almeno una), auditor dell'ente, ambito, stato, esito e data entro cui inviare "
+                "il piano azioni all'ente.",
+            ]),
+            ("p", "Nella scheda dell'audit:"),
+            ("ul", [
+                "«Carica il rapporto»: il PDF dell'ente, cifrato, con impronta SHA-256; download registrato.",
+                "«Registra un rilievo»: classificazione (NC maggiore, NC minore, osservazione, OFI), testo dell'ente, "
+                "requisito, processo, responsabile e scadenza. Il rilievo diventa una voce del Registro OFI con fonte l'ente "
+                "e le norme dell'audit; una NC maggiore ha priorità alta. Azioni, CAR ed efficacia si gestiscono dalla voce.",
+                "«Chiudi l'audit» compare quando ci sono esito e rapporto e nessuna NC è ancora aperta; dopo la chiusura "
+                "non si aggiungono rilievi.",
+                "Ogni lunedì RSGI riceve il riepilogo di certificati in scadenza, sorveglianze vicine e piani azioni da "
+                "inviare (job «sistema_gestione_scadenze_esterni»).",
+            ]),
+        ],
+    },
 ]
 
 # --- Registro OFI ---------------------------------------------------------------
@@ -479,8 +509,10 @@ _PAGINE_OFI = [
         "blocchi": [
             ("ul", [
                 "Le tessere in alto mostrano il numero di voci e la percentuale di completamento (A/P).",
-                "Filtri: modulo d'origine (senza filtro è il registro unico), OFI/NC, fase, priorità e «Solo scaduti». La "
+                "Filtri: modulo d'origine (senza filtro è il registro unico), OFI/NC, fase, priorità, «Solo scaduti», "
+                "«Solo aperte» e «Le mie voci» (quelle di cui sei responsabile, con il numero di quelle ancora aperte). La "
                 "casella «Cerca» trova numero, processo, descrizione, PLAN, REF, norma, fonte e owner; «Cerca» applica.",
+                "«Cruscotto» apre i numeri del registro (vedi il capitolo «Cruscotto del registro»).",
                 "Sopra la tabella i contatori P, D, C, A, la percentuale A/P (verde se almeno 90%) e le voci scadute.",
                 "La colonna «STATO PDCA» mostra le quattro tappe con i colori del modulo: P azzurro, D rosso, C giallo, A verde; "
                 "la tappa in corso è cerchiata in arancio.",
@@ -500,7 +532,10 @@ _PAGINE_OFI = [
                 "processo e OPPORTUNITY.",
                 "Il ciclo PDCA si compila man mano: fase, PLAN, Allegato/Link, DO, CHECK e ACT.",
                 "In «Allegato / Link» vanno solo indirizzi http(s):// o percorsi di rete \\\\server\\cartella.",
-                "Gestione: DATA REQUIRED, DATA CLOSED, proprietario, OWNER, priorità e «Reminder scadenza attivo».",
+                "Gestione: «Responsabile (utente)», DATA REQUIRED, DATA CLOSED, proprietario, OWNER, priorità e «Reminder "
+                "scadenza attivo». Il responsabile è un utente del portale: riceve i solleciti, trova la voce in «Le mie voci» "
+                "e può farla avanzare nel PDCA anche senza il permesso di inserimento. Proprietario e OWNER restano testo "
+                "libero come nel MOD.174.",
             ]),
             ("p", "Regole controllate al salvataggio:"),
             ("ul", [
@@ -508,7 +543,9 @@ _PAGINE_OFI = [
                 "La chiusura non può precedere l'apertura.",
                 "Prima di chiudere va scritto nel CHECK come è stata verificata l'efficacia (MT CN 11 §5.4).",
                 "Se la voce ha una CAR, scadenza, fase e chiusura si gestiscono solo dalla CAR (proroga e verifica indipendente).",
+                "Con una CAR ancora aperta la voce non si può mettere in «Chiuso».",
             ]),
+            ("p", "Ogni salvataggio scrive nella cronologia della voce i cambi di fase, scadenza e responsabile."),
         ],
     },
     {
@@ -519,6 +556,16 @@ _PAGINE_OFI = [
                 "In alto tipo, numero, modulo d'origine e fase; per le voci da audit il collegamento al rilievo dell'audit.",
                 "«Azione correttiva MT CN 11» apre la CAR: per le NC va aperta di norma, per le OFI è facoltativa.",
                 "«Stato PDCA» mostra le tappe completate, quella in corso e quelle da fare.",
+                "Sotto lo stato, chi gestisce il registro e il responsabile della voce scrivono cosa è stato fatto nella fase "
+                "corrente e premono «Passa a …» (in Act il pulsante è «Chiudi la voce»). Senza testo la fase non si chiude. "
+                "Se c'è una CAR aperta, al posto del pulsante compare il collegamento alla CAR: la voce si chiude con la CAR.",
+                "«La verifica non è superata: riapri in PLAN» (in Check, Act o a voce chiusa) riporta la voce in PLAN; il "
+                "motivo è obbligatorio e resta in cronologia.",
+                "«Evidenze»: file PDF, immagini, Word o Excel caricati con «Carica». Sono cifrati, si scaricano solo dalla "
+                "scheda e ogni caricamento e download è registrato.",
+                "«Cronologia»: chi ha creato la voce, cambiato fase, scadenza o responsabile, caricato evidenze, riaperto la "
+                "voce, e i solleciti inviati. Le voci esistenti prima di questa funzione hanno la cronologia dalle modifiche "
+                "successive.",
                 "Seguono Identificazione (fonte, norme, processo, opportunità), Ciclo PDCA e Gestione e scadenza; le date "
                 "scadute sono in rosso.",
                 "«Azioni collegate» riporta le azioni MOD.133 sui documenti CN.",
@@ -530,11 +577,29 @@ _PAGINE_OFI = [
         "titolo": "Scadenze e solleciti",
         "blocchi": [
             ("ul", [
-                "Le voci aperte con «Reminder scadenza attivo» e DATA REQUIRED passata ricevono un sollecito email agli indirizzi "
-                "configurati (automazione «gs_ofi_reminder»).",
+                "Le voci aperte con «Reminder scadenza attivo» e DATA REQUIRED passata ricevono un sollecito email al "
+                "responsabile della voce e agli indirizzi configurati (automazione «gs_ofi_reminder»). Il sollecito resta "
+                "nella cronologia.",
                 "Il sollecito parte una volta per scadenza: se la DATA REQUIRED cambia, per esempio con una proroga della CAR, "
                 "riparte per la nuova data.",
                 "Le CAR hanno in più i solleciti giornalieri al responsabile e l'escalation a RSGI.",
+            ]),
+        ],
+    },
+    {
+        "id": "ofi-cruscotto",
+        "titolo": "Cruscotto del registro",
+        "blocchi": [
+            ("p", "Da «Cruscotto» nella pagina del registro. Il filtro modulo restringe tutti i numeri a un modulo d'origine."),
+            ("ul", [
+                "Tessere: voci aperte, di cui non conformità, scadute, aperte senza responsabile, aperte senza scadenza, chiuse "
+                "negli ultimi 12 mesi, tempo medio di chiusura (giorni dall'apertura alla chiusura, voci chiuse negli ultimi "
+                "12 mesi) e percentuale di quelle chiuse entro la DATA REQUIRED. Le prime tre aprono l'elenco già filtrato.",
+                "Andamento: voci aperte e chiuse in ciascuno degli ultimi 12 mesi.",
+                "Aperte per fase PDCA, per anzianità (fino a 30 giorni, 31-90, 91-180, oltre 180), per processo, per fonte e "
+                "per norma.",
+                "Processi con rilievi ricorrenti: processi con 3 o più voci aperte negli ultimi 12 mesi, da guardare per una "
+                "causa comune.",
             ]),
         ],
     },
@@ -621,6 +686,12 @@ PAGE_HELP = {
     "sistema_gestione:audit_verifica_efficacia": ("audit", "pagina-efficacia"),
     "sistema_gestione:procedura_car": ("ofi", "pagina-car"),
     "sistema_gestione:audit_miei_rilievi": ("audit", "pagina-miei-rilievi"),
+    "sistema_gestione:esterni_elenco": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_certificazione_nuova": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_certificazione": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_audit_nuovo": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_audit": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_audit_modifica": ("audit", "pagina-esterni"),
     "sistema_gestione:audit_cruscotto": ("audit", "pagina-cruscotto"),
     "sistema_gestione:procedura_kpi": ("audit", "pagina-kpi"),
     "sistema_gestione:audit_impostazioni": ("audit", "pagina-impostazioni"),
@@ -628,6 +699,7 @@ PAGE_HELP = {
     "registro_ofi:nuovo": ("ofi", "ofi-inserimento"),
     "registro_ofi:modifica": ("ofi", "ofi-inserimento"),
     "registro_ofi:dettaglio": ("ofi", "ofi-scheda"),
+    "registro_ofi:cruscotto": ("ofi", "ofi-cruscotto"),
 }
 
 _GUIDE = {"audit": GUIDA_AUDIT, "ofi": GUIDA_OFI}

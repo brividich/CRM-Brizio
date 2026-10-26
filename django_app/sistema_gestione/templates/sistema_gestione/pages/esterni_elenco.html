@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+{% block title %}Certificazioni e audit esterni{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">Certificazioni e audit esterni</div><div class="page-sub">Certificati del sistema di gestione e audit di enti, clienti e autorità. I rilievi finiscono nel Registro OFI.</div></div>
+    {% if puo_modificare %}<div class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:esterni_audit_nuovo' %}">Nuovo audit esterno</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_certificazione_nuova' %}">Nuova certificazione</a></div>{% endif %}</div>
+
+  <div class="sg-kpis">
+    <div class="sg-kpi"><span>Certificati in vigore</span><strong>{{ certificazioni|length }}</strong></div>
+    <div class="sg-kpi"><span>Scaduti o in scadenza (90 giorni)</span><strong>{{ scadenze.certificati|length }}</strong></div>
+    <div class="sg-kpi"><span>Sorveglianze entro 30 giorni</span><strong>{{ scadenze.sorveglianze|length }}</strong></div>
+    <div class="sg-kpi"><span>Piani azioni da inviare (7 giorni)</span><strong>{{ scadenze.risposte|length }}</strong></div>
+  </div>
+
+  {% if scadenze.risposte %}<div class="sg-alert">{% for a in scadenze.risposte %}Piano azioni per <a href="{% url 'sistema_gestione:esterni_audit' a.pk %}">{{ a }}</a> da inviare entro il {{ a.risposta_entro|date:"d/m/Y" }}.{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+
+  <h2 class="sg-section">Certificazioni</h2>
+  <div class="rc-card sg-table-scroll"><table class="sg-table"><thead><tr><th>Norma</th><th>Ente</th><th>Numero</th><th>Emesso</th><th>Scadenza</th><th>Prossima sorveglianza</th><th>Stato</th><th></th></tr></thead><tbody>
+    {% for c in certificazioni %}<tr>
+      <td>{% if c.norma == "ALTRO" %}{{ c.descrizione }}{% else %}{{ c.get_norma_display }}{% endif %}</td>
+      <td>{{ c.ente }}</td><td>{{ c.numero|default:"—" }}</td><td>{{ c.emesso_il|date:"d/m/Y"|default:"—" }}</td>
+      <td>{{ c.scade_il|date:"d/m/Y" }}</td><td>{{ c.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</td>
+      <td>{% if c.stato == "scaduta" %}<span class="sg-badge danger">Scaduto</span>{% elif c.stato == "in_scadenza" %}<span class="sg-badge warn">Scade tra {{ c.giorni_alla_scadenza }} giorni</span>{% elif c.stato == "ritirata" %}<span class="sg-badge">Non più in vigore</span>{% else %}<span class="sg-badge ok">Valido</span>{% endif %}</td>
+      <td class="sg-actions">{% if puo_modificare %}<a href="{% url 'sistema_gestione:esterni_certificazione' c.pk %}">Modifica</a><a href="{% url 'sistema_gestione:esterni_audit_nuovo' %}?certificazione={{ c.pk }}">Registra audit</a>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="8">Nessuna certificazione registrata.</td></tr>{% endfor %}
+  </tbody></table></div>
+
+  <h2 class="sg-section">Audit esterni</h2>
+  <div class="rc-card sg-table-scroll"><table class="sg-table"><thead><tr><th>Date</th><th>Tipo</th><th>Ente / cliente</th><th>Norme</th><th>Stato</th><th>Esito</th><th>Rilievi</th><th>NC aperte</th></tr></thead><tbody>
+    {% for a in audit_list %}<tr>
+      <td><a href="{% url 'sistema_gestione:esterni_audit' a.pk %}">{{ a.data_inizio|date:"d/m/Y" }}{% if a.data_fine and a.data_fine != a.data_inizio %} – {{ a.data_fine|date:"d/m/Y" }}{% endif %}</a></td>
+      <td>{{ a.get_tipo_display }}</td><td>{{ a.ente }}</td><td>{{ a.norme_sigle|join:", " }}</td>
+      <td>{% if a.stato == "CHIUSO" %}<span class="sg-badge ok">Chiuso</span>{% elif a.stato == "SVOLTO" %}<span class="sg-badge warn">Svolto</span>{% else %}<span class="sg-badge">Pianificato</span>{% endif %}</td>
+      <td>{{ a.get_esito_display|default:"—" }}</td><td>{{ a.n_rilievi }}</td>
+      <td>{% if a.n_nc_aperte %}<span class="sg-badge danger">{{ a.n_nc_aperte }}</span>{% else %}0{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="8">Nessun audit esterno registrato.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}

@@ -49,7 +49,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "schede_sicurezza": ("Sicurezza sul lavoro", "#dc2626", "Schede di sicurezza dei prodotti chimici"),
     "rentri": ("Sicurezza sul lavoro", "#84cc16", "Registro rifiuti RENTRI"),
     "procedure_refresh": ("Qualità", "#22c55e", "Presa visione procedure, sync SGI"),
-    "sistema_gestione": ("Qualità", "#15803d", "Audit interni, SoA, threat intelligence"),
+    "sistema_gestione": ("Qualità", "#15803d", "Audit interni ed esterni, certificazioni, SoA, threat intelligence"),
     "gestione_specifiche": ("Qualità", "#4d7c0f", "Specifiche cliente, MOD.133, registro OFI"),
     "suggestion_corner": ("Qualità", "#65a30d", "Segnalazioni di miglioramento PDCA"),
     "report_conformita": ("Qualità", "#a16207", "Report per audit (rettifiche)"),
