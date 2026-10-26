@@ -244,7 +244,8 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "Server AI (Ollama e indice)",
         "cosa": "Il modello di linguaggio dell'Assistente AI e il servizio che calcola l'indice dei documenti, su un server interno.",
-        "chi": "Assistente AI, copiloti dei moduli (DPI, Suggestion Corner, Specifiche, Security Center).",
+        "chi": "Assistente AI, copiloti dei moduli (DPI, Suggestion Corner, Specifiche, Security Center: spiegazioni, lettura assistita, "
+               "proposte su CPE ed esiti CVE da verificare nella tabella security_securitypropostaai).",
         "config": "OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL, RAG_EMBED_BACKEND, RAG_EMBED_OPENAI_BASE_URL",
         "controllo": "Setup Wizard → Server Dashboard → Assistente AI (verifica); Centrale di comando.",
     },

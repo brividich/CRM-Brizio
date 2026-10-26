@@ -85,7 +85,21 @@ Ogni scheda dice:
 
 Se un giro resta «Interrotta» il servizio dei lavori in background (qcluster) è fermo o è stato riavviato a metà: va controllato in Amministrazione › Monitoring.
 
-In fondo alla pagina **Ultimi giri, tutte le letture** elenca gli ultimi 30 giri. I giri automatici con la lettura spenta non si registrano; per ogni lettura si tengono gli ultimi 300 giri.
+In fondo alla pagina **Ultimi giri, tutte le letture** elenca gli ultimi 30 giri. I giri automatici con la lettura spenta non si registrano; per ogni lettura si tengono tutti i giri dell'ultimo mese più altri 300 più vecchi.
+
+## Battito del SOC
+
+Pagina **Impostazioni › Battito del SOC**: in una schermata, se tutto quello che il SOC fa da solo sta girando. Serve quando «sembra che non funzioni niente».
+
+- **In alto**: quanti componenti sono da sistemare, da guardare, regolari e spenti, e lo stato della **coda dei lavori** (il qcluster). Se la coda è ferma, nel SOC non gira più niente: nessun lavoro completato da oltre 30 minuti o più di 3 schedule oltre l'orario previsto → «il qcluster sembra fermo, va riavviato».
+- **Da sistemare**: l'elenco dei problemi con la spiegazione; il nome porta alla riga della mappa.
+- **Prossimi giri**: i prossimi 6 giri pianificati, con quanto manca.
+- **Processi sempre accesi**: coda dei lavori (lavori in attesa, ultimo finito) e raccoglitore del Registro accessi (segnale di vita).
+- **Mappa degli ultimi 14 giorni**: una riga per lettura o lavoro, raggruppate come nelle Letture automatiche più «Motore del SOC» (ciclo ogni 15 minuti, lettura assistita, sintesi AI) e i controlli del Registro accessi. Per ogni riga: stato con la spiegazione, ultimo giro, prossimo giro e un quadretto per giorno. **Verde** = tutti i giri riusciti; **arancione** = qualche giro non riuscito o meno dell'80% dei giri attesi; **rosso** = nessun giro riuscito; **bordo rosso tratteggiato** = quel giorno non ha girato pur dovendo; **righe grigie** = spenta. Passando sul quadretto: giri fatti su attesi e quanti non riusciti. Clic sul nome: descrizione, quando gira, durata media e gli ultimi 10 giri con l'errore.
+
+Come decide il ritardo: il calendario viene dallo schedule della coda dei lavori. Per i lavori a intervallo (es. ogni 15 minuti) una lettura è **in ritardo** se l'ultimo giro è più vecchio di due intervalli più 10 minuti; per gli orari fissi (es. ogni mattina alle 06:20) se non ha girato all'ultimo orario previsto. Secure Score gira dentro il ciclo ma solo ogni 12 ore e si giudica così. I lavori della coda che non sono letture (ciclo del SOC, AI, controlli del Registro accessi) mostrano ultimo e prossimo giro e i fallimenti delle 24 ore, ma non la mappa: la coda tiene pochi lavori riusciti.
+
+Cosa fare: **coda ferma** → riavviare il servizio qcluster sul server; **lettura in ritardo** con la coda regolare → aprirla in Letture automatiche ed «Esegui ora» per vedere l'errore; **lettura in errore** → il messaggio dice cosa manca (permesso, credenziali, server non raggiungibile).
 
 ## L'AI nel SOC
 
@@ -120,6 +134,10 @@ Quando un parser legge una mail solo in parte («Da verificare») o nessun parse
 - **È solo una proposta**: non crea e non chiude alert, non cambia esiti di backup né conteggi. Ogni valore viene confrontato con il testo: se non compare, il badge rosso **non nel testo** avverte che l'AI potrebbe averlo inventato; «dedotto» indica un valore interpretato (es. l'esito).
 - Il testo del report è trattato come un dato: eventuali istruzioni scritte nella mail («ignora le istruzioni…») non possono cambiare nulla nel SOC. Se il testo ne contiene, la proposta porta il badge rosso **Testo sospetto** (la mail va guardata: può essere un tentativo di inganno); se l'esito proposto dall'AI contraddice quello scritto in chiaro nel testo compare **in contrasto con il testo**.
 - Per misurare tempi e precisione sul server: `python manage.py soc_ai_lettura_prova` (campioni sintetici, nessun salvataggio).
+
+### Proposte su CPE ed esiti da verificare
+
+La stessa AI può esaminare i casi «da verificare» del calcolo CVE: a quale CPE collegare un software (scelto solo fra quelli delle CVE già nel sistema) e se una CVE riguarda davvero un PC quando la versione non si confronta. **Si accende** in **Impostazioni › Proposte AI su CPE ed esiti da verificare** (spenta di serie), con il massimo di casi per giro (5) e la confidenza minima (60) sotto cui la risposta viene scartata; **gira** con la lettura **cpe_ai** ogni 6 ore e con **Proponi con l'AI ora** in Software e CPE. Riceve solo dati del sistema (nomi dei programmi, versioni, numero di PC, range delle CVE): mai testi di mail. Le proposte si accettano o rifiutano in Software e CPE e nella scheda CVE: i dettagli sono nel capitolo «Automatismi e vulnerabilità».
 
 ### Come impara
 

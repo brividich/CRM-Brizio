@@ -1,0 +1,62 @@
+{% extends "security/_base_soc.html" %}
+{# Impostazioni › Battito del SOC: services/battito.py. Ogni lettura e lavoro automatico, ultimo e prossimo giro, mappa di 14 giorni. #}
+
+{% block title %}Battito del SOC | Security Center AI{% endblock %}
+{% block page_marker %}Impostazioni{% endblock %}
+{% block page_title %}Battito del SOC{% endblock %}
+
+{% block soc_content %}
+<p class="sec-muted sec-small lt-intro">Tutto quello che il SOC fa da solo: se ha girato quando doveva, com'è andata e quando riparte. La mappa mostra gli ultimi {{ giorni|length }} giorni, un quadretto per giorno. Aggiornata alle {{ ora|time:"H:i" }}. I giri si fanno ripartire a mano da <a href="{% url 'security:letture' %}">Letture automatiche</a>.</p>
+
+<div class="lt-summary">
+  <div class="lt-sum{% if conteggi.problemi %} is-ko{% else %} is-ok{% endif %}"><strong>{{ conteggi.problemi }}</strong><span>da sistemare</span></div>
+  <div class="lt-sum"><strong>{{ conteggi.avvisi }}</strong><span>da guardare</span></div>
+  <div class="lt-sum is-ok"><strong>{{ conteggi.ok }}</strong><span>regolari</span></div>
+  <div class="lt-sum"><strong>{{ conteggi.spente }}</strong><span>spente</span></div>
+  <div class="lt-sum bt-coda is-{{ coda.tono }}"><span class="lt-dot" aria-hidden="true"></span><span>Coda dei lavori: {{ coda.frase }}{% if coda.falliti %} · {{ coda.falliti }} lavori non riusciti nelle 24 ore{% endif %}</span></div>
+</div>
+
+{% if problemi %}
+<section class="sec-panel bt-problemi">
+  <div class="sec-section-head"><h2>Da sistemare</h2></div>
+  <ul>{% for p in problemi %}<li><a href="#bt-{{ p.codice }}"><strong>{{ p.nome }}</strong></a>: {{ p.frase }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<div class="bt-due">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Prossimi giri</h2></div>
+    {% if prossimi %}<ul class="bt-prossimi">{% for c in prossimi %}<li><span class="sec-nowrap">{{ c.prossimo|date:"d/m H:i" }}</span> <span class="sec-muted">({{ c.prossimo|timeuntil:ora }})</span> · {{ c.nome }}</li>{% endfor %}</ul>
+    {% else %}<p class="sec-empty">Nessun giro pianificato: la coda dei lavori non ha schedule registrati (setup_q_schedules).</p>{% endif %}
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Processi sempre accesi</h2></div>
+    <ul class="bt-prossimi">
+      <li class="is-{{ coda.tono }}"><span class="lt-dot" aria-hidden="true"></span> <strong>Coda dei lavori (qcluster)</strong>: {{ coda.in_coda }} in attesa{% if coda.ultimo %}, ultimo lavoro finito alle {{ coda.ultimo|date:"H:i" }}{% endif %}{% if coda.in_ritardo %}, {{ coda.in_ritardo }} schedule oltre l'orario{% endif %}.</li>
+      {% if raccoglitore %}<li class="is-{{ raccoglitore.tono }}" id="bt-raccoglitore"><span class="lt-dot" aria-hidden="true"></span> <strong>Raccoglitore del Registro accessi</strong>: {{ raccoglitore.frase }}{% if raccoglitore.at %} Ultimo segnale {{ raccoglitore.at|date:"d/m H:i" }}.{% endif %}</li>{% endif %}
+    </ul>
+  </section>
+</div>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Mappa degli ultimi {{ giorni|length }} giorni</h2>
+    <span class="bt-legenda sec-small"><i class="bt-c ok"></i> tutti i giri riusciti <i class="bt-c parziale"></i> qualche giro non riuscito o mancante <i class="bt-c ko"></i> nessun giro riuscito <i class="bt-c assente"></i> non ha girato <i class="bt-c spenta"></i> spenta</span></div>
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact bt-mappa" data-table-enhanced="0">
+    <thead><tr><th>Cosa</th><th>Ultimo giro</th><th>Prossimo</th>{% for g in giorni %}<th class="bt-g" title="{{ g|date:'l d/m' }}">{{ g|date:"d" }}</th>{% endfor %}</tr></thead>
+    {% for gr in gruppi %}<tbody>
+      <tr class="bt-gruppo"><th colspan="{{ giorni|length|add:3 }}">{{ gr.nome }}</th></tr>
+      {% for c in gr.componenti %}<tr class="is-{{ c.tono }}" id="bt-{{ c.codice }}">
+        <td><details class="bt-dett"><summary><span class="lt-dot" aria-hidden="true"></span> <strong>{{ c.nome }}</strong></summary>
+            <p class="sec-small">{{ c.descrizione }}</p>
+            <p class="sec-small sec-muted">Quando gira: {{ c.quando|default:"—" }}{% if c.schedule %} · schedule «{{ c.schedule }}»{% endif %}{% if c.durata_media is not None %} · durata media {% if c.durata_media < 60 %}{{ c.durata_media }} s{% else %}{% widthratio c.durata_media 60 1 %} min{% endif %}{% endif %}</p>
+            {% if c.giri %}<ul class="bt-giri">{% for x in c.giri %}<li class="is-{{ x.stato }}">{{ x.avviata_il|date:"d/m H:i" }} · {{ x.get_stato_display }}{% if x.manuale %} (a mano){% endif %}{% if x.messaggio %}: {{ x.messaggio|truncatechars:160 }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+          </details>
+          <span class="bt-frase">{{ c.frase }}</span></td>
+        <td class="sec-nowrap">{% if c.ultimo %}{{ c.ultimo.avviata_il|timesince:ora }} fa<small class="bt-sub">{{ c.ultimo.get_stato_display }}</small>{% elif c.ultimo_quando %}{{ c.ultimo_quando|timesince:ora }} fa{% else %}—{% endif %}</td>
+        <td class="sec-nowrap">{% if c.prossimo %}{{ c.prossimo|date:"d/m H:i" }}{% else %}—{% endif %}</td>
+        {% for cella in c.celle %}<td class="bt-g"><i class="bt-c {{ cella.tono }}" title="{{ cella.testo }}"></i></td>{% empty %}<td class="bt-g sec-muted sec-small" colspan="{{ giorni|length }}">storico non disponibile per i lavori della coda</td>{% endfor %}
+      </tr>{% endfor %}
+    </tbody>{% endfor %}
+  </table></div>
+</section>
+{% endblock %}
