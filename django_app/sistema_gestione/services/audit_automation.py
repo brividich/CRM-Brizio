@@ -137,17 +137,40 @@ def aggiungi_mesi(data, mesi):
     return data.replace(year=anno, month=mese, day=min(data.day, monthrange(anno, mese)[1]))
 
 
+def _norm_processo(testo: str) -> str:
+    return " ".join((testo or "").lower().split())
+
+
+def rilievi_esterni_per_processo(processi, oggi=None) -> dict[int, dict]:
+    """Rilievi degli enti (24 mesi) attribuiti ai processi del catalogo: il testo «Processo / area»
+    del rilievo coincide con il codice, il nome o «codice - nome» del processo."""
+    from .audit_esterni import rilievi_esterni_recenti
+
+    indice: dict[str, int] = {}
+    for p in processi:
+        for chiave in (p.codice, p.nome, str(p)):
+            indice.setdefault(_norm_processo(chiave), p.pk)
+    out: dict[int, dict] = {}
+    for r in rilievi_esterni_recenti(oggi):
+        pk = indice.get(_norm_processo(r["processo"]))
+        if pk:
+            conteggio = out.setdefault(pk, {"nc": 0, "altri": 0})
+            conteggio["nc" if r["tipo"] == "NC" else "altri"] += 1
+    return out
+
+
 def priorita_processi(processi, oggi=None):
-    """Punteggio operativo 0-100, versione 2. Non e una valutazione normativa del rischio."""
+    """Punteggio operativo 0-100, versione 3. Non e una valutazione normativa del rischio."""
     from .programma import frequenza_raccomandata
 
     oggi = oggi or timezone.localdate()
     risultati = []
     recenti = AuditEsito.objects.filter(esito__in=["NC", "OFI"], audit__data_inizio__gte=oggi-timedelta(days=730), audit__data_inizio__lte=oggi).exclude(audit__stato=Audit.STATO_ANNULLATO).prefetch_related("verifiche_efficacia")
-    processi = processi.prefetch_related(
+    processi = list(processi.prefetch_related(
         Prefetch("audit", queryset=Audit.objects.only("id", "stato", "data_inizio", "processi_snapshot"), to_attr="audit_priorita"),
         Prefetch("esiti_audit", queryset=recenti, to_attr="rilievi_priorita"),
-    )
+    ))
+    esterni = rilievi_esterni_per_processo(processi, oggi)
     for processo in processi:
         chiusi = sorted((a for a in processo.audit_priorita if a.stato == Audit.STATO_CHIUSO), key=lambda a: a.data_inizio, reverse=True)
         ultimo = chiusi[0].data_inizio if chiusi else None
@@ -175,6 +198,12 @@ def priorita_processi(processi, oggi=None):
             punti = min(15, ofi * 5)
             score += punti
             motivi.append(f"{ofi} OFI negli ultimi 24 mesi: +{punti}")
+        dagli_enti = esterni.get(processo.pk)
+        if dagli_enti:
+            punti = min(30, dagli_enti["nc"] * 15 + dagli_enti["altri"] * 5)
+            score += punti
+            motivi.append(f"{dagli_enti['nc'] + dagli_enti['altri']} rilievi degli enti esterni negli ultimi 24 mesi "
+                          f"({dagli_enti['nc']} NC): +{punti}")
         if (processo.requisiti_cliente or "").strip():
             score += 10
             motivi.append("Requisiti cliente/ente sul processo: +10")

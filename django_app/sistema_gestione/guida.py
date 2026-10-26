@@ -169,9 +169,12 @@ _PAGINE_AUDIT = [
         "titolo": "Pagina «Priorità e proposte di audit»",
         "blocchi": [
             ("p", "Aiuta MSM a decidere la frequenza come chiede il §5.2 della MT CN 12: criticità, NC e OFI degli ultimi "
-                  "24 mesi, requisiti cliente, esiti delle verifiche di efficacia e revisioni della scheda processo."),
+                  "24 mesi, rilievi degli enti esterni, requisiti cliente, esiti delle verifiche di efficacia e revisioni della scheda processo."),
             ("ul", [
-                "Ogni processo riceve un punteggio fino a 100 (regola «priorita-v2») con le motivazioni in chiaro.",
+                "Ogni processo riceve un punteggio fino a 100 (regola «priorita-v3») con le motivazioni in chiaro.",
+                "I rilievi degli audit esterni degli ultimi 24 mesi pesano sul processo indicato nel rilievo (15 punti per "
+                "NC, 5 per osservazione o OFI, al massimo 30): il campo «Processo / area» del rilievo deve riportare il "
+                "codice o il nome del catalogo, che il modulo propone mentre scrivi.",
                 "«Frequenza e ultimo audit» mostra la frequenza raccomandata (mai oltre 12 mesi), «Mai auditato» o "
                 "«oltre la frequenza».",
                 "Spunta i processi, scegli il «Programma in bozza» e premi «Aggiungi le proposte selezionate»: le righe "
@@ -401,6 +404,8 @@ _PAGINE_AUDIT = [
                 "del rapporto da parte dell'auditor.",
                 "Per ogni rilievo: audit, clausola, tipo, descrizione, scadenza e il numero MOD.174 con lo stato della CAR.",
                 "«Gestisci l'azione correttiva» apre la tua CAR per compilare cause, contenimento, azione ed evidenze.",
+                "«Rilievi degli enti esterni assegnati a te» elenca le voci MOD.174 nate da audit esterni di cui sei "
+                "responsabile, con scadenza e fase.",
             ]),
         ],
     },
@@ -418,6 +423,8 @@ _PAGINE_AUDIT = [
                 "«Copertura delle clausole per norma» confronta le clausole richieste dal catalogo con quelle verificate "
                 "negli audit chiusi; «clausole non verificate» le elenca.",
                 "«Rilievi in Excel» scarica i rilievi dell'anno.",
+                "«Audit esterni del …» conta i rilievi degli enti per classificazione, le NC degli enti ancora aperte e, "
+                "per ogni audit esterno dell'anno, se il piano azioni è stato inviato.",
             ]),
         ],
     },
@@ -468,10 +475,20 @@ _PAGINE_AUDIT = [
                 "«Registra un rilievo»: classificazione (NC maggiore, NC minore, osservazione, OFI), testo dell'ente, "
                 "requisito, processo, responsabile e scadenza. Il rilievo diventa una voce del Registro OFI con fonte l'ente "
                 "e le norme dell'audit; una NC maggiore ha priorità alta. Azioni, CAR ed efficacia si gestiscono dalla voce.",
-                "«Chiudi l'audit» compare quando ci sono esito e rapporto e nessuna NC è ancora aperta; dopo la chiusura "
-                "non si aggiungono rilievi.",
+                "«Preparazione all'audit» (solo per gli audit pianificati) controlla cosa l'auditor dell'ente guarderà "
+                "per primo: certificato valido, clausole delle norme dell'audit verificate dagli audit interni chiusi nei "
+                "12 mesi precedenti, programma interno dell'anno approvato e senza ritardi, NC interne degli ultimi 24 mesi "
+                "con azione chiusa ed efficacia verificata, voci MOD.174 aperte oltre la data richiesta sulle stesse norme, "
+                "rilievi ancora aperti dell'audit precedente dello stesso certificato (o dello stesso ente), auditor interni "
+                "con qualifica valida. Ogni controllo è «In ordine», «Da sistemare» o «Critico» e apre l'elenco delle voci "
+                "da sistemare; «Scarica il pacchetto (xlsx)» li esporta.",
+                "«Piano azioni per l'ente»: «Scarica il piano azioni (xlsx)» compone il piano dai testi delle voci MOD.174 "
+                "(classificazione, requisito, rilievo, PLAN, DO, CHECK, responsabile, data, stato). Dopo l'invio registra "
+                "la data con «Registra l'invio»: il promemoria del lunedì si ferma.",
+                "«Chiudi l'audit» compare quando ci sono esito e rapporto, nessuna NC è ancora aperta e l'invio del piano "
+                "azioni è registrato (se l'ente lo aspetta); dopo la chiusura non si aggiungono rilievi.",
                 "Ogni lunedì RSGI riceve il riepilogo di certificati in scadenza, sorveglianze vicine e piani azioni da "
-                "inviare (job «sistema_gestione_scadenze_esterni»).",
+                "inviare non ancora registrati come inviati (job «sistema_gestione_scadenze_esterni»).",
             ]),
         ],
     },
@@ -692,6 +709,8 @@ PAGE_HELP = {
     "sistema_gestione:esterni_audit_nuovo": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_audit": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_audit_modifica": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_preparazione_export": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_piano_export": ("audit", "pagina-esterni"),
     "sistema_gestione:audit_cruscotto": ("audit", "pagina-cruscotto"),
     "sistema_gestione:procedura_kpi": ("audit", "pagina-kpi"),
     "sistema_gestione:audit_impostazioni": ("audit", "pagina-impostazioni"),

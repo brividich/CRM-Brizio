@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.shortcuts import render
 
 from .acl_bootstrap import PERM_AUDIT_MIEI, PERM_AUDIT_VIEW
-from .models import AuditEsito, AuditPersona
+from .models import AuditEsito, AuditEsterno, AuditPersona
 from .services.cruscotto import RILIEVI
 from .views import _has_perm, _nega
 
@@ -40,4 +41,12 @@ def miei_rilievi(request):
         })
     return render(request, "sistema_gestione/pages/audit_miei_rilievi.html", {
         "page_title": "I miei rilievi", "righe": righe, "consulta_audit": _has_perm(request, PERM_AUDIT_VIEW),
+        "esterni": rilievi_esterni_utente(request.user),
     })
+
+
+def rilievi_esterni_utente(user):
+    """Rilievi degli audit esterni (voci MOD.174 con origine l'audit) di cui l'utente è responsabile."""
+    from gestione_specifiche.models import RegistroOFI
+    ct = ContentType.objects.get_for_model(AuditEsterno)
+    return list(RegistroOFI.objects.filter(content_type=ct, responsabile=user).order_by("-data_apertura", "-numero"))

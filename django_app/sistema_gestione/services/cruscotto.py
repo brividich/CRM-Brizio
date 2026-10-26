@@ -12,6 +12,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from ..models import Audit, AuditEsito, AuditVerificaEfficacia, AzioneCorrettivaAudit, CellaProgramma, Processo, ProgrammaAudit
+from .audit_esterni import esterni_anno
 from .programma import CAMPI_NORMA
 
 RILIEVI = [AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI, AuditEsito.ESITO_OSSERVAZIONE]
@@ -90,18 +91,22 @@ def cruscotto(anno: int, oggi: date | None = None) -> dict:
                       "percentuale": round(100 * efficaci / len(ultime)) if ultime else None},
         "ricorrenti": [{"processo": nomi.get(r["processo"], r["processo"]), "audit": r["audit_distinti"], "rilievi": r["rilievi"]} for r in da_ricorrenti],
         "copertura": copertura_clausole(anno),
+        "esterni": esterni_anno(anno),
     }
 
 
-def copertura_clausole(anno: int) -> list[dict]:
+def copertura_clausole(anno: int | None = None, *, dal: date | None = None, al: date | None = None,
+                       solo_norme: set[str] | None = None) -> list[dict]:
     """Per norma: clausole richieste dal catalogo processi e clausole effettivamente verificate
-    (esiti valutati, non N/A) negli audit chiusi dell'anno. Evidenza per l'ente di certificazione."""
+    (esiti valutati, non N/A) negli audit chiusi dell'anno, o tra ``dal`` e ``al``. Evidenza per
+    l'ente di certificazione; ``solo_norme`` (es. {"en9100"}) limita il risultato a quelle norme."""
     richieste: dict[str, set[str]] = defaultdict(set)
     for processo in Processo.objects.filter(attivo=True).only(*[c for _f, c, _l in CAMPI_NORMA]):
         for _flag, campo, label in CAMPI_NORMA:
             richieste[label] |= _punti(getattr(processo, campo, ""))
     verificate: dict[str, set[str]] = defaultdict(set)
-    esiti = (AuditEsito.objects.filter(audit__stato=Audit.STATO_CHIUSO, audit__data_inizio__year=anno)
+    periodo = {"audit__data_inizio__year": anno} if anno else {"audit__data_inizio__gte": dal, "audit__data_inizio__lte": al}
+    esiti = (AuditEsito.objects.filter(audit__stato=Audit.STATO_CHIUSO, **periodo)
              .exclude(esito__in=["", AuditEsito.ESITO_NA]).select_related("audit", "domanda", "modello_processo"))
     etichette = {flag: label for flag, _campo, label in CAMPI_NORMA}
     for e in esiti:
@@ -119,12 +124,12 @@ def copertura_clausole(anno: int) -> list[dict]:
             if flag in etichette:
                 verificate[etichette[flag]] |= punti
     out = []
-    for _flag, _campo, label in CAMPI_NORMA:
+    for flag, _campo, label in CAMPI_NORMA:
         richiesto = richieste.get(label, set())
-        if not richiesto:
+        if not richiesto or (solo_norme is not None and flag not in solo_norme):
             continue
         coperte = richiesto & verificate.get(label, set())
-        out.append({"norma": label, "richieste": len(richiesto), "verificate": len(coperte),
+        out.append({"flag": flag, "norma": label, "richieste": len(richiesto), "verificate": len(coperte),
                     "percentuale": round(100 * len(coperte) / len(richiesto)),
                     "mancanti": sorted(richiesto - coperte)})
     return out

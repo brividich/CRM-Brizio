@@ -37,8 +37,9 @@ class FrequenzaRaccomandataTests(AuditBase):
                                  data_inizio=timezone.localdate() - timedelta(days=420))
         chiuso.processi_catalogo.add(self.processo)
         AuditEsito.objects.create(audit=chiuso, processo=self.processo, testo_aggiuntivo="x", esito="OFI", evidenze="y")
-        # Costante: processi, audit, rilievi e (solo se ci sono rilievi) le loro verifiche di efficacia.
-        with self.assertNumQueries(4):
+        # Costante: processi, audit, rilievi e (solo se ci sono rilievi) le loro verifiche di efficacia,
+        # rilievi degli enti esterni.
+        with self.assertNumQueries(5):
             riga = priorita_processi(Processo.objects.filter(pk=self.processo.pk))[0]
         self.assertTrue(any("OFI" in m for m in riga["motivi"]))
         self.assertTrue(any("Requisiti cliente" in m for m in riga["motivi"]))
