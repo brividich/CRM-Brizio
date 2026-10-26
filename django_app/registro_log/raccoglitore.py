@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 GIRO_SECONDI = 60
 RICARICA_SECONDI = 300
 LETTORI_WINDOWS = 4
+LETTORI_PC = 8
+PC_OGNI_MINUTI = 10  # ogni PC acceso si rilegge ogni 10 minuti
+PC_SPENTO_MINUTI = 15  # un PC spento si riprova dopo 15 minuti
+SESSIONI_MAX = 100000  # accessi di rete ricordati per sapere da quale PC arriva chi apre un file
 SPAZIO_MINIMO_MB = 2048
 SCRITTURA_TENTATIVI_INTERRUZIONE = 30  # ~1 minuto di errori prima dell'interruzione
 FLUSH_SECONDI = 2
@@ -72,17 +76,30 @@ class Raccoglitore:
         self._errore_syslog = ""
         self._scarti: dict[int, int] = {}
         self._in_lettura: dict[int, object] = {}
+        self._in_lettura_pc: dict[int, object] = {}
         self._lettori = None
+        self._lettori_pc = None
+        self.raccoglitori: set[str] = set()
+        self.cartelle: dict[int, list] = {}
+        self._sessioni: dict[tuple[str, str], str] = {}
         self.avviato_il = timezone.now()
 
     # ── configurazione ──────────────────────────────────────────────────────
     def carica(self) -> None:
+        import getpass
+
         from .models import FonteLog, Impostazioni
 
         self.imp = Impostazioni.corrente()
         fonti = {f.pk: f for f in FonteLog.objects.filter(attiva=True)}
         self.fonti = fonti
         self.ip_fonte = {ip: f.pk for f in fonti.values() if f.tipo == FonteLog.TIPO_SYSLOG for ip in f.lista_ip()}
+        self.cartelle = {f.pk: f.lista_cartelle() for f in fonti.values() if f.cartelle_file}
+        self.raccoglitori = self.imp.lista_raccoglitori()
+        try:
+            self.raccoglitori.add(getpass.getuser().lower())  # l'account con cui gira questo raccoglitore
+        except Exception:  # noqa: BLE001 - senza nome utente si usa solo l'elenco delle impostazioni
+            pass
         try:
             self.privilegiati = privilegiati()
         except Exception as exc:  # noqa: BLE001 - senza elenco si indicizzano solo gli accessi interattivi
@@ -102,9 +119,16 @@ class Raccoglitore:
             idx = regole.classifica_syslog(dati)
             host, canale, event_id = dati.get("host") or dati.get("ip") or "", dati.get("app", "")[:80], None
         else:
-            idx = regole.classifica_windows(dati, self.privilegiati, livello_file=getattr(fonte, "audit_file", "") or "")
-            quando = regole.quando_windows(dati) or ricevuto
             host, canale, event_id = dati.get("pc", ""), dati.get("canale", ""), dati.get("id")
+            self._ricorda_sessione(host, dati)
+            idx = regole.classifica_windows(
+                dati, self.privilegiati, livello_file=getattr(fonte, "audit_file", "") or "",
+                usb=bool(getattr(fonte, "audit_usb", False)), cartelle=self.cartelle.get(getattr(fonte, "pk", None)),
+                raccoglitori=self.raccoglitori)
+            quando = regole.quando_windows(dati) or ricevuto
+            if idx is not None and idx.categoria.startswith("file_") and not idx.ip_origine:
+                # Sul file server il 4663 non dice da quale PC: lo dice l'accesso di rete con lo stesso ID di sessione.
+                idx.ip_origine = self._sessioni.get((host.lower(), (dati.get("dati") or {}).get("SubjectLogonId", "")), "")
         if idx is None:
             return None
         if idx.dedup:
@@ -132,8 +156,21 @@ class Raccoglitore:
             archivio_giorno=giorno, archivio_riga=n,
         )
 
+    def _ricorda_sessione(self, host: str, dati: dict) -> None:
+        """4624: ID di sessione → PC di provenienza (IP o nome), per i 4663 che seguono sullo stesso server."""
+        if dati.get("id") != 4624:
+            return
+        x = dati.get("dati") or {}
+        da = regole._ip(x.get("IpAddress", "")) or (x.get("WorkstationName") or "").strip("-\\ ")
+        sessione = x.get("TargetLogonId", "")
+        if not (da and sessione):
+            return
+        if len(self._sessioni) >= SESSIONI_MAX:
+            self._sessioni = dict(list(self._sessioni.items())[SESSIONI_MAX // 2:])  # via le più vecchie
+        self._sessioni[(host.lower(), sessione)] = da[:64]
+
     def _scrivi_lotto(self, eventi: list, segnalibri: list, contatori: dict) -> None:
-        from .models import EventoRegistro, FonteLog
+        from .models import EventoRegistro, FonteLog, Postazione
 
         self.scrittore.flush()
         close_old_connections()
@@ -149,12 +186,13 @@ class Raccoglitore:
         for fonte_id, scarto in self._scarti.items():
             FonteLog.objects.filter(pk=fonte_id).update(scarto_orologio_s=scarto)
         self._scarti = {}
-        for fonte_id, canale, valore in segnalibri:
-            f = FonteLog.objects.filter(pk=fonte_id).first()
-            if f is not None and valore is not None:
-                s = dict(f.segnalibri or {})
+        for tipo, chi, canale, valore in segnalibri:
+            modello = Postazione if tipo == "segnalibro_pc" else FonteLog
+            attuali = modello.objects.filter(pk=chi).values_list("segnalibri", flat=True).first()
+            if attuali is not None and valore is not None:
+                s = dict(attuali or {})
                 s[canale] = int(valore)
-                FonteLog.objects.filter(pk=fonte_id).update(segnalibri=s)
+                modello.objects.filter(pk=chi).update(segnalibri=s)
 
     def ciclo_scrittore(self) -> None:
         from .models import FonteLog
@@ -175,8 +213,8 @@ class Raccoglitore:
             try:
                 if voce is not None:
                     tipo = voce[0]
-                    if tipo == "segnalibro":
-                        segnalibri.append(voce[1:])
+                    if tipo in ("segnalibro", "segnalibro_pc"):
+                        segnalibri.append(voce)
                         righe_dal_flush = FLUSH_RIGHE  # forza il salvataggio: le righe lette sono su disco
                     else:
                         if tipo == "syslog":
@@ -205,7 +243,7 @@ class Raccoglitore:
                 self._errore_scrittore = ""
             except Exception as exc:  # noqa: BLE001 - lo scrittore non deve morire né perdere la riga
                 # La voce si riprova finché non va (disco pieno, cartella di rete giù): niente righe perse.
-                if voce is not None and voce[0] != "segnalibro" and not scritta:
+                if voce is not None and not voce[0].startswith("segnalibro") and not scritta:
                     pendente = voce  # già nel file: non si riscrive (il lotto per il database resta in memoria)
                 tentativi += 1
                 self._errore_scrittore = f"Scrittura dell'archivio non riuscita: {type(exc).__name__}: {exc}"[:300]
@@ -238,6 +276,9 @@ class Raccoglitore:
         ora = timezone.now()
         pause = dict(FonteLog.objects.filter(pk__in=list(self.fonti)).values_list("pk", "riprova_dopo"))
         for fonte in list(self.fonti.values()):
+            if fonte.tipo == FonteLog.TIPO_DOMINIO and not self._fermo.is_set():
+                self.leggi_postazioni(fonte, ora)
+                continue
             if fonte.tipo not in (FonteLog.TIPO_WINDOWS, FonteLog.TIPO_WEF) or self._fermo.is_set():
                 continue
             in_corso = self._in_lettura.get(fonte.pk)
@@ -274,11 +315,75 @@ class Raccoglitore:
             for dati in esito.eventi:
                 self.coda.put(("windows", fonte.pk, dati, ricevuto))
             self.coda.put(("segnalibro", fonte.pk, canale, esito.segnalibro))
-            if esito.persi:
-                apri_interruzione(fonte, "eventi_persi", f"{canale}: circa {esito.persi} record sovrascritti sul server "
-                                  "prima della lettura (registro troppo piccolo o raccoglitore fermo a lungo).",
-                                  chiudi_subito=True)
+            nota = nota_eventi_persi(canale, esito)
+            if nota:
+                apri_interruzione(fonte, "eventi_persi", nota, chiudi_subito=True)
         aggiorna_stato_fonte(fonte, errori)
+
+    # ── PC del dominio ──────────────────────────────────────────────────────
+    def leggi_postazioni(self, fonte, ora) -> None:
+        """Mette in lettura i PC della fonte da rileggere: accesi da più di 10 minuti, non esclusi, non in pausa."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        from .models import Postazione
+
+        if self._lettori_pc is None:
+            self._lettori_pc = ThreadPoolExecutor(max_workers=LETTORI_PC, thread_name_prefix="registro-pc")
+        limite = ora - timedelta(minutes=PC_OGNI_MINUTI)
+        da_leggere = (Postazione.objects.filter(fonte_id=fonte.pk, in_ad=True, esclusa=False)
+                      .exclude(riprova_dopo__gt=ora).exclude(ultima_lettura_il__gt=limite)
+                      .order_by("ultima_lettura_il"))
+        for pc in da_leggere:
+            in_corso = self._in_lettura_pc.get(pc.pk)
+            if (in_corso is not None and not in_corso.done()) or self._fermo.is_set():
+                continue
+            self._in_lettura_pc[pc.pk] = self._lettori_pc.submit(self._leggi_pc_isolato, fonte, pc)
+
+    def _leggi_pc_isolato(self, fonte, pc) -> None:
+        try:
+            self.leggi_pc(fonte, pc)
+        except Exception:  # noqa: BLE001 - un lettore non deve morire
+            logger.exception("Registro accessi: lettura del PC %s non riuscita", pc)
+        finally:
+            connections.close_all()
+
+    def leggi_pc(self, fonte, pc) -> None:
+        from .models import FonteLog, Postazione
+
+        ora = timezone.now()
+        if not windows.acceso(pc.host):
+            Postazione.objects.filter(pk=pc.pk).update(stato=Postazione.STATO_SPENTO,
+                                                       riprova_dopo=ora + timedelta(minutes=PC_SPENTO_MINUTI))
+            return
+        fresca = Postazione.objects.filter(pk=pc.pk).values_list("segnalibri", flat=True).first() or {}
+        errori, note, righe = [], [], 0
+        for canale in fonte.lista_canali():
+            try:
+                esito = windows.leggi_canale(canale, pc.host, fresca.get(canale), tutto=fonte.eventi == FonteLog.EVENTI_TUTTO,
+                                             file=bool(fonte.audit_file), usb=fonte.audit_usb)
+            except Exception as exc:  # noqa: BLE001 - errore del PC, si annota e si va avanti
+                errori.append(f"{canale}: {exc}")
+                continue
+            ricevuto = timezone.now()
+            for dati in esito.eventi:
+                self.coda.put(("windows", fonte.pk, dati, ricevuto))
+            self.coda.put(("segnalibro_pc", pc.pk, canale, esito.segnalibro))
+            righe += len(esito.eventi)
+            nota = nota_eventi_persi(canale, esito)
+            if nota:
+                note.append(nota)  # sui PC resta sulla riga del PC: non è un'interruzione del registro
+        oggi = timezone.localdate()
+        attuale = Postazione.objects.filter(pk=pc.pk).values("righe_oggi", "giorno_conteggio", "errori_consecutivi").first() or {}
+        base = attuale.get("righe_oggi", 0) if attuale.get("giorno_conteggio") == oggi else 0
+        campi = {"ultima_lettura_il": ora, "ultimo_contatto_il": ora, "righe_oggi": base + righe, "giorno_conteggio": oggi}
+        if errori:
+            n = attuale.get("errori_consecutivi", 0) + 1
+            campi.update(stato=Postazione.STATO_ERRORE, ultimo_errore="; ".join(errori)[:500], errori_consecutivi=n,
+                         riprova_dopo=ora + pausa_dopo_errori(n))
+        else:
+            campi.update(stato=Postazione.STATO_OK, ultimo_errore="; ".join(note)[:500], errori_consecutivi=0, riprova_dopo=None)
+            FonteLog.objects.filter(pk=fonte.pk).update(stato=FonteLog.STATO_OK, ultima_lettura_il=ora, ultimo_errore="")
+        Postazione.objects.filter(pk=pc.pk).update(**campi)
 
     # ── segnale di vita e manutenzione ───────────────────────────────────────
     def battito(self) -> None:
@@ -369,8 +474,9 @@ class Raccoglitore:
             self._fermo.set()
             if self.ricevitore is not None:
                 self.ricevitore.ferma()
-            if self._lettori is not None:
-                self._lettori.shutdown(wait=False, cancel_futures=True)
+            for lettori in (self._lettori, self._lettori_pc):
+                if lettori is not None:
+                    lettori.shutdown(wait=False, cancel_futures=True)
             filo.join(timeout=60)
 
 
@@ -408,6 +514,19 @@ def chiudi_interruzioni(fonte, motivo: str, quando=None) -> int:
 
     return Interruzione.objects.filter(fonte_id=getattr(fonte, "pk", None), motivo=motivo, al__isnull=True).update(
         al=quando or timezone.now())
+
+
+def nota_eventi_persi(canale: str, esito) -> str:
+    """Testo per i record che non si sono potuti leggere (registro sovrascritto o svuotato da un altro programma)."""
+    if esito.ricominciato:
+        return (f"{canale}: il registro è stato svuotato sul server e la numerazione è ripartita: letto da capo; "
+                "gli eventi tra l'ultima lettura e lo svuotamento possono mancare (es. BusinessLog con «Cancella "
+                "Registro» attivo).")
+    if esito.persi:
+        return (f"{canale}: circa {esito.persi} record non letti perché già cancellati sul server (registro troppo "
+                "piccolo, raccoglitore fermo a lungo o registro svuotato da un altro programma, es. BusinessLog con "
+                "«Cancella Registro» attivo).")
+    return ""
 
 
 def pausa_dopo_errori(n: int) -> timedelta:

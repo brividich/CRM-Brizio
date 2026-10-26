@@ -21,14 +21,16 @@
       <td>{% if not f.attiva %}<span class="sec-badge">Spenta</span>{% elif f.stato == "errore" %}<span class="sec-badge critical">Errore</span>{% elif f.ultimo_evento_il %}<span class="sec-badge info">Riceve</span>{% else %}<span class="sec-badge warning">In attesa</span>{% endif %}</td>
       <td><strong>{{ f.nome }}</strong><span class="rl-sub">{{ f.get_ruolo_display }}{% if f.host %} · {{ f.host }}{% endif %}{% if f.indirizzi_ip %} · {{ f.indirizzi_ip }}{% endif %}</span>
         {% if f.ultimo_errore %}<span class="rl-sub" style="color:var(--danger)">{{ f.ultimo_errore|linebreaksbr }}</span>{% endif %}</td>
-      <td>{{ f.get_tipo_display }}{% if f.tipo == "windows" %}<span class="rl-sub">{{ f.canali }} · {{ f.get_eventi_display|lower }}</span>{% endif %}</td>
+      <td>{{ f.get_tipo_display }}{% if f.tipo == "windows" %}<span class="rl-sub">{{ f.canali }} · {{ f.get_eventi_display|lower }}</span>{% endif %}
+        {% if f.pc is not None %}<span class="rl-sub"><a href="{% url 'security:registro_log_postazioni' f.pk %}">{{ f.pc.totale }} PC</a>{% if f.pc.totale %}: {{ f.pc.ok|default:0 }} letti, {{ f.pc.spento|default:0 }} spenti{% if f.pc.errore %}, <span style="color:var(--danger)">{{ f.pc.errore }} con errore</span>{% endif %}{% if f.pc.mai %}, {{ f.pc.mai }} mai letti{% endif %}{% endif %}</span>{% endif %}
+        {% if f.cartelle_file %}<span class="rl-sub">{{ f.lista_cartelle|length }} cartell{{ f.lista_cartelle|length|pluralize:"a,e" }} sorvegliat{{ f.lista_cartelle|length|pluralize:"a,e" }}</span>{% endif %}</td>
       <td class="sec-nowrap">{% if f.ultimo_evento_il %}{{ f.ultimo_evento_il|timesince:ora }} fa<span class="rl-sub">{{ f.ultimo_evento_il|date:"d/m/Y H:i" }}</span>{% else %}mai{% endif %}
         {% if f.riprova_dopo and f.riprova_dopo > ora %}<span class="rl-sub">nuovo tentativo alle {{ f.riprova_dopo|time:"H:i" }} ({{ f.errori_consecutivi }} error{{ f.errori_consecutivi|pluralize:"e,i" }} di fila)</span>{% endif %}
         {% if f.scarto_orologio_s is not None and f.scarto_orologio_s > 300 or f.scarto_orologio_s is not None and f.scarto_orologio_s < -300 %}<span class="rl-tag" title="Differenza tra l'ora del messaggio e l'ora di ricezione: controllare NTP e fuso orario dell'apparato">orologio sfasato di {{ f.scarto_orologio_s }} s</span>{% endif %}</td>
       <td>{% if f.giorno_conteggio == battito.stato.giorno_corrente %}{{ f.righe_oggi }}{% else %}0{% endif %}</td>
       <td class="sec-nowrap">{% if puo_configurare %}
         <form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ f.pk }}">
-          <button class="sec-button" name="azione" value="prova" type="submit">Prova</button>
+          {% if f.tipo == "dominio" %}<a class="sec-button" href="{% url 'security:registro_log_postazioni' f.pk %}">PC</a>{% else %}<button class="sec-button" name="azione" value="prova" type="submit">Prova</button>{% endif %}
           <a class="sec-button" href="?modifica={{ f.pk }}#nuova">Modifica</a>
           {% if f.attiva %}<button class="sec-button" name="azione" value="elimina" type="submit" data-hub-confirm="Disattivare la fonte «{{ f.nome }}»? Gli eventi già raccolti restano.">Disattiva</button>{% endif %}
         </form>{% endif %}</td>
@@ -58,6 +60,7 @@
     </div></fieldset>
     <fieldset class="rl-gruppo"><legend>Da dove si legge</legend><div class="rl-griglia">
       {% include "registro_log/_campo.html" with f=form_fonte.host %}
+      {% include "registro_log/_campo.html" with f=form_fonte.ou_pc %}
       {% include "registro_log/_campo.html" with f=form_fonte.canali %}
       {% include "registro_log/_campo.html" with f=form_fonte.eventi %}
       {% include "registro_log/_campo.html" with f=form_fonte.indirizzi_ip %}
@@ -70,6 +73,7 @@
       {% if not imp.controlli_lavoratori_ok %}<p class="sec-muted sec-small" style="margin-top:0">Si accendono dopo la conferma «Informativa ai dipendenti e accordi verificati» nelle Impostazioni qui sotto.</p>{% endif %}
       <div class="rl-griglia">
       {% include "registro_log/_campo.html" with f=form_fonte.audit_file %}
+      {% include "registro_log/_campo.html" with f=form_fonte.cartelle_file largo=True %}
       {% include "registro_log/_campo.html" with f=form_fonte.audit_stampe %}
       {% include "registro_log/_campo.html" with f=form_fonte.stampe_nomi %}
       {% include "registro_log/_campo.html" with f=form_fonte.audit_usb %}
@@ -86,11 +90,26 @@
     </ol>
     <p class="sec-muted sec-small">Con molti server conviene il <strong>Windows Event Forwarding</strong>: i server inoltrano a questo server (sottoscrizione «Avviato dall'origine») e qui si aggiunge una sola fonte «Eventi inoltrati».</p>
   </details>
-  <details class="rl-aiuto"><summary>Accessi ai file, stampe e USB: cosa preparare</summary>
+  <details class="rl-aiuto"><summary>Accessi ai file, stampe e USB: cosa preparare (come per BusinessLog)</summary>
+    <p class="sec-muted sec-small" style="margin-top:0">Se BusinessLog è già configurato, policy e voci di controllo sulle cartelle ci sono già e valgono così come sono: basta aggiungere le fonti.</p>
     <ol>
-      <li><strong>File</strong> (file server): nella GPO dei server attivare «Controlla file system» (Accesso agli oggetti, operazioni riuscite) e, sulle cartelle condivise da sorvegliare, una voce di controllo (Proprietà › Sicurezza › Avanzate › Controllo) per «Everyone» con <em>Elimina</em>, <em>Crea file / Scrivi dati</em> e <em>Modifica autorizzazioni</em>; aggiungere <em>Visualizza cartella / Leggi dati</em> solo se si vogliono anche le letture (molti eventi). Sulla fonte: «Accessi ai file».</li>
-      <li><strong>Stampe</strong> (server di stampa): <em>wevtutil sl Microsoft-Windows-PrintService/Operational /e:true</em>. Sulla fonte: «Stampe» (il nome del documento solo se serve davvero).</li>
-      <li><strong>USB</strong>: il registro «Partition/Diagnostic» è già attivo da Windows 10; per l'evento 6416 attivare «Controlla attività PNP» (Rilevamento dettagliato). Le chiavette si collegano ai PC: per raccoglierle serve una sottoscrizione WEF dai PC via GPO verso il server del portale e una fonte «Eventi inoltrati» con «Dispositivi USB».</li>
+      <li><strong>File</strong> (file server): nella GPO dei file server «Controlla File system» (Configurazione avanzata › Accesso agli oggetti, operazioni riuscite). Sulla cartella da sorvegliare: Proprietà › Sicurezza › Avanzate › Controllo › Aggiungi, tipo «Operazione completata», «La cartella selezionata, le sottocartelle e i file», con <em>Creazione file/Scrittura dati</em>, <em>Creazione cartelle/Aggiunta dati</em>, <em>Elimina sottocartelle e file</em>, <em>Elimina</em> e <em>Autorizzazioni di lettura</em> (questa registra le aperture). Sulla fonte del file server: «Accessi ai file» e, se servono, le «Cartelle sorvegliate» con le spunte letture, scritture, eliminazioni come in BusinessLog.</li>
+      <li><strong>Stampe</strong>: sui PC e sul server di stampa attivare il registro <em>Microsoft-Windows-PrintService/Operational</em> (via GPO con un'attività immediata: <em>wevtutil set-log Microsoft-Windows-PrintService/Operational /e:true /q:true</em>). Per il titolo del documento: valore DWORD <em>ShowJobTitleInEventLogs = 1</em> in <em>HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Printers</em>, e sulla fonte «Registra anche il nome del documento».</li>
+      <li><strong>USB</strong>: nella GPO dei PC «Controlla Archivio rimovibile» (Accesso agli oggetti, operazioni riuscite): ogni file copiato, aperto o eliminato su una chiavetta diventa un evento. Per marca e numero di serie della chiavetta: «Controlla attività PNP» (Rilevamento dettagliato). Le chiavette si collegano ai PC: serve la fonte «Tutti i PC del dominio» con «Dispositivi USB».</li>
+    </ol>
+  </details>
+  <details class="rl-aiuto"><summary>Tutti i PC del dominio: cosa preparare</summary>
+    <ol>
+      <li>Sui PC (GPO): regole del firewall in ingresso <strong>«Gestione remota registro eventi»</strong> (tutte e tre) verso il server del portale. Se BusinessLog legge già i PC, sono già attive.</li>
+      <li>L'account del raccoglitore deve poter leggere il registro Security dei PC: gruppo locale <strong>Event Log Readers</strong> (GPO › Gruppi con restrizioni) oppure, come BusinessLog, un account amministratore dei PC.</li>
+      <li>Aggiungere una fonte «Tutti i PC del dominio»: l'elenco arriva da Active Directory (computer Windows abilitati, usati negli ultimi 60 giorni) e si aggiorna ogni 6 ore. Ogni PC acceso si legge ogni 10 minuti; un PC spento si riprova dopo 15 minuti e non è un errore.</li>
+    </ol>
+  </details>
+  <details class="rl-aiuto"><summary>Insieme a BusinessLog durante il passaggio</summary>
+    <ol>
+      <li>In BusinessLog <strong>spegnere «Cancella Registro»</strong> (Elenco macchine › Impostazioni generali e, se impostato, nella scheda di ogni macchina): di serie svuota il registro Security di ogni macchina a ogni scansione e qui gli eventi tra due letture andrebbero persi (compare l'interruzione «Eventi sovrascritti prima della lettura»).</li>
+      <li>Scrivere l'account del servizio BusinessLog in <strong>Impostazioni › Account dei raccoglitori di log</strong>: i suoi accessi a tutti i server ogni pochi minuti restano nell'archivio senza riempire gli accessi degli amministratori.</li>
+      <li>Tenere i due sistemi insieme almeno un mese, confrontare le stesse giornate (accessi degli amministratori, file di una cartella, stampe) e solo dopo disdire la licenza. L'archivio di BusinessLog va conservato per il periodo già coperto.</li>
     </ol>
   </details>
   <details class="rl-aiuto"><summary>ESXi, switch, firewall e NAS (syslog): cosa impostare sull'apparato</summary>
@@ -113,6 +132,7 @@ Synology DSM:          Centro log › Invio dei log › server syslog</div>
     {{ form_imp.non_field_errors }}
     <fieldset class="rl-gruppo"><legend>Raccolta</legend><div class="rl-griglia">
       {% include "registro_log/_campo.html" with f=form_imp.attivo %}
+      {% include "registro_log/_campo.html" with f=form_imp.account_raccoglitori largo=True %}
     </div></fieldset>
     <fieldset class="rl-gruppo"><legend>Archivio</legend><div class="rl-griglia">
       {% include "registro_log/_campo.html" with f=form_imp.conservazione_mesi %}

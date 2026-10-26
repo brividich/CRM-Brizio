@@ -173,9 +173,10 @@ def invia_al_soc() -> dict:
     if soglia_file and soc_settings.value("registro.alert.file_massivi"):
         da = timezone.now() - timedelta(minutes=10)
         ora = timezone.localtime()
-        for r in (EventoRegistro.objects.filter(categoria__in=("file_eliminato", "file_modificato"), quando__gte=da)
+        verbi = {"file_eliminato": "eliminati", "file_modificato": "modificati", "usb_file_scritto": "copiati su chiavetta"}
+        for r in (EventoRegistro.objects.filter(categoria__in=tuple(verbi), quando__gte=da)
                   .exclude(account="").values("account", "categoria").annotate(n=Count("id")).filter(n__gte=soglia_file)):
-            verbo = "eliminati" if r["categoria"] == "file_eliminato" else "modificati"
+            verbo = verbi[r["categoria"]]
             creati += _evento_soc(source, "file_massivi", f"{r['n']} file {verbo} in 10 minuti dall'account {r['account']}",
                                   Severity.HIGH, f"file|{r['categoria']}|{r['account'].lower()}|{ora:%Y%m%d%H}", timezone.now(),
                                   {"account": r["account"], "file": r["n"], "categoria": r["categoria"]})

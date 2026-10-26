@@ -55,7 +55,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "report_conformita": ("Qualità", "#a16207", "Report per audit (rettifiche)"),
     "glossario_tecnico": ("Qualità", "#ca8a04", "Glossario tecnico"),
     "security": ("Sicurezza informatica", "#b91c1c", "Security Center: alert, eventi, vulnerabilità, incidenti, backup"),
-    "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), sigilli giornalieri dell'archivio, "
+    "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), PC del dominio letti, sigilli giornalieri dell'archivio, "
                      "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO. "
                      "Può stare in un database a parte (REGISTRO_LOG_DB_NAME)"),
     "automazioni": ("Automazioni", "#a78bfa", "Regole, coda eventi, approvazioni, run log"),
@@ -144,7 +144,8 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "Registro accessi: log dei server e degli apparati",
         "cosa": "Il raccoglitore (manage.py registro_log, task RegistroLog_<ambiente>) legge il registro eventi dei server Windows "
-                "con wevtutil (RPC, sola lettura) o gli eventi inoltrati (WEF), e riceve syslog in UDP/TCP 514 da ESXi, switch, "
+                "con wevtutil (RPC, sola lettura), come BusinessLog anche di tutti i PC del dominio (elenco da AD, tabella "
+                "Postazione), o gli eventi inoltrati (WEF), e riceve syslog in UDP/TCP 514 da ESXi, switch, "
                 "firewall e NAS (solo dagli IP scritti nelle fonti). Tutto in un archivio di file giornalieri sigillati "
                 "(cartella privata o scelta nelle impostazioni), copiati su una cartella di rete e/o SharePoint. Ogni 6 ore legge gli "
                 "account di Active Directory via LDAP; ogni ora ESXi/vCenter (pyvmomi) e iLO/iDRAC (Redfish) in sola lettura.",

@@ -714,3 +714,152 @@ class UxTests(PagineTests):
         self.assertContains(r, 'id="nuova" style="margin-top:12px">')  # chiuso: c'è già una fonte
         r = self.client.get(reverse("security:registro_log_fonti") + "?nuova=1")
         self.assertContains(r, 'id="nuova" style="margin-top:12px" open>')
+
+
+class BusinessLogTests(_ConArchivio):
+    """Stesso funzionamento di BusinessLog: voci di controllo già presenti, cartelle, USB, PC del dominio."""
+
+    def _f(self, mask, nome="D:\\Dati\\Progetti\\disegno.dwg", **extra):
+        return {"id": 4663, "dati": {"SubjectUserName": "mrossi", "SubjectDomainName": "ESEMPIO", "ObjectType": "File",
+                                     "ObjectName": nome, "AccessMask": mask, "ProcessName": "C:\\Windows\\explorer.exe",
+                                     "SubjectLogonId": "0x3e7a1", **extra}}
+
+    def test_letture_con_autorizzazioni_di_lettura_e_cartelle(self):
+        # La voce di controllo di BusinessLog registra le aperture come READ_CONTROL (0x20000), non come 0x1.
+        letto = regole.classifica_windows(self._f("0x20000"), livello_file="tutto")
+        self.assertEqual((letto.categoria, letto.tipo_accesso), ("file_letto", "explorer.exe"))
+        self.assertIsNone(regole.classifica_windows(self._f("0x20000"), livello_file="modifiche"))
+        cartelle = regole.leggi_cartelle("D:\\Dati\\Progetti | letture, eliminazioni\nD:\\Dati")
+        self.assertEqual(regole.classifica_windows(self._f("0x20000"), livello_file="modifiche", cartelle=cartelle).categoria,
+                         "file_letto")  # la cartella chiede le letture anche se la fonte no
+        self.assertIsNone(regole.classifica_windows(self._f("0x2"), livello_file="modifiche", cartelle=cartelle))
+        self.assertEqual(regole.classifica_windows(self._f("0x2", nome="D:\\Dati\\Offerte\\a.xlsx"), livello_file="modifiche",
+                                                   cartelle=cartelle).categoria, "file_modificato")  # vale il livello
+        self.assertIsNone(regole.classifica_windows(self._f("0x10000", nome="E:\\Altro\\b.pdf"), livello_file="tutto",
+                                                    cartelle=cartelle))  # fuori dalle cartelle sorvegliate
+        self.assertEqual(regole.errori_cartelle("Progetti\nD:\\Dati | copie"), [
+            "«Progetti»: serve il percorso sul file server, es. D:\\Dati\\Progetti.",
+            "«copie»: dopo la barra si può scrivere letture, scritture, eliminazioni."])
+
+    def test_file_su_chiavetta(self):
+        nome = "\\Device\\HarddiskVolume7\\Progetti\\disegno.dwg"
+        scritto = regole.classifica_windows(self._f("0x2", nome=nome), usb=True)
+        self.assertEqual(scritto.categoria, "usb_file_scritto")
+        self.assertIn("unità rimovibile 7: \\Progetti\\disegno.dwg", scritto.descrizione)
+        self.assertEqual(regole.classifica_windows(self._f("0x10000", nome=nome), usb=True).categoria, "usb_file_eliminato")
+        self.assertIsNone(regole.classifica_windows(self._f("0x2", nome=nome)))  # USB spento sulla fonte
+        self.assertIsNone(regole.classifica_windows(self._f("0x2", nome="\\Device\\HarddiskVolume7\\"), usb=True))
+        self.assertIn("usb_file_scritto", regole.CATEGORIE_RISERVATE)
+        q = regole.xpath("Security", 1, tutto=False, usb=True)
+        self.assertIn("EventID=4663", q)
+        self.assertLessEqual(q.count(" or "), 20)
+
+    def test_raccoglitori_autorizzati(self):
+        acc = {"id": 4624, "dati": {"TargetUserName": "svc-blog", "LogonType": "3", "IpAddress": "10.0.0.9"}}
+        self.assertIsNotNone(regole.classifica_windows(acc, {"svc-blog"}))
+        self.assertIsNone(regole.classifica_windows(acc, {"svc-blog"}, raccoglitori={"svc-blog"}))
+        pulito = {"id": 1102, "dati": {"SubjectUserName": "svc-blog", "SubjectDomainName": "ESEMPIO"}}
+        self.assertEqual(regole.classifica_windows(pulito, raccoglitori={"svc-blog"}).categoria, "registro_svuotato")
+        self.assertEqual(regole.classifica_windows(pulito).categoria, "registro_cancellato")
+        imp = Impostazioni.corrente()
+        imp.account_raccoglitori = "ESEMPIO\\svc-blog; svc-reg@esempio.local"
+        self.assertEqual(imp.lista_raccoglitori(), {"svc-blog", "svc-reg"})
+
+    def test_registro_svuotato_si_rilegge_da_capo(self):
+        from .raccoglitore import nota_eventi_persi
+        from .sorgenti import windows
+
+        uno = evento_xml(4624, 3, {"TargetUserName": "mrossi", "LogonType": "10"})
+        query = []
+
+        def finto(args, timeout=0):
+            if "/rd:true" in args:
+                return f"<Events>{evento_xml(1102, 5, {})}</Events>"
+            query.extend(a for a in args if a.startswith("/q:"))
+            return f"<Events>{uno}</Events>"
+
+        with mock.patch.object(windows, "esegui", side_effect=finto):
+            esito = windows.leggi_canale("Security", "PC01", 900, tutto=False)
+        self.assertTrue(esito.ricominciato)
+        self.assertIn("EventRecordID > 0", query[0])
+        self.assertEqual((esito.segnalibro, [e["rec"] for e in esito.eventi]), (5, [3]))
+        self.assertIn("Cancella Registro", nota_eventi_persi("Security", esito))
+
+    def test_file_server_dice_da_quale_pc(self):
+        from defusedxml import ElementTree
+
+        from .raccoglitore import Raccoglitore
+
+        fs = FonteLog.objects.create(nome="FS01", tipo="windows", host="FS01", audit_file="modifiche")
+        r = Raccoglitore()
+        r.carica()
+        ora = timezone.now()
+        rete = regole.normalizza_windows(ElementTree.fromstring(evento_xml(
+            4624, 10, {"TargetUserName": "mrossi", "LogonType": "3", "IpAddress": "10.0.0.51", "TargetLogonId": "0x3e7a1"},
+            pc="FS01.esempio.local")))
+        file_ = dict(self._f("0x2"), pc="FS01.esempio.local", canale="Security", rec=11)
+        r.coda.put(("windows", fs.pk, rete, ora))
+        r.coda.put(("windows", fs.pk, file_, ora))
+        r._fermo.set()
+        r.ciclo_scrittore()
+        ev = EventoRegistro.objects.get(categoria="file_modificato")
+        self.assertEqual((ev.ip_origine, ev.tipo_accesso), ("10.0.0.51", "explorer.exe"))
+
+    def test_pc_del_dominio_da_ad_e_lettura(self):
+        from . import ad
+        from .models import Postazione
+        from .raccoglitore import Raccoglitore
+        from .sorgenti import windows
+
+        FonteLog.objects.create(nome="FS01", tipo="windows", host="FS01.esempio.local")
+        pc = FonteLog.objects.create(nome="PC", tipo="dominio", ruolo="pc", canali="Security", audit_usb=True)
+        ora = timezone.now()
+        esito = ad.applica_pc(pc, [
+            {"name": "PC-UFF01", "dNSHostName": "PC-UFF01.esempio.local", "operatingSystem": "Windows 11 Pro",
+             "lastLogonTimestamp": ora},
+            {"name": "FS01", "operatingSystem": "Windows Server 2022", "lastLogonTimestamp": ora},
+            {"name": "PC-VECCHIO", "operatingSystem": "Windows 10 Pro", "lastLogonTimestamp": ora - timedelta(days=200)},
+        ], ora=ora)
+        self.assertEqual((esito["pc"], esito["gia_fonti"], esito["non_usati"]), (1, 1, 1))
+        p = Postazione.objects.get(nome="PC-UFF01")
+        self.assertEqual(p.host, "PC-UFF01.esempio.local")
+        r = Raccoglitore()
+        r.carica()
+        with mock.patch.object(windows, "acceso", return_value=False):
+            r.leggi_pc(pc, p)
+        p.refresh_from_db()
+        self.assertEqual(p.stato, "spento")
+        self.assertGreater(p.riprova_dopo, ora)
+        letto = windows.EsitoCanale("Security", eventi=[{"id": 4624, "rec": 7, "dati": {}, "pc": "PC-UFF01"}], segnalibro=7)
+        with mock.patch.object(windows, "acceso", return_value=True), \
+                mock.patch.object(windows, "leggi_canale", return_value=letto) as leggi:
+            r.leggi_pc(pc, p)
+        self.assertTrue(leggi.call_args.kwargs["usb"])
+        p.refresh_from_db()
+        self.assertEqual(leggi.call_count, 2)  # Security + Partition/Diagnostic (USB acceso)
+        self.assertEqual((p.stato, p.righe_oggi, p.errori_consecutivi), ("ok", 2, 0))
+        r._fermo.set()
+        r.ciclo_scrittore()
+        p.refresh_from_db()
+        self.assertEqual(p.segnalibri["Security"], 7)
+
+    def test_pagina_dei_pc(self):
+        from core.models import UserOnboarding
+
+        from .models import Postazione
+
+        admin = get_user_model().objects.create_user("admin.pc", password="pass-di-prova-123", is_superuser=True,
+                                                     is_staff=True)
+        UserOnboarding.objects.update_or_create(user=admin, defaults={"completed": True})
+        self.client.force_login(admin)
+        pc = FonteLog.objects.create(nome="PC", tipo="dominio", ruolo="pc")
+        p = Postazione.objects.create(fonte_id=pc.pk, nome="PC-UFF01", stato="ok")
+        url = reverse("security:registro_log_postazioni", args=[pc.pk])
+        r = self.client.get(url)
+        self.assertContains(r, "PC-UFF01")
+        self.assertNotIn("{%", r.content.decode())
+        self.client.post(url, {"azione": "escludi", "id": p.pk})
+        p.refresh_from_db()
+        self.assertTrue(p.esclusa)
+        r = self.client.get(reverse("security:registro_log_fonti"))
+        self.assertContains(r, f'href="{url}"')

@@ -50,6 +50,9 @@ class Impostazioni(models.Model):
     controlli_lavoratori_nota = models.CharField(max_length=500, blank=True, default="")
     controlli_lavoratori_da = models.CharField(max_length=150, blank=True, default="")
     controlli_lavoratori_il = models.DateTimeField(null=True, blank=True)
+    # Account dei programmi che leggono i registri (BusinessLog in parallelo, questo raccoglitore): i loro
+    # accessi ai server restano solo nell'archivio e lo svuotamento del registro fatto da loro non è un allarme.
+    account_raccoglitori = models.CharField(max_length=500, blank=True, default="")
     aggiornato_il = models.DateTimeField(auto_now=True)
     aggiornato_da = models.CharField(max_length=150, blank=True, default="")
 
@@ -67,6 +70,11 @@ class Impostazioni(models.Model):
             obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
+    def lista_raccoglitori(self) -> set[str]:
+        """Account senza dominio, minuscoli (DOMINIO\\svc-blog e svc-blog@dominio diventano svc-blog)."""
+        voci = (self.account_raccoglitori or "").replace(";", ",").replace("\n", ",").split(",")
+        return {v.strip().split("\\")[-1].split("@")[0].lower() for v in voci if v.strip()}
+
 
 CANALE_STAMPE = "Microsoft-Windows-PrintService/Operational"
 CANALE_USB = "Microsoft-Windows-Partition/Diagnostic"
@@ -76,14 +84,18 @@ class FonteLog(models.Model):
     TIPO_WINDOWS = "windows"
     TIPO_WEF = "wef"
     TIPO_SYSLOG = "syslog"
+    TIPO_DOMINIO = "dominio"
     TIPI = [
         (TIPO_WINDOWS, "Server Windows (lettura diretta del registro eventi)"),
+        (TIPO_DOMINIO, "Tutti i PC del dominio (lettura diretta di ogni PC, come BusinessLog)"),
         (TIPO_WEF, "Eventi inoltrati a questo server (Windows Event Forwarding)"),
         (TIPO_SYSLOG, "Syslog (ESXi, switch, firewall, NAS, Linux)"),
     ]
+    TIPI_WINDOWS = (TIPO_WINDOWS, TIPO_DOMINIO, TIPO_WEF)
     RUOLI = [
         ("dc", "Controller di dominio"),
         ("server", "Server Windows"),
+        ("pc", "PC e portatili"),
         ("esxi", "VMware ESXi / vCenter"),
         ("firewall", "Firewall"),
         ("switch", "Switch / rete"),
@@ -125,6 +137,11 @@ class FonteLog(models.Model):
     audit_stampe = models.BooleanField(default=False)
     stampe_nomi = models.BooleanField(default=False)
     audit_usb = models.BooleanField(default=False)
+    # Come la tabella «Controllo files» di BusinessLog: una cartella per riga, eventualmente «| letture, scritture,
+    # eliminazioni». Vuoto = tutte le cartelle che hanno la voce di controllo, con il livello di «audit_file».
+    cartelle_file = models.TextField(blank=True, default="")
+    # PC del dominio: unità organizzativa da leggere (vuota = tutto il dominio).
+    ou_pc = models.CharField(max_length=500, blank=True, default="")
     segnalibri = models.JSONField(default=dict, blank=True)
     stato = models.CharField(max_length=10, default=STATO_MAI)
     ultimo_errore = models.TextField(blank=True, default="")
@@ -154,6 +171,54 @@ class FonteLog(models.Model):
 
     def lista_ip(self) -> list[str]:
         return [c.strip() for c in (self.indirizzi_ip or "").replace(";", ",").split(",") if c.strip()]
+
+    def lista_cartelle(self) -> list[tuple[str, frozenset]]:
+        from .regole import leggi_cartelle
+
+        return leggi_cartelle(self.cartelle_file)
+
+
+class Postazione(models.Model):
+    """Un PC di una fonte «Tutti i PC del dominio»: elenco da Active Directory, segnalibri e stato suoi.
+
+    Un PC spento non è un errore: si riprova più tardi, senza interruzioni né allarmi.
+    """
+
+    STATO_MAI = "mai"
+    STATO_OK = "ok"
+    STATO_SPENTO = "spento"
+    STATO_ERRORE = "errore"
+
+    fonte_id = models.IntegerField(db_index=True)
+    nome = models.CharField(max_length=120)
+    indirizzo = models.CharField(max_length=255, blank=True, default="")  # nome DNS completo
+    sistema = models.CharField(max_length=120, blank=True, default="")
+    ultimo_accesso_ad = models.DateTimeField(null=True, blank=True)
+    in_ad = models.BooleanField(default=True)  # ancora presente e attivo in Active Directory
+    esclusa = models.BooleanField(default=False)  # tolta a mano dalla raccolta
+    segnalibri = models.JSONField(default=dict, blank=True)
+    stato = models.CharField(max_length=10, default=STATO_MAI)
+    ultimo_errore = models.CharField(max_length=500, blank=True, default="")
+    errori_consecutivi = models.PositiveSmallIntegerField(default=0)
+    riprova_dopo = models.DateTimeField(null=True, blank=True)
+    ultima_lettura_il = models.DateTimeField(null=True, blank=True)
+    ultimo_contatto_il = models.DateTimeField(null=True, blank=True)
+    righe_oggi = models.PositiveIntegerField(default=0)
+    giorno_conteggio = models.DateField(null=True, blank=True)
+    creata_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        constraints = [models.UniqueConstraint(fields=["fonte_id", "nome"], name="reglog_postazione_unica")]
+        verbose_name = "PC del dominio"
+        verbose_name_plural = "PC del dominio"
+
+    def __str__(self):
+        return self.nome
+
+    @property
+    def host(self) -> str:
+        return self.indirizzo or self.nome
 
 
 class EventoRegistro(models.Model):

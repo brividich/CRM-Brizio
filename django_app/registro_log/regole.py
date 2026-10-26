@@ -40,9 +40,14 @@ CATEGORIE: dict[str, tuple[str, str]] = {
     "file_permessi": ("Permessi di un file o di una cartella cambiati", "info"),
     "stampa": ("Documento stampato", "info"),
     "usb_collegato": ("Dispositivo USB collegato", "info"),
+    "usb_file_scritto": ("File copiato o scritto su un'unità rimovibile", "info"),
+    "usb_file_letto": ("File aperto da un'unità rimovibile", "info"),
+    "usb_file_eliminato": ("File eliminato da un'unità rimovibile", "info"),
+    "registro_svuotato": ("Registro svuotato da un raccoglitore autorizzato", "info"),
 }
 # Eventi sull'attività delle persone: archiviati e indicizzati, ma visibili solo dentro un'indagine motivata.
-CATEGORIE_RISERVATE = ("file_letto", "file_modificato", "file_eliminato", "file_permessi", "stampa", "usb_collegato")
+CATEGORIE_RISERVATE = ("file_letto", "file_modificato", "file_eliminato", "file_permessi", "stampa", "usb_collegato",
+                       "usb_file_scritto", "usb_file_letto", "usb_file_eliminato")
 
 # Gruppi i cui membri sono amministratori (nomi in inglese e italiano dei gruppi predefiniti).
 GRUPPI_PRIVILEGIATI = {
@@ -82,7 +87,9 @@ EVENTI_ALTRI_CANALI = {
 def intervalli(canale: str, *, file: bool = False, usb: bool = False) -> list[tuple[int, int]]:
     c = canale.lower()
     if c == "security":
-        return EVENTI_SECURITY + (EVENTI_FILE if file else []) + (EVENTI_USB_SECURITY if usb else [])
+        # USB: anche il 4663 sulle unità rimovibili (sottocategoria «Archivio rimovibile»), come BusinessLog.
+        extra = (EVENTI_FILE if file else [(4663, 4663)] if usb else []) + (EVENTI_USB_SECURITY if usb else [])
+        return EVENTI_SECURITY + extra
     if c == "system":
         return EVENTI_SYSTEM
     return EVENTI_ALTRI_CANALI.get(c, [])
@@ -176,10 +183,16 @@ def _ip(v: str) -> str:
     return "" if v in ("-", "::1", "127.0.0.1") else v.removeprefix("::ffff:")
 
 
-def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset(), *, livello_file: str = "") -> Indice | None:
+def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset(), *, livello_file: str = "",
+                       usb: bool = False, cartelle: list | None = None,
+                       raccoglitori: set[str] | frozenset = frozenset()) -> Indice | None:
     """Dati di un evento Windows → voce d'indice, oppure None se basta l'archivio.
 
     ``livello_file``: "" = accessi ai file non indicizzati, "modifiche", "tutto" (anche le letture).
+    ``usb``: file scritti, letti o eliminati sulle unità rimovibili (4663 su ``\\Device\\HarddiskVolumeN``).
+    ``cartelle``: cartelle sorvegliate (vedi :func:`leggi_cartelle`); vuoto = tutte quelle con la voce di controllo.
+    ``raccoglitori``: account dei programmi che leggono i registri (questo, BusinessLog): i loro accessi
+    restano solo nell'archivio e lo svuotamento del registro fatto da loro non è un allarme.
     """
     eid, x = d.get("id"), d.get("dati") or {}
     prov = (d.get("prov") or "").lower()
@@ -188,11 +201,15 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
     if eid == 1006 and "partition" in prov:
         return _usb_partizione(x)
     if eid in (4663, 4670):
-        return _file(eid, x, livello_file) if livello_file else None
+        if (x.get("ObjectName") or "").lower().startswith("\\device\\"):
+            return _usb_file(x) if usb and eid == 4663 else None
+        return _file(eid, x, livello_file, cartelle) if livello_file else None
     if eid == 6416:
         return _usb_pnp(x)
     utente, dominio = x.get("TargetUserName", ""), x.get("TargetDomainName", "")
     soggetto, dom_sogg = x.get("SubjectUserName", ""), x.get("SubjectDomainName", "")
+    if raccoglitori and eid in (4624, 4634, 4647, 4672) and (soggetto if eid == 4672 else utente).lower() in raccoglitori:
+        return None
     ip = _ip(x.get("IpAddress", "") or x.get("Workstation", ""))
     tipo = x.get("LogonType", "")
     tipo_txt = TIPI_ACCESSO.get(tipo, f"Tipo {tipo}" if tipo else "")
@@ -268,6 +285,9 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
     if eid == 1102 or (eid == 104 and "eventlog" in (d.get("prov") or "").lower()):
         chi = x.get("SubjectUserName", "") or soggetto
         canale = x.get("Channel", "") or ("Security" if eid == 1102 else "")
+        if chi and chi.lower() in raccoglitori:
+            return Indice("registro_svuotato", f"Registro {canale or 'eventi'} svuotato da {chi} (raccoglitore autorizzato)",
+                          chi, x.get("SubjectDomainName", ""), dedup=f"svuotato|{canale}|{chi}")
         return Indice("registro_cancellato", f"Registro {canale or 'eventi'} cancellato" + (f" da {chi}" if chi else ""), chi,
                       x.get("SubjectDomainName", ""))
     if eid == 4719:
@@ -297,10 +317,49 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
 # ── File, stampe, USB ──────────────────────────────────────────────────────────
 
 FILE_IGNORATI = re.compile(r"(\\~\$[^\\]*$|\.tmp$|\\thumbs\.db$|\\desktop\.ini$|\\\$recycle\.bin\\|\.lnk$|~$)", re.I)
-MASCHERA_LETTURA = 0x1
+# 0x20000 = «Autorizzazioni di lettura» (READ_CONTROL): è la voce che BusinessLog fa mettere nel controllo delle
+# cartelle e che Windows registra a ogni apertura del file; 0x1 = «Leggi dati», se qualcuno l'ha messa.
+MASCHERA_LETTURA = 0x1 | 0x20000
 MASCHERA_SCRITTURA = 0x2 | 0x4 | 0x100
 MASCHERA_ELIMINA = 0x10000
 MASCHERA_PERMESSI = 0x40000 | 0x80000
+LETTURE, SCRITTURE, ELIMINAZIONI = "letture", "scritture", "eliminazioni"
+_SINONIMI = {"lettura": LETTURE, "letture": LETTURE, "scrittura": SCRITTURE, "scritture": SCRITTURE,
+             "modifica": SCRITTURE, "modifiche": SCRITTURE, "eliminazione": ELIMINAZIONI, "eliminazioni": ELIMINAZIONI}
+_PERCORSO_SERVER = re.compile(r'^"?([a-z]:\\|\\\\)', re.I)
+
+
+def _voci_cartella(cosa: str) -> list[str]:
+    return [v for v in re.split(r"[,;\s]+", (cosa or "").strip().lower()) if v]
+
+
+def leggi_cartelle(testo: str) -> list[tuple[str, frozenset]]:
+    """Cartelle sorvegliate, una per riga: ``D:\\Dati\\Progetti`` oppure ``D:\\Dati\\Progetti | letture, eliminazioni``.
+
+    Come la tabella «Controllo files» di BusinessLog: percorso sul file server e cosa registrare
+    (letture, scritture, eliminazioni). Senza indicazioni vale il livello della fonte.
+    """
+    righe = []
+    for riga in (testo or "").splitlines():
+        percorso, _, cosa = riga.partition("|")
+        percorso = percorso.strip().strip('"').rstrip("\\").lower()
+        if percorso:
+            righe.append((percorso, frozenset(_SINONIMI[v] for v in _voci_cartella(cosa) if v in _SINONIMI)))
+    return sorted(righe, key=lambda r: -len(r[0]))  # la cartella più interna vince
+
+
+def errori_cartelle(testo: str) -> list[str]:
+    errori = []
+    for riga in (testo or "").splitlines():
+        percorso, _, cosa = riga.partition("|")
+        if not percorso.strip():
+            continue
+        if not _PERCORSO_SERVER.match(percorso.strip()):
+            errori.append(f"«{percorso.strip()}»: serve il percorso sul file server, es. D:\\Dati\\Progetti.")
+        sconosciute = [v for v in _voci_cartella(cosa) if v not in _SINONIMI]
+        if sconosciute:
+            errori.append(f"«{', '.join(sconosciute)}»: dopo la barra si può scrivere letture, scritture, eliminazioni.")
+    return errori
 
 
 def _maschera(v) -> int:
@@ -310,26 +369,80 @@ def _maschera(v) -> int:
         return 0
 
 
-def _file(eid: int, x: dict, livello: str) -> Indice | None:
-    """4663 (accesso a un oggetto, serve la SACL sulla cartella) e 4670 (permessi cambiati)."""
+def _tipo_accesso_file(eid: int, x: dict) -> str:
+    """Categoria di un 4663/4670 secondo la maschera: eliminato, permessi, modificato, letto (o vuoto)."""
+    if eid == 4670:
+        return "file_permessi"
+    m = _maschera(x.get("AccessMask"))
+    if m & MASCHERA_ELIMINA:
+        return "file_eliminato"
+    if m & MASCHERA_PERMESSI:
+        return "file_permessi"
+    if m & MASCHERA_SCRITTURA:
+        return "file_modificato"
+    if m & MASCHERA_LETTURA:
+        return "file_letto"
+    return ""
+
+
+_VOCE_DEL_TIPO = {"file_eliminato": ELIMINAZIONI, "file_permessi": SCRITTURE, "file_modificato": SCRITTURE,
+                  "file_letto": LETTURE}
+_VERBO_FILE = {"file_eliminato": "Eliminato", "file_permessi": "Permessi cambiati su", "file_modificato": "Modificato",
+               "file_letto": "Aperto"}
+
+
+def _programma(x: dict) -> str:
+    """Il programma che ha aperto il file (explorer.exe, robocopy.exe…): in BusinessLog la colonna «Eseguibile»."""
+    return (x.get("ProcessName") or "").replace("/", "\\").split("\\")[-1][:40]
+
+
+def _file(eid: int, x: dict, livello: str, cartelle: list | None = None) -> Indice | None:
+    """4663 (accesso a un oggetto, serve la voce di controllo sulla cartella) e 4670 (permessi cambiati)."""
     utente, dominio = x.get("SubjectUserName", ""), x.get("SubjectDomainName", "")
     nome = x.get("ObjectName", "")
     if not _account_reale(utente) or (x.get("ObjectType") or "File") != "File" or not nome or FILE_IGNORATI.search(nome):
         return None
-    if eid == 4670:
-        idx = Indice("file_permessi", f"Permessi cambiati su {nome}", utente, dominio, dedup=f"4670|{utente}|{nome}")
-    else:
-        m = _maschera(x.get("AccessMask"))
-        if m & MASCHERA_ELIMINA:
-            idx = Indice("file_eliminato", f"Eliminato {nome}", utente, dominio)
-        elif m & MASCHERA_PERMESSI:
-            idx = Indice("file_permessi", f"Permessi cambiati su {nome}", utente, dominio, dedup=f"perm|{utente}|{nome}")
-        elif m & MASCHERA_SCRITTURA:
-            idx = Indice("file_modificato", f"Modificato {nome}", utente, dominio, dedup=f"mod|{utente}|{nome}")
-        elif m & MASCHERA_LETTURA and livello == "tutto":
-            idx = Indice("file_letto", f"Aperto {nome}", utente, dominio, dedup=f"read|{utente}|{nome}")
-        else:
-            return None
+    tipo = _tipo_accesso_file(eid, x)
+    if not tipo:
+        return None
+    voci = frozenset({SCRITTURE, ELIMINAZIONI} | ({LETTURE} if livello == "tutto" else set()))
+    if cartelle:
+        basso = nome.lower()
+        trovata = next((v for p, v in cartelle if basso == p or basso.startswith(p + "\\")), None)
+        if trovata is None:
+            return None  # fuori dalle cartelle sorvegliate: resta solo nell'archivio
+        voci = trovata or voci
+    if _VOCE_DEL_TIPO[tipo] not in voci:
+        return None
+    idx = Indice(tipo, f"{_VERBO_FILE[tipo]} {nome}", utente, dominio, tipo_accesso=_programma(x),
+                 dedup="" if tipo == "file_eliminato" else f"{tipo}|{utente}|{nome}")
+    idx.oggetto = nome[:500]
+    return idx
+
+
+_VOLUME = re.compile(r"^\\device\\harddiskvolume(\d+)", re.I)
+_USB_DA_FILE = {"file_eliminato": ("usb_file_eliminato", "Eliminato da"),
+                "file_modificato": ("usb_file_scritto", "Copiato o scritto su"),
+                "file_letto": ("usb_file_letto", "Aperto da")}
+
+
+def _usb_file(x: dict) -> Indice | None:
+    """4663 su un'unità rimovibile (chiavetta, disco esterno, SD): «Controlla Archivio rimovibile» sui PC."""
+    utente, dominio = x.get("SubjectUserName", ""), x.get("SubjectDomainName", "")
+    nome = x.get("ObjectName", "")
+    if not _account_reale(utente) or FILE_IGNORATI.search(nome):
+        return None
+    tipo = _tipo_accesso_file(4663, x)
+    if tipo not in _USB_DA_FILE:
+        return None
+    m = _VOLUME.match(nome)
+    resto = nome[m.end():] if m else nome
+    if not resto.strip("\\"):
+        return None  # la radice dell'unità, non un file
+    categoria, verbo = _USB_DA_FILE[tipo]
+    unita = f"unità rimovibile {m.group(1)}" if m else "unità rimovibile"
+    idx = Indice(categoria, f"{verbo} {unita}: {resto}", utente, dominio, tipo_accesso=_programma(x),
+                 dedup="" if categoria == "usb_file_eliminato" else f"{categoria}|{utente}|{nome}")
     idx.oggetto = nome[:500]
     return idx
 

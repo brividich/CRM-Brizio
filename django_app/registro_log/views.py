@@ -32,6 +32,7 @@ from .models import (
     Impostazioni,
     Indagine,
     Interruzione,
+    Postazione,
     SigilloGiorno,
     VerificaAnnuale,
 )
@@ -308,6 +309,9 @@ def fonti(request):
                 log_action(request, "registro_log_fonte", MODULO, {"fonte": f.pk, "nome": f.nome, "tipo": f.tipo,
                                                                     "nuova": modifica is None})
                 messages.success(request, f"Fonte «{f.nome}» salvata. Il raccoglitore la legge entro 5 minuti.")
+                if f.tipo == FonteLog.TIPO_DOMINIO and f.attiva:
+                    _aggiorna_pc(request, f)
+                    return redirect(reverse("security:registro_log_postazioni", args=[f.pk]))
                 return redirect(reverse("security:registro_log_fonti") + "#fonti")
         elif azione == "elimina":
             f = get_object_or_404(FonteLog, pk=request.POST.get("id"))
@@ -319,6 +323,9 @@ def fonti(request):
             from .sorgenti import windows
 
             f = get_object_or_404(FonteLog, pk=request.POST.get("id"))
+            if f.tipo == FonteLog.TIPO_DOMINIO:
+                _aggiorna_pc(request, f)
+                return redirect(reverse("security:registro_log_postazioni", args=[f.pk]))
             if f.tipo == FonteLog.TIPO_SYSLOG:
                 prova = {"fonte": f, "righe": [f"Indirizzi ammessi: {', '.join(f.lista_ip())}.",
                                                "Il syslog non si prova da qui: guardare «Ultimo messaggio» dopo aver configurato l'apparato."]}
@@ -333,11 +340,76 @@ def fonti(request):
     except ValueError:
         sconosciuti = {}
     elenco = list(FonteLog.objects.all())
+    pc = {}
+    for r in (Postazione.objects.filter(in_ad=True, esclusa=False).values("fonte_id", "stato")
+              .annotate(n=Count("id"))):
+        pc.setdefault(r["fonte_id"], {"totale": 0})
+        pc[r["fonte_id"]][r["stato"]] = r["n"]
+        pc[r["fonte_id"]]["totale"] += r["n"]
+    for f in elenco:
+        f.pc = pc.get(f.pk, {"totale": 0}) if f.tipo == FonteLog.TIPO_DOMINIO else None
     return render(request, "registro_log/fonti.html", {
         "imp": imp, "form_imp": form_imp, "form_fonte": form_fonte, "modifica": modifica, "fonti": elenco,
         "modulo_aperto": bool(modifica or not elenco or form_fonte.errors or request.GET.get("nuova")), "ora": timezone.now(),
         "puo_configurare": puo, "battito": battito(), "prova": prova, "cartella": archivio.cartella(),
         "sconosciuti": sorted(sconosciuti.items(), key=lambda x: -int(x[1].get("messaggi", 0)))[:20],
+    })
+
+
+def _aggiorna_pc(request, fonte) -> None:
+    """Legge subito l'elenco dei PC da Active Directory (poi lo rilegge la lettura «registro_ad» ogni 6 ore)."""
+    from . import ad
+
+    try:
+        esito = ad.aggiorna_postazioni(fonte)
+    except Exception as exc:  # noqa: BLE001 - LDAP giù o credenziali sbagliate: lo si dice, la fonte resta
+        messages.error(request, f"Elenco dei PC non letto da Active Directory: {str(exc)[:200]}")
+        return
+    log_action(request, "registro_log_pc_aggiornati", MODULO, {"fonte": fonte.pk, **esito})
+    testo = f"Elenco dei PC aggiornato da Active Directory: {esito['pc']} da leggere ({esito['nuovi']} nuovi)"
+    if esito["gia_fonti"]:
+        testo += f", {esito['gia_fonti']} già letti come fonte a sé"
+    if esito["non_usati"]:
+        testo += f", {esito['non_usati']} non usati da oltre {ad.PC_NON_USATO_GIORNI} giorni (saltati)"
+    messages.success(request, testo + ".")
+
+
+STATI_PC = (("", "Tutti"), ("ok", "Letti"), ("spento", "Spenti"), ("errore", "Con errore"), ("mai", "Mai letti"),
+            ("esclusi", "Esclusi"))
+
+
+def postazioni(request, pk: int):
+    """PC di una fonte «Tutti i PC del dominio»: stato di lettura di ognuno, escludi o includi, aggiorna da AD."""
+    fonte = get_object_or_404(FonteLog, pk=pk, tipo=FonteLog.TIPO_DOMINIO)
+    puo = _puo_configurare(request)
+    if request.method == "POST":
+        if not puo:
+            return _nego()
+        azione = request.POST.get("azione")
+        if azione == "aggiorna":
+            _aggiorna_pc(request, fonte)
+        elif azione in ("escludi", "includi"):
+            pc = get_object_or_404(Postazione, pk=request.POST.get("id"), fonte_id=fonte.pk)
+            Postazione.objects.filter(pk=pc.pk).update(esclusa=azione == "escludi", riprova_dopo=None)
+            log_action(request, f"registro_log_pc_{azione}", MODULO, {"fonte": fonte.pk, "pc": pc.nome})
+            messages.success(request, f"{pc.nome}: " + ("non viene più letto." if azione == "escludi" else "torna nella raccolta."))
+        return redirect(reverse("security:registro_log_postazioni", args=[fonte.pk]) + "?" + request.GET.urlencode())
+    qs = Postazione.objects.filter(fonte_id=fonte.pk)
+    tutti = qs.filter(in_ad=True, esclusa=False)
+    conta = dict(tutti.values_list("stato").annotate(n=Count("id")).values_list("stato", "n"))
+    stato = request.GET.get("stato", "")
+    if stato == "esclusi":
+        qs = qs.filter(esclusa=True)
+    elif stato in dict(STATI_PC):
+        qs = tutti.filter(stato=stato) if stato else qs
+    testo = (request.GET.get("q") or "").strip()
+    if testo:
+        qs = qs.filter(Q(nome__icontains=testo) | Q(sistema__icontains=testo))
+    pagina = Paginator(qs.order_by("-in_ad", "esclusa", "nome"), 100).get_page(request.GET.get("pagina"))
+    return render(request, "registro_log/postazioni.html", {
+        "fonte": fonte, "pagina": pagina, "stato": stato, "stati": STATI_PC, "q": testo, "conta": conta,
+        "totale": tutti.count(), "esclusi": Postazione.objects.filter(fonte_id=fonte.pk, esclusa=True).count(),
+        "ora": timezone.now(), "oggi": timezone.localdate(), "puo_configurare": puo,
     })
 
 
@@ -393,7 +465,7 @@ def indagine(request, pk: int):
     qs = _indagine_qs(ind) if ind.aperta else EventoRegistro.objects.none()
     vista = request.GET.get("vista", "file")
     gruppi = {"file": ("file_letto", "file_modificato", "file_eliminato", "file_permessi"), "stampe": ("stampa",),
-              "usb": ("usb_collegato",)}
+              "usb": ("usb_collegato", "usb_file_scritto", "usb_file_letto", "usb_file_eliminato")}
     conteggi = {k: qs.filter(categoria__in=v).count() for k, v in gruppi.items()}
     righe = qs.filter(categoria__in=gruppi.get(vista, gruppi["file"])).order_by("quando", "id")
     if request.GET.get("export") == "csv" and ind.aperta:
@@ -402,10 +474,11 @@ def indagine(request, pk: int):
 
         buf = io.StringIO()
         w = csv.writer(buf, delimiter=";")
-        w.writerow(["quando", "account", "cosa", "oggetto", "pagine", "sistema", "da", "giorno archivio", "riga archivio"])
+        w.writerow(["quando", "account", "cosa", "oggetto", "programma", "pagine", "sistema", "da", "giorno archivio",
+                    "riga archivio"])
         for e in righe[:100000]:
             w.writerow([timezone.localtime(e.quando).strftime("%d/%m/%Y %H:%M:%S"), e.account, e.descrizione, e.oggetto,
-                        e.quantita or "", e.host, e.ip_origine, e.archivio_giorno or "", e.archivio_riga or ""])
+                        e.tipo_accesso, e.quantita or "", e.host, e.ip_origine, e.archivio_giorno or "", e.archivio_riga or ""])
         log_action(request, "registro_log_indagine_export", MODULO, {"indagine": ind.pk, "vista": vista, "righe": righe.count()})
         resp = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
         resp["Content-Disposition"] = f'attachment; filename="indagine-{ind.pk}-{vista}.csv"'
@@ -416,6 +489,7 @@ def indagine(request, pk: int):
         "pagine": sum(x or 0 for x in qs.filter(categoria="stampa").values_list("quantita", flat=True)),
         "eliminati": qs.filter(categoria="file_eliminato").count(),
         "dispositivi": qs.filter(categoria="usb_collegato").values("oggetto").distinct().count(),
+        "su_usb": qs.filter(categoria="usb_file_scritto").count(),
     }
     return render(request, "registro_log/indagine.html", {
         "ind": ind, "righe": Paginator(righe, 200).get_page(request.GET.get("pagina")), "vista": vista,

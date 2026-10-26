@@ -20,7 +20,7 @@
 <section class="sec-grid sec-kpi-grid" style="margin-top:12px">
   <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=file"><span class="sec-kpi-label">Accessi ai file</span><strong class="sec-kpi-value">{{ conteggi.file }}</strong><span class="sec-kpi-delta">{{ riepilogo.eliminati }} eliminazioni</span></a>
   <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=stampe"><span class="sec-kpi-label">Stampe</span><strong class="sec-kpi-value">{{ conteggi.stampe }}</strong><span class="sec-kpi-delta">{{ riepilogo.pagine }} pagine</span></a>
-  <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=usb"><span class="sec-kpi-label">Dispositivi USB</span><strong class="sec-kpi-value">{{ conteggi.usb }}</strong><span class="sec-kpi-delta">{{ riepilogo.dispositivi }} dispositivi diversi</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=usb"><span class="sec-kpi-label">USB</span><strong class="sec-kpi-value">{{ conteggi.usb }}</strong><span class="sec-kpi-delta">{{ riepilogo.dispositivi }} dispositivi diversi · {{ riepilogo.su_usb }} file copiati su chiavetta</span></a>
 </section>
 
 <section class="sec-panel" style="margin-top:12px">
@@ -38,7 +38,7 @@
     <tbody>{% for e in righe %}<tr>
       <td class="sec-nowrap"><a href="{% url 'security:registro_log_evento' e.pk %}?indagine={{ ind.pk }}">{{ e.quando|date:"d/m/Y H:i:s" }}</a></td>
       <td>{{ e.account|default:"—" }}{% if e.ip_origine %}<span class="rl-sub">da {{ e.ip_origine }}</span>{% endif %}</td>
-      <td>{% if e.categoria == "file_eliminato" %}<span class="sec-badge warning">Eliminato</span> {% endif %}<span style="overflow-wrap:anywhere">{{ e.descrizione }}</span></td>
+      <td>{% if e.categoria == "file_eliminato" or e.categoria == "usb_file_eliminato" %}<span class="sec-badge warning">Eliminato</span> {% elif e.categoria == "usb_file_scritto" %}<span class="sec-badge warning">Su chiavetta</span> {% endif %}<span style="overflow-wrap:anywhere">{{ e.descrizione }}</span>{% if e.tipo_accesso and e.categoria != "stampa" %}<span class="rl-sub">con {{ e.tipo_accesso }}</span>{% endif %}</td>
       <td>{{ e.host|default:e.fonte_nome }}</td>
     </tr>{% endfor %}</tbody>
   </table></div>

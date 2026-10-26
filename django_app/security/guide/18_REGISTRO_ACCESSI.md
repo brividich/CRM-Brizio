@@ -110,17 +110,20 @@ Accessi ai file dei file server, stampe e dispositivi USB sono **controlli sull'
 
 Cosa si raccoglie:
 
-- **File** (scheda della fonte, «Accessi ai file»): *Modifiche, eliminazioni e permessi* (consigliato) oppure *Anche le letture*. Eventi 4663 e 4670 dei file server; file temporanei di Office, `.tmp`, `desktop.ini`, `thumbs.db` e collegamenti esclusi. Sul server servono il controllo «File system» nella GPO e la voce di controllo sulle cartelle (istruzioni nella pagina Fonti).
-- **Stampe** («Stampe»): evento 307 del registro PrintService/Operational del server di stampa: chi, da quale PC, su quale stampante, quante pagine. Il **nome del documento** si salva solo con «Registra anche il nome del documento»; spento, non finisce nemmeno nell'archivio.
-- **USB** («Dispositivi USB»): chiavette e dischi esterni (marca, modello, numero di serie, capacità) dal registro Partition/Diagnostic e dall'evento 6416; tastiere e mouse esclusi. Le chiavette si collegano ai PC: si raccolgono con una sottoscrizione WEF dai PC verso il server del portale.
+- **File** (scheda della fonte, «Accessi ai file»): *Modifiche, eliminazioni e permessi* (consigliato) oppure *Anche le letture*. Eventi 4663 e 4670 dei file server; file temporanei di Office, `.tmp`, `desktop.ini`, `thumbs.db` e collegamenti esclusi. Funziona con la stessa configurazione di BusinessLog: controllo «File system» nella GPO e voce di controllo sulle cartelle con *Creazione file/Scrittura dati*, *Creazione cartelle/Aggiunta dati*, *Elimina sottocartelle e file*, *Elimina* e *Autorizzazioni di lettura*. Le aperture dei file arrivano proprio da «Autorizzazioni di lettura» (o da «Leggi dati», se c'è).
+- **Cartelle sorvegliate** (scheda della fonte): come la tabella «Controllo files» di BusinessLog. Una cartella per riga con il percorso sul file server (es. `D:\Dati\Progetti`), e dopo una barra cosa registrare: `letture`, `scritture`, `eliminazioni` (es. `D:\Dati\Progetti | letture, scritture, eliminazioni`). Senza indicazioni vale il livello della fonte; vuoto = tutte le cartelle con la voce di controllo. Gli accessi fuori dalle cartelle elencate restano solo nell'archivio. Vince la cartella più interna.
+- Per ogni accesso a un file l'indagine mostra anche **il programma** (explorer.exe, robocopy.exe…, la colonna «Eseguibile» di BusinessLog) e **da quale PC** è arrivato: il file server non lo scrive nel 4663, il raccoglitore lo ricava dall'accesso di rete della stessa sessione.
+- **Stampe** («Stampe»): evento 307 del registro PrintService/Operational: chi, da quale PC, su quale stampante, quante pagine. Si legge sul server di stampa e, per le stampanti collegate direttamente, sui PC (fonte «Tutti i PC del dominio»). Il **nome del documento** si salva solo con «Registra anche il nome del documento» (e sui PC serve `ShowJobTitleInEventLogs = 1`, come per BusinessLog); spento, non finisce nemmeno nell'archivio.
+- **USB** («Dispositivi USB»): chiavette e dischi esterni collegati (marca, modello, numero di serie, capacità: registro Partition/Diagnostic ed evento 6416; tastiere e mouse esclusi) e, come in BusinessLog, **ogni file copiato, aperto o eliminato su un'unità rimovibile** (evento 4663 con «Controlla Archivio rimovibile» nella GPO dei PC). Le chiavette si collegano ai PC: si raccolgono con la fonte «Tutti i PC del dominio».
 
-Alert nel SOC, senza nomi di file: **file eliminati o modificati a raffica** dallo stesso account (soglia in 10 minuti, default 200: furto, cancellazione o ransomware) e **dispositivo USB collegato a un server**. Da lì si apre l'indagine.
+Alert nel SOC, senza nomi di file: **file eliminati, modificati o copiati su chiavetta a raffica** dallo stesso account (soglia in 10 minuti, default 200: furto, cancellazione o ransomware) e **dispositivo USB collegato a un server**. Da lì si apre l'indagine.
 
 ## Fonti e impostazioni
 
 **Fonti**: da dove arrivano i log.
 
 - **Server Windows (lettura diretta)**: il server del portale legge il registro Security e System del server indicato, senza agent. Serve l'account del raccoglitore nel gruppo **Event Log Readers** e la regola firewall «Gestione remota registro eventi (RPC)». «Cosa leggere»: **Accessi e amministrazione** (consigliato) o **Tutto il registro**.
+- **Tutti i PC del dominio**: come BusinessLog, il raccoglitore legge direttamente il registro di ogni PC (vedi «PC del dominio» qui sotto).
 - **Eventi inoltrati (WEF)**: i server inoltrano a questo server con una sottoscrizione di Windows Event Forwarding; una sola fonte per tutti.
 - **Syslog**: ESXi, switch, firewall, NAS e server Linux mandano i messaggi al server del portale. Si indicano gli indirizzi IP degli apparati: i messaggi da altri indirizzi vengono ignorati e contati («indirizzi non configurati»).
 
@@ -131,7 +134,28 @@ Pulsante **Prova**: legge l'ultimo evento di ogni registro senza archiviare null
 
 Il modulo «Aggiungi una fonte» resta chiuso finché non serve: si apre con **Aggiungi una fonte** o **Apri il modulo**. **Avvisa se muta per più di (ore)**: oltre questa soglia senza messaggi nasce l'interruzione «Fonte senza messaggi».
 
-**Impostazioni**: raccolta accesa, conservazione in mesi, cartella dell'archivio, seconda copia (cartella di rete, SharePoint), syslog (indirizzo, porta, TCP), orario di lavoro. Le modifiche arrivano al raccoglitore entro 5 minuti.
+**Impostazioni**: raccolta accesa, account dei raccoglitori di log, conservazione in mesi, cartella dell'archivio, seconda copia (cartella di rete, SharePoint), syslog (indirizzo, porta, TCP), orario di lavoro. Le modifiche arrivano al raccoglitore entro 5 minuti.
+
+**Account dei raccoglitori di log**: gli account dei programmi che leggono i registri di tutti i server ogni pochi minuti (il servizio di BusinessLog finché resta acceso; l'account con cui gira questo raccoglitore vale già). I loro accessi restano nell'archivio ma non riempiono «Accessi degli amministratori»; se svuotano un registro compare «Registro svuotato da un raccoglitore autorizzato» invece dell'evento critico «Registro eventi cancellato».
+
+### Insieme a BusinessLog durante il passaggio
+
+1. In BusinessLog spegnere **«Cancella Registro»** (Elenco macchine › Impostazioni generali e, se impostato, nella scheda di ogni macchina). Di serie BusinessLog svuota il registro Security di ogni macchina a ogni scansione: gli eventi arrivati tra la lettura di BusinessLog e quella del portale andrebbero persi (interruzione «Eventi sovrascritti prima della lettura», con la spiegazione).
+2. Scrivere l'account del servizio BusinessLog in **Account dei raccoglitori di log**.
+3. Tenere i due sistemi insieme almeno un mese e confrontare le stesse giornate: accessi degli amministratori, file di una cartella, stampe, chiavette. Solo dopo si disdice la licenza; l'archivio di BusinessLog va conservato per il periodo che copre.
+
+Se un registro viene svuotato e la numerazione riparte, il raccoglitore se ne accorge e lo rilegge da capo (prima restava fermo).
+
+## PC del dominio
+
+Pagina aperta dal pulsante **PC** di una fonte «Tutti i PC del dominio». L'elenco arriva da Active Directory: computer Windows abilitati dell'unità organizzativa scelta (vuota = tutto il dominio), usati negli ultimi 60 giorni, senza i server già aggiunti come fonte a sé. Si aggiorna ogni 6 ore con la lettura degli account AD, oppure subito con **Aggiorna l'elenco da Active Directory**.
+
+- Ogni PC acceso si rilegge ogni 10 minuti, 8 alla volta. Prima di leggerlo si controlla in 2 secondi se risponde: un PC **spento** si riprova dopo 15 minuti e non è un errore né un'interruzione.
+- **Errore** (accesso negato, firewall): nuovo tentativo dopo 1, 2, 4… fino a 30 minuti; il testo dell'errore è sotto il nome.
+- **Escludi** toglie un PC dalla raccolta (gli eventi già raccolti restano); **Includi** lo rimette.
+- Riquadri: letti, spenti ora, con errore, mai letti (e quanti esclusi a mano). Filtri per stato e ricerca per nome o sistema.
+
+Sui PC servono le regole del firewall «Gestione remota registro eventi» e un account che legga il registro Security (gruppo locale «Event Log Readers» via GPO, oppure, come BusinessLog, un amministratore dei PC). Se BusinessLog legge già i PC, sono già a posto.
 
 **Il raccoglitore come servizio di Windows**: processo sempre acceso come il qcluster (task `\PortaleNovicrom\RegistroLog_<ambiente>`, stesso account), riparte da solo dopo riavvii e aggiornamenti. Installazione: `deployment\scripts\install-registro-log-task.ps1`. Il controllo dell'infrastruttura `registro_log` (Centrale di comando) avvisa se si ferma o se l'archivio non è integro.
 
@@ -143,6 +167,9 @@ In Impostazioni › Avvisi e automatismi, sezione **Registro accessi**: interrut
 
 - **«Accesso negato al registro eventi»**: l'account del raccoglitore non è in «Event Log Readers» del server (sui controller di dominio, il gruppo di dominio).
 - **«Server non raggiungibile per la lettura remota (RPC)»**: nome sbagliato o firewall del server senza la regola «Gestione remota registro eventi».
-- **Interruzione «Eventi sovrascritti prima della lettura»**: il registro Security del server è troppo piccolo; portarlo ad almeno 1 GB.
+- **Interruzione «Eventi sovrascritti prima della lettura»**: il registro Security del server è troppo piccolo (portarlo ad almeno 1 GB), oppure un altro programma lo svuota: BusinessLog con «Cancella Registro» acceso.
+- **Molti «Registro svuotato da un raccoglitore autorizzato»**: BusinessLog ha ancora «Cancella Registro» acceso.
+- **Accessi ai file senza letture** pur con «Anche le letture»: sulla cartella manca la voce di controllo «Autorizzazioni di lettura» (o «Leggi dati»).
+- **PC sempre «Mai letti» o «Errore»**: regole del firewall «Gestione remota registro eventi» non attive sui PC o account senza permesso sul registro Security.
 - **Syslog: nessun messaggio**: porta non aperta nel firewall di Windows del server del portale, oppure indirizzo dell'apparato diverso da quello scritto nella fonte (vedi «indirizzi non configurati»).
 - **Account AD vuoti**: connessione LDAP del portale non configurata nel Setup Wizard.
