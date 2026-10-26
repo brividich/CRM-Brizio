@@ -127,6 +127,22 @@ class Asset(models.Model):
         db_index=True,
         verbose_name="Prefisso porte switch",
     )
+    # Solo per gli switch: rack (armadio) in cui sta e numero del membro dello stack
+    # ("2" per le porte A0.2.x). Membro vuoto = lo switch serve tutte le porte del prefisso.
+    rack = models.ForeignKey(
+        "RackRete",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="switch",
+        verbose_name="Rack",
+    )
+    switch_membro = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        verbose_name="Membro dello stack",
+    )
     part_145 = models.BooleanField(
         default=False,
         verbose_name="Rientra in PART 145",
@@ -5454,6 +5470,33 @@ class MacRete(models.Model):
 
     def __str__(self) -> str:
         return self.mac
+
+
+class RackRete(models.Model):
+    """Un rack (armadio di rete): raggruppa gli switch che contiene e i loro punti rete.
+
+    ``prefisso_porte`` vale per tutti i suoi switch che non ne hanno uno proprio (es. "A0"
+    per le porte A0.1.37, A0.2.5…); ``prefisso_patch`` riconosce il rack dalla porta del
+    patch panel (es. "Q0" per Q0.89) quando lo switch non è noto. Logica in
+    ``services/rete_switch.py``.
+    """
+
+    codice = models.CharField(max_length=20, unique=True, verbose_name="Codice")
+    nome = models.CharField(max_length=120, verbose_name="Nome")
+    ubicazione = models.CharField(max_length=200, blank=True, default="", verbose_name="Ubicazione")
+    prefisso_porte = models.CharField(max_length=20, blank=True, default="", db_index=True,
+                                      verbose_name="Prefisso porte switch")
+    prefisso_patch = models.CharField(max_length=20, blank=True, default="", verbose_name="Prefisso patch panel")
+    note = models.TextField(blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name = "Rack di rete"
+        verbose_name_plural = "Rack di rete"
+
+    def __str__(self) -> str:
+        return f"{self.codice} — {self.nome}"
 
 
 class CollegamentoMTConnect(models.Model):

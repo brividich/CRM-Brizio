@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from core.models import UserOnboarding
 
-from .models import Asset, AssetEndpoint, AssetFieldHistory
+from .models import Asset, AssetEndpoint, AssetFieldHistory, RackRete
 from .services import rete_switch
 
 User = get_user_model()
@@ -160,3 +160,98 @@ class MappaSwitchTests(TestCase):
         self._prefisso("A0;--")
         self.switch.refresh_from_db()
         self.assertEqual(self.switch.switch_prefisso_porte, "")
+
+
+class RackTests(TestCase):
+    """Rack con prefisso A0 e stack di switch: ogni membro serve le sue porte A0.<membro>.x."""
+
+    def setUp(self):
+        self.admin = _user("rack.admin", superuser=True)
+        self.client.force_login(self.admin)
+        self.rack = RackRete.objects.create(codice="R0", nome="Armadio sintetico", prefisso_porte="A0", prefisso_patch="Q0")
+        self.sw1 = Asset.objects.create(asset_tag="SYN-SW-M1", name="Switch stack 1", asset_type=Asset.TYPE_HW)
+        self.sw2 = Asset.objects.create(asset_tag="SYN-SW-M2", name="Switch stack 2", asset_type=Asset.TYPE_HW)
+        self.pc = [Asset.objects.create(asset_tag=f"SYN-PCR-{i}", name=f"PC {i}", asset_type=Asset.TYPE_PC) for i in range(5)]
+        self.ep1 = AssetEndpoint.objects.create(asset=self.pc[0], switch_port="A0.1.3", vlan=10)
+        self.ep2 = AssetEndpoint.objects.create(asset=self.pc[1], switch_port="A0.2.7")
+        # Inventario che scrive il nome dello stack (switch membro 1) anche per le porte del membro 2.
+        self.ep3 = AssetEndpoint.objects.create(asset=self.pc[2], switch_name="SYN-SW-M1", switch_port="A0.2.9")
+        self.ep4 = AssetEndpoint.objects.create(asset=self.pc[3], switch_port="A0.3.1")
+        self.ep5 = AssetEndpoint.objects.create(asset=self.pc[4], punto="Q0.12")
+
+    def _colloca(self, switch, **dati):
+        return self.client.post(reverse("assets:asset_rete_prefisso", args=[switch.id]), dati)
+
+    def test_membri_dividono_le_porte_del_rack(self):
+        self._colloca(self.sw1, rack=str(self.rack.id), membro="1", prefisso="")
+        self._colloca(self.sw2, rack=str(self.rack.id), membro="2", prefisso="")
+        self.sw1.refresh_from_db()
+        self.sw2.refresh_from_db()
+        self.assertEqual((self.sw1.rack_id, self.sw1.switch_membro), (self.rack.id, "1"))
+        self.assertTrue(AssetFieldHistory.objects.filter(asset=self.sw1, campo="rack__codice", valore_dopo="R0").exists())
+        risolti = rete_switch.collegamenti([self.ep1, self.ep2, self.ep3, self.ep4, self.ep5])
+        self.assertEqual(risolti[self.ep1.id].switch, self.sw1)
+        self.assertEqual(risolti[self.ep2.id].switch, self.sw2)
+        self.assertEqual(risolti[self.ep3.id].switch, self.sw2)  # nome dello stack, porta del membro 2
+        self.assertIsNone(risolti[self.ep4.id].switch)  # membro 3 non censito
+        for ep in (self.ep1, self.ep2, self.ep4, self.ep5):
+            self.assertEqual(risolti[ep.id].rack, self.rack)
+        self.assertEqual(rete_switch.mappa_switch(self.sw1)["totale"], 1)
+        self.assertEqual(rete_switch.mappa_switch(self.sw2)["totale"], 2)
+        self.assertEqual(rete_switch.porte_senza_switch(), [{"prefisso": "A0.3", "porte": 1}])
+        dettaglio = rete_switch.dettaglio_rack(self.rack)
+        self.assertEqual([b["titolo"] for b in dettaglio["switch"]], ["A0.1", "A0.2"])
+        self.assertEqual({ep.id for ep in dettaglio["orfani"]}, {self.ep4.id, self.ep5.id})
+        resp = self.client.get(reverse("assets:asset_view", args=[self.pc[1].id]))
+        self.assertContains(resp, reverse("assets:rete_rack_detail", args=[self.rack.id]))
+        self.assertContains(resp, "SYN-SW-M2")
+
+    def test_switch_senza_membro_prende_le_porte_libere(self):
+        self._colloca(self.sw2, rack=str(self.rack.id), membro="2")
+        self._colloca(self.sw1, rack=str(self.rack.id), membro="")
+        risolti = rete_switch.collegamenti([self.ep1, self.ep2, self.ep4])
+        self.assertEqual(risolti[self.ep1.id].switch, self.sw1)
+        self.assertEqual(risolti[self.ep2.id].switch, self.sw2)
+        self.assertEqual(risolti[self.ep4.id].switch, self.sw1)
+
+    def test_collocazione_doppia_o_senza_prefisso_rifiutata(self):
+        self._colloca(self.sw1, rack=str(self.rack.id), membro="1")
+        self._colloca(self.sw2, rack=str(self.rack.id), membro="1")
+        self.sw2.refresh_from_db()
+        self.assertIsNone(self.sw2.rack_id)
+        self._colloca(self.sw2, rack="", membro="2", prefisso="")
+        self.sw2.refresh_from_db()
+        self.assertEqual(self.sw2.switch_membro, "")
+        self._colloca(self.sw2, rack=str(self.rack.id), membro="x")
+        self.sw2.refresh_from_db()
+        self.assertIsNone(self.sw2.rack_id)
+
+    def test_pagine_crea_modifica_elimina(self):
+        self._colloca(self.sw1, rack=str(self.rack.id), membro="1")
+        resp = self.client.get(reverse("assets:rete_rack"))
+        self.assertContains(resp, "Armadio sintetico")
+        self.assertContains(resp, "A0.1")
+        self.assertContains(resp, "A0.2 · 1")  # porte senza switch
+        resp = self.client.get(reverse("assets:rete_rack_detail", args=[self.rack.id]))
+        self.assertContains(resp, "SYN-SW-M1")
+        self.assertContains(resp, "SYN-PCR-3")  # orfano del membro 3
+        url = reverse("assets:rete_rack")
+        resp = self.client.post(url, {"azione": "salva", "codice": "r1", "nome": "Armadio due", "prefisso_porte": "a1"})
+        self.assertEqual(resp.status_code, 302)
+        nuovo = RackRete.objects.get(codice="R1")
+        self.assertEqual(nuovo.prefisso_porte, "A1")
+        resp = self.client.post(url, {"azione": "salva", "codice": "R2", "nome": "Doppione", "prefisso_porte": "A0"})
+        self.assertContains(resp, "Già usato dal rack R0")
+        resp = self.client.post(url, {"azione": "salva", "rack": str(nuovo.id), "codice": "R1", "nome": "Rinominato", "prefisso_porte": "", "torna": str(nuovo.id)})
+        self.assertRedirects(resp, reverse("assets:rete_rack_detail", args=[nuovo.id]), fetch_redirect_response=False)
+        nuovo.refresh_from_db()
+        self.assertEqual((nuovo.nome, nuovo.prefisso_porte), ("Rinominato", ""))
+        self.client.post(url, {"azione": "elimina", "rack": str(self.rack.id)})
+        self.sw1.refresh_from_db()
+        self.assertIsNone(self.sw1.rack_id)
+        self.assertFalse(RackRete.objects.filter(pk=self.rack.id).exists())
+
+    def test_senza_permesso_non_crea(self):
+        self.client.force_login(_user("rack.base"))
+        self.client.post(reverse("assets:rete_rack"), {"azione": "salva", "codice": "RX", "nome": "No"})
+        self.assertFalse(RackRete.objects.filter(codice="RX").exists())
