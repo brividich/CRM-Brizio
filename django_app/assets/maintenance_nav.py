@@ -12,8 +12,9 @@ Da qui leggono entrambe:
   che ne porta una copia congelata (le migration non importano codice
   applicativo); un test verifica che le due restino identiche.
 
-Due rami: *Manutenzione* e' cio' che si apre ogni giorno, *Configurazione* cio'
-che si tocca quando si imposta il lavoro. Nessun URL cambia.
+Tre rami: *Manutenzione* e' cio' che si apre ogni giorno, *Configurazione* cio'
+che si tocca quando si imposta il lavoro, *IT e rete* licenze, software, indirizzi
+e rack (fino alla 0156 stavano dentro Configurazione). Nessun URL cambia.
 """
 from __future__ import annotations
 
@@ -47,6 +48,7 @@ class NavGroup:
 
 GROUP_OPERATIVO = "manutenzione"
 GROUP_SETUP = "configurazione"
+GROUP_IT = "it_rete"
 
 MAINTENANCE_NAV: tuple[NavGroup, ...] = (
     NavGroup(
@@ -175,6 +177,15 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 routes=frozenset({"maintenance_supplier_detail"}),
             ),
             NavItem("contratti", "Contratti assistenza", "assistance_contract_list", sidebar_code="maintenance_contratti"),
+            NavItem("mtconnect", "Macchine collegate", "mtconnect_collegamenti", sidebar_code="mtconnect_collegamenti"),
+        ),
+    ),
+    # Nella sidebar e' una sezione a se' («IT e rete») con le voci al primo livello:
+    # nessun pulsante genitore, quindi ``sidebar_code`` vuoto.
+    NavGroup(
+        key=GROUP_IT,
+        label="IT e rete",
+        items=(
             NavItem("licenze", "Licenze software", "software_license_list", sidebar_code="licenze"),
             NavItem(
                 "catalogo_software",
@@ -186,7 +197,6 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
             NavItem("rete_indirizzi", "Indirizzi IP", "rete_indirizzi", sidebar_code="rete_indirizzi"),
             NavItem("rete_rack", "Rack e switch", "rete_rack", sidebar_code="rete_rack",
                     routes=frozenset({"rete_rack_detail"})),
-            NavItem("mtconnect", "Macchine collegate", "mtconnect_collegamenti", sidebar_code="mtconnect_collegamenti"),
         ),
     ),
 )

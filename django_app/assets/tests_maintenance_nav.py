@@ -31,6 +31,16 @@ User = get_user_model()
 class MenuUnicoTests(TestCase):
     def test_sidebar_coincide_con_la_definizione(self):
         for group in MAINTENANCE_NAV:
+            if not group.sidebar_code:
+                # Ramo senza genitore (IT e rete): voci al primo livello della sua sezione.
+                buttons = list(
+                    AssetSidebarButton.objects.filter(code__in=[i.sidebar_code for i in group.items], is_visible=True)
+                    .order_by("sort_order", "id")
+                )
+                self.assertEqual([(b.code, b.label) for b in buttons],
+                                 [(i.sidebar_code, i.label) for i in group.items], group.label)
+                self.assertEqual({(b.section, b.parent_id) for b in buttons}, {(AssetSidebarButton.SECTION_IT, None)})
+                continue
             parent = AssetSidebarButton.objects.get(code=group.sidebar_code)
             self.assertTrue(parent.is_visible, group.sidebar_code)
             children = list(
@@ -57,7 +67,9 @@ class MenuUnicoTests(TestCase):
 
     def test_licenze_calendario_e_contratti_stanno_nel_ramo(self):
         self.assertEqual(find_active("calendario_asset")[0].label, "Manutenzione")
-        self.assertEqual(find_active("software_license_list")[0].label, "Configurazione")
+        self.assertEqual(find_active("software_license_list")[0].label, "IT e rete")
+        self.assertEqual(find_active("rete_rack_detail")[0].label, "IT e rete")
+        self.assertEqual(find_active("mtconnect_collegamenti")[0].label, "Configurazione")
         self.assertEqual(find_active("assistance_contract_list")[0].label, "Configurazione")
         self.assertIsNone(find_active("asset_list"))
 
@@ -121,3 +133,23 @@ class ScadenzarioFiltriTests(TestCase):
         self.assertNotIn("plan_type", visibili)
         self.assertEqual([f.name for f in form.simple_fields], ["q", "category", "reparto", "assignee"])
         self.assertContains(response, 'name="window"', html=False)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class SidebarAreeTests(TestCase):
+    """Sidebar per aree (migrazione 0156): IT e rete fuori da Configurazione, guida fissa in fondo."""
+
+    def test_aree_icone_e_guida(self):
+        self.client.force_login(User.objects.create_superuser(username="side-aree", password="x", email="s@a.it"))
+        response = self.client.get(reverse("assets:rete_rack"))
+        body = response.content.decode()
+        for testo in ("Inventario", "Manutenzione e officina", "IT e rete", "Guida del modulo", 'class="as-ico"'):
+            self.assertIn(testo, body)
+        self.assertNotIn("Strumenti e gestione", body)
+        self.assertFalse(AssetSidebarButton.objects.get(code="guida_asset").is_visible)
+        self.assertEqual(AssetSidebarButton.objects.get(code="componenti").section, AssetSidebarButton.SECTION_MAIN)
+        self.assertIsNone(AssetSidebarButton.objects.get(code="licenze").parent_id)
+        # Nel percorso le pagine IT non passano da «Manutenzione».
+        percorso = [c["label"] for c in response.context["assets_section_nav"]["breadcrumbs"]]
+        self.assertEqual(percorso, ["Assets", "IT e rete", "Rack e switch"])
+

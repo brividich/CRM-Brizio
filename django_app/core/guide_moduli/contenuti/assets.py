@@ -14,9 +14,11 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Apri Asset: si apre il cruscotto.",
-                    "Clicca «Inventario completo» oppure una categoria nel menu a sinistra.",
+                    "Clicca «Inventario completo» (area «Inventario» del menu a sinistra) oppure una categoria in «Inventario per categoria».",
                     "Cerca per nome, numero interno, seriale o IP e apri la scheda.",
                 ]),
+                ("p", "Il menu a sinistra è diviso per area: Inventario, Manutenzione e officina, IT e rete (licenze, software, "
+                      "indirizzi IP, rack), Inventario per categoria; in fondo «Guida del modulo»."),
                 ("p", "Dal telefono basta inquadrare il QR sulla macchina: si apre la scheda con manutenzioni e documenti."),
                 ("p", "Sotto il cruscotto della scheda, «Lo stesso apparato in» porta alla stampante in Contatori e al dispositivo nel SOC; "
                       "lì trovi la stessa testata dell'asset, con il link «Scheda asset» per tornare."),

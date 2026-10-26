@@ -26,6 +26,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 <div class="ag">
   <nav class="ag-toc" aria-label="Indice della guida">
     <strong>In questa guida</strong>
+    <a href="#menu">Il menu a sinistra</a>
     <a href="#rinvio">Rinvio di una manutenzione</a>
     <a href="#scadenze-amministrative">Scadenze amministrative</a>
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
@@ -57,6 +58,19 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <h1 style="margin:0 0 8px;font-size:24px">Guida Asset</h1>
       <p>Come usare il QR degli asset, i dati delle stampanti multifunzione, lo storico delle modifiche, i software installati con le licenze e il catalogo dei report. Per la manutenzione (interventi, scadenze, piani) usa il riquadro <span class="ag-btn">&#10067; Cosa posso fare qui</span> nelle pagine di Manutenzione.</p>
       <p>Dove un'azione è riservata, accanto al titolo trovi se <em>tu</em> hai il permesso: se un pulsante descritto qui non compare, il motivo è quello.</p>
+    </section>
+
+    <section class="ag-sec" id="menu">
+      <h2>Il menu a sinistra</h2>
+      <p>Le voci sono divise per area, ognuna con la sua icona. Il campo <strong>Filtra il menu</strong> in cima trova una voce scrivendone una parte.</p>
+      <ul>
+        <li><strong>Inventario</strong>: Cruscotto, Inventario completo, Inventario IT (Server, PC e portatili, Macchine virtuali, Apparati di rete, Stampanti, Altri dispositivi) e Componenti.</li>
+        <li><strong>Manutenzione e officina</strong>: Manutenzione (il lavoro di ogni giorno: Panoramica, Da fare, Calendario, Scadenzario…), Configurazione (Imposta, Piani, Gruppi asset, Copertura, Fornitori, Contratti assistenza, Macchine collegate), Mappa officina e PART 145.</li>
+        <li><strong>IT e rete</strong>: Licenze software, Catalogo software, Indirizzi IP, Rack e switch.</li>
+        <li><strong>Inventario per categoria</strong>: le categorie di asset, per aprire l'inventario già filtrato.</li>
+        <li><strong>Amministrazione</strong> (solo amministratori): Impostazioni del modulo, dove si cambiano anche voci e ordine del menu.</li>
+      </ul>
+      <p>In fondo c'è sempre <strong>Guida del modulo</strong>, che apre questa pagina. Le frecce <span class="ag-btn">›</span> aprono le sottovoci; nelle pagine di Manutenzione, Configurazione e IT e rete le stesse voci compaiono anche come schede sotto il titolo.</p>
     </section>
 
     <section class="ag-sec" id="rinvio">
@@ -360,7 +374,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="rete-rack">
       <h2>Rack e switch</h2>
-      <p>La pagina <a href="{% url 'assets:rete_rack' %}">Rack e switch</a> (menu, sotto Indirizzi IP) divide la rete per <strong>armadio</strong>: per ogni rack gli switch che contiene, quali porte serve ciascuno (es. <code>A0.1</code>, <code>A0.2</code>, <code>A0.3</code> per i tre membri dello stack del CED) e quanti dispositivi ci sono collegati. Un clic sul rack apre la sua pagina con il <strong>frontale di ogni switch</strong> (porte colorate per VLAN, link al dispositivo) e l'elenco dei punti rete del rack per cui <strong>manca lo switch</strong>.</p>
+      <p>La pagina <a href="{% url 'assets:rete_rack' %}">Rack e switch</a> (menu, area <strong>IT e rete</strong>) divide la rete per <strong>armadio</strong>: per ogni rack gli switch che contiene, quali porte serve ciascuno (es. <code>A0.1</code>, <code>A0.2</code>, <code>A0.3</code> per i tre membri dello stack del CED) e quanti dispositivi ci sono collegati. Un clic sul rack apre la sua pagina con il <strong>frontale di ogni switch</strong> (porte colorate per VLAN, link al dispositivo) e l'elenco dei punti rete del rack per cui <strong>manca lo switch</strong>.</p>
       <h3>Creare un rack</h3>
       <ul>
         <li><span class="ag-btn">+ Nuovo rack</span>: <strong>Codice</strong> (es. R0) e <strong>Nome</strong> obbligatori; <strong>Ubicazione</strong> e <strong>Note</strong> facoltative.</li>
@@ -453,7 +467,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ul>
       <h3>Collegare una macchina</h3>
       <ol>
-        <li>Apri <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a> (menu Configurazione, sotto Indirizzi IP).</li>
+        <li>Apri <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a> (menu Manutenzione e officina › Configurazione).</li>
         <li>Scegli la <strong>Macchina</strong> e scrivi l'<strong>Indirizzo dell'agent</strong>, per esempio <kbd>http://10.0.5.21:5000</kbd>. Se l'agent serve più macchine, scrivi anche il nome del <strong>Dispositivo</strong>.</li>
         <li>Premi <span class="ag-btn">Prova</span>: il portale dice cosa legge (stato, programma, ore, pezzi) senza salvare. Se ore o pezzi non ci sono, l'agent non li espone e quel contatore non avanzerà.</li>
         <li>Lascia spuntate <strong>Aggiorna il contatore Ore</strong> e <strong>Aggiorna il contatore Cicli con i pezzi</strong> se vuoi che i piani di manutenzione a contatore usino i dati della macchina (i contatori «Ore» e «Cicli» si creano dalla scheda della macchina).</li>
