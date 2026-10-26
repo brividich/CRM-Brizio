@@ -77,7 +77,9 @@ class RilievoEsternoForm(forms.Form):
     classificazione = forms.ChoiceField(label="Classificazione", choices=CLASSIFICAZIONI)
     descrizione = forms.CharField(label="Rilievo come scritto dall'ente", widget=forms.Textarea(attrs={"rows": 3}))
     rif_norma = forms.CharField(label="Requisito / paragrafo", max_length=200, required=False)
-    processo = forms.CharField(label="Processo / area", max_length=200, required=False)
+    processo = forms.CharField(label="Processo / area", max_length=200, required=False,
+                               help_text="Scegli dal catalogo processi: il rilievo pesa sulla priorità degli audit interni.",
+                               widget=forms.TextInput(attrs={"list": "processi-catalogo", "autocomplete": "off"}))
     data_richiesta = forms.DateField(label="Chiusura richiesta entro", required=False,
                                      widget=forms.DateInput(attrs=_DATA, format="%Y-%m-%d"))
     responsabile = forms.ModelChoiceField(label="Responsabile", queryset=None, required=False)

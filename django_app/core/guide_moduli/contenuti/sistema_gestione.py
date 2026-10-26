@@ -22,7 +22,10 @@ GUIDA = {
                      "Ogni voce ha un responsabile, un avanzamento PDCA passo passo, evidenze allegate e la cronologia; "
                      "«Le mie voci» e il «Cruscotto» mostrano cosa è aperto, scaduto o ricorrente."),
                     ("Certificazioni e audit esterni", "certificati con scadenze e sorveglianze, audit di enti, clienti e "
-                     "autorità con rapporto e rilievi che entrano nel Registro OFI; riepilogo settimanale a RSGI."),
+                     "autorità con rapporto e rilievi che entrano nel Registro OFI; riepilogo settimanale a RSGI. Prima "
+                     "dell'audit, «Preparazione all'audit» controlla copertura delle clausole, programma interno, NC e "
+                     "voci MOD.174 aperte e rilievi dell'audit precedente; dopo, il piano azioni per l'ente si scarica "
+                     "dalle voci del registro e si registra la data di invio."),
                     ("SoA", "dichiarazione di applicabilità dei controlli ISO 27001."),
                 ]),
                 ("p", "Ogni parte ha la sua guida passo passo: i collegamenti sono in cima."),
@@ -50,6 +53,14 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Il rilievo di un ente non alza la priorità del processo",
+            "fare": [
+                "Nel rilievo il campo «Processo / area» deve riportare il codice o il nome del processo del catalogo "
+                "(il modulo lo propone mentre scrivi); correggilo dalla voce del Registro OFI.",
+                "Contano solo i rilievi degli ultimi 24 mesi.",
+            ],
+        },
         {
             "sintomo": "Un rilievo non compare nel registro OFI",
             "fare": [

@@ -48,6 +48,9 @@ urlpatterns = [
     path("audit/esterni/<int:pk>/rapporto/carica/", esterni_views.rapporto_carica, name="esterni_rapporto_carica"),
     path("audit/esterni/<int:pk>/rapporto/", esterni_views.rapporto_scarica, name="esterni_rapporto"),
     path("audit/esterni/<int:pk>/chiudi/", esterni_views.audit_chiudi, name="esterni_chiudi"),
+    path("audit/esterni/<int:pk>/preparazione.xlsx", esterni_views.preparazione_export, name="esterni_preparazione_export"),
+    path("audit/esterni/<int:pk>/piano-azioni.xlsx", esterni_views.piano_export, name="esterni_piano_export"),
+    path("audit/esterni/<int:pk>/piano-inviato/", esterni_views.piano_inviato, name="esterni_piano_inviato"),
     path("audit/<int:pk>/conferme/aggiorna/", programma_views.audit_conferme_aggiorna, name="audit_conferme_aggiorna"),
 
     path("", views.index, name="index"),

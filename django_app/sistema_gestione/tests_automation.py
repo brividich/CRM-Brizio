@@ -229,7 +229,7 @@ class AutomazioniAuditTests(AuditBase):
         self.processo.criticita=3
         self.processo.save()
         Processo.objects.create(codice="LOW",nome="Processo secondario",criticita=1)
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             righe=automation.priorita_processi(Processo.objects.all())
         self.assertEqual(righe[0]["processo"],self.processo)
         self.assertEqual(righe[0]["punteggio"],60)
@@ -271,7 +271,7 @@ class AutomazioniAuditTests(AuditBase):
     def test_editor_e_priorita_renderizzano(self,_executor,_perm):
         esito=self.esito()
         self.assertContains(views.esito_editor(_request(self.user,method="get"),esito.audit_id,esito.pk),"data-audit-autosave")
-        self.assertContains(views.priorita(_request(self.user,method="get")),"priorita-v2")
+        self.assertContains(views.priorita(_request(self.user,method="get")),"priorita-v3")
 
     @patch("sistema_gestione.automation_views._has_perm", return_value=True)
     def test_revisione_archivia_pdf_e_azzera_firme(self,_perm):
