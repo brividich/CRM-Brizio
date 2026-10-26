@@ -41,7 +41,11 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 
 - **Guida d'uso in-app:** `/sistema-gestione/audit/guida/` con parte generale (fasi MT CN 12, ruoli, sigle) e un capitolo per ogni pagina degli audit, della CAR e del Registro OFI; **Scarica PDF** (`?pdf=1`). Ogni pagina ha in alto «Guida di questa pagina» (mappa `PAGE_HELP` in `guida.py`, tag `{% sg_guida_link %}`). Binding `audit.miei_rilievi`, così la legge anche l'auditato. Se cambia un'etichetta o un pulsante, aggiornare `guida.py` nello stesso commit; `tests_guida.py` verifica rotte e ancore.
 
+- **Certificazioni e audit esterni** (`/sistema-gestione/audit/esterni/`, `esterni_views.py`, `services/audit_esterni.py`, migrazione `0017`): `Certificazione` (norma, ente, numero, emissione, scadenza, prossima sorveglianza, in vigore) e `AuditEsterno` (certificazione iniziale, sorveglianza, rinnovo, cliente, autorità, speciale; norme, ambito, esito, termine del piano azioni, rapporto PDF cifrato con SHA-256). I rilievi (NC maggiore/minore, osservazione, OFI) diventano voci del **Registro OFI** con fonte l'ente, origine l'audit e le norme dell'audit (NC maggiore = priorità alta): nessun registro separato. Chiusura solo con esito, rapporto e nessuna NC aperta. Job settimanale `sistema_gestione_scadenze_esterni` (lunedì 07:30) a RSGI: certificati scaduti o in scadenza entro 90 giorni, sorveglianze entro 30, piani azioni da inviare entro 7. Permessi: consultazione `audit.view`, gestione `audit.edit` (cache bootstrap v7).
+
 ## Note di rilascio
+
+**Certificazioni e audit esterni (Unreleased, 26/10/2026):** deploy `migrate sistema_gestione` 0017 e `setup_q_schedules` per il job settimanale; dipende dal ramo del Registro OFI (`gestione_specifiche` 0015).
 
 **Audit Part 145** (ottobre 2026, sistema_gestione 0015): `Audit.part145` (vuoto / SISTEMA / PRODOTTO, «Perimetro Part 145» nel passo 1 del piano). Il Dossier PART 145 del modulo Asset mostra gli audit Part 145 dell'anno, segnala se manca quello di sistema o di prodotto (MT CN 70 §5.3) e le azioni da audit scadute (permesso `sistema_gestione.audit.view`).
 

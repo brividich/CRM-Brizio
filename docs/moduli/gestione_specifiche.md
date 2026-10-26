@@ -18,6 +18,16 @@ Area **Operations** · URL `/gestione-specifiche/` · codice [`django_app/gestio
 - **Guida d'uso** in `/ofi-registro/guida/` (registro + CAR, PDF con `?pdf=1`) e «Guida di questa pagina» su lista, form e scheda. Contenuto in `sistema_gestione/guida.py`.
 - Deploy: `migrate gestione_specifiche` 0014.
 
+## Registro OFI — responsabile, PDCA guidato, evidenze, cronologia, cruscotto (26/10/2026)
+
+- **Responsabile (utente)** sulla voce (`RegistroOFI.responsabile`): riceve i solleciti insieme a `OFI_REMINDER_EMAILS`, vede la voce con il filtro **«Le mie voci»** (`?mie=1`) e la gestisce dalla scheda anche senza `registroofi.add`. Proprietario e OWNER restano testo libero del MOD.174.
+- **Avanzamento PDCA dalla scheda** (`/ofi-registro/<id>/avanza/`): per lasciare una fase va scritto il testo di quella fase; in Act il pulsante chiude la voce con la data. Con una CAR MT CN 11 aperta la voce non si chiude (né dalla scheda né dal modulo di modifica): si chiude con la CAR. **«Riapri in PLAN»** (`/riapri/`) quando la verifica non è superata, motivo obbligatorio.
+- **Evidenze** (`RegistroOFIAllegato`): PDF, immagini, Word, Excel validati per MIME reale, storage privato cifrato (`GESTIONE_SPECIFICHE_PRIVATE_ROOT`), SHA-256, download solo da `/ofi-registro/<id>/allegati/<n>/` con audit `registro_ofi_allegato_download`.
+- **Cronologia** (`RegistroOFIEvento`, scritta solo da `registro_ofi.registra_evento`): creazione (manuale, da audit, da MOD.133), cambi di fase, scadenza e responsabile, evidenze, riaperture, solleciti, chiusura con la CAR.
+- **Cruscotto** `/ofi-registro/cruscotto/` (filtro modulo): aperte, NC aperte, scadute, senza responsabile, senza scadenza, chiuse in 12 mesi, tempo medio di chiusura, % chiuse entro la scadenza, andamento 12 mesi, aperte per fase/anzianità/processo/fonte/norma, processi ricorrenti (≥ 3 voci in 12 mesi).
+- ACL: binding nuovi `registro_ofi:cruscotto|allegato_scarica` su `specifica.view`; `avanza|riapri|allegato_carica` su `specifica.view` con controllo nella view (gestore registro o responsabile). Cache bootstrap `v19`.
+- Deploy: `migrate gestione_specifiche` 0015 + bootstrap ACL (automatico al primo accesso con la nuova chiave di cache).
+
 ## Timbri sul composito (Applica timbri)
 
 - Il tool **«Applica timbri»** (`/gestione-specifiche/<id>/applica-timbri/`) e la composizione usano solo i timbri delle persone del MOD.133: tutti i timbri attivi del **compilatore** (RICEVUTO e firma MOD.133) e la sola **firma MOD.133 dell'approvatore**, disponibile dall'approvazione (l'approvatore viene registrato sul MOD.133 in quel momento). Senza compilatore vale l'utente che sta lavorando. Filtro unico `timbri_views.timbri_ammessi`.

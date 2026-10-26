@@ -1,0 +1,33 @@
+{% extends "core/base.html" %}
+{% block title %}{% if oggetto %}Modifica audit esterno{% else %}Nuovo audit esterno{% endif %}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% if oggetto %}{% url 'sistema_gestione:esterni_audit' oggetto.pk %}{% else %}{% url 'sistema_gestione:esterni_elenco' %}{% endif %}">← {% if oggetto %}Audit esterno{% else %}Certificazioni e audit esterni{% endif %}</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{% if oggetto %}Modifica audit esterno{% else %}Nuovo audit esterno{% endif %}</div><div class="page-sub">Audit dell'ente di certificazione, di un cliente o di un'autorità. I rilievi si aggiungono dalla scheda.</div></div></div>
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+    <div class="sg-form-grid">
+      {% include "core/forms/_field.html" with field=form.tipo %}
+      {% include "core/forms/_field.html" with field=form.certificazione %}
+      {% include "core/forms/_field.html" with field=form.ente %}
+      {% include "core/forms/_field.html" with field=form.auditor %}
+      {% include "core/forms/_field.html" with field=form.data_inizio %}
+      {% include "core/forms/_field.html" with field=form.data_fine %}
+      <div class="full"><label>Norme verificate</label>
+        <div class="sg-checks">
+          <label>{{ form.en9100 }} EN 9100</label><label>{{ form.iso45001 }} ISO 45001</label><label>{{ form.iso14001 }} ISO 14001</label>
+          <label>{{ form.iso27001 }} ISO/IEC 27001</label><label>{{ form.pdr125 }} UNI/PdR 125</label>
+        </div></div>
+      <div class="full">{% include "core/forms/_field.html" with field=form.altre_norme %}</div>
+      <div class="full">{% include "core/forms/_field.html" with field=form.ambito %}</div>
+      {% include "core/forms/_field.html" with field=form.stato %}
+      {% include "core/forms/_field.html" with field=form.esito %}
+      {% include "core/forms/_field.html" with field=form.risposta_entro %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.sintesi %}</div>
+    </div>
+    <div class="sg-actions"><button class="btn" type="submit">Salva</button>
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_elenco' %}">Annulla</a></div>
+  </form>
+</div>
+{% endblock %}

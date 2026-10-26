@@ -1067,3 +1067,131 @@ class RilevazioneKpi(models.Model):
 
     class Meta:
         ordering = ["-periodo_a", "-pk"]
+
+
+# --- Audit esterni e certificazioni ---------------------------------------------
+
+NORME_SGI = (("en9100", "EN 9100"), ("iso45001", "ISO 45001"), ("iso14001", "ISO 14001"),
+             ("iso27001", "ISO/IEC 27001"), ("pdr125", "UNI/PdR 125"))
+
+
+class Certificazione(models.Model):
+    """Certificato del sistema di gestione rilasciato da un ente (o qualifica cliente/autorità)."""
+
+    NORMA_CHOICES = [
+        ("EN9100", "EN 9100"), ("ISO9001", "ISO 9001"), ("ISO45001", "ISO 45001"), ("ISO14001", "ISO 14001"),
+        ("ISO27001", "ISO/IEC 27001"), ("PDR125", "UNI/PdR 125"), ("PART145", "Part 145"), ("ALTRO", "Altro"),
+    ]
+    PREAVVISO_GIORNI = 90
+
+    norma = models.CharField(max_length=10, choices=NORMA_CHOICES)
+    descrizione = models.CharField("Descrizione (se «Altro» o qualifica cliente)", max_length=200, blank=True, default="")
+    ente = models.CharField("Ente / cliente che rilascia", max_length=200)
+    numero = models.CharField("Numero certificato", max_length=100, blank=True, default="")
+    campo_applicazione = models.TextField("Campo di applicazione", blank=True, default="")
+    emesso_il = models.DateField("Emesso il", null=True, blank=True)
+    scade_il = models.DateField("Scade il")
+    prossima_sorveglianza = models.DateField("Prossimo audit di sorveglianza", null=True, blank=True)
+    attiva = models.BooleanField(default=True)
+    note = models.TextField(blank=True, default="")
+    aggiornata_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                      related_name="+")
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-attiva", "scade_il", "norma"]
+        verbose_name = "Certificazione"
+        verbose_name_plural = "Certificazioni"
+
+    def __str__(self) -> str:
+        nome = self.descrizione if self.norma == "ALTRO" and self.descrizione else self.get_norma_display()
+        return f"{nome} · {self.ente}"
+
+    @property
+    def giorni_alla_scadenza(self) -> int:
+        return (self.scade_il - timezone.localdate()).days
+
+    @property
+    def stato(self) -> str:
+        """``scaduta``, ``in_scadenza`` (entro il preavviso), ``valida`` o ``ritirata``."""
+        if not self.attiva:
+            return "ritirata"
+        giorni = self.giorni_alla_scadenza
+        if giorni < 0:
+            return "scaduta"
+        return "in_scadenza" if giorni <= self.PREAVVISO_GIORNI else "valida"
+
+
+def upload_to_audit_esterno(instance, filename: str) -> str:
+    from django.utils.text import get_valid_filename
+    return f"sistema_gestione/audit_esterni/{instance.pk or 'nuovo'}/{get_valid_filename(filename)}"
+
+
+class AuditEsterno(models.Model):
+    """Audit di parte terza (ente di certificazione) o seconda parte (cliente, autorità).
+
+    I rilievi diventano voci del Registro OFI (MOD.174) con origine questo audit e
+    fonte l'ente: nessun registro separato.
+    """
+
+    TIPO_CHOICES = [
+        ("CERTIFICAZIONE", "Certificazione iniziale"), ("SORVEGLIANZA", "Sorveglianza"),
+        ("RINNOVO", "Rinnovo"), ("CLIENTE", "Audit del cliente"), ("AUTORITA", "Ispezione di un'autorità"),
+        ("SPECIALE", "Audit speciale / straordinario"),
+    ]
+    STATO_PIANIFICATO = "PIANIFICATO"
+    STATO_SVOLTO = "SVOLTO"
+    STATO_CHIUSO = "CHIUSO"
+    STATO_CHOICES = [(STATO_PIANIFICATO, "Pianificato"), (STATO_SVOLTO, "Svolto"), (STATO_CHIUSO, "Chiuso")]
+    ESITO_CHOICES = [
+        ("", "—"), ("CONFERMATO", "Certificato confermato / raccomandato"),
+        ("CONFERMATO_CON_AZIONI", "Confermato con azioni da chiudere"),
+        ("SOSPESO", "Certificato sospeso o non raccomandato"), ("POSITIVO", "Esito positivo"),
+        ("NEGATIVO", "Esito negativo"),
+    ]
+
+    tipo = models.CharField(max_length=14, choices=TIPO_CHOICES)
+    certificazione = models.ForeignKey(Certificazione, null=True, blank=True, on_delete=models.SET_NULL,
+                                       related_name="audit")
+    ente = models.CharField("Ente / cliente / autorità", max_length=200)
+    data_inizio = models.DateField("Dal")
+    data_fine = models.DateField("Al", null=True, blank=True)
+    en9100 = models.BooleanField("EN 9100", default=False)
+    iso45001 = models.BooleanField("ISO 45001", default=False)
+    iso14001 = models.BooleanField("ISO 14001", default=False)
+    iso27001 = models.BooleanField("ISO/IEC 27001", default=False)
+    pdr125 = models.BooleanField("UNI/PdR 125", default=False)
+    altre_norme = models.CharField("Altre norme o requisiti", max_length=200, blank=True, default="")
+    auditor = models.CharField("Auditor dell'ente", max_length=200, blank=True, default="")
+    ambito = models.TextField("Ambito, siti e processi verificati", blank=True, default="")
+    stato = models.CharField(max_length=12, choices=STATO_CHOICES, default=STATO_PIANIFICATO, db_index=True)
+    esito = models.CharField(max_length=22, choices=ESITO_CHOICES, blank=True, default="")
+    risposta_entro = models.DateField("Piano azioni da inviare all'ente entro", null=True, blank=True)
+    sintesi = models.TextField("Sintesi dell'esito e punti di forza", blank=True, default="")
+    rapporto = models.FileField(upload_to=upload_to_audit_esterno, storage=PrivateSistemaGestioneStorage(),
+                                blank=True)
+    rapporto_nome = models.CharField(max_length=200, blank=True, default="")
+    rapporto_sha256 = models.CharField(max_length=64, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data_inizio", "-pk"]
+        verbose_name = "Audit esterno"
+        verbose_name_plural = "Audit esterni"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} {self.ente} {self.data_inizio:%d/%m/%Y}"
+
+    def clean(self):
+        if self.data_fine and self.data_fine < self.data_inizio:
+            raise ValidationError({"data_fine": "La fine non può precedere l'inizio."})
+
+    @property
+    def norme_sigle(self) -> list[str]:
+        sigle = [etichetta for campo, etichetta in NORME_SGI if getattr(self, campo)]
+        if self.altre_norme.strip():
+            sigle.append(self.altre_norme.strip())
+        return sigle

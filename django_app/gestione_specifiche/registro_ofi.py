@@ -73,16 +73,20 @@ def registro_da_riga(riga, *, numero: int | None = None, oggi=None):
     )
     fixed = numero if numero is not None else riga.ofi
     if fixed:
-        return RegistroOFI.objects.create(numero=fixed, **fields)
-    # Audit S8: numero calcolato -> retry su collisione con un inserimento concorrente.
-    from core.numbering_retry import save_with_next_number
+        voce = RegistroOFI.objects.create(numero=fixed, **fields)
+    else:
+        # Audit S8: numero calcolato -> retry su collisione con un inserimento concorrente.
+        from core.numbering_retry import save_with_next_number
 
-    stato = {}
+        stato = {}
 
-    def assign():
-        stato["numero"] = prossimo_numero()
+        def assign():
+            stato["numero"] = prossimo_numero()
 
-    return save_with_next_number(assign, lambda: RegistroOFI.objects.create(numero=stato["numero"], **fields))
+        voce = save_with_next_number(
+            assign, lambda: RegistroOFI.objects.create(numero=stato["numero"], **fields))
+    registra_evento(voce, "CREATA", a=voce.get_fase_display(), nota=f"Dalla specifica {spec.codice} (MOD.133)")
+    return voce
 
 
 def conta_pdca(qs=None) -> dict:
@@ -142,6 +146,7 @@ def voci_da_sollecitare(oggi=None, *, giorni: int = 0):
     limite = oggi + timedelta(days=giorni)
     return list(
         RegistroOFI.objects
+        .select_related("responsabile")
         .filter(reminder_attivo=True, reminder_inviato=False,
                 data_richiesta__isnull=False, data_richiesta__lte=limite,
                 data_chiusura__isnull=True)
@@ -150,13 +155,18 @@ def voci_da_sollecitare(oggi=None, *, giorni: int = 0):
     )
 
 
-def _destinatari_reminder() -> list[str]:
-    """Destinatari del reminder OFI (best-effort, fail-safe)."""
+def _destinatari_reminder(voce=None) -> list[str]:
+    """Destinatari del reminder OFI (best-effort, fail-safe): il responsabile della
+    voce, se è un utente con email, più gli indirizzi configurati per la Qualità."""
     cfg = getattr(settings, "GESTIONE_SPECIFICHE", {}) or {}
     dest = cfg.get("OFI_REMINDER_EMAILS") or []
     if isinstance(dest, str):
         dest = [e.strip() for e in dest.replace(";", ",").split(",") if e.strip()]
-    return list(dest)
+    dest = list(dest)
+    email = (getattr(getattr(voce, "responsabile", None), "email", "") or "").strip()
+    if email and email.lower() not in {d.lower() for d in dest}:
+        dest.insert(0, email)
+    return dest
 
 
 from automazioni.managed_flows import event_flow
@@ -172,9 +182,9 @@ def invia_reminder_ofi(*, oggi=None, giorni: int = 0, dry_run: bool = False) -> 
     if dry_run:
         return {"candidate": len(voci), "inviati": 0, "dry_run": True}
 
-    destinatari = _destinatari_reminder()
     inviati = 0
     for v in voci:
+        destinatari = _destinatari_reminder(v)
         if destinatari:
             try:
                 from core.email_utils import send_hub_mail
@@ -185,11 +195,209 @@ def invia_reminder_ofi(*, oggi=None, giorni: int = 0, dry_run: bool = False) -> 
                            f"(richiesta chiusura entro il {v.data_richiesta:%d/%m/%Y})."),
                     facts=[("Processo", v.processo or "—"), ("Fase", v.get_fase_display()),
                            ("Priorità", v.get_priorita_display()),
-                           ("Owner", v.owner_processo or v.proprietario or "—")],
+                           ("Responsabile", _nome_utente(v.responsabile)
+                            or v.owner_processo or v.proprietario or "—")],
                 )
             except Exception:  # pragma: no cover - il reminder non deve bloccare
                 pass
         v.reminder_inviato = True
         v.save(update_fields=["reminder_inviato", "updated_at"])
+        registra_evento(v, "SOLLECITO", nota=", ".join(destinatari) if destinatari else "nessun destinatario")
         inviati += 1
     return {"candidate": len(voci), "inviati": inviati, "dry_run": False}
+
+
+# --- Cronologia, avanzamento PDCA e cruscotto --------------------------------
+
+def _nome_utente(user) -> str:
+    if user is None:
+        return ""
+    return (user.get_full_name() or user.get_username() or "").strip()
+
+
+def registra_evento(voce, tipo: str, *, utente=None, da: str = "", a: str = "", nota: str = ""):
+    """Aggiunge un evento alla cronologia della voce (unico punto di scrittura)."""
+    from .models import RegistroOFIEvento
+    if utente is not None and not getattr(utente, "is_authenticated", False):
+        utente = None
+    return RegistroOFIEvento.objects.create(
+        voce=voce, tipo=tipo, utente=utente, da=str(da or "")[:150], a=str(a or "")[:150], nota=nota or "")
+
+
+def fotografia(voce) -> dict:
+    """Valori tracciati in cronologia, letti prima di una modifica."""
+    return {"fase": voce.fase, "data_richiesta": voce.data_richiesta, "responsabile_id": voce.responsabile_id}
+
+
+def _fmt_data(d) -> str:
+    return d.strftime("%d/%m/%Y") if d else "—"
+
+
+def registra_modifiche(prima: dict, voce, utente) -> None:
+    """Confronta la fotografia ``prima`` con la voce salvata e scrive gli eventi."""
+    from .models import RegistroOFI, RegistroOFIEvento as E
+    fasi = dict(RegistroOFI.FASE_CHOICES)
+    cambiato = False
+    if prima["fase"] != voce.fase:
+        registra_evento(voce, E.TIPO_FASE, utente=utente, da=fasi.get(prima["fase"], prima["fase"]),
+                        a=fasi.get(voce.fase, voce.fase), nota="Dal modulo di modifica")
+        cambiato = True
+    if prima["data_richiesta"] != voce.data_richiesta:
+        registra_evento(voce, E.TIPO_SCADENZA, utente=utente, da=_fmt_data(prima["data_richiesta"]),
+                        a=_fmt_data(voce.data_richiesta))
+        cambiato = True
+    if prima["responsabile_id"] != voce.responsabile_id:
+        from django.contrib.auth import get_user_model
+        precedente = get_user_model().objects.filter(pk=prima["responsabile_id"]).first()
+        registra_evento(voce, E.TIPO_RESPONSABILE, utente=utente, da=_nome_utente(precedente) or "—",
+                        a=_nome_utente(voce.responsabile) or "—")
+        cambiato = True
+    if not cambiato:
+        registra_evento(voce, E.TIPO_MODIFICA, utente=utente)
+
+
+def car_aperta(voce):
+    """Azione correttiva (MT CN 11) collegata e non ancora chiusa, se esiste."""
+    car = car_collegata(voce)
+    return car if car is not None and car.chiusa_il is None else None
+
+
+def car_collegata(voce):
+    """Azione correttiva (MT CN 11) collegata alla voce, aperta o chiusa; None se manca."""
+    from django.core.exceptions import ObjectDoesNotExist
+    try:
+        return voce.car_procedurale
+    except (ObjectDoesNotExist, AttributeError):  # nessuna CAR (o sistema_gestione non installata)
+        return None
+
+
+class AvanzamentoNonValido(Exception):
+    pass
+
+
+def avanza_fase(voce, *, utente, testo: str = "", oggi=None) -> str:
+    """Porta la voce alla fase successiva del PDCA.
+
+    Per lasciare una fase serve il testo di quella fase (PLAN, DO, CHECK, ACT): si
+    può scrivere qui o trovarlo già compilato. Una voce con CAR aperta non si chiude
+    dal registro: si chiude chiudendo la CAR. Ritorna la nuova fase.
+    """
+    from .models import RegistroOFI, RegistroOFIEvento as E
+    if voce.is_chiuso:
+        raise AvanzamentoNonValido("La voce è già chiusa.")
+    campo = voce.campo_fase_corrente
+    successiva = voce.fase_successiva
+    if not campo or not successiva:
+        raise AvanzamentoNonValido("Fase non riconosciuta.")
+    testo = (testo or "").strip()
+    if testo:
+        setattr(voce, campo, testo)
+    if not (getattr(voce, campo) or "").strip():
+        raise AvanzamentoNonValido(
+            f"Per chiudere la fase {voce.get_fase_display()} descrivi cosa è stato fatto.")
+    if successiva == RegistroOFI.FASE_CHIUSO and car_aperta(voce) is not None:
+        raise AvanzamentoNonValido(
+            "C'è un'azione correttiva aperta: la voce si chiude quando si chiude la CAR, "
+            "dopo la verifica di efficacia.")
+    prima = voce.get_fase_display()
+    voce.fase = successiva
+    campi = ["fase", campo, "updated_at"]
+    if successiva == RegistroOFI.FASE_CHIUSO:
+        voce.data_chiusura = oggi or timezone.localdate()
+        campi.append("data_chiusura")
+    voce.save(update_fields=campi)
+    registra_evento(voce, E.TIPO_FASE, utente=utente, da=prima, a=voce.get_fase_display(), nota=testo)
+    return successiva
+
+
+def riapri_non_efficace(voce, *, utente, motivo: str) -> None:
+    """Verifica non superata: la voce torna in PLAN con il motivo in cronologia."""
+    from .models import RegistroOFI, RegistroOFIEvento as E
+    motivo = (motivo or "").strip()
+    if not motivo:
+        raise AvanzamentoNonValido("Scrivi perché la verifica non è superata.")
+    if voce.fase not in (RegistroOFI.FASE_CHECK, RegistroOFI.FASE_ACT, RegistroOFI.FASE_CHIUSO):
+        raise AvanzamentoNonValido("Si riapre solo una voce in verifica, consolidamento o chiusa.")
+    prima = voce.get_fase_display()
+    voce.fase = RegistroOFI.FASE_PLAN
+    voce.data_chiusura = None
+    voce.save(update_fields=["fase", "data_chiusura", "updated_at"])
+    registra_evento(voce, E.TIPO_RIAPERTA, utente=utente, da=prima, a=voce.get_fase_display(), nota=motivo)
+
+
+def _mese(d) -> str:
+    return f"{d.year:04d}-{d.month:02d}"
+
+
+def cruscotto(qs=None, *, oggi=None) -> dict:
+    """Numeri del cruscotto del registro, calcolati in Python sulle voci filtrate.
+
+    Il registro ha al massimo poche migliaia di righe: un solo passaggio in memoria
+    evita GROUP BY che si comportano diversamente su SQLite e SQL Server.
+    """
+    from collections import Counter
+
+    from .models import RegistroOFI
+    oggi = oggi or timezone.localdate()
+    voci = list(qs if qs is not None else RegistroOFI.objects.all())
+    aperte = [v for v in voci if not v.is_chiuso]
+    chiuse = [v for v in voci if v.is_chiuso and v.data_chiusura]
+    anno_fa = oggi - timedelta(days=365)
+
+    fasce = [("Fino a 30 giorni", 0, 30), ("31-90 giorni", 31, 90), ("91-180 giorni", 91, 180),
+             ("Oltre 180 giorni", 181, None)]
+    anzianita = [{"etichetta": etichetta,
+                  "n": sum(1 for v in aperte if v.giorni_aperta >= da and (a is None or v.giorni_aperta <= a))}
+                 for etichetta, da, a in fasce]
+
+    chiuse_anno = [v for v in chiuse if v.data_chiusura >= anno_fa]
+    con_scadenza = [v for v in chiuse_anno if v.data_richiesta]
+    in_tempo = sum(1 for v in con_scadenza if v.data_chiusura <= v.data_richiesta)
+
+    norme = Counter()
+    for v in aperte:
+        for sigla in v.norme_sigle:
+            norme[sigla] += 1
+
+    # Ultimi 12 mesi, dal più vecchio: voci aperte e chiuse in ciascun mese.
+    mesi = []
+    y, m = oggi.year, oggi.month
+    for _ in range(12):
+        mesi.append(f"{y:04d}-{m:02d}")
+        y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+    mesi.reverse()
+    aperte_mese = Counter(_mese(v.data_apertura) for v in voci if v.data_apertura)
+    chiuse_mese = Counter(_mese(v.data_chiusura) for v in chiuse)
+    andamento = [{"mese": k, "etichetta": f"{k[5:]}/{k[2:4]}", "aperte": aperte_mese.get(k, 0),
+                  "chiuse": chiuse_mese.get(k, 0)} for k in mesi]
+    massimo = max([1] + [max(r["aperte"], r["chiuse"]) for r in andamento])
+    for r in andamento:
+        r["h_aperte"] = round(r["aperte"] / massimo * 100)
+        r["h_chiuse"] = round(r["chiuse"] / massimo * 100)
+
+    ricorrenti = Counter((v.processo or "").strip() for v in voci
+                         if v.data_apertura and v.data_apertura >= anno_fa and (v.processo or "").strip())
+
+    def top(counter, n=10):
+        return [{"nome": k, "n": c} for k, c in counter.most_common(n)]
+
+    return {
+        "totale": len(voci),
+        "aperte": len(aperte),
+        "nc_aperte": sum(1 for v in aperte if v.tipo == RegistroOFI.TIPO_NC),
+        "scadute": sum(1 for v in aperte if v.is_scaduto),
+        "senza_responsabile": sum(1 for v in aperte if v.responsabile_id is None),
+        "senza_scadenza": sum(1 for v in aperte if v.data_richiesta is None),
+        "per_fase": [{"chiave": key, "nome": label, "n": sum(1 for v in aperte if v.fase == key)}
+                     for key, label in RegistroOFI.FASE_CHOICES if key != RegistroOFI.FASE_CHIUSO],
+        "anzianita": anzianita,
+        "chiuse_anno": len(chiuse_anno),
+        "giorni_medi_chiusura": (round(sum(v.giorni_aperta for v in chiuse_anno) / len(chiuse_anno))
+                                 if chiuse_anno else None),
+        "pct_in_tempo": round(in_tempo / len(con_scadenza) * 100) if con_scadenza else None,
+        "per_processo": top(Counter((v.processo or "").strip() or "—" for v in aperte)),
+        "per_fonte": top(Counter((v.fonte or "").strip() or "—" for v in aperte)),
+        "per_norma": top(norme),
+        "ricorrenti": [r for r in top(ricorrenti, 20) if r["n"] >= 3],
+        "andamento": andamento,
+    }
