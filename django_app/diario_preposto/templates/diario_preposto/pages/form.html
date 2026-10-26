@@ -218,8 +218,8 @@ function showFileNames(input) {
 }
 
 {% if action == "modifica" and segnalazione %}
-function deleteAllegato(id, btn) {
-  if (!confirm('Rimuovere questo allegato?')) return;
+async function deleteAllegato(id, btn) {
+  if (!(await hubConfirm('Rimuovere questo allegato?'))) return;
   var form = new FormData();
   form.append('allegato_id', id);
   form.append('csrfmiddlewaretoken', '{{ csrf_token }}');

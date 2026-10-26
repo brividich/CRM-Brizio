@@ -110,7 +110,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="entry_id" value="{{ entry.id }}">
                     <button class="btn btn-secondary btn-sm" type="submit" name="action" value="toggle">{% if entry.is_active %}Disattiva{% else %}Attiva{% endif %}</button>
-                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="delete" onclick="return confirm('Eliminare questa FAQ AI?');">Elimina</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="delete" data-hub-confirm="Eliminare questa FAQ AI?">Elimina</button>
                   </form>
                 </td>
               </tr>

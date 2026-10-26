@@ -1096,7 +1096,7 @@ body.theme-dark .btn-icon.danger:hover{background:rgba(229,62,62,.16)}
     // Delete button
     const delBtn = e.target.closest(".delete-btn");
     if (delBtn) {
-      if (!window.confirm("Eliminare questo pulsante? Verranno rimossi anche i permessi associati.")) return;
+      if (!(await hubConfirm("Eliminare questo pulsante? Verranno rimossi anche i permessi associati."))) return;
       const id  = delBtn.dataset.id;
       const row = delBtn.closest(".pulsante-row");
       if (row) row.classList.add("saving");
@@ -1143,7 +1143,7 @@ body.theme-dark .btn-icon.danger:hover{background:rgba(229,62,62,.16)}
   // ── Crea modulo da catalogo (card proposta) ───────────────────────────────
   window.createModuleFromCatalog = async function (btn) {
     const moduloKey = btn.dataset.moduleKey;
-    if (!window.confirm("Creare i pulsanti mancanti per \"" + moduloKey + "\" e inizializzare i permessi per tutti i ruoli?")) return;
+    if (!(await hubConfirm("Creare i pulsanti mancanti per \"" + moduloKey + "\" e inizializzare i permessi per tutti i ruoli?"))) return;
     btn.disabled = true;
     try {
       setStatus("Creazione modulo in corso…", false);

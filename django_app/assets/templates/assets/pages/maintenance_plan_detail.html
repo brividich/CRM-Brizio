@@ -104,7 +104,7 @@
                 <td class="md-right md-nowrap">
                   <a class="btn btn-sm btn-secondary" href="{% url 'assets:maintenance_assignment_edit' plan.pk assignment.pk %}">Modifica</a>
                   <form method="post" action="{% url 'assets:maintenance_assignment_delete' plan.pk assignment.pk %}" style="display:inline"
-                        onsubmit="return confirm('Rimuovere questa assegnazione? Se ha storico verra disattivata, non cancellata.');">
+                        data-hub-confirm="Rimuovere questa assegnazione? Se ha storico verra disattivata, non cancellata.">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-danger">Rimuovi</button>
                   </form>

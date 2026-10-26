@@ -1204,7 +1204,7 @@
     });
 
     btnReset.addEventListener('click', async function () {
-      if (!confirm('Ripristinare il logo di default?')) return;
+      if (!(await hubConfirm('Ripristinare il logo di default?'))) return;
       btnReset.disabled = true;
       try {
         const r = await fetch('/api/anomalie/config/logo/reset', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
@@ -1274,7 +1274,7 @@
     }
 
     btnReset.addEventListener('click', async function () {
-      if (!confirm('Ripristinare il template di default? Il template personalizzato verrà eliminato.')) return;
+      if (!(await hubConfirm('Ripristinare il template di default? Il template personalizzato verrà eliminato.'))) return;
       btnReset.disabled = true;
       try {
         const fd = new FormData();

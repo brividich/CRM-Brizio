@@ -191,12 +191,12 @@ async function updateCategory(id, fields){
   if(res.ok){ location.reload(); } else { fail(res); }
 }
 async function deleteCategory(id, name){
-  if(!confirm('Eliminare la categoria "'+name+'" e tutte le sue voci?')) return;
+  if(!(await hubConfirm('Eliminare la categoria "'+name+'" e tutte le sue voci?'))) return;
   const res = await postJson("{% url 'admin_portale:api_hub_category_delete' %}", {id});
   if(res.ok){ location.reload(); } else { fail(res); }
 }
 async function deleteLink(id){
-  if(!confirm('Eliminare questa voce?')) return;
+  if(!(await hubConfirm('Eliminare questa voce?'))) return;
   const res = await postJson("{% url 'admin_portale:api_hub_link_delete' %}", {id});
   if(res.ok){ location.reload(); } else { fail(res); }
 }

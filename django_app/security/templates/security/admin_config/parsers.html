@@ -70,7 +70,7 @@
                   <button class="sec-button" type="submit">{% if row.enabled %}Disattiva{% else %}Attiva{% endif %}</button>
                 </form>
               {% else %}
-                <form method="post" class="sec-inline" onsubmit="return confirm('Eliminare la configurazione di {{ row.name|escapejs }}?');">{% csrf_token %}
+                <form method="post" class="sec-inline" data-hub-confirm="Eliminare la configurazione di {{ row.name }}?">{% csrf_token %}
                   <input type="hidden" name="action" value="delete-orphan"><input type="hidden" name="object_id" value="{{ row.config.pk }}">
                   <button class="sec-button" type="submit">Elimina</button>
                 </form>

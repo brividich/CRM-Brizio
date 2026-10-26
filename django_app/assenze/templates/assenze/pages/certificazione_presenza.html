@@ -299,7 +299,7 @@ body.theme-dark .cp-toggle-slider::before{background:var(--surface)}
                     <td data-label="Azioni">
                       <div class="cp-table-actions">
                         <a class="cp-mini-btn cp-mini-edit" href="?edit={{ r.pk }}#cp-form">Modifica</a>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('Eliminare questa certificazione?')">
+                        <form method="POST" style="display:inline;" data-hub-confirm="Eliminare questa certificazione?">
                           {% csrf_token %}
                           <input type="hidden" name="action" value="delete">
                           <input type="hidden" name="pk" value="{{ r.pk }}">

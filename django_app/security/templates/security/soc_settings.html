@@ -93,7 +93,7 @@
   {% if wg.configurato %}
   <div class="sec-actions" style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
     <form method="post" action="{% url 'security:watchguard_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="prova" class="sec-button">Prova la connessione</button></form>
-    <form method="post" action="{% url 'security:watchguard_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="cancella" class="sec-button" onclick="return confirm('Cancellare le credenziali API WatchGuard? Le letture si fermano.');">Cancella le credenziali</button></form>
+    <form method="post" action="{% url 'security:watchguard_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="cancella" class="sec-button" data-hub-confirm="Cancellare le credenziali API WatchGuard? Le letture si fermano.">Cancella le credenziali</button></form>
   </div>
   {% endif %}
   {% else %}
@@ -123,7 +123,7 @@
   {% if veeam_cred.configurato %}
   <div class="sec-actions" style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
     <form method="post" action="{% url 'security:veeam_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="prova" class="sec-button">Prova la connessione</button></form>
-    {% if veeam_cred.fonte == "portale" %}<form method="post" action="{% url 'security:veeam_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="cancella" class="sec-button" onclick="return confirm('Cancellare le credenziali API Veeam? La lettura si ferma.');">Cancella le credenziali</button></form>{% endif %}
+    {% if veeam_cred.fonte == "portale" %}<form method="post" action="{% url 'security:veeam_credenziali' %}">{% csrf_token %}<button type="submit" name="azione" value="cancella" class="sec-button" data-hub-confirm="Cancellare le credenziali API Veeam? La lettura si ferma.">Cancella le credenziali</button></form>{% endif %}
   </div>
   {% endif %}
   {% else %}

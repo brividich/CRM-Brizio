@@ -246,7 +246,7 @@ async function doBackup(btn) {
 }
 
 async function doCleanup(btn) {
-  if (!confirm('Confermi la pulizia dei dati? Verranno eliminati sessioni scadute, log vecchi e notifiche lette.')) return;
+  if (!(await hubConfirm('Confermi la pulizia dei dati? Verranno eliminati sessioni scadute, log vecchi e notifiche lette.'))) return;
   const orig = btn.innerHTML;
   setLoading(btn, true, orig);
   try {
@@ -257,7 +257,7 @@ async function doCleanup(btn) {
 }
 
 async function doOptimize(btn) {
-  if (!confirm('Confermi l\'ottimizzazione? L\'operazione può richiedere alcuni minuti.')) return;
+  if (!(await hubConfirm('Confermi l\'ottimizzazione? L\'operazione può richiedere alcuni minuti.'))) return;
   const orig = btn.innerHTML;
   setLoading(btn, true, orig);
   try {
@@ -270,7 +270,7 @@ async function doOptimize(btn) {
 async function doRestore(btn) {
   const sel = document.getElementById('restoreSelect');
   if (!sel?.value) { alert('Seleziona un backup da ripristinare.'); return; }
-  if (!confirm(`ATTENZIONE: il database corrente verrà sovrascritto con "${sel.value}".\n\nContinuare?`)) return;
+  if (!(await hubConfirm(`ATTENZIONE: il database corrente verrà sovrascritto con "${sel.value}".\n\nContinuare?`))) return;
   const orig = btn.innerHTML;
   setLoading(btn, true, orig);
   try {

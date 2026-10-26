@@ -17,7 +17,7 @@
   {% if macchina_id or anno or solo_cali %}<a class="plain" href="?tipo={{ tipo }}">Togli filtri</a>{% endif %}
 </form></section>
 
-<form method="post" id="lg-form" onsubmit="return confirm('Eliminare le ' + this.querySelectorAll('input[name=lettura]:checked').length + ' letture selezionate? L\'operazione non si annulla.')">{% csrf_token %}
+<form method="post" id="lg-form" data-hub-confirm="Eliminare le letture selezionate? L’operazione non si annulla." onchange="var n=this.querySelectorAll('input[name=lettura]:checked').length;this.setAttribute('data-hub-confirm','Eliminare '+(n===1?'la lettura selezionata':'le '+n+' letture selezionate')+'? L’operazione non si annulla.')">{% csrf_token %}
 <input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="next" value="{{ qui }}">
 <section class="panel">
   <div class="row lg-bulk"><strong>{{ righe|length }} lettur{{ righe|length|pluralize:"a,e" }}</strong>{% if con_cali %} <span class="pill danger">{{ con_cali }} con calo</span>{% endif %}<div class="spacer"></div><span class="muted" id="lg-sel">0 selezionate</span><button class="btn ghost danger" type="submit" id="lg-elimina" disabled>Elimina selezionate</button></div>

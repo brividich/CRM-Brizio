@@ -7,7 +7,7 @@
 {% endif %}
 <a class="btn" href="{% url 'attrezzature:edit' attrezzatura.pk %}">Modifica</a>
 {% if can_delete_attrezzature %}
-<form method="post" action="{% url 'attrezzature:delete' attrezzatura.pk %}" onsubmit="return confirm('Eliminare definitivamente questa attrezzatura? Operazione non reversibile.');">
+<form method="post" action="{% url 'attrezzature:delete' attrezzatura.pk %}" data-hub-confirm="Eliminare definitivamente questa attrezzatura? Operazione non reversibile.">
   {% csrf_token %}
   <button class="btn danger" type="submit">Elimina</button>
 </form>

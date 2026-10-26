@@ -275,7 +275,7 @@ code{font-family:var(--font-mono,ui-monospace,Consolas,monospace);font-size:12px
         {% if macchine_collector %}<div class="mc-checks">{% for r in macchine_collector %}<label><input type="checkbox" name="macchine" value="{{ r.asset_id }}"{% if r.asset_id in c.consentite_ids %} checked{% endif %}> {{ r.nome_collector }} · {{ r.asset.name }}</label>{% endfor %}</div>{% endif %}
         <div class="mc-actions">
           <button class="btn btn-primary" name="azione" value="collector_salva">Salva</button>
-          <button class="btn btn-secondary" name="azione" value="collector_token" onclick="return confirm('Generare un token nuovo? Quello in uso smette subito di funzionare.');">Nuovo token</button>
+          <button class="btn btn-secondary" name="azione" value="collector_token" data-hub-confirm="Generare un token nuovo? Quello in uso smette subito di funzionare.">Nuovo token</button>
           <button class="btn btn-secondary" name="azione" value="{% if c.is_active %}collector_disattiva{% else %}collector_riattiva{% endif %}">{% if c.is_active %}Disattiva{% else %}Riattiva{% endif %}</button>
         </div>
       </form>

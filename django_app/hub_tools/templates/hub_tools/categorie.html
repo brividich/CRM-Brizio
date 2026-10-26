@@ -150,7 +150,7 @@ body.theme-dark .cat-icon{background:rgba(139,92,246,.2)}
       {% endif %}
       <div class="cat-actions">
         <button class="btn-sm btn-edit" onclick="openEditModal({{ cat.id }}, '{{ cat.label|escapejs }}', '{{ cat.icon|escapejs }}', '{{ cat.topbar_color|escapejs }}', {{ cat.order }})">Modifica</button>
-        <form method="post" style="margin:0" onsubmit="return confirm('Eliminare la categoria \'{{ cat.label|escapejs }}\'?')">
+        <form method="post" style="margin:0" data-hub-confirm="Eliminare la categoria '{{ cat.label }}'?">
           {% csrf_token %}
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="id" value="{{ cat.id }}">

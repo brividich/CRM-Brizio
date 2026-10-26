@@ -16,7 +16,7 @@
     <td>{% if s.owner_id == request.user.id %}Tu{% else %}{{ s.owner.get_full_name|default:s.owner.get_username }}{% endif %}</td>
     <td>{% if s.frequenza %}{{ s.get_frequenza_display }} · {{ s.get_formato_display }}{% if s.prossimo_invio %}<div class="rp-muted">prossimo {{ s.prossimo_invio|date:"d/m/Y H:i" }}</div>{% endif %}{% else %}—{% endif %}</td>
     <td class="rp-muted">{{ s.ultimo_esito|default:"—" }}</td>
-    <td>{% if s.owner_id == request.user.id %}<form method="post" action="{% url 'assets:report_catalog_delete' s.pk %}" onsubmit="return confirm('Eliminare il report salvato?')">{% csrf_token %}<button class="rp-button secondary" type="submit">Elimina</button></form>{% endif %}</td>
+    <td>{% if s.owner_id == request.user.id %}<form method="post" action="{% url 'assets:report_catalog_delete' s.pk %}" data-hub-confirm="Eliminare il report salvato?">{% csrf_token %}<button class="rp-button secondary" type="submit">Elimina</button></form>{% endif %}</td>
   </tr>{% endfor %}
   </tbody></table></div>
 </section>

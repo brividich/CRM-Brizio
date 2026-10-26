@@ -18,7 +18,7 @@
     <a class="sec-button" href="{% url 'security:pc_copertura' %}">Reimposta</a>
   </form>
   {% if can_manage and n_proposte %}
-    <form method="post" style="margin-top:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" onclick="return confirm('Collegare all’asset proposto tutti i {{ n_proposte }} dispositivi con proposta univoca (IP o nome)?');">Conferma le {{ n_proposte }} proposte di collegamento all'asset</button></form>
+    <form method="post" style="margin-top:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" data-hub-confirm="Collegare all’asset proposto tutti i {{ n_proposte }} dispositivi con proposta univoca (IP o nome)?">Conferma le {{ n_proposte }} proposte di collegamento all'asset</button></form>
   {% endif %}
   <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC o server visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune, {{ collegati }} collegati a un asset del registro. Backup e vulnerabilità sono del dispositivo: si vedono sulla sua riga, il dettaglio nella sua scheda. In cima chi ha backup ko, problemi Intune o CVE gravi.</p>
 </section>

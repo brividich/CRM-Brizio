@@ -237,7 +237,7 @@ body.theme-dark .method-badge.email{background:rgba(56,161,105,.18);color:#86efa
 const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 
 async function toggle2fa(userId, username) {
-  if (!confirm('Confermi toggle 2FA per ' + username + '?')) return;
+  if (!(await hubConfirm('Confermi toggle 2FA per ' + username + '?'))) return;
   const r = await fetch(`{% url 'admin_portale:api_twofa_user_toggle' 0 %}`.replace('/0/', '/' + userId + '/'), {
     method: 'POST',
     headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
@@ -247,7 +247,7 @@ async function toggle2fa(userId, username) {
 }
 
 async function reset2fa(userId, username) {
-  if (!confirm('Reimposta il 2FA per ' + username + '? L\'utente dovrà riconfigurare l\'app al prossimo accesso.')) return;
+  if (!(await hubConfirm('Reimposta il 2FA per ' + username + '? L\'utente dovrà riconfigurare l\'app al prossimo accesso.'))) return;
   const r = await fetch(`{% url 'admin_portale:api_twofa_user_reset' 0 %}`.replace('/0/', '/' + userId + '/'), {
     method: 'POST',
     headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},

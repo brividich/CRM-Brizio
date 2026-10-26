@@ -6,7 +6,7 @@
 .hub-confirm-box{padding:20px 22px 16px;border-top:4px solid var(--primary-mid,#2f5f89)}
 .hub-confirm-pericolo .hub-confirm-box{border-top-color:var(--danger,#e53e3e)}
 .hub-confirm-titolo{margin:0;font-size:16px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
-.hub-confirm-testo{margin:8px 0 0;font-size:14px;line-height:1.45;color:var(--text-mid,#4a5568);overflow-wrap:anywhere}
+.hub-confirm-testo{margin:8px 0 0;font-size:14px;line-height:1.45;white-space:pre-line;color:var(--text-mid,#4a5568);overflow-wrap:anywhere}
 .hub-confirm-testo[hidden]{display:none}
 .hub-confirm-azioni{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:18px}
 .hub-confirm-azioni button{min-height:38px;padding:8px 16px;border-radius:8px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}

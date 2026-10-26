@@ -137,7 +137,7 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
             </form>
           {% endif %}
           {% if utente_obj.id != current_legacy_user_id %}
-            <form method="post" action="{% url 'admin_portale:utente_delete' utente_obj.id %}" class="inline-form" onsubmit="return confirm('Eliminare definitivamente questo utente? Verranno rimossi anche profilo Django, override e collegamenti locali.');">
+            <form method="post" action="{% url 'admin_portale:utente_delete' utente_obj.id %}" class="inline-form" data-hub-confirm="Eliminare definitivamente questo utente? Verranno rimossi anche profilo Django, override e collegamenti locali.">
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'admin_portale:utenti_list' %}">
               <button class="btn btn-danger btn-sm" type="submit">Elimina utente</button>
@@ -868,7 +868,7 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
     const resetBtn = document.getElementById("btn-reset-overrides");
     if (resetBtn) {
       resetBtn.addEventListener("click", async function () {
-        if (!confirm("Rimuovere tutti gli override personali per questo utente? Verranno usati solo i permessi del ruolo.")) return;
+        if (!(await hubConfirm("Rimuovere tutti gli override personali per questo utente? Verranno usati solo i permessi del ruolo."))) return;
         const statusEl = document.getElementById("scheda-status");
         clearStatus(statusEl);
         const keys = Object.keys(overrides);
@@ -946,7 +946,7 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
       reset: "Vuoi riproporre il wizard di primo accesso a questo utente?\nAl prossimo login vedrà nuovamente il wizard.",
       skip:  "Vuoi esentare l'utente dal wizard? Non vedrà più il wizard di primo accesso."
     };
-    if (!confirm(confirms[action] || "Confermi?")) return;
+    if (!(await hubConfirm(confirms[action] || "Confermi?"))) return;
 
     var csrfToken = document.querySelector("[name=csrfmiddlewaretoken]");
     var csrf = csrfToken ? csrfToken.value : "";

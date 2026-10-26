@@ -855,7 +855,7 @@ body.theme-dark .eb-btn.success:hover{background:rgba(56,161,105,.18)}
   // â”€â”€ reset layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function resetLayout() {
     const templateName = boardCfg.template_name || "template iniziale";
-    if (!confirm(`Ripristinare la scheda al ${templateName}?`)) return;
+    if (!(await hubConfirm(`Ripristinare la scheda al ${templateName}?`))) return;
     setStatus("Ripristino template in corso...");
     try {
       const resp = await fetch("{% url 'api_employee_board_reset' %}", {

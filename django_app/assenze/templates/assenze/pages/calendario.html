@@ -820,7 +820,7 @@
         }
         const item = selectedEvent();
         if (!item || item.id === null || item.id === undefined) return;
-        if (!window.confirm("Confermi eliminazione del record?")) return;
+        if (!(await hubConfirm("Confermi eliminazione del record?"))) return;
         modalMessageEl.textContent = "Eliminazione...";
         const resp = await fetch(endpoints.del, {
           method: "POST",

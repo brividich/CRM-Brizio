@@ -59,7 +59,7 @@
   </div>
 </section>
 {% if can_delete_attrezzature %}
-<form method="post" action="{% url 'attrezzature:bulk_delete' %}" onsubmit="return confirm('Eliminare definitivamente le attrezzature selezionate? Operazione non reversibile.');">
+<form method="post" action="{% url 'attrezzature:bulk_delete' %}" data-hub-confirm="Eliminare definitivamente le attrezzature selezionate? Operazione non reversibile.">
   {% csrf_token %}
   <div class="at-bulk-bar">
     <strong>Azioni admin</strong>

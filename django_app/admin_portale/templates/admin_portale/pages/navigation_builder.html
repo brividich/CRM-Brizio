@@ -1262,8 +1262,8 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
           });
 
           var resetBtn2=document.getElementById("nb-nav-ov-reset");
-          if(resetBtn2) resetBtn2.addEventListener("click",function(){
-            if(!confirm("Rimuovere tutti gli override navigazione per questo utente?")) return;
+          if(resetBtn2) resetBtn2.addEventListener("click",async function(){
+            if(!(await hubConfirm("Rimuovere tutti gli override navigazione per questo utente?"))) return;
             postJson2(CLEAR_URL_NB,{}).then(function(d){
               if(d.ok){ setStatus2("Override azzerati ("+d.deleted+" record).",true); location.reload(); }
               else setStatus2("Errore: "+(d.error||"?"),false);
@@ -1847,7 +1847,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
 
       // ── Import legacy (force) ──
       document.getElementById("bootstrap-legacy-force-btn")?.addEventListener("click", async function () {
-        if (!confirm("Sei sicuro?\n\nQuesta azione ELIMINA tutte le voci esistenti e le ricrea dal legacy.\nPubblica prima uno snapshot se vuoi poter tornare indietro.")) return;
+        if (!(await hubConfirm("Sei sicuro?\n\nQuesta azione ELIMINA tutte le voci esistenti e le ricrea dal legacy.\nPubblica prima uno snapshot se vuoi poter tornare indietro."))) return;
         try {
           await postJson(urls.bootstrapLegacy, { force: true });
           setStatus("Sovrascrittura da legacy completata. Ricarico la pagina.", false);
@@ -1868,7 +1868,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
             await postJson(urls.update, rowPayload(row));
             setStatus("Voce salvata.", false);
           } else if (target.classList.contains("nav-delete")) {
-            if (!confirm("Eliminare definitivamente questa voce di navigazione?")) return;
+            if (!(await hubConfirm("Eliminare definitivamente questa voce di navigazione?"))) return;
             await postJson(urls.del, { id: parseInt(row.dataset.id || "0", 10) || null });
             setStatus("Voce eliminata. Ricarico la pagina.", false);
             window.location.reload();
@@ -1895,7 +1895,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
         try {
           const snapshotId = document.getElementById("restore-snapshot-id")?.value || "";
           if (!snapshotId) throw new Error("Seleziona uno snapshot.");
-          if (!confirm("Ripristinare questo snapshot?\n\nLa configurazione corrente sarà sostituita completamente.")) return;
+          if (!(await hubConfirm("Ripristinare questo snapshot?\n\nLa configurazione corrente sarà sostituita completamente."))) return;
           await postJson(urls.restore, { snapshot_id: snapshotId });
           setStatus("Snapshot ripristinato. Ricarico la pagina.", false);
           window.location.reload();
@@ -1944,7 +1944,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
 
       // ── Clona/Rimuovi card dalla vista visuale ──
       async function deleteVisualCard(id, cardEl) {
-        if (!confirm("Rimuovere definitivamente questa voce di navigazione?")) return;
+        if (!(await hubConfirm("Rimuovere definitivamente questa voce di navigazione?"))) return;
         try {
           await postJson(urls.del, { id: id });
           const laneEl = cardEl.closest(".js-nav-lane");
@@ -2075,7 +2075,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
             await postJson(urls.redUpsert, rowPayload(row));
             setStatus("Redirect salvato.", false);
           } else if (target.classList.contains("redirect-delete")) {
-            if (!confirm("Eliminare questo redirect legacy?")) return;
+            if (!(await hubConfirm("Eliminare questo redirect legacy?"))) return;
             await postJson(urls.redDelete, { id: parseInt(row.dataset.id || "0", 10) || null });
             setStatus("Redirect eliminato. Ricarico la pagina.", false);
             window.location.reload();

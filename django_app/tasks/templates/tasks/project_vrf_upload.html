@@ -118,7 +118,7 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="not_required">
             <input type="hidden" name="next" value="{{ next_url }}">
-            <button type="submit" class="btn btn-secondary btn-sm" onclick="return confirm('Confermi che il documento VRF non è richiesto per questo kickoff?')">Non richiesto per questo kickoff</button>
+            <button type="submit" class="btn btn-secondary btn-sm" data-hub-confirm="Confermi che il documento VRF non è richiesto per questo kickoff?">Non richiesto per questo kickoff</button>
           </form>
         </div>
       </div>

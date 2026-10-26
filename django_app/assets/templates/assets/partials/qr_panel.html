@@ -30,7 +30,7 @@
             <input type="hidden" name="next" value="" data-aq-next>
             {% if qr_public_active %}
               <button type="submit" name="azione" value="revoca" class="aq-btn">Disattiva link pubblico</button>
-              <button type="submit" name="azione" value="rigenera" class="aq-btn aq-btn--danger" onclick="return confirm('Rigenerare il link? Le etichette già stampate smetteranno di funzionare.')">Rigenera link</button>
+              <button type="submit" name="azione" value="rigenera" class="aq-btn aq-btn--danger" data-hub-confirm="Rigenerare il link? Le etichette già stampate smetteranno di funzionare.">Rigenera link</button>
             {% else %}
               <button type="submit" name="azione" value="abilita" class="aq-btn aq-btn--primary">{% if qr_has_token %}Riattiva link pubblico{% else %}Abilita link pubblico{% endif %}</button>
             {% endif %}

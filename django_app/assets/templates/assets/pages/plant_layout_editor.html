@@ -246,7 +246,7 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
         <span class="plx-dirty" id="plx-dirty">Nessuna modifica.</span>
         <div class="plx-actions">
           {% if selected_layout and not create_new %}
-          <form method="post" onsubmit="return confirm('Eliminare questa planimetria con tutti i reparti e le posizioni delle macchine?');">
+          <form method="post" data-hub-confirm="Eliminare questa planimetria con tutti i reparti e le posizioni delle macchine?">
             {% csrf_token %}
             <input type="hidden" name="action" value="delete_layout">
             <input type="hidden" name="layout_id" value="{{ selected_layout.id }}">

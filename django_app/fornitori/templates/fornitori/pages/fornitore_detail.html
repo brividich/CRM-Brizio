@@ -170,7 +170,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
       <form method="post" action="{% url 'fornitori:fornitore_toggle_active' fornitore.pk %}" style="display:inline;">
         {% csrf_token %}
         <button class="ana-btn {% if fornitore.is_active %}ana-btn-danger{% else %}ana-btn-ghost{% endif %}"
-                type="submit" onclick="return confirm('Confermi?')">
+                type="submit" data-hub-confirm="Confermi?">
           {% if fornitore.is_active %}Disattiva{% else %}Riattiva{% endif %}
         </button>
       </form>
@@ -267,7 +267,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
               </div>
             </div>
             <form method="post" action="{% url 'fornitori:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
-              <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">Elimina</button>
+              <button class="ana-btn ana-btn-danger ana-btn-sm" data-hub-confirm="Eliminare?" type="submit">Elimina</button>
             </form>
           </div>
           {% endfor %}
@@ -302,7 +302,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
                   <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.comunicazione %}★{% else %}☆{% endif %}{% endfor %}</span></td>
                   <td><strong>{{ v.media }}/5</strong></td>
                   <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ v.note|default:"—" }}</td>
-                  <td><form method="post" action="{% url 'fornitori:fornitore_valutazione_delete' fornitore.pk v.pk %}">{% csrf_token %}<button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">✕</button></form></td>
+                  <td><form method="post" action="{% url 'fornitori:fornitore_valutazione_delete' fornitore.pk v.pk %}">{% csrf_token %}<button class="ana-btn ana-btn-danger ana-btn-sm" data-hub-confirm="Eliminare?" type="submit">✕</button></form></td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -336,7 +336,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
               <div style="font-size:12px;color:#64748b;">{{ fa.get_tipo_display }} · Dal {{ fa.data_inizio|date:"d-m-Y" }}{% if fa.data_fine %} al {{ fa.data_fine|date:"d-m-Y" }}{% endif %}{% if fa.note %} · {{ fa.note }}{% endif %}</div>
             </div>
             <form method="post" action="{% url 'fornitori:fornitore_asset_remove' fornitore.pk fa.pk %}">{% csrf_token %}
-              <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Rimuovere?')" type="submit">Rimuovi</button>
+              <button class="ana-btn ana-btn-danger ana-btn-sm" data-hub-confirm="Rimuovere?" type="submit">Rimuovi</button>
             </form>
           </div>
           {% endfor %}

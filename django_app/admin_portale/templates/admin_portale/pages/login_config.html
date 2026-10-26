@@ -402,7 +402,7 @@ async function toggleBanner(id) {
 }
 
 async function deleteBanner(id, btn) {
-  if (!confirm("Eliminare questo banner?")) return;
+  if (!(await hubConfirm("Eliminare questo banner?"))) return;
   try {
     const res = await fetch("{% url 'admin_portale:api_login_banner_delete' %}", {
       method: "POST",

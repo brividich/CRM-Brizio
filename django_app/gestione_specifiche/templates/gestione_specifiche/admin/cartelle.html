@@ -58,7 +58,7 @@
             </td>
             <td>
               <div class="gs-acts">
-                <form method="post" action="{% url 'gestione_specifiche:admin_cartella_delete' m.pk %}" onsubmit="return confirm('Eliminare la mappatura di {{ m.cliente|escapejs }}?');">
+                <form method="post" action="{% url 'gestione_specifiche:admin_cartella_delete' m.pk %}" data-hub-confirm="Eliminare la mappatura di {{ m.cliente }}?">
                   {% csrf_token %}<button type="submit" class="gs-iconbtn is-danger" title="Elimina">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=15 %}</button>
                 </form>
               </div>
