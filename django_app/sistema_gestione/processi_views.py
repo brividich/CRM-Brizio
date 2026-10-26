@@ -73,12 +73,24 @@ def modifica(request, pk=None):
 def dettaglio(request, pk):
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _nega(request, "Non hai accesso al catalogo processi.")
-    processo = get_object_or_404(Processo.objects.select_related("responsabile"), pk=pk)
+    processo = get_object_or_404(Processo.objects.select_related("responsabile", "ruolo_owner"), pk=pk)
+    from .guida import link_pagina
+
+    checklist = list(processo.checklist.all())
+    norme = [(etichetta, getattr(processo, campo)) for etichetta, campo in (
+        ("EN 9100", "punti_9100"), ("ISO 45001", "punti_45001"), ("ISO 14001", "punti_14001"),
+        ("ISO/IEC 27001", "punti_27001"), ("UNI/PdR 125", "punti_pdr125"),
+    )]
     return render(request, "sistema_gestione/pages/processo_dettaglio.html", {
-        "processo": processo, "revisioni": processo.revisioni.select_related("autore"),
-        "audit_list": processo.audit.select_related("lead_auditor"),
+        "processo": processo, "revisioni": list(processo.revisioni.select_related("autore")),
+        "audit_list": list(processo.audit.select_related("lead_auditor")),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "persone_processo": _persone_processo(processo),
+        "checklist": checklist,
+        "n_domande_attive": sum(1 for d in checklist if d.attiva),
+        "norme": norme,
+        "n_mansioni": processo.mansioni_lavorative.count(),
+        "guida_url": link_pagina("sistema_gestione:processo_dettaglio"),
     })
 
 
