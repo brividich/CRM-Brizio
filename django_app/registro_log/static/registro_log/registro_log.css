@@ -1,0 +1,88 @@
+/* Registro accessi (SOC): solo i pezzi che il SOC non ha già. Token del tema del portale, chiaro e scuro. */
+.soc-module .rl-intro { margin: 0 0 12px; color: var(--text-mid); font-size: var(--fs-sm); max-width: 980px; }
+.soc-module .rl-stato { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; }
+.soc-module .rl-stato strong { font-size: 1.05rem; }
+.soc-module .rl-pallino { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 12px; background: var(--text-light); }
+.soc-module .rl-pallino.ok { background: var(--success); box-shadow: 0 0 0 4px var(--success-bg); }
+.soc-module .rl-pallino.ko { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-bg); }
+.soc-module .rl-pallino.attesa { background: var(--warning); box-shadow: 0 0 0 4px var(--warning-bg); }
+.soc-module .rl-passi { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.soc-module .rl-passi li { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); }
+.soc-module .rl-passi li.fatto { color: var(--text-mid); }
+.soc-module .rl-passi li.fatto span.rl-testo { text-decoration: line-through; }
+.soc-module .rl-spunta { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700;
+  font-size: 13px; border: 2px solid var(--border); color: var(--text-mid); flex: 0 0 22px; }
+.soc-module .rl-passi li.fatto .rl-spunta { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+.soc-module .rl-passi li a { margin-left: auto; white-space: nowrap; }
+.soc-module .rl-due { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); margin-top: 12px; }
+.soc-module .rl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.soc-module .rl-chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); text-decoration: none; font-size: var(--fs-sm); }
+.soc-module .rl-chip.attivo { background: var(--primary); border-color: var(--primary); color: #fff; }
+.soc-module .rl-filtri { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 10px; }
+.soc-module .rl-filtri select, .soc-module .rl-filtri input[type=search] { min-width: 160px; }
+.soc-module .rl-cat { display: inline-block; font-weight: 600; }
+.soc-module .rl-sub { display: block; color: var(--text-mid); font-size: var(--fs-sm); }
+.soc-module .rl-tag { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 700;
+  background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); margin-left: 4px; }
+.soc-module .rl-tag.ads { background: var(--info-bg, var(--bg)); color: var(--primary-mid); border-color: var(--primary-mid); }
+body.theme-dark .soc-module .rl-tag.ads { color: #93c5fd; border-color: #93c5fd; }
+.soc-module .rl-grezzo { max-height: 420px; overflow: auto; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.soc-module .rl-kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.soc-module .rl-kv dt { color: var(--text-mid); font-size: var(--fs-sm); }
+.soc-module .rl-kv dd { margin: 0; word-break: break-word; }
+.soc-module .rl-segnalazione { border-left: 4px solid var(--border); padding: 10px 12px; margin-bottom: 8px; background: var(--surface);
+  border-radius: 0 8px 8px 0; }
+.soc-module .rl-segnalazione.critical { border-left-color: var(--danger); }
+.soc-module .rl-segnalazione.high, .soc-module .rl-segnalazione.warning { border-left-color: var(--warning); }
+.soc-module .rl-segnalazione.info { border-left-color: var(--primary-mid); }
+.soc-module .rl-segnalazione summary { cursor: pointer; font-weight: 600; }
+.soc-module .rl-segnalazione p { margin: 4px 0 6px; color: var(--text-mid); font-size: var(--fs-sm); }
+.soc-module .rl-controllo { display: grid; grid-template-columns: 26px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.soc-module .rl-controllo:last-child { border-bottom: 0; }
+.soc-module .rl-ok { color: var(--success); font-weight: 700; }
+.soc-module .rl-ko { color: var(--danger); font-weight: 700; }
+.soc-module .rl-codice { font-family: Consolas, monospace; font-size: 12px; background: var(--bg); border: 1px solid var(--border);
+  padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; margin: 6px 0; }
+.soc-module .rl-form-inline { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.soc-module .rl-form-inline input[type=text] { min-width: 180px; }
+.soc-module details.rl-aiuto { margin-top: 8px; }
+.soc-module details.rl-aiuto summary { cursor: pointer; color: var(--primary-mid); font-weight: 600; }
+body.theme-dark .soc-module details.rl-aiuto summary { color: #93c5fd; }
+@media (max-width: 900px) { .soc-module .rl-due { grid-template-columns: 1fr; } }
+/* Moduli: gruppi con titolo, campi in griglia allineati in alto */
+.soc-module .rl-gruppo { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 14px; margin: 0 0 12px; }
+.soc-module .rl-gruppo legend { padding: 0 6px; font-weight: 700; font-size: var(--fs-sm); color: var(--text-mid); text-transform: uppercase; letter-spacing: .3px; }
+.soc-module .rl-griglia { display: grid; gap: 12px 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); align-items: start; }
+.soc-module .rl-campo { display: grid; gap: 5px; min-width: 0; }
+.soc-module .rl-campo.largo { grid-column: 1 / -1; }
+.soc-module .rl-campo > label { color: var(--text-mid); font-size: var(--fs-sm); font-weight: 600; }
+.soc-module .rl-campo input:not([type=checkbox]), .soc-module .rl-campo select, .soc-module .rl-campo textarea { width: 100%; box-sizing: border-box; }
+.soc-module .rl-campo small { color: var(--text-light); font-size: var(--fs-sm); }
+.soc-module .rl-campo-check { display: grid; grid-template-columns: 20px 1fr; gap: 4px 8px; align-items: center; }
+.soc-module .rl-campo-check input { width: 18px; height: 18px; min-height: 0; margin: 0; }
+.soc-module .rl-campo-check > label { color: var(--text); font-size: var(--fs-body, 14px); font-weight: 600; }
+.soc-module .rl-campo-check small, .soc-module .rl-campo-check .errorlist { grid-column: 2; }
+.soc-module .rl-campo .errorlist { margin: 0; padding: 0; list-style: none; color: var(--danger); font-size: var(--fs-sm); }
+.soc-module .rl-campo.errore input, .soc-module .rl-campo.errore select { border-color: var(--danger); }
+.soc-module .rl-azioni-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.soc-module .rl-due > * { min-width: 0; }
+.soc-module .rl-due .sec-table td { overflow-wrap: anywhere; }
+
+/* Grafico delle righe archiviate: una barra per giorno */
+.soc-module .rl-grafico { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 6px; align-items: end; height: 120px; }
+.soc-module .rl-barra { display: grid; grid-template-rows: 1fr auto; height: 100%; text-decoration: none; color: var(--text-mid); }
+.soc-module .rl-barra small { text-align: center; font-size: 11px; margin-top: 4px; }
+.soc-module .rl-barra-v { align-self: end; display: block; min-height: 0; border-radius: 4px 4px 0 0; background: var(--primary-mid); }
+.soc-module .rl-barra.rl-oggi .rl-barra-v { background: var(--accent, var(--primary-mid)); opacity: .7; }
+.soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--danger); }
+.soc-module .rl-barra.rl-manca .rl-barra-v { height: 100% !important; background: transparent; border: 1px dashed var(--border); border-bottom: 0; }
+.soc-module .rl-barra:hover .rl-barra-v { filter: brightness(1.15); }
+body.theme-dark .soc-module .rl-barra-v { background: #60a5fa; }
+body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--danger); }
+/* Pannello che si apre (nuova fonte) */
+.soc-module details.rl-pannello-apribile > summary { list-style: none; cursor: pointer; }
+.soc-module details.rl-pannello-apribile > summary::-webkit-details-marker { display: none; }
+.soc-module details.rl-pannello-apribile:not([open]) > summary { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }

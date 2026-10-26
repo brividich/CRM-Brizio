@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 87
+**Totale automazioni disponibili:** 90
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -503,6 +503,24 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 06:25
 - **Task eseguito:** `security.tasks.run_defender_vulnerabilita_task`
 - **Cosa fa:** SOC — CVE viste da Defender, accanto al calcolo del SOC nel pannello CVE. Gira solo con «Confronta le CVE con Defender» acceso in /soc/impostazioni/.
+
+### `registro_log_ad`
+
+- **Quando gira:** ogni 360 minuti
+- **Task eseguito:** `registro_log.tasks.run_ad_sync`
+- **Cosa fa:** Registro accessi — account di Active Directory via LDAP (sola lettura).
+
+### `registro_log_ciclo`
+
+- **Quando gira:** ogni 5 minuti
+- **Task eseguito:** `registro_log.tasks.run_ciclo`
+- **Cosa fa:** Registro accessi (log dei server): controllo del raccoglitore, fonti mute, sigilli giornalieri dell'archivio, copie, conservazione, invio al SOC. Spento = non fa nulla.
+
+### `registro_log_infra`
+
+- **Quando gira:** ogni 60 minuti
+- **Task eseguito:** `registro_log.tasks.run_infra`
+- **Cosa fa:** Registro accessi — stato di ESXi/vCenter e iLO/iDRAC (sola lettura, solo ultima fotografia).
 
 ### `scadenze_digest_personale`
 

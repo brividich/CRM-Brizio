@@ -87,6 +87,39 @@ def check_collector_cnc():
     return _result(name, STATUS_OK, f"Ultimo segnale {minuti} minuti fa, {b['macchine']} macchine in lettura.", details)
 
 
+def check_registro_log():
+    from monitoring.health import STATUS_FAIL, STATUS_OK, STATUS_SKIPPED, STATUS_WARN
+
+    name = "registro_log"
+    try:
+        from registro_log import ciclo
+        from registro_log.models import Impostazioni, SigilloGiorno
+    except Exception:
+        return _result(name, STATUS_SKIPPED, "Registro accessi non installato.")
+    if not Impostazioni.corrente().attivo:
+        return _result(name, STATUS_SKIPPED, "Registro accessi spento (SOC › Registro accessi › Fonti).")
+    b = ciclo.battito()
+    if b["at"] is None:
+        return _result(name, STATUS_FAIL, "Raccoglitore del Registro accessi mai partito: installare il task "
+                                          "RegistroLog (deployment/scripts/install-registro-log-task.ps1).")
+    minuti = int((timezone.now() - b["at"]).total_seconds() // 60)
+    details = {"ultimo_segnale": b["at"].isoformat(), "minuti_fa": minuti}
+    if not b["vivo"]:
+        return _result(name, STATUS_FAIL, f"Nessun segnale dal raccoglitore del Registro accessi da {minuti} minuti: "
+                                          "i log dei server non vengono archiviati.", details)
+    spazio = b["stato"].spazio_libero_mb if b["stato"] else None
+    if spazio is not None:
+        details["spazio_libero_mb"] = spazio
+        if spazio < 1024:
+            return _result(name, STATUS_FAIL, f"Disco dell'archivio del Registro accessi quasi pieno: {spazio} MB liberi.", details)
+    rotti = SigilloGiorno.objects.filter(verifica_ok=False).count()
+    if rotti:
+        return _result(name, STATUS_FAIL, f"Archivio del Registro accessi non integro in {rotti} giorni.", details)
+    if b["stato"] and b["stato"].errore:
+        return _result(name, STATUS_WARN, f"Raccoglitore acceso, ma: {b['stato'].errore}", details)
+    return _result(name, STATUS_OK, f"Ultimo segnale {minuti} minuti fa, {b['stato'].righe_oggi} righe archiviate oggi.", details)
+
+
 def check_qcluster_coda():
     from monitoring.health import STATUS_OK, STATUS_SKIPPED, STATUS_WARN
 

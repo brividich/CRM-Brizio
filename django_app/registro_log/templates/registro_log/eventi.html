@@ -1,0 +1,52 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Eventi del registro | Security Center AI{% endblock %}
+{% block page_title %}Eventi del registro accessi{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Gli eventi importanti estratti dall'archivio: accessi, accessi non riusciti, account e gruppi modificati, registri cancellati. Clic su una riga per vedere l'evento originale com'è stato ricevuto.</p>
+
+<nav class="rl-chips" aria-label="Viste rapide">
+  {% for codice, etichetta in rapidi %}<a class="rl-chip{% if vista == codice %} attivo{% endif %}" href="?giorni={{ giorni }}{% if codice %}&amp;vista={{ codice }}{% endif %}"{% if vista == codice %} aria-current="true"{% endif %}>{{ etichetta }}</a>{% endfor %}
+</nav>
+
+<form class="rl-filtri sec-form" method="get">
+  <input type="hidden" name="vista" value="{{ vista }}">
+  <p><label for="f-giorni">Periodo</label><select id="f-giorni" name="giorni">{% for v, l in periodi %}<option value="{{ v }}"{% if v == giorni %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="f-cat">Tipo di evento</label><select id="f-cat" name="categoria"><option value="">Tutti</option>{% for codice, info in categorie %}<option value="{{ codice }}"{% if codice == categoria %} selected{% endif %}>{{ info.0 }}</option>{% endfor %}</select></p>
+  <p><label for="f-fonte">Fonte</label><select id="f-fonte" name="fonte"><option value="">Tutte</option>{% for f in fonti %}<option value="{{ f.pk }}"{% if f.pk|stringformat:"s" == fonte %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}</select></p>
+  <p><label for="f-q">Cerca</label><input id="f-q" type="search" name="q" value="{{ q }}" placeholder="Account, server, IP…"></p>
+  <button class="sec-button sec-button-primary" type="submit">Filtra</button>
+  {% if q or categoria or fonte %}<a class="sec-button" href="?giorni={{ giorni }}&amp;vista={{ vista }}">Togli i filtri</a>{% endif %}
+  <a class="sec-button" href="?{{ parametri }}&amp;export=csv" style="margin-left:auto">Scarica CSV</a>
+</form>
+
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>{{ pagina.paginator.count }} event{{ pagina.paginator.count|pluralize:"o,i" }}</h2><span class="sec-muted sec-small">i più recenti per primi</span></div>
+  {% if pagina %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Quando</th><th>Cosa</th><th>Chi</th><th>Da dove</th><th>Sistema</th></tr></thead>
+    <tbody>{% for e in pagina %}<tr>
+      <td class="sec-nowrap"><a href="{% url 'security:registro_log_evento' e.pk %}">{{ e.quando|date:"d/m/Y H:i:s" }}</a></td>
+      <td>
+        {% if e.gravita == "high" %}<span class="sec-badge critical">Critico</span>{% elif e.esito == "ko" %}<span class="sec-badge warning">Non riuscito</span>{% endif %}
+        <span class="rl-cat">{{ e.descrizione }}</span>
+        {% if e.tipo_accesso %}<span class="rl-sub">{{ e.tipo_accesso }}</span>{% endif %}
+      </td>
+      <td>{% if e.account %}<a href="?giorni={{ giorni }}&amp;q={{ e.account|urlencode }}" title="Solo gli eventi di {{ e.account }}">{{ e.account }}</a>{% else %}—{% endif %}{% if e.privilegiato %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if e.fuori_orario and e.privilegiato %}<span class="rl-tag">fuori orario</span>{% endif %}
+        {% if e.account_target %}<span class="rl-sub">su {{ e.account_target }}</span>{% endif %}</td>
+      <td>{{ e.ip_origine|default:"—" }}</td>
+      <td>{% if e.host %}<a href="?giorni={{ giorni }}&amp;q={{ e.host|urlencode }}" title="Solo gli eventi di {{ e.host }}">{{ e.host }}</a>{% else %}{{ e.fonte_nome }}{% endif %}<span class="rl-sub">{{ e.fonte_nome }}</span></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% if pagina.has_other_pages %}
+  <nav class="rl-chips" style="margin-top:10px" aria-label="Pagine">
+    {% if pagina.has_previous %}<a class="rl-chip" href="?{{ parametri }}&amp;pagina={{ pagina.previous_page_number }}">&larr; Più recenti</a>{% endif %}
+    <span class="sec-muted sec-small">Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="rl-chip" href="?{{ parametri }}&amp;pagina={{ pagina.next_page_number }}">Meno recenti &rarr;</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+    <p class="sec-empty">Nessun evento con questi filtri. Gli accessi di rete degli utenti normali restano solo nell'archivio: qui compaiono gli accessi alla console, in desktop remoto e quelli degli amministratori.</p>
+  {% endif %}
+</section>
+{% endblock %}
