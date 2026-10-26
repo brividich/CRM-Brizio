@@ -164,7 +164,7 @@ class RegistroOFIForm(forms.ModelForm):
         fields = [
             "ref", "data_apertura", "tipo", "fonte", "modulo_origine",
             "norma_en9100", "norma_iso45001", "norma_iso14001", "norma_iso27001", "norma_pdr125", "rif_norma",
-            "processo", "opportunita",
+            "processo_sgi", "processo", "opportunita",
             "fase", "plan", "allegato_link", "do", "verifica", "act",
             "data_richiesta", "data_chiusura",
             "responsabile", "proprietario", "owner_processo", "priorita",
@@ -202,7 +202,8 @@ class RegistroOFIForm(forms.ModelForm):
         labels = {
             "ref": "REF", "data_apertura": "DATA", "tipo": "OFI / NC", "fonte": "Fonte (chi ha rilevato)",
             "modulo_origine": "Modulo di competenza",
-            "rif_norma": "REF NORMA", "processo": "PROCESSO", "opportunita": "OPPORTUNITY",
+            "rif_norma": "REF NORMA", "processo_sgi": "Processo del catalogo",
+            "processo": "PROCESSO (testo del MOD.174)", "opportunita": "OPPORTUNITY",
             "fase": "Fase PDCA (P/D/C/A)", "plan": "PLAN", "allegato_link": "Allegato / Link",
             "do": "DO", "verifica": "CHECK", "act": "ACT",
             "data_richiesta": "DATA REQUIRED", "data_chiusura": "DATA CLOSED",
@@ -222,7 +223,18 @@ class RegistroOFIForm(forms.ModelForm):
         resp = self.fields["responsabile"]
         resp.queryset = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
         resp.label_from_instance = lambda u: (u.get_full_name() or u.get_username())
-        resp.help_text = "Riceve i solleciti di scadenza e può far avanzare la voce nel PDCA."
+        resp.help_text = ("Riceve i solleciti di scadenza e può far avanzare la voce nel PDCA. "
+                          "Se lo lasci vuoto vale il responsabile del processo del catalogo.")
+        from sistema_gestione.models import Processo
+        proc = self.fields["processo_sgi"]
+        proc.queryset = Processo.objects.filter(attivo=True).order_by("codice")
+        if self.instance.pk and self.instance.processo_sgi_id:
+            # Una voce storica resta legata al suo processo anche se archiviato.
+            proc.queryset = Processo.objects.filter(attivo=True) | Processo.objects.filter(pk=self.instance.processo_sgi_id)
+            proc.queryset = proc.queryset.order_by("codice")
+        proc.empty_label = "— nessuno (solo testo) —"
+        proc.help_text = ("La voce compare nella scheda del processo e pesa sulla priorità dei suoi audit. "
+                          "Si ricava da sola dal testo quando indica un solo processo.")
 
 
     def clean_allegato_link(self):
@@ -234,6 +246,14 @@ class RegistroOFIForm(forms.ModelForm):
 
     def clean(self):
         dati = super().clean()
+        processo_sgi = dati.get("processo_sgi")
+        if processo_sgi is not None:
+            # Scelto il processo dal catalogo, il testo del MOD.174 lo segue (salvo testo scritto a mano).
+            if "processo_sgi" in self.changed_data and "processo" not in self.changed_data:
+                dati["processo"] = str(processo_sgi)[:200]
+            if (dati.get("responsabile") is None and processo_sgi.responsabile_id
+                    and processo_sgi.responsabile.is_active):
+                dati["responsabile"] = processo_sgi.responsabile
         fase, chiusura, apertura = dati.get("fase"), dati.get("data_chiusura"), dati.get("data_apertura")
         chiude = fase == RegistroOFI.FASE_CHIUSO
         if chiude and not chiusura:

@@ -132,8 +132,8 @@ _PAGINE_AUDIT = [
                 "indicatori, procedure, punti norma per ciascuna norma, frequenza audit e «Motivo della revisione».",
             ]),
             ("p", "Nella scheda processo la testata riporta revisione, responsabile, ruolo owner, criticità, frequenza "
-                  "audit ed enti; sotto, i contatori di mansioni collegate, domande attive, audit e revisioni. Il resto è "
-                  "diviso in schede:"),
+                  "audit ed enti; sotto, i contatori di mansioni collegate, domande attive, audit, OFI / NC aperte (rosso se "
+                  "c'è una NC, cliccabile) e revisioni. Il resto è diviso in schede:"),
             ("ul", [
                 "«Scheda»: scopo, ingressi, risultati attesi, rischi, indicatori, procedure, punti norma per ciascuna "
                 "norma («non applicabile» se vuoti) e fonte documentale. «Revisiona scheda» crea una nuova revisione "
@@ -145,6 +145,10 @@ _PAGINE_AUDIT = [
                 "«Proponi domande dalla scheda» le genera dai punti norma e le lascia in «bozza» finché non le apri con "
                 "«Verifica»; quelle «attive» si cambiano con «Revisiona». Solo le domande attive vengono copiate nei nuovi piani.",
                 "«Audit» elenca le verifiche del processo con data, lead auditor e stato.",
+                "«OFI / NC» elenca le voci del Registro OFI collegate al processo, aperte prima: numero, tipo, fase, "
+                "descrizione, responsabile («da indicare» se manca) e scadenza (in rosso se passata). «Nuova OFI / NC su "
+                "questo processo» apre l'inserimento con processo, responsabile e norme già proposti; «Apri nel registro "
+                "MOD.174» mostra le stesse voci nel registro.",
                 "«Revisioni» conserva le versioni precedenti della scheda: aprendo una revisione si vedono i dati salvati.",
             ]),
             ("nota", "Un audit conserva la copia della scheda processo usata nel piano: le revisioni successive del catalogo "
@@ -507,14 +511,25 @@ _PAGINE_OFI = [
         "titolo": "Il Registro OFI/NC (MOD.174)",
         "blocchi": [
             ("p", "Il registro unico delle opportunità di miglioramento e delle non conformità del SGI, fedele al MOD.174 - "
-                  "SGI Registro OFI_NC Rev.0, con il ciclo PLAN-DO-CHECK-ACT."),
+                  "SGI Registro OFI_NC Rev.0, con il ciclo PLAN-DO-CHECK-ACT. È un modulo a sé, «Registro OFI» nel menu "
+                  "Qualità, con il suo menu interno: Dashboard, Registro MOD.174, Le mie voci, + Nuovo inserimento, Guida."),
             ("p", "Le voci arrivano da più parti:"),
             ("ul", [
                 "dagli audit interni: ogni OFI o NC registrata in «Compila verifica» (fonte «Audit interno»);",
+                "dagli audit degli enti: ogni rilievo registrato nella scheda dell'audit esterno (fonte l'ente);",
                 "dalle specifiche cliente: le righe MOD.133 con impatto;",
-                "dagli audit esterni e da altre segnalazioni, con «Nuovo inserimento» (fonte per esempio DEKRA, cliente, INTERNO);",
+                "dalla scheda di un processo del catalogo, scheda «OFI / NC», «Nuova OFI / NC su questo processo»;",
+                "da altre segnalazioni, con «Nuovo inserimento» (fonte per esempio cliente, INTERNO);",
                 "dall'import del MOD.174 Excel già compilato.",
             ]),
+            ("p", "Ogni voce è legata a un processo del catalogo quando il «Processo/area» lo indica senza dubbi (codice, nome "
+                  "o «codice - nome»), oppure scegliendolo in «Processo del catalogo». Le voci dei rilievi degli audit interni "
+                  "prendono il processo della domanda di checklist, o l'unico processo dell'audit. Le voci collegate compaiono "
+                  "nella scheda del processo e pesano sulla priorità dei suoi audit."),
+            ("p", "Permessi: «Registro OFI - Consulta registro e dashboard» apre registro, dashboard completa ed export; «Registro "
+                  "OFI - Le mie voci», dato a tutti, apre solo le voci di cui si è responsabili; «Registro OFI - "
+                  "Inserisci/Modifica» crea e modifica le voci. Chi apriva il registro con il permesso delle specifiche lo apre "
+                  "ancora: il permesso nuovo è stato concesso agli stessi ruoli, utenti e gruppi."),
             ("def", [
                 ("Fonte", "chi ha rilevato la voce (nel modulo Excel è la colonna intestata «27001»: DEKRA, INTERNO…)."),
                 ("Norme", "9100, 45001, 14001, 27001 e PdR 125, più il REF NORMA con il paragrafo (es. 27002-7.2)."),
@@ -527,14 +542,20 @@ _PAGINE_OFI = [
     },
     {
         "id": "ofi-lista",
-        "titolo": "Pagina «Registro OFI / NC»",
+        "titolo": "Pagina «Registro MOD.174»",
         "blocchi": [
             ("ul", [
                 "Le tessere in alto mostrano il numero di voci e la percentuale di completamento (A/P).",
-                "Filtri: modulo d'origine (senza filtro è il registro unico), OFI/NC, fase, priorità, «Solo scaduti», "
-                "«Solo aperte» e «Le mie voci» (quelle di cui sei responsabile, con il numero di quelle ancora aperte). La "
-                "casella «Cerca» trova numero, processo, descrizione, PLAN, REF, norma, fonte e owner; «Cerca» applica.",
-                "«Cruscotto» apre i numeri del registro (vedi il capitolo «Cruscotto del registro»).",
+                "Filtri: OFI/NC, modulo d'origine (senza filtro è il registro unico), origine (Audit interni, Audit degli "
+                "enti, Specifiche / MOD.133, Inserite a mano), processo del catalogo (anche «Senza processo del catalogo»), "
+                "fase, priorità, «Solo scaduti», «Solo aperte» e «Le mie voci» (quelle di cui sei responsabile, con il "
+                "numero di quelle ancora aperte). La casella «Cerca» trova numero, processo, descrizione, PLAN, REF, norma, "
+                "fonte e owner; «Cerca» applica.",
+                "Dalla dashboard arrivano anche i filtri «In scadenza entro 30 giorni» e «Senza responsabile»: compaiono come "
+                "etichette con ✕ per toglierli.",
+                "«Dashboard» torna alla pagina iniziale del modulo.",
+                "Nella colonna PROCESSO il nome è un collegamento quando la voce è legata a un processo del catalogo: apre "
+                "la scheda del processo.",
                 "Sopra la tabella i contatori P, D, C, A, la percentuale A/P (verde se almeno 90%) e le voci scadute.",
                 "La colonna «STATO PDCA» mostra le quattro tappe con i colori del modulo: P azzurro, D rosso, C giallo, A verde; "
                 "la tappa in corso è cerchiata in arancio.",
@@ -551,7 +572,12 @@ _PAGINE_OFI = [
             ("p", "«Nuovo inserimento» (permesso «Registro OFI - Inserisci/Modifica»). Il numero viene assegnato dal portale."),
             ("ul", [
                 "Il primo campo è la scelta OFI o NC. Seguono REF, DATA, fonte, modulo di competenza, norme e REF NORMA, "
-                "processo e OPPORTUNITY.",
+                "«Processo del catalogo», «PROCESSO (testo del MOD.174)» e OPPORTUNITY.",
+                "Scegliendo il «Processo del catalogo» il testo PROCESSO si compila da solo e, se il «Responsabile (utente)» "
+                "è vuoto, diventa il responsabile del processo.",
+                "Da «Nuova OFI / NC su questo processo» nella scheda del processo il modulo arriva con processo, responsabile, "
+                "fonte INTERNO e norme del processo già proposti; «Annulla» riporta alla scheda del processo.",
+                "Dopo il salvataggio si apre la scheda della voce.",
                 "Il ciclo PDCA si compila man mano: fase, PLAN, Allegato/Link, DO, CHECK e ACT.",
                 "In «Allegato / Link» vanno solo indirizzi http(s):// o percorsi di rete \\\\server\\cartella.",
                 "Gestione: «Responsabile (utente)», DATA REQUIRED, DATA CLOSED, proprietario, OWNER, priorità e «Reminder "
@@ -575,8 +601,12 @@ _PAGINE_OFI = [
         "titolo": "Scheda della voce",
         "blocchi": [
             ("ul", [
-                "In alto tipo, numero, modulo d'origine e fase; per le voci da audit il collegamento al rilievo dell'audit.",
-                "«Azione correttiva MT CN 11» apre la CAR: per le NC va aperta di norma, per le OFI è facoltativa.",
+                "In alto tipo, numero, modulo d'origine e fase.",
+                "«Collegamenti»: «Da dove nasce» porta al rilievo dell'audit interno, all'audit dell'ente o alla specifica "
+                "(MOD.133) da cui viene la voce («Inserita a mano» se non viene da altri moduli); «Processo del catalogo» "
+                "apre la scheda del processo, oppure «Scegli il processo» se non è collegata; «Azione correttiva MT CN 11» "
+                "apre la CAR (aperta, chiusa o da aprire): per le NC va aperta di norma, per le OFI è facoltativa.",
+                "La scheda si apre a chi consulta il registro e al responsabile della voce; gli altri ricevono «accesso negato».",
                 "«Stato PDCA» mostra le tappe completate, quella in corso e quelle da fare.",
                 "Sotto lo stato, chi gestisce il registro e il responsabile della voce scrivono cosa è stato fatto nella fase "
                 "corrente e premono «Passa a …» (in Act il pulsante è «Chiudi la voce»). Senza testo la fase non si chiude. "
@@ -610,18 +640,41 @@ _PAGINE_OFI = [
     },
     {
         "id": "ofi-cruscotto",
-        "titolo": "Cruscotto del registro",
+        "titolo": "Dashboard del modulo",
         "blocchi": [
-            ("p", "Da «Cruscotto» nella pagina del registro. Il filtro modulo restringe tutti i numeri a un modulo d'origine."),
+            ("p", "È la pagina iniziale del Registro OFI (voce «Dashboard» del menu interno; il vecchio indirizzo del "
+                  "cruscotto porta qui). Il filtro modulo restringe tutti i numeri a un modulo d'origine."),
             ("ul", [
-                "Tessere: voci aperte, di cui non conformità, scadute, aperte senza responsabile, aperte senza scadenza, chiuse "
-                "negli ultimi 12 mesi, tempo medio di chiusura (giorni dall'apertura alla chiusura, voci chiuse negli ultimi "
-                "12 mesi) e percentuale di quelle chiuse entro la DATA REQUIRED. Le prime tre aprono l'elenco già filtrato.",
+                "«Il mio lavoro», per tutti: le voci aperte di cui sei responsabile, con fase, processo e scadenza (in rosso se "
+                "scaduta) e i contatori «scadute» ed «entro 30 giorni»; «Tutte le mie voci →» apre «Le mie voci».",
+                "Il resto è di chi consulta il registro. Tessere: voci aperte, di cui non conformità, scadute, in scadenza "
+                "entro 30 giorni, aperte senza responsabile, chiuse negli ultimi 12 mesi, tempo medio di chiusura (giorni "
+                "dall'apertura alla chiusura, voci chiuse negli ultimi 12 mesi) e percentuale di quelle chiuse entro la DATA "
+                "REQUIRED (verde da 90%). Le prime cinque aprono il registro già filtrato.",
+                "«Scadute», «In scadenza entro 30 giorni» e «Senza responsabile»: le prime 8 voci di ciascun elenco, con "
+                "«Tutte le … →» quando sono di più.",
+                "«Da dove arrivano le voci»: aperte e totali per origine (Audit interni, Audit degli enti, Specifiche / "
+                "MOD.133, Inserite a mano); ogni riquadro apre il registro filtrato.",
+                "«Voci aperte per processo del catalogo»: aperte, NC e scadute per processo, con il collegamento alla scheda "
+                "del processo e «Voci →» al registro filtrato; in alto il numero di voci aperte senza processo del catalogo.",
                 "Andamento: voci aperte e chiuse in ciascuno degli ultimi 12 mesi.",
-                "Aperte per fase PDCA, per anzianità (fino a 30 giorni, 31-90, 91-180, oltre 180), per processo, per fonte e "
-                "per norma.",
-                "Processi con rilievi ricorrenti: processi con 3 o più voci aperte negli ultimi 12 mesi, da guardare per una "
-                "causa comune.",
+                "Aperte per fase PDCA, per anzianità (fino a 30 giorni, 31-90, 91-180, oltre 180), per fonte e per norma.",
+                "Rilievi ricorrenti: processi con 3 o più voci aperte negli ultimi 12 mesi, da guardare per una causa comune.",
+                "«Attività recente»: gli ultimi 12 eventi delle cronologie (creazioni, cambi di fase, evidenze, solleciti).",
+            ]),
+        ],
+    },
+    {
+        "id": "ofi-mie",
+        "titolo": "Le mie voci",
+        "blocchi": [
+            ("p", "Le voci di cui sei «Responsabile (utente)», anche senza il permesso di consultare tutto il registro."),
+            ("ul", [
+                "«Aperte»: voce, PDCA (tappe fatte in verde, quella in corso in arancio), processo, descrizione, da dove nasce "
+                "e scadenza (in rosso se passata). Le scadenze più vicine sono in alto, le voci senza scadenza in fondo.",
+                "«Chiuse»: le voci già chiuse, dalla più recente.",
+                "Il numero apre la scheda: lì scrivi cosa hai fatto nella fase in corso, passi alla successiva e carichi le "
+                "evidenze.",
             ]),
         ],
     },
@@ -675,7 +728,7 @@ GUIDA_OFI = {
     "sottotitolo": "Come si registrano, seguono nel PDCA e chiudono le opportunità di miglioramento e le non conformità.",
     "sezioni": _PAGINE_OFI + [s for s in _PAGINE_AUDIT if s["id"] == "pagina-car"] + [_FAQ],
     "url_name": "registro_ofi:guida",
-    "indietro": ("registro_ofi:lista", "Registro OFI"),
+    "indietro": ("registro_ofi:home", "Registro OFI"),
 }
 
 # Rotta -> (guida, capitolo). Le pagine del registro puntano alla guida del registro,
@@ -719,6 +772,8 @@ PAGE_HELP = {
     "sistema_gestione:audit_cruscotto": ("audit", "pagina-cruscotto"),
     "sistema_gestione:procedura_kpi": ("audit", "pagina-kpi"),
     "sistema_gestione:audit_impostazioni": ("audit", "pagina-impostazioni"),
+    "registro_ofi:home": ("ofi", "ofi-cruscotto"),
+    "registro_ofi:mie": ("ofi", "ofi-mie"),
     "registro_ofi:lista": ("ofi", "ofi-lista"),
     "registro_ofi:nuovo": ("ofi", "ofi-inserimento"),
     "registro_ofi:modifica": ("ofi", "ofi-inserimento"),

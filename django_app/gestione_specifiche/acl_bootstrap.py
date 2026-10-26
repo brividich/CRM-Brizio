@@ -66,19 +66,8 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:azione_ofi_approva": PERM_APPROVA,
     "gestione_specifiche:riga_documento_add": PERM_COMPILA,
     "gestione_specifiche:riga_documento_delete": PERM_COMPILA,
-    # Registro OFI standalone (namespace registro_ofi, montato a /ofi-registro/).
-    "registro_ofi:lista": PERM_VIEW,
-    "registro_ofi:dettaglio": PERM_VIEW,
-    "registro_ofi:guida": PERM_VIEW,
-    "registro_ofi:nuovo": PERM_OFI_ADD,
-    "registro_ofi:modifica": PERM_OFI_ADD,
-    "registro_ofi:cruscotto": PERM_VIEW,
-    "registro_ofi:allegato_scarica": PERM_VIEW,
-    # Avanzamento, riapertura e allegati: anche il responsabile della voce, che può non
-    # avere ``registroofi.add``. La rotta richiede la lettura; la view verifica il resto.
-    "registro_ofi:avanza": PERM_VIEW,
-    "registro_ofi:riapri": PERM_VIEW,
-    "registro_ofi:allegato_carica": PERM_VIEW,
+    # Le rotte del Registro OFI (namespace registro_ofi) sono del modulo registro_ofi:
+    # binding in registro_ofi/acl_bootstrap.py.
     "gestione_specifiche:distribuzione_nuova": PERM_DISTRIBUISCI,
     "gestione_specifiche:scheda_storico": PERM_VIEW,
     "gestione_specifiche:storico_export_csv": PERM_VIEW,

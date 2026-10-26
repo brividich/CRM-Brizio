@@ -209,8 +209,9 @@ class RegistroViewTests(RegistroBase):
 
 class TopLevelUrlTests(TestCase):
     def test_lista_e_montata_al_top_level(self):
-        """La rotta OFI è /ofi-registro/, non /gestione-specifiche/ofi-registro/."""
-        self.assertEqual(reverse("registro_ofi:lista"), "/ofi-registro/")
+        """Il modulo è /ofi-registro/ (dashboard), il registro MOD.174 in /ofi-registro/elenco/."""
+        self.assertEqual(reverse("registro_ofi:home"), "/ofi-registro/")
+        self.assertEqual(reverse("registro_ofi:lista"), "/ofi-registro/elenco/")
         self.assertEqual(reverse("registro_ofi:nuovo"), "/ofi-registro/nuovo/")
 
 
@@ -529,8 +530,11 @@ class AllineamentoSgiTests(RegistroBase):
 
 class AclBindingTests(TestCase):
     def test_rotte_ofi_hanno_binding_canonico(self):
-        from gestione_specifiche import acl_bootstrap as B
-        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:guida"], B.PERM_VIEW)
-        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:lista"], B.PERM_VIEW)
-        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:nuovo"], B.PERM_OFI_ADD)
-        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:modifica"], B.PERM_OFI_ADD)
+        from gestione_specifiche import acl_bootstrap as GS
+        from registro_ofi import acl_bootstrap as B
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:guida"], B.PERM_OFI_MIE)
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:lista"], B.PERM_OFI_VIEW)
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:nuovo"], GS.PERM_OFI_ADD)
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:modifica"], GS.PERM_OFI_ADD)
+        # Le rotte del registro non sono più legate ai permessi delle specifiche.
+        self.assertFalse([r for r in GS._ROUTE_BINDINGS if r.startswith("registro_ofi:")])

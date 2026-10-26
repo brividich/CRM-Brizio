@@ -142,17 +142,18 @@ def _norm_processo(testo: str) -> str:
 
 
 def rilievi_esterni_per_processo(processi, oggi=None) -> dict[int, dict]:
-    """Rilievi degli enti (24 mesi) attribuiti ai processi del catalogo: il testo «Processo / area»
-    del rilievo coincide con il codice, il nome o «codice - nome» del processo."""
+    """Rilievi degli enti (24 mesi) attribuiti ai processi del catalogo: il processo scelto nella
+    voce del registro, altrimenti il testo «Processo / area» uguale a codice, nome o «codice - nome»."""
     from .audit_esterni import rilievi_esterni_recenti
 
     indice: dict[str, int] = {}
     for p in processi:
         for chiave in (p.codice, p.nome, str(p)):
             indice.setdefault(_norm_processo(chiave), p.pk)
+    validi = set(indice.values())
     out: dict[int, dict] = {}
     for r in rilievi_esterni_recenti(oggi):
-        pk = indice.get(_norm_processo(r["processo"]))
+        pk = r.get("processo_sgi") if r.get("processo_sgi") in validi else indice.get(_norm_processo(r["processo"]))
         if pk:
             conteggio = out.setdefault(pk, {"nc": 0, "altri": 0})
             conteggio["nc" if r["tipo"] == "NC" else "altri"] += 1
