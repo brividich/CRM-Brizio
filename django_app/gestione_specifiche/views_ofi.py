@@ -15,21 +15,31 @@ from __future__ import annotations
 
 from io import BytesIO
 
+import hashlib
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 
 from . import registro_ofi as reg
 from .acl_bootstrap import PERM_OFI_ADD
-from .forms import RegistroOFIForm
-from .models import RegistroOFI
+from .forms import RegistroOFIAllegatoForm, RegistroOFIForm
+from .models import RegistroOFI, RegistroOFIAllegato
+
+
+def _puo_gestire(request, voce) -> bool:
+    """Chi gestisce il registro, oppure il responsabile della voce."""
+    if request_has_permission_code(request, PERM_OFI_ADD):
+        return True
+    return voce.responsabile_id is not None and voce.responsabile_id == request.user.pk
 
 
 def _voci_filtrate(request):
@@ -40,8 +50,14 @@ def _voci_filtrate(request):
     tipo = (request.GET.get("tipo") or "").strip().upper()
     q = (request.GET.get("q") or "").strip()
     solo_scaduti = request.GET.get("scaduti") == "1"
+    solo_mie = request.GET.get("mie") == "1"
+    solo_aperte = request.GET.get("aperte") == "1"
 
-    qs = RegistroOFI.objects.all().select_related("content_type")
+    qs = RegistroOFI.objects.all().select_related("content_type", "responsabile")
+    if solo_mie:
+        qs = qs.filter(responsabile=request.user)
+    if solo_aperte:
+        qs = qs.exclude(fase=RegistroOFI.FASE_CHIUSO).filter(data_chiusura__isnull=True)
     if modulo:
         qs = qs.filter(modulo_origine=modulo)
     if tipo in dict(RegistroOFI.TIPO_CHOICES):
@@ -61,7 +77,7 @@ def _voci_filtrate(request):
     if solo_scaduti:
         voci = [v for v in voci if v.is_scaduto]
     return voci, {"fase": fase, "priorita": priorita, "modulo": modulo, "tipo": tipo, "q": q,
-                  "solo_scaduti": solo_scaduti}
+                  "solo_scaduti": solo_scaduti, "solo_mie": solo_mie, "solo_aperte": solo_aperte}
 
 
 # Intestazioni del MOD.174 Rev.0, nell'ordine del modulo (colonna «27001» = fonte del rilievo).
@@ -131,6 +147,8 @@ def lista(request):
         "counters": counters,
         "n_scaduti": sum(1 for v in base if v.is_scaduto),
         "fase": f["fase"], "priorita": f["priorita"], "solo_scaduti": f["solo_scaduti"],
+        "solo_mie": f["solo_mie"], "solo_aperte": f["solo_aperte"],
+        "n_mie": RegistroOFI.objects.filter(responsabile=request.user).exclude(fase=RegistroOFI.FASE_CHIUSO).count(),
         "tipo": f["tipo"], "q": f["q"], "TIPO_CHOICES": RegistroOFI.TIPO_CHOICES,
         "filtri_query": request.GET.urlencode(),
         "modulo": modulo, "modulo_label": reg.modulo_label(modulo) if modulo else "",
@@ -158,6 +176,7 @@ def nuovo(request):
                 voce.numero = reg.prossimo_numero()
 
             save_with_next_number(assign, voce.save)  # audit S8
+            reg.registra_evento(voce, "CREATA", utente=request.user, a=voce.get_fase_display())
             messages.success(request, f"OFI {voce.numero} creato.")
             return redirect("registro_ofi:lista")
     else:
@@ -174,9 +193,11 @@ def modifica(request, pk: int):
     """Modifica di una voce OFI (ACL ``registroofi.add``)."""
     voce = get_object_or_404(RegistroOFI.objects.select_for_update(), pk=pk)
     if request.method == "POST":
+        prima = reg.fotografia(voce)
         form = RegistroOFIForm(request.POST, instance=voce)
         if form.is_valid():
             form.save()
+            reg.registra_modifiche(prima, voce, request.user)
             messages.success(request, f"OFI {voce.numero} aggiornato.")
             return redirect("registro_ofi:lista")
     else:
@@ -198,8 +219,109 @@ def guida(request):
 def dettaglio(request, pk: int):
     """Scheda di sola lettura di una voce OFI, con le eventuali azioni collegate."""
     voce = get_object_or_404(
-        RegistroOFI.objects.select_related("content_type").prefetch_related("azioni"), pk=pk)
+        RegistroOFI.objects.select_related("content_type", "responsabile")
+        .prefetch_related("azioni", "allegati__caricato_da", "eventi__utente"), pk=pk)
+    car = reg.car_collegata(voce)
     return render(request, "registro_ofi/dettaglio.html", {
         "voce": voce,
+        "car": car,
+        "car_aperta": car is not None and car.chiusa_il is None,
         "can_add": request_has_permission_code(request, PERM_OFI_ADD),
+        "puo_gestire": _puo_gestire(request, voce),
+        "testo_fase": getattr(voce, voce.campo_fase_corrente, "") if voce.campo_fase_corrente else "",
+        "allegato_form": RegistroOFIAllegatoForm(),
+    })
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def avanza(request, pk: int):
+    """Chiude la fase corrente del PDCA e passa alla successiva (gestore o responsabile)."""
+    voce = get_object_or_404(RegistroOFI.objects.select_for_update(), pk=pk)
+    if not _puo_gestire(request, voce):
+        return HttpResponseForbidden("Solo chi gestisce il registro o il responsabile della voce.")
+    try:
+        nuova = reg.avanza_fase(voce, utente=request.user, testo=request.POST.get("testo", ""))
+    except reg.AvanzamentoNonValido as exc:
+        messages.error(request, str(exc))
+    else:
+        log_action(request, "registro_ofi_avanza", "gestione_specifiche", {"numero": voce.numero, "fase": nuova},
+                   oggetto=voce)
+        messages.success(request, f"Voce {voce.numero}: ora in fase «{voce.get_fase_display()}».")
+    return redirect("registro_ofi:dettaglio", pk=voce.pk)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def riapri(request, pk: int):
+    """Verifica non superata: la voce torna in PLAN con il motivo (gestore o responsabile)."""
+    voce = get_object_or_404(RegistroOFI.objects.select_for_update(), pk=pk)
+    if not _puo_gestire(request, voce):
+        return HttpResponseForbidden("Solo chi gestisce il registro o il responsabile della voce.")
+    try:
+        reg.riapri_non_efficace(voce, utente=request.user, motivo=request.POST.get("motivo", ""))
+    except reg.AvanzamentoNonValido as exc:
+        messages.error(request, str(exc))
+    else:
+        log_action(request, "registro_ofi_riapri", "gestione_specifiche", {"numero": voce.numero}, oggetto=voce)
+        messages.success(request, f"Voce {voce.numero} riaperta in PLAN.")
+    return redirect("registro_ofi:dettaglio", pk=voce.pk)
+
+
+@login_required
+@require_POST
+def allegato_carica(request, pk: int):
+    """Carica un'evidenza nello storage privato cifrato (gestore o responsabile)."""
+    voce = get_object_or_404(RegistroOFI, pk=pk)
+    if not _puo_gestire(request, voce):
+        return HttpResponseForbidden("Solo chi gestisce il registro o il responsabile della voce.")
+    form = RegistroOFIAllegatoForm(request.POST, request.FILES)
+    if not form.is_valid():
+        for errori in form.errors.values():
+            for e in errori:
+                messages.error(request, e)
+        return redirect("registro_ofi:dettaglio", pk=voce.pk)
+    caricato = form.cleaned_data["file"]
+    digest = hashlib.sha256()
+    for blocco in caricato.chunks():
+        digest.update(blocco)
+    caricato.seek(0)
+    allegato = RegistroOFIAllegato(
+        voce=voce, nome=caricato.name[:200], descrizione=form.cleaned_data.get("descrizione", ""),
+        sha256=digest.hexdigest(), dimensione=caricato.size, caricato_da=request.user)
+    allegato.file.save(caricato.name, caricato, save=False)
+    allegato.save()
+    reg.registra_evento(voce, "ALLEGATO", utente=request.user, a=allegato.nome, nota=allegato.descrizione)
+    log_action(request, "registro_ofi_allegato", "gestione_specifiche",
+               {"numero": voce.numero, "allegato": allegato.pk, "sha256": allegato.sha256}, oggetto=voce)
+    messages.success(request, f"Allegato «{allegato.nome}» caricato.")
+    return redirect("registro_ofi:dettaglio", pk=voce.pk)
+
+
+@login_required
+def allegato_scarica(request, pk: int, allegato_id: int):
+    """Download protetto di un'evidenza (chi può leggere il registro), con traccia."""
+    allegato = get_object_or_404(RegistroOFIAllegato.objects.select_related("voce"), pk=allegato_id, voce_id=pk)
+    try:
+        fh = allegato.file.open("rb")
+    except FileNotFoundError as exc:
+        raise Http404("File non trovato") from exc
+    log_action(request, "registro_ofi_allegato_download", "gestione_specifiche",
+               {"numero": allegato.voce.numero, "allegato": allegato.pk}, oggetto=allegato.voce)
+    return FileResponse(fh, as_attachment=True, filename=allegato.nome)
+
+
+@login_required
+def cruscotto(request):
+    """Cruscotto del registro: aperte, scadute, anzianità, tempi di chiusura, ricorrenze."""
+    modulo = (request.GET.get("modulo") or "").strip()
+    qs = RegistroOFI.objects.all()
+    if modulo:
+        qs = qs.filter(modulo_origine=modulo)
+    return render(request, "registro_ofi/cruscotto.html", {
+        "c": reg.cruscotto(qs),
+        "modulo": modulo, "modulo_label": reg.modulo_label(modulo) if modulo else "",
+        "moduli_opts": reg.moduli_presenti(),
     })

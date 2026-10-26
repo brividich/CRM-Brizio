@@ -38,6 +38,26 @@ body.theme-dark .ofi-dl dd{ color:var(--text); }
 .pdca-now .pdca-now-dot{ width:8px; height:8px; border-radius:50%; background:currentColor; }
 body.theme-dark .pdca-dot{ background:var(--surface,#0e1a2c); }
 body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
+
+/* ── Avanzamento, allegati e cronologia ───────────────────────────────── */
+.ofi-azione{ display:grid; gap:10px; }
+.ofi-azione textarea{ width:100%; min-height:90px; }
+.ofi-azione-riga{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+.ofi-nota{ font-size:12.5px; color:#6b7a90; }
+.ofi-avviso{ padding:10px 12px; border-radius:10px; background:#fff7ed; color:#9a3412; font-size:13px; }
+.ofi-riapri summary{ cursor:pointer; font-size:12.5px; font-weight:700; color:#b42318; margin-top:6px; }
+.ofi-allegati{ list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.ofi-allegati li{ display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; font-size:13px; }
+.ofi-crono{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+.ofi-crono li{ display:grid; grid-template-columns:130px 1fr; gap:4px 14px; font-size:13px; }
+.ofi-crono time{ font-family:var(--hub-mono,monospace); font-size:11.5px; color:#6b7a90; }
+.ofi-crono .ofi-crono-testo{ white-space:pre-wrap; color:#475569; }
+@media (max-width:640px){ .ofi-crono li{ grid-template-columns:1fr; } }
+body.theme-dark .ofi-nota{ color:var(--text-light); }
+body.theme-dark .ofi-avviso{ background:rgba(234,88,12,.14); color:#fdba74; }
+body.theme-dark .ofi-riapri summary{ color:#fca5a5; }
+body.theme-dark .ofi-crono time{ color:var(--text-light); }
+body.theme-dark .ofi-crono .ofi-crono-testo{ color:var(--text-light); }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .pdca-step::before{background:var(--surface-alt,#0f1b2d)}
@@ -93,6 +113,37 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
         </div>
         {% endfor %}
       </div>
+
+      {% if puo_gestire %}
+      <div class="ofi-azione" style="margin-top:14px;">
+        {% if not voce.is_chiuso %}
+          {% if voce.fase_successiva == "CHIUSO" and car_aperta %}
+          <div class="ofi-avviso">C'è un'azione correttiva aperta: la voce si chiude chiudendo la CAR, dopo la verifica di efficacia. <a href="{% url 'sistema_gestione:procedura_car' voce.pk %}">Apri la CAR</a></div>
+          {% else %}
+          <form method="post" action="{% url 'registro_ofi:avanza' voce.pk %}" class="ofi-azione">
+            {% csrf_token %}
+            <label class="ofi-nota" for="ofi-testo-fase">Cosa è stato fatto nella fase {{ voce.get_fase_display }}{% if testo_fase %} (già scritto: puoi lasciarlo così o aggiornarlo){% endif %}</label>
+            <textarea id="ofi-testo-fase" name="testo" rows="4">{{ testo_fase }}</textarea>
+            <div class="ofi-azione-riga">
+              <button type="submit" class="fmd-btn fmd-btn-primary">{% if voce.fase_successiva == "CHIUSO" %}Chiudi la voce{% else %}Passa a «{{ voce.fase_successiva_display }}»{% endif %}</button>
+              <span class="ofi-nota">Il passaggio resta nella cronologia con il tuo nome.</span>
+            </div>
+          </form>
+          {% endif %}
+        {% endif %}
+        {% if voce.fase == "CHECK" or voce.fase == "ACT" or voce.is_chiuso %}
+        <details class="ofi-riapri">
+          <summary>La verifica non è superata: riapri in PLAN</summary>
+          <form method="post" action="{% url 'registro_ofi:riapri' voce.pk %}" class="ofi-azione" style="margin-top:8px;">
+            {% csrf_token %}
+            <label class="ofi-nota" for="ofi-motivo">Perché l'azione non è stata efficace</label>
+            <textarea id="ofi-motivo" name="motivo" rows="3" required></textarea>
+            <div class="ofi-azione-riga"><button type="submit" class="fmd-btn fmd-btn-ghost" data-hub-confirm="La voce torna in PLAN. Continuare?">Riapri in PLAN</button></div>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
     </section>
 
     <section class="fmd-panel fmd-block">
@@ -122,6 +173,7 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Gestione e scadenza</div></div>
       <dl class="ofi-dl">
+        <dt>Responsabile</dt><dd>{% if voce.responsabile %}{{ voce.responsabile.get_full_name|default:voce.responsabile.username }}{% else %}— <span class="ofi-nota">(nessun utente: i solleciti vanno solo alla Qualità)</span>{% endif %}</dd>
         <dt>Owner di processo</dt><dd>{{ voce.owner_processo|default:"—" }}</dd>
         <dt>Proprietario</dt><dd>{{ voce.proprietario|default:"—" }}</dd>
         <dt>Priorità</dt><dd>{% if voce.priorita == "ALTA" %}<span class="fmd-badge fmd-b-red">Alta</span>{% elif voce.priorita == "MEDIA" %}<span class="fmd-badge fmd-b-orange">Media</span>{% else %}<span class="fmd-badge fmd-b-grey">Bassa</span>{% endif %}</dd>
@@ -129,6 +181,28 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
         <dt>Data chiusura</dt><dd>{{ voce.data_chiusura|date:"d/m/Y"|default:"—" }}</dd>
         <dt>Note</dt><dd>{{ voce.note|default:"—" }}</dd>
       </dl>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-download"/></svg>Evidenze <span class="fmd-count">{{ voce.allegati.all|length }}</span></div></div>
+      {% if voce.allegati.all %}
+      <ul class="ofi-allegati">
+        {% for al in voce.allegati.all %}
+        <li><a class="fmd-data-link" href="{% url 'registro_ofi:allegato_scarica' voce.pk al.pk %}">{{ al.nome }}</a>
+          {% if al.descrizione %}<span>{{ al.descrizione }}</span>{% endif %}
+          <span class="ofi-nota">{{ al.caricato_il|date:"d/m/Y H:i" }}{% if al.caricato_da %} · {{ al.caricato_da.get_full_name|default:al.caricato_da.username }}{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="ofi-nota">Nessuna evidenza caricata.</p>{% endif %}
+      {% if puo_gestire %}
+      <form method="post" enctype="multipart/form-data" action="{% url 'registro_ofi:allegato_carica' voce.pk %}" class="ofi-azione-riga" style="margin-top:12px;">
+        {% csrf_token %}
+        {{ allegato_form.file }}
+        <input type="text" name="descrizione" maxlength="250" placeholder="Descrizione (facoltativa)" aria-label="Descrizione dell'allegato">
+        <button type="submit" class="fmd-btn fmd-btn-ghost">Carica</button>
+        <span class="ofi-nota">PDF, immagini, Word o Excel. Il file è cifrato e si scarica solo da qui.</span>
+      </form>
+      {% endif %}
     </section>
 
     {% if voce.azioni.all %}
@@ -141,6 +215,20 @@ body.theme-dark .pdca-step.current .pdca-cap{color:#fdba74}
       </dl>
     </section>
     {% endif %}
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Cronologia</div></div>
+      {% if voce.eventi.all %}
+      <ul class="ofi-crono">
+        {% for ev in voce.eventi.all %}
+        <li><time datetime="{{ ev.quando|date:'c' }}">{{ ev.quando|date:"d/m/Y H:i" }}</time>
+          <div><strong>{{ ev.get_tipo_display }}</strong>{% if ev.da %}: {{ ev.da }} → {{ ev.a|default:"—" }}{% elif ev.a %}: {{ ev.a }}{% endif %}
+            <span class="ofi-nota">· {% if ev.utente %}{{ ev.utente.get_full_name|default:ev.utente.username }}{% else %}sistema{% endif %}</span>
+            {% if ev.nota %}<div class="ofi-crono-testo">{{ ev.nota }}</div>{% endif %}</div></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="ofi-nota">Nessun evento registrato. La cronologia parte dalle modifiche fatte da ora in poi.</p>{% endif %}
+    </section>
 
   </div>
 </div>

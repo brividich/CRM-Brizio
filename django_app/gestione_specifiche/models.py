@@ -439,6 +439,12 @@ class RegistroOFI(models.Model):
     priorita = models.CharField(max_length=6, choices=PRIORITA_CHOICES, default=PRIORITA_MEDIA)
     proprietario = models.CharField("Proprietario OFI", max_length=150, blank=True, default="")
     owner_processo = models.CharField("Owner di processo", max_length=150, blank=True, default="")
+    # Responsabile come utente del portale: riceve i solleciti, vede la voce in «Le mie voci»
+    # e può farla avanzare nel PDCA. I due campi di testo restano per lo storico del MOD.174.
+    responsabile = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="voci_ofi_responsabile", verbose_name="Responsabile (utente del portale)",
+    )
 
     data_richiesta = models.DateField("Data richiesta chiusura", null=True, blank=True)
     data_chiusura = models.DateField("Data chiusura", null=True, blank=True)
@@ -540,6 +546,89 @@ class RegistroOFI(models.Model):
             state = "done" if i < rank else ("current" if i == rank else "todo")
             steps.append({"key": key, "label": label, "letter": letter, "state": state})
         return steps
+
+    # --- Avanzamento guidato del PDCA ---------------------------------------
+    # Per lasciare una fase va scritto cosa si è fatto in quella fase.
+    _CAMPO_FASE = {FASE_PLAN: "plan", FASE_DO: "do", FASE_CHECK: "verifica", FASE_ACT: "act"}
+    _FASE_SUCCESSIVA = {FASE_PLAN: FASE_DO, FASE_DO: FASE_CHECK, FASE_CHECK: FASE_ACT, FASE_ACT: FASE_CHIUSO}
+
+    @property
+    def fase_successiva(self) -> str:
+        return self._FASE_SUCCESSIVA.get(self.fase, "")
+
+    @property
+    def fase_successiva_display(self) -> str:
+        return dict(self.FASE_CHOICES).get(self.fase_successiva, "")
+
+    @property
+    def campo_fase_corrente(self) -> str:
+        """Nome del campo di testo da compilare per chiudere la fase corrente."""
+        return self._CAMPO_FASE.get(self.fase, "")
+
+    @property
+    def giorni_aperta(self) -> int:
+        fine = self.data_chiusura or timezone.localdate()
+        return max((fine - self.data_apertura).days, 0) if self.data_apertura else 0
+
+
+class RegistroOFIEvento(models.Model):
+    """Cronologia di una voce del registro: chi ha fatto cosa e quando.
+
+    Si scrive solo da ``registro_ofi.registra_evento``; non si modifica né si cancella.
+    """
+
+    TIPO_CREATA = "CREATA"
+    TIPO_FASE = "FASE"
+    TIPO_SCADENZA = "SCADENZA"
+    TIPO_RESPONSABILE = "RESPONSABILE"
+    TIPO_MODIFICA = "MODIFICA"
+    TIPO_ALLEGATO = "ALLEGATO"
+    TIPO_RIAPERTA = "RIAPERTA"
+    TIPO_SOLLECITO = "SOLLECITO"
+    TIPO_CHOICES = [
+        (TIPO_CREATA, "Creata"), (TIPO_FASE, "Cambio fase"), (TIPO_SCADENZA, "Cambio scadenza"),
+        (TIPO_RESPONSABILE, "Cambio responsabile"), (TIPO_MODIFICA, "Modifica"),
+        (TIPO_ALLEGATO, "Allegato"), (TIPO_RIAPERTA, "Riaperta (non efficace)"),
+        (TIPO_SOLLECITO, "Sollecito inviato"),
+    ]
+
+    voce = models.ForeignKey(RegistroOFI, on_delete=models.CASCADE, related_name="eventi")
+    quando = models.DateTimeField(auto_now_add=True, db_index=True)
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name="+")
+    tipo = models.CharField(max_length=14, choices=TIPO_CHOICES)
+    da = models.CharField(max_length=150, blank=True, default="")
+    a = models.CharField(max_length=150, blank=True, default="")
+    nota = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-quando", "-pk"]
+        verbose_name = "Evento registro OFI"
+        verbose_name_plural = "Eventi registro OFI"
+
+
+def upload_to_ofi(instance, filename: str) -> str:
+    from django.utils.text import get_valid_filename
+    return f"registro_ofi/{instance.voce_id}/{get_valid_filename(filename)}"
+
+
+class RegistroOFIAllegato(models.Model):
+    """Evidenza allegata a una voce (storage privato cifrato, download solo dalla view protetta)."""
+
+    voce = models.ForeignKey(RegistroOFI, on_delete=models.PROTECT, related_name="allegati")
+    file = models.FileField(upload_to=upload_to_ofi, storage=specifica_allegato_storage)
+    nome = models.CharField(max_length=200)
+    descrizione = models.CharField(max_length=250, blank=True, default="")
+    sha256 = models.CharField(max_length=64)
+    dimensione = models.PositiveIntegerField()
+    caricato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                    related_name="+")
+    caricato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-caricato_il", "-pk"]
+        verbose_name = "Allegato registro OFI"
+        verbose_name_plural = "Allegati registro OFI"
 
 
 class AzioneOFI(models.Model):

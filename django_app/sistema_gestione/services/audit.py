@@ -466,6 +466,8 @@ def sincronizza_ofi(esito: AuditEsito):
                 raise
     esito.ofi = voce
     esito.save(update_fields=["ofi", "updated_at"])
+    from gestione_specifiche.registro_ofi import registra_evento
+    registra_evento(voce, "CREATA", a=voce.get_fase_display(), nota=f"Dal rilievo dell'audit {audit.numero}")
     return voce
 
 

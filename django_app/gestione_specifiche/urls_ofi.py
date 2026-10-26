@@ -16,4 +16,9 @@ urlpatterns = [
     path("guida/", views_ofi.guida, name="guida"),
     path("<int:pk>/", views_ofi.dettaglio, name="dettaglio"),
     path("<int:pk>/modifica/", views_ofi.modifica, name="modifica"),
+    path("cruscotto/", views_ofi.cruscotto, name="cruscotto"),
+    path("<int:pk>/avanza/", views_ofi.avanza, name="avanza"),
+    path("<int:pk>/riapri/", views_ofi.riapri, name="riapri"),
+    path("<int:pk>/allegati/", views_ofi.allegato_carica, name="allegato_carica"),
+    path("<int:pk>/allegati/<int:allegato_id>/", views_ofi.allegato_scarica, name="allegato_scarica"),
 ]

@@ -153,6 +153,9 @@ def car(request, pk):
                 registro.data_chiusura = timezone.localdate()
                 registro.verifica = oggetto.evidenza_efficacia
                 registro.save(update_fields=["fase", "data_chiusura", "verifica", "updated_at"])
+                from gestione_specifiche.registro_ofi import registra_evento
+                registra_evento(registro, "FASE", utente=request.user, a=registro.get_fase_display(),
+                                nota="Chiusa con la CAR dopo la verifica di efficacia")
                 for esito in AuditEsito.objects.filter(ofi=registro):
                     AuditVerificaEfficacia.objects.create(esito=esito, risultato="EFFICACE", metodo="Verifica indipendente CAR MT CN 11", evidenza=oggetto.evidenza_efficacia, data_verifica=timezone.localdate(), verificato_da=request.user)
                 log_action(request, "car_efficacia_verificata", MODULE, {}, oggetto=registro)
