@@ -42,6 +42,7 @@ SCHEDULE_DI_LETTURA = {
     "rete_windows": ("rete_windows_sync", None),
     "registro_ad": ("registro_log_ad", None),
     "registro_infra": ("registro_log_infra", None),
+    "cpe_ai": ("security_ai_cpe", None),
 }
 
 
