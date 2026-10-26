@@ -1,0 +1,58 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Indagine | Security Center AI{% endblock %}
+{% block page_title %}Indagine del {{ ind.aperta_il|date:"d/m/Y" }}{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro"><a href="{% url 'security:registro_log_indagini' %}">&larr; Tutte le indagini</a></p>
+
+<section class="sec-panel">
+  <dl class="rl-kv">
+    <dt>Motivo</dt><dd>{{ ind.motivo|linebreaksbr }}</dd>
+    {% if ind.riferimento %}<dt>Riferimento</dt><dd>{{ ind.riferimento }}</dd>{% endif %}
+    <dt>Persone</dt><dd>{{ ind.account|default:"tutti gli account" }}</dd>
+    <dt>Periodo</dt><dd>dal {{ ind.dal|date:"d/m/Y" }} al {{ ind.al|date:"d/m/Y" }}{% if ind.filtro_testo %} · contiene «{{ ind.filtro_testo }}»{% endif %}</dd>
+    <dt>Aperta da</dt><dd>{{ ind.aperta_da }} il {{ ind.aperta_il|date:"d/m/Y H:i" }}</dd>
+    {% if not ind.aperta %}<dt>Chiusa</dt><dd>{{ ind.chiusa_da }} il {{ ind.chiusa_il|date:"d/m/Y H:i" }}</dd><dt>Esito</dt><dd>{{ ind.esito|default:"—"|linebreaksbr }}</dd>{% endif %}
+  </dl>
+</section>
+
+{% if ind.aperta %}
+<section class="sec-grid sec-kpi-grid" style="margin-top:12px">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=file"><span class="sec-kpi-label">Accessi ai file</span><strong class="sec-kpi-value">{{ conteggi.file }}</strong><span class="sec-kpi-delta">{{ riepilogo.eliminati }} eliminazioni</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=stampe"><span class="sec-kpi-label">Stampe</span><strong class="sec-kpi-value">{{ conteggi.stampe }}</strong><span class="sec-kpi-delta">{{ riepilogo.pagine }} pagine</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?vista=usb"><span class="sec-kpi-label">Dispositivi USB</span><strong class="sec-kpi-value">{{ conteggi.usb }}</strong><span class="sec-kpi-delta">{{ riepilogo.dispositivi }} dispositivi diversi</span></a>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head">
+    <nav class="rl-chips" style="margin:0" aria-label="Cosa vedere">
+      <a class="rl-chip{% if vista == 'file' %} attivo{% endif %}" href="?vista=file">File</a>
+      <a class="rl-chip{% if vista == 'stampe' %} attivo{% endif %}" href="?vista=stampe">Stampe</a>
+      <a class="rl-chip{% if vista == 'usb' %} attivo{% endif %}" href="?vista=usb">USB</a>
+    </nav>
+    <a class="sec-button" href="?vista={{ vista }}&amp;export=csv">Scarica CSV</a>
+  </div>
+  {% if righe %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Quando</th><th>Chi</th><th>Cosa</th><th>Sistema</th></tr></thead>
+    <tbody>{% for e in righe %}<tr>
+      <td class="sec-nowrap"><a href="{% url 'security:registro_log_evento' e.pk %}?indagine={{ ind.pk }}">{{ e.quando|date:"d/m/Y H:i:s" }}</a></td>
+      <td>{{ e.account|default:"—" }}{% if e.ip_origine %}<span class="rl-sub">da {{ e.ip_origine }}</span>{% endif %}</td>
+      <td>{% if e.categoria == "file_eliminato" %}<span class="sec-badge warning">Eliminato</span> {% endif %}<span style="overflow-wrap:anywhere">{{ e.descrizione }}</span></td>
+      <td>{{ e.host|default:e.fonte_nome }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% if righe.has_other_pages %}<nav class="rl-chips" style="margin-top:10px">{% if righe.has_previous %}<a class="rl-chip" href="?vista={{ vista }}&amp;pagina={{ righe.previous_page_number }}">&larr; Precedenti</a>{% endif %}<span class="sec-muted sec-small">Pagina {{ righe.number }} di {{ righe.paginator.num_pages }}</span>{% if righe.has_next %}<a class="rl-chip" href="?vista={{ vista }}&amp;pagina={{ righe.next_page_number }}">Successivi &rarr;</a>{% endif %}</nav>{% endif %}
+  {% else %}<p class="sec-empty">Nessun evento di questo tipo per le persone e il periodo indicati.</p>{% endif %}
+  <p class="sec-muted sec-small">Ogni riga rimanda all'evento originale sigillato nell'archivio: è la prova da allegare. Consultazioni ed export restano nell'audit.</p>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Chiudi l'indagine</h2></div>
+  <form method="post" class="rl-campo">{% csrf_token %}
+    <label for="esito">Esito</label><textarea id="esito" name="esito" rows="3" placeholder="Cosa è emerso e cosa si è deciso"></textarea>
+    <div class="rl-azioni-form" style="margin-top:8px"><button class="sec-button sec-button-primary" type="submit" data-hub-confirm="Chiudere l'indagine? Dopo la chiusura i dati non si consultano più da qui.">Chiudi l'indagine</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

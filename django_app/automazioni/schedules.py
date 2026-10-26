@@ -811,6 +811,34 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Registro accessi (log dei server): controllo del raccoglitore, fonti mute, sigilli
+        # giornalieri dell'archivio, copie, conservazione, invio al SOC. Spento = non fa nulla.
+        "name": "registro_log_ciclo",
+        "func": "registro_log.tasks.run_ciclo",
+        "schedule_type": "I",
+        "minutes": 5,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Registro accessi — account di Active Directory via LDAP (sola lettura).
+        "name": "registro_log_ad",
+        "func": "registro_log.tasks.run_ad_sync",
+        "schedule_type": "I",
+        "minutes": 360,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Registro accessi — stato di ESXi/vCenter e iLO/iDRAC (sola lettura, solo ultima fotografia).
+        "name": "registro_log_infra",
+        "func": "registro_log.tasks.run_infra",
+        "schedule_type": "I",
+        "minutes": 60,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Microsoft Intune — dispositivi gestiti (conformità, cifratura, ultima sync):
         # prima degli avvisi IT delle 07:15, che ne riportano i problemi.
         # Serve il permesso Graph DeviceManagementManagedDevices.Read.All.

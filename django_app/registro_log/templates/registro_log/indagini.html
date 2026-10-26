@@ -1,0 +1,40 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Indagini | Security Center AI{% endblock %}
+{% block page_title %}Indagini: file, stampe e USB{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Accessi ai file, stampe e dispositivi USB vengono raccolti e sigillati come il resto, ma <strong>non compaiono nelle altre pagine</strong>. Si consultano solo qui, aprendo un'indagine quando è stato rilevato un problema (es. sospetto furto di file o di proprietà intellettuale): motivo, persone e periodo restano registrati, come ogni consultazione ed export.</p>
+
+{% if not imp.controlli_lavoratori_ok %}
+<section class="sec-panel sec-callout sec-callout-warning" style="margin-bottom:12px"><strong>Raccolta non ancora attiva.</strong> Prima va confermata la voce «Informativa ai dipendenti e accordi verificati» in <a href="{% url 'security:registro_log_fonti' %}#impostazioni">Fonti › Impostazioni</a>, poi si accendono file, stampe e USB sulle fonti.</section>
+{% elif not fonti_raccolte %}
+<section class="sec-panel sec-callout sec-callout-warning" style="margin-bottom:12px"><strong>Nessuna fonte raccoglie file, stampe o USB.</strong> Si accendono nella scheda di ogni fonte (file server, server di stampa, PC via eventi inoltrati).</section>
+{% else %}
+<p class="sec-muted sec-small">Raccolta attiva su: {% for f in fonti_raccolte %}{{ f.nome }} ({% if f.audit_file %}file{% endif %}{% if f.audit_stampe %}{% if f.audit_file %}, {% endif %}stampe{% endif %}{% if f.audit_usb %}{% if f.audit_file or f.audit_stampe %}, {% endif %}USB{% endif %}){% if not forloop.last %}; {% endif %}{% endfor %}. Conferma del {{ imp.controlli_lavoratori_il|date:"d/m/Y" }} di {{ imp.controlli_lavoratori_da }}{% if imp.controlli_lavoratori_nota %}: {{ imp.controlli_lavoratori_nota }}{% endif %}.</p>
+{% endif %}
+
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Apri un'indagine</h2></div>
+  <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+    <div class="rl-griglia">{% for f in form %}{% include "registro_log/_campo.html" with f=f %}{% endfor %}</div>
+    <div class="rl-azioni-form" style="margin-top:12px"><button class="sec-button sec-button-primary" type="submit">Apri l'indagine</button>
+      <span class="sec-muted sec-small">Senza persone indicate si vedono tutti gli account del periodo: restringere quando possibile.</span></div>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Indagini</h2></div>
+  {% if elenco %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Aperta</th><th>Motivo</th><th>Persone</th><th>Periodo</th><th>Stato</th></tr></thead>
+    <tbody>{% for i in elenco %}<tr>
+      <td class="sec-nowrap"><a href="{% url 'security:registro_log_indagine' i.pk %}">{{ i.aperta_il|date:"d/m/Y H:i" }}</a><span class="rl-sub">{{ i.aperta_da }}</span></td>
+      <td>{{ i.motivo|truncatechars:140 }}{% if i.riferimento %}<span class="rl-sub">{{ i.riferimento }}</span>{% endif %}</td>
+      <td>{{ i.account|default:"tutti" }}</td>
+      <td class="sec-nowrap">{{ i.dal|date:"d/m/Y" }} – {{ i.al|date:"d/m/Y" }}</td>
+      <td>{% if i.aperta %}<span class="sec-badge warning">Aperta</span>{% else %}<span class="sec-badge">Chiusa il {{ i.chiusa_il|date:"d/m/Y" }}</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-empty">Nessuna indagine.</p>{% endif %}
+</section>
+{% endblock %}

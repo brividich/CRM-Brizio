@@ -53,6 +53,17 @@ PAGE_HELP = {
     "admin_addon_detail": ("17-moduli-diagnostica-documentazione", "la-scheda-del-modulo"),
     "admin_diagnostics": ("17-moduli-diagnostica-documentazione", "diagnostica"),
     "admin_docs": ("17-moduli-diagnostica-documentazione", "documentazione"),
+    "registro_log": ("18-registro-accessi", "panoramica"),
+    "registro_log_eventi": ("18-registro-accessi", "eventi"),
+    "registro_log_evento": ("18-registro-accessi", "eventi"),
+    "registro_log_ads": ("18-registro-accessi", "amministratori-di-sistema"),
+    "registro_log_account": ("18-registro-accessi", "account-ad"),
+    "registro_log_verifica": ("18-registro-accessi", "verifica-annuale"),
+    "registro_log_archivio": ("18-registro-accessi", "archivio-e-integrità"),
+    "registro_log_infra": ("18-registro-accessi", "server-e-virtualizzazione"),
+    "registro_log_fonti": ("18-registro-accessi", "fonti-e-impostazioni"),
+    "registro_log_indagini": ("18-registro-accessi", "indagini-file-stampe-e-usb"),
+    "registro_log_indagine": ("18-registro-accessi", "indagini-file-stampe-e-usb"),
 }
 
 

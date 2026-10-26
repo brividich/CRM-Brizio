@@ -1,0 +1,2 @@
+{% if f.field.widget.input_type == "checkbox" %}<div class="rl-campo rl-campo-check{% if f.errors %} errore{% endif %}">{{ f }}<label for="{{ f.id_for_label }}">{{ f.label }}</label>{% if f.help_text %}<small>{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>
+{% else %}<div class="rl-campo{% if largo or not f.field.widget.input_type %} largo{% endif %}{% if f.errors %} errore{% endif %}"><label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<small>{{ f.help_text }}</small>{% endif %}{{ f.errors }}</div>{% endif %}

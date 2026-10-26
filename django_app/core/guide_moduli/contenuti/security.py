@@ -3,13 +3,15 @@ GUIDA = {
     "titolo": "Security Center (SOC)",
     "area": "IT e sicurezza informatica",
     "sintesi": "Allarmi di sicurezza informatica, vulnerabilità, backup e incidenti NIS2, letti dai report che arrivano per mail.",
-    "parole": "soc sicurezza informatica alert allarme vulnerabilita cve backup antivirus incidente nis2",
+    "parole": "soc sicurezza informatica alert allarme vulnerabilita cve backup antivirus incidente nis2 "
+              "registro accessi log amministratori di sistema garante 27001 esxi syslog active directory",
     "url": "security:dashboard",
     "prefissi": ("/soc/",),
     "dettaglio": [
         ("Inizia da qui", "/soc/docs/00-start-here/"),
         ("Lavoro quotidiano", "/soc/docs/13-lavoro-quotidiano/"),
         ("Risoluzione problemi", "/soc/docs/09-troubleshooting/"),
+        ("Registro accessi", "/soc/docs/18-registro-accessi/"),
     ],
     "uso": [
         {
@@ -74,6 +76,27 @@ GUIDA = {
                       "Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC la patch è pronta."),
             ],
         },
+        {
+            "id": "registro-accessi",
+            "titolo": "Registro accessi: log dei server e amministratori di sistema",
+            "blocchi": [
+                ("p", "Menu del SOC › «Registro accessi». Raccoglie i log dei server Windows, dei controller di dominio, di ESXi, "
+                      "degli switch, del firewall e del NAS in un archivio sigillato che vale come registro degli accessi degli "
+                      "amministratori di sistema (Garante) e come evidenza ISO 27001."),
+                ("passi", [
+                    "«Panoramica»: pallino verde = raccolta attiva; «Come iniziare» dice i passi che mancano.",
+                    "«Eventi»: viste rapide «Accessi degli amministratori», «Fuori orario», «Non riusciti», «Modifiche ad account e "
+                    "gruppi», «Critici». Clic sulla data per l'evento originale.",
+                    "«Amministratori di sistema»: elenco con account usati, sistemi, nomina in PDF, revisione e revoca.",
+                    "«Account AD»: «Da sistemare» mostra ex dipendenti con l'account attivo, amministratori senza nomina, account senza persona.",
+                    "«Verifica annuale»: lista di controllo dell'anno, PDF del verbale, esito da registrare.",
+                    "«Archivio e integrità»: un sigillo per giorno; le interruzioni della raccolta si giustificano qui.",
+                    "«Indagini» (solo chi configura il SOC): accessi ai file, stampe e chiavette USB si consultano solo "
+                    "aprendo un'indagine con motivo, persone e periodo (es. sospetto furto di file); tutto resta nell'audit. "
+                    "Si raccolgono solo dopo la conferma «Informativa ai dipendenti e accordi verificati» in Fonti.",
+                ]),
+            ],
+        },
     ],
     "admin": [
         {
@@ -104,6 +127,12 @@ GUIDA = {
                     "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
                     "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
                     "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
+                    "Registro accessi: SOC › Registro accessi › «Fonti». Server Windows letti senza agent (account del raccoglitore nel "
+                    "gruppo «Event Log Readers», regola firewall «Gestione remota registro eventi»), oppure Windows Event Forwarding; "
+                    "ESXi, switch, firewall e NAS via syslog verso il server del portale (porta 514, solo gli IP scritti nella fonte). "
+                    "Il raccoglitore è un servizio di Windows: deployment/scripts/install-registro-log-task.ps1 (stesso account del "
+                    "qcluster). Conservazione minima 6 mesi, seconda copia su cartella di rete o SharePoint. Alert nel SOC: sezione "
+                    "«Registro accessi» di Avvisi e automatismi. ESXi/vCenter e iLO/iDRAC in «Server e virtualizzazione».",
                     "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
                     "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
                     "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
@@ -112,6 +141,16 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Registro accessi: «Raccoglitore fermo» o una fonte in errore",
+            "fare": [
+                "Raccoglitore fermo: sul server del portale avvia il task «RegistroLog_<ambiente>» (cartella PortaleNovicrom dell'Utilità di pianificazione; log in logs/registro_log.log).",
+                "«Accesso negato al registro eventi»: l'account del raccoglitore non è nel gruppo «Event Log Readers» del server.",
+                "«Server non raggiungibile per la lettura remota (RPC)»: regola firewall «Gestione remota registro eventi» sul server.",
+                "Syslog muto: porta 514 non aperta nel firewall di Windows del server del portale o IP dell'apparato diverso da quello della fonte.",
+                "Ogni periodo senza raccolta resta tra le interruzioni (Archivio e integrità): scrivi la giustificazione.",
+            ],
+        },
         {
             "sintomo": "Una lettura resta «In coda» o diventa «Interrotta»",
             "fare": [

@@ -1296,6 +1296,7 @@ class SoftwareSourceKind(models.TextChoices):
     OTHER = "other", "Altro export"
     SNMP_FIRMWARE = "snmp_firmware", "Firmware da monitoraggio SNMP"
     DEFENDER = "defender", "Microsoft Defender for Endpoint"
+    REGISTRO_INFRA = "registro_infra", "Server e virtualizzazione (ESXi, vCenter, iLO, iDRAC)"
 
 
 class SoftwareImportPreset(models.Model):

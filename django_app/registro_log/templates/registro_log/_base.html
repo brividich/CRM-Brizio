@@ -1,0 +1,4 @@
+{% extends "security/_base_soc.html" %}
+{% load static %}
+{% block extra_head %}{{ block.super }}<link rel="stylesheet" href="{% static 'registro_log/registro_log.css' %}">{% endblock %}
+{% block page_marker %}Registro accessi{% endblock %}

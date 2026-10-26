@@ -98,6 +98,12 @@ LETTURE = (
             "Ambiti, lease e prenotazioni del DHCP e record del DNS: indirizzi IP, dispositivi non censiti, record DNS vecchi.",
             "ogni ora", "assets.tasks:_rete_windows_sync", requisito="rete",
             dati_url="assets:rete_indirizzi", dati_label="Indirizzi IP"),
+    Lettura("registro_ad", "Account di Active Directory", "Registro accessi",
+            "Account del dominio via LDAP: chi è amministratore, account di ex dipendenti, password che non scadono, account inattivi.",
+            "ogni 6 ore", "registro_log.ad:sincronizza", dati_url="security:registro_log_account", dati_label="Account AD"),
+    Lettura("registro_infra", "ESXi, vCenter, iLO e iDRAC", "Registro accessi",
+            "Versione e configurazione degli host di virtualizzazione e salute dell'hardware dei server (sola lettura).",
+            "ogni ora", "registro_log.infra:aggiorna", dati_url="security:registro_log_infra", dati_label="Server e virtualizzazione"),
 )
 PER_CODICE = {lettura.codice: lettura for lettura in LETTURE}
 
