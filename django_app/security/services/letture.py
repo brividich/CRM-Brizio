@@ -8,7 +8,7 @@ pianificati e il pulsante «Esegui ora» della pagina Impostazioni › Letture a
 * I giri pianificati con la lettura spenta non si registrano (sarebbero rumore ogni 15 minuti).
 * Se un giro della stessa lettura è già in corso da meno di ``BLOCCO_MINUTI`` il nuovo non parte:
   copre il doppio clic e la riconsegna della coda (``retry`` di django-q) dei giri lunghi.
-* Si tengono gli ultimi ``TENUTI`` giri per lettura.
+* Si tengono tutti i giri dell'ultimo mese (``TENUTI_GIORNI``, li usa il Battito del SOC) più ``TENUTI`` giri più vecchi.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 BLOCCO_MINUTI = 15
 TENUTI = 300
+TENUTI_GIORNI = 31  # i giri dell'ultimo mese restano tutti (con 15 minuti fanno circa 3000 righe per lettura)
 TIMEOUT_CODA = 600  # secondi: «Esegui ora» e giri lunghi (WatchGuard), oltre i 120 s del cluster
 
 
@@ -287,7 +288,10 @@ def accoda(codice: str, utente) -> tuple[bool, str]:
 
 
 def _pulisci(codice):
-    vecchi = list(SecurityLetturaLog.objects.filter(codice=codice).order_by("-avviata_il").values_list("pk", flat=True)[TENUTI:TENUTI + 500])
+    """Tiene almeno ``TENUTI`` giri e comunque quelli degli ultimi ``TENUTI_GIORNI`` giorni (la mappa del Battito del SOC)."""
+    limite = timezone.now() - timedelta(days=TENUTI_GIORNI)
+    vecchi = list(SecurityLetturaLog.objects.filter(codice=codice, avviata_il__lt=limite).order_by("-avviata_il")
+                  .values_list("pk", flat=True)[TENUTI:TENUTI + 500])
     if vecchi:
         SecurityLetturaLog.objects.filter(pk__in=vecchi).delete()
 

@@ -127,6 +127,10 @@ GUIDA = {
                     "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
                     "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
                     "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
+                    "Impostazioni › «Battito del SOC»: tutto quello che il SOC fa da solo in una schermata. Coda dei lavori "
+                    "(qcluster) viva o ferma, letture in ritardo o in errore con la spiegazione, prossimi giri e mappa degli "
+                    "ultimi 14 giorni (un quadretto per giorno: verde tutti i giri riusciti, arancione qualcuno no, rosso "
+                    "nessuno, bordo tratteggiato non ha girato).",
                     "Registro accessi: SOC › Registro accessi › «Fonti». Server Windows letti senza agent (account del raccoglitore nel "
                     "gruppo «Event Log Readers», regola firewall «Gestione remota registro eventi»), oppure Windows Event Forwarding; "
                     "ESXi, switch, firewall e NAS via syslog verso il server del portale (porta 514, solo gli IP scritti nella fonte). "
@@ -146,6 +150,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Sembra che il SOC non legga più niente (alert, backup, CVE fermi)",
+            "fare": [
+                "Apri Impostazioni › «Battito del SOC»: in alto lo stato della coda dei lavori (qcluster).",
+                "«Il qcluster sembra fermo»: riavvia il servizio dei lavori in background sul server del portale; dopo pochi minuti la mappa torna verde.",
+                "Coda regolare ma una lettura «In ritardo» o rossa: aprila in «Letture automatiche», premi «Esegui ora» e leggi l'errore.",
+                "«Schedule non registrato»: dopo un aggiornamento manca setup_q_schedules sul server.",
+            ],
+        },
         {
             "sintomo": "Registro accessi: «Raccoglitore fermo» o una fonte in errore",
             "fare": [

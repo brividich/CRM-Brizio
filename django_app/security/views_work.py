@@ -438,6 +438,15 @@ def letture_page(request):
     return render(request, "security/letture.html", contesto)
 
 
+def battito_page(request):
+    """Impostazioni › Battito del SOC: ogni lettura e lavoro automatico, ultimo e prossimo giro, mappa di 14 giorni."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import battito
+
+    return render(request, "security/battito.html", battito.stato())
+
+
 @require_POST
 def lettura_esegui(request, codice):
     """«Esegui ora»: mette in coda un giro della lettura (solo chi configura il SOC)."""
