@@ -146,7 +146,17 @@ Nell'header di ogni colonna `data-col-filterable` compare l'icona filtro: il cli
 
 Menu "Colonne": lista checkbox per visibilità + drag handle per riordinare.
 
-Sort: click su `<th data-col-sortable>` cicla `asc → desc → off`. Shift+click aggiunge livello (multi-sort).
+Sort: click sull'icona o sul nome di `<th data-col-sortable>` cicla `asc → desc → off`. Shift+click aggiunge livello (multi-sort).
+
+Ordinamento (26/10/2026), indipendente dal tipo dichiarato:
+- **Valore**: `data-sort-value` → `<time datetime>` (se è tutto il contenuto della cella) → testo visibile (escluse `<option>`, `sr-only`, `[hidden]`; `<select>`/`<input>` valgono per il valore scelto; cella con solo checkbox = 1/0). `data-value` non conta più per l'ordine (spesso è un codice).
+- **Modo per colonna** scelto sui valori al momento dell'ordinamento: numeri se tutti lo sono (o ≥50% con `data-col-type="number"`; formati `1.234,50 €`, `35%`, `12 h`, `0.75`; gli IP no), date se tutte contengono una data in testa (o ≥50% con `data-col-type="date"`; `gg/mm/aaaa [hh:mm]`, ISO, `26 ott 2026`, `ott 2026`, `10/2026`), altrimenti testo con `Intl.Collator("it", {numeric:true})` ignorando simboli/emoji iniziali.
+- Vuoti (`—`, `-`, `n/d`, `N.D.`, `nessuno`…) sempre in fondo; nel modo numeri/date i valori illeggibili subito prima dei vuoti. Ordinamento stabile (a parità vale l'ordine d'origine); il terzo clic **rimette l'ordine del server** (`_fmOrig` per riga).
+- **Righe strutturali** (marcate da `markStructuralRows`): riga nascosta subito dopo una riga dati, a tutta larghezza / con altro numero di celle / classe `detail|edit|expand…` → `fm-detail-row` automatico; riga visibile a tutta larghezza → riga di gruppo (`data-fm-group-row`): fuori da conteggio e filtri, nascosta con l'ordinamento attivo, visibile se ha righe sotto quando si filtra.
+- Tabelle con `rowspan` nel corpo: niente ordinamento (romperebbe le celle unite).
+- Attributi di `sortable-table.js` (`data-sort-type`, `data-no-sort`, `data-no-filter`) letti da questo motore; `sortable-table.js` non si avvia più se c'è il motore unico (prima due motori sulla stessa tabella).
+- Smartphone: `.fm-tbl-msort` «Ordina per…» + direzione, visibile solo ≤720px (le tabelle a schede non hanno intestazione).
+- Inferenza del tipo: etichette «da data» a parola intera (`DATE_LABEL_WORDS`) e confermate sui valori («Definizione» non è più una data).
 
 ---
 
