@@ -168,7 +168,7 @@ class CatalogoProcessiTests(AuditBase):
     def test_render_pagine_catalogo_e_guida(self, _p, _a):
         audit = self.make_audit()
         for view, args, testo in [(processi_views.catalogo, (), "Catalogo processi"),
-            (processi_views.dettaglio, (self.processo.pk,), "Registro revisioni"),
+            (processi_views.dettaglio, (self.processo.pk,), 'id="tab-revisioni"'),
             (audit_views.audit_modifica, (), "Campo di audit"),
             (audit_views.audit_dettaglio, (audit.pk,), "Il prossimo passo")]:
             response = view(_request(self.user, method="get"), *args)

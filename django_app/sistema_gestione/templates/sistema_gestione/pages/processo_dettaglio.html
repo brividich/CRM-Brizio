@@ -1,12 +1,228 @@
 {% extends "core/base.html" %}
-{% block title %}{{ processo }}{% endblock %}
-{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
-{% block content %}{% load sg_guida %}{% sg_guida_link %}<div class="rc-wrap">{% if processo.fonte_documentale %}<section class="rc-card"><h2>Fonte documentale</h2><p>{{ processo.fonte_documentale|linebreaksbr }}</p></section>{% endif %}<a class="rc-back" href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a>
-<div class="page-header"><div><h1>{{ processo }}</h1><p>Rev.{{ processo.revisione }} · {{ processo.get_categoria_display }} · {% if processo.attivo %}Attivo{% else %}Archiviato{% endif %}</p></div>{% if puo_modificare %}<a class="btn" href="{% url 'sistema_gestione:processo_modifica' processo.pk %}">Revisiona scheda</a>{% endif %}</div>
-<section class="rc-card sg-section"><h2>Identità e responsabilità</h2><p><strong>Responsabile:</strong> {% if processo.responsabile %}{{ processo.responsabile.get_full_name|default:processo.responsabile.username }}{% else %}da indicare{% endif %}</p><p><strong>Owner (ruolo):</strong> {{ processo.ruolo_owner.etichetta|default:"da indicare" }}{% if processo.tipo %} · processo {{ processo.get_tipo_display|lower }}{% endif %} · <a href="{% url 'anagrafica:struttura_org' %}#processi">{{ processo.mansioni_lavorative.count }} mansioni nella struttura organizzativa</a></p><p><strong>Enti:</strong> {{ processo.enti }}</p><p><strong>Scopo:</strong> {{ processo.scopo|linebreaksbr }}</p><p><strong>Frequenza audit:</strong> {{ processo.frequenza_mesi }} mesi</p></section>
-{% if persone_processo %}{% with pp=persone_processo %}<section class="rc-card sg-section" id="chi-esegue"><h2>Chi possiede e chi esegue il processo</h2><p><strong>Owner oggi:</strong> {% for p in pp.owner %}<a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}#posizione-struttura">{{ p.nome }}</a>{% if not forloop.last %}, {% endif %}{% empty %}{% if processo.ruolo_owner %}nessuno ricopre il ruolo {{ processo.ruolo_owner.etichetta }}{% else %}ruolo owner da indicare{% endif %}{% endfor %}</p>{% if pp.mansioni %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Mansione lavorativa</th><th>Operativi</th><th>In lista</th></tr></thead><tbody>{% for r in pp.mansioni %}<tr><td><a href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}">{{ r.mansione.display|default:r.mansione.competenza_key }}</a></td><td>{% if r.n_operativi %}{{ r.n_operativi }}{% else %}<span class="sg-badge danger">nessuno</span>{% endif %}</td><td>{{ r.n_lista }}</td></tr>{% endfor %}</tbody></table></div>{% if pp.esecutori %}<details style="margin-top:8px"><summary>Persone operative ({{ pp.esecutori|length }})</summary><p>{% for p in pp.esecutori %}<a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}#posizione-struttura">{{ p.nome }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p></details>{% endif %}{% else %}<p>Nessuna mansione lavorativa collegata: si collega dalla <a href="{% url 'anagrafica:struttura_org' %}#processi">Struttura organizzativa</a>.</p>{% endif %}</section>{% endwith %}{% endif %}<section class="rc-card sg-section"><h2>Come funziona il processo</h2><div class="sg-columns"><div><h3>Ingressi</h3>{{ processo.input|linebreaksbr }}<h3>Risultati attesi</h3>{{ processo.output|linebreaksbr }}</div><div><h3>Rischi</h3>{{ processo.rischi|linebreaksbr }}<h3>Indicatori e obiettivi</h3>{{ processo.indicatori|linebreaksbr }}</div></div><h3>Procedure e documenti</h3>{{ processo.procedure|linebreaksbr }}<p>EN 9100: {{ processo.punti_9100|default:'—' }} · ISO 45001: {{ processo.punti_45001|default:'—' }} · ISO 14001: {{ processo.punti_14001|default:'—' }} · ISO 27001: {{ processo.punti_27001|default:'—' }} · PdR 125: {{ processo.punti_pdr125|default:'—' }}</p></section>
-<section class="rc-card sg-section"><h2>Checklist del processo</h2><p>Le domande attive vengono copiate nei nuovi piani insieme alla loro revisione. Le proposte automatiche restano in bozza finche non le verifichi.</p>
-{% if puo_modificare %}<div class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:checklist_processo_nuova' processo.pk %}">Nuova domanda</a><form method="post" action="{% url 'sistema_gestione:checklist_processo_proponi' processo.pk %}">{% csrf_token %}<button class="btn btn-secondary">Proponi domande dalla scheda</button></form></div>{% endif %}
-{% for domanda in processo.checklist.all %}<details><summary>{{ domanda.codice }} - Rev.{{ domanda.revisione }} - {% if domanda.attiva %}Attiva{% else %}Bozza / non attiva{% endif %}</summary><p>{{ domanda.get_norma_display }} - {{ domanda.punti }}</p><h3>{{ domanda.domanda }}</h3><p>{{ domanda.criterio|linebreaksbr }}</p><p>{{ domanda.suggerimento }}</p>{% if puo_modificare %}<a href="{% url 'sistema_gestione:checklist_processo_modifica' processo.pk domanda.pk %}">Verifica / revisiona domanda</a>{% endif %}</details>{% empty %}<p>Nessuna domanda configurata. Completa i punti norma nella scheda per generare proposte.</p>{% endfor %}</section>
-<section class="rc-card sg-section"><h2>Audit collegati</h2>{% for audit in audit_list %}<p><a href="{% url 'sistema_gestione:audit_dettaglio' audit.pk %}">{{ audit.numero }}</a> · {{ audit.data_inizio|date:'d/m/Y' }} · {{ audit.get_stato_display }}</p>{% empty %}<p>Nessun audit collegato.</p>{% endfor %}</section>
-<section class="rc-card sg-section"><h2>Registro revisioni</h2>{% for rev in revisioni %}<details><summary>Rev.{{ rev.numero }} · {{ rev.creata_il|date:'d/m/Y H:i' }} · {{ rev.autore }} · {{ rev.motivo }}</summary><dl>{% for nome, valore in rev.dati.items %}<dt><strong>{{ nome }}</strong></dt><dd>{{ valore|default_if_none:'—'|linebreaksbr }}</dd>{% endfor %}</dl></details>{% empty %}<p>Nessuna revisione registrata.</p>{% endfor %}</section></div>{% endblock %}
+{% load static %}
+
+{% block title %}{{ processo.codice }} · {{ processo.nome }} | Catalogo processi{% endblock %}
+
+{% block extra_head %}
+{% include "sistema_gestione/components/_styles.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+<style>
+.prc-testi{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.prc-testo{ border:1px solid var(--fmd-line); border-radius:10px; padding:12px 14px; min-width:0; }
+.prc-testo.prc-full{ grid-column:1/-1; }
+.prc-testo h3{ display:flex; align-items:center; gap:7px; margin:0 0 6px; font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--fmd-muted); }
+.prc-testo p{ margin:0; font-size:13.5px; line-height:1.55; color:var(--fmd-ink); overflow-wrap:anywhere; }
+.prc-vuoto{ color:var(--fmd-muted-2); font-style:italic; }
+.prc-norme{ display:flex; flex-wrap:wrap; gap:8px; }
+.prc-norma{ display:flex; flex-direction:column; gap:3px; padding:8px 12px; border:1px solid var(--fmd-line); border-radius:10px; min-width:150px; }
+.prc-norma b{ font-size:12px; color:var(--fmd-navy); }
+.prc-norma span{ font-size:12.5px; color:var(--fmd-ink); }
+.prc-norma.prc-na span{ color:var(--fmd-muted-2); }
+.prc-sub{ margin:18px 0 8px; font-size:14px; color:var(--fmd-navy); }
+.prc-nota{ margin:0 0 12px; font-size:12.5px; }
+.prc-barra{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 14px; }
+.prc-barra form{ margin:0; }
+.prc-domanda{ font-weight:600; color:var(--fmd-ink); }
+.prc-domanda small{ display:block; margin-top:3px; font-weight:400; color:var(--fmd-muted); white-space:pre-line; }
+.prc-rev{ border:1px solid var(--fmd-line); border-radius:10px; margin-bottom:8px; }
+.prc-rev summary{ display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:10px 14px; cursor:pointer; font-size:13px; }
+.prc-rev summary b{ color:var(--fmd-navy); }
+.prc-rev dl{ display:grid; grid-template-columns:200px 1fr; gap:6px 16px; margin:0; padding:4px 14px 14px; font-size:12.5px; }
+.prc-rev dt{ font-weight:700; color:var(--fmd-muted); }
+.prc-rev dd{ margin:0; overflow-wrap:anywhere; }
+@media (max-width:760px){ .prc-testi{ grid-template-columns:1fr; } .prc-rev dl{ grid-template-columns:1fr; gap:2px; } .prc-rev dt{ margin-top:6px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {# Testata: chi è il processo #}
+    <div class="fmd-pagehead mns-head">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ processo.get_categoria_display }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>{{ processo.codice }} · {{ processo.nome }}{% if not processo.attivo %} <span class="fmd-badge fmd-b-grey">archiviato</span>{% endif %}</h1>
+        <div class="mns-facts">
+          <div class="mns-fact"><span class="mns-fact-l">Revisione</span><span class="mns-fact-v"><span class="fmd-badge fmd-b-cyan">Rev. {{ processo.revisione }}</span></span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Responsabile</span><span class="mns-fact-v">{% if processo.responsabile %}{{ processo.responsabile.get_full_name|default:processo.responsabile.username }}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Owner (ruolo)</span><span class="mns-fact-v">{% if processo.ruolo_owner %}{{ processo.ruolo_owner.etichetta }}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}{% if processo.tipo %} <span class="fmd-badge fmd-b-violet">{{ processo.get_tipo_display|lower }}</span>{% endif %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Criticità</span><span class="mns-fact-v"><span class="fmd-badge {% if processo.criticita == 3 %}fmd-b-red{% elif processo.criticita == 2 %}fmd-b-amber{% else %}fmd-b-green{% endif %}">{{ processo.get_criticita_display|lower }}</span></span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Audit ogni</span><span class="mns-fact-v">{{ processo.frequenza_mesi }} mesi</span></div>
+          {% if processo.enti %}<div class="mns-fact"><span class="mns-fact-l">Enti</span><span class="mns-fact-v">{{ processo.enti }}</span></div>{% endif %}
+        </div>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if puo_modificare %}<a class="fmd-btn fmd-btn-primary" href="{% url 'sistema_gestione:processo_modifica' processo.pk %}"><svg class="fmd-ico"><use href="#i-edit"/></svg>Revisiona scheda</a>{% endif %}
+        {% if guida_url %}<a class="fmd-btn fmd-btn-ghost" href="{{ guida_url }}" target="_blank" rel="noopener" title="Come funziona questa pagina">? Guida</a>{% endif %}
+      </div>
+    </div>
+
+    {# Situazione in breve #}
+    <div class="mns-stats" aria-label="Situazione del processo">
+      <div class="mns-stat"><b>{{ n_mansioni }}</b><span>mansion{{ n_mansioni|pluralize:"e,i" }} collegat{{ n_mansioni|pluralize:"a,e" }}</span></div>
+      <div class="mns-stat {% if n_domande_attive %}mns-ok{% else %}mns-mid{% endif %}"><b>{{ n_domande_attive }}</b><span>domand{{ n_domande_attive|pluralize:"a,e" }} attiv{{ n_domande_attive|pluralize:"a,e" }} in checklist</span></div>
+      <div class="mns-stat"><b>{{ audit_list|length }}</b><span>audit collegat{{ audit_list|length|pluralize:"o,i" }}</span></div>
+      <div class="mns-stat"><b>{{ revisioni|length }}</b><span>revision{{ revisioni|length|pluralize:"e,i" }} registrat{{ revisioni|length|pluralize:"a,e" }}</span></div>
+    </div>
+
+    <section class="fmd-panel fmd-block" data-mns-tabs>
+      <div class="mns-tabs" role="tablist" aria-label="Sezioni del processo">
+        <a class="mns-tab" role="tab" id="tab-scheda" href="#scheda" aria-controls="scheda" aria-selected="true"><svg class="fmd-ico"><use href="#i-doc"/></svg>Scheda</a>
+        <a class="mns-tab" role="tab" id="tab-persone" href="#persone" aria-controls="persone" aria-selected="false"><svg class="fmd-ico"><use href="#i-users"/></svg>Chi lo esegue <span class="fmd-count">{{ n_mansioni }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-checklist" href="#checklist" aria-controls="checklist" aria-selected="false"><svg class="fmd-ico"><use href="#i-check"/></svg>Checklist <span class="fmd-count">{{ checklist|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-audit" href="#audit" aria-controls="audit" aria-selected="false"><svg class="fmd-ico"><use href="#i-shield"/></svg>Audit <span class="fmd-count">{{ audit_list|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-revisioni" href="#revisioni" aria-controls="revisioni" aria-selected="false"><svg class="fmd-ico"><use href="#i-clock"/></svg>Revisioni <span class="fmd-count">{{ revisioni|length }}</span></a>
+      </div>
+
+      {# Scheda: come funziona il processo #}
+      <div class="mns-pane mns-pane-on" id="scheda" role="tabpanel" aria-labelledby="tab-scheda">
+        <div class="prc-testi">
+          <div class="prc-testo prc-full"><h3>Scopo</h3><p>{% if processo.scopo %}{{ processo.scopo|linebreaksbr }}{% else %}<span class="prc-vuoto">Da descrivere</span>{% endif %}</p></div>
+          <div class="prc-testo"><h3>Ingressi</h3><p>{% if processo.input %}{{ processo.input|linebreaksbr }}{% else %}<span class="prc-vuoto">Da descrivere</span>{% endif %}</p></div>
+          <div class="prc-testo"><h3>Risultati attesi</h3><p>{% if processo.output %}{{ processo.output|linebreaksbr }}{% else %}<span class="prc-vuoto">Da descrivere</span>{% endif %}</p></div>
+          <div class="prc-testo"><h3>Rischi</h3><p>{% if processo.rischi %}{{ processo.rischi|linebreaksbr }}{% else %}<span class="prc-vuoto">Da descrivere</span>{% endif %}</p></div>
+          <div class="prc-testo"><h3>Indicatori e obiettivi</h3><p>{% if processo.indicatori %}{{ processo.indicatori|linebreaksbr }}{% else %}<span class="prc-vuoto">Da descrivere</span>{% endif %}</p></div>
+          <div class="prc-testo prc-full"><h3>Procedure e documenti</h3><p>{% if processo.procedure %}{{ processo.procedure|linebreaksbr }}{% else %}<span class="prc-vuoto">Nessuna procedura indicata</span>{% endif %}</p></div>
+          {% if processo.requisiti_cliente %}<div class="prc-testo prc-full"><h3>Requisiti cliente o ente</h3><p>{{ processo.requisiti_cliente|linebreaksbr }}</p></div>{% endif %}
+        </div>
+
+        <h3 class="prc-sub">Punti norma</h3>
+        <div class="prc-norme">
+          {% for etichetta, punti in norme %}<div class="prc-norma{% if not punti %} prc-na{% endif %}"><b>{{ etichetta }}</b><span>{{ punti|default:"non applicabile" }}</span></div>{% endfor %}
+        </div>
+
+        {% if processo.fonte_documentale %}
+        <h3 class="prc-sub">Fonte documentale</h3>
+        <div class="prc-testo"><p class="fmd-muted">{{ processo.fonte_documentale|linebreaksbr }}</p></div>
+        {% endif %}
+      </div>
+
+      {# Chi possiede e chi esegue il processo, dalla struttura organizzativa #}
+      <div class="mns-pane" id="persone" role="tabpanel" aria-labelledby="tab-persone">
+        <p class="fmd-muted prc-nota">Chi possiede e chi esegue il processo, letto dalla <a class="fmd-data-link" href="{% url 'anagrafica:struttura_org' %}#processi">Struttura organizzativa</a>.</p>
+        {% if persone_processo %}{% with pp=persone_processo %}
+        <div class="mns-facts" style="margin:0 0 14px;">
+          <div class="mns-fact"><span class="mns-fact-l">Owner oggi</span><span class="mns-fact-v">{% for p in pp.owner %}<a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}#posizione-struttura">{{ p.nome }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="mns-warn-txt">{% if processo.ruolo_owner %}nessuno ricopre il ruolo {{ processo.ruolo_owner.etichetta }}{% else %}ruolo owner da indicare{% endif %}</span>{% endfor %}</span></div>
+        </div>
+        {% if pp.mansioni %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Mansione lavorativa</th><th>Operativi</th><th>In lista</th></tr></thead>
+            <tbody>
+              {% for r in pp.mansioni %}
+              <tr>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}">{{ r.mansione.display|default:r.mansione.competenza_key }}</a></td>
+                <td>{% if r.n_operativi %}<span class="fmd-badge fmd-b-green">{{ r.n_operativi }}</span>{% else %}<span class="fmd-badge fmd-b-red">nessuno</span>{% endif %}</td>
+                <td>{{ r.n_lista }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if pp.esecutori %}
+        <h3 class="prc-sub">Persone operative <span class="fmd-count">{{ pp.esecutori|length }}</span></h3>
+        <div class="mns-fact-v">{% for p in pp.esecutori %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}#posizione-struttura">{{ p.nome }}</a>{% endfor %}</div>
+        {% endif %}
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna mansione lavorativa collegata</span><span class="fmd-em">Si collega dalla <a class="fmd-data-link" href="{% url 'anagrafica:struttura_org' %}#processi">Struttura organizzativa</a>.</span></div>
+        {% endif %}
+        {% endwith %}{% else %}
+        <div class="fmd-empty"><span class="fmd-et">Struttura organizzativa non disponibile</span><span class="fmd-em">Non è stato possibile leggere owner ed esecutori. Apri la <a class="fmd-data-link" href="{% url 'anagrafica:struttura_org' %}#processi">Struttura organizzativa</a>.</span></div>
+        {% endif %}
+      </div>
+
+      {# Checklist del processo #}
+      <div class="mns-pane" id="checklist" role="tabpanel" aria-labelledby="tab-checklist">
+        <p class="fmd-muted prc-nota">Le domande attive vengono copiate nei nuovi piani insieme alla loro revisione. Le proposte automatiche restano in bozza finché non le verifichi.</p>
+        {% if puo_modificare %}
+        <div class="prc-barra">
+          <a class="fmd-btn fmd-btn-primary" href="{% url 'sistema_gestione:checklist_processo_nuova' processo.pk %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova domanda</a>
+          <form method="post" action="{% url 'sistema_gestione:checklist_processo_proponi' processo.pk %}">{% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Proponi domande dalla scheda</button></form>
+        </div>
+        {% endif %}
+        {% if checklist %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Codice</th><th>Norma</th><th>Domanda e criterio</th><th>Stato</th>{% if puo_modificare %}<th class="fmd-r">Azioni</th>{% endif %}</tr></thead>
+            <tbody>
+              {% for domanda in checklist %}
+              <tr>
+                <td class="fmd-nowrap"><b>{{ domanda.codice }}</b><br><span class="fmd-muted">Rev. {{ domanda.revisione }}</span></td>
+                <td class="fmd-nowrap">{{ domanda.get_norma_display }}<br><span class="fmd-muted">{{ domanda.punti }}</span></td>
+                <td class="prc-domanda">{{ domanda.domanda }}<small>{{ domanda.criterio }}{% if domanda.suggerimento %}
+Suggerimento: {{ domanda.suggerimento }}{% endif %}</small></td>
+                <td>{% if domanda.attiva %}<span class="fmd-badge fmd-b-green">attiva</span>{% else %}<span class="fmd-badge fmd-b-amber">bozza</span>{% endif %}</td>
+                {% if puo_modificare %}<td class="fmd-r fmd-nowrap"><a class="fmd-btn {% if domanda.attiva %}fmd-btn-ghost{% else %}fmd-btn-primary{% endif %} fmd-btn-mini" href="{% url 'sistema_gestione:checklist_processo_modifica' processo.pk domanda.pk %}">{% if domanda.attiva %}Revisiona{% else %}Verifica{% endif %}</a></td>{% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna domanda configurata</span><span class="fmd-em">Completa i punti norma nella scheda per generare le proposte.</span></div>
+        {% endif %}
+      </div>
+
+      {# Audit collegati #}
+      <div class="mns-pane" id="audit" role="tabpanel" aria-labelledby="tab-audit">
+        {% if audit_list %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Audit</th><th>Data</th><th>Lead auditor</th><th>Stato</th></tr></thead>
+            <tbody>
+              {% for audit in audit_list %}
+              <tr>
+                <td><a class="fmd-data-link" href="{% url 'sistema_gestione:audit_dettaglio' audit.pk %}">{{ audit.numero }}</a></td>
+                <td class="fmd-nowrap">{{ audit.data_inizio|date:"d/m/Y"|default:"—" }}</td>
+                <td>{% if audit.lead_auditor %}{{ audit.lead_auditor.get_full_name|default:audit.lead_auditor.username }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+                <td>{% if audit.stato == "CHIUSO" %}<span class="fmd-badge fmd-b-green">{{ audit.get_stato_display|lower }}</span>{% elif audit.stato == "ANNULLATO" %}<span class="fmd-badge fmd-b-grey">{{ audit.get_stato_display|lower }}</span>{% elif audit.stato == "PIANIFICATO" %}<span class="fmd-badge fmd-b-cyan">{{ audit.get_stato_display|lower }}</span>{% else %}<span class="fmd-badge fmd-b-orange">{{ audit.get_stato_display|lower }}</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessun audit collegato</span><span class="fmd-em">Il processo entra negli audit dal programma annuale.</span></div>
+        {% endif %}
+      </div>
+
+      {# Registro revisioni #}
+      <div class="mns-pane" id="revisioni" role="tabpanel" aria-labelledby="tab-revisioni">
+        {% for rev in revisioni %}
+        <details class="prc-rev">
+          <summary><b>Rev. {{ rev.numero }}</b><span class="fmd-muted">{{ rev.creata_il|date:"d/m/Y H:i" }}</span><span>{{ rev.autore.get_full_name|default:rev.autore|default:"—" }}</span><span class="fmd-muted">{{ rev.motivo }}</span></summary>
+          <dl>{% for nome, valore in rev.dati.items %}<dt>{{ nome }}</dt><dd>{{ valore|default_if_none:"—"|linebreaksbr }}</dd>{% endfor %}</dl>
+        </details>
+        {% empty %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna revisione registrata</span><span class="fmd-em">Ogni salvataggio da «Revisiona scheda» crea una revisione con la copia dei dati.</span></div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var box=document.querySelector('[data-mns-tabs]');if(!box)return;
+  box.classList.add('mns-js');
+  var tabs=box.querySelectorAll('[role=tab]');
+  function mostra(id,aggiornaUrl){
+    var pane=document.getElementById(id);if(!pane||!pane.classList.contains('mns-pane'))id='scheda';
+    tabs.forEach(function(t){t.setAttribute('aria-selected',String(t.getAttribute('aria-controls')===id));});
+    box.querySelectorAll('.mns-pane').forEach(function(p){p.classList.toggle('mns-pane-on',p.id===id);});
+    if(aggiornaUrl&&history.replaceState)history.replaceState(null,'','#'+id);
+  }
+  mostra((location.hash||'').slice(1),false);
+  window.addEventListener('hashchange',function(){mostra((location.hash||'').slice(1),false);});
+  box.addEventListener('click',function(e){
+    var t=e.target.closest('[role=tab]');if(!t)return;
+    e.preventDefault();mostra(t.getAttribute('aria-controls'),true);
+  });
+})();
+</script>
+{% endblock %}
