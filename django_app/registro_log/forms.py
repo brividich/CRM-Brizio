@@ -4,6 +4,7 @@ import ipaddress
 
 from django import forms
 
+from . import regole
 from .models import AmministratoreSistema, ApparatoInfra, FonteLog, Impostazioni, Indagine, VerificaAnnuale
 
 
@@ -19,9 +20,10 @@ class ImpostazioniForm(forms.ModelForm):
         model = Impostazioni
         fields = ["attivo", "conservazione_mesi", "cartella_archivio", "copia_cartella", "copia_sharepoint",
                   "syslog_attivo", "syslog_indirizzo", "syslog_porta", "syslog_tcp", "orario_inizio", "orario_fine",
-                  "controlli_lavoratori_ok", "controlli_lavoratori_nota"]
+                  "controlli_lavoratori_ok", "controlli_lavoratori_nota", "account_raccoglitori"]
         labels = {
             "attivo": "Raccolta accesa",
+            "account_raccoglitori": "Account dei raccoglitori di log",
             "conservazione_mesi": "Conservazione (mesi)",
             "cartella_archivio": "Cartella dell'archivio",
             "copia_cartella": "Seconda copia su cartella di rete",
@@ -44,6 +46,10 @@ class ImpostazioniForm(forms.ModelForm):
                                        "sull'attività dei lavoratori (art. 4 L. 300/1970, GDPR). Verificare con il DPO "
                                        "informativa, regolamento informatico ed eventuale accordo sindacale.",
             "controlli_lavoratori_nota": "Es. «Regolamento IT rev. 3 del 10/11/2026, parere DPO».",
+            "account_raccoglitori": "Es. svc-businesslog, svc-registro (separati da virgola). Sono i programmi che leggono "
+                                    "i registri di tutti i server ogni pochi minuti: i loro accessi restano nell'archivio "
+                                    "ma non riempiono gli «accessi degli amministratori», e lo svuotamento del registro fatto "
+                                    "da loro non è un allarme. L'account con cui gira questo raccoglitore vale già.",
         }
         widgets = {"orario_inizio": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
                    "orario_fine": forms.TimeInput(attrs={"type": "time"}, format="%H:%M")}
@@ -74,25 +80,34 @@ class ImpostazioniForm(forms.ModelForm):
 class FonteForm(forms.ModelForm):
     class Meta:
         model = FonteLog
-        fields = ["nome", "tipo", "ruolo", "host", "indirizzi_ip", "canali", "eventi", "silenzio_max_ore", "attiva",
-                  "audit_file", "audit_stampe", "stampe_nomi", "audit_usb"]
+        fields = ["nome", "tipo", "ruolo", "host", "ou_pc", "indirizzi_ip", "canali", "eventi", "silenzio_max_ore", "attiva",
+                  "audit_file", "cartelle_file", "audit_stampe", "stampe_nomi", "audit_usb"]
         labels = {
             "nome": "Nome", "tipo": "Come arrivano i log", "ruolo": "Che cos'è", "host": "Server da leggere",
-            "indirizzi_ip": "Indirizzi da cui arrivano i messaggi", "canali": "Registri da leggere",
-            "eventi": "Cosa leggere", "silenzio_max_ore": "Avvisa se muta per più di (ore)", "attiva": "Attiva",
-            "audit_file": "Accessi ai file", "audit_stampe": "Stampe", "stampe_nomi": "Registra anche il nome del documento",
-            "audit_usb": "Dispositivi USB",
+            "ou_pc": "Unità organizzativa dei PC", "indirizzi_ip": "Indirizzi da cui arrivano i messaggi",
+            "canali": "Registri da leggere", "eventi": "Cosa leggere", "silenzio_max_ore": "Avvisa se muta per più di (ore)",
+            "attiva": "Attiva", "audit_file": "Accessi ai file", "cartelle_file": "Cartelle sorvegliate",
+            "audit_stampe": "Stampe", "stampe_nomi": "Registra anche il nome del documento", "audit_usb": "Dispositivi USB",
         }
         help_texts = {
             "host": "Solo per «Server Windows»: nome (es. DC01) o indirizzo IP.",
+            "ou_pc": "Solo per «Tutti i PC del dominio»: es. OU=Computer,DC=azienda,DC=local. Vuota = tutto il dominio "
+                     "(senza i server già aggiunti come fonte a sé).",
             "indirizzi_ip": "Solo per «Syslog»: uno o più IP separati da virgola. Gli altri indirizzi vengono ignorati.",
-            "canali": "Solo per «Server Windows»: di solito Security,System.",
+            "canali": "Server e PC Windows: di solito Security,System.",
             "silenzio_max_ore": "0 = non avvisare. Un controller di dominio non resta mai muto per un'ora; un NAS anche per un giorno.",
-            "audit_file": "File server: eventi 4663/4670 (serve il controllo sulle cartelle, vedi istruzioni).",
-            "audit_stampe": "Server di stampa: registro PrintService/Operational, evento 307.",
+            "audit_file": "File server: eventi 4663/4670 delle cartelle che hanno la voce di controllo (la stessa che usa "
+                          "BusinessLog). «Anche le letture» registra ogni apertura.",
+            "cartelle_file": "Come «Controllo files» di BusinessLog: una cartella per riga, con il percorso sul file server. "
+                             "Dopo una barra si può scegliere cosa registrare, es. «D:\\Dati\\Progetti | letture, scritture, "
+                             "eliminazioni». Vuoto = tutte le cartelle con la voce di controllo.",
+            "audit_stampe": "Registro PrintService/Operational, evento 307: sul server di stampa e, per le stampanti "
+                            "collegate direttamente, sui PC.",
             "stampe_nomi": "Spento = il titolo del documento non viene salvato nemmeno nell'archivio.",
-            "audit_usb": "Eventi 6416 e Partition/Diagnostic 1006: marca, modello e numero di serie.",
+            "audit_usb": "Chiavette e dischi collegati (6416, Partition/Diagnostic 1006) e file copiati, aperti o "
+                         "eliminati sulle unità rimovibili (4663, «Controlla Archivio rimovibile»).",
         }
+        widgets = {"cartelle_file": forms.Textarea(attrs={"rows": 3, "placeholder": "D:\\Dati\\Progetti | letture, scritture, eliminazioni"})}
 
     def clean(self):
         dati = super().clean()
@@ -104,6 +119,17 @@ class FonteForm(forms.ModelForm):
                 "verificati» nelle Impostazioni (sotto).")
         if tipo == FonteLog.TIPO_WINDOWS and not (dati.get("host") or "").strip():
             self.add_error("host", "Indicare il server da leggere.")
+        if tipo == FonteLog.TIPO_DOMINIO:
+            from . import ad
+
+            if not ad.configurato():
+                self.add_error("tipo", "L'elenco dei PC si legge da Active Directory: serve la connessione LDAP del portale "
+                                       "(Setup Wizard › LDAP).")
+            ou = (dati.get("ou_pc") or "").strip()
+            if ou and "dc=" not in ou.lower():
+                self.add_error("ou_pc", "Scrivere il percorso completo, es. OU=Computer,DC=azienda,DC=local.")
+        for errore in regole.errori_cartelle(dati.get("cartelle_file") or ""):
+            self.add_error("cartelle_file", errore)
         if tipo == FonteLog.TIPO_SYSLOG:
             ips = [x.strip() for x in (dati.get("indirizzi_ip") or "").replace(";", ",").split(",") if x.strip()]
             if not ips:

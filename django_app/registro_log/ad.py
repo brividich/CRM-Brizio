@@ -66,9 +66,9 @@ def _connessione():
     raise RuntimeError(f"Accesso LDAP non riuscito con l'account di servizio del portale: {ultimo}")
 
 
-def _cerca(conn, filtro: str, attributi: list[str]) -> list[dict]:
+def _cerca(conn, filtro: str, attributi: list[str], base: str = "") -> list[dict]:
     righe = conn.extend.standard.paged_search(
-        search_base=settings.LDAP_BASE_DN, search_filter=filtro, attributes=attributi,
+        search_base=base or settings.LDAP_BASE_DN, search_filter=filtro, attributes=attributi,
         paged_size=int(getattr(settings, "LDAP_SYNC_PAGE_SIZE", 500) or 500), generator=True,
     )
     return [dict(r.get("attributes") or {}) for r in righe if r.get("type") == "searchResEntry"]
@@ -198,7 +198,83 @@ def sincronizza() -> dict:
     utenti, gruppi = leggi()
     esito = applica(utenti, gruppi, _persone())
     _segnala_cessati()
+    from .models import FonteLog
+
+    for fonte in FonteLog.objects.filter(tipo=FonteLog.TIPO_DOMINIO, attiva=True):
+        try:
+            esito[f"pc_{fonte.pk}"] = aggiorna_postazioni(fonte)
+        except Exception as exc:  # noqa: BLE001 - una fonte non blocca le altre
+            logger.exception("Registro accessi: elenco dei PC di %s non aggiornato", fonte)
+            esito[f"pc_{fonte.pk}"] = {"errore": str(exc)[:300]}
     return esito
+
+
+# ── PC del dominio (fonti «Tutti i PC del dominio») ──────────────────────────
+
+PC_NON_USATO_GIORNI = 60
+UAC_FILTRO_ATTIVI = "(!(userAccountControl:1.2.840.113556.1.4.803:=2))"
+
+
+def leggi_pc(base: str = "") -> list[dict]:
+    """Computer Windows abilitati del dominio (o dell'unità organizzativa indicata)."""
+    conn = _connessione()
+    try:
+        return _cerca(conn, f"(&(objectCategory=computer){UAC_FILTRO_ATTIVI}(operatingSystem=Windows*))",
+                      ["name", "dNSHostName", "operatingSystem", "lastLogonTimestamp"], base=base)
+    finally:
+        try:
+            conn.unbind()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def applica_pc(fonte, computer: list[dict], *, ora: datetime | None = None) -> dict:
+    """Aggiorna l'elenco dei PC della fonte. Restano fuori i server già letti come fonte a sé e i PC non usati da 60 giorni.
+
+    I PC spariti da AD o non più usati restano in elenco (con i loro segnalibri) ma non si leggono più.
+    """
+    from .models import FonteLog, Postazione
+
+    ora = ora or timezone.now()
+    gia_fonti = {h.strip().split(".")[0].lower() for h in FonteLog.objects.filter(
+        tipo=FonteLog.TIPO_WINDOWS, attiva=True).values_list("host", flat=True) if h.strip()}
+    esistenti = {p.nome.lower(): p for p in Postazione.objects.filter(fonte_id=fonte.pk)}
+    visti, esito = set(), {"pc": 0, "nuovi": 0, "non_usati": 0, "gia_fonti": 0}
+    limite = ora - timedelta(days=PC_NON_USATO_GIORNI)
+    for c in computer:
+        nome = str(_valore(c.get("name")) or "").strip()
+        if not nome:
+            continue
+        chiave = nome.lower()
+        if chiave in gia_fonti:
+            esito["gia_fonti"] += 1
+            continue
+        ultimo = data_ad(c.get("lastLogonTimestamp"))
+        usato = ultimo is None or ultimo >= limite
+        p = esistenti.get(chiave) or Postazione(fonte_id=fonte.pk, nome=nome[:120])
+        if p.pk is None:
+            if not usato:
+                esito["non_usati"] += 1
+                continue
+            esito["nuovi"] += 1
+        p.indirizzo = str(_valore(c.get("dNSHostName")) or "")[:255]
+        p.sistema = str(_valore(c.get("operatingSystem")) or "")[:120]
+        p.ultimo_accesso_ad = ultimo
+        p.in_ad = usato
+        p.save()
+        visti.add(chiave)
+        esito["pc"] += int(usato)
+        esito["non_usati"] += int(not usato)
+    for chiave, p in esistenti.items():
+        if chiave not in visti and p.in_ad:
+            Postazione.objects.filter(pk=p.pk).update(in_ad=False)
+    return esito
+
+
+def aggiorna_postazioni(fonte) -> dict:
+    if not configurato():
+        raise RuntimeError("Connessione LDAP del portale non configurata (Setup Wizard › LDAP).")
+    return applica_pc(fonte, leggi_pc((fonte.ou_pc or "").strip()))
 
 
 def _segnala_cessati() -> None:

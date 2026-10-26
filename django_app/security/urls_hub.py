@@ -35,6 +35,7 @@ urlpatterns = [
     path("registro-log/archivio/", _guard(registro_views.archivio_pagina), name="registro_log_archivio"),
     path("registro-log/archivio/<str:giorno>/", _guard(registro_views.archivio_scarica), name="registro_log_archivio_scarica"),
     path("registro-log/fonti/", _guard(registro_views.fonti), name="registro_log_fonti"),
+    path("registro-log/fonti/<int:pk>/pc/", _guard(registro_views.postazioni), name="registro_log_postazioni"),
     path("registro-log/indagini/", _guard(registro_views.indagini), name="registro_log_indagini"),
     path("registro-log/indagini/<int:pk>/", _guard(registro_views.indagine), name="registro_log_indagine"),
     path("registro-log/server/", _guard(registro_views.infra), name="registro_log_infra"),

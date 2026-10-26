@@ -89,7 +89,7 @@ MENU = [
         ("Archivio e integrità", "registro_log_archivio", ("registro_log_archivio",), False),
         ("Server e virtualizzazione", "registro_log_infra", ("registro_log_infra",), False),
         ("Indagini", "registro_log_indagini", ("registro_log_indagini", "registro_log_indagine"), True),
-        ("Fonti", "registro_log_fonti", ("registro_log_fonti",), False),
+        ("Fonti", "registro_log_fonti", ("registro_log_fonti", "registro_log_postazioni"), False),
     ]),
     ("Report", "report", [
         ("Report", "report", ("report",), False),

@@ -106,6 +106,7 @@ class EsitoCanale:
     segnalibro: int | None = None
     persi: int = 0
     completo: bool = True
+    ricominciato: bool = False  # il registro è stato svuotato e la numerazione è ripartita
 
 
 def leggi_canale(canale: str, host: str, segnalibro: int | None, *, tutto: bool, file: bool = False,
@@ -115,7 +116,12 @@ def leggi_canale(canale: str, host: str, segnalibro: int | None, *, tutto: bool,
     fino_a = ultimo_record(canale, host)
     if fino_a is None:
         return esito
-    if segnalibro is not None:
+    if segnalibro is not None and fino_a < segnalibro:
+        # Numerazione ripartita (registro svuotato, es. da BusinessLog con «Cancella Registro»): si rilegge da capo,
+        # altrimenti il segnalibro resterebbe davanti all'ultimo record e non si leggerebbe più nulla.
+        esito.ricominciato = True
+        segnalibro = 0
+    elif segnalibro is not None:
         vecchio = record_piu_vecchio(canale, host)
         if vecchio and vecchio > segnalibro + 1:
             esito.persi = vecchio - segnalibro - 1
@@ -136,6 +142,17 @@ def leggi_canale(canale: str, host: str, segnalibro: int | None, *, tutto: bool,
         esito.segnalibro = dopo
     esito.completo = False  # troppi eventi: si continua al giro dopo dal segnalibro
     return esito
+
+
+def acceso(host: str, timeout: float = 2.0) -> bool:
+    """Il PC risponde sulla porta RPC (135)? Un PC spento si scarta in 2 secondi invece che nel timeout di wevtutil."""
+    import socket
+
+    try:
+        with socket.create_connection((host, 135), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def prova(host: str, canali: list[str], timeout: int = 25) -> list[str]:

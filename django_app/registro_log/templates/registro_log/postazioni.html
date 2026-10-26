@@ -1,0 +1,52 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}PC del dominio | Security Center AI{% endblock %}
+{% block page_title %}PC del dominio{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">I PC letti dalla fonte «{{ fonte.nome }}», presi da Active Directory{% if fonte.ou_pc %} ({{ fonte.ou_pc }}){% endif %}. Ogni PC acceso si rilegge ogni 10 minuti; un PC spento si riprova dopo 15 minuti e non è un errore. Registri letti: {{ fonte.lista_canali|join:", " }}.
+<a href="{% url 'security:registro_log_fonti' %}#fonti">&larr; Fonti</a></p>
+
+<section class="sec-grid sec-kpi-grid">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?stato=ok"><span class="sec-kpi-label">Letti</span>
+    <strong class="sec-kpi-value">{{ conta.ok|default:0 }}</strong><span class="sec-kpi-delta sec-good">su {{ totale }} PC</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?stato=spento"><span class="sec-kpi-label">Spenti ora</span>
+    <strong class="sec-kpi-value">{{ conta.spento|default:0 }}</strong><span class="sec-kpi-delta">si riprovano da soli</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?stato=errore"><span class="sec-kpi-label">Con errore</span>
+    <strong class="sec-kpi-value{% if conta.errore %} warning{% endif %}">{{ conta.errore|default:0 }}</strong><span class="sec-kpi-delta">accesso negato, firewall</span></a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="?stato=mai"><span class="sec-kpi-label">Mai letti</span>
+    <strong class="sec-kpi-value">{{ conta.mai|default:0 }}</strong><span class="sec-kpi-delta">mai raggiunti dal raccoglitore</span></a>
+</section>
+
+<nav class="rl-chips" aria-label="Filtri" style="margin-top:12px">
+  {% for codice, etichetta in stati %}<a class="rl-chip{% if stato == codice %} attivo{% endif %}" href="?stato={{ codice }}"{% if stato == codice %} aria-current="true"{% endif %}>{{ etichetta }}{% if codice == "esclusi" %} ({{ esclusi }}){% endif %}</a>{% endfor %}
+</nav>
+<form class="rl-filtri sec-form" method="get"><input type="hidden" name="stato" value="{{ stato }}">
+  <p><label for="pc-q">Cerca</label><input id="pc-q" type="search" name="q" value="{{ q }}" placeholder="Nome del PC, sistema"></p>
+  <button class="sec-button" type="submit">Cerca</button>
+  {% if puo_configurare %}<button class="sec-button sec-button-primary" form="pc-aggiorna" type="submit" style="margin-left:auto">Aggiorna l'elenco da Active Directory</button>{% endif %}
+</form>
+{% if puo_configurare %}<form id="pc-aggiorna" method="post">{% csrf_token %}<input type="hidden" name="azione" value="aggiorna"></form>{% endif %}
+
+<section class="sec-panel">
+  {% if pagina %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Stato</th><th>PC</th><th>Ultima lettura</th><th>Oggi</th>{% if puo_configurare %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for p in pagina %}<tr>
+      <td>{% if p.esclusa %}<span class="sec-badge">Escluso</span>{% elif not p.in_ad %}<span class="sec-badge">Non più in AD</span>{% elif p.stato == "ok" %}<span class="sec-badge info">Letto</span>{% elif p.stato == "spento" %}<span class="sec-badge">Spento</span>{% elif p.stato == "errore" %}<span class="sec-badge critical">Errore</span>{% else %}<span class="sec-badge warning">Mai letto</span>{% endif %}</td>
+      <td><strong>{{ p.nome }}</strong><span class="rl-sub">{{ p.sistema|default:"—" }}{% if p.ultimo_accesso_ad %} · ultimo accesso al dominio {{ p.ultimo_accesso_ad|date:"d/m/Y" }}{% endif %}</span>
+        {% if p.ultimo_errore %}<span class="rl-sub"{% if p.stato == "errore" %} style="color:var(--danger)"{% endif %}>{{ p.ultimo_errore }}</span>{% endif %}</td>
+      <td class="sec-nowrap">{% if p.ultima_lettura_il %}{{ p.ultima_lettura_il|timesince:ora }} fa<span class="rl-sub">{{ p.ultima_lettura_il|date:"d/m/Y H:i" }}</span>{% else %}mai{% endif %}
+        {% if p.riprova_dopo and p.riprova_dopo > ora %}<span class="rl-sub">nuovo tentativo alle {{ p.riprova_dopo|time:"H:i" }}</span>{% endif %}</td>
+      <td>{% if p.giorno_conteggio == oggi %}{{ p.righe_oggi }}{% else %}0{% endif %}</td>
+      {% if puo_configurare %}<td><form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ p.pk }}">
+        {% if p.esclusa %}<button class="sec-button" name="azione" value="includi" type="submit">Includi</button>
+        {% else %}<button class="sec-button" name="azione" value="escludi" type="submit" data-hub-confirm="Non leggere più {{ p.nome }}? Gli eventi già raccolti restano nell'archivio.">Escludi</button>{% endif %}
+      </form></td>{% endif %}
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% if pagina.has_other_pages %}<nav class="rl-chips" style="margin-top:10px">{% if pagina.has_previous %}<a class="rl-chip" href="?stato={{ stato }}&amp;q={{ q|urlencode }}&amp;pagina={{ pagina.previous_page_number }}">&larr; Precedenti</a>{% endif %}<span class="sec-muted sec-small">Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>{% if pagina.has_next %}<a class="rl-chip" href="?stato={{ stato }}&amp;q={{ q|urlencode }}&amp;pagina={{ pagina.next_page_number }}">Successivi &rarr;</a>{% endif %}</nav>{% endif %}
+  {% else %}
+    <p class="sec-empty">{% if stato or q %}Nessun PC con questi filtri.{% else %}Nessun PC: premere «Aggiorna l'elenco da Active Directory».{% endif %}</p>
+  {% endif %}
+</section>
+{% endblock %}

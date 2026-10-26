@@ -133,6 +133,11 @@ GUIDA = {
                     "Il raccoglitore è un servizio di Windows: deployment/scripts/install-registro-log-task.ps1 (stesso account del "
                     "qcluster). Conservazione minima 6 mesi, seconda copia su cartella di rete o SharePoint. Alert nel SOC: sezione "
                     "«Registro accessi» di Avvisi e automatismi. ESXi/vCenter e iLO/iDRAC in «Server e virtualizzazione».",
+                    "Registro accessi come BusinessLog: fonte «Tutti i PC del dominio» (elenco da Active Directory, ogni PC "
+                    "acceso letto ogni 10 minuti, pagina «PC» per stato ed esclusioni), «Cartelle sorvegliate» sul file server "
+                    "(percorso | letture, scritture, eliminazioni), file copiati su chiavetta con «Controlla Archivio rimovibile». "
+                    "Valgono le voci di controllo già messe per BusinessLog. Durante il passaggio: in BusinessLog spegnere "
+                    "«Cancella Registro» e scrivere il suo account in Fonti › Impostazioni › «Account dei raccoglitori di log».",
                     "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
                     "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
                     "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
