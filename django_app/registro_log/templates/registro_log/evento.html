@@ -3,7 +3,7 @@
 {% block page_title %}{{ etichetta }}{% endblock %}
 
 {% block soc_content %}
-<p class="rl-intro"><a href="{% url 'security:registro_log_eventi' %}">&larr; Tutti gli eventi</a></p>
+<p class="rl-intro">{% if indagine %}<a href="{% url 'security:registro_log_indagine' indagine.pk %}">&larr; Torna all'indagine</a>{% else %}<a href="{% url 'security:registro_log_eventi' %}">&larr; Tutti gli eventi</a>{% endif %}</p>
 <div class="rl-due" style="margin-top:0">
   <section class="sec-panel">
     <div class="sec-section-head"><h2>{{ ev.descrizione }}</h2>{% if ev.gravita == "high" %}<span class="sec-badge critical">Critico</span>{% elif ev.esito == "ko" %}<span class="sec-badge warning">Non riuscito</span>{% endif %}</div>

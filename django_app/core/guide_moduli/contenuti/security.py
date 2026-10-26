@@ -91,6 +91,9 @@ GUIDA = {
                     "«Account AD»: «Da sistemare» mostra ex dipendenti con l'account attivo, amministratori senza nomina, account senza persona.",
                     "«Verifica annuale»: lista di controllo dell'anno, PDF del verbale, esito da registrare.",
                     "«Archivio e integrità»: un sigillo per giorno; le interruzioni della raccolta si giustificano qui.",
+                    "«Indagini» (solo chi configura il SOC): accessi ai file, stampe e chiavette USB si consultano solo "
+                    "aprendo un'indagine con motivo, persone e periodo (es. sospetto furto di file); tutto resta nell'audit. "
+                    "Si raccolgono solo dopo la conferma «Informativa ai dipendenti e accordi verificati» in Fonti.",
                 ]),
             ],
         },

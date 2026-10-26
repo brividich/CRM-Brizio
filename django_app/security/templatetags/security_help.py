@@ -62,6 +62,8 @@ PAGE_HELP = {
     "registro_log_archivio": ("18-registro-accessi", "archivio-e-integrità"),
     "registro_log_infra": ("18-registro-accessi", "server-e-virtualizzazione"),
     "registro_log_fonti": ("18-registro-accessi", "fonti-e-impostazioni"),
+    "registro_log_indagini": ("18-registro-accessi", "indagini-file-stampe-e-usb"),
+    "registro_log_indagine": ("18-registro-accessi", "indagini-file-stampe-e-usb"),
 }
 
 

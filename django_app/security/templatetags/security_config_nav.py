@@ -88,6 +88,7 @@ MENU = [
         ("Verifica annuale", "registro_log_verifica", ("registro_log_verifica",), False),
         ("Archivio e integrità", "registro_log_archivio", ("registro_log_archivio",), False),
         ("Server e virtualizzazione", "registro_log_infra", ("registro_log_infra",), False),
+        ("Indagini", "registro_log_indagini", ("registro_log_indagini", "registro_log_indagine"), True),
         ("Fonti", "registro_log_fonti", ("registro_log_fonti",), False),
     ]),
     ("Report", "report", [

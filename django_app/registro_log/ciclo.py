@@ -129,14 +129,22 @@ def invia_al_soc() -> dict:
     from security.models import Severity
     from security.services import soc_settings
 
-    from .models import EventoRegistro, Interruzione, SigilloGiorno
+    from . import regole
+    from .models import EventoRegistro, FonteLog, Interruzione, SigilloGiorno
 
     if not soc_settings.value("registro.alert.attivo"):
         return {"attivo": False}
     source = _soc_source()
     creati = 0
-    nuovi = list(EventoRegistro.objects.filter(inviato_soc=False).order_by("id")[:2000])
+    nuovi = list(EventoRegistro.objects.filter(inviato_soc=False).order_by("id")[:5000])
+    server = set(FonteLog.objects.filter(ruolo__in=("dc", "server")).values_list("pk", flat=True))
     for ev in nuovi:
+        if ev.categoria in regole.CATEGORIE_RISERVATE:
+            # Eventi sull'attività delle persone: al SOC va solo la chiavetta su un server, senza dettagli.
+            if ev.categoria == "usb_collegato" and ev.fonte_id in server and soc_settings.value("registro.alert.usb_server"):
+                creati += _evento_soc(source, "usb_server", f"Dispositivo USB collegato al server {ev.host or ev.fonte_nome}",
+                                      Severity.HIGH, f"usb|{ev.pk}", ev.quando, {"host": ev.host, "fonte": ev.fonte_nome})
+            continue
         regola = ALERT_CATEGORIE.get(ev.categoria)
         da_mandare = bool(regola and soc_settings.value(regola[0]))
         if not da_mandare and ev.privilegiato and ev.fuori_orario and ev.categoria in ("accesso", "accesso_privilegiato"):
@@ -160,6 +168,17 @@ def invia_al_soc() -> dict:
             creati += _evento_soc(source, "falliti", f"{r['n']} accessi non riusciti in 15 minuti per l'account {r['account']}",
                                   Severity.MEDIUM, f"raffica|{r['account'].lower()}|{ora:%Y%m%d%H}", timezone.now(),
                                   {"account": r["account"], "tentativi": r["n"]})
+    # File eliminati o modificati a raffica dallo stesso account (furto, cancellazione, ransomware)
+    soglia_file = int(soc_settings.value("registro.alert.file_soglia") or 0)
+    if soglia_file and soc_settings.value("registro.alert.file_massivi"):
+        da = timezone.now() - timedelta(minutes=10)
+        ora = timezone.localtime()
+        for r in (EventoRegistro.objects.filter(categoria__in=("file_eliminato", "file_modificato"), quando__gte=da)
+                  .exclude(account="").values("account", "categoria").annotate(n=Count("id")).filter(n__gte=soglia_file)):
+            verbo = "eliminati" if r["categoria"] == "file_eliminato" else "modificati"
+            creati += _evento_soc(source, "file_massivi", f"{r['n']} file {verbo} in 10 minuti dall'account {r['account']}",
+                                  Severity.HIGH, f"file|{r['categoria']}|{r['account'].lower()}|{ora:%Y%m%d%H}", timezone.now(),
+                                  {"account": r["account"], "file": r["n"], "categoria": r["categoria"]})
     # Interruzioni e archivio
     if soc_settings.value("registro.alert.interruzioni"):
         for i in Interruzione.objects.filter(inviata_soc=False).order_by("id")[:200]:

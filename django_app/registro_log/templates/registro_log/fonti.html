@@ -64,6 +64,14 @@
       {% include "registro_log/_campo.html" with f=form_fonte.silenzio_max_ore %}
       {% include "registro_log/_campo.html" with f=form_fonte.attiva %}
     </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Attività delle persone: si consulta solo nelle indagini</legend>
+      {% if not imp.controlli_lavoratori_ok %}<p class="sec-muted sec-small" style="margin-top:0">Si accendono dopo la conferma «Informativa ai dipendenti e accordi verificati» nelle Impostazioni qui sotto.</p>{% endif %}
+      <div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_fonte.audit_file %}
+      {% include "registro_log/_campo.html" with f=form_fonte.audit_stampe %}
+      {% include "registro_log/_campo.html" with f=form_fonte.stampe_nomi %}
+      {% include "registro_log/_campo.html" with f=form_fonte.audit_usb %}
+    </div></fieldset>
     <div class="rl-azioni-form"><button class="sec-button sec-button-primary" type="submit">Salva la fonte</button>{% if modifica %}<a class="sec-button" href="{% url 'security:registro_log_fonti' %}#nuova">Annulla</a>{% endif %}</div>
   </form>
   <details class="rl-aiuto"><summary>Server Windows e controller di dominio: cosa preparare</summary>
@@ -75,6 +83,13 @@
       <li>Aggiungere la fonte qui e premere <strong>Prova</strong>.</li>
     </ol>
     <p class="sec-muted sec-small">Con molti server conviene il <strong>Windows Event Forwarding</strong>: i server inoltrano a questo server (sottoscrizione «Avviato dall'origine») e qui si aggiunge una sola fonte «Eventi inoltrati».</p>
+  </details>
+  <details class="rl-aiuto"><summary>Accessi ai file, stampe e USB: cosa preparare</summary>
+    <ol>
+      <li><strong>File</strong> (file server): nella GPO dei server attivare «Controlla file system» (Accesso agli oggetti, operazioni riuscite) e, sulle cartelle condivise da sorvegliare, una voce di controllo (Proprietà › Sicurezza › Avanzate › Controllo) per «Everyone» con <em>Elimina</em>, <em>Crea file / Scrivi dati</em> e <em>Modifica autorizzazioni</em>; aggiungere <em>Visualizza cartella / Leggi dati</em> solo se si vogliono anche le letture (molti eventi). Sulla fonte: «Accessi ai file».</li>
+      <li><strong>Stampe</strong> (server di stampa): <em>wevtutil sl Microsoft-Windows-PrintService/Operational /e:true</em>. Sulla fonte: «Stampe» (il nome del documento solo se serve davvero).</li>
+      <li><strong>USB</strong>: il registro «Partition/Diagnostic» è già attivo da Windows 10; per l'evento 6416 attivare «Controlla attività PNP» (Rilevamento dettagliato). Le chiavette si collegano ai PC: per raccoglierle serve una sottoscrizione WEF dai PC via GPO verso il server del portale e una fonte «Eventi inoltrati» con «Dispositivi USB».</li>
+    </ol>
   </details>
   <details class="rl-aiuto"><summary>ESXi, switch, firewall e NAS (syslog): cosa impostare sull'apparato</summary>
     <p>Indirizzo da impostare come server syslog: questo server, porta <strong>{{ imp.syslog_porta }}</strong> ({% if imp.syslog_tcp %}UDP o TCP{% else %}UDP{% endif %}). Esempi:</p>
@@ -113,6 +128,10 @@ Synology DSM:          Centro log › Invio dei log › server syslog</div>
       {% include "registro_log/_campo.html" with f=form_imp.orario_inizio %}
       {% include "registro_log/_campo.html" with f=form_imp.orario_fine %}
     </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Accessi ai file, stampe e USB</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_imp.controlli_lavoratori_ok %}
+      {% include "registro_log/_campo.html" with f=form_imp.controlli_lavoratori_nota %}
+    </div>{% if imp.controlli_lavoratori_ok %}<p class="sec-muted sec-small">Confermato il {{ imp.controlli_lavoratori_il|date:"d/m/Y H:i" }} da {{ imp.controlli_lavoratori_da }}. Togliendo la spunta si spengono file, stampe e USB su tutte le fonti.</p>{% endif %}</fieldset>
     <div class="rl-azioni-form"><button class="sec-button sec-button-primary" type="submit">Salva le impostazioni</button></div>
   </form>
   <p class="sec-muted sec-small">Archivio in uso: <strong>{{ cartella }}</strong>. La seconda copia su SharePoint usa la stessa cartella dell'audit sigillato (sottocartella «registro-log»).</p>

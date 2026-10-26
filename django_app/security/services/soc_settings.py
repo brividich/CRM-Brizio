@@ -196,6 +196,13 @@ SECTIONS = [
             Option("registro.alert.falliti", True, "Accessi non riusciti a raffica sullo stesso account"),
             Option("registro.alert.falliti_soglia", 10, "Tentativi non riusciti",
                    "Quanti tentativi non riusciti sullo stesso account in 15 minuti aprono un alert.", "int", min_value=3, max_value=200),
+            Option("registro.alert.file_massivi", True, "File eliminati o modificati a raffica dallo stesso account",
+                   "Possibile furto o cancellazione di dati, o ransomware. L'alert dice solo account e numero di file: "
+                   "i file si vedono aprendo un'indagine."),
+            Option("registro.alert.file_soglia", 200, "File in 10 minuti",
+                   "Quanti file eliminati (o modificati) dallo stesso account in 10 minuti aprono l'alert.", "int",
+                   min_value=20, max_value=10000),
+            Option("registro.alert.usb_server", True, "Dispositivo USB collegato a un server o a un controller di dominio"),
             Option("registro.alert.interruzioni", True, "Raccolta interrotta o archivio non integro",
                    "Raccoglitore fermo, fonte senza messaggi, lettura non riuscita, eventi sovrascritti, verifica dell'archivio fallita."),
         ],

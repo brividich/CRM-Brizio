@@ -90,6 +90,24 @@ vCenter (o i singoli host ESXi, se non c'è vCenter) e i controller iLO/iDRAC de
 
 Le versioni di ESXi, vCenter e dei firmware dei controller entrano nell'inventario software del SOC (fonte «Server e virtualizzazione») e passano dal calcolo delle CVE. Utente consigliato: ruolo «Sola lettura»; password salvata cifrata.
 
+## Indagini: file, stampe e USB
+
+Accessi ai file dei file server, stampe e dispositivi USB sono **controlli sull'attività delle persone** (art. 4 dello Statuto dei lavoratori, GDPR). Per questo:
+
+- si accendono sulle fonti solo dopo la conferma **«Informativa ai dipendenti e accordi verificati»** in Fonti › Impostazioni (con un riferimento: documento, data, chi ha verificato). Chi conferma e quando resta salvato; togliendo la spunta si spengono su tutte le fonti;
+- vengono raccolti e sigillati nell'archivio come il resto, ma **non compaiono** in Panoramica, Eventi, dettagli o verifica annuale;
+- si consultano **solo dentro un'indagine** (Registro accessi › Indagini, solo chi configura il SOC), da aprire quando è stato rilevato un problema, ad esempio un sospetto furto di file o di proprietà intellettuale.
+
+**Aprire un'indagine**: motivo (almeno una frase), riferimento (es. numero dell'incidente), persone (account; vuoto = tutti), periodo, testo facoltativo da cercare nel percorso del file, nella stampante o nel dispositivo. Dentro l'indagine: riquadri con accessi ai file (e quante eliminazioni), stampe (e pagine), dispositivi USB; elenco con data, chi, cosa, sistema; ogni riga apre l'evento originale sigillato (la prova da allegare); **Scarica CSV**. Apertura, consultazioni, export e chiusura restano nell'audit del portale. **Chiudi l'indagine** con l'esito: da quel momento i dati non si consultano più da lì.
+
+Cosa si raccoglie:
+
+- **File** (scheda della fonte, «Accessi ai file»): *Modifiche, eliminazioni e permessi* (consigliato) oppure *Anche le letture*. Eventi 4663 e 4670 dei file server; file temporanei di Office, `.tmp`, `desktop.ini`, `thumbs.db` e collegamenti esclusi. Sul server servono il controllo «File system» nella GPO e la voce di controllo sulle cartelle (istruzioni nella pagina Fonti).
+- **Stampe** («Stampe»): evento 307 del registro PrintService/Operational del server di stampa: chi, da quale PC, su quale stampante, quante pagine. Il **nome del documento** si salva solo con «Registra anche il nome del documento»; spento, non finisce nemmeno nell'archivio.
+- **USB** («Dispositivi USB»): chiavette e dischi esterni (marca, modello, numero di serie, capacità) dal registro Partition/Diagnostic e dall'evento 6416; tastiere e mouse esclusi. Le chiavette si collegano ai PC: si raccolgono con una sottoscrizione WEF dai PC verso il server del portale.
+
+Alert nel SOC, senza nomi di file: **file eliminati o modificati a raffica** dallo stesso account (soglia in 10 minuti, default 200: furto, cancellazione o ransomware) e **dispositivo USB collegato a un server**. Da lì si apre l'indagine.
+
 ## Fonti e impostazioni
 
 **Fonti**: da dove arrivano i log.

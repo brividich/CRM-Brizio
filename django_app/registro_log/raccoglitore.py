@@ -93,7 +93,7 @@ class Raccoglitore:
             quando = regole.quando_syslog(dati, ricevuto)
             host, canale, event_id = dati.get("host") or dati.get("ip") or "", dati.get("app", "")[:80], None
         else:
-            idx = regole.classifica_windows(dati, self.privilegiati)
+            idx = regole.classifica_windows(dati, self.privilegiati, livello_file=getattr(fonte, "audit_file", "") or "")
             quando = regole.quando_windows(dati) or ricevuto
             host, canale, event_id = dati.get("pc", ""), dati.get("canale", ""), dati.get("id")
         if idx is None:
@@ -118,6 +118,7 @@ class Raccoglitore:
             dominio=(idx.dominio or "")[:120], account_target=(idx.account_target or "")[:255],
             ip_origine=(idx.ip_origine or "")[:64], tipo_accesso=(idx.tipo_accesso or "")[:40],
             descrizione=(idx.descrizione or etichetta)[:400], privilegiato=nome in self.privilegiati,
+            oggetto=(idx.oggetto or "")[:500], quantita=idx.quantita,
             fuori_orario=bool(imp and regole.fuori_orario(quando, imp.orario_inizio, imp.orario_fine)),
             archivio_giorno=giorno, archivio_riga=n,
         )
@@ -167,6 +168,8 @@ class Raccoglitore:
                         else:  # ("windows", fonte_id, dati, ricevuto)
                             _, fonte_id, dati, ricevuto = voce
                         fonte = self.fonti.get(fonte_id) or FonteLog.objects.filter(pk=fonte_id).first()
+                        if tipo == "windows":
+                            dati = minimizza(dati, fonte)
                         giorno, n = self.scrittore.scrivi(fonte_id, dati, ricevuto)
                         righe_dal_flush += 1
                         ev = self._indice(fonte, dati, giorno, n, ricevuto)
@@ -201,7 +204,8 @@ class Raccoglitore:
             errori = []
             for canale in canali:
                 try:
-                    esito = windows.leggi_canale(canale, host, fresca.get(canale), tutto=tutto)
+                    esito = windows.leggi_canale(canale, host, fresca.get(canale), tutto=tutto,
+                                                 file=bool(fonte.audit_file), usb=fonte.audit_usb)
                 except Exception as exc:  # noqa: BLE001 - errore della fonte, si annota e si va avanti
                     errori.append(f"{canale}: {exc}")
                     continue
@@ -286,6 +290,16 @@ class Raccoglitore:
             if self.ricevitore is not None:
                 self.ricevitore.ferma()
             filo.join(timeout=60)
+
+
+def minimizza(dati: dict, fonte) -> dict:
+    """Prima di archiviare: il nome del documento stampato si tiene solo se la fonte lo prevede."""
+    if dati.get("id") == 307 and "printservice" in (dati.get("prov") or "").lower() and not getattr(fonte, "stampe_nomi", False):
+        interni = dict(dati.get("dati") or {})
+        if interni.get("Param2"):
+            interni["Param2"] = regole.DOCUMENTO_NASCOSTO
+            dati = {**dati, "dati": interni}
+    return dati
 
 
 # ── funzioni condivise con il ciclo del qcluster ─────────────────────────────

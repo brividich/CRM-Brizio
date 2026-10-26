@@ -22,7 +22,7 @@ from core.audit import log_action
 from security.services.configuration import can_manage_security_config
 
 from . import archivio, regole
-from .forms import AmministratoreForm, ApparatoForm, FonteForm, ImpostazioniForm, VerificaForm
+from .forms import AmministratoreForm, ApparatoForm, FonteForm, ImpostazioniForm, IndagineForm, VerificaForm
 from .models import (
     AccountAD,
     AmministratoreSistema,
@@ -30,6 +30,7 @@ from .models import (
     EventoRegistro,
     FonteLog,
     Impostazioni,
+    Indagine,
     Interruzione,
     SigilloGiorno,
     VerificaAnnuale,
@@ -79,14 +80,15 @@ def panoramica(request):
     ora = timezone.now()
     oggi_inizio = timezone.localtime(ora).replace(hour=0, minute=0, second=0, microsecond=0)
     ieri = ora - timedelta(hours=24)
-    eventi_24 = EventoRegistro.objects.filter(quando__gte=ieri)
+    eventi_24 = EventoRegistro.objects.filter(quando__gte=ieri).exclude(categoria__in=regole.CATEGORIE_RISERVATE)
     conta = dict(eventi_24.values_list("categoria").annotate(n=Count("id")).values_list("categoria", "n"))
     ultimo_sigillo = SigilloGiorno.objects.order_by("-giorno").first()
     non_integri = SigilloGiorno.objects.filter(verifica_ok=False).count()
     interruzioni_aperte = Interruzione.objects.filter(al__isnull=True).order_by("-dal")
     ads_n = sum(1 for a in AmministratoreSistema.objects.all() if a.attivo)
     passi = _passi(imp, fonti, b, ads_n, bool(imp.copia_cartella or imp.copia_sharepoint))
-    importanti = (EventoRegistro.objects.filter(Q(gravita__in=("high", "warning")) | Q(privilegiato=True, fuori_orario=True))
+    importanti = (EventoRegistro.objects.exclude(categoria__in=regole.CATEGORIE_RISERVATE)
+                  .filter(Q(gravita__in=("high", "warning")) | Q(privilegiato=True, fuori_orario=True))
                   .order_by("-quando")[:12])
     return render(request, "registro_log/panoramica.html", {
         "imp": imp, "battito": b, "fonti": fonti, "passi": passi, "passi_mancanti": sum(1 for p in passi if not p["fatto"]),
@@ -123,7 +125,8 @@ def eventi(request):
     giorni = request.GET.get("giorni") or "7"
     if giorni not in dict(PERIODI):
         giorni = "7"
-    qs = EventoRegistro.objects.filter(quando__gte=timezone.now() - timedelta(days=int(giorni)))
+    qs = EventoRegistro.objects.filter(quando__gte=timezone.now() - timedelta(days=int(giorni))).exclude(
+        categoria__in=regole.CATEGORIE_RISERVATE)
     rapido = request.GET.get("vista", "")
     if rapido == "ads":
         qs = qs.filter(privilegiato=True, categoria__in=("accesso", "accesso_privilegiato", "uscita"))
@@ -151,7 +154,8 @@ def eventi(request):
     parametri.pop("pagina", None)
     return render(request, "registro_log/eventi.html", {
         "pagina": pagina, "giorni": giorni, "periodi": PERIODI, "rapidi": FILTRI_RAPIDI, "vista": rapido,
-        "categoria": categoria, "categorie": sorted(regole.CATEGORIE.items(), key=lambda x: x[1][0]),
+        "categoria": categoria, "categorie": sorted(((k, v) for k, v in regole.CATEGORIE.items()
+                                                     if k not in regole.CATEGORIE_RISERVATE), key=lambda x: x[1][0]),
         "fonte": fonte, "fonti": FonteLog.objects.all(), "q": testo, "parametri": parametri.urlencode(),
         "etichette": regole.CATEGORIE,
     })
@@ -159,14 +163,22 @@ def eventi(request):
 
 def evento(request, pk: int):
     ev = get_object_or_404(EventoRegistro, pk=pk)
+    indagine = None
+    if ev.categoria in regole.CATEGORIE_RISERVATE:
+        # Evento riservato: solo dentro un'indagine aperta che lo comprende, e solo per chi configura il SOC.
+        indagine = Indagine.objects.filter(pk=request.GET.get("indagine") or 0, chiusa_il__isnull=True).first()
+        if not (_puo_configurare(request) and indagine and _indagine_qs(indagine).filter(pk=ev.pk).exists()):
+            return _nego()
     riga = archivio.leggi_riga(ev.archivio_giorno, ev.archivio_riga) if ev.archivio_giorno and ev.archivio_riga else None
     if riga is not None:
         log_action(request, "registro_log_riga_letta", MODULO, {"evento": ev.pk, "giorno": str(ev.archivio_giorno),
-                                                              "riga": ev.archivio_riga})
+                                                              "riga": ev.archivio_riga,
+                                                              "indagine": indagine.pk if indagine else None})
     return render(request, "registro_log/evento.html", {
         "ev": ev, "riga": json.dumps(riga, ensure_ascii=False, indent=2) if riga else "", "dati": (riga or {}).get("d") or {}, "etichetta": regole.CATEGORIE.get(ev.categoria, (ev.categoria,))[0],
-        "stesso_account": EventoRegistro.objects.filter(account=ev.account).exclude(pk=ev.pk).order_by("-quando")[:15]
-        if ev.account else [],
+        "stesso_account": EventoRegistro.objects.filter(account=ev.account).exclude(pk=ev.pk).exclude(
+            categoria__in=regole.CATEGORIE_RISERVATE).order_by("-quando")[:15] if ev.account else [],
+        "indagine": indagine,
     })
 
 
@@ -246,9 +258,15 @@ def fonti(request):
         if azione == "impostazioni":
             form_imp = ImpostazioniForm(request.POST, instance=imp)
             if form_imp.is_valid():
+                prima = Impostazioni.corrente().controlli_lavoratori_ok
                 obj = form_imp.save(commit=False)
                 obj.aggiornato_da = _utente(request)
+                if obj.controlli_lavoratori_ok and not prima:
+                    obj.controlli_lavoratori_da, obj.controlli_lavoratori_il = _utente(request), timezone.now()
                 obj.save()
+                if prima and not obj.controlli_lavoratori_ok:
+                    FonteLog.objects.update(audit_file="", audit_stampe=False, stampe_nomi=False, audit_usb=False)
+                    messages.warning(request, "Conferma tolta: accessi ai file, stampe e USB spenti su tutte le fonti.")
                 log_action(request, "registro_log_impostazioni", MODULO, {k: str(v) for k, v in form_imp.cleaned_data.items()})
                 messages.success(request, "Impostazioni salvate. Il raccoglitore le applica entro 5 minuti.")
                 return redirect(reverse("security:registro_log_fonti") + "#impostazioni")
@@ -287,6 +305,88 @@ def fonti(request):
         "imp": imp, "form_imp": form_imp, "form_fonte": form_fonte, "modifica": modifica, "fonti": FonteLog.objects.all(),
         "puo_configurare": puo, "battito": battito(), "prova": prova, "cartella": archivio.cartella(),
         "sconosciuti": sorted(sconosciuti.items(), key=lambda x: -int(x[1].get("messaggi", 0)))[:20],
+    })
+
+
+# ── Indagini (eventi riservati: file, stampe, USB) ───────────────────────────
+
+
+def _indagine_qs(ind):
+    qs = EventoRegistro.objects.filter(categoria__in=regole.CATEGORIE_RISERVATE, quando__date__gte=ind.dal,
+                                       quando__date__lte=ind.al)
+    nomi = [a.split("\\")[-1].split("@")[0] for a in ind.lista_account()]
+    if nomi:
+        filtro = Q()
+        for n in nomi:
+            filtro |= Q(account__iexact=n) | Q(account__iendswith="\\" + n)
+        qs = qs.filter(filtro)
+    if ind.filtro_testo:
+        t = ind.filtro_testo
+        qs = qs.filter(Q(oggetto__icontains=t) | Q(descrizione__icontains=t) | Q(host__icontains=t))
+    return qs
+
+
+def indagini(request):
+    if not _puo_configurare(request):
+        return _nego()
+    form = IndagineForm(initial={"dal": timezone.localdate() - timedelta(days=30), "al": timezone.localdate()})
+    if request.method == "POST":
+        form = IndagineForm(request.POST)
+        if form.is_valid():
+            ind = form.save(commit=False)
+            ind.aperta_da = _utente(request)
+            ind.save()
+            log_action(request, "registro_log_indagine_aperta", MODULO, {"indagine": ind.pk, "motivo": ind.motivo[:300],
+                                                                      "account": ind.account, "dal": str(ind.dal), "al": str(ind.al)})
+            return redirect("security:registro_log_indagine", pk=ind.pk)
+    imp = Impostazioni.corrente()
+    raccolti = FonteLog.objects.filter(attiva=True).filter(Q(audit_stampe=True) | Q(audit_usb=True) | ~Q(audit_file=""))
+    return render(request, "registro_log/indagini.html", {
+        "form": form, "elenco": Indagine.objects.all()[:200], "imp": imp, "fonti_raccolte": raccolti,
+    })
+
+
+def indagine(request, pk: int):
+    if not _puo_configurare(request):
+        return _nego()
+    ind = get_object_or_404(Indagine, pk=pk)
+    if request.method == "POST" and ind.aperta:
+        ind.esito = (request.POST.get("esito") or "").strip()
+        ind.chiusa_il, ind.chiusa_da = timezone.now(), _utente(request)
+        ind.save(update_fields=["esito", "chiusa_il", "chiusa_da"])
+        log_action(request, "registro_log_indagine_chiusa", MODULO, {"indagine": ind.pk, "esito": ind.esito[:300]})
+        messages.success(request, "Indagine chiusa: i dati non sono più consultabili da qui.")
+        return redirect("security:registro_log_indagine", pk=ind.pk)
+    qs = _indagine_qs(ind) if ind.aperta else EventoRegistro.objects.none()
+    vista = request.GET.get("vista", "file")
+    gruppi = {"file": ("file_letto", "file_modificato", "file_eliminato", "file_permessi"), "stampe": ("stampa",),
+              "usb": ("usb_collegato",)}
+    conteggi = {k: qs.filter(categoria__in=v).count() for k, v in gruppi.items()}
+    righe = qs.filter(categoria__in=gruppi.get(vista, gruppi["file"])).order_by("quando", "id")
+    if request.GET.get("export") == "csv" and ind.aperta:
+        import csv
+        import io
+
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=";")
+        w.writerow(["quando", "account", "cosa", "oggetto", "pagine", "sistema", "da", "giorno archivio", "riga archivio"])
+        for e in righe[:100000]:
+            w.writerow([timezone.localtime(e.quando).strftime("%d/%m/%Y %H:%M:%S"), e.account, e.descrizione, e.oggetto,
+                        e.quantita or "", e.host, e.ip_origine, e.archivio_giorno or "", e.archivio_riga or ""])
+        log_action(request, "registro_log_indagine_export", MODULO, {"indagine": ind.pk, "vista": vista, "righe": righe.count()})
+        resp = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="indagine-{ind.pk}-{vista}.csv"'
+        return resp
+    if ind.aperta:
+        log_action(request, "registro_log_indagine_consultata", MODULO, {"indagine": ind.pk, "vista": vista})
+    riepilogo = {
+        "pagine": sum(x or 0 for x in qs.filter(categoria="stampa").values_list("quantita", flat=True)),
+        "eliminati": qs.filter(categoria="file_eliminato").count(),
+        "dispositivi": qs.filter(categoria="usb_collegato").values("oggetto").distinct().count(),
+    }
+    return render(request, "registro_log/indagine.html", {
+        "ind": ind, "righe": Paginator(righe, 200).get_page(request.GET.get("pagina")), "vista": vista,
+        "conteggi": conteggi, "riepilogo": riepilogo,
     })
 
 

@@ -34,7 +34,15 @@ CATEGORIE: dict[str, tuple[str, str]] = {
     "avvio_arresto": ("Avvio o arresto del sistema", "info"),
     "configurazione": ("Configurazione dell'apparato modificata", "warning"),
     "comando_privilegiato": ("Comando eseguito come amministratore", "info"),
+    "file_letto": ("File aperto", "info"),
+    "file_modificato": ("File modificato", "info"),
+    "file_eliminato": ("File eliminato", "info"),
+    "file_permessi": ("Permessi di un file o di una cartella cambiati", "info"),
+    "stampa": ("Documento stampato", "info"),
+    "usb_collegato": ("Dispositivo USB collegato", "info"),
 }
+# Eventi sull'attività delle persone: archiviati e indicizzati, ma visibili solo dentro un'indagine motivata.
+CATEGORIE_RISERVATE = ("file_letto", "file_modificato", "file_eliminato", "file_permessi", "stampa", "usb_collegato")
 
 # Gruppi i cui membri sono amministratori (nomi in inglese e italiano dei gruppi predefiniti).
 GRUPPI_PRIVILEGIATI = {
@@ -63,10 +71,25 @@ EVENTI_SECURITY = [
     (4740, 4740), (4756, 4757), (4767, 4767), (4771, 4771), (4776, 4776),
 ]
 EVENTI_SYSTEM = [(104, 104), (6005, 6006), (6008, 6008), (7045, 7045)]
+EVENTI_FILE = [(4663, 4663), (4670, 4670)]
+EVENTI_USB_SECURITY = [(6416, 6416)]
+EVENTI_ALTRI_CANALI = {
+    "microsoft-windows-printservice/operational": [(307, 307)],
+    "microsoft-windows-partition/diagnostic": [(1006, 1006)],
+}
+
+
+def intervalli(canale: str, *, file: bool = False, usb: bool = False) -> list[tuple[int, int]]:
+    c = canale.lower()
+    if c == "security":
+        return EVENTI_SECURITY + (EVENTI_FILE if file else []) + (EVENTI_USB_SECURITY if usb else [])
+    if c == "system":
+        return EVENTI_SYSTEM
+    return EVENTI_ALTRI_CANALI.get(c, [])
 
 
 def xpath(canale: str, dopo_record: int | None, *, tutto: bool, prima_volta_ms: int = 0,
-          fino_a: int | None = None) -> str:
+          fino_a: int | None = None, file: bool = False, usb: bool = False) -> str:
     """Filtro XPath per ``wevtutil qe``: solo i record dopo il segnalibro, solo gli Event ID utili."""
     condizioni = []
     if fino_a is not None:
@@ -76,9 +99,9 @@ def xpath(canale: str, dopo_record: int | None, *, tutto: bool, prima_volta_ms: 
     elif prima_volta_ms:
         condizioni.append(f"TimeCreated[timediff(@SystemTime) <= {int(prima_volta_ms)}]")
     if not tutto:
-        intervalli = EVENTI_SECURITY if canale.lower() == "security" else EVENTI_SYSTEM if canale.lower() == "system" else []
-        if intervalli:
-            parti = [f"EventID={a}" if a == b else f"(EventID >= {a} and EventID <= {b})" for a, b in intervalli]
+        scelti = intervalli(canale, file=file, usb=usb)
+        if scelti:
+            parti = [f"EventID={a}" if a == b else f"(EventID >= {a} and EventID <= {b})" for a, b in scelti]
             condizioni.append("(" + " or ".join(parti) + ")")
     return "*[System[" + " and ".join(condizioni) + "]]" if condizioni else "*"
 
@@ -136,6 +159,8 @@ class Indice:
     esito: str = ""
     gravita: str = ""
     dedup: str = ""
+    oggetto: str = ""
+    quantita: int | None = None
 
     def campi(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if k != "dedup"}
@@ -151,9 +176,21 @@ def _ip(v: str) -> str:
     return "" if v in ("-", "::1", "127.0.0.1") else v.removeprefix("::ffff:")
 
 
-def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()) -> Indice | None:
-    """Dati di un evento Windows → voce d'indice, oppure None se basta l'archivio."""
+def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset(), *, livello_file: str = "") -> Indice | None:
+    """Dati di un evento Windows → voce d'indice, oppure None se basta l'archivio.
+
+    ``livello_file``: "" = accessi ai file non indicizzati, "modifiche", "tutto" (anche le letture).
+    """
     eid, x = d.get("id"), d.get("dati") or {}
+    prov = (d.get("prov") or "").lower()
+    if eid == 307 and "printservice" in prov:
+        return _stampa(x)
+    if eid == 1006 and "partition" in prov:
+        return _usb_partizione(x)
+    if eid in (4663, 4670):
+        return _file(eid, x, livello_file) if livello_file else None
+    if eid == 6416:
+        return _usb_pnp(x)
     utente, dominio = x.get("TargetUserName", ""), x.get("TargetDomainName", "")
     soggetto, dom_sogg = x.get("SubjectUserName", ""), x.get("SubjectDomainName", "")
     ip = _ip(x.get("IpAddress", "") or x.get("Workstation", ""))
@@ -255,6 +292,97 @@ def classifica_windows(d: dict, privilegiati: set[str] | frozenset = frozenset()
                  6008: "Arresto imprevisto del sistema"}[eid]
         return Indice("avvio_arresto", testo, gravita="warning" if eid == 6008 else "info")
     return None
+
+
+# ── File, stampe, USB ──────────────────────────────────────────────────────────
+
+FILE_IGNORATI = re.compile(r"(\\~\$[^\\]*$|\.tmp$|\\thumbs\.db$|\\desktop\.ini$|\\\$recycle\.bin\\|\.lnk$|~$)", re.I)
+MASCHERA_LETTURA = 0x1
+MASCHERA_SCRITTURA = 0x2 | 0x4 | 0x100
+MASCHERA_ELIMINA = 0x10000
+MASCHERA_PERMESSI = 0x40000 | 0x80000
+
+
+def _maschera(v) -> int:
+    try:
+        return int(str(v or "0"), 16)
+    except ValueError:
+        return 0
+
+
+def _file(eid: int, x: dict, livello: str) -> Indice | None:
+    """4663 (accesso a un oggetto, serve la SACL sulla cartella) e 4670 (permessi cambiati)."""
+    utente, dominio = x.get("SubjectUserName", ""), x.get("SubjectDomainName", "")
+    nome = x.get("ObjectName", "")
+    if not _account_reale(utente) or (x.get("ObjectType") or "File") != "File" or not nome or FILE_IGNORATI.search(nome):
+        return None
+    if eid == 4670:
+        idx = Indice("file_permessi", f"Permessi cambiati su {nome}", utente, dominio, dedup=f"4670|{utente}|{nome}")
+    else:
+        m = _maschera(x.get("AccessMask"))
+        if m & MASCHERA_ELIMINA:
+            idx = Indice("file_eliminato", f"Eliminato {nome}", utente, dominio)
+        elif m & MASCHERA_PERMESSI:
+            idx = Indice("file_permessi", f"Permessi cambiati su {nome}", utente, dominio, dedup=f"perm|{utente}|{nome}")
+        elif m & MASCHERA_SCRITTURA:
+            idx = Indice("file_modificato", f"Modificato {nome}", utente, dominio, dedup=f"mod|{utente}|{nome}")
+        elif m & MASCHERA_LETTURA and livello == "tutto":
+            idx = Indice("file_letto", f"Aperto {nome}", utente, dominio, dedup=f"read|{utente}|{nome}")
+        else:
+            return None
+    idx.oggetto = nome[:500]
+    return idx
+
+
+DOCUMENTO_NASCOSTO = "(nome non registrato)"
+
+
+def _stampa(x: dict) -> Indice:
+    """Evento 307 di PrintService: Param2 documento, Param3 utente, Param4 PC, Param5 stampante, Param8 pagine."""
+    documento = x.get("Param2", "") or DOCUMENTO_NASCOSTO
+    stampante = x.get("Param5", "")
+    try:
+        pagine = int(x.get("Param8") or 0)
+    except ValueError:
+        pagine = 0
+    testo = f"Stampate {pagine} pagin{'a' if pagine == 1 else 'e'} su {stampante}"
+    if documento != DOCUMENTO_NASCOSTO:
+        testo += f": «{documento[:150]}»"
+    idx = Indice("stampa", testo, x.get("Param3", ""), ip_origine=(x.get("Param4", "") or "").lstrip("\\"))
+    idx.oggetto, idx.quantita = stampante[:500], pagine
+    return idx
+
+
+def _usb_pnp(x: dict) -> Indice | None:
+    """6416 (Audit PNP Activity): solo dischi e dispositivi portatili, non tastiere e mouse."""
+    classe = (x.get("ClassName") or "").lower()
+    dev_id = (x.get("DeviceId") or "").upper()
+    if classe not in ("diskdrive", "wpd", "cdrom") and not dev_id.startswith(("USBSTOR", "SWD\\WPDBUSENUM")):
+        return None
+    descr = x.get("DeviceDescription") or x.get("ClassName") or "dispositivo"
+    utente = x.get("SubjectUserName", "")
+    idx = Indice("usb_collegato", f"Collegato {descr}", utente if _account_reale(utente) else "",
+                 x.get("SubjectDomainName", ""), dedup=f"6416|{dev_id}")
+    idx.oggetto = (dev_id or descr)[:500]
+    return idx
+
+
+def _usb_partizione(x: dict) -> Indice | None:
+    """Partition/Diagnostic 1006: disco collegato (BusType 7 = USB, Capacity 0 = scollegato)."""
+    if str(x.get("BusType", "")) != "7":
+        return None
+    try:
+        capacita = int(x.get("Capacity") or 0)
+    except ValueError:
+        capacita = 0
+    if capacita <= 0:
+        return None
+    marca = " ".join(v for v in ((x.get("Manufacturer") or "").strip(), (x.get("Model") or "").strip()) if v) or "chiavetta USB"
+    seriale = (x.get("SerialNumber") or "").strip()
+    idx = Indice("usb_collegato", f"Collegata {marca} ({round(capacita / 1e9)} GB)" + (f", s/n {seriale}" if seriale else ""),
+                 dedup=f"1006|{seriale or marca}")
+    idx.oggetto = f"{marca} {seriale}".strip()[:500]
+    return idx
 
 
 MOTIVI_FALLIMENTO = {

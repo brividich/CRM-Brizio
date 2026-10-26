@@ -108,7 +108,8 @@ class EsitoCanale:
     completo: bool = True
 
 
-def leggi_canale(canale: str, host: str, segnalibro: int | None, *, tutto: bool) -> EsitoCanale:
+def leggi_canale(canale: str, host: str, segnalibro: int | None, *, tutto: bool, file: bool = False,
+                 usb: bool = False) -> EsitoCanale:
     """Legge gli eventi nuovi di un registro. Non cambia nulla sul server."""
     esito = EsitoCanale(canale, segnalibro=segnalibro)
     fino_a = ultimo_record(canale, host)
@@ -124,7 +125,8 @@ def leggi_canale(canale: str, host: str, segnalibro: int | None, *, tutto: bool)
             return esito
     dopo = segnalibro
     for _ in range(PAGINE_PER_GIRO):
-        q = regole.xpath(canale, dopo, tutto=tutto, prima_volta_ms=PRIMA_VOLTA_ORE * 3600 * 1000, fino_a=fino_a)
+        q = regole.xpath(canale, dopo, tutto=tutto, prima_volta_ms=PRIMA_VOLTA_ORE * 3600 * 1000, fino_a=fino_a,
+                         file=file, usb=usb)
         pagina = _eventi(esegui(["qe", canale, f"/q:{q}", "/f:xml", f"/c:{LOTTO}", "/e:Events", *_args_remoto(host)]))
         esito.eventi.extend(pagina)
         if len(pagina) < LOTTO:

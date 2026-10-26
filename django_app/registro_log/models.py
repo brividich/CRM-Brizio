@@ -44,6 +44,12 @@ class Impostazioni(models.Model):
     syslog_tcp = models.BooleanField(default=True)
     orario_inizio = models.TimeField(default=time(7, 0))
     orario_fine = models.TimeField(default=time(19, 0))
+    # Accessi ai file, stampe e USB sono controlli sull'attività dei lavoratori (art. 4 L. 300/1970, GDPR):
+    # si accendono sulle fonti solo dopo questa conferma, registrata con chi e quando.
+    controlli_lavoratori_ok = models.BooleanField(default=False)
+    controlli_lavoratori_nota = models.CharField(max_length=500, blank=True, default="")
+    controlli_lavoratori_da = models.CharField(max_length=150, blank=True, default="")
+    controlli_lavoratori_il = models.DateTimeField(null=True, blank=True)
     aggiornato_il = models.DateTimeField(auto_now=True)
     aggiornato_da = models.CharField(max_length=150, blank=True, default="")
 
@@ -60,6 +66,10 @@ class Impostazioni(models.Model):
         if obj is None:
             obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+CANALE_STAMPE = "Microsoft-Windows-PrintService/Operational"
+CANALE_USB = "Microsoft-Windows-Partition/Diagnostic"
 
 
 class FonteLog(models.Model):
@@ -103,6 +113,18 @@ class FonteLog(models.Model):
     eventi = models.CharField(max_length=10, choices=EVENTI, default=EVENTI_ACCESSI)
     attiva = models.BooleanField(default=True)
     silenzio_max_ore = models.PositiveSmallIntegerField(default=24)
+    FILE_NO = ""
+    FILE_MODIFICHE = "modifiche"
+    FILE_TUTTO = "tutto"
+    AUDIT_FILE = [
+        (FILE_NO, "No"),
+        (FILE_MODIFICHE, "Modifiche, eliminazioni e permessi (consigliato)"),
+        (FILE_TUTTO, "Anche le letture"),
+    ]
+    audit_file = models.CharField(max_length=10, choices=AUDIT_FILE, blank=True, default=FILE_NO)
+    audit_stampe = models.BooleanField(default=False)
+    stampe_nomi = models.BooleanField(default=False)
+    audit_usb = models.BooleanField(default=False)
     segnalibri = models.JSONField(default=dict, blank=True)
     stato = models.CharField(max_length=10, default=STATO_MAI)
     ultimo_errore = models.TextField(blank=True, default="")
@@ -121,7 +143,11 @@ class FonteLog(models.Model):
         return self.nome
 
     def lista_canali(self) -> list[str]:
-        return [c.strip() for c in (self.canali or "").split(",") if c.strip()]
+        canali = [c.strip() for c in (self.canali or "").split(",") if c.strip()]
+        for extra, acceso in ((CANALE_STAMPE, self.audit_stampe), (CANALE_USB, self.audit_usb)):
+            if acceso and extra.lower() not in {c.lower() for c in canali}:
+                canali.append(extra)
+        return canali
 
     def lista_ip(self) -> list[str]:
         return [c.strip() for c in (self.indirizzi_ip or "").replace(";", ",").split(",") if c.strip()]
@@ -146,6 +172,8 @@ class EventoRegistro(models.Model):
     ip_origine = models.CharField(max_length=64, blank=True, default="")
     tipo_accesso = models.CharField(max_length=40, blank=True, default="")
     descrizione = models.CharField(max_length=400, blank=True, default="")
+    oggetto = models.CharField(max_length=500, blank=True, default="")  # file, stampante o dispositivo
+    quantita = models.IntegerField(null=True, blank=True)  # pagine stampate
     privilegiato = models.BooleanField(default=False, db_index=True)
     fuori_orario = models.BooleanField(default=False)
     archivio_giorno = models.DateField(null=True, blank=True)
@@ -359,6 +387,42 @@ class VerificaAnnuale(models.Model):
 
     def __str__(self):
         return f"Verifica {self.anno}"
+
+
+class Indagine(models.Model):
+    """Consultazione motivata degli eventi riservati (file, stampe, USB).
+
+    Questi eventi si raccolgono sempre, ma si guardano solo dentro un'indagine aperta da chi
+    configura il SOC, con il motivo (es. sospetto furto di file o di proprietà intellettuale),
+    le persone e il periodo. Ogni apertura, consultazione ed export resta nell'audit.
+    """
+
+    motivo = models.TextField()
+    riferimento = models.CharField(max_length=255, blank=True, default="", help_text="Es. numero dell'incidente o della pratica.")
+    account = models.CharField(max_length=500, blank=True, default="", help_text="Account da esaminare, separati da virgola.")
+    dal = models.DateField()
+    al = models.DateField()
+    filtro_testo = models.CharField(max_length=255, blank=True, default="", help_text="Facoltativo: parte del percorso, stampante o dispositivo.")
+    aperta_da = models.CharField(max_length=150)
+    aperta_il = models.DateTimeField(auto_now_add=True)
+    chiusa_il = models.DateTimeField(null=True, blank=True)
+    chiusa_da = models.CharField(max_length=150, blank=True, default="")
+    esito = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-aperta_il"]
+        verbose_name = "Indagine"
+        verbose_name_plural = "Indagini"
+
+    def __str__(self):
+        return f"Indagine {self.pk} del {self.aperta_il:%Y-%m-%d}"
+
+    def lista_account(self) -> list[str]:
+        return [a.strip() for a in (self.account or "").replace(";", ",").split(",") if a.strip()]
+
+    @property
+    def aperta(self) -> bool:
+        return self.chiusa_il is None
 
 
 # ── Infrastruttura: ESXi / vCenter e controller iLO / iDRAC (solo stato attuale) ──

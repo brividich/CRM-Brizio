@@ -468,3 +468,140 @@ class PagineTests(_ConArchivio):
         self.assertIn(r.status_code, (302, 403))
         self.fonte.refresh_from_db()
         self.assertTrue(self.fonte.attiva)
+
+
+class FileStampeUsbTests(TestCase):
+    def test_file_eliminato_modificato_e_letture_solo_a_richiesta(self):
+        base = {"SubjectUserName": "mrossi", "SubjectDomainName": "ESEMPIO", "ObjectType": "File",
+                "ObjectName": "D:\\Dati\\Progetti\\disegno.dwg"}
+
+        def d(mask):
+            return {"id": 4663, "dati": dict(base, AccessMask=mask)}
+
+        self.assertIsNone(regole.classifica_windows(d("0x10000")))  # senza livello: niente indice
+        self.assertEqual(regole.classifica_windows(d("0x10000"), livello_file="modifiche").categoria, "file_eliminato")
+        self.assertEqual(regole.classifica_windows(d("0x2"), livello_file="modifiche").categoria, "file_modificato")
+        self.assertIsNone(regole.classifica_windows(d("0x1"), livello_file="modifiche"))
+        letto = regole.classifica_windows(d("0x1"), livello_file="tutto")
+        self.assertEqual((letto.categoria, letto.oggetto), ("file_letto", "D:\\Dati\\Progetti\\disegno.dwg"))
+        tmp = {"id": 4663, "dati": dict(base, ObjectName="D:\\Dati\\~$offerta.docx", AccessMask="0x2")}
+        self.assertIsNone(regole.classifica_windows(tmp, livello_file="tutto"))
+
+    def test_stampa_e_nome_documento_minimizzato(self):
+        from .raccoglitore import minimizza
+
+        d = {"id": 307, "prov": "Microsoft-Windows-PrintService",
+             "dati": {"Param2": "Offerta riservata.pdf", "Param3": "mrossi", "Param4": "\\\\PC-UFF12",
+                      "Param5": "MFC-Ufficio", "Param8": "12"}}
+        fonte = FonteLog(nome="PRINT01", tipo="windows", stampe_nomi=False)
+        ridotto = minimizza(d, fonte)
+        self.assertEqual(ridotto["dati"]["Param2"], regole.DOCUMENTO_NASCOSTO)
+        self.assertEqual(d["dati"]["Param2"], "Offerta riservata.pdf")  # l'originale non viene toccato
+        idx = regole.classifica_windows(ridotto)
+        self.assertEqual((idx.categoria, idx.account, idx.oggetto, idx.quantita, idx.ip_origine),
+                         ("stampa", "mrossi", "MFC-Ufficio", 12, "PC-UFF12"))
+        self.assertNotIn("Offerta", idx.descrizione)
+        fonte.stampe_nomi = True
+        self.assertIn("Offerta", regole.classifica_windows(minimizza(d, fonte)).descrizione)
+
+    def test_usb(self):
+        part = {"id": 1006, "prov": "Microsoft-Windows-Partition",
+                "dati": {"BusType": "7", "Capacity": "32000000000", "Manufacturer": "Kingston", "Model": "DataTraveler",
+                         "SerialNumber": "ABC123"}}
+        idx = regole.classifica_windows(part)
+        self.assertEqual(idx.categoria, "usb_collegato")
+        self.assertIn("ABC123", idx.oggetto)
+        self.assertIsNone(regole.classifica_windows({**part, "dati": dict(part["dati"], BusType="11")}))  # disco SATA
+        self.assertIsNone(regole.classifica_windows({**part, "dati": dict(part["dati"], Capacity="0")}))  # scollegata
+        mouse = {"id": 6416, "dati": {"ClassName": "Mouse", "DeviceId": "HID\\VID_1"}}
+        self.assertIsNone(regole.classifica_windows(mouse))
+        disco = {"id": 6416, "dati": {"ClassName": "DiskDrive", "DeviceId": "USBSTOR\\DISK&VEN_X", "DeviceDescription": "Disco USB"}}
+        self.assertEqual(regole.classifica_windows(disco).categoria, "usb_collegato")
+
+    def test_xpath_con_file_usb_e_canali_aggiuntivi(self):
+        q = regole.xpath("Security", 1, tutto=False, file=True, usb=True)
+        self.assertIn("EventID=4663", q)
+        self.assertIn("EventID=6416", q)
+        self.assertLessEqual(q.count(" or "), 20)
+        self.assertIn("EventID=307", regole.xpath("Microsoft-Windows-PrintService/Operational", 1, tutto=False))
+        f = FonteLog(canali="Security,System", audit_stampe=True, audit_usb=True)
+        self.assertEqual(len(f.lista_canali()), 4)
+
+
+class IndaginiTests(_ConArchivio):
+    def setUp(self):
+        super().setUp()
+        from core.models import UserOnboarding
+
+        self.admin = get_user_model().objects.create_user("admin.ind", password="pass-di-prova-123", is_staff=True,
+                                                          is_superuser=True)
+        UserOnboarding.objects.update_or_create(user=self.admin, defaults={"completed": True})
+        self.client.force_login(self.admin)
+        self.fonte = FonteLog.objects.create(nome="FS01", tipo="windows", ruolo="server", host="FS01")
+        self.file = EventoRegistro.objects.create(quando=timezone.now(), categoria="file_eliminato", account="mrossi",
+                                                  descrizione="Eliminato D:\\Dati\\disegno.dwg",
+                                                  oggetto="D:\\Dati\\disegno.dwg", host="FS01", fonte_id=self.fonte.pk)
+        EventoRegistro.objects.create(quando=timezone.now(), categoria="stampa", account="altro",
+                                      descrizione="Stampate 3 pagine", quantita=3, host="PRINT01")
+
+    def test_fonte_riservata_bloccata_senza_conferma(self):
+        dati = {"azione": "fonte", "nome": "FS02", "tipo": "windows", "ruolo": "server", "host": "FS02",
+                "canali": "Security", "eventi": "accessi", "silenzio_max_ore": 24, "attiva": "on", "audit_file": "modifiche"}
+        r = self.client.post(reverse("security:registro_log_fonti"), dati)
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(FonteLog.objects.filter(nome="FS02").exists())
+        imp = Impostazioni.corrente()
+        imp.controlli_lavoratori_ok = True
+        imp.save()
+        r = self.client.post(reverse("security:registro_log_fonti"), dati)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(FonteLog.objects.get(nome="FS02").audit_file, "modifiche")
+
+    def test_eventi_riservati_solo_dentro_un_indagine(self):
+        from core.models import AuditLog
+
+        from .models import Indagine
+
+        r = self.client.get(reverse("security:registro_log_eventi") + "?giorni=30")
+        self.assertNotContains(r, "disegno.dwg")
+        r = self.client.get(reverse("security:registro_log_evento", args=[self.file.pk]))
+        self.assertEqual(r.status_code, 403)
+        r = self.client.post(reverse("security:registro_log_indagini"), {
+            "motivo": "Sospetto furto dei disegni del cliente segnalato dal responsabile tecnico",
+            "account": "ESEMPIO\\mrossi", "dal": (timezone.localdate() - timedelta(days=7)).isoformat(),
+            "al": timezone.localdate().isoformat()})
+        self.assertEqual(r.status_code, 302)
+        ind = Indagine.objects.get()
+        r = self.client.get(reverse("security:registro_log_indagine", args=[ind.pk]))
+        self.assertContains(r, "disegno.dwg")
+        self.assertNotContains(r, "Stampate 3 pagine")  # altra persona
+        r = self.client.get(reverse("security:registro_log_evento", args=[self.file.pk]) + f"?indagine={ind.pk}")
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get(reverse("security:registro_log_indagine", args=[ind.pk]) + "?vista=file&export=csv")
+        self.assertIn("disegno.dwg", r.content.decode("utf-8"))
+        azioni = set(AuditLog.objects.filter(modulo="registro_log").values_list("azione", flat=True))
+        self.assertTrue({"registro_log_indagine_aperta", "registro_log_indagine_consultata",
+                         "registro_log_indagine_export"} <= azioni)
+        self.client.post(reverse("security:registro_log_indagine", args=[ind.pk]), {"esito": "Nessuna sottrazione"})
+        r = self.client.get(reverse("security:registro_log_evento", args=[self.file.pk]) + f"?indagine={ind.pk}")
+        self.assertEqual(r.status_code, 403)
+
+    def test_alert_file_a_raffica_e_usb_su_server(self):
+        from security.models import SecurityAlert, SecurityCenterSetting
+
+        from . import ciclo
+
+        for chiave, valore, tipo in (("registro.alert.attivo", True, "bool"), ("registro.alert.file_massivi", True, "bool"),
+                                     ("registro.alert.file_soglia", 20, "int"), ("registro.alert.usb_server", True, "bool")):
+            SecurityCenterSetting.objects.update_or_create(key=chiave, defaults={"value": valore, "value_type": tipo,
+                                                                                 "category": "avvisi"})
+        EventoRegistro.objects.bulk_create([EventoRegistro(quando=timezone.now(), categoria="file_eliminato", account="mrossi",
+                                                           descrizione=f"Eliminato D:\\Dati\\f{i}.dwg") for i in range(25)])
+        EventoRegistro.objects.create(quando=timezone.now(), categoria="usb_collegato", host="FS01",
+                                      fonte_id=self.fonte.pk, descrizione="Collegata Kingston")
+        esito = ciclo.invia_al_soc()
+        self.assertEqual(esito["eventi_soc"], 2)
+        titoli = list(SecurityAlert.objects.values_list("title", flat=True))
+        self.assertTrue(any("file eliminati in 10 minuti" in t for t in titoli))
+        self.assertTrue(any("USB" in t for t in titoli))
+        self.assertFalse(any(".dwg" in t for t in titoli))  # nessun dettaglio riservato nel SOC
