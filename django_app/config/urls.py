@@ -50,8 +50,8 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/gantt/", task_views.project_gantt, name="project_gantt"),
     path("carichi-macchina/", include(("gestione_carichi_macchina.urls", "gestione_carichi_macchina"), namespace="gestione_carichi_macchina")),
     path("gestione-specifiche/", include(("gestione_specifiche.urls", "gestione_specifiche"), namespace="gestione_specifiche")),
-    # Registro OFI/NC (MOD.174) — strumento trasversale del portale, al top-level.
-    path("ofi-registro/", include(("gestione_specifiche.urls_ofi", "registro_ofi"), namespace="registro_ofi")),
+    # Registro OFI/NC (MOD.174) — modulo dedicato (app registro_ofi), al top-level.
+    path("ofi-registro/", include(("registro_ofi.urls", "registro_ofi"), namespace="registro_ofi")),
     path("suggestion-corner/", include(("suggestion_corner.urls", "suggestion_corner"), namespace="suggestion_corner")),
     path("notizie/", include("notizie.urls")),
     path(

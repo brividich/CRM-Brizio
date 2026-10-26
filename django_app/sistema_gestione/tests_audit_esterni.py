@@ -124,7 +124,7 @@ class VisteTests(TestCase):
         self.assertContains(r, "Scade tra")
         voce = S.rilievi(audit).get()
         r = self.client.get(reverse("registro_ofi:dettaglio", args=[voce.pk]))
-        self.assertContains(r, "Rilievo dell'audit esterno")
+        self.assertContains(r, "Rilievo dell&#x27;ente")
         audit.rapporto.delete(save=False)
 
     def test_audit_senza_norme_rifiutato(self):

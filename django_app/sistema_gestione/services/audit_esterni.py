@@ -293,13 +293,14 @@ def righe_preparazione(controlli: list[dict]) -> list[list]:
 
 
 def rilievi_esterni_recenti(oggi=None, giorni: int = 730) -> list[dict]:
-    """Rilievi degli enti degli ultimi ``giorni``: tipo e processo/area come scritti nel rilievo."""
+    """Rilievi degli enti degli ultimi ``giorni``: tipo, processo/area come scritto nel rilievo e
+    processo del catalogo collegato (``processo_sgi``, id o None)."""
     from gestione_specifiche.models import RegistroOFI
     oggi = oggi or timezone.localdate()
     return list(RegistroOFI.objects.filter(
         content_type__app_label=AuditEsterno._meta.app_label, content_type__model=AuditEsterno._meta.model_name,
         data_apertura__gte=oggi - timedelta(days=giorni),
-                                           data_apertura__lte=oggi).values("tipo", "processo"))
+                                           data_apertura__lte=oggi).values("tipo", "processo", "processo_sgi"))
 
 
 def esterni_anno(anno: int) -> dict:
