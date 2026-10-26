@@ -77,6 +77,12 @@
 .plx-tag{font-size:var(--fs-2xs);font-weight:800;border-radius:999px;padding:2px 8px;white-space:nowrap}
 .plx-tag.is-on{background:color-mix(in srgb,#16a34a 16%,transparent);color:var(--text)}
 .plx-tag.is-todo{background:color-mix(in srgb,#f59e0b 22%,transparent);color:var(--text)}
+.plx-tag.is-away{background:color-mix(in srgb,var(--primary-mid) 16%,transparent);color:var(--text)}
+.plx-chip .plx-count{font-weight:900;color:var(--text)}
+.plx-chip .plx-count.is-warn{color:#b45309}
+.plx-cleanup{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px dashed color-mix(in srgb,#f59e0b 55%,var(--border));border-radius:10px;padding:8px 10px;font-size:var(--fs-sm)}
+.plx-cleanup[hidden]{display:none}
+.plx-settings input[type=checkbox]{width:18px;height:18px;min-height:0;flex:none;margin:0}
 .plx-tag.is-off{background:color-mix(in srgb,var(--text-light) 16%,transparent);color:var(--text-mid)}
 .plx-swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
 .plx-fields{display:grid;gap:8px}
@@ -88,12 +94,13 @@
 .plx-sel-sub{margin:0;color:var(--text-mid);font-size:var(--fs-sm)}
 .plx-actions{display:flex;gap:6px;flex-wrap:wrap}
 .plx-empty-note{color:var(--text-mid);font-size:var(--fs-sm);padding:6px 0}
-
+  
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .plx-settings summary::after{color:#93c5fd}
 body.theme-dark .plx-stage{background:var(--surface)}
 body.theme-dark .plx-handle{background:var(--surface)}
 body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
+body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
 </style>
 {% endblock %}
 
@@ -113,7 +120,7 @@ body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
     <div class="plx-head">
       <div class="plx-versions" aria-label="Planimetrie">
         {% for chip in layout_category_filters %}
-          <a class="plx-chip {% if chip.active %}is-active{% endif %}" href="{{ chip.url }}">{{ chip.label }}</a>
+          <a class="plx-chip {% if chip.active %}is-active{% endif %}" href="{{ chip.url }}"{% if chip.counted %} title="{{ chip.placed }} posizionate{% if chip.unplaced %}, {{ chip.unplaced }} segnaposti mai collocati{% endif %}"{% endif %}>{{ chip.label }}{% if chip.counted %} <span class="plx-count">{{ chip.placed }}</span>{% if chip.unplaced %} <span class="plx-count is-warn">+{{ chip.unplaced }}</span>{% endif %}{% endif %}</a>
         {% endfor %}
       </div>
       <a class="btn btn-primary" href="{% url 'assets:plant_layout_editor' %}?new=1{% if current_layout_category %}&category={{ current_layout_category|urlencode }}{% endif %}">+ Nuova planimetria</a>
@@ -177,6 +184,13 @@ body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
               {{ form.description }}
               {% if form.description.errors %}<div class="plx-errors">{{ form.description.errors }}</div>{% endif %}
             </div>
+            {% if create_new and copy_source %}
+            <div class="field">
+              <span class="plx-note" style="font-weight:800">Nuova versione</span>
+              <label style="display:inline-flex;align-items:center;gap:8px;"><input type="checkbox" name="copy_previous" value="1" checked> Copia reparti e macchine da «{{ copy_source.name }}»</label>
+              <div class="plx-note">Vale se la categoria resta «{{ copy_source.category }}». Le posizioni sono in percentuale: con la stessa inquadratura combaciano, altrimenti si trascinano.</div>
+            </div>
+            {% endif %}
             <div class="field">
               <span class="plx-note" style="font-weight:800">Pubblicazione</span>
               <label style="display:inline-flex;align-items:center;gap:8px;">{{ form.is_active }} Rendi questa la mappa attiva della categoria</label>
@@ -261,8 +275,13 @@ body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
           <input type="search" class="plx-search" id="plx-machine-search" placeholder="Cerca per tag, n. interno, nome, reparto…" aria-label="Cerca macchina">
           <div class="plx-tabs" role="group" aria-label="Filtro macchine">
             <button type="button" class="plx-chip is-active" data-filter="todo">Da posizionare <b id="plx-count-todo">0</b></button>
-            <button type="button" class="plx-chip" data-filter="on">Sulla pianta <b id="plx-count-on">0</b></button>
+            <button type="button" class="plx-chip" data-filter="on">Su questa pianta <b id="plx-count-on">0</b></button>
+            <button type="button" class="plx-chip" data-filter="away">Su altre piante <b id="plx-count-away">0</b></button>
             <button type="button" class="plx-chip" data-filter="all">Tutte <b id="plx-count-all">0</b></button>
+          </div>
+          <div class="plx-cleanup" id="plx-cleanup" hidden>
+            <span id="plx-cleanup-text"></span>
+            <button type="button" class="plx-tool" id="plx-cleanup-run">Togli i segnaposti</button>
           </div>
           <ul class="plx-list" id="plx-machine-list"></ul>
         </div>
@@ -431,7 +450,8 @@ body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
     if (mode === "draw") setStatus("Trascina sulla pianta il rettangolo del reparto.", [{ label: "Annulla", run: function () { setMode("select"); } }], true);
     else if (mode === "place") {
       var m = machineById[state.placing];
-      setStatus("Clicca sulla pianta dove si trova " + (m ? (m.asset_tag || m.name) : "la macchina") + ".", [{ label: "Annulla", run: function () { setMode("select"); } }], true);
+      var also = m && (m.elsewhere || []).length ? " È già su " + m.elsewhere.join(", ") + ": comparirà anche su questa pianta." : "";
+      setStatus("Clicca sulla pianta dove si trova " + (m ? (m.asset_tag || m.name) : "la macchina") + "." + also, [{ label: "Annulla", run: function () { setMode("select"); } }], true);
     } else if (mode === "crop") {
       setStatus("Trascina il riquadro da tenere: il resto della pianta verrà tagliato.", cropActions(), true);
     } else setStatus("Seleziona una macchina nell'elenco per collocarla, oppure trascina quelle già sulla pianta.", [], false);
@@ -486,18 +506,20 @@ body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
     return norm([m.asset_tag, m.internal_number, m.name, m.reparto, m.model, m.manufacturer].join(" ")).indexOf(q) !== -1;
   }
   function renderMachines() {
-    var q = norm(searchNode.value), counts = { todo: 0, on: 0, all: machines.length };
+    var q = norm(searchNode.value), counts = { todo: 0, on: 0, away: 0, all: machines.length };
     machineList.innerHTML = "";
     var rows = [];
     machines.forEach(function (m) {
-      var mk = markerFor(m.id), on = !!(mk && !mk.unplaced);
-      if (on) counts.on += 1; else counts.todo += 1;
+      var mk = markerFor(m.id), on = !!(mk && !mk.unplaced), away = !on && (m.elsewhere || []).length > 0;
+      if (on) counts.on += 1; else if (away) counts.away += 1; else counts.todo += 1;
       if (state.filter === "on" && !on) return;
-      if (state.filter === "todo" && on) return;
+      if (state.filter === "away" && !away) return;
+      if (state.filter === "todo" && (on || away)) return;
       if (!machineMatches(m, q)) return;
-      rows.push({ m: m, mk: mk, on: on });
+      rows.push({ m: m, mk: mk, on: on, away: away });
     });
-    ["todo", "on", "all"].forEach(function (k) { document.getElementById("plx-count-" + k).textContent = counts[k]; });
+    renderCleanup();
+    ["todo", "on", "away", "all"].forEach(function (k) { document.getElementById("plx-count-" + k).textContent = counts[k]; });
     rows.slice(0, 300).forEach(function (row) {
       var li = el("li"), b = el("button"); b.type = "button";
       var isSel = (state.placing && Number(state.placing) === Number(row.m.id)) ||
@@ -506,13 +528,34 @@ body.theme-dark .plx-pin-label{background:var(--surface);color:var(--text)}
       var name = el("span", "plx-list-name", row.m.asset_tag || row.m.name);
       name.appendChild(el("small", "", [row.m.name, row.m.internal_number ? "n. " + row.m.internal_number : "", row.m.reparto || "senza reparto"].filter(Boolean).join(" · ")));
       b.appendChild(name);
-      b.appendChild(el("span", "plx-tag " + (row.on ? "is-on" : (row.mk ? "is-todo" : "is-off")), row.on ? "sulla pianta" : (row.mk ? "da collocare" : "non presente")));
+      var tag = row.on ? ["is-on", "sulla pianta"] : row.away ? ["is-away", "su " + row.m.elsewhere.join(", ")] : row.mk ? ["is-todo", "da collocare"] : ["is-off", "non presente"];
+      var tagNode = el("span", "plx-tag " + tag[0], tag[1]);
+      if (row.away) tagNode.title = "Già posizionata su: " + row.m.elsewhere.join(", ");
+      b.appendChild(tagNode);
       b.addEventListener("click", function () { pickMachine(row.m.id); });
       li.appendChild(b); machineList.appendChild(li);
     });
-    if (!rows.length) machineList.appendChild(el("li", "plx-empty-note", state.filter === "todo" && !q ? "Tutte le macchine sono sulla pianta." : "Nessuna macchina trovata."));
+    if (!rows.length) machineList.appendChild(el("li", "plx-empty-note", state.filter === "todo" && !q ? "Nessuna macchina da posizionare: sono tutte su una pianta." : "Nessuna macchina trovata."));
     else if (rows.length > 300) machineList.appendChild(el("li", "plx-empty-note", "Altre " + (rows.length - 300) + ": affina la ricerca."));
   }
+  /* Segnaposti mai collocati (50/50, creati in automatico): si tolgono in
+     blocco; restano nell'elenco e si possono collocare quando serve. */
+  var cleanupBox = document.getElementById("plx-cleanup");
+  function renderCleanup() {
+    if (!cleanupBox) return;
+    var todo = state.markers.filter(function (m) { return m.unplaced; });
+    cleanupBox.hidden = !todo.length;
+    var away = todo.filter(function (m) { var mm = machineById[m.asset_id]; return mm && (mm.elsewhere || []).length; }).length;
+    document.getElementById("plx-cleanup-text").textContent = todo.length + (todo.length === 1 ? " segnaposto mai collocato" : " segnaposti mai collocati") +
+      " su questa pianta" + (away ? " (" + away + " di macchine già su altre piante)" : "") + ".";
+  }
+  if (cleanupBox) document.getElementById("plx-cleanup-run").addEventListener("click", function () {
+    var before = state.markers.length;
+    state.markers = state.markers.filter(function (m) { return !m.unplaced; });
+    if (state.selected && state.selected.kind === "marker" && !byCid(state.markers, state.selected.id)) state.selected = null;
+    touch(); renderAll();
+    setStatus("Tolti " + (before - state.markers.length) + " segnaposti: premi «Salva» per confermare.", [], false);
+  });
   function renderAreas() {
     areaList.innerHTML = "";
     if (!state.areas.length) { areaList.appendChild(el("li", "plx-empty-note", "Nessun reparto disegnato.")); return; }

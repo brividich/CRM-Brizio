@@ -194,3 +194,100 @@ class AssetDetailPlantMapCardTests(_MediaMixin, TestCase):
         # Agli estremi l'offset esce da 0..100: l'immagine si sposta oltre il bordo.
         x, _y = _map_card_background_position(0, 50, 160, 100)
         self.assertLess(x, 0)
+
+
+class PlantLayoutManagementTests(_MediaMixin, TestCase):
+    """Scelta della pianta, nuove versioni e catalogo dell'editor."""
+
+    def _admin_post(self, data):
+        admin = get_user_model().objects.create_superuser(username="plx-gest", email="plxg@test.local", password="x")
+        _complete_onboarding(admin)
+        self.client.force_login(admin)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=SimpleNamespace(id=1, ruolo_id=1)), \
+                patch("admin_portale.decorators.is_legacy_admin", return_value=True):
+            return self.client.post(reverse("assets:plant_layout_editor"), data)
+
+    def test_new_asset_goes_where_similar_machines_are_placed(self):
+        from assets.views._helpers import _ensure_asset_plant_layout_marker, _resolve_asset_plant_layout_detail
+
+        PlantLayout.objects.create(category="Apparecchi", name="Carroponti", image=_png(50, 50), is_active=True)
+        officina = PlantLayout.objects.create(category="Officina Imm.2", name="Officina 2", image=_png(50, 50), is_active=True)
+        old = Asset.objects.create(asset_tag="AST-SIM-1", name="Tornio vecchio", reparto="Torni")
+        PlantLayoutMarker.objects.create(layout=officina, asset=old, x_percent=30, y_percent=40)
+        new = Asset.objects.create(asset_tag="AST-SIM-2", name="Tornio nuovo", reparto="Torni")
+        self.assertEqual(_resolve_asset_plant_layout_detail(new), (officina, "simili"))
+        self.assertEqual(_ensure_asset_plant_layout_marker(new), "")
+        self.assertEqual(PlantLayoutMarker.objects.get(asset=new).layout_id, officina.id)
+
+    def test_no_placeholder_on_alphabetical_first_when_undecided(self):
+        from assets.views._helpers import _ensure_asset_plant_layout_marker
+
+        PlantLayout.objects.create(category="Apparecchi", name="Carroponti", image=_png(50, 50), is_active=True)
+        PlantLayout.objects.create(category="Officina", name="Officina", image=_png(50, 50), is_active=True)
+        asset = Asset.objects.create(asset_tag="AST-UND-1", name="Pompa", reparto="Ignoto")
+        self.assertIn("scegli", _ensure_asset_plant_layout_marker(asset))
+        self.assertFalse(PlantLayoutMarker.objects.filter(asset=asset).exists())
+
+    def test_single_active_layout_still_gets_placeholder(self):
+        from assets.views._helpers import _ensure_asset_plant_layout_marker
+
+        only = PlantLayout.objects.create(category="Officina", name="Officina", image=_png(50, 50), is_active=True)
+        asset = Asset.objects.create(asset_tag="AST-ONE-1", name="Pressa", reparto="Ignoto")
+        self.assertEqual(_ensure_asset_plant_layout_marker(asset), "")
+        self.assertEqual(PlantLayoutMarker.objects.get(asset=asset).layout_id, only.id)
+
+    def test_new_version_copies_areas_and_machines(self):
+        v1 = PlantLayout.objects.create(category="Officina Imm.1", name="Officina 2025", image=_png(80, 40), is_active=True)
+        asset = Asset.objects.create(asset_tag="AST-VER-1", name="Fresa", reparto="FRE")
+        PlantLayoutMarker.objects.create(layout=v1, asset=asset, label="F1", x_percent=12, y_percent=34)
+        PlantLayoutArea.objects.create(layout=v1, name="Frese", reparto_code="FRE", x_percent=5, y_percent=5, width_percent=20, height_percent=20)
+        response = self._admin_post({
+            "action": "save_layout",
+            "layout_mode": "new",
+            "category": "Officina Imm.1",
+            "name": "Officina 2026",
+            "is_active": "on",
+            "copy_previous": "1",
+            "image": _png(80, 40, "nuova.png"),
+            "areas_payload": "[]",
+            "markers_payload": "[]",
+        })
+        self.assertEqual(response.status_code, 302)
+        v2 = PlantLayout.objects.get(name="Officina 2026")
+        self.assertTrue(v2.is_active)
+        marker = PlantLayoutMarker.objects.get(layout=v2, asset=asset)
+        self.assertEqual((marker.label, marker.x_percent, marker.y_percent), ("F1", Decimal("12"), Decimal("34")))
+        self.assertEqual(PlantLayoutArea.objects.filter(layout=v2, reparto_code="FRE").count(), 1)
+        # La versione precedente resta intatta (archivio).
+        self.assertTrue(PlantLayoutMarker.objects.filter(layout=v1, asset=asset).exists())
+
+    def test_new_version_without_copy_starts_empty(self):
+        v1 = PlantLayout.objects.create(category="Officina Imm.1", name="Officina 2025", image=_png(80, 40), is_active=True)
+        asset = Asset.objects.create(asset_tag="AST-VER-2", name="Fresa", reparto="FRE")
+        PlantLayoutMarker.objects.create(layout=v1, asset=asset, x_percent=12, y_percent=34)
+        self._admin_post({
+            "action": "save_layout",
+            "layout_mode": "new",
+            "category": "Officina Imm.1",
+            "name": "Vuota",
+            "image": _png(80, 40, "vuota.png"),
+            "areas_payload": "[]",
+            "markers_payload": "[]",
+        })
+        self.assertFalse(PlantLayoutMarker.objects.filter(layout__name="Vuota").exists())
+
+    def test_editor_catalog_knows_where_machine_is_placed(self):
+        from assets.views.layout import _plant_layout_category_counts, _plant_layout_machine_catalog_for
+
+        carro = PlantLayout.objects.create(category="Apparecchi", name="Carroponti", image=_png(50, 50), is_active=True)
+        officina = PlantLayout.objects.create(category="Officina", name="Officina 1", image=_png(50, 50), is_active=True)
+        asset = Asset.objects.create(asset_tag="AST-CAT-1", name="Tornio", reparto="Torni")
+        PlantLayoutMarker.objects.create(layout=officina, asset=asset, x_percent=20, y_percent=20)
+        PlantLayoutMarker.objects.create(layout=carro, asset=asset, x_percent=50, y_percent=50)
+        row = next(r for r in _plant_layout_machine_catalog_for(carro) if r["id"] == asset.id)
+        self.assertEqual(row["elsewhere"], ["Officina 1"])
+        row = next(r for r in _plant_layout_machine_catalog_for(officina) if r["id"] == asset.id)
+        self.assertEqual(row["elsewhere"], [])
+        counts = _plant_layout_category_counts()
+        self.assertEqual(counts["apparecchi"], {"placed": 0, "unplaced": 1})
+        self.assertEqual(counts["officina"], {"placed": 1, "unplaced": 0})

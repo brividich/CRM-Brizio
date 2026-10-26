@@ -9497,7 +9497,7 @@ class AssetPlantLayoutResolveTests(TestCase):
             self.assertEqual(marker.layout_id, zincatura.id)
             self.assertNotEqual(marker.layout_id, officina.id)
 
-    def test_marker_falls_back_to_first_active_layout_when_reparto_unmapped(self):
+    def test_no_marker_when_reparto_unmapped_and_several_layouts(self):
         with _workspace_temporary_directory("assets-resolve-fb-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
             officina = PlantLayout.objects.create(
                 category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
@@ -9506,11 +9506,14 @@ class AssetPlantLayoutResolveTests(TestCase):
                 category="TVCC", name="TVCC", image=_valid_png_upload("t.png"), is_active=True
             )
             asset = Asset.objects.create(asset_tag="AST-FB-1", name="Macchina orfana", reparto="Reparto Inesistente")
+            # Due piante attive e nessun indizio: nessun segnaposto sulla
+            # prima in ordine alfabetico, si sceglie dall'editor.
+            from assets.views._helpers import _resolve_asset_plant_layout
+
+            self.assertEqual(_resolve_asset_plant_layout(asset), (officina, False))
             msg = asset_views._ensure_asset_plant_layout_marker(asset)
-            self.assertEqual(msg, "")
-            marker = PlantLayoutMarker.objects.get(asset=asset)
-            # Fallback: primo layout attivo per (category, name, id) = Officina.
-            self.assertEqual(marker.layout_id, officina.id)
+            self.assertIn("scegli", msg)
+            self.assertFalse(PlantLayoutMarker.objects.filter(asset=asset).exists())
 
     def test_no_active_layout_returns_message_without_marker(self):
         asset = Asset.objects.create(asset_tag="AST-NONE-1", name="Nessuna piantina", reparto="Officina")

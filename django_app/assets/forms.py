@@ -2459,7 +2459,7 @@ class SoftwareLicenseRenewalForm(forms.ModelForm):
 class PlantLayoutForm(forms.ModelForm):
     # FileField e non ImageField: il campo immagine di Django scarterebbe il PDF
     # prima di clean_image, che lo converte in PNG e poi verifica il raster.
-    image = forms.FileField(required=False)
+    image = forms.FileField(required=False, label="Planimetria (PNG, JPG o PDF)")
     areas_payload = forms.CharField(required=False, widget=forms.HiddenInput())
     markers_payload = forms.CharField(required=False, widget=forms.HiddenInput())
 
