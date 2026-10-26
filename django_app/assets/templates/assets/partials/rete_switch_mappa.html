@@ -11,12 +11,12 @@
         {% for r in switch_mappa.rack_disponibili %}<option value="{{ r.id }}"{% if switch_mappa.rack and switch_mappa.rack.id == r.id %} selected{% endif %}>{{ r.codice }} — {{ r.nome }}{% if r.prefisso_porte %} (porte {{ r.prefisso_porte }}){% endif %}</option>{% endfor %}
       </select></label>
     <label><span class="af-net-label">Membro dello stack</span>
-      <input type="text" name="membro" value="{{ switch_mappa.membro }}" maxlength="3" pattern="[0-9]{1,3}" inputmode="numeric" placeholder="Es. 2" class="af-it-mono"></label>
+      <input type="text" name="membro" value="{{ switch_mappa.membro }}" maxlength="3" pattern="[0-9]{1,3}" inputmode="numeric" placeholder="Es. 2" title="Numero dell'unità nello stack: 1, 2, 3… Vuoto se lo switch è da solo." class="af-it-mono"></label>
     <label><span class="af-net-label">Prefisso porte proprio</span>
       <input type="text" name="prefisso" value="{{ switch_mappa.prefisso }}" maxlength="20" pattern="[A-Za-z0-9]{1,20}" placeholder="{% if switch_mappa.rack.prefisso_porte %}{{ switch_mappa.rack.prefisso_porte }} dal rack{% else %}Es. A0{% endif %}" list="asset-swmap-prefissi" class="af-it-mono"></label>
     <datalist id="asset-swmap-prefissi">{% for p in switch_mappa.prefissi_liberi %}<option value="{{ p.prefisso }}">{{ p.porte }} porte senza switch</option>{% endfor %}</datalist>
     <button type="submit" class="af-btn af-btn-sm">Salva collocazione</button>
-    <span class="af-note">Il rack dà il prefisso (es. A0) a tutti i suoi switch; il membro sceglie le porte: membro 2 = porte «A0.2.x». Senza membro lo switch prende tutte le porte del prefisso che nessun altro membro reclama. Il prefisso proprio serve solo se diverso da quello del rack. Le porte censite dopo seguono da sole.{% if switch_mappa.prefissi_liberi %} Prefissi ancora liberi: {% for p in switch_mappa.prefissi_liberi %}<strong class="af-it-mono">{{ p.prefisso }}</strong> ({{ p.porte }}){% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}{% if not switch_mappa.rack_disponibili %} Nessun rack censito: crealo in <a href="{% url 'assets:rete_rack' %}">Rack e switch</a>.{% endif %}</span>
+    <span class="af-note af-swmap-aiuto">Membro 2 = porte «{{ switch_mappa.rack.prefisso_porte|default:"A0" }}.2.x»; senza membro lo switch prende le porte del prefisso che nessun altro membro reclama. Il prefisso proprio serve solo se diverso da quello del rack.{% if switch_mappa.prefissi_liberi %} Prefissi senza switch: {% for p in switch_mappa.prefissi_liberi %}<strong class="af-it-mono">{{ p.prefisso }}</strong> ({{ p.porte }}){% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}{% if not switch_mappa.rack_disponibili %} Nessun rack censito: crealo in <a href="{% url 'assets:rete_rack' %}">Rack e switch</a>.{% endif %}</span>
   </form>
   {% endif %}
   {% if switch_mappa.totale %}

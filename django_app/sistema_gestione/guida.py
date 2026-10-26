@@ -131,16 +131,21 @@ _PAGINE_AUDIT = [
                 "«Nuovo processo» crea una scheda: codice univoco, responsabile, scopo, ingressi, risultati, rischi, "
                 "indicatori, procedure, punti norma per ciascuna norma, frequenza audit e «Motivo della revisione».",
             ]),
-            ("p", "Nella scheda processo:"),
+            ("p", "Nella scheda processo la testata riporta revisione, responsabile, ruolo owner, criticità, frequenza "
+                  "audit ed enti; sotto, i contatori di mansioni collegate, domande attive, audit e revisioni. Il resto è "
+                  "diviso in schede:"),
             ("ul", [
-                "«Revisiona scheda» crea una nuova revisione con autore e motivo; il «Registro revisioni» conserva le precedenti.",
-                "«Checklist del processo»: «Nuova domanda» aggiunge una domanda con norma, punti, criterio e suggerimento; "
-                "«Proponi domande dalla scheda» le genera dai punti norma e le lascia in bozza finché non le verifichi con "
-                "«Verifica / revisiona domanda». Solo le domande attive vengono copiate nei nuovi piani.",
-                "«Audit collegati» mostra lo storico delle verifiche del processo.",
-                "«Chi possiede e chi esegue il processo» legge la Struttura organizzativa: chi ricopre oggi il ruolo "
-                "owner, le mansioni lavorative collegate al processo con quanti operativi e quanti in lista («nessuno» in "
-                "rosso se nessuno è operativo) e, aprendo «Persone operative», i nomi.",
+                "«Scheda»: scopo, ingressi, risultati attesi, rischi, indicatori, procedure, punti norma per ciascuna "
+                "norma («non applicabile» se vuoti) e fonte documentale. «Revisiona scheda» crea una nuova revisione "
+                "con autore e motivo.",
+                "«Chi lo esegue» legge la Struttura organizzativa: chi ricopre oggi il ruolo owner, le mansioni "
+                "lavorative collegate al processo con quanti operativi e quanti in lista («nessuno» in rosso se nessuno "
+                "è operativo) e i nomi delle persone operative.",
+                "«Checklist»: «Nuova domanda» aggiunge una domanda con norma, punti, criterio e suggerimento; "
+                "«Proponi domande dalla scheda» le genera dai punti norma e le lascia in «bozza» finché non le apri con "
+                "«Verifica»; quelle «attive» si cambiano con «Revisiona». Solo le domande attive vengono copiate nei nuovi piani.",
+                "«Audit» elenca le verifiche del processo con data, lead auditor e stato.",
+                "«Revisioni» conserva le versioni precedenti della scheda: aprendo una revisione si vedono i dati salvati.",
             ]),
             ("nota", "Un audit conserva la copia della scheda processo usata nel piano: le revisioni successive del catalogo "
                      "non cambiano gli audit già pianificati."),

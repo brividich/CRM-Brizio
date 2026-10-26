@@ -307,9 +307,13 @@ def porte_senza_switch(indice: Indice | None = None) -> list[dict]:
     for porta in AssetEndpoint.objects.filter(switch_name="").exclude(switch_port="").values_list("switch_port", flat=True):
         parti = scomponi_porta(porta)
         if parti and indice.switch_da_porta(porta) is None:
-            chiave = f"{parti[0]}.{parti[1]}" if parti[1] else parti[0]
+            chiave = (parti[0], parti[1])
             conteggi[chiave] = conteggi.get(chiave, 0) + 1
-    return [{"prefisso": k, "porte": v} for k, v in sorted(conteggi.items())]
+    return [
+        {"prefisso": f"{pre}.{membro}" if membro else pre, "membro": membro, "porte": n,
+         "rack": indice.rack_per_porte.get(pre)}
+        for (pre, membro), n in sorted(conteggi.items())
+    ]
 
 
 def prefissi_senza_switch() -> list[dict]:
@@ -378,6 +382,7 @@ def panoramica_rack() -> dict:
             "porte": len(porte),
             "vlan": sorted({ep.vlan for ep in porte if ep.vlan is not None}),
         }
+    porte_libere = porte_senza_switch(indice)
     racks = []
     for rack in indice.rack:
         sw = sorted((s for s in switch_in_rack if s.rack_id == rack.pk),
@@ -386,13 +391,21 @@ def panoramica_rack() -> dict:
             "rack": rack,
             "switch": [riga(s) for s in sw],
             "dispositivi": len(per_rack.get(rack.pk, ())),
+            "porte_libere": [p for p in porte_libere if p["rack"] is not None and p["rack"].pk == rack.pk],
         })
     senza_rack = [
         riga(s) for s in Asset.objects.filter(_filtro_switch(), rack__isnull=True)
         .exclude(status=Asset.STATUS_RETIRED).order_by("asset_tag")
         .only("id", "asset_tag", "name", "model", "status", "switch_prefisso_porte", "switch_membro")
     ]
-    return {"racks": racks, "senza_rack": senza_rack, "porte_libere": porte_senza_switch(indice)}
+    riepilogo = {
+        "rack": len(racks),
+        "switch": len(switch_in_rack),
+        "dispositivi": len({a for ids in per_rack.values() for a in ids}),
+        "porte_libere": sum(p["porte"] for p in porte_libere),
+        "senza_rack": len(senza_rack),
+    }
+    return {"racks": racks, "senza_rack": senza_rack, "porte_libere": porte_libere, "riepilogo": riepilogo}
 
 
 def dettaglio_rack(rack: RackRete) -> dict:
@@ -415,4 +428,20 @@ def dettaglio_rack(rack: RackRete) -> dict:
         if (c := risolti.get(ep.id)) and c.switch is None and c.rack is not None and c.rack.pk == rack.pk
     ]
     orfani.sort(key=lambda ep: (ep.switch_port or "~", ep.punto or "", ep.id))
+    for ep in orfani:
+        ep.motivo = motivo_senza_switch(ep, rack)
     return {"switch": blocchi, "orfani": orfani}
+
+
+def motivo_senza_switch(ep: AssetEndpoint, rack: RackRete) -> str:
+    """Perche' il punto rete del rack non arriva a nessuno switch: frase da mostrare all'utente."""
+    if ep.switch_name:
+        return f"Lo switch indicato «{ep.switch_name}» non è un asset censito: sceglilo dalla tendina nella scheda del dispositivo."
+    if not ep.switch_port:
+        return "C'è solo la porta del patch panel: manca la porta dello switch."
+    parti = scomponi_porta(ep.switch_port)
+    if parti is None:
+        return "Porta switch fuori formato (atteso es. A0.2.15)."
+    if parti[1]:
+        return f"Nessuno switch del rack è il membro {parti[1]}: censiscilo o indica il membro sulla sua scheda."
+    return f"Nessuno switch del rack serve le porte {parti[0]}."

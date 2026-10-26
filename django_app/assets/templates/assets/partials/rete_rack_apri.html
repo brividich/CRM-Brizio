@@ -1,0 +1,13 @@
+{# Apre il riquadro <details> indicato da data-rk-apri o dall'ancora dell'indirizzo (es. #nuovo-rack). #}
+<script>
+(function () {
+  function apri(id) {
+    var el = id && document.getElementById(id);
+    if (el && el.tagName === "DETAILS") { el.open = true; }
+  }
+  document.querySelectorAll("[data-rk-apri]").forEach(function (link) {
+    link.addEventListener("click", function () { apri(link.getAttribute("data-rk-apri")); });
+  });
+  apri(location.hash.slice(1));
+})();
+</script>
