@@ -34,7 +34,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (tabelle in anagrafica)"),
-    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), macchine collegate (MTConnect)"),
+    "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), rack e switch di rete, macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
     "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
     "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione"),

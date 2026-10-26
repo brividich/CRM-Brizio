@@ -32,8 +32,9 @@ GUIDA = {
                     "Compila IP, MAC, VLAN, Switch (matricola dello switch), Porta SW e Porta patch panel; premi «Salva rete».",
                 ]),
                 ("p", "Nella scheda dello switch, «Mappa porte dello switch» mostra le porte occupate colorate per VLAN. "
-                      "Per collegare lo switch al suo stack scrivi il «Prefisso porte di questo switch» (es. A0) e premi «Salva prefisso»: "
-                      "le porte A0.x.x senza switch indicato, anche quelle censite dopo, appartengono a quello switch."),
+                      "Per collegarlo alle sue porte scegli il «Rack», scrivi il «Membro dello stack» (2 per le porte A0.2.x; vuoto se "
+                      "nel rack c'è un solo switch) e premi «Salva collocazione»: le porte senza switch indicato, anche quelle censite dopo, "
+                      "vanno allo switch giusto. Il «Prefisso porte proprio» serve solo se diverso da quello del rack."),
             ],
         },
         {
@@ -140,6 +141,22 @@ GUIDA = {
                 ("p", "Le DMG MORI arrivano dal collector OPC UA dell'officina (a ogni cambio di stato e almeno ogni minuto); "
                       "le macchine con un agent MTConnect si leggono ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli "
                       "ultimi 15 minuti (collector o agent fermo): in quel caso la macchina non conta come in allarme."),
+            ],
+        },
+        {
+            "id": "rete-rack",
+            "titolo": "Dividere la rete per rack e vedere gli switch di ogni armadio",
+            "blocchi": [
+                ("passi", [
+                    "Apri Asset → «Rack e switch» e premi «+ Nuovo rack»: Codice, Nome, «Prefisso porte switch» (es. A0) "
+                    "e «Prefisso patch panel» (es. Q0); premi «Crea rack».",
+                    "Apri la scheda di ogni switch del rack, tab «Tecnica e rete»: scegli il «Rack», scrivi il «Membro dello stack» "
+                    "(1, 2, 3…) e premi «Salva collocazione».",
+                    "Torna su «Rack e switch»: ogni rack elenca i suoi switch con le porte servite (A0.1, A0.2…) e i dispositivi collegati; "
+                    "un clic sul rack mostra il frontale di ogni switch.",
+                ]),
+                ("p", "In fondo alla pagina: «Porte senza switch» (porte che nessuno switch censito serve) e «Apparati di rete senza rack». "
+                      "Nella scheda di un PC il percorso è Rack → Switch → Porta SW → Porta patch panel."),
             ],
         },
         {

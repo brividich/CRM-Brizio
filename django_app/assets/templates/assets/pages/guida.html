@@ -43,6 +43,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#storico">Storico delle modifiche</a>
     <a href="#software">Software installati e licenze</a>
     <a href="#catalogo">Catalogo software</a>
+    <a href="#rete-rack">Rack e switch</a>
     <a href="#rete-indirizzi">Indirizzi IP</a>
     <a href="#mtconnect">Macchine collegate (MTConnect)</a>
     <a href="#planimetrie">Planimetria dell'officina</a>
@@ -233,7 +234,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ul>
       <h3>Mappa porte dello switch</h3>
       <p>Nella scheda di uno switch (o di qualsiasi asset indicato come switch da un dispositivo), tab <strong>Tecnica e rete</strong>, la <strong>Mappa porte dello switch</strong> disegna il frontale: porte dispari sopra, pari sotto, una fila per ogni membro dello stack (la porta <code>A0.1.37</code> è il membro 1 del prefisso A0, porta 37). Le porte occupate sono colorate per VLAN e portano alla scheda del dispositivo; passa il mouse per IP, VLAN e patch panel. Un bordo rosso indica più dispositivi censiti sulla stessa porta. Sotto c'è l'elenco completo.</p>
-      <p><strong>Collegare lo switch al suo stack di porte</strong>: in cima alla mappa scrivi il <strong>Prefisso porte di questo switch</strong> (es. <code>A0</code> per lo switch CED, <code>A1</code> per quello dell'amministrazione) e premi <span class="ag-btn">Salva prefisso</span>. Da quel momento tutte le porte <code>A0.x.x</code> senza switch indicato appartengono a quello switch, comprese quelle censite dopo. Accanto al campo trovi i prefissi ancora liberi con quante porte li usano. Ogni prefisso può stare su un solo switch: se è già usato, toglilo prima dall'altro (campo vuoto + Salva). Se un dispositivo indica esplicitamente un altro switch nel campo Switch, vale quello. Nella scheda del PC lo switch trovato dal prefisso compare con la nota «da prefisso». La mappa è inventario, non una lettura in tempo reale delle porte.</p>
+      <p><strong>Mettere lo switch nel suo rack e collegarlo alle sue porte</strong>: in cima alla mappa scegli il <strong>Rack</strong>, scrivi il <strong>Membro dello stack</strong> (il numero di mezzo della porta: <code>2</code> per le porte <code>A0.2.x</code>) e premi <span class="ag-btn">Salva collocazione</span>. Il rack dà il prefisso porte (es. <code>A0</code>) a tutti i suoi switch; il membro sceglie quali porte sono di questo switch. Uno switch <strong>senza membro</strong> prende tutte le porte del prefisso che nessun altro membro reclama (es. il rack <code>A1</code> con un solo switch e porte <code>A1.19</code>). Il <strong>Prefisso porte proprio</strong> serve solo se lo switch usa un prefisso diverso da quello del rack, o se non lo metti in un rack. Da quel momento le porte senza switch indicato, comprese quelle censite dopo, vanno allo switch giusto. Ogni combinazione prefisso + membro può stare su un solo switch: se è già usata la pagina dice da chi, toglila prima da lì. Se un dispositivo indica esplicitamente uno switch nel campo Switch vale quello; ma se indica lo switch di uno stack e il membro della porta è censito, la porta va al membro (l'inventario spesso scrive lo stesso nome per tutto lo stack). Nella scheda del PC il percorso è <strong>Rack → Switch → Porta SW → Porta patch panel</strong>; lo switch trovato dal prefisso ha la nota «da prefisso». La mappa è inventario, non una lettura in tempo reale delle porte.</p>
       <h3>Dati vecchi</h3>
       <p>Se i consumabili non vengono letti da più di {{ soglia_consumabili }} giorni, o i contatori da più di {{ soglia_contatori }}, compare un avviso arancione: i numeri sotto non sono quelli attuali. Di solito la stampante è spenta, senza IP o con il monitoraggio disattivato; il motivo è scritto nell'avviso o nell'ultimo errore SNMP.</p>
       <h3>Leggi adesso</h3>
@@ -355,6 +356,26 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p>Con l'API WatchGuard accesa (SOC › Impostazioni) la voce <strong>WatchGuard</strong> dice lo stato della protezione e quante patch mancano; rossa se la protezione non va o se il PC è in rete senza agente. La voce <strong>Rete</strong> dice a quale switch e porta è collegato il PC (tabella MAC letta ogni notte dagli switch del Monitor SNMP; il MAC arriva da Intune, WatchGuard o dal punto rete). Nel riquadro Intune, <strong>Aggiornamenti Windows</strong> dice «Indietro» se altri PC con la stessa versione di Windows hanno già un aggiornamento cumulativo più recente.</p>
       <h3>Cosa succede nel SOC</h3>
       <p>Dopo ogni salvataggio e ogni import dell'inventario il SOC controlla il catalogo: se nuovi PC hanno un software <em>Non autorizzato</em> o <em>Da rimuovere</em>, o una versione sotto la minima, nasce un alert (uno per software, che si aggiorna se altri PC si aggiungono). Il riepilogo è nella pagina Vulnerabilità del SOC, riquadro «Software non conforme».</p>
+    </section>
+
+    <section class="ag-sec" id="rete-rack">
+      <h2>Rack e switch</h2>
+      <p>La pagina <a href="{% url 'assets:rete_rack' %}">Rack e switch</a> (menu, sotto Indirizzi IP) divide la rete per <strong>armadio</strong>: per ogni rack gli switch che contiene, quali porte serve ciascuno (es. <code>A0.1</code>, <code>A0.2</code>, <code>A0.3</code> per i tre membri dello stack del CED) e quanti dispositivi ci sono collegati. Un clic sul rack apre la sua pagina con il <strong>frontale di ogni switch</strong> (porte colorate per VLAN, link al dispositivo) e l'elenco dei punti rete del rack per cui <strong>manca lo switch</strong>.</p>
+      <h3>Creare un rack</h3>
+      <ul>
+        <li><span class="ag-btn">+ Nuovo rack</span>: <strong>Codice</strong> (es. R0) e <strong>Nome</strong> obbligatori; <strong>Ubicazione</strong> e <strong>Note</strong> facoltative.</li>
+        <li><strong>Prefisso porte switch</strong>: il primo pezzo delle porte dell'inventario, es. <code>A0</code> per <code>A0.1.37</code>. Vale per tutti gli switch del rack.</li>
+        <li><strong>Prefisso patch panel</strong>: es. <code>Q0</code> per <code>Q0.89</code>. Riconosce il rack di un punto rete anche quando lo switch non è noto.</li>
+        <li>Un prefisso può stare su un solo rack. Serve il permesso di modificare gli asset.</li>
+      </ul>
+      <h3>Mettere gli switch nel rack</h3>
+      <p>Dalla scheda di ogni switch, tab <strong>Tecnica e rete</strong>: scegli il <strong>Rack</strong>, scrivi il <strong>Membro dello stack</strong> (1, 2, 3…; vuoto se nel rack c'è un solo switch) e premi <span class="ag-btn">Salva collocazione</span>. Il cambio finisce nella cronologia dell'asset.</p>
+      <h3>Cosa c'è in fondo alla pagina</h3>
+      <ul>
+        <li><strong>Porte senza switch</strong>: gruppi di porte (es. <code>A0.2 · 11</code>) senza switch indicato e che nessuno switch censito serve: manca lo switch di quel membro o il rack/prefisso.</li>
+        <li><strong>Apparati di rete senza rack</strong>: switch e firewall censiti non ancora messi in un rack.</li>
+      </ul>
+      <p>Eliminare un rack (pagina del rack › Modifica rack › <span class="ag-btn">Elimina rack</span>) non tocca gli switch: restano censiti, senza rack.</p>
     </section>
 
     <section class="ag-sec" id="rete-indirizzi">
