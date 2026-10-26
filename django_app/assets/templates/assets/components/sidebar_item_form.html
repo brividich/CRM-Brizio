@@ -42,7 +42,7 @@
     </div>
   </div>
 </form>
-<form id="sidebar-delete-{{ item.id }}" method="post" style="display:none;" onsubmit="return confirm('Eliminare &quot;{{ item.label|escapejs }}&quot;?')">
+<form id="sidebar-delete-{{ item.id }}" method="post" style="display:none;" data-hub-confirm="Eliminare &quot;{{ item.label }}&quot;?">
   {% csrf_token %}
   <input type="hidden" name="action" value="delete_sidebar_button">
   <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">

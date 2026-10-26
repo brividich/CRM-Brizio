@@ -321,7 +321,7 @@ body.theme-dark .ac-empty{color:var(--text-light)}
                             {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
                             <input type="hidden" name="action" value="delete_assistance_contract">
                             <input type="hidden" name="contract_id" value="{{ row.contract.id }}">
-                            <button type="submit" class="btn btn-danger" onclick="return confirm('Eliminare questo contratto assistenza?');">Elimina</button>
+                            <button type="submit" class="btn btn-danger" data-hub-confirm="Eliminare questo contratto assistenza?">Elimina</button>
                           </form>
                         {% else %}
                           <a class="btn btn-secondary" href="{{ row.supplier_url }}">Apri fornitore</a>

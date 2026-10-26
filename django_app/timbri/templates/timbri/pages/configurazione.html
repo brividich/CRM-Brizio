@@ -171,7 +171,7 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
                         {% csrf_token %}
                         <input type="hidden" name="action" value="delete_user_override">
                         <input type="hidden" name="user_id" value="{{ ov.user.pk }}">
-                        <button class="tim-mini tim-btn-danger" type="submit" onclick="return confirm('Rimuovere tutti gli override per {{ ov.user.username|escapejs }}?')">Rimuovi</button>
+                        <button class="tim-mini tim-btn-danger" type="submit" data-hub-confirm="Rimuovere tutti gli override per {{ ov.user.username }}?">Rimuovi</button>
                       </form>
                     </td>
                   </tr>
@@ -237,7 +237,7 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
         </div>
         <p class="fmd-ph-sub" style="margin:0 0 14px;">Cancella tutti i registri timbri locali e ricrea solo i nominativi dall'anagrafica centrale. Prima della cancellazione il registro viene salvato in un CSV nella cartella privata dei timbri (<code>backup/</code>).</p>
         {% if user.is_superuser %}
-          <form method="post" class="tim-ov-form" onsubmit="return confirm('Reset del registro timbri? Verranno cancellati tutti i registri locali.');">
+          <form method="post" class="tim-ov-form" data-hub-confirm="Reset del registro timbri? Verranno cancellati tutti i registri locali.">
             {% csrf_token %}
             <input type="hidden" name="action" value="reset_table">
             <div class="hub-field">

@@ -308,7 +308,7 @@ async function saveAll() {
 }
 
 async function resetAll() {
-  if (!confirm("Ripristinare tutte le KPI ai valori predefiniti?")) return;
+  if (!(await hubConfirm("Ripristinare tutte le KPI ai valori predefiniti?"))) return;
   const keys = [...document.querySelectorAll(".km-card")].map(c => c.id.replace("card-", ""));
   const kpis = keys.map(key => ({ key, label: "", icon: "", bg_color: "", fg_color: "", disabled: false }));
   const r = await fetch(SAVE_URL, {

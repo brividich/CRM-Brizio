@@ -252,7 +252,7 @@ body.theme-dark .cl-ok{color:#86efac}
     // ── Elimina voce ──
     document.querySelectorAll(".cl-btn-del").forEach(function (btn) {
       btn.addEventListener("click", async function () {
-        if (!confirm("Eliminare questa voce? L'operazione è irreversibile se non ha risposte registrate.")) return;
+        if (!(await hubConfirm("Eliminare questa voce? L'operazione è irreversibile se non ha risposte registrate."))) return;
         try {
           await apiPost(DELETE_URL, { id: parseInt(btn.dataset.delId, 10) });
           location.reload();

@@ -381,7 +381,7 @@ body.theme-dark .sl-empty{color:var(--text-light)}
                             {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
                             <input type="hidden" name="action" value="delete_software_license">
                             <input type="hidden" name="license_id" value="{{ row.license.id }}">
-                            <button type="submit" class="btn btn-danger" onclick="return confirm('Eliminare questa licenza software?');">Elimina</button>
+                            <button type="submit" class="btn btn-danger" data-hub-confirm="Eliminare questa licenza software?">Elimina</button>
                           </form>
                           <details class="sl-renew">
                             <summary class="btn btn-primary">Rinnova</summary>

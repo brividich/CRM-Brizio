@@ -89,7 +89,7 @@ body.theme-dark .cd-scaduta{color:#fca5a5}
         </form>
       {% endif %}
       {% if can_manage and not a.is_conclusa %}
-        <form method="post" action="{% url 'capa_cancel' a.pk %}" onsubmit="return confirm('Annullare questa azione?');">{% csrf_token %}
+        <form method="post" action="{% url 'capa_cancel' a.pk %}" data-hub-confirm="Annullare questa azione?">{% csrf_token %}
           <button type="submit" class="cd-btn danger">Annulla azione</button>
         </form>
       {% endif %}

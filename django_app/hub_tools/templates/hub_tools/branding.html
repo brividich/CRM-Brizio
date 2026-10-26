@@ -272,7 +272,7 @@ async function uploadLogo(input) {
 }
 
 async function removeLogo() {
-  if (!confirm("Rimuovere il logo hub?")) return;
+  if (!(await hubConfirm("Rimuovere il logo hub?"))) return;
   const r = await fetch(LOGO_REMOVE_URL, {
     method: "POST",
     headers: {"X-CSRFToken": CSRF()},
@@ -303,8 +303,8 @@ async function setHomepage(active) {
   }
 }
 
-function resetDefaults() {
-  if (!confirm("Ripristinare i colori e testi di default?")) return;
+async function resetDefaults() {
+  if (!(await hubConfirm("Ripristinare i colori e testi di default?"))) return;
   document.getElementById("fHeroTitle").value = "Centro operativo Novicrom";
   document.getElementById("fHeroSub").value = "Panoramica attività, richieste, anomalie e stato dei moduli aziendali.";
   document.getElementById("fBgColor").value = "#f4f7fb";

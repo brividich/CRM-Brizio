@@ -132,7 +132,7 @@ async function addDependency(event, form) {
 async function removeDependency(btn) {
   const url = btn.dataset.removeUrl;
   if (!url) return;
-  if (!confirm("Rimuovere questa dipendenza?")) return;
+  if (!(await hubConfirm("Rimuovere questa dipendenza?"))) return;
   try {
     const resp = await fetch(url, {
       method: "POST",

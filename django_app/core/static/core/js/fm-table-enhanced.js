@@ -623,7 +623,7 @@
         del.setAttribute("aria-label", del.title);
         del.addEventListener("click", async (e) => {
           e.stopPropagation();
-          if (!confirm("Eliminare la vista «" + v.nome + "»?")) return;
+          if (!(await hubConfirm("Eliminare la vista «" + v.nome + "»?"))) return;
           const next = viste.filter((_, j) => j !== i);
           if (await saveViews(tableId, next)) { viste = next; render(); }
           else if (statusEl) statusEl.textContent = "⚠ Errore salvataggio";
@@ -643,7 +643,7 @@
         const nome = cleanText(prompt("Nome della vista (colonne, filtri, ricerca e ordinamento di adesso):") || "").slice(0, 60);
         if (!nome) return;
         const idx = viste.findIndex(v => v.nome.toLowerCase() === nome.toLowerCase());
-        if (idx >= 0 && !confirm("Esiste già una vista «" + viste[idx].nome + "»: sostituirla?")) return;
+        if (idx >= 0 && !(await hubConfirm("Esiste già una vista «" + viste[idx].nome + "»: sostituirla?"))) return;
         if (idx < 0 && viste.length >= VIEWS_MAX) {
           alert("Puoi salvare al massimo " + VIEWS_MAX + " viste per tabella: eliminane una.");
           return;
@@ -825,7 +825,7 @@
     resetBtn.className = "fm-tbl-btn fm-tbl-btn-ghost";
     resetBtn.textContent = "Reset";
     resetBtn.addEventListener("click", async () => {
-      if (!confirm("Ripristinare le preferenze di default per questa tabella?")) return;
+      if (!(await hubConfirm("Ripristinare le preferenze di default per questa tabella?"))) return;
       const tableId = table.dataset.tableId;
       await deletePrefs(tableId);
       location.reload();

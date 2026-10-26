@@ -209,7 +209,7 @@ body.theme-dark .dpi-btn-gray:hover{background:var(--surface-alt,#0f1b2d)}
             <div class="dpi-actions">
               <a href="{% url 'dpi:documento_download' d.pk %}?download=1" class="dpi-link">Scarica</a>
               {% if is_gestore %}
-              <form method="post" action="{% url 'dpi:documento_elimina' d.pk %}" onsubmit="return confirm('Eliminare il documento «{{ d.titolo|escapejs }}»? L\'operazione non si annulla.');">
+              <form method="post" action="{% url 'dpi:documento_elimina' d.pk %}" data-hub-confirm="Eliminare il documento «{{ d.titolo }}»? L'operazione non si annulla.">
                 {% csrf_token %}<button type="submit" class="dpi-btn dpi-btn-red">Elimina</button>
               </form>
               {% endif %}

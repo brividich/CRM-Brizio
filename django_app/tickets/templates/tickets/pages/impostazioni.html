@@ -403,7 +403,7 @@ body.theme-dark .tkt-import-result ul{color:#fca5a5}
                       <input type="hidden" name="cat_id" value="{{ cat.pk }}">
                       <button type="submit" class="tkt-cat-btn">{% if cat.attivo %}Disattiva{% else %}Attiva{% endif %}</button>
                     </form>
-                    <form method="post" onsubmit="return confirm('Eliminare la categoria {{ cat.etichetta|escapejs }}?');">
+                    <form method="post" data-hub-confirm="Eliminare la categoria {{ cat.etichetta }}?">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_categoria_ticket">
                       <input type="hidden" name="cat_id" value="{{ cat.pk }}">
@@ -457,7 +457,7 @@ body.theme-dark .tkt-import-result ul{color:#fca5a5}
                       <input type="hidden" name="cat_id" value="{{ cat.pk }}">
                       <button type="submit" class="tkt-cat-btn">{% if cat.attivo %}Disattiva{% else %}Attiva{% endif %}</button>
                     </form>
-                    <form method="post" onsubmit="return confirm('Eliminare la categoria {{ cat.etichetta|escapejs }}?');">
+                    <form method="post" data-hub-confirm="Eliminare la categoria {{ cat.etichetta }}?">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_categoria_ticket">
                       <input type="hidden" name="cat_id" value="{{ cat.pk }}">

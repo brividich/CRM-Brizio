@@ -52,7 +52,7 @@
           </div>
         {% endif %}
         {% if can_edit_timbri and not is_central_profile %}
-          <form method="post" action="{% url 'timbri:operatore_delete' operatore.id %}" onsubmit="return confirm('Eliminare definitivamente {{ employee.full_name|escapejs }}?');" style="display:contents;">
+          <form method="post" action="{% url 'timbri:operatore_delete' operatore.id %}" data-hub-confirm="Eliminare definitivamente {{ employee.full_name }}?" style="display:contents;">
             {% csrf_token %}
             <button class="fmd-btn fmd-btn-ghost tim-btn-danger" type="submit">Elimina</button>
           </form>

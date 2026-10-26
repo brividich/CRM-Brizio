@@ -949,7 +949,7 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
   });
 
   form.querySelectorAll('.acl-preset-save').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', async function () {
       var modulo = btn.dataset.modulo;
       var codes = [];
       boxes(modulo).forEach(function (cb) { if (cb.checked) { codes.push(cb.value); } });
@@ -958,7 +958,7 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
       if (!nome || !nome.trim()) { return; }
       nome = nome.trim();
       var existing = presetsOf(modulo).filter(function (p) { return p.nome.toLowerCase() === nome.toLowerCase(); })[0];
-      if (existing && !window.confirm('Esiste già un preset «' + existing.nome + '»: lo sostituisco?')) { return; }
+      if (existing && !(await hubConfirm('Esiste già un preset «' + existing.nome + '»: lo sostituisco?'))) { return; }
       postPreset({ azione: 'salva', modulo: modulo, nome: existing ? existing.nome : nome, codici: JSON.stringify(codes) })
         .then(function (res) {
           if (!res.ok) { window.alert(res.errore || 'Salvataggio non riuscito.'); return; }
@@ -972,11 +972,11 @@ body.theme-dark .acl-switch span::after{background:var(--surface)}
     });
   });
   form.querySelectorAll('.acl-preset-del').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', async function () {
       var modulo = btn.dataset.modulo;
       var pick = form.querySelector('.acl-level-pick[data-modulo="' + modulo + '"]');
       var preset = pick ? presetByKey(modulo, pick.value) : null;
-      if (!preset || !window.confirm('Eliminare il preset «' + preset.nome + '»? I ruoli che lo hanno già usato non cambiano.')) { return; }
+      if (!preset || !(await hubConfirm('Eliminare il preset «' + preset.nome + '»? I ruoli che lo hanno già usato non cambiano.'))) { return; }
       postPreset({ azione: 'elimina', modulo: modulo, id: preset.id }).then(function (res) {
         if (!res.ok) { window.alert(res.errore || 'Eliminazione non riuscita.'); return; }
         presets[modulo] = presetsOf(modulo).filter(function (p) { return p.id !== preset.id; });

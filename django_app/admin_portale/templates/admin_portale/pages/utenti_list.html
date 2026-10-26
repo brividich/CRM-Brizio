@@ -479,7 +479,7 @@
                         name="next"
                         value="{{ request.get_full_path }}"
                         formnovalidate
-                        onclick="return confirm('Eliminare definitivamente {{ u.nome|escapejs }}? Verranno rimossi anche profilo Django, override e collegamenti locali.');"
+                        data-hub-confirm="Eliminare definitivamente {{ u.nome }}? Verranno rimossi anche profilo Django, override e collegamenti locali."
                       >Elimina</button>
                     {% endif %}
                   </td>
@@ -527,9 +527,8 @@
             e.preventDefault();
             return;
           }
-          if (!confirm("Eliminare definitivamente " + selected.length + " utenti selezionati? L'operazione è irreversibile.")) {
-            e.preventDefault();
-          }
+          // La domanda la fa la finestra del portale all'invio del form.
+          btnBulkDelete.setAttribute("data-hub-confirm", "Eliminare definitivamente " + selected.length + " utenti selezionati? L'operazione è irreversibile.");
         });
       }
 

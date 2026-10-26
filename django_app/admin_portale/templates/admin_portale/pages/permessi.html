@@ -453,12 +453,12 @@ body.theme-dark .canonical-badge{background:rgba(139,92,246,.2)}
   }
 
   document.getElementById("all-on-btn")?.addEventListener("click", function () { setAll(true); });
-  document.getElementById("all-off-btn")?.addEventListener("click", function () {
-    if (!window.confirm("Disattivare tutti i moduli per questo ruolo?")) return;
+  document.getElementById("all-off-btn")?.addEventListener("click", async function () {
+    if (!(await hubConfirm("Disattivare tutti i moduli per questo ruolo?"))) return;
     setAll(false);
   });
   document.getElementById("reset-role-btn")?.addEventListener("click", async function () {
-    if (!window.confirm("Eliminare tutti i permessi del ruolo?")) return;
+    if (!(await hubConfirm("Eliminare tutti i permessi del ruolo?"))) return;
     try {
       setStatus("Reset...", false);
       await postJson("{% url 'admin_portale:api_permessi_bulk' %}", { ruolo_id: ROLE_ID, mode: "reset_role" });
@@ -473,7 +473,7 @@ body.theme-dark .canonical-badge{background:rgba(139,92,246,.2)}
     const sel = document.getElementById("copy-source-role");
     const sourceId = sel ? Number(sel.value) : 0;
     if (!sourceId) { setStatus("Seleziona ruolo sorgente", true); return; }
-    if (!window.confirm("Copiare i permessi dal ruolo selezionato?")) return;
+    if (!(await hubConfirm("Copiare i permessi dal ruolo selezionato?"))) return;
     try {
       setStatus("Copia in corso...", false);
       await postJson("{% url 'admin_portale:api_permessi_bulk' %}", {

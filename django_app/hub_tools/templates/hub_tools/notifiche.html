@@ -427,8 +427,8 @@ function inviaNotifica() {
   }).catch(() => showResult(resultEl, false, 'Errore di rete.'));
 }
 
-function eliminaNotifica(id) {
-  if (!confirm('Eliminare questa notifica?')) return;
+async function eliminaNotifica(id) {
+  if (!(await hubConfirm('Eliminare questa notifica?'))) return;
   fetch(ELIM_BASE + id + '/elimina/', {
     method: 'POST',
     headers: { 'X-CSRFToken': CSRF }
@@ -440,14 +440,14 @@ function eliminaNotifica(id) {
   });
 }
 
-function bulkAction(azione, userId) {
+async function bulkAction(azione, userId) {
   var msgs = {
     'segna_lette_tutte': 'Segnare tutte le notifiche come lette?',
     'archivia_scadute':  'Archiviare ora le notifiche oltre le soglie (Admin → Gestione notifiche)?',
     'elimina_lette':     'Eliminare tutte le notifiche già lette?',
     'elimina_utente':    'Eliminare tutte le notifiche di questo utente?'
   };
-  if (!confirm(msgs[azione] || 'Confermi?')) return;
+  if (!(await hubConfirm(msgs[azione] || 'Confermi?'))) return;
   var body = { azione: azione };
   if (userId) body.user_id = userId;
   fetch(BULK_URL, {

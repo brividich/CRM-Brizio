@@ -276,7 +276,7 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
               <label for="mot-rifiuto">Motivazione rifiuto</label>
               <textarea name="motivazione" id="mot-rifiuto" rows="2" placeholder="Specifica il motivo..."></textarea>
             </div>
-            <button type="submit" class="dpi-btn dpi-btn-red" onclick="return confirm('Rifiutare la richiesta?')">Rifiuta</button>
+            <button type="submit" class="dpi-btn dpi-btn-red" data-hub-confirm="Rifiutare la richiesta?">Rifiuta</button>
           </form>
         </div>
         {% endif %}

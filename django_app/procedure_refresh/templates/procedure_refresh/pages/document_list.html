@@ -186,7 +186,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                   {% endif %}
                   {% if doc.is_active %}
                     <form method="post" action="{% url 'procedure_refresh:document_delete' pk=doc.pk %}"
-                          onsubmit="return confirm('Disattivare il documento {{ doc.code }}?')">
+                          data-hub-confirm="Disattivare il documento {{ doc.code }}?">
                       {% csrf_token %}
                       <button type="submit" class="pr-btn pr-btn-sm" style="background:#fee2e2;color:#dc2626;">Disattiva</button>
                     </form>

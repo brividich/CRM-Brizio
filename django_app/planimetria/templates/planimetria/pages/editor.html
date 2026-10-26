@@ -751,7 +751,7 @@ body.theme-dark #ped-status.err{color:#fca5a5}
       if (m) openMacModal(m);
     }
     if (delBtn) {
-      if (!confirm("Eliminare questa macchina?")) return;
+      if (!(await hubConfirm("Eliminare questa macchina?"))) return;
       const mid = Number(delBtn.dataset.delMac);
       await deleteMacchina(mid);
     }
@@ -794,7 +794,7 @@ body.theme-dark #ped-status.err{color:#fca5a5}
   // ── Delete reparto ────────────────────────────────────────────────────────
   document.getElementById("ped-delete-rep-btn")?.addEventListener("click", async function () {
     if (!editRepData || !editRepData.id) { deselectAll(); return; }
-    if (!confirm("Eliminare il reparto \"" + editRepData.nome + "\" e tutte le sue macchine?")) return;
+    if (!(await hubConfirm("Eliminare il reparto \"" + editRepData.nome + "\" e tutte le sue macchine?"))) return;
     setStatus("Eliminazione...");
     try {
       const data = await postJson(URLS.delRep + editRepData.id + "/", {});

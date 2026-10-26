@@ -12,7 +12,7 @@
     <a class="sec-button {% if view == 'collegati' %}sec-button-primary{% endif %}" href="?stato=collegati">Collegati</a>
     <a class="sec-button {% if view == 'tutti' %}sec-button-primary{% endif %}" href="?stato=tutti">Tutti</a>
     {% if can_manage and n_suggested %}
-      <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" onclick="return confirm('Collegare tutti i dispositivi con nome identico a un asset?');">Conferma tutti i {{ n_suggested }} con nome identico</button></form>
+      <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" data-hub-confirm="Collegare tutti i dispositivi con nome identico a un asset?">Conferma tutti i {{ n_suggested }} con nome identico</button></form>
     {% endif %}
   </div>
   <div class="sec-table-wrap">

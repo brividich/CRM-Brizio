@@ -146,7 +146,7 @@ body.theme-dark .tim-spec-err{ color:#fca5a5; }
       <div class="tim-form-foot">
         {% if record %}
           <button class="fmd-btn fmd-btn-ghost tim-btn-warn" type="submit" name="action" value="archive"
-                  onclick="return confirm('Archiviare questo record? Verrà impostata la data di ritiro ad oggi.')">Archivia</button>
+                  data-hub-confirm="Archiviare questo record? Verrà impostata la data di ritiro ad oggi.">Archivia</button>
         {% endif %}
         <span class="tim-spacer"></span>
         <a class="fmd-btn fmd-btn-ghost" href="{{ back_url }}">Annulla</a>

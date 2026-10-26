@@ -396,7 +396,7 @@ function onCreateSubmit(form) {
   if(restartBtn){
     restartBtn.addEventListener("click", async function(){
       const env = selectedEnv();
-      if(env === "prod" && !confirm("Riavviare sito e App Pool di PROD?")) return;
+      if(env === "prod" && !(await hubConfirm("Riavviare sito e App Pool di PROD?"))) return;
       restartBtn.disabled = true;
       setStatus("Riavvio servizio in corso...", true);
       setOutput("[" + env.toUpperCase() + "] riavvio servizio in corso...");
@@ -424,7 +424,7 @@ function onCreateSubmit(form) {
       const env = selectedEnv();
       const command = (commandInput.value || "").trim();
       if(!command) return;
-      if(env === "prod" && !confirm("Eseguire questo comando su PROD?\n\n" + command)) return;
+      if(env === "prod" && !(await hubConfirm("Eseguire questo comando su PROD?\n\n" + command))) return;
       runBtn.disabled = true;
       setStatus("Comando in esecuzione...", true);
       setOutput("[" + env.toUpperCase() + "] $ " + command + "\n\nEsecuzione in corso...");

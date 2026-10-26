@@ -528,8 +528,8 @@ function espandiTutte(aperta) {
   document.querySelectorAll('tr.rn-fam-head').forEach(function(head) { _applicaStato(head, aperta); });
 }
 
-function eliminaRecord(pk, btn) {
-  if (!confirm('Eliminare questa registrazione? L\'azione non è reversibile.')) return;
+async function eliminaRecord(pk, btn) {
+  if (!(await hubConfirm('Eliminare questa registrazione? L\'azione non è reversibile.'))) return;
   btn.disabled = true;
   function getCsrf() {
     var el = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });

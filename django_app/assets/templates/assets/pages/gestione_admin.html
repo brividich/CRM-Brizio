@@ -570,7 +570,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_label_template">
                       <input type="hidden" name="template_id" value="{{ row.template.id }}">
-                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Ripristinare il template generale per questa tipologia?')">Ripristina</button>
+                      <button type="submit" class="btn btn-danger btn-sm" data-hub-confirm="Ripristinare il template generale per questa tipologia?">Ripristina</button>
                     </form>
                   {% endif %}
                 </div>
@@ -622,7 +622,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                         {% csrf_token %}
                         <input type="hidden" name="action" value="delete_label_template">
                         <input type="hidden" name="template_id" value="{{ tpl.id }}">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm(&quot;Eliminare l'override personale di questa etichetta?&quot;)">Elimina</button>
+                        <button type="submit" class="btn btn-danger btn-sm" data-hub-confirm="Eliminare l'override personale di questa etichetta?">Elimina</button>
                       </form>
                     </div>
                   </td>
@@ -686,7 +686,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                   {% csrf_token %}
                   <input type="hidden" name="action" value="delete_list_option">
                   <input type="hidden" name="opt_id" value="{{ opt.id }}">
-                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare?')">&#10005;</button>
+                  <button type="submit" class="btn btn-danger btn-sm" data-hub-confirm="Eliminare?">&#10005;</button>
                 </form>
               </td>
             </tr>
@@ -728,7 +728,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                 {% csrf_token %}
                 <input type="hidden" name="action" value="delete_custom_field">
                 <input type="hidden" name="cf_id" value="{{ cf.id }}">
-                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare il campo?')">&#10005;</button>
+                <button type="submit" class="btn btn-danger btn-sm" data-hub-confirm="Eliminare il campo?">&#10005;</button>
               </form>
             </td>
           </tr>
@@ -835,11 +835,11 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
     <div class="sb-toolbar-actions">
       {% if sidebar_buttons %}
         <button type="button" class="btn btn-primary btn-sm" data-sbc-open="top-main">+ Nuova voce</button>
-        <form method="post" onsubmit="return confirm('Sostituire tutte le voci con i predefiniti aggiornati?')">
+        <form method="post" data-hub-confirm="Sostituire tutte le voci con i predefiniti aggiornati?">
           {% csrf_token %}<input type="hidden" name="action" value="reset_sidebar_buttons">
           <button type="submit" class="btn btn-sm btn-reset">Reimposta predefiniti</button>
         </form>
-        <form method="post" onsubmit="return confirm('Rimuovere tutte le voci personalizzate?')">
+        <form method="post" data-hub-confirm="Rimuovere tutte le voci personalizzate?">
           {% csrf_token %}<input type="hidden" name="action" value="clear_sidebar_buttons">
           <button type="submit" class="btn btn-sm btn-clear">Svuota</button>
         </form>
@@ -1225,7 +1225,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
               </div>
             </form>
             <div class="cat-delete-row">
-              <form method="post" onsubmit="return confirm('Eliminare la categoria {{ row.category.label|escapejs }}?');">
+              <form method="post" data-hub-confirm="Eliminare la categoria {{ row.category.label }}?">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="delete_asset_category">
                 <input type="hidden" name="category_id" value="{{ row.category.id }}">
@@ -1445,7 +1445,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
               </div>
             </div>
           </form>
-          <form method="post" onsubmit="return confirm('Eliminare il campo {{ category_field.label|escapejs }}?');">
+          <form method="post" data-hub-confirm="Eliminare il campo {{ category_field.label }}?">
             {% csrf_token %}
             <input type="hidden" name="action" value="delete_asset_category_field">
             <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
@@ -1505,7 +1505,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
             <td>{{ code.used }}</td>
             <td style="white-space:nowrap">
               <button class="btn btn-sm" type="submit" form="fc-{{ code.id }}">Salva</button>
-              <form method="post" style="display:inline" onsubmit="return confirm('Eliminare il codice?');">{% csrf_token %}<input type="hidden" name="action" value="failure_code_delete"><input type="hidden" name="code_id" value="{{ code.id }}"><button class="btn btn-sm btn-secondary" type="submit"{% if code.used %} disabled title="Usato da {{ code.used }} interventi: disattivalo"{% endif %}>Elimina</button></form>
+              <form method="post" style="display:inline" data-hub-confirm="Eliminare il codice?">{% csrf_token %}<input type="hidden" name="action" value="failure_code_delete"><input type="hidden" name="code_id" value="{{ code.id }}"><button class="btn btn-sm btn-secondary" type="submit"{% if code.used %} disabled title="Usato da {{ code.used }} interventi: disattivalo"{% endif %}>Elimina</button></form>
             </td>
             {% else %}
             <td>{{ code.label }}</td><td><code>{{ code.code }}</code></td><td>{{ code.asset_category.label|default:"Tutte" }}</td><td>{{ code.sort_order }}</td><td>{% if code.is_active %}Sì{% else %}No{% endif %}</td><td>{{ code.used }}</td><td></td>
@@ -1630,7 +1630,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                         {% if item.folder.is_active and not item.can_remove %}disabled title="La cartella contiene {{ item.document_count }} documenti"{% endif %}
                       >{% if item.folder.is_active %}Disattiva{% else %}Riattiva{% endif %}</button>
                     </form>
-                    <form method="post" style="display:inline;" onsubmit="return confirm('Eliminare la cartella documento &quot;{{ item.folder.name|escapejs }}&quot; dalla categoria {{ row.category.label|escapejs }}?');">
+                    <form method="post" style="display:inline;" data-hub-confirm="Eliminare la cartella documento &quot;{{ item.folder.name }}&quot; dalla categoria {{ row.category.label }}?">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_asset_category_document_folder">
                       <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
@@ -1806,7 +1806,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                   {% if cat.attivo %}Disattiva{% else %}Attiva{% endif %}
                 </button>
               </form>
-              <form method="post" style="display:inline;" onsubmit="return confirm('Eliminare la categoria \'{{ cat.etichetta }}\'?');">
+              <form method="post" style="display:inline;" data-hub-confirm="Eliminare la categoria '{{ cat.etichetta }}'?">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="delete_categoria_ticket">
                 <input type="hidden" name="cat_id" value="{{ cat.pk }}">
@@ -1857,7 +1857,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                   {% if cat.attivo %}Disattiva{% else %}Attiva{% endif %}
                 </button>
               </form>
-              <form method="post" style="display:inline;" onsubmit="return confirm('Eliminare la categoria \'{{ cat.etichetta }}\'?');">
+              <form method="post" style="display:inline;" data-hub-confirm="Eliminare la categoria '{{ cat.etichetta }}'?">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="delete_categoria_ticket">
                 <input type="hidden" name="cat_id" value="{{ cat.pk }}">

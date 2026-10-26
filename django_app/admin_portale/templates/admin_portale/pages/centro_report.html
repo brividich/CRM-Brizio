@@ -347,7 +347,7 @@
             </div>
           </form>
           {% if profilo_modifica %}
-            <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" onsubmit="return confirm('Eliminare il profilo? I report assegnati tornano al template globale.');">
+            <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" data-hub-confirm="Eliminare il profilo? I report assegnati tornano al template globale.">
               {% csrf_token %}
               <input type="hidden" name="azione" value="profilo_elimina">
               <input type="hidden" name="profilo_id" value="{{ profilo_modifica.pk }}">
@@ -530,7 +530,7 @@
           <div class="rc-actions"><button class="btn" type="submit">Salva pianificazione</button></div>
         </form>
         {% if pianificazione_modifica %}
-          <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" onsubmit="return confirm('Eliminare la pianificazione?');">
+          <form method="post" action="{% url 'admin_portale:centro_report_azione' %}" class="rc-actions" style="margin-top:10px;" data-hub-confirm="Eliminare la pianificazione?">
             {% csrf_token %}
             <input type="hidden" name="azione" value="pianificazione_elimina">
             <input type="hidden" name="pianificazione_id" value="{{ pianificazione_modifica.pk }}">

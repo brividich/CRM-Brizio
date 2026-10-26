@@ -147,7 +147,7 @@ body.theme-dark .at-warn{background:rgba(214,158,46,.16);color:#fdba74}
                 </form>
                 <form method="post" action="{% url 'admin_portale:automazioni_approval_template_delete' tpl.pk %}"
                       style="display:inline;"
-                      onsubmit="return confirm('Eliminare il template \'{{ tpl.name|escapejs }}\'? L\'operazione non è reversibile.');">
+                      data-hub-confirm="Eliminare il template '{{ tpl.name }}'? L'operazione non è reversibile.">
                   {% csrf_token %}
                   <button type="submit" class="at-btn at-btn-danger">Elimina</button>
                 </form>

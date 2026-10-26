@@ -41,7 +41,7 @@
               </div>
               <form method="post" action="{% url 'admin_portale:api_branding_favicon_remove' %}" style="flex-shrink:0;">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Rimuovere il favicon personalizzato?')">Rimuovi</button>
+                <button type="submit" class="btn btn-danger btn-sm" data-hub-confirm="Rimuovere il favicon personalizzato?">Rimuovi</button>
               </form>
             </div>
           {% else %}

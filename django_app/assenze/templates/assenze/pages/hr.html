@@ -277,7 +277,7 @@
                     <td class="hr-num">{{ c.giorni_lavorativi }}</td>
                     <td>{% if c.obj.scala_ferie %}<span class="hr-tag">scala</span>{% else %}<span class="hr-muted">non scala</span>{% endif %}</td>
                     <td>
-                      <form method="post" class="hr-inline" onsubmit="return confirm('Eliminare la chiusura?');">
+                      <form method="post" class="hr-inline" data-hub-confirm="Eliminare la chiusura?">
                         {% csrf_token %}<input type="hidden" name="form" value="chiusura_elimina"><input type="hidden" name="id" value="{{ c.obj.pk }}">
                         <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
                       </form>
@@ -417,7 +417,7 @@
                   <td><input form="cont-{{ c.pk }}" type="checkbox" name="attivo" value="1"{% if c.attivo %} checked{% endif %} aria-label="Attivo"></td>
                   <td class="hr-actions">
                     <button form="cont-{{ c.pk }}" type="submit" class="btn btn-secondary btn-sm">Salva</button>
-                    <form method="post" class="hr-inline" onsubmit="return confirm('Eliminare il contatore?');">{% csrf_token %}
+                    <form method="post" class="hr-inline" data-hub-confirm="Eliminare il contatore?">{% csrf_token %}
                       <input type="hidden" name="form" value="elimina"><input type="hidden" name="id" value="{{ c.pk }}">
                       <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
                     </form>

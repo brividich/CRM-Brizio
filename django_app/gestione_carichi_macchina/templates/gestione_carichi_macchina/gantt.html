@@ -851,12 +851,12 @@ function gcmStep(name, delta) {
     drag.bar.style.transform = 'translateY(' + (e.clientY - drag.startY) + 'px)';
   });
   function resetBar(d) { d.bar.style.transform = ''; d.bar.style.left = calcLeft(d.origStart); }
-  function gcmMostraSlittamento(piano, onOk, onCancel) {
+  async function gcmMostraSlittamento(piano, onOk, onCancel) {
     var ov = document.getElementById('gcm-slit-ov');
     var intro = document.getElementById('gcm-slit-intro');
     var list = document.getElementById('gcm-slit-list');
     var ok = document.getElementById('gcm-slit-ok');
-    if (!ov || !ok) { if (window.confirm('Questo spostamento sposta ' + piano.length + ' lavori. Confermare?')) { onOk(); } else { onCancel(); } return; }
+    if (!ov || !ok) { if ((await hubConfirm('Questo spostamento sposta ' + piano.length + ' lavori. Confermare?'))) { onOk(); } else { onCancel(); } return; }
     var mosse = piano.filter(function (r) { return !r.irrisolto; });
     var restano = piano.filter(function (r) { return r.irrisolto; });
     var n = Math.max(0, mosse.length - 1);
@@ -913,9 +913,9 @@ function gcmStep(name, delta) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
       body: new URLSearchParams(params).toString()
-    }).then(function (r) { return r.json(); }).then(function (data) {
+    }).then(function (r) { return r.json(); }).then(async function (data) {
       if (data && (data.reason === 'incompatibile' || data.reason === 'turno_incompatibile')) {
-        if (window.confirm(data.error || 'Spostare comunque?')) { params.forza = '1'; return postMove(d, params); }
+        if ((await hubConfirm(data.error || 'Spostare comunque?'))) { params.forza = '1'; return postMove(d, params); }
         resetBar(d); return;
       }
       if (data && data.reason === 'stato_cambiato') {
@@ -940,7 +940,7 @@ function gcmStep(name, delta) {
       } else { resetBar(d); alert((data && data.error) || 'Errore nello spostamento.'); }
     }).catch(function () { resetBar(d); alert('Errore di rete.'); });
   }
-  document.addEventListener('mouseup', function (e) {
+  document.addEventListener('mouseup', async function (e) {
     if (!drag) return;
     var d = drag; drag = null;
     d.bar.classList.remove('dragging');
@@ -958,7 +958,7 @@ function gcmStep(name, delta) {
     if (cambioMac) {
       var msg = 'Spostare il lavoro su un\'altra macchina';
       if (deltaDays) msg += ' e di ' + Math.abs(deltaDays) + ' giorni';
-      if (!window.confirm(msg + '?')) { resetBar(d); return; }
+      if (!(await hubConfirm(msg + '?'))) { resetBar(d); return; }
       postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, macchina_dest: destMac });
       return;
     }
@@ -1131,9 +1131,9 @@ function gcmStep(name, delta) {
 
   // ── Elimina lavoro (riusa cella_edit con elimina=1) ──
   var gdDel = document.getElementById('gd-elimina');
-  if (gdDel) gdDel.addEventListener('click', function () {
+  if (gdDel) gdDel.addEventListener('click', async function () {
     var f = document.getElementById('gd-form'); if (!f || !f.dataset.pid) return;
-    if (!window.confirm('Eliminare definitivamente questo lavoro?')) return;
+    if (!(await hubConfirm('Eliminare definitivamente questo lavoro?'))) return;
     gdDel.disabled = true;
     var body = new URLSearchParams({
       pianificazione_id: f.dataset.pid, macchina: f.dataset.mac,
@@ -1237,10 +1237,10 @@ function gcmStep(name, delta) {
       // Conferma su SOVRAPPOSIZIONE prima di creare (stesso pattern del drag).
       var chk = new URLSearchParams({ macchina: mid, turno: turno, data: data, ore: ore });
       fetch("{% url 'gestione_carichi_macchina:api_sovrapposizione' %}?" + chk.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(function (r) { return r.json(); }).then(function (d) {
+        .then(function (r) { return r.json(); }).then(async function (d) {
           if (d && d.overlap) {
             var etich = (d.conflitti && d.conflitti[0] && d.conflitti[0].testo) || 'un altro lavoro';
-            if (!window.confirm('Si sovrappone a «' + etich + '» sullo stesso turno. Inserire comunque?')) return;
+            if (!(await hubConfirm('Si sovrappone a «' + etich + '» sullo stesso turno. Inserire comunque?'))) return;
           }
           salva();
         }).catch(salva);  // se il check fallisce, non bloccare l'inserimento

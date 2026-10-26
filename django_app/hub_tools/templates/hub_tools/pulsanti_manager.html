@@ -337,7 +337,7 @@ async function uploadLogo(pid, input) {
 }
 
 async function deletePulsante(pid, label) {
-  if (!confirm(`Eliminare definitivamente il pulsante "${label}"?`)) return;
+  if (!(await hubConfirm(`Eliminare definitivamente il pulsante "${label}"?`))) return;
   const r = await fetch(DELETE_URL(pid), {
     method: "POST",
     headers: {"X-CSRFToken": CSRF()},

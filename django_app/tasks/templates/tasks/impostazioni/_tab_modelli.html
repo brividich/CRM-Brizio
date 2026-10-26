@@ -57,7 +57,7 @@
               </label>
               <button type="submit" class="md-btn" name="tpl_action" value="template_update">Salva</button>
               <button type="submit" class="md-btn danger-ghost" name="tpl_action" value="template_delete"
-                      onclick="return confirm('Eliminare il modello «{{ template.nome|escapejs }}»?')">Elimina</button>
+                      data-hub-confirm="Eliminare il modello «{{ template.nome }}»?">Elimina</button>
             </div>
           </form>
         {% endfor %}

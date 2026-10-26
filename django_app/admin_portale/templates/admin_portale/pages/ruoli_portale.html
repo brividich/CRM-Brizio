@@ -188,7 +188,7 @@
             {% csrf_token %}
             <input type="hidden" name="preset" value="{{ preset_ruolo.chiave }}">
             <input type="hidden" name="reset" value="1">
-            <button class="btn btn-secondary" type="submit" onclick="return confirm('Riportare «{{ ruolo.label|escapejs }}» al preset? Le modifiche a mano della matrice si perdono.');">Ripristina il preset «{{ preset_ruolo.nome }}»</button>
+            <button class="btn btn-secondary" type="submit" data-hub-confirm="Riportare «{{ ruolo.label }}» al preset? Le modifiche a mano della matrice si perdono.">Ripristina il preset «{{ preset_ruolo.nome }}»</button>
           </form>
         {% endif %}
       </details>

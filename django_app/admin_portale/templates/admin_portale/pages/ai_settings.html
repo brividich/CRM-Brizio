@@ -733,7 +733,7 @@ body.theme-dark .ai-table th{color:var(--text-mid);background:var(--surface-alt,
                     {% csrf_token %}
                     <input type="hidden" name="entry_id" value="{{ entry.id }}">
                     <button class="btn btn-secondary btn-sm" type="submit" name="action" value="toggle_knowledge">{% if entry.is_active %}Disattiva{% else %}Attiva{% endif %}</button>
-                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="delete_knowledge" onclick="return confirm('Eliminare questa FAQ AI?');">Elimina</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="delete_knowledge" data-hub-confirm="Eliminare questa FAQ AI?">Elimina</button>
                   </form>
                 </div>
               </div>

@@ -1182,12 +1182,12 @@ body.theme-dark .ai-feedback-thanks{color:#86efac}
     scrollDown();
     if (input) { input.value = ""; autoResize(); updateCounter(); if (!silent) input.focus(); }
   }
-  newChatBtn && newChatBtn.addEventListener("click", function () {
+  newChatBtn && newChatBtn.addEventListener("click", async function () {
     if (msgCount === 0) return;
     var question = historyBox
       ? "Iniziare una nuova conversazione? Quella attuale resta in «Le tue conversazioni»."
       : "Cancellare la conversazione corrente e iniziarne una nuova?";
-    if (!confirm(question)) return;
+    if (!(await hubConfirm(question))) return;
     resetSession();
   });
 
@@ -1900,7 +1900,7 @@ body.theme-dark .ai-feedback-thanks{color:#86efac}
   }
 
   async function deleteConversation(id, titolo) {
-    if (!confirm("Eliminare la conversazione «" + titolo + "»? Non si può recuperare.")) return;
+    if (!(await hubConfirm("Eliminare la conversazione «" + titolo + "»? Non si può recuperare."))) return;
     try {
       await postJson(historyUrl("deleteUrl", id));
       if (String(id) === String(conversationId)) resetSession(true);
@@ -1911,7 +1911,7 @@ body.theme-dark .ai-feedback-thanks{color:#86efac}
   }
 
   historyClear && historyClear.addEventListener("click", async function () {
-    if (!confirm("Eliminare tutte le tue conversazioni salvate? Non si possono recuperare.")) return;
+    if (!(await hubConfirm("Eliminare tutte le tue conversazioni salvate? Non si possono recuperare."))) return;
     try {
       await postJson(historyBox.dataset.clearUrl);
       if (conversationId) resetSession(true);

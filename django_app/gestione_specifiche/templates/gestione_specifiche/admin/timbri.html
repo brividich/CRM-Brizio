@@ -65,7 +65,7 @@
             <td>{% if t.attivo %}<span class="gs-tag is-green">attivo</span>{% else %}<span class="gs-tag is-grey">disattivo</span>{% endif %}</td>
             <td>
               <div class="gs-acts">
-                <form method="post" action="{% url 'gestione_specifiche:admin_timbro_delete' t.pk %}" onsubmit="return confirm('Eliminare il timbro {{ t.codice|escapejs }}?');">
+                <form method="post" action="{% url 'gestione_specifiche:admin_timbro_delete' t.pk %}" data-hub-confirm="Eliminare il timbro {{ t.codice }}?">
                   {% csrf_token %}<button type="submit" class="gs-iconbtn is-danger" title="Elimina">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=15 %}</button>
                 </form>
               </div>

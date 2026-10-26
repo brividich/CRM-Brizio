@@ -337,7 +337,7 @@ body.theme-dark .sic-why-text{color:var(--text)}
   {% if can_edit_rspp %}
   <div style="display:flex;gap:10px;justify-content:flex-end;">
     <form method="post" action="{% url 'rilevazione_incidenti:elimina' sp_id=sp_id %}"
-          onsubmit="return confirm('Eliminare definitivamente questa rilevazione?')">
+          data-hub-confirm="Eliminare definitivamente questa rilevazione?">
       {% csrf_token %}
       <button type="submit" class="sic-btn sic-btn-danger">&#128465; Elimina</button>
     </form>

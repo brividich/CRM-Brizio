@@ -800,7 +800,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
             <form class="af-mark-tools" method="post" enctype="multipart/form-data" action="{% url 'assets:asset_image_upload' asset.id %}">
               {% csrf_token %}
               <label title="Carica una foto o un'immagine dell'asset (PNG, JPG o WEBP, max 10 MB)">{% if asset.immagine %}Cambia{% else %}+ Immagine{% endif %}<input type="file" name="immagine" accept="image/png,image/jpeg,image/webp" onchange="this.form.submit()"></label>
-              {% if asset.immagine %}<button type="submit" name="clear_immagine" value="1" onclick="return confirm('Rimuovere l\'immagine dell\'asset?')">Rimuovi</button>{% endif %}
+              {% if asset.immagine %}<button type="submit" name="clear_immagine" value="1" data-hub-confirm="Rimuovere l'immagine dell'asset?">Rimuovi</button>{% endif %}
             </form>
           {% endif %}
         </div>
@@ -875,7 +875,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
             <a href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; Scarica XLSX</a>
             {% if layout_manage_url %}<a href="{{ layout_manage_url }}">Configura layout</a>{% endif %}
             {% if can_retire_asset %}
-              <form method="post" class="af-pop-form" data-af-confirm="{% if asset_is_retired %}Riportare «{{ asset.name }}» in uso?{% else %}Dismettere «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).{% endif %}">
+              <form method="post" class="af-pop-form" data-hub-confirm="{% if asset_is_retired %}Riportare «{{ asset.name }}» in uso?{% else %}Dismettere «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).{% endif %}">
                 {% csrf_token %}
                 {% if asset_is_retired %}
                   <input type="hidden" name="action" value="reactivate_asset">
@@ -890,7 +890,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
               {% if asset_delete_blocks %}
                 <button type="button" class="af-pop-item" disabled title="Ha già uno storico ({{ asset_delete_blocks|join:', ' }}): usa «Dismetti».">Elimina (non disponibile: ha storico)</button>
               {% else %}
-                <form method="post" class="af-pop-form" data-af-confirm="Eliminare definitivamente «{{ asset.name }}»? L'operazione non si annulla.">
+                <form method="post" class="af-pop-form" data-hub-confirm="Eliminare definitivamente «{{ asset.name }}»? L'operazione non si annulla.">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="delete_asset">
                   <button type="submit" class="af-pop-item is-danger">Elimina</button>
@@ -1688,7 +1688,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
                             </div>
                           </form>
                         </details>
-                        <form method="post" onsubmit="return confirm('Eliminare la voce \u00ab{{ event.title|escapejs }}\u00bb dalla timeline?');">
+                        <form method="post" data-hub-confirm="Eliminare la voce «{{ event.title }}» dalla timeline?">
                           {% csrf_token %}
                           <input type="hidden" name="action" value="delete_asset_timeline_entry">
                           <input type="hidden" name="entry_id" value="{{ event.entry_id }}">
@@ -1697,7 +1697,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
                       </div>
                     {% elif event.auto_key and can_manage_asset_timeline %}
                       <div class="af-tl-actions">
-                        <form method="post" onsubmit="return confirm('Rimuovere la voce \u00ab{{ event.title|escapejs }}\u00bb dalla timeline? I dati dell\u2019asset non cambiano.');">
+                        <form method="post" data-hub-confirm="Rimuovere la voce «{{ event.title }}» dalla timeline? I dati dell’asset non cambiano.">
                           {% csrf_token %}
                           <input type="hidden" name="action" value="hide_asset_timeline_event">
                           <input type="hidden" name="event_key" value="{{ event.auto_key }}">
@@ -1951,7 +1951,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
                                       <button class="af-btn" type="button" disabled>Apri</button>
                                     {% endif %}
                                     {% if doc.id %}
-                                      <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale.');">
+                                      <form method="post" class="af-doc-delete" data-hub-confirm="Eliminare definitivamente questo documento? Il file verra rimosso dal portale.">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_asset_document">
                                         <input type="hidden" name="document_id" value="{{ doc.id }}">
@@ -1971,7 +1971,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
                   <div class="af-doc-empty">Nessun documento nella categoria {{ label }}.</div>
                 {% endif %}
                 {% if can_manage_doc_folders and spec.removable %}
-                  <form method="post" class="af-doc-folder-remove" onsubmit="return confirm('Disattivare la cartella documento &quot;{{ label|escapejs }}&quot;? Sara possibile solo se non contiene documenti; vale per tutti gli asset della categoria.');">
+                  <form method="post" class="af-doc-folder-remove" data-hub-confirm="Disattivare la cartella documento &quot;{{ label }}&quot;? Sara possibile solo se non contiene documenti; vale per tutti gli asset della categoria.">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="deactivate_asset_document_folder">
                     <input type="hidden" name="folder_id" value="{{ spec.folder_id }}">
@@ -2611,12 +2611,6 @@ body.theme-dark .af-lightbox-img{background:var(--surface)}
     });
   });
 
-  // «Dismetti» / «Riattiva» / «Elimina»: conferma prima dell'invio.
-  document.querySelectorAll("form[data-af-confirm]").forEach(function (form) {
-    form.addEventListener("submit", function (event) {
-      if (!window.confirm(form.getAttribute("data-af-confirm") || "Confermare l'operazione?")) event.preventDefault();
-    });
-  });
 })();
 </script>
 

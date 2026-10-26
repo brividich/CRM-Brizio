@@ -1083,7 +1083,7 @@ body.theme-dark #modal-error{color:#fca5a5}
 
       document.querySelectorAll(".btn-elimina").forEach(function (btn) {
         btn.addEventListener("click", async function () {
-          if (!confirm("Eliminare questa richiesta di assenza? L'operazione non e reversibile.")) return;
+          if (!(await hubConfirm("Eliminare questa richiesta di assenza? L'operazione non e reversibile."))) return;
           const itemId = btn.dataset.id;
           const deleteUrl = btn.dataset.deleteUrl;
           const originalText = btn.textContent;

@@ -139,7 +139,7 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
 
         {% if richiesta.stato == "INVIATA" %}
         <div style="margin-top:16px;">
-          <form method="post" action="{% url 'dpi:annulla' richiesta.pk %}" onsubmit="return confirm('Annullare la richiesta?')">
+          <form method="post" action="{% url 'dpi:annulla' richiesta.pk %}" data-hub-confirm="Annullare la richiesta?">
             {% csrf_token %}
             <button type="submit" class="dpi-annulla-btn">Annulla richiesta</button>
           </form>
