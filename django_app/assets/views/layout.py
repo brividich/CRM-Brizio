@@ -28,6 +28,7 @@ from ..forms import (
 from ..models import (
     Asset,
     PlantLayout,
+    PlantLayoutMarker,
 )
 
 from ._helpers import (  # noqa: F401
@@ -35,6 +36,7 @@ from ._helpers import (  # noqa: F401
     _asset_plant_layout_marker,
     _clean_string,
     _plant_layout_image_size,
+    _resolve_asset_plant_layout_detail,
 )
 from ._helpers_c import (  # noqa: F401
     _PLANT_ALERT_LABELS,
@@ -261,6 +263,57 @@ def _as_float(value) -> float:
         return 0.0
 
 
+def _plant_layout_previous_version(category) -> PlantLayout | None:
+    """La versione da cui copiare reparti e macchine quando nasce una nuova
+    versione della stessa pianta: l'attiva, altrimenti la più recente."""
+    category = _clean_string(category)
+    if not category:
+        return None
+    return (
+        PlantLayout.objects.filter(category__iexact=category)
+        .order_by("-is_active", "-updated_at", "-id")
+        .first()
+    )
+
+
+def _plant_layout_machine_catalog_for(layout: PlantLayout | None) -> list[dict[str, object]]:
+    """Catalogo macchine dell'editor con, per ognuna, le ALTRE piante attive su
+    cui è già posizionata a mano: «Da posizionare» deve voler dire «da nessuna
+    parte», non «non su questa pianta»."""
+    elsewhere: dict[int, list[str]] = {}
+    placed = (
+        PlantLayoutMarker.objects.filter(layout__is_active=True)
+        .exclude(x_percent=50, y_percent=50)
+        .values_list("asset_id", "layout_id", "layout__name")
+        .order_by("layout__category", "layout__name")
+    )
+    layout_id = getattr(layout, "id", None)
+    for asset_id, row_layout_id, layout_name in placed:
+        if row_layout_id == layout_id:
+            continue
+        names = elsewhere.setdefault(asset_id, [])
+        if layout_name not in names:
+            names.append(layout_name)
+    catalog = _plant_layout_machine_catalog()
+    for row in catalog:
+        row["elsewhere"] = elsewhere.get(row["id"], [])
+    return catalog
+
+
+def _plant_layout_category_counts() -> dict[str, dict[str, int]]:
+    """Per categoria (minuscola): macchine posizionate e segnaposti mai
+    collocati sulla versione attiva."""
+    counts: dict[str, dict[str, int]] = {}
+    rows = PlantLayoutMarker.objects.filter(layout__is_active=True).values_list("layout__category", "x_percent", "y_percent")
+    for category, x, y in rows:
+        bucket = counts.setdefault(_clean_string(category).casefold(), {"placed": 0, "unplaced": 0})
+        if x == 50 and y == 50:
+            bucket["unplaced"] += 1
+        else:
+            bucket["placed"] += 1
+    return counts
+
+
 @login_required
 def plant_layout_editor(request: HttpRequest) -> HttpResponse:
     all_layouts = list(
@@ -270,6 +323,19 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
         request.POST.get("category_filter") or request.POST.get("category") or request.GET.get("category")
     )
     current_layout_id = _as_int(request.POST.get("layout_id") or request.GET.get("layout"), default=0)
+    focus_asset_id = _as_int(request.GET.get("asset"), default=0)
+    if not current_layout_id and focus_asset_id and request.method != "POST":
+        # Dalla scheda senza pianta scelta: si apre quella dove la macchina è
+        # già, oppure quella dedotta (mai la «prima in ordine alfabetico»).
+        focus_asset = Asset.objects.filter(pk=focus_asset_id).first()
+        if focus_asset is not None:
+            focus_marker = _asset_plant_layout_marker(focus_asset)
+            if focus_marker is not None:
+                current_layout_id = focus_marker.layout_id
+            else:
+                guessed, reason = _resolve_asset_plant_layout_detail(focus_asset)
+                if guessed is not None and reason != "primo":
+                    current_layout_id = guessed.id
     create_new = _clean_string(request.POST.get("layout_mode") or request.GET.get("new")) in {"1", "new", "true"}
     selected_layout = None
     filtered_layouts = [
@@ -326,7 +392,19 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             instance=None if create_new else selected_layout,
         )
         if form.is_valid():
+            copy_source = None
+            if create_new and _clean_string(request.POST.get("copy_previous")) == "1":
+                copy_source = _plant_layout_previous_version(form.cleaned_data.get("category"))
             layout = form.save()
+            if copy_source is not None:
+                from ..services.plant_layout_image import copy_layout_content
+
+                copied_areas, copied_markers = copy_layout_content(copy_source, layout)
+                messages.info(
+                    request,
+                    f"Dalla versione «{copy_source.name}» copiati {copied_areas} reparti e {copied_markers} macchine: "
+                    "se la nuova pianta ha un'inquadratura diversa, controlla le posizioni.",
+                )
             tool_message = _apply_plant_layout_image_tool(request, layout)
             if tool_message is None:
                 messages.success(request, f"Planimetria \"{layout.name}\" aggiornata nella categoria {layout.category}.")
@@ -354,8 +432,8 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
         },
         "areas": area_rows,
         "markers": marker_rows,
-        "machines": _plant_layout_machine_catalog(),
-        "focus_asset_id": _as_int(request.GET.get("asset"), default=0),
+        "machines": _plant_layout_machine_catalog_for(None if create_new else selected_layout),
+        "focus_asset_id": focus_asset_id,
     }
     image_size = _plant_layout_image_size(selected_layout)
     available_categories = []
@@ -384,10 +462,15 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             "url": reverse("assets:plant_layout_editor"),
         }
     ]
+    category_counts = _plant_layout_category_counts()
     for category in available_categories:
+        counts = category_counts.get(_clean_string(category).casefold(), {"placed": 0, "unplaced": 0})
         layout_category_filters.append(
             {
                 "label": category,
+                "counted": True,
+                "placed": counts["placed"],
+                "unplaced": counts["unplaced"],
                 "active": _clean_string(category).casefold() == current_category.casefold(),
                 "url": f"{reverse('assets:plant_layout_editor')}?category={quote(category)}",
             }
@@ -404,6 +487,7 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             "layout_category_filters": layout_category_filters,
             "current_layout_category": current_category or getattr(selected_layout, "category", PlantLayout.DEFAULT_CATEGORY),
             "create_new": create_new,
+            "copy_source": _plant_layout_previous_version(current_category) if create_new else None,
             "editor_payload": editor_payload,
             "image_width": image_size[0],
             "image_height": image_size[1],

@@ -174,6 +174,10 @@ GUIDA = {
                     "Reparti e macchine seguono la pianta; le macchine fuori dal ritaglio tornano «da collocare».",
                     "Disegna i reparti e scrivi il codice reparto uguale al campo reparto delle macchine.",
                     "Una sola planimetria per categoria è «Attiva»: le altre restano bozze finché non le pubblichi.",
+                    "Nuova versione della stessa pianta: «+ Nuova planimetria» con la stessa categoria e la casella "
+                    "«Copia reparti e macchine da …» per non ricollocare tutto.",
+                    "L'elenco macchine distingue «Da posizionare» (su nessuna pianta) da «Su altre piante»; "
+                    "«Togli i segnaposti» elimina quelli creati in automatico e mai collocati.",
                 ]),
             ],
         },
@@ -445,6 +449,7 @@ GUIDA = {
                 "Se la pianta è di traverso o con grandi margini bianchi, raddrizzala e ritagliala nell'editor.",
                 "Una macchina già collocata a mano su una pianta resta lì: la scheda mostra sempre quella posizione, "
                 "anche se la macchina compare «da posizionare» su altre planimetrie.",
+                "Una pianta piena di macchine «da collocare» che stanno già altrove: nell'editor premi «Togli i segnaposti» e «Salva».",
             ],
         },
         {

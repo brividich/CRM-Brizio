@@ -1851,7 +1851,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
             {% else %}
               <div class="af-map-empty">
                 <strong>{% if map_card.marker %}Posizione da definire{% else %}Non ancora sulla planimetria{% endif %}</strong>
-                <span>{% if map_card.marker %}La macchina è sulla planimetria «{{ map_card.layout.name }}» ma nessuno l'ha ancora collocata nel punto giusto.{% else %}La macchina non compare su «{{ map_card.layout.name }}».{% endif %}</span>
+                <span>{% if map_card.marker %}La macchina è sulla planimetria «{{ map_card.layout.name }}» ma nessuno l'ha ancora collocata nel punto giusto.{% elif map_card.layout %}La macchina non compare su «{{ map_card.layout.name }}».{% else %}La macchina non è ancora su nessuna planimetria: scegli la pianta e collocala.{% endif %}</span>
               </div>
             {% endif %}
             <div class="af-map-actions">
