@@ -47,6 +47,8 @@ APP_SENZA_MODULO = {
     "hub_tools": "BrizioHUB: permessi nel modulo «piattaforma» di core.",
     "dati_bi": "Viste SQL e API /api/v1/ per applicazioni: nessuna pagina per utenti, accesso con token e ambiti "
                "(dati_bi.ApiClient) e permessi SQL concessi dal DBA.",
+    "registro_log": "Registro accessi: pagine dentro il SOC (/soc/registro-log/, rotte security:registro_log*), "
+                    "governate dai permessi del modulo security (lettura del SOC, configurazione del SOC).",
 }
 
 

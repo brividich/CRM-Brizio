@@ -80,6 +80,16 @@ MENU = [
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
+    ("Registro accessi", "registro_log", [
+        ("Panoramica", "registro_log", ("registro_log",), False),
+        ("Eventi", "registro_log_eventi", ("registro_log_eventi", "registro_log_evento"), False),
+        ("Amministratori di sistema", "registro_log_ads", ("registro_log_ads",), False),
+        ("Account AD", "registro_log_account", ("registro_log_account",), False),
+        ("Verifica annuale", "registro_log_verifica", ("registro_log_verifica",), False),
+        ("Archivio e integrità", "registro_log_archivio", ("registro_log_archivio",), False),
+        ("Server e virtualizzazione", "registro_log_infra", ("registro_log_infra",), False),
+        ("Fonti", "registro_log_fonti", ("registro_log_fonti",), False),
+    ]),
     ("Report", "report", [
         ("Report", "report", ("report",), False),
         ("Storico", "history", ("history",), False),
@@ -97,7 +107,8 @@ MENU = [
 ]
 
 
-ICONE = {"Da fare": "todo", "Segnalazioni": "bell", "Dispositivi": "monitor", "Report": "chart", "Impostazioni": "gear"}
+ICONE = {"Da fare": "todo", "Segnalazioni": "bell", "Dispositivi": "monitor", "Registro accessi": "log", "Report": "chart",
+         "Impostazioni": "gear"}
 # Numeri sulle voci: dalla barra di stato (in cache 60 s), nessuna query in più. Solo se c'è qualcosa.
 BADGE = {"Segnalazioni": ("urgenti",), "Dispositivi": ("backup",), "Impostazioni": ("sources",)}
 

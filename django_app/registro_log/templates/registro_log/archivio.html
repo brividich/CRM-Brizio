@@ -1,0 +1,57 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Archivio del registro | Security Center AI{% endblock %}
+{% block page_title %}Archivio e integrità{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Ogni giorno ha il suo file, chiuso a mezzanotte da un <strong>sigillo</strong>: un'impronta che lega ogni riga alla precedente e ogni giorno al giorno prima. Se qualcuno cambia, toglie o aggiunge anche una sola riga, la verifica lo trova. Conservazione: {{ imp.conservazione_mesi }} mesi{% if imp.copia_cartella or imp.copia_sharepoint %}, con seconda copia {% if imp.copia_cartella %}su {{ imp.copia_cartella }}{% endif %}{% if imp.copia_cartella and imp.copia_sharepoint %} e {% endif %}{% if imp.copia_sharepoint %}su SharePoint{% endif %}{% else %}, <strong>senza seconda copia</strong>{% endif %}.</p>
+
+<section class="sec-grid sec-kpi-grid">
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Giorni sigillati</span><strong class="sec-kpi-value">{{ totali.giorni }}</strong><span class="sec-kpi-delta sec-good">dal primo giorno di raccolta</span></div>
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Giorni non integri</span><strong class="sec-kpi-value{% if totali.non_integri %} critical{% endif %}">{{ totali.non_integri }}</strong><span class="sec-kpi-delta{% if not totali.non_integri %} sec-good{% endif %}">{% if totali.non_integri %}da spiegare subito{% else %}nessuno{% endif %}</span></div>
+  <div class="sec-panel sec-kpi-card"><span class="sec-kpi-label">Da copiare</span><strong class="sec-kpi-value{% if totali.da_copiare > 1 %} warning{% endif %}">{{ totali.da_copiare }}</strong><span class="sec-kpi-delta">nella seconda destinazione</span></div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Giorni</h2>
+    {% if puo_configurare %}<form method="post">{% csrf_token %}<button class="sec-button" name="azione" value="verifica" type="submit">Verifica gli ultimi 2 mesi adesso</button></form>{% endif %}</div>
+  {% if sigilli %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Giorno</th><th>Righe</th><th>Dimensione</th><th>Integrità</th><th>Seconda copia</th><th></th></tr></thead>
+    <tbody>{% for s in sigilli %}<tr>
+      <td class="sec-nowrap"><strong>{{ s.giorno|date:"D d/m/Y" }}</strong></td>
+      <td>{{ s.righe }}</td>
+      <td>{% if s.byte %}{{ s.byte|filesizeformat }}{% else %}—{% endif %}</td>
+      <td>{% if s.eliminato_il %}<span class="sec-badge">File eliminato a fine conservazione</span>{% elif s.verifica_ok %}<span class="sec-badge info">Integro</span>{% elif s.verifica_ok is False %}<span class="sec-badge critical">Non integro</span>{% else %}<span class="sec-badge warning">Da verificare</span>{% endif %}
+        <span class="rl-sub">{{ s.verifica_esito }}{% if s.verificato_il %} · {{ s.verificato_il|date:"d/m H:i" }}{% endif %}</span></td>
+      <td>{% if s.copia_il %}{{ s.copia_il|date:"d/m/Y H:i" }}{% elif s.copia_esito %}<span class="rl-sub" style="color:var(--danger)">{{ s.copia_esito }}</span>{% else %}—{% endif %}</td>
+      <td class="sec-nowrap">{% if puo_configurare and s.file and not s.eliminato_il %}<a href="{% url 'security:registro_log_archivio_scarica' s.giorno|date:'Y-m-d' %}">File</a> · <a href="{% url 'security:registro_log_archivio_scarica' s.giorno|date:'Y-m-d' %}?sigillo=1">Sigillo</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% if sigilli.has_other_pages %}<nav class="rl-chips" style="margin-top:10px">{% if sigilli.has_previous %}<a class="rl-chip" href="?pagina={{ sigilli.previous_page_number }}">&larr; Più recenti</a>{% endif %}{% if sigilli.has_next %}<a class="rl-chip" href="?pagina={{ sigilli.next_page_number }}">Meno recenti &rarr;</a>{% endif %}</nav>{% endif %}
+  {% else %}<p class="sec-empty">Nessun giorno ancora sigillato: il primo sigillo arriva la notte dopo il primo giorno di raccolta.</p>{% endif %}
+  <details class="rl-aiuto"><summary>Come si verifica senza il portale (per l'auditor)</summary>
+    <p class="sec-small">Scaricare il file del giorno e il suo sigillo. Regole:</p><div class="rl-codice">{{ come_verificare }}</div>
+    <p class="sec-muted sec-small">Archivio sul server: {{ cartella }}. Ogni download dal portale resta nell'audit.</p>
+  </details>
+</section>
+
+<section class="sec-panel" id="interruzioni" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Interruzioni della raccolta</h2><span class="sec-muted sec-small">da giustificare nella verifica annuale</span></div>
+  {% if interruzioni %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Dal</th><th>Al</th><th>Cosa</th><th>Giustificazione</th></tr></thead>
+    <tbody>{% for i in interruzioni %}<tr>
+      <td class="sec-nowrap">{{ i.dal|date:"d/m/Y H:i" }}</td>
+      <td class="sec-nowrap">{% if i.al %}{{ i.al|date:"d/m/Y H:i" }}{% else %}<span class="sec-badge critical">in corso</span>{% endif %}</td>
+      <td><strong>{{ i.get_motivo_display }}</strong>{% if i.fonte_nome %} · {{ i.fonte_nome }}{% endif %}<span class="rl-sub">{{ i.dettaglio }}</span></td>
+      <td>{% if puo_configurare %}
+        <form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="azione" value="giustifica"><input type="hidden" name="id" value="{{ i.pk }}">
+          <input type="text" name="giustificazione" value="{{ i.giustificazione }}" placeholder="Es. manutenzione programmata del server" aria-label="Giustificazione">
+          <button class="sec-button" type="submit">Salva</button></form>
+        {% if i.giustificata_da %}<span class="rl-sub">{{ i.giustificata_da }}, {{ i.giustificata_il|date:"d/m/Y" }}</span>{% endif %}
+      {% else %}{{ i.giustificazione|default:"—" }}{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-empty">Nessuna interruzione registrata.</p>{% endif %}
+</section>
+{% endblock %}

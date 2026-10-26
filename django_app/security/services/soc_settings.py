@@ -172,6 +172,35 @@ SECTIONS = [
         ],
     },
     {
+        "code": "registro_log",
+        "title": "Registro accessi (log dei server e degli apparati)",
+        "intro": "Gli eventi importanti raccolti dal Registro accessi (Windows Server, controller di dominio, ESXi, switch, "
+                 "firewall, NAS) diventano alert del SOC. Ogni 5 minuti; ogni evento al massimo un alert. Le fonti, l'archivio "
+                 "sigillato e gli amministratori di sistema si gestiscono in Dispositivi › Registro accessi.",
+        "channels_optional": True,
+        "options": [
+            Option("registro.alert.attivo", False, "Manda al SOC gli eventi del Registro accessi"),
+            Option("registro.alert.registro_cancellato", True, "Registro eventi cancellato su un server",
+                   "Chi cancella il registro Security di solito vuole nascondere qualcosa."),
+            Option("registro.alert.audit_modificato", True, "Criteri di audit modificati"),
+            Option("registro.alert.gruppo_privilegiato", True, "Qualcuno aggiunto a un gruppo di amministratori",
+                   "Domain Admins, Administrators, Enterprise Admins, Backup Operators e simili."),
+            Option("registro.alert.ad_cessati", True, "Account di Active Directory attivo di un ex dipendente",
+                   "Dal confronto con l'anagrafica (lettura «Account di Active Directory», ogni 6 ore)."),
+            Option("registro.alert.account_creato", False, "Account creato in Active Directory"),
+            Option("registro.alert.account_bloccato", False, "Account bloccato per troppi tentativi"),
+            Option("registro.alert.servizio_installato", False, "Servizio nuovo installato su un server"),
+            Option("registro.alert.configurazione", False, "Configurazione modificata su un apparato (SSH abilitato, lockdown spento…)"),
+            Option("registro.alert.fuori_orario", False, "Accesso di un amministratore fuori orario",
+                   "L'orario di lavoro si imposta nella pagina Fonti del Registro accessi; sabato e domenica sono fuori orario."),
+            Option("registro.alert.falliti", True, "Accessi non riusciti a raffica sullo stesso account"),
+            Option("registro.alert.falliti_soglia", 10, "Tentativi non riusciti",
+                   "Quanti tentativi non riusciti sullo stesso account in 15 minuti aprono un alert.", "int", min_value=3, max_value=200),
+            Option("registro.alert.interruzioni", True, "Raccolta interrotta o archivio non integro",
+                   "Raccoglitore fermo, fonte senza messaggi, lettura non riuscita, eventi sovrascritti, verifica dell'archivio fallita."),
+        ],
+    },
+    {
         "code": "entra",
         "title": "Microsoft Entra ID (account, modifiche amministrative, accessi)",
         "intro": "Due controlli su Microsoft 365, ciascuno con il suo interruttore. «Account di ex dipendenti»: ogni 6 ore "

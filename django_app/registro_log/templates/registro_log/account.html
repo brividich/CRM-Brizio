@@ -1,0 +1,60 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Account AD | Security Center AI{% endblock %}
+{% block page_title %}Account di Active Directory{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Gli account del dominio letti da Active Directory (solo lettura, ogni 6 ore) e abbinati alle persone dell'anagrafica. Qui si vede chi è amministratore, chi ha lasciato l'azienda ma ha ancora l'account attivo e cosa va sistemato.
+{% if ultimo %}Ultima lettura: {{ ultimo.avviata_il|date:"d/m/Y H:i" }}{% if ultimo.messaggio %} ({{ ultimo.messaggio }}){% endif %}.{% endif %}
+<a href="{% url 'security:letture' %}#lettura-registro_ad">Storico ed «Esegui ora»</a></p>
+
+{% if not configurato %}
+<section class="sec-panel sec-callout sec-callout-warning"><strong>Connessione LDAP del portale non configurata.</strong> Si usa la stessa del login con l'account di dominio: va impostata nel Setup Wizard (server, base DN, account di servizio).</section>
+{% endif %}
+
+{% if segnalazioni %}
+<section class="sec-panel" style="margin-bottom:12px">
+  <div class="sec-section-head"><h2>Da sistemare</h2></div>
+  {% for s in segnalazioni %}
+    <details class="rl-segnalazione {{ s.tono }}"{% if s.tono == "critical" %} open{% endif %}>
+      <summary>{{ s.titolo }} ({{ s.account|length }})</summary>
+      <p>{{ s.perche }}</p>
+      <ul>{% for a in s.account|slice:":30" %}<li><a href="?q={{ a.sam|urlencode }}">{{ a.sam }}</a> · {{ a.nome|default:a.anagrafica_nome }}{% if a.gruppi_privilegiati %} · {{ a.gruppi_privilegiati|join:", " }}{% endif %}{% if a.ultimo_accesso %} · ultimo accesso {{ a.ultimo_accesso|date:"d/m/Y" }}{% endif %}</li>{% endfor %}</ul>
+      {% if s.account|length > 30 %}<p>E altri {{ s.account|length|add:"-30" }}.</p>{% endif %}
+    </details>
+  {% endfor %}
+</section>
+{% endif %}
+
+<nav class="rl-chips" aria-label="Filtri">
+  <a class="rl-chip{% if not filtro %} attivo{% endif %}" href="?">Tutti ({{ totale }})</a>
+  <a class="rl-chip{% if filtro == 'privilegiati' %} attivo{% endif %}" href="?filtro=privilegiati">Amministratori</a>
+  <a class="rl-chip{% if filtro == 'servizio' %} attivo{% endif %}" href="?filtro=servizio">Account di servizio</a>
+  <a class="rl-chip{% if filtro == 'disabilitati' %} attivo{% endif %}" href="?filtro=disabilitati">Disabilitati</a>
+</nav>
+<form class="rl-filtri sec-form" method="get"><input type="hidden" name="filtro" value="{{ filtro }}">
+  <p><label for="a-q">Cerca</label><input id="a-q" type="search" name="q" value="{{ q }}" placeholder="Account, nome, email"></p>
+  <button class="sec-button" type="submit">Cerca</button></form>
+
+<section class="sec-panel">
+  {% if account %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Account</th><th>Persona</th><th>Stato</th><th>Gruppi di amministratori</th><th>Ultimo accesso</th><th>Password</th>{% if puo_configurare %}<th>Classificazione</th>{% endif %}</tr></thead>
+    <tbody>{% for a in account %}<tr>
+      <td><strong>{{ a.sam }}</strong><span class="rl-sub">{{ a.nome }}</span></td>
+      <td>{% if a.anagrafica_nome %}{{ a.anagrafica_nome }}{% if a.persona_cessata %} <span class="sec-badge critical">cessato</span>{% endif %}{% else %}<span class="sec-muted">{{ a.get_tipo_display }}</span>{% endif %}
+        {% if a.responsabile %}<span class="rl-sub">responsabile: {{ a.responsabile }}</span>{% endif %}</td>
+      <td>{% if a.abilitato %}<span class="sec-badge info">Abilitato</span>{% else %}<span class="sec-badge">Disabilitato</span>{% endif %}</td>
+      <td>{{ a.gruppi_privilegiati|join:", "|default:"—" }}</td>
+      <td class="sec-nowrap">{{ a.ultimo_accesso|date:"d/m/Y"|default:"mai" }}</td>
+      <td>{% if a.password_non_scade %}non scade{% elif a.password_cambiata_il %}cambiata il {{ a.password_cambiata_il|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      {% if puo_configurare %}<td><form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ a.pk }}">
+        <select name="tipo" aria-label="Tipo di account">{% for v, l in tipi %}<option value="{{ v }}"{% if v == a.tipo %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <input type="text" name="responsabile" value="{{ a.responsabile }}" placeholder="Responsabile" aria-label="Responsabile">
+        <input type="hidden" name="nota" value="{{ a.nota }}">
+        <button class="sec-button" type="submit">Salva</button></form></td>{% endif %}
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% if account.has_other_pages %}<nav class="rl-chips" style="margin-top:10px">{% if account.has_previous %}<a class="rl-chip" href="?filtro={{ filtro }}&amp;q={{ q|urlencode }}&amp;pagina={{ account.previous_page_number }}">&larr; Precedenti</a>{% endif %}{% if account.has_next %}<a class="rl-chip" href="?filtro={{ filtro }}&amp;q={{ q|urlencode }}&amp;pagina={{ account.next_page_number }}">Successivi &rarr;</a>{% endif %}</nav>{% endif %}
+  {% else %}<p class="sec-empty">{% if configurato %}Nessun account: la prima lettura parte entro 6 ore, oppure da «Esegui ora».{% else %}Nessun account letto.{% endif %}</p>{% endif %}
+</section>
+{% endblock %}

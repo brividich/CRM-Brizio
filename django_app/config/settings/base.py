@@ -572,6 +572,7 @@ INSTALLED_APPS = [
     "security.apps.SecurityConfig",
     "checklist_operativa.apps.ChecklistOperativaConfig",
     "dati_bi.apps.DatiBiConfig",
+    "registro_log.apps.RegistroLogConfig",
     "django_extensions",
     "django_q",
     "django_htmx",
@@ -697,6 +698,27 @@ def build_database_from_env(default_engine: str = "sqlite") -> dict:
 
 
 DATABASES = {"default": build_database_from_env("sqlite")}
+
+
+def aggiungi_db_registro_log(databases: dict) -> dict:
+    """Database a parte per il Registro accessi (``registro_log/router.py``).
+
+    ``REGISTRO_LOG_DB_NAME`` = nome di un database sullo stesso server SQL del portale, con
+    le stesse credenziali. Vuoto (default) = le tabelle restano nel database del portale.
+    Solo con SQL Server: in sviluppo e nei test su SQLite si usa sempre il database unico.
+    """
+    import copy
+
+    nome = env("REGISTRO_LOG_DB_NAME", "").strip()
+    default = databases.get("default") or {}
+    if nome and default.get("ENGINE") == "mssql":
+        databases = dict(databases)
+        databases["registro_log"] = {**copy.deepcopy(default), "NAME": nome}
+    return databases
+
+
+DATABASES = aggiungi_db_registro_log(DATABASES)
+DATABASE_ROUTERS = ["registro_log.router.RegistroLogRouter"]
 
 
 AUTH_PASSWORD_VALIDATORS = [

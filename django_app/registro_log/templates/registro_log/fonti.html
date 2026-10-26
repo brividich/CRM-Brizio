@@ -1,0 +1,129 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Fonti del registro | Security Center AI{% endblock %}
+{% block page_title %}Fonti e impostazioni{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Da dove arrivano i log e come si conservano. I server Windows si leggono senza installare nulla; ESXi, switch, firewall e NAS mandano i loro messaggi via syslog al server del portale.</p>
+
+{% if prova %}
+<section class="sec-panel sec-callout" style="margin-bottom:12px">
+  <div class="sec-section-head"><h2>Prova di «{{ prova.fonte.nome }}»</h2></div>
+  <ul>{% for r in prova.righe %}<li>{{ r }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section class="sec-panel" id="fonti">
+  <div class="sec-section-head"><h2>Fonti</h2>{% if puo_configurare %}<a class="sec-button sec-button-primary" href="#nuova">Aggiungi una fonte</a>{% endif %}</div>
+  {% if fonti %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Stato</th><th>Nome</th><th>Come</th><th>Ultimo messaggio</th><th>Oggi</th><th></th></tr></thead>
+    <tbody>{% for f in fonti %}<tr>
+      <td>{% if not f.attiva %}<span class="sec-badge">Spenta</span>{% elif f.stato == "errore" %}<span class="sec-badge critical">Errore</span>{% elif f.ultimo_evento_il %}<span class="sec-badge info">Riceve</span>{% else %}<span class="sec-badge warning">In attesa</span>{% endif %}</td>
+      <td><strong>{{ f.nome }}</strong><span class="rl-sub">{{ f.get_ruolo_display }}{% if f.host %} · {{ f.host }}{% endif %}{% if f.indirizzi_ip %} · {{ f.indirizzi_ip }}{% endif %}</span>
+        {% if f.ultimo_errore %}<span class="rl-sub" style="color:var(--danger)">{{ f.ultimo_errore|linebreaksbr }}</span>{% endif %}</td>
+      <td>{{ f.get_tipo_display }}{% if f.tipo == "windows" %}<span class="rl-sub">{{ f.canali }} · {{ f.get_eventi_display|lower }}</span>{% endif %}</td>
+      <td class="sec-nowrap">{{ f.ultimo_evento_il|date:"d/m/Y H:i"|default:"mai" }}</td>
+      <td>{% if f.giorno_conteggio == battito.stato.giorno_corrente %}{{ f.righe_oggi }}{% else %}0{% endif %}</td>
+      <td class="sec-nowrap">{% if puo_configurare %}
+        <form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ f.pk }}">
+          <button class="sec-button" name="azione" value="prova" type="submit">Prova</button>
+          <a class="sec-button" href="?modifica={{ f.pk }}#nuova">Modifica</a>
+          {% if f.attiva %}<button class="sec-button" name="azione" value="elimina" type="submit" data-hub-confirm="Disattivare la fonte «{{ f.nome }}»? Gli eventi già raccolti restano.">Disattiva</button>{% endif %}
+        </form>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}
+    <p class="sec-empty">Nessuna fonte. Si parte dai controller di dominio: lì si vedono gli accessi di tutto il dominio.</p>
+  {% endif %}
+  {% if sconosciuti %}
+    <details class="rl-aiuto"><summary>{{ sconosciuti|length }} indirizz{{ sconosciuti|length|pluralize:"o,i" }} mandano syslog ma non sono in nessuna fonte (ultimi 7 giorni)</summary>
+      <ul>{% for ip, v in sconosciuti %}<li><strong>{{ ip }}</strong>: {{ v.messaggi }} messaggi ignorati</li>{% endfor %}</ul>
+      <p class="sec-muted sec-small">Se è un apparato vostro, aggiungetelo come fonte syslog con questo indirizzo: da quel momento i suoi messaggi vengono archiviati.</p>
+    </details>
+  {% endif %}
+</section>
+
+{% if puo_configurare %}
+<section class="sec-panel" id="nuova" style="margin-top:12px">
+  <div class="sec-section-head"><h2>{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Aggiungi una fonte{% endif %}</h2>{% if modifica %}<a href="{% url 'security:registro_log_fonti' %}#nuova">Annulla</a>{% endif %}</div>
+  <form method="post" action="{% url 'security:registro_log_fonti' %}{% if modifica %}?modifica={{ modifica.pk }}{% endif %}">
+    {% csrf_token %}<input type="hidden" name="azione" value="fonte">
+    {{ form_fonte.non_field_errors }}
+    <fieldset class="rl-gruppo"><legend>Che cos'è</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_fonte.nome %}
+      {% include "registro_log/_campo.html" with f=form_fonte.ruolo %}
+      {% include "registro_log/_campo.html" with f=form_fonte.tipo %}
+    </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Da dove si legge</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_fonte.host %}
+      {% include "registro_log/_campo.html" with f=form_fonte.canali %}
+      {% include "registro_log/_campo.html" with f=form_fonte.eventi %}
+      {% include "registro_log/_campo.html" with f=form_fonte.indirizzi_ip %}
+    </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Controllo</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_fonte.silenzio_max_ore %}
+      {% include "registro_log/_campo.html" with f=form_fonte.attiva %}
+    </div></fieldset>
+    <div class="rl-azioni-form"><button class="sec-button sec-button-primary" type="submit">Salva la fonte</button>{% if modifica %}<a class="sec-button" href="{% url 'security:registro_log_fonti' %}#nuova">Annulla</a>{% endif %}</div>
+  </form>
+  <details class="rl-aiuto"><summary>Server Windows e controller di dominio: cosa preparare</summary>
+    <ol>
+      <li>Sul controller di dominio aggiungere l'account con cui gira il raccoglitore (lo stesso del qcluster) al gruppo di dominio <strong>Event Log Readers</strong>; sugli altri server al gruppo locale con lo stesso nome.</li>
+      <li>Nel firewall del server abilitare la regola <strong>«Gestione remota registro eventi (RPC)»</strong> verso il server del portale.</li>
+      <li>Nelle policy di audit (GPO «Default Domain Controllers Policy» › Configurazione criteri di controllo avanzati) attivare almeno: Accesso/Disconnessione, Gestione account, Gestione gruppi di sicurezza, Modifica dei criteri di controllo, Convalida delle credenziali, Servizio di autenticazione Kerberos.</li>
+      <li>Portare il registro Security ad almeno 1 GB (<em>wevtutil sl Security /ms:1073741824</em>): se si riempie prima della lettura, gli eventi più vecchi si perdono e il portale lo segnala come interruzione.</li>
+      <li>Aggiungere la fonte qui e premere <strong>Prova</strong>.</li>
+    </ol>
+    <p class="sec-muted sec-small">Con molti server conviene il <strong>Windows Event Forwarding</strong>: i server inoltrano a questo server (sottoscrizione «Avviato dall'origine») e qui si aggiunge una sola fonte «Eventi inoltrati».</p>
+  </details>
+  <details class="rl-aiuto"><summary>ESXi, switch, firewall e NAS (syslog): cosa impostare sull'apparato</summary>
+    <p>Indirizzo da impostare come server syslog: questo server, porta <strong>{{ imp.syslog_porta }}</strong> ({% if imp.syslog_tcp %}UDP o TCP{% else %}UDP{% endif %}). Esempi:</p>
+    <div class="rl-codice">ESXi (SSH o console):  esxcli system syslog config set --loghost='udp://IP-DEL-PORTALE:{{ imp.syslog_porta }}'
+                       esxcli system syslog reload
+                       esxcli network firewall ruleset set --ruleset-id=syslog --enabled=true
+vCenter:               VAMI (porta 5480) › Syslog › Configura
+Cisco IOS:             logging host IP-DEL-PORTALE  +  login on-success log  +  login on-failure log
+HPE Aruba:             logging IP-DEL-PORTALE
+WatchGuard Firebox:    System › Logging › Syslog Server
+Synology DSM:          Centro log › Invio dei log › server syslog</div>
+    <p class="sec-muted sec-small">Nel firewall di Windows del server del portale aprire la porta in ingresso <strong>solo</strong> per gli indirizzi degli apparati. I messaggi da indirizzi non scritti in una fonte vengono ignorati.</p>
+  </details>
+</section>
+
+<section class="sec-panel" id="impostazioni" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Impostazioni</h2>{% if imp.aggiornato_da %}<span class="sec-muted sec-small">ultima modifica {{ imp.aggiornato_il|date:"d/m/Y H:i" }} di {{ imp.aggiornato_da }}</span>{% endif %}</div>
+  <form method="post">{% csrf_token %}<input type="hidden" name="azione" value="impostazioni">
+    {{ form_imp.non_field_errors }}
+    <fieldset class="rl-gruppo"><legend>Raccolta</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_imp.attivo %}
+    </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Archivio</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_imp.conservazione_mesi %}
+      {% include "registro_log/_campo.html" with f=form_imp.cartella_archivio %}
+      {% include "registro_log/_campo.html" with f=form_imp.copia_cartella %}
+      {% include "registro_log/_campo.html" with f=form_imp.copia_sharepoint %}
+    </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Syslog</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_imp.syslog_attivo %}
+      {% include "registro_log/_campo.html" with f=form_imp.syslog_indirizzo %}
+      {% include "registro_log/_campo.html" with f=form_imp.syslog_porta %}
+      {% include "registro_log/_campo.html" with f=form_imp.syslog_tcp %}
+    </div></fieldset>
+    <fieldset class="rl-gruppo"><legend>Orario di lavoro</legend><div class="rl-griglia">
+      {% include "registro_log/_campo.html" with f=form_imp.orario_inizio %}
+      {% include "registro_log/_campo.html" with f=form_imp.orario_fine %}
+    </div></fieldset>
+    <div class="rl-azioni-form"><button class="sec-button sec-button-primary" type="submit">Salva le impostazioni</button></div>
+  </form>
+  <p class="sec-muted sec-small">Archivio in uso: <strong>{{ cartella }}</strong>. La seconda copia su SharePoint usa la stessa cartella dell'audit sigillato (sottocartella «registro-log»).</p>
+</section>
+
+<section class="sec-panel" id="servizio" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Il raccoglitore come servizio di Windows</h2>
+    <span>{% if battito.vivo %}<span class="sec-badge info">Attivo</span>{% elif battito.at %}<span class="sec-badge critical">Fermo dal {{ battito.at|date:"d/m H:i" }}</span>{% else %}<span class="sec-badge warning">Mai partito</span>{% endif %}</span></div>
+  <p>Il raccoglitore è un processo sempre acceso sul server del portale, come il qcluster: si installa una volta e riparte da solo dopo ogni riavvio e ogni aggiornamento del portale.</p>
+  <div class="rl-codice">powershell -ExecutionPolicy Bypass -File C:\PortaleNovicrom\prod\current\deployment\scripts\install-registro-log-task.ps1 -Environment prod</div>
+  <p class="sec-muted sec-small">Usa lo stesso account del qcluster (con password: aggiungere <em>-Credential (Get-Credential 'DOMINIO\utente')</em>). Log in <em>C:\PortaleNovicrom\prod\logs\registro_log.log</em>. Prova senza archiviare: <em>manage.py registro_log --prova</em>.</p>
+</section>
+{% endif %}
+{% endblock %}

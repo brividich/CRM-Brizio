@@ -1,0 +1,37 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Amministratori di sistema | Security Center AI{% endblock %}
+{% block page_title %}Amministratori di sistema{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">L'elenco che chiede il Garante: chi amministra i sistemi, quali sistemi, con quale nomina. Gli account scritti qui servono a riconoscere i loro accessi nel registro («admin» negli eventi) e a trovare chi ha privilegi senza nomina (pagina Account AD). Per i fornitori esterni indicare la società.</p>
+
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>{{ attivi }} amministrator{{ attivi|pluralize:"e,i" }} in carica</h2>{% if puo_configurare %}<a class="sec-button sec-button-primary" href="#scheda">Aggiungi</a>{% endif %}</div>
+  {% if elenco %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Nome</th><th>Account</th><th>Sistemi</th><th>Nomina</th><th>Revisione</th><th></th></tr></thead>
+    <tbody>{% for a in elenco %}<tr>
+      <td><strong>{{ a.nome }}</strong><span class="rl-sub">{{ a.get_tipo_display }}{% if a.societa %} · {{ a.societa }}{% endif %}</span>
+        {% if not a.attivo %}<span class="sec-badge">Revocato il {{ a.revocato_il|date:"d/m/Y" }}</span>{% endif %}</td>
+      <td>{% for x in a.lista_account %}{{ x }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-badge warning">nessun account</span>{% endfor %}</td>
+      <td>{{ a.ambito|default:"—"|linebreaksbr }}</td>
+      <td>{% if a.documento_nomina %}<a href="{% url 'security:registro_log_ads_nomina' a.pk %}">Lettera</a>{% else %}<span class="sec-badge warning">manca</span>{% endif %}{% if a.nominato_il %}<span class="rl-sub">dal {{ a.nominato_il|date:"d/m/Y" }}</span>{% endif %}</td>
+      <td>{% if a.revisione_scaduta %}<span class="sec-badge warning">scaduta il {{ a.prossima_revisione|date:"d/m/Y" }}</span>{% elif a.prossima_revisione %}{{ a.prossima_revisione|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td>{% if puo_configurare %}<a class="sec-button" href="?modifica={{ a.pk }}#scheda">Modifica</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-empty">Nessun amministratore di sistema registrato. Si parte da chi è nei gruppi Domain Admins e Administrators (pagina Account AD › Amministratori).</p>{% endif %}
+</section>
+
+{% if puo_configurare %}
+<section class="sec-panel" id="scheda" style="margin-top:12px">
+  <div class="sec-section-head"><h2>{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Nuovo amministratore di sistema{% endif %}</h2>{% if modifica %}<a href="{% url 'security:registro_log_ads' %}">Annulla</a>{% endif %}</div>
+  <form method="post" enctype="multipart/form-data" action="{% url 'security:registro_log_ads' %}{% if modifica %}?modifica={{ modifica.pk }}{% endif %}">
+    {% csrf_token %}{{ form.non_field_errors }}
+    <div class="rl-griglia">{% for f in form %}{% include "registro_log/_campo.html" with f=f %}{% endfor %}</div>
+    <div class="rl-azioni-form" style="margin-top:12px"><button class="sec-button sec-button-primary" type="submit">Salva</button></div>
+  </form>
+  <p class="sec-muted sec-small">Un amministratore non si cancella: quando smette si indica la data di revoca, così resta nella verifica dell'anno.</p>
+</section>
+{% endif %}
+{% endblock %}

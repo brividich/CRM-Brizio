@@ -55,6 +55,9 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "report_conformita": ("Qualità", "#a16207", "Report per audit (rettifiche)"),
     "glossario_tecnico": ("Qualità", "#ca8a04", "Glossario tecnico"),
     "security": ("Sicurezza informatica", "#b91c1c", "Security Center: alert, eventi, vulnerabilità, incidenti, backup"),
+    "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), sigilli giornalieri dell'archivio, "
+                     "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO. "
+                     "Può stare in un database a parte (REGISTRO_LOG_DB_NAME)"),
     "automazioni": ("Automazioni", "#a78bfa", "Regole, coda eventi, approvazioni, run log"),
 }
 # App di Django e librerie: le loro tabelle esistono nel database, mostrate a parte.
@@ -137,6 +140,22 @@ CONNESSIONI_ESTERNE: list[dict] = [
                   "certificato della CA cifrati in security_securitycentersetting) e interruttore «Leggi i backup dall'API di Veeam»; "
                   "le vecchie variabili VEEAM_API_* del .env valgono solo se nel portale non c'è niente.",
         "controllo": "manage.py veeam_api --prova; manage.py veeam_api (esito dell'ultimo giro); badge del riquadro nella pagina Backup.",
+    },
+    {
+        "nome": "Registro accessi: log dei server e degli apparati",
+        "cosa": "Il raccoglitore (manage.py registro_log, task RegistroLog_<ambiente>) legge il registro eventi dei server Windows "
+                "con wevtutil (RPC, sola lettura) o gli eventi inoltrati (WEF), e riceve syslog in UDP/TCP 514 da ESXi, switch, "
+                "firewall e NAS (solo dagli IP scritti nelle fonti). Tutto in un archivio di file giornalieri sigillati "
+                "(cartella privata o scelta nelle impostazioni), copiati su una cartella di rete e/o SharePoint. Ogni 6 ore legge gli "
+                "account di Active Directory via LDAP; ogni ora ESXi/vCenter (pyvmomi) e iLO/iDRAC (Redfish) in sola lettura.",
+        "chi": "SOC → Registro accessi (eventi, amministratori di sistema, account AD, verifica annuale, archivio, server e "
+               "virtualizzazione), alert del SOC «Registro accessi».",
+        "config": "SOC › Registro accessi › «Fonti» (fonti, cartella, conservazione, seconda copia, porta syslog, orario di lavoro); "
+                  "apparati ESXi/iLO con password cifrata in «Server e virtualizzazione». Account del raccoglitore nel gruppo "
+                  "«Event Log Readers»; porta 514 aperta solo per gli apparati. Facoltativo REGISTRO_LOG_DB_NAME nel .env per il "
+                  "database a parte.",
+        "controllo": "manage.py registro_log --prova; controllo infrastruttura «registro_log» (Centrale di comando); pagina Panoramica "
+                     "del Registro accessi.",
     },
     {
         "nome": "CNC: collector OPC UA e agent MTConnect",
