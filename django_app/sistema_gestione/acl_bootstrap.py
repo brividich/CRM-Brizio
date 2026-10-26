@@ -20,7 +20,8 @@ MODULE = "sistema_gestione"
 # v4: annullamento audit e aggiornamento conferme Outlook.
 # v5: cruscotto, export rilievi, «I miei rilievi».
 # v7: certificazioni e audit esterni.
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v7"
+# v8: preparazione all'audit dell'ente e piano azioni.
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v8"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -134,6 +135,9 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:esterni_rilievo": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_rapporto_carica": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_chiudi": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_preparazione_export": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_piano_export": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_piano_inviato": PERM_AUDIT_EDIT,
     "sistema_gestione:programma_dettaglio": PERM_AUDIT_VIEW,
     "sistema_gestione:programma_export_pdf": PERM_AUDIT_VIEW,
     "sistema_gestione:programma_copia_firmata": PERM_AUDIT_VIEW,

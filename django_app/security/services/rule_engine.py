@@ -572,6 +572,20 @@ def _evaluate_entra_accesso(event):
     _alert_da_evento(event, title, event.severity, trace)
 
 
+def _evaluate_registro_log(event):
+    """Evento del Registro accessi (``registro_log.ciclo``): un alert per evento, già filtrato dagli interruttori."""
+    payload = event.payload or {}
+    trace = {
+        "decision": "alert",
+        "rule": "Registro accessi: evento importante o interruzione della raccolta => alert",
+        "motivo": payload.get("motivo"),
+        "host": payload.get("host"),
+        "account": payload.get("account"),
+        "ip": payload.get("ip"),
+    }
+    _alert_da_evento(event, payload.get("titolo") or "Registro accessi", event.severity, trace)
+
+
 def _ticket_for_cve_impact(event, alert, evidence, payload, cve):
     from security.models import SecurityRemediationTicket
     from security.services.ticketing import ACTIVE_TICKET_STATUSES
@@ -931,6 +945,7 @@ _HANDLERS = {
     "m365_account_cessato": _evaluate_m365_account_cessato,
     "entra_audit": _evaluate_entra_audit,
     "entra_accesso": _evaluate_entra_accesso,
+    "registro_log": _evaluate_registro_log,
     "apparato_irraggiungibile": _evaluate_apparato_irraggiungibile,
     "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
     "backup_repository_space": _evaluate_backup_repository_space,

@@ -8,6 +8,13 @@
 .est-dl dd{ margin:0; }
 .est-box ul{ margin:0; padding-left:20px; }
 body.theme-dark .est-dl dt{ color:var(--text-light); }
+.est-box ul.est-check{ list-style:none; padding:0; display:grid; gap:10px; }
+.est-check > li{ border-left:4px solid #2e9d5b; padding:6px 10px; display:grid; gap:4px; }
+.est-check > li.est-check-attenzione{ border-left-color:#d89614; }
+.est-check > li.est-check-critico{ border-left-color:#c8372d; }
+.est-check-head{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.est-check details ul{ padding-left:20px; margin-top:4px; }
+.est-box .sg-inline-form{ align-items:center; }
 @media (max-width:640px){ .est-dl{ grid-template-columns:1fr; gap:2px 0; } .est-dl dt{ margin-top:8px; } }
 </style>{% endblock %}
 {% block content %}{% load sg_guida %}{% sg_guida_link %}
@@ -37,6 +44,24 @@ body.theme-dark .est-dl dt{ color:var(--text-light); }
     {% endif %}
   </div>
 
+  {% if controlli %}
+  <h2 class="sg-section">Preparazione all'audit</h2>
+  <div class="rc-card est-box">
+    <div class="sg-actions" style="justify-content:space-between">
+      <p class="sg-muted" style="margin:0">Cosa l'auditor dell'ente guarderà per primo: copertura delle clausole negli audit interni, programma, NC e voci MOD.174 aperte, rilievi del suo audit precedente.</p>
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_preparazione_export' audit.pk %}">Scarica il pacchetto (xlsx)</a>
+    </div>
+    <ul class="est-check">
+      {% for c in controlli %}<li class="est-check-{{ c.stato }}">
+        <div class="est-check-head">{% if c.stato == "ok" %}<span class="sg-badge ok">In ordine</span>{% elif c.stato == "attenzione" %}<span class="sg-badge warn">Da sistemare</span>{% else %}<span class="sg-badge danger">Critico</span>{% endif %}
+          <strong>{% if c.url %}<a href="{{ c.url }}">{{ c.titolo }}</a>{% else %}{{ c.titolo }}{% endif %}</strong></div>
+        <div class="sg-muted">{{ c.sintesi }}</div>
+        {% if c.voci %}<details><summary>{{ c.voci|length }} da sistemare</summary><ul>{% for v in c.voci %}<li>{{ v }}</li>{% endfor %}</ul></details>{% endif %}
+      </li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   <h2 class="sg-section">Rilievi ({{ rilievi|length }})</h2>
   <div class="rc-card sg-table-scroll"><table class="sg-table"><thead><tr><th>N. MOD.174</th><th>Tipo</th><th>Rilievo</th><th>Requisito</th><th>Responsabile</th><th>Entro</th><th>Fase</th></tr></thead><tbody>
     {% for v in rilievi %}<tr>
@@ -49,6 +74,25 @@ body.theme-dark .est-dl dt{ color:var(--text-light); }
     </tr>{% empty %}<tr><td colspan="7">Nessun rilievo registrato.</td></tr>{% endfor %}
   </tbody></table></div>
 
+  {% if rilievi %}
+  <h2 class="sg-section">Piano azioni per l'ente</h2>
+  <div class="rc-card est-box">
+    <p class="sg-muted" style="margin:0">Il piano si compila dalle voci del Registro OFI: analisi e azione (PLAN), attuazione (DO), verifica (CHECK), responsabile e data. Scaricalo, invialo all'ente e registra la data di invio: il promemoria del lunedì si ferma.</p>
+    <div class="sg-actions">
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_piano_export' audit.pk %}">Scarica il piano azioni (xlsx)</a>
+      {% if audit.piano_inviato_il %}<span class="sg-badge ok">Inviato il {{ audit.piano_inviato_il|date:"d/m/Y" }}{% if audit.piano_inviato_da %} da {{ audit.piano_inviato_da.get_full_name|default:audit.piano_inviato_da.username }}{% endif %}</span>
+      {% elif piano_da_inviare %}<span class="sg-badge {% if audit.risposta_entro and audit.risposta_entro < oggi %}danger{% else %}warn{% endif %}">Da inviare{% if audit.risposta_entro %} entro il {{ audit.risposta_entro|date:"d/m/Y" }}{% endif %}</span>{% endif %}
+    </div>
+    {% if puo_modificare and not audit.piano_inviato_il %}
+    <form method="post" action="{% url 'sistema_gestione:esterni_piano_inviato' audit.pk %}" class="sg-inline-form">{% csrf_token %}
+      <label for="piano-inviato-il">Inviato all'ente il</label>
+      <input type="date" id="piano-inviato-il" name="inviato_il" value="{{ oggi|date:'Y-m-d' }}" max="{{ oggi|date:'Y-m-d' }}" required>
+      <button class="btn" type="submit">Registra l'invio</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if puo_modificare %}
   <h2 class="sg-section">Registra un rilievo</h2>
   <form method="post" action="{% url 'sistema_gestione:esterni_rilievo' audit.pk %}" class="rc-card sg-form hub-form-stack">{% csrf_token %}
@@ -60,6 +104,7 @@ body.theme-dark .est-dl dt{ color:var(--text-light); }
       {% include "core/forms/_field.html" with field=rilievo_form.responsabile %}
       {% include "core/forms/_field.html" with field=rilievo_form.data_richiesta %}
     </div>
+    <datalist id="processi-catalogo">{% for p in processi_catalogo %}<option value="{{ p }}"></option>{% endfor %}</datalist>
     <p class="sg-muted">Il rilievo diventa una voce del Registro OFI (fonte «{{ audit.ente }}»): le NC come non conformità, NC maggiore con priorità alta; osservazioni e OFI come opportunità. La CAR si apre dalla voce.</p>
     <div class="sg-actions"><button class="btn" type="submit">Registra il rilievo</button></div>
   </form>

@@ -1168,6 +1168,9 @@ class AuditEsterno(models.Model):
     esito = models.CharField(max_length=22, choices=ESITO_CHOICES, blank=True, default="")
     risposta_entro = models.DateField("Piano azioni da inviare all'ente entro", null=True, blank=True)
     sintesi = models.TextField("Sintesi dell'esito e punti di forza", blank=True, default="")
+    piano_inviato_il = models.DateField("Piano azioni inviato all'ente il", null=True, blank=True)
+    piano_inviato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                         related_name="+")
     rapporto = models.FileField(upload_to=upload_to_audit_esterno, storage=PrivateSistemaGestioneStorage(),
                                 blank=True)
     rapporto_nome = models.CharField(max_length=200, blank=True, default="")

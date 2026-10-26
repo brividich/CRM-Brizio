@@ -1,0 +1,103 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Registro accessi | Security Center AI{% endblock %}
+{% block page_title %}Registro accessi{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Il registro raccoglie gli accessi e le operazioni importanti dei server Windows, dei controller di dominio, di ESXi, degli switch, del firewall e del NAS. Tutto finisce in un <strong>archivio sigillato</strong> (non modificabile senza che si veda) che vale come registro degli accessi degli amministratori di sistema per il Garante e per la ISO 27001.</p>
+
+<section class="sec-panel rl-stato">
+  {% if not imp.attivo %}
+    <span class="rl-pallino" aria-hidden="true"></span><strong>Raccolta spenta</strong>
+    <span class="sec-muted">Nessun log viene raccolto.</span>
+  {% elif battito.vivo %}
+    <span class="rl-pallino ok" aria-hidden="true"></span><strong>Raccolta attiva</strong>
+    <span class="sec-muted">Ultimo segnale {{ battito.at|date:"H:i" }} · {{ kpi.righe_oggi }} righe archiviate oggi{% if battito.stato.syslog_in_ascolto %} · syslog in ascolto ({{ battito.stato.syslog_in_ascolto }}){% endif %}</span>
+    {% if battito.stato.errore %}<span class="sec-badge high">{{ battito.stato.errore }}</span>{% endif %}
+  {% elif battito.at %}
+    <span class="rl-pallino ko" aria-hidden="true"></span><strong>Raccoglitore fermo</strong>
+    <span class="sec-muted">Ultimo segnale il {{ battito.at|date:"d/m/Y H:i" }}: finché non riparte i log non vengono raccolti.</span>
+  {% else %}
+    <span class="rl-pallino attesa" aria-hidden="true"></span><strong>Raccoglitore mai partito</strong>
+    <span class="sec-muted">Va installato come servizio di Windows sul server del portale.</span>
+  {% endif %}
+  {% if puo_configurare %}<a class="sec-button" href="{% url 'security:registro_log_fonti' %}" style="margin-left:auto">Fonti e impostazioni</a>{% endif %}
+</section>
+
+{% if battito.stato.errore and imp.attivo %}
+<section class="sec-panel sec-callout sec-callout-warning" style="margin-top:12px"><strong>Il raccoglitore segnala un problema:</strong> {{ battito.stato.errore }}{% if battito.stato.coda > 1000 %} · {{ battito.stato.coda }} righe in attesa di scrittura{% endif %}</section>
+{% endif %}
+
+{% if passi_mancanti %}
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Come iniziare</h2><span class="sec-muted sec-small">{{ passi_mancanti }} pass{{ passi_mancanti|pluralize:"o,i" }} da fare</span></div>
+  <ol class="rl-passi">
+    {% for p in passi %}
+      <li class="{% if p.fatto %}fatto{% endif %}"><span class="rl-spunta" aria-hidden="true">{% if p.fatto %}&#10003;{% else %}{{ forloop.counter }}{% endif %}</span>
+        <span class="rl-testo">{{ p.testo }}</span>{% if not p.fatto %}<a href="{{ p.dove }}">Vai</a>{% endif %}</li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<section class="sec-grid sec-kpi-grid" style="margin-top:12px">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;vista=ads">
+    <span class="sec-kpi-label">Accessi degli amministratori</span>
+    <strong class="sec-kpi-value">{{ kpi.accessi_ads }}</strong>
+    <span class="sec-kpi-delta sec-good">ultime 24 ore · {{ kpi.accessi }} accessi in tutto</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;vista=falliti">
+    <span class="sec-kpi-label">Accessi non riusciti</span>
+    <strong class="sec-kpi-value{% if kpi.falliti %} warning{% endif %}">{{ kpi.falliti }}</strong>
+    <span class="sec-kpi-delta">ultime 24 ore</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_eventi' %}?giorni=1&amp;vista=critici">
+    <span class="sec-kpi-label">Eventi critici</span>
+    <strong class="sec-kpi-value{% if kpi.critici %} critical{% endif %}">{{ kpi.critici }}</strong>
+    <span class="sec-kpi-delta{% if not kpi.critici %} sec-good{% endif %}">registri cancellati, gruppi di amministratori, audit</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_fonti' %}#fonti">
+    <span class="sec-kpi-label">Fonti che rispondono</span>
+    <strong class="sec-kpi-value{% if kpi.fonti and kpi.fonti_ok < kpi.fonti %} warning{% endif %}">{{ kpi.fonti_ok }} / {{ kpi.fonti }}</strong>
+    <span class="sec-kpi-delta">server e apparati collegati</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:registro_log_archivio' %}">
+    <span class="sec-kpi-label">Archivio</span>
+    <strong class="sec-kpi-value{% if non_integri %} critical{% endif %}">{% if non_integri %}Non integro{% elif ultimo_sigillo %}Integro{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta{% if not non_integri and ultimo_sigillo %} sec-good{% endif %}">{% if ultimo_sigillo %}ultimo giorno sigillato: {{ ultimo_sigillo.giorno|date:"d/m/Y" }}{% else %}nessun giorno ancora sigillato{% endif %}</span>
+  </a>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Righe archiviate negli ultimi 14 giorni</h2><span class="sec-muted sec-small">ogni barra è un giorno sigillato · rossa = non integro · tratteggiata = nessun sigillo</span></div>
+  <div class="rl-grafico" role="img" aria-label="Righe archiviate per giorno">
+    {% for x in grafico %}<a class="rl-barra rl-{{ x.stato }}" href="{% url 'security:registro_log_archivio' %}" title="{{ x.giorno|date:'D d/m' }}: {% if x.righe is None %}nessun sigillo{% else %}{{ x.righe }} righe{% endif %}{% if x.stato == 'ko' %} · NON integro{% elif x.stato == 'oggi' %} · in corso{% endif %}">
+      <span class="rl-barra-v" style="height:{{ x.altezza }}%"></span><small>{{ x.giorno|date:"d" }}</small></a>{% endfor %}
+  </div>
+</section>
+
+<div class="rl-due">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Da guardare</h2><a class="sec-small" href="{% url 'security:registro_log_eventi' %}?giorni=7">Tutti gli eventi</a></div>
+    {% if importanti %}
+    <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0" style="min-width:0">
+      <thead><tr><th>Quando</th><th>Cosa</th><th>Dove</th></tr></thead>
+      <tbody>{% for e in importanti %}<tr>
+        <td class="sec-nowrap"><a href="{% url 'security:registro_log_evento' e.pk %}">{{ e.quando|date:"d/m H:i" }}</a></td>
+        <td><span class="rl-cat">{{ e.descrizione }}</span>{% if e.privilegiato and e.fuori_orario %}<span class="rl-tag">fuori orario</span>{% endif %}
+          {% if e.account %}<span class="rl-sub">{{ e.account }}{% if e.ip_origine %} da {{ e.ip_origine }}{% endif %}</span>{% endif %}</td>
+        <td>{{ e.host|default:e.fonte_nome }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="sec-empty">Niente di importante negli ultimi giorni.</p>{% endif %}
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Continuità della raccolta</h2><a class="sec-small" href="{% url 'security:registro_log_archivio' %}#interruzioni">Storico</a></div>
+    {% if interruzioni_aperte %}
+      <ul class="rl-passi">{% for i in interruzioni_aperte %}
+        <li><span class="rl-pallino ko" aria-hidden="true"></span><span><strong>{{ i.get_motivo_display }}</strong>{% if i.fonte_nome %} · {{ i.fonte_nome }}{% endif %}<span class="rl-sub">dal {{ i.dal|date:"d/m/Y H:i" }} · {{ i.dettaglio }}</span></span></li>
+      {% endfor %}</ul>
+    {% else %}<p class="sec-empty">Nessuna interruzione in corso: tutte le fonti attive vengono raccolte.</p>{% endif %}
+    <p class="sec-muted sec-small" style="margin-top:10px">Ogni periodo senza raccolta resta annotato nell'archivio e va giustificato nella verifica annuale (es. «manutenzione programmata»).</p>
+  </section>
+</div>
+{% endblock %}

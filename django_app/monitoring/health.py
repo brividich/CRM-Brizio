@@ -621,10 +621,11 @@ from monitoring.infra_checks import (  # noqa: E402, F401
     check_m365_servizi,
     check_qcluster,
     check_qcluster_coda,
+    check_registro_log,
     check_tls_cert,
 )
 
-INFRA_CHECK_NAMES = ("qcluster", "qcluster_coda", "disk_space", "tls_cert", "collector_cnc")
+INFRA_CHECK_NAMES = ("qcluster", "qcluster_coda", "disk_space", "tls_cert", "collector_cnc", "registro_log")
 _INFRA_ALERT_STATE_KEY = "monitoring:infra-alert:fingerprint"
 
 
@@ -699,6 +700,7 @@ _CHECK_REGISTRY: dict[str, str] = {
     "tls_cert": "check_tls_cert",
     "m365_servizi": "check_m365_servizi",
     "collector_cnc": "check_collector_cnc",
+    "registro_log": "check_registro_log",
 }
 
 

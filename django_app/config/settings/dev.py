@@ -5,6 +5,7 @@ from .base import build_database_from_env, default_dev_allowed_hosts, env, env_b
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", default_dev_allowed_hosts())
 DATABASES = {"default": build_database_from_env("sqlite")}
+DATABASES = aggiungi_db_registro_log(DATABASES)  # noqa: F405 - da base
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", False)
 
 # In sviluppo le email vanno stampate a CONSOLE, non inviate via SMTP reale

@@ -1,0 +1,56 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Server e virtualizzazione | Security Center AI{% endblock %}
+{% block page_title %}Server e virtualizzazione{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Com'è messa l'infrastruttura adesso: versione di ESXi e vCenter, SSH acceso, orologio, snapshot dimenticati, datastore pieni, salute dell'hardware dai controller iLO e iDRAC. Lettura ogni ora, in sola lettura; si tiene solo l'ultima fotografia. Le versioni entrano nel calcolo delle vulnerabilità del SOC.</p>
+
+{% for app in apparati %}
+<section class="sec-panel" style="margin-bottom:12px">
+  <div class="sec-section-head">
+    <h2>{{ app.nome }} <small class="sec-muted">{{ app.get_tipo_display }} · {{ app.indirizzo }}</small></h2>
+    <span class="rl-form-inline">
+      {% if app.errore %}<span class="sec-badge critical">Lettura non riuscita</span>{% elif not app.letto_il %}<span class="sec-badge warning">Mai letto</span>{% elif app.problemi %}<span class="sec-badge warning">{{ app.problemi|length }} da guardare</span>{% else %}<span class="sec-badge info">Tutto a posto</span>{% endif %}
+      {% if puo_configurare %}<form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ app.pk }}"><button class="sec-button" name="azione" value="leggi" type="submit">Leggi ora</button></form>
+      <a class="sec-button" href="?modifica={{ app.pk }}#scheda">Modifica</a>{% endif %}
+    </span>
+  </div>
+  {% if app.errore %}<p class="sec-small" style="color:var(--danger)">{{ app.errore }}</p>{% endif %}
+  {% if app.problemi %}
+    {% for p in app.problemi %}<div class="rl-segnalazione {{ p.tono }}"><p style="margin:0;color:var(--text)">{{ p.testo }}</p></div>{% endfor %}
+  {% endif %}
+  {% with s=app.stato %}
+  {% if app.tipo == "vsphere" and s.prodotto %}
+    <p class="sec-small"><strong>{{ s.prodotto }}</strong> · {{ s.vm_accese }} VM accese su {{ s.vm }}</p>
+    {% if s.host %}<div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0" style="min-width:0">
+      <thead><tr><th>Host</th><th>Versione</th><th>Stato</th><th>SSH</th><th>NTP</th></tr></thead>
+      <tbody>{% for h in s.host %}<tr><td>{{ h.nome }}{% if h.manutenzione %} <span class="sec-badge">manutenzione</span>{% endif %}</td><td>{{ h.versione }} ({{ h.build }})</td>
+        <td>{{ h.connessione }}</td><td>{% if h.ssh %}<span class="sec-badge warning">acceso</span>{% else %}spento{% endif %}</td><td>{{ h.ntp|join:", "|default:"—" }}</td></tr>{% endfor %}</tbody>
+    </table></div>{% endif %}
+    {% if s.datastore %}<p class="sec-small" style="margin-top:8px"><strong>Datastore:</strong> {% for d in s.datastore %}{{ d.nome }} {{ d.gb }} GB ({{ d.libero_pct }}% libero){% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+    {% if s.snapshot_vecchi %}<p class="sec-small"><strong>Snapshot vecchi:</strong> {% for x in s.snapshot_vecchi|slice:":15" %}{{ x.vm }} «{{ x.nome }}» del {{ x.del }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  {% elif s.firmware or s.sistemi %}
+    <p class="sec-small"><strong>{{ s.controller }}</strong> firmware {{ s.firmware|default:"—" }}{% if s.produttore %} · {{ s.produttore }}{% endif %}</p>
+    {% for x in s.sistemi %}<p class="sec-small">{{ x.modello }} (s/n {{ x.seriale|default:"—" }}) · salute: {{ x.salute|default:"—" }} · {{ x.alimentazione }} · BIOS {{ x.bios|default:"—" }}</p>{% endfor %}
+  {% endif %}
+  {% endwith %}
+  {% if app.letto_il %}<p class="sec-muted sec-small">Letto il {{ app.letto_il|date:"d/m/Y H:i" }}.</p>{% endif %}
+</section>
+{% empty %}
+<section class="sec-panel"><p class="sec-empty">Nessun apparato. Aggiungere vCenter (o ogni host ESXi, se non c'è vCenter) e i controller iLO/iDRAC dei server fisici.</p></section>
+{% endfor %}
+
+{% if puo_configurare %}
+<section class="sec-panel" id="scheda" style="margin-top:12px">
+  <div class="sec-section-head"><h2>{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Aggiungi un apparato{% endif %}</h2>
+    {% if modifica %}<span class="rl-form-inline"><a href="{% url 'security:registro_log_infra' %}">Annulla</a>
+      <form method="post" action="{% url 'security:registro_log_infra_elimina' modifica.pk %}">{% csrf_token %}<button class="sec-button" type="submit" data-hub-confirm="Eliminare «{{ modifica.nome }}» dall'elenco?">Elimina</button></form></span>{% endif %}</div>
+  <form method="post" autocomplete="off" action="{% url 'security:registro_log_infra' %}{% if modifica %}?modifica={{ modifica.pk }}{% endif %}">
+    {% csrf_token %}{{ form.non_field_errors }}
+    <div class="rl-griglia">{% for f in form %}{% include "registro_log/_campo.html" with f=f %}{% endfor %}</div>
+    <div class="rl-azioni-form" style="margin-top:12px"><button class="sec-button sec-button-primary" type="submit">Salva</button></div>
+  </form>
+  <p class="sec-muted sec-small">Utente consigliato: su vCenter/ESXi un utente con ruolo «Sola lettura»; su iLO/iDRAC un utente con il solo permesso di accesso (Login/ReadOnly). La password è salvata cifrata. Porta 443 per tutti.</p>
+</section>
+{% endif %}
+{% endblock %}

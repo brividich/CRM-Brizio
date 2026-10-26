@@ -78,6 +78,7 @@ if not LEGACY_AUTH_ENABLED and not env_bool("ACL_DISABLE_ACKNOWLEDGED", False):
     )
 
 DATABASES = {"default": build_database_from_env("sqlserver")}
+DATABASES = aggiungi_db_registro_log(DATABASES)  # noqa: F405 - da base
 
 # â”€â”€ Cache condivisa tra worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Con 2+ worker IIS, LocMemCache (default Django) Ã¨ per-processo: bump_legacy_cache_version()

@@ -10,6 +10,7 @@ from django.urls import path
 from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_live, views_automation, views_soc, views_suppressions, views_vuln, views_work
 
 from .permissions import soc_view_required as _guard
+from registro_log import views as registro_views
 
 app_name = "security"
 
@@ -23,6 +24,22 @@ def _api_non_montata(request, *args, **kwargs):
     return JsonResponse({"detail": "API non disponibile in questa fase (SOC IT - CN B3)."}, status=501)
 
 urlpatterns = [
+    # Registro accessi (app registro_log): log dei server e degli apparati, amministratori di sistema.
+    path("registro-log/", _guard(registro_views.panoramica), name="registro_log"),
+    path("registro-log/eventi/", _guard(registro_views.eventi), name="registro_log_eventi"),
+    path("registro-log/eventi/<int:pk>/", _guard(registro_views.evento), name="registro_log_evento"),
+    path("registro-log/amministratori/", _guard(registro_views.amministratori), name="registro_log_ads"),
+    path("registro-log/amministratori/<int:pk>/nomina/", _guard(registro_views.amministratore_nomina), name="registro_log_ads_nomina"),
+    path("registro-log/account/", _guard(registro_views.account), name="registro_log_account"),
+    path("registro-log/verifica/", _guard(registro_views.verifica), name="registro_log_verifica"),
+    path("registro-log/archivio/", _guard(registro_views.archivio_pagina), name="registro_log_archivio"),
+    path("registro-log/archivio/<str:giorno>/", _guard(registro_views.archivio_scarica), name="registro_log_archivio_scarica"),
+    path("registro-log/fonti/", _guard(registro_views.fonti), name="registro_log_fonti"),
+    path("registro-log/fonti/<int:pk>/pc/", _guard(registro_views.postazioni), name="registro_log_postazioni"),
+    path("registro-log/indagini/", _guard(registro_views.indagini), name="registro_log_indagini"),
+    path("registro-log/indagini/<int:pk>/", _guard(registro_views.indagine), name="registro_log_indagine"),
+    path("registro-log/server/", _guard(registro_views.infra), name="registro_log_infra"),
+    path("registro-log/server/<int:pk>/elimina/", _guard(registro_views.infra_elimina), name="registro_log_infra_elimina"),
     path("", _guard(views.dashboard), name="dashboard"),
     path("panoramica/", _guard(views.dashboard), name="security_dashboard"),
     # B2 — Alert / Ticket / KPI

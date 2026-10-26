@@ -1,0 +1,65 @@
+{% extends "registro_log/_base.html" %}
+{% block title %}Verifica annuale | Security Center AI{% endblock %}
+{% block page_title %}Verifica annuale degli amministratori{% endblock %}
+
+{% block soc_content %}
+<p class="rl-intro">Una volta l'anno il titolare verifica l'operato degli amministratori di sistema (provvedimento del Garante, punto 4.4). Qui c'è tutto quello che serve: la lista di controllo, gli accessi di ognuno, l'integrità dell'archivio. Si scarica il PDF, si scrive l'esito e si registra.</p>
+
+<nav class="rl-chips" aria-label="Anno">
+  {% for a in anni %}<a class="rl-chip{% if a == anno %} attivo{% endif %}" href="?anno={{ a }}">{{ a }}</a>{% endfor %}
+  <a class="sec-button" href="?anno={{ anno }}&amp;pdf=1" style="margin-left:auto">Scarica il PDF {{ anno }}</a>
+</nav>
+
+<div class="rl-due" style="margin-top:0">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Lista di controllo {{ anno }}</h2><span class="sec-muted sec-small">calcolata adesso dai dati del registro</span></div>
+    {% for x in c.controlli %}
+      <div class="rl-controllo"><span class="{% if x.ok %}rl-ok{% else %}rl-ko{% endif %}" aria-label="{% if x.ok %}OK{% else %}Da vedere{% endif %}">{% if x.ok %}&#10003;{% else %}!{% endif %}</span>
+        <span><strong>{{ x.voce }}</strong><span class="rl-sub">{{ x.nota }}</span></span></div>
+    {% endfor %}
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Esito della verifica</h2>{% if esistente %}<span class="sec-badge {% if esistente.esito == 'conforme' %}info{% elif esistente.esito == 'rilievi' %}warning{% else %}critical{% endif %}">{{ esistente.get_esito_display }}</span>{% endif %}</div>
+    {% if esistente %}<p class="sec-small">Registrata da {{ esistente.registrata_da }} il {{ esistente.registrata_il|date:"d/m/Y" }}.{% if esistente.riepilogo.impronta %} Impronta del riepilogo: <code>{{ esistente.riepilogo.impronta|slice:":16" }}…</code>{% endif %}</p>{% endif %}
+    {% if puo_configurare %}
+    <form method="post">{% csrf_token %}<input type="hidden" name="anno" value="{{ anno }}">
+      <div class="rl-griglia">{% for f in form %}{% include "registro_log/_campo.html" with f=f %}{% endfor %}</div>
+      <div class="rl-azioni-form" style="margin-top:12px"><button class="sec-button sec-button-primary" type="submit">{% if esistente %}Aggiorna{% else %}Registra{% endif %} la verifica {{ anno }}</button></div>
+    </form>
+    {% elif not esistente %}<p class="sec-empty">Verifica {{ anno }} non ancora registrata.</p>{% endif %}
+  </section>
+</div>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Amministratori nel {{ anno }}</h2><a class="sec-small" href="{% url 'security:registro_log_ads' %}">Elenco e nomine</a></div>
+  {% if c.amministratori %}
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+    <thead><tr><th>Nome</th><th>Nomina</th><th class="sec-num">Accessi</th><th class="sec-num">Fuori orario</th><th class="sec-num">Non riusciti</th><th class="sec-num">Modifiche</th><th>Sistemi più usati</th></tr></thead>
+    <tbody>{% for x in c.amministratori %}<tr>
+      <td><strong>{{ x.nome }}</strong><span class="rl-sub">{{ x.account }}</span></td>
+      <td>{% if x.nomina %}sì{% else %}<span class="sec-badge warning">manca</span>{% endif %}<span class="rl-sub">{{ x.nominato_il|date:"d/m/Y"|default:"" }}{% if x.revocato_il %} – {{ x.revocato_il|date:"d/m/Y" }}{% endif %}</span></td>
+      <td class="sec-num">{{ x.accessi }}</td><td class="sec-num">{{ x.fuori_orario }}</td><td class="sec-num">{{ x.falliti }}</td><td class="sec-num">{{ x.modifiche }}</td>
+      <td>{{ x.sistemi }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="sec-empty">Nessun amministratore di sistema registrato per l'anno.</p>{% endif %}
+  {% if c.senza_nomina %}<p class="sec-small" style="margin-top:10px"><strong>Account con privilegi senza nomina:</strong> {% for x in c.senza_nomina %}{{ x.sam }} ({{ x.gruppi }}){% if not forloop.last %}; {% endif %}{% endfor %}</p>{% endif %}
+</section>
+
+<div class="rl-due">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Modifiche critiche</h2></div>
+    {% if c.modifiche_critiche %}<ul class="rl-passi">{% for m in c.modifiche_critiche|slice:":20" %}<li><span class="sec-nowrap">{{ m.quando|date:"d/m/Y H:i" }}</span><span>{{ m.descrizione }}<span class="rl-sub">{{ m.host }}</span></span></li>{% endfor %}</ul>
+    {% else %}<p class="sec-empty">Nessun gruppo di amministratori modificato, nessun registro cancellato, nessuna modifica all'audit.</p>{% endif %}
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Archivio nel {{ anno }}</h2><a class="sec-small" href="{% url 'security:registro_log_archivio' %}">Dettaglio</a></div>
+    <dl class="rl-kv">
+      <dt>Giorni sigillati</dt><dd>{{ c.archivio.giorni_sigillati }} su {{ c.archivio.giorni_attesi }}</dd>
+      <dt>Verificati integri</dt><dd>{{ c.archivio.verificati_ok }}</dd>
+      <dt>Righe archiviate</dt><dd>{{ c.archivio.righe }}</dd>
+      <dt>Interruzioni</dt><dd>{{ c.interruzioni|length }}{% if c.non_giustificate %} ({{ c.non_giustificate }} da giustificare){% endif %}</dd>
+    </dl>
+  </section>
+</div>
+{% endblock %}

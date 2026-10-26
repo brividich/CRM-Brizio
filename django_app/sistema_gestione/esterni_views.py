@@ -2,19 +2,23 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.excel_export import make_xlsx_response
 
 from .acl_bootstrap import PERM_AUDIT_EDIT, PERM_AUDIT_VIEW
 from .esterni_forms import AuditEsternoForm, CertificazioneForm, RapportoEsternoForm, RilievoEsternoForm
-from .models import AuditEsterno, Certificazione
+from .models import AuditEsterno, Certificazione, Processo
 from .services import audit_esterni as service
 from .views import MODULE, _has_perm, _nega
 
@@ -84,14 +88,28 @@ def audit_modifica(request, pk: int | None = None):
         "page_title": "Audit esterno", "form": form, "oggetto": oggetto})
 
 
+def _url_controllo(link: str) -> str:
+    if not link:
+        return ""
+    if link.startswith("precedente:"):
+        return reverse("sistema_gestione:esterni_audit", args=[int(link.split(":", 1)[1])])
+    return reverse(link)
+
+
 @login_required
 def audit_dettaglio(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _deny(request)
-    audit = get_object_or_404(AuditEsterno.objects.select_related("certificazione"), pk=pk)
+    audit = get_object_or_404(AuditEsterno.objects.select_related("certificazione", "piano_inviato_da"), pk=pk)
     puo = _has_perm(request, PERM_AUDIT_EDIT)
+    controlli = service.preparazione(audit) if audit.stato == AuditEsterno.STATO_PIANIFICATO else []
+    for c in controlli:
+        c["url"] = _url_controllo(c["link"])
     return render(request, "sistema_gestione/pages/esterni_audit_dettaglio.html", {
         "page_title": str(audit), "audit": audit, "rilievi": service.rilievi(audit),
+        "controlli": controlli, "esito_preparazione": service.esito_preparazione(controlli) if controlli else "",
+        "piano_da_inviare": service.piano_da_inviare(audit), "oggi": timezone.localdate(),
+        "processi_catalogo": Processo.objects.filter(attivo=True).order_by("codice"),
         "puo_modificare": puo and audit.stato != AuditEsterno.STATO_CHIUSO,
         "problemi_chiusura": service.problemi_chiusura(audit),
         "rilievo_form": RilievoEsternoForm(initial={"data_richiesta": audit.risposta_entro}),
@@ -180,4 +198,63 @@ def audit_chiudi(request, pk: int):
         audit.save(update_fields=["stato", "aggiornato_il"])
         log_action(request, "audit_esterno_chiuso", MODULE, {"audit": audit.pk}, oggetto=audit)
         messages.success(request, "Audit esterno chiuso.")
+    return redirect("sistema_gestione:esterni_audit", pk=pk)
+
+
+@login_required
+def preparazione_export(request, pk: int):
+    """Pacchetto di preparazione all'audit dell'ente: i controlli e le voci da sistemare in xlsx."""
+    if not _has_perm(request, PERM_AUDIT_VIEW):
+        return _deny(request)
+    audit = get_object_or_404(AuditEsterno.objects.select_related("certificazione"), pk=pk)
+    controlli = service.preparazione(audit)
+    righe = service.righe_preparazione(controlli)
+    log_action(request, "audit_esterno_preparazione_export", MODULE, {"audit": audit.pk, "righe": len(righe)},
+               oggetto=audit)
+    return make_xlsx_response(
+        filename=f"preparazione_audit_esterno_{audit.data_inizio:%Y%m%d}.xlsx", columns=service.COLONNE_PREPARAZIONE,
+        rows=righe, sheet_title="Preparazione", title=f"Preparazione all'audit: {audit}",
+        subtitle=f"Estratto il {timezone.localtime():%d/%m/%Y %H:%M}",
+        filters_label=", ".join(audit.norme_sigle) or audit.ente,
+    )
+
+
+@login_required
+def piano_export(request, pk: int):
+    """Piano azioni da inviare all'ente, dai testi PDCA delle voci MOD.174 dei rilievi."""
+    if not _has_perm(request, PERM_AUDIT_VIEW):
+        return _deny(request)
+    audit = get_object_or_404(AuditEsterno, pk=pk)
+    righe = service.righe_piano_azioni(audit)
+    log_action(request, "audit_esterno_piano_export", MODULE, {"audit": audit.pk, "righe": len(righe)}, oggetto=audit)
+    return make_xlsx_response(
+        filename=f"piano_azioni_{audit.data_inizio:%Y%m%d}.xlsx", columns=service.COLONNE_PIANO, rows=righe,
+        sheet_title="Piano azioni", title=f"Piano azioni: {audit}",
+        subtitle=f"Estratto il {timezone.localtime():%d/%m/%Y %H:%M}", filters_label=audit.ente,
+    )
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def piano_inviato(request, pk: int):
+    """Registra la data di invio del piano azioni all'ente: ferma il promemoria di risposta."""
+    if not _has_perm(request, PERM_AUDIT_EDIT):
+        return _deny(request)
+    audit = get_object_or_404(AuditEsterno.objects.select_for_update(), pk=pk)
+    oggi = timezone.localdate()
+    try:
+        inviato = date.fromisoformat(request.POST.get("inviato_il") or oggi.isoformat())
+    except ValueError:
+        messages.error(request, "Data di invio non valida.")
+        return redirect("sistema_gestione:esterni_audit", pk=pk)
+    if inviato > oggi or inviato < audit.data_inizio:
+        messages.error(request, "La data di invio deve essere tra l'inizio dell'audit e oggi.")
+        return redirect("sistema_gestione:esterni_audit", pk=pk)
+    audit.piano_inviato_il = inviato
+    audit.piano_inviato_da = request.user
+    audit.save(update_fields=["piano_inviato_il", "piano_inviato_da", "aggiornato_il"])
+    log_action(request, "audit_esterno_piano_inviato", MODULE, {"audit": audit.pk, "il": inviato.isoformat()},
+               oggetto=audit)
+    messages.success(request, f"Invio del piano azioni registrato al {inviato:%d/%m/%Y}.")
     return redirect("sistema_gestione:esterni_audit", pk=pk)
