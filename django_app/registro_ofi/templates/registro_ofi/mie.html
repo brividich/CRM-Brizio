@@ -1,0 +1,86 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Le mie voci · Registro OFI / NC{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<style>
+.ofim-pdca{ display:inline-flex; gap:3px; }
+.ofim-pdca span{ width:20px; height:20px; border-radius:5px; display:inline-flex; align-items:center; justify-content:center;
+  font-size:10.5px; font-weight:800; border:1px solid #cbd5e1; color:#94a3b8; }
+.ofim-pdca span.done{ background:#ecfdf3; border-color:#16a34a; color:#15803d; }
+.ofim-pdca span.current{ background:#ff8a1f; border-color:#ff8a1f; color:#fff; }
+.ofim-testo{ max-width:520px; color:#475569; font-size:12.5px; }
+body.theme-dark .ofim-pdca span{ border-color:var(--border); }
+body.theme-dark .ofim-pdca span.done{ background:rgba(22,163,74,.14); color:#86efac; }
+body.theme-dark .ofim-testo{ color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "registro_ofi/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "registro_ofi/_guida_link.html" %}
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Registro OFI / NC · MOD.174</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-users"/></svg>Le mie voci</h1>
+          <p class="fmd-sub">Le opportunità di miglioramento e le non conformità di cui sei responsabile. Apri una voce per descrivere cosa hai fatto nella fase in corso, passare alla successiva e caricare le evidenze.</p>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ aperte|length }}</span><span class="fmd-lbl">Aperte</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Aperte <span class="fmd-count">{{ aperte|length }}</span></div></div>
+      {% if aperte %}
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Voce</th><th>PDCA</th><th>Processo</th><th>Descrizione</th><th>Da dove nasce</th><th class="fmd-nowrap">Scadenza</th></tr></thead>
+        <tbody>
+          {% for v in aperte %}
+          <tr>
+            <td class="fmd-nowrap"><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' v.pk %}"><b>{{ v.tipo }} {{ v.numero }}</b></a>
+              {% if v.priorita == "ALTA" %}<br><span class="fmd-badge fmd-b-red">priorità alta</span>{% endif %}</td>
+            <td><span class="ofim-pdca" title="Fase: {{ v.get_fase_display }}">{% for s in v.pdca_steps %}<span class="{{ s.state }}">{{ s.letter }}</span>{% endfor %}</span></td>
+            <td>{% if v.processo_sgi %}<a class="fmd-data-link" href="{% url 'sistema_gestione:processo_dettaglio' v.processo_sgi_id %}#ofi">{{ v.processo_sgi.codice }}</a>{% else %}{{ v.processo|default:"—" }}{% endif %}</td>
+            <td class="ofim-testo">{{ v.opportunita|truncatechars:140|default:"—" }}</td>
+            <td>{% if v.link_origine %}{% if v.link_origine.url %}<a class="fmd-data-link" href="{{ v.link_origine.url }}">{{ v.link_origine.etichetta }}</a>{% else %}{{ v.link_origine.etichetta }}{% endif %}{% else %}<span class="fmd-muted">inserita a mano</span>{% endif %}</td>
+            <td class="fmd-nowrap">{% if v.data_richiesta %}{% if v.is_scaduto %}<span class="fmd-badge fmd-b-red">{{ v.data_richiesta|date:"d/m/Y" }}</span>{% else %}{{ v.data_richiesta|date:"d/m/Y" }}{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessuna voce aperta</span><span class="fmd-em">Quando la Qualità ti indica come responsabile di una voce, la trovi qui e ricevi i solleciti di scadenza.</span></div>
+      {% endif %}
+    </section>
+
+    {% if chiuse %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Chiuse <span class="fmd-count">{{ chiuse|length }}</span></div></div>
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Voce</th><th>Processo</th><th>Descrizione</th><th class="fmd-nowrap">Chiusa il</th></tr></thead>
+        <tbody>
+          {% for v in chiuse %}
+          <tr><td class="fmd-nowrap"><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a></td>
+            <td>{{ v.processo_sgi.codice|default:v.processo|default:"—" }}</td>
+            <td class="ofim-testo">{{ v.opportunita|truncatechars:140|default:"—" }}</td>
+            <td class="fmd-nowrap">{{ v.data_chiusura|date:"d/m/Y"|default:"—" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

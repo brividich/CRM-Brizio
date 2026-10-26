@@ -1,9 +1,11 @@
 """Capo e team: cache azzerata e schede riallineate quando cambiano i dati.
 
 La regola unica (``services.capo_team``) dipende da schede aziendali, reparti,
-aree, ruoli e assegnazioni. A ogni modifica la cache si azzera; con la regola
-accesa, a transazione conclusa, il «Caporeparto» delle schede si riallinea una
-volta sola per transazione (un import di 100 schede non ricalcola 100 volte).
+aree, ruoli, assegnazioni e da chi ha le mansioni del capo
+(``services.capi_mansione``). A ogni modifica la cache si azzera; con la regola
+accesa, a transazione conclusa, le copie derivate (capo di reparti e aree,
+«Caporeparto» delle schede, ``RepartoCapoMapping``) si riallineano una volta
+sola per transazione (un import di 100 schede non ricalcola 100 volte).
 """
 from __future__ import annotations
 
@@ -17,7 +19,10 @@ logger = logging.getLogger(__name__)
 _UID = "anagrafica_capi_"
 _stato = threading.local()
 
-MODELLI = ("DipendenteAnagraficaAziendale", "Reparto", "AreaAziendale", "DipendenteRuoloOperativo", "RuoloOperativo")
+MODELLI = (
+    "DipendenteAnagraficaAziendale", "Reparto", "AreaAziendale", "DipendenteRuoloOperativo", "RuoloOperativo",
+    "AbilitazioneMacchina", "CompetenzaSkm",
+)
 
 
 def _riallinea_dopo_commit(generazione: int):
@@ -28,11 +33,21 @@ def _riallinea_dopo_commit(generazione: int):
     try:
         from .services import capo_team
 
+        from .services import capi_mansione
+
         capo_team.invalida_cache()
-        if capo_team.regola_unica_attiva():
-            capo_team.riallinea_tutte_le_schede()
+        capi_mansione.allinea_derivati()
     except Exception:
         logger.warning("capi: riallineamento non riuscito", exc_info=True)
+
+
+def _mansione_capo(mansione_id) -> bool:
+    try:
+        from .services.capi_mansione import e_mansione_capo
+
+        return e_mansione_capo(mansione_id)
+    except Exception:
+        return True
 
 
 def _cambiato(sender, instance=None, update_fields=None, **kwargs):
@@ -40,6 +55,12 @@ def _cambiato(sender, instance=None, update_fields=None, **kwargs):
     # niente segnali, niente giri a vuoto. Un save() che tocca solo quel campo
     # (da _sync_aziendale_from_reparto) non cambia la regola.
     if update_fields is not None and set(update_fields) <= {"caporeparto_legacy_id", "updated_by", "updated_at"}:
+        return
+    # Skill matrix e mansioni cambiano spesso: contano solo le mansioni del capo.
+    nome = sender.__name__ if sender is not None else ""
+    if nome == "AbilitazioneMacchina" and not _mansione_capo(getattr(instance, "competenza_id", None)):
+        return
+    if nome == "CompetenzaSkm" and not _mansione_capo(getattr(instance, "pk", None)):
         return
     try:
         from .services import capo_team

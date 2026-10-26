@@ -16,6 +16,20 @@
   </p>
 </section>
 
+{% if ciclo %}
+<section class="sec-panel" style="margin-top: 12px;" id="ciclo-cve">
+  <div class="sec-section-head"><h2>Dalla segnalazione alla correzione (ultimi {{ ciclo.giorni }} giorni)</h2><a class="sec-small" href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#chiusura-con-prove">Guida</a></div>
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>PC corretti (aggiornati o programma rimosso)</span><strong>{{ ciclo.correzioni }}</strong></div>
+    <div class="sec-fact"><span>Giorni medi da «esposto dal» alla correzione</span><strong>{% if ciclo.giorni_medi is not None %}{{ ciclo.giorni_medi }}{% else %}—{% endif %}</strong></div>
+    <div class="sec-fact"><span>…per CVE critiche o sfruttate ({{ ciclo.correzioni_gravi }} PC)</span><strong>{% if ciclo.giorni_medi_gravi is not None %}{{ ciclo.giorni_medi_gravi }}{% else %}—{% endif %}</strong></div>
+    <div class="sec-fact"><span>Alert CVE chiusi</span><strong>{{ ciclo.chiusi }}</strong> <small class="sec-muted">{% if ciclo.chiusi %}{{ ciclo.pct_auto }}% da soli con le prove, {{ ciclo.manuali }} a mano{% else %}nessuno{% endif %}</small></div>
+    <div class="sec-fact"><span>Recidive (versione vulnerabile ricomparsa)</span><strong>{{ ciclo.recidive }}</strong></div>
+    <div class="sec-fact"><span>Alert CVE ancora aperti</span><strong>{{ ciclo.aperti }}</strong></div>
+  </div>
+</section>
+{% endif %}
+
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>CVE che impattano o da verificare</h2><span class="sec-muted sec-small">ordine: KEV, CVSS, EPSS, host impattati</span></div>
   <div class="sec-table-wrap">

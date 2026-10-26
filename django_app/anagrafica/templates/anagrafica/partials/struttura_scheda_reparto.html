@@ -20,7 +20,7 @@
   <ul class="sto-sch-lista">{% for a in aree %}<li><strong>{{ a.area.nome }}</strong> · {{ a.persone }} person{{ a.persone|pluralize:"a,e" }}{% if a.area.ruolo_responsabile_id %} · responsabile <a href="#" data-sto-apri="ruolo" data-id="{{ a.area.ruolo_responsabile_id }}">{{ a.area.ruolo_responsabile.etichetta }}</a>{% endif %}{% if a.responsabile %} ({{ a.responsabile }}){% endif %}</li>{% endfor %}</ul>
   {% else %}<p class="sto-sch-vuoto">Nessuna area.</p>{% endif %}
   {% if responsabili %}<p class="sto-nota">Co-responsabili: {% for p in responsabili %}<a href="{% url 'anagrafica:dipendente_detail' p.id %}">{{ p.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
-  {% if is_admin %}<a class="sto-link" href="{% url 'anagrafica:aree_list' %}">Caporeparto, co-responsabili e aree →</a>{% endif %}
+  {% if is_admin %}<a class="sto-link" href="{% url 'anagrafica:aree_list' %}">Capo e aree →</a>{% endif %}
 </section>
 
 <section class="sto-sch-sez">

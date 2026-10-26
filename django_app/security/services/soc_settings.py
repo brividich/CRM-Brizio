@@ -309,6 +309,23 @@ SECTIONS = [
             Option("ai.lettura.canali", [], "Canali", "Dove avvisare quando ci sono nuove proposte da controllare (facoltativo).", "channels"),
         ],
     },
+    {
+        "code": "ai_cpe",
+        "title": "Proposte AI su CPE ed esiti da verificare",
+        "intro": "I casi che il calcolo CVE lascia «da verificare» (software senza CPE confermato, versioni non confrontabili, "
+                 "CVE valide solo in una configurazione) vengono fatti esaminare all'AI locale, che propone il CPE fra quelli "
+                 "delle CVE già nel sistema oppure l'esito per PC, con motivazione e confidenza. È solo una proposta: si accetta "
+                 "o si rifiuta in «Software e CPE» e nella scheda CVE. Gira dalla lettura «cpe_ai» (Letture automatiche, ogni 6 ore) "
+                 "e con «Proponi con l'AI ora».",
+        "channels_optional": True,
+        "options": [
+            Option("ai.cpe.attivo", False, "Fai esaminare all'AI i casi da verificare"),
+            Option("ai.cpe.max_per_giro", 5, "Massimo per giro", "Casi esaminati a ogni esecuzione: in produzione ogni risposta impegna l'AI per 15-40 secondi.",
+                   "int", min_value=1, max_value=30, unit="casi"),
+            Option("ai.cpe.confidenza_minima", 60, "Confidenza minima", "Sotto questa confidenza la risposta dell'AI viene scartata (resta «da verificare»).",
+                   "int", min_value=0, max_value=100, unit="%"),
+        ],
+    },
 ]
 
 OPTIONS = {option.key: option for section in SECTIONS for option in section["options"]}

@@ -22,6 +22,11 @@ conservative: nel dubbio l'alert resta aperto.
 - **cve_patched_inventory** (nuova, spenta di default): l'inventario software recente
   mostra il prodotto solo in versioni fuori dal range vulnerabile su tutti gli host e
   nessun host impattato o da verificare. Mai per CVE in CISA KEV o critiche.
+- **cve_impatto_risolto** (accesa di default): l'alert «PC con versione vulnerabile» nato dal
+  ricalcolo degli impatti (CVE critica o KEV) si chiude quando nessun PC è più impattato e ogni
+  PC che era esposto ha due prove concordi (inventario recente, patch WatchGuard, Defender);
+  i PC non visti di recente non contano finché una persona non li esclude. Il dettaglio è in
+  ``services.cve_chiusura``.
 
 Gli altri alert (spoofing, dati illeggibili, sessioni lunghe) restano a gestione manuale.
 Un caso (ticket) i cui alert sono tutti chiusi e senza attività aperte si chiude a sua
@@ -460,6 +465,43 @@ def _simulate_cve(since):
     return [c for c in (_cve_candidate(a, cache) for a in alerts) if c]
 
 
+# --- cve_impatto_risolto ---------------------------------------------------------------------
+
+def _cve_impatto_candidates(alerts):
+    from security.services import cve_chiusura
+
+    out = []
+    for alert in alerts:
+        info = cve_chiusura.analisi(alert)
+        if not info["chiudibile"]:
+            continue
+        record = info["record"]
+        calcolo = (f"impatto CVE calcolato il {timezone.localtime(record.impact_computed_at):%d/%m/%Y %H:%M}"
+                   if record is not None and record.impact_computed_at else "")
+        out.append(Candidate(alert, f"{info['cve']}: {info['motivo']} Le prove di ogni PC sono nella timeline dell'alert.",
+                             evidence_ref=calcolo))
+    return out
+
+
+def run_cve_impatto_risolto():
+    """Alert «PC con versione vulnerabile» con tutti i PC corretti e provati: si chiudono."""
+    if not rule_enabled("cve_impatto_risolto"):
+        return 0
+    from security.services.cve_impact import IMPACT_EVENT_TYPE
+
+    alerts = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, event__event_type=IMPACT_EVENT_TYPE).select_related("event")
+    return _apply("cve_impatto_risolto", _cve_impatto_candidates(alerts))
+
+
+def _simulate_cve_impatto(since):
+    # Come per cve_patched_inventory: alert ancora aperti degli ultimi 30 giorni, con le prove di oggi.
+    from security.services.cve_impact import IMPACT_EVENT_TYPE
+
+    alerts = SecurityAlert.objects.filter(event__event_type=IMPACT_EVENT_TYPE, created_at__gte=since,
+                                          status__in=ACTIVE_ALERT_STATUSES).select_related("event")
+    return _cve_impatto_candidates(alerts)
+
+
 # --- Registro --------------------------------------------------------------------------------
 
 REGISTRY = {
@@ -485,6 +527,12 @@ REGISTRY = {
                      "CVE non in CISA KEV, non critica; inventario software recente",
                      "Impatto CVE: prodotto presente solo in versioni fuori range, nessun host impattato o da verificare",
                      "Chiude l'alert come Risolto con la data dell'inventario", False, "periodic", _simulate_cve),
+        RecoveryRule("cve_impatto_risolto", "CVE critica corretta con prove", "Alert «PC con versione vulnerabile» (inventario, CVE critica o KEV)",
+                     "Nessun PC più impattato né da verificare; ogni PC che era esposto ha 2 prove concordi (1 per le CVE non critiche)",
+                     "Inventario recente con versione corretta o programma rimosso; patch WatchGuard non più mancante o installata; "
+                     "Defender che non la vede più. Un PC non visto di recente è «non verificabile» finché una persona non lo esclude",
+                     "Chiude l'alert come Risolto con le prove PC per PC nella timeline; se la versione vulnerabile ricompare entro "
+                     "90 giorni riapre lo stesso alert come recidiva", True, "periodic", _simulate_cve_impatto),
     )
 }
 
@@ -492,7 +540,8 @@ REGISTRY = {
 def run_periodic_recoveries():
     """Regole periodiche (ciclo SOC): ognuna isolata, un errore non blocca le altre."""
     result = {}
-    for code, runner in (("vpn_within_limits", run_vpn_within_limits), ("cve_patched_inventory", run_cve_patched_inventory)):
+    for code, runner in (("vpn_within_limits", run_vpn_within_limits), ("cve_patched_inventory", run_cve_patched_inventory),
+                         ("cve_impatto_risolto", run_cve_impatto_risolto)):
         try:
             result[code] = runner()
         except Exception as exc:  # noqa: BLE001 - una regola difettosa non deve fermare il ciclo

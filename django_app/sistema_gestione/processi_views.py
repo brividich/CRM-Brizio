@@ -91,7 +91,25 @@ def dettaglio(request, pk):
         "norme": norme,
         "n_mansioni": processo.mansioni_lavorative.count(),
         "guida_url": link_pagina("sistema_gestione:processo_dettaglio"),
+        **_voci_ofi(request, processo),
     })
+
+
+def _voci_ofi(request, processo) -> dict:
+    """Voci del Registro OFI / NC collegate al processo (aperte prima) e permessi del registro."""
+    from core.acl_v2 import request_has_permission_code
+    from gestione_specifiche.acl_bootstrap import PERM_OFI_ADD
+    from registro_ofi.acl_bootstrap import PERM_OFI_VIEW
+
+    voci = list(processo.voci_ofi.select_related("responsabile").order_by("-data_apertura", "-numero"))
+    aperte = [v for v in voci if not v.is_chiuso]
+    return {
+        "voci_ofi": aperte + [v for v in voci if v.is_chiuso],
+        "n_ofi_aperte": len(aperte),
+        "n_ofi_nc_aperte": sum(1 for v in aperte if v.tipo == v.TIPO_NC),
+        "ofi_vede_registro": request_has_permission_code(request, PERM_OFI_VIEW),
+        "ofi_puo_inserire": request_has_permission_code(request, PERM_OFI_ADD),
+    }
 
 
 def _persone_processo(processo):

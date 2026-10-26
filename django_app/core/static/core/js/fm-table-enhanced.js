@@ -144,9 +144,238 @@
     return Math.abs(h).toString(36).slice(0, 6);
   }
 
+  // Testo «utile» di una cella: niente <option> dei menu, script e stili; i
+  // campi di modulo valgono per il loro valore. Con `visibleOnly` si salta anche
+  // il testo nascosto agli occhi (sr-only, [hidden]): serve all'ordinamento.
+  const TEXT_SKIP_TAGS = { OPTION: 1, OPTGROUP: 1, SCRIPT: 1, STYLE: 1, TEMPLATE: 1, DATALIST: 1, NOSCRIPT: 1 };
+  const SR_ONLY_RE = /(^|\s)([\w-]*sr-only|visually-hidden)(\s|$)/;
+
+  function collectCellText(node, visibleOnly, out) {
+    for (let ch = node.firstChild; ch; ch = ch.nextSibling) {
+      if (ch.nodeType === 3) { out.push(ch.nodeValue); continue; }
+      if (ch.nodeType !== 1 || TEXT_SKIP_TAGS[ch.tagName]) continue;
+      if (ch.tagName === "SELECT") {
+        const opt = ch.options && ch.selectedIndex >= 0 ? ch.options[ch.selectedIndex] : null;
+        if (opt) out.push(" " + opt.textContent + " ");
+        continue;
+      }
+      if (ch.tagName === "TEXTAREA" || (ch.tagName === "INPUT" && !/^(checkbox|radio|hidden|button|submit|reset|image|file)$/i.test(ch.type))) {
+        out.push(" " + (ch.value || "") + " ");
+        continue;
+      }
+      if (visibleOnly && (ch.hidden || SR_ONLY_RE.test(ch.className && ch.className.baseVal === undefined ? ch.className : "") ||
+          (ch.style && ch.style.display === "none"))) continue;
+      collectCellText(ch, visibleOnly, out);
+    }
+    return out;
+  }
+
+  function cellText(cell, visibleOnly) {
+    if (!cell) return "";
+    return cleanText(collectCellText(cell, !!visibleOnly, []).join(""));
+  }
+
   function cellPlainText(cell) {
     if (!cell) return "";
-    return cleanText((cell.dataset && (cell.dataset.value || cell.dataset.sortValue)) || cell.textContent || "");
+    return cleanText((cell.dataset && (cell.dataset.value || cell.dataset.sortValue)) || cellText(cell, false));
+  }
+
+  // Cella che copre la colonna logica `idx`, tenendo conto dei colspan della riga.
+  function cellAt(row, idx) {
+    if (!row || !row.cells) return null;
+    let c = 0;
+    for (let i = 0; i < row.cells.length; i += 1) {
+      const cell = row.cells[i];
+      const span = Math.max(1, cell.colSpan || 1);
+      if (idx < c + span) return cell;
+      c += span;
+    }
+    return null;
+  }
+
+  // ─── Valori per l'ordinamento ────────────────────────────────────────────
+  // L'ordinamento non si fida del tipo dichiarato: guarda i valori veri della
+  // colonna e sceglie numeri, date o testo. Le celle vuote («—», «n/d»…) e i
+  // valori che non si leggono nel tipo scelto vanno sempre in fondo, in
+  // entrambe le direzioni; a parità vale l'ordine originale.
+
+  const COLLATOR = new Intl.Collator("it", { numeric: true, sensitivity: "base" });
+  const EMPTY_SORT_RE = /^(-+|—+|–+|\/|n\.?\s?[ad]\.?|n\/[ad]|nessun[oa]?|non (impostat|indicat|definit|disponibil)[oa])$/i;
+
+  function isEmptySortValue(text) {
+    return !text || EMPTY_SORT_RE.test(text);
+  }
+
+  // Numero all'italiana o all'inglese, con valuta, percentuale o unità brevi
+  // («1.234,50 €», "€ 12", "35%", "12 h", "3 gg", "0.75"). NaN se non è un numero.
+  const NUM_RE = /^([+\-−]?)\s*(?:[€$£]\s*)?([+\-−]?)(\d[\d.,'   ]*)\s*(%|‰|°c?|[a-zà-ü²³µ]{1,8}\.?)?$/i;
+  function parseNumberish(text) {
+    const m = NUM_RE.exec(cleanText(text).replace(/\s*€$/, ""));
+    if (!m) return NaN;
+    let s = m[3].replace(/['   ]/g, "");
+    const neg = (m[1] || m[2]) && /[\-−]/.test(m[1] + m[2]);
+    const hasDot = s.indexOf(".") >= 0;
+    const hasComma = s.indexOf(",") >= 0;
+    if (hasDot && hasComma) {
+      // Il separatore più a destra è quello dei decimali.
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+      else s = s.replace(/,/g, "");
+    } else if (hasComma) {
+      s = (s.match(/,/g).length > 1) ? s.replace(/,/g, "") : s.replace(",", ".");
+    } else if (hasDot) {
+      const parts = s.split(".");
+      if (parts.length > 2) {
+        if (!parts.slice(1).every(p => p.length === 3)) return NaN;   // es. indirizzi IP
+        s = parts.join("");
+      } else if (parts[1].length === 3 && !/^0/.test(parts[0])) {
+        s = parts.join("");                                           // «1.234» = milleduecentotrentaquattro
+      }
+    }
+    if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
+    const n = parseFloat(s);
+    return neg ? -n : n;
+  }
+
+  const MONTHS = {
+    gen: 1, genn: 1, gennaio: 1, feb: 2, febb: 2, febbraio: 2, mar: 3, marzo: 3, apr: 4, aprile: 4,
+    mag: 5, maggio: 5, giu: 6, giugno: 6, lug: 7, luglio: 7, ago: 8, agosto: 8, set: 9, sett: 9,
+    settembre: 9, ott: 10, ottobre: 10, nov: 11, novembre: 11, dic: 12, dicembre: 12,
+    jan: 1, january: 1, february: 2, march: 3, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+    aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, november: 11, dec: 12, december: 12,
+  };
+  const TIME_PART = "(?:[ ,T]+(?:ore |alle |h\\s?)?(\\d{1,2})[:.](\\d{2})(?:[:.](\\d{2}))?)?";
+  const DATE_PATTERNS = [
+    { re: new RegExp("(\\d{4})-(\\d{1,2})-(\\d{1,2})(?!\\d)" + TIME_PART), y: 1, m: 2, d: 3, t: 4 },
+    { re: new RegExp("(?:^|[^\\d])(\\d{1,2})[\\/.\\-](\\d{1,2})[\\/.\\-](\\d{4}|\\d{2})(?!\\d)" + TIME_PART), d: 1, m: 2, y: 3, t: 4 },
+    { re: new RegExp("(?:^|[^\\d])(\\d{1,2})\\s+([a-zà-ü]{3,9})\\.?\\s+(\\d{4})" + TIME_PART, "i"), d: 1, mName: 2, y: 3, t: 4 },
+    { re: /(?:^|[^a-zà-ü])([a-zà-ü]{3,9})\.?\s+(\d{4})(?!\d)/i, mName: 1, y: 2 },
+    { re: /(?:^|[^\d\/])(\d{1,2})\/(\d{4})(?!\d)/, m: 1, y: 2 },
+  ];
+
+  // Prima data trovata nel testo: { ts, at } (at = posizione nel testo) o null.
+  function findDate(text) {
+    const s = cleanText(text);
+    if (!s || !/\d/.test(s)) return null;
+    for (const p of DATE_PATTERNS) {
+      const m = p.re.exec(s);
+      if (!m) continue;
+      let y = Number(m[p.y]);
+      if (y < 100) y += 2000;
+      const mo = p.mName ? MONTHS[stripAccents(m[p.mName]).toLowerCase().replace(/\.$/, "")] : Number(m[p.m]);
+      const d = p.d ? Number(m[p.d]) : 1;
+      if (!mo || mo > 12 || d < 1 || d > 31 || y < 1900 || y > 2200) continue;
+      const hh = p.t && m[p.t] ? Number(m[p.t]) : 0;
+      const mi = p.t && m[p.t + 1] ? Number(m[p.t + 1]) : 0;
+      const ss = p.t && m[p.t + 2] ? Number(m[p.t + 2]) : 0;
+      if (hh > 23 || mi > 59) continue;
+      const at = m.index + (m[0].length - m[0].replace(/^[^\da-zà-ü]+/i, "").length);
+      return { ts: new Date(y, mo - 1, d, hh, mi, ss).getTime(), at: at };
+    }
+    return null;
+  }
+
+  // Valore grezzo da ordinare: data-sort-value, poi <time datetime>, poi il
+  // testo visibile (con i campi di modulo letti per valore).
+  function sortRawValue(cell) {
+    if (!cell) return "";
+    if (cell.dataset && cell.dataset.sortValue !== undefined) return cleanText(cell.dataset.sortValue);
+    const time = cell.querySelector("time[datetime]");
+    if (time && cleanText(cell.textContent) === cleanText(time.textContent)) return cleanText(time.getAttribute("datetime"));
+    const text = cellText(cell, true);
+    if (!text) {
+      const box = cell.querySelector("input[type='checkbox'], input[type='radio']");
+      if (box) return box.checked ? "1" : "0";
+    }
+    return text;
+  }
+
+  // Chiavi di ordinamento di una colonna per le righe date. Modo scelto sui
+  // valori: «number» se (quasi) tutti sono numeri, «date» se tutti contengono
+  // una data (in testa, o colonna dichiarata data), altrimenti «text».
+  function columnSortKeys(rows, col) {
+    const raws = rows.map(r => sortRawValue(cellAt(r, col.idx)));
+    const info = raws.map((raw) => {
+      if (isEmptySortValue(raw)) return { empty: true, raw: raw };
+      return { empty: false, raw: raw, num: parseNumberish(raw), date: findDate(raw) };
+    });
+    const filled = info.filter(i => !i.empty);
+    const n = filled.length;
+    let mode = "text";
+    if (n) {
+      const nums = filled.filter(i => !Number.isNaN(i.num)).length;
+      const dates = filled.filter(i => i.date).length;
+      const lead = filled.filter(i => i.date && i.date.at <= 2).length;
+      const declared = col.type;
+      if (nums === n || (declared === "number" && nums / n >= 0.5)) mode = "number";
+      else if ((dates === n && (declared === "date" || lead / n >= 0.8)) || (declared === "date" && dates / n >= 0.5)) mode = "date";
+    }
+    const keys = new Map();
+    rows.forEach((row, i) => {
+      const it = info[i];
+      const text = it.raw.replace(/^[^\p{L}\p{N}]+/u, "") || it.raw;
+      let value = null;
+      if (!it.empty) {
+        if (mode === "number" && !Number.isNaN(it.num)) value = it.num;
+        else if (mode === "date" && it.date) value = it.date.ts;
+      }
+      keys.set(row, {
+        empty: it.empty ? 1 : 0,
+        // Nel modo numeri/date, i valori che non si leggono vanno dopo gli altri.
+        odd: (!it.empty && mode !== "text" && value === null) ? 1 : 0,
+        value: value,
+        text: text,
+      });
+    });
+    return keys;
+  }
+
+  function compareSortKeys(a, b, dir) {
+    if (a.empty !== b.empty) return a.empty - b.empty;
+    if (a.empty) return 0;
+    if (a.odd !== b.odd) return a.odd - b.odd;
+    let cmp = 0;
+    if (a.value !== null && b.value !== null) cmp = a.value - b.value;
+    if (cmp === 0) cmp = COLLATOR.compare(a.text, b.text);
+    return dir === "desc" ? -cmp : cmp;
+  }
+
+  // Righe del tbody che non sono dati: dettagli a scomparsa (figli della riga
+  // sopra) e righe di gruppo/intestazione a tutta larghezza. Marcate una volta.
+  function markStructuralRows(table, colCount) {
+    const tbody = table.tBodies && table.tBodies[0];
+    if (!tbody || colCount < 2) return;
+    const rows = Array.from(tbody.rows);
+    rows.forEach((row, i) => {
+      if (row.dataset.fmRowKind) return;
+      if (isDetailRow(row)) { row.dataset.fmRowKind = "detail"; return; }
+      const span = row.cells.length === 1 && (row.cells[0].colSpan || 1) > 1;
+      const hidden = row.hidden || row.style.display === "none";
+      const hint = /(detail|dettagl|expand|espans|edit|modific|collaps|sub-?row|child|figli)/i.test(row.className || "");
+      const prev = i > 0 ? rows[i - 1] : null;
+      if (hidden && prev && (span || hint || row.cells.length !== colCount)) {
+        row.dataset.fmDetailRow = "1";
+        row.dataset.fmRowKind = "detail";
+      } else if (span && !hidden && rows.length > 1) {
+        row.dataset.fmGroupRow = "1";
+        row.dataset.fmRowKind = "group";
+      } else {
+        row.dataset.fmRowKind = "data";
+      }
+    });
+  }
+
+  function isGroupRow(row) {
+    return !!(row && row.dataset && row.dataset.fmGroupRow === "1");
+  }
+
+  // Ordine d'origine delle righe, per tornare indietro togliendo l'ordinamento.
+  function stampRowOrder(table) {
+    const tbody = table.tBodies && table.tBodies[0];
+    if (!tbody) return;
+    if (table._fmSeq === undefined) table._fmSeq = 0;
+    Array.from(tbody.rows).forEach((r) => {
+      if (r._fmOrig === undefined) { r._fmOrig = table._fmSeq; table._fmSeq += 1; }
+    });
   }
 
   // Una "detail row" è una riga figlia di espansione (es. dettaglio collassabile
@@ -164,7 +393,8 @@
     return table.tBodies && table.tBodies[0]
       // Solo le righe dirette del tbody: una tabella annidata dentro una
       // riga di dettaglio non deve finire nel conteggio né nei filtri.
-      ? Array.from(table.tBodies[0].rows).filter(tr => !isDetailRow(tr))
+      // Le righe di gruppo (a tutta larghezza) non sono dati.
+      ? Array.from(table.tBodies[0].rows).filter(tr => !isDetailRow(tr) && !isGroupRow(tr))
       : [];
   }
 
@@ -344,27 +574,26 @@
   }
 
   function isDateLike(value) {
-    const text = cleanText(value);
-    return /^\d{4}-\d{2}-\d{2}/.test(text) || /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/.test(text);
-  }
-
-  function isNumberLike(value) {
-    const text = cleanText(value).replace(/\s/g, "").replace("%", "").replace("€", "").replace(",", ".");
-    return /^-?\d+(\.\d+)?$/.test(text);
+    const d = findDate(value);
+    return !!d && d.at <= 2;
   }
 
   function isBoolLike(value) {
     return /^(si|sì|no|yes|true|false|0|1|ok|ko|✓|✔)$/i.test(cleanText(value));
   }
 
+  // Etichetta «da data»: parole intere, non pezzi di parola («Definizione»
+  // contiene «fine», «Validata» contiene «data» e non sono date).
+  const DATE_LABEL_WORDS = /(^|_)(data|date|dal|al|scadenza|scadenze|scade|inizio|fine|aggiornato|aggiornata|aggiornamento|creato|creata|creazione|chiuso|chiusa|chiusura|aperto|aperta|apertura|nascita|assunzione|emissione|ultimo|ultima|quando|giorno|il)(_|$)/;
+
   function inferColumnType(label, values) {
     const sample = values.filter(Boolean).slice(0, 60);
     const labelSlug = slugText(label, "");
     if (!sample.length) return "text";
-    if (/(data|scadenza|inizio|fine|aggiornato|creato|chiuso|aperto)/.test(labelSlug) && sample.some(isDateLike)) return "date";
+    if (DATE_LABEL_WORDS.test(labelSlug) && sample.filter(isDateLike).length >= Math.ceil(sample.length / 2)) return "date";
     if (sample.length >= 2 && sample.every(isDateLike)) return "date";
     if (sample.length >= 2 && sample.every(isBoolLike)) return "bool";
-    if (sample.length >= 2 && sample.every(isNumberLike)) return "number";
+    if (sample.length >= 2 && sample.every(v => !Number.isNaN(parseNumberish(v)))) return "number";
     if (/(nome|dipendente|ragione|descrizione|titolo|email|codice|matricola|asset|fornitore|utente|note|seriale|modello|telefono|piva|indirizzo)/.test(labelSlug)) {
       return "text";
     }
@@ -379,9 +608,10 @@
 
   // Inferisce il tipo dalla sola etichetta, senza scansionare le celle.
   // Restituisce null se non è possibile determinarlo senza leggere i valori.
+  // Le date si confermano sui valori (inferColumnType), quindi qui no.
   function inferColumnTypeFromLabel(label) {
     const s = slugText(label, "");
-    if (/(data|scadenza|inizio|fine|aggiornato|creato|chiuso|aperto)/.test(s)) return "date";
+    if (DATE_LABEL_WORDS.test(s)) return null;
     if (/(nome|dipendente|ragione|descrizione|titolo|email|codice|matricola|asset|fornitore|utente|note|seriale|modello|telefono|piva|indirizzo)/.test(s)) return "text";
     return null;
   }
@@ -447,8 +677,30 @@
     return grid.leaves.some(th => !!th.dataset.col);
   }
 
+  // Attributi del vecchio sortable-table.js (`data-sort-type`, `data-no-sort`,
+  // `data-no-filter`): valgono anche qui, così una tabella ha un solo motore.
+  function adoptLegacySortAttrs(table) {
+    const grid = headerGrid(table);
+    if (!grid) return;
+    grid.leaves.forEach((th) => {
+      const t = th.dataset.sortType;
+      if (t && !th.dataset.colType && /^(text|number|date)$/.test(t)) th.dataset.colType = t;
+      if (th.hasAttribute("data-no-sort") && th.dataset.colSortable === undefined) th.dataset.colSortable = "0";
+      if (th.hasAttribute("data-no-filter") && th.dataset.colFilterable === undefined) th.dataset.colFilterable = "0";
+    });
+  }
+
   function prepareTable(table, index) {
     if (isOptedOut(table)) return false;
+    const grid0 = headerGrid(table);
+    if (grid0 && table.tBodies && table.tBodies[0]) {
+      markStructuralRows(table, grid0.leaves.length);
+      // Celle unite in verticale nel corpo: riordinare le righe le spezzerebbe.
+      if (table.tBodies[0].querySelector(":scope > tr > td[rowspan]:not([rowspan='1']), :scope > tr > th[rowspan]:not([rowspan='1'])")) {
+        table.dataset.fmNoSort = "1";
+      }
+    }
+    adoptLegacySortAttrs(table);
     const explicit = !!table.dataset.tableId;
     if (!explicit && !canAutoBind(table)) return false;
     if (!applyInferredColumns(table)) return false;
@@ -693,7 +945,7 @@
         label:      th.dataset.colLabel || th.textContent.trim(),
         type:       th.dataset.colType || "text",
         options:    options,
-        sortable:   th.dataset.colSortable === "1",
+        sortable:   th.dataset.colSortable === "1" && table.dataset.fmNoSort !== "1",
         filterable: th.dataset.colFilterable === "1",
         locked:     th.dataset.colLocked === "1",
         hidden:     th.dataset.colHidden === "1",
@@ -848,6 +1100,48 @@
     return bar;
   }
 
+  // «Ordina per» compatto: su smartphone le tabelle diventano schede e
+  // l'intestazione (con le frecce) sparisce; il CSS lo mostra solo lì.
+  function buildMobileSort(table, cols, state, onChange) {
+    const sortable = cols.filter(c => c.key && c.sortable);
+    if (!sortable.length) return null;
+    const box = document.createElement("div");
+    box.className = "fm-tbl-msort";
+    const sel = document.createElement("select");
+    sel.setAttribute("aria-label", "Ordina per");
+    sel.innerHTML = '<option value="">Ordina per…</option>';
+    sortable.forEach((c) => {
+      const o = document.createElement("option");
+      o.value = c.key; o.textContent = c.label || c.key;
+      sel.appendChild(o);
+    });
+    const dirBtn = document.createElement("button");
+    dirBtn.type = "button";
+    dirBtn.className = "fm-tbl-btn";
+    const sync = () => {
+      const first = state.sort[0];
+      sel.value = first ? first[0] : "";
+      dirBtn.textContent = first && first[1] === "desc" ? SORT_ICON.desc : SORT_ICON.asc;
+      dirBtn.title = first && first[1] === "desc" ? "Decrescente" : "Crescente";
+      dirBtn.disabled = !first;
+    };
+    sel.addEventListener("change", () => {
+      state.sort = sel.value ? [[sel.value, "asc"]] : [];
+      onChange();
+    });
+    dirBtn.addEventListener("click", () => {
+      const first = state.sort[0];
+      if (!first) return;
+      state.sort = [[first[0], first[1] === "asc" ? "desc" : "asc"]];
+      onChange();
+    });
+    box.appendChild(sel);
+    box.appendChild(dirBtn);
+    table._fmMsortSync = sync;
+    sync();
+    return box;
+  }
+
   function buildColumnsMenu(cols, state, onChange) {
     const menu = document.createElement("div");
     menu.className = "fm-tbl-menu";
@@ -951,17 +1245,30 @@
       const entry = state.sort.find(s => s[0] === col.key);
       sortBtn.textContent = entry ? SORT_ICON[entry[1]] : SORT_ICON.none;
       if (entry) sortBtn.classList.add("active");
-      sortBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
+      sortBtn.setAttribute("aria-label", "Ordina per " + (col.label || col.key));
+      // Ciclo: crescente → decrescente → ordine originale.
+      const toggleSort = (shift) => {
         const idx = state.sort.findIndex(s => s[0] === col.key);
         const cur = idx >= 0 ? state.sort[idx][1] : null;
         const next = cur === "asc" ? "desc" : (cur === "desc" ? null : "asc");
-        if (!e.shiftKey) state.sort = state.sort.filter(s => s[0] === col.key);
-        if (idx >= 0) state.sort = state.sort.filter(s => s[0] !== col.key);
+        if (!shift) state.sort = state.sort.filter(s => s[0] === col.key);
+        state.sort = state.sort.filter(s => s[0] !== col.key);
         if (next) state.sort.push([col.key, next]);
         onChange();
+      };
+      sortBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleSort(e.shiftKey);
       });
       wrap.appendChild(sortBtn);
+      // Anche il clic sul nome della colonna ordina (come in Excel), salvo
+      // link o comandi che la pagina ha messo nell'intestazione.
+      th.classList.add("fm-th-sortable");
+      lbl.addEventListener("click", (e) => {
+        if (e.target.closest("a, button, input, select, label, [onclick]")) return;
+        if (window.getSelection && String(window.getSelection())) return;
+        toggleSort(e.shiftKey);
+      });
     }
 
     // Filter funnel icon + popover
@@ -1175,41 +1482,24 @@
       const entry = state.sort.find(s => s[0] === col.key);
       sortBtn.textContent = entry ? SORT_ICON[entry[1]] : SORT_ICON.none;
       sortBtn.classList.toggle("active", !!entry);
+      if (entry) col.th.setAttribute("aria-sort", entry[1] === "asc" ? "ascending" : "descending");
+      else col.th.removeAttribute("aria-sort");
+      // Con più colonne ordinate, il numero dice la precedenza.
+      const pos = state.sort.findIndex(s => s[0] === col.key);
+      if (state.sort.length > 1 && pos >= 0) sortBtn.dataset.fmSortPos = String(pos + 1);
+      else delete sortBtn.dataset.fmSortPos;
     });
   }
 
   // ─── Applicazione stato (visibility / filter / sort) ─────────────────────
 
   function getCellText(row, idx) {
-    return cellPlainText(row.cells[idx]);
+    return cellPlainText(cellAt(row, idx));
   }
 
-  function parseDateComparable(value) {
-    const text = cleanText(value);
-    if (!text) return 0;
-    const iso = text.match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/);
-    if (iso) {
-      return new Date(
-        Number(iso[1]),
-        Number(iso[2]) - 1,
-        Number(iso[3]),
-        Number(iso[4] || 0),
-        Number(iso[5] || 0)
-      ).getTime();
-    }
-    const dmy = text.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
-    if (dmy) {
-      const year = Number(dmy[3].length === 2 ? "20" + dmy[3] : dmy[3]);
-      return new Date(
-        year,
-        Number(dmy[2]) - 1,
-        Number(dmy[1]),
-        Number(dmy[4] || 0),
-        Number(dmy[5] || 0)
-      ).getTime();
-    }
-    const parsed = Date.parse(text);
-    return Number.isNaN(parsed) ? 0 : parsed;
+  function sameDay(a, b) {
+    const x = new Date(a), y = new Date(b);
+    return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
   }
 
   function rowMatchesFilters(row, cols, state) {
@@ -1223,7 +1513,7 @@
       const col = cols.find(c => c.key === key);
       if (!col) continue;
       const cellTxt = getCellText(row, col.idx);
-      const cell = row.cells[col.idx];
+      const cell = cellAt(row, col.idx);
       if (col.type === "select") {
         const cv = (cell && cell.dataset.value) || cellTxt;
         if (cv !== val && cellTxt !== val) return false;
@@ -1232,15 +1522,19 @@
         if (String(val) === "1" && !truthy) return false;
         if (String(val) === "0" && truthy) return false;
       } else if (col.type === "number") {
-        const n = parseFloat(cellTxt.replace(",", "."));
-        const target = parseFloat(String(val).replace(",", "."));
+        const n = parseNumberish(sortRawValue(cell));
+        const target = parseNumberish(String(val));
         if (isNaN(n) || isNaN(target)) return false;
         if (n < target) return false;
       } else if (col.type === "date") {
-        // match parziale: confronta sia gg/mm/aaaa sia aaaa-mm-gg
-        const isoVal = val;                  // yyyy-mm-dd
-        const dmyVal = val.split("-").reverse().join("/");  // dd/mm/yyyy
-        if (cellTxt.indexOf(dmyVal) === -1 && cellTxt.indexOf(isoVal) === -1) return false;
+        // Stesso giorno, qualunque sia il formato della data nella cella.
+        const want = findDate(String(val));
+        const got = findDate(sortRawValue(cell)) || findDate(cellTxt);
+        if (want && got) { if (!sameDay(want.ts, got.ts)) return false; }
+        else {
+          const dmyVal = String(val).split("-").reverse().join("/");
+          if (cellTxt.indexOf(dmyVal) === -1 && cellTxt.indexOf(val) === -1) return false;
+        }
       } else {
         if (cellTxt.toLowerCase().indexOf(String(val).toLowerCase()) === -1) return false;
       }
@@ -1248,32 +1542,29 @@
     return true;
   }
 
-  function compareRows(rowA, rowB, cols, state) {
-    for (const [key, dir] of state.sort) {
-      const col = cols.find(c => c.key === key);
-      if (!col) continue;
-      let a = getCellText(rowA, col.idx);
-      let b = getCellText(rowB, col.idx);
-      const cellA = rowA.cells[col.idx];
-      const cellB = rowB.cells[col.idx];
-      if (cellA && cellA.dataset.sortValue !== undefined) a = cellA.dataset.sortValue;
-      if (cellB && cellB.dataset.sortValue !== undefined) b = cellB.dataset.sortValue;
-      let cmp;
-      if (col.type === "number") {
-        cmp = (parseFloat(a.replace(",", ".")) || 0) - (parseFloat(b.replace(",", ".")) || 0);
-      } else if (col.type === "date") {
-        cmp = parseDateComparable(a) - parseDateComparable(b);
-      } else {
-        cmp = a.localeCompare(b, "it", { sensitivity: "base", numeric: true });
-      }
-      if (cmp !== 0) return dir === "desc" ? -cmp : cmp;
+  // Confronto tra righe su chiavi precalcolate (una mappa per colonna
+  // ordinata); a parità, l'ordine d'origine: l'ordinamento è stabile.
+  function compareRows(rowA, rowB, sortKeys) {
+    for (const sk of sortKeys) {
+      const cmp = compareSortKeys(sk.keys.get(rowA), sk.keys.get(rowB), sk.dir);
+      if (cmp !== 0) return cmp;
     }
-    return 0;
+    return (rowA._fmOrig || 0) - (rowB._fmOrig || 0);
+  }
+
+  // Riga dati + le sue righe di dettaglio subito sotto.
+  function rowWithDetails(row) {
+    const out = [row];
+    let sib = row.nextElementSibling;
+    while (sib && isDetailRow(sib)) { out.push(sib); sib = sib.nextElementSibling; }
+    return out;
   }
 
   function applyState(table, cols, state) {
+    stampRowOrder(table);
     // Righe dati reali (escluse le detail-row di espansione, controllate da JS esterno)
     const dataRows = bodyRows(table);
+    const tbody = table.tBodies[0];
 
     // Visibilità colonne
     const visible = new Set(state.visible);
@@ -1299,21 +1590,37 @@
 
     // Filtra (solo righe dati), poi ordina le righe che passano il filtro.
     const matched = [];
-    dataRows.forEach((tr) => { if (rowMatchesFilters(tr, cols, state)) matched.push(tr); });
+    const matchedSet = new Set();
+    dataRows.forEach((tr) => { if (rowMatchesFilters(tr, cols, state)) { matched.push(tr); matchedSet.add(tr); } });
 
-    // Sort: riordina le righe dati portando con sé le eventuali detail-row figlie.
-    if (state.sort.length) {
-      matched.sort((a, b) => compareRows(a, b, cols, state));
-      const tbody = table.tBodies[0];
+    // Ordinamento valido: solo colonne ancora presenti e ordinabili.
+    const activeSort = state.sort.filter(([key]) => {
+      const col = cols.find(c => c.key === key);
+      return col && col.sortable;
+    });
+    if (activeSort.length && tbody) {
+      const sortKeys = activeSort.map(([key, dir]) => ({
+        dir: dir,
+        keys: columnSortKeys(dataRows, cols.find(c => c.key === key)),
+      }));
+      matched.sort((a, b) => compareRows(a, b, sortKeys));
+      // Le righe escluse dal filtro restano dopo, nel loro ordine d'origine;
+      // le righe di gruppo non hanno senso in un elenco riordinato: in fondo, nascoste.
+      const rest = dataRows.filter(r => !matchedSet.has(r)).sort((a, b) => a._fmOrig - b._fmOrig);
+      const groups = Array.from(tbody.rows).filter(isGroupRow);
       const frag = document.createDocumentFragment();
-      matched.forEach(r => {
-        const details = [];
-        let sib = r.nextElementSibling;
-        while (sib && isDetailRow(sib)) { details.push(sib); sib = sib.nextElementSibling; }
-        frag.appendChild(r);
-        details.forEach(d => frag.appendChild(d));
-      });
+      matched.concat(rest).forEach(r => rowWithDetails(r).forEach(x => frag.appendChild(x)));
+      groups.forEach(g => frag.appendChild(g));
       tbody.appendChild(frag);
+      table._fmSorted = true;
+    } else if (table._fmSorted && tbody) {
+      // Ordinamento tolto: le righe tornano nell'ordine in cui le ha date il server.
+      const all = Array.from(tbody.rows).sort((a, b) => (a._fmOrig || 0) - (b._fmOrig || 0));
+      const frag = document.createDocumentFragment();
+      all.forEach(r => frag.appendChild(r));
+      tbody.appendChild(frag);
+      matched.sort((a, b) => a._fmOrig - b._fmOrig);
+      table._fmSorted = false;
     }
 
     // Caricamento passo passo: delle righe che passano il filtro se ne
@@ -1344,7 +1651,33 @@
       }
     });
 
+    // Righe di gruppo: con l'ordinamento attivo spariscono; altrimenti restano
+    // se sotto di loro c'è almeno una riga visibile.
+    if (tbody) {
+      const filtering = !!(state.q && state.q.trim()) ||
+        Object.keys(state.filters || {}).some(k => state.filters[k] !== "" && state.filters[k] != null);
+      let group = null;
+      let groupHasRows = false;
+      let groupAnyRows = false;
+      // Un gruppo vuoto già in origine resta com'era se non si sta filtrando.
+      const closeGroup = () => {
+        if (group) group.style.display = (groupHasRows || (!filtering && !groupAnyRows)) ? "" : "none";
+      };
+      Array.from(tbody.rows).forEach((tr) => {
+        if (isGroupRow(tr)) {
+          closeGroup();
+          group = tr; groupHasRows = false; groupAnyRows = false;
+          if (table._fmSorted) { tr.style.display = "none"; group = null; }
+        } else if (group && !isDetailRow(tr)) {
+          groupAnyRows = true;
+          if (shownSet.has(tr)) groupHasRows = true;
+        }
+      });
+      closeGroup();
+    }
+
     updateSortIndicators(cols, state);
+    if (table._fmMsortSync) table._fmMsortSync();
 
     // Conta (solo righe dati): quelle che passano il filtro, non solo quelle
     // già disegnate.
@@ -1987,6 +2320,8 @@
             added += 1;
           }
           tbody.appendChild(frag);
+          const g = headerGrid(table);
+          if (g) markStructuralRows(table, g.leaves.length);
         }
       }
     } catch (e) { /* skip page on network/parse error */ }
@@ -2201,6 +2536,15 @@
       countSpan.textContent = String(bodyRows(table).length);
       table._fmTblCountEl = countSpan;
       bar.appendChild(countSpan);
+      const msort = buildMobileSort(table, cols, state, onChange);
+      if (msort) bar.insertBefore(msort, bar.firstChild.nextSibling);
+    } else {
+      const msort = buildMobileSort(table, cols, state, onChange);
+      const anchor = table._fmViewport || table;
+      if (msort && anchor.parentNode) {
+        msort.classList.add("fm-tbl-msort-solo");
+        anchor.parentNode.insertBefore(msort, anchor);
+      }
     }
 
     wireMoreFooter(table, cols, state, statusEl);

@@ -52,6 +52,7 @@
 
   {% include "security/partials/alert_lifecycle_panel.html" %}
 </section>
+{% if cve_chiusura %}{% include "security/partials/cve_chiusura_panel.html" %}{% endif %}
 {% if alert.event.event_type == "vulnerability_finding" and alert.event.payload.cve %}{% cve_impact_panel alert.event.payload.cve %}{% endif %}
 
 <section class="sec-grid sec-two-col inv-cols" style="margin-top: 12px;">

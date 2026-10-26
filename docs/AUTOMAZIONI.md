@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 91
+**Totale automazioni disponibili:** 92
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -533,6 +533,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 06:30
 - **Task eseguito:** `dashboard.tasks.run_scadenze_outlook`
 - **Cosa fa:** Scadenzario → calendario Outlook personale («Scadenze NOVICROM HUB») di chi l'ha scelto in Impostazioni notifiche. Graph Calendars.ReadWrite (applicazione).
+
+### `security_ai_cpe`
+
+- **Quando gira:** ogni 360 minuti
+- **Task eseguito:** `security.tasks.ai_cpe_proposte_task`
+- **Cosa fa:** SECURITY CENTER — proposte dell'AI locale sui casi «da verificare» del calcolo CVE: il CPE di un software scelto fra quelli delle CVE note, o l'esito per PC quando la versione non si confronta. Solo proposte da accettare o rifiutare. Spenta finché non accesa da /soc/impostazioni/; massimo N casi per giro, nessuna richiesta se Ollama non risponde. Lettura «cpe_ai».
 
 ### `security_ai_lettura`
 

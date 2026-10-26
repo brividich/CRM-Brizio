@@ -1020,6 +1020,14 @@ class Reparto(models.Model):
         related_name="reparti_responsabilita", verbose_name="Ruolo responsabile",
         help_text="Ruolo della struttura che ha la responsabilità del reparto (es. CAR).",
     )
+    # Capo del reparto (26/10/2026): chi ha questa mansione assegnata nel
+    # Mansionario. Vuoto = la sua «Responsabilità del reparto». Con la regola
+    # unica accesa ``caporeparto_legacy_id`` è solo una copia derivata.
+    mansione_capo = models.ForeignKey(
+        "anagrafica.CompetenzaSkm", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="reparti_capo", verbose_name="Mansione del capo",
+        help_text="Chi ha questa mansione è il capo del reparto. Vuoto = «Responsabilità del reparto».",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1075,6 +1083,13 @@ class AreaAziendale(models.Model):
         "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="aree_responsabilita", verbose_name="Ruolo responsabile",
         help_text="Ruolo della struttura responsabile dell'area. Vuoto = quello del reparto.",
+    )
+    # Responsabile dell'area: chi ha questa mansione. Vuoto = l'area segue il
+    # capo del reparto (``responsabile_legacy_id`` è la copia derivata).
+    mansione_capo = models.ForeignKey(
+        "anagrafica.CompetenzaSkm", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="aree_capo", verbose_name="Mansione del responsabile",
+        help_text="Chi ha questa mansione è il responsabile dell'area. Vuoto = segue il reparto.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

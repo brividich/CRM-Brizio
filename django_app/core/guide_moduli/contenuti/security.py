@@ -77,6 +77,23 @@ GUIDA = {
             ],
         },
         {
+            "id": "cve-chiusura",
+            "titolo": "Quando l'aggiornamento ha corretto la CVE: l'alert si chiude con le prove",
+            "blocchi": [
+                ("p", "L'alert «PC con versione vulnerabile» di una CVE critica o sfruttata segue i PC a ogni ricalcolo: il titolo dice "
+                      "«3 PC su 5 ancora con versione vulnerabile» e ogni PC che esce lascia una voce nella timeline (aggiornato da 1.2 a 1.4 "
+                      "il tal giorno, con le prove). Il riquadro «Chiusura con prove» nella scheda dell'alert mostra lo stato di ogni PC."),
+                ("p", "Si chiude da solo (regola «CVE critica corretta con prove», accesa) quando nessun PC è più impattato né da verificare "
+                      "e ogni PC che era esposto ha due prove concordi tra: inventario recente con la versione corretta o il programma "
+                      "rimosso; patch WatchGuard non più mancante o installata; Defender che non la segnala più. Con una prova sola il PC "
+                      "è «in attesa di conferma» e l'alert resta aperto; un PC non più visto è «non verificabile» finché chi ha il permesso "
+                      "di configurazione non lo esclude dalla verifica, con motivo scritto in timeline. Il ticket si chiude con l'alert."),
+                ("p", "Se la versione vulnerabile ricompare entro 90 giorni, lo stesso alert si riapre come «Recidiva», con la sua storia. "
+                      "La pagina Vulnerabilità mostra i numeri degli ultimi 90 giorni: PC corretti, giorni medi dall'esposizione alla "
+                      "correzione, chiusure da sole e a mano, recidive."),
+            ],
+        },
+        {
             "id": "registro-accessi",
             "titolo": "Registro accessi: log dei server e amministratori di sistema",
             "blocchi": [
@@ -125,8 +142,17 @@ GUIDA = {
                     "Impostazioni › «Panoramica»: tutte le pagine di configurazione divise per compito (dati, alert, avvisi, controllo), "
                     "ognuna con il suo stato, e in cima «Da sistemare» con le cose da fare.",
                     "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
-                    "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
+                    "licenze M365, WatchGuard, CVE, proposte AI, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
                     "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
+                    "Impostazioni › «Battito del SOC»: tutto quello che il SOC fa da solo in una schermata. Coda dei lavori "
+                    "(qcluster) viva o ferma, letture in ritardo o in errore con la spiegazione, prossimi giri e mappa degli "
+                    "ultimi 14 giorni (un quadretto per giorno: verde tutti i giri riusciti, arancione qualcuno no, rosso "
+                    "nessuno, bordo tratteggiato non ha girato).",
+                    "Proposte AI su CPE ed esiti da verificare: Impostazioni › «Proposte AI su CPE ed esiti da verificare» (spenta di serie; "
+                    "massimo 5 casi per giro, confidenza minima 60). L'AI locale propone a quale CPE collegare un software (solo fra quelli "
+                    "delle CVE già nel sistema) o l'esito di una CVE su un PC quando la versione non si confronta; si accetta o rifiuta in "
+                    "Configurazione › Inventario software › Software e CPE (filtro «Proposte AI», pulsante «Proponi con l'AI ora») e nella "
+                    "scheda CVE. Accettare equivale a una conferma a mano, con audit; nulla viene deciso dall'AI da solo.",
                     "Registro accessi: SOC › Registro accessi › «Fonti». Server Windows letti senza agent (account del raccoglitore nel "
                     "gruppo «Event Log Readers», regola firewall «Gestione remota registro eventi»), oppure Windows Event Forwarding; "
                     "ESXi, switch, firewall e NAS via syslog verso il server del portale (porta 514, solo gli IP scritti nella fonte). "
@@ -147,6 +173,15 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Sembra che il SOC non legga più niente (alert, backup, CVE fermi)",
+            "fare": [
+                "Apri Impostazioni › «Battito del SOC»: in alto lo stato della coda dei lavori (qcluster).",
+                "«Il qcluster sembra fermo»: riavvia il servizio dei lavori in background sul server del portale; dopo pochi minuti la mappa torna verde.",
+                "Coda regolare ma una lettura «In ritardo» o rossa: aprila in «Letture automatiche», premi «Esegui ora» e leggi l'errore.",
+                "«Schedule non registrato»: dopo un aggiornamento manca setup_q_schedules sul server.",
+            ],
+        },
+        {
             "sintomo": "Registro accessi: «Raccoglitore fermo» o una fonte in errore",
             "fare": [
                 "Raccoglitore fermo: sul server del portale avvia il task «RegistroLog_<ambiente>» (cartella PortaleNovicrom dell'Utilità di pianificazione; log in logs/registro_log.log).",
@@ -154,6 +189,15 @@ GUIDA = {
                 "«Server non raggiungibile per la lettura remota (RPC)»: regola firewall «Gestione remota registro eventi» sul server.",
                 "Syslog muto: porta 514 non aperta nel firewall di Windows del server del portale o IP dell'apparato diverso da quello della fonte.",
                 "Ogni periodo senza raccolta resta tra le interruzioni (Archivio e integrità): scrivi la giustificazione.",
+            ],
+        },
+        {
+            "sintomo": "La lettura «Proposte AI su CPE ed esiti» non riesce o non propone nulla",
+            "fare": [
+                "«AI locale non raggiungibile» o «modello non caricato»: il server Ollama è spento o il modello non c'è. Setup Wizard › Assistente AI › verifica; Centrale di comando.",
+                "«Risposte scartate» alte: l'AI ha proposto CPE fuori dai candidati o versioni non presenti nei dati; abbassa con cautela la «Confidenza minima» solo se le motivazioni che vedi sono buone.",
+                "Nessun caso esaminato: i software in «Da decidere» hanno già una proposta aperta o rifiutata con gli stessi dati; decidi quelle aperte o aspetta nuove CVE/inventari.",
+                "Un software senza CPE candidati o con inventario più vecchio di 30 giorni non viene chiesto all'AI: serve un inventario nuovo o una decisione a mano.",
             ],
         },
         {

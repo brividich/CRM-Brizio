@@ -13,13 +13,14 @@
     · {% if record.kev %}<span class="sec-badge sec-badge-critical">CISA KEV: sfruttata attivamente{% if record.kev_due %}, scadenza {{ record.kev_due|date:"d/m/Y" }}{% endif %}</span>{% else %}non in CISA KEV{% endif %}
     {% if record.epss is not None %}· EPSS {{ record.epss|floatformat:3 }} (percentile {{ record.epss_percentile|floatformat:2 }}){% endif %}
     · NVD letto {% if record.nvd_fetched_at %}il {{ record.nvd_fetched_at|date:"d/m/Y H:i" }}{% else %}mai{% endif %}{% if record.nvd_error %} <span class="sec-muted">({{ record.nvd_error }})</span>{% endif %}
+    · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#come-si-legge-lesito">? Guida</a>
   </p>
 </section>
 
 {% include "security/partials/cve_impact_summary.html" with summary=summary record=record %}
 
 <section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>Esito per host</h2>
+  <div class="sec-section-head"><h2>Esito per host{% if proposte_ai %} <span class="sec-badge warning" title="Esiti «da verificare» per cui l'AI locale ha proposto una risposta: da accettare o rifiutare">{{ proposte_ai }} propost{{ proposte_ai|pluralize:"a,e" }} AI</span>{% endif %}</h2>
     <div class="sec-actions">
       <a class="sec-button{% if not outcome %} sec-button-primary{% endif %}" href="?">Tutti</a>
       {% for value, label in outcomes %}<a class="sec-button{% if outcome == value %} sec-button-primary{% endif %}" href="?esito={{ value }}">{{ label }}</a>{% endfor %}
@@ -33,7 +34,20 @@
         <tr>
           <td>{% if imp.hub_asset %}<a href="{% url 'assets:asset_view' imp.hub_asset.pk %}">{{ imp.host }}</a>{% else %}{{ imp.host }}{% endif %}</td>
           <td>{% if imp.outcome == "impacts" %}<span class="sec-badge sec-badge-critical">Impatta</span>{% elif imp.outcome == "to_verify" %}<span class="sec-badge warning">Da verificare</span>{% else %}<span class="sec-badge sec-badge-success">Non impatta</span>{% endif %}</td>
-          <td class="sec-small">{{ imp.explanation|linebreaksbr }}</td>
+          <td class="sec-small">{{ imp.explanation|linebreaksbr }}
+            {% if imp.ai %}
+            <div class="sec-ai-proposta" style="margin-top:4px;padding:4px 6px;border-left:3px solid var(--sec-accent, #2563eb)">
+              <strong>Proposta AI:</strong> {{ imp.ai.proposta_label }} <small class="sec-muted">(confidenza {{ imp.ai.confidenza }}%)</small>
+              <div class="sec-muted">{{ imp.ai.motivazione }}</div>
+              {% if can_edit %}
+              <form method="post" action="{% url 'security:proposta_ai_decidi' imp.ai.pk %}" class="sec-inline" style="margin-top:3px">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                {% if imp.ai.applicabile %}<button type="submit" name="decisione" value="accetta" class="sec-button sec-button-primary" title="L'esito vale finché la versione installata resta questa; nella spiegazione restano chi e quando">Accetta</button>{% endif %}
+                <button type="submit" name="decisione" value="rifiuta" class="sec-button" title="Scarta la proposta: l'AI non la ripropone finché i dati del caso non cambiano">Rifiuta</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
           <td class="sec-nowrap">{{ imp.inventory_date|date:"d/m/Y"|default:"—" }}</td>
         </tr>
       {% empty %}
