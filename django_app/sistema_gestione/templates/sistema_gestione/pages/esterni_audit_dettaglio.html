@@ -1,0 +1,74 @@
+{% extends "core/base.html" %}
+{% block title %}Audit esterno{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}
+<style>
+.est-box{ padding:16px 18px; display:grid; gap:14px; }
+.est-dl{ display:grid; grid-template-columns:220px 1fr; gap:8px 18px; margin:0; font-size:14px; }
+.est-dl dt{ font-weight:700; color:#6b7a90; }
+.est-dl dd{ margin:0; }
+.est-box ul{ margin:0; padding-left:20px; }
+body.theme-dark .est-dl dt{ color:var(--text-light); }
+@media (max-width:640px){ .est-dl{ grid-template-columns:1fr; gap:2px 0; } .est-dl dt{ margin-top:8px; } }
+</style>{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:esterni_elenco' %}">← Certificazioni e audit esterni</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{{ audit.get_tipo_display }} · {{ audit.ente }}</div>
+    <div class="page-sub">{{ audit.data_inizio|date:"d/m/Y" }}{% if audit.data_fine and audit.data_fine != audit.data_inizio %} – {{ audit.data_fine|date:"d/m/Y" }}{% endif %} · {{ audit.norme_sigle|join:", " }}{% if audit.certificazione %} · certificato {{ audit.certificazione }}{% endif %}</div></div>
+    <div class="sg-actions">
+      {% if audit.stato == "CHIUSO" %}<span class="sg-badge ok">Chiuso</span>{% elif audit.stato == "SVOLTO" %}<span class="sg-badge warn">Svolto</span>{% else %}<span class="sg-badge">Pianificato</span>{% endif %}
+      {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_audit_modifica' audit.pk %}">Modifica</a>{% endif %}
+    </div></div>
+
+  <div class="rc-card est-box">
+    <dl class="est-dl">
+      <dt>Auditor dell'ente</dt><dd>{{ audit.auditor|default:"—" }}</dd>
+      <dt>Ambito</dt><dd>{{ audit.ambito|default:"—"|linebreaksbr }}</dd>
+      <dt>Esito</dt><dd>{{ audit.get_esito_display|default:"Non ancora registrato" }}</dd>
+      <dt>Piano azioni all'ente entro</dt><dd>{{ audit.risposta_entro|date:"d/m/Y"|default:"—" }}</dd>
+      <dt>Sintesi</dt><dd>{{ audit.sintesi|default:"—"|linebreaksbr }}</dd>
+      <dt>Rapporto dell'ente</dt><dd>{% if audit.rapporto %}<a href="{% url 'sistema_gestione:esterni_rapporto' audit.pk %}">{{ audit.rapporto_nome }}</a> <span class="sg-muted">SHA-256 {{ audit.rapporto_sha256|slice:":12" }}…</span>{% else %}Non caricato{% endif %}</dd>
+    </dl>
+    {% if puo_modificare %}
+    <form method="post" enctype="multipart/form-data" action="{% url 'sistema_gestione:esterni_rapporto_carica' audit.pk %}" class="sg-inline-form">{% csrf_token %}
+      {{ rapporto_form.file }}<button class="btn btn-secondary" type="submit">{% if audit.rapporto %}Sostituisci il rapporto{% else %}Carica il rapporto{% endif %}</button>
+      <span class="sg-muted">PDF, cifrato e scaricabile solo da qui.</span>
+    </form>
+    {% endif %}
+  </div>
+
+  <h2 class="sg-section">Rilievi ({{ rilievi|length }})</h2>
+  <div class="rc-card sg-table-scroll"><table class="sg-table"><thead><tr><th>N. MOD.174</th><th>Tipo</th><th>Rilievo</th><th>Requisito</th><th>Responsabile</th><th>Entro</th><th>Fase</th></tr></thead><tbody>
+    {% for v in rilievi %}<tr>
+      <td><a href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.numero }}</a></td>
+      <td>{% if v.tipo == "NC" %}<span class="sg-badge danger">NC</span>{% else %}<span class="sg-badge warn">OFI</span>{% endif %}</td>
+      <td class="sg-cell-text">{{ v.opportunita|truncatechars:160 }}</td><td>{{ v.rif_norma|default:"—" }}</td>
+      <td>{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}—{% endif %}</td>
+      <td>{% if v.is_scaduto %}<span class="sg-badge danger">{{ v.data_richiesta|date:"d/m/Y" }}</span>{% else %}{{ v.data_richiesta|date:"d/m/Y"|default:"—" }}{% endif %}</td>
+      <td>{% if v.is_chiuso %}<span class="sg-badge ok">Chiuso</span>{% else %}{{ v.get_fase_display }}{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7">Nessun rilievo registrato.</td></tr>{% endfor %}
+  </tbody></table></div>
+
+  {% if puo_modificare %}
+  <h2 class="sg-section">Registra un rilievo</h2>
+  <form method="post" action="{% url 'sistema_gestione:esterni_rilievo' audit.pk %}" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    <div class="sg-form-grid">
+      {% include "core/forms/_field.html" with field=rilievo_form.classificazione %}
+      {% include "core/forms/_field.html" with field=rilievo_form.rif_norma %}
+      <div class="full">{% include "core/forms/_field.html" with field=rilievo_form.descrizione %}</div>
+      {% include "core/forms/_field.html" with field=rilievo_form.processo %}
+      {% include "core/forms/_field.html" with field=rilievo_form.responsabile %}
+      {% include "core/forms/_field.html" with field=rilievo_form.data_richiesta %}
+    </div>
+    <p class="sg-muted">Il rilievo diventa una voce del Registro OFI (fonte «{{ audit.ente }}»): le NC come non conformità, NC maggiore con priorità alta; osservazioni e OFI come opportunità. La CAR si apre dalla voce.</p>
+    <div class="sg-actions"><button class="btn" type="submit">Registra il rilievo</button></div>
+  </form>
+
+  <h2 class="sg-section">Chiusura</h2>
+  <div class="rc-card est-box">
+    {% if problemi_chiusura %}<p class="sg-muted">Per chiudere l'audit manca:</p><ul>{% for p in problemi_chiusura %}<li>{{ p }}</li>{% endfor %}</ul>
+    {% else %}<form method="post" action="{% url 'sistema_gestione:esterni_chiudi' audit.pk %}">{% csrf_token %}<button class="btn" type="submit" data-hub-confirm="Chiudere l'audit esterno? Dopo la chiusura non si aggiungono rilievi.">Chiudi l'audit</button></form>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

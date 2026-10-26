@@ -445,6 +445,36 @@ _PAGINE_AUDIT = [
             ]),
         ],
     },
+    {
+        "id": "pagina-esterni",
+        "titolo": "Pagina «Certificazioni e audit esterni»",
+        "blocchi": [
+            ("p", "Dalla pagina degli audit, pulsante «Audit esterni e certificazioni». Raccoglie i certificati del sistema di "
+                  "gestione e gli audit di enti di certificazione, clienti e autorità."),
+            ("ul", [
+                "Tessere: certificati in vigore, scaduti o in scadenza entro 90 giorni, sorveglianze entro 30 giorni, piani "
+                "azioni da inviare all'ente entro 7 giorni.",
+                "«Nuova certificazione»: norma (EN 9100, ISO 9001, 45001, 14001, 27001, PdR 125, Part 145 o «Altro» con "
+                "descrizione), ente, numero, emissione, scadenza, prossimo audit di sorveglianza, campo di applicazione. "
+                "Togli «Certificato in vigore» quando non vale più.",
+                "Nella tabella «Registra audit» apre un nuovo audit di sorveglianza già legato al certificato.",
+                "«Nuovo audit esterno»: tipo (certificazione iniziale, sorveglianza, rinnovo, cliente, autorità, speciale), "
+                "ente, date, norme verificate (almeno una), auditor dell'ente, ambito, stato, esito e data entro cui inviare "
+                "il piano azioni all'ente.",
+            ]),
+            ("p", "Nella scheda dell'audit:"),
+            ("ul", [
+                "«Carica il rapporto»: il PDF dell'ente, cifrato, con impronta SHA-256; download registrato.",
+                "«Registra un rilievo»: classificazione (NC maggiore, NC minore, osservazione, OFI), testo dell'ente, "
+                "requisito, processo, responsabile e scadenza. Il rilievo diventa una voce del Registro OFI con fonte l'ente "
+                "e le norme dell'audit; una NC maggiore ha priorità alta. Azioni, CAR ed efficacia si gestiscono dalla voce.",
+                "«Chiudi l'audit» compare quando ci sono esito e rapporto e nessuna NC è ancora aperta; dopo la chiusura "
+                "non si aggiungono rilievi.",
+                "Ogni lunedì RSGI riceve il riepilogo di certificati in scadenza, sorveglianze vicine e piani azioni da "
+                "inviare (job «sistema_gestione_scadenze_esterni»).",
+            ]),
+        ],
+    },
 ]
 
 # --- Registro OFI ---------------------------------------------------------------
@@ -656,6 +686,12 @@ PAGE_HELP = {
     "sistema_gestione:audit_verifica_efficacia": ("audit", "pagina-efficacia"),
     "sistema_gestione:procedura_car": ("ofi", "pagina-car"),
     "sistema_gestione:audit_miei_rilievi": ("audit", "pagina-miei-rilievi"),
+    "sistema_gestione:esterni_elenco": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_certificazione_nuova": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_certificazione": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_audit_nuovo": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_audit": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_audit_modifica": ("audit", "pagina-esterni"),
     "sistema_gestione:audit_cruscotto": ("audit", "pagina-cruscotto"),
     "sistema_gestione:procedura_kpi": ("audit", "pagina-kpi"),
     "sistema_gestione:audit_impostazioni": ("audit", "pagina-impostazioni"),

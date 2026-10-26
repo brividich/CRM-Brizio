@@ -19,7 +19,8 @@ MODULE = "sistema_gestione"
 # v3: route del programma basato sul rischio (cicli, calendario, impostazioni, rifiuto, deroga).
 # v4: annullamento audit e aggiornamento conferme Outlook.
 # v5: cruscotto, export rilievi, «I miei rilievi».
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v6"
+# v7: certificazioni e audit esterni.
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v7"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -123,6 +124,16 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:threat_intelligence_nuova": PERM_SOA_EDIT,
     "sistema_gestione:audit_index": PERM_AUDIT_VIEW,
     "sistema_gestione:auditor_elenco": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_elenco": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_audit": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_rapporto": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_certificazione_nuova": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_certificazione": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_audit_nuovo": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_audit_modifica": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_rilievo": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_rapporto_carica": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_chiudi": PERM_AUDIT_EDIT,
     "sistema_gestione:programma_dettaglio": PERM_AUDIT_VIEW,
     "sistema_gestione:programma_export_pdf": PERM_AUDIT_VIEW,
     "sistema_gestione:programma_copia_firmata": PERM_AUDIT_VIEW,

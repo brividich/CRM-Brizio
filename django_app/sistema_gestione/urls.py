@@ -5,6 +5,7 @@ from django.urls import path
 
 from . import guida
 from . import audit_views, views, processi_views, automation_views, programma_views, report_views, miei_rilievi_views
+from . import esterni_views
 
 app_name = "sistema_gestione"
 
@@ -37,6 +38,16 @@ urlpatterns = [
     path("audit/rilievi/export/", report_views.rilievi_export, name="audit_rilievi_export"),
     path("audit/miei-rilievi/", miei_rilievi_views.miei_rilievi, name="audit_miei_rilievi"),
     path("audit/guida/", guida.guida_audit, name="audit_guida"),
+    path("audit/esterni/", esterni_views.elenco, name="esterni_elenco"),
+    path("audit/esterni/certificazioni/nuova/", esterni_views.certificazione_modifica, name="esterni_certificazione_nuova"),
+    path("audit/esterni/certificazioni/<int:pk>/", esterni_views.certificazione_modifica, name="esterni_certificazione"),
+    path("audit/esterni/nuovo/", esterni_views.audit_modifica, name="esterni_audit_nuovo"),
+    path("audit/esterni/<int:pk>/", esterni_views.audit_dettaglio, name="esterni_audit"),
+    path("audit/esterni/<int:pk>/modifica/", esterni_views.audit_modifica, name="esterni_audit_modifica"),
+    path("audit/esterni/<int:pk>/rilievo/", esterni_views.rilievo_aggiungi, name="esterni_rilievo"),
+    path("audit/esterni/<int:pk>/rapporto/carica/", esterni_views.rapporto_carica, name="esterni_rapporto_carica"),
+    path("audit/esterni/<int:pk>/rapporto/", esterni_views.rapporto_scarica, name="esterni_rapporto"),
+    path("audit/esterni/<int:pk>/chiudi/", esterni_views.audit_chiudi, name="esterni_chiudi"),
     path("audit/<int:pk>/conferme/aggiorna/", programma_views.audit_conferme_aggiorna, name="audit_conferme_aggiorna"),
 
     path("", views.index, name="index"),

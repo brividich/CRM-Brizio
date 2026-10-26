@@ -955,6 +955,16 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # CERTIFICAZIONI E AUDIT ESTERNI — certificati scaduti/in scadenza (90 gg), sorveglianze
+        # entro 30 giorni, piani azioni da inviare all'ente: un riepilogo settimanale a RSGI.
+        "name": "sistema_gestione_scadenze_esterni",
+        "func": "sistema_gestione.tasks.run_scadenze_audit_esterni",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1",       # lunedì alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]
 
 

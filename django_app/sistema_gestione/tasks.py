@@ -138,3 +138,36 @@ def run_car_solleciti() -> dict:
     elif da_escalare:
         logger.warning("Escalation CAR senza destinatari: configura %s", CHIAVE_EMAIL_RSGI)
     return {"solleciti": solleciti, "escalation": escalation}
+
+
+def run_scadenze_audit_esterni() -> dict:
+    """Ogni settimana a RSGI: certificati scaduti o in scadenza, sorveglianze entro 30 giorni,
+    piani azioni da inviare all'ente entro 7 giorni (o già in ritardo)."""
+    from .services.audit_esterni import scadenze
+
+    dati = scadenze()
+    righe = []
+    for c in dati["certificati"]:
+        stato = "SCADUTO" if c.stato == "scaduta" else "in scadenza"
+        righe.append(f"- Certificato {c} {stato} il {c.scade_il:%d/%m/%Y}")
+    for c in dati["sorveglianze"]:
+        righe.append(f"- Audit di sorveglianza {c} previsto il {c.prossima_sorveglianza:%d/%m/%Y}")
+    for a in dati["risposte"]:
+        righe.append(f"- Piano azioni per {a} da inviare entro il {a.risposta_entro:%d/%m/%Y}")
+    destinatari = _email_rsgi()
+    if not righe:
+        return {"voci": 0, "inviata": False}
+    if not destinatari:
+        logger.warning("Scadenze audit esterni senza destinatari: configura %s", CHIAVE_EMAIL_RSGI)
+        return {"voci": len(righe), "inviata": False}
+    from core.email_utils import send_hub_mail
+    try:
+        send_hub_mail(
+            subject=f"Certificazioni e audit esterni: {len(righe)} scadenze",
+            body_text="Scadenze delle certificazioni e degli audit esterni:\n" + "\n".join(righe),
+            recipients=destinatari, title="Certificazioni e audit esterni", email_type="Sistema di gestione",
+        )
+    except Exception:
+        logger.exception("Avviso scadenze audit esterni non inviato")
+        return {"voci": len(righe), "inviata": False}
+    return {"voci": len(righe), "inviata": True}

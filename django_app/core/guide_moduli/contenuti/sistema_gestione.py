@@ -21,6 +21,8 @@ GUIDA = {
                     ("Registro OFI / NC", "opportunità di miglioramento e non conformità con azioni e verifica di efficacia (MOD.174). "
                      "Ogni voce ha un responsabile, un avanzamento PDCA passo passo, evidenze allegate e la cronologia; "
                      "«Le mie voci» e il «Cruscotto» mostrano cosa è aperto, scaduto o ricorrente."),
+                    ("Certificazioni e audit esterni", "certificati con scadenze e sorveglianze, audit di enti, clienti e "
+                     "autorità con rapporto e rilievi che entrano nel Registro OFI; riepilogo settimanale a RSGI."),
                     ("SoA", "dichiarazione di applicabilità dei controlli ISO 27001."),
                 ]),
                 ("p", "Ogni parte ha la sua guida passo passo: i collegamenti sono in cima."),

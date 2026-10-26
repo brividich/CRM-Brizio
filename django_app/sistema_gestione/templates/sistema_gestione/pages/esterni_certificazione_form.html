@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block title %}{% if oggetto %}Modifica certificazione{% else %}Nuova certificazione{% endif %}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:esterni_elenco' %}">← Certificazioni e audit esterni</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{% if oggetto %}Modifica certificazione{% else %}Nuova certificazione{% endif %}</div><div class="page-sub">Il riepilogo settimanale a RSGI segnala i certificati che scadono entro 90 giorni e le sorveglianze entro 30.</div></div></div>
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+    <div class="sg-form-grid">
+      {% include "core/forms/_field.html" with field=form.norma %}
+      {% include "core/forms/_field.html" with field=form.descrizione %}
+      {% include "core/forms/_field.html" with field=form.ente %}
+      {% include "core/forms/_field.html" with field=form.numero %}
+      {% include "core/forms/_field.html" with field=form.emesso_il %}
+      {% include "core/forms/_field.html" with field=form.scade_il %}
+      {% include "core/forms/_field.html" with field=form.prossima_sorveglianza %}
+      {% include "core/forms/_field.html" with field=form.attiva %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.campo_applicazione %}</div>
+      <div class="full">{% include "core/forms/_field.html" with field=form.note %}</div>
+    </div>
+    <div class="sg-actions"><button class="btn" type="submit">Salva</button>
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:esterni_elenco' %}">Annulla</a></div>
+  </form>
+</div>
+{% endblock %}
