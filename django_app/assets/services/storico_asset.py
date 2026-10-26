@@ -35,6 +35,8 @@ CAMPI_ASSET = {
     "assignment_reparto": "Reparto assegnazione",
     "assignment_location": "Ubicazione",
     "switch_prefisso_porte": "Prefisso porte switch",
+    "rack__codice": "Rack",
+    "switch_membro": "Membro dello stack",
 }
 #: Campi del punto rete (AssetEndpoint); il nome del campo storico e' ``endpoint.<campo>``.
 CAMPI_ENDPOINT = {
@@ -55,7 +57,7 @@ ETICHETTE = {
 GRUPPI = {
     "stato": ["status"],
     "assegnazione": ["reparto", "assigned_legacy_user_id", "assignment_to", "assignment_reparto", "assignment_location"],
-    "rete": [CAMPO_ENDPOINT_PRESENZA, "switch_prefisso_porte"] + [f"endpoint.{k}" for k in CAMPI_ENDPOINT],
+    "rete": [CAMPO_ENDPOINT_PRESENZA, "switch_prefisso_porte", "rack__codice", "switch_membro"] + [f"endpoint.{k}" for k in CAMPI_ENDPOINT],
 }
 
 

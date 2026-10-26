@@ -184,6 +184,8 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 routes=frozenset({"software_catalog_detail"}),
             ),
             NavItem("rete_indirizzi", "Indirizzi IP", "rete_indirizzi", sidebar_code="rete_indirizzi"),
+            NavItem("rete_rack", "Rack e switch", "rete_rack", sidebar_code="rete_rack",
+                    routes=frozenset({"rete_rack_detail"})),
             NavItem("mtconnect", "Macchine collegate", "mtconnect_collegamenti", sidebar_code="mtconnect_collegamenti"),
         ),
     ),
@@ -315,6 +317,11 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         'Gli indirizzi della rete letti ogni ora dal DHCP e dal DNS di Windows Server, con gli ambiti e la loro occupazione.',
         'Filtro «Non censiti»: dispositivi in rete che nessun asset riconosce per MAC, IP o nome.',
         'I collegamenti agli asset si confermano dalla Riconciliazione dispositivi IT.',
+    ),
+    'rete_rack': (
+        'Gli armadi di rete con i loro switch: per ogni switch le porte che serve (es. A0.2) e i dispositivi collegati.',
+        'Il membro dello stack si indica sulla scheda dello switch: membro 2 = porte A0.2.x.',
+        'In fondo le porte che nessuno switch censito serve e gli apparati non ancora messi in un rack.',
     ),
     'mtconnect': (
         "Le CNC lette dal loro agent MTConnect ogni 2 minuti: stato reale sulla mappa officina, programma, allarmi.",

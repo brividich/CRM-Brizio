@@ -94,7 +94,7 @@ body.theme-dark .af-it-supply progress.af-it-low::-moz-progress-bar { background
 .af-net-id strong { font-size: 15px; overflow-wrap: anywhere; }
 .af-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: #94a3b8; }
 .af-net-vlan { margin-left: auto; padding: 3px 9px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 12px; font-weight: 700; }
-.af-net-path { list-style: none; margin: 0; padding: 10px 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.af-net-path { list-style: none; margin: 0; padding: 10px 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .af-net-path li { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-left: 14px; }
 .af-net-path li::before { content: ""; position: absolute; left: 0; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: #1d4ed8; }
 .af-net-path li + li::after { content: "→"; position: absolute; left: -12px; top: 12px; color: #94a3b8; font-size: 12px; }
@@ -158,6 +158,7 @@ body.theme-dark .af-rete-errore, body.theme-dark .af-rete-elimina { color: #fca5
 .af-swmap-porta.af-vlx { background: #d1d5db; }
 .af-swmap-collega { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin: 6px 0 12px; padding: 10px 12px; border: 1px dashed #cbd5e1; border-radius: 10px; }
 .af-swmap-collega label { display: flex; flex-direction: column; gap: 3px; }
+.af-swmap-collega input[name="membro"] { width: 6em; }
 .af-swmap-collega input, .af-swmap-collega select { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; }
 body.theme-dark .af-swmap-pannello { background: #0b1220; border: 1px solid var(--border); }
 body.theme-dark .af-swmap-collega { border-color: var(--border); }

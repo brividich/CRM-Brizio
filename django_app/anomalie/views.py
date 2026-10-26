@@ -3080,12 +3080,10 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
                     cursor, _quoted_columns(insert_cols), ", ".join(insert_placeholders), insert_params,
                 )
             else:
-                if where_clause == "id = %s":
-                    cursor.execute("SELECT id FROM anomalie WHERE id = %s", [where_params[0]])
-                else:
-                    cursor.execute("SELECT TOP 1 id FROM anomalie ORDER BY id DESC")
-                row = cursor.fetchone()
-                local_id = int(row[0]) if row and row[0] is not None else None
+                # UPDATE riuscito: avviene solo con where_clause "id = %s", quindi
+                # l'id e' quello della richiesta. Niente piu' "ultima riga inserita"
+                # (ORDER BY id DESC), che con salvataggi concorrenti dava l'id sbagliato.
+                local_id = local_pk_id
     except DatabaseError as exc:
         return {"success": False, "error": str(exc), "status": 500}
 

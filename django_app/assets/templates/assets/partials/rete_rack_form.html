@@ -1,0 +1,13 @@
+{# Modulo crea/modifica rack. Contesto: form (RackForm), torna (id rack o vuoto). #}
+<form method="post" action="{% url 'assets:rete_rack' %}" class="rk-form">
+  {% csrf_token %}
+  {% if form.instance.pk %}<input type="hidden" name="rack" value="{{ form.instance.pk }}">{% endif %}
+  {% if torna %}<input type="hidden" name="torna" value="{{ torna }}">{% endif %}
+  {% for campo in form %}
+  <label class="{% if campo.name == 'note' %}rk-wide{% endif %}">{{ campo.label }}{{ campo }}{% for e in campo.errors %}<span class="rk-err">{{ e }}</span>{% endfor %}</label>
+  {% endfor %}
+  <p class="rk-note rk-wide">Prefisso porte switch: le porte «A0.1.37», «A0.2.5»… dei punti rete appartengono agli switch di questo rack (il membro dello stack, 1, 2…, si indica sulla scheda di ogni switch). Prefisso patch panel: riconosce il rack dalla porta del patch panel (es. Q0.89) quando lo switch non è noto.</p>
+  <div class="rk-actions rk-wide">
+    <button class="btn btn-primary" name="azione" value="salva">{% if form.instance.pk %}Salva rack{% else %}Crea rack{% endif %}</button>
+  </div>
+</form>
