@@ -135,6 +135,10 @@ Quando un parser legge una mail solo in parte («Da verificare») o nessun parse
 - Il testo del report è trattato come un dato: eventuali istruzioni scritte nella mail («ignora le istruzioni…») non possono cambiare nulla nel SOC. Se il testo ne contiene, la proposta porta il badge rosso **Testo sospetto** (la mail va guardata: può essere un tentativo di inganno); se l'esito proposto dall'AI contraddice quello scritto in chiaro nel testo compare **in contrasto con il testo**.
 - Per misurare tempi e precisione sul server: `python manage.py soc_ai_lettura_prova` (campioni sintetici, nessun salvataggio).
 
+### Proposte su CPE ed esiti da verificare
+
+La stessa AI può esaminare i casi «da verificare» del calcolo CVE: a quale CPE collegare un software (scelto solo fra quelli delle CVE già nel sistema) e se una CVE riguarda davvero un PC quando la versione non si confronta. **Si accende** in **Impostazioni › Proposte AI su CPE ed esiti da verificare** (spenta di serie), con il massimo di casi per giro (5) e la confidenza minima (60) sotto cui la risposta viene scartata; **gira** con la lettura **cpe_ai** ogni 6 ore e con **Proponi con l'AI ora** in Software e CPE. Riceve solo dati del sistema (nomi dei programmi, versioni, numero di PC, range delle CVE): mai testi di mail. Le proposte si accettano o rifiutano in Software e CPE e nella scheda CVE: i dettagli sono nel capitolo «Automatismi e vulnerabilità».
+
 ### Come impara
 
 - Quando promuovi un evento ad alert o confermi che è a posto, la scelta viene ricordata: la volta dopo l'AI tiene conto di come avete deciso su eventi simili.

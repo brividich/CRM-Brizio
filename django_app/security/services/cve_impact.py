@@ -117,6 +117,33 @@ def _ci(text):
     return str(text or "").lower()
 
 
+def _verifiche_accettate():
+    try:
+        from security.services.cpe_ai import verifiche_accettate
+
+        return verifiche_accettate()
+    except Exception:  # noqa: BLE001 - senza verifiche il ricalcolo resta quello di sempre
+        logger.exception("Verifiche accettate non lette")
+        return {}
+
+
+def _applica_verifica(ctx, record, install, outcome, text):
+    """Un «da verificare» deciso da una persona (proposta AI accettata) vale finché la versione resta quella.
+
+    La decisione è della persona che ha premuto «Accetta», non dell'AI: nella spiegazione restano
+    chi, quando e la motivazione, così l'esito resta verificabile.
+    """
+    if outcome != SecurityCveImpact.TO_VERIFY or not ctx.verifiche:
+        return outcome, text
+    verifica = ctx.verifiche.get((record.cve_id.upper(), _ci(install.host)))
+    if verifica is None or verifica.versione != install.version_raw:
+        return outcome, text
+    deciso = SecurityCveImpact.IMPACTS if verifica.proposta == "impatta" else SecurityCveImpact.NOT_IMPACTED
+    chi = verifica.decisa_da.get_username() if verifica.decisa_da_id else "una persona"
+    quando = f" il {verifica.decisa_il:%d/%m/%Y}" if verifica.decisa_il else ""
+    return deciso, f"{text} Verificato da {chi}{quando} accettando la proposta dell'AI: {verifica.motivazione}"
+
+
 class Contesto:
     """Mappature e installazioni lette UNA volta per tutto il ricalcolo, non per ogni criterio.
 
@@ -131,6 +158,8 @@ class Contesto:
         )
         self.not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
         self.installs = list(SoftwareInstallation.objects.filter(still_detected=True))
+        # Esiti «da verificare» decisi da una persona accettando una proposta dell'AI (services.cpe_ai).
+        self.verifiche = _verifiche_accettate()
         self.per_prodotto = defaultdict(list)
         self.per_host = defaultdict(list)
         self.per_pk = {install.pk: install for install in self.installs}
@@ -160,6 +189,7 @@ def evaluate(record, today=None, ctx=None):
         if products:
             for install in ctx.installazioni_di(products):
                 outcome, text = _evaluate_install(record, criterion, install, stale_before, ctx.auto_pairs)
+                outcome, text = _applica_verifica(ctx, record, install, outcome, text)
                 _merge(per_host, install, outcome, text)
             continue
         # Nessuna mappatura confermata: cerco prodotti dal nome simile, da verificare.
