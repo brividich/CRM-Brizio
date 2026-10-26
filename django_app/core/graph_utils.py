@@ -24,6 +24,9 @@ _TOKEN_LOCK = Lock()
 # Anticipo di scadenza: rinnova il token 60s prima della scadenza effettiva.
 _TOKEN_BUFFER_SECONDS = 60
 
+# Timeout (connessione, lettura) delle chiamate MSAL verso Entra ID.
+_MSAL_TIMEOUT_SECONDS = (5, 20)
+
 # Prefisso chiave cache: include un digest delle credenziali per isolare tenant
 # diversi senza mai scrivere il client_secret in chiaro nella cache.
 _CACHE_KEY_PREFIX = "graph:token:"
@@ -66,6 +69,9 @@ def acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> s
             client_id,
             authority=f"https://login.microsoftonline.com/{tenant_id}",
             client_credential=client_secret,
+            # Senza timeout una login.microsoftonline.com lenta teneva _TOKEN_LOCK
+            # e bloccava tutti i thread del worker che chiedono il token.
+            timeout=_MSAL_TIMEOUT_SECONDS,
         )
         result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
         token = result.get("access_token")

@@ -620,8 +620,8 @@ def api_set_modules(request):
         from core.models import SiteConfig
         for key in all_optional:
             SiteConfig.objects.update_or_create(
-                key=f"module_visible_{key}",
-                defaults={"value": "1" if key in selected else "0"},
+                chiave=f"module_visible_{key}",
+                defaults={"valore": "1" if key in selected else "0"},
             )
         return _json({"ok": True, "message": f"{len(selected)} moduli attivati."})
     except Exception as exc:
