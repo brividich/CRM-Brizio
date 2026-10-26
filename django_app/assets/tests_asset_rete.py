@@ -136,7 +136,7 @@ class MappaSwitchTests(TestCase):
         self.assertContains(resp, "Mappa porte dello switch")
         self.assertContains(resp, "A0.2")
         resp = self.client.get(reverse("assets:asset_view", args=[nuovo.id]))
-        self.assertContains(resp, "da prefisso")
+        self.assertContains(resp, "riconosciuto dalla porta")
 
     def test_switch_name_esplicito_vince_sul_prefisso(self):
         altro = Asset.objects.create(asset_tag="SYN-SW-3", name="Altro switch", asset_type=Asset.TYPE_HW)
@@ -198,7 +198,11 @@ class RackTests(TestCase):
             self.assertEqual(risolti[ep.id].rack, self.rack)
         self.assertEqual(rete_switch.mappa_switch(self.sw1)["totale"], 1)
         self.assertEqual(rete_switch.mappa_switch(self.sw2)["totale"], 2)
-        self.assertEqual(rete_switch.porte_senza_switch(), [{"prefisso": "A0.3", "porte": 1}])
+        self.assertEqual(rete_switch.porte_senza_switch(), [{"prefisso": "A0.3", "membro": "3", "porte": 1, "rack": self.rack}])
+        self.assertIn("membro 3", rete_switch.motivo_senza_switch(self.ep4, self.rack))
+        panoramica = rete_switch.panoramica_rack()
+        self.assertEqual(panoramica["riepilogo"]["porte_libere"], 1)
+        self.assertEqual([p["prefisso"] for p in panoramica["racks"][0]["porte_libere"]], ["A0.3"])
         dettaglio = rete_switch.dettaglio_rack(self.rack)
         self.assertEqual([b["titolo"] for b in dettaglio["switch"]], ["A0.1", "A0.2"])
         self.assertEqual({ep.id for ep in dettaglio["orfani"]}, {self.ep4.id, self.ep5.id})

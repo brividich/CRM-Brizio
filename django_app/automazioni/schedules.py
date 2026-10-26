@@ -153,6 +153,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — proposte dell'AI locale sui casi «da verificare» del calcolo CVE: il CPE
+        # di un software scelto fra quelli delle CVE note, o l'esito per PC quando la versione non si
+        # confronta. Solo proposte da accettare o rifiutare. Spenta finché non accesa da /soc/impostazioni/;
+        # massimo N casi per giro, nessuna richiesta se Ollama non risponde. Lettura «cpe_ai».
+        "name": "security_ai_cpe",
+        "func": "security.tasks.ai_cpe_proposte_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 360,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)

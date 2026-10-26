@@ -117,6 +117,33 @@ def _ci(text):
     return str(text or "").lower()
 
 
+def _verifiche_accettate():
+    try:
+        from security.services.cpe_ai import verifiche_accettate
+
+        return verifiche_accettate()
+    except Exception:  # noqa: BLE001 - senza verifiche il ricalcolo resta quello di sempre
+        logger.exception("Verifiche accettate non lette")
+        return {}
+
+
+def _applica_verifica(ctx, record, install, outcome, text):
+    """Un «da verificare» deciso da una persona (proposta AI accettata) vale finché la versione resta quella.
+
+    La decisione è della persona che ha premuto «Accetta», non dell'AI: nella spiegazione restano
+    chi, quando e la motivazione, così l'esito resta verificabile.
+    """
+    if outcome != SecurityCveImpact.TO_VERIFY or not ctx.verifiche:
+        return outcome, text
+    verifica = ctx.verifiche.get((record.cve_id.upper(), _ci(install.host)))
+    if verifica is None or verifica.versione != install.version_raw:
+        return outcome, text
+    deciso = SecurityCveImpact.IMPACTS if verifica.proposta == "impatta" else SecurityCveImpact.NOT_IMPACTED
+    chi = verifica.decisa_da.get_username() if verifica.decisa_da_id else "una persona"
+    quando = f" il {verifica.decisa_il:%d/%m/%Y}" if verifica.decisa_il else ""
+    return deciso, f"{text} Verificato da {chi}{quando} accettando la proposta dell'AI: {verifica.motivazione}"
+
+
 class Contesto:
     """Mappature e installazioni lette UNA volta per tutto il ricalcolo, non per ogni criterio.
 
@@ -131,6 +158,8 @@ class Contesto:
         )
         self.not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
         self.installs = list(SoftwareInstallation.objects.filter(still_detected=True))
+        # Esiti «da verificare» decisi da una persona accettando una proposta dell'AI (services.cpe_ai).
+        self.verifiche = _verifiche_accettate()
         self.per_prodotto = defaultdict(list)
         self.per_host = defaultdict(list)
         self.per_pk = {install.pk: install for install in self.installs}
@@ -160,6 +189,7 @@ def evaluate(record, today=None, ctx=None):
         if products:
             for install in ctx.installazioni_di(products):
                 outcome, text = _evaluate_install(record, criterion, install, stale_before, ctx.auto_pairs)
+                outcome, text = _applica_verifica(ctx, record, install, outcome, text)
                 _merge(per_host, install, outcome, text)
             continue
         # Nessuna mappatura confermata: cerco prodotti dal nome simile, da verificare.
@@ -248,6 +278,14 @@ def recompute(record, today=None, ctx=None):
         record.save(update_fields=["impact_computed_at"])
     impacted = {host: per_host[host] for host in per_host if per_host[host][0] == SecurityCveImpact.IMPACTS}
     record._new_impact_event = record_new_impacts(record, impacted, set(impacted) - before, now)
+    if risolte or set(impacted) != before:
+        # L'alert aperto della CVE segue il progresso: PC usciti in timeline, «N PC su M» nel titolo.
+        try:
+            from security.services import cve_chiusura
+
+            cve_chiusura.aggiorna_alert(record, risolte)
+        except Exception:  # noqa: BLE001 - l'alert è un di più: il ricalcolo non deve fallire per lui
+            logger.exception("Aggiornamento dell'alert della CVE %s non riuscito", record.cve_id)
     return len(rows)
 
 
@@ -269,6 +307,13 @@ def recompute_all(today=None):
             from security.services.rule_engine import evaluate_security_rules
 
             evaluate_security_rules()
+        try:
+            # Chiusura con prove degli alert «PC con versione vulnerabile» (regola cve_impatto_risolto).
+            from security.services.auto_resolution import run_cve_impatto_risolto
+
+            run_cve_impatto_risolto()
+        except Exception:  # noqa: BLE001 - una chiusura mancata si ritenta al ciclo SOC successivo
+            logger.exception("Chiusura automatica degli alert CVE non riuscita")
         return total
     finally:
         cache.delete(LOCK_KEY)
@@ -383,9 +428,11 @@ def closure_proposal(record, info):
     if any(item["similar"] for item in info["unmapped"]):
         return False, "Prodotti simili senza mappatura CPE confermata."
     if record.kev:
-        return False, "CVE sfruttata attivamente (CISA KEV): la chiusura resta manuale dopo verifica."
+        return False, ("CVE sfruttata attivamente (CISA KEV): l'alert si chiude da solo solo con due prove concordi per ogni PC "
+                       "(regola «CVE critica corretta con prove»), altrimenti a mano dopo verifica.")
     if (record.severity or "").lower() == "critical" or (record.cvss or 0) >= 9:
-        return False, "CVE critica: la chiusura resta manuale dopo verifica."
+        return False, ("CVE critica: l'alert si chiude da solo solo con due prove concordi per ogni PC "
+                       "(regola «CVE critica corretta con prove»), altrimenti a mano dopo verifica.")
     return True, f"Nessun host impattato secondo l'inventario del {info['inventory_date']:%d/%m/%Y}: si può proporre la chiusura."
 
 

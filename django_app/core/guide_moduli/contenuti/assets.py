@@ -155,7 +155,8 @@ GUIDA = {
                     "Torna su «Rack e switch»: ogni rack elenca i suoi switch con le porte servite (A0.1, A0.2…) e i dispositivi collegati; "
                     "un clic sul rack mostra il frontale di ogni switch.",
                 ]),
-                ("p", "In fondo alla pagina: «Porte senza switch» (porte che nessuno switch censito serve) e «Apparati di rete senza rack». "
+                ("p", "In cima il riepilogo: i riquadri gialli «Punti rete senza switch» e «Apparati senza rack» portano agli elenchi da sistemare "
+                      "(«Colloca →» apre la scheda dello switch). Nella pagina del rack la colonna «Cosa manca» spiega perché un punto rete non arriva a uno switch. "
                       "Nella scheda di un PC il percorso è Rack → Switch → Porta SW → Porta patch panel."),
             ],
         },

@@ -10,7 +10,18 @@
 
 {% block assets_shell_content %}
 <div class="rk-page">
-  <div class="rk-toolbar"><a href="{% url 'assets:rete_rack' %}">← Tutti i rack</a>{% if guida_url %}<a href="{{ guida_url }}">? Guida</a>{% endif %}</div>
+  <div class="rk-toolbar">
+    <a class="rk-btn" href="{% url 'assets:rete_rack' %}">← Tutti i rack</a>
+    {% if puo_modificare %}<a class="rk-btn" href="#modifica-rack" data-rk-apri="modifica-rack">Modifica rack</a>{% endif %}
+    {% if guida_url %}<a class="rk-btn" href="{{ guida_url }}">? Guida</a>{% endif %}
+  </div>
+
+  {% if switch or orfani %}
+  <nav class="rk-meta" aria-label="Vai a">
+    {% for b in switch %}<a class="rk-chip rk-mono" href="#switch-{{ b.asset.id }}">{{ b.titolo|default:b.asset.asset_tag }} · {{ b.mappa.totale }}</a>{% endfor %}
+    {% if orfani %}<a class="rk-chip rk-chip-warn" href="#senza-switch">Senza switch · {{ orfani|length }}</a>{% endif %}
+  </nav>
+  {% endif %}
 
   {% for b in switch %}
   <section class="rk-card" id="switch-{{ b.asset.id }}">
@@ -38,11 +49,11 @@
   {% endfor %}
 
   {% if orfani %}
-  <section class="rk-card">
+  <section class="rk-card" id="senza-switch">
     <h2 class="rk-title">Nel rack ma senza switch riconosciuto · {{ orfani|length }}</h2>
-    <p class="rk-note">Punti rete con porta o patch panel di questo rack per cui nessuno switch censito serve quella porta: manca lo switch del membro indicato, oppure lo switch scritto sul punto rete non è censito.</p>
+    <p class="rk-note">Punti rete con porta o patch panel di questo rack che non arrivano a uno switch censito. La colonna «Cosa manca» dice come sistemarli.</p>
     <div class="rk-table-wrap"><table class="rk-table">
-      <thead><tr><th>Dispositivo</th><th>Switch indicato</th><th>Porta SW</th><th>Patch panel</th><th>IP</th><th>VLAN</th></tr></thead>
+      <thead><tr><th>Dispositivo</th><th>Switch indicato</th><th>Porta SW</th><th>Patch panel</th><th>IP</th><th>VLAN</th><th>Cosa manca</th></tr></thead>
       <tbody>{% for ep in orfani %}<tr>
         <td><a href="{% url 'assets:asset_view' ep.asset_id %}">{{ ep.asset.asset_tag }}</a> {{ ep.asset.name }}</td>
         <td>{{ ep.switch_name|default:"—" }}</td>
@@ -50,13 +61,14 @@
         <td class="rk-mono">{{ ep.punto|default:"—" }}</td>
         <td class="rk-mono">{{ ep.ip|default:"—" }}</td>
         <td>{{ ep.vlan|default_if_none:"—" }}</td>
+        <td class="rk-motivo">{{ ep.motivo }}</td>
       </tr>{% endfor %}</tbody>
     </table></div>
   </section>
   {% endif %}
 
   {% if puo_modificare %}
-  <details class="rk-card">
+  <details class="rk-card" id="modifica-rack">
     <summary>Modifica rack</summary>
     {% include "assets/partials/rete_rack_form.html" with torna=rack.id %}
     <form method="post" action="{% url 'assets:rete_rack' %}" class="rk-actions" style="margin-top:12px" data-hub-confirm="Eliminare il rack {{ rack.codice }}? Gli switch restano censiti, solo senza rack.">
@@ -66,4 +78,5 @@
   </details>
   {% endif %}
 </div>
+{% include "assets/partials/rete_rack_apri.html" %}
 {% endblock %}

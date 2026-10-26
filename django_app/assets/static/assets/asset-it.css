@@ -99,6 +99,8 @@ body.theme-dark .af-it-supply progress.af-it-low::-moz-progress-bar { background
 .af-net-path li::before { content: ""; position: absolute; left: 0; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: #1d4ed8; }
 .af-net-path li + li::after { content: "→"; position: absolute; left: -12px; top: 12px; color: #94a3b8; font-size: 12px; }
 .af-net-path strong { overflow-wrap: anywhere; }
+.af-net-sub { font-size: 12px; color: #64748b; overflow-wrap: anywhere; }
+body.theme-dark .af-net-sub { color: var(--text-mid, #94a3b8); }
 .af-it-empty { padding: 12px 14px; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; }
 body.theme-dark .af-it-body h3.af-it-sub, body.theme-dark .af-it-dev-meta, body.theme-dark .af-mfc-legend, body.theme-dark .af-it-empty { color: var(--text-light); }
 body.theme-dark .af-it-body h3.af-it-sub::after { background: var(--border); }
@@ -159,6 +161,7 @@ body.theme-dark .af-rete-errore, body.theme-dark .af-rete-elimina { color: #fca5
 .af-swmap-collega { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin: 6px 0 12px; padding: 10px 12px; border: 1px dashed #cbd5e1; border-radius: 10px; }
 .af-swmap-collega label { display: flex; flex-direction: column; gap: 3px; }
 .af-swmap-collega input[name="membro"] { width: 6em; }
+.af-swmap-aiuto { flex-basis: 100%; }
 .af-swmap-collega input, .af-swmap-collega select { padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; }
 body.theme-dark .af-swmap-pannello { background: #0b1220; border: 1px solid var(--border); }
 body.theme-dark .af-swmap-collega { border-color: var(--border); }

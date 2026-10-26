@@ -1,0 +1,10 @@
+{% with current=request.resolver_match.url_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'home' %} active{% endif %}" href="{% url 'registro_ofi:home' %}">Dashboard</a>
+  {% if ofi_vede_registro %}<a class="sub-a{% if current == 'lista' %} active{% endif %}" href="{% url 'registro_ofi:lista' %}">Registro MOD.174</a>{% endif %}
+  <a class="sub-a{% if current == 'mie' %} active{% endif %}" href="{% url 'registro_ofi:mie' %}">Le mie voci</a>
+  {% if can_add %}<div class="sub-sep"></div><a class="sub-a{% if current == 'nuovo' %} active{% endif %}" href="{% url 'registro_ofi:nuovo' %}">+ Nuovo inserimento</a>{% endif %}
+  <div class="sub-sep"></div>
+  <a class="sub-a" href="{% url 'registro_ofi:guida' %}">Guida</a>
+</div>
+{% endwith %}

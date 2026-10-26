@@ -14,6 +14,7 @@ PAGE_HELP = {
     "watchguard_pc": ("12-automatismi-e-vulnerabilita", "patch-e-protezione-watchguard"),
     "rete_indirizzi": ("15-backup-vpn-kpi-asset", "rete-ip"),
     "letture": ("16-impostazioni-e-ai", "letture-automatiche"),
+    "battito": ("16-impostazioni-e-ai", "battito-del-soc"),
     "segnalazioni": ("13-lavoro-quotidiano", "le-segnalazioni"),
     "search": ("13-lavoro-quotidiano", "cercare-qualcosa"),
     "alerts_list": ("13-lavoro-quotidiano", "alert"),

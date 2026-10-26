@@ -17,10 +17,13 @@
     <a class="sec-button{% if stato == 'senza_cve' %} sec-button-primary{% endif %}" href="?stato=senza_cve&q={{ q|urlencode }}" title="Nessuna CVE nel sistema ha un nome simile: oggi non c'è nulla da fare">Senza CVE note ({{ counts.senza_cve }})</a>
     <a class="sec-button{% if stato == 'automatici' %} sec-button-primary{% endif %}" href="?stato=automatici&q={{ q|urlencode }}">Collegati in automatico ({{ counts.automatici }})</a>
     <a class="sec-button{% if stato == 'non_applicabili' %} sec-button-primary{% endif %}" href="?stato=non_applicabili&q={{ q|urlencode }}">Non applicabili ({{ counts.non_applicabili }})</a>
+    <a class="sec-button{% if stato == 'ai' %} sec-button-primary{% endif %}" href="?stato=ai&q={{ q|urlencode }}" title="Software per cui l'AI locale ha proposto un CPE o «non applicabile»: da accettare o rifiutare">Proposte AI ({{ counts.ai }})</a>
     <span class="sec-small sec-muted">Confermati a mano: {{ counts.confermati }}</span>
   </div>
   <form method="get" class="sec-inline"><input type="hidden" name="stato" value="{{ stato }}"><input type="search" name="q" value="{{ q }}" placeholder="Cerca vendor o prodotto" aria-label="Cerca software"><button type="submit" class="sec-button">Cerca</button></form>
   <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_auto"><button type="submit" class="sec-button" title="Collega i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate">Collega automaticamente ora</button></form>
+  <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="ai_proponi"><button type="submit" class="sec-button"{% if ai_manca or ai_in_corso %} disabled title="{% if ai_in_corso %}Un giro è già in corso{% else %}{{ ai_manca }}{% endif %}"{% else %} title="L'AI locale esamina i casi «Da decidere» e gli esiti da verificare (al massimo il numero scelto in Impostazioni) e propone: niente viene deciso da solo"{% endif %}>Proponi con l'AI ora</button></form>
+  {% if not ai_attiva %}<span class="sec-small sec-muted" title="Il giro automatico ogni 6 ore è spento: si accende in Impostazioni › Proposte AI su CPE ed esiti da verificare">Giro AI automatico spento</span>{% endif %}
   <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button type="submit" class="sec-button">Ricalcola impatti</button></form>
   <div class="sec-actions" style="flex-wrap:wrap;gap:6px;margin-top:8px">
     <form method="post" id="bulk-form" class="sec-inline">{% csrf_token %}
@@ -59,6 +62,16 @@
           <td class="sec-small">
             {% for s in row.local_suggestions %}<div>{{ s }} <small class="sec-muted">(CVE note){% if forloop.first and not row.mapping.confirmed %} · proposta{% endif %}</small></div>{% endfor %}
             {% for s in row.mapping.suggestions %}{% if s.error %}<div class="sec-muted">NVD: {{ s.error }}</div>{% else %}<div>{{ s.cpe_vendor }}:{{ s.cpe_product }} <small class="sec-muted">{{ s.title|truncatechars:50 }}</small></div>{% endif %}{% endfor %}
+            {% if row.ai %}
+            <div class="sec-ai-proposta" style="margin-top:4px;padding:4px 6px;border-left:3px solid var(--sec-accent, #2563eb)">
+              <strong>Proposta AI:</strong> {{ row.ai.proposta_label }} <small class="sec-muted">(confidenza {{ row.ai.confidenza }}%)</small>
+              <div class="sec-muted">{{ row.ai.motivazione }}</div>
+              <form method="post" action="{% url 'security:proposta_ai_decidi' row.ai.pk %}" class="sec-inline" style="margin-top:3px">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                {% if row.ai.applicabile %}<button type="submit" name="decisione" value="accetta" class="sec-button sec-button-primary" title="Applica la proposta come una conferma a mano: audit e ricalcolo degli impatti">Accetta</button>{% endif %}
+                <button type="submit" name="decisione" value="rifiuta" class="sec-button" title="Scarta la proposta: l'AI non la ripropone finché i dati del software non cambiano">Rifiuta</button>
+              </form>
+            </div>
+            {% endif %}
           </td>
           <td>
             <form method="post" class="sec-inline">

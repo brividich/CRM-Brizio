@@ -370,10 +370,12 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ul>
       <h3>Mettere gli switch nel rack</h3>
       <p>Dalla scheda di ogni switch, tab <strong>Tecnica e rete</strong>: scegli il <strong>Rack</strong>, scrivi il <strong>Membro dello stack</strong> (1, 2, 3…; vuoto se nel rack c'è un solo switch) e premi <span class="ag-btn">Salva collocazione</span>. Il cambio finisce nella cronologia dell'asset.</p>
-      <h3>Cosa c'è in fondo alla pagina</h3>
+      <h3>Riepilogo e cose da sistemare</h3>
       <ul>
-        <li><strong>Porte senza switch</strong>: gruppi di porte (es. <code>A0.2 · 11</code>) senza switch indicato e che nessuno switch censito serve: manca lo switch di quel membro o il rack/prefisso.</li>
-        <li><strong>Apparati di rete senza rack</strong>: switch e firewall censiti non ancora messi in un rack.</li>
+        <li>In cima cinque numeri: rack, switch nei rack, dispositivi collegati, <strong>Punti rete senza switch</strong> e <strong>Apparati senza rack</strong>. Gli ultimi due diventano gialli quando non sono a zero; un clic porta all'elenco.</li>
+        <li><strong>Punti rete senza switch</strong>: gruppi di porte (es. <code>A0.3 · 11 punti rete</code>) senza switch indicato e che nessuno switch censito serve: di solito manca lo switch di quel membro dello stack. Lo stesso avviso compare in giallo sulla scheda del rack.</li>
+        <li><strong>Apparati di rete senza rack</strong>: switch e firewall censiti non ancora messi in un rack; <span class="ag-btn">Colloca →</span> apre la scheda dello switch dove scegliere rack e membro.</li>
+        <li>Nella pagina del rack, la tabella <strong>Nel rack ma senza switch riconosciuto</strong> ha la colonna <strong>Cosa manca</strong>: switch indicato non censito, membro dello stack mancante, solo porta del patch panel o porta fuori formato.</li>
       </ul>
       <p>Eliminare un rack (pagina del rack › Modifica rack › <span class="ag-btn">Elimina rack</span>) non tocca gli switch: restano censiti, senza rack.</p>
     </section>

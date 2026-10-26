@@ -231,7 +231,7 @@ def _evaluate_cve_impact(event):
     Il ticket si apre solo se acceso in Impostazioni; se la CVE ha già un ticket aperto (per
     esempio da Defender) l'alert si collega a quello, senza un secondo ticket per lo stesso rimedio.
     """
-    from security.services import soc_settings
+    from security.services import cve_chiusura, soc_settings
 
     payload = event.payload
     rule = _get_rule("cve_impact_confirmed")
@@ -240,6 +240,8 @@ def _evaluate_cve_impact(event):
         event.save(update_fields=["decision_trace"])
         return
     cve = (payload.get("cve") or "").upper()
+    # Versione vulnerabile ricomparsa dopo una chiusura automatica recente: si riapre lo stesso alert (recidiva).
+    recidiva = cve_chiusura.riapri_recidiva(event)
     trace = {
         "decision": "alert",
         "rule": "Inventario: PC con versione vulnerabile di una CVE critica o in CISA KEV => alert",
@@ -249,10 +251,10 @@ def _evaluate_cve_impact(event):
         "impacted_count": payload.get("impacted_count"),
         "new_hosts": payload.get("new_hosts"),
         "inventory_date": payload.get("inventory_date"),
+        "recidiva": recidiva is not None,
     }
-    reason = "sfruttata attivamente (CISA KEV)" if payload.get("kev") else f"critica (CVSS {payload.get('cvss') or 'n/d'})"
-    product = f" di {payload['affected_product']}" if payload.get("affected_product") else ""
-    title = f"{cve} {reason}: {payload.get('impacted_count')} PC con versione vulnerabile{product}"[:255]
+    impacted_count = payload.get("impacted_count") or 0
+    title = cve_chiusura.titolo_alert(payload, impacted_count, impacted_count)
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
@@ -262,7 +264,8 @@ def _evaluate_cve_impact(event):
         decision_trace=trace,
     )
     if not alert_created:
-        alert.title = title
+        # «N PC su M ancora»: conta anche i PC già usciti dopo la nascita dell'alert.
+        alert.title = cve_chiusura.titolo_progresso(alert, payload)
         alert.save(update_fields=["title", "updated_at"])
     trace["alert_created"] = alert_created
     _store_alert_decision_trace(alert, trace, alert_created)

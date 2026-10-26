@@ -313,6 +313,40 @@ body.theme-dark .soc-module .lt-warn { color: #fcd34d; }
 .soc-module .lt-hist-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; }
 .soc-module .lt-hist-top small { font-weight: 400; color: var(--text-light); }
 
+/* Battito del SOC (security/battito.html): stato, prossimi giri e mappa di 14 giorni */
+.soc-module .bt-coda { align-items: center; }
+.soc-module .bt-coda.is-ko { border-color: rgba(220, 38, 38, .35); background: var(--danger-bg); }
+.soc-module .bt-coda.is-warn { border-color: rgba(217, 119, 6, .35); background: var(--warning-bg); }
+.soc-module .bt-coda span:last-child { font-size: 13px; font-weight: 600; color: var(--text); }
+.soc-module .bt-problemi { border-left: 4px solid var(--danger); margin-bottom: 12px; }
+.soc-module .bt-problemi ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.soc-module .bt-due { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.soc-module .bt-prossimi { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.soc-module .bt-prossimi .lt-dot { display: inline-block; vertical-align: middle; }
+.soc-module .bt-mappa { min-width: 860px; }
+.soc-module .bt-mappa td { vertical-align: top; }
+.soc-module .bt-mappa .bt-g { width: 26px; padding: 6px 2px; text-align: center; font-size: 11px; }
+.soc-module .bt-gruppo th { background: rgba(100, 116, 139, .08); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-light); }
+.soc-module .bt-dett > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
+.soc-module .bt-dett > summary::-webkit-details-marker { display: none; }
+.soc-module .bt-dett p { margin: 6px 0 0; max-width: 520px; }
+.soc-module .bt-frase { display: block; font-size: 12px; color: var(--text-mid); max-width: 520px; overflow-wrap: anywhere; }
+.soc-module tr.is-ko .bt-frase, .soc-module tr.is-ritardo .bt-frase { color: var(--danger); }
+.soc-module tr.is-ritardo .lt-dot { background: var(--danger); }
+.soc-module tr.is-mai .lt-dot, .soc-module tr.is-idle .lt-dot { background: #94a3b8; }
+.soc-module tr.is-spenta { opacity: .7; }
+.soc-module .bt-sub { display: block; color: var(--text-light); font-size: 11px; }
+.soc-module .bt-giri { margin: 6px 0 0; padding-left: 16px; font-size: 12px; display: grid; gap: 2px; }
+.soc-module .bt-giri .is-errore { color: var(--danger); }
+.soc-module .bt-c { display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: rgba(100, 116, 139, .12); vertical-align: middle; }
+.soc-module .bt-c.ok { background: var(--success); }
+.soc-module .bt-c.parziale { background: #f59e0b; }
+.soc-module .bt-c.ko { background: var(--danger); }
+.soc-module .bt-c.assente { background: transparent; border: 2px dashed var(--danger); width: 12px; height: 12px; }
+.soc-module .bt-c.spenta { background: repeating-linear-gradient(45deg, rgba(100, 116, 139, .25) 0 3px, transparent 3px 6px); }
+.soc-module .bt-legenda { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--text-mid); }
+.soc-module .bt-legenda .bt-c { width: 12px; height: 12px; }
+
 /* Impostazioni › Panoramica della configurazione (config_hub) */
 .soc-module .soc-crumb { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0; font-size: 13px; color: rgba(255, 255, 255, .8); }
 .soc-module .soc-crumb a { color: #fff; font-weight: 600; text-decoration: none; }
