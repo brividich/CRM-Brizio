@@ -47,6 +47,7 @@ urlpatterns = [
     path("alerts/<int:pk>/", _guard(views.alert_detail), name="alert_detail"),
     path("alerts/<int:pk>/actions/<slug:action>/", _guard(views.alert_action), name="alert_action"),
     path("alerts/<int:pk>/spiega/", views.alert_explain, name="alert_explain"),
+    path("alerts/<int:pk>/cve/escludi-pc/", _guard(views.alert_cve_escludi_pc), name="alert_cve_escludi_pc"),
     path("panoramica/sintesi/", views.overview_brief, name="overview_brief"),
     path("alerts/bulk/", _guard(views_cases.alerts_bulk), name="alerts_bulk"),
     # Eventi ingeriti: tutti, anche quelli giudicati «a posto»; promozione ad alert (allarme mancato)

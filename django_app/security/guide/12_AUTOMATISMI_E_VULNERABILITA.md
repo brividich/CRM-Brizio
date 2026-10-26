@@ -72,6 +72,7 @@ Un automatismo di rientro chiude un alert come **Risolto** quando un dato succes
 | Sorgente di nuovo regolare | Sorgente silenziosa | Report e lettura della casella di nuovo nei tempi attesi | Accesa |
 | VPN tornata nei limiti | Riconnessioni brevi, accessi negati | Per N giorni interi (default 7) dati VPN presenti **ogni giorno** e conteggi sotto soglia ogni giorno | Spenta |
 | CVE con patch installata | CVE non critica e non in KEV | Inventario recente: il prodotto c'è solo in versioni non vulnerabili, nessun PC impattato o da verificare | Spenta |
+| CVE critica corretta con prove | Alert «PC con versione vulnerabile» (inventario, CVE critica o KEV) | Nessun PC più impattato né da verificare; ogni PC che era esposto ha **2 prove concordi** tra inventario recente, patch WatchGuard e Defender. Vedi «Chiusura con prove» | Accesa |
 
 ### Simulare prima di accendere
 
@@ -257,6 +258,39 @@ Quando l'inventario dice che un PC ha una versione vulnerabile di una CVE **crit
 
 Si accende e si spegne in **Configurazione › Avvisi e automatismi › Impatto CVE sugli asset**: «Apri un alert quando un PC risulta impattato» e «Apri anche il ticket di rimedio». Arrivano accese, ma funzionano solo con l'arricchimento CVE acceso e un inventario importato.
 
+### Chiusura con prove
+
+«Come so che l'aggiornamento (patch management o Windows Update) ha davvero corretto la CVE segnalata, così che l'alert si chiuda da solo?» Il giro si chiude così.
+
+**Il titolo segue i PC.** A ogni ricalcolo degli impatti l'alert dice quanti PC restano: «CVE-X sfruttata attivamente (CISA KEV): 3 PC su 5 ancora con versione vulnerabile di Prodotto». Ogni PC che esce lascia una voce nella timeline dell'alert, con quello che si sapeva in quel momento: «PC-01: aggiornato da 1.2 a 1.4 il 27/10/2026, prove: inventario del 27/10/2026 + patch WatchGuard «…» installata (aggiornato e confermato)».
+
+**Il riquadro «Chiusura con prove»** nella scheda dell'alert mostra lo stato di ogni PC che è stato esposto:
+
+| Stato | Significato | Conta per la chiusura? |
+| --- | --- | --- |
+| **Ancora vulnerabile** | l'inventario vede ancora la versione nel range | No |
+| **Da verificare** | versione non confrontabile o inventario più vecchio di 30 giorni | No |
+| **Aggiornamento rilevato, in attesa di conferma** | una prova sola (per esempio solo l'inventario), oppure una prova contraria (patch WatchGuard ancora mancante, Defender che la vede ancora) | No |
+| **Aggiornato e confermato** | almeno **2 prove concordi** | Sì |
+| **Non verificabile** | PC non più nell'inventario o non visto da N giorni: non si può dire se è corretto | No, finché una persona non lo esclude |
+| **Escluso dalla verifica** | una persona con il permesso di configurazione lo ha escluso, con motivo (es. PC dismesso) | Non blocca |
+
+Le **prove** sono tre, e ne servono due concordi per ogni PC (una per le CVE non critiche, che però oggi non aprono alert):
+
+1. **Inventario recente** (export WatchGuard o lettura Defender degli ultimi 30 giorni): il programma c'è in una versione fuori dal range vulnerabile, oppure è stato disinstallato. È la riga «Programma aggiornato» / «disinstallato» di «Risolte negli ultimi 90 giorni».
+2. **Patch WatchGuard** (con «Leggi le patch mancanti» acceso): la patch che corregge quella CVE su quel PC non è più tra le mancanti, oppure il task di installazione dice «Installata». Se è **ancora mancante**, il PC resta in attesa anche se l'inventario dice il contrario.
+3. **Defender** (con «Confronta le CVE con Defender» acceso): nell'ultima lettura Defender non segnala più quella CVE su quel PC. Vale solo per i PC che Defender conosce. Se **la vede ancora**, il PC resta in attesa.
+
+Quando **tutti** i PC sono «Aggiornato e confermato» (o esclusi da una persona) e nessuno è impattato, da verificare o non verificabile, la regola **CVE critica corretta con prove** chiude l'alert come Risolto, con il motivo e il rimando alle prove PC per PC nella timeline. Il **ticket** della CVE si chiude a sua volta se non ha attività aperte (come per gli altri rientri). Gira dopo ogni ricalcolo degli impatti e nel ciclo del SOC ogni 15 minuti.
+
+La regola arriva **accesa**: chiude solo con due fonti indipendenti d'accordo su ogni singolo PC, mai per assenza di dati, e lascia tutto scritto nella timeline. Senza la lettura delle patch WatchGuard né il confronto con Defender resta una prova sola (l'inventario): gli alert restano «in attesa di conferma» e li chiude una persona, come prima. Si spegne in **Configurazione › Automatismi di rientro**, oppure tutte insieme con `SECURITY_AUTO_RESOLVE_ENABLED`.
+
+**Escludere un PC dalla verifica.** Un PC non più nell'inventario (dismesso, spento da settimane, uscito dall'azienda) bloccherebbe la chiusura per sempre. Chi ha il permesso di configurazione del SOC lo esclude dal riquadro con il pulsante **Escludi dalla verifica** e un motivo obbligatorio; l'azione resta nella timeline con nome e motivo, e si può annullare. Si esclude solo un PC «Non verificabile»: un PC ancora vulnerabile o in attesa non si può escludere.
+
+**Recidiva.** Se entro **90 giorni** dalla chiusura automatica la versione vulnerabile ricompare su un PC (reinstallazione, ripristino di un'immagine), non nasce un alert nuovo senza storia: si **riapre lo stesso alert**, con il titolo «Recidiva · …», il motivo («versione vulnerabile ricomparsa su 1 PC 12 giorni dopo la chiusura automatica del …») e la voce in timeline. Le chiusure fatte a mano non contano come recidiva: in quel caso nasce un alert nuovo.
+
+**Dalla segnalazione alla correzione.** In cima alla pagina **Vulnerabilità** il riquadro con i numeri degli ultimi 90 giorni: PC corretti, giorni medi da «esposto dal» alla correzione (anche solo per le CVE critiche o sfruttate), alert CVE chiusi con la quota di chiusure automatiche e di chiusure a mano, recidive, alert ancora aperti.
+
 ## Software non conforme
 
 Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su ogni programma dell'inventario (i nomi diversi dello stesso programma sono una riga sola e il dettaglio mostra le versioni presenti): **Consentito**, **Da rimuovere**, **Non autorizzato**, ed eventualmente una **versione minima**. Il SOC confronta l'inventario con queste decisioni dopo ogni import dell'inventario e ogni modifica al catalogo.
@@ -276,5 +310,7 @@ Si accendono e si spengono in **Configurazione › Avvisi e automatismi › Soft
 **Una soppressione appresa nasconde un problema vero.** Riapri l'alert o promuovi l'evento soppresso: la regola si spegne subito e il conteggio riparte. Per spegnere del tutto la funzione: Configurazione › Avvisi e automatismi › Soppressione appresa.
 
 **Un PC risulta «da verificare» per tutte le CVE.** L'inventario di quel PC è più vecchio di 30 giorni (la soglia si cambia in Impostazioni): carica un export aggiornato.
+
+**Tutti i PC sono aggiornati ma l'alert della CVE non si chiude.** Guarda il riquadro «Chiusura con prove» nella scheda dell'alert: dice per ogni PC cosa manca. Di solito è una prova sola (accendi la lettura delle patch WatchGuard o il confronto con Defender, oppure chiudi a mano dopo verifica), oppure un PC «non verificabile» che non compare più nell'inventario: se è dismesso, escludilo dalla verifica con il motivo.
 
 **La dashboard Vulnerabilità è vuota.** Verifica che l'arricchimento sia acceso in Impostazioni, che sia stato importato almeno un inventario e che i software principali abbiano il CPE confermato. Il job gira ogni ora.

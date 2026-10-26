@@ -1,0 +1,66 @@
+{% load security_i18n %}
+<section class="sec-panel" style="margin-top: 12px;" id="cve-chiusura">
+  <div class="sec-section-head">
+    <h2>Chiusura con prove</h2>
+    <span class="sec-muted sec-small">regola «CVE critica corretta con prove» · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#chiusura-con-prove">Guida</a></span>
+  </div>
+  <div class="sec-actions">
+    <span class="sec-badge sec-badge-critical">Ancora vulnerabili: {{ cve_chiusura.conteggi.vulnerabile }}</span>
+    <span class="sec-badge warning">Da verificare: {{ cve_chiusura.conteggi.da_verificare }}</span>
+    <span class="sec-badge warning">In attesa di conferma: {{ cve_chiusura.conteggi.in_attesa }}</span>
+    <span class="sec-badge sec-badge-success">Confermati: {{ cve_chiusura.conteggi.confermato }}</span>
+    <span class="sec-badge sec-badge-muted">Non verificabili: {{ cve_chiusura.conteggi.non_verificabile }}</span>
+    {% if cve_chiusura.conteggi.escluso %}<span class="sec-badge sec-badge-muted">Esclusi: {{ cve_chiusura.conteggi.escluso }}</span>{% endif %}
+  </div>
+  <p class="sec-small">
+    {% if cve_chiusura.chiudibile %}<strong>Chiudibile da sola.</strong>{% else %}<strong>Resta aperto.</strong>{% endif %}
+    {{ cve_chiusura.motivo }}
+    Per ogni PC servono {{ cve_chiusura.prove_richieste }} prov{{ cve_chiusura.prove_richieste|pluralize:"a,e" }} concord{{ cve_chiusura.prove_richieste|pluralize:"e,i" }} tra inventario recente, patch WatchGuard e Defender{% if not cve_chiusura.watchguard_attivo %}; lettura delle patch WatchGuard spenta{% endif %}{% if not cve_chiusura.defender_attivo %}; confronto con Defender spento o senza dati{% endif %}.
+    {% if cve_chiusura.recidiva %}<span class="sec-badge sec-badge-critical">Recidiva</span>{% endif %}
+  </p>
+  {% if cve_chiusura.pc %}
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>PC</th><th>Stato</th><th>Prove</th><th>Note</th>{% if cve_chiusura_puo_escludere %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for r in cve_chiusura.pc %}
+        <tr>
+          <td class="sec-title-cell"><a href="{% url 'security:pc_detail' %}?nome={{ r.host|urlencode }}">{{ r.host_display }}</a>{% if r.versione_prima %}<br><small class="sec-muted">{{ r.versione_prima }}{% if r.versione_dopo %} &#8594; {{ r.versione_dopo }}{% endif %}</small>{% endif %}</td>
+          <td><span class="sec-badge {{ r.classe }}">{{ r.stato_label }}</span></td>
+          <td class="sec-small">{% for p in r.prove %}<div>&#10003; {{ p }}</div>{% endfor %}{% for c in r.contro %}<div class="critical">&#10007; {{ c }}</div>{% endfor %}{% if not r.prove and not r.contro %}<span class="sec-muted">—</span>{% endif %}</td>
+          <td class="sec-small sec-muted">{{ r.nota|default:"—" }}</td>
+          {% if cve_chiusura_puo_escludere %}
+          <td class="sec-nowrap">
+            {% if r.stato == "non_verificabile" %}
+              <form method="post" action="{% url 'security:alert_cve_escludi_pc' alert.pk %}" class="sec-inline-form" data-hub-confirm="Escludere {{ r.host_display }} dalla verifica? Il PC non conterà più per la chiusura automatica dell'alert.">
+                {% csrf_token %}
+                <input type="hidden" name="host" value="{{ r.host }}">
+                <input type="text" name="motivo" placeholder="Motivo (es. PC dismesso)" maxlength="300" required aria-label="Motivo dell'esclusione">
+                <button type="submit" class="sec-button">Escludi dalla verifica</button>
+              </form>
+            {% elif r.stato == "escluso" %}
+              <form method="post" action="{% url 'security:alert_cve_escludi_pc' alert.pk %}" class="sec-inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="host" value="{{ r.host }}">
+                <input type="hidden" name="annulla" value="1">
+                <input type="hidden" name="motivo" value="esclusione annullata">
+                <button type="submit" class="sec-button">Annulla esclusione</button>
+              </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if cve_chiusura_logs %}
+  <h3 class="sec-subhead">Cosa è successo ai PC</h3>
+  <ul class="sec-small">
+    {% for log in cve_chiusura_logs %}
+      <li><strong>{{ log.created_at|date:"d/m/Y H:i" }}</strong> · {{ log.action|action_label }}{% if log.details.testo %}: {{ log.details.testo }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>

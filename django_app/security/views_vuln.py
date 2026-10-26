@@ -92,7 +92,18 @@ def vulnerabilities_dashboard(request):
         },
         "can_edit": can_manage_security_config(request.user),
         "software_policy": _software_policy_summary(),
+        "ciclo": _ciclo_cve(),
     })
+
+
+def _ciclo_cve():
+    try:
+        from .services.cve_chiusura import metriche
+
+        return metriche()
+    except Exception:  # noqa: BLE001 - il riquadro è accessorio: la pagina vulnerabilità resta leggibile
+        logger.exception("Metriche di chiusura delle CVE non disponibili")
+        return None
 
 
 def _software_policy_summary():

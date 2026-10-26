@@ -77,6 +77,23 @@ GUIDA = {
             ],
         },
         {
+            "id": "cve-chiusura",
+            "titolo": "Quando l'aggiornamento ha corretto la CVE: l'alert si chiude con le prove",
+            "blocchi": [
+                ("p", "L'alert «PC con versione vulnerabile» di una CVE critica o sfruttata segue i PC a ogni ricalcolo: il titolo dice "
+                      "«3 PC su 5 ancora con versione vulnerabile» e ogni PC che esce lascia una voce nella timeline (aggiornato da 1.2 a 1.4 "
+                      "il tal giorno, con le prove). Il riquadro «Chiusura con prove» nella scheda dell'alert mostra lo stato di ogni PC."),
+                ("p", "Si chiude da solo (regola «CVE critica corretta con prove», accesa) quando nessun PC è più impattato né da verificare "
+                      "e ogni PC che era esposto ha due prove concordi tra: inventario recente con la versione corretta o il programma "
+                      "rimosso; patch WatchGuard non più mancante o installata; Defender che non la segnala più. Con una prova sola il PC "
+                      "è «in attesa di conferma» e l'alert resta aperto; un PC non più visto è «non verificabile» finché chi ha il permesso "
+                      "di configurazione non lo esclude dalla verifica, con motivo scritto in timeline. Il ticket si chiude con l'alert."),
+                ("p", "Se la versione vulnerabile ricompare entro 90 giorni, lo stesso alert si riapre come «Recidiva», con la sua storia. "
+                      "La pagina Vulnerabilità mostra i numeri degli ultimi 90 giorni: PC corretti, giorni medi dall'esposizione alla "
+                      "correzione, chiusure da sole e a mano, recidive."),
+            ],
+        },
+        {
             "id": "registro-accessi",
             "titolo": "Registro accessi: log dei server e amministratori di sistema",
             "blocchi": [

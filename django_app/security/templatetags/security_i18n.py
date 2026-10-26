@@ -198,6 +198,11 @@ ACTION_LABELS = {
     "auto_resolved": "Risolto automaticamente: il problema è rientrato",
     "case_auto_resolved": "Ticket chiuso automaticamente: tutti gli alert sono rientrati",
     "case_alerts_all_resolved": "Tutti gli alert sono rientrati (restano attività aperte)",
+    "cve_pc_risolto": "PC non più esposto alla CVE",
+    "cve_pc_escluso": "PC escluso dalla verifica della CVE",
+    "cve_pc_incluso": "PC di nuovo nella verifica della CVE",
+    "cve_recidiva": "Riaperto: la versione vulnerabile è ricomparsa (recidiva)",
+    "ticket_linked_existing_cve": "Alert collegato al ticket già aperto per la CVE",
     "manual_escalation": "Alert creato a mano da un evento giudicato a posto",
     "learned_escalation": "Alert creato da una regola appresa",
 }

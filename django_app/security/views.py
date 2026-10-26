@@ -212,7 +212,38 @@ def alert_detail(request, pk, ai=None):
     from security.services.investigation import playbook, precedents, related_facts
 
     context.update({"facts": related_facts(alert), "history": precedents(alert), "book": playbook(alert)})
+    if alert.event_id and alert.event.event_type == "cve_impact_confirmed":
+        # Alert «PC con versione vulnerabile»: stato PC per PC e prove per la chiusura.
+        from security.services import cve_chiusura
+
+        context.update({
+            "cve_chiusura": cve_chiusura.analisi(alert),
+            "cve_chiusura_logs": list(alert.action_logs.filter(action__in=cve_chiusura.AZIONI_PC).order_by("-created_at")[:40]),
+            "cve_chiusura_puo_escludere": can_manage_security_config(request.user),
+        })
     return render(request, "security/alert_detail.html", context)
+
+
+@require_POST
+def alert_cve_escludi_pc(request, pk):
+    """Esclude dalla verifica di chiusura un PC non verificabile (o annulla l'esclusione): tracciato in timeline."""
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    alert = get_object_or_404(SecurityAlert, pk=pk)
+    if not can_manage_security_config(request.user):
+        messages.error(request, "Escludere un PC dalla verifica richiede il permesso di configurazione del SOC.")
+        return redirect("security:alert_detail", pk=alert.pk)
+    from security.services import cve_chiusura
+
+    annulla = request.POST.get("annulla") == "1"
+    try:
+        cve_chiusura.escludi_pc(alert, request.POST.get("host", ""), request.POST.get("motivo", ""),
+                                actor=request.user.username, annulla=annulla)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "PC di nuovo nella verifica." if annulla else "PC escluso dalla verifica: resta scritto nella timeline.")
+    return redirect("security:alert_detail", pk=alert.pk)
 
 
 @require_POST
