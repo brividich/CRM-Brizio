@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 87
+**Totale automazioni disponibili:** 88
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -545,6 +545,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** da lun a ven, alle 07:15
 - **Task eseguito:** `sistema_gestione.tasks.run_car_solleciti`
 - **Cosa fa:** AUDIT INTERNI — solleciti CAR in ritardo (analisi 1 mese, chiusura 3 mesi o proroga, verifica di efficacia programmata) e una sola escalation a RSGI oltre soglia.
+
+### `sistema_gestione_scadenze_esterni`
+
+- **Quando gira:** ogni lun, alle 07:30
+- **Task eseguito:** `sistema_gestione.tasks.run_scadenze_audit_esterni`
+- **Cosa fa:** CERTIFICAZIONI E AUDIT ESTERNI — certificati scaduti/in scadenza (90 gg), sorveglianze entro 30 giorni, piani azioni da inviare all'ente: un riepilogo settimanale a RSGI.
 
 ### `suggestion_corner_reminders`
 
