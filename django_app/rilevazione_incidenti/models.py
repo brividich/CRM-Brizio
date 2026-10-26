@@ -46,6 +46,17 @@ class RilevazioneIncidente(models.Model):
         related_name="rilevazioni_sicurezza",
         help_text="Area della planimetria associata all'evento (opzionale)",
     )
+    # Punto preciso sulla planimetria (clic sulla pianta nel modulo): la mappa di calore lo usa per primo.
+    planimetria_layout = models.ForeignKey(
+        "assets.PlantLayout",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rilevazioni_punto",
+        help_text="Planimetria su cui è stato indicato il punto dell'evento (opzionale)",
+    )
+    planimetria_x = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    planimetria_y = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     reparto = models.CharField(max_length=150, blank=True)
     data_segnalazione = models.DateTimeField(null=True, blank=True)
 
@@ -101,6 +112,13 @@ class RilevazioneIncidente(models.Model):
             self.tipo_evento = inferred
         return super().save(*args, **kwargs)
 
+    @property
+    def planimetria_punto(self) -> str:
+        """«id_pianta;x;y» (punti percentuali) oppure stringa vuota."""
+        if not self.planimetria_layout_id or self.planimetria_x is None or self.planimetria_y is None:
+            return ""
+        return f"{self.planimetria_layout_id};{float(self.planimetria_x):.2f};{float(self.planimetria_y):.2f}"
+
     def as_sp_fields(self) -> dict:
         """Restituisce un dict con i nomi-campo SharePoint usati nei template."""
         date_str = self.data_segnalazione.isoformat() if self.data_segnalazione else ""
@@ -111,6 +129,9 @@ class RilevazioneIncidente(models.Model):
             "Tipo_evento_label": self.get_tipo_evento_display(),
             "PlanimetriaAreaId": self.planimetria_area_id or "",
             "PlanimetriaAreaNome": self.planimetria_area.name if self.planimetria_area_id else "",
+            "PlanimetriaPunto": self.planimetria_punto,
+            "PlanimetriaPuntoNome": self.planimetria_layout.name if self.planimetria_layout_id else "",
+            "PlanimetriaPuntoLayoutId": self.planimetria_layout_id or "",
             "Reparto": self.reparto,
             "Reparto_txt": self.reparto,
             "Data_e_ora_rilevazione": date_str,

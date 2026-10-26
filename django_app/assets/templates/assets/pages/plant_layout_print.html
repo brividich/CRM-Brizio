@@ -1,0 +1,87 @@
+{% load l10n %}<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ layout.name }} · stampa</title>
+<style>
+/* Foglio da appendere in reparto: A3 orizzontale, sempre chiaro (è carta). */
+@page{size:A3 landscape;margin:10mm}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#0f172a;font:12px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.pp{display:grid;grid-template-rows:auto 1fr;gap:6mm;padding:8mm;min-height:100%}
+.pp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:8mm;border-bottom:2px solid #0f172a;padding-bottom:3mm}
+.pp-head h1{margin:0;font-size:22px;letter-spacing:.01em}
+.pp-head p{margin:2px 0 0;color:#475569}
+.pp-meta{text-align:right;color:#475569;font-size:11px}
+.pp-actions{display:flex;gap:8px;justify-content:flex-end;margin-bottom:4px}
+.pp-actions button,.pp-actions a{font:inherit;font-weight:700;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;padding:6px 12px;cursor:pointer;text-decoration:none}
+.pp-actions button{background:#0f172a;color:#fff;border-color:#0f172a}
+.pp-body{display:grid;grid-template-columns:minmax(0,1fr) 92mm;gap:6mm;align-items:start}
+.pp-map{position:relative;border:1px solid #94a3b8}
+.pp-map img{display:block;width:100%;height:auto}
+.pp-n{position:absolute;transform:translate(-50%,-50%);min-width:18px;height:18px;padding:0 3px;border-radius:9px;background:#0f172a;color:#fff;
+  font:800 10px/18px ui-monospace,"Cascadia Mono",Consolas,monospace;text-align:center;box-shadow:0 0 0 2px #fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pp-n.is-cnc{border-radius:3px;background:#1e3a8a}
+.pp-legend{columns:1;font-size:10.5px}
+.pp-rep{break-inside:avoid;margin:0 0 3mm}
+.pp-rep h2{margin:0 0 1mm;font-size:11px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #cbd5e1;padding-bottom:1px}
+.pp-row{display:grid;grid-template-columns:7mm minmax(0,1fr) auto;gap:2mm;align-items:baseline;padding:.4mm 0}
+.pp-row b{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+.pp-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-row small{color:#475569;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+.pp-key{margin-top:3mm;color:#475569;font-size:10px}
+.pp-key i{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:3px;background:#1e3a8a;border-radius:2px}
+@media print{.pp-actions{display:none}.pp{padding:0}}
+@media (max-width:900px){.pp-body{grid-template-columns:1fr}}
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark{background:var(--surface);color:var(--text)}
+body.theme-dark .pp-head p{color:var(--text-mid)}
+body.theme-dark .pp-meta{color:var(--text-mid)}
+body.theme-dark .pp-actions button,body.theme-dark .pp-actions a{border-color:var(--border);background:var(--surface);color:var(--text)}
+body.theme-dark .pp-rep h2{border-color:var(--border)}
+body.theme-dark .pp-row small{color:var(--text-mid)}
+body.theme-dark .pp-key{color:var(--text-mid)}
+</style>
+</head>
+<body>
+<main class="pp">
+  <header>
+    <div class="pp-actions">
+      <a href="{% url 'assets:plant_layout_map' %}?category={{ layout.category|urlencode }}">← Torna alla mappa</a>
+      <button type="button" onclick="window.print()">Stampa</button>
+    </div>
+    <div class="pp-head">
+      <div>
+        <h1>{{ layout.name }}</h1>
+        <p>{{ layout.category }}{% if layout.description %} · {{ layout.description }}{% endif %}</p>
+      </div>
+      <div class="pp-meta">{{ rows|length }} macchin{{ rows|length|pluralize:"a,e" }} · stampata il {{ printed_at|date:"d/m/Y H:i" }}<br>NOVICROM HUB · Mappa officina</div>
+    </div>
+  </header>
+  <section class="pp-body">
+    {% localize off %}
+    <div class="pp-map">
+      <img src="{{ layout.image.url }}" alt="{{ layout.name }}">
+      {% for r in rows %}<span class="pp-n{% if r.cnc %} is-cnc{% endif %}" style="left:{{ r.x }}%;top:{{ r.y }}%">{{ r.n }}</span>{% endfor %}
+    </div>
+    {% endlocalize %}
+    <div class="pp-legend">
+      {% regroup rows by reparto as groups %}
+      {% for g in groups %}
+      <div class="pp-rep">
+        <h2>{% if g.grouper %}Reparto {{ g.grouper }}{% else %}Senza reparto{% endif %}</h2>
+        {% for r in g.list %}
+        <div class="pp-row"><b>{{ r.n }}</b><span>{{ r.name }}</span><small>{{ r.internal_number|default:r.asset_tag }}</small></div>
+        {% endfor %}
+      </div>
+      {% empty %}
+      <p>Nessuna macchina collocata su questa pianta.</p>
+      {% endfor %}
+      {% if rows %}<p class="pp-key"><i></i>CNC collegata al portale · numero accanto: numero interno o tag</p>{% endif %}
+    </div>
+  </section>
+</main>
+</body>
+</html>

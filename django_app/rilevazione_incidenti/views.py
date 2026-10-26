@@ -10,7 +10,6 @@ import requests
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
-from django.db import models
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
@@ -119,6 +118,20 @@ def _get_reparti() -> list[str]:
 def _get_cause_evento() -> list[str]:
     cfg = _get_impostazioni()
     return list(cfg.cause_evento_custom) if cfg.cause_evento_custom else CAUSE_EVENTO
+
+
+def _planimetria_layout_options() -> list[dict]:
+    """Piante attive per il selettore del punto nel modulo (id, nome, immagine)."""
+    try:
+        from assets.models import PlantLayout
+
+        return [
+            {"id": row.id, "name": f"{row.category} · {row.name}", "image_url": row.image.url}
+            for row in PlantLayout.objects.filter(is_active=True).order_by("category", "name")
+            if row.image
+        ]
+    except Exception:
+        return []
 
 
 def _planimetria_area_options():
@@ -420,7 +433,22 @@ def _add_local_only_fields(fields: dict, post) -> dict:
     fields["Tipo_evento"] = normalize_tipo_evento(tipo_evento)
     area_id = (post.get("planimetria_area_id") or "").strip()
     fields["PlanimetriaAreaId"] = area_id
+    fields["PlanimetriaPunto"] = (post.get("planimetria_punto") or "").strip()
     return fields
+
+
+def parse_planimetria_punto(raw) -> tuple[int, float, float] | None:
+    """«id_pianta;x;y» → (id, x, y) con x/y entro 0-100; None se vuoto o non valido."""
+    parts = str(raw or "").strip().split(";")
+    if len(parts) != 3:
+        return None
+    try:
+        layout_id, x, y = int(parts[0]), float(parts[1]), float(parts[2])
+    except (TypeError, ValueError):
+        return None
+    if layout_id <= 0 or not (0 <= x <= 100 and 0 <= y <= 100):
+        return None
+    return layout_id, round(x, 2), round(y, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -522,6 +550,14 @@ def _sp_fields_to_kwargs(sp_fields: dict) -> dict:
     result["tipo_evento"] = normalize_tipo_evento(
         sp_fields.get("Tipo_evento") or sp_fields.get("Tipologia_scheda")
     )
+    if "PlanimetriaPunto" in sp_fields:
+        punto = parse_planimetria_punto(sp_fields.get("PlanimetriaPunto"))
+        from assets.models import PlantLayout
+
+        if punto and PlantLayout.objects.filter(pk=punto[0]).exists():
+            result["planimetria_layout_id"], result["planimetria_x"], result["planimetria_y"] = punto
+        else:
+            result["planimetria_layout_id"] = result["planimetria_x"] = result["planimetria_y"] = None
     if "PlanimetriaAreaId" in sp_fields:
         area_id = sp_fields.get("PlanimetriaAreaId")
         try:
@@ -732,6 +768,7 @@ def nuovo(request):
         "cause_evento": _get_cause_evento(),
         "tipo_evento": normalize_tipo_evento(tipo),
         "planimetria_aree": _planimetria_area_options(),
+        "planimetria_layouts": _planimetria_layout_options(),
         "persone_coinvolte_choices": PERSONE_COINVOLTE_CHOICES,
         "error": error,
         "form_data": form_data,
@@ -965,6 +1002,7 @@ def modifica(request, sp_id):
         "cause_evento": _get_cause_evento(),
         "tipi_evento": TIPI_EVENTO_NORMALIZZATI,
         "planimetria_aree": _planimetria_area_options(),
+        "planimetria_layouts": _planimetria_layout_options(),
         "persone_coinvolte_choices": PERSONE_COINVOLTE_CHOICES,
         "approvazione_rls_choices": APPROVAZIONE_RLS_CHOICES,
     })
@@ -1172,7 +1210,7 @@ def statistiche(request):
 @login_required
 def heatmap(request):
     try:
-        from assets.models import PlantLayout, PlantLayoutArea
+        from assets.models import PlantLayout
     except Exception as exc:
         return render(request, "rilevazione_incidenti/pages/heatmap.html", {
             "error": str(exc),
@@ -1192,42 +1230,115 @@ def heatmap(request):
     if layout is None:
         layout = layouts.first()
 
-    points = []
+    points: list[dict] = []
+    fonti = Counter()
     if layout:
-        areas = PlantLayoutArea.objects.filter(layout=layout).order_by("sort_order", "name")
-        rilevazioni = RilevazioneIncidente.objects.filter(planimetria_area__layout=layout)
+        rilevazioni = RilevazioneIncidente.objects.all()
         if sistema_ruoli_attivo():
             ammessi = utenti_visibili(request, MODULO, "vedere")
             if ammessi is not None:
                 rilevazioni = rilevazioni.filter(segnalato_da_legacy_id__in=list(ammessi))
-        area_counts = {
-            row["planimetria_area_id"]: row["n"]
-            for row in rilevazioni
-            .values("planimetria_area_id")
-            .annotate(n=models.Count("id"))
-        }
-        max_count = max(area_counts.values()) if area_counts else 1
-        for area in areas:
-            count = int(area_counts.get(area.pk, 0))
-            if not count:
-                continue
-            x = float(area.x_percent) + (float(area.width_percent) / 2)
-            y = float(area.y_percent) + (float(area.height_percent) / 2)
-            points.append({
-                "area": area,
-                "count": count,
-                "x": round(x, 2),
-                "y": round(y, 2),
-                "label_y": round(max(3, y - 2), 2),
-                "radius": 4 + round((count / max_count) * 8),
-            })
+        points, fonti = heatmap_points(layout, rilevazioni)
 
     return render(request, "rilevazione_incidenti/pages/heatmap.html", {
         "layouts": layouts,
         "layout": layout,
         "points": points,
+        "fonti": fonti,
         "error": None,
     })
+
+
+# Da dove prende la posizione ogni rilevazione, in ordine di precisione.
+HEATMAP_FONTI = {
+    "punto": "punto indicato sulla pianta",
+    "macchina": "posizione della macchina coinvolta",
+    "area": "riquadro del reparto o dell'area",
+    "reparto": "zona delle macchine del reparto",
+}
+
+
+def heatmap_points(layout, rilevazioni) -> tuple[list[dict], Counter]:
+    """Rilevazioni → punti sulla pianta, raggruppati su una griglia del 2%.
+
+    La posizione si prende dalla fonte più precisa disponibile: punto cliccato nel
+    modulo, macchina coinvolta (marker in planimetria), area scelta, riquadro del
+    reparto, baricentro delle macchine collocate dello stesso reparto. Le rilevazioni
+    di altre piante o senza alcun indizio restano fuori (contate in «fuori»)."""
+    from assets.models import PlantLayoutArea, PlantLayoutMarker
+    from assets.services.plant_layout_image import marker_is_unplaced
+
+    def norm(value) -> str:
+        return str(value or "").strip().casefold()
+
+    areas = list(PlantLayoutArea.objects.filter(layout=layout))
+    area_center = {
+        a.id: (float(a.x_percent) + float(a.width_percent) / 2, float(a.y_percent) + float(a.height_percent) / 2)
+        for a in areas
+    }
+    area_by_reparto: dict[str, tuple[float, float]] = {}
+    for a in areas:
+        for key in (norm(a.reparto_code), norm(a.name)):
+            if key:
+                area_by_reparto.setdefault(key, area_center[a.id])
+    marker_pos: dict[int, tuple[float, float]] = {}
+    reparto_pts: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for m in PlantLayoutMarker.objects.filter(layout=layout).select_related("asset"):
+        if marker_is_unplaced(m):
+            continue
+        pos = (float(m.x_percent), float(m.y_percent))
+        marker_pos[m.asset_id] = pos
+        if norm(m.asset.reparto):
+            reparto_pts[norm(m.asset.reparto)].append(pos)
+    reparto_center = {
+        k: (sum(p[0] for p in v) / len(v), sum(p[1] for p in v) / len(v)) for k, v in reparto_pts.items()
+    }
+
+    fonti: Counter = Counter()
+    buckets: dict[tuple[int, int], dict] = {}
+    for r in rilevazioni.only(
+        "id", "planimetria_layout_id", "planimetria_x", "planimetria_y", "asset_id", "planimetria_area_id", "reparto", "tipo_evento",
+    ):
+        pos, fonte = None, ""
+        if r.planimetria_layout_id == layout.id and r.planimetria_x is not None and r.planimetria_y is not None:
+            pos, fonte = (float(r.planimetria_x), float(r.planimetria_y)), "punto"
+        elif r.planimetria_layout_id:
+            pos = None  # punto indicato su un'altra pianta: non va spostato qui
+        elif r.asset_id and r.asset_id in marker_pos:
+            pos, fonte = marker_pos[r.asset_id], "macchina"
+        elif r.planimetria_area_id and r.planimetria_area_id in area_center:
+            pos, fonte = area_center[r.planimetria_area_id], "area"
+        elif norm(r.reparto) in area_by_reparto:
+            pos, fonte = area_by_reparto[norm(r.reparto)], "area"
+        elif norm(r.reparto) in reparto_center:
+            pos, fonte = reparto_center[norm(r.reparto)], "reparto"
+        if pos is None:
+            fonti["fuori"] += 1
+            continue
+        fonti[fonte] += 1
+        key = (round(pos[0] / 2), round(pos[1] / 2))
+        b = buckets.setdefault(key, {"x": 0.0, "y": 0.0, "count": 0, "reparti": Counter(), "tipi": Counter()})
+        b["x"] += pos[0]
+        b["y"] += pos[1]
+        b["count"] += 1
+        if r.reparto:
+            b["reparti"][r.reparto.strip()] += 1
+        b["tipi"][r.get_tipo_evento_display() if r.tipo_evento else "Non classificata"] += 1
+
+    max_count = max((b["count"] for b in buckets.values()), default=1)
+    points = []
+    for b in sorted(buckets.values(), key=lambda b: -b["count"]):
+        x, y = b["x"] / b["count"], b["y"] / b["count"]
+        points.append({
+            "count": b["count"],
+            "x": round(x, 2),
+            "y": round(y, 2),
+            "label_y": round(max(3, y - 2), 2),
+            "radius": 3 + round((b["count"] / max_count) * 7, 1),
+            "titolo": ", ".join(f"{k} ({v})" for k, v in b["reparti"].most_common(3)) or "Senza reparto",
+            "tipi": ", ".join(f"{k} {v}" for k, v in b["tipi"].most_common()),
+        })
+    return points, fonti
 
 
 # ---------------------------------------------------------------------------

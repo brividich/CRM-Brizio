@@ -458,25 +458,62 @@ def per_scheda(asset_id: int, ora=None) -> dict | None:
 
 
 def per_mappa(asset_ids, ora=None) -> dict[int, dict]:
-    """asset_id → stato dal controllo per la mappa officina (solo collegamenti attivi)."""
-    from assets.models import CollegamentoMTConnect
+    """asset_id → stato dal controllo per la mappa officina (solo collegamenti attivi).
+
+    Oltre allo stato: la giornata di oggi a segmenti (per la barra «linea del giorno»),
+    l'utilizzo sulle ore trascorse e da quanto dura lo stato attuale. Una query sola
+    per i periodi di tutte le macchine."""
+    from assets.models import CollegamentoMTConnect, PeriodoStatoMacchina
 
     ora = ora or timezone.now()
+    inizio = timezone.localtime(ora).replace(hour=0, minute=0, second=0, microsecond=0)
+    trascorso = max((ora - inizio).total_seconds(), 1.0)
+    collegamenti = list(CollegamentoMTConnect.objects.filter(asset_id__in=list(asset_ids), attivo=True))
+    periodi: dict[int, list] = {}
+    for p in (
+        PeriodoStatoMacchina.objects.filter(collegamento__in=collegamenti, dal__lt=ora)
+        .exclude(al__lt=inizio)
+        .order_by("dal")
+        .values("collegamento_id", "stato", "dal", "al")
+    ):
+        periodi.setdefault(p["collegamento_id"], []).append(p)
     out = {}
-    for coll in CollegamentoMTConnect.objects.filter(asset_id__in=list(asset_ids), attivo=True):
+    for coll in collegamenti:
         fresco = attuale(coll, ora)
+        giornata, in_lavoro = [], 0.0
+        for p in periodi.get(coll.id, []):
+            dal, al = max(p["dal"], inizio), min(p["al"] or ora, ora)
+            if al <= dal:
+                continue
+            secondi = (al - dal).total_seconds()
+            if p["stato"] == "in_lavoro":
+                in_lavoro += secondi
+            giornata.append({
+                "stato": p["stato"],
+                "da": round((dal - inizio).total_seconds() / 86400 * 100, 2),
+                "a": round((al - inizio).total_seconds() / 86400 * 100, 2),
+                "label": STATO_ETICHETTE.get(p["stato"], p["stato"]),
+                "dalle": timezone.localtime(dal).strftime("%H:%M"),
+                "alle": timezone.localtime(al).strftime("%H:%M"),
+            })
         out[coll.asset_id] = {
             "fonte": coll.get_fonte_display(),
+            "codice": coll.codice,
             "allarme": fresco and coll.stato in STATI_ALLARME,
             "stato": coll.stato if fresco else "vecchio",
             "label": STATO_ETICHETTE.get(coll.stato, coll.stato) if fresco else "Dato non aggiornato",
             "programma": coll.programma,
             "modalita": coll.modalita,
-            "pezzi": str(coll.pezzi_grezzo.normalize()) if coll.pezzi_grezzo is not None else "",
+            "esecuzione": coll.esecuzione,
+            "pezzi": format(coll.pezzi_grezzo.normalize(), "f") if coll.pezzi_grezzo is not None else "",
             "allarmi": coll.allarmi if fresco else [],
             "dal": timezone.localtime(coll.stato_dal).strftime("%d/%m %H:%M") if coll.stato_dal else "",
+            "da_quanto": _durata(ora - coll.stato_dal) if coll.stato_dal and fresco else "",
             "letto": timezone.localtime(coll.controllato_il).strftime("%d/%m %H:%M") if coll.controllato_il else "",
-            "ore_oggi": str(ore_in_lavoro_oggi(coll, ora)).replace(".", ","),
+            "ore_oggi": str((Decimal(in_lavoro) / Decimal(3600)).quantize(Decimal("0.1"))).replace(".", ","),
+            "utilizzo": round(in_lavoro / trascorso * 100),
+            "ora": round(trascorso / 86400 * 100, 2),
+            "giornata": giornata,
             "errore": coll.errore,
         }
     return out
