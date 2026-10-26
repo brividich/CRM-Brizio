@@ -1,85 +1,99 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Aree & Reparti | Anagrafica{% endblock %}
+{% block title %}Reparti, aree e capi | Anagrafica{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
 {% include "core/components/_hub_formkit.html" %}
 <style>
-.cat-page { display:flex; flex-direction:column; gap:20px; }
-.cat-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-.cat-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
-.cat-sub   { font-size:13px; color:#64748b; margin-top:2px; }
-.cat-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.cat-btn-primary { background:#0c2545; color:#fff; }
-.cat-btn-primary:hover { background:#08142d; }
-.cat-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
-.cat-btn-ghost:hover { background:#e2e8f0; }
-.cat-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
-.cat-btn-danger { background:transparent; color:#64748b; border:1px solid transparent; }
-.cat-btn-danger:hover { background:#fef2f2; color:#dc2626; border-color:#fca5a5; }
-.cat-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
-.cat-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
-.cat-card-title { font-size:15px; font-weight:700; color:#1e293b; }
-.cat-table { width:100%; border-collapse:collapse; font-size:13px; }
-.cat-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
-.cat-table td { padding:11px 16px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:middle; }
-.cat-table tr:last-child td { border-bottom:none; }
-.cat-table tr:hover td { background:#f8fafc; }
-.cat-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
-.cat-pill-green { background:var(--hr-ok-bg,#dcfce7); color:var(--hr-ok-fg,#166534); }
-.cat-pill-gray  { background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); }
-.cat-pill-blue  { background:var(--hr-info-bg,#dbeafe); color:var(--hr-info-fg,#1e40af); }
-.cat-pill-orange{ background:var(--hr-alert-bg,#ffedd5); color:var(--hr-alert-fg,#9a3412); }
-.cat-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
-.cat-add-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
-.cat-add-title { font-size:14px; font-weight:700; color:#1e293b; margin-bottom:14px; }
-/* Campi form (create reparto/area + modali modifica) = primitiva canonica .hub-field del form-kit. */
+.rc-page { display:flex; flex-direction:column; gap:18px; }
+.rc-top { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.rc-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.rc-sub { font-size:13px; color:#64748b; margin-top:4px; max-width:760px; line-height:1.5; }
+.rc-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.rc-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:1px solid transparent; background:none; }
+.rc-btn-primary { background:#0c2545; color:#fff; }
+.rc-btn-primary:hover { background:#08142d; }
+.rc-btn-primary[disabled] { opacity:.45; cursor:not-allowed; }
+.rc-btn-ghost { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
+.rc-btn-ghost:hover { background:#e2e8f0; }
+.rc-btn-sm { padding:4px 10px; font-size:12px; border-radius:7px; }
+.rc-btn-x { padding:0 6px; font-size:14px; line-height:1; color:#64748b; border-radius:6px; }
+.rc-btn-x:hover { background:#fee2e2; color:#b91c1c; }
+.rc-btn-danger { color:#64748b; }
+.rc-btn-danger:hover { background:#fef2f2; color:#dc2626; border-color:#fca5a5; }
+.rc-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 
-/* Reparto band — riga colorata per reparto (ora contenitore di primo livello) */
-.area-band { background:#f0f7ff; border-left:4px solid var(--area-color, #1f87cd); }
-.area-band td { font-weight:700; color:#0f172a; padding:10px 16px; }
-.area-badge { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; }
-.area-badge-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-.reparto-row td { padding:9px 16px 9px 32px; }
-.reparto-row td:first-child { padding-left:36px; font-size:12px; color:#475569; }
-.reparto-name { font-weight:600; color:#1e293b; }
-.senza-area-band { background:#fff8f0; border-left:4px solid #f59e0b; }
-.senza-area-band td { color:#92400e; font-size:12px; font-weight:600; }
+.rc-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+.rc-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; }
+.rc-kpi-n { font-size:24px; font-weight:800; color:#0f172a; }
+.rc-kpi-l { font-size:12px; color:#64748b; }
+.rc-kpi-warn .rc-kpi-n { color:#b45309; }
 
-/* Tabs (prefisso locale cat-* per non collidere con il componente pill hr-tabs di _hr_restyle) */
-.cat-tabs { display:flex; gap:2px; border-bottom:2px solid #e2e8f0; margin-bottom:0; }
-.cat-tab { padding:10px 18px; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s,border-color .15s; }
-.cat-tab.active { color:#1f87cd; border-bottom-color:#1f87cd; }
-.cat-tab-panel { display:none; }
-.cat-tab-panel.active { display:block; }
+.rc-panel { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; }
+.rc-panel-warn { border-color:#fcd34d; background:#fffbeb; }
+.rc-panel h2 { font-size:16px; font-weight:700; color:#1e293b; margin:0 0 6px; }
+.rc-panel p { font-size:13px; color:#475569; margin:0 0 10px; line-height:1.5; }
+.rc-list { margin:0 0 10px; padding-left:18px; font-size:13px; color:#334155; }
+.rc-list li { margin:2px 0; }
 
-/* Dark */
-body.theme-dark .cat-title { color:var(--text); }
-body.theme-dark .cat-sub { color:var(--text-light); }
-body.theme-dark .cat-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
-body.theme-dark .cat-card, body.theme-dark .cat-add-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .cat-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-body.theme-dark .cat-table td { border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .cat-table tr:hover td { background:var(--tbody-hover); }
-body.theme-dark .area-band { background:rgba(30,92,145,.12); }
-body.theme-dark .area-band td { color:var(--text); }
-body.theme-dark .cat-add-title { color:var(--text); }
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .cat-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
-body.theme-dark .cat-btn-danger{background:transparent;color:var(--text-light)}
-body.theme-dark .cat-btn-danger:hover{background:rgba(229,62,62,.16);color:#fca5a5}
-body.theme-dark .cat-card-head{border-color:var(--border)}
-body.theme-dark .cat-card-title{color:var(--text)}
-body.theme-dark .reparto-row td:first-child{color:var(--text-mid)}
-body.theme-dark .reparto-name{color:var(--text)}
-body.theme-dark .senza-area-band td{color:#fcd34d}
-body.theme-dark .cat-tabs{border-color:var(--border)}
-body.theme-dark .cat-tab{color:var(--text-light)}
-body.theme-dark .cat-tab.active{color:#93c5fd}
+.rc-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap:14px; }
+.rc-card { background:#fff; border:1px solid #e2e8f0; border-top:4px solid var(--rc-color, #64748b); border-radius:14px; display:flex; flex-direction:column; min-width:0; }
+.rc-card.is-off { opacity:.6; }
+.rc-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:14px 16px 8px; }
+.rc-card-name { font-size:17px; font-weight:800; color:#0f172a; }
+.rc-card-meta { font-size:12px; color:#64748b; margin-top:2px; }
+.rc-card-body { padding:4px 16px 14px; display:flex; flex-direction:column; gap:10px; }
+.rc-row { display:flex; flex-direction:column; gap:4px; }
+.rc-mansione { font-size:13px; color:#1e293b; }
+.rc-mansione small { color:#64748b; }
+.rc-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.rc-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 4px 3px 10px; border-radius:999px; font-size:12px; font-weight:600; background:var(--hr-info-bg,#dbeafe); color:var(--hr-info-fg,#1e40af); }
+.rc-chip.solo { padding-right:10px; }
+.rc-chip-co { background:var(--hr-na-bg,#f1f5f9); color:var(--hr-na-fg,#475569); }
+.rc-none { font-size:12px; color:#94a3b8; font-style:italic; }
+.rc-old { font-size:12px; color:#64748b; }
+.rc-avvisi { display:flex; flex-direction:column; gap:4px; }
+.rc-avviso { font-size:12px; font-weight:600; color:#9a3412; background:var(--hr-alert-bg,#ffedd5); border-radius:8px; padding:5px 9px; }
+.rc-assegna { display:flex; gap:6px; flex-wrap:wrap; }
+.rc-assegna select { flex:1 1 200px; min-width:0; }
+.rc-aree { width:100%; border-collapse:collapse; font-size:12.5px; }
+.rc-aree th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:6px 6px; border-bottom:1px solid #e2e8f0; }
+.rc-aree td { padding:7px 6px; border-bottom:1px solid #f1f5f9; vertical-align:top; color:#334155; }
+.rc-aree tr:last-child td { border-bottom:none; }
+.rc-aree .rc-n { text-align:right; white-space:nowrap; }
+.rc-aree .is-off td { opacity:.6; }
+
+.rc-add { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:14px; }
+.rc-add details { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 16px; }
+.rc-add summary { font-size:14px; font-weight:700; color:#1e293b; cursor:pointer; }
+.rc-add form { margin-top:12px; }
+
+.rc-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; padding:16px; }
+.rc-modal-box { background:#fff; border-radius:14px; padding:22px; width:100%; max-width:520px; max-height:calc(100dvh - 32px); overflow:auto; }
+.rc-modal-title { font-size:15px; font-weight:700; color:#1e293b; margin-bottom:14px; }
+
+body.theme-dark .rc-title, body.theme-dark .rc-card-name, body.theme-dark .rc-kpi-n,
+body.theme-dark .rc-panel h2, body.theme-dark .rc-mansione, body.theme-dark .rc-add summary,
+body.theme-dark .rc-modal-title { color:var(--text); }
+body.theme-dark .rc-sub, body.theme-dark .rc-kpi-l, body.theme-dark .rc-card-meta, body.theme-dark .rc-label,
+body.theme-dark .rc-mansione small, body.theme-dark .rc-old, body.theme-dark .rc-panel p,
+body.theme-dark .rc-aree th { color:var(--text-light); }
+body.theme-dark .rc-kpi, body.theme-dark .rc-panel, body.theme-dark .rc-card, body.theme-dark .rc-add details,
+body.theme-dark .rc-modal-box { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rc-card { border-top-color:var(--rc-color, #64748b); }
+body.theme-dark .rc-panel-warn { background:rgba(245,158,11,.10); border-color:rgba(245,158,11,.45); }
+body.theme-dark .rc-btn-ghost { background:var(--surface-alt,#0f1b2d); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .rc-btn-ghost:hover { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .rc-btn-danger, body.theme-dark .rc-btn-x { color:var(--text-light); }
+body.theme-dark .rc-btn-danger:hover, body.theme-dark .rc-btn-x:hover { background:rgba(229,62,62,.16); color:#fca5a5; }
+body.theme-dark .rc-list, body.theme-dark .rc-aree td { color:var(--text-mid); }
+body.theme-dark .rc-aree th, body.theme-dark .rc-aree td { border-color:var(--border); }
+body.theme-dark .rc-kpi-warn .rc-kpi-n { color:#fcd34d; }
+body.theme-dark .rc-avviso { color:#fdba74; }
+body.theme-dark #delete-area-form { border-color:var(--border) !important; }
 </style>
 {% endblock %}
 
@@ -87,479 +101,297 @@ body.theme-dark .cat-tab.active{color:#93c5fd}
 
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
-<div class="cat-page">
-
+<div class="rc-page">
   {% include "anagrafica/components/flash_messages.html" %}
 
-  <div class="cat-topbar">
+  <div class="rc-top">
     <div>
-      <div class="cat-title">Aree & Reparti</div>
-      <div class="cat-sub">Gerarchia aziendale: reparti con le relative aree aziendali e caporeparti</div>
+      <div class="rc-title">Reparti, aree e capi</div>
+      <div class="rc-sub">Un criterio per tutti: il <strong>capo del reparto</strong> è chi ha la sua <strong>mansione del capo</strong> (di solito «Responsabilità del reparto»). Un'area può avere una mansione propria per il suo responsabile, altrimenti segue il reparto. Assenze, DPI, permessi del team, solleciti e schede usano questo capo.</div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      {# Due export distinti: il livello padre (reparti) e il livello figlio (aree aziendali). #}
-      <span style="display:inline-flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Reparti</span>
-        {% include "anagrafica/partials/_export_buttons.html" with export_key="reparti" %}
-      </span>
-      <span style="display:inline-flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Aree</span>
-        {% include "anagrafica/partials/_export_buttons.html" with export_key="aree" %}
-      </span>
-      <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <div class="rc-actions">
+      {% include "anagrafica/partials/_guida_persone_link.html" with ancora="coerenza-capi" %}
+      {% if is_admin %}<a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:coerenza_capi' %}">Capo di ogni persona</a>{% endif %}
+      <span class="rc-label">Reparti</span>{% include "anagrafica/partials/_export_buttons.html" with export_key="reparti" %}
+      <span class="rc-label">Aree</span>{% include "anagrafica/partials/_export_buttons.html" with export_key="aree" %}
     </div>
   </div>
 
-  <!-- ── TAB BAR ── -->
-  <div class="cat-card" style="overflow:visible;">
-    <div style="padding:0 20px;">
-      <div class="cat-tabs">
-        <button class="cat-tab active" data-tab="struttura">Struttura gerarchica</button>
+  <div class="rc-kpis">
+    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti attivi</div></div>
+    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla mansione del capo</div></div>
+    <div class="rc-kpi {% if kpi.da_sistemare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_sistemare }}</div><div class="rc-kpi-l">Reparti da sistemare</div></div>
+    <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></div>
+    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></div>
+  </div>
+
+  {% if not regola_attiva %}
+  <section class="rc-panel rc-panel-warn" id="passaggio">
+    <h2>Passaggio ai capi decisi dalla mansione</h2>
+    <p>Oggi i moduli usano ancora i capi scelti a mano. Il passaggio assegna la mansione del capo a chi oggi è capo, così nessuno cambia capo, e da lì in poi il capo si cambia solo assegnando o togliendo la mansione. Si fa una volta.</p>
+    {% if proposta.assegnazioni %}
+      <div class="rc-label">Mansioni che verranno assegnate</div>
+      <ul class="rc-list">{% for a in proposta.assegnazioni %}<li><strong>{{ a.dove }}</strong>: «{{ a.mansione.nome }}» a {{ a.nome|default:a.legacy_id }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if proposta.senza_mansione %}
+      <div class="rc-label">Prima scegli la mansione del capo (pulsante «Modifica»)</div>
+      <ul class="rc-list">{% for r in proposta.senza_mansione %}<li><a href="#rep-{{ r.pk }}">{{ r.nome }}</a></li>{% endfor %}</ul>
+    {% endif %}
+    {% if proposta.aree_da_decidere %}
+      <div class="rc-label">Aree con un responsabile diverso dal capo del reparto</div>
+      <p>Se il responsabile deve restare, scegli per l'area la mansione del responsabile; se no, dopo il passaggio l'area segue il capo del reparto.</p>
+      <ul class="rc-list">{% for a in proposta.aree_da_decidere %}<li><a href="#rep-{{ a.reparto_id }}">{{ a.reparto.nome }} / {{ a.nome }}</a></li>{% endfor %}</ul>
+    {% endif %}
+    {% if is_admin %}
+    <form method="post" action="{% url 'anagrafica:capi_passaggio' %}" class="rc-actions">
+      {% csrf_token %}
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;"><input type="checkbox" name="conferma" value="1" required {% if proposta.bloccata %}disabled{% endif %}> Ho controllato reparti e aree</label>
+      <button type="submit" class="rc-btn rc-btn-primary" {% if proposta.bloccata %}disabled title="Prima scegli la mansione del capo dei reparti elencati"{% endif %}>Fai il passaggio</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="rc-grid">
+    {% for s in schede %}
+    {% with r=s.reparto %}
+    <article class="rc-card {% if not r.is_active %}is-off{% endif %}" id="rep-{{ r.pk }}" style="--rc-color:{{ r.colore }};">
+      <div class="rc-card-head">
+        <div>
+          <div class="rc-card-name">{{ r.nome }}</div>
+          <div class="rc-card-meta">{{ s.persone }} person{{ s.persone|pluralize:"a,e" }} · {{ s.aree|length }} are{{ s.aree|length|pluralize:"a,e" }}{% if not r.is_active %} · non attivo{% endif %}{% if r.descrizione %} · {{ r.descrizione }}{% endif %}</div>
+        </div>
         {% if is_admin %}
-        <button class="cat-tab" data-tab="add-reparto">+ Reparto</button>
-        <button class="cat-tab" data-tab="add-area">+ Area aziendale</button>
+        <div class="rc-actions">
+          <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm"
+                  data-edit-rep-id="{{ r.pk }}" data-edit-rep-nome="{{ r.nome }}" data-edit-rep-desc="{{ r.descrizione }}"
+                  data-edit-rep-colore="{{ r.colore }}" data-edit-rep-mansione="{{ r.mansione_capo_id|default_if_none:'' }}"
+                  data-edit-rep-active="{{ r.is_active|yesno:'1,0' }}">Modifica</button>
+          <form method="post" action="{% url 'anagrafica:area_delete' r.pk %}" data-hub-confirm="Eliminare il reparto «{{ r.nome }}»?">
+            {% csrf_token %}<button type="submit" class="rc-btn rc-btn-danger rc-btn-sm">Elimina</button>
+          </form>
+        </div>
         {% endif %}
       </div>
-    </div>
-
-    <!-- ── TAB: Struttura ── -->
-    <div class="cat-tab-panel active" data-tab-panel="struttura">
-      <table class="cat-table" data-table-id="anagrafica.aree.list">
-        <thead>
-          <tr>
-            <th data-col="nome" data-col-label="Nome" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome</th>
-            <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
-            <th data-col="responsabile" data-col-label="Caporeparto / Responsabile" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Caporeparto / Responsabile</th>
-            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1">Stato</th>
-            {% if is_admin %}<th style="width:160px;"></th>{% endif %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for rep in reparti %}
-          <!-- Reparto band -->
-          <tr class="area-band" style="--area-color:{{ rep.colore }};">
-            <td colspan="{% if is_admin %}5{% else %}4{% endif %}">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <div class="area-badge">
-                  <span class="area-badge-dot" style="background:{{ rep.colore }};"></span>
-                  {{ rep.nome }}
-                  <span style="font-size:11px;font-weight:400;color:#64748b;">({{ rep.aree_aziendali.count }} area/e)</span>
-                  {% if rep.caporeparto_label %}
-                    <span class="cat-pill cat-pill-blue">👤 {{ rep.caporeparto_label }}</span>
-                  {% endif %}
-                  {% if rep.responsabili_label %}
-                    <span class="cat-pill cat-pill-orange">+ {{ rep.responsabili_label }}</span>
-                  {% endif %}
-                </div>
-                {% if is_admin %}
-                <div style="display:flex;gap:6px;">
-                  <button class="cat-btn cat-btn-ghost cat-btn-sm"
-                          data-edit-rep-id="{{ rep.pk }}"
-                          data-edit-rep-nome="{{ rep.nome }}"
-                          data-edit-rep-desc="{{ rep.descrizione }}"
-                          data-edit-rep-colore="{{ rep.colore }}"
-                          data-edit-rep-capo="{{ rep.caporeparto_legacy_id|default_if_none:'' }}"
-                          data-edit-rep-responsabili="{{ rep.responsabili_ids|join:',' }}"
-                          data-edit-rep-active="{{ rep.is_active|yesno:'1,0' }}">
-                    Modifica
-                  </button>
-                  <form method="post" action="{% url 'anagrafica:area_delete' rep.pk %}" style="display:inline;" data-hub-confirm="Eliminare il reparto «{{ rep.nome }}»? Le aree aziendali associate resteranno senza reparto.">
-                    {% csrf_token %}
-                    <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
-                  </form>
-                </div>
+      <div class="rc-card-body">
+        <div class="rc-row">
+          <span class="rc-label">Mansione del capo</span>
+          <span class="rc-mansione">{% if s.mansione %}{% if is_admin %}<a href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}{{ s.mansione.nome }}{% endif %}{% if s.mansione_default %} <small>(predefinita)</small>{% endif %}{% else %}<span class="rc-none">da scegliere</span>{% endif %}</span>
+        </div>
+        <div class="rc-row">
+          <span class="rc-label">Capo</span>
+          <div class="rc-chips">
+            {% for p in s.capi %}
+              <span class="rc-chip {% if not forloop.first %}rc-chip-co{% endif %} {% if not is_admin or not p.abilitazione %}solo{% endif %}">{{ p.nome }}{% if not forloop.first %} (co-capo){% endif %}
+                {% if is_admin and p.abilitazione %}
+                <form method="post" action="{% url 'anagrafica:capo_togli' p.abilitazione %}" data-hub-confirm="Togliere a {{ p.nome }} la mansione «{{ s.mansione.nome }}»? Non sarà più capo di {{ r.nome }}." style="display:inline;">
+                  {% csrf_token %}<input type="hidden" name="ancora" value="rep-{{ r.pk }}">
+                  <button type="submit" class="rc-btn rc-btn-x" title="Togli la mansione" aria-label="Togli la mansione a {{ p.nome }}">×</button>
+                </form>
                 {% endif %}
-              </div>
-            </td>
-          </tr>
-          <!-- Aree aziendali di questo reparto -->
-          {% for area in rep.aree_aziendali.all %}
-          <tr class="reparto-row" {% if not area.is_active %}style="opacity:.6;"{% endif %}>
-            <td>
-              <span class="reparto-name">↳ {{ area.nome }}</span>
-            </td>
-            <td style="color:#64748b;">{{ area.descrizione|default:"—" }}</td>
-            <td>
-              {% if area.responsabile_label %}
-                <span class="cat-pill cat-pill-blue">{{ area.responsabile_label }}</span>
-              {% elif not area.responsabili_label %}
-                <span style="color:#94a3b8;">—</span>
-              {% endif %}
-              {% if area.responsabili_label %}
-                <span class="cat-pill cat-pill-orange">+ {{ area.responsabili_label }}</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if area.is_active %}
-                <span class="cat-pill cat-pill-green">Attivo</span>
-              {% else %}
-                <span class="cat-pill cat-pill-gray">Inattivo</span>
-              {% endif %}
-            </td>
-            {% if is_admin %}
-            <td>
-              <div style="display:flex;gap:6px;flex-wrap:nowrap;justify-content:flex-end;">
-                <button class="cat-btn cat-btn-ghost cat-btn-sm"
-                        data-edit-area-id="{{ area.pk }}"
-                        data-edit-area-nome="{{ area.nome }}"
-                        data-edit-area-desc="{{ area.descrizione }}"
-                        data-edit-area-responsabile="{{ area.responsabile_legacy_id|default_if_none:'' }}"
-                        data-edit-area-responsabili="{{ area.responsabili_ids|join:',' }}"
-                        data-edit-area-reparto="{{ rep.pk }}"
-                        data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
-                  Modifica
-                </button>
-                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" data-hub-confirm="Eliminare l'area «{{ area.nome }}»?">
-                  {% csrf_token %}
-                  <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
-                </form>
-              </div>
-            </td>
-            {% endif %}
-          </tr>
-          {% empty %}
-          <tr class="reparto-row">
-            <td colspan="{% if is_admin %}5{% else %}4{% endif %}" style="padding-left:36px;color:#94a3b8;font-size:12px;font-style:italic;">
-              Nessuna area aziendale in questo reparto. Crea un'area e associala qui.
-            </td>
-          </tr>
-          {% endfor %}
-          {% empty %}
-          <tr><td colspan="{% if is_admin %}5{% else %}4{% endif %}" class="cat-empty">Nessun reparto creato. Usa il tab "＋ Reparto" per aggiungerne uno.</td></tr>
-          {% endfor %}
-
-          {% if aree_senza_reparto %}
-          <!-- Aree aziendali non assegnate ad alcun reparto -->
-          <tr class="senza-area-band">
-            <td colspan="{% if is_admin %}5{% else %}4{% endif %}">
-              <span>⚠ Aree aziendali senza reparto ({{ aree_senza_reparto|length }})</span>
-            </td>
-          </tr>
-          {% for area in aree_senza_reparto %}
-          <tr class="reparto-row" {% if not area.is_active %}style="opacity:.6;"{% endif %}>
-            <td><span class="reparto-name">↳ {{ area.nome }}</span></td>
-            <td style="color:#64748b;">{{ area.descrizione|default:"—" }}</td>
-            <td>
-              {% if area.responsabile_label %}
-                <span class="cat-pill cat-pill-blue">{{ area.responsabile_label }}</span>
-              {% elif not area.responsabili_label %}
-                <span style="color:#94a3b8;">—</span>
-              {% endif %}
-              {% if area.responsabili_label %}
-                <span class="cat-pill cat-pill-orange">+ {{ area.responsabili_label }}</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if area.is_active %}
-                <span class="cat-pill cat-pill-green">Attivo</span>
-              {% else %}
-                <span class="cat-pill cat-pill-gray">Inattivo</span>
-              {% endif %}
-            </td>
-            {% if is_admin %}
-            <td>
-              <div style="display:flex;gap:6px;flex-wrap:nowrap;justify-content:flex-end;">
-                <button class="cat-btn cat-btn-ghost cat-btn-sm"
-                        data-edit-area-id="{{ area.pk }}"
-                        data-edit-area-nome="{{ area.nome }}"
-                        data-edit-area-desc="{{ area.descrizione }}"
-                        data-edit-area-responsabile="{{ area.responsabile_legacy_id|default_if_none:'' }}"
-                        data-edit-area-responsabili="{{ area.responsabili_ids|join:',' }}"
-                        data-edit-area-reparto=""
-                        data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
-                  Modifica
-                </button>
-                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" data-hub-confirm="Eliminare l'area «{{ area.nome }}»?">
-                  {% csrf_token %}
-                  <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
-                </form>
-              </div>
-            </td>
-            {% endif %}
-          </tr>
-          {% endfor %}
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-
-    {% if is_admin %}
-    <!-- ── TAB: Nuovo reparto ── -->
-    <div class="cat-tab-panel" data-tab-panel="add-reparto">
-      <div style="padding:20px;">
-        <div class="cat-add-title">Nuovo reparto</div>
-        <form method="post" action="{% url 'anagrafica:area_create' %}">
-          {% csrf_token %}
-          <div class="hub-form-stack">
-            <div class="hub-field">
-              <label>Nome <span class="hub-req">*</span></label>
-              <input type="text" name="nome" maxlength="100" placeholder="Es. UT, Produzione, Magazzino..." required>
-            </div>
-            <div class="hub-field">
-              <label>Descrizione</label>
-              <input type="text" name="descrizione" placeholder="Descrizione opzionale">
-            </div>
-            <div class="hub-field">
-              <label>Colore</label>
-              <input type="color" name="colore" value="#1f87cd" style="padding:4px;height:37px;cursor:pointer;">
-            </div>
-            <div class="hub-field">
-              <label>Caporeparto</label>
-              <select name="caporeparto_legacy_id">
-                <option value="">— Nessuno —</option>
-                {% for dip in dipendenti_picker %}
-                  <option value="{{ dip.id }}">{{ dip.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="hub-field">
-              <label>Altri responsabili</label>
-              <select name="responsabili" multiple size="6">
-                {% for dip in dipendenti_picker %}
-                  <option value="{{ dip.id }}">{{ dip.label }}</option>
-                {% endfor %}
-              </select>
-              <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
-            </div>
-            <div>
-              <button type="submit" class="cat-btn cat-btn-primary">Crea reparto</button>
-            </div>
+              </span>
+            {% empty %}
+              <span class="rc-none">nessuno ha la mansione</span>
+            {% endfor %}
           </div>
+          {% if not regola_attiva and s.a_mano %}<span class="rc-old">Oggi, scelto a mano: {{ s.a_mano }}</span>{% endif %}
+        </div>
+        {% if is_admin and s.mansione %}
+        <form method="post" action="{% url 'anagrafica:capo_assegna' s.mansione.pk %}" class="rc-assegna">
+          {% csrf_token %}<input type="hidden" name="ancora" value="rep-{{ r.pk }}">
+          <select name="legacy_id" required aria-label="Persona a cui assegnare la mansione del capo di {{ r.nome }}">
+            <option value="">Assegna la mansione a…</option>
+            {% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Assegna</button>
         </form>
+        {% endif %}
+        {% if s.avvisi or s.senza_capo %}
+        <div class="rc-avvisi">
+          {% for a in s.avvisi %}<div class="rc-avviso">{{ a }}</div>{% endfor %}
+          {% if s.senza_capo %}<div class="rc-avviso">{{ s.senza_capo }} person{{ s.senza_capo|pluralize:"a,e" }} senza capo</div>{% endif %}
+        </div>
+        {% endif %}
+        {% if s.aree %}
+        <table class="rc-aree" data-fm-table-skip="1">
+          <thead><tr><th>Area</th><th class="rc-n">Persone</th><th>Responsabile</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
+          <tbody>
+          {% for a in s.aree %}
+            <tr class="{% if not a.area.is_active %}is-off{% endif %}" id="area-{{ a.area.pk }}">
+              <td><strong>{{ a.area.nome }}</strong>{% if a.area.descrizione %}<div class="rc-old">{{ a.area.descrizione }}</div>{% endif %}</td>
+              <td class="rc-n">{{ a.persone }}</td>
+              <td>
+                {% if a.mansione %}
+                  <div class="rc-old">«{{ a.mansione.nome }}»</div>
+                  <div class="rc-chips">{% for p in a.responsabili %}<span class="rc-chip {% if not is_admin or not p.abilitazione %}solo{% endif %}">{{ p.nome }}
+                    {% if is_admin and p.abilitazione %}<form method="post" action="{% url 'anagrafica:capo_togli' p.abilitazione %}" data-hub-confirm="Togliere a {{ p.nome }} la mansione «{{ a.mansione.nome }}»?" style="display:inline;">{% csrf_token %}<input type="hidden" name="ancora" value="area-{{ a.area.pk }}"><button type="submit" class="rc-btn rc-btn-x" aria-label="Togli la mansione a {{ p.nome }}">×</button></form>{% endif %}
+                  </span>{% endfor %}</div>
+                  {% if a.avviso %}<div class="rc-avviso">{{ a.avviso }}</div>{% endif %}
+                  {% if is_admin %}
+                  <form method="post" action="{% url 'anagrafica:capo_assegna' a.mansione.pk %}" class="rc-assegna" style="margin-top:4px;">
+                    {% csrf_token %}<input type="hidden" name="ancora" value="area-{{ a.area.pk }}">
+                    <select name="legacy_id" required aria-label="Persona a cui assegnare la mansione del responsabile di {{ a.area.nome }}"><option value="">Assegna a…</option>{% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}</select>
+                    <button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Assegna</button>
+                  </form>
+                  {% endif %}
+                {% else %}
+                  <span class="rc-none">segue il reparto</span>
+                  {% if not regola_attiva and a.a_mano %}<div class="rc-old">Oggi, scelto a mano: {{ a.a_mano }}</div>{% endif %}
+                {% endif %}
+              </td>
+              {% if is_admin %}
+              <td class="rc-n">
+                <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm"
+                        data-edit-area-id="{{ a.area.pk }}" data-edit-area-nome="{{ a.area.nome }}" data-edit-area-desc="{{ a.area.descrizione }}"
+                        data-edit-area-reparto="{{ r.pk }}" data-edit-area-mansione="{{ a.area.mansione_capo_id|default_if_none:'' }}"
+                        data-edit-area-active="{{ a.area.is_active|yesno:'1,0' }}">Modifica</button>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <span class="rc-none">Nessuna area in questo reparto.</span>
+        {% endif %}
       </div>
-    </div>
+    </article>
+    {% endwith %}
+    {% empty %}
+      <div class="rc-panel">Nessun reparto. Creane uno qui sotto.</div>
+    {% endfor %}
+  </div>
 
-    <!-- ── TAB: Nuova area aziendale ── -->
-    <div class="cat-tab-panel" data-tab-panel="add-area">
-      <div style="padding:20px;">
-        <div class="cat-add-title">Nuova area aziendale</div>
-        <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
-          {% csrf_token %}
-          <div class="hub-form-stack">
-            <div class="hub-field">
-              <label>Nome <span class="hub-req">*</span></label>
-              <input type="text" name="nome" maxlength="100" placeholder="Es. IN1, IN2, IT, DM..." required>
-            </div>
-            <div class="hub-field">
-              <label>Descrizione</label>
-              <input type="text" name="descrizione" placeholder="Descrizione opzionale">
-            </div>
-            <div class="hub-field">
-              <label>Reparto</label>
-              <select name="reparto_id">
-                <option value="">— Nessuno —</option>
-                {% for rep in reparti %}
-                  <option value="{{ rep.pk }}">{{ rep.nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="hub-field">
-              <label>Responsabile</label>
-              <select name="responsabile_legacy_id">
-                <option value="">— Nessuno —</option>
-                {% for dip in dipendenti_picker %}
-                  <option value="{{ dip.id }}">{{ dip.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="hub-field">
-              <label>Altri responsabili</label>
-              <select name="responsabili" multiple size="6">
-                {% for dip in dipendenti_picker %}
-                  <option value="{{ dip.id }}">{{ dip.label }}</option>
-                {% endfor %}
-              </select>
-              <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
-            </div>
-            <div>
-              <button type="submit" class="cat-btn cat-btn-primary">Crea area</button>
-            </div>
+  {% if aree_senza_reparto %}
+  <section class="rc-panel rc-panel-warn">
+    <h2>Aree senza reparto ({{ aree_senza_reparto|length }})</h2>
+    <p>Queste aree non hanno un capo: assegnale a un reparto.</p>
+    <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-mansione="{{ a.mansione_capo_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if is_admin %}
+  <div class="rc-add">
+    <details>
+      <summary>+ Nuovo reparto</summary>
+      <form method="post" action="{% url 'anagrafica:area_create' %}">
+        {% csrf_token %}
+        <div class="hub-form-stack">
+          <div class="hub-field"><label>Nome <span class="hub-req">*</span></label><input type="text" name="nome" maxlength="100" placeholder="Es. UT, CNC, Logistica…" required></div>
+          <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione"></div>
+          <div class="hub-field"><label>Colore</label><input type="color" name="colore" value="#1f87cd" style="padding:4px;cursor:pointer;"></div>
+          <div class="hub-field">
+            <label>Mansione del capo</label>
+            <select name="mansione_capo">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Responsabilità del reparto (predefinita)" %}</select>
+            <p class="hub-help">Chi ha questa mansione nel Mansionario è il capo del reparto.</p>
           </div>
-        </form>
-      </div>
-    </div>
-    {% endif %}
-  </div><!-- /cat-card -->
-
-</div><!-- /cat-page -->
+          <div><button type="submit" class="rc-btn rc-btn-primary">Crea reparto</button></div>
+        </div>
+      </form>
+    </details>
+    <details>
+      <summary>+ Nuova area aziendale</summary>
+      <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
+        {% csrf_token %}
+        <div class="hub-form-stack">
+          <div class="hub-field"><label>Nome <span class="hub-req">*</span></label><input type="text" name="nome" maxlength="100" placeholder="Es. IN1, HSE, IT…" required></div>
+          <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione"></div>
+          <div class="hub-field"><label>Reparto</label><select name="reparto_id"><option value="">— Nessuno —</option>{% for rep in reparti_opts %}<option value="{{ rep.pk }}">{{ rep.nome }}</option>{% endfor %}</select></div>
+          <div class="hub-field">
+            <label>Mansione del responsabile</label>
+            <select name="mansione_capo">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Segue il capo del reparto" %}</select>
+          </div>
+          <div><button type="submit" class="rc-btn rc-btn-primary">Crea area</button></div>
+        </div>
+      </form>
+    </details>
+  </div>
+  {% endif %}
+</div>
 
 {% if is_admin %}
-<!-- ── Modal modifica reparto ── -->
-<div id="edit-rep-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:24px;min-width:380px;max-width:560px;width:90%;">
-    <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica reparto</div>
+<div id="edit-rep-modal" class="rc-modal">
+  <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="edit-rep-title">
+    <div class="rc-modal-title" id="edit-rep-title">Modifica reparto</div>
     <form method="post" id="edit-rep-form">
       {% csrf_token %}
       <div class="hub-form-stack">
+        <div class="hub-field"><label>Nome <span class="hub-req">*</span></label><input type="text" name="nome" id="edit-rep-nome" maxlength="100" required></div>
+        <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione" id="edit-rep-desc"></div>
+        <div class="hub-field"><label>Colore</label><input type="color" name="colore" id="edit-rep-colore" style="padding:4px;cursor:pointer;"></div>
         <div class="hub-field">
-          <label>Nome <span class="hub-req">*</span></label>
-          <input type="text" name="nome" id="edit-rep-nome" maxlength="100" required>
+          <label>Mansione del capo</label>
+          <select name="mansione_capo" id="edit-rep-mansione">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Responsabilità del reparto (predefinita)" %}</select>
+          <p class="hub-help">Chi ha questa mansione nel Mansionario è il capo del reparto. Lasciala predefinita salvo casi come UT.</p>
         </div>
-        <div class="hub-field">
-          <label>Descrizione</label>
-          <input type="text" name="descrizione" id="edit-rep-desc">
-        </div>
-        <div class="hub-field">
-          <label>Colore</label>
-          <input type="color" name="colore" id="edit-rep-colore" style="padding:4px;height:37px;cursor:pointer;">
-        </div>
-        <div class="hub-field">
-          <label>Caporeparto</label>
-          <select name="caporeparto_legacy_id" id="edit-rep-capo">
-            <option value="">— Nessuno —</option>
-            {% for dip in dipendenti_picker %}
-              <option value="{{ dip.id }}">{{ dip.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="hub-field">
-          <label>Altri responsabili</label>
-          <select name="responsabili" id="edit-rep-responsabili" multiple size="6">
-            {% for dip in dipendenti_picker %}
-              <option value="{{ dip.id }}">{{ dip.label }}</option>
-            {% endfor %}
-          </select>
-          <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
-        </div>
-        <div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
-            <input type="checkbox" name="is_active" id="edit-rep-active" value="1"> Reparto attivo
-          </label>
-        </div>
-        <div style="display:flex;gap:8px;padding-top:4px;">
-          <button type="submit" class="cat-btn cat-btn-primary">Salva</button>
-          <button type="button" class="cat-btn cat-btn-ghost" onclick="closeRepEdit()">Annulla</button>
-        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" name="is_active" id="edit-rep-active" value="1"> Reparto attivo</label>
+        <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Salva</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ── Modal modifica area aziendale ── -->
-<div id="edit-area-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:24px;min-width:380px;max-width:500px;width:90%;">
-    <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica area aziendale</div>
+<div id="edit-area-modal" class="rc-modal">
+  <div class="rc-modal-box" role="dialog" aria-modal="true" aria-labelledby="edit-area-title">
+    <div class="rc-modal-title" id="edit-area-title">Modifica area aziendale</div>
     <form method="post" id="edit-area-form">
       {% csrf_token %}
       <div class="hub-form-stack">
+        <div class="hub-field"><label>Nome <span class="hub-req">*</span></label><input type="text" name="nome" id="edit-area-nome" maxlength="100" required></div>
+        <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione" id="edit-area-desc"></div>
+        <div class="hub-field"><label>Reparto</label><select name="reparto_id" id="edit-area-reparto"><option value="">— Nessuno —</option>{% for rep in reparti_opts %}<option value="{{ rep.pk }}">{{ rep.nome }}</option>{% endfor %}</select></div>
         <div class="hub-field">
-          <label>Nome <span class="hub-req">*</span></label>
-          <input type="text" name="nome" id="edit-area-nome" maxlength="100" required>
+          <label>Mansione del responsabile</label>
+          <select name="mansione_capo" id="edit-area-mansione">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Segue il capo del reparto" %}</select>
+          <p class="hub-help">Solo se l'area ha un responsabile diverso dal capo del reparto (es. HSE, IT, Qualità in UT).</p>
         </div>
-        <div class="hub-field">
-          <label>Descrizione</label>
-          <input type="text" name="descrizione" id="edit-area-desc">
-        </div>
-        <div class="hub-field">
-          <label>Reparto</label>
-          <select name="reparto_id" id="edit-area-reparto">
-            <option value="">— Nessuno —</option>
-            {% for rep in reparti %}
-              <option value="{{ rep.pk }}">{{ rep.nome }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="hub-field">
-          <label>Responsabile</label>
-          <select name="responsabile_legacy_id" id="edit-area-responsabile">
-            <option value="">— Nessuno —</option>
-            {% for dip in dipendenti_picker %}
-              <option value="{{ dip.id }}">{{ dip.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="hub-field">
-          <label>Altri responsabili</label>
-          <select name="responsabili" id="edit-area-responsabili" multiple size="6">
-            {% for dip in dipendenti_picker %}
-              <option value="{{ dip.id }}">{{ dip.label }}</option>
-            {% endfor %}
-          </select>
-          <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
-        </div>
-        <div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
-            <input type="checkbox" name="is_active" id="edit-area-active" value="1"> Area attiva
-          </label>
-        </div>
-        <div style="display:flex;gap:8px;padding-top:4px;">
-          <button type="submit" class="cat-btn cat-btn-primary">Salva</button>
-          <button type="button" class="cat-btn cat-btn-ghost" onclick="closeAreaEdit()">Annulla</button>
-        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" name="is_active" id="edit-area-active" value="1"> Area attiva</label>
+        <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Salva</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
       </div>
+    </form>
+    <form method="post" id="delete-area-form" data-hub-confirm="Eliminare l'area? Le persone dell'area restano senza area aziendale." style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px;">
+      {% csrf_token %}<button type="submit" class="rc-btn rc-btn-danger rc-btn-sm">Elimina l'area</button>
     </form>
   </div>
 </div>
 
 <script>
-(function() {
-  // ── Tab navigation ──
-  document.querySelectorAll('.cat-tab').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      var key = tab.getAttribute('data-tab');
-      document.querySelectorAll('.cat-tab').forEach(function(t) { t.classList.remove('active'); });
-      document.querySelectorAll('.cat-tab-panel').forEach(function(p) { p.classList.remove('active'); });
-      tab.classList.add('active');
-      var panel = document.querySelector('[data-tab-panel="' + key + '"]');
-      if (panel) panel.classList.add('active');
+(function () {
+  function apri(id) { document.getElementById(id).style.display = 'flex'; }
+  function chiudi(m) { m.style.display = 'none'; }
+  document.querySelectorAll('.rc-modal').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m || e.target.hasAttribute('data-rc-chiudi')) chiudi(m); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.rc-modal').forEach(chiudi);
+  });
+  var repBase = "{% url 'anagrafica:area_edit' 0 %}";
+  document.querySelectorAll('[data-edit-rep-id]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.getElementById('edit-rep-form').action = repBase.replace('/0/', '/' + b.dataset.editRepId + '/');
+      document.getElementById('edit-rep-nome').value = b.dataset.editRepNome || '';
+      document.getElementById('edit-rep-desc').value = b.dataset.editRepDesc || '';
+      document.getElementById('edit-rep-colore').value = b.dataset.editRepColore || '#64748b';
+      document.getElementById('edit-rep-mansione').value = b.dataset.editRepMansione || '';
+      document.getElementById('edit-rep-active').checked = b.dataset.editRepActive === '1';
+      apri('edit-rep-modal');
     });
   });
-
-  function setMultiSelect(selectEl, csv) {
-    var ids = (csv || '').split(',').filter(Boolean);
-    Array.prototype.forEach.call(selectEl.options, function(opt) {
-      opt.selected = ids.indexOf(opt.value) !== -1;
+  var areaBase = "{% url 'anagrafica:area_aziendale_edit' 0 %}";
+  var areaDelBase = "{% url 'anagrafica:area_aziendale_delete' 0 %}";
+  document.querySelectorAll('[data-edit-area-id]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.getElementById('edit-area-form').action = areaBase.replace('/0/', '/' + b.dataset.editAreaId + '/');
+      document.getElementById('delete-area-form').action = areaDelBase.replace('/0/', '/' + b.dataset.editAreaId + '/');
+      document.getElementById('edit-area-nome').value = b.dataset.editAreaNome || '';
+      document.getElementById('edit-area-desc').value = b.dataset.editAreaDesc || '';
+      document.getElementById('edit-area-reparto').value = b.dataset.editAreaReparto || '';
+      document.getElementById('edit-area-mansione').value = b.dataset.editAreaMansione || '';
+      document.getElementById('edit-area-active').checked = b.dataset.editAreaActive === '1';
+      apri('edit-area-modal');
     });
-  }
-
-  // ── Modal reparto ──
-  var repEditBase = "{% url 'anagrafica:area_edit' 0 %}";
-  window.closeRepEdit = function() {
-    document.getElementById('edit-rep-modal').style.display = 'none';
-  };
-  document.querySelectorAll('[data-edit-rep-id]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = btn.getAttribute('data-edit-rep-id');
-      document.getElementById('edit-rep-form').action = repEditBase.replace('/0/', '/' + id + '/');
-      document.getElementById('edit-rep-nome').value = btn.getAttribute('data-edit-rep-nome') || '';
-      document.getElementById('edit-rep-desc').value = btn.getAttribute('data-edit-rep-desc') || '';
-      document.getElementById('edit-rep-colore').value = btn.getAttribute('data-edit-rep-colore') || '#64748b';
-      document.getElementById('edit-rep-capo').value = btn.getAttribute('data-edit-rep-capo') || '';
-      setMultiSelect(document.getElementById('edit-rep-responsabili'), btn.getAttribute('data-edit-rep-responsabili'));
-      document.getElementById('edit-rep-active').checked = btn.getAttribute('data-edit-rep-active') === '1';
-      document.getElementById('edit-rep-modal').style.display = 'flex';
-    });
-  });
-  document.getElementById('edit-rep-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeRepEdit();
-  });
-
-  // ── Modal area aziendale ──
-  var areaEditBase = "{% url 'anagrafica:area_aziendale_edit' 0 %}";
-  window.closeAreaEdit = function() {
-    document.getElementById('edit-area-modal').style.display = 'none';
-  };
-  document.querySelectorAll('[data-edit-area-id]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = btn.getAttribute('data-edit-area-id');
-      document.getElementById('edit-area-form').action = areaEditBase.replace('/0/', '/' + id + '/');
-      document.getElementById('edit-area-nome').value = btn.getAttribute('data-edit-area-nome') || '';
-      document.getElementById('edit-area-desc').value = btn.getAttribute('data-edit-area-desc') || '';
-      document.getElementById('edit-area-reparto').value = btn.getAttribute('data-edit-area-reparto') || '';
-      document.getElementById('edit-area-responsabile').value = btn.getAttribute('data-edit-area-responsabile') || '';
-      setMultiSelect(document.getElementById('edit-area-responsabili'), btn.getAttribute('data-edit-area-responsabili'));
-      document.getElementById('edit-area-active').checked = btn.getAttribute('data-edit-area-active') === '1';
-      document.getElementById('edit-area-modal').style.display = 'flex';
-    });
-  });
-  document.getElementById('edit-area-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeAreaEdit();
   });
 })();
 </script>
 {% endif %}
-{% endblock %}
-
-{% block extra_scripts %}
-{# Tabella agganciata automaticamente da fm-table-enhanced.js (caricato in base.html). #}
 {% endblock %}

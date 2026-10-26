@@ -11,7 +11,7 @@ Eseguire una volta dopo la migrazione dalla gestione in admin_portale/anagrafica
 from django.core.management.base import BaseCommand
 
 from anagrafica.models import Reparto
-from core.caporeparto_utils import canonical_caporeparto_value
+from anagrafica.services.capi_mansione import valore_mapping
 from core.models import RepartoCapoMapping
 
 
@@ -47,7 +47,7 @@ class Command(BaseCommand):
                     skipped += 1
                 continue
 
-            capo_str = canonical_caporeparto_value(legacy_user_id=rep.caporeparto_legacy_id)
+            capo_str = valore_mapping(rep.caporeparto_legacy_id)
             if not capo_str:
                 self.stdout.write(self.style.WARNING(
                     f"  SKIP {nome!r}: legacy_id={rep.caporeparto_legacy_id} non risolto"

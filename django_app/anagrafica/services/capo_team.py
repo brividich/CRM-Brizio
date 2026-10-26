@@ -5,15 +5,21 @@ Decisione del 16/10/2026: il ruolo dice il **livello** (chi sta sopra chi, con
 Le eccezioni indicate a mano vincono. Il capo si cerca in quest'ordine:
 
 1. **eccezione sulla persona** (``DipendenteAnagraficaAziendale.capo_eccezione_legacy_id``);
-2. **responsabile dell'area aziendale** indicato a mano;
-3. **caporeparto del reparto** indicato a mano;
+2. **responsabile dell'area aziendale**: chi ha la mansione del responsabile
+   dell'area (``AreaAziendale.mansione_capo``, vuota = segue il reparto);
+3. **capo del reparto**: chi ha la mansione del capo del reparto
+   (``Reparto.mansione_capo``, vuota = «Responsabilità del reparto»);
 4. **organigramma**: chi ricopre un ruolo sopra quello della persona e lavora
    nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo
    trasversale); se nessuno, si sale di livello — chi guida un altro reparto
    non è mai il capo; in cima, se l'ultimo livello ha una persona sola, è lei.
 
-Nessuno è capo di sé stesso: un passo che indicherebbe la persona stessa si
-salta. Il **team** è l'inverso: le persone di cui sei il capo, e a cascata i
+Ai passi 2 e 3, con la regola spenta (prima del passaggio, vedi
+``services.capi_mansione``) valgono ancora le persone scelte a mano
+(``responsabile_legacy_id`` / ``caporeparto_legacy_id``). Più persone con la
+stessa mansione sono tutte capo: approva la prima per id, le altre si
+segnalano. Nessuno è capo di sé stesso: un passo che indicherebbe la persona
+stessa si salta. Il **team** è l'inverso: le persone di cui sei il capo, e a cascata i
 loro team.
 
 Gli id sono ``anagrafica_dipendenti.id`` (``legacy_anagrafica_id``), non
@@ -35,7 +41,7 @@ ORIGINE_ORGANIGRAMMA = "organigramma"
 ORIGINE_LABEL = {
     ORIGINE_PERSONA: "Eccezione sulla persona",
     ORIGINE_AREA: "Responsabile dell'area",
-    ORIGINE_REPARTO: "Caporeparto del reparto",
+    ORIGINE_REPARTO: "Capo del reparto",
     ORIGINE_ORGANIGRAMMA: "Organigramma (ruolo sopra, stesso perimetro)",
     "": "Nessun capo trovato",
 }
@@ -161,10 +167,23 @@ def _capo_organigramma(p: _Persona, persone, titolari: dict[int, set[int]], padr
     return Capo(None)
 
 
-def mappa_capi(oggi=None) -> dict[int, Capo]:
-    """``legacy_anagrafica_id`` → :class:`Capo`, per tutte le persone in forza."""
+def mappa_capi(oggi=None, *, usa_mansioni: bool | None = None) -> dict[int, Capo]:
+    """``legacy_anagrafica_id`` → :class:`Capo`, per tutte le persone in forza.
+
+    ``usa_mansioni``: capo di reparto e area da chi ha la mansione (default:
+    se la regola unica è accesa) o dalle persone scelte a mano.
+    """
     oggi = oggi or timezone.localdate()
     persone, aree, reparti = _carica(oggi)
+    if usa_mansioni is None:
+        usa_mansioni = regola_unica_attiva()
+    if usa_mansioni:
+        from .capi_mansione import titolari_struttura
+
+        tit_rep, tit_area = titolari_struttura(reparti.values(), aree.values(), in_forza=set(persone))
+    else:
+        tit_rep = {r.id: [r.caporeparto_legacy_id] for r in reparti.values() if r.caporeparto_legacy_id}
+        tit_area = {a.id: [a.responsabile_legacy_id] for a in aree.values() if a.responsabile_legacy_id}
     padri = _padri_ruoli()
     titolari: dict[int, set[int]] = {}
     for p in persone.values():
@@ -173,17 +192,16 @@ def mappa_capi(oggi=None) -> dict[int, Capo]:
 
     risultato: dict[int, Capo] = {}
     for p in persone.values():
-        area = aree.get(p.area_id) if p.area_id else None
-        reparto = reparti.get(p.reparto_id) if p.reparto_id else None
-        manuali = (
-            (ORIGINE_PERSONA, p.eccezione),
-            (ORIGINE_AREA, area.responsabile_legacy_id if area is not None else None),
-            (ORIGINE_REPARTO, reparto.caporeparto_legacy_id if reparto is not None else None),
+        passi = (
+            (ORIGINE_PERSONA, [p.eccezione] if p.eccezione else []),
+            (ORIGINE_AREA, tit_area.get(p.area_id, []) if p.area_id in aree else []),
+            (ORIGINE_REPARTO, tit_rep.get(p.reparto_id, []) if p.reparto_id else []),
         )
         capo = None
-        for origine, candidato in manuali:
-            if candidato and int(candidato) != p.legacy_id:
-                capo = Capo(int(candidato), origine)
+        for origine, candidati in passi:
+            candidati = sorted({int(c) for c in candidati if c} - {p.legacy_id})
+            if candidati:
+                capo = Capo(candidati[0], origine, candidati[1:])
                 break
         risultato[p.legacy_id] = capo or _capo_organigramma(p, persone, titolari, padri)
     return risultato
@@ -291,6 +309,33 @@ def mappa_capi_in_cache() -> dict[int, int | None]:
     return mappa
 
 
+def co_capi_in_cache() -> dict[int, list[int]]:
+    """``legacy_anagrafica_id`` → co-capi: le altre persone con la stessa mansione del capo.
+
+    Solo per i capi che vengono da una mansione (reparto o area), non per
+    eccezioni e organigramma. Stessa cache e versione di :func:`mappa_capi_in_cache`.
+    """
+    from django.core.cache import cache
+
+    chiave = f"capi:co:v{_versione()}"
+    try:
+        cached = cache.get(chiave)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return {int(k): list(v) for k, v in cached.items()}
+    co = {
+        pid: list(c.alternative)
+        for pid, c in mappa_capi().items()
+        if c.alternative and c.origine in (ORIGINE_AREA, ORIGINE_REPARTO)
+    }
+    try:
+        cache.set(chiave, co, _CACHE_TTL)
+    except Exception:
+        pass
+    return co
+
+
 def capo_effettivo(legacy_id) -> int | None:
     """Capo della persona con la regola unica (None se non trovato)."""
     try:
@@ -324,7 +369,7 @@ def team_anagrafica(legacy_id, *, solo_diretti: bool = False) -> set[int]:
     return team
 
 
-def riallinea_tutte_le_schede() -> int:
+def riallinea_tutte_le_schede(*, mappa: dict[int, Capo] | None = None) -> int:
     """Scrive il capo della regola unica nel «Caporeparto» di ogni scheda.
 
     Scheda dipendente e digest mattutino leggono quella copia. Si usa quando la
@@ -332,7 +377,7 @@ def riallinea_tutte_le_schede() -> int:
     """
     from ..models import DipendenteAnagraficaAziendale
 
-    mappa = {pid: c.legacy_id for pid, c in mappa_capi().items()}
+    mappa = {pid: c.legacy_id for pid, c in (mappa if mappa is not None else mappa_capi()).items()}
     cambiate = 0
     for pk, legacy_id, attuale in DipendenteAnagraficaAziendale.objects.filter(
         legacy_anagrafica_id__in=list(mappa)

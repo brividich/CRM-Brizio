@@ -149,10 +149,10 @@ GUIDA = {
             "titolo": "Chi vede e chi approva",
             "blocchi": [
                 ("ul", [
-                    "Il capo proposto è il capo del dipendente in Anagrafica: con la «regola unica capi» accesa "
-                    "(pagina Organigramma → Coerenza capi) vale eccezione sulla persona → responsabile dell'area → "
-                    "caporeparto del reparto → gerarchia dei ruoli; spenta, responsabile dell'area e poi caporeparto del reparto. "
-                    "Si cambia in Anagrafica, non qui.",
+                    "Il capo proposto è il capo del dipendente in Anagrafica: eccezione sulla persona → chi ha la "
+                    "mansione del responsabile dell'area → chi ha la mansione del capo del reparto → gerarchia dei "
+                    "ruoli (prima del passaggio alle mansioni: responsabile dell'area e poi caporeparto scelti a mano). "
+                    "Si cambia in Anagrafica → Reparti, aree e capi, non qui.",
                     "Tutti possono scegliere un altro capo nella richiesta. Se lo fanno, la richiesta compare in coda "
                     "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma la vede "
                     "ancora nel calendario ma non la approva.",
@@ -264,7 +264,7 @@ GUIDA = {
         {
             "sintomo": "Un capo non vede le richieste dei suoi dipendenti",
             "fare": [
-                "Controlla in Anagrafica che sia il capo del dipendente (Organigramma → Coerenza capi).",
+                "Controlla in Anagrafica che sia il capo del dipendente (Reparti, aree e capi → Capo di ogni persona).",
                 "Se il dipendente ha scelto un altro capo nella richiesta, la vede e la approva solo quello.",
                 "Controlla che abbia un ruolo che apre «Assenze del reparto» (Amministrazione → Accessi, oppure Ruoli e permessi).",
                 "Fagli ricaricare la pagina: il conteggio «da approvare» si aggiorna al caricamento.",
