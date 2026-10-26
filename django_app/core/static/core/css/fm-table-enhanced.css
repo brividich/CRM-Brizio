@@ -81,6 +81,18 @@
 }
 .fm-th-sort:hover{color:#1d4ed8;background:#eff6ff}
 .fm-th-sort.active{color:#1d4ed8;font-weight:700}
+/* Il nome della colonna ordina anche lui; il numero indica la precedenza nel multi-ordinamento. */
+th.fm-th-sortable .fm-th-label{cursor:pointer}
+th.fm-th-sortable .fm-th-label:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+th[aria-sort] .fm-th-label{color:#1d4ed8}
+.fm-th-sort[data-fm-sort-pos]::after{content:attr(data-fm-sort-pos);font-size:9px;vertical-align:super;margin-left:1px}
+body.theme-dark th[aria-sort] .fm-th-label{color:#93c5fd}
+/* «Ordina per» solo su smartphone, dove le tabelle diventano schede senza intestazione. */
+.fm-tbl-msort{display:none;align-items:center;gap:6px;font-size:13px}
+.fm-tbl-msort select{min-height:36px;max-width:60vw}
+.fm-tbl-msort button{min-height:36px;min-width:36px}
+@media (max-width:720px){.fm-tbl-msort{display:inline-flex}}
+.fm-tbl-msort-solo{margin:0 0 8px}
 .fm-th-filter{
   background:none;border:none;padding:2px 4px;cursor:pointer;
   color:#94a3b8;line-height:1;border-radius:3px;
@@ -200,9 +212,12 @@ table.fm-tbl-sized .fm-th-label{overflow:hidden;text-overflow:ellipsis}
  * attivi). */
 th.fm-th-narrow > .fm-th-wrap{display:block;position:static}
 th.fm-th-narrow .fm-th-label{display:block}
+/* Spazio minimo per i due comandi: sotto i ~60px uscivano dalla colonna e la
+ * maniglia di larghezza della colonna accanto li copriva (clic perso). */
+th.fm-th-narrow.fm-th-sortable{min-width:62px}
 th.fm-th-narrow .fm-th-sort,
 th.fm-th-narrow .fm-th-filter{
-  position:absolute;top:2px;z-index:2;opacity:0;
+  position:absolute;top:2px;z-index:4;opacity:0;
   background:var(--surface,#fff);box-shadow:0 1px 4px rgba(0,43,92,.18);
   transition:opacity .12s;
 }

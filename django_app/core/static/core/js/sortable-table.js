@@ -202,6 +202,10 @@
   }
 
   function init() {
+    // Con il motore unico delle tabelle caricato (core/base.html) ordinamento e
+    // filtri li fa lui, anche leggendo data-sort-type/data-no-sort: due motori
+    // sulla stessa tabella si pestavano i piedi.
+    if (window.fmTableEnhanced || document.querySelector("script[src*='fm-table-enhanced']")) return;
     document.querySelectorAll("table[data-sortable]").forEach(setupTable);
   }
 

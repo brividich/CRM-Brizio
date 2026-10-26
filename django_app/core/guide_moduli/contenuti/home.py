@@ -153,7 +153,11 @@ GUIDA = {
                       "«Colonne ▾», «Viste ▾», «Reset», «Schermo intero» e il numero di righe "
                       "(«45 / 1.340» = righe trovate / righe totali). In Anagrafica la casella di ricerca è quella della pagina."),
                 ("def", [
-                    ("↕ nell'intestazione", "ordina la colonna (crescente, decrescente, nessun ordine). Con Maiusc+clic ordini su più colonne."),
+                    ("↕ o nome della colonna", "ordina la colonna: primo clic crescente, secondo decrescente, terzo torna "
+                     "all'ordine originale. Numeri («1.234,50 €», «35%»), date («26/10/2026», «26 ott 2026») e testi si "
+                     "ordinano per quello che sono; le celle vuote («—», «n/d») restano sempre in fondo. Con Maiusc+clic "
+                     "ordini su più colonne (il numerino accanto alla freccia dice la precedenza). Su smartphone, dove le "
+                     "tabelle diventano schede, usa «Ordina per…» sopra l'elenco."),
                     ("Imbuto nell'intestazione", "filtra la colonna: testo contenuto, un valore dall'elenco, una data, oppure «≥ valore» per i numeri. "
                      "L'imbuto pieno indica un filtro attivo; «Pulisci» lo toglie."),
                     ("Bordo destro dell'intestazione", "trascinalo per allargare o stringere la colonna; doppio clic la adatta al contenuto. "
