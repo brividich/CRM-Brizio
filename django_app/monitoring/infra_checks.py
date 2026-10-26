@@ -107,6 +107,11 @@ def check_registro_log():
     if not b["vivo"]:
         return _result(name, STATUS_FAIL, f"Nessun segnale dal raccoglitore del Registro accessi da {minuti} minuti: "
                                           "i log dei server non vengono archiviati.", details)
+    spazio = b["stato"].spazio_libero_mb if b["stato"] else None
+    if spazio is not None:
+        details["spazio_libero_mb"] = spazio
+        if spazio < 1024:
+            return _result(name, STATUS_FAIL, f"Disco dell'archivio del Registro accessi quasi pieno: {spazio} MB liberi.", details)
     rotti = SigilloGiorno.objects.filter(verifica_ok=False).count()
     if rotti:
         return _result(name, STATUS_FAIL, f"Archivio del Registro accessi non integro in {rotti} giorni.", details)

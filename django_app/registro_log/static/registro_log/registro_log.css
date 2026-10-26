@@ -70,3 +70,19 @@ body.theme-dark .soc-module details.rl-aiuto summary { color: #93c5fd; }
 .soc-module .rl-azioni-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .soc-module .rl-due > * { min-width: 0; }
 .soc-module .rl-due .sec-table td { overflow-wrap: anywhere; }
+
+/* Grafico delle righe archiviate: una barra per giorno */
+.soc-module .rl-grafico { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 6px; align-items: end; height: 120px; }
+.soc-module .rl-barra { display: grid; grid-template-rows: 1fr auto; height: 100%; text-decoration: none; color: var(--text-mid); }
+.soc-module .rl-barra small { text-align: center; font-size: 11px; margin-top: 4px; }
+.soc-module .rl-barra-v { align-self: end; display: block; min-height: 0; border-radius: 4px 4px 0 0; background: var(--primary-mid); }
+.soc-module .rl-barra.rl-oggi .rl-barra-v { background: var(--accent, var(--primary-mid)); opacity: .7; }
+.soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--danger); }
+.soc-module .rl-barra.rl-manca .rl-barra-v { height: 100% !important; background: transparent; border: 1px dashed var(--border); border-bottom: 0; }
+.soc-module .rl-barra:hover .rl-barra-v { filter: brightness(1.15); }
+body.theme-dark .soc-module .rl-barra-v { background: #60a5fa; }
+body.theme-dark .soc-module .rl-barra.rl-ko .rl-barra-v { background: var(--danger); }
+/* Pannello che si apre (nuova fonte) */
+.soc-module details.rl-pannello-apribile > summary { list-style: none; cursor: pointer; }
+.soc-module details.rl-pannello-apribile > summary::-webkit-details-marker { display: none; }
+.soc-module details.rl-pannello-apribile:not([open]) > summary { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }

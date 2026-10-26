@@ -124,11 +124,21 @@ class Scrittore:
         giorno = timezone.localdate(ricevuto)
         if giorno != self.giorno or self._fh is None:
             self._apri(giorno)
-        self.n += 1
-        corpo = {"d": dati, "f": fonte_id, "n": self.n, "r": ricevuto.isoformat(timespec="milliseconds")}
-        self.ultimo = hash_riga(self.ultimo, corpo)
-        self._fh.write(canonica({**corpo, "x": self.ultimo}) + "\n")
-        return giorno, self.n
+        n = self.n + 1
+        corpo = {"d": dati, "f": fonte_id, "n": n, "r": ricevuto.isoformat(timespec="milliseconds")}
+        x = hash_riga(self.ultimo, corpo)
+        try:
+            self._fh.write(canonica({**corpo, "x": x}) + "\n")
+        except Exception:
+            # Riga forse scritta a metà: si chiude il file, alla prossima scrittura _riprendi la toglie.
+            fh, self._fh = self._fh, None
+            try:
+                fh.close()
+            except Exception:  # noqa: BLE001
+                pass
+            raise
+        self.n, self.ultimo = n, x
+        return giorno, n
 
     def flush(self) -> None:
         if self._fh is not None:
@@ -240,6 +250,13 @@ def sigilla(giorno: date):
     )
     if esito["errore"]:
         logger.critical("Registro accessi: il giorno %s non torna già alla chiusura: %s", giorno, esito["errore"])
+    # Seconda àncora: il sigillo finisce anche nell'audit del portale, che ha la sua catena mensile
+    # (core.audit_sigilli). Per alterare un giorno andrebbero alterate due catene indipendenti.
+    from core.audit import log_action
+
+    log_action(None, "registro_log_sigillo", "registro_log", {
+        "giorno": giorno.isoformat(), "righe": s.righe, "sha256_file": s.sha256_file, "hash_sigillo": s.hash_sigillo,
+    })
     return s
 
 
@@ -408,5 +425,21 @@ def applica_conservazione(oggi: date | None = None) -> dict:
                 continue
         SigilloGiorno.objects.filter(pk=s.pk).update(eliminato_il=timezone.now())
         eliminati += 1
-    righe, _ = EventoRegistro.objects.filter(quando__date__lt=limite).delete()
+    # A blocchi: una DELETE enorme su SQL Server terrebbe bloccata la tabella a lungo.
+    righe = 0
+    while True:
+        ids = list(EventoRegistro.objects.filter(quando__date__lt=limite).values_list("pk", flat=True)[:5000])
+        if not ids:
+            break
+        righe += EventoRegistro.objects.filter(pk__in=ids).delete()[0]
     return {"giorni_eliminati": eliminati, "eventi_eliminati": righe, "limite": limite.isoformat()}
+
+
+def spazio_libero_mb(base: Path | None = None) -> int | None:
+    """MB liberi sul disco dell'archivio (None se la cartella non è raggiungibile)."""
+    base = base or cartella()
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        return int(shutil.disk_usage(base).free // (1024 * 1024))
+    except OSError:
+        return None

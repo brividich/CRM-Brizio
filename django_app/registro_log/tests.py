@@ -605,3 +605,112 @@ class IndaginiTests(_ConArchivio):
         self.assertTrue(any("file eliminati in 10 minuti" in t for t in titoli))
         self.assertTrue(any("USB" in t for t in titoli))
         self.assertFalse(any(".dwg" in t for t in titoli))  # nessun dettaglio riservato nel SOC
+
+
+class RobustezzaTests(_ConArchivio):
+    def test_scrittura_fallita_si_riprova_senza_perdere_ne_duplicare(self):
+        from .raccoglitore import Raccoglitore
+
+        fonte = FonteLog.objects.create(nome="DC01", tipo="windows", ruolo="dc", host="DC01")
+        r = Raccoglitore()
+        r.carica()
+        vero = r.scrittore.scrivi
+        chiamate = {"n": 0}
+
+        def a_volte(*args, **kwargs):
+            chiamate["n"] += 1
+            if chiamate["n"] == 2:
+                raise OSError("disco pieno")
+            return vero(*args, **kwargs)
+
+        ora = timezone.now()
+        for rec in (1, 2, 3):
+            r.coda.put(("windows", fonte.pk, {"id": 4634, "rec": rec, "dati": {}}, ora))
+        r._fermo.set()
+        with mock.patch.object(r.scrittore, "scrivi", side_effect=a_volte), mock.patch("registro_log.raccoglitore.time.sleep"):
+            r.ciclo_scrittore()
+        self.assertEqual(r.scrittore.n, 3)
+        g = timezone.localdate(ora)
+        righe = [json.loads(x) for x in archivio.percorso(g).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([x["d"]["rec"] for x in righe], [1, 2, 3])
+        self.assertEqual(archivio.ricalcola(archivio.percorso(g).read_text(encoding="utf-8").splitlines(), g)["errore"], "")
+
+    def test_pausa_dopo_errori_e_lettura_in_parallelo(self):
+        from .raccoglitore import Raccoglitore, aggiorna_stato_fonte, pausa_dopo_errori
+
+        self.assertEqual([pausa_dopo_errori(n).seconds // 60 for n in (1, 2, 3, 6, 9)], [1, 2, 4, 30, 30])
+        rotta = FonteLog.objects.create(nome="SPENTO", tipo="windows", host="SPENTO")
+        buona = FonteLog.objects.create(nome="DC01", tipo="windows", host="DC01")
+        aggiorna_stato_fonte(rotta, ["Security: server non raggiungibile"])
+        aggiorna_stato_fonte(rotta, ["Security: server non raggiungibile"])
+        rotta.refresh_from_db()
+        self.assertEqual(rotta.errori_consecutivi, 2)
+        self.assertGreater(rotta.riprova_dopo, timezone.now())
+        r = Raccoglitore()
+        r.carica()
+        lette = []
+        with mock.patch.object(r, "leggi_fonte", side_effect=lambda f: lette.append(f.nome)):
+            r.leggi_windows()
+            r._lettori.shutdown(wait=True)
+        self.assertEqual(lette, ["DC01"])  # quello in pausa non si interroga
+        aggiorna_stato_fonte(rotta, [])
+        rotta.refresh_from_db()
+        self.assertEqual((rotta.errori_consecutivi, rotta.riprova_dopo, rotta.stato), (0, None, "ok"))
+        self.assertTrue(buona.pk)
+
+    def test_sigillo_anche_nell_audit_e_conservazione_a_blocchi(self):
+        from core.models import AuditLog
+
+        g = date(2026, 1, 3)
+        s = archivio.Scrittore()
+        s.scrivi(1, {"id": 1}, timezone.make_aware(datetime.combine(g, time(9, 0))))
+        s.chiudi()
+        sig = archivio.sigilla(g)
+        ancora = AuditLog.objects.get(azione="registro_log_sigillo")
+        self.assertEqual(ancora.dettaglio["hash_sigillo"], sig.hash_sigillo)
+        EventoRegistro.objects.bulk_create([EventoRegistro(quando=timezone.make_aware(datetime(2025, 1, 1, 9)),
+                                                           categoria="accesso") for _ in range(7)])
+        esito = archivio.applica_conservazione(oggi=date(2026, 3, 1))
+        self.assertEqual(esito["eventi_eliminati"], 7)
+
+    def test_spazio_libero(self):
+        self.assertGreater(archivio.spazio_libero_mb(self.tmp), 0)
+
+    def test_scarto_orologio_syslog(self):
+        from .raccoglitore import Raccoglitore
+
+        esx = FonteLog.objects.create(nome="ESX01", tipo="syslog", indirizzi_ip="10.0.0.20")
+        r = Raccoglitore()
+        r.carica()
+        ricevuto = timezone.now()
+        dieci_minuti_fa = (ricevuto - timedelta(minutes=10)).astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        r.coda.put(("syslog", esx.pk, f"<38>{dieci_minuti_fa} esx01 hostd[1]: messaggio qualsiasi".encode(), "10.0.0.20", ricevuto))
+        r._fermo.set()
+        r.ciclo_scrittore()
+        esx.refresh_from_db()
+        self.assertAlmostEqual(esx.scarto_orologio_s, 600, delta=2)
+
+
+class UxTests(PagineTests):
+    def test_export_csv_eventi_e_precompilazione_nomina(self):
+        from core.models import AuditLog
+
+        r = self.client.get(reverse("security:registro_log_eventi") + "?giorni=7&export=csv")
+        self.assertEqual(r["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn("mrossi", r.content.decode("utf-8"))
+        self.assertTrue(AuditLog.objects.filter(azione="registro_log_eventi_export").exists())
+        AccountAD.objects.create(sam="adm.nuovo", nome="Admin Nuovo", gruppi_privilegiati=["Domain Admins"])
+        r = self.client.get(reverse("security:registro_log_account"))
+        self.assertContains(r, "Aggiungi la nomina")
+        r = self.client.get(reverse("security:registro_log_ads") + "?account=adm.nuovo&nome=Admin+Nuovo")
+        self.assertContains(r, 'value="adm.nuovo"')
+        self.assertContains(r, "precompilata")
+
+    def test_grafico_e_modulo_fonte_chiuso(self):
+        r = self.client.get(reverse("security:registro_log"))
+        self.assertContains(r, "rl-grafico")
+        self.assertEqual(r.content.decode().count('class="rl-barra '), 14)
+        r = self.client.get(reverse("security:registro_log_fonti"))
+        self.assertContains(r, 'id="nuova" style="margin-top:12px">')  # chiuso: c'è già una fonte
+        r = self.client.get(reverse("security:registro_log_fonti") + "?nuova=1")
+        self.assertContains(r, 'id="nuova" style="margin-top:12px" open>')

@@ -13,7 +13,7 @@
 {% endif %}
 
 <section class="sec-panel" id="fonti">
-  <div class="sec-section-head"><h2>Fonti</h2>{% if puo_configurare %}<a class="sec-button sec-button-primary" href="#nuova">Aggiungi una fonte</a>{% endif %}</div>
+  <div class="sec-section-head"><h2>Fonti</h2>{% if puo_configurare %}<a class="sec-button sec-button-primary" href="?nuova=1#nuova">Aggiungi una fonte</a>{% endif %}</div>
   {% if fonti %}
   <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
     <thead><tr><th>Stato</th><th>Nome</th><th>Come</th><th>Ultimo messaggio</th><th>Oggi</th><th></th></tr></thead>
@@ -22,7 +22,9 @@
       <td><strong>{{ f.nome }}</strong><span class="rl-sub">{{ f.get_ruolo_display }}{% if f.host %} · {{ f.host }}{% endif %}{% if f.indirizzi_ip %} · {{ f.indirizzi_ip }}{% endif %}</span>
         {% if f.ultimo_errore %}<span class="rl-sub" style="color:var(--danger)">{{ f.ultimo_errore|linebreaksbr }}</span>{% endif %}</td>
       <td>{{ f.get_tipo_display }}{% if f.tipo == "windows" %}<span class="rl-sub">{{ f.canali }} · {{ f.get_eventi_display|lower }}</span>{% endif %}</td>
-      <td class="sec-nowrap">{{ f.ultimo_evento_il|date:"d/m/Y H:i"|default:"mai" }}</td>
+      <td class="sec-nowrap">{% if f.ultimo_evento_il %}{{ f.ultimo_evento_il|timesince:ora }} fa<span class="rl-sub">{{ f.ultimo_evento_il|date:"d/m/Y H:i" }}</span>{% else %}mai{% endif %}
+        {% if f.riprova_dopo and f.riprova_dopo > ora %}<span class="rl-sub">nuovo tentativo alle {{ f.riprova_dopo|time:"H:i" }} ({{ f.errori_consecutivi }} error{{ f.errori_consecutivi|pluralize:"e,i" }} di fila)</span>{% endif %}
+        {% if f.scarto_orologio_s is not None and f.scarto_orologio_s > 300 or f.scarto_orologio_s is not None and f.scarto_orologio_s < -300 %}<span class="rl-tag" title="Differenza tra l'ora del messaggio e l'ora di ricezione: controllare NTP e fuso orario dell'apparato">orologio sfasato di {{ f.scarto_orologio_s }} s</span>{% endif %}</td>
       <td>{% if f.giorno_conteggio == battito.stato.giorno_corrente %}{{ f.righe_oggi }}{% else %}0{% endif %}</td>
       <td class="sec-nowrap">{% if puo_configurare %}
         <form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ f.pk }}">
@@ -44,8 +46,8 @@
 </section>
 
 {% if puo_configurare %}
-<section class="sec-panel" id="nuova" style="margin-top:12px">
-  <div class="sec-section-head"><h2>{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Aggiungi una fonte{% endif %}</h2>{% if modifica %}<a href="{% url 'security:registro_log_fonti' %}#nuova">Annulla</a>{% endif %}</div>
+<details class="sec-panel rl-pannello-apribile" id="nuova" style="margin-top:12px"{% if modulo_aperto %} open{% endif %}>
+  <summary class="sec-section-head"><h2>{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Aggiungi una fonte{% endif %}</h2>{% if not modulo_aperto %}<span class="sec-button">Apri il modulo</span>{% endif %}</summary>
   <form method="post" action="{% url 'security:registro_log_fonti' %}{% if modifica %}?modifica={{ modifica.pk }}{% endif %}">
     {% csrf_token %}<input type="hidden" name="azione" value="fonte">
     {{ form_fonte.non_field_errors }}
@@ -103,7 +105,7 @@ WatchGuard Firebox:    System › Logging › Syslog Server
 Synology DSM:          Centro log › Invio dei log › server syslog</div>
     <p class="sec-muted sec-small">Nel firewall di Windows del server del portale aprire la porta in ingresso <strong>solo</strong> per gli indirizzi degli apparati. I messaggi da indirizzi non scritti in una fonte vengono ignorati.</p>
   </details>
-</section>
+</details>
 
 <section class="sec-panel" id="impostazioni" style="margin-top:12px">
   <div class="sec-section-head"><h2>Impostazioni</h2>{% if imp.aggiornato_da %}<span class="sec-muted sec-small">ultima modifica {{ imp.aggiornato_il|date:"d/m/Y H:i" }} di {{ imp.aggiornato_da }}</span>{% endif %}</div>

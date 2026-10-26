@@ -17,6 +17,7 @@
   <p><label for="f-q">Cerca</label><input id="f-q" type="search" name="q" value="{{ q }}" placeholder="Account, server, IP…"></p>
   <button class="sec-button sec-button-primary" type="submit">Filtra</button>
   {% if q or categoria or fonte %}<a class="sec-button" href="?giorni={{ giorni }}&amp;vista={{ vista }}">Togli i filtri</a>{% endif %}
+  <a class="sec-button" href="?{{ parametri }}&amp;export=csv" style="margin-left:auto">Scarica CSV</a>
 </form>
 
 <section class="sec-panel">
@@ -31,10 +32,10 @@
         <span class="rl-cat">{{ e.descrizione }}</span>
         {% if e.tipo_accesso %}<span class="rl-sub">{{ e.tipo_accesso }}</span>{% endif %}
       </td>
-      <td>{{ e.account|default:"—" }}{% if e.privilegiato %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if e.fuori_orario and e.privilegiato %}<span class="rl-tag">fuori orario</span>{% endif %}
+      <td>{% if e.account %}<a href="?giorni={{ giorni }}&amp;q={{ e.account|urlencode }}" title="Solo gli eventi di {{ e.account }}">{{ e.account }}</a>{% else %}—{% endif %}{% if e.privilegiato %}<span class="rl-tag ads" title="Amministratore di sistema o account con privilegi">admin</span>{% endif %}{% if e.fuori_orario and e.privilegiato %}<span class="rl-tag">fuori orario</span>{% endif %}
         {% if e.account_target %}<span class="rl-sub">su {{ e.account_target }}</span>{% endif %}</td>
       <td>{{ e.ip_origine|default:"—" }}</td>
-      <td>{{ e.host|default:e.fonte_nome }}<span class="rl-sub">{{ e.fonte_nome }}</span></td>
+      <td>{% if e.host %}<a href="?giorni={{ giorni }}&amp;q={{ e.host|urlencode }}" title="Solo gli eventi di {{ e.host }}">{{ e.host }}</a>{% else %}{{ e.fonte_nome }}{% endif %}<span class="rl-sub">{{ e.fonte_nome }}</span></td>
     </tr>{% endfor %}</tbody>
   </table></div>
   {% if pagina.has_other_pages %}

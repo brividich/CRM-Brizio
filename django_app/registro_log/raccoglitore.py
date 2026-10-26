@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 GIRO_SECONDI = 60
 RICARICA_SECONDI = 300
+LETTORI_WINDOWS = 4
+SPAZIO_MINIMO_MB = 2048
+SCRITTURA_TENTATIVI_INTERRUZIONE = 30  # ~1 minuto di errori prima dell'interruzione
 FLUSH_SECONDI = 2
 FLUSH_RIGHE = 500
 DEDUP_MINUTI = 10
@@ -66,6 +69,10 @@ class Raccoglitore:
         self._dedup: dict[str, float] = {}
         self._fermo = threading.Event()
         self._errore_scrittore = ""
+        self._errore_syslog = ""
+        self._scarti: dict[int, int] = {}
+        self._in_lettura: dict[int, object] = {}
+        self._lettori = None
         self.avviato_il = timezone.now()
 
     # ── configurazione ──────────────────────────────────────────────────────
@@ -89,8 +96,10 @@ class Raccoglitore:
         from .models import EventoRegistro
 
         if fonte is not None and fonte.tipo == "syslog":
-            idx = regole.classifica_syslog(dati)
             quando = regole.quando_syslog(dati, ricevuto)
+            if dati.get("t"):
+                self._scarti[fonte.pk] = int((ricevuto - quando).total_seconds())
+            idx = regole.classifica_syslog(dati)
             host, canale, event_id = dati.get("host") or dati.get("ip") or "", dati.get("app", "")[:80], None
         else:
             idx = regole.classifica_windows(dati, self.privilegiati, livello_file=getattr(fonte, "audit_file", "") or "")
@@ -137,6 +146,9 @@ class Raccoglitore:
                 continue
             base = f.righe_oggi if f.giorno_conteggio == oggi else 0
             FonteLog.objects.filter(pk=fonte_id).update(righe_oggi=base + righe, giorno_conteggio=oggi, ultimo_evento_il=ultimo)
+        for fonte_id, scarto in self._scarti.items():
+            FonteLog.objects.filter(pk=fonte_id).update(scarto_orologio_s=scarto)
+        self._scarti = {}
         for fonte_id, canale, valore in segnalibri:
             f = FonteLog.objects.filter(pk=fonte_id).first()
             if f is not None and valore is not None:
@@ -150,11 +162,16 @@ class Raccoglitore:
         eventi, segnalibri, contatori = [], [], {}
         ultimo_flush = time.monotonic()
         righe_dal_flush = 0
-        while not (self._fermo.is_set() and self.coda.empty()):
-            try:
-                voce = self.coda.get(timeout=0.5)
-            except queue.Empty:
-                voce = None
+        pendente, tentativi = None, 0
+        while not (self._fermo.is_set() and self.coda.empty() and pendente is None):
+            if pendente is not None:
+                voce, pendente = pendente, None
+            else:
+                try:
+                    voce = self.coda.get(timeout=0.5)
+                except queue.Empty:
+                    voce = None
+            scritta = False
             try:
                 if voce is not None:
                     tipo = voce[0]
@@ -171,6 +188,7 @@ class Raccoglitore:
                         if tipo == "windows":
                             dati = minimizza(dati, fonte)
                         giorno, n = self.scrittore.scrivi(fonte_id, dati, ricevuto)
+                        scritta = True
                         righe_dal_flush += 1
                         ev = self._indice(fonte, dati, giorno, n, ricevuto)
                         if ev is not None:
@@ -181,10 +199,25 @@ class Raccoglitore:
                     self._scrivi_lotto(eventi, segnalibri, contatori)
                     eventi, segnalibri, contatori = [], [], {}
                     righe_dal_flush, ultimo_flush = 0, time.monotonic()
-                    self._errore_scrittore = ""
-            except Exception as exc:  # noqa: BLE001 - lo scrittore non deve morire: errore nel segnale di vita
-                logger.exception("Registro accessi: errore dello scrittore")
-                self._errore_scrittore = f"{type(exc).__name__}: {exc}"[:300]
+                if tentativi:
+                    chiudi_interruzioni(None, "errore_scrittura")
+                tentativi = 0
+                self._errore_scrittore = ""
+            except Exception as exc:  # noqa: BLE001 - lo scrittore non deve morire né perdere la riga
+                # La voce si riprova finché non va (disco pieno, cartella di rete giù): niente righe perse.
+                if voce is not None and voce[0] != "segnalibro" and not scritta:
+                    pendente = voce  # già nel file: non si riscrive (il lotto per il database resta in memoria)
+                tentativi += 1
+                self._errore_scrittore = f"Scrittura dell'archivio non riuscita: {type(exc).__name__}: {exc}"[:300]
+                if tentativi == 1:
+                    logger.exception("Registro accessi: errore dello scrittore")
+                if tentativi == SCRITTURA_TENTATIVI_INTERRUZIONE:
+                    try:
+                        apri_interruzione(None, "errore_scrittura", self._errore_scrittore)
+                    except Exception:  # noqa: BLE001 - anche il database può essere giù
+                        pass
+                if self._fermo.is_set() and tentativi > 15:
+                    break  # in uscita: le righe non scritte si rileggono dal segnalibro al riavvio
                 time.sleep(2)
         if eventi or segnalibri or contatori:
             self._scrivi_lotto(eventi, segnalibri, contatori)
@@ -192,38 +225,72 @@ class Raccoglitore:
 
     # ── Windows ─────────────────────────────────────────────────────────────
     def leggi_windows(self) -> None:
+        """Avvia in parallelo la lettura delle fonti Windows libere e non in pausa dopo errori.
+
+        Un server lento o spento occupa un solo lettore: gli altri e il segnale di vita vanno avanti.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
         from .models import FonteLog
 
+        if self._lettori is None:
+            self._lettori = ThreadPoolExecutor(max_workers=LETTORI_WINDOWS, thread_name_prefix="registro-windows")
+        ora = timezone.now()
+        pause = dict(FonteLog.objects.filter(pk__in=list(self.fonti)).values_list("pk", "riprova_dopo"))
         for fonte in list(self.fonti.values()):
             if fonte.tipo not in (FonteLog.TIPO_WINDOWS, FonteLog.TIPO_WEF) or self._fermo.is_set():
                 continue
-            host = "" if fonte.tipo == FonteLog.TIPO_WEF else fonte.host.strip()
-            canali = ["ForwardedEvents"] if fonte.tipo == FonteLog.TIPO_WEF else fonte.lista_canali()
-            tutto = fonte.tipo == FonteLog.TIPO_WEF or fonte.eventi == FonteLog.EVENTI_TUTTO
-            fresca = FonteLog.objects.filter(pk=fonte.pk).values_list("segnalibri", flat=True).first() or {}
-            errori = []
-            for canale in canali:
-                try:
-                    esito = windows.leggi_canale(canale, host, fresca.get(canale), tutto=tutto,
-                                                 file=bool(fonte.audit_file), usb=fonte.audit_usb)
-                except Exception as exc:  # noqa: BLE001 - errore della fonte, si annota e si va avanti
-                    errori.append(f"{canale}: {exc}")
-                    continue
-                ricevuto = timezone.now()
-                for dati in esito.eventi:
-                    self.coda.put(("windows", fonte.pk, dati, ricevuto))
-                self.coda.put(("segnalibro", fonte.pk, canale, esito.segnalibro))
-                if esito.persi:
-                    apri_interruzione(fonte, "eventi_persi", f"{canale}: circa {esito.persi} record sovrascritti sul server "
-                                      "prima della lettura (registro troppo piccolo o raccoglitore fermo a lungo).",
-                                      chiudi_subito=True)
-            aggiorna_stato_fonte(fonte, errori)
+            in_corso = self._in_lettura.get(fonte.pk)
+            if in_corso is not None and not in_corso.done():
+                continue
+            if pause.get(fonte.pk) and pause[fonte.pk] > ora:
+                continue
+            self._in_lettura[fonte.pk] = self._lettori.submit(self._leggi_fonte_isolata, fonte)
+
+    def _leggi_fonte_isolata(self, fonte) -> None:
+        try:
+            self.leggi_fonte(fonte)
+        except Exception:  # noqa: BLE001 - un lettore non deve morire
+            logger.exception("Registro accessi: lettura di %s non riuscita", fonte)
+        finally:
+            connections.close_all()  # connessioni di questo filo
+
+    def leggi_fonte(self, fonte) -> None:
+        from .models import FonteLog
+
+        host = "" if fonte.tipo == FonteLog.TIPO_WEF else fonte.host.strip()
+        canali = ["ForwardedEvents"] if fonte.tipo == FonteLog.TIPO_WEF else fonte.lista_canali()
+        tutto = fonte.tipo == FonteLog.TIPO_WEF or fonte.eventi == FonteLog.EVENTI_TUTTO
+        fresca = FonteLog.objects.filter(pk=fonte.pk).values_list("segnalibri", flat=True).first() or {}
+        errori = []
+        for canale in canali:
+            try:
+                esito = windows.leggi_canale(canale, host, fresca.get(canale), tutto=tutto,
+                                             file=bool(fonte.audit_file), usb=fonte.audit_usb)
+            except Exception as exc:  # noqa: BLE001 - errore della fonte, si annota e si va avanti
+                errori.append(f"{canale}: {exc}")
+                continue
+            ricevuto = timezone.now()
+            for dati in esito.eventi:
+                self.coda.put(("windows", fonte.pk, dati, ricevuto))
+            self.coda.put(("segnalibro", fonte.pk, canale, esito.segnalibro))
+            if esito.persi:
+                apri_interruzione(fonte, "eventi_persi", f"{canale}: circa {esito.persi} record sovrascritti sul server "
+                                  "prima della lettura (registro troppo piccolo o raccoglitore fermo a lungo).",
+                                  chiudi_subito=True)
+        aggiorna_stato_fonte(fonte, errori)
 
     # ── segnale di vita e manutenzione ───────────────────────────────────────
     def battito(self) -> None:
         from .models import StatoRaccoglitore
 
         close_old_connections()
+        spazio = archivio.spazio_libero_mb(self.scrittore.base)
+        avviso = self._errore_scrittore or self._errore_syslog
+        if spazio is None:
+            avviso = avviso or "Cartella dell'archivio non raggiungibile."
+        elif spazio < SPAZIO_MINIMO_MB:
+            avviso = avviso or f"Spazio quasi esaurito sul disco dell'archivio: {spazio} MB liberi."
         for testo in self.scrittore.riparazioni:
             apri_interruzione(None, "file_riparato", testo, chiudi_subito=True)
         self.scrittore.riparazioni = []
@@ -240,8 +307,19 @@ class Raccoglitore:
             "pid": os.getpid(), "giorno_corrente": self.scrittore.giorno or timezone.localdate(),
             "righe_oggi": self.scrittore.n if self.scrittore.giorno == timezone.localdate() else 0,
             "syslog_in_ascolto": self.ricevitore.in_ascolto if self.ricevitore else "",
-            "errore": self._errore_scrittore,
+            "errore": avviso[:500], "spazio_libero_mb": spazio, "coda": self.coda.qsize(),
         })
+
+    def ciclo_battito(self) -> None:
+        """Segnale di vita su un filo suo: non aspetta letture lente né la coda."""
+        while not self._fermo.is_set():
+            try:
+                self.battito()
+            except Exception:  # noqa: BLE001 - riprova al giro dopo
+                logger.exception("Registro accessi: segnale di vita non scritto")
+            finally:
+                connections.close_all()
+            self._fermo.wait(GIRO_SECONDI)
 
     def avvia_syslog(self) -> None:
         from .sorgenti.syslog import Ricevitore
@@ -259,8 +337,10 @@ class Raccoglitore:
                 r.avvia()
                 self.ricevitore = r
             except OSError as exc:
-                self._errore_scrittore = f"Syslog non in ascolto su {imp.syslog_porta}: {exc}"[:300]
-                logger.error("Registro accessi: %s", self._errore_scrittore)
+                self._errore_syslog = f"Syslog non in ascolto sulla porta {imp.syslog_porta}: {exc}"[:300]
+                logger.error("Registro accessi: %s", self._errore_syslog)
+            else:
+                self._errore_syslog = ""
 
     def ferma(self) -> None:
         self._fermo.set()
@@ -270,6 +350,7 @@ class Raccoglitore:
         self.carica()
         filo = threading.Thread(target=self.ciclo_scrittore, name="registro-scrittore", daemon=True)
         filo.start()
+        threading.Thread(target=self.ciclo_battito, name="registro-battito", daemon=True).start()
         ultima_ricarica = time.monotonic()
         try:
             while not self._fermo.is_set():
@@ -281,7 +362,6 @@ class Raccoglitore:
                 self.avvia_syslog()
                 if self.imp and self.imp.attivo:
                     self.leggi_windows()
-                self.battito()
                 if controlla_uscita and controlla_uscita():
                     break
                 self._fermo.wait(max(1.0, GIRO_SECONDI - (time.monotonic() - inizio)))
@@ -289,6 +369,8 @@ class Raccoglitore:
             self._fermo.set()
             if self.ricevitore is not None:
                 self.ricevitore.ferma()
+            if self._lettori is not None:
+                self._lettori.shutdown(wait=False, cancel_futures=True)
             filo.join(timeout=60)
 
 
@@ -328,16 +410,24 @@ def chiudi_interruzioni(fonte, motivo: str, quando=None) -> int:
         al=quando or timezone.now())
 
 
+def pausa_dopo_errori(n: int) -> timedelta:
+    """1, 2, 4, 8, 16, 30 minuti: un server spento non viene interrogato ogni minuto."""
+    return timedelta(minutes=min(30, 2 ** max(0, n - 1)))
+
+
 def aggiorna_stato_fonte(fonte, errori: list[str]) -> None:
     from .models import FonteLog
 
     ora = timezone.now()
     if errori:
+        n = (FonteLog.objects.filter(pk=fonte.pk).values_list("errori_consecutivi", flat=True).first() or 0) + 1
         FonteLog.objects.filter(pk=fonte.pk).update(stato=FonteLog.STATO_ERRORE, ultimo_errore="\n".join(errori)[:2000],
-                                                    ultima_lettura_il=ora)
+                                                    ultima_lettura_il=ora, errori_consecutivi=n,
+                                                    riprova_dopo=ora + pausa_dopo_errori(n))
         apri_interruzione(fonte, "errore_lettura", errori[0])
     else:
-        FonteLog.objects.filter(pk=fonte.pk).update(stato=FonteLog.STATO_OK, ultimo_errore="", ultima_lettura_il=ora)
+        FonteLog.objects.filter(pk=fonte.pk).update(stato=FonteLog.STATO_OK, ultimo_errore="", ultima_lettura_il=ora,
+                                                    errori_consecutivi=0, riprova_dopo=None)
         chiudi_interruzioni(fonte, "errore_lettura", ora)
 
 

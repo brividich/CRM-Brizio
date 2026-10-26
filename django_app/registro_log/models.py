@@ -132,6 +132,9 @@ class FonteLog(models.Model):
     ultimo_evento_il = models.DateTimeField(null=True, blank=True)
     righe_oggi = models.PositiveIntegerField(default=0)
     giorno_conteggio = models.DateField(null=True, blank=True)
+    errori_consecutivi = models.PositiveSmallIntegerField(default=0)
+    riprova_dopo = models.DateTimeField(null=True, blank=True)
+    scarto_orologio_s = models.IntegerField(null=True, blank=True)  # syslog: ricevuto - ora del messaggio
     creata_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -231,6 +234,7 @@ class Interruzione(models.Model):
         ("eventi_persi", "Eventi sovrascritti prima della lettura"),
         ("sovraccarico", "Troppi messaggi: una parte scartata"),
         ("file_riparato", "File del giorno riparato dopo un arresto"),
+        ("errore_scrittura", "Scrittura dell'archivio non riuscita"),
     ]
 
     fonte_id = models.IntegerField(null=True, blank=True, db_index=True)
@@ -267,6 +271,8 @@ class StatoRaccoglitore(models.Model):
     giorno_corrente = models.DateField(null=True, blank=True)
     righe_oggi = models.PositiveIntegerField(default=0)
     syslog_in_ascolto = models.CharField(max_length=120, blank=True, default="")
+    spazio_libero_mb = models.BigIntegerField(null=True, blank=True)
+    coda = models.PositiveIntegerField(default=0)
     errore = models.CharField(max_length=500, blank=True, default="")
 
     class Meta:

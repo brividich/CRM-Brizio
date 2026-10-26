@@ -25,6 +25,7 @@
 
 {% if puo_configurare %}
 <section class="sec-panel" id="scheda" style="margin-top:12px">
+  {% if precompilato %}<p class="sec-callout sec-small" style="margin:0 0 10px;padding:8px 12px">Scheda precompilata dall'account di Active Directory: controllare nome e sistemi, allegare la lettera di nomina e salvare.</p>{% endif %}
   <div class="sec-section-head"><h2>{% if modifica %}Modifica «{{ modifica.nome }}»{% else %}Nuovo amministratore di sistema{% endif %}</h2>{% if modifica %}<a href="{% url 'security:registro_log_ads' %}">Annulla</a>{% endif %}</div>
   <form method="post" enctype="multipart/form-data" action="{% url 'security:registro_log_ads' %}{% if modifica %}?modifica={{ modifica.pk }}{% endif %}">
     {% csrf_token %}{{ form.non_field_errors }}

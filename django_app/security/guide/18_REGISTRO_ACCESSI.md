@@ -15,7 +15,11 @@ In alto lo stato della raccolta:
 
 Il riquadro **Come iniziare** elenca i passi che mancano perché il registro valga per il Garante e la ISO 27001, ognuno con il pulsante «Vai». Sparisce quando sono tutti fatti.
 
-I cinque riquadri numerici (accessi degli amministratori, accessi non riusciti, eventi critici nelle ultime 24 ore, fonti che rispondono, stato dell'archivio) si cliccano e aprono l'elenco filtrato. «Da guardare» mostra gli ultimi eventi importanti; «Continuità della raccolta» le interruzioni in corso.
+I cinque riquadri numerici (accessi degli amministratori, accessi non riusciti, eventi critici nelle ultime 24 ore, fonti che rispondono, stato dell'archivio) si cliccano e aprono l'elenco filtrato.
+
+Se il raccoglitore ha un problema (scrittura dell'archivio non riuscita, cartella non raggiungibile, meno di 2 GB liberi sul disco dell'archivio, syslog non in ascolto) compare un riquadro giallo in cima con la spiegazione.
+
+**Righe archiviate negli ultimi 14 giorni**: una barra per giorno, alta quanto le righe archiviate. Blu = giorno sigillato e integro, rossa = non integro, tratteggiata = nessun sigillo (raccolta ferma o giorno non ancora chiuso), più chiara = oggi, ancora in corso. Un giorno molto più basso degli altri vuol dire che una fonte ha smesso di mandare: si apre «Archivio e integrità». «Da guardare» mostra gli ultimi eventi importanti; «Continuità della raccolta» le interruzioni in corso.
 
 ## Eventi
 
@@ -29,6 +33,8 @@ Cosa entra nell'elenco (il resto resta solo nell'archivio):
 - aggiunte e rimozioni dai gruppi (critico se il gruppo è di amministratori: Domain Admins, Administrators, Enterprise Admins, Backup Operators…);
 - registro eventi cancellato, criteri di audit modificati, servizi installati, attività pianificate create, orologio cambiato, avvii e arresti;
 - da syslog: accessi SSH e alla console di gestione (ESXi, vCenter, switch Cisco e Aruba, firewall WatchGuard, NAS Synology), accessi rifiutati, SSH o shell abilitati, comandi `sudo`.
+
+Clic su un account o su un sistema: l'elenco si restringe a quell'account o a quel sistema. **Scarica CSV** scarica l'elenco con i filtri scelti (al massimo 20.000 righe; l'export resta nell'audit).
 
 Etichette: **admin** = account di un amministratore di sistema o con privilegi; **fuori orario** = fuori dall'orario di lavoro impostato in Fonti, o nel fine settimana. Lo stesso accesso ripetuto entro 10 minuti compare una volta sola (nell'archivio restano tutti).
 
@@ -54,7 +60,7 @@ Il riquadro **Da sistemare**:
 - **Password che non scadono** (persone).
 - **Password di krbtgt più vecchia di 180 giorni**.
 
-Chi configura il SOC può cambiare il tipo (Persona, Account di servizio, Da classificare) e scrivere il responsabile.
+Chi configura il SOC può cambiare il tipo (Persona, Account di servizio, Da classificare) e scrivere il responsabile. Accanto a un account amministratore senza nomina c'è **Aggiungi la nomina**: apre la scheda dell'amministratore di sistema già compilata con account, nome e date (nomina oggi, revisione tra un anno); resta da allegare la lettera e salvare.
 
 ## Verifica annuale
 
@@ -78,6 +84,8 @@ Ogni giorno ha un file (`registro-AAAA-MM-GG.jsonl`, compresso a fine giornata) 
 - **Seconda copia**: file e sigillo copiati su una cartella di rete e/o su SharePoint (cartella dell'audit, sottocartella «registro-log»).
 - **File** e **Sigillo**: download per l'auditor (solo chi configura, resta nell'audit). Le regole per rifare il calcolo senza il portale sono in «Come si verifica senza il portale».
 - Oltre la **conservazione** (minimo 6 mesi, consigliati 12) il file viene eliminato; il sigillo resta con la data di eliminazione.
+- Ogni sigillo viene scritto anche nell'**audit del portale** (azione «registro_log_sigillo»), che ha la sua catena mensile: per alterare un giorno senza farsi scoprire bisognerebbe alterare due catene indipendenti più la seconda copia.
+- Se la scrittura dell'archivio non riesce (disco pieno, cartella non raggiungibile) le righe non si perdono: restano in attesa e il raccoglitore riprova ogni 2 secondi; dopo un minuto nasce l'interruzione **«Scrittura dell'archivio non riuscita»**, che si chiude da sola quando la scrittura riprende.
 
 **Interruzioni della raccolta**: raccoglitore fermo, fonte senza messaggi oltre la soglia, lettura non riuscita, eventi sovrascritti sul server prima della lettura, messaggi scartati per eccesso, file riparato dopo un arresto. Ognuna si giustifica con una frase (es. «manutenzione programmata del server»): entra nella verifica annuale.
 
@@ -116,7 +124,12 @@ Alert nel SOC, senza nomi di file: **file eliminati o modificati a raffica** dal
 - **Eventi inoltrati (WEF)**: i server inoltrano a questo server con una sottoscrizione di Windows Event Forwarding; una sola fonte per tutti.
 - **Syslog**: ESXi, switch, firewall, NAS e server Linux mandano i messaggi al server del portale. Si indicano gli indirizzi IP degli apparati: i messaggi da altri indirizzi vengono ignorati e contati («indirizzi non configurati»).
 
-Pulsante **Prova**: legge l'ultimo evento di ogni registro senza archiviare nulla e dice cosa non va (accesso negato, server non raggiungibile). **Avvisa se muta per più di (ore)**: oltre questa soglia senza messaggi nasce l'interruzione «Fonte senza messaggi».
+Pulsante **Prova**: legge l'ultimo evento di ogni registro senza archiviare nulla e dice cosa non va (accesso negato, server non raggiungibile). La colonna «Ultimo messaggio» dice quanto tempo fa è arrivato l'ultimo; sotto:
+
+- **nuovo tentativo alle …**: il server non ha risposto; il raccoglitore riprova dopo 1, 2, 4, 8, 16 e poi ogni 30 minuti, senza rallentare gli altri server (se ne leggono 4 alla volta);
+- **orologio sfasato di N s**: l'ora scritta nei messaggi syslog dell'apparato differisce di oltre 5 minuti dall'ora di arrivo. Va sistemato (NTP, fuso orario dell'apparato): con l'orologio sbagliato i log valgono meno come prova (ISO 27001, controllo 8.17).
+
+Il modulo «Aggiungi una fonte» resta chiuso finché non serve: si apre con **Aggiungi una fonte** o **Apri il modulo**. **Avvisa se muta per più di (ore)**: oltre questa soglia senza messaggi nasce l'interruzione «Fonte senza messaggi».
 
 **Impostazioni**: raccolta accesa, conservazione in mesi, cartella dell'archivio, seconda copia (cartella di rete, SharePoint), syslog (indirizzo, porta, TCP), orario di lavoro. Le modifiche arrivano al raccoglitore entro 5 minuti.
 

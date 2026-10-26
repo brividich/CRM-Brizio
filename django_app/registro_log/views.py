@@ -59,7 +59,7 @@ def _passi(imp, fonti, battito, ads_n, copia_ok) -> list[dict]:
     return [
         {"fatto": imp.attivo, "testo": "Accendere la raccolta", "dove": reverse("security:registro_log_fonti") + "#impostazioni"},
         {"fatto": fonti.filter(ruolo="dc").exists(), "testo": "Aggiungere i controller di dominio",
-         "dove": reverse("security:registro_log_fonti") + "#nuova"},
+         "dove": reverse("security:registro_log_fonti") + "?nuova=1#nuova"},
         {"fatto": battito["vivo"], "testo": "Avviare il raccoglitore come servizio di Windows (Setup Wizard o script)",
          "dove": reverse("security:registro_log_fonti") + "#servizio"},
         {"fatto": copia_ok, "testo": "Impostare la seconda copia dell'archivio (NAS o SharePoint)",
@@ -67,7 +67,7 @@ def _passi(imp, fonti, battito, ads_n, copia_ok) -> list[dict]:
         {"fatto": ads_n > 0, "testo": "Inserire gli amministratori di sistema con la nomina",
          "dove": reverse("security:registro_log_ads")},
         {"fatto": fonti.filter(tipo=FonteLog.TIPO_SYSLOG).exists(), "testo": "Collegare ESXi, switch e firewall via syslog",
-         "dove": reverse("security:registro_log_fonti") + "#nuova"},
+         "dove": reverse("security:registro_log_fonti") + "?nuova=1#nuova"},
     ]
 
 
@@ -86,6 +86,20 @@ def panoramica(request):
     non_integri = SigilloGiorno.objects.filter(verifica_ok=False).count()
     interruzioni_aperte = Interruzione.objects.filter(al__isnull=True).order_by("-dal")
     ads_n = sum(1 for a in AmministratoreSistema.objects.all() if a.attivo)
+    oggi = timezone.localdate()
+    sigilli = {s.giorno: s for s in SigilloGiorno.objects.filter(giorno__gte=oggi - timedelta(days=13))}
+    grafico = []
+    for i in range(13, -1, -1):
+        g = oggi - timedelta(days=i)
+        s = sigilli.get(g)
+        righe = (b["stato"].righe_oggi if b["stato"] and b["stato"].giorno_corrente == g else 0) if g == oggi else (s.righe if s else None)
+        grafico.append({"giorno": g, "righe": righe, "stato": "oggi" if g == oggi else ("ko" if s and s.verifica_ok is False
+                        else "ok" if s else "manca")})
+    # La scala la fanno i giorni chiusi: oggi (in corso, o il primo giorno con lo storico iniziale) non schiaccia gli altri.
+    chiusi = [x["righe"] or 0 for x in grafico if x["stato"] != "oggi"]
+    massimo = max(chiusi + [1]) if any(chiusi) else max([x["righe"] or 0 for x in grafico] + [1])
+    for x in grafico:
+        x["altezza"] = min(100, max(3, round((x["righe"] or 0) * 100 / massimo))) if x["righe"] else 0
     passi = _passi(imp, fonti, b, ads_n, bool(imp.copia_cartella or imp.copia_sharepoint))
     importanti = (EventoRegistro.objects.exclude(categoria__in=regole.CATEGORIE_RISERVATE)
                   .filter(Q(gravita__in=("high", "warning")) | Q(privilegiato=True, fuori_orario=True))
@@ -104,6 +118,7 @@ def panoramica(request):
         },
         "ultimo_sigillo": ultimo_sigillo, "non_integri": non_integri, "interruzioni_aperte": interruzioni_aperte,
         "importanti": importanti, "oggi_inizio": oggi_inizio, "puo_configurare": _puo_configurare(request),
+        "grafico": grafico,
         "etichette": regole.CATEGORIE,
     })
 
@@ -149,6 +164,22 @@ def eventi(request):
     if testo:
         qs = qs.filter(Q(account__icontains=testo) | Q(host__icontains=testo) | Q(ip_origine__icontains=testo)
                        | Q(descrizione__icontains=testo) | Q(account_target__icontains=testo))
+    if request.GET.get("export") == "csv":
+        import csv
+        import io
+
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=";")
+        w.writerow(["quando", "cosa", "esito", "account", "su", "da", "sistema", "fonte", "evento", "giorno archivio", "riga"])
+        righe = list(qs.order_by("-quando", "-id")[:20000])
+        for e in righe:
+            w.writerow([timezone.localtime(e.quando).strftime("%d/%m/%Y %H:%M:%S"), e.descrizione, e.esito, e.account,
+                        e.account_target, e.ip_origine, e.host, e.fonte_nome, e.event_id or "", e.archivio_giorno or "",
+                        e.archivio_riga or ""])
+        log_action(request, "registro_log_eventi_export", MODULO, {"filtri": request.GET.urlencode()[:500], "righe": len(righe)})
+        resp = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="registro-eventi-{timezone.localdate():%Y%m%d}.csv"'
+        return resp
     pagina = Paginator(qs.order_by("-quando", "-id"), 100).get_page(request.GET.get("pagina"))
     parametri = request.GET.copy()
     parametri.pop("pagina", None)
@@ -301,8 +332,10 @@ def fonti(request):
         sconosciuti = json.loads(SiteConfig.get("registro_log.syslog_sconosciuti", "") or "{}")
     except ValueError:
         sconosciuti = {}
+    elenco = list(FonteLog.objects.all())
     return render(request, "registro_log/fonti.html", {
-        "imp": imp, "form_imp": form_imp, "form_fonte": form_fonte, "modifica": modifica, "fonti": FonteLog.objects.all(),
+        "imp": imp, "form_imp": form_imp, "form_fonte": form_fonte, "modifica": modifica, "fonti": elenco,
+        "modulo_aperto": bool(modifica or not elenco or form_fonte.errors or request.GET.get("nuova")), "ora": timezone.now(),
         "puo_configurare": puo, "battito": battito(), "prova": prova, "cartella": archivio.cartella(),
         "sconosciuti": sorted(sconosciuti.items(), key=lambda x: -int(x[1].get("messaggi", 0)))[:20],
     })
@@ -431,7 +464,12 @@ def account(request):
         ultimo = SecurityLetturaLog.objects.filter(codice="registro_ad").order_by("-avviata_il").first()
     except Exception:  # noqa: BLE001 - la pagina regge anche senza storico
         ultimo = None
+    nominati = set()
+    for ads in AmministratoreSistema.objects.all():
+        if ads.attivo:
+            nominati.update(x.split("\\")[-1].split("@")[0].lower() for x in ads.lista_account())
     return render(request, "registro_log/account.html", {
+        "nominati": nominati,
         "account": Paginator(qs.order_by("sam"), 100).get_page(request.GET.get("pagina")), "filtro": filtro, "q": testo,
         "segnalazioni": ad.segnalazioni(), "configurato": ad.configurato(), "puo_configurare": puo, "ultimo": ultimo,
         "tipi": AccountAD.TIPI, "totale": AccountAD.objects.filter(sparito_il__isnull=True).count(),
@@ -444,7 +482,11 @@ def amministratori(request):
     modifica = None
     if request.GET.get("modifica", "").isdigit():
         modifica = AmministratoreSistema.objects.filter(pk=int(request.GET["modifica"])).first()
-    form = AmministratoreForm(instance=modifica)
+    iniziali = {}
+    if not modifica and request.GET.get("account"):
+        iniziali = {"account": request.GET["account"][:150], "nome": (request.GET.get("nome") or "")[:255],
+                    "nominato_il": timezone.localdate(), "prossima_revisione": timezone.localdate() + timedelta(days=365)}
+    form = AmministratoreForm(instance=modifica, initial=iniziali)
     if request.method == "POST":
         if not puo:
             return _nego()
@@ -465,7 +507,7 @@ def amministratori(request):
         a.revisione_scaduta = bool(a.attivo and a.prossima_revisione and a.prossima_revisione < oggi)
     return render(request, "registro_log/amministratori.html", {
         "elenco": elenco, "form": form, "modifica": modifica, "puo_configurare": puo,
-        "attivi": sum(1 for a in elenco if a.attivo),
+        "attivi": sum(1 for a in elenco if a.attivo), "precompilato": bool(iniziali),
     })
 
 

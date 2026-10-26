@@ -18,7 +18,8 @@
     <details class="rl-segnalazione {{ s.tono }}"{% if s.tono == "critical" %} open{% endif %}>
       <summary>{{ s.titolo }} ({{ s.account|length }})</summary>
       <p>{{ s.perche }}</p>
-      <ul>{% for a in s.account|slice:":30" %}<li><a href="?q={{ a.sam|urlencode }}">{{ a.sam }}</a> · {{ a.nome|default:a.anagrafica_nome }}{% if a.gruppi_privilegiati %} · {{ a.gruppi_privilegiati|join:", " }}{% endif %}{% if a.ultimo_accesso %} · ultimo accesso {{ a.ultimo_accesso|date:"d/m/Y" }}{% endif %}</li>{% endfor %}</ul>
+      <ul>{% for a in s.account|slice:":30" %}<li><a href="?q={{ a.sam|urlencode }}">{{ a.sam }}</a> · {{ a.nome|default:a.anagrafica_nome }}{% if a.gruppi_privilegiati %} · {{ a.gruppi_privilegiati|join:", " }}{% endif %}{% if a.ultimo_accesso %} · ultimo accesso {{ a.ultimo_accesso|date:"d/m/Y" }}{% endif %}
+        {% if puo_configurare and a.gruppi_privilegiati and a.sam|lower not in nominati %} · <a href="{% url 'security:registro_log_ads' %}?account={{ a.sam|urlencode }}&amp;nome={{ a.anagrafica_nome|default:a.nome|urlencode }}#scheda">Aggiungi la nomina</a>{% endif %}</li>{% endfor %}</ul>
       {% if s.account|length > 30 %}<p>E altri {{ s.account|length|add:"-30" }}.</p>{% endif %}
     </details>
   {% endfor %}
@@ -44,7 +45,7 @@
       <td>{% if a.anagrafica_nome %}{{ a.anagrafica_nome }}{% if a.persona_cessata %} <span class="sec-badge critical">cessato</span>{% endif %}{% else %}<span class="sec-muted">{{ a.get_tipo_display }}</span>{% endif %}
         {% if a.responsabile %}<span class="rl-sub">responsabile: {{ a.responsabile }}</span>{% endif %}</td>
       <td>{% if a.abilitato %}<span class="sec-badge info">Abilitato</span>{% else %}<span class="sec-badge">Disabilitato</span>{% endif %}</td>
-      <td>{{ a.gruppi_privilegiati|join:", "|default:"—" }}</td>
+      <td>{{ a.gruppi_privilegiati|join:", "|default:"—" }}{% if a.gruppi_privilegiati and a.sam|lower not in nominati %}<span class="rl-sub"><span class="sec-badge warning">senza nomina</span>{% if puo_configurare %} <a href="{% url 'security:registro_log_ads' %}?account={{ a.sam|urlencode }}&amp;nome={{ a.anagrafica_nome|default:a.nome|urlencode }}#scheda">Aggiungi</a>{% endif %}</span>{% endif %}</td>
       <td class="sec-nowrap">{{ a.ultimo_accesso|date:"d/m/Y"|default:"mai" }}</td>
       <td>{% if a.password_non_scade %}non scade{% elif a.password_cambiata_il %}cambiata il {{ a.password_cambiata_il|date:"d/m/Y" }}{% else %}—{% endif %}</td>
       {% if puo_configurare %}<td><form method="post" class="rl-form-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ a.pk }}">

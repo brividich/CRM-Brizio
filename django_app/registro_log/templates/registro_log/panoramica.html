@@ -23,6 +23,10 @@
   {% if puo_configurare %}<a class="sec-button" href="{% url 'security:registro_log_fonti' %}" style="margin-left:auto">Fonti e impostazioni</a>{% endif %}
 </section>
 
+{% if battito.stato.errore and imp.attivo %}
+<section class="sec-panel sec-callout sec-callout-warning" style="margin-top:12px"><strong>Il raccoglitore segnala un problema:</strong> {{ battito.stato.errore }}{% if battito.stato.coda > 1000 %} · {{ battito.stato.coda }} righe in attesa di scrittura{% endif %}</section>
+{% endif %}
+
 {% if passi_mancanti %}
 <section class="sec-panel" style="margin-top:12px">
   <div class="sec-section-head"><h2>Come iniziare</h2><span class="sec-muted sec-small">{{ passi_mancanti }} pass{{ passi_mancanti|pluralize:"o,i" }} da fare</span></div>
@@ -61,6 +65,14 @@
     <strong class="sec-kpi-value{% if non_integri %} critical{% endif %}">{% if non_integri %}Non integro{% elif ultimo_sigillo %}Integro{% else %}—{% endif %}</strong>
     <span class="sec-kpi-delta{% if not non_integri and ultimo_sigillo %} sec-good{% endif %}">{% if ultimo_sigillo %}ultimo giorno sigillato: {{ ultimo_sigillo.giorno|date:"d/m/Y" }}{% else %}nessun giorno ancora sigillato{% endif %}</span>
   </a>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Righe archiviate negli ultimi 14 giorni</h2><span class="sec-muted sec-small">ogni barra è un giorno sigillato · rossa = non integro · tratteggiata = nessun sigillo</span></div>
+  <div class="rl-grafico" role="img" aria-label="Righe archiviate per giorno">
+    {% for x in grafico %}<a class="rl-barra rl-{{ x.stato }}" href="{% url 'security:registro_log_archivio' %}" title="{{ x.giorno|date:'D d/m' }}: {% if x.righe is None %}nessun sigillo{% else %}{{ x.righe }} righe{% endif %}{% if x.stato == 'ko' %} · NON integro{% elif x.stato == 'oggi' %} · in corso{% endif %}">
+      <span class="rl-barra-v" style="height:{{ x.altezza }}%"></span><small>{{ x.giorno|date:"d" }}</small></a>{% endfor %}
+  </div>
 </section>
 
 <div class="rl-due">
