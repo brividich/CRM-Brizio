@@ -43,7 +43,7 @@
 
     <httpPlatform
         processPath="%%VENV_PATH%%\Scripts\python.exe"
-        arguments="-m waitress --port=%HTTP_PLATFORM_PORT% --threads=24 --connection-limit=500 config.wsgi:application"
+        arguments="-m waitress --port=%HTTP_PLATFORM_PORT% --threads=24 --connection-limit=500 --trusted-proxy=127.0.0.1 --trusted-proxy-headers=x-forwarded-for config.wsgi:application"
         stdoutLogEnabled="true"
         stdoutLogFile="%%LOGS_PATH%%\waitress_stdout.log"
         startupTimeLimit="120"
@@ -108,8 +108,13 @@
          IP del client: HttpPlatformHandler non invia X-Forwarded-For e
          Waitress vede solo 127.0.0.1. La regola SOSTITUISCE l'header con
          l'IP della connessione (un valore scritto dal client non passa),
-         così con TRUSTED_PROXY_IPS=127.0.0.1,::1 nel .env core.net.client_ip
-         legge l'IP vero (postazioni condivise, audit, lockout, rate limit).
+         così Waitress (opzioni trusted-proxy=127.0.0.1 e
+         trusted-proxy-headers=x-forwarded-for in «arguments») mette l'IP
+         vero in REMOTE_ADDR (postazioni condivise, audit, lockout, rate limit).
+         Senza quelle opzioni Waitress CANCELLA l'header (default
+         clear_untrusted_proxy_headers=True) e il portale vede 127.0.0.1.
+         Le due cose vanno insieme: trusted-proxy senza questa regola
+         accetterebbe un X-Forwarded-For scritto dal client.
          Richiede HTTP_X_FORWARDED_FOR in allowedServerVariables (lo sblocca
          configure-iis-site.ps1), altrimenti tutto il sito va in 500.50.
          ================================================================ -->
