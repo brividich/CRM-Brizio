@@ -175,6 +175,28 @@ Per ogni CVE e ogni PC il sistema dà uno di tre esiti, sempre con la spiegazion
 
 Il sistema non tira mai a indovinare: quando non può dimostrare l'esito, scrive «da verificare».
 
+### Proposte dell'AI locale sui casi da verificare
+
+I casi «da verificare» bloccano la chiusura automatica delle CVE. L'AI locale del portale (lo stesso server interno dell'Assistente AI: nessun dato esce dall'azienda) può esaminarli e **proporre** una risposta; decide sempre una persona.
+
+Due tipi di proposta:
+
+| Tipo | Quando | Cosa propone | Dove si decide |
+| --- | --- | --- | --- |
+| **Collegamento CPE** | software in **Da decidere** (senza CPE confermato, con almeno una CVE dal nome simile) | un CPE scelto **solo fra quelli delle CVE già nel sistema**, oppure «Non applicabile», oppure «Resta da verificare» | **Software e CPE**, colonna Suggerimenti, filtro **Proposte AI (N)** |
+| **Esito CVE su un PC** | riga «da verificare» con CPE confermato: versione non confrontabile (es. `24.08 R2`, `1.1.1b`) o CVE valida solo in una configurazione | «Impatta», «Non impatta» o «Resta da verificare» | **scheda CVE**, colonna Spiegazione |
+
+Ogni proposta ha una **motivazione** di una frase e una **confidenza** (0-100). Le risposte vengono controllate prima di essere mostrate: un CPE che non è fra i candidati, un esito che cita versioni assenti dai dati, una confidenza sotto la **Confidenza minima** (60 di serie) vengono scartati e il caso resta da verificare. Un software vecchio nell'inventario (oltre 30 giorni) o senza CPE candidati non viene chiesto all'AI: lì serve un inventario nuovo o una decisione a mano.
+
+- **Accetta** su un CPE fa esattamente ciò che fa **Conferma** (o **N/A**) a mano: mappatura confermata da te, riga nel registro audit con «proposta AI #n accettata», impatti in ricalcolo. **Accetta** su un esito registra che **tu** hai verificato quel PC per quella CVE: l'esito vale finché la versione installata resta la stessa e nella spiegazione restano chi, quando e la motivazione. Se la versione cambia, il PC torna «da verificare».
+- **Rifiuta** scarta la proposta; l'AI non la ripropone finché i dati del caso (candidati, versioni, range) non cambiano.
+- «Resta da verificare» si può solo rifiutare: l'AI non ha preso posizione.
+- Quando il caso si risolve in altro modo (software confermato a mano, PC aggiornato), la proposta diventa «superata» e sparisce.
+
+**Quando gira.** La lettura **cpe_ai** (Impostazioni › Letture automatiche, gruppo Vulnerabilità) gira ogni 6 ore ed è **spenta di serie**: si accende in **Impostazioni › Proposte AI su CPE ed esiti da verificare**, dove si scelgono anche il **Massimo per giro** (5 casi di serie: in produzione ogni risposta impegna l'AI 15-40 secondi) e la **Confidenza minima**. Il pulsante **Proponi con l'AI ora** in Software e CPE (ed «Esegui ora» nelle Letture automatiche) lancia un giro subito, anche con il giro automatico spento. Prima i CPE dei software più diffusi, poi gli esiti delle CVE più gravi. Se Ollama non risponde il giro si ferma senza fare richieste e la scheda della lettura lo dice. Ogni richiesta è nel registro AI del SOC.
+
+**Limiti.** Il modello sceglie fra nomi: può confondere prodotti della stessa famiglia (es. due edizioni dello stesso programma) o giudicare una versione dal formato insolito. Per questo la proposta non è mai applicata da sola, le CVE sfruttate (KEV) e critiche non si chiudono comunque in automatico e la motivazione va letta prima di accettare.
+
 ### Dove si vede
 
 - **Vulnerabilità**: CVE che impattano o da verificare, ordinate per KEV, CVSS, EPSS e numero di PC impattati; i PC più esposti; i software ancora da collegare.

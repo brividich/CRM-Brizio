@@ -125,8 +125,13 @@ GUIDA = {
                     "Impostazioni › «Panoramica»: tutte le pagine di configurazione divise per compito (dati, alert, avvisi, controllo), "
                     "ognuna con il suo stato, e in cima «Da sistemare» con le cose da fare.",
                     "Impostazioni › «Letture automatiche»: una scheda per ogni lettura (caselle, Defender, Entra, Secure Score, Intune, "
-                    "licenze M365, WatchGuard, CVE, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
+                    "licenze M365, WatchGuard, CVE, proposte AI, switch) con ultimo giro, cosa ha letto, errore, storico e «Esegui ora» "
                     "(serve il permesso di configurazione; la pagina si aggiorna da sola finché il giro è in corso).",
+                    "Proposte AI su CPE ed esiti da verificare: Impostazioni › «Proposte AI su CPE ed esiti da verificare» (spenta di serie; "
+                    "massimo 5 casi per giro, confidenza minima 60). L'AI locale propone a quale CPE collegare un software (solo fra quelli "
+                    "delle CVE già nel sistema) o l'esito di una CVE su un PC quando la versione non si confronta; si accetta o rifiuta in "
+                    "Configurazione › Inventario software › Software e CPE (filtro «Proposte AI», pulsante «Proponi con l'AI ora») e nella "
+                    "scheda CVE. Accettare equivale a una conferma a mano, con audit; nulla viene deciso dall'AI da solo.",
                     "Registro accessi: SOC › Registro accessi › «Fonti». Server Windows letti senza agent (account del raccoglitore nel "
                     "gruppo «Event Log Readers», regola firewall «Gestione remota registro eventi»), oppure Windows Event Forwarding; "
                     "ESXi, switch, firewall e NAS via syslog verso il server del portale (porta 514, solo gli IP scritti nella fonte). "
@@ -154,6 +159,15 @@ GUIDA = {
                 "«Server non raggiungibile per la lettura remota (RPC)»: regola firewall «Gestione remota registro eventi» sul server.",
                 "Syslog muto: porta 514 non aperta nel firewall di Windows del server del portale o IP dell'apparato diverso da quello della fonte.",
                 "Ogni periodo senza raccolta resta tra le interruzioni (Archivio e integrità): scrivi la giustificazione.",
+            ],
+        },
+        {
+            "sintomo": "La lettura «Proposte AI su CPE ed esiti» non riesce o non propone nulla",
+            "fare": [
+                "«AI locale non raggiungibile» o «modello non caricato»: il server Ollama è spento o il modello non c'è. Setup Wizard › Assistente AI › verifica; Centrale di comando.",
+                "«Risposte scartate» alte: l'AI ha proposto CPE fuori dai candidati o versioni non presenti nei dati; abbassa con cautela la «Confidenza minima» solo se le motivazioni che vedi sono buone.",
+                "Nessun caso esaminato: i software in «Da decidere» hanno già una proposta aperta o rifiutata con gli stessi dati; decidi quelle aperte o aspetta nuove CVE/inventari.",
+                "Un software senza CPE candidati o con inventario più vecchio di 30 giorni non viene chiesto all'AI: serve un inventario nuovo o una decisione a mano.",
             ],
         },
         {

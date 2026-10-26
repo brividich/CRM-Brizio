@@ -113,6 +113,17 @@ def ai_lettura_assistita_task():
     }
 
 
+def ai_cpe_proposte_task():
+    """Proposte dell'AI locale su CPE ed esiti «da verificare» (schedule `security_ai_cpe`, lettura `cpe_ai`).
+
+    Solo proposte da accettare o rifiutare, mai decisioni. Spenta finché non si accende in
+    /soc/impostazioni/; al massimo «Massimo per giro» casi, nessuna richiesta se Ollama non risponde.
+    """
+    from security.services import letture
+
+    return letture.esegui("cpe_ai")
+
+
 def suggest_cpe_task(vendor, product):
     """Suggerimenti CPE dal dizionario NVD per un prodotto dell'inventario (accodato dalla pagina Software)."""
     from security.models import SoftwareCpeMapping

@@ -90,6 +90,10 @@ LETTURE = (
             "Dati delle CVE (range vulnerabili), CVE sfruttate attivamente e probabilità di attacco; poi il ricalcolo degli impatti.",
             "ogni ora", "security.services.letture:_cve", ("cve.arricchimento.attivo",),
             dati_url="security:vulnerabilities", dati_label="Vulnerabilità"),
+    Lettura("cpe_ai", "Proposte AI su CPE ed esiti da verificare", "Vulnerabilità",
+            "L'AI locale esamina i casi «da verificare» del calcolo CVE: propone il CPE fra quelli delle CVE note o l'esito per PC. Solo proposte, da accettare o rifiutare.",
+            "ogni 6 ore", "security.services.cpe_ai:giro_lettura", ("ai.cpe.attivo",), "ollama",
+            dati_url="security:software_mapping", dati_label="Software e CPE", manuale="security.services.cpe_ai:giro_manuale"),
     Lettura("tabella_mac", "Tabella MAC degli switch", "Rete",
             "Su quale porta di ogni switch «Rete» sta ogni MAC: dice a quale porta è collegato ogni PC.",
             "ogni notte alle 05:30", "contatori.tabella_mac:run", ("apparati.tabella_mac.attivo",),
@@ -167,6 +171,10 @@ def manca(lettura: Lettura) -> str:
             from assets.services import rete_windows
 
             return "" if rete_windows.configurato() else "Server DHCP/DNS non configurati (Asset › Indirizzi IP, riquadro «Server DHCP e DNS»)."
+        if lettura.requisito == "ollama":
+            from security.services import cpe_ai
+
+            return cpe_ai.configurata()
         if lettura.requisito == "caselle":
             from security.models import SecurityMailboxSource
 
@@ -315,6 +323,9 @@ ETICHETTE = {
     # CVE
     "nvd": "CVE lette da NVD", "nvd_errors": "CVE non lette", "kev_updated": "KEV aggiornate", "epss_updated": "EPSS aggiornati",
     "auto_linked": "software collegati da soli", "recompute": "ricalcolo",
+    # proposte AI su CPE ed esiti
+    "cpe": "Collegamenti CPE", "esiti": "Esiti CVE su PC", "casi": "casi esaminati", "proposte": "proposte",
+    "scartate": "risposte scartate", "superate": "proposte superate", "ms_medi": "ms per risposta",
     # switch / caselle
     "switch": "switch", "mac": "MAC", "caselle": "caselle", "lette": "lette",
 }

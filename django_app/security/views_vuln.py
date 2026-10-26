@@ -13,6 +13,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -21,6 +22,7 @@ from core.upload_mime import UploadMimeValidationError, safe_filename, validate_
 from .models import (
     SecurityCveImpact,
     SecurityCveRecord,
+    SecurityPropostaAi,
     SoftwareAlias,
     SoftwareCpeMapping,
     SoftwareImportPreset,
@@ -30,7 +32,7 @@ from .models import (
     SoftwareSourceKind,
 )
 from .permissions import can_view_security_center
-from .services import cve_impact, software_inventory
+from .services import cpe_ai, cve_impact, software_inventory
 from .services.configuration import audit_config_change, can_manage_security_config
 from .services.cve_feeds import nvd_api_key, set_nvd_api_key
 
@@ -116,10 +118,72 @@ def cve_detail(request, cve_id):
     outcome = request.GET.get("esito", "")
     if outcome in dict(SecurityCveImpact.OUTCOME_CHOICES):
         impacts = impacts.filter(outcome=outcome)
+    impacts = list(impacts[:500])
+    proposte = cpe_ai.proposte_esito_aperte(record)
+    for imp in impacts:
+        imp.ai = proposte.get(imp.host) if imp.outcome == SecurityCveImpact.TO_VERIFY else None
     return render(request, "security/vuln_cve_detail.html", {
-        "record": record, "summary": cve_impact.summary(record), "impacts": impacts[:500], "outcome": outcome,
-        "outcomes": SecurityCveImpact.OUTCOME_CHOICES,
+        "record": record, "summary": cve_impact.summary(record), "impacts": impacts, "outcome": outcome,
+        "outcomes": SecurityCveImpact.OUTCOME_CHOICES, "can_edit": can_manage_security_config(request.user),
+        "proposte_ai": len(proposte),
     })
+
+
+# --- Proposte dell'AI locale (CPE ed esiti da verificare) -------------------------------------
+
+def _redirect_sicuro(request, default):
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    target = request.POST.get("next", "")
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        return redirect(target)
+    return redirect(default)
+
+
+@require_POST
+def proposta_ai_decidi(request, pk):
+    """«Accetta» o «Rifiuta» una proposta dell'AI: accettare passa dallo stesso percorso della conferma a mano."""
+    from core.audit import log_action
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    proposta = get_object_or_404(SecurityPropostaAi, pk=pk)
+    default = reverse("security:cve_detail", args=[proposta.cve.cve_id]) if proposta.cve_id else reverse("security:software_mapping")
+    decisione = request.POST.get("decisione", "")
+    if proposta.stato != SecurityPropostaAi.APERTA:
+        messages.error(request, "Questa proposta è già stata decisa o è superata.")
+        return _redirect_sicuro(request, default)
+    if decisione not in {"accetta", "rifiuta"}:
+        messages.error(request, "Azione non supportata.")
+        return _redirect_sicuro(request, default)
+    if decisione == "accetta" and not proposta.applicabile:
+        messages.error(request, "L'AI non ha preso posizione («resta da verificare»): non c'è nulla da applicare. Puoi solo rifiutarla.")
+        return _redirect_sicuro(request, default)
+    dettaglio = {"tipo": proposta.tipo, "proposta": proposta.proposta, "confidenza": proposta.confidenza,
+                 "vendor": proposta.vendor, "product": proposta.product, "cve": proposta.cve.cve_id if proposta.cve_id else "",
+                 "host": proposta.host, "motivazione": proposta.motivazione[:300]}
+    if decisione == "rifiuta":
+        cpe_ai.segna_decisa(proposta, request.user, accettata=False)
+        log_action(request, "soc_proposta_ai_rifiutata", "security", dettaglio, oggetto=proposta)
+        messages.success(request, "Proposta rifiutata: l'AI non la ripropone finché i dati del caso non cambiano.")
+        return _redirect_sicuro(request, default)
+    if proposta.tipo == SecurityPropostaAi.TIPO_CPE:
+        nota = f"proposta AI #{proposta.pk} accettata (confidenza {proposta.confidenza}%)"
+        if proposta.proposta == SecurityPropostaAi.NON_APPLICABILE:
+            _set_mapping(request, proposta.vendor, proposta.product, note=nota)
+            testo = f"«{proposta.product}» segnato non applicabile"
+        else:
+            _set_mapping(request, proposta.vendor, proposta.product, cpe=proposta.proposta, note=nota)
+            testo = f"«{proposta.product}» collegato a {proposta.proposta}"
+    else:
+        testo = f"{proposta.cve.cve_id} su {proposta.host}: {proposta.proposta_label.lower()}"
+    cpe_ai.segna_decisa(proposta, request.user, accettata=True)
+    log_action(request, "soc_proposta_ai_accettata", "security", dettaglio, oggetto=proposta)
+    _queue_recompute()
+    messages.success(request, f"Proposta accettata: {testo}. Impatti in ricalcolo.")
+    return _redirect_sicuro(request, default)
 
 
 # --- Inventario: upload → mappatura → anteprima → import -------------------------------------
@@ -328,11 +392,16 @@ def software_mapping(request):
         "proposte": sum(1 for r in rows if _needs_decision(r)),
         "senza_cve": sum(1 for r in rows if _without_cve(r)),
         "non_applicabili": sum(1 for r in rows if _is_na(r)),
+        "ai": sum(1 for r in rows if r["ai"]),
     }
     rows = _filter_rows(rows, state)
     page = Paginator(rows, 50).get_page(request.GET.get("page"))
+    from .services import letture, soc_settings
+
     return render(request, "security/vuln_software.html", {
         "page": page, "q": q, "stato": state, "counts": counts, "known_cpes": len(known),
+        "ai_attiva": soc_settings.value("ai.cpe.attivo"), "ai_manca": cpe_ai.configurata(),
+        "ai_in_corso": bool(letture.in_corso("cpe_ai")),
         "unique_proposals": sum(1 for r in rows if _needs_decision(r) and len(r["local_suggestions"]) == 1),
         "open_in_view": sum(1 for r in rows if _is_open(r)),
         "aliases": SoftwareAlias.objects.all()[:300], "alias_kinds": SoftwareAlias.KIND_CHOICES,
@@ -358,14 +427,19 @@ def _mapping_rows(q=""):
         products = products.filter(Q(vendor__icontains=q) | Q(product__icontains=q))
     mappings = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.select_related("na_rule")}
     known = known_cpe_pairs()
+    proposte_ai = cpe_ai.proposte_cpe_aperte()
     rows = list(products)
     for row in rows:
         row["mapping"] = mappings.get((row["vendor"], row["product"]))
         row["local_suggestions"] = proposals(row["vendor"], row["product"], known)
+        # Una proposta dell'AI vale solo finché il software è ancora da decidere.
+        row["ai"] = proposte_ai.get((row["vendor"], row["product"])) if _is_open(row) or _excluded_by_rule(row) else None
     return rows, known
 
 
 def _filter_rows(rows, state):
+    if state == "ai":
+        return [r for r in rows if r["ai"]]
     if state == "proposte":
         return [r for r in rows if _needs_decision(r)]
     if state == "senza_cve":
@@ -475,6 +549,12 @@ def _software_mapping_post(request):
                             new_value=f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}", request=request)
         _queue_recompute()
         messages.success(request, f"Mappatura di «{product}» aggiornata: impatti in ricalcolo.")
+    elif action == "ai_proponi":
+        from .services import letture
+
+        ok, testo = letture.accoda("cpe_ai", request.user)
+        (messages.success if ok else messages.error)(request, testo)
+        return redirect(reverse("security:software_mapping") + "?stato=ai")
     elif action == "cpe_auto":
         linked = _auto_link_cpe()
         if linked:

@@ -1761,3 +1761,69 @@ class SecurityLetturaLog(models.Model):
         if not self.finita_il:
             return None
         return max(0, round((self.finita_il - self.avviata_il).total_seconds()))
+
+
+class SecurityPropostaAi(models.Model):
+    """Proposta dell'AI locale su un caso «da verificare» del calcolo CVE: mai una decisione.
+
+    Due tipi: ``cpe`` (a quale CPE collegare un software dell'inventario, o «non applicabile») ed
+    ``esito`` (per una coppia CVE/PC che il motore non sa giudicare: impatta, non impatta o resta da
+    verificare). Una persona la **accetta** o la **rifiuta** dalle pagine «Software e CPE» e scheda CVE;
+    accettare passa dallo stesso percorso della conferma a mano (audit e ricalcolo). Una riga per caso
+    (``chiave``): una proposta rifiutata non viene rifatta finché i dati del caso (``contesto_hash``)
+    non cambiano; una proposta il cui caso non esiste più diventa «superata».
+    """
+
+    TIPO_CPE = "cpe"
+    TIPO_ESITO = "esito"
+    TIPI = [(TIPO_CPE, "Collegamento CPE"), (TIPO_ESITO, "Esito CVE su un PC")]
+
+    APERTA = "aperta"
+    ACCETTATA = "accettata"
+    RIFIUTATA = "rifiutata"
+    SUPERATA = "superata"
+    STATI = [(APERTA, "Da decidere"), (ACCETTATA, "Accettata"), (RIFIUTATA, "Rifiutata"), (SUPERATA, "Superata")]
+
+    # Valori di ``proposta``: per ``cpe`` un «vendor:product» fra i candidati, NON_APPLICABILE o DA_VERIFICARE;
+    # per ``esito`` IMPATTA, NON_IMPATTA o DA_VERIFICARE.
+    NON_APPLICABILE = "non_applicabile"
+    DA_VERIFICARE = "da_verificare"
+    IMPATTA = "impatta"
+    NON_IMPATTA = "non_impatta"
+
+    tipo = models.CharField(max_length=8, choices=TIPI, db_index=True)
+    chiave = models.CharField(max_length=300, unique=True)
+    vendor = models.CharField(max_length=120, blank=True, default="")
+    product = models.CharField(max_length=160, blank=True, default="")
+    cve = models.ForeignKey(SecurityCveRecord, on_delete=models.CASCADE, null=True, blank=True, related_name="proposte_ai")
+    host = models.CharField(max_length=255, blank=True, default="")
+    versione = models.CharField(max_length=120, blank=True, default="")
+    proposta = models.CharField(max_length=300)
+    motivazione = models.TextField(blank=True, default="")
+    confidenza = models.PositiveSmallIntegerField(default=0)
+    candidati = models.JSONField(default=list, blank=True)
+    contesto_hash = models.CharField(max_length=64, blank=True, default="")
+    modello = models.CharField(max_length=160, blank=True, default="")
+    stato = models.CharField(max_length=10, choices=STATI, default=APERTA, db_index=True)
+    creata_il = models.DateTimeField(default=timezone.now)
+    decisa_il = models.DateTimeField(null=True, blank=True)
+    decisa_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta:
+        ordering = ["-creata_il"]
+        indexes = [models.Index(fields=["tipo", "stato"], name="sec_prop_ai_tipo_stato_idx")]
+
+    def __str__(self):
+        return f"{self.tipo} {self.chiave}: {self.proposta} ({self.stato})"
+
+    @property
+    def proposta_label(self):
+        return {
+            self.NON_APPLICABILE: "Non applicabile", self.DA_VERIFICARE: "Resta da verificare",
+            self.IMPATTA: "Impatta", self.NON_IMPATTA: "Non impatta",
+        }.get(self.proposta, self.proposta)
+
+    @property
+    def applicabile(self):
+        """«Accetta» ha un effetto solo se l'AI ha preso posizione (non su «resta da verificare»)."""
+        return self.proposta != self.DA_VERIFICARE
