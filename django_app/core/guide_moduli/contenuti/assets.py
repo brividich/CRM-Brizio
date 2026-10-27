@@ -329,7 +329,10 @@ GUIDA = {
                 ("passi", [
                     "Configurazione → «Macchine collegate» → «Collega una macchina» → «Collector OPC UA»: scegli la macchina, scrivi "
                     "l'indirizzo OPC UA (IP), la porta (4840), il codice breve (es. DM6) e, se serve, utente e password OPC UA. «Salva». "
-                    "Nel menu ci sono solo le macchine di lavoro (con la scheda macchina).",
+                    "Nel menu ci sono le macchine di lavoro e le CNC, anche quelle mai salvate dalla loro scheda.",
+                    "Dalla scheda della macchina («Modifica macchina di lavoro»): riquadro «Stato reale della macchina (collector)» → "
+                    "«Collega al collector» apre questo form con la macchina già scelta; se è già collegata mostra stato e ultima "
+                    "lettura e porta a «Modifica il collegamento».",
                     "Riquadro «Collector» (amministratori del modulo Asset): «Crea il collector e il token» con l'IP del PC del collector. "
                     "Copia il token: si vede una volta sola.",
                     "Sul PC del collector imposta PORTALE_URL (lo mostra la pagina) e PORTALE_TOKEN e avvia il collector: scarica da solo "
