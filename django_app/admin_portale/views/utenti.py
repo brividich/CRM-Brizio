@@ -1885,11 +1885,14 @@ def utente_edit(request, user_id: int):
     except Exception:
         pass
 
+    sistema_ruoli = _attach_ruoli_portale_to_users([utente])
+
     return render(
         request,
         "admin_portale/pages/utente_edit.html",
         {
             "utente_obj": utente,
+            "sistema_ruoli": sistema_ruoli,
             "roles": roles,
             "flag_names": flag_names,
             "grouped_perm_rows": grouped_perm_rows,

@@ -115,6 +115,56 @@ _MODULE_CATALOG: list[dict] = [
 ]
 
 
+# Tessera → moduli del registro permessi (core.permessi). Con il sistema dei ruoli
+# attivo la tessera si vede se un ruolo della persona concede «vedere» su almeno
+# uno di questi moduli. Tessera senza voce = solo amministratori.
+_MODULE_PERMESSI: dict[str, tuple[str, ...]] = {
+    "anomalie":        ("anomalie",),
+    "ticket":          ("ticket_it", "ticket_manutenzione"),
+    "task":            ("kickoff",),
+    "diario":          ("diario_preposto",),
+    "incidenti":       ("rilevazione_incidenti",),
+    "procedure":       ("procedure",),
+    "anagrafica":      ("anagrafica",),
+    "assenze":         ("assenze",),
+    "timbri":          ("timbri",),
+    "formazione":      ("formazione",),
+    "dpi":             ("dpi",),
+    "sicurezza":       ("visite_mediche",),
+    "notizie":         ("notizie",),
+    "asset":           ("assets",),
+    "planimetria":     ("planimetria",),
+    "fornitori":       ("fornitori",),
+    "monitoring":      ("piattaforma",),
+    "rentri":          ("rentri",),
+    "automazioni":     ("automazioni",),
+    "ai":              ("assistente_ai",),
+    "hubtools":        ("piattaforma",),
+    "admin":           ("gestione_utenti",),
+    "permessi":        ("gestione_utenti",),
+    "contatori":       ("contatori",),
+    "security_center": ("soc",),
+}
+
+
+def _mod_visibile_da_ruoli(request, mod: dict, is_admin: bool) -> bool:
+    if is_admin:
+        return True
+    from core.permessi.motore import puo_fare
+
+    return any(puo_fare(request, chiave, "vedere") for chiave in _MODULE_PERMESSI.get(mod["id"], ()))
+
+
+def _sistema_ruoli_attivo() -> bool:
+    try:
+        from core.permessi.motore import sistema_ruoli_attivo
+
+        return sistema_ruoli_attivo()
+    except Exception:
+        logger.exception("Home: stato del sistema dei ruoli non leggibile")
+        return False
+
+
 def _build_accessible_set(request) -> set[str]:
     """Slug set derivato dai pulsanti visibili all'utente — usato per ACL del module hub."""
     pulsanti = _visible_pulsanti_for_request(request)
@@ -439,6 +489,9 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 def _module_groups(request, accessible_set: set[str], is_admin: bool,
                    image_lookup: dict, kpi_counts: dict | None = None) -> list[dict]:
     kpi_counts = kpi_counts or {}
+    # Sistema dei ruoli attivo: decidono i ruoli (come nel resto del portale),
+    # non più i Pulsanti abilitati sul ruolo legacy.
+    da_ruoli = _sistema_ruoli_attivo()
     groups = []
     for cat in _CATEGORIES:
         modules = []
@@ -446,7 +499,10 @@ def _module_groups(request, accessible_set: set[str], is_admin: bool,
         for spec in _MODULE_CATALOG:
             if spec["cat"] != cat["key"]:
                 continue
-            can = _mod_is_accessible(spec, accessible_set, is_admin)
+            if da_ruoli:
+                can = _mod_visibile_da_ruoli(request, spec, is_admin)
+            else:
+                can = _mod_is_accessible(spec, accessible_set, is_admin)
             if not can:
                 continue
             url = _safe_url(spec["url_name"]) if spec["url_name"] != "#" else "#"

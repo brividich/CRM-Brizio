@@ -109,7 +109,13 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
 {% block content %}
   <div class="page-header">
     <div class="page-h">Scheda Utente #{{ utente_obj.id }}</div>
+    {% if sistema_ruoli %}
+    <div class="page-sub">{{ utente_obj.nome }}{% if utente_obj.email %} · {{ utente_obj.email }}{% endif %} · Ruolo in azienda: <strong>{{ utente_obj.ruolo_azienda|default:"da assegnare" }}</strong>
+      · Accessi: <a href="{% url 'admin_portale:ruoli_portale' %}?tab=persone&persona={{ utente_obj.id }}" title="Accessi al portale: arrivano dal ruolo in azienda; «a mano» sono eccezioni. Il primo è quello che comanda.">{% for r in utente_obj.ruoli_portale %}<span class="badge{% if forloop.first %} badge-info{% endif %}">{{ r.label }}{% if not r.da_organigramma %} · a mano{% endif %}</span> {% empty %}<span class="badge">{{ utente_obj.ruolo_portale_base|default:"Nessun ruolo" }}</span>{% endfor %}</a>
+    </div>
+    {% else %}
     <div class="page-sub">{{ utente_obj.nome }}{% if utente_obj.email %} · {{ utente_obj.email }}{% endif %} · Ruolo: <strong>{{ utente_obj.ruolo|default:"—" }}</strong></div>
+    {% endif %}
   </div>
 
   {% include "admin_portale/components/flash_messages.html" %}
@@ -169,7 +175,7 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
           </div>
           {% endif %}
           <div class="field">
-            <label for="ruolo_id">Ruolo</label>
+            <label for="ruolo_id">{% if sistema_ruoli %}Ruolo storico (non decide i permessi){% else %}Ruolo{% endif %}</label>
             <select class="input" id="ruolo_id" name="ruolo_id">
               <option value="">-- Nessuno --</option>
               {% for ruolo in roles %}
@@ -533,6 +539,12 @@ body.theme-dark .flag-toggle[data-state="ov-off"]{background:rgba(229,62,62,.16)
         </div>
       </div>
       <div class="card-body" style="padding:0;">
+        {% if sistema_ruoli %}
+          <div class="alert alert-warning" style="margin:12px;">
+            <strong>Sistema dei ruoli attivo:</strong> questa tabella è il vecchio sistema (ruolo storico + override) e non decide più gli accessi.
+            Quello che la persona vede davvero è in <a href="{% url 'admin_portale:ruoli_portale' %}?tab=anteprima&persona={{ utente_obj.id }}">Ruoli e permessi › Cosa vede questa persona</a>.
+          </div>
+        {% endif %}
         {% if not utente_obj.ruolo_id %}
           <div style="padding:16px;color:var(--text-muted,#888)">Nessun ruolo assegnato. Assegna un ruolo nella tab Info per vedere i permessi.</div>
         {% else %}
