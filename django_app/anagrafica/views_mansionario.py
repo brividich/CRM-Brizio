@@ -98,6 +98,7 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
     filtri = {
         "reparto": sezioni_c.tag_slug(r["reparto"] or ""), "area": sezioni_c.tag_slug(area),
         "persone": " " + " ".join(str(i) for i in r["persone_ids"]) + " ",
+        "classi": " " + " ".join(r.get("classi", [])) + " ",
     }
     q = " ".join([r["nome"], r["reparto"] or "", area, rischi, *(x.nome for x in r["ruoli"]), *nomi]).casefold()
     if m.is_responsabilita:
@@ -256,6 +257,7 @@ def mansionario(request):
     kpi["uomo_solo"] = sum(1 for r in righe if r["uomo_solo"] and r["operativi"]
                            and not r["mansione"].is_responsabilita)
     kpi["ruolo_senza_mansione"] = sum(g["chi"]["senza_mansione"] for g in gruppi if g["chi"])
+    from .services.mansioni_coefficienti import CLASSIFICAZIONI
     from .services.sezioni_c import tag_slug
 
     filtri = {  # (valore come nei data-f-* delle schede, etichetta)
@@ -263,6 +265,7 @@ def mansionario(request):
         "aree": [(tag_slug(n), n) for n in sorted({r["mansione"].area.nome for r in righe if r["mansione"].area_id},
                                                   key=str.casefold)],
         "persone": sorted(persone.values(), key=lambda p: p["nome"].casefold()),
+        "classi": [*CLASSIFICAZIONI.items(), ("-", "Non classificata")],
     }
     return render(request, "anagrafica/pages/mansionario.html", {
         "page_title": "Mansionario",

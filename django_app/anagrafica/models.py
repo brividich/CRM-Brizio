@@ -1893,6 +1893,38 @@ class VoceRetributiva(models.Model):
         return f"{self.tax_code} — {self.pay_item} ({self.data_competenza})"
 
 
+class CostoOrarioMensile(models.Model):
+    """Costo orario di un dipendente per mese (ottobre 2026).
+
+    RML del mese (voce retributiva «RML», la correzione manuale vince) diviso i
+    giorni e le ore del mese convenzionale (26 e 6,66, nelle Impostazioni). Si
+    ricalcola a ogni import dei cedolini: ``services.costo_orario``. Dato
+    retributivo: lo vede solo chi ha il permesso HR riservato.
+    """
+
+    tax_code = models.CharField(max_length=16, db_index=True)
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    mese = models.DateField(help_text="Primo giorno del mese di competenza")
+    rml = models.DecimalField(max_digits=12, decimal_places=2)
+    divisore_giorni = models.DecimalField(max_digits=6, decimal_places=2)
+    divisore_ore = models.DecimalField(max_digits=6, decimal_places=2)
+    costo_orario = models.DecimalField(max_digits=10, decimal_places=4)
+    rml_manuale = models.BooleanField(default=False)
+    calcolato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-mese", "tax_code"]
+        constraints = [
+            models.UniqueConstraint(fields=["tax_code", "mese"], name="anag_costo_orario_cf_mese"),
+        ]
+        indexes = [models.Index(fields=["legacy_anagrafica_id", "-mese"])]
+        verbose_name = "Costo orario mensile"
+        verbose_name_plural = "Costi orari mensili"
+
+    def __str__(self) -> str:
+        return f"{self.tax_code} {self.mese:%m/%Y} = {self.costo_orario}"
+
+
 # ---------------------------------------------------------------------------
 # Permessi accesso dati HR riservati (singleton)
 # ---------------------------------------------------------------------------

@@ -752,10 +752,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         elif it_presentation["profile"] == "printer":
             default_spec_pairs = [("Numero seriale", asset.serial_number or ""), ("Data acquisto", asset.purchase_date.strftime("%d-%m-%Y") if asset.purchase_date else "")]
 
+    from ..services.responsabile_asset import responsabile as responsabile_asset
+
+    # Macchine di produzione senza persona assegnata: risponde il caporeparto.
+    responsabile = responsabile_asset(asset)
     default_assignment_rows = [
         {"label": "Reparto", "value": _coalesce_str(asset.assignment_reparto, "-")},
         {"label": "Posizione", "value": _coalesce_str(asset.assignment_location, "-")},
-        {"label": "Assegnato a", "value": _coalesce_str(asset.assignment_to, "Non assegnato")},
+        {"label": "Assegnato a", "value": responsabile.nome if responsabile else "Non assegnato"},
         {"label": "Assegnato dal", "value": asset.updated_at.strftime("%d-%m-%Y") if asset.updated_at else "-"},
     ]
     category_detail_sections = _build_asset_category_detail_sections(asset, extra)
@@ -1183,6 +1187,13 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
         except (NoReverseMatch, ValueError, TypeError):
             assigned_user_admin_url = ""
+    elif responsabile and responsabile.anagrafica_id:
+        try:
+            assigned_user_admin_url = reverse(
+                "anagrafica:dipendente_detail", kwargs={"legacy_id": responsabile.anagrafica_id},
+            )
+        except NoReverseMatch:
+            assigned_user_admin_url = ""
     collection_url = reverse("assets:work_machine_list") if asset.asset_type == Asset.TYPE_WORK_MACHINE else reverse("assets:asset_list")
     collection_label = "Macchine di lavoro" if asset.asset_type == Asset.TYPE_WORK_MACHINE else "Inventario"
 
@@ -1383,6 +1394,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "custom_fields": custom_fields,
             "unmapped_extra": unmapped_extra,
             "assigned_user_admin_url": assigned_user_admin_url,
+            "responsabile": responsabile,
             "sync_text": sync_text,
             "detail_metrics": detail_metrics,
             "asset_primary_kpis": asset_primary_kpis,

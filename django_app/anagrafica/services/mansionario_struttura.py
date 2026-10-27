@@ -71,6 +71,8 @@ def riepilogo(*, solo_attive: bool = True) -> list[dict]:
             "livelli": {lv: livelli.get(lv, 0) for lv in LIVELLI},
             "in_lista": len(abil),
             "persone_ids": sorted({a.legacy_anagrafica_id for a in abil}),
+            # Classificazioni (D1T, I2T…) delle persone in lista, per il filtro del Mansionario.
+            "classi": sorted({a.classificazione or "-" for a in abil if a.stato == AbilitazioneMacchina.STATO_ATTIVA}),
             "operativi": operativi,
             "uomo_solo": operativi < config.soglia_uomo_solo,
         })

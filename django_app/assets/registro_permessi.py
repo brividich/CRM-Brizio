@@ -10,7 +10,12 @@ from core.permessi.registro import ModuloPermessi, registra_modulo
 
 def proprietario_asset(asset):
     valore = getattr(asset, "assigned_legacy_user_id", None)
-    return int(valore) if valore else None
+    if valore:
+        return int(valore)
+    # Macchina di produzione senza persona assegnata: e' del caporeparto.
+    from assets.services.responsabile_asset import utente_responsabile
+
+    return utente_responsabile(asset)
 
 
 registra_modulo(ModuloPermessi(

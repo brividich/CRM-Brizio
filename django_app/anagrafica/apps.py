@@ -19,6 +19,10 @@ class AnagraficaConfig(AppConfig):
         from .segnali_struttura import collega as collega_struttura
 
         collega_struttura()
+        # Coefficienti delle mansioni: ripartiti da soli quando una mansione entra o esce.
+        # Costo orario: ricalcolato quando cambia una voce RML a mano.
+        from .services import costo_orario, mansioni_coefficienti  # noqa: F401
+
         try:
             from .acl_bootstrap import bootstrap_anagrafica_acl_endpoints
 

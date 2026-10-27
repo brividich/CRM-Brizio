@@ -1578,10 +1578,11 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
             {% endif %}
             <div class="af-profile-group">
               <div class="af-profile-group-title">{{ detail_assignment_title|default:"Assegnazione" }}</div>
-              <div class="af-owner{% if not asset.assignment_to %} is-empty{% endif %}">
-                <span class="af-owner-avatar" aria-hidden="true">{% if asset.assignment_to %}{{ asset.assignment_to|slice:":1"|upper }}{% else %}?{% endif %}</span>
+              <div class="af-owner{% if not responsabile %} is-empty{% endif %}">
+                <span class="af-owner-avatar" aria-hidden="true">{% if responsabile %}{{ responsabile.nome|slice:":1"|upper }}{% else %}?{% endif %}</span>
                 <div class="af-owner-text">
-                  <span class="af-owner-name">{{ asset.assignment_to|default:"Non assegnato" }}</span>
+                  <span class="af-owner-name">{{ responsabile.nome|default:"Non assegnato" }}</span>
+                  {% if responsabile.da_caporeparto %}<span class="af-owner-sub">{{ responsabile.sotto }} · nessuna persona assegnata</span>{% endif %}
                   {% if assigned_user_admin_url %}
                     <a class="af-owner-link" href="{{ assigned_user_admin_url }}">Apri scheda dipendente &rarr;</a>
                   {% else %}

@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -109,6 +109,10 @@
         <label class="mst-campo"><span>Livello</span>
           <select name="livello">{% for codice, etichetta in livelli %}<option value="{{ codice }}"{% if codice == scelta.livello %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
           <small>Solo per «Assegna»: a chi ce l'ha già con un altro livello, il livello cambia.</small>
+        </label>
+        <label class="mst-campo"><span>Classificazione</span>
+          <select name="classificazione"><option value="">Non cambiarla</option>{% for codice, etichetta in classificazioni %}<option value="{{ codice }}"{% if codice == scelta.classificazione %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
+          <small>Solo per «Assegna». Vuota: chi riceve la mansione prende la sua classificazione prevalente.</small>
         </label>
       </div>
 

@@ -601,6 +601,11 @@ def nuova_richiesta(request):
                 created_by=request.user,
             )
             log_action(request, "crea", "dpi", f"Nuova richiesta DPI {r.numero} — {r.categoria}" + (f" (per conto di {info['nome']})" if per_altri else ""))
+            # Chi la inserisce e' CAR/preposto (per se' o per un suo dipendente): approvata da sola.
+            if _own_legacy and flusso.e_capo_o_preposto(_own_legacy):
+                _approva(request, r, "Approvata automaticamente: richiesta inserita da un CAR/preposto.", automatica=True)
+                messages.success(request, f"Richiesta {r.numero} approvata automaticamente: il magazzino è stato avvisato.")
+                return redirect("dpi:detail", pk=r.pk)
             flusso.notifica_nuova_richiesta(r)
             messages.success(request, f"Richiesta {r.numero} inviata correttamente.")
             return redirect("dpi:detail", pk=r.pk)
@@ -959,33 +964,73 @@ def approva_richiesta(request, pk: int):
     if richiesta.stato != StatoRichiesta.INVIATA:
         messages.error(request, "Solo le richieste 'Inviate' possono essere approvate.")
         return redirect("dpi:gestione_detail", pk=pk)
-    nota = request.POST.get("nota", "").strip()
-    richiesta.stato = StatoRichiesta.APPROVATA
-    if nota:
-        richiesta.note_gestione = nota
-    richiesta.save(update_fields=["stato", "note_gestione", "updated_at"])
-    if nota:
-        RichiestaDPICommento.objects.create(
-            richiesta=richiesta,
-            autore_nome=request.user.get_full_name() or request.user.username,
-            testo=nota,
-            is_interno=False,
-        )
-    log_action(request, "approva", "dpi", f"Approvata richiesta DPI {richiesta.numero}")
-    from .ai_richiesta import registra_esito
+    _approva(request, richiesta, request.POST.get("nota", "").strip())
+    messages.success(request, f"Richiesta {richiesta.numero} approvata.")
+    return redirect("dpi:gestione_detail", pk=pk)
 
-    registra_esito(richiesta, "approvare", user=request.user)
+
+def _notifica_richiedente(richiesta: RichiestaDPI, messaggio: str) -> None:
     if richiesta.richiedente_legacy_id:
         from core.notifiche import invia_notifica
         from django.urls import reverse
         invia_notifica(
             legacy_user_id=utente_da_anagrafica(richiesta.richiedente_legacy_id),
             tipo="dpi_approvata",
-            messaggio=f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.",
+            messaggio=messaggio,
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
+
+
+def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bool = False) -> None:
+    """Approva: avviso al magazzino e, se in Impostazioni e' scelto l'avviso
+    immediato, la richiesta e' subito «Pronta al ritiro»."""
+    richiesta.stato = StatoRichiesta.APPROVATA
+    if nota and not automatica:  # l'automatica non copre le note di inserimento
+        richiesta.note_gestione = nota
+    richiesta.save(update_fields=["stato", "note_gestione", "updated_at"])
+    if nota:
+        RichiestaDPICommento.objects.create(
+            richiesta=richiesta,
+            autore_nome="Portale" if automatica else (request.user.get_full_name() or request.user.username),
+            testo=nota,
+            is_interno=False,
+        )
+    if automatica:
+        log_action(request, "approva", "dpi", f"Approvata automaticamente la richiesta DPI {richiesta.numero} (CAR/preposto)")
+    else:
+        log_action(request, "approva", "dpi", f"Approvata richiesta DPI {richiesta.numero}")
+        from .ai_richiesta import registra_esito
+
+        registra_esito(richiesta, "approvare", user=request.user)
+    _notifica_richiedente(richiesta, f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.")
     flusso.notifica_approvata(richiesta)
-    messages.success(request, f"Richiesta {richiesta.numero} approvata.")
+    if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione:
+        _segna_pronta(request, richiesta, da_nome="Portale (all'approvazione)")
+
+
+def _segna_pronta(request, richiesta: RichiestaDPI, *, da_nome: str) -> None:
+    richiesta.pronta_ritiro_il = timezone.now()
+    richiesta.pronta_ritiro_da_nome = da_nome[:200]
+    richiesta.save(update_fields=["pronta_ritiro_il", "pronta_ritiro_da_nome", "updated_at"])
+    log_action(request, "pronta_ritiro", "dpi", f"DPI {richiesta.numero} pronto per il ritiro")
+    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa in magazzino a ritirarlo.")
+    flusso.notifica_pronta_ritiro(richiesta)
+
+
+@login_required
+@require_POST
+def pronta_ritiro(request, pk: int):
+    """Il magazzino ha preparato il DPI: avvisa il dipendente di passare a ritirarlo."""
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    richiesta = get_object_or_404(RichiestaDPI.objects.select_related("categoria"), pk=pk)
+    if richiesta.stato != StatoRichiesta.APPROVATA:
+        messages.error(request, "Solo una richiesta approvata e non ancora consegnata può essere pronta per il ritiro.")
+        return redirect("dpi:gestione_detail", pk=pk)
+    gia = richiesta.pronta_ritiro_il is not None
+    _segna_pronta(request, richiesta, da_nome=request.user.get_full_name() or request.user.username)
+    messages.success(request, f"Il dipendente è stato {'avvisato di nuovo' if gia else 'avvisato'} di passare a ritirare il DPI.")
     return redirect("dpi:gestione_detail", pk=pk)
 
 
@@ -1198,6 +1243,7 @@ def impostazioni(request):
         impost.notifica_email_extra = request.POST.get("notifica_email_extra", "").strip()
         impost.magazzino_emails = request.POST.get("magazzino_emails", "").strip()
         impost.amministrazione_emails = request.POST.get("amministrazione_emails", "").strip()
+        impost.avviso_ritiro_all_approvazione = bool(request.POST.get("avviso_ritiro_all_approvazione"))
         impost.save()
         log_action(request, "modifica", "dpi", "Aggiornate impostazioni DPI")
         messages.success(request, "Impostazioni salvate.")
@@ -1231,6 +1277,7 @@ def categoria_edit(request, pk: int | None = None):
             "obbligatoria_mansionario": bool(request.POST.get("obbligatoria_mansionario")),
             "unita_misura": request.POST.get("unita_misura", "pz").strip() or "pz",
             "scorta_minima": _parse_optional_positive_int(request.POST.get("scorta_minima")) or 0,
+            "avvisa_amministrazione_consegna": bool(request.POST.get("avvisa_amministrazione_consegna")),
             "is_active": bool(request.POST.get("is_active")),
             "order_index": _parse_optional_positive_int(request.POST.get("order_index")) or 0,
         }

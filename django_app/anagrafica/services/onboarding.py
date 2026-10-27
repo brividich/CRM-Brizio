@@ -407,6 +407,19 @@ def _caporeparto_emails(reparto_nome: str) -> list[str]:
         return []
 
 
+def _preposti_emails(legacy_id: int | None) -> list[str]:
+    """Email di chi approva le richieste DPI del dipendente (CAR/responsabile/preposto)."""
+    if not legacy_id:
+        return []
+    try:
+        from dpi.flusso import _email_persona, approvatori_di
+
+        return sorted({e for e in (_email_persona(i) for i in approvatori_di(legacy_id)) if e}, key=str.lower)
+    except Exception:
+        logger.debug("Risoluzione preposti fallita per %s", legacy_id, exc_info=True)
+        return []
+
+
 from automazioni.managed_flows import event_flow
 
 
@@ -417,9 +430,12 @@ def notifica_assegnazione_mansione_rischio(
     mansione: str,
     reparto: str = "",
     requisiti: dict | None = None,
+    legacy_id: int | None = None,
 ) -> None:
-    """All'assegnazione di una mansione con requisiti DPI notifica via email
-    AMM (DPI da distribuire) e CAR/caporeparto (controllo uso effettivo DPI).
+    """All'assegnazione di una mansione con requisiti DPI notifica via email il
+    magazzino DPI (DPI da distribuire: Impostazioni DPI «Magazzino» + SiteConfig
+    ``dpi_amm_emails``) e il preposto/CAR (controllo uso effettivo DPI: chi approva
+    le richieste DPI del dipendente, ripiego caporeparto del reparto e ``dpi_car_emails``).
 
     Fail-open: nessuna eccezione propagata (l'onboarding non deve rompersi se
     la mail non parte). Non invia nulla se la mansione non richiede DPI.
@@ -441,7 +457,10 @@ def notifica_assegnazione_mansione_rischio(
         nome = dipendente_nome or "nuovo assunto"
         rep_txt = f" — reparto {reparto}" if reparto else ""
 
-        amm = get_reminder_recipients("dpi_amm_emails")
+        from dpi.flusso import destinatari_magazzino
+
+        amm = list(destinatari_magazzino())
+        amm += [e for e in get_reminder_recipients("dpi_amm_emails") if e.lower() not in {a.lower() for a in amm}]
         if amm:
             send_hub_mail(
                 subject=f"[DPI] Da distribuire — {nome} ({mansione})",
@@ -456,7 +475,7 @@ def notifica_assegnazione_mansione_rischio(
                 fail_silently=True,
             )
 
-        car = _caporeparto_emails(reparto) or get_reminder_recipients("dpi_car_emails")
+        car = _preposti_emails(legacy_id) or _caporeparto_emails(reparto) or get_reminder_recipients("dpi_car_emails")
         if car:
             send_hub_mail(
                 subject=f"[DPI] Controllo uso — {nome} ({mansione})",
@@ -571,7 +590,7 @@ def avvia_onboarding(
         _assegna_elearning(legacy_id)
     if notifica_dpi:
         notifica_assegnazione_mansione_rischio(
-            dipendente_nome=dipendente_nome, mansione=mansione, reparto=reparto,
+            dipendente_nome=dipendente_nome, mansione=mansione, reparto=reparto, legacy_id=legacy_id,
         )
     return pratica
 

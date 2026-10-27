@@ -157,8 +157,12 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
           <textarea name="magazzino_emails" rows="3">{{ impost.magazzino_emails }}</textarea>
         </div>
         <div class="dpi-field">
-          <label>Amministrazione: email per avviso e report di consegna (una per riga)</label>
+          <label>Amministrazione: email per il report di consegna, solo per le categorie con «avvisa l'Amministrazione» (una per riga)</label>
           <textarea name="amministrazione_emails" rows="3">{{ impost.amministrazione_emails }}</textarea>
+        </div>
+        <div class="dpi-field" style="display:flex; align-items:center;">
+          <input type="checkbox" name="avviso_ritiro_all_approvazione" id="avviso-ritiro" value="1"{% if impost.avviso_ritiro_all_approvazione %} checked{% endif %}>
+          <label for="avviso-ritiro" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Avvisa il dipendente di ritirare il DPI subito all'approvazione (senza «Pronto per il ritiro» del magazzino)</label>
         </div>
 
         <button type="submit" class="dpi-btn dpi-btn-green">Salva impostazioni</button>
@@ -358,6 +362,10 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
       <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" name="obbligatoria_mansionario" id="obbligatoria-mansionario" value="1"{% if cat_edit.obbligatoria_mansionario %} checked{% endif %}>
         <label for="obbligatoria-mansionario" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Obbligatoria nel report conformità</label>
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="avvisa_amministrazione_consegna" id="avvisa-amministrazione" value="1"{% if not cat_edit or cat_edit.avvisa_amministrazione_consegna %} checked{% endif %}>
+        <label for="avvisa-amministrazione" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Alla consegna avvisa l'Amministrazione (report con PDF)</label>
       </div>
 
       <div style="display:flex; gap:10px; margin-top:8px;">

@@ -381,8 +381,8 @@ class AssegnazioniExcelTests(_Base):
         from .services import assegnazioni_excel as ax
 
         f = self._file(ruoli=[[self.p1.pk, "", "", "", self.ruolo.nome, "", ""]],
-                       mansioni=[["", "STRUTTURA UNO", "", "P-SBA", "", "U", ""],
-                                 [self.p2.pk, "", "", "", "Sbavatura", "", ""]])
+                       mansioni=[["", "STRUTTURA UNO", "", "P-SBA", "", "U", "", "", ""],
+                                 [self.p2.pk, "", "", "", "Sbavatura", "", "", "", ""]])
         esito = ax.importa(f, applica=False)
         self.assertEqual([r.azione for r in esito.righe], [xl.NUOVO, xl.NUOVO, xl.ERRORE])  # p2: livello mancante
         self.assertFalse(DipendenteRuoloOperativo.objects.exists())
@@ -413,7 +413,7 @@ class AssegnazioniExcelTests(_Base):
         svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="L")
         oggi = timezone.localdate().strftime("%d/%m/%Y")
         esito = ax.importa(self._file(ruoli=[[self.p1.pk, "", "", "", self.ruolo.nome, oggi, "CHIUDI"]],
-                                      mansioni=[[self.p1.pk, "", "", "P-SBA", "", "", "TOGLI"]]), applica=True)
+                                      mansioni=[[self.p1.pk, "", "", "P-SBA", "", "", "", "", "TOGLI"]]), applica=True)
         self.assertEqual([r.azione for r in esito.righe], [xl.MODIFICATO, xl.MODIFICATO])
         self.assertEqual(DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.p1.pk, ruolo=self.ruolo).data_fine,
                          timezone.localdate())

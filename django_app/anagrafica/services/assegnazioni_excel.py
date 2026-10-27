@@ -31,7 +31,8 @@ FOGLIO_RUOLI = "Ruoli persone"
 FOGLIO_MANSIONI = "Mansioni persone"
 FOGLIO_ISTRUZIONI = "Istruzioni"
 COL_RUOLI = ["ID persona", "Persona", "Reparto", "Area", "Ruolo", "Dal", "Azione"]
-COL_MANSIONI = ["ID persona", "Persona", "Reparto", "Chiave mansione", "Mansione", "Livello", "Azione"]
+COL_MANSIONI = ["ID persona", "Persona", "Reparto", "Chiave mansione", "Mansione", "Livello", "Classificazione",
+                "Coefficiente", "Azione"]
 MAX_RIGHE = 5000
 AGGIUNGI, CHIUDI, ASSEGNA, TOGLI = "AGGIUNGI", "CHIUDI", "ASSEGNA", "TOGLI"
 
@@ -56,6 +57,11 @@ ISTRUZIONI = [
     "- Azione vuota o ASSEGNA: in lista sulla mansione con il «Livello» (I in formazione, L intermedio, U autonomo, O esperto).",
     "- TOGLI: fuori lista (lo storico resta).",
     "- La mansione si riconosce dalla «Chiave mansione» o, se vuota, dal nome.",
+    "- Classificazione: D1T Diretto 1 turno, D2T Diretto 2 turni, I1T Indiretto 1 turno, I2T Indiretto 2 turni.",
+    "  Vuota = non si cambia (una mansione nuova prende la classificazione prevalente della persona).",
+    "- Coefficiente: quanto pesa la mansione sul tempo della persona (es. 0,25). Le mansioni in lista di una",
+    "  persona devono sommare 1: se scrivi dei coefficienti, la somma si controlla persona per persona e una",
+    "  persona che non fa 1 si scarta (le altre righe restano valide). Vuoto = non si cambia.",
 ]
 
 
@@ -94,7 +100,8 @@ def righe_export(*, reparto: str = "", vuoto: bool = False) -> dict[str, list[li
                .select_related("competenza").order_by("competenza__display")):
         p = persone[ab.legacy_anagrafica_id]
         mansioni.append([ab.legacy_anagrafica_id, p["nome"], p["reparto"], ab.competenza.competenza_key,
-                         ab.competenza.nome, ab.livello, ""])
+                         ab.competenza.nome, ab.livello, ab.classificazione,
+                         float(ab.coefficiente) if ab.coefficiente is not None else None, ""])
     ruoli.sort(key=lambda r: (r[1].casefold(), r[4].casefold()))
     mansioni.sort(key=lambda r: (r[1].casefold(), r[4].casefold()))
     return {FOGLIO_RUOLI: ruoli, FOGLIO_MANSIONI: mansioni}
@@ -146,6 +153,13 @@ def esporta_xlsx(*, reparto: str = "", vuoto: bool = False) -> bytes:
             dv = DataValidation(type="list", formula1='"I,L,U,O"', allow_blank=True)
             ws.add_data_validation(dv)
             dv.add(f"{lettera}2:{lettera}{fine}")
+            lettera = get_column_letter(colonne.index("Classificazione") + 1)
+            dv = DataValidation(type="list", formula1='"D1T,D2T,I1T,I2T"', allow_blank=True)
+            ws.add_data_validation(dv)
+            dv.add(f"{lettera}2:{lettera}{fine}")
+            lettera = get_column_letter(colonne.index("Coefficiente") + 1)
+            for riga in range(2, len(dati[nome]) + 2):
+                ws[f"{lettera}{riga}"].number_format = "0.0000"
     wb.active = 1
     buf = BytesIO()
     wb.save(buf)
@@ -310,11 +324,13 @@ def _importa_ruoli(righe, cat: _Cataloghi, esito: Esito, user) -> None:
 
 def _importa_mansioni(righe, cat: _Cataloghi, esito: Esito, user) -> None:
     from . import mansionario_struttura as mstr
+    from . import mansioni_coefficienti as coeff
     from . import mansioni_in_blocco as mb
+    from ..models import AbilitazioneMacchina
 
+    coefficienti: dict[int, dict] = {}  # legacy_id → {"nome", "valori": {ab_id: Decimal}, "righe": [numeri]}
     for numero, riga in righe:
-        chiave = f"{_testo(riga.get('Persona')) or _testo(riga.get('ID persona'))} · " \
-                 f"{_testo(riga.get('Mansione')) or _testo(riga.get('Chiave mansione'))}"
+        chiave = f"{_testo(riga.get('Persona')) or _testo(riga.get('ID persona'))} · "                  f"{_testo(riga.get('Mansione')) or _testo(riga.get('Chiave mansione'))}"
         try:
             p = cat.persona(riga)
             m = cat.mansione(riga)
@@ -324,25 +340,64 @@ def _importa_mansioni(righe, cat: _Cataloghi, esito: Esito, user) -> None:
             modo = mb.ASSEGNA if azione_xls == ASSEGNA else mb.TOGLI
             livello = _testo(riga.get("Livello")).upper()
             mb._controlla(m, modo, livello)
+            classe = coeff.leggi_classificazione(riga.get("Classificazione")) if modo == mb.ASSEGNA else ""
+            valore = coeff.leggi_coefficiente(riga.get("Coefficiente")) if modo == mb.ASSEGNA else None
         except (ErroreRiga, ValueError) as exc:
             esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, ERRORE, str(exc))
             continue
         chiave = f"{p['nome']} · {m.nome}"
         ab = mb.in_lista(m, [p["legacy_id"]]).get(p["legacy_id"])
-        azione, dettaglio = mb.previsione(ab, modo, livello)
+        azione, dettaglio = mb.previsione(ab, modo, livello, classe)
+        ab_id = None
+        if azione == "cambia":
+            try:
+                with transaction.atomic():
+                    if modo == mb.ASSEGNA:
+                        nuova = mstr.assegna(m, legacy_anagrafica_id=p["legacy_id"], livello=livello, user=user)
+                        if classe and nuova.classificazione != classe:
+                            AbilitazioneMacchina.objects.filter(pk=nuova.pk).update(classificazione=classe)
+                        ab_id = nuova.pk
+                    else:
+                        mstr.togli(ab)
+            except (ValueError, DatabaseError) as exc:
+                esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, ERRORE, str(exc) or exc.__class__.__name__)
+                continue
+        else:
+            ab_id = ab.pk if ab is not None else None
+        if valore is not None and ab_id is not None:
+            dati = coefficienti.setdefault(p["legacy_id"], {"nome": p["nome"], "valori": {}, "righe": []})
+            dati["valori"][ab_id] = valore
+            dati["righe"].append((numero, chiave, azione, dettaglio, ab))
+            continue
         if azione != "cambia":
             esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, INVARIATO, dettaglio)
-            continue
+        else:
+            esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, NUOVO if ab is None else MODIFICATO, dettaglio)
+    # Coefficienti: alla fine, persona per persona (la somma vale sull'insieme delle sue mansioni).
+    for lid, dati in coefficienti.items():
+        prima = {r.pk: r.coefficiente for r in coeff.conteggiate(lid)}
+        errore = ""
         try:
             with transaction.atomic():
-                if modo == mb.ASSEGNA:
-                    mstr.assegna(m, legacy_anagrafica_id=p["legacy_id"], livello=livello, user=user)
-                else:
-                    mstr.togli(ab)
+                coeff.imposta_coefficienti(lid, dati["valori"], user=user)
         except (ValueError, DatabaseError) as exc:
-            esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, ERRORE, str(exc) or exc.__class__.__name__)
-            continue
-        esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, NUOVO if ab is None else MODIFICATO, dettaglio)
+            errore = str(exc) or exc.__class__.__name__
+        for numero, chiave, azione, dettaglio, ab in dati["righe"]:
+            if errore:
+                esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, ERRORE,
+                               f"coefficienti di {dati['nome']} non salvati: {errore}"
+                               + (f" (la mansione è registrata lo stesso: {dettaglio})" if azione == "cambia" else ""))
+                continue
+            nuovo_coeff = dati["valori"].get(ab.pk) if ab is not None else None
+            cambiato = ab is not None and prima.get(ab.pk) != nuovo_coeff
+            if azione == "cambia":
+                esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, NUOVO if ab is None else MODIFICATO, dettaglio)
+            elif cambiato:
+                esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, MODIFICATO,
+                               f"coefficiente {prima.get(ab.pk) if prima.get(ab.pk) is not None else '—'} → "
+                               f"{nuovo_coeff}")
+            else:
+                esito.aggiungi(FOGLIO_MANSIONI, numero, chiave, INVARIATO, dettaglio)
 
 
 def importa(contenuto: bytes, *, applica: bool, user=None) -> Esito:

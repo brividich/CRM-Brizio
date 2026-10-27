@@ -1534,6 +1534,23 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       </details>
       {% endif %}
 
+      {% if costo_orario_storico %}
+      <details class="dp-retr-block" open id="costo-orario">
+        <summary><span class="dp-retr-block-title">€/h Costo orario</span></summary>
+        <div class="dp-retr-table-wrap">
+          <table class="dp-retr-table">
+            {% for c in costo_orario_storico %}
+            <tr>
+              <td class="dp-retr-name"{% if forloop.first %} style="font-weight:700;"{% endif %}>{{ c.mese|date:"F Y" }} <span class="dp-retr-prev">RML {{ c.rml|floatformat:2 }} ÷ {{ c.divisore_giorni.normalize }} ÷ {{ c.divisore_ore.normalize }}{% if c.rml_manuale %} · RML a mano{% endif %}</span></td>
+              <td class="dp-retr-val{% if forloop.first %} is-totale{% endif %}">{{ c.costo_orario|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+        <p class="dp-pos-meta" style="margin:6px 0 0;"><a href="{% url 'anagrafica:costo_orario' %}">Costo orario di tutti →</a></p>
+      </details>
+      {% endif %}
+
     </div>
     <div class="dp-retr-footer">
       <span>Importazione: {{ retribuzioni_importazione.data_importazione|date:"d-m-Y H:i" }}</span>
@@ -1673,10 +1690,13 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       </div>
 
       <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }}{% if posizione.abilitazioni %}, {{ posizione.n_operative }} operativ{{ posizione.n_operative|pluralize:"a,e" }}{% endif %})</div>
+      {% if posizione.abilitazioni and legacy_id %}
+      <p class="dp-pos-meta dp-pos-coeff">{% with c=posizione.coefficienti %}{% if c.classe_principale_label %}Prevalente: <strong>{{ c.classe_principale_label }}</strong> · {% endif %}coefficienti {% if c.in_regola %}in regola (somma 1){% else %}<span class="dp-pos-warn">da sistemare: la somma non fa 1</span>{% endif %}{% if c.da_rivedere %} · <span class="dp-pos-warn">da rivedere</span>{% endif %}{% if c.turni_misti %} · <span class="dp-pos-warn">turni misti</span>{% endif %}{% if c.senza_classe %} · {{ c.senza_classe }} senza classificazione{% endif %}{% endwith %} · <a href="{% url 'anagrafica:mansioni_coefficienti' legacy_id %}">Classificazione e coefficienti →</a></p>
+      {% endif %}
       {% if posizione.abilitazioni %}
       <ul class="dp-pos-list">
         {% for ab in posizione.abilitazioni %}
-        <li><span><a href="{% url 'anagrafica:mansionario_mansione' ab.competenza.pk %}">{{ ab.competenza.nome }}</a>{% if ab.competenza.abilitazione_con_scadenza %} <span class="dp-pos-meta">· abilitazione con validità</span>{% endif %}</span><span class="dp-pos-meta"><span class="dp-sem dp-sem-{{ ab.semaforo }}">{% if ab.semaforo == "operativa" %}operativa{% elif ab.semaforo == "sospesa" %}sospesa{% else %}in addestramento{% endif %}</span> livello {{ ab.livello }}{% if ab.competenza.area_id %} · {{ ab.competenza.area.nome }}{% endif %}</span></li>
+        <li><span><a href="{% url 'anagrafica:mansionario_mansione' ab.competenza.pk %}">{{ ab.competenza.nome }}</a>{% if ab.competenza.abilitazione_con_scadenza %} <span class="dp-pos-meta">· abilitazione con validità</span>{% endif %}</span><span class="dp-pos-meta"><span class="dp-sem dp-sem-{{ ab.semaforo }}">{% if ab.semaforo == "operativa" %}operativa{% elif ab.semaforo == "sospesa" %}sospesa{% else %}in addestramento{% endif %}</span> livello {{ ab.livello }}{% if ab.classificazione %} · {{ ab.get_classificazione_display }}{% endif %}{% if ab.coefficiente is not None %} · coeff. {{ ab.coefficiente|floatformat:"-4" }}{% endif %}{% if ab.competenza.area_id %} · {{ ab.competenza.area.nome }}{% endif %}</span></li>
         {% endfor %}
       </ul>
       {% else %}<p class="dp-pos-meta" style="margin:0;">Nessuna mansione assegnata.</p>{% endif %}

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -302,6 +303,14 @@ class CompetenzaSkm(models.Model):
 # ---------------------------------------------------------------------------
 # Abilitazione macchina (lo strato nuovo)
 # ---------------------------------------------------------------------------
+CLASSIFICAZIONE_CHOICES = [
+    ("D1T", "Diretto 1T"),
+    ("D2T", "Diretto 2T"),
+    ("I1T", "Indiretto 1T"),
+    ("I2T", "Indiretto 2T"),
+]
+
+
 class AbilitazioneMacchina(models.Model):
     """Abilitazione I/L/U/O di un dipendente su una mansione (macchina o processo).
 
@@ -344,6 +353,12 @@ class AbilitazioneMacchina(models.Model):
     data_assegnazione = models.DateField(null=True, blank=True)
     prossima_revisione = models.DateField(null=True, blank=True)
     note = models.TextField(blank=True, default="")
+    # Ottobre 2026: come la persona svolge la mansione (manodopera diretta o
+    # indiretta, su un turno o su due) e quanto pesa sul suo tempo. I coefficienti
+    # delle mansioni in lista e attive di una persona sommano 1
+    # (``services.mansioni_coefficienti``).
+    classificazione = models.CharField(max_length=3, choices=CLASSIFICAZIONE_CHOICES, blank=True, default="")
+    coefficiente = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -406,6 +421,31 @@ class AbilitazioneMacchina(models.Model):
         if not self.livello_richiesto:
             return False
         return self.ordinale < ordinale_livello(self.livello_richiesto)
+
+
+class ProfiloMansioniPersona(models.Model):
+    """Dati della persona sull'insieme delle sue mansioni (ottobre 2026).
+
+    La classificazione prevalente si propone sulle mansioni nuove; «da rivedere»
+    si accende quando i coefficienti sono stati ripartiti in automatico (mansione
+    aggiunta o tolta) e qualcuno deve controllarli.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True)
+    classificazione_prevalente = models.CharField(max_length=3, choices=CLASSIFICAZIONE_CHOICES, blank=True,
+                                                  default="")
+    coefficienti_da_rivedere = models.BooleanField(default=False)
+    motivo = models.CharField(max_length=200, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name="+")
+
+    class Meta:
+        verbose_name = "Profilo mansioni persona"
+        verbose_name_plural = "Profili mansioni persona"
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.classificazione_prevalente or '—'}"
 
 
 # ---------------------------------------------------------------------------
