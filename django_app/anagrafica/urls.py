@@ -252,6 +252,7 @@ urlpatterns = [
     # Aree aziendali + Reparti (gerarchia a due livelli)
     path("aree/", views_capi_reparti.reparti_capi, name="aree_list"),
     path("aree/capi/passaggio", views_capi_reparti.capi_passaggio, name="capi_passaggio"),
+    path("aree/capi/ruolo-aree", views_capi_reparti.capi_ruolo_aree, name="capi_ruolo_aree"),
     path("aree/capi/<int:mansione_id>/assegna", views_capi_reparti.capo_assegna, name="capo_assegna"),
     path("aree/capi/togli/<int:abilitazione_id>", views_capi_reparti.capo_togli, name="capo_togli"),
     # Aree aziendali (livello padre)
@@ -396,6 +397,10 @@ urlpatterns = [
     path("mansionario/struttura/export.xlsx", views_struttura.struttura_export, name="mansionario_struttura_export"),
     path("mansionario/struttura/import/", views_struttura.struttura_import, name="mansionario_struttura_import"),
     path("ruoli-operativi/cambio-in-blocco/", views_struttura.ruoli_in_blocco, name="ruoli_in_blocco"),
+    path("ruoli-operativi/cambio-in-blocco/export.xlsx", views_struttura.assegnazioni_export,
+         name="assegnazioni_export"),
+    path("ruoli-operativi/cambio-in-blocco/import/", views_struttura.assegnazioni_import,
+         name="assegnazioni_import"),
     # Struttura organizzativa (struttura della Qualità): pagina dedicata, revisioni, conferme HSE
     path("struttura/", views_struttura_org.struttura_org, name="struttura_org"),
     path("struttura/reparto/<int:reparto_id>/", views_struttura_org.struttura_reparto_salva,

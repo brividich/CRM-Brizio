@@ -5,10 +5,9 @@ Decisione del 16/10/2026: il ruolo dice il **livello** (chi sta sopra chi, con
 Le eccezioni indicate a mano vincono. Il capo si cerca in quest'ordine:
 
 1. **eccezione sulla persona** (``DipendenteAnagraficaAziendale.capo_eccezione_legacy_id``);
-2. **responsabile dell'area aziendale**: chi ha la mansione del responsabile
-   dell'area (``AreaAziendale.mansione_capo``, vuota = segue il reparto);
-3. **capo del reparto**: chi ha la mansione del capo del reparto
-   (``Reparto.mansione_capo``, vuota = «Responsabilità del reparto»);
+2. **responsabile dell'area aziendale**: chi ha la «Responsabilità dell'area»
+   (generata dal ruolo responsabile dell'area; senza, segue il reparto);
+3. **capo del reparto**: chi ha la «Responsabilità del reparto»;
 4. **organigramma**: chi ricopre un ruolo sopra quello della persona e lavora
    nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo
    trasversale); se nessuno, si sale di livello — chi guida un altro reparto
@@ -342,6 +341,57 @@ def capo_effettivo(legacy_id) -> int | None:
         return mappa_capi_in_cache().get(int(legacy_id))
     except (TypeError, ValueError):
         return None
+
+
+def superiore_per_ruolo(legacy_id, oggi=None) -> int | None:
+    """Chi sta sopra una persona senza capo nel proprio perimetro (es. il CAR
+    capo del suo reparto, con OPM e direzione inquadrati in UT).
+
+    Solo per l'approvazione delle assenze, non entra nella mappa capi/team: si
+    parte dal ruolo più alto della persona (il più vicino alla cima: Caporeparto
+    prima di Preposto) e si sale per ``riporta_a`` fino al primo ruolo con un
+    titolare in forza, anche in un altro reparto; a parità, id più basso.
+    """
+    from ..models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+
+    try:
+        legacy_id = int(legacy_id)
+    except (TypeError, ValueError):
+        return None
+    oggi = oggi or timezone.localdate()
+    in_essere = Q(data_fine__isnull=True) | Q(data_fine__gte=oggi)
+    ruoli = set(
+        DipendenteRuoloOperativo.objects.filter(in_essere, ruolo__is_active=True, legacy_anagrafica_id=legacy_id)
+        .values_list("ruolo_id", flat=True)
+    )
+    if not ruoli:
+        return None
+    padri = _padri_ruoli()
+
+    def catena(ruolo: int) -> list[int]:
+        sopra, visti = [], {ruolo}
+        while ruolo in padri and padri[ruolo] not in visti:
+            ruolo = padri[ruolo]
+            visti.add(ruolo)
+            sopra.append(ruolo)
+        return sopra
+
+    cessati = set(
+        DipendenteAnagraficaAziendale.objects.filter(data_cessazione__lt=oggi).values_list(
+            "legacy_anagrafica_id", flat=True
+        )
+    )
+    for ruolo in sorted(ruoli, key=lambda r: (len(catena(r)), r)):
+        for sopra in catena(ruolo):
+            titolari = {
+                int(pid)
+                for pid in DipendenteRuoloOperativo.objects.filter(in_essere, ruolo_id=sopra).values_list(
+                    "legacy_anagrafica_id", flat=True
+                )
+            } - cessati - {legacy_id}
+            if titolari:
+                return min(titolari)
+    return None
 
 
 def team_anagrafica(legacy_id, *, solo_diretti: bool = False) -> set[int]:

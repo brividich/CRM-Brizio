@@ -4836,19 +4836,19 @@ class AreeRepartiCrudTests(TestCase):
     def setUp(self):
         self.client.force_login(self.admin)
 
-    def test_crea_reparto_con_colore_e_mansione_del_capo(self):
-        from .models import Reparto
+    def test_crea_reparto_con_colore_e_ruolo_responsabile(self):
+        from .models import Reparto, RuoloOperativo
         from .models_skillmatrix import CompetenzaSkm
-        mansione = CompetenzaSkm.objects.create(competenza_key="dir_tecnico", display="Direttore tecnico",
-                                                tipo=CompetenzaSkm.TIPO_PROCESSO)
+        ruolo = RuoloOperativo.objects.create(nome="Engineering Manager")
         resp = self.client.post(reverse("anagrafica:area_create"), {
             "nome": "UT", "descrizione": "Ufficio tecnico", "colore": "#1f87cd",
-            "caporeparto_legacy_id": "401", "mansione_capo": str(mansione.pk),
+            "caporeparto_legacy_id": "401", "ruolo_responsabile": str(ruolo.pk),
         })
         self.assertEqual(resp.status_code, 302)
         rep = Reparto.objects.get(nome="UT")
         self.assertEqual(rep.colore, "#1f87cd")
-        self.assertEqual(rep.mansione_capo_id, mansione.pk)
+        self.assertEqual(rep.ruolo_responsabile_id, ruolo.pk)
+        self.assertTrue(CompetenzaSkm.objects.filter(responsabilita_reparto=rep, attiva=True).exists())
         self.assertIsNone(rep.caporeparto_legacy_id)  # il capo non si sceglie più a mano
 
     def test_crea_area_aziendale_assegnata_a_reparto(self):
@@ -4862,7 +4862,7 @@ class AreeRepartiCrudTests(TestCase):
         area = AreaAziendale.objects.get(nome="IN1")
         self.assertEqual(area.reparto_id, rep.pk)
         self.assertIsNone(area.responsabile_legacy_id)
-        self.assertIsNone(area.mansione_capo_id)  # segue il reparto
+        self.assertIsNone(area.ruolo_responsabile_id)  # segue il reparto
 
     def test_modifica_area_aziendale_cambia_reparto(self):
         from .models import AreaAziendale, Reparto

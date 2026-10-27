@@ -1532,6 +1532,7 @@ def _ensure_loaded() -> None:
     if _caricato:
         return
     _caricato = True
+    from . import sezioni_struttura  # noqa: F401  (ruoli, mansioni e capi: si registrano all'import)
     try:
         _sezioni_conformita()
     except Exception:

@@ -334,26 +334,32 @@ GUIDA = {
         },
         {
             "id": "capo-team",
-            "titolo": "Capo e team: la mansione del capo, «Reparti, aree e capi» e «Capo di ogni persona»",
+            "titolo": "Capo e team: le «Responsabilità», «Reparti, aree e capi» e «Capo di ogni persona»",
             "blocchi": [
-                ("p", "Un criterio per tutti: il capo del reparto è chi ha la «mansione del capo» del reparto (vuota = la "
-                      "sua «Responsabilità del reparto»); un'area può avere una «mansione del responsabile» propria, "
-                      "altrimenti segue il reparto. La mansione si assegna come nel Mansionario."),
+                ("p", "Un criterio per tutti, quello della struttura della Qualità (MEGA SKILL MATRIX: ogni unità ha "
+                      "una sola «Responsabilità»): il capo del reparto è chi ha la «Responsabilità del reparto», il "
+                      "responsabile dell'area chi ha la «Responsabilità dell'area». Le due mansioni nascono dal «Ruolo "
+                      "responsabile» del reparto o dell'area; un'area senza ruolo responsabile (o senza nessuno sulla "
+                      "mansione) segue il reparto, un'area con lo stesso nome del reparto usa quella del reparto. La "
+                      "mansione si assegna come nel Mansionario."),
                 ("p", "Il capo di una persona si cerca in quest'ordine: 1) eccezione indicata a mano sulla persona; "
-                      "2) chi ha la mansione del responsabile della sua area; 3) chi ha la mansione del capo del suo "
-                      "reparto; 4) organigramma: chi ha un ruolo sopra quello della persona («riporta a») e lavora nella "
+                      "2) chi ha la «Responsabilità dell'area» della sua area; 3) chi ha la «Responsabilità del reparto» "
+                      "del suo reparto; 4) organigramma: chi ha un ruolo sopra quello della persona («riporta a») e lavora nella "
                       "stessa area, poi nello stesso reparto, poi chi non ha un reparto (ruolo trasversale); se nessuno, "
                       "si sale di livello: chi guida un altro reparto non diventa mai il capo. Nessuno è capo di sé stesso. "
                       "Più persone con la stessa mansione sono co-capo: le assenze le approva la prima, le richieste DPI "
                       "tutte. Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
-                ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Mansione del capo», "
-                      "«Capo», le aree con il «Responsabile» e gli avvisi («Scegli la mansione del capo», «Nessuno ha la "
-                      "mansione del capo: vale l'organigramma dei ruoli», persone senza capo). «Assegna la mansione a…» "
-                      "+ «Assegna» cambia il capo, la × lo toglie; «Modifica» su reparto o area sceglie la mansione."),
+                ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Ruolo responsabile», "
+                      "«Capo», le aree con il «Responsabile» e gli avvisi («Scegli il ruolo responsabile», «Nessuno ha "
+                      "la «Responsabilità del reparto»: vale l'organigramma dei ruoli», «Senza ruolo responsabile: segue "
+                      "il reparto», persone senza capo). «Assegna la mansione a…» + «Assegna» cambia il capo, la × lo "
+                      "toglie; «Modifica» su reparto o area sceglie il ruolo responsabile; «Dai il ruolo del reparto "
+                      "alle aree spuntate» lo dà a tutte le aree che non ce l'hanno (es. Caporeparto alle aree di "
+                      "produzione)."),
                 ("p", "Passaggio (una volta, dopo l'aggiornamento): il riquadro «Passaggio ai capi decisi dalla mansione» "
-                      "assegna la mansione del capo a chi oggi è capo (e agli «altri responsabili» indicati prima), "
-                      "elenca i reparti senza mansione del capo (vanno sistemati prima) e le aree con un responsabile "
-                      "diverso dal capo del reparto. «Ho controllato reparti e aree» + «Fai il passaggio»: nessuno cambia "
+                      "assegna le «Responsabilità» a chi oggi è capo o responsabile (e agli «altri responsabili» indicati "
+                      "prima), elenca i reparti senza ruolo responsabile (vanno sistemati prima), le aree con un "
+                      "responsabile diverso dal capo del reparto e le aree senza ruolo responsabile. «Ho controllato reparti e aree» + «Fai il passaggio»: nessuno cambia "
                       "capo; da lì in poi team dei permessi, assenze, DPI, solleciti, digest, la tabella reparto → capo "
                       "delle assenze e il «Caporeparto» delle schede seguono le mansioni."),
                 ("p", "«Capo di ogni persona» (da «Reparti, aree e capi» o dall'Organigramma) mostra per ogni persona il "
@@ -366,7 +372,7 @@ GUIDA = {
         },
         {
             "id": "struttura-mansionario",
-            "titolo": "Struttura ruoli → mansioni → competenze: editor, Excel e ruoli in blocco",
+            "titolo": "Struttura ruoli → mansioni → competenze: editor, Excel, ruoli e mansioni in blocco",
             "blocchi": [
                 ("p", "Mansionario → «Struttura e import» (amministratori dell'anagrafica) mostra ogni ruolo con le sue "
                       "mansioni. Clic su una mansione: si apre l'editor con le pastiglie di completezza (ruolo, reparto, "
@@ -413,9 +419,49 @@ GUIDA = {
                       "il giorno precedente, reparto e mansione restano) o «Chiudi il ruolo» (la data è l'ultimo giorno, "
                       "di oggi o passata; se era il principale subentra il primo ruolo rimasto). «Anteprima» mostra cosa "
                       "succede a ciascuno senza salvare; «Registra» lo fa, al massimo 300 persone alla volta. Ogni "
-                      "operazione va nel registro attività."),
+                      "operazione va nel registro attività. Filtri: reparto, area, ruolo, mansione, «Solo chi non ha "
+                      "ruoli», nome."),
+                ("p", "Nella stessa pagina («Ruoli e mansioni in blocco») «Una mansione» assegna una mansione con il "
+                      "livello (I, L, U, O; a chi ce l'ha già il livello cambia) o la toglie (lo storico resta) per le "
+                      "persone spuntate."),
+                ("passi", [
+                    "Inserimento massivo da Excel: «Scarica le assegnazioni di oggi» o «Scarica il modello vuoto».",
+                    "Foglio «Ruoli persone»: ID persona (o nome), Ruolo, Dal, Azione (vuota/AGGIUNGI o CHIUDI). Foglio "
+                    "«Mansioni persone»: ID persona (o nome), Chiave mansione (o nome), Livello, Azione (vuota/ASSEGNA "
+                    "o TOGLI).",
+                    "«Carica e prova»: righe nuove, modificate, invariate e scartate con il motivo, senza salvare. "
+                    "«Applica» registra le buone. Ruoli e mansioni devono già esistere; un file ricaricato tale e quale "
+                    "non cambia niente.",
+                ]),
                 ("nota", "Un ruolo di un altro organigramma (per esempio ISO 45001) non diventa il ruolo principale: "
                          "si aggiunge con «Aggiungi il ruolo»."),
+            ],
+        },
+        {
+            "id": "report-struttura",
+            "titolo": "Report su ruoli, mansioni e capi",
+            "blocchi": [
+                ("p", "In Reportistica il modello pronto «Struttura: ruoli, mansioni e capi» (Excel) mette insieme "
+                      "quattro sezioni, che si possono usare anche da sole in qualsiasi modello e rispettano il "
+                      "perimetro di persone:"),
+                ("def", [
+                    ("Capi e responsabilità", "per reparto e area: ruolo responsabile, chi ha la «Responsabilità» "
+                                              "(capo o responsabile), persone, persone senza capo e stato. Opzioni: "
+                                              "«Mostra anche le aree», «Solo righe da sistemare»."),
+                    ("Chi ricopre ogni ruolo", "per ruolo le persone che lo ricoprono, con le mansioni del ruolo che "
+                                               "hanno in lista; in rosso «nessuna mansione del ruolo». Opzioni: solo "
+                                               "alcuni ruoli, solo chi non ha mansioni del ruolo, ruoli senza persone."),
+                    ("Copertura delle mansioni", "per mansione persone in lista, operativi, livelli O/U/L/I, nomi, "
+                                                 "mansione di rischio e stato («nessun operativo», «uomo solo», "
+                                                 "«nessun titolare» per le responsabilità). Opzioni: tipo (macchine, "
+                                                 "processi, solo responsabilità), ruoli, nomi sì/no."),
+                    ("Ruoli e mansioni per persona", "una riga per persona (o per persona e mansione) con ruoli, "
+                                                     "mansioni e livello, capo e cosa non torna: senza ruolo, senza "
+                                                     "mansioni, mansioni non previste dai suoi ruoli. Opzione «Solo "
+                                                     "chi ha qualcosa da sistemare»."),
+                ]),
+                ("nota", "Stessa regola di «Reparti, aree e capi» e del Mansionario: i numeri del report e delle "
+                         "pagine coincidono."),
             ],
         },
         {
@@ -571,11 +617,19 @@ GUIDA = {
                                          "cliccando il nome del ruolo («Apri tutti» / «Chiudi tutti» per tutti insieme). "
                                          "Una mansione che serve a più ruoli compare sotto ciascuno. In fondo, in "
                                          "arancione, «Da collegare a un ruolo» raccoglie le mansioni senza ruolo."),
-                    ("Cerca e filtri", "la casella «Cerca» trova per nome della mansione, reparto, ruolo o mansione di "
-                                       "rischio; «Macchine» e «Processi» filtrano per tipo. I riquadri «Senza operativi», "
-                                       "«Senza ruolo» e «Senza mansione di rischio» filtrano le schede (clic di nuovo o "
-                                       "«Mostra tutto» per togliere il filtro); «Persone non abilitate» e «In "
-                                       "addestramento» aprono le Lacune di competenza."),
+                    ("Cerca e filtri", "la casella «Cerca» trova per nome della mansione, persona, reparto, area, "
+                                       "ruolo o mansione di rischio; le tendine filtrano per reparto, area e persona; "
+                                       "«Macchine» e «Processi» per tipo. I riquadri «Senza operativi», «Senza ruolo», "
+                                       "«Senza mansione di rischio», «Responsabilità senza titolare», «Uomo solo» e «Con "
+                                       "il ruolo, senza mansioni» filtrano (clic di nuovo o «Mostra tutto» per togliere "
+                                       "il filtro); «Persone non abilitate» e «In addestramento» aprono le Lacune di "
+                                       "competenza. I filtri restano nell'indirizzo: il link si può mandare."),
+                    ("Chi ha questo ruolo", "in ogni ruolo, le persone che lo ricoprono (con reparto e area), "
+                                            "indipendentemente dalle mansioni. In rosso «nessuna mansione»: hanno il "
+                                            "ruolo ma nessuna delle sue mansioni; sotto, in arancione, chi è in lista "
+                                            "sulle mansioni del ruolo senza avere il ruolo."),
+                    ("Responsabilità", "le «Responsabilità del reparto/dell'area» mostrano il titolare (il capo) "
+                                       "invece di operativi e «uomo solo»; «nessun titolare» in rosso se manca."),
                     ("Scheda della mansione", "la barra conta le persone in lista per livello: verde autonomo o esperto, "
                                               "giallo intermedio, grigio in formazione. Il numero grande sono gli operativi "
                                               "(livello pari o sopra la soglia della skill matrix). Dentro un ruolo, prima "
