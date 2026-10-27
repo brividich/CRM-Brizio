@@ -7,6 +7,7 @@ from . import guida
 from . import audit_views, views, processi_views, automation_views, programma_views, report_views, miei_rilievi_views
 from . import esterni_views
 from . import isms_views
+from . import checklist_views
 
 app_name = "sistema_gestione"
 
@@ -105,6 +106,10 @@ urlpatterns = [
     path("audit/<int:pk>/rapporto/riapri/", audit_views.audit_riapri_rapporto, name="audit_riapri_rapporto"),
     path("audit/<int:pk>/rapporto/convalida-ente/", audit_views.audit_convalida_ente, name="audit_convalida_ente"),
     path("audit/<int:pk>/rapporto/valuta-rdd/", audit_views.audit_valuta_rdd, name="audit_valuta_rdd"),
+    path("audit/checklist/", checklist_views.checklist_norme, name="checklist_norme"),
+    path("audit/checklist/proponi/<str:codice>/", checklist_views.checklist_proponi, name="checklist_proponi"),
+    path("audit/checklist/<int:pk>/", checklist_views.checklist_modello, name="checklist_modello"),
+    path("audit/checklist/<int:pk>/revisione/", checklist_views.checklist_revisione, name="checklist_revisione"),
     path("audit/<int:pk>/isms/", isms_views.audit_isms, name="audit_isms"),
     path("audit/<int:pk>/isms/piano/", isms_views.audit_isms_piano, name="audit_isms_piano"),
     path("audit/<int:pk>/isms/testata/", isms_views.audit_isms_testata, name="audit_isms_testata"),

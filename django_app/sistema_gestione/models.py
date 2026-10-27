@@ -754,6 +754,14 @@ class AuditAgenda(models.Model):
 
 class ChecklistModello(models.Model):
     CODICE_EN9100_FOLDER_B = "EN9100_FOLDER_B"
+    CODICE_ISO45001 = "ISO45001"
+    CODICE_PDR125 = "PDR125"
+    # Flag norma dell'audit -> checklist caricata all'avvio (una revisione attiva per codice).
+    CODICE_PER_NORMA = {
+        "en9100": CODICE_EN9100_FOLDER_B,
+        "iso45001": CODICE_ISO45001,
+        "pdr125": CODICE_PDR125,
+    }
     codice = models.CharField(max_length=40)
     norma = models.CharField(max_length=100)
     revisione = models.PositiveSmallIntegerField(default=0)
@@ -761,6 +769,14 @@ class ChecklistModello(models.Model):
     origine = models.CharField(max_length=255, blank=True, default="")
     attivo = models.BooleanField(default=True, db_index=True)
     importato_il = models.DateTimeField(auto_now_add=True)
+    preparato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    attivato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    attivato_il = models.DateTimeField(null=True, blank=True)
+    motivo = models.CharField("Motivo della revisione", max_length=255, blank=True, default="")
 
     class Meta:
         ordering = ["codice", "-revisione"]
@@ -770,6 +786,13 @@ class ChecklistModello(models.Model):
 
     def __str__(self) -> str:
         return f"{self.titolo} Rev.{self.revisione}"
+
+    @staticmethod
+    def chiave_sezione(sezione) -> tuple:
+        """Ordine delle sezioni di più checklist nello stesso audit: EN 9100, ISO 45001, PdR 125, poi le altre."""
+        ordine = list(ChecklistModello.CODICE_PER_NORMA.values())
+        codice = sezione.modello.codice
+        return (ordine.index(codice) if codice in ordine else len(ordine), sezione.modello_id, sezione.ordine, sezione.pk)
 
 
 class ChecklistSezione(models.Model):
