@@ -48,6 +48,11 @@ class VisibilitaAssetTests(PersoneMixin, TestCase):
                               assigned_legacy_user_id=self.altro_legacy.id, assignment_to="Operatore Sintetico")
         self.attiva_sistema()
 
+    def tearDown(self):
+        # L'interruttore dei ruoli resta in cache: spento, per non contagiare i test successivi.
+        cache.clear()
+        invalida_permessi()
+
     def _request(self, user):
         request = RequestFactory().get("/assets/")
         request.user = self.ricarica(user)
