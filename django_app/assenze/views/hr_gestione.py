@@ -209,13 +209,15 @@ def _salva_impostazioni(request) -> None:
     imp.sollecito_dopo_giorni = dopo
     imp.sollecito_ripeti_giorni = ripeti
     imp.outlook_capo_attivo = request.POST.get("outlook_capo_attivo") == "1"
+    if request.POST.get("outlook_capo_modo") in ("richiesta", "tutte"):
+        imp.outlook_capo_modo = request.POST["outlook_capo_modo"]
     imp.updated_by = _utente(request)
     imp.save()
     _helpers.log_action(request, "assenze_impostazioni_hr", "assenze", {
         "ore_giornata": str(ore), "sabato_lavorativo": imp.sabato_lavorativo,
         "patrono": f"{giorno}/{mese}" if giorno else "", "sollecito_attivo": imp.sollecito_attivo,
         "sollecito_dopo_giorni": dopo, "sollecito_ripeti_giorni": ripeti,
-        "outlook_capo_attivo": imp.outlook_capo_attivo,
+        "outlook_capo_attivo": imp.outlook_capo_attivo, "outlook_capo_modo": imp.outlook_capo_modo,
     })
     messages.success(request, "Impostazioni salvate.")
 

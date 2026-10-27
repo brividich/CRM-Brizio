@@ -92,11 +92,16 @@ GUIDA = {
                       "«Aggiungi al calendario Outlook»: apre Outlook web con l'assenza già compilata. L'evento è segnato "
                       "«libero»: non occupa la tua agenda. Non compare per le richieste rifiutate né nelle mail "
                       "all'ufficio assenze."),
-                ("p", "Se l'ufficio HR ha acceso «Assenze approvate nel calendario Outlook del capo», non devi fare niente: "
-                      "le assenze che approvi compaiono da sole in Outlook, entro 10 minuti, nel calendario «Assenze del team "
-                      "(NOVICROM HUB)» (puoi mostrarlo o nasconderlo accanto al tuo calendario). Se una richiesta cambia "
-                      "l'evento si aggiorna, se viene rifiutata o eliminata sparisce. Se cancelli tu un evento da Outlook, "
-                      "il portale non lo rimette. In questo caso le mail non hanno più il pulsante."),
+                ("p", "Se l'ufficio HR ha acceso «Assenze approvate nel calendario Outlook», l'assenza va direttamente nel "
+                      "calendario «Assenze del team (NOVICROM HUB)» (puoi mostrarlo o nasconderlo accanto al tuo calendario), "
+                      "entro 10 minuti. Con «Solo quando lo si chiede» (il modo normale) scegli tu: nella mail di approvazione "
+                      "c'è il pulsante «Approva e metti in calendario» (apre la conferma con la spunta «Metti nel mio calendario "
+                      "Outlook» già messa; vale la casella a cui è arrivata la mail), nella pagina del capo la spunta «Metti nel "
+                      "mio calendario Outlook le richieste che approvo», nella pagina di inserimento la spunta «Metti nel mio "
+                      "calendario Outlook». Con «Tutte le assenze approvate» non devi fare niente: arrivano tutte nel calendario "
+                      "del capo che le approva. Se una richiesta cambia l'evento si aggiorna, se viene rifiutata o eliminata "
+                      "sparisce. Se cancelli tu un evento da Outlook, il portale non lo rimette. In questo caso le mail non "
+                      "hanno più il pulsante «Aggiungi al calendario Outlook»."),
                 ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 un promemoria con l'elenco "
                       "(di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi)."),
                 ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "
@@ -194,10 +199,12 @@ GUIDA = {
                                   "Legge 104 (3 giorni al mese): controlla che la motivazione sia scritta come nelle richieste."),
                     ("Copertura reparti", "per ogni reparto dell'anagrafica, quante persone possono essere assenti nello stesso "
                                           "giorno. Contano le assenze approvate a giornata intera; vuoto = nessun controllo."),
-                    ("Calendario Outlook del capo", "con «Assenze approvate nel calendario Outlook del capo» acceso, il lavoro "
+                    ("Calendario Outlook", "con «Assenze approvate nel calendario Outlook» acceso, il lavoro "
                                                     "«assenze_outlook_sync» (ogni 10 minuti) scrive le assenze approvate nel "
-                                                    "calendario «Assenze del team (NOVICROM HUB)» della casella del capo che le "
-                                                    "approva, via Microsoft Graph. Serve il permesso applicativo «Calendars.ReadWrite» "
+                                                    "calendario «Assenze del team (NOVICROM HUB)», via Microsoft Graph. «Quali "
+                                                    "assenze»: «Solo quando lo si chiede» (spunte e pulsante «Approva e metti in "
+                                                    "calendario»; casella di chi lo chiede, dalla mail quella che l'ha ricevuta) "
+                                                    "oppure «Tutte le assenze approvate» (casella del capo che le approva). Serve il permesso applicativo «Calendars.ReadWrite» "
                                                     "con consenso amministratore (lo stesso del calendario dello Scadenzario). "
                                                     "Sotto l'interruttore: quanti eventi ci sono e gli ultimi errori."),
                     ("Orario, patrono e solleciti", "ore di una giornata (predefinite 8), sabato lavorativo, patrono e solleciti ai "
@@ -314,10 +321,12 @@ GUIDA = {
             ],
         },
         {
-            "sintomo": "Le assenze approvate non compaiono nel calendario Outlook del capo",
+            "sintomo": "Le assenze approvate non compaiono nel calendario Outlook",
             "fare": [
-                "Area HR → «Calendario aziendale» → «Orario, patrono e solleciti»: «Assenze approvate nel calendario Outlook "
-                "del capo» deve essere spuntato; sotto ci sono gli ultimi errori.",
+                "Area HR → «Calendario aziendale» → «Orario, patrono e solleciti»: «Assenze approvate nel calendario Outlook» "
+                "deve essere spuntato; sotto ci sono gli ultimi errori.",
+                "Con «Solo quando lo si chiede» entrano solo le richieste per cui qualcuno ha usato la spunta o il pulsante "
+                "«Approva e metti in calendario»; con il semplice «Approva» l'assenza non va in calendario.",
                 "«manca il permesso Calendars.ReadWrite»: in Entra ID l'app del portale deve avere il permesso applicativo "
                 "Calendars.ReadWrite con consenso amministratore; dopo averlo dato serve fino a un'ora (o il riavvio).",
                 "«Capo senza email aziendale»: il capo deve avere l'email in anagrafica, e deve essere una casella "

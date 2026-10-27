@@ -122,3 +122,55 @@ def pulsante_html(ev: dict) -> str:
         f'background:#0f6cbd;color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;font-weight:800;'
         f'margin:0 10px 10px 0;">{ETICHETTA}</a>'
     )
+
+
+# ── Calendario via Graph «su richiesta» ─────────────────────────────────────
+# Con «Assenze approvate nel calendario Outlook» acceso nel modo «su richiesta»
+# la mail di approvazione ha un terzo pulsante: apre la stessa conferma di
+# «Approva» con la spunta «Metti nel mio calendario Outlook» già messa. Fa fede
+# la casella a cui è arrivato il link personale (il caporeparto), mai l'URL.
+
+ETICHETTA_APPROVA = "Approva e metti in calendario"
+
+
+def opzione_calendario(source_code, payload) -> bool:
+    if str(source_code or "") != "assenze" or not isinstance(payload, dict):
+        return False
+    try:
+        from assenze.outlook_sync import su_richiesta
+
+        return su_richiesta()
+    except Exception:
+        return False
+
+
+def url_con_calendario(url: str) -> str:
+    return f"{url}{'&' if '?' in url else '?'}calendario=1"
+
+
+def pulsante_approva_calendario_html(approve_url: str) -> str:
+    return (
+        f'<a href="{html.escape(url_con_calendario(approve_url))}" class="ecta" style="display:inline-block;'
+        f'padding:12px 22px;background:#0f6cbd;color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;'
+        f'font-weight:800;margin:0 10px 10px 0;">{ETICHETTA_APPROVA}</a>'
+    )
+
+
+def approvazione_di_assenza(approval) -> bool:
+    rule = getattr(getattr(approval, "run_log", None), "rule", None)
+    return getattr(rule, "source_code", "") == "assenze" and isinstance(approval.resume_payload, dict)
+
+
+def richiedi_da_approvazione(approval, email: str) -> int:
+    """Dopo «Approva» con la spunta: l'assenza va nel calendario di ``email``. Non solleva mai."""
+    try:
+        if not approvazione_di_assenza(approval):
+            return 0
+        from assenze.outlook_sync import richiedi
+
+        return richiedi(approval.resume_payload.get("id"), email, da=f"approvazione #{approval.pk}")
+    except Exception:  # noqa: BLE001 - la decisione è già registrata, il calendario è un di più
+        import logging
+
+        logging.getLogger(__name__).warning("calendario: richiesta da approvazione non registrata", exc_info=True)
+        return 0
