@@ -165,6 +165,44 @@ def assegna(mansione: CompetenzaSkm, *, legacy_anagrafica_id: int, livello: str,
 
 
 @transaction.atomic
+def cambia_livello(abilitazione: AbilitazioneMacchina, livello: str, *, user=None) -> str | None:
+    """Cambia a mano il livello di chi è in lista e lo storicizza (prima → dopo, chi).
+
+    Restituisce il livello di prima, ``None`` se non è cambiato niente. Sulle mansioni
+    con competenze definite il livello lo calcola «Valuta»: qui si rifiuta.
+    """
+    from ..models import VoceMacchinaCatalogo
+
+    livello = (livello or "").strip().upper()
+    if livello not in LIVELLI:
+        raise ValueError(f"Livello non valido: {livello!r}")
+    if not abilitazione.in_lista:
+        raise ValueError("La persona non è più in lista su questa mansione.")
+    if abilitazione.competenza_id and VoceMacchinaCatalogo.objects.filter(
+            mansione_id=abilitazione.competenza_id, attiva=True).exists():
+        raise ValueError("Questa mansione ha le competenze definite: il livello si cambia da «Valuta».")
+    prima = abilitazione.livello or ""
+    if prima == livello:
+        return None
+    abilitazione.livello = livello
+    abilitazione.save(update_fields=["livello", "updated_at"])
+    chi = (getattr(user, "username", "") or "").strip()
+    AbilitazioneMacchinaStorico.objects.create(
+        legacy_anagrafica_id=abilitazione.legacy_anagrafica_id, asset_id=abilitazione.asset_id,
+        competenza_id=abilitazione.competenza_id, livello=livello, data_rilevazione=timezone.localdate(),
+        fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
+        note=f"Mansionario: livello {prima or '—'} → {livello}" + (f" ({chi})" if chi else ""),
+    )
+    return prima
+
+
+def storico_mansioni_persona(legacy_id: int, limit: int = 40) -> list[AbilitazioneMacchinaStorico]:
+    """Assegnazioni, cambi di livello e rimozioni della persona, dal più recente."""
+    return list(AbilitazioneMacchinaStorico.objects.filter(legacy_anagrafica_id=legacy_id, competenza__isnull=False)
+                .select_related("competenza").order_by("-registrato_il", "-id")[:limit])
+
+
+@transaction.atomic
 def togli(abilitazione: AbilitazioneMacchina) -> None:
     """Toglie la persona dalla lista della mansione (la riga resta, con lo storico)."""
     if not abilitazione.in_lista:

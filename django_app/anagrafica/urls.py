@@ -382,6 +382,8 @@ urlpatterns = [
     path("mansionario/", views_mansionario.mansionario, name="mansionario"),
     path("mansionario/<int:mansione_id>/", views_mansionario.mansionario_mansione, name="mansionario_mansione"),
     path("mansionario/<int:mansione_id>/assegna/", views_mansionario.mansionario_assegna, name="mansionario_assegna"),
+    path("mansionario/<int:mansione_id>/livello/<int:abilitazione_id>/", views_mansionario.mansionario_livello,
+         name="mansionario_livello"),
     path("mansionario/<int:mansione_id>/togli/<int:abilitazione_id>/", views_mansionario.mansionario_togli,
          name="mansionario_togli"),
     # Mansionario fase 3: competenze per mansione, valutazione, scheda persona, lacune
@@ -392,6 +394,8 @@ urlpatterns = [
     path("mansionario/<int:mansione_id>/valuta/<int:abilitazione_id>/", views_mansionario.mansionario_valuta,
          name="mansionario_valuta"),
     path("mansionario/persona/<int:legacy_id>/", views_mansionario.mansionario_persona, name="mansionario_persona"),
+    path("mansionario/persona/<int:legacy_id>/assegna/", views_mansionario.mansionario_persona_assegna,
+         name="mansionario_persona_assegna"),
     path("mansionario/persona/<int:legacy_id>/coefficienti/", views_coefficienti.mansioni_coefficienti,
          name="mansioni_coefficienti"),
     path("mansionario/lacune/", views_mansionario.mansionario_lacune, name="mansionario_lacune"),

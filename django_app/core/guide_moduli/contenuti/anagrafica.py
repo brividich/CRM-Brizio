@@ -619,7 +619,9 @@ GUIDA = {
                 ("p", "«Da completare» porta dove si risolve: le mansioni si aprono nell'editor (area, processo, ruoli), "
                       "quelle senza mansione di rischio vanno a «Rischi da confermare», i ruoli senza nessuno al "
                       "«Cambio ruoli in blocco» con il ruolo già scelto. Chi gestisce la skill matrix (es. il "
-                      "caporeparto) dalla scheda di una mansione può assegnare persone, valutarle e toglierle."),
+                      "caporeparto) dalla scheda di una mansione può assegnare più persone insieme, cambiarne il "
+                      "livello in riga, valutarle e toglierle; dalla scheda di una persona può darle più mansioni "
+                      "insieme."),
             ],
         },
         {
@@ -721,9 +723,18 @@ GUIDA = {
                     ("Reparto", "per una macchina è quello dell'asset; per un processo si sceglie in «Impostazioni»."),
                     ("Mansioni di rischio", "quelle che comporta chi la svolge: da lì vengono DPI, visite e schede di "
                                             "sicurezza. Una mansione senza mansione di rischio è segnalata."),
-                    ("Persone", "nella scheda «Persone», riquadro «Aggiungi una persona alla mansione»: si scrive in "
-                                "«Cerca» per restringere l'elenco, si sceglie la persona e il «Livello di partenza», poi "
-                                "«Assegna». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Persone", "nella scheda «Persone», riquadro «Aggiungi persone alla mansione»: si spuntano una "
+                                "o più persone (la ricerca trova anche reparto e area: scritto il reparto, «Seleziona "
+                                "tutti» spunta solo quelle visibili), si sceglie il «Livello di partenza» e «Assegna a N "
+                                "persone». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Livello in riga", "nella tabella delle persone il livello è una tendina: cambiandolo si salva "
+                                        "subito, con prima → dopo e autore nello storico delle abilitazioni e nel "
+                                        "registro attività. Sulle mansioni con competenze definite il livello lo "
+                                        "calcola «Valuta» e la tendina non c'è."),
+                    ("Scheda persona", "dal nome della persona: riquadro «Aggiungi mansioni a …» per dare più "
+                                       "mansioni insieme (le responsabilità si danno da «Reparti, aree e capi»), "
+                                       "livello in riga, «Togli» e «Storico delle mansioni» (assegnazioni, cambi di "
+                                       "livello con chi li ha fatti, rimozioni)."),
                     ("Da valutare", "chi è in lista su una mansione con competenze ma non ha ancora un livello su "
                                     "nessuna di esse: il pulsante «Valuta» è evidenziato. Finché non è valutato non "
                                     "risulta abilitato."),
