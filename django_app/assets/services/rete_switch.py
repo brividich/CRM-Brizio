@@ -316,6 +316,18 @@ def porte_senza_switch(indice: Indice | None = None) -> list[dict]:
     ]
 
 
+def formato_porte(prefisso: str) -> dict:
+    """Quante porte censite del prefisso sono da stack (``A0.2.x``) e quante da switch singolo (``A1.x``)."""
+    conta = {"stack": 0, "singole": 0}
+    if not prefisso:
+        return conta
+    for porta in AssetEndpoint.objects.filter(switch_port__istartswith=f"{prefisso}.").values_list("switch_port", flat=True):
+        parti = scomponi_porta(porta)
+        if parti and parti[0] == prefisso:
+            conta["stack" if parti[1] else "singole"] += 1
+    return conta
+
+
 def prefissi_senza_switch() -> list[dict]:
     """Prefissi usati da porte senza switch e non ancora assegnati a nessuno switch o rack."""
     assegnati = set(Asset.objects.exclude(switch_prefisso_porte="").values_list("switch_prefisso_porte", flat=True))

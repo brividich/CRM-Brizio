@@ -1,6 +1,10 @@
+{% load impostazioni_tags tickets_nav %}
 {% with current=request.resolver_match.view_name %}
 <div class="subnav">
   <a class="sub-a{% if current == 'tickets:dashboard' %} active{% endif %}" href="{% url 'tickets:dashboard' %}">I miei ticket</a>
+  {% vede_altri_ticket as mostra_elenco_ticket %}{% if mostra_elenco_ticket %}
+  <a class="sub-a{% if current == 'tickets:elenco' %} active{% endif %}" href="{% url 'tickets:elenco' %}">Ticket</a>
+  {% endif %}
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'tickets:nuovo' %} active{% endif %}" href="{% url 'tickets:nuovo' %}">+ Nuovo ticket</a>
   {% if is_gestore or is_admin %}
@@ -9,16 +13,20 @@
   {% endif %}
   {% if is_admin %}
   <div class="sub-sep"></div>
+  {% impostazioni_visibili "ticket_manutenzione" True as mostra_impostazioni %}{% if mostra_impostazioni %}
   <a class="sub-a{% if current == 'tickets:impostazioni' %} active{% endif %}" href="{% url 'tickets:impostazioni' %}">Impostazioni</a>
+  {% endif %}
   {% endif %}
 </div>
 <div class="notice" style="margin-top:10px;">
   {% if current == 'tickets:dashboard' %}
-    <strong>I miei ticket:</strong> storico delle richieste di intervento aperte o chiuse.
+    <strong>I miei ticket:</strong> le richieste di intervento aperte da te. Qui puoi commentarle e seguirle.
+  {% elif current == 'tickets:elenco' %}
+    <strong>Ticket:</strong> tutti i ticket che il tuo ruolo può vedere. Su quelli aperti da altri sei in sola lettura.
   {% elif current == 'tickets:nuovo' %}
     <strong>Nuovo ticket:</strong> compila il form per inviare una richiesta di intervento IT o Manutenzione.
   {% elif current == 'tickets:detail' %}
-    <strong>Dettaglio ticket:</strong> stato, commenti e allegati della tua richiesta.
+    <strong>Dettaglio ticket:</strong> stato, commenti e allegati della richiesta.
   {% elif current == 'tickets:gestione_list' %}
     <strong>Gestione ticket:</strong> tutti i ticket aperti. Filtra, assegna e aggiorna lo stato.
   {% elif current == 'tickets:gestione_detail' %}

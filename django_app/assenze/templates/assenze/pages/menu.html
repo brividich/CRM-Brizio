@@ -515,7 +515,7 @@ body.theme-dark .abs-recent-icon.no{color:#fca5a5;background:rgba(229,62,62,.16)
       </a>
     {% endif %}
 
-    {% if assenze_is_admin %}
+    {% if assenze_can_impostazioni %}
       <a class="abs-card-link abs-menu-card abs-card-admin" href="{% url 'assenze_impostazioni' %}">
         <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg></span>
         <div class="abs-card-content">

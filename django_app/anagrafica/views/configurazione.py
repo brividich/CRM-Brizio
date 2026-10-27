@@ -179,7 +179,7 @@ def api_dipendente_widget_layout(request):
 @login_required
 def widget_permissions(request):
     legacy_user = get_legacy_user(request.user)
-    if not impostazioni_o(request, "anagrafica", _helpers._is_anagrafica_admin):
+    if not _helpers._is_anagrafica_admin(request):
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:index")
 
