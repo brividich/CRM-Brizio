@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path("",                          views.ticket_dashboard,        name="dashboard"),
+    path("elenco/",                   views.ticket_elenco,           name="elenco"),
     path("nuovo/",                    views.ticket_nuovo,            name="nuovo"),
     path("allegati/<int:allegato_id>/download/", views.ticket_download_allegato, name="download_allegato"),
     path("allegati/<int:allegato_id>/valida/",   views.ticket_valida_allegato,   name="valida_allegato"),

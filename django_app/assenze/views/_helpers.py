@@ -918,7 +918,16 @@ def _template_perm_context(request) -> dict:
         "assenze_can_delete_events": perms["can_delete_any"],
         "assenze_can_reconcile": perms.get("can_update_any", False),
         "assenze_is_admin": user_can_modulo_action(request, "assenze", "admin_assenze"),
+        "assenze_can_impostazioni": puo_impostazioni_assenze(request),
     }
+
+
+def puo_impostazioni_assenze(request) -> bool:
+    """Pagina Impostazioni: a sistema ruoli acceso l'azione «impostazioni» della matrice,
+    spento la gestione interna (``admin_assenze``) come prima."""
+    from core.permessi.impostazioni import impostazioni_o
+
+    return impostazioni_o(request, "assenze", lambda r: user_can_modulo_action(r, "assenze", "admin_assenze"))
 
 
 def _can_manage_record(request, row: dict, *, require_delete: bool = False) -> bool:

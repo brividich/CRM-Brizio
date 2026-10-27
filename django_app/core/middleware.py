@@ -38,10 +38,10 @@ API_ACL_GATE_PATHS = {
     # cioe' le Impostazioni assenze. La view applica comunque i propri controlli
     # per ogni record; senza mappatura, con ACL_STRICT_CANONICAL una route nuova
     # e senza binding canonico verrebbe negata.
-    "/assenze/api/admin/bulk-consenso": "/assenze/impostazioni/",
+    "/assenze/api/admin/bulk-consenso": "/assenze/gestione-admin/",
     # Area HR delle assenze (saldi, calendario aziendale, contatori, copertura):
     # stesso gate delle Impostazioni; la view verifica comunque «admin_assenze».
-    "/assenze/hr/": "/assenze/impostazioni/",
+    "/assenze/hr/": "/assenze/gestione-admin/",
     # Storico di una richiesta: gate come «Le mie richieste» (tutti gli utenti del
     # modulo); la view lo mostra solo a chi gestisce la richiesta o la possiede.
     "/assenze/api/storico/": "/assenze/le-mie-richieste/",

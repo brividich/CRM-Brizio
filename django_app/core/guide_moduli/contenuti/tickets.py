@@ -28,7 +28,7 @@ GUIDA = {
             "titolo": "Seguire il tuo ticket",
             "blocchi": [
                 ("passi", [
-                    "Clicca «I miei ticket».",
+                    "Clicca «I miei ticket»: ci sono solo i ticket aperti da te.",
                     "Apri il ticket per vedere lo stato e i commenti del tecnico.",
                     "Per rispondere scrivi nel riquadro e clicca «Invia commento».",
                     "Per aggiungere una foto o un file usa «Carica allegati».",
@@ -38,6 +38,10 @@ GUIDA = {
                     ("In carico", "un tecnico ci sta lavorando."),
                     ("In attesa", "si aspetta qualcosa (un pezzo, una tua risposta)."),
                     ("Risolto / Chiuso", "il problema è sistemato."),
+                    ("Ticket", "la voce accanto a «I miei ticket», per chi in base al ruolo vede anche i ticket di altri "
+                               "(per esempio il caporeparto): tutti i ticket che puoi vedere. Su quelli aperti da altri sei "
+                               "in sola lettura: niente commenti, si agisce solo sui propri da «I miei ticket». "
+                               "Chi gestisce i ticket lavora da «Gestione ticket»."),
                 ]),
             ],
         },

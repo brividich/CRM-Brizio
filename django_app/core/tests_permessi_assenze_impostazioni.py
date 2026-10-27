@@ -1,8 +1,9 @@
 """Assenze: le Impostazioni hanno un'azione loro, separata da «Chiudere / gestire».
 
-Prima «gestire» accendeva anche ``assenze.assenze.manage`` e
-``legacy.assenze.admin_assenze``: chi gestiva le assenze apriva per forza le
-Impostazioni. Dati sintetici: i permessi si creano nel test.
+«impostazioni» apre solo la pagina Impostazioni (``assenze.impostazioni.manage``).
+La gestione interna (``assenze.assenze.manage``, ``legacy.assenze.admin_assenze``:
+certificazione presenza, area HR, gestione admin) resta a «gestire».
+Dati sintetici: i permessi si creano nel test.
 """
 from __future__ import annotations
 
@@ -13,14 +14,15 @@ from core.models import AccessGroup, PermissionDefinition, RuoloPermessoModulo
 from core.permessi.registro import ModuloPermessi, registra_modulo
 from core.permessi.sync import codici_desiderati, dati_anteprima_ruolo, stato_pagine_ruolo
 
-IMPOSTAZIONI = ("assenze.assenze.manage", "legacy.assenze.admin_assenze")
+IMPOSTAZIONI = ("assenze.impostazioni.manage",)
+GESTIONE_INTERNA = ("assenze.assenze.manage", "legacy.assenze.admin_assenze")
 ALTRA_GESTIONE = "assenze.sintetica_moderazione.manage"
 
 
 class AzioneImpostazioniAssenzeTests(TestCase):
     def setUp(self):
         cache.clear()
-        for code in (*IMPOSTAZIONI, ALTRA_GESTIONE):
+        for code in (*IMPOSTAZIONI, *GESTIONE_INTERNA, ALTRA_GESTIONE):
             PermissionDefinition.objects.get_or_create(code=code, defaults={"label": code, "module": "assenze"})
         self.ruolo = AccessGroup.objects.create(code="t-gestore-assenze", label="Gestore assenze (test)", priority=300)
 
@@ -33,6 +35,9 @@ class AzioneImpostazioniAssenzeTests(TestCase):
         self._cella("gestire", ambito="team")
         desiderati, governati = codici_desiderati(self.ruolo)
         self.assertIn(ALTRA_GESTIONE, desiderati)
+        # Certificazione presenza, area HR e gestione admin restano a chi gestisce.
+        for code in GESTIONE_INTERNA:
+            self.assertIn(code, desiderati, code)
         for code in IMPOSTAZIONI:
             self.assertNotIn(code, desiderati, code)
             self.assertIn(code, governati, code)  # la sincronizzazione le spegne
@@ -42,7 +47,8 @@ class AzioneImpostazioniAssenzeTests(TestCase):
         desiderati, _ = codici_desiderati(self.ruolo)
         for code in IMPOSTAZIONI:
             self.assertIn(code, desiderati, code)
-        self.assertNotIn(ALTRA_GESTIONE, desiderati)
+        for code in (*GESTIONE_INTERNA, ALTRA_GESTIONE):
+            self.assertNotIn(code, desiderati, code)
 
     def test_impostazioni_no_resta_chiusa(self):
         self._cella("gestire")

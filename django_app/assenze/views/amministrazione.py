@@ -118,10 +118,10 @@ def impostazioni_admin(request):
 
     Contiene il pannello amministrativo (statistiche globali, gestione di TUTTE le
     assenze con Approva/Rifiuta/Elimina, log attività) e il branding di modulo.
-    Gate: capability ACL `admin_assenze`. I profili non-admin vengono rimandati alla
-    pagina personale «Le mie richieste».
+    Gate: azione «impostazioni» della matrice a sistema ruoli acceso, altrimenti la
+    capability ACL `admin_assenze`. Gli altri vengono rimandati a «Le mie richieste».
     """
-    if not _helpers.user_can_modulo_action(request, "assenze", "admin_assenze"):
+    if not _helpers.puo_impostazioni_assenze(request):
         from django.shortcuts import redirect
         return redirect("assenze_gestione")
 

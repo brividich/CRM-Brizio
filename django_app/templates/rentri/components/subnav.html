@@ -1,3 +1,4 @@
+{% load impostazioni_tags %}
 {% with current=request.resolver_match.url_name %}
 <div class="subnav">
   <a class="sub-a{% if current == 'rentri_menu' %} active{% endif %}" href="{% url 'rentri_menu' %}">Menu</a>
@@ -10,7 +11,9 @@
   <a class="sub-a{% if current == 'rentri_scadenzario' %} active{% endif %}" href="{% url 'rentri_scadenzario' %}">Scadenzario</a>
   <a class="sub-a{% if current == 'rentri_giacenze' %} active{% endif %}" href="{% url 'rentri_giacenze' %}">Giacenze</a>
   <div class="sub-sep"></div>
+  {% impostazioni_visibili "rentri" True as mostra_impostazioni %}{% if mostra_impostazioni %}
   <a class="sub-a{% if current == 'rentri_impostazioni' %} active{% endif %}" href="{% url 'rentri_impostazioni' %}">Impostazioni</a>
+  {% endif %}
   <a class="sub-a" href="{% url 'dashboard_home' %}">Dashboard</a>
 </div>
 {% endwith %}

@@ -156,3 +156,42 @@ class Migrazione0097Tests(TestCase):
         self.assertEqual(
             RuoloPermessoModulo.objects.filter(ruolo=self.gestore, modulo="rentri", azione=AZIONE_IMPOSTAZIONI).count(), 1
         )
+
+
+class Migrazione0098Tests(TestCase):
+    """0098: le pagine che non sono impostazioni tornano com'erano."""
+
+    def setUp(self):
+        self.mig = importlib.import_module("core.migrations.0098_impostazioni_solo_pagina_impostazioni")
+        for code in ("anagrafica.skillmatrix.manage", "anagrafica.impostazioni.manage",
+                     "assenze.assenze.manage", "legacy.assenze.admin_assenze"):
+            PermissionDefinition.objects.get_or_create(code=code, defaults={"label": code, "module": code.split(".")[1]})
+        RoutePermissionBinding.objects.update_or_create(
+            route_name="anagrafica:skm_impostazioni", path_pattern="",
+            defaults={"permission_id": "anagrafica.impostazioni.manage", "match_strategy": "exact", "is_active": True,
+                      "note": "[SKM] x [CORE_0097] impostazioni con azione propria (era anagrafica.skillmatrix.manage)"},
+        )
+        RoutePermissionBinding.objects.update_or_create(
+            route_name="anagrafica:sicurezza_operativa_config", path_pattern="",
+            defaults={"permission_id": "anagrafica.impostazioni.manage", "match_strategy": "exact", "is_active": True,
+                      "note": "[CORE_0097] impostazioni con azione propria"},
+        )
+        self.capo = AccessGroup.objects.create(code="t-capo-ass", label="Capo (test)", priority=300)
+        GroupPermissionGrant.objects.create(group=self.capo, permission_id="assenze.assenze.manage",
+                                            enabled=True, note="matrice ruoli")
+        RuoloPermessoModulo.objects.create(ruolo=self.capo, modulo="assenze", azione="gestire", ambito="team")
+        RuoloPermessoModulo.objects.create(ruolo=self.capo, modulo="assenze", azione=AZIONE_IMPOSTAZIONI,
+                                           ambito="team", consentito=False)
+
+    def test_avanti(self):
+        self.mig.avanti(django_apps, None)
+        skm = RoutePermissionBinding.objects.get(route_name="anagrafica:skm_impostazioni", path_pattern="")
+        self.assertEqual(skm.permission_id, "anagrafica.skillmatrix.manage")
+        self.assertEqual(skm.note, "[SKM] x")
+        self.assertFalse(RoutePermissionBinding.objects.filter(route_name="anagrafica:sicurezza_operativa_config").exists())
+        imp = RoutePermissionBinding.objects.get(route_name="assenze_impostazioni", path_pattern="")
+        self.assertEqual(imp.permission_id, "assenze.impostazioni.manage")
+        # Il capo gestisce (certificazione presenza, area HR) ma non apre le Impostazioni.
+        codici = set(GroupPermissionGrant.objects.filter(group=self.capo, enabled=True).values_list("permission_id", flat=True))
+        self.assertTrue({"assenze.assenze.manage", "legacy.assenze.admin_assenze"} <= codici)
+        self.assertNotIn("assenze.impostazioni.manage", codici)
