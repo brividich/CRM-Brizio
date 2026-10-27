@@ -6,7 +6,14 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=5">
+<style>
+.co-filtri{ grid-template-columns:180px 200px minmax(0,1fr) auto auto; }
+.co-divisori{ grid-template-columns:160px 160px auto minmax(0,1fr) auto; padding:0; }
+@media (max-width:640px){
+  .co-filtri, .co-divisori{ grid-template-columns:minmax(0,1fr); }
+  .co-divisori > span{ display:none; }
+}
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -16,69 +23,101 @@
 <div class="fmd">
   {% include "anagrafica/components/flash_messages.html" %}
   <div class="fmd-wrap">
-    <div class="fmd-pagehead">
-      <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:retribuzioni_globale' %}">Cedolini</a><span class="fmd-sep"> / </span><span class="fmd-cur">Costo orario</span></div>
-        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Costo orario</h1>
-        <p class="fmd-ph-sub">RML del mese ÷ {{ giorni.normalize }} giorni ÷ {{ ore.normalize }} ore (= ÷ {{ ore_mese|floatformat:2 }}). Si aggiorna da solo a ogni import dei cedolini; se HR corregge a mano la voce RML vale la correzione. Dato riservato: ogni consultazione va nel registro.</p>
-      </div>
-      <div class="fmd-pagehead-actions">
-        {% if righe %}<a class="fmd-btn fmd-btn-ghost" href="{{ export_url }}">Esporta Excel</a>{% endif %}
-        {% include "anagrafica/partials/_guida_persone_link.html" with ancora="costo-orario" %}
-      </div>
-    </div>
 
-    <form method="get" class="fmd-panel fmd-block mst-filtri" aria-label="Filtra">
-      <label class="mst-campo"><span>Mese</span>
-        <select name="mese">
-          {% for m in mesi %}<option value="{{ m|date:'Y-m-d' }}"{% if m == mese %} selected{% endif %}>{{ m|date:"F Y" }}</option>{% empty %}<option value="">nessun mese</option>{% endfor %}
-        </select></label>
-      <label class="mst-campo"><span>Reparto</span>
-        <select name="reparto"><option value="">Tutti</option>
-          {% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
-        </select></label>
-      <label class="mst-campo"><span>Cerca</span><input type="search" name="q" value="{{ q }}" placeholder="Nome o codice fiscale"></label>
-      <div class="mst-campo mst-campo-btn"><button type="submit" class="fmd-btn fmd-btn-primary">Filtra</button></div>
-    </form>
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Amministrazione</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-coins"/></svg>Costo orario</h1>
+          <p class="fmd-sub">RML del mese ÷ {{ giorni.normalize }} giorni ÷ {{ ore.normalize }} ore (÷ {{ ore_mese|floatformat:2 }}). Si aggiorna da solo a ogni import dei cedolini; se HR corregge a mano la voce RML vale la correzione. Dato riservato: ogni consultazione va nel registro.</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:retribuzioni_globale' %}"><svg class="fmd-ico"><use href="#i-coins"/></svg>Cedolini</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:ratei_list' %}"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Ferie e permessi</a>
+            <a class="fmd-btn-template" href="#divisori"><svg class="fmd-ico"><use href="#i-gear"/></svg>Divisori</a>
+            <a class="fmd-btn-template" href="{% url 'guida_modulo' 'anagrafica' %}#costo-orario" title="Come funziona questa pagina">? Guida</a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{% if mese %}{{ mese|date:"m/Y" }}{% else %}—{% endif %}</span><span class="fmd-lbl">Mese</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ righe|length }}</span><span class="fmd-lbl">Dipendenti</span></div>
+        </div>
+      </div>
+    </section>
 
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>{% if mese %}{{ mese|date:"F Y" }}{% else %}Nessun dato{% endif %} <span class="fmd-count">{{ righe|length }}</span></div>
+    {% if righe %}
+    <section class="fmd-kpi fmd-kpi-auto" aria-label="Costo orario in sintesi">
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media label="Costo orario medio" sub="€/h, con i filtri attivi" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.minimo label="Minimo" sub="€/h" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=kpi.massimo label="Massimo" sub="€/h" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.manuali label="RML corretta a mano" sub="vale la correzione di HR" %}
+    </section>
+    {% endif %}
+
+    <section class="fmd-panel">
+      <form method="get" class="fmd-filterbar co-filtri">
+        <div class="fmd-filtf"><label for="co-mese">Mese</label>
+          <select id="co-mese" name="mese">
+            {% for m in mesi %}<option value="{{ m|date:'Y-m-d' }}"{% if m == mese %} selected{% endif %}>{{ m|date:"F Y" }}</option>{% empty %}<option value="">nessun mese</option>{% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf"><label for="co-reparto">Reparto</label>
+          <select id="co-reparto" name="reparto"><option value="">Tutti</option>
+            {% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf"><label for="co-q">Cerca</label><input id="co-q" type="text" name="q" value="{{ q }}" placeholder="Nome o codice fiscale"></div>
+        <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy">Filtra</button></div>
+        <div class="fmd-filtf fmd-go"><a href="{% url 'anagrafica:costo_orario' %}" class="fmd-btn fmd-btn-ghost">Reset</a></div>
+      </form>
+    </section>
+
+    <section class="fmd-panel">
+      <div class="fmd-toolbar" style="border-bottom:1px solid var(--fmd-line-soft);">
+        <div class="fmd-block-title" style="font-size:14px;"><svg class="fmd-ico"><use href="#i-coins"/></svg>{% if mese %}{{ mese|date:"F Y" }}{% else %}Costo orario{% endif %}</div>
+        <span class="fmd-spacer"></span>
+        {% if righe %}{% include "anagrafica/components/_export_menu.html" with export_key="costo_orario" %}{% endif %}
+        <span class="fmd-block-aside">{{ righe|length }} dipendent{{ righe|length|pluralize:"e,i" }}</span>
       </div>
       {% if righe %}
       <div class="fmd-tablewrap">
-        <table class="fmd-table mcf-table">
-          <thead><tr><th>Persona</th><th>Reparto</th><th>Classificazione</th><th class="mcf-num">RML</th><th class="mcf-num">Costo orario</th><th></th></tr></thead>
+        <table class="fmd-table">
+          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th></tr></thead>
           <tbody>
             {% for x in righe %}
             <tr>
-              <td data-label="Persona">{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' x.legacy_id %}">{{ x.nome }}</a>{% else %}{{ x.nome }} <span class="fmd-muted">non abbinato</span>{% endif %}</td>
-              <td data-label="Reparto" class="fmd-muted">{{ x.reparto|default:"—" }}</td>
-              <td data-label="Classificazione">{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansioni_coefficienti' x.legacy_id %}">{{ x.classe|default:"da indicare" }}</a>{% else %}—{% endif %}</td>
-              <td data-label="RML" class="mcf-num">€ {{ x.c.rml|floatformat:"2g" }}{% if x.c.rml_manuale %} <span class="fmd-badge fmd-b-orange" title="Voce RML corretta a mano da HR">a mano</span>{% endif %}</td>
-              <td data-label="Costo orario" class="mcf-num"><strong>€ {{ x.c.costo_orario|floatformat:"2g" }}</strong></td>
-              <td class="fmd-muted mcf-sub">{% if x.c.divisore_giorni != giorni or x.c.divisore_ore != ore %}calcolato con {{ x.c.divisore_giorni.normalize }} × {{ x.c.divisore_ore.normalize }}{% endif %}</td>
+              <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' x.legacy_id %}">{{ x.nome }}</a>{% else %}{{ x.nome }} <span class="fmd-pill fmd-pill-grey">non abbinato</span>{% endif %}</td>
+              <td class="fmd-muted">{{ x.reparto|default:"—" }}</td>
+              <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansioni_coefficienti' x.legacy_id %}" title="Classificazione e coefficienti delle sue mansioni">{{ x.classe|default:"da indicare" }}</a>{% else %}—{% endif %}</td>
+              <td class="fmd-num" data-sort-value="{{ x.c.rml|stringformat:'s' }}">€ {{ x.c.rml|floatformat:"2g" }}{% if x.c.rml_manuale %} <span class="fmd-pill fmd-pill-amber" title="Voce RML corretta a mano da HR">a mano</span>{% endif %}</td>
+              <td class="fmd-num" data-sort-value="{{ x.c.costo_orario|stringformat:'s' }}"><strong>€ {{ x.c.costo_orario|floatformat:"2g" }}</strong>{% if x.c.divisore_giorni != giorni or x.c.divisore_ore != ore %}<div class="fmd-muted" style="font-size:11.5px;">con {{ x.c.divisore_giorni.normalize }} × {{ x.c.divisore_ore.normalize }}</div>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
       {% else %}
-      <div class="fmd-muted">Nessun costo orario: serve la voce RML nei cedolini importati.</div>
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-coins"/></svg></span>
+        <span class="fmd-et">Nessun costo orario</span>
+        <span class="fmd-em">{% if q or reparto %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
+      </div>
       {% endif %}
     </section>
 
-    <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Divisori</div></div>
-      <form method="post" class="mst-filtri mcf-divisori">
+    <section class="fmd-panel fmd-block" id="divisori">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Divisori</div>
+        <div class="fmd-block-aside">Cambiano tutti i mesi, anche i passati</div>
+      </div>
+      <form method="post" class="fmd-filterbar co-divisori">
         {% csrf_token %}
-        <input type="hidden" name="azione" value="divisori">
-        <label class="mst-campo"><span>Giorni del mese</span><input type="text" inputmode="decimal" name="giorni" value="{{ giorni.normalize }}" required></label>
-        <label class="mst-campo"><span>Ore al giorno</span><input type="text" inputmode="decimal" name="ore" value="{{ ore.normalize }}" required></label>
-        <div class="mst-campo mst-campo-btn"><button type="submit" class="fmd-btn fmd-btn-primary" data-hub-confirm="Salvare i divisori e ricalcolare il costo orario di tutti i mesi?">Salva e ricalcola</button></div>
+        <div class="fmd-filtf"><label for="co-giorni">Giorni del mese</label><input id="co-giorni" type="text" inputmode="decimal" name="giorni" value="{{ giorni.normalize }}" required></div>
+        <div class="fmd-filtf"><label for="co-ore">Ore al giorno</label><input id="co-ore" type="text" inputmode="decimal" name="ore" value="{{ ore.normalize }}" required></div>
+        <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy" name="azione" value="divisori" data-hub-confirm="Salvare i divisori e ricalcolare il costo orario di tutti i mesi?">Salva e ricalcola</button></div>
+        <span></span>
+        <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-ghost" name="azione" value="ricalcola" formnovalidate title="Ricalcola tutti i mesi senza cambiare i divisori">Ricalcola tutto</button></div>
       </form>
-      <p class="fmd-muted mcf-sub">Cambiano tutti i mesi, anche i passati. Per ricalcolare senza cambiare i divisori:</p>
-      <form method="post" class="mcf-inline">{% csrf_token %}<input type="hidden" name="azione" value="ricalcola"><button type="submit" class="fmd-btn fmd-btn-ghost">Ricalcola tutto</button></form>
     </section>
   </div>
 </div>
