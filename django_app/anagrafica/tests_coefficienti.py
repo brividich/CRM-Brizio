@@ -329,3 +329,50 @@ class AltreSchermateTests(_Mansioni):
         r = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.p1.pk]))
         self.assertContains(r, "Diretto 2T")
         self.assertContains(r, "€ 20,00/h")
+
+
+class StoricoCostoOrarioTests(_Base):
+    CF = "SNTTST80A01H501Z"
+
+    def setUp(self):
+        super().setUp()
+        oggi = timezone.localdate().replace(day=1)
+        self.mesi = []
+        m = oggi
+        for importo in ("3636.36", "3463.20", "3463.20"):  # dal più recente: 21 · 20 · 20 €/h
+            self.mesi.append(m)
+            imp = ImportazioneRetributiva.objects.create(data_competenza=m)
+            VoceRetributiva.objects.create(importazione=imp, tax_code=self.CF, legacy_anagrafica_id=self.p1.pk,
+                                           data_competenza=m, pay_item="RML", pay_item_key="rml",
+                                           categoria="totale", importo=D(importo))
+            m = (m - timezone.timedelta(days=1)).replace(day=1)
+        self.url = reverse("anagrafica:costo_orario_storico")
+
+    def test_tabella_mesi_variazione(self):
+        from types import SimpleNamespace
+
+        from django.http import QueryDict
+
+        from .views_coefficienti import _storico
+
+        ctx = _storico(SimpleNamespace(GET=QueryDict()))
+        self.assertEqual(ctx["mesi"], sorted(self.mesi))
+        r = ctx["righe"][0]
+        self.assertEqual([x["c"].costo_orario for x in r["celle"]], [D("20.0000"), D("20.0000"), D("21.0000")])
+        self.assertTrue(r["celle"][2]["su"])
+        self.assertEqual((r["var"], r["var_pct"]), (D("1.0000"), D("5.0")))
+        self.assertEqual(ctx["kpi"]["aumenti"], 1)
+        q = QueryDict(mutable=True)
+        q["dal"], q["al"] = self.mesi[1].isoformat(), self.mesi[0].isoformat()
+        self.assertEqual(len(_storico(SimpleNamespace(GET=q))["mesi"]), 2)
+
+    def test_pagina_export_e_permesso(self):
+        r = self.client.get(self.url, {"persona": self.p1.pk})
+        self.assertContains(r, "21,00")
+        self.assertContains(r, "+5,0%")
+        r = self.client.get(reverse("anagrafica:export", args=["costo_orario_storico"]),
+                            {"format": "xlsx", "scope": "full"})
+        self.assertIn("spreadsheetml", r["Content-Type"])
+        normale = User.objects.create_user("cs_normale", "cs@example.invalid", "x")
+        self.client.force_login(normale)
+        self.assertEqual(self.client.get(self.url).status_code, 302)

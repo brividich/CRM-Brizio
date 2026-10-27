@@ -490,7 +490,11 @@ GUIDA = {
                 ("passi", [
                     "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, ricerca; «Esporta ▾» "
                     "(Excel o PDF; «tutto» = tutti i mesi).",
-                    "Scheda del dipendente: ultimo valore nel riepilogo, ultimi 12 mesi con il calcolo tra le retribuzioni.",
+                    "«Storico»: una riga per dipendente e una colonna per mese (di serie gli ultimi 12), filtri Dal, "
+                    "Al, reparto e nome; ▲ ▼ rispetto al mese prima, «Variazione» in € e % nel periodo, «Media» di "
+                    "ogni mese; «Esporta ▾» con una colonna per mese.",
+                    "Scheda del dipendente: ultimo valore nel riepilogo, ultimi 12 mesi con il calcolo tra le "
+                    "retribuzioni e «Storico completo →».",
                     "Elenco dipendenti: colonne «Costo orario (€/h)» e «Costo orario: mese» (vista «Mansioni e costi»), "
                     "solo per chi ha il permesso HR.",
                     "In fondo alla pagina «Divisori»: «Salva e ricalcola» rifà tutti i mesi; «Ricalcola tutto» senza "
