@@ -81,6 +81,30 @@ body.theme-dark .wmf-inline-note{color:var(--text-light)}
     <a class="wmf-back" href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:work_machine_list' %}{% endif %}">&larr; Torna indietro</a>
   </header>
 
+  {% if asset %}
+    {% with coll=asset.mtconnect %}
+    <article class="wmf-card" id="collector" style="margin-bottom:16px;">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Stato reale della macchina (collector)</h2>
+          <p>Stato, programma, allarmi e contatori letti dal controllo della CNC, in sola lettura.</p>
+        </div>
+        <a href="{% url 'guida_modulo' 'assets' %}?vista=admin#collector-collega" title="Come si collega una CNC">? Guida</a>
+      </div>
+      <div class="wmf-card-body">
+        {% if coll %}
+          <p><strong>{{ coll.get_fonte_display }}</strong>{% if coll.opcua_host %} · {{ coll.opcua_host }}:{{ coll.opcua_porta }}{% endif %}{% if coll.codice %} · codice {{ coll.codice }}{% endif %}{% if not coll.attivo %} · <strong>sospesa</strong>{% endif %}</p>
+          <p>Stato: <strong>{{ coll.get_stato_display }}</strong>{% if coll.letto_il %} · ultima lettura {{ coll.letto_il|date:"d/m/Y H:i" }}{% endif %}{% if coll.errore %} · {{ coll.errore }}{% endif %}</p>
+          <a class="wmf-back" href="{% url 'assets:mtconnect_collegamenti' %}?modifica={{ coll.pk }}#form">Modifica il collegamento &rarr;</a>
+        {% else %}
+          <p>Non collegata: il portale non riceve stato e ore di lavoro da questa macchina.</p>
+          <a class="wmf-back" href="{% url 'assets:mtconnect_collegamenti' %}?asset={{ asset.pk }}#form">Collega al collector &rarr;</a>
+        {% endif %}
+      </div>
+    </article>
+    {% endwith %}
+  {% endif %}
+
   <form method="post" enctype="multipart/form-data" class="wmf-grid">
     {% csrf_token %}
     {% if form.non_field_errors %}
