@@ -1385,6 +1385,16 @@ class ImpersonationFlowTests(TestCase):
         entry = AuditLog.objects.get(azione="probe_string_dettaglio")
         self.assertEqual(entry.dettaglio, {"dettaglio": "evidenza scaricata"})
 
+    def test_log_action_risale_all_utente_senza_legacy_user_sulla_request(self):
+        """Login, logout e 2FA passano da percorsi esenti senza ``request.legacy_user``:
+        la voce va comunque attribuita alla persona autenticata."""
+        request = self.factory.get("/login/")
+        _attach_session(request)
+        request.user = self.admin_user
+        log_action(request, "probe_senza_legacy", "core")
+        entry = AuditLog.objects.get(azione="probe_senza_legacy")
+        self.assertEqual(entry.legacy_user_id, self.admin_legacy.id)
+
 
 class SafeTimedRotatingFileHandlerTests(TestCase):
     def test_emit_falls_back_to_plain_write_when_rollover_file_is_locked(self):
@@ -2560,6 +2570,26 @@ class CoreBacklogCFeatureTests(TestCase):
         self.assertEqual(export_response.status_code, 200)
         self.assertIn("text/csv", export_response["Content-Type"])
         self.assertIn("test_action", export_response.content.decode("utf-8"))
+
+    def test_attivita_e_audit_separano_persone_e_processi_automatici(self):
+        AuditLog.objects.create(legacy_user_id=self.legacy_user.id, utente_display="Core User", modulo="core", azione="azione_persona")
+        AuditLog.objects.create(modulo="assets", azione="azione_task_notturno")
+        self.client.force_login(self.user)
+
+        for name in ("admin_portale:user_activity", "admin_portale:audit_log"):
+            url = reverse(name)
+            response = self.client.get(url)
+            self.assertContains(response, "azione_persona")
+            self.assertNotContains(response, "azione_task_notturno")
+
+            response = self.client.get(url, {"chi": "automatico"})
+            self.assertContains(response, "azione_task_notturno")
+            self.assertContains(response, "Processo automatico")
+            self.assertNotContains(response, "azione_persona")
+
+            response = self.client.get(url, {"chi": "tutti"})
+            self.assertContains(response, "azione_persona")
+            self.assertContains(response, "azione_task_notturno")
 
 
 class ValidateDeploymentSecurityChecksTests(SimpleTestCase):
