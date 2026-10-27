@@ -282,6 +282,20 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
         {% endif %}
 
         {% if richiesta.stato == "APPROVATA" and is_gestore %}
+        <!-- Pronto per il ritiro: avvisa il dipendente -->
+        <div class="dpi-action-panel">
+          <div class="dpi-action-title">🔔 Pronto per il ritiro</div>
+          {% if richiesta.pronta_ritiro_il %}
+          <p style="margin:0 0 10px; font-size:12px; color:#15803d; font-weight:600;">Dipendente avvisato il {{ richiesta.pronta_ritiro_il|date:"d-m-Y H:i" }}{% if richiesta.pronta_ritiro_da_nome %} da {{ richiesta.pronta_ritiro_da_nome }}{% endif %}.</p>
+          {% else %}
+          <p style="margin:0 0 10px; font-size:12px; color:#64748b;">Quando il DPI è pronto, avvisa il dipendente (mail e notifica nel portale) di passare a ritirarlo.</p>
+          {% endif %}
+          <form method="post" action="{% url 'dpi:pronta_ritiro' richiesta.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="dpi-btn dpi-btn-blue">{% if richiesta.pronta_ritiro_il %}Avvisa di nuovo{% else %}Pronto per il ritiro{% endif %}</button>
+          </form>
+        </div>
+
         <!-- Consegna: solo dopo l'approvazione -->
         <div class="dpi-action-panel">
           <div class="dpi-action-title">📦 Registra consegna</div>

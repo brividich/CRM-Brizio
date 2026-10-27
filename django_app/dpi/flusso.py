@@ -1,5 +1,8 @@
-"""Flusso richiesta DPI: dipendente -> responsabile/preposto approva -> avviso a
-magazzino/amministrazione -> report di consegna all'amministrazione.
+"""Flusso richiesta DPI: dipendente -> responsabile/preposto approva (la richiesta
+di un CAR/preposto e' approvata da sola) -> avviso al magazzino -> il magazzino
+segna «Pronto per il ritiro» e il dipendente e' avvisato (o subito all'approvazione,
+da Impostazioni) -> consegna -> report al preposto e, per le categorie che lo
+prevedono, all'amministrazione.
 
 Regola dell'approvatore (come assenze e organigramma): il responsabile effettivo
 del dipendente e' quello dell'AREA AZIENDALE, altrimenti il caporeparto del
@@ -189,8 +192,26 @@ def _email_persona(legacy_id: int) -> str:
     return capo_notification_email(legacy_id)
 
 
-def _destinatari_approvatori(richiesta) -> list[str]:
+def e_capo_o_preposto(legacy_id: int | None) -> bool:
+    """True se ``legacy_id`` approva le richieste di qualcuno (CAR, responsabile o preposto):
+    le sue richieste DPI sono approvate da sole."""
+    return bool(legacy_id) and bool(dipendenti_di_approvatore(legacy_id))
+
+
+def email_preposti(richiesta) -> list[str]:
+    """Email dei responsabili/preposti del richiedente (senza ripieghi)."""
     emails = [e for e in (_email_persona(i) for i in approvatori_di(richiesta.richiedente_legacy_id)) if e]
+    return sorted({e.lower(): e for e in emails}.values(), key=str.lower)
+
+
+def email_dipendente(richiesta) -> str:
+    """Email di notifica del richiedente; in mancanza quella salvata sulla richiesta."""
+    email = _email_persona(richiesta.richiedente_legacy_id) if richiesta.richiedente_legacy_id else ""
+    return email or (richiesta.richiedente_email or "").strip()
+
+
+def _destinatari_approvatori(richiesta) -> list[str]:
+    emails = email_preposti(richiesta)
     if not emails:
         from anagrafica.services.reminders import get_reminder_recipients
 
@@ -291,25 +312,51 @@ def notifica_nuova_richiesta(richiesta) -> None:
 
 @event_flow("dpi_avviso_consegna", skipped_result=None)
 def notifica_approvata(richiesta) -> None:
-    """Passo 2 -> 3: avviso di consegna a magazzino e amministrazione."""
+    """Passo 2 -> 3: avviso al magazzino di preparare il DPI."""
+    from .models import DPIImpostazioni
+
+    if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione:
+        passo = "il dipendente e' gia' stato avvisato di passare a ritirarlo: consegnalo e registra la consegna"
+    else:
+        passo = ("preparalo, poi in DPI > Gestione richieste premi «Pronto per il ritiro» (avvisa il dipendente) "
+                 "e alla consegna registra la consegna")
     try:
-        destinatari = sorted(set(destinatari_magazzino()) | set(destinatari_amministrazione()), key=str.lower)
         _mail(
             f"[DPI] Da consegnare {richiesta.numero} - {richiesta.richiedente_nome}",
-            _dettaglio_richiesta(richiesta) + "\n\nLa richiesta e' stata approvata: preparare e consegnare il DPI, poi registrare la consegna in DPI > Gestione richieste.",
-            destinatari,
+            _dettaglio_richiesta(richiesta) + f"\n\nLa richiesta e' stata approvata: {passo}.",
+            destinatari_magazzino(),
             title="DPI da consegnare",
         )
     except Exception:
         logger.warning("Avviso di consegna DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
 
 
+@event_flow("dpi_pronta_ritiro", skipped_result=None)
+def notifica_pronta_ritiro(richiesta) -> None:
+    """Passo 3: il DPI e' pronto, il dipendente passa a ritirarlo."""
+    try:
+        email = email_dipendente(richiesta)
+        _mail(
+            f"[DPI] Il tuo DPI e' pronto: passa a ritirarlo ({richiesta.numero})",
+            _dettaglio_richiesta(richiesta)
+            + "\n\nIl DPI che hai richiesto e' pronto: passa in magazzino a ritirarlo. Alla consegna firmerai la ricevuta.",
+            [email] if email else [],
+            title="DPI pronto per il ritiro",
+        )
+    except Exception:
+        logger.warning("Avviso di ritiro DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
+
+
 @event_flow("dpi_report_consegna", skipped_result=None)
 def notifica_consegnata(consegna) -> None:
-    """Passo 4: report di consegna all'amministrazione (con il modulo PDF in allegato)."""
+    """Passo 4: report di consegna (con il modulo PDF in allegato) al preposto del
+    dipendente e, se la categoria lo prevede, all'Amministrazione."""
     richiesta = consegna.richiesta
     try:
-        destinatari = destinatari_amministrazione()
+        destinatari = list(email_preposti(richiesta))
+        if richiesta.categoria.avvisa_amministrazione_consegna:
+            destinatari += destinatari_amministrazione()
+        destinatari = sorted({e.lower(): e for e in destinatari}.values(), key=str.lower)
         if not destinatari:
             return
         attachments = None
@@ -343,10 +390,10 @@ def notifica_consegnata(consegna) -> None:
 
 @event_flow("dpi_consegna_annullata", skipped_result=None)
 def notifica_rifiutata_dopo_approvazione(richiesta) -> None:
-    """Rifiuto di una richiesta gia' approvata: magazzino e amministrazione avevano
-    ricevuto l'avviso di consegna, va detto loro di non consegnare."""
+    """Rifiuto di una richiesta gia' approvata: il magazzino aveva ricevuto l'avviso
+    di preparare il DPI, va detto di non consegnarlo."""
     try:
-        destinatari = sorted(set(destinatari_magazzino()) | set(destinatari_amministrazione()), key=str.lower)
+        destinatari = destinatari_magazzino()
         motivo = f"\nMotivazione: {richiesta.note_gestione}" if richiesta.note_gestione else ""
         _mail(
             f"[DPI] Consegna annullata {richiesta.numero} - {richiesta.richiedente_nome}",

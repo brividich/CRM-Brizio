@@ -50,6 +50,8 @@
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
       <a class="fmd-data-link" href="#ruoli-in-blocco">Ruoli e mansioni in blocco</a>
+      <a class="fmd-data-link" href="#coefficienti">Classificazione e coefficienti</a>
+      <a class="fmd-data-link" href="#costo-orario">Costo orario</a>
       <a class="fmd-data-link" href="#struttura-organizzativa">Struttura organizzativa</a>
       <a class="fmd-data-link" href="#nuovo-dipendente">Nuovo dipendente</a>
       <a class="fmd-data-link" href="#account-portale">Account portale nella scheda</a>
@@ -141,7 +143,7 @@
       <p>Da <strong>Ruoli → Cambio ruoli in blocco</strong> (pagina «Ruoli e mansioni in blocco») si cambiano ruoli e mansioni di più persone insieme, a mano o con un file Excel.</p>
       <ol>
         <li>Filtra le persone per <strong>Reparto</strong>, <strong>Area</strong>, <strong>Che ha il ruolo</strong>, <strong>Che ha la mansione</strong>, <strong>Solo chi non ha ruoli</strong> o nome, poi spuntale (o <strong>Seleziona tutte quelle in elenco</strong>; al massimo 300 alla volta).</li>
-        <li>Scegli <strong>Un ruolo</strong> o <strong>Una mansione</strong>. Per la mansione: <strong>Assegna la mansione</strong> con il <strong>Livello</strong> (I, L, U, O; a chi ce l'ha già con un altro livello il livello cambia) o <strong>Togli la mansione</strong> (lo storico resta).</li>
+        <li>Scegli <strong>Un ruolo</strong> o <strong>Una mansione</strong>. Per la mansione: <strong>Assegna la mansione</strong> con il <strong>Livello</strong> (I, L, U, O; a chi ce l'ha già con un altro livello il livello cambia) e, se serve, la <strong>Classificazione</strong> (Diretto/Indiretto 1T/2T; vuota = ognuno prende la sua prevalente), o <strong>Togli la mansione</strong> (lo storico resta).</li>
         <li>Scegli l'<strong>Operazione</strong>:
           <ul>
             <li><strong>Aggiungi il ruolo</strong>: si somma a quelli in essere; diventa il ruolo principale solo se la persona non ne ha uno;</li>
@@ -158,8 +160,36 @@
         <li>Nel riquadro <strong>Da file Excel: inserimento e aggiornamento massivo</strong> premi <strong>Scarica le assegnazioni di oggi</strong> (con il filtro reparto vale solo per quel reparto) o <strong>Scarica il modello vuoto</strong>.</li>
         <li>Foglio <strong>Ruoli persone</strong>: una riga per persona e ruolo; «Azione» vuota o AGGIUNGI = deve avere il ruolo dal giorno «Dal», CHIUDI = il ruolo finisce il giorno «Dal». Foglio <strong>Mansioni persone</strong>: una riga per persona e mansione; vuota o ASSEGNA = in lista con il «Livello», TOGLI = fuori lista.</li>
         <li>La persona si riconosce dall'«ID persona» o dal nome; la mansione dalla «Chiave mansione» o dal nome. Ruoli e mansioni devono già esistere.</li>
+        <li>Nel foglio <strong>Mansioni persone</strong> ci sono anche <strong>Classificazione</strong> (D1T, D2T, I1T, I2T) e <strong>Coefficiente</strong> (es. 0,25 o 25%). Vuote = non si cambiano. I coefficienti si controllano persona per persona: se le sue mansioni non sommano 1 le sue righe si scartano con il motivo, le altre persone passano.</li>
         <li><strong>Carica e prova</strong> mostra per foglio le righe nuove, modificate, invariate e scartate con il motivo, senza salvare; <strong>Applica</strong> registra quelle buone. Il file scaricato e ricaricato tale e quale non cambia niente.</li>
       </ol>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="coefficienti">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Classificazione e coefficienti delle mansioni</h2>
+      <p>Su ogni mansione che una persona svolge si indica <strong>come</strong> la svolge e <strong>quanto pesa</strong> sul suo tempo. Due persone con lo stesso ruolo e la stessa mansione possono avere valori diversi.</p>
+      <ul>
+        <li><strong>Classificazione</strong>: <strong>Diretto 1T</strong>, <strong>Diretto 2T</strong>, <strong>Indiretto 1T</strong>, <strong>Indiretto 2T</strong> (1T = un turno, 2T = due turni). Una persona lavora di solito sempre sullo stesso numero di turni: 1T e 2T insieme compaiono come <strong>turni misti</strong>.</li>
+        <li><strong>Coefficiente</strong>: le mansioni in lista e attive di una persona sommano sempre <strong>1</strong> (es. 0,6 + 0,4). Le mansioni sospese non contano.</li>
+      </ul>
+      <ol>
+        <li>Dalla scheda del dipendente, tab <strong>Ruolo e competenze</strong>, premi <strong>Classificazione e coefficienti →</strong>.</li>
+        <li>Scegli la <strong>Classificazione prevalente</strong> (con <strong>Usala su tutte</strong> la copi su ogni mansione) e cambia le singole righe dove serve: la prevalente si propone da sola sulle mansioni che la persona riceve dopo.</li>
+        <li>Scrivi i coefficienti (0,25 oppure 25%): sotto la tabella vedi il totale e quanto manca. <strong>Salva</strong> funziona solo se la somma fa 1 (tolleranza 0,001: il resto dell'arrotondamento va sulla mansione più grande). <strong>Ripartisci in parti uguali</strong> divide 1 per il numero di mansioni.</li>
+      </ol>
+      <div class="gpa-nota">Quando una mansione entra o esce dalla lista i coefficienti si ripartiscono da soli (la nuova prende 1/n, le altre si riducono in proporzione; una tolta lascia il suo peso alle altre) e la persona resta <strong>da rivedere</strong> finché qualcuno non salva. All'aggiornamento del portale tutti partono da parti uguali e chi ha più di una mansione è «da rivedere».</div>
+      <p>Nel Mansionario il filtro <strong>Diretto e indiretto</strong> mostra le mansioni svolte con una certa classificazione; in Reportistica la sezione <strong>Classificazione e coefficienti delle mansioni</strong> elenca somma, «da rivedere» e turni misti.</p>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="costo-orario">
+      <h2><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Costo orario</h2>
+      <p>Per ogni dipendente e mese: <strong>RML ÷ 26 ÷ 6,66</strong> (cioè RML ÷ 173,16). L'RML è la voce «RML» dei cedolini importati dallo studio paghe; per ogni mese vale l'import più recente e, se HR ha corretto la voce a mano, vale la correzione.</p>
+      <ul>
+        <li>Si aggiorna da solo a ogni import dei cedolini e quando si corregge la voce RML; resta lo storico mese per mese.</li>
+        <li>La pagina <strong>Cedolini → Costo orario</strong> mostra il mese scelto con filtri per reparto e nome ed <strong>Esporta Excel</strong>; nella scheda del dipendente, tra le retribuzioni, ci sono gli ultimi 12 mesi.</li>
+        <li>I divisori (giorni del mese e ore al giorno) si cambiano in fondo alla pagina: <strong>Salva e ricalcola</strong> rifà tutti i mesi, anche i passati.</li>
+      </ul>
+      <div class="gpa-nota">È un dato retributivo: lo vede solo chi ha il permesso sui dati HR riservati, e ogni consultazione o esportazione va nel registro attività. Non compare nel Mansionario né in «Chiedi un report».</div>
     </section>
 
     <section class="fmd-panel gpa-sec" id="struttura-organizzativa">

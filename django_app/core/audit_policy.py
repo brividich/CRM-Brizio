@@ -78,6 +78,7 @@ METADATA_ONLY_MODELS: frozenset[str] = frozenset({
     "anagrafica.voceretributiva",
     "anagrafica.importazionecedolini",
     "anagrafica.saldocedolino",
+    "anagrafica.costoorariomensile",  # 27/10/2026: costo orario = RML ÷ 26 ÷ 6,66, dato economico
     "anagrafica.candidato",
     "anagrafica.candidatopunteggio",
     "anagrafica.candidatolog",

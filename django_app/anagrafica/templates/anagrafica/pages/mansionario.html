@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -115,6 +115,9 @@
         <select class="mns-sel" data-mns-f="persona" aria-label="Filtra per persona">
           <option value="">Tutte le persone</option>{% for p in filtri.persone %}<option value="{{ p.id }}">{{ p.nome }}{% if p.reparto %} · {{ p.reparto }}{% endif %}</option>{% endfor %}
         </select>
+        <select class="mns-sel" data-mns-f="classe" aria-label="Filtra per classificazione">
+          <option value="">Diretto e indiretto</option>{% for v, t in filtri.classi %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
+        </select>
         <div class="fmd-chips" role="group" aria-label="Filtra per tipo">
           <button type="button" class="fmd-chip fmd-on" data-mns-tipo="" aria-pressed="true">Tutte</button>
           <button type="button" class="fmd-chip" data-mns-tipo="macchina" aria-pressed="false">Macchine</button>
@@ -195,27 +198,28 @@
   function val(k){return sel[k]?sel[k].value:'';}
   function salva(){
     try{
-      var u=new URL(location.href),p={q:(q&&q.value||'').trim(),tipo:tipo,flag:flag,reparto:val('reparto'),area:val('area'),persona:val('persona')};
+      var u=new URL(location.href),p={q:(q&&q.value||'').trim(),tipo:tipo,flag:flag,reparto:val('reparto'),area:val('area'),persona:val('persona'),classe:val('classe')};
       Object.keys(p).forEach(function(k){if(p[k])u.searchParams.set(k,p[k]);else u.searchParams.delete(k);});
       history.replaceState(null,'',u);
     }catch(e){}
   }
   function applica(){
-    var testo=(q&&q.value||'').trim().toLowerCase(),rep=val('reparto'),area=val('area'),pid=val('persona'),tot=0;
-    var filtrando=!!(testo||tipo||flag||rep||area||pid),flagCard=GRUPPO[flag]?'':flag;
+    var testo=(q&&q.value||'').trim().toLowerCase(),rep=val('reparto'),area=val('area'),pid=val('persona'),cl=val('classe'),tot=0;
+    var filtrando=!!(testo||tipo||flag||rep||area||pid||cl),flagCard=GRUPPO[flag]?'':flag;
     box.querySelectorAll('[data-mns-gruppo]').forEach(function(g){
       var n=0,okG=!flag||!GRUPPO[flag]||(g.getAttribute('data-g-flag')||'').indexOf(' '+flag+' ')>=0;
       g.querySelectorAll('.fmd-cc').forEach(function(c){
         var t=c.getAttribute('data-tags')||'',ok=okG&&(!tipo||t.indexOf(' '+tipo+' ')>=0)&&(!flagCard||t.indexOf(' '+flagCard+' ')>=0)
           &&(!testo||(c.getAttribute('data-q')||'').indexOf(testo)>=0)
           &&(!rep||c.getAttribute('data-f-reparto')===rep)&&(!area||c.getAttribute('data-f-area')===area)
-          &&(!pid||(c.getAttribute('data-f-persone')||'').indexOf(' '+pid+' ')>=0);
+          &&(!pid||(c.getAttribute('data-f-persone')||'').indexOf(' '+pid+' ')>=0)
+          &&(!cl||(c.getAttribute('data-f-classi')||'').indexOf(' '+cl+' ')>=0);
         c.hidden=!ok;if(ok)n++;
       });
       // Il gruppo resta visibile anche senza schede se la persona cercata ha il ruolo.
-      var perChi=okG&&!tipo&&!flagCard&&!rep&&!area&&((pid&&(g.getAttribute('data-g-persone')||'').indexOf(' '+pid+' ')>=0)
+      var perChi=okG&&!tipo&&!flagCard&&!rep&&!area&&!cl&&((pid&&(g.getAttribute('data-g-persone')||'').indexOf(' '+pid+' ')>=0)
         ||(testo&&(g.getAttribute('data-g-q')||'').indexOf(testo)>=0));
-      var vis=n>0||!!perChi||(okG&&GRUPPO[flag]&&!testo&&!rep&&!area&&!pid&&!tipo);
+      var vis=n>0||!!perChi||(okG&&GRUPPO[flag]&&!testo&&!rep&&!area&&!pid&&!tipo&&!cl);
       g.hidden=!vis;g.querySelector('[data-mns-n]').textContent=n;
       var chi=g.querySelector('[data-mns-chi]');
       if(chi&&(perChi||GRUPPO[flag]))chi.open=true;
@@ -228,7 +232,7 @@
     box.querySelector('[data-mns-vuoto]').hidden=tot>0;
     var att=box.querySelector('[data-mns-attivo]'),parti=[];
     if(flag)parti.push(etichette[flag]);
-    ['reparto','area','persona'].forEach(function(k){if(val(k))parti.push(sel[k].options[sel[k].selectedIndex].text);});
+    ['reparto','area','persona','classe'].forEach(function(k){if(val(k))parti.push(sel[k].options[sel[k].selectedIndex].text);});
     att.hidden=!parti.length;
     if(parti.length)box.querySelector('[data-mns-attivo-testo]').textContent='Filtri: '+parti.join(' · ');
     document.querySelectorAll('[data-mns-flag]').forEach(function(b){var on=b.dataset.mnsFlag===flag;b.classList.toggle('mns-on',on);b.setAttribute('aria-pressed',String(on));});
@@ -251,7 +255,7 @@
     if(q&&u.searchParams.get('q'))q.value=u.searchParams.get('q');
     if(u.searchParams.get('tipo'))tipoChip(u.searchParams.get('tipo'));
     flag=u.searchParams.get('flag')||'';
-    ['reparto','area','persona'].forEach(function(k){if(sel[k]&&u.searchParams.get(k))sel[k].value=u.searchParams.get(k);});
+    ['reparto','area','persona','classe'].forEach(function(k){if(sel[k]&&u.searchParams.get(k))sel[k].value=u.searchParams.get(k);});
     if(u.search)applica();
   }catch(e){}
 })();

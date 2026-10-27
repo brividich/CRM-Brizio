@@ -19,7 +19,11 @@ GUIDA = {
                     "Indica la «Quantità» e, se serve, il motivo in «Motivazione / Note».",
                     "Clicca «Invia richiesta». Il numero della richiesta ha la forma DPI-anno-numero.",
                 ]),
-                ("p", "La richiesta passa per questi stati: creata → approvata → consegnata (oppure rifiutata o annullata)."),
+                ("p", "La richiesta passa per questi stati: inviata → approvata → pronta al ritiro → consegnata "
+                      "(oppure rifiutata o annullata)."),
+                ("p", "Quando il DPI è pronto ricevi una mail e una notifica nel portale: passa in magazzino a ritirarlo e firma la ricevuta."),
+                ("p", "Se sei un CAR o un preposto la tua richiesta (anche quella per un tuo dipendente) è approvata da sola e "
+                      "va subito al magazzino."),
                 ("p", "Finché non è approvata puoi ritirarla: apri la richiesta e clicca «Annulla richiesta»."),
             ],
         },
@@ -43,6 +47,8 @@ GUIDA = {
                     "Nel riquadro «Prima di decidere» guarda le consegne precedenti della persona e la media del reparto. "
                     "«Proponi con l'AI» suggerisce una decisione: è solo un consiglio.",
                     "Clicca «Approva» oppure «Rifiuta» (scrivi il motivo). Con «Aggiungi nota» lasci un commento.",
+                    "Il magazzino riceve la mail «Da consegnare», prepara il DPI e clicca «Pronto per il ritiro»: il dipendente "
+                    "riceve mail e notifica. «Avvisa di nuovo» ripete l'avviso.",
                     "Quando il DPI viene consegnato, il magazzino clicca «Registra consegna», fa firmare il dipendente "
                     "nel riquadro firma e salva. «Cancella firma» ripulisce il riquadro se serve rifarla.",
                 ]),
@@ -65,7 +71,8 @@ GUIDA = {
             "blocchi": [
                 ("p", "DPI → «Impostazioni». Il catalogo ha quattro livelli, dal generale al particolare:"),
                 ("def", [
-                    ("Categoria", "per esempio «Calzature». Ha l'icona, la vita utile in mesi e il flag «obbligatorio da mansionario». «+ Nuova categoria»."),
+                    ("Categoria", "per esempio «Calzature». Ha l'icona, la vita utile in mesi, il flag «obbligatorio da mansionario» e "
+                                  "«Alla consegna avvisa l'Amministrazione». «+ Nuova categoria»."),
                     ("Tipo", "sottocategoria, per esempio «Scarpe S3». «+ Nuovo tipo»."),
                     ("Modello", "prodotto preciso con codice, produttore e foto. Se ha una vita utile propria vince su quella della categoria. «+ Nuovo modello»."),
                     ("Taglia", "valore della taglia. «+ Nuova taglia»."),
@@ -83,11 +90,15 @@ GUIDA = {
                     "preposto dell'area. Se nessuno di loro ha un'email di notifica, va agli indirizzi di ripiego «dpi_car_emails».",
                     "Con la spunta «Email ai referenti (responsabili + email aggiuntive) per ogni nuova richiesta» la mail va "
                     "anche ai «Responsabili» e alle «Email notifiche aggiuntive» delle Impostazioni.",
-                    "Richiesta approvata: avviso di consegna a Magazzino e Amministrazione.",
-                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» a Magazzino e Amministrazione, così non "
-                    "consegnano.",
-                    "Consegna registrata: report all'Amministrazione con il PDF del modulo di consegna.",
-                    "Il dipendente riceve la notifica nel portale (campanella) ad approvazione, rifiuto e consegna.",
+                    "Richiesta di un CAR o di un preposto (per sé o per un suo dipendente): approvata da sola, nessuna mail «da approvare».",
+                    "Richiesta approvata: mail «Da consegnare» al Magazzino.",
+                    "«Pronto per il ritiro» (dal magazzino): mail e notifica nel portale al dipendente. Con la spunta «Avvisa il "
+                    "dipendente di ritirare il DPI subito all'approvazione» l'avviso parte già all'approvazione e il passaggio del "
+                    "magazzino non serve.",
+                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» al Magazzino, così non consegna.",
+                    "Consegna registrata: report con il PDF del modulo di consegna al responsabile/preposto del dipendente e, "
+                    "solo per le categorie con la spunta «Alla consegna avvisa l'Amministrazione», all'Amministrazione.",
+                    "Il dipendente riceve la notifica nel portale (campanella) ad approvazione, rifiuto, ritiro e consegna.",
                 ]),
                 ("p", "Gli indirizzi si scrivono in DPI → Impostazioni, uno per riga. Salva con «Salva impostazioni»."),
             ],

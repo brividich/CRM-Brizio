@@ -1,0 +1,138 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ nome }} · Classificazione e coefficienti | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=5">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_persona' legacy_id %}">{{ nome }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Coefficienti</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>{{ nome }}</h1>
+        <p class="fmd-ph-sub">Per ogni mansione: come la svolge (Diretto o Indiretto, su 1 turno o su 2 turni) e quanto pesa sul suo tempo. I coefficienti delle mansioni attive devono sommare <strong>1</strong>.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendente_detail' legacy_id %}#posizione-struttura">Scheda dipendente</a>
+        {% include "anagrafica/partials/_guida_persone_link.html" with ancora="coefficienti" %}
+      </div>
+    </div>
+
+    {% if stato.da_rivedere %}
+    <div class="fmd-alert" role="status">
+      <div class="fmd-alert-ic">!</div>
+      <div class="fmd-alert-body">
+        <div class="fmd-alert-t">Coefficienti da rivedere</div>
+        <div class="fmd-alert-m">Ripartiti in automatico ({{ stato.motivo|default:"mansioni cambiate" }}). Controllali e salva: l'avviso sparisce.</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if stato.turni_misti %}
+    <div class="fmd-alert" role="status">
+      <div class="fmd-alert-ic">!</div>
+      <div class="fmd-alert-body">
+        <div class="fmd-alert-t">Turni misti</div>
+        <div class="fmd-alert-m">Alcune mansioni sono su 1 turno e altre su 2 turni: di solito una persona lavora sempre sullo stesso numero di turni.</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Mansioni svolte <span class="fmd-count">{{ righe|length }}</span></div>
+        {% if stato.n %}
+        <form method="post" class="mcf-inline">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="uguale">
+          <button type="submit" class="fmd-btn fmd-btn-ghost" data-hub-confirm="Ripartire i coefficienti in parti uguali tra le {{ stato.n }} mansioni attive?">Ripartisci in parti uguali</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if righe %}
+      <form method="post" id="mcf-form">
+        {% csrf_token %}
+        <div class="mcf-prev">
+          <label for="mcf-prevalente">Classificazione prevalente</label>
+          <select id="mcf-prevalente" name="prevalente" class="mns-sel">
+            <option value="">—</option>
+            {% for k, v in classificazioni %}<option value="{{ k }}"{% if k == prevalente %} selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select>
+          <button type="button" class="fmd-btn fmd-btn-ghost" id="mcf-applica">Usala su tutte</button>
+          <span class="fmd-muted">Si propone da sola sulle mansioni che la persona riceve da qui in avanti.</span>
+        </div>
+        <div class="fmd-tablewrap" data-fm-table-skip="1">
+          <table class="fmd-table mcf-table">
+            <thead><tr><th>Mansione</th><th>Livello</th><th>Classificazione</th><th class="mcf-num">Coefficiente</th></tr></thead>
+            <tbody>
+              {% for r in righe %}
+              <tr{% if not r.conta %} class="mcf-off"{% endif %}>
+                <td data-label="Mansione"><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' r.ab.competenza.pk %}">{{ r.ab.competenza.nome }}</a>
+                  <div class="fmd-muted mcf-sub">{% if r.ruoli %}{{ r.ruoli }}{% endif %}{% if r.ab.competenza.area_id %}{% if r.ruoli %} · {% endif %}{{ r.ab.competenza.area.nome }}{% endif %}</div></td>
+                <td data-label="Livello"><span class="fmd-badge {% if r.ab.livello == 'O' or r.ab.livello == 'U' %}fmd-b-green{% elif r.ab.livello == 'L' %}fmd-b-orange{% else %}fmd-b-grey{% endif %}">{{ r.ab.livello }}</span>{% if not r.conta %} <span class="fmd-muted">sospesa</span>{% endif %}</td>
+                <td data-label="Classificazione">
+                  <select name="classe_{{ r.ab.pk }}" class="mns-sel mcf-classe" aria-label="Classificazione di {{ r.ab.competenza.nome }}">
+                    <option value="">—</option>
+                    {% for k, v in classificazioni %}<option value="{{ k }}"{% if k == r.classe %} selected{% endif %}>{{ v }}</option>{% endfor %}
+                  </select>
+                </td>
+                <td data-label="Coefficiente" class="mcf-num">
+                  {% if r.conta %}<input type="text" inputmode="decimal" name="coeff_{{ r.ab.pk }}" value="{{ r.coeff }}" class="mns-sel mcf-coeff" aria-label="Coefficiente di {{ r.ab.competenza.nome }}" autocomplete="off">
+                  {% else %}<span class="fmd-muted" title="Le mansioni sospese non contano">—</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot><tr><td colspan="3" class="mcf-tot-l">Totale</td><td class="mcf-num"><strong id="mcf-somma" aria-live="polite">—</strong></td></tr></tfoot>
+          </table>
+        </div>
+        <div class="mcf-azioni">
+          <span id="mcf-msg" class="fmd-muted" aria-live="polite"></span>
+          <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
+        </div>
+      </form>
+      {% else %}
+      <div class="fmd-muted">Nessuna mansione in lista: si assegnano dal Mansionario o dalla scheda del dipendente.</div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+<script>
+(function(){
+  var form = document.getElementById("mcf-form");
+  if (!form) return;
+  var campi = Array.prototype.slice.call(form.querySelectorAll(".mcf-coeff"));
+  var somma = document.getElementById("mcf-somma");
+  var msg = document.getElementById("mcf-msg");
+  function numero(v){ v = String(v || "").trim().replace(",", "."); if (v.slice(-1) === "%") return parseFloat(v) / 100; return parseFloat(v); }
+  function aggiorna(){
+    var tot = 0, vuoti = 0;
+    campi.forEach(function(c){ var n = numero(c.value); if (isNaN(n)) { vuoti++; } else { tot += n; } });
+    somma.textContent = tot.toFixed(4).replace(".", ",");
+    var ok = !vuoti && Math.abs(tot - 1) <= 0.001;
+    somma.className = ok ? "mcf-ok" : "mcf-ko";
+    if (!campi.length) { msg.textContent = ""; }
+    else if (vuoti) { msg.textContent = "Manca il coefficiente di " + vuoti + " mansion" + (vuoti === 1 ? "e" : "i") + "."; }
+    else if (!ok) { var d = 1 - tot; msg.textContent = (d > 0 ? "Mancano " : "Avanzano ") + Math.abs(d).toFixed(4).replace(".", ",") + " per arrivare a 1."; }
+    else { msg.textContent = "La somma fa 1."; }
+  }
+  campi.forEach(function(c){ c.addEventListener("input", aggiorna); });
+  aggiorna();
+  var applica = document.getElementById("mcf-applica");
+  applica.addEventListener("click", function(){
+    var v = document.getElementById("mcf-prevalente").value;
+    if (!v) return;
+    form.querySelectorAll(".mcf-classe").forEach(function(s){ s.value = v; });
+  });
+})();
+</script>
+{% endblock %}

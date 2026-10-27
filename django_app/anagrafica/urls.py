@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_coefficienti
 from . import views_mpq
 from . import views_recruiting
 from . import views_reportistica
@@ -328,6 +329,8 @@ urlpatterns = [
     # Voci retributive — vista globale pivot dipendente+mese × pay_item + export
     path("retribuzioni/globale/", views.retribuzioni_globale, name="retribuzioni_globale"),
     path("retribuzioni/globale/export.xlsx", views.retribuzioni_globale_export, name="retribuzioni_globale_export"),
+    path("retribuzioni/costo-orario/", views_coefficienti.costo_orario, name="costo_orario"),
+    path("retribuzioni/costo-orario/export.xlsx", views_coefficienti.costo_orario_export, name="costo_orario_export"),
     path("dipendenti/<int:legacy_id>/retribuzioni/", views.dipendente_retribuzioni, name="dipendente_retribuzioni"),
     path("dipendenti/<int:legacy_id>/retribuzioni/export.xlsx",
          views.dipendente_retribuzioni_export_xlsx, name="dipendente_retribuzioni_export_xlsx"),
@@ -388,6 +391,8 @@ urlpatterns = [
     path("mansionario/<int:mansione_id>/valuta/<int:abilitazione_id>/", views_mansionario.mansionario_valuta,
          name="mansionario_valuta"),
     path("mansionario/persona/<int:legacy_id>/", views_mansionario.mansionario_persona, name="mansionario_persona"),
+    path("mansionario/persona/<int:legacy_id>/coefficienti/", views_coefficienti.mansioni_coefficienti,
+         name="mansioni_coefficienti"),
     path("mansionario/lacune/", views_mansionario.mansionario_lacune, name="mansionario_lacune"),
     path("mansionario/regole/", views_mansionario.mansionario_regole, name="mansionario_regole"),
     path("mansionario/competenze/", views_mansionario.mansionario_catalogo, name="mansionario_catalogo"),

@@ -83,6 +83,17 @@ def _mansioni_di(alias: dict[int, int]) -> dict[int, list]:
     return out
 
 
+def _coeff(valore) -> str:
+    return "" if valore is None else f"{valore:.4f}".replace(".", ",")
+
+
+def _classe_principale(abilitazioni) -> str:
+    """La classificazione più usata tra le mansioni attive della persona."""
+    conta = Counter(ab.get_classificazione_display() for ab in abilitazioni
+                    if ab.classificazione and ab.stato == "attiva")
+    return conta.most_common(1)[0][0] if conta else ""
+
+
 def _perimetro_ristretto(ctx: Contesto) -> bool:
     per = ctx.perimetro
     return bool(per.reparti or per.aree or per.mansioni or per.contratti or per.livelli or per.persone
@@ -142,6 +153,8 @@ def _ruoli_mansioni_persona(ctx: Contesto, o: dict) -> Risultato:
                     "livello": f"{ab.livello} · {LIVELLI.get(ab.livello, '')}" if ab.livello else "",
                     "operativa": "Sì" if ab.is_operativa(soglia) else "No",
                     "n_mansioni": len(sue), "operative": operative, "capo": capo_nome,
+                    "classificazione": ab.get_classificazione_display() if ab.classificazione else "",
+                    "coefficiente": _coeff(ab.coefficiente),
                     "avvisi": "non prevista dai suoi ruoli" if ab in fuori else "",
                 }, TONE_WARN if ab in fuori else "")
             continue
@@ -150,6 +163,7 @@ def _ruoli_mansioni_persona(ctx: Contesto, o: dict) -> Risultato:
             "ruoli": ", ".join(a.ruolo.nome for a in suoi_ruoli),
             "mansione": "; ".join(f"{ab.competenza.nome} ({ab.livello or '—'})" for ab in sue),
             "livello": "", "operativa": "", "n_mansioni": len(sue), "operative": operative, "capo": capo_nome,
+            "classificazione": _classe_principale(sue), "coefficiente": "",
             "avvisi": ", ".join(avvisi),
         }, tono)
     res.kpis = [
@@ -173,11 +187,12 @@ _registra(Sezione(
     riferimenti=(f"{ISO_9001} §5.3", f"{ISO_9001} §7.2", f"{EN_9100} §7.2"),
     colonne=(("nominativo", "Nominativo"), ("reparto", "Reparto"), ("area", "Area aziendale"), ("ruoli", "Ruoli"),
              ("mansione", "Mansioni"), ("livello", "Livello"), ("operativa", "Operativa"),
-             ("n_mansioni", "N. mansioni"), ("operative", "Operative"), ("capo", "Capo"), ("avvisi", "Da sistemare")),
+             ("n_mansioni", "N. mansioni"), ("operative", "Operative"), ("capo", "Capo"),
+             ("classificazione", "Classificazione"), ("coefficiente", "Coefficiente"), ("avvisi", "Da sistemare")),
     predefinite=("nominativo", "reparto", "ruoli", "mansione", "capo", "avvisi"),
     opzioni=(
         Opzione("una_riga_per", "Una riga per", SCELTA, (("persona", "Persona"), ("mansione", "Persona e mansione")),
-                "persona", aiuto="«Persona e mansione» riempie anche le colonne Livello e Operativa."),
+                "persona", aiuto="«Persona e mansione» riempie anche Livello, Operativa e Coefficiente."),
         Opzione("ruoli", "Solo chi ha questi ruoli", MULTI, _scelte_ruoli, aiuto="Nessuno = tutti."),
         Opzione("solo_disallineati", "Solo chi ha qualcosa da sistemare", SI_NO, predefinito=False,
                 aiuto="Senza ruolo, senza mansioni o con mansioni non previste dai suoi ruoli."),
@@ -424,5 +439,99 @@ _registra(Sezione(
         Opzione("mostra_nomi", "Riempi la colonna Persone con i nomi", SI_NO, predefinito=True),
         Opzione("solo_perimetro", "Con un perimetro: solo mansioni con persone del perimetro", SI_NO,
                 predefinito=True),
+    ),
+))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Classificazione e coefficienti (ottobre 2026)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _scelte_classificazione():
+    from anagrafica.services.mansioni_coefficienti import CLASSIFICAZIONI
+
+    return (("", "Tutte"), *CLASSIFICAZIONI.items(), ("-", "Non classificate"))
+
+
+def _classificazione_coefficienti(ctx: Contesto, o: dict) -> Risultato:
+    from anagrafica.services import mansioni_coefficienti as coeff
+
+    res = Risultato()
+    persone, alias = _per_persona(ctx)
+    mansioni = _mansioni_di(alias)
+    stati = coeff.stati(list(alias))
+    filtro = o["classificazione"]
+    per_classe: Counter = Counter()
+    n_ko = n_rivedere = n_misti = 0
+    for pid, p in sorted(persone.items(), key=lambda kv: kv[1].nominativo.casefold()):
+        sue = [ab for ab in mansioni.get(pid, []) if ab.stato == "attiva"]
+        if not sue:
+            continue
+        st = next((stati[i] for i in p.tutti_gli_id if i in stati and stati[i]["n"]), None) or stati.get(pid, {})
+        avvisi = []
+        if not st.get("in_regola", True):
+            avvisi.append("la somma non fa 1")
+            n_ko += 1
+        if st.get("da_rivedere"):
+            avvisi.append("da rivedere")
+            n_rivedere += 1
+        if st.get("turni_misti"):
+            avvisi.append("turni misti")
+            n_misti += 1
+        for ab in sue:
+            per_classe[ab.classificazione or "-"] += 1
+        if o["solo_da_controllare"] and not avvisi:
+            continue
+        scelte = [ab for ab in sue if not filtro or (ab.classificazione or "-") == filtro]
+        if not scelte:
+            continue
+        tono = TONE_DANGER if "la somma non fa 1" in avvisi else (TONE_WARN if avvisi else "")
+        if o["una_riga_per"] == "mansione":
+            for ab in scelte:
+                res.riga({
+                    "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area,
+                    "mansione": ab.competenza.nome,
+                    "classificazione": ab.get_classificazione_display() if ab.classificazione else "",
+                    "coefficiente": _coeff(ab.coefficiente), "somma": _coeff(st.get("somma")),
+                    "n_mansioni": len(sue), "avvisi": ", ".join(avvisi),
+                }, tono)
+            continue
+        res.riga({
+            "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area,
+            "mansione": "; ".join(f"{ab.competenza.nome} ({ab.classificazione or '—'}, {_coeff(ab.coefficiente) or '—'})"
+                                  for ab in scelte),
+            "classificazione": _classe_principale(sue), "coefficiente": "", "somma": _coeff(st.get("somma")),
+            "n_mansioni": len(sue), "avvisi": ", ".join(avvisi),
+        }, tono)
+    etichette = dict(coeff.CLASSIFICAZIONI, **{"-": "Non classificate"})
+    res.kpis = [
+        Kpi("Somma diversa da 1", n_ko, TONE_DANGER if n_ko else TONE_OK),
+        Kpi("Da rivedere", n_rivedere, TONE_WARN if n_rivedere else TONE_OK),
+        Kpi("Turni misti", n_misti, TONE_WARN if n_misti else TONE_OK),
+        *(Kpi(etichette[k], per_classe[k]) for k in (*coeff.CLASSIFICAZIONI, "-") if per_classe[k]),
+    ]
+    res.note = [f"Situazione al {ctx.today:%d/%m/%Y}: mansioni in lista e attive nel Mansionario.",
+                "D = diretto, I = indiretto; 1T = un turno, 2T = due turni. I coefficienti di una persona "
+                "sommano 1; «da rivedere» = ripartiti in automatico dopo un cambio di mansioni."]
+    return res
+
+
+_registra(Sezione(
+    key="classificazione_coefficienti",
+    titolo="Classificazione e coefficienti delle mansioni",
+    gruppo=GRUPPO_PERSONE,
+    descrizione="Per persona: Diretto/Indiretto 1T/2T e coefficiente di ogni mansione, con la somma e cosa non torna.",
+    builder=_classificazione_coefficienti,
+    riferimenti=(f"{ISO_9001} §7.1.2",),
+    colonne=(("nominativo", "Nominativo"), ("reparto", "Reparto"), ("area", "Area aziendale"),
+             ("mansione", "Mansioni"), ("classificazione", "Classificazione"), ("coefficiente", "Coefficiente"),
+             ("somma", "Somma"), ("n_mansioni", "N. mansioni"), ("avvisi", "Da sistemare")),
+    predefinite=("nominativo", "reparto", "mansione", "classificazione", "coefficiente", "avvisi"),
+    opzioni=(
+        Opzione("una_riga_per", "Una riga per", SCELTA, (("persona", "Persona"), ("mansione", "Persona e mansione")),
+                "mansione"),
+        Opzione("classificazione", "Classificazione", SCELTA, _scelte_classificazione, ""),
+        Opzione("solo_da_controllare", "Solo chi ha qualcosa da sistemare", SI_NO, predefinito=False,
+                aiuto="Somma diversa da 1, da rivedere o turni misti."),
     ),
 ))

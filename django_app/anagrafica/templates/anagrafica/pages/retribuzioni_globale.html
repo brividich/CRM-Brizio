@@ -104,6 +104,7 @@ body.theme-dark .rg-page-btn:hover{background:var(--surface-alt,#0f1b2d)}
           <div class="fmd-hero-actions">
             {% if is_admin %}<a class="fmd-btn-template" href="#importazione"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa retribuzioni</a>{% endif %}
             <a class="fmd-btn-template" href="{% url 'anagrafica:ratei_list' %}"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Ferie e permessi</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:costo_orario' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Costo orario</a>
           </div>
         </div>
         <div class="fmd-hero-side">

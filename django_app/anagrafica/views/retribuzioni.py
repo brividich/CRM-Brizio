@@ -156,6 +156,10 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             scarti.append({"riga": n_riga, "chiave": tax_code, "motivo": "Importo o data non validi"})
 
     VoceRetributiva.objects.bulk_create(voci_to_create)
+    # bulk_create non manda segnali: il costo orario dei mesi importati si rifà qui.
+    from ..services.costo_orario import ricalcola as ricalcola_costo_orario
+
+    ricalcola_costo_orario(mesi={v.data_competenza for v in voci_to_create})
     importazione.righe_ok = ok
     importazione.righe_errore = err
     importazione.scarti = scarti[:2000]

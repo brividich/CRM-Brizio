@@ -447,14 +447,53 @@ GUIDA = {
                 ("passi", [
                     "Inserimento massivo da Excel: «Scarica le assegnazioni di oggi» o «Scarica il modello vuoto».",
                     "Foglio «Ruoli persone»: ID persona (o nome), Ruolo, Dal, Azione (vuota/AGGIUNGI o CHIUDI). Foglio "
-                    "«Mansioni persone»: ID persona (o nome), Chiave mansione (o nome), Livello, Azione (vuota/ASSEGNA "
-                    "o TOGLI).",
+                    "«Mansioni persone»: ID persona (o nome), Chiave mansione (o nome), Livello, Classificazione "
+                    "(D1T, D2T, I1T, I2T), Coefficiente, Azione (vuota/ASSEGNA o TOGLI). Classificazione e "
+                    "coefficiente vuoti non si cambiano; i coefficienti di una persona devono sommare 1, se no le sue "
+                    "righe si scartano.",
                     "«Carica e prova»: righe nuove, modificate, invariate e scartate con il motivo, senza salvare. "
                     "«Applica» registra le buone. Ruoli e mansioni devono già esistere; un file ricaricato tale e quale "
                     "non cambia niente.",
                 ]),
                 ("nota", "Un ruolo di un altro organigramma (per esempio ISO 45001) non diventa il ruolo principale: "
                          "si aggiunge con «Aggiungi il ruolo»."),
+            ],
+        },
+        {
+            "id": "coefficienti",
+            "titolo": "Classificazione e coefficienti delle mansioni",
+            "blocchi": [
+                ("p", "Su ogni mansione svolta da una persona: classificazione «Diretto 1T», «Diretto 2T», «Indiretto "
+                      "1T», «Indiretto 2T» (1T = un turno, 2T = due turni) e coefficiente, cioè quanto pesa sul suo "
+                      "tempo. Le mansioni in lista e attive di una persona sommano sempre 1; le sospese non contano."),
+                ("passi", [
+                    "Scheda del dipendente → «Ruolo e competenze» → «Classificazione e coefficienti →».",
+                    "«Classificazione prevalente» (con «Usala su tutte» la copi su ogni riga): si propone da sola "
+                    "sulle mansioni nuove.",
+                    "Coefficienti come 0,25 o 25%: il totale si vede sotto la tabella. «Salva» solo se la somma fa 1 "
+                    "(tolleranza 0,001); «Ripartisci in parti uguali» divide 1 per il numero di mansioni.",
+                ]),
+                ("nota", "Mansione aggiunta o tolta: i coefficienti si ripartiscono da soli (la nuova 1/n, le altre "
+                         "in proporzione) e la persona è «da rivedere» finché qualcuno non salva. 1T e 2T sulla "
+                         "stessa persona = «turni misti» (avviso). Nel Mansionario il filtro «Diretto e indiretto»; "
+                         "in blocco ed Excel la colonna «Classificazione» e «Coefficiente»."),
+            ],
+        },
+        {
+            "id": "costo-orario",
+            "titolo": "Costo orario",
+            "blocchi": [
+                ("p", "Per dipendente e mese: RML ÷ 26 ÷ 6,66 (= RML ÷ 173,16). L'RML è la voce «RML» dei cedolini "
+                      "dello studio paghe: per ogni mese vale l'import più recente, la correzione manuale di HR vince."),
+                ("passi", [
+                    "Cedolini → «Costo orario»: mese, reparto, ricerca ed «Esporta Excel».",
+                    "Scheda del dipendente, retribuzioni: ultimi 12 mesi con il calcolo.",
+                    "In fondo alla pagina «Divisori»: «Salva e ricalcola» rifà tutti i mesi; «Ricalcola tutto» senza "
+                    "cambiarli.",
+                ]),
+                ("nota", "Si aggiorna da solo a ogni import dei cedolini e quando si corregge la voce RML. Dato "
+                         "retributivo: solo con il permesso sui dati HR riservati; consultazioni ed esportazioni "
+                         "vanno nel registro attività."),
             ],
         },
         {
@@ -476,9 +515,14 @@ GUIDA = {
                                                  "«nessun titolare» per le responsabilità). Opzioni: tipo (macchine, "
                                                  "processi, solo responsabilità), ruoli, nomi sì/no."),
                     ("Ruoli e mansioni per persona", "una riga per persona (o per persona e mansione) con ruoli, "
-                                                     "mansioni e livello, capo e cosa non torna: senza ruolo, senza "
-                                                     "mansioni, mansioni non previste dai suoi ruoli. Opzione «Solo "
-                                                     "chi ha qualcosa da sistemare»."),
+                                                     "mansioni e livello, classificazione e coefficiente, capo e cosa "
+                                                     "non torna: senza ruolo, senza mansioni, mansioni non previste "
+                                                     "dai suoi ruoli. Opzione «Solo chi ha qualcosa da sistemare»."),
+                    ("Classificazione e coefficienti delle mansioni", "per persona (o persona e mansione) Diretto/"
+                                                                      "Indiretto 1T/2T, coefficiente e somma; avvisi "
+                                                                      "«la somma non fa 1», «da rivedere», «turni "
+                                                                      "misti». Opzioni: classificazione, solo chi ha "
+                                                                      "qualcosa da sistemare."),
                 ]),
                 ("nota", "Stessa regola di «Reparti, aree e capi» e del Mansionario: i numeri del report e delle "
                          "pagine coincidono."),

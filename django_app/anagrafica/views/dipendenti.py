@@ -1585,6 +1585,13 @@ def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
         return {"posizione": None}
 
 
+def _costo_orario_storico(legacy_id: int, civile) -> list:
+    """Ultimi 12 mesi di costo orario (solo per chi ha il permesso HR)."""
+    from ..services.costo_orario import storico
+
+    return storico(legacy_id, tax_code=(civile.codice_fiscale or "") if civile else "")
+
+
 @login_required
 def dipendente_detail(request, legacy_id: int):
     ensure_anagrafica_schema()
@@ -2327,6 +2334,7 @@ def dipendente_detail(request, legacy_id: int):
         "assets_reparto": assets_reparto,
         "reparti_capo": reparti_capo,
         "retribuzioni_latest": retribuzioni_latest,
+        "costo_orario_storico": _costo_orario_storico(legacy_id, civile) if can_hr else [],
         "retribuzioni_fissi": retribuzioni_fissi,
         "retribuzioni_variabili": retribuzioni_variabili,
         "retribuzioni_totali": retribuzioni_totali,
