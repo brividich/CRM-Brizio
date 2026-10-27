@@ -133,6 +133,10 @@ def _opzioni_generali(colonne: tuple[tuple[str, str], ...]) -> tuple[Opzione, ..
     return tuple(generali)
 
 
+class Importo(Decimal):
+    """Importo in euro: due decimali a video e in Excel (gli altri Decimal ne hanno uno)."""
+
+
 @dataclass
 class Risultato:
     kpis: list[Kpi] = field(default_factory=list)
@@ -164,6 +168,8 @@ class Sezione:
     usa_periodo: bool = False
     # Colonne decise dai dati (matrici, report conformità): niente scelta colonne.
     colonne_dinamiche: bool = False
+    # Fuori da «Chiedi un report» (dati retributivi): solo nei modelli a blocchi.
+    in_chat: bool = True
 
     def consentita(self, request) -> bool:
         return self.permesso is None or bool(self.permesso(request))
@@ -1533,6 +1539,7 @@ def _ensure_loaded() -> None:
         return
     _caricato = True
     from . import sezioni_struttura  # noqa: F401  (ruoli, mansioni e capi: si registrano all'import)
+    from . import sezioni_costi  # noqa: F401  (costo orario, solo HR)
     try:
         _sezioni_conformita()
     except Exception:

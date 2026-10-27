@@ -499,9 +499,25 @@ GUIDA = {
                     "solo per chi ha il permesso HR.",
                     "In fondo alla pagina «Divisori»: «Salva e ricalcola» rifà tutti i mesi; «Ricalcola tutto» senza "
                     "cambiarli.",
+                    "«Report» (o Reportistica → modello pronto «Costo orario del personale», Excel o PDF): andamento "
+                    "nel periodo, anche per reparto; ripartizione per classificazione e per mansione; costo per persona.",
+                ]),
+                ("def", [
+                    ("Costo orario per persona", "mese a scelta, RML, giorni, ore, costo, mese prima e variazione € e %, "
+                                                 "«RML da» cedolino o a mano; opzione «Anche chi è in forza senza RML "
+                                                 "nel mese»."),
+                    ("Costo orario per mansione e classificazione", "una riga per classificazione, mansione, reparto o "
+                                                                    "area; ogni persona pesa 1 divisa con i "
+                                                                    "coefficienti: «Teste equivalenti», costo medio "
+                                                                    "pesato, «RML ripartita», «Quota RML»; chi non ha "
+                                                                    "coefficienti va in «Senza mansioni»."),
+                    ("Andamento del costo orario", "una riga per mese del periodo (tutta l'azienda, reparto, area o "
+                                                   "classificazione prevalente): media, minimo, massimo, variazione sul "
+                                                   "mese prima, RML totale; arancione oltre la soglia (di serie 3%)."),
                 ]),
                 ("nota", "Si aggiorna da solo a ogni import dei cedolini e quando si corregge la voce RML. Dato "
-                         "retributivo: solo con il permesso sui dati HR riservati; consultazioni ed esportazioni "
+                         "retributivo: solo con il permesso sui dati HR riservati (senza, le sezioni del report "
+                         "risultano «Sezione omessa»; mai in «Chiedi un report»); consultazioni ed esportazioni "
                          "vanno nel registro attività."),
             ],
         },

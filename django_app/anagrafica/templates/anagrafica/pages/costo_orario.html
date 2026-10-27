@@ -35,6 +35,7 @@
             <a class="fmd-btn-template" href="{% url 'anagrafica:retribuzioni_globale' %}"><svg class="fmd-ico"><use href="#i-coins"/></svg>Cedolini</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:ratei_list' %}"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Ferie e permessi</a>
             <a class="fmd-btn-template" href="#divisori"><svg class="fmd-ico"><use href="#i-gear"/></svg>Divisori</a>
+            {% if report_costi %}<a class="fmd-btn-template" href="{% url 'anagrafica:reportistica_genera' report_costi %}" title="Modello «Costo orario del personale» della Reportistica: PDF o Excel"><svg class="fmd-ico"><use href="#i-doc"/></svg>Report</a>{% endif %}
             <a class="fmd-btn-template" href="{% url 'guida_modulo' 'anagrafica' %}#costo-orario" title="Come funziona questa pagina">? Guida</a>
           </div>
         </div>

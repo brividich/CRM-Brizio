@@ -170,6 +170,27 @@ MODELLI += [
             {"tipo": "SEZIONE", "sezione": "ruoli_mansioni_persona"},
         ],
     },
+    {
+        "codice_sistema": "costo_personale",
+        "nome": "Costo orario del personale",
+        "descrizione": "Solo HR. Andamento del costo orario nel periodo, ripartizione per classificazione e per "
+                       "mansione con i coefficienti, costo orario per persona dell'ultimo mese.",
+        "titolo_documento": "Costo orario del personale",
+        "sottotitolo": "Periodo {{periodo}} · situazione al {{oggi}}",
+        "riservatezza": "DATI_PERSONALI",
+        "periodo_tipo": "ULTIMI_12_MESI",
+        "formato_predefinito": "xlsx",
+        "blocchi": [
+            {"tipo": "SEZIONE", "sezione": "costo_orario_andamento"},
+            {"tipo": "SEZIONE", "sezione": "costo_orario_andamento", "titolo": "Andamento per reparto",
+             "opzioni": {"valori": {"per": "reparto", "raggruppa_per": "gruppo"}}},
+            {"tipo": "SEZIONE", "sezione": "costo_orario_ripartito"},
+            {"tipo": "SEZIONE", "sezione": "costo_orario_ripartito", "titolo": "Per mansione",
+             "opzioni": {"valori": {"per": "mansione"}}},
+            {"tipo": "SEZIONE", "sezione": "costo_orario_persone",
+             "opzioni": {"valori": {"mostra_mancanti": True}}},
+        ],
+    },
 ]
 
 

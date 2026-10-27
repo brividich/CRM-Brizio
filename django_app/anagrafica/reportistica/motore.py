@@ -88,6 +88,8 @@ def fmt(valore) -> str:
         return timezone.localtime(valore).strftime("%d/%m/%Y %H:%M") if timezone.is_aware(valore) else valore.strftime("%d/%m/%Y %H:%M")
     if isinstance(valore, date):
         return valore.strftime("%d/%m/%Y")
+    if isinstance(valore, catalogo.Importo):
+        return f"{valore:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     if isinstance(valore, (Decimal, float)):
         testo = f"{Decimal(str(valore)).quantize(Decimal('0.1'))}"
         return testo[:-2] if testo.endswith(".0") else testo.replace(".", ",")
@@ -697,6 +699,8 @@ def render_xlsx(doc: Documento) -> bytes:
                     c.border = bordo
                     if isinstance(valore, date):
                         c.number_format = "DD/MM/YYYY"
+                    elif isinstance(valore, catalogo.Importo):
+                        c.number_format = "#,##0.00"
                     elif isinstance(valore, (Decimal, float)):
                         c.number_format = "0.0"
                     if e.matrice and j > 2:
