@@ -266,7 +266,7 @@ Finché AU-GAP1 non è fatto, AU42 si implementa nella versione "notifica al cam
 | au42_anomalia_avanzamento_cambiato_notifica | AU42 (per campo) | validato, da importare |
 | au43_anomalia_chiusa_conferma_autore | AU43 | validato, da importare |
 | au13_ferie_lunghe_doppia_approvazione | AU13 (doppia firma) | validato, da importare |
-| au14_dpi_approvazione_caporeparto_magazzino | AU14 | validato, da importare |
+| au14_dpi_approvazione_caporeparto_magazzino | AU14 | SUPERATO: flusso nativo in `dpi/flusso.py` (27/10/2026), NON importare |
 | au6_offboarding_checklist_notifiche | AU6 (solo notifiche) | validato, da importare |
 | au3_incidente_approvazione_rls_rspp | AU3 (doppia firma) | validato, da importare |
 | au8_guasto_ricorrente_arricchimento | AU8 | validato, da importare |

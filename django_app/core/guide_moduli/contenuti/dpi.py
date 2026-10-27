@@ -99,8 +99,13 @@ GUIDA = {
                     "Consegna registrata: report con il PDF del modulo di consegna al responsabile/preposto del dipendente e, "
                     "solo per le categorie con la spunta «Alla consegna avvisa l'Amministrazione», all'Amministrazione.",
                     "Il dipendente riceve la notifica nel portale (campanella) ad approvazione, rifiuto, ritiro e consegna.",
+                    "Ogni mattina feriale alle 07:00 il riepilogo (regola AU51) elenca le richieste DPI ancora da approvare: lo "
+                    "ricevono il caporeparto e chi le deve approvare (responsabile dell'area, preposto).",
+                    "Nuovo assunto con mansione che richiede DPI: mail «Da distribuire» al Magazzino e «Controllo uso» al suo "
+                    "CAR/preposto.",
                 ]),
-                ("p", "Gli indirizzi si scrivono in DPI → Impostazioni, uno per riga. Salva con «Salva impostazioni»."),
+                ("p", "Gli indirizzi si scrivono in DPI → Impostazioni, uno per riga. Salva con «Salva impostazioni». "
+                      "L'intero ciclo è l'automazione AU14 del modulo Automazioni (flussi «managed-dpi_…»)."),
             ],
         },
         {
