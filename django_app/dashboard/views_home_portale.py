@@ -115,6 +115,56 @@ _MODULE_CATALOG: list[dict] = [
 ]
 
 
+# Tessera → moduli del registro permessi (core.permessi). Con il sistema dei ruoli
+# attivo la tessera si vede se un ruolo della persona concede «vedere» su almeno
+# uno di questi moduli. Tessera senza voce = solo amministratori.
+_MODULE_PERMESSI: dict[str, tuple[str, ...]] = {
+    "anomalie":        ("anomalie",),
+    "ticket":          ("ticket_it", "ticket_manutenzione"),
+    "task":            ("kickoff",),
+    "diario":          ("diario_preposto",),
+    "incidenti":       ("rilevazione_incidenti",),
+    "procedure":       ("procedure",),
+    "anagrafica":      ("anagrafica",),
+    "assenze":         ("assenze",),
+    "timbri":          ("timbri",),
+    "formazione":      ("formazione",),
+    "dpi":             ("dpi",),
+    "sicurezza":       ("visite_mediche",),
+    "notizie":         ("notizie",),
+    "asset":           ("assets",),
+    "planimetria":     ("planimetria",),
+    "fornitori":       ("fornitori",),
+    "monitoring":      ("piattaforma",),
+    "rentri":          ("rentri",),
+    "automazioni":     ("automazioni",),
+    "ai":              ("assistente_ai",),
+    "hubtools":        ("piattaforma",),
+    "admin":           ("gestione_utenti",),
+    "permessi":        ("gestione_utenti",),
+    "contatori":       ("contatori",),
+    "security_center": ("soc",),
+}
+
+
+def _mod_visibile_da_ruoli(request, mod: dict, is_admin: bool) -> bool:
+    if is_admin:
+        return True
+    from core.permessi.motore import puo_fare
+
+    return any(puo_fare(request, chiave, "vedere") for chiave in _MODULE_PERMESSI.get(mod["id"], ()))
+
+
+def _sistema_ruoli_attivo() -> bool:
+    try:
+        from core.permessi.motore import sistema_ruoli_attivo
+
+        return sistema_ruoli_attivo()
+    except Exception:
+        logger.exception("Home: stato del sistema dei ruoli non leggibile")
+        return False
+
+
 def _build_accessible_set(request) -> set[str]:
     """Slug set derivato dai pulsanti visibili all'utente — usato per ACL del module hub."""
     pulsanti = _visible_pulsanti_for_request(request)
@@ -178,6 +228,30 @@ def _priority_kpis(request, tile_kpis: dict | None = None) -> list[dict]:
     ]
 
 
+_TUTTI = object()
+
+
+def _ambito_kpi(request_user, is_admin: bool, chiave: str):
+    """Di chi sono i dati che la tessera può contare.
+
+    ``_TUTTI`` = tutta l'azienda (admin, sistema dei ruoli spento, ruolo con
+    visibilità «tutti»); altrimenti l'insieme degli ``utenti.id`` visibili
+    (sé stesso, più il team con «team»). Insieme vuoto = nessun dato.
+    """
+    if is_admin or request_user is None or not _sistema_ruoli_attivo():
+        return _TUTTI
+    from core.permessi.motore import utenti_visibili
+
+    ids = utenti_visibili(request_user, chiave, "vedere")
+    return _TUTTI if ids is None else ids
+
+
+def _user_ids_da_legacy(legacy_ids) -> list[int]:
+    from core.models import Profile
+
+    return list(Profile.objects.filter(legacy_user_id__in=list(legacy_ids)).values_list("user_id", flat=True))
+
+
 def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     """Multi-KPI per tile. Returns dict[module_id, list[{value, unit, tone}]].
     Tutte le query sono lightweight e avvolte in try/except — un errore non blocca la home."""
@@ -233,10 +307,14 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     # ── DIARIO PREPOSTO ───────────────────────────────────────────────
     try:
         from diario_preposto.models import SegnalazionePreposto
+        qs_diario = SegnalazionePreposto.objects.all()
+        ambito = _ambito_kpi(request_user, is_admin, "diario_preposto")
+        if ambito is not _TUTTI:
+            qs_diario = qs_diario.filter(creato_da_id__in=_user_ids_da_legacy(ambito))
         out["diario"] = [
-            {"value": SegnalazionePreposto.objects.filter(data_segnalazione__date=today).count(),
+            {"value": qs_diario.filter(data_segnalazione__date=today).count(),
              "unit": "oggi", "tone": "info"},
-            {"value": SegnalazionePreposto.objects.filter(data_segnalazione__date__gte=week_ago).count(),
+            {"value": qs_diario.filter(data_segnalazione__date__gte=week_ago).count(),
              "unit": "questa settimana", "tone": "warning"},
         ]
     except Exception:
@@ -245,8 +323,12 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     # ── INCIDENTI ─────────────────────────────────────────────────────
     try:
         from rilevazione_incidenti.models import RilevazioneIncidente
-        aperti = RilevazioneIncidente.objects.filter(chiusura_rspp=False).count()
-        anno = RilevazioneIncidente.objects.filter(
+        qs_inc = RilevazioneIncidente.objects.all()
+        ambito = _ambito_kpi(request_user, is_admin, "rilevazione_incidenti")
+        if ambito is not _TUTTI:
+            qs_inc = qs_inc.filter(segnalato_da_legacy_id__in=list(ambito))
+        aperti = qs_inc.filter(chiusura_rspp=False).count()
+        anno = qs_inc.filter(
             data_segnalazione__date__gte=year_start
         ).count()
         out["incidenti"] = [
@@ -259,9 +341,11 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     # ── PROCEDURE REFRESH ─────────────────────────────────────────────
     try:
         from procedure_refresh.models import ProcedureAssignment, ProcedureCampaign
-        da_rivedere = ProcedureAssignment.objects.filter(
-            status__in=["assigned", "overdue"]
-        ).count()
+        qs_proc = ProcedureAssignment.objects.filter(status__in=["assigned", "overdue"])
+        ambito = _ambito_kpi(request_user, is_admin, "procedure")
+        if ambito is not _TUTTI:
+            qs_proc = qs_proc.filter(user_id__in=_user_ids_da_legacy(ambito))
+        da_rivedere = qs_proc.count()
         campagne = ProcedureCampaign.objects.filter(status="published").count()
         out["procedure"] = [
             {"value": da_rivedere, "unit": "da rivedere", "tone": "warning"},
@@ -433,12 +517,21 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     except Exception:
         logger.exception("Home: riquadro «Pulsanti» non calcolato")
 
+    # Moduli i cui dati non hanno un proprietario: il totale aziendale lo vede
+    # solo chi ha visibilità «tutti»; gli altri vedono la tessera senza numero.
+    for tessera, chiave in (("timbri", "timbri"), ("rentri", "rentri"), ("automazioni", "automazioni")):
+        if tessera in out and _ambito_kpi(request_user, is_admin, chiave) is not _TUTTI:
+            del out[tessera]
+
     return out
 
 
 def _module_groups(request, accessible_set: set[str], is_admin: bool,
                    image_lookup: dict, kpi_counts: dict | None = None) -> list[dict]:
     kpi_counts = kpi_counts or {}
+    # Sistema dei ruoli attivo: decidono i ruoli (come nel resto del portale),
+    # non più i Pulsanti abilitati sul ruolo legacy.
+    da_ruoli = _sistema_ruoli_attivo()
     groups = []
     for cat in _CATEGORIES:
         modules = []
@@ -446,7 +539,10 @@ def _module_groups(request, accessible_set: set[str], is_admin: bool,
         for spec in _MODULE_CATALOG:
             if spec["cat"] != cat["key"]:
                 continue
-            can = _mod_is_accessible(spec, accessible_set, is_admin)
+            if da_ruoli:
+                can = _mod_visibile_da_ruoli(request, spec, is_admin)
+            else:
+                can = _mod_is_accessible(spec, accessible_set, is_admin)
             if not can:
                 continue
             url = _safe_url(spec["url_name"]) if spec["url_name"] != "#" else "#"
@@ -609,7 +705,13 @@ def _system_status(request) -> list[dict]:
 
 
 def _active_role(legacy_user) -> dict:
-    ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip()
+    from core.context_processors import ruolo_da_mostrare
+
+    ruolo = ruolo_da_mostrare(legacy_user)
+    # Ruolo in azienda «CAR · Caporeparto»: sigla e nome sono già lì.
+    if " · " in ruolo:
+        code, label = ruolo.split(" · ", 1)
+        return {"code": code.strip()[:4].upper(), "label": label.strip()}
     _map = {
         "AMMINISTRAZIONE": ("IT", "Amministratore"),
         "ADMIN":           ("IT", "Amministratore"),

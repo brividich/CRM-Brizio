@@ -724,6 +724,46 @@ def _load_subnav_items(request, legacy_user) -> list:
     return result
 
 
+def ruolo_da_mostrare(legacy_user) -> str:
+    """Etichetta del ruolo sotto il nome (barra in alto, home).
+
+    Con «Ruoli e permessi» attivo il ruolo storico (``utenti.ruolo``) non dice
+    più niente: si mostra il ruolo in azienda, altrimenti l'accesso al portale
+    che comanda. A sistema spento resta il ruolo storico.
+    """
+    legacy_ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip()
+    legacy_user_id = getattr(legacy_user, "id", None)
+    if not legacy_user_id:
+        return legacy_ruolo
+    try:
+        from core.permessi.motore import sistema_ruoli_attivo
+
+        if not sistema_ruoli_attivo():
+            return legacy_ruolo
+        from django.core.cache import cache
+
+        from core.permessi.cache import versione_permessi
+
+        chiave = f"permessi:ruolo_display:v{versione_permessi()}:{int(legacy_user_id)}"
+        cached = cache.get(chiave)
+        if cached is not None:
+            return cached
+        from core.permessi.motore import PRESET_BASE, ruoli_della_persona
+        from core.permessi.ruolo_azienda import ruoli_in_azienda
+
+        etichetta = ruoli_in_azienda([legacy_user_id]).get(int(legacy_user_id), "")
+        if not etichetta:
+            ruoli = ruoli_della_persona(int(legacy_user_id))
+            propri = [g for g in ruoli if g.preset != PRESET_BASE]
+            etichetta = str(((propri or ruoli)[0].label if (propri or ruoli) else "") or "").strip()
+        etichetta = etichetta or legacy_ruolo
+        cache.set(chiave, etichetta, 300)
+        return etichetta
+    except Exception:
+        logger.debug("ruolo da mostrare non calcolato", exc_info=True)
+        return legacy_ruolo
+
+
 def legacy_nav(request):
     result = {
         "nav_items": [],
@@ -746,6 +786,7 @@ def legacy_nav(request):
 
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     result["legacy_user"] = legacy_user
+    result["ruolo_display"] = ruolo_da_mostrare(legacy_user)
     if getattr(request, "impersonation_active", False):
         result["impersonation_active"] = True
         result["impersonator_display"] = display_name_for_user(

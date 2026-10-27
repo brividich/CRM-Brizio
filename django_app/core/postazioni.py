@@ -224,9 +224,14 @@ def postazione_del_pc(user, request):
 
 
 def candidati(postazione) -> list:
-    """Membri attivi del gruppo che si possono abilitare sul PC (UtenteLegacy, mai amministratori)."""
+    """Chi ha oggi il ruolo che si può abilitare sul PC (UtenteLegacy, mai amministratori).
+
+    Il ruolo vale sia assegnato a mano (appartenenza non scaduta) sia ricevuto dall'organigramma,
+    come nella matrice dei ruoli.
+    """
     from core.legacy_models import UtenteLegacy
     from core.models import AccessGroupMembership, Profile
+    from core.permessi.organigramma import utenti_del_gruppo
 
     if postazione is None or not postazione.gruppo.is_active:
         return []
@@ -236,6 +241,7 @@ def candidati(postazione) -> list:
         .filter(Q(scade_il__isnull=True) | Q(scade_il__gte=oggi))
         .values_list("legacy_user_id", flat=True)
     )
+    ids |= utenti_del_gruppo(postazione.gruppo_id)
     ids.discard(int(postazione.account_legacy_user_id))
     if not ids:
         return []

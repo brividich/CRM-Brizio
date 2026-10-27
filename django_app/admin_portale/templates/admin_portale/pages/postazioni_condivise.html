@@ -35,7 +35,7 @@
     <div class="card-body">
       <ol>
         <li>Fai entrare <strong>una volta</strong> l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: così compare nell'elenco «Account della postazione». L'account deve essere in un gruppo AD ammesso al login, come ogni utente.</li>
-        <li>In «Accessi» crea (o scegli) il gruppo degli operatori e aggiungi le persone che lavorano al controllo.</li>
+        <li>Scegli il ruolo del portale degli operatori (es. «Controllo qualità»): contano sia chi lo ha <strong>a mano</strong> (in «Accessi») sia chi lo riceve <strong>dall'organigramma</strong>, come nella «Matrice dei ruoli».</li>
         <li>Qui registra <strong>un PC per riga</strong>: scegli il <strong>PC del registro asset</strong> (PC e portatili non dismessi), poi account, gruppo e minuti di inattività ({{ minuti_min }}–{{ minuti_max }}). Dall'asset arrivano nome (se lo lasci vuoto), dati della macchina, MAC e <strong>IP</strong>: quelli dei punti rete dell'asset e quelli che il DHCP dà ai suoi MAC, così un PC con IP dinamico resta riconosciuto. Un IP dei punti rete che il DHCP ora dà a un altro PC compare barrato e non vale. Lo stesso account può servire più PC.</li>
         <li>«IP a mano» serve solo se il PC non è nel registro asset o l'asset non ha IP (su quel PC: <code>ipconfig</code>; meglio un IP riservato nel DHCP). Se configuri dal PC stesso, sotto il campo trovi l'IP che il portale vede.</li>
         <li>Se il portale vede <strong>127.0.0.1</strong> per ogni PC, il problema è del server, non dei PC: nel <code>.env</code> del server serve <code>TRUSTED_PROXY_IPS=127.0.0.1,::1</code> (IIS passa al portale l'IP vero del PC), poi riavvio del sito. La pagina «PC non registrato» lo segnala.</li>
@@ -138,7 +138,7 @@
           </div>
           <div style="margin-top:12px;"><button type="submit" class="btn btn-primary" form="pc-operatori-form">Salva operatori del PC</button></div>
           {% else %}
-            <p>Il gruppo non ha persone da abilitare (attive, non amministratori, appartenenza non scaduta). Aggiungile in «Accessi».</p>
+            <p>Il gruppo non ha persone da abilitare (attive, non amministratori, con il ruolo a mano non scaduto o dall'organigramma). Assegna il ruolo in «Accessi» o collegalo a un ruolo d'organigramma.</p>
           {% endif %}
         </div>
       </div>
@@ -211,7 +211,7 @@
                 <option value="{{ g.pk }}" {% if modifica and modifica.gruppo_id == g.pk %}selected{% endif %}>{{ g.label }}</option>
               {% endfor %}
             </select>
-            <div class="pc-nota">I membri si gestiscono in admin-portale → Accessi; chi può usare questo PC si spunta in «Operatori del PC».</div>
+            <div class="pc-nota">Contano chi ha il ruolo a mano (admin-portale → Accessi) e chi lo riceve dall'organigramma; chi può usare questo PC si spunta in «Operatori del PC».</div>
           </div>
           <div class="field">
             <label>Minuti di inattività</label>

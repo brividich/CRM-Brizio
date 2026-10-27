@@ -66,7 +66,8 @@ GUIDA = {
                 ("passi", [
                     "Fai entrare una volta l'account del PC (es. «zeiss») dal login normale con le sue credenziali di dominio: "
                     "deve essere in un gruppo AD ammesso al login. Così compare in «Account della postazione».",
-                    "In «Accessi» crea o scegli il gruppo degli operatori e aggiungi le persone che lavorano al controllo.",
+                    "Scegli il ruolo del portale degli operatori (es. «Controllo qualità»): in «Operatori del PC» compaiono sia chi lo ha "
+                    "a mano (in «Accessi») sia chi lo riceve dall'organigramma, come nella «Matrice dei ruoli».",
                     "admin-portale → «Postazioni condivise» (barra in alto, gruppo Accessi) → «Nuova postazione», una per PC: "
                     "«PC del registro asset» (PC e portatili non dismessi), account, gruppo, minuti di inattività (1–60), «Attiva». "
                     "Nome vuoto = nome dell'asset. Lo stesso account può servire più PC.",

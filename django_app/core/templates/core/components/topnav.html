@@ -115,14 +115,14 @@
           <span class="nav-avatar" aria-hidden="true">{{ display_name|slice:":2"|upper }}</span>
           <span class="nav-user-text">
             <span class="nav-uname">{{ display_name }}</span>
-            <span class="nav-urole">{{ legacy_user.ruolo|default:"Utente" }}</span>
+            <span class="nav-urole">{{ ruolo_display|default:"Utente" }}</span>
           </span>
           <svg class="nav-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="nav-user-panel" id="nav-user-panel" role="menu" aria-label="Menu utente">
           <div class="nav-user-head">
             <span class="nav-uname">{{ display_name }}</span>
-            <span class="nav-urole">{{ legacy_user.ruolo|default:"Utente" }}</span>
+            <span class="nav-urole">{{ ruolo_display|default:"Utente" }}</span>
           </div>
           <a class="nav-menu-item" href="{% url 'profilo' %}" role="menuitem">
             <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>

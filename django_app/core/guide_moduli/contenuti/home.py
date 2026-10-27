@@ -324,6 +324,8 @@ GUIDA = {
             "sintomo": "Una persona non vede un modulo nel menu",
             "fare": [
                 "Controlla che il modulo sia acceso (Amministrazione → Hub → «Moduli»).",
+                "Stanza «Moduli» della home vuota o incompleta: con «Ruoli e permessi» attivo le tessere seguono "
+                "«Cosa vede questa persona» (azione «Vedere»); dai il ruolo giusto lì, non il ruolo storico della scheda utente.",
                 "Controlla i suoi permessi: Amministrazione → «Accessi negati» mostra ogni pagina bloccata con il motivo e i pulsanti «Consenti» / «Non consentire».",
             ],
         },
