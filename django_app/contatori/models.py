@@ -598,6 +598,36 @@ class AvvisoStampante(models.Model):
         return max(0, int(((self.chiuso_il or self.ultimo_visto_il) - self.aperto_il).total_seconds()))
 
 
+class SostituzioneConsumabile(models.Model):
+    """Cambio di un consumabile (toner, tamburo, fusore…) dedotto dalle letture SNMP.
+
+    Si registra quando il livello di un consumabile risale di più di 5 punti da una lettura
+    alla successiva. ``rilevata_il`` è la prima lettura con il livello nuovo: il cambio è
+    avvenuto fra ``ultima_lettura_prima`` e ``rilevata_il``.
+    """
+
+    dispositivo = models.ForeignKey(DispositivoSNMP, on_delete=models.CASCADE, null=True, blank=True,
+                                    related_name="sostituzioni_consumabili")
+    macchina = models.ForeignKey("Macchina", on_delete=models.CASCADE, null=True, blank=True,
+                                 related_name="sostituzioni_consumabili")
+    nome = models.CharField(max_length=120)
+    tipo = models.CharField(max_length=40, blank=True)
+    pct_prima = models.PositiveSmallIntegerField()
+    pct_dopo = models.PositiveSmallIntegerField()
+    ultima_lettura_prima = models.DateTimeField(null=True, blank=True)
+    rilevata_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-rilevata_il", "-pk"]
+        indexes = [models.Index(fields=["dispositivo", "nome", "rilevata_il"], name="contatori_sost_disp_nome_dt"),
+                   models.Index(fields=["macchina", "nome", "rilevata_il"], name="contatori_sost_mac_nome_dt")]
+        verbose_name = "Sostituzione consumabile"
+        verbose_name_plural = "Sostituzioni consumabili"
+
+    def __str__(self):
+        return f"{self.macchina or self.dispositivo} · {self.nome} {self.pct_prima}% → {self.pct_dopo}%"
+
+
 class FirmwareSNMP(models.Model):
     """Storico delle versioni firmware viste su un dispositivo: una riga per versione."""
 

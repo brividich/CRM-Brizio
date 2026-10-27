@@ -1029,9 +1029,16 @@ def interroga_dispositivo(dispositivo):
         dati_stampante=dati_stampante,
     )
     if stampante:
-        from .stampanti import registra_avvisi
+        from .stampanti import registra_avvisi, registra_sostituzioni
 
         registra_avvisi(dispositivo, dati_stampante, adesso)
+        if (dati_stampante or {}).get("consumabili"):
+            precedente = next((r for r in dispositivo.rilevazioni.filter(rilevata_il__lt=adesso)
+                               .order_by("-rilevata_il", "-pk").only("rilevata_il", "dati_stampante")[:10]
+                               if (r.dati_stampante or {}).get("consumabili")), None)
+            if precedente:
+                registra_sostituzioni(dispositivo, precedente.dati_stampante["consumabili"],
+                                      dati_stampante["consumabili"], adesso, precedente.rilevata_il)
     ValoreSNMP.objects.bulk_create([
         ValoreSNMP(
             rilevazione=rilevazione, sonda=e["sonda"],
@@ -1481,8 +1488,16 @@ def leggi_consumabili_macchina(macchina):
 
 
 def salva_consumabili(macchina, consumabili, quando=None):
-    """Salva una lettura (una riga per consumabile). Senza consumabili non salva nulla."""
+    """Salva una lettura (una riga per consumabile) e registra i cambi. Senza consumabili non salva nulla."""
+    from .stampanti import registra_sostituzioni
+
     quando = quando or timezone.now()
+    prima_il = (LetturaConsumabile.objects.filter(macchina=macchina, rilevata_il__lt=quando)
+                .order_by("-rilevata_il").values_list("rilevata_il", flat=True).first())
+    if prima_il and consumabili:
+        prima = [{"nome": n, "pct": p} for n, p in
+                 LetturaConsumabile.objects.filter(macchina=macchina, rilevata_il=prima_il).values_list("nome", "pct")]
+        registra_sostituzioni(macchina, prima, consumabili, quando, prima_il)
     righe = [LetturaConsumabile(macchina=macchina, nome=(c.get("nome") or "Consumabile")[:120],
                                 pct=c["pct"] if type(c.get("pct")) is int and 0 <= c["pct"] <= 100 else None,
                                 rilevata_il=quando)
