@@ -216,6 +216,27 @@ def _capo_regola_unica(anagrafica_id) -> int | None:
         return None
 
 
+def _capo_mai_se_stesso(anagrafica_id) -> int | None:
+    """Capo di chi risulta capo di sé stesso (es. il CAR responsabile della
+    propria area): la regola capo/team di Anagrafica salta la persona stessa e
+    sale per organigramma (OPM, EM...). Funziona anche a regola unica spenta,
+    con i capi scelti a mano. Se nel perimetro non c'è nessuno, vale il
+    titolare del ruolo sopra, anche in un altro reparto. None se non c'è
+    nessuno sopra."""
+    proprio = _as_int(anagrafica_id)
+    try:
+        from anagrafica.services import capo_team
+
+        capo = _as_int(capo_team.capo_effettivo(anagrafica_id))
+        if capo is None or capo == proprio:
+            capo = _as_int(capo_team.superiore_per_ruolo(anagrafica_id))
+    except Exception:
+        return None
+    if capo is None or capo == proprio:
+        return None
+    return capo
+
+
 def _as_int(value) -> int | None:
     if value is None:
         return None
@@ -2859,6 +2880,11 @@ def _resolve_anagrafica_hr_effective_capo_ids(
     except Exception:
         capo_anagrafica_id = None
 
+    # Nessuno approva le proprie assenze: se area/reparto indicano la persona
+    # stessa, la richiesta va a chi le sta sopra.
+    if employee_id is not None and capo_anagrafica_id == employee_id:
+        capo_anagrafica_id = _capo_mai_se_stesso(employee_id)
+
     return _legacy_user_id_from_anagrafica_employee_id(capo_anagrafica_id), capo_anagrafica_id
 
 
@@ -2924,6 +2950,22 @@ def _resolve_default_capo_for_user(
         if title:
             by_title[title] = option
 
+    # Il dipendente non e' mai il proprio capo: ogni passo che proporrebbe lui
+    # stesso (mapping di reparto, storico, scheda) viene saltato.
+    propria_email = _norm_text_key(email)
+
+    def _ok(option: str) -> bool:
+        if not option:
+            return False
+        if propria_email and _norm_text_key(option) == propria_email:
+            return False
+        capo = _find_capo_dict_for_option(option, capi)
+        if capo is None:
+            return True
+        if propria_email and _norm_text_key(capo.get("Email")) == propria_email:
+            return False
+        return not (legacy_user_id and _as_int(capo.get("LegacyUserId")) == _as_int(legacy_user_id))
+
     # Step 1: caporeparto effettivo da Anagrafica HR.
     anagrafica_option = _resolve_anagrafica_hr_default_capo_option(
         name=name,
@@ -2932,7 +2974,7 @@ def _resolve_default_capo_for_user(
         capi=capi,
         legacy_user_id=legacy_user_id,
     )
-    if anagrafica_option:
+    if _ok(anagrafica_option):
         return anagrafica_option
 
     # Step 2: UserExtraInfo.caporeparto (compatibilita RepartoCapoMapping)
@@ -2946,7 +2988,7 @@ def _resolve_default_capo_for_user(
                     or by_value.get(_norm_text_key(uei.caporeparto))
                     or by_title.get(_norm_text_key(uei.caporeparto))
                 )
-                if option:
+                if _ok(option):
                     return option
         except Exception:
             pass
@@ -2975,7 +3017,7 @@ def _resolve_default_capo_for_user(
                 lookup_id=_as_int(rows[0].get("capo_reparto_lookup_id")),
                 capi=capi,
             )
-            if option:
+            if _ok(option):
                 return option
 
     # Step 4: mapping reparto -> caporeparto locale
@@ -2994,9 +3036,9 @@ def _resolve_default_capo_for_user(
                 )
         except Exception:
             option = ""
-        if not option:
+        if not _ok(option):
             option = by_title.get(_norm_text_key(reparto))
-        if option:
+        if _ok(option):
             return option
 
     return ""
@@ -3083,6 +3125,8 @@ def _superior_capo_option(capo_anagrafica_id: int | None, capi: list[dict]) -> s
             sup_id = _as_int(resolve_responsabile_effettivo(area=area, reparto=rep_canonico))
         if sup_id is None:
             sup_id = _as_int(getattr(az, "caporeparto_legacy_id", None)) if az else None
+        if sup_id == _as_int(capo_anagrafica_id):
+            sup_id = _capo_mai_se_stesso(capo_anagrafica_id)
         if not sup_id:
             return ""
         for capo in capi:

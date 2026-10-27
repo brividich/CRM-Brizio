@@ -33,7 +33,8 @@ GUIDA = {
                     ("Ferie di più giorni", "contano a giornata intera."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
                     ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
-                     "in quel caso la richiesta la vede e la approva solo il capo che hai scelto."),
+                     "in quel caso la richiesta la vede e la approva solo il capo che hai scelto. Se il capo del "
+                     "tuo reparto sei tu, ti viene proposto chi ti sta sopra (es. l'Operations Manager)."),
                 ]),
                 ("nota", "Se l'ora di fine è prima dell'ora di inizio il portale la corregge da solo a inizio + 30 minuti e te lo dice: controlla prima di inviare."),
             ],
@@ -153,6 +154,9 @@ GUIDA = {
                     "mansione del responsabile dell'area → chi ha la mansione del capo del reparto → gerarchia dei "
                     "ruoli (prima del passaggio alle mansioni: responsabile dell'area e poi caporeparto scelti a mano). "
                     "Si cambia in Anagrafica → Reparti, aree e capi, non qui.",
+                    "Nessuno approva le proprie assenze: se il capo così trovato è il dipendente stesso (es. il CAR "
+                    "capo del suo reparto), si propone chi gli sta sopra nella gerarchia dei ruoli, partendo dal suo "
+                    "ruolo più alto (Caporeparto → Operations Manager, anche se lavora in un altro reparto).",
                     "Tutti possono scegliere un altro capo nella richiesta. Se lo fanno, la richiesta compare in coda "
                     "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma la vede "
                     "ancora nel calendario ma non la approva.",
@@ -234,6 +238,8 @@ GUIDA = {
                 "Se il dipendente ha scelto un altro capo, la richiesta va a quello: è voluto (registro «assenza_caporeparto_scelto»).",
                 "Apri Anagrafica e cerca il dipendente: controlla «Area aziendale» e «Reparto».",
                 "Apri l'area aziendale e controlla il «Responsabile». Se manca, vale il caporeparto del reparto.",
+                "Se il dipendente è lui stesso il capo, la richiesta va al titolare del ruolo sopra il suo (in "
+                "Anagrafica → Ruoli, campo «Riporta a»): controlla che quel ruolo abbia una persona assegnata.",
                 "Correggi e fai reinviare la richiesta (le richieste già inviate restano al vecchio capo).",
             ],
         },
