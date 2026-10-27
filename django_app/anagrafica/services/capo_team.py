@@ -344,6 +344,57 @@ def capo_effettivo(legacy_id) -> int | None:
         return None
 
 
+def superiore_per_ruolo(legacy_id, oggi=None) -> int | None:
+    """Chi sta sopra una persona senza capo nel proprio perimetro (es. il CAR
+    capo del suo reparto, con OPM e direzione inquadrati in UT).
+
+    Solo per l'approvazione delle assenze, non entra nella mappa capi/team: si
+    parte dal ruolo più alto della persona (il più vicino alla cima: Caporeparto
+    prima di Preposto) e si sale per ``riporta_a`` fino al primo ruolo con un
+    titolare in forza, anche in un altro reparto; a parità, id più basso.
+    """
+    from ..models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+
+    try:
+        legacy_id = int(legacy_id)
+    except (TypeError, ValueError):
+        return None
+    oggi = oggi or timezone.localdate()
+    in_essere = Q(data_fine__isnull=True) | Q(data_fine__gte=oggi)
+    ruoli = set(
+        DipendenteRuoloOperativo.objects.filter(in_essere, ruolo__is_active=True, legacy_anagrafica_id=legacy_id)
+        .values_list("ruolo_id", flat=True)
+    )
+    if not ruoli:
+        return None
+    padri = _padri_ruoli()
+
+    def catena(ruolo: int) -> list[int]:
+        sopra, visti = [], {ruolo}
+        while ruolo in padri and padri[ruolo] not in visti:
+            ruolo = padri[ruolo]
+            visti.add(ruolo)
+            sopra.append(ruolo)
+        return sopra
+
+    cessati = set(
+        DipendenteAnagraficaAziendale.objects.filter(data_cessazione__lt=oggi).values_list(
+            "legacy_anagrafica_id", flat=True
+        )
+    )
+    for ruolo in sorted(ruoli, key=lambda r: (len(catena(r)), r)):
+        for sopra in catena(ruolo):
+            titolari = {
+                int(pid)
+                for pid in DipendenteRuoloOperativo.objects.filter(in_essere, ruolo_id=sopra).values_list(
+                    "legacy_anagrafica_id", flat=True
+                )
+            } - cessati - {legacy_id}
+            if titolari:
+                return min(titolari)
+    return None
+
+
 def team_anagrafica(legacy_id, *, solo_diretti: bool = False) -> set[int]:
     """Team della persona con la regola unica, come ``legacy_anagrafica_id``."""
     try:
