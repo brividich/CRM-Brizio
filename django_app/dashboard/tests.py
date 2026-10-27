@@ -441,6 +441,29 @@ class HomePortaleModuleVisibilityTests(TestCase):
         module_ids = sorted(mod["id"] for grp in groups for mod in grp["modules"])
         self.assertEqual(module_ids, ["assenze", "fornitori", "ticket"])
 
+    def test_kpi_senza_proprietario_nascosti_a_chi_non_vede_tutto(self):
+        from dashboard import views_home_portale as hp
+
+        with (
+            patch("dashboard.views_home_portale._sistema_ruoli_attivo", return_value=True),
+            patch("core.permessi.motore.utenti_visibili", return_value=frozenset({1})),
+            patch("dashboard.views_home_portale._board_data_anomalie", return_value=[]),
+            patch("dashboard.views_home_portale._board_data_tasks", return_value={}),
+            patch("dashboard.views_home_portale._board_data_assenze_da_approvare", return_value=[]),
+            patch("dashboard.views_home_portale._board_related_tickets_queryset", side_effect=Exception("skip")),
+        ):
+            out = hp._tile_kpi_counts(None, False, request_user=SimpleNamespace(is_authenticated=True))
+
+        for tessera in ("timbri", "rentri", "automazioni"):
+            self.assertNotIn(tessera, out)
+        self.assertEqual(out["incidenti"][0]["value"], 0)
+
+    def test_active_role_mostra_ruolo_in_azienda(self):
+        from dashboard import views_home_portale as hp
+
+        with patch("core.context_processors.ruolo_da_mostrare", return_value="CAR · Caporeparto"):
+            self.assertEqual(hp._active_role(None), {"code": "CAR", "label": "Caporeparto"})
+
     def test_module_permessi_usa_solo_moduli_registrati(self):
         from core.permessi.registro import moduli_registrati
         from dashboard import views_home_portale as hp
