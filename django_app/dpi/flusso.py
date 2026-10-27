@@ -195,7 +195,28 @@ def _destinatari_approvatori(richiesta) -> list[str]:
         from anagrafica.services.reminders import get_reminder_recipients
 
         emails = get_reminder_recipients("dpi_car_emails")
-    return sorted(set(emails), key=str.lower)
+    from .models import DPIImpostazioni
+
+    if DPIImpostazioni.get_singleton().notifica_nuova_richiesta:
+        # Spunta «Email ai referenti per ogni nuova richiesta» delle Impostazioni DPI.
+        emails = list(emails) + destinatari_referenti()
+    return sorted({e.lower(): e for e in emails}.values(), key=str.lower)
+
+
+def destinatari_referenti() -> list[str]:
+    """Referenti DPI delle Impostazioni: responsabili + email notifiche aggiuntive."""
+    from .models import DPIImpostazioni
+
+    impost = DPIImpostazioni.get_singleton()
+    emails = [
+        str(p.get("email", "")).strip()
+        for p in (impost.responsabili or [])
+        if isinstance(p, dict) and p.get("email")
+    ]
+    if impost.responsabile_email:
+        emails.append(impost.responsabile_email.strip())
+    emails.extend(_split_emails(impost.notifica_email_extra))
+    return _split_emails("\n".join(emails))
 
 
 def destinatari_magazzino() -> list[str]:
@@ -318,3 +339,21 @@ def notifica_consegnata(consegna) -> None:
         )
     except Exception:
         logger.warning("Report consegna DPI fallito (%s)", richiesta.numero, exc_info=True)
+
+
+@event_flow("dpi_consegna_annullata", skipped_result=None)
+def notifica_rifiutata_dopo_approvazione(richiesta) -> None:
+    """Rifiuto di una richiesta gia' approvata: magazzino e amministrazione avevano
+    ricevuto l'avviso di consegna, va detto loro di non consegnare."""
+    try:
+        destinatari = sorted(set(destinatari_magazzino()) | set(destinatari_amministrazione()), key=str.lower)
+        motivo = f"\nMotivazione: {richiesta.note_gestione}" if richiesta.note_gestione else ""
+        _mail(
+            f"[DPI] Consegna annullata {richiesta.numero} - {richiesta.richiedente_nome}",
+            _dettaglio_richiesta(richiesta)
+            + "\n\nLa richiesta, gia' approvata, e' stata rifiutata: NON consegnare il DPI." + motivo,
+            destinatari,
+            title="Consegna DPI annullata",
+        )
+    except Exception:
+        logger.warning("Avviso di consegna annullata DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)

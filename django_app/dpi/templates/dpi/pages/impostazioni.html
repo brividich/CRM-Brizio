@@ -130,7 +130,7 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
   <div class="dpi-grid-2">
     <!-- Colonna sinistra: parametri generali -->
     <div class="dpi-card">
-      <div class="dpi-card-title">Parametri generali</div>
+      <div class="dpi-card-title">Parametri generali <a href="{% url 'guida_modulo' 'dpi' %}?vista=admin#notifiche" style="font-size:12px; font-weight:600; margin-left:8px;">? Guida</a></div>
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_impostazioni">
@@ -146,7 +146,7 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
         </div>
         <div class="dpi-field" style="display:flex; align-items:center;">
           <input type="checkbox" name="notifica_nuova_richiesta" id="notif" value="1"{% if impost.notifica_nuova_richiesta %} checked{% endif %}>
-          <label for="notif" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Email al referente principale per ogni nuova richiesta</label>
+          <label for="notif" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Email ai referenti (responsabili + email aggiuntive) per ogni nuova richiesta, oltre al responsabile del dipendente</label>
         </div>
         <div class="dpi-field">
           <label>Email notifiche aggiuntive (una per riga)</label>

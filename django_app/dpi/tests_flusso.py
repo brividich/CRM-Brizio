@@ -136,6 +136,32 @@ class FlussoViewTests(TestCase):
             flusso.notifica_nuova_richiesta(self.richiesta)
         self.assertEqual([m.to for m in mail.outbox if "da approvare" in m.subject], [["capo@example.test"]])
 
+    def test_spunta_referenti_aggiunge_i_referenti_alla_nuova_richiesta(self):
+        impost = DPIImpostazioni.get_singleton()
+        impost.notifica_nuova_richiesta = True
+        impost.responsabili = [{"nome": "Rspp", "email": "rspp@example.test"}]
+        impost.notifica_email_extra = "hse@example.test"
+        impost.save()
+        with mock.patch("dpi.flusso._email_persona", return_value="capo@example.test"):
+            flusso.notifica_nuova_richiesta(self.richiesta)
+        avviso = [m for m in mail.outbox if "da approvare" in m.subject]
+        self.assertEqual(set(avviso[0].to), {"capo@example.test", "rspp@example.test", "hse@example.test"})
+
+    def test_rifiuto_dopo_approvazione_annulla_la_consegna(self):
+        self.richiesta.stato = StatoRichiesta.APPROVATA
+        self.richiesta.save()
+        with self._come_capo():
+            self.client.post(reverse("dpi:rifiuta", args=[self.richiesta.pk]), {"motivazione": "doppione"})
+        annullo = [m for m in mail.outbox if "Consegna annullata" in m.subject]
+        self.assertEqual(len(annullo), 1)
+        self.assertIn("magazzino@example.test", annullo[0].to)
+        self.assertIn("doppione", annullo[0].body)
+
+    def test_rifiuto_di_richiesta_non_approvata_non_scrive_al_magazzino(self):
+        with self._come_capo():
+            self.client.post(reverse("dpi:rifiuta", args=[self.richiesta.pk]), {"motivazione": "no"})
+        self.assertFalse([m for m in mail.outbox if "Consegna annullata" in m.subject])
+
     def test_capo_richiede_per_un_suo_dipendente(self):
         from core.legacy_models import AnagraficaDipendente  # noqa: F401  (tabella legacy usata dalla view)
 

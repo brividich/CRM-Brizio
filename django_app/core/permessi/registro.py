@@ -108,6 +108,10 @@ class ModuloPermessi:
     moduli_acl: tuple[str, ...] = ()
     codici_acl: tuple[str, ...] = ()
     azioni_extra: tuple[tuple[str, str], ...] = ()
+    # (azione propria, code di pagina) che la sola azione propria accende: quei
+    # code escono dalle azioni standard (es. le Impostazioni del modulo, che
+    # altrimenti «gestire» aprirebbe insieme al resto dell'amministrazione).
+    pagine_azioni: tuple[tuple[str, tuple[str, ...]], ...] = ()
     # (code, capacita') decise a mano quando la lettura automatica sbaglia:
     # es. un permesso di prefisso che copre la pagina principale del modulo.
     capacita_forzate: tuple[tuple[str, str], ...] = ()
@@ -143,6 +147,10 @@ def registra_modulo(modulo: ModuloPermessi) -> ModuloPermessi:
     for azione, _label in modulo.azioni_extra:
         if azione in AZIONI_STANDARD:
             raise ValueError(f"{chiave}: l'azione «{azione}» e' gia' standard.")
+    proprie = {azione for azione, _label in modulo.azioni_extra}
+    for azione, _codes in modulo.pagine_azioni:
+        if azione not in proprie:
+            raise ValueError(f"{chiave}: pagine per l'azione «{azione}», che non e' un'azione propria.")
     with _LOCK:
         esistente = _REGISTRO.get(chiave)
         if esistente is not None and esistente != modulo:

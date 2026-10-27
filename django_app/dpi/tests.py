@@ -556,6 +556,53 @@ class DpiExpiryReminderCommandTests(TestCase):
         self.assertIn(richiesta.numero, mail.outbox[0].body)
 
 
+    def _consegna(self, giorni, legacy_id=501, **extra):
+        categoria = CategoriaDPI.objects.create(nome=f"Cat {giorni} {legacy_id}", is_active=True)
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=legacy_id, richiedente_nome="Mario Rossi",
+        )
+        return ConsegnaDPI.objects.create(
+            richiesta=richiesta, data_consegna=date.today() - timedelta(days=400),
+            data_scadenza_stimata=date.today() + timedelta(days=giorni), **extra,
+        )
+
+    def test_consegna_sostituita_non_compare(self):
+        vecchia = self._consegna(-10)
+        nuova = self._consegna(200)
+        ConsegnaDPI.objects.filter(pk=vecchia.pk).update(sostituita_da=nuova)
+        out = StringIO()
+        call_command("send_dpi_expiry_reminders", "--recipients", "rsp@example.com", stdout=out)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertIn("Nessun DPI", out.getvalue())
+
+    def test_notifica_in_app_all_utente_collegato_e_solo_nei_giorni_di_soglia(self):
+        self._consegna(7, legacy_id=501)
+        self._consegna(5, legacy_id=502)
+        cmd = "dpi.management.commands.send_dpi_expiry_reminders"
+        with (
+            patch(f"{cmd}.utente_da_anagrafica", side_effect=lambda i: i + 9000),
+            patch(f"{cmd}.invia_notifica") as notifica,
+            patch("dpi.flusso.approvatori_di", return_value=set()),
+        ):
+            call_command("send_dpi_expiry_reminders", "--recipients", "rsp@example.com", stdout=StringIO())
+        self.assertEqual([c.args[0] for c in notifica.call_args_list], [9501])
+
+    def test_responsabile_riceve_solo_la_sua_squadra_nei_giorni_di_soglia(self):
+        self._consegna(7, legacy_id=501)
+        self._consegna(5, legacy_id=502)
+        capi = {501: {77}, 502: {78}}
+        with (
+            patch("dpi.flusso.approvatori_di", side_effect=lambda i: capi.get(i, set())),
+            patch("dpi.flusso._email_persona", side_effect=lambda i: f"capo{i}@example.test"),
+            patch("dpi.management.commands.send_dpi_expiry_reminders.invia_notifica"),
+        ):
+            call_command("send_dpi_expiry_reminders", "--recipients", "rsp@example.com", stdout=StringIO())
+        squadra = [m for m in mail.outbox if "tua squadra" in m.subject]
+        self.assertEqual([m.to for m in squadra], [["capo77@example.test"]])
+        self.assertEqual(sum(1 for m in mail.outbox if m.to == ["rsp@example.com"]), 1)
+
+
 class DpiBackfillSostituzioniCommandTests(TestCase):
     def test_marks_older_deliveries_of_same_type_as_superseded(self):
         categoria = CategoriaDPI.objects.create(nome="Guanti", is_active=True)

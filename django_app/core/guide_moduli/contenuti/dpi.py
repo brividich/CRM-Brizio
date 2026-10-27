@@ -78,8 +78,18 @@ GUIDA = {
             "id": "notifiche",
             "titolo": "Chi viene avvisato",
             "blocchi": [
-                ("p", "In Impostazioni si scrivono le email di Magazzino e Amministrazione: ricevono l'avviso quando una richiesta è "
-                      "approvata e il report di consegna con il PDF firmato. Salva con «Salva impostazioni»."),
+                ("ul", [
+                    "Nuova richiesta: mail al responsabile del dipendente (capo dell'area o caporeparto), ai co-responsabili e al "
+                    "preposto dell'area. Se nessuno di loro ha un'email di notifica, va agli indirizzi di ripiego «dpi_car_emails».",
+                    "Con la spunta «Email ai referenti (responsabili + email aggiuntive) per ogni nuova richiesta» la mail va "
+                    "anche ai «Responsabili» e alle «Email notifiche aggiuntive» delle Impostazioni.",
+                    "Richiesta approvata: avviso di consegna a Magazzino e Amministrazione.",
+                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» a Magazzino e Amministrazione, così non "
+                    "consegnano.",
+                    "Consegna registrata: report all'Amministrazione con il PDF del modulo di consegna.",
+                    "Il dipendente riceve la notifica nel portale (campanella) ad approvazione, rifiuto e consegna.",
+                ]),
+                ("p", "Gli indirizzi si scrivono in DPI → Impostazioni, uno per riga. Salva con «Salva impostazioni»."),
             ],
         },
         {
@@ -113,7 +123,18 @@ GUIDA = {
             "id": "scadenze",
             "titolo": "Promemoria delle scadenze",
             "blocchi": [
-                ("p", "Il comando send_dpi_expiry_reminders avvisa delle consegne in scadenza. Prova prima con --dry-run."),
+                ("p", "Ogni mattina alle 07:10 il task «dpi_expiry_reminders» controlla le consegne scadute o che scadono entro 30 "
+                      "giorni (le consegne già sostituite da una nuova non contano)."),
+                ("ul", [
+                    "Referenti DPI («Responsabili» + «Email notifiche aggiuntive» delle Impostazioni) e indirizzi del task in "
+                    "Automazioni → Task pianificati → «Configura mail»: ogni mattina l'elenco completo. Se non c'è nessun indirizzo, "
+                    "va agli amministratori del portale.",
+                    "Responsabile e preposto del dipendente: una mail con i DPI della propria squadra, solo nei giorni di avviso.",
+                    "Dipendente: notifica nel portale, solo nei giorni di avviso.",
+                    "Giorni di avviso: 30 giorni prima, 7 giorni prima, il giorno prima, il giorno della scadenza; se è scaduto, il "
+                    "giorno dopo e poi ogni 7 giorni finché non viene sostituito.",
+                ]),
+                ("p", "A mano: comando send_dpi_expiry_reminders, prima con --dry-run."),
                 ("p", "«Report conformità» mostra per ogni dipendente se ha i DPI obbligatori: OK, scaduto o mancante, con «Esporta Excel»."),
             ],
         },
@@ -134,6 +155,15 @@ GUIDA = {
                 "Apri Impostazioni e controlla la vita utile del modello: se è valorizzata vince su quella della categoria.",
                 "Correggi e salva: le consegne in uso si riallineano subito.",
                 "Se la scadenza era stata scritta a mano nella consegna, va corretta a mano.",
+            ],
+        },
+        {
+            "sintomo": "Un responsabile non riceve i promemoria delle scadenze della sua squadra",
+            "perche": "arriva solo nei giorni di avviso e solo se il responsabile ha l'email di notifica nella sua scheda.",
+            "fare": [
+                "Controlla che il dipendente sia nell'area giusta (il responsabile è quello che approva le sue richieste).",
+                "Controlla l'email di notifica nella scheda anagrafica del responsabile.",
+                "Prova il comando send_dpi_expiry_reminders --dry-run: elenca i responsabili che riceverebbero la mail.",
             ],
         },
         {
