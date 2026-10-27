@@ -79,17 +79,19 @@ def _scelte_compatte(scelte: list[tuple[str, str]], limite: int = 60) -> list[st
 _OPZIONI_SOLO_IMPAGINAZIONE = ("ordine", "nascondi_se_vuota")
 
 
-def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compatto: bool = False) -> dict:
+def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compatto: int = 0) -> dict:
     """Le sezioni che l'utente puo' generare, con colonne e opzioni: niente dati personali.
 
-    ``compatto``: ultimo ripiego quando il catalogo non entra nella finestra del
-    modello: colonne solo con la chiave e descrizioni più corte.
+    ``compatto``: ripieghi quando il catalogo non entra nella finestra del
+    modello. 1 = colonne solo con la chiave e descrizioni di 90 caratteri; 2 =
+    descrizioni di 50 caratteri.
     """
     sezioni = []
     for s in catalogo.catalogo():
         if not s.consentita(request):
             continue
-        voce = {"chiave": s.key, "titolo": s.titolo, "descrizione": s.descrizione[:90 if compatto else 160]}
+        voce = {"chiave": s.key, "titolo": s.titolo,
+                "descrizione": s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]}
         if s.colonne and not s.colonne_dinamiche:
             # Con l'etichetta: «voce» o «codice» da sole non dicono all'AI che cosa contengono.
             voce["colonne"] = ([k for k, _v in s.colonne] if compatto
@@ -380,7 +382,7 @@ MAX_CATALOGO_CARATTERI = 24000  # num_ctx di produzione 16384 token: il catalogo
 
 def catalogo_json(request, scelte_perimetro: dict) -> str:
     """Catalogo compatto per l'AI; se cresce troppo si accorciano gli elenchi di scelte."""
-    for limite, compatto in ((60, False), (25, False), (10, False), (10, True)):
+    for limite, compatto in ((60, 0), (25, 0), (10, 0), (10, 1), (10, 2)):
         testo = json.dumps(catalogo_per_ai(request, scelte_perimetro, limite=limite, compatto=compatto),
                            ensure_ascii=False, separators=(",", ":"))
         if len(testo) <= MAX_CATALOGO_CARATTERI:

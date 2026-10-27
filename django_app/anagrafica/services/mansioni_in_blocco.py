@@ -28,14 +28,23 @@ def in_lista(mansione: CompetenzaSkm, legacy_ids) -> dict[int, AbilitazioneMacch
         legacy_anagrafica_id__in=list(legacy_ids), in_lista=True, **chiave)}
 
 
-def previsione(ab: AbilitazioneMacchina | None, modo: str, livello: str) -> tuple[str, str]:
-    """(azione, dettaglio) senza scrivere niente."""
+def previsione(ab: AbilitazioneMacchina | None, modo: str, livello: str,
+               classificazione: str = "") -> tuple[str, str]:
+    """(azione, dettaglio) senza scrivere niente. Classificazione vuota = non si tocca."""
+    from .mansioni_coefficienti import CLASSIFICAZIONI
+
     if modo == ASSEGNA:
+        etichetta = CLASSIFICAZIONI.get(classificazione, "")
         if ab is None:
-            return "cambia", f"assegnata, livello {livello}"
-        if (ab.livello or "") == livello:
-            return "salta", f"ce l'ha già, livello {livello}"
-        return "cambia", f"livello {ab.livello or '—'} → {livello}"
+            return "cambia", f"assegnata, livello {livello}" + (f", {etichetta}" if etichetta else "")
+        cambi = []
+        if (ab.livello or "") != livello:
+            cambi.append(f"livello {ab.livello or '—'} → {livello}")
+        if classificazione and ab.classificazione != classificazione:
+            cambi.append(f"{CLASSIFICAZIONI.get(ab.classificazione, 'non classificata')} → {etichetta}")
+        if not cambi:
+            return "salta", f"ce l'ha già, livello {livello}" + (f", {etichetta}" if etichetta else "")
+        return "cambia", ", ".join(cambi)
     if ab is None:
         return "salta", "non è in lista"
     return "cambia", "tolta dalla lista (lo storico resta)"
@@ -53,11 +62,13 @@ def _controlla(mansione, modo: str, livello: str) -> None:
 
 
 def esegui(legacy_ids, *, mansione: CompetenzaSkm, modo: str, livello: str = "", user=None,
-           applica: bool = False) -> list[Esito]:
+           applica: bool = False, classificazione: str = "") -> list[Esito]:
     """Anteprima (``applica=False``) o registrazione per ogni persona scelta."""
+    from .mansioni_coefficienti import leggi_classificazione
     from .ruoli_in_blocco import persone
 
     livello = (livello or "").strip().upper()
+    classificazione = leggi_classificazione(classificazione) if modo == ASSEGNA else ""
     _controlla(mansione, modo, livello)
     ids = list(dict.fromkeys(int(i) for i in legacy_ids))
     if not ids:
@@ -73,12 +84,14 @@ def esegui(legacy_ids, *, mansione: CompetenzaSkm, modo: str, livello: str = "",
             esiti.append(Esito(lid, f"#{lid}", "", "errore", "non è un dipendente attivo"))
             continue
         ab = attuali.get(lid)
-        azione, dettaglio = previsione(ab, modo, livello)
+        azione, dettaglio = previsione(ab, modo, livello, classificazione)
         if applica and azione == "cambia":
             try:
                 with transaction.atomic():
                     if modo == ASSEGNA:
-                        mstr.assegna(mansione, legacy_anagrafica_id=lid, livello=livello, user=user)
+                        nuova = mstr.assegna(mansione, legacy_anagrafica_id=lid, livello=livello, user=user)
+                        if classificazione and nuova.classificazione != classificazione:
+                            AbilitazioneMacchina.objects.filter(pk=nuova.pk).update(classificazione=classificazione)
                     else:
                         mstr.togli(ab)
             except (ValueError, DatabaseError) as exc:  # una persona non ferma le altre; il motivo si mostra

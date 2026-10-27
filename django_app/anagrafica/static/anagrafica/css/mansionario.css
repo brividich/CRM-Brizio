@@ -342,3 +342,31 @@ body.theme-dark .fmd .mns-chi-sub{ color:#fdba74; }
 .mst-config[hidden]{ display:none; }
 #da-excel .fmd-block-title{ white-space:normal; min-width:0; }
 #da-excel input[type=file]{ max-width:100%; }
+
+/* Classificazione e coefficienti, costo orario (ottobre 2026) */
+.mcf-inline{ display:inline; margin:0; }
+.mcf-prev{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 12px; font-size:13px; }
+.mcf-prev label{ font-weight:700; color:var(--fmd-ink); }
+.mcf-table .mcf-num{ text-align:right; white-space:nowrap; }
+.mcf-table .mcf-coeff{ width:96px; max-width:96px; text-align:right; font-family:var(--fmd-mono); }
+.mcf-table .mcf-classe{ max-width:160px; }
+.mcf-sub{ font-size:12px; margin-top:2px; }
+.mcf-off td{ opacity:.6; }
+.mcf-tot-l{ text-align:right; font-weight:700; }
+.mcf-ok{ color:var(--hr-ok-fg, #15803d); }
+.mcf-ko{ color:var(--hr-ko-fg, #c53030); }
+.mcf-azioni{ display:flex; justify-content:flex-end; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap; }
+.mcf-divisori input{ width:110px; }
+.mcf-flag{ display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; background:var(--hr-alert-bg, #ffe7d6); color:var(--hr-alert-fg, #c2410c); }
+body.theme-dark .fmd .mcf-flag{ background:rgba(249,115,22,.18); color:#fdba74; }
+body.theme-dark .fmd .mcf-ok{ color:#86efac; }
+body.theme-dark .fmd .mcf-ko{ color:#fca5a5; }
+@media (max-width:640px){
+  .mcf-table thead{ display:none; }
+  .mcf-table, .mcf-table tbody, .mcf-table tr, .mcf-table td, .mcf-table tfoot{ display:block; width:100%; }
+  .mcf-table tr{ border-bottom:1px solid var(--fmd-line); padding:8px 0; }
+  .mcf-table td{ border:0; padding:3px 0; text-align:left; }
+  .mcf-table td[data-label]::before{ content:attr(data-label); display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--fmd-muted); }
+  .mcf-table .mcf-num, .mcf-tot-l{ text-align:left; }
+  .mcf-table .mcf-classe, .mcf-table .mcf-coeff{ max-width:100%; width:100%; }
+}

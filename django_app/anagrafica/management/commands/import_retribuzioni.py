@@ -205,6 +205,10 @@ class Command(BaseCommand):
                         self.stderr.write(f"    Errore {tax_code} {pay_item}: {exc}")
 
                 VoceRetributiva.objects.bulk_create(voci_to_create)
+                # bulk_create non manda segnali: il costo orario del mese si rifà qui.
+                from anagrafica.services.costo_orario import ricalcola as ricalcola_costo_orario
+
+                ricalcola_costo_orario(mesi={v.data_competenza for v in voci_to_create})
                 imp.righe_ok = ok
                 imp.righe_errore = err
                 imp.save(update_fields=["righe_ok", "righe_errore"])

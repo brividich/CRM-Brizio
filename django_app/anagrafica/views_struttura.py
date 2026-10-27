@@ -370,6 +370,7 @@ def _contesto_in_blocco(request, **extra) -> dict:
     from .services import mansioni_in_blocco as mb
     from .services import ruoli_in_blocco as blocco
     from .services.mansionario_struttura import TIPI_MANSIONE
+    from .services.mansioni_coefficienti import CLASSIFICAZIONI
 
     sorgente = request.POST if request.method == "POST" else request.GET
     filtri = {
@@ -390,6 +391,7 @@ def _contesto_in_blocco(request, **extra) -> dict:
         "modi": list(blocco.MODI.items()),
         "modi_mansione": list(mb.MODI.items()),
         "livelli": list(mb.LIVELLI.items()),
+        "classificazioni": list(CLASSIFICAZIONI.items()),
         "max_persone": blocco.MAX_PERSONE,
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
         "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
@@ -418,6 +420,7 @@ def ruoli_in_blocco(request):
         "mansione_id": _int_o_none(sorgente.get("mansione")),
         "modo_mansione": sorgente.get("modo_mansione") or mb.ASSEGNA,
         "livello": (sorgente.get("livello") or "U").strip().upper(),
+        "classificazione": (sorgente.get("classificazione") or "").strip().upper(),
         "data": sorgente.get("data") or timezone.localdate().isoformat(),
         "note": (sorgente.get("note") or "").strip()[:500],
         "persone": set(_ids(request, "persone")) if request.method == "POST" else set(),
@@ -428,7 +431,8 @@ def ruoli_in_blocco(request):
         applica = request.POST.get("azione") == "applica"
         try:
             esiti = mb.esegui(scelta["persone"], mansione=mansione, modo=scelta["modo_mansione"],
-                              livello=scelta["livello"], user=request.user, applica=applica)
+                              livello=scelta["livello"], user=request.user, applica=applica,
+                              classificazione=scelta["classificazione"])
         except ValueError as exc:
             messages.error(request, str(exc))
         else:
@@ -438,6 +442,7 @@ def ruoli_in_blocco(request):
                 errori = sum(1 for e in esiti if e.azione == "errore")
                 log_action(request, "mansioni_in_blocco", MODULE, {
                     "mansione": mansione.pk, "modo": scelta["modo_mansione"], "livello": scelta["livello"],
+                    "classificazione": scelta["classificazione"],
                     "persone": sorted(scelta["persone"]), "registrati": fatti, "errori": errori,
                 }, oggetto=mansione)
                 messages.success(request, f"{fatti} persone aggiornate" + (f", {errori} con errore." if errori else "."))
@@ -532,7 +537,7 @@ def assegnazioni_import(request):
                                                r.foglio, r.numero))
     from django.utils import timezone
 
-    scelta = {"cosa": "ruolo", "modo": "aggiungi", "modo_mansione": "assegna", "livello": "U",
+    scelta = {"cosa": "ruolo", "modo": "aggiungi", "modo_mansione": "assegna", "livello": "U", "classificazione": "",
               "data": timezone.localdate().isoformat(), "note": "", "persone": set()}
     return render(request, "anagrafica/pages/ruoli_in_blocco.html", _contesto_in_blocco(
         request, scelta=scelta, import_esito=esito, import_righe=righe, import_conteggi=esito.conteggi(),

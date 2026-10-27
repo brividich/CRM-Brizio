@@ -75,4 +75,11 @@ def posizione(legacy_id: int) -> dict:
         "reparto_testo": (az.area if az else "") or "", "responsabile": responsabile,
         "abilitazioni": abilitazioni, "proposte": da_proporre, "processi": processi,
         "senza_area": area is None, "senza_ruolo": not struttura,
+        "coefficienti": _stato_coefficienti(legacy_id),
     }
+
+
+def _stato_coefficienti(legacy_id: int) -> dict:
+    from .mansioni_coefficienti import stato
+
+    return stato(legacy_id)
