@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=8">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -108,7 +108,40 @@
             </tbody>
           </table>
         </div>
-        <div class="fmd-legend"><span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto. Con le competenze definite il livello si ricalcola da «Valuta».</span></div>
+        <div class="fmd-legend"><span class="fmd-muted">Livelli: I in formazione · L intermedio · U autonomo · O esperto.{% if competenze %} Con le competenze definite il livello sulla mansione si calcola da solo: dalla matrice qui sotto o da «Valuta», e di nuovo quando cambiano corsi, qualifiche, MOD.128 o le competenze richieste.{% endif %}</span></div>
+
+        {% if competenze %}
+        <div class="mns-matrice" id="matrice">
+          <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Livelli per competenza{% if puo_valutare %} <span class="fmd-muted" style="font-weight:400;">· cambia una cella: si salva e il livello sulla mansione si ricalcola</span>{% endif %}</div>
+          <div class="fmd-tablewrap">
+            <table class="fmd-table mns-mtx">
+              <thead><tr><th>Persona</th>{% for v in competenze %}<th title="Minimo {{ v.livello_minimo }}{% if v.bloccante %} · bloccante{% endif %}">{{ v.nome }} <span class="mns-mtx-min">min {{ v.livello_minimo }}{% if v.bloccante %} · bloccante{% endif %}</span></th>{% endfor %}<th>Sulla mansione</th></tr></thead>
+              <tbody>
+                {% for p in persone %}
+                <tr>
+                  <td class="fmd-nowrap"><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a></td>
+                  {% for c in p.celle %}
+                  <td class="mns-mtx-cella{% if c.requisito %} mns-mtx-req{% elif c.sotto %} mns-mtx-sotto{% endif %}" data-sort-value="{{ c.salvato }}"{% if c.requisito %} title="Manca {{ c.requisito }}: conta al massimo I"{% elif c.sotto %} title="Sotto il minimo {{ c.minimo }}"{% endif %}>
+                    {% if puo_valutare %}
+                    <form method="post" action="{% url 'anagrafica:mansionario_voce_livello' mansione.pk p.abilitazione.pk c.voce.pk %}" class="mns-lv-form">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}#persone">
+                      <select name="livello" class="fm-input fm-select mns-mtx-sel" data-mns-auto aria-label="{{ p.nome }}, {{ c.voce.nome }}">
+                        <option value=""{% if not c.salvato %} selected{% endif %}>—</option>
+                        {% for k, v in livelli_label %}<option value="{{ k }}"{% if k == c.salvato %} selected{% endif %}>{{ k }}</option>{% endfor %}
+                      </select><noscript><button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button></noscript>
+                    </form>
+                    {% else %}<b>{{ c.salvato|default:"—" }}</b>{% endif %}
+                    {% if c.requisito %}<span class="mns-mtx-flag" aria-hidden="true">!</span>{% endif %}
+                  </td>
+                  {% endfor %}
+                  <td class="fmd-nowrap" data-sort-value="{{ p.livello }}"><span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b>{{ p.livello_label }}</span></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="fmd-legend"><span class="fmd-muted"><span class="mns-mtx-key mns-mtx-sotto"></span>sotto il minimo · <span class="mns-mtx-key mns-mtx-req"></span>manca il requisito formale (corso, qualifica, MOD.128): la competenza conta al massimo I. Regola: {{ regole.regola_label|lower }}, operativo da {{ regole.soglia }}.</span></div>
+        </div>
+        {% endif %}
         {% else %}
         <div class="fmd-empty"><span class="fmd-et">Nessuna persona in lista</span><span class="fmd-em">{% if puo_valutare %}Aggiungila dal riquadro qui sopra.{% else %}Nessuno è ancora assegnato a questa mansione.{% endif %}</span></div>
         {% endif %}

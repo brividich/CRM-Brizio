@@ -745,8 +745,23 @@ GUIDA = {
                                 "persone». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
                     ("Livello in riga", "nella tabella delle persone il livello è una tendina: cambiandolo si salva "
                                         "subito, con prima → dopo e autore nello storico delle abilitazioni e nel "
-                                        "registro attività. Sulle mansioni con competenze definite il livello lo "
-                                        "calcola «Valuta» e la tendina non c'è."),
+                                        "registro attività. Sulle mansioni con competenze definite il livello sulla "
+                                        "mansione si calcola e la tendina non c'è: si cambiano i livelli per competenza."),
+                    ("Livelli per competenza", "sulle mansioni con competenze, sotto la tabella delle persone c'è "
+                                               "la matrice persone × competenze: ogni cella è una tendina (— = non "
+                                               "valutata) che si salva al cambio, con storico della competenza e "
+                                               "ricalcolo immediato del livello sulla mansione. Cella gialla = sotto "
+                                               "il minimo; rossa con «!» = manca il requisito formale (corso, "
+                                               "qualifica, MOD.128) e la competenza conta al massimo I."),
+                    ("Ricalcolo automatico", "il livello sulla mansione si riallinea da solo quando cambia qualcosa "
+                                             "da cui dipende: corso completato o scaduto, qualifica aggiunta, tolta o "
+                                             "scaduta, abilitazione MOD.128, competenze richieste (nuova, minimo, "
+                                             "bloccante, requisito), regola di calcolo o soglia. Gira dopo ogni "
+                                             "salvataggio e ogni notte (per le scadenze che passano da sole). Ogni "
+                                             "cambio è nello storico con fonte «Ricalcolo automatico» e il motivo. "
+                                             "Chi è ancora da valutare tiene il livello di partenza, ma se non è "
+                                             "abilitato scende sotto la soglia operativa. A mano: comando "
+                                             "«ricalcola_livelli_competenze» (prova, poi --applica)."),
                     ("Scheda persona", "dal nome della persona: riquadro «Aggiungi mansioni a …» per dare più "
                                        "mansioni insieme (le responsabilità si danno da «Reparti, aree e capi»), "
                                        "livello in riga, «Togli» e «Storico delle mansioni» (assegnazioni, cambi di "
@@ -855,6 +870,11 @@ GUIDA = {
                     ("importa_mansioni_idoneita", "assegna la mansione di rischio ai dipendenti che non l'hanno, dall'elenco "
                                                   "idoneità del medico (codice fiscale e «MANSIONE DI RISCHIO»). In prova di "
                                                   "default, --commit per scrivere."),
+                    ("ricalcola_livelli_competenze", "riallinea il livello sulle mansioni con competenze (requisiti, "
+                                                     "regole, scadenze). Gira già da solo dopo ogni salvataggio e "
+                                                     "ogni notte; a mano serve dopo il deploy o per controllo. In "
+                                                     "prova elenca i cambi, --applica per scrivere, --legacy-id per "
+                                                     "una persona."),
                     ("proponi_mansioni_rischio", "collega a ogni mansione del Mansionario ancora senza mansione di "
                                                  "rischio quella più frequente tra le persone in lista (almeno metà di "
                                                  "loro, a pari merito niente). Da lanciare dopo importa_mansioni_idoneita. "

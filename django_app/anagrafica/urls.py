@@ -384,6 +384,8 @@ urlpatterns = [
     path("mansionario/<int:mansione_id>/assegna/", views_mansionario.mansionario_assegna, name="mansionario_assegna"),
     path("mansionario/<int:mansione_id>/livello/<int:abilitazione_id>/", views_mansionario.mansionario_livello,
          name="mansionario_livello"),
+    path("mansionario/<int:mansione_id>/livello/<int:abilitazione_id>/competenza/<int:voce_id>/",
+         views_mansionario.mansionario_voce_livello, name="mansionario_voce_livello"),
     path("mansionario/<int:mansione_id>/togli/<int:abilitazione_id>/", views_mansionario.mansionario_togli,
          name="mansionario_togli"),
     # Mansionario fase 3: competenze per mansione, valutazione, scheda persona, lacune
