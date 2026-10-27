@@ -363,6 +363,46 @@ _PAGINE_AUDIT = [
         ],
     },
     {
+        "id": "pagina-isms",
+        "titolo": "Audit ISMS ISO/IEC 27001 (MOD.171 e MOD.168)",
+        "blocchi": [
+            ("p", "Per l'audit interno del sistema di gestione della sicurezza delle informazioni (MT CN 276) scegli nel "
+                  "piano «Modulistica: Audit ISMS ISO/IEC 27001 (MOD.171 / MOD.168)». La norma ISO/IEC 27001 viene spuntata "
+                  "da sola. Team, persone, programma orario, approvazioni, comunicazione, firme e chiusura sono gli stessi "
+                  "degli altri audit interni; cambiano i moduli e quello che si compila."),
+            ("ul", [
+                "«Rapporto ISMS» (dalla scheda audit) apre la pagina di compilazione. In «MOD.171 · Elenco siti oggetto di "
+                "audit» si indicano ID, campo d'applicazione, attività da remoto (S/N) e funzioni o processi: modificabile "
+                "finché il piano è pianificato. L'agenda del piano diventa il «Piano di audit» del MOD.171.",
+                "«MOD.168 · Attività, siti, modifiche e valutazioni»: date e durata in remoto (con la percentuale) o in "
+                "campo, sito, campo d'applicazione, addetti e turni, le tre «Modifiche significative» (no / sì con "
+                "specifica, più «Altro») e le tre valutazioni del team (azioni sulle NC minori precedenti, trattamento dei "
+                "rilievi degli ultimi due audit, analisi dei commenti del precedente audit).",
+                "«Efficacia del sistema di gestione»: 15 righe dei requisiti ISO/IEC 27001 del MOD.168 (4.3 … 10.1, obblighi "
+                "di conformità, famiglie di controlli), ognuna con evidenze e rilievo.",
+                "«Controlli ISO/IEC 27002:2022 · applicazione 0-4»: i 93 controlli per tema, con il livello della SoA "
+                "approvata in vigore già inserito. Scala del MOD.165: 4 = pienamente applicato, 0 = non applicato o "
+                "escluso. Se cambi il livello devi motivarlo nel commento; la riga mostra «Diverso dalla SoA». "
+                "«Salva» registra la singola riga senza ricaricare la pagina.",
+            ]),
+            ("def", [
+                ("NC", "Non conformità, maggiore o minore: crea una voce NC nel Registro OFI (MOD.174) con ISO 27001 e il "
+                       "riferimento al requisito o al controllo. Prima della chiusura serve la CAR con piano azioni approvato."),
+                ("AP", "Area di miglioramento: crea una voce OFI nel Registro OFI."),
+                ("COM", "Commento: resta nel rapporto, non crea voci nel registro."),
+            ]),
+            ("p", "Un rilievo già registrato nel MOD.174 non cambia tipo dal rapporto: si prosegue nel registro. Se le azioni "
+                  "sulle NC minori del precedente audit sono «non efficaci» il portale chiede di rilasciare una NC maggiore."),
+            ("p", "Per firmare il rapporto servono: date dell'attività, risposte alle modifiche (con specifica se «sì»), le "
+                  "tre valutazioni, evidenze su ogni requisito, il livello di tutti i 93 controlli e il giudizio conclusivo. "
+                  "L'«Elenco azioni correttive» si compone dalle NC con azione, responsabile e scadenza presi dalla CAR o "
+                  "dalla voce del registro. Alla chiusura il MOD.168 viene emesso e archiviato con impronta SHA-256."),
+            ("p", "Dopo la chiusura, se dei livelli sono diversi dalla SoA, chi ha il permesso di modifica della SoA vede "
+                  "«Apri una revisione della SoA con questi livelli»: nasce una revisione in bozza con i nuovi livelli e la "
+                  "motivazione nella giustificazione, da verificare, proporre e far approvare dalla Direzione."),
+        ],
+    },
+    {
         "id": "pagina-efficacia",
         "titolo": "Verifica efficacia di un rilievo",
         "blocchi": [
@@ -756,6 +796,7 @@ PAGE_HELP = {
     "sistema_gestione:audit_modifica": ("audit", "pagina-piano"),
     "sistema_gestione:audit_elemento_modifica": ("audit", "pagina-audit"),
     "sistema_gestione:audit_dettaglio": ("audit", "pagina-audit"),
+    "sistema_gestione:audit_isms": ("audit", "pagina-isms"),
     "sistema_gestione:procedura_preparazione": ("audit", "pagina-preparazione"),
     "sistema_gestione:audit_esito_editor": ("audit", "pagina-verifica"),
     "sistema_gestione:audit_verifica_efficacia": ("audit", "pagina-efficacia"),
