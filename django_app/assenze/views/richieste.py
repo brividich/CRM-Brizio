@@ -822,6 +822,45 @@ def _has_valid_submit_token(request, token: str, action: str) -> bool:
     )
 
 
+def _contesto_calendario(email: str, form: dict) -> dict:
+    """Spunta «Metti nel mio calendario Outlook»: Graph acceso «su richiesta» e casella aziendale."""
+    from .. import outlook_sync
+
+    email = str(email or "").strip().lower()
+    offerta = bool(email and "@" in email and outlook_sync.su_richiesta())
+    return {
+        "calendario_opzione": offerta,
+        "calendario_email": email if offerta else "",
+        "form_calendario": offerta and bool(_helpers._as_bool(form.get("calendario"))),
+    }
+
+
+def _richiedi_calendario(request, local_ids: list[int]) -> None:
+    """Dopo l'inserimento: le richieste nel calendario Outlook di chi le ha inserite."""
+    if request.POST.get("calendario") != "1" or not local_ids:
+        return
+    from .. import outlook_sync
+
+    _name, email, _legacy = _helpers._legacy_identity(request)
+    try:
+        if outlook_sync.su_richiesta():
+            outlook_sync.richiedi(local_ids, email, da=request.user.get_username())
+    except Exception:
+        logger.warning("Calendario Outlook non richiesto per %s", local_ids, exc_info=True)
+
+
+def _richiedi_calendario_capo(request, item_id: int) -> None:
+    """Approvata dal portale con la spunta: nel calendario Outlook di chi approva."""
+    from .. import outlook_sync
+
+    _name, email, _legacy = _helpers._legacy_identity(request)
+    try:
+        if outlook_sync.su_richiesta():
+            outlook_sync.richiedi(item_id, email, da=request.user.get_username())
+    except Exception:
+        logger.warning("Calendario Outlook non richiesto per %s", item_id, exc_info=True)
+
+
 def _render_richiesta(request, success: str = "", error: str = "", form_data: dict | None = None):
     perms = _helpers._assenze_permissions(request)
     name, email, _legacy_id = _helpers._legacy_identity(request)
@@ -899,6 +938,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
             "form_data": merged_form,
             "submit_token": _build_submit_token(request, "assenze_invio"),
             "form_salta_approvazione": bool(_helpers._as_bool(merged_form.get("salta_approvazione"))),
+            **_contesto_calendario(email, merged_form),
             "flessibilita_entrate": fless_conf.entrate,
             "flessibilita_uscite": fless_conf.uscite,
             "flessibilita_abilitati_ids": sorted(fless_abilitati),
@@ -1084,6 +1124,7 @@ def car_dashboard(request):
         "assenze/pages/car_dashboard.html",
         {
             "da_gestire": da_gestire,
+            **_contesto_calendario(_helpers._legacy_identity(request)[1], {}),
             # Solo i tipi effettivamente presenti in coda: una pillola che non
             # filtra niente e' rumore.
             "tipi_in_coda": sorted({str(r.get("tipo") or "").strip() for r in da_gestire if r.get("tipo")}),
@@ -1141,6 +1182,8 @@ def api_car_aggiorna_consenso(request, item_id: int):
     sync_result = _helpers._applica_moderazione(request, item_id, current, consenso, note_gestione)
     if sync_result is None:
         return _helpers._json_error("Aggiornamento non eseguito.", status=500)
+    if consenso == "Approvato" and payload and payload.get("calendario") is True:
+        _richiedi_calendario_capo(request, item_id)
 
     return JsonResponse({"ok": True, "item_id": item_id, "consenso": consenso, "note_gestione": note_gestione, "sync": sync_result})
 
@@ -1462,6 +1505,7 @@ def invio_placeholder(request):
     except Exception as exc:
         return _render_richiesta(request, error=f"Errore salvataggio locale: {exc}", form_data=request.POST.dict())
 
+    _richiedi_calendario(request, local_ids)
     motivo_storico = f"Inserita per conto di {display_name}" if inserting_for_other else ""
     if ripetuto:
         nota = f"Permesso ripetuto: {len(local_ids)} giorni dal {giorni[0]:%d/%m/%Y} al {giorni[-1]:%d/%m/%Y}"

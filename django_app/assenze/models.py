@@ -305,6 +305,13 @@ class AssenzeImpostazioniHR(models.Model):
         default=False, verbose_name="Assenze approvate nel calendario Outlook del capo",
         help_text="Serve il permesso applicativo Calendars.ReadWrite di Microsoft Graph.",
     )
+    OUTLOOK_SU_RICHIESTA = "richiesta"
+    OUTLOOK_TUTTE = "tutte"
+    outlook_capo_modo = models.CharField(
+        max_length=20, default=OUTLOOK_SU_RICHIESTA,
+        choices=[(OUTLOOK_SU_RICHIESTA, "Solo quando lo si chiede"), (OUTLOOK_TUTTE, "Tutte le assenze approvate")],
+        verbose_name="Quali assenze mettere nel calendario Outlook",
+    )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.CharField(max_length=200, blank=True, default="")
 
@@ -487,19 +494,28 @@ class AssenzaSollecito(models.Model):
 
 
 class AssenzaOutlook(models.Model):
-    """Evento creato via Graph nel calendario Outlook del capo per un'assenza approvata."""
+    """Evento creato via Graph nel calendario Outlook di una persona per un'assenza approvata.
 
-    assenza_id = models.IntegerField(unique=True)
+    Una riga per richiesta e casella: la crea chi chiede «metti nel calendario»
+    (inserimento, approvazione via mail o dal portale) oppure, con il modo «tutte»,
+    il job per il capo. L'evento c'è finché la richiesta resta approvata.
+    """
+
+    assenza_id = models.IntegerField(db_index=True)
     email = models.CharField(max_length=200, blank=True, default="")
     event_id = models.CharField(max_length=512, blank=True, default="")
     impronta = models.CharField(max_length=64, blank=True, default="")
     rimosso_da_utente = models.BooleanField(default=False)
     ultimo_errore = models.CharField(max_length=500, blank=True, default="")
+    richiesto_da = models.CharField(max_length=200, blank=True, default="")
     aggiornato_il = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Assenza nel calendario Outlook"
         verbose_name_plural = "Assenze nel calendario Outlook"
+        constraints = [
+            models.UniqueConstraint(fields=["assenza_id", "email"], name="assenze_outlook_assenza_email_uniq"),
+        ]
 
     def __str__(self):
         return f"assenza {self.assenza_id} → {self.email or '?'}"

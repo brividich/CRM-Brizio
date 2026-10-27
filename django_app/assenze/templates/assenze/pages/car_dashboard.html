@@ -301,6 +301,12 @@
           <button type="button" class="abs-filter-btn" data-car-periodo="settimana">Entro 7 giorni</button>
           <button type="button" class="abs-filter-btn" data-car-periodo="passate">Gia iniziate</button>
         </div>
+        {% if calendario_opzione %}
+          <label class="car-filter-row" style="gap:8px;align-items:center;cursor:pointer;" title="Calendario «Assenze del team (NOVICROM HUB)» di {{ calendario_email }}">
+            <input type="checkbox" id="car-calendario">
+            <span>Metti nel mio calendario Outlook le richieste che approvo</span>
+          </label>
+        {% endif %}
       </div>
     {% endif %}
     <div class="abs-panel-body no-pad">
@@ -728,11 +734,24 @@
         statusEl.classList.toggle("text-warn", !isError && (text || "").toLowerCase().includes("attenzione"));
       }
 
+      // «Metti nel mio calendario Outlook»: la scelta resta ricordata su questo browser.
+      const calendario = document.getElementById("car-calendario");
+      if (calendario) {
+        try { calendario.checked = localStorage.getItem("assenze.car.calendario") === "1"; } catch (e) {}
+        calendario.addEventListener("change", function () {
+          try { localStorage.setItem("assenze.car.calendario", calendario.checked ? "1" : "0"); } catch (e) {}
+        });
+      }
+
       async function postConsenso(itemId, consenso, noteGestione) {
         const res = await fetch("/assenze/api/car/consenso/" + itemId, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
-          body: JSON.stringify({ consenso: consenso, note_gestione: noteGestione || "" }),
+          body: JSON.stringify({
+            consenso: consenso,
+            note_gestione: noteGestione || "",
+            calendario: !!(calendario && calendario.checked && consenso === "Approvato"),
+          }),
         });
         const data = await res.json().catch(function () { return {}; });
         if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));

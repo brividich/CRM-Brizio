@@ -79,6 +79,10 @@ class CategoriaDPI(models.Model):
     )
     unita_misura = models.CharField(max_length=30, blank=True, default="pz")
     scorta_minima = models.PositiveIntegerField(default=0, help_text="Soglia minima in magazzino per segnalazione")
+    avvisa_amministrazione_consegna = models.BooleanField(
+        default=True,
+        help_text="Alla consegna manda il report con il PDF anche all'Amministrazione",
+    )
     is_active = models.BooleanField(default=True)
     order_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -229,7 +233,12 @@ class DPIImpostazioni(models.Model):
     )
     amministrazione_emails = models.TextField(
         blank=True, default="",
-        help_text="Avviso di consegna e report di consegna, uno per riga",
+        help_text="Report di consegna (per le categorie con l'avviso all'Amministrazione), uno per riga",
+    )
+    avviso_ritiro_all_approvazione = models.BooleanField(
+        default=False,
+        help_text="Avvisa il dipendente di ritirare il DPI subito all'approvazione, "
+                  "senza aspettare «Pronto per il ritiro» del magazzino",
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -329,6 +338,11 @@ class RichiestaDPI(models.Model):
 
     note_gestione = models.TextField(blank=True, default="")
 
+    # Il magazzino ha preparato il DPI e ha avvisato il dipendente di ritirarlo
+    # (lo stato resta APPROVATA fino alla consegna).
+    pronta_ritiro_il = models.DateTimeField(null=True, blank=True)
+    pronta_ritiro_da_nome = models.CharField(max_length=200, blank=True, default="")
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -363,7 +377,13 @@ class RichiestaDPI(models.Model):
 
     @property
     def label_stato(self) -> str:
+        if self.is_pronta_ritiro:
+            return "Pronta al ritiro"
         return dict(StatoRichiesta.choices).get(self.stato, self.stato)
+
+    @property
+    def is_pronta_ritiro(self) -> bool:
+        return self.stato == StatoRichiesta.APPROVATA and self.pronta_ritiro_il is not None
 
     @property
     def is_aperta(self) -> bool:

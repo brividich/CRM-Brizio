@@ -86,16 +86,68 @@ class FlussoViewTests(TestCase):
         """Simula un utente non gestore che e' il caporeparto del dipendente."""
         return mock.patch.multiple("dpi.views", _is_gestore=mock.Mock(return_value=False), _legacy_id=mock.Mock(return_value=CAPO))
 
-    def test_capo_approva_e_scatta_l_avviso_a_magazzino_e_amministrazione(self):
+    def test_capo_approva_e_scatta_l_avviso_al_solo_magazzino(self):
         with self._come_capo():
             response = self.client.post(reverse("dpi:approva", args=[self.richiesta.pk]), {"nota": "ok"})
         self.assertEqual(response.status_code, 302)
         self.richiesta.refresh_from_db()
         self.assertEqual(self.richiesta.stato, StatoRichiesta.APPROVATA)
+        self.assertIsNone(self.richiesta.pronta_ritiro_il)
         avviso = [m for m in mail.outbox if "Da consegnare" in m.subject]
         self.assertEqual(len(avviso), 1)
-        self.assertIn("magazzino@example.test", avviso[0].to)
-        self.assertIn("amministrazione@example.test", avviso[0].to)
+        self.assertEqual(avviso[0].to, ["magazzino@example.test"])
+        self.assertFalse([m for m in mail.outbox if "pronto" in m.subject])
+
+    def test_magazzino_segna_pronto_e_il_dipendente_e_avvisato(self):
+        self.richiesta.stato = StatoRichiesta.APPROVATA
+        self.richiesta.save()
+        with mock.patch("dpi.flusso._email_persona", return_value="mario@example.test"):
+            self.client.post(reverse("dpi:pronta_ritiro", args=[self.richiesta.pk]))
+        self.richiesta.refresh_from_db()
+        self.assertIsNotNone(self.richiesta.pronta_ritiro_il)
+        self.assertEqual(self.richiesta.label_stato, "Pronta al ritiro")
+        ritiro = [m for m in mail.outbox if "pronto" in m.subject]
+        self.assertEqual([m.to for m in ritiro], [["mario@example.test"]])
+
+    def test_pagine_del_gestore_mostrano_ritiro_e_spunte(self):
+        self.richiesta.stato = StatoRichiesta.APPROVATA
+        self.richiesta.save()
+        detail = self.client.get(reverse("dpi:gestione_detail", args=[self.richiesta.pk]))
+        self.assertContains(detail, "Pronto per il ritiro")
+        self.assertContains(detail, "Registra consegna")
+        impost = self.client.get(reverse("dpi:impostazioni"))
+        self.assertContains(impost, 'name="avviso_ritiro_all_approvazione"')
+        nuova_cat = self.client.get(reverse("dpi:categoria_modifica", args=[self.categoria.pk]))
+        self.assertContains(nuova_cat, 'name="avvisa_amministrazione_consegna"')
+
+    def test_pronto_solo_per_i_gestori(self):
+        self.richiesta.stato = StatoRichiesta.APPROVATA
+        self.richiesta.save()
+        with self._come_capo():
+            self.client.post(reverse("dpi:pronta_ritiro", args=[self.richiesta.pk]))
+        self.richiesta.refresh_from_db()
+        self.assertIsNone(self.richiesta.pronta_ritiro_il)
+
+    def test_opzione_avviso_ritiro_subito_all_approvazione(self):
+        impost = DPIImpostazioni.get_singleton()
+        impost.avviso_ritiro_all_approvazione = True
+        impost.save()
+        with self._come_capo(), mock.patch("dpi.flusso._email_persona", return_value="mario@example.test"):
+            self.client.post(reverse("dpi:approva", args=[self.richiesta.pk]))
+        self.richiesta.refresh_from_db()
+        self.assertTrue(self.richiesta.is_pronta_ritiro)
+        self.assertEqual(len([m for m in mail.outbox if "pronto" in m.subject]), 1)
+
+    def test_report_consegna_al_preposto_e_amministrazione_solo_se_la_categoria_lo_chiede(self):
+        self.richiesta.stato = StatoRichiesta.APPROVATA
+        self.richiesta.save()
+        self.categoria.avvisa_amministrazione_consegna = False
+        self.categoria.save()
+        with mock.patch("dpi.pdf.render_modulo_consegna_dpi", return_value=b"%PDF-1.4 x"), \
+                mock.patch("dpi.flusso._email_persona", side_effect=lambda i: f"p{i}@example.test"):
+            self.client.post(reverse("dpi:consegna", args=[self.richiesta.pk]), {"data_consegna": "2026-09-30"})
+        report = [m for m in mail.outbox if "Report di consegna" in m.subject]
+        self.assertEqual(report[0].to, [f"p{CAPO}@example.test"])
 
     def test_estraneo_non_puo_approvare(self):
         with mock.patch.multiple("dpi.views", _is_gestore=mock.Mock(return_value=False), _legacy_id=mock.Mock(return_value=ESTRANEO)):
@@ -177,6 +229,17 @@ class FlussoViewTests(TestCase):
         self.assertEqual(nuova.richiedente_legacy_id, DIPENDENTE)
         self.assertEqual(nuova.created_by, self.admin)
         self.assertIn("per conto del dipendente", nuova.note_gestione)
+        # Inserita dal CAR: approvata da sola, il magazzino e' avvisato.
+        self.assertEqual(nuova.stato, StatoRichiesta.APPROVATA)
+        self.assertEqual(len([m for m in mail.outbox if "Da consegnare" in m.subject]), 1)
+
+    def test_richiesta_di_un_operatore_resta_da_approvare(self):
+        with mock.patch.multiple("dpi.views", _is_gestore=mock.Mock(return_value=False), _legacy_id=mock.Mock(return_value=DIPENDENTE)), \
+                mock.patch("dpi.flusso.notifica_nuova_richiesta") as da_approvare:
+            self.client.post(reverse("dpi:nuova"), {"categoria_id": self.categoria.pk, "quantita": "1"})
+        nuova = RichiestaDPI.objects.exclude(pk=self.richiesta.pk).get()
+        self.assertEqual(nuova.stato, StatoRichiesta.INVIATA)
+        self.assertTrue(da_approvare.called)
 
     def test_non_si_richiede_per_chi_non_e_nel_proprio_ambito(self):
         with self._come_capo():

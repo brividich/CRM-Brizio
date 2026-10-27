@@ -104,6 +104,33 @@ def _render_decision(request, context: dict, status: int = 200):
     return render(request, "automazioni/pages/approval_decision.html", context, status=status)
 
 
+def _contesto_calendario(request, approval, decision: str) -> dict:
+    """Spunta «Metti nel mio calendario Outlook» sulla conferma di un'assenza da approvare.
+
+    ``?calendario=1`` (pulsante «Approva e metti in calendario» della mail) la trova già messa.
+    """
+    from ..calendario_outlook import approvazione_di_assenza, opzione_calendario
+
+    offerta = decision == "approved" and approvazione_di_assenza(approval) and opzione_calendario(
+        "assenze", approval.resume_payload
+    )
+    return {
+        "calendario_opzione": offerta,
+        "calendario_spuntato": request.GET.get("calendario") == "1",
+        "calendario_richiesto": request.GET.get("calendario") == "1" and request.GET.get("done") == "1",
+    }
+
+
+def _dopo_decisione(request, approval, decision: str, email: str) -> str:
+    """Registra la richiesta di calendario dopo «Approva»; ritorna il suffisso del redirect."""
+    from ..calendario_outlook import richiedi_da_approvazione
+
+    if decision != "approved" or request.POST.get("calendario") != "1":
+        return "?done=1"
+    richiedi_da_approvazione(approval, email)
+    return "?done=1&calendario=1"
+
+
 @risposta_pubblica
 @csrf_exempt  # il segreto nell'URL fa da protezione CSRF: un sito terzo non lo conosce
 @require_http_methods(["GET", "POST"])
@@ -124,6 +151,7 @@ def approval_link_page(request, token: str, decision: str):
         "token": "",
         "link_mode": True,
         "decider_email": link.recipient_email,
+        **_contesto_calendario(request, approval, normalized),
     }
 
     if request.method == "GET":
@@ -149,7 +177,8 @@ def approval_link_page(request, token: str, decision: str):
         },
     )
     if result.get("ok"):
-        return redirect(request.path + "?done=1")
+        # Fa fede la casella a cui è arrivato il link, non chi lo apre.
+        return redirect(request.path + _dopo_decisione(request, approval, normalized, link.recipient_email))
     approval.refresh_from_db()
     return _render_decision(request, {
         **base_context,
@@ -213,6 +242,7 @@ def approval_decision_page(request, token: str, decision: str):
         "decision_verb": "approva" if normalized == "approved" else "rifiuta",
         "token": token,
         "decider_email": _session_approver_email(request),
+        **_contesto_calendario(request, approval, normalized),
     }
 
     if request.method == "GET":
@@ -233,7 +263,7 @@ def approval_decision_page(request, token: str, decision: str):
             "already_decided": validation.error_code == "already_decided",
         }, status=403)
     if result.get("ok"):
-        return redirect(request.path + "?done=1")
+        return redirect(request.path + _dopo_decisione(request, approval, normalized, _session_approver_email(request)))
     return _render_decision(request, {
         **base_context,
         "result": result,
