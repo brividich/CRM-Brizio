@@ -143,6 +143,17 @@ def ai_cpe_proposte_task():
     return letture.esegui("cpe_ai")
 
 
+def pacchetto_iso_task():
+    """Pacchetto mensile di evidenze ISO/IEC 27001 (schedule `security_pacchetto_iso`, lettura `pacchetto_iso`).
+
+    Il giorno 1 alle 06:30 genera il PDF del mese prima (esito dei controlli, CVE corrette, esposizioni
+    scadute, incidenti), lo archivia con l'impronta SHA-256 nell'audit e, se acceso, lo copia su SharePoint.
+    """
+    from security.services import letture
+
+    return letture.esegui("pacchetto_iso")
+
+
 def suggest_cpe_task(vendor, product):
     """Suggerimenti CPE dal dizionario NVD per un prodotto dell'inventario (accodato dalla pagina Software)."""
     from security.models import SoftwareCpeMapping

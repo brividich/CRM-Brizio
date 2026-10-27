@@ -784,6 +784,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {"q_options": {"timeout": 600}},
     },
     {
+        # SOC — pacchetto mensile di evidenze ISO/IEC 27001: il giorno 1 alle 06:30 genera il PDF del mese
+        # prima (esito dei controlli dell'Annex A, CVE corrette, esposizioni scadute, incidenti con lezioni
+        # apprese), lo archivia con l'impronta SHA-256 nell'audit e, se acceso in /soc/impostazioni/,
+        # lo copia nella cartella SharePoint dell'audit. Si vede in Letture automatiche e nel Battito del SOC.
+        "name": "security_pacchetto_iso",
+        "func": "security.tasks.pacchetto_iso_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 6 1 * *",       # il 1° del mese alle 06:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.
         "name": "contatori_tabella_mac",
         "func": "contatori.tasks.run_tabella_mac",

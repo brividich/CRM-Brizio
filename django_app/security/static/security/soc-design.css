@@ -347,6 +347,31 @@ body.theme-dark .soc-module .lt-warn { color: #fcd34d; }
 .soc-module .bt-legenda { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--text-mid); }
 .soc-module .bt-legenda .bt-c { width: 12px; height: 12px; }
 
+/* Report › Conformità ISO 27001 (security/iso27001.html): un riquadro per controllo, stesso stile delle Letture automatiche */
+.soc-module .lt-sum.is-warn strong { color: #d97706; }
+.soc-module .iso-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+.soc-module .iso-card.is-attenzione { border-top-color: #d97706; }
+.soc-module .iso-card.is-non_conforme { border-top-color: var(--danger); }
+.soc-module .iso-card.is-non_disponibile { border-top-color: var(--border); opacity: .9; }
+.soc-module .is-attenzione .lt-dot { background: #d97706; }
+.soc-module .is-non_conforme .lt-dot { background: var(--danger); }
+.soc-module .iso-pill { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(100, 116, 139, .12); color: var(--text-mid); white-space: nowrap; }
+.soc-module .iso-pill.is-ok { background: var(--success-bg); color: var(--success); }
+.soc-module .iso-pill.is-attenzione { background: var(--warning-bg); color: #b7791f; }
+.soc-module .iso-pill.is-non_conforme { background: var(--danger-bg); color: var(--danger); }
+.soc-module .iso-frase { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.soc-module .is-non_conforme .iso-frase { color: var(--danger); }
+.soc-module .iso-azioni ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 3px; }
+.soc-module .iso-evidenze { gap: 6px; }
+.soc-module .iso-dett > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-mid); }
+.soc-module .iso-dett table { margin-top: 6px; font-size: 12px; }
+.soc-module .iso-dafare li.is-attenzione a strong { color: #b7791f; }
+.soc-module .iso-dafare li.is-non_conforme a strong { color: var(--danger); }
+.soc-module .iso-hash { font-size: 11px; }
+.soc-module .iso-genera { margin-bottom: 10px; }
+body.theme-dark .soc-module .iso-pill.is-attenzione, body.theme-dark .soc-module .iso-dafare li.is-attenzione a strong { color: #fcd34d; }
+@media (max-width: 520px) { .soc-module .iso-grid { grid-template-columns: 1fr; } }
+
 /* Impostazioni › Panoramica della configurazione (config_hub) */
 .soc-module .soc-crumb { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0; font-size: 13px; color: rgba(255, 255, 255, .8); }
 .soc-module .soc-crumb a { color: #fff; font-weight: 600; text-decoration: none; }

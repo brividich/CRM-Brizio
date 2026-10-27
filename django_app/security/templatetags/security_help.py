@@ -30,6 +30,7 @@ PAGE_HELP = {
     "incident_edit": ("14-incidenti-e-report", "registrare-un-incidente"),
     "incident_detail": ("14-incidenti-e-report", "le-scadenze"),
     "report": ("14-incidenti-e-report", "report-periodico"),
+    "iso27001": ("19-conformita-iso27001", "la-pagina"),
     "backup": ("15-backup-vpn-kpi-asset", "backup"),
     "backup_log": ("15-backup-vpn-kpi-asset", "backup"),
     "backup_ripristini": ("15-backup-vpn-kpi-asset", "prove-di-ripristino"),

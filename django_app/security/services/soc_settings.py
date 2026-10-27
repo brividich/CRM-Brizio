@@ -379,6 +379,21 @@ SECTIONS = [
                    "int", min_value=0, max_value=100, unit="%"),
         ],
     },
+    {
+        "code": "iso",
+        "title": "Conformità ISO 27001",
+        "intro": "La pagina Report › Conformità ISO 27001 verifica da sola i controlli dell'Annex A coperti dal SOC e il giorno 1 "
+                 "di ogni mese (06:30) archivia il pacchetto di evidenze del mese prima (lettura «pacchetto_iso»). Qui le due "
+                 "cose che il SOC non può decidere da solo.",
+        "channels_optional": True,
+        "options": [
+            Option("iso.pacchetto.sharepoint", False, "Copia il pacchetto mensile nella cartella SharePoint dell'audit",
+                   "Stessa cartella delle esportazioni dell'audit (Centrale di comando › Audit), sottocartella «soc-iso27001». "
+                   "Spenta: il pacchetto resta solo nell'archivio privato del portale."),
+            Option("iso.segnalazioni.canale", "", "Canale di segnalazione per il personale (controllo 6.8)",
+                   "Come i dipendenti segnalano un sospetto di sicurezza: una mail, un numero, una pagina. Vuoto = da definire.", "text"),
+        ],
+    },
 ]
 
 OPTIONS = {option.key: option for section in SECTIONS for option in section["options"]}

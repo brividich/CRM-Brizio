@@ -12,6 +12,7 @@ GUIDA = {
         ("Lavoro quotidiano", "/soc/docs/13-lavoro-quotidiano/"),
         ("Risoluzione problemi", "/soc/docs/09-troubleshooting/"),
         ("Registro accessi", "/soc/docs/18-registro-accessi/"),
+        ("Conformità ISO 27001", "/soc/docs/19-conformita-iso27001/"),
     ],
     "uso": [
         {
@@ -143,6 +144,24 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "iso27001",
+            "titolo": "Conformità ISO 27001: controlli verificati dai dati e pacchetto mensile",
+            "blocchi": [
+                ("p", "Menu del SOC › Report › «Conformità ISO 27001». Un riquadro per ogni controllo dell'Annex A che il SOC copre "
+                      "(5.7, 8.8, 8.7, 6.8, 5.24-5.28, 8.13, 5.30, 8.15, 8.16, 8.17, 9.1): cosa si aspetta l'audit, l'esito calcolato "
+                      "dai dati del SOC, i numeri, cosa fare e i collegamenti alle pagine che fanno da evidenza. Un dato che manca "
+                      "non vale mai come conforme."),
+                ("passi", [
+                    "Scegli il periodo in alto (mese corrente, mese scorso, 3 mesi, 12 mesi, libero).",
+                    "«Da sistemare» elenca i controlli non conformi o da guardare, dal più grave: ogni riga dice cosa fare.",
+                    "Il giorno 1 di ogni mese alle 06:30 il SOC archivia da solo il PDF «Evidenze SOC – ISO/IEC 27001» del mese "
+                    "prima (controlli, CVE corrette con versione prima e dopo, esposizioni scadute, incidenti con lezioni apprese), "
+                    "con impronta SHA-256 nell'audit; «Genera ora» lo fa subito per il periodo scelto (serve il permesso di configurazione).",
+                    "«Scarica PDF» in fondo alla pagina: ogni download è registrato nell'audit.",
+                ]),
+            ],
+        },
     ],
     "admin": [
         {
@@ -193,6 +212,10 @@ GUIDA = {
                     "(percorso | letture, scritture, eliminazioni), file copiati su chiavetta con «Controlla Archivio rimovibile». "
                     "Valgono le voci di controllo già messe per BusinessLog. Durante il passaggio: in BusinessLog spegnere "
                     "«Cancella Registro» e scrivere il suo account in Fonti › Impostazioni › «Account dei raccoglitori di log».",
+                    "Conformità ISO 27001: Impostazioni › Avvisi e automatismi › «Conformità ISO 27001» ha due voci che il SOC non può "
+                    "decidere da solo: il canale con cui il personale segnala un sospetto (controllo 6.8; vuoto = «da definire») e "
+                    "l'interruttore per copiare il pacchetto mensile nella cartella SharePoint dell'audit (sottocartella soc-iso27001, "
+                    "spento di serie). Schedule security_pacchetto_iso (1° del mese, 06:30), lettura «pacchetto_iso».",
                     "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
                     "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
                     "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
