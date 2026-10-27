@@ -797,6 +797,18 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                   </span>
                 </label>
               {% endif %}
+              {% if calendario_opzione %}
+                <label class="abs-toggle-row" style="cursor:pointer;">
+                  <span class="abs-toggle">
+                    <input type="checkbox" id="calendario" name="calendario" value="1"{% if form_calendario %} checked{% endif %}>
+                    <span class="abs-toggle-slider"></span>
+                  </span>
+                  <span class="abs-toggle-copy">
+                    <span class="abs-toggle-title">Metti nel mio calendario Outlook</span>
+                    <span class="abs-toggle-sub">Quando è approvata, l'assenza compare entro 10 minuti nel calendario «Assenze del team (NOVICROM HUB)» di {{ calendario_email }}, come evento libero.</span>
+                  </span>
+                </label>
+              {% endif %}
             </div>
           </section>
 

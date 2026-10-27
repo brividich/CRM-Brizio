@@ -368,10 +368,18 @@
           </div>
           <label class="abs-field full" style="display:flex;flex-direction:row;gap:8px;align-items:flex-start;">
             <input type="checkbox" name="outlook_capo_attivo" value="1"{% if imp.outlook_capo_attivo %} checked{% endif %} style="margin-top:3px;">
-            <span>Assenze approvate nel calendario Outlook del capo
-              <span class="hr-muted" style="display:block;">Ogni 10 minuti il portale scrive le assenze approvate nel calendario «Assenze del team (NOVICROM HUB)» della casella del capo che le approva (eventi «liberi»), le aggiorna se cambiano e le toglie se rifiutate o eliminate. Serve il permesso applicativo Microsoft Graph «Calendars.ReadWrite». Acceso, le mail non hanno più il pulsante «Aggiungi al calendario Outlook».</span>
+            <span>Assenze approvate nel calendario Outlook
+              <span class="hr-muted" style="display:block;">Ogni 10 minuti il portale scrive le assenze approvate nel calendario «Assenze del team (NOVICROM HUB)» delle caselle scelte (eventi «liberi»), le aggiorna se cambiano e le toglie se rifiutate o eliminate. Serve il permesso applicativo Microsoft Graph «Calendars.ReadWrite». Acceso, le mail non hanno più il pulsante «Aggiungi al calendario Outlook».</span>
             </span>
           </label>
+          <div class="abs-field full">
+            <label for="imp-outlook-modo">Quali assenze</label>
+            <select id="imp-outlook-modo" class="abs-input" name="outlook_capo_modo">
+              <option value="richiesta"{% if imp.outlook_capo_modo != "tutte" %} selected{% endif %}>Solo quando lo si chiede</option>
+              <option value="tutte"{% if imp.outlook_capo_modo == "tutte" %} selected{% endif %}>Tutte le assenze approvate, nel calendario del capo</option>
+            </select>
+            <div class="abs-field-hint">«Solo quando lo si chiede»: spunta «Metti nel mio calendario Outlook» nella pagina di inserimento e nella pagina del capo, pulsante «Approva e metti in calendario» nella mail di approvazione. L'evento va nella casella di chi lo chiede; dalla mail, nella casella a cui è arrivata la richiesta.</div>
+          </div>
           {% if imp.outlook_capo_attivo or outlook.eventi or outlook.n_errori %}
             <div class="full hr-muted">
               Calendario Outlook dei capi: {{ outlook.eventi }} event{{ outlook.eventi|pluralize:"o,i" }}{% if outlook.rimossi %}, {{ outlook.rimossi }} tolti dai capi in Outlook (non vengono ricreati){% endif %}{% if outlook.ultimo %} · ultimo aggiornamento {{ outlook.ultimo|date:"d/m/Y H:i" }}{% endif %}.

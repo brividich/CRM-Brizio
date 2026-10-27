@@ -2,8 +2,17 @@
 
 Con «Assenze approvate nel calendario Outlook del capo» acceso (Area HR →
 Calendario aziendale → Orario, patrono e solleciti), il job
-``assenze_outlook_sync`` tiene allineato nella casella di ogni capo il
-calendario «Assenze del team (NOVICROM HUB)»:
+``assenze_outlook_sync`` tiene allineato il calendario «Assenze del team
+(NOVICROM HUB)» nelle caselle che lo hanno chiesto. Due modi:
+
+- «su richiesta» (predefinito): solo le assenze per cui qualcuno ha chiesto
+  «metti nel calendario» (``richiedi``): spunta all'inserimento, pulsante
+  «Approva e metti in calendario» nella mail, spunta nella pagina del capo.
+  Fa fede la casella di chi chiede; via mail, senza login, quella a cui è
+  arrivato il link personale (il caporeparto);
+- «tutte»: ogni assenza approvata va nel calendario del capo che la approva.
+
+Per ogni casella:
 
 - richiesta approvata (o programmata) → evento creato;
 - richiesta spostata o cambiata → evento aggiornato;
@@ -11,14 +20,15 @@ calendario «Assenze del team (NOVICROM HUB)»:
 - evento cancellato dal capo in Outlook → non viene ricreato, finché la
   richiesta non cambia.
 
-Il capo è quello che approva: il capo scelto nella richiesta, altrimenti quello
-dell'organigramma. Gli eventi sono «liberi»: non occupano l'agenda del capo.
+Nel modo «tutte» il capo è quello che approva: il capo scelto nella richiesta,
+altrimenti quello dell'organigramma. Gli eventi sono «liberi»: non occupano l'agenda del capo.
 Permesso applicativo Graph: ``Calendars.ReadWrite`` (lo stesso dello Scadenzario).
 """
 from __future__ import annotations
 
 import hashlib
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -42,6 +52,45 @@ def attivo() -> bool:
         return bool(impostazioni().outlook_capo_attivo)
     except Exception:
         return False
+
+
+def _modo() -> str:
+    from .hr import impostazioni
+
+    try:
+        return str(impostazioni().outlook_capo_modo or "richiesta")
+    except Exception:
+        return "richiesta"
+
+
+def su_richiesta() -> bool:
+    """Acceso e nel modo «su richiesta»: ha senso offrire la spunta / il pulsante."""
+    return attivo() and _modo() == "richiesta"
+
+
+def richiedi(assenza_ids, email: str, *, da: str = "") -> int:
+    """Segna le richieste da mettere nel calendario di ``email``. Ritorna quante righe nuove.
+
+    Una richiesta capofila di un permesso ripetuto porta con sé tutta la serie.
+    Il job scrive l'evento al giro successivo, se e quando la richiesta è approvata.
+    """
+    from .models import AssenzaOutlook, AssenzaSerie
+
+    email = str(email or "").strip().lower()
+    if not email or "@" not in email or not attivo():
+        return 0
+    ids = {int(i) for i in (assenza_ids if isinstance(assenza_ids, (list, tuple, set)) else [assenza_ids])
+           if str(i or "").strip().lstrip("-").isdigit()}
+    if not ids:
+        return 0
+    ids |= set(AssenzaSerie.objects.filter(capofila_id__in=ids).values_list("assenza_id", flat=True))
+    nuove = 0
+    for rid in sorted(ids):
+        _, creata = AssenzaOutlook.objects.get_or_create(
+            assenza_id=rid, email=email, defaults={"richiesto_da": str(da or "")[:200]},
+        )
+        nuove += int(creata)
+    return nuove
 
 
 def _url_casella(email: str) -> str:
@@ -157,14 +206,16 @@ def sincronizza(now=None) -> dict:
     if not m365_graph.configurato():
         return {"skipped": "Microsoft Graph non configurato"}
 
-    now = now or timezone.now()
+    tutte = _modo() == "tutte"
     oggi = timezone.localdate()
     dal = datetime(oggi.year, oggi.month, oggi.day) - timedelta(days=GIORNI_INDIETRO)
     al = datetime(oggi.year, oggi.month, oggi.day) + timedelta(days=GIORNI_AVANTI)
     righe = _richieste_approvate(dal, al)
     ids = [int(r["id"]) for r in righe]
     scelti = dict(AssenzaCapoScelto.objects.filter(assenza_id__in=ids).values_list("assenza_id", "capo_legacy_user_id"))
-    mappa = {m.assenza_id: m for m in AssenzaOutlook.objects.all()}
+    mappa: dict[int, list] = defaultdict(list)
+    for m in AssenzaOutlook.objects.all():
+        mappa[m.assenza_id].append(m)
     cache_cal: dict[str, str] = {}
     creati = aggiornati = tolti = saltati = errori = scritture = 0
 
@@ -174,81 +225,103 @@ def sincronizza(now=None) -> dict:
         rec.ultimo_errore = str(testo)[:500]
         rec.save()
 
+    def togli_evento(rec) -> bool:
+        """Cancella l'evento in Outlook (se c'è). False se Graph ha dato errore."""
+        nonlocal scritture
+        if not (rec.event_id and rec.email and not rec.rimosso_da_utente):
+            return True
+        try:
+            cal_id = _calendario(rec.email, cache_cal)
+            scritture += 1
+            m365_graph.scrivi("DELETE", f"{_url_casella(rec.email)}/calendars/{cal_id}/events/{rec.event_id}",
+                              permesso=PERMESSO)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("assenze.outlook: eliminazione evento assenza %s: %s", rec.assenza_id, exc)
+            errore(rec, exc)
+            return False
+
     for row in righe:
         if scritture >= MAX_SCRITTURE:
             break
         rid = int(row["id"])
+        recs = mappa.pop(rid, [])
+        if tutte and not recs:
+            recs = [AssenzaOutlook(assenza_id=rid, email=_email_capo(row, scelti))]
+        if not recs:
+            continue  # su richiesta: nessuno l'ha chiesta
         payload = _evento(row)
         if payload is None:
             continue
         imp = impronta(payload)
-        rec = mappa.pop(rid, None)
-        if rec is not None and rec.rimosso_da_utente:
-            if rec.impronta == imp:
-                saltati += 1
-                continue
-            rec.rimosso_da_utente, rec.event_id = False, ""  # la richiesta è cambiata: torna in calendario
-        if rec is not None and rec.event_id and rec.impronta == imp and not rec.ultimo_errore:
-            continue
-        if rec is None:
-            rec = AssenzaOutlook(assenza_id=rid)
-        if not rec.email:
-            rec.email = _email_capo(row, scelti)
-        if not rec.email:
-            errore(rec, "Capo senza email aziendale: impossibile scrivere nel suo calendario.")
-            continue
-        try:
-            cal_id = _calendario(rec.email, cache_cal)
-            base = f"{_url_casella(rec.email)}/calendars/{cal_id}/events"
-            scritture += 1
-            if rec.event_id:
-                stato, _ = m365_graph.scrivi("PATCH", f"{base}/{rec.event_id}", permesso=PERMESSO, json=payload)
-                if stato == 404:
-                    # Cancellato dal capo in Outlook: non lo si ricrea finché la richiesta non cambia.
-                    rec.rimosso_da_utente, rec.impronta, rec.ultimo_errore = True, imp, ""
-                    rec.save()
+        for rec in recs:
+            if scritture >= MAX_SCRITTURE:
+                break
+            if rec.rimosso_da_utente:
+                if rec.impronta == imp:
                     saltati += 1
                     continue
-                aggiornati += 1
-            else:
-                _, evento = m365_graph.scrivi("POST", base, permesso=PERMESSO, json=payload)
-                rec.event_id = str(evento.get("id") or "")
-                creati += 1
-            rec.impronta, rec.ultimo_errore = imp, ""
-            rec.save()
-        except Exception as exc:  # noqa: BLE001 - un capo con problemi non ferma gli altri
-            logger.warning("assenze.outlook: assenza %s verso %s: %s", rid, rec.email, exc)
-            errore(rec, exc)
+                rec.rimosso_da_utente, rec.event_id = False, ""  # la richiesta è cambiata: torna in calendario
+            if rec.event_id and rec.impronta == imp and not rec.ultimo_errore:
+                continue
+            if not rec.email:
+                errore(rec, "Capo senza email aziendale: impossibile scrivere nel suo calendario.")
+                continue
+            try:
+                cal_id = _calendario(rec.email, cache_cal)
+                base = f"{_url_casella(rec.email)}/calendars/{cal_id}/events"
+                scritture += 1
+                if rec.event_id:
+                    stato, _ = m365_graph.scrivi("PATCH", f"{base}/{rec.event_id}", permesso=PERMESSO, json=payload)
+                    if stato == 404:
+                        # Cancellato in Outlook: non lo si ricrea finché la richiesta non cambia.
+                        rec.rimosso_da_utente, rec.impronta, rec.ultimo_errore = True, imp, ""
+                        rec.save()
+                        saltati += 1
+                        continue
+                    aggiornati += 1
+                else:
+                    _, evento = m365_graph.scrivi("POST", base, permesso=PERMESSO, json=payload)
+                    rec.event_id = str(evento.get("id") or "")
+                    creati += 1
+                rec.impronta, rec.ultimo_errore = imp, ""
+                rec.save()
+            except Exception as exc:  # noqa: BLE001 - una casella con problemi non ferma le altre
+                logger.warning("assenze.outlook: assenza %s verso %s: %s", rid, rec.email, exc)
+                errore(rec, exc)
 
-    # Richieste non più approvate (rifiutate, eliminate, tornate in attesa) o fuori finestra.
-    restanti = list(mappa.values())
-    ancora = set()
+    # Richieste fuori dall'elenco: approvate ma passate, in attesa, rifiutate o eliminate.
+    restanti = [rec for recs in mappa.values() for rec in recs]
+    stati: dict[int, int] = {}
     if restanti and _helpers._table_exists("assenze"):
-        segnaposto = ", ".join(["%s"] * len(restanti))
-        ancora = {
-            int(r["id"]) for r in _helpers._fetch_all_dict(
-                f"SELECT id FROM assenze WHERE id IN ({segnaposto}) AND COALESCE(moderation_status, 2) IN (0, 4)",
-                [m.assenza_id for m in restanti],
+        id_restanti = sorted({rec.assenza_id for rec in restanti})
+        segnaposto = ", ".join(["%s"] * len(id_restanti))
+        stati = {
+            int(r["id"]): int(r.get("stato") or 0) for r in _helpers._fetch_all_dict(
+                f"SELECT id, COALESCE(moderation_status, 2) AS stato FROM assenze WHERE id IN ({segnaposto})",
+                id_restanti,
             )
         }
     for rec in restanti:
-        if rec.assenza_id in ancora:
+        stato_richiesta = stati.get(rec.assenza_id)
+        if stato_richiesta in (0, 4):
             rec.delete()  # ancora approvata ma passata: l'evento resta, la riga no
             continue
         if scritture >= MAX_SCRITTURE:
             break
-        if rec.event_id and rec.email and not rec.rimosso_da_utente:
-            try:
-                cal_id = _calendario(rec.email, cache_cal)
-                scritture += 1
-                m365_graph.scrivi("DELETE", f"{_url_casella(rec.email)}/calendars/{cal_id}/events/{rec.event_id}",
-                                  permesso=PERMESSO)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("assenze.outlook: eliminazione evento assenza %s: %s", rec.assenza_id, exc)
-                errore(rec, exc)
-                continue
-        rec.delete()
-        tolti += 1
+        in_attesa = stato_richiesta is not None and stato_richiesta not in (1,)
+        if not togli_evento(rec):
+            continue
+        if in_attesa and rec.pk:
+            # Tornata in attesa (o non ancora approvata): la richiesta di calendario resta.
+            if rec.event_id or rec.impronta:
+                tolti += int(bool(rec.event_id))
+                rec.event_id, rec.impronta, rec.rimosso_da_utente, rec.ultimo_errore = "", "", False, ""
+                rec.save()
+            continue
+        if rec.pk:
+            rec.delete()
+        tolti += int(bool(rec.event_id))
 
     return {"creati": creati, "aggiornati": aggiornati, "tolti": tolti, "lasciati_fuori": saltati, "errori": errori}
 
