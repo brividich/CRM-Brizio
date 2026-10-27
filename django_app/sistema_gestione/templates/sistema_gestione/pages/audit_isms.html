@@ -1,0 +1,56 @@
+{% extends "core/base.html" %}{% load static %}
+{% block title %}Audit ISMS {{ audit.numero }}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:audit_dettaglio' audit.pk %}">← Audit {{ audit.numero }}</a>
+  <div class="page-header">
+    <div class="page-header-main"><div class="page-h">Audit ISMS {{ audit.numero }}</div><div class="page-sub"><span class="sg-badge">{{ audit.get_stato_display }}</span> · ISO/IEC 27001, 27002:2022 · MT CN 276{% if dati.soa_revisione %} · livelli di partenza dalla SoA Rev.{{ dati.soa_revisione.numero }}{% else %} · nessuna SoA approvata: livelli da valutare{% endif %}</div></div>
+    <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_export' audit.pk 'piano' %}">PDF MOD.171</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_export' audit.pk 'rapporto' %}">PDF MOD.168</a></div>
+  </div>
+
+  <div class="sg-kpis"><div class="sg-kpi"><span>Controlli valutati</span><strong>{{ contatori.valutati }}/{{ contatori.controlli }}</strong></div><div class="sg-kpi"><span>Diversi dalla SoA</span><strong>{{ contatori.diversi_da_soa }}</strong></div><div class="sg-kpi"><span>NC</span><strong>{{ contatori.nc }}</strong>{% if contatori.nc %}<small>{{ contatori.nc_maggiori }} magg. · {{ contatori.nc_minori }} min.</small>{% endif %}</div><div class="sg-kpi"><span>AP</span><strong>{{ contatori.ap }}</strong></div><div class="sg-kpi"><span>COM</span><strong>{{ contatori.com }}</strong></div></div>
+
+  {% if problemi %}<section class="rc-card sg-section" id="isms"><h2>Da completare prima della firma</h2><details {% if problemi|length <= 12 %}open{% endif %}><summary>{{ problemi|length }} punti del MOD.168</summary><ul>{% for voce in problemi %}<li><a href="#{{ voce.sezione }}">{{ voce.testo }}</a></li>{% endfor %}</ul></details><p class="sg-muted">Giudizio, firme e valutazione RDD si gestiscono nella pagina dell'audit, come per gli altri audit interni.</p></section>{% endif %}
+
+  <section class="rc-card sg-section" id="isms-piano"><h2>MOD.171 · Elenco siti oggetto di audit</h2>
+    <p class="sg-muted">Team, programma orario e approvazioni sono quelli del piano dell'audit. Le righe dell'agenda diventano il «Piano di audit» del MOD.171.</p>
+    {% if puo_modificare_piano %}<form method="post" action="{% url 'sistema_gestione:audit_isms_piano' audit.pk %}" class="sg-form-grid">{% csrf_token %}{% for field in form_piano %}<div class="{% if field.name == 'sito_campo' or field.name == 'sito_funzioni' %}full{% endif %}">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}<div class="full"><button class="btn" type="submit">Salva siti</button></div></form>
+    {% else %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>ID</th><th>Campo d'applicazione</th><th>Attività da remoto (S/N)</th><th>Funzione e/o processi</th></tr></thead><tbody><tr><td>{{ dati.sito_id }}</td><td>{{ dati.sito_campo|linebreaksbr }}</td><td>{% if dati.sito_remoto %}S{% else %}N{% endif %}</td><td>{{ dati.sito_funzioni|linebreaksbr }}</td></tr></tbody></table></div>{% endif %}
+  </section>
+
+  <section class="rc-card sg-section" id="isms-testata"><h2>MOD.168 · Attività, siti, modifiche e valutazioni</h2>
+    {% if puo_compilare %}<form method="post" action="{% url 'sistema_gestione:audit_isms_testata' audit.pk %}" class="sg-form-grid">{% csrf_token %}
+      {% for field in form_testata %}{% if field.name == 'modifiche_sistema' %}<h3 class="full" id="isms-modifiche">Modifiche significative avvenute dopo il precedente audit</h3>{% elif field.name == 'efficacia_ncmi' %}<h3 class="full" id="isms-valutazioni">Valutazioni del team di audit</h3>{% endif %}<div class="{% if field.name == 'campo_applicazione' or field.name == 'sito_indirizzo' or field.name == 'modifiche_altro' or field.name == 'efficacia_ncmi' %}full{% endif %}">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}
+      <div class="full"><button class="btn" type="submit">Salva dati del rapporto</button></div></form>
+    {% else %}
+      <div class="sg-columns"><div><p><strong>In remoto:</strong> {{ dati.remoto_date|default:"—" }}{% if dati.remoto_percentuale is not None %} ({{ dati.remoto_percentuale }}%){% endif %} · {{ dati.remoto_ore|default:"—" }}</p><p><strong>In campo:</strong> {{ dati.campo_date|default:"—" }} · {{ dati.campo_ore|default:"—" }}</p><p><strong>Sito:</strong> {{ dati.sito_indirizzo|default:"—"|linebreaksbr }}</p><p><strong>Campo d'applicazione:</strong> {{ dati.campo_applicazione|default:"—"|linebreaksbr }}</p><p><strong>Addetti:</strong> {{ dati.numero_addetti|default:"—" }} · <strong>Turni:</strong> {{ dati.turni|default:"—" }}</p></div>
+      <div id="isms-modifiche"><p><strong>Modifiche al sistema:</strong> {{ dati.get_modifiche_sistema_display }} {{ dati.modifiche_sistema_note }}</p><p><strong>Modifiche al campo:</strong> {{ dati.get_modifiche_campo_display }} {{ dati.modifiche_campo_note }}</p><p><strong>Modifiche agli addetti:</strong> {{ dati.get_modifiche_addetti_display }} {{ dati.modifiche_addetti_note }}</p><p><strong>Altro:</strong> {{ dati.modifiche_altro|default:"—" }}</p></div></div>
+      <div id="isms-valutazioni"><p><strong>Azioni sulle NC minori precedenti:</strong> {{ dati.get_efficacia_ncmi_display }}</p><p><strong>Rilievi degli ultimi due audit:</strong> {{ dati.get_report_precedenti_display }}</p><p><strong>Commenti del precedente audit analizzati:</strong> {{ dati.get_commenti_precedenti_display }}</p></div>
+    {% endif %}
+  </section>
+
+  <section class="rc-card sg-section" id="isms-requisiti"><h2>Efficacia del sistema di gestione · requisiti ISO/IEC 27001:2022</h2>
+    <p class="sg-muted">NC e AP diventano voci del Registro OFI (MOD.174) con la norma ISO 27001; i COM restano commenti del rapporto.</p>
+    <div class="sg-table-scroll"><table class="sg-table sg-isms-table"><thead><tr><th>ISO 27001:2022</th><th>Evidenze e rilievi (NC, COM, AP)</th></tr></thead><tbody>{% for r in requisiti %}{% include "sistema_gestione/components/_isms_riga.html" with audit=r.audit riga=r.riga form=r.form tipo=r.tipo puo_compilare=r.puo_compilare %}{% endfor %}</tbody></table></div>
+  </section>
+
+  <section class="rc-card sg-section" id="isms-controlli"><h2>Controlli ISO/IEC 27002:2022 · applicazione 0-4</h2>
+    <p class="sg-muted">Scala del MOD.165: 4 = pienamente applicato, 0 = non applicato o escluso. Il livello parte da quello della SoA: se lo cambi, motiva nel commento.</p>
+    {% for gruppo in temi %}<details {% if forloop.first %}open{% endif %}><summary><strong>{{ gruppo.label }}</strong> ({{ gruppo.righe|length }})</summary>
+      <div class="sg-table-scroll"><table class="sg-table sg-isms-table"><thead><tr><th>Controllo</th><th>SoA</th><th>Valutazione dell'auditor</th></tr></thead><tbody>{% for r in gruppo.righe %}{% include "sistema_gestione/components/_isms_riga.html" with audit=r.audit riga=r.riga form=r.form tipo=r.tipo puo_compilare=r.puo_compilare %}{% endfor %}</tbody></table></div>
+    </details>{% endfor %}
+  </section>
+
+  <section class="rc-card sg-section" id="isms-azioni"><h2>Elenco azioni correttive</h2>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>NC</th><th>Azione correttiva</th><th>Responsabile</th><th>Scadenza</th></tr></thead><tbody>{% for a in azioni %}<tr><td>{{ a.nc }}</td><td>{{ a.azione|default:"Da definire nella CAR"|linebreaksbr }}</td><td>{{ a.responsabile|default:"—" }}</td><td>{{ a.scadenza|date:"d/m/Y"|default:"—" }}</td></tr>{% empty %}<tr><td colspan="4">Nessuna NC.</td></tr>{% endfor %}</tbody></table></div>
+    <p class="sg-muted">Azione, responsabile e scadenza si leggono dalla CAR o dalla voce del Registro OFI di ogni NC.</p>
+  </section>
+
+  <section class="rc-card sg-section" id="isms-soa"><h2>Aggiornamento della Dichiarazione di Applicabilità</h2>
+    {% if dati.soa_proposta %}<p>Revisione proposta: <a href="{% url 'sistema_gestione:soa_revisione' dati.soa_proposta.numero %}">SoA Rev.{{ dati.soa_proposta.numero }}</a> ({{ dati.soa_proposta.get_stato_display }}), aperta il {{ dati.soa_proposta_il|date:"d/m/Y H:i" }}.</p>
+    {% elif audit.stato == 'CHIUSO' %}<p>{% if contatori.diversi_da_soa %}{{ contatori.diversi_da_soa }} controlli hanno un livello diverso dalla SoA.{% else %}I livelli coincidono con la SoA: non serve una nuova revisione.{% endif %}</p>{% if puo_proporre_soa and contatori.diversi_da_soa %}<form method="post" action="{% url 'sistema_gestione:audit_isms_proponi_soa' audit.pk %}">{% csrf_token %}<button class="btn" type="submit">Apri una revisione della SoA con questi livelli</button></form><p class="sg-muted">La revisione nasce in bozza: va verificata, proposta e approvata dalla Direzione come ogni revisione della SoA.</p>{% endif %}
+    {% else %}<p class="sg-muted">Dopo la chiusura dell'audit potrai aprire una revisione della SoA in bozza con i livelli emersi.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

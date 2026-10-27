@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 from core.audit import log_action
 
 from .acl_bootstrap import PERM_AUDIT_APPROVA, PERM_AUDIT_EDIT, PERM_AUDIT_ESEGUI, PERM_AUDIT_VIEW
-from .audit_exports import piano_audit_pdf, programma_pdf, rapporto_audit_pdf
+from .audit_exports import piano_audit_pdf, piano_isms_pdf, programma_pdf, rapporto_audit_pdf, rapporto_isms_pdf
 from .audit_forms import (
     AuditAgendaForm,
     AuditDomandaAggiuntivaForm,
@@ -497,7 +497,16 @@ def audit_dettaglio(request, pk: int):
         "puo_convalidare_ente_senza_approvare": puo_convalidare_ente and not puo_approvare,
         "rapporto_modificabile": _rapporto_modificabile(audit),
         "proposte_auditati": _proposte_auditati(request, audit),
+        "contatori_isms": _contatori_isms(audit),
     })
+
+
+def _contatori_isms(audit) -> dict | None:
+    if not audit.is_isms:
+        return None
+    from .services.audit_isms import contatori_isms
+
+    return contatori_isms(audit)
 
 
 def _proposte_auditati(request, audit) -> list:
@@ -690,7 +699,13 @@ def audit_avvia(request, pk: int):
         audit.stato = Audit.STATO_IN_CORSO
         audit.save(update_fields=["stato", "updated_at"])
         service.inizializza_checklist(audit)
+        if audit.is_isms:
+            from .services.audit_isms import assicura_isms
+
+            assicura_isms(audit)
         log_action(request, "audit_avviato", MODULE, {}, oggetto=audit)
+        if audit.is_isms:
+            return redirect("sistema_gestione:audit_isms", pk=audit.pk)
     return redirect(_audit_url(audit, "checklist"))
 
 
@@ -877,8 +892,13 @@ def audit_export(request, pk: int, documento: str):
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _deny(request)
     audit = get_object_or_404(Audit, pk=pk)
+    codice_rapporto = audit.codice_rapporto.replace(".", "")
+    genera_rapporto = rapporto_isms_pdf if audit.is_isms else rapporto_audit_pdf
     if documento == "piano":
-        body, name = piano_audit_pdf(audit), f"MOD035A_{audit.numero}.pdf"
+        if audit.is_isms:
+            body, name = piano_isms_pdf(audit), f"MOD171_{audit.numero}.pdf"
+        else:
+            body, name = piano_audit_pdf(audit), f"MOD035A_{audit.numero}.pdf"
     elif documento == "rapporto":
         from .services.rapporto import rapporto_emesso
 
@@ -897,7 +917,7 @@ def audit_export(request, pk: int, documento: str):
             log_action(request, "audit_pdf", MODULE, {"documento": documento, "versione": emesso.numero,
                                                        "sha256": emesso.sha256}, oggetto=audit)
             response = HttpResponse(corpo, content_type="application/pdf")
-            response["Content-Disposition"] = f'attachment; filename="MOD035B_{audit.numero}_v{emesso.numero}.pdf"'
+            response["Content-Disposition"] = f'attachment; filename="{codice_rapporto}_{audit.numero}_v{emesso.numero}.pdf"'
             response["X-Content-Type-Options"] = "nosniff"
             response["Cache-Control"] = "private, no-store"
             response["X-Content-SHA256"] = emesso.sha256
@@ -907,9 +927,9 @@ def audit_export(request, pk: int, documento: str):
             # dichiarandolo nel documento (non è il file consegnato all'epoca).
             nota = (f"Documento rigenerato il {timezone.localtime():%d/%m/%Y %H:%M} dai dati registrati: l'audit è stato "
                     "chiuso prima dell'archiviazione del rapporto emesso. Fa fede la copia firmata, se presente.")
-            body, name = rapporto_audit_pdf(audit, nota=nota), f"MOD035B_{audit.numero}_rigenerato.pdf"
+            body, name = genera_rapporto(audit, nota=nota), f"{codice_rapporto}_{audit.numero}_rigenerato.pdf"
         else:
-            body, name = rapporto_audit_pdf(audit, bozza=True), f"MOD035B_{audit.numero}_BOZZA.pdf"
+            body, name = genera_rapporto(audit, bozza=True), f"{codice_rapporto}_{audit.numero}_BOZZA.pdf"
     else:
         raise Http404
     log_action(request, "audit_pdf", MODULE, {"documento": documento}, oggetto=audit)

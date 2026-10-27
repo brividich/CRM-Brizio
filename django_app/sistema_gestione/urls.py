@@ -6,6 +6,7 @@ from django.urls import path
 from . import guida
 from . import audit_views, views, processi_views, automation_views, programma_views, report_views, miei_rilievi_views
 from . import esterni_views
+from . import isms_views
 
 app_name = "sistema_gestione"
 
@@ -104,6 +105,12 @@ urlpatterns = [
     path("audit/<int:pk>/rapporto/riapri/", audit_views.audit_riapri_rapporto, name="audit_riapri_rapporto"),
     path("audit/<int:pk>/rapporto/convalida-ente/", audit_views.audit_convalida_ente, name="audit_convalida_ente"),
     path("audit/<int:pk>/rapporto/valuta-rdd/", audit_views.audit_valuta_rdd, name="audit_valuta_rdd"),
+    path("audit/<int:pk>/isms/", isms_views.audit_isms, name="audit_isms"),
+    path("audit/<int:pk>/isms/piano/", isms_views.audit_isms_piano, name="audit_isms_piano"),
+    path("audit/<int:pk>/isms/testata/", isms_views.audit_isms_testata, name="audit_isms_testata"),
+    path("audit/<int:pk>/isms/requisito/<int:riga_pk>/", isms_views.audit_isms_requisito, name="audit_isms_requisito"),
+    path("audit/<int:pk>/isms/controllo/<int:riga_pk>/", isms_views.audit_isms_controllo, name="audit_isms_controllo"),
+    path("audit/<int:pk>/isms/proponi-soa/", isms_views.audit_isms_proponi_soa, name="audit_isms_proponi_soa"),
     path("audit/<int:pk>/<str:documento>/pdf/", audit_views.audit_export, name="audit_export"),
     path("audit/<int:pk>/<str:documento>/copia-firmata/carica/", audit_views.audit_carica_firmata, name="audit_carica_firmata"),
     path("audit/<int:pk>/<str:documento>/copia-firmata/", audit_views.audit_copia_firmata, name="audit_copia_firmata"),
