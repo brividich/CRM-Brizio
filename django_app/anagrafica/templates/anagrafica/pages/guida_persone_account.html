@@ -49,7 +49,7 @@
       {% if parte_admin %}
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
-      <a class="fmd-data-link" href="#ruoli-in-blocco">Cambio ruoli in blocco</a>
+      <a class="fmd-data-link" href="#ruoli-in-blocco">Ruoli e mansioni in blocco</a>
       <a class="fmd-data-link" href="#struttura-organizzativa">Struttura organizzativa</a>
       <a class="fmd-data-link" href="#nuovo-dipendente">Nuovo dipendente</a>
       <a class="fmd-data-link" href="#account-portale">Account portale nella scheda</a>
@@ -81,7 +81,7 @@
       <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Chi è il tuo capo</h2>
       <p>Il capo è chi approva le tue ferie, i permessi e le richieste DPI. Nella scheda del dipendente compare come <strong>Caporeparto</strong>.</p>
       <ul>
-        <li>È chi ha la <strong>mansione del capo</strong> del tuo reparto (di solito «Responsabilità del reparto …»), oppure la mansione del responsabile della tua area se l'area ne ha una propria. Nessuno è capo di sé stesso.</li>
+        <li>È chi ha la «Responsabilità dell'area …» della tua area, se l'area ne ha una e qualcuno la ha; altrimenti chi ha la «Responsabilità del reparto …» del tuo reparto. Nessuno è capo di sé stesso.</li>
         <li>Per casi particolari (distacco, interim) l'HR può indicare un capo diverso solo per te.</li>
         <li>Quando cambi reparto, area o ruolo, il capo si aggiorna da solo.</li>
       </ul>
@@ -110,17 +110,17 @@
       <p>Il capo di una persona si cerca in quest'ordine:</p>
       <ol>
         <li>l'<strong>eccezione</strong> indicata a mano sulla persona;</li>
-        <li>il <strong>responsabile dell'area aziendale</strong>: chi ha la <strong>mansione del responsabile</strong> dell'area, se l'area ne ha una (altrimenti l'area segue il reparto);</li>
-        <li>il <strong>capo del reparto</strong>: chi ha la <strong>mansione del capo</strong> del reparto (vuota = la sua «Responsabilità del reparto»);</li>
+        <li>il <strong>responsabile dell'area aziendale</strong>: chi ha la «Responsabilità dell'area», che nasce dal <strong>ruolo responsabile</strong> dell'area (un'area senza ruolo responsabile, o senza nessuno sulla mansione, segue il reparto; un'area con lo stesso nome del reparto usa quella del reparto);</li>
+        <li>il <strong>capo del reparto</strong>: chi ha la «Responsabilità del reparto», che nasce dal ruolo responsabile del reparto;</li>
         <li>l'<strong>organigramma</strong>: chi ha un ruolo sopra quello della persona («riporta a») nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo trasversale). Se non c'è nessuno si sale di livello, ma chi guida un altro reparto non diventa mai il capo.</li>
       </ol>
-      <p>Il team è l'inverso: le persone di cui sei il capo, e i loro team. Se più persone hanno la stessa mansione del capo sono tutte capo (<strong>co-capo</strong>): approva le assenze la prima, le richieste DPI le approvano tutte.</p>
+      <p>Il team è l'inverso: le persone di cui sei il capo, e i loro team. È la regola della struttura della Qualità (MEGA SKILL MATRIX): ogni reparto e ogni area hanno una sola «Responsabilità». Se più persone hanno la stessa «Responsabilità» sono tutte capo (<strong>co-capo</strong>): approva le assenze la prima, le richieste DPI le approvano tutte.</p>
       <h3>La pagina «Reparti, aree e capi»</h3>
-      <p><strong>Persone → Reparti</strong> (anche dall'Organigramma) mostra una scheda per reparto con la <strong>Mansione del capo</strong>, chi la ha (<strong>Capo</strong>), le aree con il loro <strong>Responsabile</strong> e gli avvisi: «Scegli la mansione del capo», «Nessuno ha la mansione del capo: vale l'organigramma dei ruoli», più persone con la mansione, persone senza capo.</p>
+      <p><strong>Persone → Reparti</strong> (anche dall'Organigramma) mostra una scheda per reparto con il <strong>Ruolo responsabile</strong> e la sua «Responsabilità del reparto», chi la ha (<strong>Capo</strong>), le aree con il loro <strong>Responsabile</strong> e gli avvisi: «Scegli il ruolo responsabile», «Nessuno ha la «Responsabilità del reparto»: vale l'organigramma dei ruoli», «Senza ruolo responsabile: segue il reparto», più persone con la mansione, persone senza capo.</p>
       <ul>
         <li><strong>Cambiare il capo</strong>: nella scheda del reparto scegli la persona in «Assegna la mansione a…» e premi <strong>Assegna</strong>; la <strong>×</strong> accanto al nome toglie la mansione. È la stessa assegnazione del Mansionario: lì e qui si vede la stessa cosa.</li>
-        <li><strong>Mansione del capo diversa</strong> (es. UT): <strong>Modifica</strong> sul reparto → «Mansione del capo». Per un'area con un responsabile proprio (es. HSE, IT, Qualità) <strong>Modifica</strong> sull'area → «Mansione del responsabile»; «Segue il capo del reparto» la toglie.</li>
-        <li><strong>Passaggio</strong> (una volta, dopo l'aggiornamento): il riquadro «Passaggio ai capi decisi dalla mansione» elenca le mansioni che verranno assegnate a chi oggi è capo (anche agli «altri responsabili» indicati prima), i reparti senza mansione del capo (vanno sistemati prima) e le aree con un responsabile diverso dal capo del reparto. Spunta <strong>Ho controllato reparti e aree</strong> e premi <strong>Fai il passaggio</strong>: nessuno cambia capo, e da lì in poi assenze, DPI, permessi del team, solleciti, digest, la tabella delle assenze e il «Caporeparto» delle schede seguono le mansioni.</li>
+        <li><strong>Ruolo responsabile</strong>: <strong>Modifica</strong> sul reparto o sull'area → «Ruolo responsabile» (es. UT → Engineering Manager, HSE → ESM, IT → ITM, aree di produzione → Caporeparto). Il salvataggio crea la «Responsabilità»; «Segue il capo del reparto» la spegne. Nel riquadro del passaggio, <strong>Dai il ruolo del reparto alle aree spuntate</strong> lo fa per tutte le aree che non ce l'hanno.</li>
+        <li><strong>Passaggio</strong> (una volta, dopo l'aggiornamento): il riquadro «Passaggio ai capi decisi dalla mansione» elenca le «Responsabilità» che verranno assegnate a chi oggi è capo o responsabile (anche agli «altri responsabili» indicati prima), i reparti senza ruolo responsabile (vanno sistemati prima), le aree con un responsabile diverso dal capo del reparto e le aree senza ruolo responsabile. Spunta <strong>Ho controllato reparti e aree</strong> e premi <strong>Fai il passaggio</strong>: nessuno cambia capo, e da lì in poi assenze, DPI, permessi del team, solleciti, digest, la tabella delle assenze e il «Caporeparto» delle schede seguono le mansioni.</li>
       </ul>
       <h3>La pagina «Capo di ogni persona»</h3>
       <p><strong>Reparti, aree e capi → Capo di ogni persona</strong> (o <strong>Organigramma → ⚖ Capo di ogni persona</strong>) mostra per ogni persona il capo, da dove viene e chi la ha nel team dei permessi. I filtri sono <strong>Il capo cambia</strong>, <strong>Senza capo</strong>, <strong>Più candidati</strong> ed <strong>Eccezioni</strong>.</p>
@@ -131,16 +131,17 @@
       <h3>Dopo uno spostamento</h3>
       <ul>
         <li>Uno spostamento che cambia il ruolo (senza «Ruolo in parallelo») chiude il ruolo di prima il giorno prima della decorrenza: resta nello storico, ma non dà più permessi né posto nel team.</li>
-        <li>Il «Caporeparto» della scheda si aggiorna da solo quando cambia chi ha la mansione del capo, il reparto o l'area della persona: il responsabile dell'area vince sul capo del reparto.</li>
+        <li>Il «Caporeparto» della scheda si aggiorna da solo quando cambia chi ha la «Responsabilità», il reparto o l'area della persona: il responsabile dell'area vince sul capo del reparto.</li>
         <li>Nella card <strong>Spostamenti organizzativi</strong> il riquadro <strong>Mansioni lavorative da rivedere</strong> elenca le mansioni del Mansionario dove la persona è ancora in lista ma che sono di un altro reparto o previste per ruoli che non ricopre più. <strong>Togli dalla lista</strong> la toglie (lo storico resta). Finché resta in lista, restano attive anche le mansioni di rischio che ne derivano: il portale non toglie niente da solo.</li>
       </ul>
     </section>
 
     <section class="fmd-panel gpa-sec" id="ruoli-in-blocco">
-      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Cambio ruoli in blocco</h2>
-      <p>Da <strong>Ruoli → Cambio ruoli in blocco</strong> si cambia il ruolo di più persone insieme.</p>
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Ruoli e mansioni in blocco</h2>
+      <p>Da <strong>Ruoli → Cambio ruoli in blocco</strong> (pagina «Ruoli e mansioni in blocco») si cambiano ruoli e mansioni di più persone insieme, a mano o con un file Excel.</p>
       <ol>
-        <li>Filtra le persone per <strong>Reparto</strong>, <strong>Che ha il ruolo</strong> o nome, poi spuntale (o <strong>Seleziona tutte quelle in elenco</strong>; al massimo 300 alla volta).</li>
+        <li>Filtra le persone per <strong>Reparto</strong>, <strong>Area</strong>, <strong>Che ha il ruolo</strong>, <strong>Che ha la mansione</strong>, <strong>Solo chi non ha ruoli</strong> o nome, poi spuntale (o <strong>Seleziona tutte quelle in elenco</strong>; al massimo 300 alla volta).</li>
+        <li>Scegli <strong>Un ruolo</strong> o <strong>Una mansione</strong>. Per la mansione: <strong>Assegna la mansione</strong> con il <strong>Livello</strong> (I, L, U, O; a chi ce l'ha già con un altro livello il livello cambia) o <strong>Togli la mansione</strong> (lo storico resta).</li>
         <li>Scegli l'<strong>Operazione</strong>:
           <ul>
             <li><strong>Aggiungi il ruolo</strong>: si somma a quelli in essere; diventa il ruolo principale solo se la persona non ne ha uno;</li>
@@ -152,6 +153,13 @@
       </ol>
       <div class="gpa-nota">Un ruolo di un altro organigramma (per esempio ISO 45001) non diventa il ruolo principale: si aggiunge. Ogni cambio va nel registro attività; il ruolo chiuso resta nello storico.</div>
       <p>Per collegare i ruoli alle mansioni e alle competenze c'è <strong>Mansionario → Struttura e import</strong>, con export e import in Excel: vedi la guida dell'Anagrafica, parte per amministratori.</p>
+          <h3>Da file Excel</h3>
+      <ol>
+        <li>Nel riquadro <strong>Da file Excel: inserimento e aggiornamento massivo</strong> premi <strong>Scarica le assegnazioni di oggi</strong> (con il filtro reparto vale solo per quel reparto) o <strong>Scarica il modello vuoto</strong>.</li>
+        <li>Foglio <strong>Ruoli persone</strong>: una riga per persona e ruolo; «Azione» vuota o AGGIUNGI = deve avere il ruolo dal giorno «Dal», CHIUDI = il ruolo finisce il giorno «Dal». Foglio <strong>Mansioni persone</strong>: una riga per persona e mansione; vuota o ASSEGNA = in lista con il «Livello», TOGLI = fuori lista.</li>
+        <li>La persona si riconosce dall'«ID persona» o dal nome; la mansione dalla «Chiave mansione» o dal nome. Ruoli e mansioni devono già esistere.</li>
+        <li><strong>Carica e prova</strong> mostra per foglio le righe nuove, modificate, invariate e scartate con il motivo, senza salvare; <strong>Applica</strong> registra quelle buone. Il file scaricato e ricaricato tale e quale non cambia niente.</li>
+      </ol>
     </section>
 
     <section class="fmd-panel gpa-sec" id="struttura-organizzativa">

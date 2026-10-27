@@ -340,3 +340,104 @@ class RuoliInBloccoTests(_Base):
         self.assertFalse(DipendenteRuoloOperativo.objects.exists())
         self.client.post(url, {**dati, "azione": "applica"})
         self.assertTrue(DipendenteRuoloOperativo.objects.filter(ruolo=self.ruolo, legacy_anagrafica_id=self.p1.pk).exists())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Mansioni in blocco e import Excel delle assegnazioni (27/10/2026)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MansioniInBloccoTests(_Base):
+    def test_assegna_cambia_livello_e_togli(self):
+        from .services import mansioni_in_blocco as mb
+
+        esiti = mb.esegui([self.p1.pk, self.p2.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="L")
+        self.assertEqual([e.azione for e in esiti], ["cambia", "cambia"])
+        self.assertFalse(AbilitazioneMacchina.objects.exists())  # anteprima
+        mb.esegui([self.p1.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="L", applica=True)
+        self.assertEqual(mb.esegui([self.p1.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="L")[0].azione, "salta")
+        mb.esegui([self.p1.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="U", applica=True)
+        self.assertEqual(AbilitazioneMacchina.objects.get(legacy_anagrafica_id=self.p1.pk, competenza=self.processo).livello, "U")
+        mb.esegui([self.p1.pk], mansione=self.processo, modo=mb.TOGLI, applica=True)
+        self.assertFalse(AbilitazioneMacchina.objects.get(legacy_anagrafica_id=self.p1.pk, competenza=self.processo).in_lista)
+        with self.assertRaises(ValueError):
+            mb.esegui([self.p1.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="Z")
+
+    def test_view_mansione_in_blocco(self):
+        url = reverse("anagrafica:ruoli_in_blocco")
+        self.client.post(url, {"cosa": "mansione", "mansione": self.processo.pk, "modo_mansione": "assegna",
+                               "livello": "O", "persone": [self.p1.pk, self.p2.pk], "azione": "applica"})
+        self.assertEqual(AbilitazioneMacchina.objects.filter(competenza=self.processo, in_lista=True, livello="O").count(), 2)
+        r = self.client.get(url, {"filtro_mansione": self.processo.pk})
+        self.assertEqual({p["legacy_id"] for p in r.context["persone"]}, {self.p1.pk, self.p2.pk})
+
+
+class AssegnazioniExcelTests(_Base):
+    def _file(self, ruoli=(), mansioni=()):
+        from .services import assegnazioni_excel as ax
+
+        return _xlsx({ax.FOGLIO_RUOLI: [ax.COL_RUOLI, *ruoli], ax.FOGLIO_MANSIONI: [ax.COL_MANSIONI, *mansioni]})
+
+    def test_prova_non_scrive_e_conferma_scrive(self):
+        from .services import assegnazioni_excel as ax
+
+        f = self._file(ruoli=[[self.p1.pk, "", "", "", self.ruolo.nome, "", ""]],
+                       mansioni=[["", "STRUTTURA UNO", "", "P-SBA", "", "U", ""],
+                                 [self.p2.pk, "", "", "", "Sbavatura", "", ""]])
+        esito = ax.importa(f, applica=False)
+        self.assertEqual([r.azione for r in esito.righe], [xl.NUOVO, xl.NUOVO, xl.ERRORE])  # p2: livello mancante
+        self.assertFalse(DipendenteRuoloOperativo.objects.exists())
+        self.assertFalse(AbilitazioneMacchina.objects.exists())
+        ax.importa(f, applica=True)
+        self.assertTrue(DipendenteRuoloOperativo.objects.filter(legacy_anagrafica_id=self.p1.pk, ruolo=self.ruolo).exists())
+        self.assertTrue(AbilitazioneMacchina.objects.filter(legacy_anagrafica_id=self.p1.pk, competenza=self.processo,
+                                                            livello="U", in_lista=True).exists())
+
+    def test_file_scaricato_e_ricaricato_non_cambia_niente(self):
+        from openpyxl import load_workbook
+
+        from .services import assegnazioni_excel as ax
+
+        blocco.esegui([self.p1.pk], ruolo=self.ruolo, modo=blocco.AGGIUNGI, data=timezone.localdate(), applica=True)
+        svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="L")
+        contenuto = ax.esporta_xlsx()
+        wb = load_workbook(BytesIO(contenuto))
+        self.assertEqual(wb[ax.FOGLIO_MANSIONI].max_row, 2)
+        esito = ax.importa(contenuto, applica=False)
+        self.assertEqual(esito.cambi, 0)
+        self.assertEqual(esito.errori, 0)
+
+    def test_chiudi_e_togli(self):
+        from .services import assegnazioni_excel as ax
+
+        blocco.esegui([self.p1.pk], ruolo=self.ruolo, modo=blocco.AGGIUNGI, data=timezone.localdate(), applica=True)
+        svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="L")
+        oggi = timezone.localdate().strftime("%d/%m/%Y")
+        esito = ax.importa(self._file(ruoli=[[self.p1.pk, "", "", "", self.ruolo.nome, oggi, "CHIUDI"]],
+                                      mansioni=[[self.p1.pk, "", "", "P-SBA", "", "", "TOGLI"]]), applica=True)
+        self.assertEqual([r.azione for r in esito.righe], [xl.MODIFICATO, xl.MODIFICATO])
+        self.assertEqual(DipendenteRuoloOperativo.objects.get(legacy_anagrafica_id=self.p1.pk, ruolo=self.ruolo).data_fine,
+                         timezone.localdate())
+        self.assertFalse(AbilitazioneMacchina.objects.get(legacy_anagrafica_id=self.p1.pk, competenza=self.processo).in_lista)
+
+    def test_errori_per_riga(self):
+        from .services import assegnazioni_excel as ax
+
+        esito = ax.importa(self._file(ruoli=[[999999, "", "", "", self.ruolo.nome, "", ""],
+                                             ["", "NESSUNO", "", "", self.ruolo.nome, "", ""],
+                                             [self.p1.pk, "", "", "", "Ruolo che non c'è", "", ""],
+                                             [self.p1.pk, "", "", "", self.ruolo.nome, "", "BOH"]]), applica=False)
+        self.assertEqual(esito.errori, 4)
+
+    def test_view_export_e_import(self):
+        r = self.client.get(reverse("anagrafica:assegnazioni_export"), {"vuoto": "1"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("spreadsheetml", r["Content-Type"])
+        f = self._file(ruoli=[[self.p1.pk, "", "", "", self.ruolo.nome, "", ""]])
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        r = self.client.post(reverse("anagrafica:assegnazioni_import"),
+                             {"azione": "prova", "file": SimpleUploadedFile("a.xlsx", f)})
+        self.assertContains(r, "non è stato salvato niente")
+        self.assertFalse(DipendenteRuoloOperativo.objects.exists())
+        r = self.client.post(reverse("anagrafica:assegnazioni_import"), {"azione": "applica", "sha": r.context["sha"]})
+        self.assertTrue(DipendenteRuoloOperativo.objects.filter(legacy_anagrafica_id=self.p1.pk, ruolo=self.ruolo).exists())

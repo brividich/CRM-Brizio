@@ -33,7 +33,7 @@ LIVELLI = [c for c, _ in LivelloSkm.choices]  # I, L, U, O
 def mansioni(*, solo_attive: bool = True):
     qs = (
         CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE)
-        .select_related("asset", "reparto")
+        .select_related("asset", "reparto", "area")
         .prefetch_related("ruoli", "mansioni_rischio")
         .order_by("tipo", "display", "competenza_key")
     )
@@ -70,6 +70,7 @@ def riepilogo(*, solo_attive: bool = True) -> list[dict]:
             "rischi": list(c.mansioni_rischio.all()),
             "livelli": {lv: livelli.get(lv, 0) for lv in LIVELLI},
             "in_lista": len(abil),
+            "persone_ids": sorted({a.legacy_anagrafica_id for a in abil}),
             "operativi": operativi,
             "uomo_solo": operativi < config.soglia_uomo_solo,
         })
