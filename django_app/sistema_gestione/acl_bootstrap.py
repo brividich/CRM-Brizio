@@ -143,6 +143,13 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:programma_copia_firmata": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_dettaglio": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_export": PERM_AUDIT_VIEW,
+    # Audit ISMS (MOD.171/168): il controllo fine (esecutore assegnato, stato) è nella view.
+    "sistema_gestione:audit_isms": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_isms_piano": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_isms_testata": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_isms_requisito": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_isms_controllo": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_isms_proponi_soa": PERM_SOA_EDIT,
     "sistema_gestione:audit_copia_firmata": PERM_AUDIT_VIEW,
     "sistema_gestione:auditor_nuovo": PERM_AUDIT_EDIT,
     "sistema_gestione:auditor_modifica": PERM_AUDIT_EDIT,

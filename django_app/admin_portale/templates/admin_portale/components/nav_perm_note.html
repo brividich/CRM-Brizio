@@ -1,0 +1,7 @@
+{% if row.perm_stato == "esplicito_ignorato" %}
+  <span class="nav-perm-note">Non protegge nessuna pagina: {% if ruoli_attivi %}vale{% else %}con i ruoli attivi varrà{% endif %} <code>{{ row.perm_target }}</code> della pagina.</span>
+{% elif row.perm_stato == "esplicito_e_pagina" %}
+  <span class="nav-perm-note">La pagina chiede <code>{{ row.perm_target }}</code>: {% if ruoli_attivi %}servono{% else %}con i ruoli attivi serviranno{% endif %} entrambi.</span>
+{% elif row.perm_stato == "assente" and row.section != "admin_subnav" %}
+  <span class="nav-perm-note">Nessun permesso: {% if ruoli_attivi %}la vedono{% else %}con i ruoli attivi la vedranno{% endif %} solo gli amministratori.</span>
+{% endif %}

@@ -5,7 +5,7 @@ import logging
 from urllib.parse import urlsplit
 
 from django.core.cache import cache
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.urls import NoReverseMatch, reverse
 
 from core.acl_v2 import (
@@ -159,15 +159,30 @@ def _resolve_item_href(item: NavigationItem) -> tuple[str, bool]:
     return reverse("coming_admin"), True
 
 
-def _item_required_permission_code(
-    item: NavigationItem,
-    *,
-    target_cache: dict[str, str],
-) -> str:
-    explicit = normalize_permission_code(str(item.required_permission_code or ""))
-    if explicit:
-        return explicit
+# Stati del permesso di una voce, mostrati anche nel Navigation Builder.
+PERMESSO_DALLA_PAGINA = "pagina"
+PERMESSO_ESPLICITO = "esplicito"
+PERMESSO_ESPLICITO_IGNORATO = "esplicito_ignorato"
+PERMESSO_ESPLICITO_E_PAGINA = "esplicito_e_pagina"
+PERMESSO_ASSENTE = "assente"
 
+
+def _bound_permission_codes(target_cache: dict) -> frozenset[str]:
+    """Permessi che proteggono almeno una pagina (binding di rotta attivo)."""
+    cache_key = "bound_codes"
+    if cache_key not in target_cache:
+        from core.models import RoutePermissionBinding
+
+        try:
+            codes = RoutePermissionBinding.objects.filter(is_active=True).values_list("permission_id", flat=True)
+            target_cache[cache_key] = frozenset(normalize_permission_code(str(c or "")) for c in codes)
+        except DatabaseError:
+            target_cache[cache_key] = frozenset()
+    return target_cache[cache_key]
+
+
+def _target_permission_code(item: NavigationItem, *, target_cache: dict) -> str:
+    """Permesso con cui il middleware protegge la pagina a cui porta la voce."""
     route_name = str(item.route_name or "").strip()
     if route_name:
         cache_key = f"route:{route_name.lower()}"
@@ -189,9 +204,60 @@ def _item_required_permission_code(
     return ""
 
 
+def _item_permission_info(item: NavigationItem, *, target_cache: dict) -> dict:
+    """Quale permesso decide la voce e perche'.
+
+    Il menu deve dire si' o no come la pagina: decide il permesso della rotta.
+    Il permission code esplicito resta valido quando protegge davvero qualche
+    pagina (restringe la voce, es. «Impostazioni HR» su una rotta larga: allora
+    servono entrambi, cosi' la voce non porta a un 403) o quando la voce non
+    porta a una pagina protetta. Un code esplicito che non
+    protegge nessuna pagina (residuo del bootstrap legacy, ``legacy.*``) la
+    matrice dei ruoli non lo concede mai: la voce sparirebbe a chi apre la
+    pagina, quindi si ignora.
+
+    Vale con il sistema dei ruoli acceso; spento, il menu resta alle regole
+    storiche (esplicito, altrimenti la rotta).
+    """
+    explicit = normalize_permission_code(str(item.required_permission_code or ""))
+    target = _target_permission_code(item, target_cache=target_cache)
+    if explicit and target and explicit != target:
+        if explicit in _bound_permission_codes(target_cache):
+            # Restringe la voce, ma la pagina deve comunque lasciar entrare.
+            effective, stato, codes = explicit, PERMESSO_ESPLICITO_E_PAGINA, [explicit, target]
+        else:
+            effective, stato, codes = target, PERMESSO_ESPLICITO_IGNORATO, [target]
+    elif explicit:
+        effective, stato, codes = explicit, PERMESSO_ESPLICITO, [explicit]
+    elif target:
+        effective, stato, codes = target, PERMESSO_DALLA_PAGINA, [target]
+    else:
+        effective, stato, codes = "", PERMESSO_ASSENTE, []
+    return {"explicit": explicit, "target": target, "effective": effective, "stato": stato, "codes": codes}
+
+
+def _item_required_permission_code(
+    item: NavigationItem,
+    *,
+    target_cache: dict,
+) -> str:
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    info = _item_permission_info(item, target_cache=target_cache)
+    if sistema_ruoli_attivo():
+        return info["effective"]
+    return info["explicit"] or info["target"]
+
+
 def resolve_navigation_item_permission_code(item: NavigationItem) -> str:
     """Restituisce il permission code canonico associato alla voce di navigazione."""
     return _item_required_permission_code(item, target_cache={})
+
+
+def describe_navigation_items_permission(items) -> dict[int, dict]:
+    """``item.id`` -> esplicito, pagina, effettivo e stato (per il Navigation Builder)."""
+    target_cache: dict = {}
+    return {int(item.id): _item_permission_info(item, target_cache=target_cache) for item in items}
 
 
 def _compiled_items_for_role(
@@ -245,28 +311,42 @@ def _compiled_items_for_role(
     # la mappa arriva gia' risolta per priorita'.
     group_map: dict[str, bool] = group_grants_map(legacy_user_id)
 
+    def _code_allowed(code: str) -> bool:
+        # Stessa precedenza del risolutore: utente, gruppi, ruolo, poi compat.
+        if code in user_grants_map:
+            return bool(user_grants_map[code])
+        if code in group_map:
+            return bool(group_map[code])
+        if code in role_grants_map:
+            return bool(role_grants_map[code])
+        if ruoli_attivi:
+            return False
+        legacy_compat = evaluate_legacy_permission_code_compat(
+            permission_code=code,
+            legacy_role_id=role_id,
+            legacy_user_id=legacy_user_id,
+        )
+        return bool(legacy_compat and legacy_compat.get("enabled", False))
+
     compiled: list[dict] = []
     label_overrides = navigation_code_label_map(surface="menu")
-    target_cache: dict[str, str] = {}
+    target_cache: dict = {}
     for item in items:
-        required_permission_code = _item_required_permission_code(item, target_cache=target_cache)
+        permission_info = _item_permission_info(item, target_cache=target_cache)
+        if ruoli_attivi:
+            required_permission_code = permission_info["effective"]
+            required_codes = permission_info["codes"]
+        else:
+            # Sistema spento: regole storiche, decide il code esplicito se c'e'.
+            required_permission_code = permission_info["explicit"] or permission_info["target"]
+            required_codes = [required_permission_code] if required_permission_code else []
         if not is_admin:
             if required_permission_code:
-                if required_permission_code in user_grants_map:
-                    allowed = bool(user_grants_map[required_permission_code])
-                elif required_permission_code in group_map:
-                    allowed = bool(group_map[required_permission_code])
-                elif required_permission_code in role_grants_map:
-                    allowed = bool(role_grants_map.get(required_permission_code, False))
-                elif ruoli_attivi:
-                    allowed = False
-                else:
-                    legacy_compat = evaluate_legacy_permission_code_compat(
-                        permission_code=required_permission_code,
-                        legacy_role_id=role_id,
-                        legacy_user_id=legacy_user_id,
-                    )
-                    allowed = bool(legacy_compat and legacy_compat.get("enabled", False))
+                allowed = all(_code_allowed(code) for code in required_codes)
+            elif ruoli_attivi:
+                # Con i ruoli del portale il ruolo legacy non concede nulla:
+                # una voce senza permesso la vedono solo gli amministratori.
+                allowed = False
             else:
                 item_access = access_map.get(int(item.id), {})
                 allowed = bool(role_id is not None and item_access.get(int(role_id), False))

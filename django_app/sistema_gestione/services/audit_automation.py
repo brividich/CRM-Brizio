@@ -127,6 +127,10 @@ def riepilogo_rapporto(audit):
             righe.append(f"Registro MOD.174 n. {esito.ofi.numero}; responsabile: {esito.ofi.proprietario}; scadenza: {esito.ofi.data_richiesta or 'non definita'}.")
         for allegato in esito.allegati.all():
             righe.append(f"Allegato: {allegato.nome}; SHA-256: {allegato.sha256}")
+    if audit.is_isms:
+        from .audit_isms import riepilogo_isms
+
+        righe.append("\n" + riepilogo_isms(audit))
     return "\n".join(righe)
 
 

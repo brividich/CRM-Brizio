@@ -17,6 +17,10 @@ GUIDA = {
                 ("def", [
                     ("Audit interni", "programma annuale (MOD.034), piano (MOD.035A), checklist, rilievi e rapporto con PDF. "
                      "Con «Perimetro Part 145» nel piano l'audit compare nel Dossier PART 145 del modulo Asset."),
+                    ("Audit ISMS", "con «Modulistica: Audit ISMS» nel piano l'audit usa il MOD.171 e il rapporto MOD.168: "
+                     "requisiti ISO/IEC 27001 e i 93 controlli ISO/IEC 27002 con il livello 0-4 già preso dalla SoA "
+                     "approvata. NC e AP vanno nel Registro OFI, i COM restano nel rapporto; dopo la chiusura i livelli "
+                     "diversi possono aprire una nuova revisione della SoA in bozza."),
                     ("Registro OFI / NC", "modulo a sé («Registro OFI» nel menu Qualità, con la sua guida): i rilievi "
                      "degli audit diventano voci del registro, che si legano ai processi del catalogo. Nella scheda del "
                      "processo la scheda «OFI / NC» mostra le voci del processo."),
@@ -56,6 +60,14 @@ GUIDA = {
                 "Processo del catalogo»; se manca, «Modifica» e scegli il processo. Senza scelta vale il «Processo / "
                 "area» uguale al codice o al nome del processo.",
                 "Contano solo i rilievi degli ultimi 24 mesi.",
+            ],
+        },
+        {
+            "sintomo": "Nell'audit ISMS i controlli non hanno il livello della SoA",
+            "fare": [
+                "Il livello di partenza viene dalla SoA approvata in vigore al momento della creazione dei dati ISMS: se "
+                "non c'era una SoA approvata i livelli restano «da valutare» e l'auditor li inserisce.",
+                "Un COM (commento) non crea voci nel Registro OFI: solo NC e AP.",
             ],
         },
         {

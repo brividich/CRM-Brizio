@@ -5,7 +5,7 @@ from django.db import migrations
 
 ROTTE = ("anagrafica:mansionario_persona_assegna", "anagrafica:mansionario_livello")
 SORELLE = ("anagrafica:mansionario_assegna", "anagrafica:mansionario", "anagrafica:skill_matrix_macchina")
-NOTA = "[MANSIONARIO_0209] copiato da anagrafica:mansionario_assegna"
+NOTA = "[MANSIONARIO_0210] copiato da anagrafica:mansionario_assegna"
 
 
 def avanti(apps, schema_editor):
@@ -33,7 +33,7 @@ def indietro(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("anagrafica", "0208_costo_orario_storico"),
+        ("anagrafica", "0209_report_costo_personale_predefinito"),
         ("core", "0001_initial"),
     ]
     operations = [migrations.RunPython(avanti, indietro)]
