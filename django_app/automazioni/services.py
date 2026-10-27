@@ -2452,7 +2452,7 @@ def _send_approval_email(
     """
     Invia l'email di approvazione.
     Con ``calendar_event`` (richieste di assenza) aggiunge «Aggiungi al calendario
-    Outlook» e l'allegato ``.ics`` (vedi ``calendario_outlook``).
+    Outlook» (vedi ``calendario_outlook``).
     Se html_body_override / text_body_override sono valorizzati (rendering da ApprovalEmailTemplate),
     vengono usati direttamente. Altrimenti viene generato il corpo inline (comportamento legacy).
     """
@@ -2523,10 +2523,6 @@ def _send_approval_email(
             to=[approver_email],
         )
         message.attach_alternative(html_body, "text/html")
-        if calendar_event:
-            from .calendario_outlook import allega
-
-            allega(message, calendar_event)
         message.send(fail_silently=False)
 
     return f"Email approvazione inviata a {', '.join(approver_emails)}."
@@ -4179,18 +4175,15 @@ def execute_action(
                     body_text = f"{serie_text}{body_text}"
                 if body_html:
                     body_html = _inserisci_in_testa_html(body_html, serie_html)
-            # Assenze: «Aggiungi al calendario Outlook» (pulsante + allegato .ics), best-effort.
+            # Assenze: «Aggiungi al calendario Outlook» solo se la mail va al caporeparto, best-effort.
             calendar_event = None
             try:
-                from .calendario_outlook import ETICHETTA, evento_assenza, link_outlook, pulsante_html
+                from .calendario_outlook import evento_assenza, per_il_capo, pulsante_html
 
-                calendar_event = None if serie_info else evento_assenza(
-                    getattr(action.rule, "source_code", ""), payload_context
-                )
+                if not serie_info and per_il_capo(payload_context, to + cc):
+                    calendar_event = evento_assenza(getattr(action.rule, "source_code", ""), payload_context)
                 if calendar_event:
                     _base_ctx["cta_buttons"] = mark_safe(pulsante_html(calendar_event))
-                    if body_text:
-                        body_text = f"{body_text.rstrip()}\n\n{ETICHETTA}: {link_outlook(calendar_event)}\n"
             except Exception:
                 logger.warning("send_email: evento calendario non costruito", exc_info=True)
                 calendar_event = None
@@ -4207,6 +4200,11 @@ def execute_action(
                     **_base_ctx,
                     "body_content": mark_safe(f'<p style="color:#475569;font-size:15px;line-height:1.7;">{text_as_html}</p>'),
                 })
+            if calendar_event and body_text:
+                # Il link lungo solo nella versione testo: nella mail HTML basta il pulsante.
+                from .calendario_outlook import ETICHETTA, link_outlook
+
+                body_text = f"{body_text.rstrip()}\n\n{ETICHETTA}: {link_outlook(calendar_event)}\n"
 
             message = EmailMultiAlternatives(
                 subject=subject,
@@ -4219,10 +4217,6 @@ def execute_action(
             )
             if body_html:
                 message.attach_alternative(body_html, "text/html")
-            if calendar_event:
-                from .calendario_outlook import allega
-
-                allega(message, calendar_event)
 
             try:
                 sent_count = message.send(fail_silently=fail_silently)

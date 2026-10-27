@@ -1,8 +1,9 @@
 """«Aggiungi al calendario Outlook» nelle mail che riguardano un'assenza.
 
-Due strade, perché il capo può leggere la mail da Outlook web o dal desktop:
-- un pulsante che apre Outlook web (Microsoft 365) con l'evento già compilato;
-- un allegato ``.ics`` che Outlook desktop apre come evento da salvare.
+Solo nelle mail al caporeparto (non in quelle all'ufficio assenze): un pulsante
+che apre Outlook web (Microsoft 365) con l'evento già compilato, niente allegato.
+Con la sincronizzazione via Graph accesa (``assenze.outlook_sync``) l'evento arriva
+da solo nel calendario del capo e il pulsante sparisce.
 
 L'evento è l'assenza di un collaboratore, non un impegno del capo: è segnato
 «libero» (TRANSP:TRANSPARENT, BUSYSTATUS FREE) così non occupa la sua agenda.
@@ -11,7 +12,7 @@ Tutto è best-effort: senza date leggibili non si aggiunge niente.
 from __future__ import annotations
 
 import html
-from datetime import date, datetime, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 from django.utils import timezone
@@ -59,8 +60,8 @@ def evento_assenza(source_code, payload, *, forza: bool = False) -> dict | None:
     """Evento da calendario per una richiesta di assenza, oppure ``None``.
 
     Senza ``forza`` restituisce ``None`` anche quando le assenze arrivano già nel
-    calendario del capo via Graph (``assenze.outlook_sync``): pulsante e allegato
-    servirebbero solo a fare doppioni.
+    calendario del capo via Graph (``assenze.outlook_sync``): il pulsante
+    servirebbe solo a fare doppioni.
     """
     if str(source_code or "") != "assenze" or not isinstance(payload, dict):
         return None
@@ -108,41 +109,10 @@ def link_outlook(ev: dict) -> str:
     return f"{OUTLOOK_COMPOSE}?{urlencode(query)}"
 
 
-def _ics_testo(value: str) -> str:
-    return (str(value or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
-            .replace("\r", "").replace("\n", "\\n"))
-
-
-def ics(ev: dict) -> bytes:
-    """File iCalendar (RFC 5545) con un evento «libero»."""
-    if ev["giornata_intera"]:
-        start = f"DTSTART;VALUE=DATE:{ev['inizio'].strftime('%Y%m%d')}"
-        end = f"DTEND;VALUE=DATE:{(ev['fine'].date() + timedelta(days=1)).strftime('%Y%m%d')}"
-    else:
-        # Orari locali convertiti in UTC: nessuna definizione di fuso da allegare.
-        def utc(dt):
-            return timezone.make_aware(dt).astimezone(dt_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-        start = f"DTSTART:{utc(ev['inizio'])}"
-        end = f"DTEND:{utc(ev['fine'])}"
-    righe = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//NOVICROM HUB//Assenze//IT",
-        "METHOD:PUBLISH",
-        "BEGIN:VEVENT",
-        f"UID:{ev['uid']}",
-        f"DTSTAMP:{timezone.now().astimezone(dt_timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
-        start,
-        end,
-        f"SUMMARY:{_ics_testo(ev['titolo'])}",
-        f"DESCRIPTION:{_ics_testo(ev['descrizione'])}",
-        "TRANSP:TRANSPARENT",
-        "X-MICROSOFT-CDO-BUSYSTATUS:FREE",
-        "END:VEVENT",
-        "END:VCALENDAR",
-    ]
-    return ("\r\n".join(righe) + "\r\n").encode("utf-8")
+def per_il_capo(payload, destinatari) -> bool:
+    """Il pulsante serve al caporeparto: solo se è fra i destinatari della mail."""
+    capo = str((payload or {}).get("capo_email") or "").strip().lower()
+    return bool(capo) and capo in {str(d or "").strip().lower() for d in destinatari}
 
 
 def pulsante_html(ev: dict) -> str:
@@ -152,13 +122,3 @@ def pulsante_html(ev: dict) -> str:
         f'background:#0f6cbd;color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;font-weight:800;'
         f'margin:0 10px 10px 0;">{ETICHETTA}</a>'
     )
-
-
-def allega(message, ev: dict | None) -> None:
-    """Allega l'evento ``.ics`` a un ``EmailMessage``. Non solleva mai."""
-    if not ev:
-        return
-    try:
-        message.attach("assenza.ics", ics(ev), "text/calendar; charset=utf-8; method=PUBLISH")
-    except Exception:  # noqa: BLE001 - l'allegato non deve fermare la mail
-        pass

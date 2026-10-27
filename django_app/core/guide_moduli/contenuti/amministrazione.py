@@ -39,7 +39,11 @@ GUIDA = {
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
                                       "(registro, con impronta SHA-256, senza conservare il file) e i profili di layout dei PDF. Ha la sua guida."),
-                    ("Audit / Attività utenti", "chi ha fatto cosa (ultimi 30 giorni), con export."),
+                    ("Audit / Attività utenti", "chi ha fatto cosa, con export. Il filtro «Chi» parte da «Persone»: "
+                                                "«Processi automatici» mostra le righe scritte da task, raccoglitori e comandi "
+                                                "(la gran parte del registro), «Tutte le voci» le unisce. Nella colonna Utente "
+                                                "«Processo automatico» = nessuna persona dietro; «Non autenticato» = richiesta senza login "
+                                                "(es. login fallito)."),
                     ("Monitoring", "Centrale di comando, salute degli schedule, segnalazioni degli utenti, «Backup e ripristino»."),
                     ("Hub", "moduli accesi/spenti, database (statistiche, backup), Schema DB, guide."),
                     ("Crea Release", "pacchetto di rilascio (per lo sviluppo)."),
@@ -336,6 +340,14 @@ GUIDA = {
             "fare": [
                 "Centrale di comando: ci sono migrazioni da applicare? Se sì, il rilascio non è completo (Manuale di emergenza → «Dopo un aggiornamento»).",
                 "Svuota la cache del browser (Ctrl+F5).",
+            ],
+        },
+        {
+            "sintomo": "L'Audit Log sembra fermo o pieno di righe «senza utente»",
+            "fare": [
+                "Il filtro «Chi» deve essere su «Persone»: con «Tutte le voci» le azioni delle persone si perdono fra migliaia di righe dei processi automatici.",
+                "Le righe di login, logout e 2FA scritte prima del 27/10/2026 non hanno l'utente collegato (solo il nome): "
+                "per cercarle usa «Cerca» col nome o l'azione login_ok.",
             ],
         },
         {
