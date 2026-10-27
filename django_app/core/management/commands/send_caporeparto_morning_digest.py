@@ -17,7 +17,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.caporeparto_digest import build_caporeparto_digest, capi_legacy_ids
+from core.caporeparto_digest import build_caporeparto_digest, destinatari_legacy_ids
 
 
 class Command(BaseCommand):
@@ -35,7 +35,8 @@ class Command(BaseCommand):
         dry_run = bool(options.get("dry_run"))
         forced = [e.strip() for e in (options.get("recipients") or []) if e.strip()]
 
-        capi = capi_legacy_ids()
+        # Caporeparto + responsabili/preposti con richieste DPI da approvare.
+        capi = destinatari_legacy_ids()
         if not capi:
             self.stdout.write("Nessun caporeparto assegnato (Reparto.caporeparto_legacy_id).")
             return
@@ -47,7 +48,7 @@ class Command(BaseCommand):
                 continue
 
             email = forced[0] if forced else d["email"]
-            reparti_txt = ", ".join(d["reparti"]) or "reparto"
+            reparti_txt = ", ".join(d["reparti"]) or "squadra"
 
             lines = [
                 f"NOVICROM HUB - Buongiorno, riepilogo {reparti_txt} ({today:%d-%m-%Y})",

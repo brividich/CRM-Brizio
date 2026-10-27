@@ -35,7 +35,7 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
             "Avvio onboarding con assegnazione a una mansione classificata a rischio "
             "(richiede DPI)."
         ),
-        "destinatari": "SiteConfig dpi_amm_emails / dpi_car_emails + capireparto",
+        "destinatari": "«Da distribuire»: Impostazioni DPI email Magazzino + SiteConfig dpi_amm_emails; «Controllo uso»: CAR/preposto che approva i DPI del dipendente, ripiego caporeparto del reparto e SiteConfig dpi_car_emails",
         "source": "anagrafica/services/onboarding.py",
         "func": "notifica_assegnazione_mansione_rischio",
     },

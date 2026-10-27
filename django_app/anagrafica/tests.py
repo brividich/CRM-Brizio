@@ -4052,6 +4052,26 @@ class OnboardingMansioneRischioTests(TestCase):
         self.assertIn("amm@x.local", destinatari)
         self.assertIn("capo@x.local", destinatari)
 
+    def test_notifica_magazzino_dpi_e_preposto(self):
+        from unittest import mock
+
+        from django.core import mail
+        from dpi.models import DPIImpostazioni
+        from .models import Mansione
+        from .services import onboarding
+        impost = DPIImpostazioni.get_singleton()
+        impost.magazzino_emails = "magazzino@x.local"
+        impost.save()
+        m = Mansione.objects.create(nome="Verniciatore3")
+        m.dpi_richiesti.add(self._cat_dpi("Occhiali"))
+        mail.outbox = []
+        with mock.patch("dpi.flusso.approvatori_di", return_value={950}), \
+                mock.patch("dpi.flusso._email_persona", return_value="preposto@x.local"):
+            onboarding.avvia_onboarding(legacy_id=824, dipendente_nome="Rosa Eva", mansione="Verniciatore3")
+        per_oggetto = {msg.subject.split(" — ")[0]: msg.to for msg in mail.outbox}
+        self.assertEqual(per_oggetto["[DPI] Da distribuire"], ["magazzino@x.local"])
+        self.assertEqual(per_oggetto["[DPI] Controllo uso"], ["preposto@x.local"])
+
     def test_nessuna_notifica_senza_dpi(self):
         from django.core import mail
         from core.models import SiteConfig

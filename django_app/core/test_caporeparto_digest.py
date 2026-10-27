@@ -72,6 +72,23 @@ class CaporepartoDigestCommandTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["capo@x.local"])
 
+    def test_il_preposto_che_approva_riceve_il_digest(self):
+        from unittest import mock
+
+        _setup_capo_reparto()
+        cat = CategoriaDPI.objects.create(nome="Guanti")
+        RichiestaDPI.objects.create(
+            numero="DPI-2026-0003", richiedente_nome="Caio",
+            richiedente_legacy_id=712, categoria=cat,
+            stato=StatoRichiesta.INVIATA)
+        approvatori = {711: {CAPO}, 712: {950}}
+        with mock.patch("dpi.flusso.approvatori_di", side_effect=lambda i: approvatori.get(i, set())), \
+                mock.patch("dpi.flusso.dipendenti_di_approvatore", side_effect=lambda i: {712} if i == 950 else set()), \
+                mock.patch("core.caporeparto_digest.capo_notification_email", side_effect=lambda i: f"p{i}@x.local"):
+            call_command("send_caporeparto_morning_digest", stdout=StringIO())
+        self.assertEqual([m.to for m in mail.outbox], [["p950@x.local"]])
+        self.assertIn("DPI-2026-0003", mail.outbox[0].body)
+
     def test_noop_senza_voci(self):
         _setup_capo_reparto()
         out = StringIO()
