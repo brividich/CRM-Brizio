@@ -51,6 +51,10 @@ GUIDA = {
                     "responsabili e auditati, da aggiungere con «Aggiungi».",
                     "Permessi di pagina: Amministrazione → Accessi, modulo Sistema di gestione.",
                     "Registro OFI: permessi e solleciti sono nella guida del modulo Registro OFI / NC.",
+                    "«Checklist per norma» (EN 9100, ISO 45001, UNI/PdR 125): la consultazione segue il permesso di "
+                    "consultazione audit, creazione bozze, modifica e attivazione il permesso di modifica audit.",
+                    "Audit ISMS: compila il rapporto solo il team assegnato all'audit; la proposta di revisione della SoA "
+                    "dopo la chiusura richiede il permesso di modifica della SoA.",
                 ]),
             ],
         },
@@ -63,6 +67,14 @@ GUIDA = {
                 "Processo del catalogo»; se manca, «Modifica» e scegli il processo. Senza scelta vale il «Processo / "
                 "area» uguale al codice o al nome del processo.",
                 "Contano solo i rilievi degli ultimi 24 mesi.",
+            ],
+        },
+        {
+            "sintomo": "Un audit con ISO 45001 o PdR 125 non ha le domande della norma",
+            "fare": [
+                "In «Audit interni» › «Checklist per norma» la norma deve avere una revisione «Attiva»: crea la bozza di "
+                "base, falla verificare a RSGI e attivala.",
+                "La checklist si carica all'avvio: per un audit già avviato aggiungi le verifiche con «Domanda aggiuntiva».",
             ],
         },
         {
