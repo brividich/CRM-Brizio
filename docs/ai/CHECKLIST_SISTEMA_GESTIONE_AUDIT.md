@@ -7,14 +7,24 @@
 - **App**: `django_app/sistema_gestione/` — URL `/sistema-gestione/` — namespace `sistema_gestione`
 - **Voce di menu**: «Sistema di gestione», categoria **Qualità** (`riorganizza_topbar`, ordine 65)
 - **Modulo collegato**: `django_app/report_conformita/` (report di sola lettura, riesame della direzione)
-- **Ultimo aggiornamento**: 2026-09-25
+- **Ultimo aggiornamento**: 2026-10-27
 
 ---
 
 ## 0. Stato in sintesi
 
+Verificato il 2026-10-27 su git: **prod = `7194a206`** (deploy del 23/10/2026), migrazioni `sistema_gestione` in
+prod fino a **0016**; in `release/prod` (non deployate) **0017-0018**.
+
 | Fase | Contenuto | Stato | Commit / note |
 |---|---|---|---|
+| 1 | Dichiarazione di applicabilità (SoA) ISO 27001 = MOD.165 Control Matrix + threat intelligence | **FATTA e DEPLOYATA** (in prod dal deploy del 23/10/2026) | feature `e525875a`, main `a784d330`, release/prod `e59c3223`; resta da verificare in prod l'import `importa_soa_mod165 --apply` (§8 punto 4) |
+| 2 | Audit interni EN 9100: MOD.034 programma, MOD.035A piano, MOD.035B rapporto, auditor, collegamento al Registro OFI | **FATTA e DEPLOYATA** (migrazioni 0003-0016) | `37e4aa8f` + fix `411151c6` (25/09); catalogo processi `d7f28081`, automatismi `113c1009`, CAR/KPI `6cd61801` (28-29/09); prompt 08 `c4d44e4b`…`6f5dc71c` (11/10); verifica MT CN 11/12 + guida `41f65e0d` (12/10); PART 145 `34602a1c` (0015); struttura Qualità `4f31aeae` (0016) |
+| 2+ | Certificazioni e audit esterni, preparazione all'audit dell'ente, scheda processo ridisegnata, Registro OFI come modulo dedicato | **FATTA — in `release/prod`, NON deployata** | `476a29fc` (0017-0018), `1ecfc7f5`, `1f0ab328`, `f05e5197` (26/10); impostazioni modulo `29d48bea` (27/10) |
+| 3 | Audit interni ISMS: MOD.171 piano, MOD.168 rapporto (punteggio 1-4 dei 93 controlli precompilato dalla SoA) | **DA FARE** — nessun codice MOD.171/168; non compresa nel piano SGI Fase A | il modello `Audit` ha già il flag `iso27001` e `ChecklistProcesso.norma` accetta ISO/IEC 27001 |
+| 4 | Estensioni: checklist ISO 45001 e UNI/PdR 125, flag PdR 125 nel Registro OFI, (eventuale) analisi del rischio completa del MOD.165 | **IN PARTE** | flag `norma_pdr125` nel Registro OFI **fatto e deployato** (`gestione_specifiche` 0014); audit e checklist di processo accettano 45001/14001/PdR 125 (0011); checklist importate dai moduli 45001/PdR 125 e analisi del rischio MOD.165 **non fatte**; KPI PdR 125 pianificati nel blocco 6 di [PIANO_SGI_FASE_A_2026-10.md](PIANO_SGI_FASE_A_2026-10.md) |
+
+---|---|---|---|
 | 1 | Dichiarazione di applicabilità (SoA) ISO 27001 = MOD.165 Control Matrix + threat intelligence | **FATTA** — mergiata su `main` e `release/prod`, **non deployata** | feature `e525875a`, main `a784d330`, release/prod `e59c3223` |
 | 2 | Audit interni EN 9100: MOD.034 programma, MOD.035A piano, MOD.035B rapporto, auditor, collegamento al Registro OFI | **FATTA** — implementata e verificata, **non deployata** | branch `feature/sistema-gestione-audit-9100`; hash finali nel riepilogo di chiusura |
 | 3 | Audit interni ISMS: MOD.171 piano, MOD.168 rapporto (punteggio 1-4 dei 93 controlli precompilato dalla SoA) | **DA FARE** | — |
