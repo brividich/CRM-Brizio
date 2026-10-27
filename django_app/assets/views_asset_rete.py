@@ -196,9 +196,25 @@ def asset_rete_prefisso(request: HttpRequest, id: int) -> HttpResponse:
             asset.switch_membro = membro
             asset.save(update_fields=["switch_prefisso_porte", "rack", "switch_membro"])
         if effettivo:
-            porte = f"{effettivo}.{membro}.x" if membro else f"{effettivo}.x.x"
+            # Switch singolo: porte A1.x; stack: porte A0.<membro>.x (la porta patch panel AX.Y è un campo a parte).
+            formato = rete_switch.formato_porte(effettivo)
+            if membro:
+                porte = f"{effettivo}.{membro}.x"
+            elif formato["stack"] and formato["singole"]:
+                porte = f"{effettivo}.x e {effettivo}.N.x"
+            elif formato["stack"]:
+                porte = f"{effettivo}.N.x"
+            else:
+                porte = f"{effettivo}.x"
             dove = f" nel rack {rack.codice}" if rack else ""
             messages.success(request, f"{asset.asset_tag}{dove}: le porte {porte} senza switch indicato ora sono sue.")
+            if membro and formato["singole"] and not formato["stack"]:
+                messages.warning(
+                    request,
+                    f"Le porte censite di {effettivo} sono del tipo {effettivo}.x, cioè di uno switch singolo: "
+                    "il membro serve solo a uno stack (porte "
+                    f"{effettivo}.{membro}.x). Se lo switch è da solo lascia vuoto il membro.",
+                )
         elif rack:
             messages.success(request, f"{asset.asset_tag} ora è nel rack {rack.codice}.")
         else:

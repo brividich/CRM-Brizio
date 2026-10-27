@@ -259,3 +259,29 @@ class RackTests(TestCase):
         self.client.force_login(_user("rack.base"))
         self.client.post(reverse("assets:rete_rack"), {"azione": "salva", "codice": "RX", "nome": "No"})
         self.assertFalse(RackRete.objects.filter(codice="RX").exists())
+
+
+class SwitchSingoloTests(TestCase):
+    """Rack A1 con un solo switch: porte A1.x, il membro non serve."""
+
+    def setUp(self):
+        self.client.force_login(_user("rack.singolo", superuser=True))
+        self.rack = RackRete.objects.create(codice="R1", nome="Armadio singolo", prefisso_porte="A1", prefisso_patch="A1")
+        self.sw = Asset.objects.create(asset_tag="SYN-SW-S1", name="Switch singolo", asset_type=Asset.TYPE_HW)
+        pc = Asset.objects.create(asset_tag="SYN-PCS-1", name="PC singolo", asset_type=Asset.TYPE_PC)
+        self.ep = AssetEndpoint.objects.create(asset=pc, switch_port="A1.19", punto="A1.19")
+
+    def _colloca(self, membro):
+        resp = self.client.post(reverse("assets:asset_rete_prefisso", args=[self.sw.id]),
+                                {"rack": str(self.rack.id), "membro": membro, "prefisso": ""}, follow=True)
+        return [str(m) for m in resp.context["messages"]]
+
+    def test_senza_membro_porte_a1_x(self):
+        messaggi = self._colloca("")
+        self.assertTrue(any("le porte A1.x senza switch" in m for m in messaggi), messaggi)
+        self.assertEqual(rete_switch.collegamenti([self.ep])[self.ep.id].switch, self.sw)
+
+    def test_membro_su_switch_singolo_avvisa(self):
+        messaggi = self._colloca("1")
+        self.assertTrue(any("lascia vuoto il membro" in m for m in messaggi), messaggi)
+        self.assertEqual(rete_switch.collegamenti([self.ep])[self.ep.id].switch, self.sw)

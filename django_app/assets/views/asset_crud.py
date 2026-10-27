@@ -1087,6 +1087,10 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     _dots = monitoring_dots(request, [a.id for a in assets])
     for _asset in assets:
         _asset.snmp_dot = _dots.get(_asset.id)
+    from ..services.responsabile_asset import applica as applica_responsabile
+
+    # Macchine di produzione senza persona assegnata: responsabile = caporeparto.
+    applica_responsabile(assets)
     visible_count = assets_filtered.count()
     page_start = ((page_obj.number - 1) * rows + 1) if visible_count else 0
     page_end = (page_start + len(assets) - 1) if visible_count else 0

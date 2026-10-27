@@ -20,6 +20,9 @@ GUIDA = {
                 ("p", "Il menu a sinistra è diviso per area: Inventario, Manutenzione e officina, IT e rete (licenze, software, "
                       "indirizzi IP, rack), Inventario per categoria; in fondo «Guida del modulo»."),
                 ("p", "Dal telefono basta inquadrare il QR sulla macchina: si apre la scheda con manutenzioni e documenti."),
+                ("p", "Responsabile: una macchina CNC o di lavoro senza una persona assegnata ha come responsabile il caporeparto del suo "
+                      "reparto (Persone → «Reparti, aree e capi»), mostrato con «Caporeparto <reparto>». Una persona assegnata a mano vince; "
+                      "gli asset IT si assegnano al dipendente."),
                 ("p", "Sotto il cruscotto della scheda, «Lo stesso apparato in» porta alla stampante in Contatori e al dispositivo nel SOC; "
                       "lì trovi la stessa testata dell'asset, con il link «Scheda asset» per tornare."),
             ],
@@ -163,8 +166,9 @@ GUIDA = {
                 ("passi", [
                     "Apri Asset → «Rack e switch» e premi «+ Nuovo rack»: Codice, Nome, «Prefisso porte switch» (es. A0) "
                     "e «Prefisso patch panel» (es. Q0); premi «Crea rack».",
-                    "Apri la scheda di ogni switch del rack, tab «Tecnica e rete»: scegli il «Rack», scrivi il «Membro dello stack» "
-                    "(1, 2, 3…) e premi «Salva collocazione».",
+                    "Apri la scheda di ogni switch del rack, tab «Tecnica e rete»: scegli il «Rack»; solo per uno stack scrivi il "
+                    "«Membro dello stack» (1, 2, 3… = porte A0.1.x, A0.2.x…); uno switch da solo (porte A1.x) lo lascia vuoto. "
+                    "Premi «Salva collocazione».",
                     "Torna su «Rack e switch»: ogni rack elenca i suoi switch con le porte servite (A0.1, A0.2…) e i dispositivi collegati; "
                     "un clic sul rack mostra il frontale di ogni switch.",
                 ]),
