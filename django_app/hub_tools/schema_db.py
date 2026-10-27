@@ -37,7 +37,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), rack e switch di rete, macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
     "tasks": ("Operations", "#06b6d4", "KICK-OFF: commesse, attività, incontri, VRF"),
-    "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione"),
+    "tickets": ("Operations", "#ec4899", "Ticket IT e manutenzione, sync SharePoint dei ticket MAN"),
     "anomalie": ("Operations", "#eab308", "Anomalie per OP e seriali"),
     "gestione_carichi_macchina": ("Operations", "#0891b2", "Pianificazione carichi macchina"),
     "checklist_operativa": ("Operations", "#0d9488", "Checklist di chiusura aziendale"),
@@ -123,7 +123,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "Microsoft Graph (Microsoft 365)",
         "cosa": "Un'app registrata su Entra ID per leggere e scrivere liste SharePoint, calendari Outlook e caselle di posta.",
-        "chi": "Assenze (lista SharePoint), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
+        "chi": "Assenze (lista SharePoint), Ticket MAN (lista «Ticket» del sito CNManutenzioni, in entrambe le direzioni), Rilevazione incidenti (lista SharePoint), KICK-OFF (calendario incontri), Security Center (caselle dei report, "
                "alert di Microsoft Defender con SecurityAlert.Read.All, incidenti con SecurityIncident.Read.All, Secure Score con "
                "SecurityEvents.Read.All, software dei PC dall'API di Defender for Endpoint con Software.Read.All, vulnerabilità per PC con Vulnerability.Read.All e Machine.Read.All (tabella security_defendervulnerabilita); Microsoft Entra ID: account degli ex dipendenti e audit "
                "amministrativo con User.Read.All e AuditLog.Read.All), Ruoli e permessi (scheda «Account Microsoft 365»), Centrale di comando (stato dei servizi Microsoft 365 con ServiceHealth.Read.All), Scadenzario (calendario Outlook «Scadenze "

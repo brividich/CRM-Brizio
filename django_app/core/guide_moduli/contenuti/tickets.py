@@ -79,6 +79,33 @@ GUIDA = {
             ],
         },
         {
+            "id": "sharepoint-man",
+            "titolo": "Ticket manutenzione sincronizzati con SharePoint",
+            "blocchi": [
+                ("p", "I ticket MAN possono vivere insieme sul portale e sulla lista «Ticket» del sito SharePoint "
+                      "CNManutenzioni: chi apre, modifica o chiude da una parte lo ritrova dall'altra entro 5 minuti."),
+                ("ul", [
+                    "Si accende in Ticket → «Impostazioni», scheda Manutenzione: «List ID SharePoint», «Site ID SharePoint», "
+                    "spunta «Sincronizza con SharePoint in entrambe le direzioni», poi «Salva MAN». «Test SP» controlla che la lista risponda.",
+                    "Dal portale a SharePoint: titolo, descrizione, priorità, stato, tipologia, macchinario, note, impatto su sicurezza, "
+                    "«Chiuso» e «Data chiusura ticket».",
+                    "Da SharePoint al portale: gli stessi campi; un elemento nuovo della lista diventa un ticket MAN (richiedente = chi l'ha "
+                    "creato su SharePoint) e se il «Macchinario» corrisponde a un asset viene collegato.",
+                    "Chiudere su SharePoint («Chiuso» o «Data chiusura ticket») chiude il ticket sul portale: niente più promemoria SLA ed escalation.",
+                    "Stati: Aperta = Nuovo, In carico = In corso, In attesa = Bloccato (anche «Da progettazione»), Risolto = Completato, "
+                    "Chiuso = Completato con «Chiuso», Annullato = Non implementabile (anche «Duplica»).",
+                    "Su SharePoint lo «Stato» resta quasi sempre «Nuovo»: per un ticket aperto sul portale «Nuovo» non cambia niente, "
+                    "conta la spunta «Chiuso». Togliere «Chiuso» su SharePoint riapre il ticket.",
+                    "Il primo giro dopo l'accensione porta sul portale solo gli elementi nuovi della lista: i ticket già collegati "
+                    "(importati con l'ID SharePoint) restano come sono, e da lì in poi passano solo le modifiche.",
+                    "Se lo stesso ticket viene cambiato su entrambi i lati prima del giro, vince la modifica del portale.",
+                    "Commenti, allegati, interventi, SLA ed escalation restano solo sul portale. Le modifiche arrivate da SharePoint "
+                    "non mandano mail; i cambi di stato finiscono nello storico del ticket con autore «SharePoint».",
+                    "Un elemento eliminato su SharePoint non cancella il ticket: resta sul portale, scollegato dalla lista.",
+                ]),
+            ],
+        },
+        {
             "id": "permessi",
             "titolo": "Chi gestisce cosa",
             "blocchi": [
@@ -99,6 +126,7 @@ GUIDA = {
                 ("def", [
                     ("Escalation urgenti", "ogni ora: i ticket URGENTI aperti e senza assegnatario oltre la soglia generano un promemoria al team e al richiedente."),
                     ("Promemoria SLA", "comando send_sla_reminders: avvisa l'assegnatario dei ticket con SLA scaduto."),
+                    ("Sincronizzazione SharePoint MAN", "ogni 5 minuti (lavoro «tickets_man_sharepoint_sync»): manda le modifiche del portale alla lista e porta sul portale quelle fatte sulla lista."),
                     ("Registro manutenzione", "i ticket MAN collegati a un asset compaiono nel registro manutenzione dell'asset."),
                 ]),
             ],
@@ -118,6 +146,15 @@ GUIDA = {
                 "Ticket → Impostazioni: controlla che l'escalation sia accesa e la soglia corretta.",
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla il lavoro di escalation dei ticket.",
                 "Se il cluster è fermo segui «Le automazioni non partono» nel Manuale di emergenza.",
+            ],
+        },
+        {
+            "sintomo": "Un ticket manutenzione non compare su SharePoint (o viceversa)",
+            "fare": [
+                "Ticket → Impostazioni, scheda Manutenzione: controlla che la sincronizzazione sia spuntata e premi «Test SP».",
+                "Sotto la spunta leggi «In coda verso SharePoint» e l'eventuale «Ultimo errore».",
+                "Amministrazione → Monitoring → «Salute degli schedule»: controlla «tickets_man_sharepoint_sync».",
+                "Aspetta il giro successivo: la sincronizzazione passa ogni 5 minuti.",
             ],
         },
         {

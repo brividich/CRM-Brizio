@@ -1681,6 +1681,7 @@ def ticket_impostazioni(request):
     ctx = {
         "cfg_it":  cfg_it,
         "cfg_man": cfg_man,
+        "sp_man_stato": _sp_man_stato(),
         "escalation_cfg": get_escalation_config(),
         "tipi":    TipoTicket.choices,
         "categorie_it":  get_categorie(TipoTicket.IT),
@@ -1697,73 +1698,31 @@ def ticket_impostazioni(request):
 
 
 # ---------------------------------------------------------------------------
-# SharePoint push (stub — da configurare con list IDs reali)
+# SharePoint: i ticket MAN vanno in coda (tickets/sharepoint_man.py), il job
+# «tickets_man_sharepoint_sync» li invia. Il segnale post_save accoda gia' ogni
+# salvataggio: queste chiamate restano per gli aggiornamenti fatti con update().
 # ---------------------------------------------------------------------------
 
-def _push_ticket_to_sharepoint(ticket: Ticket) -> None:
-    """Push ticket a SP. Stub — da implementare quando disponibili list IDs."""
+def _sp_man_stato() -> dict:
+    from .sharepoint_man import stato_sincronizzazione
+
     try:
-        from core.sharepoint_utils import get_sp_headers, get_sp_site_url
-        import requests as req_lib
-
-        cfg = TicketImpostazioni.objects.filter(tipo=ticket.tipo).first()
-        if not cfg or not cfg.sharepoint_list_id:
-            return
-
-        headers = get_sp_headers()
-        site    = get_sp_site_url()
-        url     = f"{site}/_api/web/lists('{cfg.sharepoint_list_id}')/items"
-
-        payload = {
-            "__metadata": {"type": f"SP.Data.ListItem"},
-            "Title":          ticket.titolo,
-            "NumeroTicket":   ticket.numero_ticket,
-            "Categoria":      ticket.categoria,
-            "Priorita":       ticket.priorita,
-            "IncideSicurezza": ticket.incide_sicurezza,
-            "Stato":          ticket.stato,
-            "Richiedente":    ticket.richiedente_nome,
-            "Descrizione":    ticket.descrizione,
-            "DataApertura":   ticket.created_at.isoformat() if ticket.created_at else "",
-        }
-        resp = req_lib.post(url, json=payload, headers=headers, timeout=10)
-        if resp.ok:
-            data = resp.json()
-            sp_id = str(data.get("d", {}).get("ID") or data.get("ID") or "")
-            if sp_id:
-                Ticket.objects.filter(pk=ticket.pk).update(sharepoint_item_id=sp_id)
-    # Lo specchio SharePoint non deve far fallire l'operazione sul ticket, ma se
-    # diverge in silenzio nessuno se ne accorge finche' qualcuno non lo confronta.
+        return stato_sincronizzazione()
     except Exception:
-        logger.exception("Ticket %s: creazione dell'elemento SharePoint fallita", ticket.pk)
+        logger.warning("stato sincronizzazione SharePoint MAN non disponibile", exc_info=True)
+        return {"in_coda": 0, "ultimo_errore": ""}
+
+
+def _push_ticket_to_sharepoint(ticket: Ticket) -> None:
+    from .sharepoint_man import accoda
+
+    accoda(ticket)
 
 
 def _update_ticket_sharepoint(ticket: Ticket) -> None:
-    """Aggiorna item esistente su SP (stato, assegnazione)."""
-    try:
-        if not ticket.sharepoint_item_id:
-            return
-        from core.sharepoint_utils import get_sp_headers, get_sp_site_url
-        import requests as req_lib
+    from .sharepoint_man import accoda
 
-        cfg = TicketImpostazioni.objects.filter(tipo=ticket.tipo).first()
-        if not cfg or not cfg.sharepoint_list_id:
-            return
-
-        headers = get_sp_headers()
-        headers.update({"X-HTTP-Method": "MERGE", "IF-MATCH": "*"})
-        site = get_sp_site_url()
-        url  = f"{site}/_api/web/lists('{cfg.sharepoint_list_id}')/items({ticket.sharepoint_item_id})"
-
-        payload = {
-            "__metadata": {"type": "SP.Data.ListItem"},
-            "Stato":       ticket.stato,
-            "AssegnatoA":  ticket.assegnato_a,
-            "DataChiusura": ticket.closed_at.isoformat() if ticket.closed_at else None,
-        }
-        req_lib.patch(url, json=payload, headers=headers, timeout=10)
-    except Exception:
-        pass
+    accoda(ticket)
 
 
 # ---------------------------------------------------------------------------
@@ -2153,6 +2112,11 @@ def api_impostazioni(request):
 
     cfg = TicketImpostazioni.get_or_create_for(tipo)
     cfg.sharepoint_list_id = (payload.get("sharepoint_list_id") or "").strip()[:100]
+    if tipo == TipoTicket.MAN:
+        cfg.sharepoint_site_id = (payload.get("sharepoint_site_id") or "").strip()[:200]
+        cfg.sharepoint_sync_attivo = bool(payload.get("sharepoint_sync_attivo"))
+        if cfg.sharepoint_sync_attivo and not (cfg.sharepoint_site_id and cfg.sharepoint_list_id):
+            return _json_err("Per attivare la sincronizzazione servono Site ID e List ID.")
 
     # team_gestori: lista di {nome, email}
     raw_team = payload.get("team_gestori")
@@ -2242,6 +2206,7 @@ def api_test_sp(request):
     try:
         payload = json.loads(request.body)
         list_id = (payload.get("sharepoint_list_id") or "").strip()
+        site_override = (payload.get("sharepoint_site_id") or "").strip()
     except json.JSONDecodeError:
         return _json_err("JSON non valido")
 
@@ -2255,7 +2220,8 @@ def api_test_sp(request):
         tenant_id = get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
         client_id = get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
         client_secret = get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-        site_id = get_first_env_value("GRAPH_SITE_ID")
+        # La lista MAN sta su un altro sito (CNManutenzioni): vale il Site ID indicato.
+        site_id = site_override or get_first_env_value("GRAPH_SITE_ID")
 
         if any(is_placeholder_value(v) or not v for v in [tenant_id, client_id, client_secret, site_id]):
             return _json_err("Configurazione Graph incompleta in .env (tenant_id/client_id/client_secret/site_id)")
