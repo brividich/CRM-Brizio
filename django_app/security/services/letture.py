@@ -109,6 +109,11 @@ LETTURE = (
     Lettura("registro_infra", "ESXi, vCenter, iLO e iDRAC", "Registro accessi",
             "Versione e configurazione degli host di virtualizzazione e salute dell'hardware dei server (sola lettura).",
             "ogni ora", "registro_log.infra:aggiorna", dati_url="security:registro_log_infra", dati_label="Server e virtualizzazione"),
+    Lettura("pacchetto_iso", "Pacchetto evidenze ISO 27001", "Conformità",
+            "Il PDF con l'esito dei controlli ISO/IEC 27001 del mese prima, le CVE corrette, le esposizioni scadute e gli incidenti: "
+            "archiviato con la sua impronta e, se acceso, copiato su SharePoint.",
+            "il giorno 1 del mese alle 06:30", "security.services.iso_pacchetto:giro_mensile",
+            dati_url="security:iso27001", dati_label="Conformità ISO 27001"),
 )
 PER_CODICE = {lettura.codice: lettura for lettura in LETTURE}
 
@@ -332,6 +337,9 @@ ETICHETTE = {
     "scartate": "risposte scartate", "superate": "proposte superate", "ms_medi": "ms per risposta",
     # switch / caselle
     "switch": "switch", "mac": "MAC", "caselle": "caselle", "lette": "lette",
+    # pacchetto ISO 27001
+    "periodo": "periodo", "sha256": "impronta SHA-256", "non_conformi": "controlli non conformi", "attenzione": "da guardare",
+    "non_disponibili": "non disponibili", "copia": "copia su SharePoint",
 }
 _NASCOSTE = {"ok", "attivo", "at", "errore", "errors", "errori", "motivo", "skipped", "saltato", "valore"}
 

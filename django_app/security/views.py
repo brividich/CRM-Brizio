@@ -1174,11 +1174,13 @@ _DOC_META = {
     "16_IMPOSTAZIONI_E_AI.md": ("Impostazioni e AI", "Avvisi automatici su mail e Teams, report programmato, funzioni dell'AI aziendale e suoi limiti."),
     "17_MODULI_DIAGNOSTICA_DOCUMENTAZIONE.md": ("Moduli, diagnostica e documentazione", "Stato di ogni modulo, controllo salute della catena, test di riconoscimento di una mail, elenco della documentazione."),
     "18_REGISTRO_ACCESSI.md": ("Registro accessi", "Log dei server e degli apparati in un archivio sigillato, amministratori di sistema, account AD, verifica annuale del Garante, ESXi e iLO."),
+    "19_CONFORMITA_ISO27001.md": ("Conformità ISO 27001", "I controlli dell'Annex A coperti dal SOC verificati dai dati, soglie, pacchetto mensile di evidenze e cosa resta da fare a mano."),
     "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
 }
 # Guide d'uso per chi lavora nel SOC, in cima alla pagina Guida (gli altri documenti sono per chi configura).
 USER_GUIDE_FILES = ("13_LAVORO_QUOTIDIANO.md", "14_INCIDENTI_E_REPORT.md", "15_BACKUP_VPN_KPI_ASSET.md",
-                    "12_AUTOMATISMI_E_VULNERABILITA.md", "16_IMPOSTAZIONI_E_AI.md", "18_REGISTRO_ACCESSI.md")
+                    "12_AUTOMATISMI_E_VULNERABILITA.md", "16_IMPOSTAZIONI_E_AI.md", "18_REGISTRO_ACCESSI.md",
+                    "19_CONFORMITA_ISO27001.md")
 SECURITY_CENTER_DOCS = [
     {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
     for f in _DOC_FILES

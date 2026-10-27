@@ -5,6 +5,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from core.private_attachments import PrivateAttachmentStorage
+
 
 class Severity(models.TextChoices):
     INFO = "info", "Info"
@@ -1827,3 +1829,41 @@ class SecurityPropostaAi(models.Model):
     def applicabile(self):
         """«Accetta» ha un effetto solo se l'AI ha preso posizione (non su «resta da verificare»)."""
         return self.proposta != self.DA_VERIFICARE
+
+
+def _percorso_pacchetto_iso(instance, filename):
+    return f"security/iso27001/{instance.periodo_dal:%Y}/{filename}"
+
+
+class SecurityPacchettoIso(models.Model):
+    """Pacchetto mensile di evidenze ISO/IEC 27001 del SOC: il PDF, la sua impronta e chi l'ha generato.
+
+    Scritto da ``services.iso_pacchetto`` il giorno 1 di ogni mese (lettura ``pacchetto_iso``) e da
+    «Genera ora» nella pagina Conformità ISO 27001. Il file sta nello storage privato; l'impronta SHA-256
+    finisce anche nell'audit del portale, così il PDF conservato si può confrontare con quello generato.
+    """
+
+    periodo_dal = models.DateField(db_index=True)
+    periodo_al = models.DateField()
+    file = models.FileField(
+        upload_to=_percorso_pacchetto_iso, max_length=500,
+        storage=PrivateAttachmentStorage(download_hint="Scarica da SOC › Report › Conformità ISO 27001."),
+    )
+    sha256 = models.CharField(max_length=64)
+    generato_il = models.DateTimeField(default=timezone.now, db_index=True)
+    generato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    automatico = models.BooleanField(default=False)
+    riepilogo = models.JSONField(default=dict, blank=True)  # conteggi per stato e controlli non conformi
+    copia_esito = models.CharField(max_length=500, blank=True, default="")  # copia su SharePoint, se accesa
+
+    class Meta:
+        ordering = ["-periodo_dal", "-generato_il"]
+        verbose_name = "Pacchetto evidenze ISO 27001"
+        verbose_name_plural = "Pacchetti evidenze ISO 27001"
+
+    def __str__(self):
+        return f"Evidenze ISO 27001 {self.periodo_dal:%Y-%m-%d} – {self.periodo_al:%Y-%m-%d}"
+
+    @property
+    def nome_file(self):
+        return f"evidenze-soc-iso27001-{self.periodo_dal:%Y%m%d}-{self.periodo_al:%Y%m%d}.pdf"

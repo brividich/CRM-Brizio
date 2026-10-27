@@ -11,7 +11,7 @@ from html import escape
 
 from django.utils import timezone
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, Spacer
+from reportlab.platypus import PageBreak, Paragraph, Spacer
 
 from core.pdf import PdfTheme, build_styles, data_table, header_footer_callback, make_document, section_heading
 
@@ -269,4 +269,93 @@ def render_incident_register_pdf(incidents, label) -> bytes:
         ])
     pdf.table(["Codice", "Rilevato", "Incidente", "Categoria", "Gravità", "Stato", "NIS2", "Dati pers.", "Notifiche inviate", "In ritardo"],
               rows, widths=[2.1, 1.6, 4.2, 2.3, 1.2, 1.1, 0.7, 0.9, 2.4, 0.9], empty="Nessun incidente registrato.")
+    return pdf.build()
+
+
+# --- Pacchetto di evidenze ISO/IEC 27001 (services/iso_pacchetto.py) --------------------------
+
+def _numero(value):
+    if isinstance(value, bool):
+        return "sì" if value else "no"
+    if isinstance(value, float):
+        return _num(value)
+    if value is None:
+        return "—"
+    return value
+
+
+def render_pacchetto_iso_pdf(dati) -> bytes:
+    """«Evidenze SOC – ISO/IEC 27001 – <periodo>»: copertina, sintesi, un capitolo per controllo, allegati."""
+    from security.services.iso27001 import ETICHETTA_STATO
+
+    v = dati["valutazione"]
+    c = v["conteggi"]
+    pdf = _Doc("Evidenze SOC – ISO/IEC 27001", f"Periodo: {dati['etichetta']}")
+
+    # Copertina
+    pdf.elements.append(Spacer(1, 30 * mm))
+    pdf.elements.append(Paragraph(_txt("Evidenze SOC – ISO/IEC 27001:2022"), pdf.styles["title"]))
+    pdf.elements.append(Paragraph(_txt(f"Periodo: {dati['etichetta']}"), pdf.styles["subtitle"]))
+    pdf.space(6)
+    pdf.facts([
+        ("Periodo", f"{dati['dal']:%d/%m/%Y} - {dati['al']:%d/%m/%Y}"),
+        ("Generato il", _dt(dati["generato_il"])),
+        ("Controlli verificati", c["totale"]),
+        ("Conformi", c["ok"]),
+        ("Da guardare", c["attenzione"]),
+        ("Non conformi", c["non_conforme"]),
+        ("Dato non disponibile", c["non_disponibile"]),
+    ])
+    pdf.para("Questo pacchetto è generato automaticamente dal Security Center del portale NOVICROM HUB dai dati che il SOC "
+             "raccoglie da solo (letture automatiche, registro accessi, backup, vulnerabilità, incidenti). Ogni controllo riporta "
+             "cosa si aspetta l'audit, l'esito calcolato, i numeri su cui si basa e le azioni aperte. Il PDF è conservato con la "
+             "sua impronta SHA-256 nell'audit del portale: serve al riesame periodico (controlli 9.1 e 9.3).", "body")
+    pdf.elements.append(PageBreak())
+
+    pdf.section("Sintesi per controllo")
+    pdf.table(["Controllo", "Titolo", "Esito", "In breve"],
+              [[x["codice"], x["titolo"], ETICHETTA_STATO[x["stato"]], x["frase"]] for x in v["controlli"]],
+              widths=[1, 3.2, 1.6, 6.5])
+
+    for area in v["aree"]:
+        pdf.section(area["nome"])
+        for x in area["controlli"]:
+            pdf.para(f"{x['codice']} · {x['titolo']} — {ETICHETTA_STATO[x['stato']]}", "section")
+            pdf.para(f"Cosa si aspetta l'audit: {x['atteso']}", "label")
+            pdf.para(x["frase"])
+            if x["numeri_semplici"]:
+                pdf.facts(x["numeri_semplici"], columns=3)
+            for t in x["numeri_tabelle"]:
+                pdf.para(t["titolo"], "label")
+                pdf.table(t["colonne"], t["righe"])
+            if x["azioni"]:
+                pdf.para("Cosa fare:", "label")
+                for a in x["azioni"]:
+                    pdf.para(f"- {a}")
+            pdf.space(2)
+
+    pdf.elements.append(PageBreak())
+    pdf.section("Allegato A · Vulnerabilità corrette nel periodo")
+    pdf.para("Un PC per riga: la CVE non risulta più sul PC perché il programma è stato aggiornato o disinstallato "
+             "(evidenza: l'inventario software del PC letto da WatchGuard o Defender).", "label")
+    pdf.table(["CVE", "CVSS", "PC", "Programma", "Prima", "Dopo", "Evidenza", "Esposto dal", "Corretto il", "Giorni"],
+              [[r["cve"] + (" KEV" if r["kev"] else ""), _num(r["cvss"]) if r["cvss"] is not None else "—", r["host"], r["software"],
+                r["versione_prima"], r["versione_dopo"], r["evidenza"], r["aperta_dal"], r["risolta_il"], r["giorni"] if r["giorni"] is not None else "—"]
+               for r in dati["correzioni"]],
+              widths=[1.9, 0.8, 1.8, 2.4, 1.2, 1.2, 2.6, 1.3, 1.3, 0.8], empty="Nessuna correzione registrata nel periodo.")
+
+    pdf.section("Allegato B · Esposizioni oltre il termine")
+    if dati["esposizioni_scadute"] is None:
+        pdf.para("Dato non disponibile: il servizio dei tempi di correzione per classe (cve_sla) non è installato in questa versione.")
+    else:
+        pdf.table(["CVE", "PC", "Classe", "Scadenza", "Giorni di ritardo", "Rischio accettato"],
+                  [[e.get("cve"), e.get("host"), e.get("classe"), _numero(e.get("scadenza")), _numero(e.get("giorni_ritardo")),
+                    "sì" if e.get("accettata") else "no"] for e in dati["esposizioni_scadute"]],
+                  widths=[2, 2.5, 1.5, 1.8, 1.4, 1.4], empty="Nessuna esposizione oltre il termine.")
+
+    pdf.section("Allegato C · Incidenti del periodo e lezioni apprese")
+    pdf.table(["Codice", "Incidente", "Categoria", "Stato", "Rilevato", "Risolto", "NIS2", "Dati pers.", "Riesame", "Lezioni apprese"],
+              [[i["codice"], i["titolo"], i["categoria"], i["stato"], i["rilevato_il"], i["risolto_il"], i["nis2"], i["dati_personali"],
+                i["riesame"], i["lezioni"] or "—"] for i in dati["incidenti"]],
+              widths=[1.6, 3.2, 2, 1.2, 1.6, 1.6, 0.7, 0.9, 1.4, 3.5], empty="Nessun incidente rilevato o chiuso nel periodo.")
     return pdf.build()
