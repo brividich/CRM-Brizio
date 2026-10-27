@@ -1500,6 +1500,8 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
         form = WorkOrderCloseForm(
             initial={
                 "status": WorkOrder.STATUS_DONE,
+                # Il caso normale: chi chiude ha risolto. Gli altri esiti sono un click.
+                "esito": WorkOrder.OUTCOME_RESOLVED,
                 "intervention_duration_minutes": workorder.intervention_duration_minutes,
                 "downtime_minutes": initial_downtime,
                 "labor_cost_eur": workorder.labor_cost_eur,
@@ -1531,9 +1533,10 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "workorder": workorder,
             "form": form,
             "close_submit_label": (
-                "Conferma annullamento"
-                if (form["status"].value() or WorkOrder.STATUS_DONE) == WorkOrder.STATUS_CANCELED
-                else "Conferma chiusura"
+                "Annulla l'intervento"
+                if form["esito"].value() == WorkOrderCloseForm.ESITO_CANCELED
+                or form["status"].value() == WorkOrder.STATUS_CANCELED
+                else "Chiudi definitivamente"
             ),
             "workorder_status": _workorder_status_payload(workorder.status),
             "workorder_kind": _workorder_kind_payload(workorder.kind),

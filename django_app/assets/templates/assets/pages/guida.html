@@ -33,6 +33,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#contatori">Contatori e piani a contatore</a>
     <a href="#codici-guasto">Codici guasto e guasti più frequenti</a>
     <a href="#ricambi">Ricambi</a>
+    <a href="#chiusura">Chiudere un intervento</a>
     <a href="#ticket">Interventi nati da una segnalazione</a>
     <a href="#stato">Stato dell'asset</a>
     <a href="#operatori">Operatori abilitati</a>
@@ -147,19 +148,31 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <p class="ag-note">Carichi (arrivo merce) e rettifiche di inventario si registrano dalla scheda del ricambio e sono riservati agli amministratori del modulo. Non si può scaricare più di quanto c'è a magazzino: se il conteggio reale è diverso, va fatta una rettifica.</p>
     </section>
 
+    <section class="ag-sec" id="chiusura">
+      <h2>Chiudere un intervento</h2>
+      <p>La pagina <strong>«Chiudi intervento»</strong> è la stessa per una stampante, un PC o una macchina di produzione, ed è impaginata come <strong>«Registra l'esecuzione»</strong> delle manutenzioni.</p>
+      <ol>
+        <li><strong>«Com'è andata?»</strong>: <strong>Risolto</strong> (già scelto), <strong>Risolto temporaneamente</strong> (chiede la data dell'intervento di verifica, che viene creato da solo), <strong>Non risolto</strong> (l'intervento resta aperto) o <strong>Non eseguito, annulla l'intervento</strong>.</li>
+        <li><strong>Esecuzione</strong>: data e ora di chiusura (adesso, modificabile), eseguito da (tu), tempo impiegato e fermo macchina in ore e minuti, e <strong>«Cosa è stato fatto»</strong>, obbligatorio. Se annulli, resta solo <strong>«Perché si annulla»</strong>.</li>
+        <li><strong>Rapporto / documento</strong>: rapportino, foto o verbale, facoltativi.</li>
+        <li>Premi <span class="ag-btn">Chiudi definitivamente</span> (il pulsante diventa <span class="ag-btn">Registra e lascia aperto</span> o <span class="ag-btn">Annulla l'intervento</span> secondo l'esito).</li>
+      </ol>
+      <p>Giorni di lavoro diversi da quello di chiusura, assegnatario, codici guasto, costi, contratto e nota sono in <strong>«Altri dettagli»</strong>, chiuso finché non serve. I ricambi si scaricano nel riquadro «Ricambi usati» sotto il modulo.</p>
+    </section>
+
     <section class="ag-sec" id="ticket">
       <h2>Interventi nati da una segnalazione</h2>
       <p>Quando da una segnalazione di manutenzione (ticket) si crea l'intervento, l'intervento risulta <strong>«Da ticket»</strong> e la segnalazione, se era «Aperta», passa a <strong>«In carico»</strong> (nel suo storico compare «Creato intervento #…»).</p>
       <ol>
-        <li>Apri l'intervento e premi <span class="ag-btn">Registra intervento</span> per chiuderlo.</li>
+        <li>Apri l'intervento e premi <span class="ag-btn">Registra intervento</span> per chiuderlo (vedi «Chiudere un intervento»).</li>
         <li>Scegli l'esito <strong>«Risolto»</strong>: la casella <strong>«Segna anche la segnalazione … come Risolta»</strong> si spunta da sola. Togli la spunta se la segnalazione deve restare aperta.</li>
         <li>Conferma: intervento chiuso e segnalazione «Risolto» insieme.</li>
       </ol>
       <ul>
         <li>Con <strong>«Risolto temporaneamente»</strong> o <strong>«Non risolto»</strong> la segnalazione non cambia; nello storico dell'intervento è scritto che è rimasta invariata.</li>
         <li>La casella compare solo a chi può gestire quella segnalazione (gestori dei ticket di manutenzione). Gli altri chiudono l'intervento e la segnalazione resta com'è.</li>
-        <li>Se l'intervento non indica il fermo macchina ma la segnalazione sì, il campo <strong>«Fermo impianto totale»</strong> parte da quello della segnalazione: correggilo se serve.</li>
-        <li>Se premi due volte «Conferma chiusura», il secondo invio non registra nulla: compare «risulta già chiuso».</li>
+        <li>Se l'intervento non indica il fermo macchina ma la segnalazione sì, il campo <strong>«Fermo macchina»</strong> parte da quello della segnalazione: correggilo se serve.</li>
+        <li>Se premi due volte «Chiudi definitivamente», il secondo invio non registra nulla: compare «risulta già chiuso».</li>
       </ul>
     </section>
 
