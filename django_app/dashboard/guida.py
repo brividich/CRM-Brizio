@@ -124,6 +124,9 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Il riquadro a destra della tessera mostra il numero principale del modulo, per esempio le anomalie aperte.",
                 "Un clic sulla tessera apre un pannello con tutti i numeri del modulo e «Vai al modulo →».",
+                "Le tessere non si aggiungono a mano: con «Ruoli e permessi» attivo compare ogni modulo che uno dei "
+                "tuoi ruoli ti lascia «Vedere» (lo stesso elenco di «Cosa vede questa persona»). "
+                "«Nessun modulo disponibile» vuol dire che nessun tuo ruolo concede «Vedere» su un modulo della home.",
             ]),
         ],
     },
