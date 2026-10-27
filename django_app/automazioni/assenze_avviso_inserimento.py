@@ -91,3 +91,22 @@ def applica(*, models=None):
         "mail_inserimento": _dividi_mail_per_autore(rules[SKIP_RULE], AutomationAction),
         "condizione_dopo_approvazione": _escludi_salta_approvazione(rules[APPROVED_RULE], AutomationCondition),
     }
+
+
+@transaction.atomic
+def togli_doppione(*, models=None):
+    """Solo la condizione che evita la seconda mail («Approvazione …») ad assenza@.
+
+    Serve dove ``applica`` si è fermata perché la mail di inserimento non aveva il
+    caporeparto in CC (regola personalizzata): lì la seconda mail è rimasta.
+    """
+    AutomationRule, _, AutomationCondition = models or (_Rule, _Action, _Condition)
+    rules = {r.code: r for r in AutomationRule.objects.select_for_update().filter(code__in=[SKIP_RULE, APPROVED_RULE])}
+    if SKIP_RULE not in rules or APPROVED_RULE not in rules:
+        raise ValueError("Le due regole PA import di assenza@ non sono entrambe presenti.")
+    if not rules[SKIP_RULE].conditions.filter(field_name="salta_approvazione", operator="is_true", is_enabled=True).exists():
+        raise ValueError("La regola di inserimento non filtra più su salta_approvazione: verificare nel designer.")
+    approvata = rules[APPROVED_RULE]
+    if (approvata.source_code, approvata.operation_type) != ("assenze", "update"):
+        raise ValueError(f"Regola {APPROVED_RULE}: sorgente/operazione diversa dall'atteso.")
+    return {"condizione_dopo_approvazione": _escludi_salta_approvazione(approvata, AutomationCondition)}

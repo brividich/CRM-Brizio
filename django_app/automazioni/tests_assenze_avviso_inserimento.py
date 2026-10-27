@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from assenze.models import AssenzaInseritaDa
 
-from .assenze_avviso_inserimento import APPROVED_RULE, SKIP_RULE, applica
+from .assenze_avviso_inserimento import APPROVED_RULE, SKIP_RULE, applica, togli_doppione
 from .models import AutomationAction, AutomationCondition, AutomationRule
 from .services import _enrich_assenze_payload, _resolve_action_run_if
 
@@ -59,6 +59,21 @@ class AvvisoSaltaApprovazioneTests(TestCase):
             applica()
         self.assertFalse(AutomationCondition.objects.filter(rule__code=APPROVED_RULE, field_name="salta_approvazione").exists())
         self.assertEqual(len(self._mails()), 1)
+
+    def test_0033_toglie_la_seconda_mail_anche_con_regola_personalizzata(self):
+        AutomationAction.objects.filter(rule__code=SKIP_RULE, action_type="send_email").update(config_json={"to": MAILBOX})
+        migration = import_module("automazioni.migrations.0033_assenze_una_sola_mail_salta_approvazione")
+        migration.applica(global_apps, None)
+        migration.applica(global_apps, None)
+        cond = AutomationCondition.objects.get(rule__code=APPROVED_RULE, field_name="salta_approvazione")
+        self.assertEqual((cond.operator, cond.value_type), ("is_false", "bool"))
+        self.assertEqual(len(self._mails()), 1)
+
+    def test_0033_fail_closed_senza_filtro_salta_approvazione(self):
+        AutomationCondition.objects.filter(rule__code=SKIP_RULE).delete()
+        with self.assertRaises(ValueError):
+            togli_doppione()
+        self.assertFalse(AutomationCondition.objects.filter(rule__code=APPROVED_RULE, field_name="salta_approvazione").exists())
 
     def test_payload_assenze_espone_profilo_di_chi_ha_inserito(self):
         AssenzaInseritaDa.objects.create(assenza_id=987654, gruppo="CAR", inserito_da="synthetic.user")
