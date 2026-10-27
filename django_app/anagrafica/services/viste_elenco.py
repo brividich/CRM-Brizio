@@ -16,6 +16,9 @@ PRESET = {
     "sicurezza": ("Sicurezza", "Vista operativa per preposti e RSPP.",
                   ["reparto", "mansione", "ruoli", "badge", "visita_scaduta", "formazione_scaduta"]),
     "altro": ("Altro", "Vista libera da personalizzare.", ["reparto", "mansione"]),
+    "mansioni_costi": ("Mansioni e costi", "Classificazione, coefficienti e costo orario (questo solo per HR).",
+                       ["reparto", "area_aziendale", "ruoli", "n_mansioni", "classificazione", "coefficienti",
+                        "costo_orario", "costo_orario_mese"]),
 }
 
 

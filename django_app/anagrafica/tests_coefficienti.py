@@ -281,3 +281,51 @@ class ReportCoefficientiTests(_ScenarioMansioni):
         self.assertEqual({r["coefficiente"] for r in righe}, {"0,5000"})
         res = catalogo.get("ruoli_mansioni_persona").calcola(ctx, {"una_riga_per": "mansione"})
         self.assertIn("Diretto 1T", {r["classificazione"] for r in res.righe})
+
+
+class AltreSchermateTests(_Mansioni):
+    """Classificazione, coefficienti e costo orario anche nell'elenco dipendenti e nella scheda."""
+
+    CF = "SNTTST80A01H501Z"
+
+    def setUp(self):
+        super().setUp()
+        a = svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="U")
+        b = svc.assegna(self.m2, legacy_anagrafica_id=self.p1.pk, livello="U")
+        coeff.salva(self.p1.pk, {a.pk: ("D2T", "0.7"), b.pk: ("D2T", "0.3")})
+        mese = timezone.localdate().replace(day=1)
+        imp = ImportazioneRetributiva.objects.create(data_competenza=mese)
+        VoceRetributiva.objects.create(importazione=imp, tax_code=self.CF, legacy_anagrafica_id=self.p1.pk,
+                                       data_competenza=mese, pay_item="RML", pay_item_key="rml",
+                                       categoria="totale", importo=D("3463.20"))
+
+    def test_colonne_dell_elenco(self):
+        from .services import colonne_elenco as ce
+
+        righe = [{"id": self.p1.pk}, {"id": self.p2.pk}]
+        colonne = [ce.REGISTRO[k] for k in ("n_mansioni", "classificazione", "coefficienti", "costo_orario")]
+        ce.arricchisci(righe, colonne)
+        v = righe[0]["valori"]
+        self.assertEqual((v["n_mansioni"][0], v["classificazione"][0], v["coefficienti"][0], v["costo_orario"][0]),
+                         ("2", "Diretto 2T", "in regola", "20,00"))
+        self.assertEqual(righe[1]["valori"]["classificazione"][0], "")
+        self.assertEqual(ce.REGISTRO["costo_orario"].permesso, "hr")
+
+    def test_costo_orario_solo_con_permesso_hr(self):
+        from types import SimpleNamespace
+
+        from .services import colonne_elenco as ce
+
+        req = SimpleNamespace(_colonne_permessi=set())
+        chiavi = {d["colonna"].chiave for d in ce.colonne_da_specifica(["classificazione", "costo_orario"], req)}
+        self.assertEqual(chiavi, {"classificazione"})
+
+    def test_elenco_vista_e_scheda(self):
+        from .services.viste_elenco import PRESET
+
+        self.assertIn("costo_orario", PRESET["mansioni_costi"][2])
+        r = self.client.get(reverse("anagrafica:dipendenti_list"), {"vista": "mansioni_costi"})
+        self.assertEqual(r.status_code, 200)
+        r = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.p1.pk]))
+        self.assertContains(r, "Diretto 2T")
+        self.assertContains(r, "€ 20,00/h")

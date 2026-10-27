@@ -273,3 +273,30 @@ class CategoriaMacchinaTests(TestCase):
         self.asset.refresh_from_db()
         self.assertEqual((self.asset.asset_type, self.asset.asset_category_id), (Asset.TYPE_WORK_MACHINE, self.macchine.pk))
         self.assertEqual(self.client.get(reverse("assets:work_machine_edit", args=[self.asset.pk])).status_code, 200)
+
+
+class SchedaMacchinaCollectorTests(_Macchina):
+    """Dalla scheda «Modifica macchina» al collegamento col collector, e macchine senza WorkMachine nel menu."""
+
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_superuser(username="adm_mtc_scheda", email="s@a.it", password="x")
+        UserOnboarding.objects.create(user=self.admin, completed=True)
+        self.client.force_login(self.admin)
+        self.url = reverse("assets:mtconnect_collegamenti")
+
+    def test_macchina_senza_scheda_nel_menu_e_preselezionata(self):
+        nuova = Asset.objects.create(asset_tag="CNC-DM99-SINT", name="DM99 sintetica", asset_type=Asset.TYPE_WORK_MACHINE)
+        resp = self.client.get(self.url, {"asset": nuova.pk})
+        self.assertContains(resp, f'<option value="{nuova.pk}" selected>DM99 sintetica')
+
+    def test_asset_gia_collegato_apre_la_modifica(self):
+        resp = self.client.get(self.url, {"asset": self.asset.pk})
+        self.assertContains(resp, "Modifica la macchina")
+
+    def test_scheda_mostra_collegamento_o_pulsante(self):
+        resp = self.client.get(reverse("assets:work_machine_edit", args=[self.asset.pk]))
+        self.assertContains(resp, "Modifica il collegamento")
+        self.coll.delete()
+        resp = self.client.get(reverse("assets:work_machine_edit", args=[self.asset.pk]))
+        self.assertContains(resp, f"?asset={self.asset.pk}#form")

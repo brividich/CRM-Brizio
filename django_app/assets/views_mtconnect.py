@@ -26,10 +26,15 @@ from .services import mtconnect as svc
 
 
 def _macchine():
+    from django.db.models import Q
+
     from .models import Asset
 
-    return (Asset.objects.filter(work_machine__isnull=False).exclude(status=Asset.STATUS_RETIRED)
-            .select_related("work_machine").order_by("-work_machine__cnc_controlled", "name", "asset_tag"))
+    # Anche le macchine di lavoro / CNC mai salvate dalla loro scheda (senza WorkMachine):
+    # il collegamento non ne ha bisogno e altrimenti sparivano dal menu senza motivo.
+    return (Asset.objects.filter(Q(work_machine__isnull=False) | Q(asset_type__in=[Asset.TYPE_CNC, Asset.TYPE_WORK_MACHINE]))
+            .exclude(status=Asset.STATUS_RETIRED).select_related("work_machine")
+            .order_by("-work_machine__cnc_controlled", "name", "asset_tag"))
 
 
 def _contatore(asset, tipo):
@@ -399,6 +404,15 @@ def mtconnect_collegamenti(request: HttpRequest) -> HttpResponse:
                 _azione_su(request, azione)
             return redirect(reverse("assets:mtconnect_collegamenti"))
     modifica = request.GET.get("modifica") or ""
+    # Dalla scheda macchina («Collega al collector»): macchina gia' scelta nel form,
+    # oppure il suo collegamento se esiste gia'.
+    da_scheda = request.GET.get("asset") or ""
+    if da_scheda.isdigit() and not modifica and prova is None:
+        esistente = CollegamentoMTConnect.objects.filter(asset_id=int(da_scheda)).values_list("pk", flat=True).first()
+        if esistente:
+            modifica = str(esistente)
+        else:
+            form["asset"] = da_scheda
     if modifica.isdigit() and prova is None:
         coll = CollegamentoMTConnect.objects.filter(pk=int(modifica)).first()
         if coll:
