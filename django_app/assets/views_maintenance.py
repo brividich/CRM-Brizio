@@ -59,8 +59,11 @@ from .models import (
     MaintenancePlanAssignment,
     WorkOrder,
 )
+from .registro_permessi import MODULO_MANUTENZIONE
 from .services import maintenance_domain as domain
 from .services import maintenance_history_import as history_import
+from .services.visibilita import filtra as filtra_visibili
+from .services.visibilita import filtra_odl, filtra_per_asset, filtra_piani, ids_visibili
 from .services.recurrence import (
     ANCHOR_FROM_COMPLETION,
     RECURRENCE_PRESETS,
@@ -172,6 +175,9 @@ def _apply_caporeparto_scope(queryset, request: HttpRequest) -> tuple[Any, list[
     da quel momento lo scope automatico non si riapplica, altrimenti sarebbe
     impossibile guardare fuori dal proprio reparto.
     """
+    # Prima la barriera dell'ambito (matrice ruoli, modulo Manutenzione): con
+    # «Propri» o «del team» le scadenze di asset altrui non si vedono, filtro o no.
+    queryset = filtra_per_asset(request, queryset, MODULO_MANUTENZIONE)
     if "reparto" in request.GET:
         return queryset, []
     reparti = user_reparti(request)
@@ -197,7 +203,15 @@ def _manutenzioni_fuori_reparto(request: HttpRequest, occurrences) -> list:
     Nessun vincolo per chi configura i piani e per chi pianifica senza guidare
     alcun reparto (es. l'ufficio manutenzione): il loro perimetro e' l'azienda.
     Il reparto sull'asset e' testo libero: confronto senza maiuscole e spazi.
+
+    Prima ancora vale l'ambito della matrice ruoli (modulo Manutenzione): con
+    «Propri» o «del team» fuori sono gli asset che la persona non vede, chiunque sia.
     """
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        nascoste = [occ for occ in occurrences if occ.asset_id not in visibili]
+        if nascoste:
+            return nascoste
     if can_manage_maintenance_plans(request):
         return []
     reparti = {r.strip().casefold() for r in user_reparti(request)}
@@ -214,8 +228,8 @@ def _nega_fuori_reparto(request: HttpRequest, occurrences) -> None:
     if fuori:
         elenco = ", ".join(sorted({occ.asset.asset_tag for occ in fuori})[:10])
         raise PermissionDenied(
-            "Puoi pianificare solo le manutenzioni degli asset dei reparti che guidi. "
-            f"Fuori dal tuo reparto: {elenco}."
+            "Puoi pianificare solo le manutenzioni degli asset che il tuo ruolo ti fa vedere e dei reparti che guidi. "
+            f"Fuori dal tuo perimetro: {elenco}."
         )
 
 
@@ -1134,13 +1148,26 @@ def maintenance_kpi(request: HttpRequest) -> HttpResponse:
 
 def _responsabile_response(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
+
+    # Ambito della matrice ruoli: con «Propri» o «del team» la panoramica conta
+    # solo le scadenze e gli OdL degli asset che la persona vede.
+    def occorrenze():
+        return filtra_per_asset(request, _base_occurrence_queryset(), MODULO_MANUTENZIONE)
+
+    def occorrenze_tutte():
+        return filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+
+    def odl():
+        return filtra_odl(request, WorkOrder.objects.all())
+
+    asset_visibili = filtra_visibili(request, Asset.objects.all(), MODULO_MANUTENZIONE)
     open_rows = _decorate(
-        list(_base_occurrence_queryset().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:3000]),
+        list(occorrenze().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:3000]),
         today=today,
     )
     done_rows = _decorate(
         list(
-            _base_occurrence_queryset()
+            occorrenze()
             .filter(status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=today - timedelta(days=120))
             .order_by("-completed_on")[:1000]
         ),
@@ -1161,19 +1188,19 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     # sotto comparivano quattro interventi da gestire: due popolazioni diverse con
     # etichette che sembravano una il sottoinsieme dell'altra.
     open_workorders = (
-        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN)
+        odl().filter(status=WorkOrder.STATUS_OPEN)
         .select_related("asset", "assigned_to")
         .annotate(occurrence_count=Count("occurrences"))
         .order_by("opened_at")
     )
     # Metrica secondaria, con un nome che dice cosa conta davvero.
     planned_workorders_count = (
-        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN, occurrences__isnull=False)
+        odl().filter(status=WorkOrder.STATUS_OPEN, occurrences__isnull=False)
         .distinct()
         .count()
     )
     follow_ups = (
-        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
+        odl().filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
         .select_related("asset", "follow_up_occurrence", "follow_up_occurrence__plan")
         .order_by("-opened_at")[:50]
     )
@@ -1189,7 +1216,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     wo_overdue_days = get_workorder_overdue_days()
     overdue_workorders = []
     for work_order in (
-        WorkOrder.objects.filter(
+        odl().filter(
             status=WorkOrder.STATUS_OPEN,
             opened_at__date__lte=today - timedelta(days=wo_overdue_days),
         )
@@ -1207,7 +1234,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     # values()+annotate() su SQL Server produce l'errore 8127.
     week_end = today + timedelta(days=7)
     carico_rows = list(
-        MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN)
+        occorrenze_tutte().filter(status=MaintenanceOccurrence.STATUS_OPEN)
         .values(
             "work_order__assigned_to",
             "work_order__assigned_to__username",
@@ -1249,7 +1276,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
             "settimana": row["settimana"],
         })
 
-    resolutions = domain.build_plan_resolutions(asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE))
+    resolutions = domain.build_plan_resolutions(asset_queryset=asset_visibili.filter(status=Asset.STATUS_IN_USE))
     conflicts = [resolution for resolution in resolutions.values() if resolution.is_conflict]
 
     kpi = {
@@ -1344,7 +1371,7 @@ def _failure_pareto(request: HttpRequest, *, today: date) -> dict[str, Any]:
     from django.db.models import Sum
 
     since = timezone.make_aware(datetime.combine(today - timedelta(days=PARETO_DAYS), time.min))
-    queryset = WorkOrder.objects.filter(
+    queryset = filtra_odl(request, WorkOrder.objects.all()).filter(
         status=WorkOrder.STATUS_DONE, closed_at__gte=since, failure_problem__isnull=False
     )
     category_id = _as_int(request.GET.get("pareto_cat"), default=0)
@@ -1391,8 +1418,11 @@ def _workorder_bulk_form():
 @login_required
 def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
+    # Ambito «Propri / del team»: solo i piani che toccano almeno un asset visibile,
+    # con copertura e scadenze contate sui soli asset visibili.
+    asset_visibili = filtra_visibili(request, Asset.objects.all(), MODULO_MANUTENZIONE)
     plans = list(
-        MaintenanceInterventionTemplate.objects.annotate(
+        filtra_piani(request, MaintenanceInterventionTemplate.objects.all()).annotate(
             assignment_count=Count("assignments", filter=Q(assignments__is_active=True), distinct=True)
         )
         # Le periodicita' si leggono da plan.assignments dentro il ciclo: senza
@@ -1404,7 +1434,7 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
     plan_ids = [plan.id for plan in plans]
 
     resolutions = domain.build_plan_resolutions(
-        asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE), plan_ids=plan_ids
+        asset_queryset=asset_visibili.filter(status=Asset.STATUS_IN_USE), plan_ids=plan_ids
     )
     coverage: dict[int, dict[str, int]] = defaultdict(lambda: {"assets": 0, "conflicts": 0, "excluded": 0})
     for (plan_id, _asset_id), resolution in resolutions.items():
@@ -1418,7 +1448,8 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
 
     stats: dict[int, dict[str, Any]] = defaultdict(lambda: {"next_due": None, "overdue": 0})
     for plan_id, due_date in (
-        MaintenanceOccurrence.objects.filter(plan_id__in=plan_ids, status=MaintenanceOccurrence.STATUS_OPEN)
+        filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+        .filter(plan_id__in=plan_ids, status=MaintenanceOccurrence.STATUS_OPEN)
         .values_list("plan_id", "due_date")
         .order_by("due_date")
     ):
@@ -1432,9 +1463,8 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
     # ``order_by()`` esplicito perche' Meta.ordering insieme a values()+annotate()
     # su SQL Server produce l'errore 8127.
     last_done = dict(
-        MaintenanceOccurrence.objects.filter(
-            plan_id__in=plan_ids, status=MaintenanceOccurrence.STATUS_DONE
-        )
+        filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+        .filter(plan_id__in=plan_ids, status=MaintenanceOccurrence.STATUS_DONE)
         .values_list("plan_id")
         .annotate(ultima=Max("completed_on"))
         .order_by()
@@ -1479,13 +1509,18 @@ def maintenance_plan_detail(request: HttpRequest, plan_id: int) -> HttpResponse:
         MaintenanceInterventionTemplate.objects.select_related("default_supplier", "default_assignee"),
         pk=plan_id,
     )
-    assignments = list(
-        plan.assignments.select_related("asset", "asset_group", "asset_category", "supplier", "assigned_to").order_by(
-            "-target_type", "id"
-        )
-    )
+    # Il piano è visibile (urls: richiede_record_visibile); dentro, con ambito «Propri /
+    # del team», si vedono solo le applicazioni e le scadenze degli asset visibili.
+    asset_visibili = filtra_visibili(request, Asset.objects.all(), MODULO_MANUTENZIONE)
+    assignments = [
+        assignment
+        for assignment in plan.assignments.select_related(
+            "asset", "asset_group", "asset_category", "supplier", "assigned_to"
+        ).order_by("-target_type", "id")
+        if assignment.asset_id is None or asset_visibili.filter(pk=assignment.asset_id).exists()
+    ]
     resolutions = domain.build_plan_resolutions(
-        asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE), plan_ids=[plan.id]
+        asset_queryset=asset_visibili.filter(status=Asset.STATUS_IN_USE), plan_ids=[plan.id]
     )
     per_assignment: dict[int, int] = defaultdict(int)
     conflicts = []
@@ -1506,19 +1541,20 @@ def maintenance_plan_detail(request: HttpRequest, plan_id: int) -> HttpResponse:
 
     upcoming = _decorate(
         list(
-            _base_occurrence_queryset()
+            filtra_per_asset(request, _base_occurrence_queryset(), MODULO_MANUTENZIONE)
             .filter(plan=plan, status=MaintenanceOccurrence.STATUS_OPEN)
             .order_by("due_date")[:60]
         ),
         today=today,
     )
     history = list(
-        _base_occurrence_queryset()
+        filtra_per_asset(request, _base_occurrence_queryset(), MODULO_MANUTENZIONE)
         .filter(plan=plan, status=MaintenanceOccurrence.STATUS_DONE)
         .order_by("-completed_on")[:60]
     )
     open_workorders = list(
-        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN, occurrences__plan=plan)
+        filtra_odl(request, WorkOrder.objects.all())
+        .filter(status=WorkOrder.STATUS_OPEN, occurrences__plan=plan)
         .distinct()
         .select_related("asset", "assigned_to")
         .annotate(occurrence_count=Count("occurrences"))[:30]
@@ -2117,8 +2153,11 @@ def _selected_occurrences(request: HttpRequest) -> list[MaintenanceOccurrence]:
     ids = [int(value) for value in request.POST.getlist("occurrence_ids") if str(value).isdigit()]
     if not ids:
         return []
+    # Solo quelle del perimetro visibile (ambito della matrice): un POST costruito a
+    # mano con id di asset altrui non registra niente.
     occurrences = list(
-        MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment")
+        filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+        .select_related("plan", "asset", "assignment")
         .filter(pk__in=ids, status=MaintenanceOccurrence.STATUS_OPEN)
         .order_by("due_date", "asset__asset_tag")
     )
@@ -2725,7 +2764,9 @@ def workorder_bulk_action(request: HttpRequest) -> HttpResponse:
 
     ids = {int(value) for value in request.POST.getlist("workorder_ids") if str(value).isdigit()}
     work_orders = list(
-        WorkOrder.objects.filter(pk__in=ids, status=WorkOrder.STATUS_OPEN).select_related("asset", "assigned_to")
+        filtra_odl(request, WorkOrder.objects.all())
+        .filter(pk__in=ids, status=WorkOrder.STATUS_OPEN)
+        .select_related("asset", "assigned_to")
     )
     if not work_orders:
         messages.error(request, "Seleziona almeno un ordine di lavoro aperto.")
@@ -3048,7 +3089,8 @@ def maintenance_coverage(request: HttpRequest) -> HttpResponse:
         return _deny(request, "Non hai i permessi per la matrice di copertura.")
 
     assets = list(
-        Asset.objects.filter(status=Asset.STATUS_IN_USE)
+        filtra_visibili(request, Asset.objects.all(), MODULO_MANUTENZIONE)
+        .filter(status=Asset.STATUS_IN_USE)
         .select_related("asset_category")
         .order_by("reparto", "asset_tag", "name")[:400]
     )

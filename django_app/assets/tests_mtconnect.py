@@ -266,7 +266,7 @@ class CategoriaMacchinaTests(TestCase):
     def test_diventa_macchina_di_lavoro_e_compare_tra_le_macchine_collegabili(self):
         resp = self.client.post(reverse("assets:asset_edit", args=[self.asset.pk]), {
             "asset_tag": self.asset.asset_tag, "name": self.asset.name, "asset_category": self.macchine.pk,
-            "reparto": "", "manufacturer": "", "model": "", "serial_number": "", "status": Asset.STATUS_IN_USE,
+            "reparto": "Officina", "manufacturer": "", "model": "", "serial_number": "", "status": Asset.STATUS_IN_USE,
             "assignment_to": "", "assignment_reparto": "", "assignment_location": "", "notes": "",
         })
         self.assertRedirects(resp, reverse("assets:work_machine_edit", args=[self.asset.pk]), fetch_redirect_response=False)
