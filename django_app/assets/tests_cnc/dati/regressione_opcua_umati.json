@@ -1,0 +1,372 @@
+{
+ "machines": [
+  [
+   "SIM",
+   "127.0.0.1",
+   "11111111111",
+   "DMC 85",
+   "R1",
+   "umati",
+   "",
+   1
+  ]
+ ],
+ "state_log": [
+  [
+   "SIM",
+   "FERMA",
+   "",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "LAVORO",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "ALLARME",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "RUNNING",
+   "A100",
+   1
+  ],
+  [
+   "SIM",
+   "LAVORO",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "SETUP",
+   "DM9_0014_R1_3",
+   "MDI",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "INTERROTTA",
+   "DM9_0014_R1_3",
+   "MDI",
+   "INTERRUPTED",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "EMERGENZA",
+   "DM9_0014_R1_3",
+   "MDI",
+   "INTERRUPTED",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "ALLARME",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "IDLE",
+   "A200",
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "OFFLINE",
+   "",
+   "",
+   "",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "LAVORO",
+   "DM9_0014_R1_3",
+   "AUTO",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "SETUP",
+   "DM9_0014_R1_3",
+   "MANUAL",
+   "RUNNING",
+   null,
+   0
+  ]
+ ],
+ "signal_log": [
+  [
+   "SIM",
+   "exec",
+   "2"
+  ],
+  [
+   "SIM",
+   "mode",
+   "0"
+  ],
+  [
+   "SIM",
+   "estop",
+   "False"
+  ],
+  [
+   "SIM",
+   "program",
+   ""
+  ],
+  [
+   "SIM",
+   "tool",
+   "T1"
+  ],
+  [
+   "SIM",
+   "feed_ovr",
+   "100.0"
+  ],
+  [
+   "SIM",
+   "light1",
+   "False"
+  ],
+  [
+   "SIM",
+   "light2",
+   "False"
+  ],
+  [
+   "SIM",
+   "light3",
+   "True"
+  ],
+  [
+   "SIM",
+   "light4",
+   "False"
+  ],
+  [
+   "SIM",
+   "exec",
+   "0"
+  ],
+  [
+   "SIM",
+   "program",
+   "/_N_MPF_DIR/_N_LAVORO_DIR/_N_DM9_0014_R1_3_MPF"
+  ],
+  [
+   "SIM",
+   "feed_ovr",
+   "80.0"
+  ],
+  [
+   "SIM",
+   "light1",
+   "True"
+  ],
+  [
+   "SIM",
+   "mode",
+   "1"
+  ],
+  [
+   "SIM",
+   "light2",
+   "True"
+  ],
+  [
+   "SIM",
+   "exec",
+   "1"
+  ],
+  [
+   "SIM",
+   "estop",
+   "True"
+  ],
+  [
+   "SIM",
+   "exec",
+   "2"
+  ],
+  [
+   "SIM",
+   "mode",
+   "0"
+  ],
+  [
+   "SIM",
+   "estop",
+   "False"
+  ],
+  [
+   "SIM",
+   "program",
+   ""
+  ],
+  [
+   "SIM",
+   "light1",
+   "False"
+  ],
+  [
+   "SIM",
+   "light2",
+   "False"
+  ],
+  [
+   "SIM",
+   "exec",
+   "0"
+  ],
+  [
+   "SIM",
+   "program",
+   "/_N_MPF_DIR/_N_LAVORO_DIR/_N_DM9_0014_R1_3_MPF"
+  ],
+  [
+   "SIM",
+   "mode",
+   "2"
+  ]
+ ],
+ "alarm_log": [
+  [
+   "SIM",
+   "M10",
+   "Lubrificazione centralizzata",
+   500,
+   "2026-01-15 08:30:00",
+   1
+  ],
+  [
+   "SIM",
+   "A100",
+   "Asse X fuori limite",
+   900,
+   "2026-01-15 08:30:00",
+   1
+  ],
+  [
+   "SIM",
+   "A200",
+   "Pressione aria bassa",
+   850,
+   "2026-01-15 08:30:00",
+   1
+  ]
+ ],
+ "counter_log": [
+  [
+   "SIM",
+   0,
+   0,
+   1000,
+   5000,
+   9000
+  ],
+  [
+   "SIM",
+   0,
+   1,
+   1001,
+   5000,
+   9000
+  ],
+  [
+   "SIM",
+   0,
+   2,
+   1001,
+   5000,
+   9000
+  ],
+  [
+   "SIM",
+   0,
+   3,
+   1003,
+   7200,
+   9000
+  ]
+ ],
+ "stdout": [
+  "SIM   connessa (umati) - 10 segnali",
+  "SIM            - -> FERMA     ",
+  "SIM        FERMA -> LAVORO      prog=DM9_0014_R1_3",
+  "SIM   + msg M10 (sev 500) Lubrificazione centralizzata",
+  "SIM   + msg A100 (sev 900) Asse X fuori limite",
+  "SIM       LAVORO -> ALLARME     prog=DM9_0014_R1_3  allarme=A100",
+  "SIM   - msg A100 rientrato",
+  "SIM   - msg M10 rientrato",
+  "SIM      ALLARME -> LAVORO      prog=DM9_0014_R1_3",
+  "SIM       LAVORO -> SETUP       prog=DM9_0014_R1_3",
+  "SIM        SETUP -> INTERROTTA  prog=DM9_0014_R1_3",
+  "SIM   INTERROTTA -> EMERGENZA   prog=DM9_0014_R1_3",
+  "SIM    EMERGENZA -> FERMA       prog=DM9_0014_R1_3",
+  "SIM   + msg A200 (sev 850) Pressione aria bassa",
+  "SIM        FERMA -> ALLARME     prog=DM9_0014_R1_3  allarme=A200",
+  "SIM   - msg A200 rientrato",
+  "SIM      ALLARME -> FERMA       prog=DM9_0014_R1_3",
+  "SIM        FERMA -> OFFLINE   ",
+  "SIM   connessa (umati) - 10 segnali",
+  "SIM      OFFLINE -> FERMA     ",
+  "SIM        FERMA -> LAVORO      prog=DM9_0014_R1_3",
+  "SIM       LAVORO -> SETUP       prog=DM9_0014_R1_3"
+ ]
+}

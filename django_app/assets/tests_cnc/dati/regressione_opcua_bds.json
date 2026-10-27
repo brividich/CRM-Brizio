@@ -1,0 +1,387 @@
+{
+ "machines": [
+  [
+   "SIM",
+   "127.0.0.1",
+   "11111111111",
+   "DMC 85",
+   "R1",
+   "bds",
+   "2.1.0",
+   1
+  ]
+ ],
+ "state_log": [
+  [
+   "SIM",
+   "FERMA",
+   "",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "LAVORO",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "ALLARME",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "RUNNING",
+   "A100",
+   1
+  ],
+  [
+   "SIM",
+   "LAVORO",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "SETUP",
+   "DM12-0055-R0-1",
+   "MDI",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "INTERROTTA",
+   "DM12-0055-R0-1",
+   "MDI",
+   "INTERRUPTED",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "EMERGENZA",
+   "DM12-0055-R0-1",
+   "MDI",
+   "INTERRUPTED",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "ALLARME",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "IDLE",
+   "A200",
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "OFFLINE",
+   "",
+   "",
+   "",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "FERMA",
+   "",
+   "AUTO",
+   "IDLE",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "LAVORO",
+   "DM12-0055-R0-1",
+   "AUTO",
+   "RUNNING",
+   null,
+   1
+  ],
+  [
+   "SIM",
+   "SETUP",
+   "DM12-0055-R0-1",
+   "MANUAL",
+   "RUNNING",
+   null,
+   0
+  ]
+ ],
+ "signal_log": [
+  [
+   "SIM",
+   "exec",
+   "3"
+  ],
+  [
+   "SIM",
+   "mode",
+   "1"
+  ],
+  [
+   "SIM",
+   "estop",
+   "False"
+  ],
+  [
+   "SIM",
+   "n_alarms",
+   "0"
+  ],
+  [
+   "SIM",
+   "program",
+   ""
+  ],
+  [
+   "SIM",
+   "tool",
+   "1"
+  ],
+  [
+   "SIM",
+   "feed_ovr",
+   "100.0"
+  ],
+  [
+   "SIM",
+   "light1",
+   "False"
+  ],
+  [
+   "SIM",
+   "light2",
+   "False"
+  ],
+  [
+   "SIM",
+   "light3",
+   "True"
+  ],
+  [
+   "SIM",
+   "light4",
+   "False"
+  ],
+  [
+   "SIM",
+   "exec",
+   "1"
+  ],
+  [
+   "SIM",
+   "program",
+   "\\USR\\LAVORO\\DM12-0055-R0-1.h"
+  ],
+  [
+   "SIM",
+   "feed_ovr",
+   "80.0"
+  ],
+  [
+   "SIM",
+   "light1",
+   "True"
+  ],
+  [
+   "SIM",
+   "mode",
+   "2"
+  ],
+  [
+   "SIM",
+   "light2",
+   "blink"
+  ],
+  [
+   "SIM",
+   "exec",
+   "2"
+  ],
+  [
+   "SIM",
+   "estop",
+   "True"
+  ],
+  [
+   "SIM",
+   "exec",
+   "3"
+  ],
+  [
+   "SIM",
+   "mode",
+   "1"
+  ],
+  [
+   "SIM",
+   "estop",
+   "False"
+  ],
+  [
+   "SIM",
+   "n_alarms",
+   "1"
+  ],
+  [
+   "SIM",
+   "n_alarms",
+   "0"
+  ],
+  [
+   "SIM",
+   "program",
+   ""
+  ],
+  [
+   "SIM",
+   "light1",
+   "False"
+  ],
+  [
+   "SIM",
+   "light2",
+   "False"
+  ],
+  [
+   "SIM",
+   "exec",
+   "1"
+  ],
+  [
+   "SIM",
+   "program",
+   "\\USR\\LAVORO\\DM12-0055-R0-1.h"
+  ],
+  [
+   "SIM",
+   "mode",
+   "3"
+  ]
+ ],
+ "alarm_log": [
+  [
+   "SIM",
+   "M10",
+   "Lubrificazione centralizzata",
+   500,
+   "2026-01-15 08:30:00",
+   1
+  ],
+  [
+   "SIM",
+   "A100",
+   "Asse X fuori limite",
+   900,
+   "2026-01-15 08:30:00",
+   1
+  ],
+  [
+   "SIM",
+   "A200",
+   "Pressione aria bassa",
+   850,
+   "2026-01-15 08:30:00",
+   1
+  ]
+ ],
+ "counter_log": [
+  [
+   "SIM",
+   0,
+   0,
+   2000,
+   360000,
+   720000
+  ],
+  [
+   "SIM",
+   0,
+   1,
+   1001,
+   360000,
+   720000
+  ],
+  [
+   "SIM",
+   0,
+   2,
+   1001,
+   360000,
+   720000
+  ],
+  [
+   "SIM",
+   0,
+   3,
+   1003,
+   7200,
+   720000
+  ]
+ ],
+ "stdout": [
+  "SIM   connessa (bds, v2.1.0) - 11 segnali",
+  "SIM            - -> FERMA     ",
+  "SIM        FERMA -> LAVORO      prog=DM12-0055-R0-1",
+  "SIM   + msg M10 (sev 500) Lubrificazione centralizzata",
+  "SIM   + msg A100 (sev 900) Asse X fuori limite",
+  "SIM       LAVORO -> ALLARME     prog=DM12-0055-R0-1  allarme=A100",
+  "SIM   - msg A100 rientrato",
+  "SIM   - msg M10 rientrato",
+  "SIM      ALLARME -> LAVORO      prog=DM12-0055-R0-1",
+  "SIM       LAVORO -> SETUP       prog=DM12-0055-R0-1",
+  "SIM        SETUP -> INTERROTTA  prog=DM12-0055-R0-1",
+  "SIM   INTERROTTA -> EMERGENZA   prog=DM12-0055-R0-1",
+  "SIM    EMERGENZA -> FERMA       prog=DM12-0055-R0-1",
+  "SIM   + msg A200 (sev 850) Pressione aria bassa",
+  "SIM        FERMA -> ALLARME     prog=DM12-0055-R0-1  allarme=A200",
+  "SIM   - msg A200 rientrato",
+  "SIM      ALLARME -> FERMA       prog=DM12-0055-R0-1",
+  "SIM        FERMA -> OFFLINE   ",
+  "SIM   connessa (bds, v2.1.0) - 11 segnali",
+  "SIM      OFFLINE -> FERMA     ",
+  "SIM        FERMA -> LAVORO      prog=DM12-0055-R0-1",
+  "SIM       LAVORO -> SETUP       prog=DM12-0055-R0-1"
+ ]
+}
