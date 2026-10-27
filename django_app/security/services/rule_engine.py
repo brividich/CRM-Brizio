@@ -506,6 +506,21 @@ def _evaluate_accettazione_rischio(event):
     _alert_da_evento(event, accettazione_rischio.titolo_evento(payload), event.severity, trace)
 
 
+def _evaluate_backup_restore_test_failed(event):
+    """Prova di ripristino fallita (``services.ripristini``, ISO 27001 8.13): un alert alto per prova."""
+    payload = event.payload or {}
+    trace = {
+        "decision": "alert",
+        "rule": "Prova di ripristino del backup fallita => alert",
+        "sistema": payload.get("sistema"),
+        "job": payload.get("job"),
+        "data": payload.get("data"),
+        "prova_id": payload.get("prova_id"),
+    }
+    _alert_da_evento(event, f"Prova di ripristino fallita: {payload.get('sistema') or 'sistema non indicato'}"
+                            f"{' (' + payload['job'] + ')' if payload.get('job') else ''}", Severity.HIGH, trace)
+
+
 def soc_settings_value(key):
     from security.services import soc_settings
 
@@ -997,4 +1012,5 @@ _HANDLERS = {
     "backup_repository_space": _evaluate_backup_repository_space,
     "cve_sla_scaduta": _evaluate_cve_sla_scaduta,
     "accettazione_rischio": _evaluate_accettazione_rischio,
+    "backup_restore_test_failed": _evaluate_backup_restore_test_failed,
 }

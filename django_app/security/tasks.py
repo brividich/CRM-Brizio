@@ -71,6 +71,13 @@ def _termini_correzione_cve():
     return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi}
 
 
+def _iso_incidenti():
+    """ISO 27001 5.28: sigilla (SHA-256) i contenitori di evidenze ancora senza impronta."""
+    from security.services.iso_incidenti import ciclo
+
+    return ciclo()
+
+
 def _cleanup_inventory_previews():
     """File di inventario caricati e mai importati: eliminati dopo 2 giorni."""
     from security.services.software_inventory import cleanup_stale_previews
@@ -187,6 +194,7 @@ def run_security_cycle_task():
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),
         ("pulizia_inventario", _cleanup_inventory_previews),
+        ("iso", _iso_incidenti),
         ("avvisi", _scheduled_notifications),
     )
     for name, step in steps:

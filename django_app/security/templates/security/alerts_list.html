@@ -74,7 +74,7 @@
         <tr data-preview="{% url 'security:preview' 'alert' alert.pk %}">
           <td class="sec-check-col"><input type="checkbox" name="alert_ids" value="{{ alert.pk }}" class="sec-bulk-item" aria-label="Seleziona {{ alert.title }}"></td>
           <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
-          <td class="sec-title-cell"><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a><small>{{ alert.short_dedup_hash }}{% if alert.evidence_count %} · evidenze {{ alert.evidence_count }}{% endif %}</small></td>
+          <td class="sec-title-cell"><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a><small>{{ alert.short_dedup_hash }}{% if alert.evidence_count %} · evidenze {{ alert.evidence_count }}{% endif %}{% if alert.triage.non_presa and alert.triage.in_ritardo %} · <span class="sec-badge sec-badge-warning" title="Nessuna presa in carico entro {{ alert.triage.target_ore }} h (ISO 27001 5.25)">oltre il tempo di presa in carico</span>{% endif %}</small></td>
           <td>{{ alert.source.name }}</td>
           <td>{% if alert.event.asset %}{{ alert.event.asset.hostname }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>

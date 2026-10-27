@@ -56,7 +56,9 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "report_conformita": ("Qualità", "#a16207", "Report per audit (rettifiche)"),
     "glossario_tecnico": ("Qualità", "#ca8a04", "Glossario tecnico"),
     "security": ("Sicurezza informatica", "#b91c1c", "Security Center: alert, eventi, vulnerabilità (termini di correzione e accettazioni "
-                 "del rischio ISO 27001 8.8 in security_securityaccettazionerischio), incidenti, backup"),
+                 "del rischio ISO 27001 8.8 in security_securityaccettazionerischio), incidenti, backup; ISO 27001: riesame "
+                 "degli incidenti e azioni correttive (security_securityincidentreview, security_securitycorrectiveaction), catena di custodia "
+                 "delle evidenze (security_securityevidencecustody), prove di ripristino dei backup (security_backuprestoretest)"),
     "registro_log": ("Sicurezza informatica", "#991b1b", "Registro accessi: log dei server (indice), PC del dominio letti, sigilli giornalieri dell'archivio, "
                      "interruzioni, account AD, amministratori di sistema, verifiche annuali, stato ESXi/iLO. "
                      "Può stare in un database a parte (REGISTRO_LOG_DB_NAME)"),

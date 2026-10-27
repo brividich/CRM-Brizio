@@ -62,6 +62,39 @@ SECTIONS = [
         ],
     },
     {
+        "code": "iso_incidenti",
+        "title": "Gestione degli incidenti (ISO 27001 5.24-5.28)",
+        "intro": "Tempi di presa in carico degli alert per gravità, obbligo del riesame («Lezioni apprese») prima di chiudere "
+                 "un incidente, promemoria sulle azioni correttive e ruoli e contatti per gli incidenti. Un avviso quando un "
+                 "alert resta senza presa in carico oltre il tempo, quando un incidente chiuso resta senza riesame e quando "
+                 "un'azione correttiva scade. Ogni avviso parte una volta sola.",
+        "options": [
+            Option("iso.triage.attivo", False, "Avvisa su presa in carico, riesami e azioni correttive"),
+            Option("iso.triage.ore_critical", 1, "Presa in carico: gravità critica", "Ore entro cui un alert critico va preso in carico.", "int", min_value=1, max_value=720, unit="ore"),
+            Option("iso.triage.ore_high", 4, "Presa in carico: gravità alta", "", "int", min_value=1, max_value=720, unit="ore"),
+            Option("iso.triage.ore_medium", 24, "Presa in carico: gravità media e attenzione", "", "int", min_value=1, max_value=720, unit="ore"),
+            Option("iso.triage.ore_low", 72, "Presa in carico: gravità bassa e info", "", "int", min_value=1, max_value=720, unit="ore"),
+            Option("iso.triage.chiusura_giorni", 30, "Chiusura entro", "Giorni entro cui un alert dovrebbe essere chiuso: oltre, nella scheda compare «oltre il tempo di chiusura».", "int", min_value=1, max_value=365),
+            Option("iso.riesame.giorni", 7, "Promemoria riesame dopo", "Giorni dalla risoluzione di un incidente dopo i quali parte il promemoria se mancano le Lezioni apprese.", "int", min_value=1, max_value=90),
+            Option("iso.ruoli.incident_manager", "", "Responsabile degli incidenti", "Nome e recapito di chi coordina la risposta (incident manager).", "text"),
+            Option("iso.ruoli.vice", "", "Sostituto", "Chi interviene se il responsabile non è raggiungibile.", "text"),
+            Option("iso.ruoli.csirt", "", "Contatto CSIRT Italia / ACN", "Canale per le notifiche NIS2 (es. portale ACN, PEC).", "text"),
+            Option("iso.ruoli.fornitore", "", "Fornitore IT di supporto", "Chi chiamare per l'intervento tecnico esterno.", "text"),
+            Option("iso.triage.canali", [], "Canali", "Dove mandare gli avvisi.", "channels"),
+        ],
+    },
+    {
+        "code": "iso_ripristini",
+        "title": "Prove di ripristino dei backup (ISO 27001 8.13)",
+        "intro": "Un backup vale solo se si riesce a ripristinare: le prove si registrano in Backup › Prove di ripristino. "
+                 "Un avviso quando l'ultima prova è più vecchia della cadenza scelta; una prova fallita apre da sola un alert del SOC.",
+        "options": [
+            Option("iso.ripristini.attivo", False, "Avvisa quando la prova di ripristino è in ritardo"),
+            Option("iso.ripristini.giorni", 90, "Cadenza", "Giorni massimi tra una prova di ripristino riuscita e la successiva.", "int", min_value=7, max_value=365),
+            Option("iso.ripristini.canali", [], "Canali", "Dove mandare gli avvisi.", "channels"),
+        ],
+    },
+    {
         "code": "report",
         "title": "Report periodico automatico",
         "intro": "Il report del SOC inviato da solo ai canali scelti: via mail con il PDF allegato, su Teams con il riassunto e il link.",

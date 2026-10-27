@@ -28,6 +28,19 @@ GUIDA = {
             ],
         },
         {
+            "id": "iso_incidenti",
+            "titolo": "Incidenti secondo ISO 27001: tempi, riesame, prove, ripristini",
+            "blocchi": [
+                ("ul", [
+                    "Ogni alert va preso in carico entro un tempo per gravità (critica 1 ora, alta 4, media 24, bassa 72): oltre, l'alert mostra «oltre il tempo di presa in carico» e, se acceso, parte un avviso.",
+                    "Incidente risolto o chiuso: compila «Lezioni apprese» (causa, cosa ha funzionato, cosa migliorare) e le azioni correttive con responsabile e scadenza. Finché manca, l'incidente dice «Riesame mancante» e dopo 7 giorni arriva un promemoria; nessuna chiusura viene bloccata.",
+                    "Evidenze di un alert: «Verifica integrità» ricalcola l'impronta SHA-256 e dice se sono integre o alterate; «Esporta» scarica tutto con la catena di custodia.",
+                    "Backup › Prove di ripristino: registra ogni prova di ripristino; una fallita apre un alert, una in ritardo oltre i 90 giorni manda un promemoria.",
+                ]),
+                ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
+            ],
+        },
+        {
             "id": "dispositivi",
             "titolo": "Un PC o server: fonti, backup, CVE e asset in una riga",
             "blocchi": [
@@ -188,6 +201,20 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un incidente mostra «Riesame mancante» o arrivano promemoria sul riesame",
+            "fare": [
+                "Apri la scheda dell'incidente e compila «Lezioni apprese»: basta la causa per togliere l'avviso.",
+                "Aggiungi le azioni correttive con responsabile e scadenza e segnale fatte quando concluse: le scadute mandano un promemoria.",
+            ],
+        },
+        {
+            "sintomo": "Un'evidenza risulta «Alterata»",
+            "fare": [
+                "Il contenuto non corrisponde più all'impronta calcolata alla nascita: guarda la catena di custodia nell'esportazione per capire chi l'ha toccata.",
+                "Non si ripara da sola: segnalala a chi gestisce il SOC; se le prove servono a un'indagine è un fatto da registrare come incidente.",
+            ],
+        },
         {
             "sintomo": "Sembra che il SOC non legga più niente (alert, backup, CVE fermi)",
             "fare": [

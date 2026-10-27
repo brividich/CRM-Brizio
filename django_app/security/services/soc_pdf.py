@@ -233,6 +233,31 @@ def render_incident_pdf(incident) -> bytes:
         pdf.para(value if value not in (None, "") else "-")
         pdf.space(2)
 
+    # ISO 27001 5.27: riesame e azioni correttive; 5.24: ruoli e contatti.
+    from security.services.iso_incidenti import ruoli
+    from security.services.riesame import riesame_di
+
+    pdf.section("Riesame (lezioni apprese)")
+    riesame = riesame_di(incident)
+    if riesame:
+        for label, value in (("Causa", riesame.causa), ("Cosa ha funzionato", riesame.cosa_ha_funzionato), ("Cosa migliorare", riesame.cosa_migliorare)):
+            pdf.para(label, "label")
+            pdf.para(value or "-")
+            pdf.space(2)
+    else:
+        pdf.para("Riesame mancante." if incident.status in {"resolved", "closed"} else "Da compilare alla chiusura dell'incidente.")
+        pdf.space(2)
+    pdf.table(["Azione correttiva", "Responsabile", "Scadenza", "Stato"],
+              [[a.titolo, a.responsabile or "-", _dt(a.scadenza, "%d/%m/%Y"), f"fatta il {_dt(a.fatta_il)}" if a.fatta_il else ("in ritardo" if a.scaduta else "da fare")]
+               for a in incident.azioni_correttive.all()],
+              widths=[5, 2.5, 1.6, 2.4], empty="Nessuna azione correttiva.")
+
+    pdf.section("Ruoli e contatti per gli incidenti")
+    r = ruoli()
+    pdf.facts([(label, value or "non impostato") for label, value in r["voci"]])
+    if not r["completi"]:
+        pdf.para("Attenzione: ruoli e contatti incompleti (ISO 27001 5.24). Si impostano in SOC > Impostazioni > Gestione degli incidenti.", "label")
+
     tickets = list(incident.tickets.order_by("created_at"))
     if tickets:
         pdf.section("Ticket collegati")
