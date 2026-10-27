@@ -52,7 +52,10 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   `core/permessi/team.py`, cache invalidata dai segnali su ruoli e assegnazioni.
 - **Azioni standard**: `vedere`, `creare`, `modificare`, `approvare`, `gestire`
   (chiudere/gestire, impostazioni), `esportare`, `cancellare`. Un modulo può aggiungerne
-  di sue (`azioni_extra`), dichiarate nel registro.
+  di sue (`azioni_extra`), dichiarate nel registro. Di solito un'azione propria si
+  controlla solo nelle view; con `pagine_azioni` dichiara anche i code di pagina che
+  accende lei sola: quei code escono dalle azioni standard e da «vede tutto» (es.
+  Assenze `impostazioni`, che toglie Impostazioni e area HR a «gestire»).
 - **Interruttore** (`SiteConfig permessi.sistema_ruoli_attivo`, scheda «Sistema»):
   - spento → valgono le regole storiche dei moduli (liste di utenti, ruolo legacy);
     la matrice si prepara senza effetti, salvo i ruoli già assegnati che concedono pagine;

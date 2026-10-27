@@ -299,6 +299,9 @@
                       <option value="tutti"{% if c.valore == "tutti" %} selected{% endif %}>Tutti</option>
                       <option value="no"{% if c.valore == "no" %} selected{% endif %}>No</option>
                     </select>
+                    {% if c.pagine %}
+                      <a class="rp-pag rp-pag-{{ c.pagine.stato }}{% if c.pagine.eccezione %} rp-pag-ecc{% endif %}" data-modulo="{{ r.spec.chiave }}" data-azione="{{ c.azione }}" data-n="{{ c.pagine.concesse|length }}" data-tot="{{ c.pagine.totale }}" href="?tab=modulo&modulo={{ r.spec.chiave }}" title="{{ c.pagine.dettaglio }}">pagine {{ c.pagine.concesse|length }}/{{ c.pagine.totale }}{% if c.pagine.eccezione %} · a mano{% endif %}</a>
+                    {% endif %}
                   </td>
                   <td colspan="6"></td>
                 </tr>

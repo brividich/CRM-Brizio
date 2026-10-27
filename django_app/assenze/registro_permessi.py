@@ -6,6 +6,11 @@ caricatori della coda del capo, ``legacy_user_id``.
 """
 from core.permessi.registro import ModuloPermessi, registra_modulo
 
+# Impostazioni del modulo e amministrazione HR (/assenze/impostazioni/, area HR,
+# gestione admin, certificazione presenze): azione a se', non la apre «gestire».
+AZIONE_IMPOSTAZIONI = "impostazioni"
+PAGINE_IMPOSTAZIONI = ("assenze.assenze.manage", "legacy.assenze.admin_assenze")
+
 
 def proprietario_assenza(riga):
     if isinstance(riga, dict):
@@ -25,6 +30,9 @@ registra_modulo(ModuloPermessi(
     area="Persone",
     app="assenze",
     moduli_acl=("assenze",),
+    codici_acl=PAGINE_IMPOSTAZIONI,
+    azioni_extra=((AZIONE_IMPOSTAZIONI, "Impostazioni e area HR (impostazioni, saldi, certificazioni)"),),
+    pagine_azioni=((AZIONE_IMPOSTAZIONI, PAGINE_IMPOSTAZIONI),),
     # Pagine personali: «Le mie assenze» ha un permesso suo (core 0094), il modulo di
     # richiesta è un'azione di chi crea, il controllo corsi lo usa il modulo di richiesta.
     capacita_forzate=(
