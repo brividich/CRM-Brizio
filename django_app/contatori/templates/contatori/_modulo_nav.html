@@ -1,3 +1,4 @@
+{% load impostazioni_tags %}
 {% load contatori_acl %}{% puo_gestire as g %}{% with n=request.resolver_match.url_name t=request.resolver_match.kwargs.tipo %}
 <nav class="cnav" aria-label="Sezioni Contatori IT">
   <div class="cnav-gruppo">
@@ -18,7 +19,9 @@
     <span class="cnav-label">Configurazione</span>
     <a href="{% url 'contatori:snmp_profili' %}" class="cnav-config {% if n in 'snmp_profili snmp_profilo_nuovo snmp_profilo_edit snmp_profilo_colonna_nuova snmp_profilo_colonna_edit' or t == 'colonna' %}active{% endif %}">Profili SNMP</a>
     <a href="{% url 'contatori:discovery' %}" class="cnav-config {% if n == 'discovery' %}active{% endif %}">Discovery</a>
+    {% impostazioni_visibili "contatori" True as mostra_impostazioni %}{% if mostra_impostazioni %}
     <a href="{% url 'contatori:impostazioni' %}" class="cnav-config {% if n == 'impostazioni' %}active{% endif %}" title="Community, versione e timeout globali, polling e storico della videosorveglianza">Impostazioni</a>
+    {% endif %}
   </div>
   <details class="cnav-nuovo{% if t == 'apparato' or t == 'macchina' or t == 'dispositivo' or t == 'profilo' %} attivo{% endif %}">
     <summary>+ Nuovo</summary>

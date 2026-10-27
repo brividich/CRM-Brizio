@@ -149,8 +149,13 @@ body.theme-dark .tkt-kpi-blue .tkt-kpi-val{color:#93c5fd}
 
   <div class="tkt-hero">
     <div>
+      {% if sezione == "tutti" %}
       <div class="tkt-hero-title">Ticket</div>
-      <div class="tkt-hero-sub">Richieste di intervento IT e Manutenzione</div>
+      <div class="tkt-hero-sub">Tutti i ticket IT e Manutenzione che puoi vedere · su quelli di altri sola lettura</div>
+      {% else %}
+      <div class="tkt-hero-title">I miei ticket</div>
+      <div class="tkt-hero-sub">Le richieste di intervento IT e Manutenzione aperte da te</div>
+      {% endif %}
     </div>
     <div class="tkt-hero-actions">
       {% if can_open_it %}

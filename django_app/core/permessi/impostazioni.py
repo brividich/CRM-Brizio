@@ -1,5 +1,10 @@
 """Impostazioni dei moduli: un'azione propria nella matrice dei ruoli.
 
+Regola: «impostazioni» apre SOLO la pagina Impostazioni del modulo e le sue
+sotto-pagine (stesso percorso, es. ``/dpi/impostazioni/...``). Le altre pagine
+amministrative (area HR, certificazioni, gestione admin, cataloghi fuori dalle
+impostazioni, code operative) restano alle azioni standard.
+
 Le pagine di impostazioni (configurazione, cataloghi, branding del modulo)
 prima le apriva «Chiudere / gestire» insieme a tutta la gestione: non si poteva
 dare la gestione senza dare anche le impostazioni. Qui ogni modulo dichiara i
@@ -36,8 +41,10 @@ class PagineImpostazioni:
 
 IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
     "assenze": PagineImpostazioni(
-        codici=("assenze.assenze.manage", "legacy.assenze.admin_assenze"),
-        etichetta="Impostazioni e area HR (impostazioni, saldi, certificazioni)",
+        codici=("assenze.impostazioni.manage",),
+        rotte=("assenze_impostazioni",),
+        nuovo="Assenze · impostazioni",
+        modulo_acl="assenze",
     ),
     "anomalie": PagineImpostazioni(
         codici=("anomalie.configurazione.manage",),
@@ -105,26 +112,24 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
         modulo_acl="notizie",
     ),
     "anagrafica": PagineImpostazioni(
-        codici=("anagrafica.impostazioni.manage", "anagrafica.widget_permissions.view"),
+        codici=("anagrafica.impostazioni.manage",),
         rotte=(
             "anagrafica:impostazioni", "anagrafica:impostazioni_permessi_save",
             "anagrafica:impostazioni_acl_role_grants_save", "anagrafica:impostazioni_acl_user_override_save",
             "anagrafica:avviso_it_save", "anagrafica:workflow_campo_create",
             "anagrafica:workflow_campo_update", "anagrafica:workflow_campo_delete",
-            "anagrafica:retention", "anagrafica:rettifiche",
+            "anagrafica:retention",
             "anagrafica:viste_elenco", "anagrafica:vista_elenco_nuova", "anagrafica:vista_elenco_modifica",
             "anagrafica:vista_elenco_azione", "anagrafica:vista_elenco_anteprima",
-            "anagrafica:skm_impostazioni", "anagrafica:sicurezza_operativa_config",
         ),
-        nuovo="Anagrafica · impostazioni e cataloghi",
+        nuovo="Anagrafica · impostazioni",
         modulo_acl="anagrafica",
-        etichetta="Impostazioni e cataloghi (mansioni, reparti, ruoli, viste, skill matrix)",
     ),
     "formazione": PagineImpostazioni(
         codici=("formazione.impostazioni.manage",),
         rotte=(
             "anagrafica:attestato_impostazioni", "anagrafica:formazione_elearning_settings",
-            "anagrafica:elearning_impostazioni_corsi", "anagrafica:formazione_scansioni_impostazioni",
+            "anagrafica:formazione_scansioni_impostazioni",
         ),
         nuovo="Formazione · impostazioni (attestati, e-learning, scansioni)",
         modulo_acl="anagrafica",

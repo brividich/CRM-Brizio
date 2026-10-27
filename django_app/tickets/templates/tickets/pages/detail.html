@@ -199,7 +199,7 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
           <div style="color:#94a3b8;font-size:13px;padding:10px 0;">Nessun commento ancora.</div>
         {% endif %}
 
-        {% if not ticket.is_chiuso %}
+        {% if not ticket.is_chiuso %}{% if is_richiedente or is_gestore or is_admin %}
         <div class="tkt-commento-form">
           <textarea id="commento-testo" placeholder="Aggiungi un commento…"></textarea>
           <div class="tkt-commento-submit-row">
@@ -207,7 +207,9 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
             <span id="commento-status" style="font-size:12px;color:#64748b;"></span>
           </div>
         </div>
-        {% endif %}
+        {% else %}
+        <div style="color:#64748b;font-size:13px;padding:10px 0;">Ticket aperto da un'altra persona: sei in sola lettura.</div>
+        {% endif %}{% endif %}
       </div>
     </div>
 
