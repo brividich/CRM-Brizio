@@ -24,6 +24,8 @@ from typing import Any
 from unittest import mock
 
 from assets.collector_cnc import collector
+from assets.collector_cnc.drivers import opcua
+from assets.collector_cnc.drivers.base import spia
 from assets.tests_cnc.sim_opcua import CncSimulata
 
 DATI = Path(__file__).resolve().parent / "dati"
@@ -130,7 +132,7 @@ class RegressioneOpcUaTests(unittest.TestCase):
         out = io.StringIO()
         task = None
         try:
-            with contextlib.redirect_stdout(out), mock.patch.multiple(
+            with spia() as chiamate, contextlib.redirect_stdout(out), mock.patch.multiple(
                     collector, FAST_PERIOD=0.05, ALARM_PERIOD=0, COUNTER_PERIOD=0, RETRY_MIN=0.1, RETRY_MAX=0.4):
                 db = collector.DB(db_path)
                 m = collector.Machine({"name": "SIM", "ip": "127.0.0.1", "port": sim.porta, "serial": sim.matricola,
@@ -179,6 +181,11 @@ class RegressioneOpcUaTests(unittest.TestCase):
         risultato: dict[str, Any] = _tabelle(db_path)
         # righe a video senza l'orario iniziale (HH:MM:SS + 2 spazi)
         risultato["stdout"] = [r[10:] for r in out.getvalue().splitlines() if r.strip()]
+        # spia: ogni accesso alla libreria OPC UA è nella whitelist (client o nodo)
+        usati = {nome for driver, nome in chiamate if driver == "opcua"}
+        self.assertTrue(usati, "la spia non ha registrato niente")
+        self.assertLessEqual(usati, opcua.CLIENT_AMMESSI | opcua.NODO_AMMESSI)
+        self.assertEqual({driver for driver, _n in chiamate}, {"opcua"})
         return risultato
 
     def _confronta(self, modello: str) -> None:

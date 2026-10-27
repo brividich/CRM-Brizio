@@ -13,9 +13,9 @@ import ipaddress
 import logging
 
 try:
-    from .collector import CONNECT_TIMEOUT, DMG_MACHINE_URI, UMATI_URI   # dentro il portale
+    from .drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, UMATI_URI, client_sola_lettura   # dentro il portale
 except ImportError:
-    from collector import CONNECT_TIMEOUT, DMG_MACHINE_URI, UMATI_URI    # sul PC dell'officina
+    from drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, UMATI_URI, client_sola_lettura    # sul PC dell'officina
 
 TCP_TIMEOUT = 1.0        # s - attesa della porta aperta
 MAX_TCP = 128            # prove TCP in parallelo
@@ -64,15 +64,11 @@ async def _leggi_server(ip, porta, credenziali, sem):
     ``credenziali`` e' la chiave di quelle che hanno funzionato (None = anonimo).
     ``errore``: "" | "accesso" (servono utente e password) | testo breve dell'errore OPC UA.
     """
-    from asyncua import Client
-
     esito = {"ip": ip, "porta": porta, "dmg": False, "matricola": "", "modello": "", "credenziali": None, "errore": ""}
     async with sem:
         for cred in [None, *credenziali]:
-            client = Client(f"opc.tcp://{ip}:{porta}", timeout=CONNECT_TIMEOUT)
-            if cred:
-                client.set_user(cred[0])
-                client.set_password(cred[1] or "")
+            client = client_sola_lettura(f"opc.tcp://{ip}:{porta}", CONNECT_TIMEOUT,
+                                         cred[0] if cred else None, cred[1] if cred else None)
             try:
                 await asyncio.wait_for(client.connect(), CONNECT_TIMEOUT + 2)
             except Exception as e:  # noqa: BLE001 - qualunque errore = server non leggibile, lo si dice nell'esito

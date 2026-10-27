@@ -27,12 +27,16 @@ import logging
 import sqlite3
 from pathlib import Path
 
-from asyncua import Client, ua
+try:   # dentro il portale (manage.py collector_cnc)
+    from .drivers import opcua
+    from .drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, MODELS, UMATI_URI, text
+    from .portale import AGGIORNA_ELENCO, Portale
+except ImportError:   # sul PC dell'officina (py collector.py)
+    from drivers import opcua
+    from drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, MODELS, UMATI_URI, text
+    from portale import AGGIORNA_ELENCO, Portale
 
-try:
-    from .portale import AGGIORNA_ELENCO, Portale   # dentro il portale (manage.py collector_cnc)
-except ImportError:
-    from portale import AGGIORNA_ELENCO, Portale    # sul PC dell'officina (py collector.py)
+__all__ = ["CONNECT_TIMEOUT", "DMG_MACHINE_URI", "MODELS", "UMATI_URI", "text"]   # usati da cerca.py e dai test
 
 # ----------------------------------------------------------------------------
 # Parametri
@@ -42,99 +46,15 @@ ALARM_PERIOD = 5         # s - lettura allarmi attivi
 COUNTER_PERIOD = 60      # s - lettura contatori (ore, pezzi)
 STATUS_PRINT_PERIOD = 300 # s - riepilogo a video (solo se qualcosa e' cambiato)
 RETRY_MIN, RETRY_MAX = 10, 120  # s - attesa tra i tentativi di riconnessione
-CONNECT_TIMEOUT = 8      # s
 ALARM_SEVERITY = 801     # da questa severita' un messaggio e' un allarme vero
 # condition "segnaposto" senza significato (es. 0/0000-0000 su DM13): ignorate
 IGNORE_CODES = {"0/0000-0000"}
 # a video si stampano solo i messaggi da questa severita' in su (nel database finiscono tutti)
 PRINT_MIN_SEVERITY = 401
 
-UMATI_URI = "http://opcfoundation.org/UA/MachineTool/"
-DMG_MACHINE_URI = "DMGMORI.com/Machines/"
-
 # Stati comuni (ordine = priorita' di valutazione, vedi compute_state)
 OFFLINE, EMERGENZA, ALLARME, LAVORO, SETUP, INTERROTTA, FERMA = (
     "OFFLINE", "EMERGENZA", "ALLARME", "LAVORO", "SETUP", "INTERROTTA", "FERMA")
-
-# ----------------------------------------------------------------------------
-# Mappe dei due modelli dati -> segnali comuni
-# ----------------------------------------------------------------------------
-MODELS = {
-    "umati": {
-        "fast": {
-            "exec": "Channel_1-ChannelState",
-            "mode": "Channel_1-ChannelMode",
-            "estop": "EmergencyStopTriggered",
-            "program": "Channel_1-CurrentNcProgram",
-            "tool": "Channel_1-ActiveTool-Name",
-            "feed_ovr": "Channel_1-FeedOverride",
-            "light1": "Light_1-SignalOn",
-            "light2": "Light_2-SignalOn",
-            "light3": "Light_3-SignalOn",
-            "light4": "Light_4-SignalOn",
-        },
-        "static": {
-            "color1": "Light_1-SignalColor",
-            "color2": "Light_2-SignalColor",
-            "color3": "Light_3-SignalColor",
-            "color4": "Light_4-SignalColor",
-        },
-        "counters": {
-            "run_time": "ActiveProgram-CurrentRunTime",
-            "part_counter": "ActiveProgram-PartCounter",
-            "parts_overall": "Statistics-PartsProducedInLifetime",
-            "operation_time": "OperationDuration",   # probabilmente ore
-            "power_on_time": "PowerOnDuration",      # probabilmente ore
-        },
-        "alarm_folder": "Messages",
-        # OperationDuration: da verificare sulla macchina (letto come ore). Fattore per avere ore;
-        # se il valore non torna col display, l'unita' si cambia dal portale (Macchine collegate > Modifica).
-        "hours_factor": 1.0,
-        # ChannelState: 0 Active, 1 Interrupted, 2 Reset
-        "exec_map": {0: "RUNNING", 1: "INTERRUPTED", 2: "IDLE"},
-        # ChannelMode: 0 Automatic, 1 MdaMdi, 2 JogManual, ...
-        "mode_map": {0: "AUTO", 1: "MDI", 2: "MANUAL"},
-        "color_map": {0: "off", 1: "red", 2: "green", 3: "blue", 4: "yellow",
-                      5: "purple", 6: "cyan", 7: "white"},
-    },
-    "bds": {
-        "fast": {
-            "exec": "Channel_1-ExecutionState",
-            "mode": "Channel_1-ControllerMode",
-            "estop": "EmergencyStop",
-            "n_alarms": "NumberOfActiveAlarms",
-            "program": "Channel_1-CurrentNcProgram",
-            "tool": "Channel_1-NumberOfActiveTool",
-            "feed_ovr": "Channel_1-FeedOverride",
-            "light1": "LightStatus1",
-            "light2": "LightStatus2",
-            "light3": "LightStatus3",
-            "light4": "LightStatus4",
-        },
-        "static": {
-            "color1": "LightColor1",
-            "color2": "LightColor2",
-            "color3": "LightColor3",
-            "color4": "LightColor4",
-        },
-        "counters": {
-            "run_time": "CurrentRunTime",
-            "part_counter": "PartCounter",
-            "parts_overall": "PartCounterOverall",
-            "operation_time": "OperationTimeOverall",  # secondi
-            "power_on_time": "PowerOnTimeOverall",     # secondi
-        },
-        "alarm_folder": "Alarms",
-        # OperationTimeOverall in secondi: /3600 per avere ore
-        "hours_factor": 1 / 3600,
-        # ExecutionStateType: 0 Undefined, 1 Running, 2 Interrupted, 3 Idle
-        "exec_map": {1: "RUNNING", 2: "INTERRUPTED", 3: "IDLE"},
-        # ControllerModeType: 0 Undefined, 1 Automatic, 2 MdaMdi, 3 JogManual
-        "mode_map": {1: "AUTO", 2: "MDI", 3: "MANUAL"},
-        "color_map": {0: "green", 1: "red", 2: "yellow", 3: "blue",
-                      4: "orange", 5: "white"},
-    },
-}
 
 log = logging.getLogger("collector")
 
@@ -166,13 +86,6 @@ def prog_name(path):
         if name.endswith(ext):
             name = name[: -len(ext)]
     return name
-
-
-def text(v):
-    """LocalizedText / altro -> str"""
-    if v is None:
-        return ""
-    return getattr(v, "Text", None) or (str(v) if not hasattr(v, "Text") else "")
 
 
 # ----------------------------------------------------------------------------
@@ -269,7 +182,6 @@ class Machine:
         self.values = {}            # segnale -> ultimo valore
         self.colors = {}            # light1..4 -> nome colore
         self.alarms = {}            # nodeid condition -> dict(code, message, severity, row)
-        self.alarm_nodes = {}       # nodeid condition -> dict(nodi figli)
         self.state = None
         self.state_row = None
         self.state_key = None
@@ -339,19 +251,8 @@ class Machine:
         delay = RETRY_MIN
         while True:
             try:
-                client = Client(self.url, timeout=CONNECT_TIMEOUT)
-                client.session_timeout = 60000
-                if self.username:
-                    client.set_user(self.username)
-                    client.set_password(self.password or "")
-                await asyncio.wait_for(client.connect(), CONNECT_TIMEOUT + 2)
-                try:
-                    await self.session(client)
-                finally:
-                    try:
-                        await asyncio.wait_for(client.disconnect(), 5)
-                    except Exception as e:  # noqa: BLE001 - la sessione si chiude comunque lato server
-                        log.debug("%s: disconnessione non pulita: %s", self.name, e)
+                async with opcua.sessione(self.url, self.username, self.password, self.name) as client:
+                    await self.session(await opcua.DriverOpcUa.rileva(client, self.name))
                 delay = RETRY_MIN
                 self.last_err = None
             except asyncio.CancelledError:
@@ -375,57 +276,30 @@ class Machine:
             await asyncio.sleep(delay)
             delay = min(delay * 2, RETRY_MAX)
 
-    async def session(self, client):
-        nsarr = await client.get_namespace_array()
-        ns = next((i for i, u in enumerate(nsarr) if DMG_MACHINE_URI in u), None)
-        if ns is None:
-            raise RuntimeError("namespace DMG MORI non trovato")
-        self.data_model = "umati" if UMATI_URI in nsarr else "bds"
-        self.spec = MODELS[self.data_model]
-        found_serial = nsarr[ns].rstrip("/").split("/")[-1]
+    async def session(self, drv):
+        """Una sessione aperta: ``drv`` è il ``DriverOpcUa`` (solo letture), qui stato e database."""
+        self.data_model = drv.data_model
+        self.spec = drv.spec
+        found_serial = drv.found_serial
         self.found_serial = found_serial
         if self.serial and found_serial != self.serial:
             log.warning("%s: matricola attesa %s ma il server riporta %s (IP cambiato?)",
                         self.name, self.serial, found_serial)
 
-        def node(s):
-            return client.get_node(ua.NodeId(s, ns))
-
-        # verifica dei nodi: scarta quelli che su questa macchina non esistono
-        async def resolve(group):
-            names = list(group)
-            nodes = [node(group[n]) for n in names]
-            dvs = await client.read_attributes(nodes)
-            ok = {}
-            for n, nd, dv in zip(names, nodes, dvs):
-                if dv.StatusCode.value == ua.StatusCodes.BadNodeIdUnknown:
-                    log.info("%s: nodo %s assente, ignorato", self.name, group[n])
-                else:
-                    ok[n] = nd
-            return ok
-
-        fast = await resolve(self.spec["fast"])
-        counters = await resolve(self.spec["counters"])
-        static = await resolve(self.spec["static"])
+        fast = await drv.resolve(self.spec["fast"])
+        counters = await drv.resolve(self.spec["counters"])
+        static = await drv.resolve(self.spec["static"])
         if "exec" not in fast:
             raise RuntimeError("nodo di stato canale assente: serve opcua_browse.py")
 
-        version = ""
-        if self.data_model == "bds":
-            try:
-                version = str(await node("VendorServerInfo").read_value())
-            except Exception as e:  # noqa: BLE001 - la versione del server è solo informativa
-                log.debug("%s: versione del server non letta: %s", self.name, e)
+        version = await drv.server_version()
         self.db.x("UPDATE machines SET data_model=?, server_version=? WHERE name=?",
                   (self.data_model, version, self.name))
 
         # colori del semaforo (configurazione statica)
-        if static:
-            for (k, nd), dv in zip(static.items(), await client.read_attributes(list(static.values()))):
-                c = dv.Value.Value if dv.Value is not None and dv.StatusCode.is_good() else None
-                self.colors["light" + k[-1]] = self.spec["color_map"].get(c, str(c))
+        self.colors.update(await drv.colors(static))
 
-        alarm_folder = node(self.spec["alarm_folder"])
+        alarm_folder = drv.node(self.spec["alarm_folder"])
         print(f"{local_hms(utcnow())}  {self.name:<5} connessa ({self.data_model}"
               f"{', v' + version if version else ''}) - {len(fast)} segnali")
 
@@ -433,26 +307,23 @@ class Machine:
         loop = asyncio.get_running_loop()
         while True:
             t0 = loop.time()
-            await self.read_fast(client, fast)
+            await self.read_fast(drv, fast)
             if t0 >= t_alarm:
-                await self.read_alarms(client, alarm_folder)
+                await self.read_alarms(drv, alarm_folder)
                 t_alarm = t0 + ALARM_PERIOD
             self.touch()
             self.update_state()
             if t0 >= t_counter:
-                await self.read_counters(client, counters)
+                await self.read_counters(drv, counters)
                 self.flush_last_seen()
                 t_counter = t0 + COUNTER_PERIOD
             await asyncio.sleep(max(0.2, FAST_PERIOD - (loop.time() - t0)))
 
     # ---------------- letture ----------------
-    async def read_fast(self, client, fast):
-        dvs = await asyncio.wait_for(client.read_attributes(list(fast.values())), 10)
+    async def read_fast(self, drv, fast):
+        letti = await drv.read_fast(fast)
         now = ts(utcnow())
-        for name, dv in zip(fast, dvs):
-            val = dv.Value.Value if (dv.Value is not None and dv.StatusCode.is_good()) else None
-            if name in ("light1", "light2", "light3", "light4") and self.data_model == "bds":
-                val = {0: False, 1: True, 2: "blink"}.get(val, val)
+        for name, val in letti:
             if self.values.get(name, "__nuovo__") != val:
                 self.values[name] = val
                 self.db.conn.execute(
@@ -460,12 +331,10 @@ class Machine:
                     (self.name, now, name, None if val is None else str(val)))
         self.db.conn.commit()
 
-    async def read_counters(self, client, counters):
+    async def read_counters(self, drv, counters):
         if not counters:
             return
-        dvs = await asyncio.wait_for(client.read_attributes(list(counters.values())), 10)
-        row = {k: (dv.Value.Value if dv.Value is not None and dv.StatusCode.is_good() else None)
-               for k, dv in zip(counters, dvs)}
+        row = await drv.read_counters(counters)
         self.values.update({f"cnt_{k}": v for k, v in row.items()})
         self.counters_at = utcnow()
         self.db.x("""INSERT INTO counter_log(machine, ts_utc, run_time, part_counter,
@@ -473,57 +342,18 @@ class Machine:
                   (self.name, ts(utcnow()), row.get("run_time"), row.get("part_counter"),
                    row.get("parts_overall"), row.get("operation_time"), row.get("power_on_time")))
 
-    async def describe_condition(self, cond):
-        """Una volta per condition: trova i nodi figli che ci servono."""
-        info = {"node": cond, "active": None, "message": None, "severity": None,
-                "time": None, "code": None}
-        bn = (await cond.read_browse_name()).Name
-        info["name"] = bn
-        for ch in await cond.get_children():
-            n = (await ch.read_browse_name()).Name
-            if n == "ActiveState":
-                for sub in await ch.get_children():
-                    if (await sub.read_browse_name()).Name == "Id":
-                        info["active"] = sub
-            elif n == "Message":
-                info["message"] = ch
-            elif n == "Severity":
-                info["severity"] = ch
-            elif n == "Time":
-                info["time"] = ch
-            elif n in ("ErrorCode", "NativeAlarmId"):
-                info["code"] = ch
-        return info
-
-    async def read_alarms(self, client, folder):
-        try:
-            children = await folder.get_children()
-        except Exception as e:  # noqa: BLE001 - cartella allarmi non leggibile: si riprova al giro dopo
-            log.debug("%s: allarmi non letti: %s", self.name, e)
-            return
-        for ch in children:
-            key = ch.nodeid.to_string()
-            if key not in self.alarm_nodes:
-                try:
-                    self.alarm_nodes[key] = await self.describe_condition(ch)
-                except Exception as e:  # noqa: BLE001 - condition non descrivibile: ignorata
-                    log.debug("%s: condition %s ignorata: %s", self.name, key, e)
-                    self.alarm_nodes[key] = {"active": None}
-        conds = [(k, i) for k, i in self.alarm_nodes.items() if i.get("active") is not None]
+    async def read_alarms(self, drv, folder):
+        conds = await drv.conditions(folder)
         if not conds:
             return
-        dvs = await asyncio.wait_for(client.read_attributes([i["active"] for _, i in conds]), 10)
         now = utcnow()
-        for (key, info), dv in zip(conds, dvs):
-            active = bool(dv.Value.Value) if (dv.Value is not None and dv.StatusCode.is_good()) else False
+        for key, info, active in conds:
             if key in self.ignored:
                 if not active:
                     self.ignored.discard(key)
                 continue
             if active and key not in self.alarms:
-                extra = [info[k] for k in ("message", "severity", "time", "code") if info.get(k)]
-                vals = dict(zip([k for k in ("message", "severity", "time", "code") if info.get(k)],
-                                await client.read_values(extra))) if extra else {}
+                vals = await drv.condition_details(info)
                 code = str(vals.get("code") or info["name"])
                 msg = text(vals.get("message"))
                 sev = vals.get("severity")
@@ -531,8 +361,7 @@ class Machine:
                     self.ignored.add(key)
                     continue
                 mtime = vals.get("time")
-                mtime = ts(mtime.astimezone(dt.timezone.utc).replace(tzinfo=None)) \
-                    if isinstance(mtime, dt.datetime) and mtime.tzinfo else (ts(mtime) if isinstance(mtime, dt.datetime) else None)
+                mtime = ts(mtime.astimezone(dt.timezone.utc).replace(tzinfo=None))                     if isinstance(mtime, dt.datetime) and mtime.tzinfo else (ts(mtime) if isinstance(mtime, dt.datetime) else None)
                 cur = self.db.x("""INSERT INTO alarm_log(machine, code, message, severity,
                                    start_utc, machine_time_utc) VALUES(?,?,?,?,?,?)""",
                                 (self.name, code, msg, sev, ts(now), mtime))
@@ -552,7 +381,6 @@ class Machine:
         for a in self.alarms.values():
             self.db.x("UPDATE alarm_log SET end_utc=? WHERE id=?", (now, a["row"]))
         self.alarms.clear()
-        self.alarm_nodes.clear()
         self.ignored.clear()
 
 

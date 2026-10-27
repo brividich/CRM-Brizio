@@ -22,7 +22,7 @@ Il collector gira dentro il portale e scrive direttamente nel database: niente P
 Il collector gira su un PC della rete d'officina e parla con il portale via HTTP.
 
 1. Nel portale, riquadro **Collector su un PC dell'officina**: «Crea il collector e il token» con l'IP del PC. Il token si vede **una volta sola**.
-2. Sul PC: copia questa cartella (`collector.py`, `portale.py`), `pip install asyncua`, imposta le variabili d'ambiente `PORTALE_URL` (la pagina lo mostra accanto al token), `PORTALE_TOKEN` e, se l'HTTPS del portale è firmato dalla CA interna, `PORTALE_CA` (file .pem). Poi `py collector.py`.
+2. Sul PC: copia questa cartella (`collector.py`, `portale.py`, `cerca.py`, `vietati.py` e la sottocartella `drivers/`), `pip install asyncua`, imposta le variabili d'ambiente `PORTALE_URL` (la pagina lo mostra accanto al token), `PORTALE_TOKEN` e, se l'HTTPS del portale è firmato dalla CA interna, `PORTALE_CA` (file .pem). Poi `py collector.py`.
 
 | Cosa | Endpoint | Quando |
 |---|---|---|
@@ -42,6 +42,12 @@ Il collector gira su un PC della rete d'officina e parla con il portale via HTTP
 - Il collector manda nello stato anche il valore grezzo delle ore (`ore_lette`), la matricola letta dal server (`matricola`) e il modello dati (`modello`): il portale li mostra in Macchine collegate e usa la matricola come `serial` dell'elenco (niente più avvisi «matricola attesa … ma il server riporta …» quando l'asset ha un'altra matricola).
 - Ore: BasicDataSet `OperationTimeOverall` in secondi (÷ 3600). umati `OperationDuration` letto come ore: **da verificare su una macchina umati** confrontandolo con il pannello. Se non torna, l'unità si cambia dal portale («Le ore lette dalla CNC sono in», `hours_unit` nell'elenco): il portale converte le ore dal valore grezzo e ricalcola subito il contatore Ore.
 - Avviso a ore (ogni N ore di lavoro) e report «Utilizzo delle CNC»: tutto nel portale, il collector non cambia.
+
+## Sola lettura: driver e whitelist
+
+Tutto quello che parla con la macchina sta in `drivers/` (oggi `drivers/opcua.py`; `collector.py` tiene stato, intervalli e database). Il client OPC UA e ogni nodo che ne deriva passano da `ProxySolaLettura` (`drivers/base.py`): sono ammessi solo `connect`, `disconnect`, `get_namespace_array`, `get_node`, `read_attributes`, `read_values` sul client e `nodeid`, `read_browse_name`, `get_children`, `read_value` sui nodi. Qualunque altro accesso solleva `PermissionError`. Niente sottoscrizioni né metodi: gli allarmi si leggono a polling.
+
+Verifiche automatiche (`assets/tests_cnc/`): un server OPC UA simulato recita lo stesso copione per umati e BasicDataSet e machines.db deve coincidere col riferimento in `tests_cnc/dati/`; una «spia» registra ogni chiamata alla libreria e controlla che stia nella whitelist; un controllo statico cerca in `drivers/` i nomi delle funzioni di scrittura elencati in `vietati.py`.
 
 ## Stati
 
