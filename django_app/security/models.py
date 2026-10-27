@@ -5,6 +5,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from core.private_attachments import PrivateAttachmentStorage
+
 
 class Severity(models.TextChoices):
     INFO = "info", "Info"
@@ -418,6 +420,12 @@ class SecurityEvidenceContainer(models.Model):
     status = models.CharField(max_length=24, choices=Status.choices, default=Status.OPEN, db_index=True)
     decision_trace = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # Integrità delle prove (ISO 27001 5.28): impronta SHA-256 del contenuto al momento del sigillo,
+    # esito dell'ultima verifica («verified» = coincide, «altered» = il contenuto è cambiato).
+    sha256 = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    sigillata_il = models.DateTimeField(null=True, blank=True)
+    integrita = models.CharField(max_length=12, blank=True, default="")
+    integrita_verificata_il = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -426,6 +434,25 @@ class SecurityEvidenceContainer(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class SecurityEvidenceCustody(models.Model):
+    """Catena di custodia di un contenitore di prove: chi l'ha creato, guardato, esportato, verificato."""
+
+    container = models.ForeignKey(SecurityEvidenceContainer, on_delete=models.CASCADE, related_name="custodia")
+    azione = models.CharField(max_length=24, db_index=True)  # created | sealed | viewed | exported | verified
+    actor = models.CharField(max_length=150, default="system")
+    esito = models.CharField(max_length=12, blank=True, default="")
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Custodia evidenza"
+        verbose_name_plural = "Custodia evidenze"
+
+    def __str__(self):
+        return f"{self.azione} {self.actor} {self.container_id}"
 
 
 class SecurityEvidenceItem(models.Model):
@@ -1583,6 +1610,55 @@ class SecurityCveRisoluzione(models.Model):
         return self.come in self.CORREZIONI
 
 
+class SecurityAccettazioneRischio(models.Model):
+    """Accettazione formale del rischio di una CVE (eccezione, ISO/IEC 27001:2022 8.8).
+
+    Una persona con il permesso di configurazione del SOC decide che per una CVE (su un PC o su
+    tutti) la correzione non si fa entro il termine, scrive il motivo e le misure compensative e
+    fissa una scadenza (al massimo 12 mesi). Finché è attiva, l'esposizione non fa scattare
+    l'alert «oltre il termine di correzione»; alla scadenza l'esposizione conta di nuovo. Tutto
+    (creazione, revoca, scadenza, promemoria) resta nell'audit sigillato del portale.
+    """
+
+    MESI_MASSIMI = 12
+    MOTIVO_MIN = 20
+
+    cve = models.ForeignKey(SecurityCveRecord, on_delete=models.CASCADE, related_name="accettazioni")
+    host = models.CharField(max_length=255, blank=True, default="", help_text="Vuoto = tutti i PC.")
+    motivo = models.TextField()
+    misure_compensative = models.TextField(blank=True, default="")
+    approvata_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    approvata_il = models.DateTimeField(default=timezone.now)
+    scadenza = models.DateField(db_index=True)
+    revocata_il = models.DateTimeField(null=True, blank=True)
+    revocata_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    revoca_motivo = models.CharField(max_length=500, blank=True, default="")
+    # Scritti dagli automatismi, una volta sola: promemoria mandato, scadenza registrata.
+    promemoria_il = models.DateTimeField(null=True, blank=True)
+    scaduta_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-approvata_il"]
+        indexes = [models.Index(fields=["cve", "host"], name="sec_acc_rischio_cve_host_idx")]
+
+    def __str__(self):
+        return f"{self.cve_id} {self.host or 'tutti i PC'}: fino al {self.scadenza:%d/%m/%Y}"
+
+    def attiva(self, oggi=None):
+        oggi = oggi or timezone.localdate()
+        return self.revocata_il is None and self.scadenza >= oggi
+
+    @property
+    def stato(self):
+        if self.revocata_il is not None:
+            return "revocata"
+        return "attiva" if self.attiva() else "scaduta"
+
+    @property
+    def stato_label(self):
+        return {"attiva": "Attiva", "scaduta": "Scaduta", "revocata": "Revocata"}[self.stato]
+
+
 class WatchGuardDispositivo(models.Model):
     """Un PC visto da WatchGuard Endpoint Security (API): gestito (con agente) o trovato in rete senza agente.
 
@@ -1827,3 +1903,110 @@ class SecurityPropostaAi(models.Model):
     def applicabile(self):
         """«Accetta» ha un effetto solo se l'AI ha preso posizione (non su «resta da verificare»)."""
         return self.proposta != self.DA_VERIFICARE
+
+
+# --- ISO 27001 5.24-5.28 e 8.13: riesame degli incidenti, azioni correttive, prove di ripristino ------
+
+
+class SecurityIncidentReview(models.Model):
+    """Lezioni apprese di un incidente (ISO 27001 5.27): senza, l'incidente chiuso resta «Riesame mancante»."""
+
+    incident = models.OneToOneField(SecurityIncident, on_delete=models.CASCADE, related_name="riesame")
+    causa = models.TextField(help_text="Perché è successo (causa radice).")
+    cosa_ha_funzionato = models.TextField(blank=True, default="")
+    cosa_migliorare = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Riesame {self.incident.code or self.incident_id}"
+
+
+class SecurityCorrectiveAction(models.Model):
+    """Azione correttiva nata dal riesame di un incidente, con responsabile e scadenza."""
+
+    incident = models.ForeignKey(SecurityIncident, on_delete=models.CASCADE, related_name="azioni_correttive")
+    titolo = models.CharField(max_length=255)
+    responsabile = models.CharField(max_length=150, blank=True, default="")
+    scadenza = models.DateField(db_index=True)
+    fatta_il = models.DateTimeField(null=True, blank=True)
+    fatta_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    note = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["fatta_il", "scadenza", "id"]
+
+    def __str__(self):
+        return self.titolo
+
+    @property
+    def scaduta(self):
+        return self.fatta_il is None and self.scadenza < timezone.localdate()
+
+
+class BackupRestoreTest(models.Model):
+    """Prova di ripristino di un backup (ISO 27001 8.13): data, sistema, cosa è stato ripristinato, esito."""
+
+    ESITO_OK = "ok"
+    ESITO_KO = "ko"
+    ESITI = [(ESITO_OK, "Riuscita"), (ESITO_KO, "Fallita")]
+
+    data = models.DateField(default=timezone.localdate, db_index=True)
+    sistema = models.CharField(max_length=200, help_text="Server, PC o servizio ripristinato.")
+    job = models.CharField(max_length=255, blank=True, default="")
+    cosa_ripristinato = models.TextField(help_text="File, cartelle, macchina intera, database…")
+    esito = models.CharField(max_length=4, choices=ESITI, default=ESITO_OK, db_index=True)
+    durata_minuti = models.PositiveIntegerField(null=True, blank=True)
+    eseguito_da = models.CharField(max_length=150, blank=True, default="")
+    note = models.TextField(blank=True, default="")
+    allegato = models.FileField(upload_to="security/ripristini/%Y/", blank=True)
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-id"]
+
+    def __str__(self):
+        return f"{self.data} {self.sistema} ({self.get_esito_display()})"
+
+
+def _percorso_pacchetto_iso(instance, filename):
+    return f"security/iso27001/{instance.periodo_dal:%Y}/{filename}"
+
+
+class SecurityPacchettoIso(models.Model):
+    """Pacchetto mensile di evidenze ISO/IEC 27001 del SOC: il PDF, la sua impronta e chi l'ha generato.
+
+    Scritto da ``services.iso_pacchetto`` il giorno 1 di ogni mese (lettura ``pacchetto_iso``) e da
+    «Genera ora» nella pagina Conformità ISO 27001. Il file sta nello storage privato; l'impronta SHA-256
+    finisce anche nell'audit del portale, così il PDF conservato si può confrontare con quello generato.
+    """
+
+    periodo_dal = models.DateField(db_index=True)
+    periodo_al = models.DateField()
+    file = models.FileField(
+        upload_to=_percorso_pacchetto_iso, max_length=500,
+        storage=PrivateAttachmentStorage(download_hint="Scarica da SOC › Report › Conformità ISO 27001."),
+    )
+    sha256 = models.CharField(max_length=64)
+    generato_il = models.DateTimeField(default=timezone.now, db_index=True)
+    generato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    automatico = models.BooleanField(default=False)
+    riepilogo = models.JSONField(default=dict, blank=True)  # conteggi per stato e controlli non conformi
+    copia_esito = models.CharField(max_length=500, blank=True, default="")  # copia su SharePoint, se accesa
+
+    class Meta:
+        ordering = ["-periodo_dal", "-generato_il"]
+        verbose_name = "Pacchetto evidenze ISO 27001"
+        verbose_name_plural = "Pacchetti evidenze ISO 27001"
+
+    def __str__(self):
+        return f"Evidenze ISO 27001 {self.periodo_dal:%Y-%m-%d} – {self.periodo_al:%Y-%m-%d}"
+
+    @property
+    def nome_file(self):
+        return f"evidenze-soc-iso27001-{self.periodo_dal:%Y%m%d}-{self.periodo_al:%Y%m%d}.pdf"

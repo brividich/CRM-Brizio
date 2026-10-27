@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Coerenza capi · Organigramma | Anagrafica HR{% endblock %}
+{% block title %}Capo di ogni persona · Organigramma | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -29,36 +29,25 @@
     {% include "anagrafica/components/flash_messages.html" %}
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Coerenza capi</span></div>
-        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Coerenza capi</h1>
-        <p class="fmd-ph-sub">Per ogni persona: il capo che oggi approva assenze e DPI (area → reparto) e quello della regola unica, che aggiunge le eccezioni sulla persona e l'organigramma dei ruoli. Finché la regola unica è spenta la pagina confronta e basta; accesa, i moduli usano i capi della regola unica.</p>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Capo di ogni persona</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Capo di ogni persona</h1>
+        <p class="fmd-ph-sub">Per ogni persona il capo che approva assenze e DPI e da dove viene: eccezione sulla persona, mansione del responsabile d'area, mansione del capo del reparto o organigramma dei ruoli.</p>
       </div>
       <div class="fmd-pagehead-actions">
         {% include "anagrafica/partials/_guida_persone_link.html" with ancora="coerenza-capi" %}
       </div>
     </div>
 
-    <section class="fmd-panel fmd-block" aria-label="Regola unica">
+    <section class="fmd-panel fmd-block" aria-label="Da dove viene il capo">
       <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Regola unica:
-          {% if regola_attiva %}<span class="cc-badge cc-uguale">accesa</span>{% else %}<span class="cc-badge cc-cambia">spenta</span>{% endif %}</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Da dove viene il capo
+          {% if regola_attiva %}<span class="cc-badge cc-uguale">dalle mansioni</span>{% else %}<span class="cc-badge cc-cambia">passaggio da fare</span>{% endif %}</div>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:aree_list' %}">Reparti, aree e capi</a>
       </div>
-      <p class="cc-sub" style="margin:0 0 10px;">
-        {% if regola_attiva %}Permessi (team), assenze (approvatore e team del capo), approvazione DPI, solleciti e-learning e il «Caporeparto» delle schede usano i capi della colonna «Capo con la regola unica». Spegnendola ogni modulo torna alla regola di prima.
-        {% else %}Accendendola, permessi (team), assenze (approvatore e team del capo), approvazione DPI, solleciti e-learning e il «Caporeparto» delle schede useranno i capi della colonna «Capo con la regola unica». Controlla prima «Il capo cambia» e «Senza capo».{% endif %}
+      <p class="cc-sub" style="margin:0;">
+        {% if regola_attiva %}Il capo è chi ha la mansione del capo del suo reparto (o del responsabile della sua area); se non c'è nessuno vale l'organigramma dei ruoli. Permessi (team), assenze, DPI, solleciti, digest e il «Caporeparto» delle schede usano tutti questo capo. Qui sotto si gestiscono solo le eccezioni sulla persona.
+        {% else %}Oggi ogni modulo usa i capi scelti a mano. Il passaggio alle mansioni si fa da «Reparti, aree e capi»: assegna la mansione del capo a chi oggi è capo, poi tutti i moduli useranno la colonna «Capo con la regola unica».{% endif %}
       </p>
-      <form method="post" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-        {% csrf_token %}
-        <input type="hidden" name="azione" value="regola">
-        {% if regola_attiva %}
-          <input type="hidden" name="attiva" value="0">
-          <button type="submit" class="fmd-btn fmd-btn-ghost">Spegni la regola unica</button>
-        {% else %}
-          <input type="hidden" name="attiva" value="1">
-          <label class="cc-sub" style="display:flex;gap:6px;align-items:center;"><input type="checkbox" name="conferma" value="1" required> Ho controllato i capi che cambiano</label>
-          <button type="submit" class="fmd-btn fmd-btn-navy">Accendi la regola unica</button>
-        {% endif %}
-      </form>
     </section>
 
     <section class="fmd-panel fmd-block">

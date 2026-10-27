@@ -41,6 +41,7 @@ from ..models import (
     WorkMachine,
     WorkOrder,
 )
+from ..sidebar_icone import icona
 
 from ._helpers import (  # noqa: F401
     PERIODIC_EXECUTION_WINDOW_DEFAULT,
@@ -2028,6 +2029,7 @@ def _sidebar_button_payload(
         # Voce senza destinazione (es. area categorie): il clic apre le sotto-voci.
         "is_container": not _clean_string(button.target_url),
         "badge": _da_fare_badge(request) if button.code == "maintenance_da_fare" else None,
+        "icon": icona(button.code),
     }
 
 

@@ -24,13 +24,15 @@
 <section class="sec-detail-hero">
   <div class="sec-panel">
     <div class="sec-section-head">
-      <div><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span> <span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></div>
+      <div><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span> <span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span>{% if triage.non_presa and triage.in_ritardo %} <span class="sec-badge sec-badge-warning" title="Nessuna presa in carico entro {{ triage.target_ore }} h (ISO 27001 5.25)">oltre il tempo di presa in carico</span>{% elif triage.chiusura_in_ritardo and alert.closed_at == None %} <span class="sec-badge sec-badge-warning" title="Aperto da più di {{ triage.chiusura_giorni }} giorni">oltre il tempo di chiusura</span>{% endif %}</div>
       <span class="sec-code" title="{{ alert.dedup_hash }}">#{{ alert.short_dedup_hash }}</span>
     </div>
     <div class="sec-fact-grid">
       <div class="sec-fact"><span>Sorgente</span><strong>{{ alert.source.name }}</strong></div>
       <div class="sec-fact"><span>Responsabile</span><strong>{{ alert.owner|default:"Non assegnato" }}</strong></div>
       <div class="sec-fact"><span>Creato il</span><strong>{{ alert.created_at|date:"d M Y, H:i" }}</strong></div>
+      <div class="sec-fact"><span>Presa in carico</span><strong>{% if triage.presa_in_carico_at %}{{ triage.presa_in_carico_at|date:"d M Y, H:i" }} <small class="sec-muted">({{ triage.ore_presa_in_carico }} h, obiettivo {{ triage.target_ore }} h{% if triage.in_ritardo %}, in ritardo{% endif %})</small>{% else %}<span class="{% if triage.in_ritardo %}sec-error{% else %}sec-muted{% endif %}">non ancora (entro {{ triage.scadenza|date:"d/m H:i" }})</span>{% endif %}</strong></div>
+      {% if triage.ore_risoluzione != None %}<div class="sec-fact"><span>Tempo di risoluzione</span><strong>{{ triage.ore_risoluzione }} h</strong></div>{% endif %}
       <div class="sec-fact"><span>Aggiornato il</span><strong>{{ alert.updated_at|date:"d M Y, H:i" }}</strong></div>
     </div>
     {% if alert.status_reason %}<p><strong>Motivo stato:</strong> {{ alert.status_reason }}</p>{% endif %}
@@ -165,12 +167,14 @@
     <div class="sec-section-head"><h2>Evidenze correlate</h2></div>
     <div class="sec-table-wrap">
       <table class="sec-table">
-        <thead><tr><th>Contenitore</th><th>Stato</th><th>Creato il</th><th>Elementi</th></tr></thead>
+        <thead><tr><th>Contenitore</th><th>Stato</th><th>Creato il</th><th>Elementi</th><th>Integrità</th><th></th></tr></thead>
         <tbody>
         {% for container in evidence %}
-          <tr><td class="sec-title-cell"><strong>{{ container.title }}</strong><small>{{ container.id }}</small></td><td><span class="sec-badge {{ container.status }}">{{ container.status|ui_label }}</span></td><td class="sec-nowrap">{{ container.created_at|date:"d M Y, H:i" }}</td><td>{{ container.items.count }}</td></tr>
+          <tr><td class="sec-title-cell"><strong>{{ container.title }}</strong><small>{{ container.id }}</small></td><td><span class="sec-badge {{ container.status }}">{{ container.status|ui_label }}</span></td><td class="sec-nowrap">{{ container.created_at|date:"d M Y, H:i" }}</td><td>{{ container.items.count }}</td>
+          <td><span class="sec-badge sec-badge-{{ container.integrita_tone }}">{{ container.integrita_label }}</span>{% if container.sha256 %}<br><small class="sec-code" title="SHA-256 {{ container.sha256 }}">{{ container.sha256|slice:":12" }}…</small>{% endif %}{% if container.integrita_verificata_il %}<br><small class="sec-muted">verificata {{ container.integrita_verificata_il|date:"d/m H:i" }}</small>{% endif %}</td>
+          <td class="sec-nowrap"><form method="post" action="{% url 'security:evidence_verify' container.pk %}" style="display:inline;">{% csrf_token %}<button type="submit" class="sec-btn-link">Verifica integrità</button></form> · <a href="{% url 'security:evidence_export' container.pk %}">Esporta</a></td></tr>
         {% empty %}
-          <tr><td colspan="4" class="sec-empty">Nessun contenitore evidenze collegato.</td></tr>
+          <tr><td colspan="6" class="sec-empty">Nessun contenitore evidenze collegato.</td></tr>
         {% endfor %}
         </tbody>
       </table>

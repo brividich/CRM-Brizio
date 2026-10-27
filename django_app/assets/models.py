@@ -722,10 +722,14 @@ class AssetSidebarButton(models.Model):
     # come voci di primo livello sommergevano le pagine vere. Sezione propria, in
     # fondo, dove si cerca un tipo di macchina invece di navigare.
     SECTION_CATEGORIES = "CATEGORIES"
+    # IT e rete: licenze, software, indirizzi e rack stavano in «Configurazione»
+    # della Manutenzione, mescolati a piani e fornitori (migrazione 0156).
+    SECTION_IT = "IT"
     SECTION_CHOICES = [
-        (SECTION_MAIN, "Navigazione"),
+        (SECTION_MAIN, "Inventario"),
+        (SECTION_OPERATIONS, "Manutenzione e officina"),
+        (SECTION_IT, "IT e rete"),
         (SECTION_ANALYTICS, "Analisi e rischio"),
-        (SECTION_OPERATIONS, "Strumenti e gestione"),
         (SECTION_CATEGORIES, "Inventario per categoria"),
     ]
 

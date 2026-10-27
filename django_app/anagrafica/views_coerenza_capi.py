@@ -1,9 +1,10 @@
-"""«Coerenza capi»: per ogni persona il capo di oggi e quello della regola unica.
+"""«Capo di ogni persona» (ex «Coerenza capi»): il capo di ognuno e da dove viene.
 
-Fase 2a del riordino capo/team (16/10/2026). La pagina legge e confronta, non
-cambia il comportamento dei moduli: serve a vedere l'effetto della regola
-(``services.capo_team``) prima del passaggio, e a gestire le eccezioni sulla
-persona. Riservata agli amministratori dell'anagrafica.
+Confronta il capo di reparto/area con quello della regola unica
+(``services.capo_team``) e gestisce le eccezioni sulla persona. Il passaggio
+alle mansioni del capo si fa dalla pagina «Reparti, aree e capi»
+(``views_capi_reparti``): da qui la regola non si accende né si spegne più.
+Riservata agli amministratori dell'anagrafica.
 """
 from __future__ import annotations
 
@@ -119,8 +120,6 @@ def coerenza_capi(request):
         return redirect("anagrafica:dipendenti_list")
     from .services import capo_team
 
-    if request.method == "POST" and request.POST.get("azione") == "regola":
-        return _cambia_regola(request, attiva=request.POST.get("attiva") == "1")
     righe, nomi = _righe()
     filtro = request.GET.get("filtro") or "tutti"
     if filtro not in dict(FILTRI):
@@ -148,33 +147,6 @@ def coerenza_capi(request):
         "conteggi": conteggi,
         "regola_attiva": capo_team.regola_unica_attiva(),
     })
-
-
-def _cambia_regola(request, *, attiva: bool):
-    """Accende o spegne la regola unica per tutti i moduli (con audit)."""
-    from core.audit import log_action
-
-    from .services import capo_team
-
-    if attiva and request.POST.get("conferma") != "1":
-        messages.error(request, "Per accendere la regola unica spunta la conferma.")
-        return redirect("anagrafica:coerenza_capi")
-    capo_team.imposta_regola_unica(attiva)
-    if attiva:
-        schede = capo_team.riallinea_tutte_le_schede()
-    else:
-        # Spenta: la copia nelle schede torna alla regola area → reparto.
-        from .models import Reparto
-        from .services.reparto_canonico import riallinea_capo_schede
-
-        schede = sum(riallinea_capo_schede(reparto=r) for r in Reparto.objects.all())
-    log_action(request, "update", "anagrafica", {"oggetto": "regola_unica_capi", "attiva": attiva, "schede": schede})
-    if attiva:
-        messages.success(request, f"Regola unica accesa: permessi, assenze, DPI e solleciti usano ora questi capi "
-                                  f"({schede} schede aggiornate).")
-    else:
-        messages.success(request, "Regola unica spenta: ogni modulo torna alla regola di prima.")
-    return redirect("anagrafica:coerenza_capi")
 
 
 @login_required

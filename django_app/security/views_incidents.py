@@ -21,8 +21,12 @@ def _denied(request):
 
 
 def _decorate(incident, now):
+    from .services import riesame as rsv
+
     incident.next_deadline = svc.next_open_deadline(incident, now)
     incident.deadline_list = svc.deadlines(incident, now)
+    # ISO 27001 5.27: concluso senza Lezioni apprese -> «Riesame mancante» (non blocca nulla).
+    incident.riesame_mancante = rsv.riesame_mancante(incident)
     return incident
 
 
@@ -98,6 +102,9 @@ def incident_detail(request, pk):
     linkable = (
         SecurityRemediationTicket.objects.exclude(incidents=incident).order_by("-updated_at")[:50]
     )
+    from .services import iso_incidenti
+    from .services import riesame as rsv
+
     return render(request, "security/incident_detail.html", {
         "incident": incident,
         "criteria_labels": [svc.SIGNIFICANCE_LABELS.get(code, code) for code in incident.significance_criteria or []],
@@ -107,7 +114,70 @@ def incident_detail(request, pk):
         "milestone_choices": [(key, label) for key, (_field, label) in svc.MILESTONES.items()],
         "linkable_tickets": linkable,
         "now_local": timezone.localtime(now).strftime("%Y-%m-%dT%H:%M"),
+        "riesame": rsv.riesame_di(incident),
+        "azioni": list(incident.azioni_correttive.all()),
+        "ruoli": iso_incidenti.ruoli(),
+        "oggi": timezone.localdate(now),
     })
+
+
+@require_POST
+def incident_riesame(request, pk):
+    """Lezioni apprese (ISO 27001 5.27): causa, cosa ha funzionato, cosa migliorare."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from core.audit import log_action
+
+    from .services import riesame as rsv
+
+    incident = get_object_or_404(SecurityIncident, pk=pk)
+    try:
+        rsv.salva_riesame(
+            incident, request.user, causa=request.POST.get("causa", ""),
+            cosa_ha_funzionato=request.POST.get("cosa_ha_funzionato", ""), cosa_migliorare=request.POST.get("cosa_migliorare", ""),
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("security:incident_detail", pk=pk)
+    log_action(request, "incidente_riesame", "security", {"incidente": incident.code}, oggetto=incident)
+    messages.success(request, "Lezioni apprese registrate.")
+    return redirect("security:incident_detail", pk=pk)
+
+
+@require_POST
+def incident_azione(request, pk):
+    """Nuova azione correttiva con responsabile e scadenza."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import riesame as rsv
+
+    incident = get_object_or_404(SecurityIncident, pk=pk)
+    try:
+        scadenza = datetime.strptime(request.POST.get("scadenza", ""), "%Y-%m-%d").date()
+    except ValueError:
+        messages.error(request, "Indica la scadenza dell'azione correttiva.")
+        return redirect("security:incident_detail", pk=pk)
+    try:
+        rsv.aggiungi_azione(incident, request.user, titolo=request.POST.get("titolo", ""), scadenza=scadenza,
+                            responsabile=request.POST.get("responsabile", ""), note=request.POST.get("note", ""))
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("security:incident_detail", pk=pk)
+    messages.success(request, "Azione correttiva aggiunta.")
+    return redirect("security:incident_detail", pk=pk)
+
+
+@require_POST
+def incident_azione_fatta(request, pk, azione_id):
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .models import SecurityCorrectiveAction
+    from .services import riesame as rsv
+
+    azione = get_object_or_404(SecurityCorrectiveAction, pk=azione_id, incident_id=pk)
+    rsv.segna_azione(azione, request.user, fatta=request.POST.get("riapri") != "1")
+    messages.success(request, "Azione correttiva completata." if azione.fatta_il else "Azione correttiva riaperta.")
+    return redirect("security:incident_detail", pk=pk)
 
 
 def incident_edit(request, pk):
@@ -121,6 +191,10 @@ def incident_edit(request, pk):
             incident = form.save()
             changes = svc.save_changes(incident, before, request.user)
             messages.success(request, f"Incidente aggiornato ({len(changes)} modifiche)." if changes else "Nessuna modifica.")
+            from .services import riesame as rsv
+
+            if rsv.riesame_mancante(incident):
+                messages.warning(request, rsv.AVVISO_CHIUSURA)
             return redirect("security:incident_detail", pk=incident.pk)
     else:
         form = SecurityIncidentForm(instance=incident)

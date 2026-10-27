@@ -155,4 +155,9 @@ def _transition_alert(alert, new_status, action, actor, reason="", extra_details
         actor=actor,
         details=details,
     )
+    # Audit sigillato del portale: anche le decisioni a mano sugli alert restano dimostrabili.
+    from security.services import traccia
+
+    traccia.registra(traccia.ALERT_STATO, {"alert_id": alert.pk, "titolo": alert.title, "azione": action, **details},
+                     oggetto=alert, attore=actor)
     return alert

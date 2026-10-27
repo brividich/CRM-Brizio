@@ -40,7 +40,13 @@
 .as-nav-empty { margin: 8px 4px; font-size: var(--fs-xs); color: #8ea2bf; }
 /* il filtro nasconde voci, teste di sezione e gruppi: batte i display: grid/flex locali */
 .as-nav [hidden] { display: none !important; }
-.as-nav-head { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
+.as-nav-head { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; margin: 10px 4px 3px; padding-top: 11px; border-top: 1px solid #e3eaf4; }
+.as-nav > .as-nav-head:first-child { margin-top: 2px; padding-top: 0; border-top: 0; }
+.as-link.as-link-top { display: flex; align-items: center; gap: 9px; }
+.as-link-top > span:not(.as-nav-badge) { min-width: 0; overflow-wrap: anywhere; }
+.as-ico { width: 17px; height: 17px; flex: 0 0 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .72; }
+.as-link.active .as-ico, .as-link:hover .as-ico { opacity: 1; }
+.as-link.as-link-guida { margin-top: 10px; border-top: 1px solid #e3eaf4; border-radius: 0 0 8px 8px; padding-top: 11px; color: #5f7698; font-weight: 600; }
 .as-link { position:relative; display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 6px 9px; font-weight: 700; line-height: 1.1; font-size: var(--fs-sm); }
 .as-link:hover { background: #edf3fc; }
 .as-help { position:relative; }
@@ -63,7 +69,7 @@ body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38
 .as-nav-badge { display:inline-block; min-width:18px; padding:1px 6px; margin-left:4px; border-radius:999px; background:#dc2626; color:#fff; font-size:var(--fs-2xs); font-weight:800; line-height:1.4; text-align:center; vertical-align:1px; }
 .as-link.active { background: #fff; color: #1f64d8; box-shadow:0 8px 18px rgba(15,23,42,.06); }
 .as-link.active:before { content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:999px; background:#14b8a6; }
-.as-link.sub { font-size: var(--fs-xs); color: #5f7698; padding-left: 18px; }
+.as-link.sub { font-size: var(--fs-xs); color: #5f7698; padding-left: 12px; }
 .as-nav-group { display: grid; gap: 2px; }
 .as-nav-parent { display: grid; grid-template-columns: minmax(0, 1fr) 24px; align-items: center; gap: 3px; }
 .as-nav-parent .as-link { min-width: 0; }
@@ -82,7 +88,7 @@ body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38
 .as-nav-toggle:hover { background: #edf3fc; color: #1f64d8; }
 .as-nav-arrow { display: inline-block; transition: transform .16s ease; }
 .as-nav-group.open .as-nav-arrow { transform: rotate(90deg); }
-.as-nav-children { display: none; padding-left: 8px; }
+.as-nav-children { display: none; margin: 1px 0 4px 17px; padding-left: 4px; border-left: 1px solid #dbe3f0; }
 .as-nav-group.open .as-nav-children { display: grid; gap: 2px; }
 .as-user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
 .as-user-av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 700; }
@@ -330,7 +336,8 @@ body.theme-dark .as-nav-filter input:focus { border-color: #3b82f6; box-shadow: 
 body.theme-dark .as-nav-filter-icon, body.theme-dark .as-nav-empty { color: var(--text-light); }
 body.theme-dark .as-nav-filter-clear { color: var(--text-light); }
 body.theme-dark .as-nav-filter-clear:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
-body.theme-dark .as-nav-head { color: var(--text-light); }
+body.theme-dark .as-nav-head { color: var(--text-light); border-color: var(--border); }
+body.theme-dark .as-nav-children, body.theme-dark .as-link-guida { border-color: var(--border); }
 body.theme-dark .as-link { color: var(--text-mid); }
 body.theme-dark .as-link:hover { background: rgba(255,255,255,.07); color: var(--text); }
 body.theme-dark .as-link.active { background: rgba(255,255,255,.08); color: #60a5fa; box-shadow:none; }
@@ -435,7 +442,7 @@ body.theme-dark details.as-collapse > summary:hover::after{color:#93c5fd}
           {% if item.has_children %}
             <div class="as-nav-group{% if item.expanded %} open{% endif %}" data-as-nav-group data-as-nav-key="{{ item.id|default:item.label|slugify }}">
               <div class="as-nav-parent">
-                <a class="as-link{% if item.active %} active{% endif %}" href="{% if item.is_container %}#{% else %}{{ item.url }}{% endif %}"{% if item.is_container %} data-as-nav-container role="button"{% endif %}>{{ item.label }}</a>
+                <a class="as-link as-link-top{% if item.active %} active{% endif %}" href="{% if item.is_container %}#{% else %}{{ item.url }}{% endif %}"{% if item.is_container %} data-as-nav-container role="button"{% endif %}><svg class="as-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ item.icon|safe }}</svg><span>{{ item.label }}</span></a>
                 <button class="as-nav-toggle" type="button" aria-label="Apri sottovoci {{ item.label }}" aria-expanded="{% if item.expanded %}true{% else %}false{% endif %}" data-as-nav-toggle>
                   <span class="as-nav-arrow" aria-hidden="true">&#8250;</span>
                 </button>
@@ -447,14 +454,15 @@ body.theme-dark details.as-collapse > summary:hover::after{color:#93c5fd}
               </div>
             </div>
           {% else %}
-            <a class="as-link{% if item.is_subitem %} sub{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+            {% if item.is_subitem %}<a class="as-link sub{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>{% else %}<a class="as-link as-link-top{% if item.active %} active{% endif %}" href="{{ item.url }}"><svg class="as-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ item.icon|safe }}</svg><span>{{ item.label }}</span>{% if item.badge %} <span class="as-nav-badge" title="{{ item.badge }} manutenzioni scadute">{{ item.badge }}</span>{% endif %}</a>{% endif %}
           {% endif %}
         {% endfor %}
       {% endfor %}
       {% if can_gestione_admin %}
-        <div class="as-nav-head" style="margin-top:10px;">Amministrazione</div>
-        <a class="as-link{% if request.resolver_match.url_name == 'gestione_admin' %} active{% endif %}" href="{% url 'assets:gestione_admin' %}">&#9881; Impostazioni</a>
+        <div class="as-nav-head">Amministrazione</div>
+        <a class="as-link as-link-top{% if request.resolver_match.url_name == 'gestione_admin' %} active{% endif %}" href="{% url 'assets:gestione_admin' %}"><svg class="as-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ assets_sidebar_icone.impostazioni|safe }}</svg><span>Impostazioni</span></a>
       {% endif %}
+      <a class="as-link as-link-top as-link-guida{% if request.resolver_match.url_name == 'guida' %} active{% endif %}" href="{% url 'assets:guida' %}"><svg class="as-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ assets_sidebar_icone.guida|safe }}</svg><span>Guida del modulo</span></a>
       <p class="as-nav-empty" data-as-nav-empty hidden>Nessuna voce corrisponde.</p>
     </nav>
     <div class="as-user">

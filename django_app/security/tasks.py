@@ -59,6 +59,25 @@ def _periodic_recoveries():
     return run_periodic_recoveries()
 
 
+def _termini_correzione_cve():
+    """Termini di correzione (ISO 27001 8.8): accettazioni scadute o in scadenza, esposizioni oltre il termine.
+
+    Gira prima della valutazione delle regole dopo l'heartbeat, così gli eventi diventano alert nello stesso giro.
+    """
+    from security.services import accettazione_rischio, cve_sla
+
+    accettazioni = accettazione_rischio.controlla_scadenze()
+    eventi, chiusi = cve_sla.segnala_scadute()
+    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi}
+
+
+def _iso_incidenti():
+    """ISO 27001 5.28: sigilla (SHA-256) i contenitori di evidenze ancora senza impronta."""
+    from security.services.iso_incidenti import ciclo
+
+    return ciclo()
+
+
 def _cleanup_inventory_previews():
     """File di inventario caricati e mai importati: eliminati dopo 2 giorni."""
     from security.services.software_inventory import cleanup_stale_previews
@@ -124,6 +143,17 @@ def ai_cpe_proposte_task():
     return letture.esegui("cpe_ai")
 
 
+def pacchetto_iso_task():
+    """Pacchetto mensile di evidenze ISO/IEC 27001 (schedule `security_pacchetto_iso`, lettura `pacchetto_iso`).
+
+    Il giorno 1 alle 06:30 genera il PDF del mese prima (esito dei controlli, CVE corrette, esposizioni
+    scadute, incidenti), lo archivia con l'impronta SHA-256 nell'audit e, se acceso, lo copia su SharePoint.
+    """
+    from security.services import letture
+
+    return letture.esegui("pacchetto_iso")
+
+
 def suggest_cpe_task(vendor, product):
     """Suggerimenti CPE dal dizionario NVD per un prodotto dell'inventario (accodato dalla pagina Software)."""
     from security.models import SoftwareCpeMapping
@@ -170,10 +200,12 @@ def run_security_cycle_task():
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
+        ("termini_cve", _termini_correzione_cve),
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),
         ("pulizia_inventario", _cleanup_inventory_previews),
+        ("iso", _iso_incidenti),
         ("avvisi", _scheduled_notifications),
     )
     for name, step in steps:

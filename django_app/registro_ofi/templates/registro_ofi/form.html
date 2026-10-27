@@ -9,6 +9,8 @@
 {% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
+{% block subnav %}{% include "registro_ofi/components/subnav.html" %}{% endblock %}
+
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
@@ -22,6 +24,7 @@
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Qualità / SGI · Costruzioni Novicrom · MOD.174 Rev.0</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>{% if voce %}Modifica voce n. {{ voce.numero }}{% else %}Nuovo inserimento · n. {{ numero_preview }}{% endif %}</h1>
           <p class="fmd-sub">Compila la voce del registro OFI/NC secondo il MOD.174 SGI. Scegli se è una <strong>Opportunità di miglioramento (OFI)</strong> o una <strong>Non conformità (NC)</strong>.</p>
+          {% if processo_origine %}<p class="fmd-sub">Dalla scheda del processo <a href="{% url 'sistema_gestione:processo_dettaglio' processo_origine.pk %}" style="color:inherit;font-weight:700;text-decoration:underline;">{{ processo_origine }}</a>: processo, responsabile e norme sono già proposti.</p>{% endif %}
         </div>
       </div>
     </section>
@@ -60,7 +63,8 @@
                   <label class="hub-check">{{ form.norma_pdr125 }} UNI/PdR 125</label>
                 </div>
               </div>
-              <div class="hub-field hub-col-full"><label>{{ form.processo.label }}</label>{{ form.processo }}</div>
+              <div class="hub-field"><label>{{ form.processo_sgi.label }}</label>{{ form.processo_sgi }}<div class="hub-help">{{ form.processo_sgi.help_text }}</div>{% for e in form.processo_sgi.errors %}<div class="hub-err">{{ e }}</div>{% endfor %}</div>
+              <div class="hub-field"><label>{{ form.processo.label }}</label>{{ form.processo }}<div class="hub-help">Come compare nel MOD.174. Scegliendo il processo del catalogo si compila da solo.</div></div>
               <div class="hub-field hub-col-full"><label>{{ form.opportunita.label }}</label>{{ form.opportunita }}{% for e in form.opportunita.errors %}<div class="hub-err">{{ e }}</div>{% endfor %}</div>
             </div>
           </div>
@@ -95,7 +99,7 @@
         </div>
 
         <div style="margin-top:18px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;">
-          <a href="{% url 'registro_ofi:lista' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+          <a href="{% if voce %}{% url 'registro_ofi:dettaglio' voce.pk %}{% elif processo_origine %}{% url 'sistema_gestione:processo_dettaglio' processo_origine.pk %}#ofi{% else %}{% url 'registro_ofi:home' %}{% endif %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
           <button type="submit" class="fmd-btn fmd-btn-primary">{% if voce %}Salva modifiche{% else %}Crea voce{% endif %}</button>
         </div>
       </form>

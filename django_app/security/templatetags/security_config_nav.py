@@ -74,10 +74,11 @@ MENU = [
     ]),
     ("Dispositivi", "pc_copertura", [
         ("Elenco", "pc_copertura", ("pc_copertura", "pc_detail", "assets"), False),
-        ("Backup", "backup", ("backup", "backup_device", "backup_log"), False),
+        ("Backup", "backup", ("backup", "backup_device", "backup_log", "backup_ripristini"), False),
         ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
+        ("Rischi accettati", "accettazioni_rischio", ("accettazioni_rischio",), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
     ("Registro accessi", "registro_log", [
@@ -95,6 +96,7 @@ MENU = [
         ("Report", "report", ("report",), False),
         ("Storico", "history", ("history",), False),
         ("KPI", "kpis", ("kpis", "kpi_detail"), False),
+        ("Conformità ISO 27001", "iso27001", ("iso27001",), False),
     ]),
     # Cinque schede: le altre pagine di configurazione si aprono dalla Panoramica (per compito) e
     # mostrano il percorso «Configurazione › …» (prima erano 15 schede su due righe).

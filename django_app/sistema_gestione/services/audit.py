@@ -455,6 +455,13 @@ def sincronizza_ofi(esito: AuditEsito):
         dati["processo"] = esito.domanda_snapshot.get("processo", audit.processi)[:200]
     if esito.esito == AuditEsito.ESITO_NC and esito.gravita:
         dati["opportunita"] = f"[{esito.get_gravita_display()}] {dati['opportunita']}"
+    # Processo del catalogo: quello della domanda di checklist, oppure l'unico processo dell'audit.
+    if esito.modello_processo_id:
+        dati["processo_sgi_id"] = esito.modello_processo.processo_id
+    else:
+        processi_audit = list(audit.processi_catalogo.values_list("pk", flat=True)[:2])
+        if len(processi_audit) == 1:
+            dati["processo_sgi_id"] = processi_audit[0]
     for _tentativo in range(2):
         try:
             # Il savepoint rende recuperabile la transazione esterna anche su SQL Server.

@@ -66,6 +66,7 @@
       <div class="mns-stat"><b>{{ n_mansioni }}</b><span>mansion{{ n_mansioni|pluralize:"e,i" }} collegat{{ n_mansioni|pluralize:"a,e" }}</span></div>
       <div class="mns-stat {% if n_domande_attive %}mns-ok{% else %}mns-mid{% endif %}"><b>{{ n_domande_attive }}</b><span>domand{{ n_domande_attive|pluralize:"a,e" }} attiv{{ n_domande_attive|pluralize:"a,e" }} in checklist</span></div>
       <div class="mns-stat"><b>{{ audit_list|length }}</b><span>audit collegat{{ audit_list|length|pluralize:"o,i" }}</span></div>
+      <a class="mns-stat {% if n_ofi_nc_aperte %}mns-ko{% elif n_ofi_aperte %}mns-mid{% else %}mns-ok{% endif %}" href="#ofi" style="text-decoration:none;"><b>{{ n_ofi_aperte }}</b><span>OFI / NC apert{{ n_ofi_aperte|pluralize:"a,e" }}{% if n_ofi_nc_aperte %}, {{ n_ofi_nc_aperte }} NC{% endif %}</span></a>
       <div class="mns-stat"><b>{{ revisioni|length }}</b><span>revision{{ revisioni|length|pluralize:"e,i" }} registrat{{ revisioni|length|pluralize:"a,e" }}</span></div>
     </div>
 
@@ -75,6 +76,7 @@
         <a class="mns-tab" role="tab" id="tab-persone" href="#persone" aria-controls="persone" aria-selected="false"><svg class="fmd-ico"><use href="#i-users"/></svg>Chi lo esegue <span class="fmd-count">{{ n_mansioni }}</span></a>
         <a class="mns-tab" role="tab" id="tab-checklist" href="#checklist" aria-controls="checklist" aria-selected="false"><svg class="fmd-ico"><use href="#i-check"/></svg>Checklist <span class="fmd-count">{{ checklist|length }}</span></a>
         <a class="mns-tab" role="tab" id="tab-audit" href="#audit" aria-controls="audit" aria-selected="false"><svg class="fmd-ico"><use href="#i-shield"/></svg>Audit <span class="fmd-count">{{ audit_list|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-ofi" href="#ofi" aria-controls="ofi" aria-selected="false"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>OFI / NC <span class="fmd-count">{{ n_ofi_aperte }}</span></a>
         <a class="mns-tab" role="tab" id="tab-revisioni" href="#revisioni" aria-controls="revisioni" aria-selected="false"><svg class="fmd-ico"><use href="#i-clock"/></svg>Revisioni <span class="fmd-count">{{ revisioni|length }}</span></a>
       </div>
 
@@ -187,6 +189,35 @@ Suggerimento: {{ domanda.suggerimento }}{% endif %}</small></td>
         </div>
         {% else %}
         <div class="fmd-empty"><span class="fmd-et">Nessun audit collegato</span><span class="fmd-em">Il processo entra negli audit dal programma annuale.</span></div>
+        {% endif %}
+      </div>
+
+      {# Voci del Registro OFI / NC legate al processo #}
+      <div class="mns-pane" id="ofi" role="tabpanel" aria-labelledby="tab-ofi">
+        <p class="fmd-muted prc-nota">Opportunità di miglioramento e non conformità del Registro OFI / NC legate a questo processo: dai rilievi degli audit interni e degli enti o inserite a mano. Le voci aperte pesano sulla priorità dei prossimi audit del processo.</p>
+        <div class="prc-barra">
+          {% if ofi_puo_inserire %}<a class="fmd-btn fmd-btn-primary" href="{% url 'registro_ofi:nuovo' %}?processo={{ processo.pk }}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova OFI / NC su questo processo</a>{% endif %}
+          {% if ofi_vede_registro %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'registro_ofi:lista' %}?processo={{ processo.pk }}">Apri nel registro MOD.174</a>{% endif %}
+        </div>
+        {% if voci_ofi %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Voce</th><th>Fase</th><th>Descrizione</th><th>Responsabile</th><th class="fmd-nowrap">Scadenza</th></tr></thead>
+            <tbody>
+              {% for v in voci_ofi %}
+              <tr>
+                <td class="fmd-nowrap"><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' v.pk %}"><b>{{ v.numero }}</b></a> {% if v.tipo == "NC" %}<span class="fmd-badge fmd-b-red">NC</span>{% else %}<span class="fmd-badge fmd-b-amber">OFI</span>{% endif %}</td>
+                <td>{% if v.is_chiuso %}<span class="fmd-badge fmd-b-green">chiusa</span>{% else %}{{ v.get_fase_display }}{% endif %}</td>
+                <td class="prc-domanda" style="font-weight:400;">{{ v.opportunita|truncatechars:160|default:"—" }}</td>
+                <td>{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</td>
+                <td class="fmd-nowrap">{% if v.is_chiuso %}<span class="fmd-muted">{{ v.data_chiusura|date:"d/m/Y"|default:"—" }}</span>{% elif v.is_scaduto %}<span class="fmd-badge fmd-b-red">{{ v.data_richiesta|date:"d/m/Y" }}</span>{% else %}{{ v.data_richiesta|date:"d/m/Y"|default:"—" }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna voce collegata</span><span class="fmd-em">Le voci si collegano da sole quando il «Processo/area» indica questo processo, oppure scegliendolo nella voce.</span></div>
         {% endif %}
       </div>
 

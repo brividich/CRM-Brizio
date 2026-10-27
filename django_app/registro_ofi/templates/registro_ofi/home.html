@@ -1,0 +1,275 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Registro OFI / NC · Dashboard{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<style>
+.ofic-kpi{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:16px; }
+.ofic-kpi a, .ofic-kpi div{ display:flex; flex-direction:column; gap:4px; padding:14px 16px; border-radius:14px;
+  border:1px solid #e2e8f0; background:#fff; color:inherit; text-decoration:none; }
+.ofic-kpi a:hover{ border-color:#ff8a1f; }
+.ofic-num{ font-size:26px; font-weight:800; color:#22314f; }
+.ofic-lbl{ font-size:12px; font-weight:700; color:#6b7a90; }
+.ofic-kpi .is-bad .ofic-num, .ofic-kpi a.is-bad .ofic-num{ color:#b42318; }
+.ofic-kpi .is-warn .ofic-num, .ofic-kpi a.is-warn .ofic-num{ color:#c2410c; }
+.ofic-kpi .is-ok .ofic-num{ color:#15803d; }
+.ofic-grid .fmd-block-title{ white-space:normal; }
+.ofic-trend-wrap{ overflow-x:auto; }
+.ofic-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+.ofic-grid > .fmd-panel{ margin:0; }
+.ofic-bars{ list-style:none; margin:0; padding:0; display:grid; gap:7px; }
+.ofic-bars li{ display:grid; grid-template-columns:minmax(0,1fr) 44px; gap:4px 10px; font-size:13px; align-items:center; }
+.ofic-bars .ofic-nome{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ofic-bars .ofic-n{ text-align:right; font-weight:800; }
+.ofic-bar{ grid-column:1 / -1; height:6px; border-radius:4px; background:#eef2f7; overflow:hidden; }
+.ofic-bar span{ display:block; height:100%; background:#3b82f6; border-radius:4px; }
+.ofic-trend{ display:grid; grid-template-columns:repeat(12,minmax(30px,1fr)); min-width:420px; gap:6px; align-items:end; height:150px; padding-top:8px; }
+.ofic-mese{ display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+.ofic-colonne{ display:flex; gap:2px; align-items:flex-end; height:120px; }
+.ofic-colonne span{ width:9px; border-radius:3px 3px 0 0; min-height:1px; }
+.ofic-ap{ background:#f59e0b; } .ofic-ch{ background:#16a34a; }
+.ofic-et{ font-family:var(--hub-mono,monospace); font-size:10px; color:#6b7a90; }
+.ofic-legenda{ display:flex; gap:14px; font-size:12px; color:#6b7a90; margin-top:8px; }
+.ofic-legenda i{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+.ofic-vuoto{ font-size:13px; color:#6b7a90; margin:0; }
+/* Elenchi brevi di voci: numero, tipo, testo, scadenza */
+.ofih-voci{ list-style:none; margin:0; padding:0; display:grid; }
+.ofih-voci li{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:4px 10px; align-items:center;
+  padding:8px 0; border-bottom:1px solid #eef2f7; font-size:13px; }
+.ofih-voci li:last-child{ border-bottom:0; }
+.ofih-voci .ofih-num{ font-weight:800; color:#22314f; text-decoration:none; white-space:nowrap; }
+.ofih-voci .ofih-num:hover{ text-decoration:underline; }
+.ofih-voci .ofih-testo{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#475569; }
+.ofih-voci .ofih-data{ font-family:var(--hub-mono,monospace); font-size:11.5px; color:#6b7a90; white-space:nowrap; }
+.ofih-voci .ofih-data.is-bad{ color:#b42318; font-weight:700; }
+.ofih-tutte{ display:inline-block; margin-top:8px; font-size:12.5px; font-weight:700; }
+.ofih-origini{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+.ofih-origini a{ display:flex; flex-direction:column; gap:2px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px;
+  color:inherit; text-decoration:none; }
+.ofih-origini a:hover{ border-color:#ff8a1f; }
+.ofih-origini b{ font-size:22px; color:#22314f; }
+.ofih-origini span{ font-size:12.5px; font-weight:700; color:#475569; }
+.ofih-origini small{ font-size:11.5px; color:#6b7a90; }
+.ofih-tab{ width:100%; border-collapse:collapse; font-size:13px; }
+.ofih-tab th{ text-align:left; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:#6b7a90; padding:6px 8px; border-bottom:1px solid #e2e8f0; }
+.ofih-tab td{ padding:7px 8px; border-bottom:1px solid #eef2f7; }
+.ofih-tab td.n{ text-align:right; font-weight:800; width:70px; }
+.ofih-crono{ list-style:none; margin:0; padding:0; display:grid; gap:9px; }
+.ofih-crono li{ display:grid; grid-template-columns:118px minmax(0,1fr); gap:2px 12px; font-size:13px; }
+.ofih-crono time{ font-family:var(--hub-mono,monospace); font-size:11.5px; color:#6b7a90; }
+.ofih-crono .ofih-chi{ color:#6b7a90; }
+@media (max-width:640px){ .ofih-crono li{ grid-template-columns:1fr; } .ofih-voci li{ grid-template-columns:auto minmax(0,1fr); } .ofih-voci .ofih-data{ grid-column:2; } }
+body.theme-dark .ofic-kpi a, body.theme-dark .ofic-kpi div, body.theme-dark .ofih-origini a{ background:var(--surface,#0e1a2c); border-color:var(--border); }
+body.theme-dark .ofic-num, body.theme-dark .ofih-origini b, body.theme-dark .ofih-voci .ofih-num{ color:var(--text); }
+body.theme-dark .ofic-lbl, body.theme-dark .ofic-et, body.theme-dark .ofic-legenda, body.theme-dark .ofic-vuoto,
+body.theme-dark .ofih-voci .ofih-data, body.theme-dark .ofih-origini small, body.theme-dark .ofih-tab th,
+body.theme-dark .ofih-crono time, body.theme-dark .ofih-crono .ofih-chi{ color:var(--text-light); }
+body.theme-dark .ofih-voci .ofih-testo, body.theme-dark .ofih-origini span{ color:var(--text-mid,#cbd5e1); }
+body.theme-dark .ofic-kpi .is-bad .ofic-num, body.theme-dark .ofic-kpi a.is-bad .ofic-num, body.theme-dark .ofih-voci .ofih-data.is-bad{ color:#fca5a5; }
+body.theme-dark .ofic-kpi .is-warn .ofic-num, body.theme-dark .ofic-kpi a.is-warn .ofic-num{ color:#fdba74; }
+body.theme-dark .ofic-kpi .is-ok .ofic-num{ color:#86efac; }
+body.theme-dark .ofic-bar{ background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .ofih-voci li, body.theme-dark .ofih-tab td, body.theme-dark .ofih-tab th{ border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "registro_ofi/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "registro_ofi/_guida_link.html" %}
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Qualità / SGI · MOD.174</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>Registro OFI / NC{% if modulo %} — {{ modulo_label }}{% endif %}</h1>
+          <p class="fmd-sub">Opportunità di miglioramento e non conformità di tutto il sistema di gestione: dagli audit interni, dai rilievi degli enti, dalle specifiche (MOD.133) e dai processi del catalogo, fino alla chiusura con il ciclo PDCA.</p>
+        </div>
+        <div class="fmd-hero-side">
+          {% if ofi_vede_registro %}
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ c.aperte }}</span><span class="fmd-lbl">Voci aperte</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.pct }}%</span><span class="fmd-lbl">Completamento A/P</span></div>
+          {% endif %}
+          {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo inserimento</a>{% endif %}
+        </div>
+      </div>
+    </section>
+
+    {# ── Il mio lavoro: per tutti ─────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block" id="mio-lavoro">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Il mio lavoro <span class="fmd-count">{{ mie|length }}</span></div>
+        <div class="fmd-block-aside">
+          {% if n_mie_scadute %}<span class="fmd-badge fmd-b-red">{{ n_mie_scadute }} scadut{{ n_mie_scadute|pluralize:"a,e" }}</span>{% endif %}
+          {% if n_mie_in_scadenza %}<span class="fmd-badge fmd-b-orange">{{ n_mie_in_scadenza }} entro 30 giorni</span>{% endif %}
+        </div>
+      </div>
+      {% if mie %}
+      <ul class="ofih-voci">
+        {% for v in mie|slice:":8" %}
+        <li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
+          <span class="ofih-testo" title="{{ v.opportunita }}">{{ v.get_fase_display }} · {{ v.processo_sgi|default:v.processo|default:"—" }} · {{ v.opportunita|truncatechars:90 }}</span>
+          <span class="ofih-data{% if v.is_scaduto %} is-bad{% endif %}">{% if v.data_richiesta %}entro {{ v.data_richiesta|date:"d/m/Y" }}{% else %}senza scadenza{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+      <a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:mie' %}">Tutte le mie voci →</a>
+      {% else %}
+      <p class="ofic-vuoto">Nessuna voce aperta di cui sei responsabile.</p>
+      {% endif %}
+    </section>
+
+    {% if ofi_vede_registro %}
+    {% if moduli_opts %}
+    <form method="get" class="fmd-toolbar" style="margin:0 0 12px;">
+      <select class="fmd-select" name="modulo" onchange="this.form.submit()" aria-label="Filtra per modulo">
+        <option value="">Tutti i moduli</option>
+        {% for val, lab in moduli_opts %}<option value="{{ val }}" {% if modulo == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select>
+    </form>
+    {% endif %}
+
+    {# ── Numeri chiave (cliccabili: aprono il registro già filtrato) ───────── #}
+    <div class="ofic-kpi">
+      <a href="{% url 'registro_ofi:lista' %}?aperte=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}"><span class="ofic-num">{{ c.aperte }}</span><span class="ofic-lbl">Voci aperte</span></a>
+      <a href="{% url 'registro_ofi:lista' %}?aperte=1&amp;tipo=NC{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if c.nc_aperte %}is-bad{% endif %}"><span class="ofic-num">{{ c.nc_aperte }}</span><span class="ofic-lbl">di cui non conformità</span></a>
+      <a href="{% url 'registro_ofi:lista' %}?scaduti=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if c.scadute %}is-bad{% endif %}"><span class="ofic-num">{{ c.scadute }}</span><span class="ofic-lbl">Scadute</span></a>
+      <a href="{% url 'registro_ofi:lista' %}?in_scadenza=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if n_in_scadenza %}is-warn{% endif %}"><span class="ofic-num">{{ n_in_scadenza }}</span><span class="ofic-lbl">In scadenza entro 30 giorni</span></a>
+      <a href="{% url 'registro_ofi:lista' %}?senza_responsabile=1{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}" class="{% if c.senza_responsabile %}is-warn{% endif %}"><span class="ofic-num">{{ c.senza_responsabile }}</span><span class="ofic-lbl">Aperte senza responsabile</span></a>
+      <div><span class="ofic-num">{{ c.chiuse_anno }}</span><span class="ofic-lbl">Chiuse negli ultimi 12 mesi</span></div>
+      <div><span class="ofic-num">{% if c.giorni_medi_chiusura is not None %}{{ c.giorni_medi_chiusura }} gg{% else %}—{% endif %}</span><span class="ofic-lbl">Tempo medio di chiusura</span></div>
+      <div class="{% if c.pct_in_tempo is not None and c.pct_in_tempo >= 90 %}is-ok{% endif %}"><span class="ofic-num">{% if c.pct_in_tempo is not None %}{{ c.pct_in_tempo }}%{% else %}—{% endif %}</span><span class="ofic-lbl">Chiuse entro la scadenza</span></div>
+    </div>
+
+    {# ── Da guardare adesso ─────────────────────────────────────────────── #}
+    <div class="ofic-grid" style="margin-bottom:16px;">
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Scadute <span class="fmd-count">{{ n_scadute }}</span></div></div>
+        {% if scadute %}<ul class="ofih-voci">
+          {% for v in scadute %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
+            <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}senza responsabile{% endif %} · {{ v.processo_sgi.codice|default:v.processo|default:"—" }}</span>
+            <span class="ofih-data is-bad">{{ v.data_richiesta|date:"d/m/Y" }}</span></li>{% endfor %}
+        </ul>{% if n_scadute > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?scaduti=1">Tutte le {{ n_scadute }} →</a>{% endif %}
+        {% else %}<p class="ofic-vuoto">Nessuna voce scaduta.</p>{% endif %}
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>In scadenza entro 30 giorni <span class="fmd-count">{{ n_in_scadenza }}</span></div></div>
+        {% if in_scadenza %}<ul class="ofih-voci">
+          {% for v in in_scadenza %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
+            <span class="ofih-testo" title="{{ v.opportunita }}">{% if v.responsabile %}{{ v.responsabile.get_full_name|default:v.responsabile.username }}{% else %}senza responsabile{% endif %} · {{ v.get_fase_display }}</span>
+            <span class="ofih-data">{{ v.data_richiesta|date:"d/m/Y" }}</span></li>{% endfor %}
+        </ul>{% if n_in_scadenza > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?in_scadenza=1">Tutte le {{ n_in_scadenza }} →</a>{% endif %}
+        {% else %}<p class="ofic-vuoto">Nessuna scadenza nei prossimi 30 giorni.</p>{% endif %}
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Senza responsabile <span class="fmd-count">{{ n_senza_resp }}</span></div></div>
+        {% if senza_resp %}<ul class="ofih-voci">
+          {% for v in senza_resp %}<li><a class="ofih-num" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.tipo }} {{ v.numero }}</a>
+            <span class="ofih-testo" title="{{ v.opportunita }}">{{ v.processo_sgi.codice|default:v.processo|default:"—" }} · {{ v.opportunita|truncatechars:60 }}</span>
+            <span class="ofih-data">{{ v.data_apertura|date:"d/m/Y" }}</span></li>{% endfor %}
+        </ul>{% if n_senza_resp > 8 %}<a class="ofih-tutte fmd-data-link" href="{% url 'registro_ofi:lista' %}?senza_responsabile=1">Tutte le {{ n_senza_resp }} →</a>{% endif %}
+        <p class="ofic-vuoto" style="margin-top:6px;">Senza responsabile i solleciti vanno solo alla Qualità.</p>
+        {% else %}<p class="ofic-vuoto">Ogni voce aperta ha un responsabile.</p>{% endif %}
+      </section>
+    </div>
+
+    {# ── Da dove arrivano ───────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Da dove arrivano le voci</div></div>
+      <div class="ofih-origini">
+        {% for r in origini %}
+        <a href="{% url 'registro_ofi:lista' %}?origine={{ r.chiave }}&amp;aperte=1"><b>{{ r.n }}</b><span>{{ r.etichetta }}</span><small>aperte · {{ r.totale }} in totale</small></a>
+        {% endfor %}
+      </div>
+    </section>
+
+    {# ── Processi del catalogo ──────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Voci aperte per processo del catalogo</div>
+        {% if n_senza_processo %}<div class="fmd-block-aside"><a class="fmd-data-link" href="{% url 'registro_ofi:lista' %}?processo=0&amp;aperte=1">{{ n_senza_processo }} senza processo del catalogo</a></div>{% endif %}
+      </div>
+      {% if righe_processo %}
+      <div class="fmd-tablewrap" data-fm-table-skip="1"><table class="ofih-tab">
+        <thead><tr><th>Processo</th><th class="n">Aperte</th><th class="n">di cui NC</th><th class="n">Scadute</th><th></th></tr></thead>
+        <tbody>
+          {% for r in righe_processo %}
+          <tr><td><a class="fmd-data-link" href="{% url 'sistema_gestione:processo_dettaglio' r.processo.pk %}#ofi">{{ r.processo }}</a></td>
+            <td class="n">{{ r.aperte }}</td>
+            <td class="n">{% if r.nc %}<span class="fmd-badge fmd-b-red">{{ r.nc }}</span>{% else %}0{% endif %}</td>
+            <td class="n">{% if r.scadute %}<span class="fmd-badge fmd-b-red">{{ r.scadute }}</span>{% else %}0{% endif %}</td>
+            <td style="text-align:right;"><a class="fmd-data-link" href="{% url 'registro_ofi:lista' %}?processo={{ r.processo.pk }}&amp;aperte=1">Voci →</a></td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="ofic-vuoto">Nessuna voce aperta collegata a un processo del catalogo.</p>{% endif %}
+    </section>
+
+    {# ── Andamento e analisi ────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Andamento: voci aperte e chiuse per mese</div></div>
+      <div class="ofic-trend-wrap"><div class="ofic-trend" role="img" aria-label="Voci aperte e chiuse negli ultimi 12 mesi">
+        {% for r in c.andamento %}
+        <div class="ofic-mese" title="{{ r.etichetta }}: {{ r.aperte }} aperte, {{ r.chiuse }} chiuse">
+          <div class="ofic-colonne"><span class="ofic-ap" style="height:{{ r.h_aperte }}%"></span><span class="ofic-ch" style="height:{{ r.h_chiuse }}%"></span></div>
+          <span class="ofic-et">{{ r.etichetta }}</span>
+        </div>
+        {% endfor %}
+      </div></div>
+      <div class="ofic-legenda"><span><i class="ofic-ap"></i>Aperte nel mese</span><span><i class="ofic-ch"></i>Chiuse nel mese</span></div>
+    </section>
+
+    <div class="ofic-grid" style="margin-bottom:16px;">
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title">Aperte per fase PDCA</div></div>
+        <ul class="ofic-bars">
+          {% for r in c.per_fase %}<li><a class="ofic-nome" href="{% url 'registro_ofi:lista' %}?fase={{ r.chiave }}{% if modulo %}&amp;modulo={{ modulo|urlencode }}{% endif %}">{{ r.nome }}</a><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.aperte|default:1 100 %}%"></span></span></li>{% endfor %}
+        </ul>
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title">Anzianità delle voci aperte</div></div>
+        <ul class="ofic-bars">
+          {% for r in c.anzianita %}<li><span class="ofic-nome">{{ r.etichetta }}</span><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.aperte|default:1 100 %}%"></span></span></li>{% endfor %}
+        </ul>
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title">Aperte per fonte del rilievo</div></div>
+        {% if c.per_fonte %}<ul class="ofic-bars">
+          {% for r in c.per_fonte %}<li><span class="ofic-nome" title="{{ r.nome }}">{{ r.nome }}</span><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.aperte|default:1 100 %}%"></span></span></li>{% endfor %}
+        </ul>{% else %}<p class="ofic-vuoto">Nessuna voce aperta.</p>{% endif %}
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title">Aperte per norma</div></div>
+        {% if c.per_norma %}<ul class="ofic-bars">
+          {% for r in c.per_norma %}<li><span class="ofic-nome">{{ r.nome }}</span><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.aperte|default:1 100 %}%"></span></span></li>{% endfor %}
+        </ul>{% else %}<p class="ofic-vuoto">Nessuna norma indicata sulle voci aperte.</p>{% endif %}
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title">Rilievi ricorrenti (3 o più in 12 mesi)</div></div>
+        {% if c.ricorrenti %}<ul class="ofic-bars">
+          {% for r in c.ricorrenti %}<li><a class="ofic-nome" href="{% url 'registro_ofi:lista' %}?q={{ r.nome|urlencode }}" title="{{ r.nome }}">{{ r.nome }}</a><span class="ofic-n">{{ r.n }}</span><span class="ofic-bar"><span style="width:{% widthratio r.n c.ricorrenti.0.n 100 %}%"></span></span></li>{% endfor %}
+        </ul>{% else %}<p class="ofic-vuoto">Nessun processo con 3 o più voci negli ultimi 12 mesi.</p>{% endif %}
+      </section>
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clock"/></svg>Attività recente</div></div>
+        {% if eventi %}<ul class="ofih-crono">
+          {% for ev in eventi %}<li><time datetime="{{ ev.quando|date:'c' }}">{{ ev.quando|date:"d/m/Y H:i" }}</time>
+            <span><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' ev.voce_id %}">{{ ev.voce.tipo }} {{ ev.voce.numero }}</a> · {{ ev.get_tipo_display }}{% if ev.a %}: {{ ev.a }}{% endif %}
+              <span class="ofih-chi">· {% if ev.utente %}{{ ev.utente.get_full_name|default:ev.utente.username }}{% else %}sistema{% endif %}</span></span></li>{% endfor %}
+        </ul>{% else %}<p class="ofic-vuoto">Nessuna attività registrata.</p>{% endif %}
+      </section>
+    </div>
+    {% else %}
+    <section class="fmd-panel fmd-block">
+      <p class="ofic-vuoto">Il registro completo e la dashboard sono di chi gestisce la qualità. Qui vedi le voci di cui sei responsabile: aprile per descrivere cosa hai fatto e caricare le evidenze.</p>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -110,7 +110,7 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/partials/_export_buttons.html" with export_key="organigramma" %}
       {% include "anagrafica/components/organigramma_viste.html" with attiva="elenco" %}
-      {% if is_anagrafica_admin %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:coerenza_capi' %}">⚖ Coerenza capi</a>{% endif %}
+      {% if is_anagrafica_admin %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:coerenza_capi' %}">⚖ Capo di ogni persona</a>{% endif %}
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa</button>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>

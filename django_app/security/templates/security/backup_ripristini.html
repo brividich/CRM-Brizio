@@ -1,0 +1,72 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Prove di ripristino | Security Center AI{% endblock %}
+{% block page_icon %}B{% endblock %}
+{% block page_marker %}Backup{% endblock %}
+{% block page_title %}Prove di ripristino dei backup{% endblock %}
+
+{% block soc_content %}
+{% include "security/partials/backup_subnav.html" with active="ripristini" %}
+
+<section class="sec-grid sec-kpi-grid">
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Ultima prova riuscita</span>
+    <strong class="sec-kpi-value{% if stato.in_ritardo %} critical{% endif %}">{% if stato.ultima_riuscita %}{{ stato.ultima_riuscita.data|date:"d/m/Y" }}{% else %}mai{% endif %}</strong>
+    <span class="sec-kpi-delta{% if not stato.in_ritardo %} sec-good{% endif %}">{% if stato.ultima_riuscita %}{{ stato.ultima_riuscita.sistema }}{% else %}nessuna prova registrata{% endif %}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Prossima prova entro</span>
+    <strong class="sec-kpi-value{% if stato.in_ritardo %} critical{% endif %}">{% if stato.prossima_entro %}{{ stato.prossima_entro|date:"d/m/Y" }}{% else %}subito{% endif %}</strong>
+    <span class="sec-kpi-delta{% if not stato.in_ritardo %} sec-good{% endif %}">{% if stato.in_ritardo %}in ritardo{% if stato.giorni_ritardo %} di {{ stato.giorni_ritardo }} giorn{{ stato.giorni_ritardo|pluralize:"o,i" }}{% endif %}{% else %}cadenza ogni {{ stato.cadenza_giorni }} giorni{% endif %}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Prove registrate</span>
+    <strong class="sec-kpi-value">{{ prove|length }}</strong>
+    <span class="sec-kpi-delta sec-good">ISO 27001 8.13: cadenza in <a href="{% url 'security:soc_settings' %}">Impostazioni</a></span>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Registra una prova</h2><small class="sec-muted">una prova fallita apre da sola un alert del SOC</small></div>
+  <form method="post" enctype="multipart/form-data" class="sec-form inc-form" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="sec-message sec-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <div class="inc-grid">
+      {% include "security/partials/incident_field.html" with field=form.data %}
+      {% include "security/partials/incident_field.html" with field=form.sistema %}
+      {% include "security/partials/incident_field.html" with field=form.job %}
+      {% include "security/partials/incident_field.html" with field=form.esito %}
+      {% include "security/partials/incident_field.html" with field=form.cosa_ripristinato wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.durata_minuti %}
+      {% include "security/partials/incident_field.html" with field=form.eseguito_da %}
+      {% include "security/partials/incident_field.html" with field=form.note wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.allegato %}
+    </div>
+    <div class="sec-actions" style="margin-top: 10px;"><button type="submit" class="sec-button sec-button-primary">Registra la prova</button></div>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Registro delle prove</h2><span class="sec-badge">{{ prove|length }}</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Data</th><th>Esito</th><th>Sistema</th><th>Cosa è stato ripristinato</th><th class="sec-num">Durata</th><th>Eseguita da</th><th>Note</th></tr></thead>
+      <tbody>
+      {% for p in prove %}
+        <tr>
+          <td class="sec-nowrap">{{ p.data|date:"d/m/Y" }}</td>
+          <td><span class="sec-badge {% if p.esito == 'ok' %}sec-badge-success{% else %}sec-badge-critical{% endif %}">{{ p.get_esito_display }}</span>{% if p.alert %} <a href="{% url 'security:alert_detail' p.alert.pk %}"><small>alert #{{ p.alert.pk }}</small></a>{% endif %}</td>
+          <td class="sec-title-cell"><strong>{{ p.sistema }}</strong>{% if p.job %}<small>{{ p.job }}</small>{% endif %}</td>
+          <td style="white-space: pre-line;">{{ p.cosa_ripristinato }}</td>
+          <td class="sec-num sec-nowrap">{% if p.durata_minuti %}{{ p.durata_minuti }} min{% else %}—{% endif %}</td>
+          <td>{{ p.eseguito_da|default:"—" }}</td>
+          <td>{{ p.note|default:"—" }}{% if p.allegato %} <a href="{% url 'security:backup_ripristino_allegato' p.pk %}">allegato</a>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sec-empty">Nessuna prova di ripristino registrata: la prima è attesa subito.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

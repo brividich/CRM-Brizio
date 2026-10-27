@@ -212,6 +212,16 @@ def alert_detail(request, pk, ai=None):
     from security.services.investigation import playbook, precedents, related_facts
 
     context.update({"facts": related_facts(alert), "history": precedents(alert), "book": playbook(alert)})
+    # ISO 27001 5.25 (tempi di presa in carico) e 5.28 (integrità e custodia delle evidenze).
+    from security.services import evidenze, triage_tempi
+
+    context["triage"] = triage_tempi.stato(alert)
+    evidence = list(evidence)
+    for container in evidence:
+        container.integrita_label = evidenze.LABELS.get(container.integrita, "Non verificata")
+        container.integrita_tone = evidenze.TONES.get(container.integrita, "muted")
+    evidenze.registra_visione(evidence, request.user.username if request.user.is_authenticated else "anonimo")
+    context["evidence"] = evidence
     if alert.event_id and alert.event.event_type == "cve_impact_confirmed":
         # Alert «PC con versione vulnerabile»: stato PC per PC e prove per la chiusura.
         from security.services import cve_chiusura
@@ -222,6 +232,48 @@ def alert_detail(request, pk, ai=None):
             "cve_chiusura_puo_escludere": can_manage_security_config(request.user),
         })
     return render(request, "security/alert_detail.html", context)
+
+
+@require_POST
+def evidence_verify(request, pk):
+    """«Verifica integrità» (ISO 27001 5.28): ricalcola la SHA-256 e registra l'esito in custodia e audit."""
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    from core.audit import log_action
+
+    from security.models import SecurityEvidenceContainer
+    from security.services import evidenze
+
+    container = get_object_or_404(SecurityEvidenceContainer, pk=pk)
+    actor = request.user.username if request.user.is_authenticated else "ui"
+    esito = evidenze.verifica(container, actor)
+    log_action(request, "evidenza_verifica", "security", {"contenitore": str(container.pk), "esito": esito["esito"]}, oggetto=container)
+    if esito["esito"] == evidenze.VERIFIED:
+        messages.success(request, f"Evidenza «{container.title}»: integra (SHA-256 {container.sha256[:12]}…).")
+    else:
+        messages.error(request, f"Evidenza «{container.title}»: ALTERATA, il contenuto non corrisponde più all'impronta.")
+    back = container.alert_id and reverse("security:alert_detail", args=[container.alert_id])
+    return redirect(back or "security:alerts_list")
+
+
+def evidence_export(request, pk):
+    """Esportazione JSON del contenitore con impronta e catena di custodia (registrata)."""
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    from django.http import JsonResponse
+
+    from core.audit import log_action
+
+    from security.models import SecurityEvidenceContainer
+    from security.services import evidenze
+
+    container = get_object_or_404(SecurityEvidenceContainer, pk=pk)
+    actor = request.user.username if request.user.is_authenticated else "ui"
+    data = evidenze.esporta(container, actor)
+    log_action(request, "evidenza_esporta", "security", {"contenitore": str(container.pk)}, oggetto=container)
+    response = JsonResponse(data, json_dumps_params={"ensure_ascii": False, "indent": 2})
+    response["Content-Disposition"] = f'attachment; filename="evidenza-{str(container.pk)[:8]}.json"'
+    return response
 
 
 @require_POST
@@ -1106,12 +1158,16 @@ def _open_cases():
 
 
 def _decorate_alerts(alerts):
+    from security.services import triage_tempi
+
     decorated = []
     for alert in alerts:
         alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
         alert.linked_ticket = _alert_case(alert)
         alert.last_seen_at = alert.event.occurred_at if alert.event_id else alert.updated_at
         decorated.append(alert)
+    # ISO 27001 5.25: «oltre il tempo di presa in carico» (alert.triage), una sola query sul log.
+    triage_tempi.decora(decorated)
     return decorated
 
 
@@ -1174,11 +1230,13 @@ _DOC_META = {
     "16_IMPOSTAZIONI_E_AI.md": ("Impostazioni e AI", "Avvisi automatici su mail e Teams, report programmato, funzioni dell'AI aziendale e suoi limiti."),
     "17_MODULI_DIAGNOSTICA_DOCUMENTAZIONE.md": ("Moduli, diagnostica e documentazione", "Stato di ogni modulo, controllo salute della catena, test di riconoscimento di una mail, elenco della documentazione."),
     "18_REGISTRO_ACCESSI.md": ("Registro accessi", "Log dei server e degli apparati in un archivio sigillato, amministratori di sistema, account AD, verifica annuale del Garante, ESXi e iLO."),
+    "19_CONFORMITA_ISO27001.md": ("Conformità ISO 27001", "I controlli dell'Annex A coperti dal SOC verificati dai dati, soglie, pacchetto mensile di evidenze e cosa resta da fare a mano."),
     "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
 }
 # Guide d'uso per chi lavora nel SOC, in cima alla pagina Guida (gli altri documenti sono per chi configura).
 USER_GUIDE_FILES = ("13_LAVORO_QUOTIDIANO.md", "14_INCIDENTI_E_REPORT.md", "15_BACKUP_VPN_KPI_ASSET.md",
-                    "12_AUTOMATISMI_E_VULNERABILITA.md", "16_IMPOSTAZIONI_E_AI.md", "18_REGISTRO_ACCESSI.md")
+                    "12_AUTOMATISMI_E_VULNERABILITA.md", "16_IMPOSTAZIONI_E_AI.md", "18_REGISTRO_ACCESSI.md",
+                    "19_CONFORMITA_ISO27001.md")
 SECURITY_CENTER_DOCS = [
     {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
     for f in _DOC_FILES

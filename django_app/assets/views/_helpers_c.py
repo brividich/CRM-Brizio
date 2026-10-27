@@ -25,6 +25,7 @@ from core.module_branding import (
 )
 from core.module_registry import resolve_module_label
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+from .. import sidebar_icone
 from ..forms import (
     IT_DEVICE_TYPES,
 )
@@ -106,10 +107,11 @@ def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
     section_label = dict(AssetSidebarButton.SECTION_CHOICES)
     section_order = {
         AssetSidebarButton.SECTION_MAIN: 0,
-        AssetSidebarButton.SECTION_ANALYTICS: 1,
-        AssetSidebarButton.SECTION_OPERATIONS: 2,
+        AssetSidebarButton.SECTION_OPERATIONS: 1,
+        AssetSidebarButton.SECTION_IT: 2,
+        AssetSidebarButton.SECTION_ANALYTICS: 3,
         # Ultima: e' la piu' lunga e la meno usata per navigare.
-        AssetSidebarButton.SECTION_CATEGORIES: 3,
+        AssetSidebarButton.SECTION_CATEGORIES: 4,
     }
     configured = list(
         AssetSidebarButton.objects.filter(is_visible=True)
@@ -383,6 +385,7 @@ def _assets_shell_context(
     display_label = resolve_module_label("assets", fallback="Assets", surface="display")
     return {
         "assets_sidebar_groups": _build_sidebar_groups(request, rows=rows),
+        "assets_sidebar_icone": {"impostazioni": sidebar_icone.INGRANAGGIO, "guida": sidebar_icone.GUIDA},
         "assets_section_nav": _assets_section_nav(request),
         "assets_shell_search_action": search_action or reverse("assets:asset_list"),
         "assets_shell_new_url": new_url or reverse("assets:asset_create"),
@@ -401,7 +404,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     Configurazione): stessa definizione, stesso ordine e stesse etichette della
     sidebar.
     """
-    from ..maintenance_nav import GROUP_OPERATIVO, find_active
+    from ..maintenance_nav import GROUP_IT, GROUP_OPERATIVO, find_active
 
     current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
     found = find_active(current_route)
@@ -424,10 +427,10 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         items.append({"key": item.key, "label": item.label, "url": url, "active": item.key == active_item.key})
 
     workorders_url = reverse("assets:wo_list")
-    breadcrumbs = [
-        {"label": "Assets", "url": reverse("assets:asset_dashboard")},
-        {"label": "Manutenzione", "url": reverse("assets:maintenance_responsabile")},
-    ]
+    breadcrumbs = [{"label": "Assets", "url": reverse("assets:asset_dashboard")}]
+    # IT e rete non e' Manutenzione: nel percorso compare da sola.
+    if group.key != GROUP_IT:
+        breadcrumbs.append({"label": "Manutenzione", "url": reverse("assets:maintenance_responsabile")})
     if group.key != GROUP_OPERATIVO:
         breadcrumbs.append({"label": group.label, "url": reverse(f"assets:{group.items[0].route}")})
     breadcrumbs.append({"label": active_item.label, "url": ""})

@@ -3951,7 +3951,9 @@ class AssetsRoutingTests(TestCase):
             reverse("assets:maintenance_plan_list"), fetch_redirect_response=False,
         )
         self.assertContains(plans_response, f'href="{reverse("assets:assistance_contract_list")}">Contratti assistenza</a>', html=False)
-        self.assertContains(plans_response, f'href="{reverse("assets:software_license_list")}">Licenze software</a>', html=False)
+        # Licenze, catalogo software, indirizzi e rack sono il ramo «IT e rete» (0156): non piu' qui.
+        self.assertContains(plans_response, f'href="{reverse("assets:mtconnect_collegamenti")}">Macchine collegate</a>', html=False)
+        self.assertNotContains(plans_response, f'class="as-section-tab" href="{reverse("assets:software_license_list")}"', html=False)
         self.assertContains(
             hub_response,
             f'class="as-section-action as-section-action--primary" href="{reverse("assets:wo_list")}?create=1" data-as-section-action="new-workorder">+ Nuovo intervento</a>',

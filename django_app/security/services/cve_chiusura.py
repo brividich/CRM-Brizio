@@ -353,10 +353,16 @@ def escludi_pc(alert, host, motivo, actor, annulla=False):
         if riga["stato"] != NON_VERIFICABILE:
             raise ValueError(f"Si può escludere solo un PC non verificabile; questo è «{riga['stato_label']}».")
         azione = AZIONE_PC_ESCLUSO
-    return SecurityAlertActionLog.objects.create(alert=alert, action=azione, actor=actor or "ui", details={
+    log = SecurityAlertActionLog.objects.create(alert=alert, action=azione, actor=actor or "ui", details={
         "cve": info["cve"], "host": host, "motivo": motivo, "stato_prima": riga["stato"],
         "testo": f"{riga['host_display']}: {'di nuovo nella verifica' if annulla else 'escluso dalla verifica'} da {actor or 'ui'}: {motivo}",
     })
+    from security.services import traccia
+
+    traccia.registra(traccia.CVE_PC_INCLUSO if annulla else traccia.CVE_PC_ESCLUSO, {
+        "alert_id": alert.pk, "cve": info["cve"], "host": host, "motivo": motivo, "stato_prima": riga["stato"], "timeline_id": log.pk,
+    }, oggetto=alert, attore=actor or "ui")
+    return log
 
 
 # --- Recidiva ------------------------------------------------------------------------------
@@ -395,6 +401,12 @@ def riapri_recidiva(event):
             "old_status": vecchio, "new_status": Status.OPEN, "reason": motivo, "hosts": hosts[:50], "giorni": giorni,
             "testo": motivo + (" PC: " + ", ".join(hosts[:10]) if hosts else ""),
         })
+        from security.services import traccia
+
+        traccia.registra(traccia.CVE_RECIDIVA, {
+            "alert_id": alert.pk, "cve": cve_di(alert), "old_status": vecchio, "new_status": Status.OPEN, "reason": motivo,
+            "hosts": hosts[:20], "giorni": giorni, "evento_id": event.pk, "regola": RULE_CODE,
+        }, oggetto=alert)
         return alert
     return None
 

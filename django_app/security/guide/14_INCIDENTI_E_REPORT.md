@@ -55,6 +55,27 @@ Quando hai inviato una notifica, nella scheda dell'incidente premi **Registra l'
 
 Nel registro si filtra per stato, ambito (significativi NIS2, con dati personali) e anno. **Scarica registro PDF** produce il registro dell'anno scelto. Con la selezione multipla si può diventare responsabili o cambiare stato a più incidenti insieme.
 
+## Lezioni apprese e azioni correttive
+
+Quando un incidente è **risolto** o **chiuso**, nella scheda va compilato il riquadro **Lezioni apprese**: la **causa** (obbligatoria), cosa ha funzionato, cosa migliorare. È il riesame che la norma ISO/IEC 27001 chiede dopo ogni incidente (controllo 5.27: imparare dagli incidenti). La chiusura non viene bloccata: finché il riesame manca, l'incidente mostra **Riesame mancante** (nel registro e nella scheda) e, dopo i giorni impostati (7 di default), parte un promemoria sui canali scelti in [Impostazioni](/soc/docs/16-impostazioni-e-ai/#avvisi-automatici). Il riesame finisce anche nel campo «Lezioni apprese» e nella scheda PDF.
+
+Le **azioni correttive** (es. «MFA su tutti gli account VPN») hanno un responsabile e una scadenza: **Segna fatta** quando è conclusa. Un'azione scaduta e non fatta è **In ritardo** e riceve un promemoria (uno nei 3 giorni prima della scadenza, uno quando è scaduta). Tutto resta nella traccia dell'incidente.
+
+## Ruoli e contatti per gli incidenti
+
+La scheda dell'incidente e il PDF riportano **chi fa cosa** quando succede un incidente (ISO 27001 5.24: prepararsi prima): responsabile degli incidenti, sostituto, contatto CSIRT Italia / ACN per le notifiche NIS2, fornitore IT di supporto. Si scrivono una volta in **Impostazioni › Gestione degli incidenti**; se mancano, la scheda mostra **Da completare**.
+
+## Tempi di presa in carico degli alert
+
+Ogni alert va **preso in carico** da una persona entro un tempo che dipende dalla gravità (ISO 27001 5.25 e 5.26): critica **1 ora**, alta **4 ore**, media e attenzione **24 ore**, bassa e info **72 ore**; la chiusura è attesa entro **30 giorni**. I tempi si cambiano in Impostazioni. Conta la prima azione di una persona nella timeline dell'alert (presa in carico, chiusura, rinvio, silenzio, falso positivo): le azioni automatiche del sistema non contano.
+
+- Un alert mai preso in carico oltre il tempo mostra **oltre il tempo di presa in carico** nell'elenco e nella scheda; con gli avvisi accesi parte **un** avviso per alert (si ferma da solo quando qualcuno lo prende in carico).
+- La scheda dell'alert riporta quando è stato preso in carico, in quante ore rispetto all'obiettivo, e il tempo di risoluzione quando è chiuso.
+
+## Integrità delle evidenze
+
+Ogni contenitore di evidenze di un alert viene **sigillato** alla nascita con un'impronta SHA-256 del contenuto (ISO 27001 5.28: le prove devono restare quelle). Nella scheda dell'alert, tabella **Evidenze correlate**: **Verifica integrità** ricalcola l'impronta e dice **Integra** o **Alterata**; **Esporta** scarica il contenitore in JSON con impronta e **catena di custodia** (chi l'ha creato, sigillato, guardato, esportato, verificato). Ogni verifica ed esportazione resta anche nel registro audit del portale. I contenitori nati prima di questa funzione vengono sigillati dal ciclo automatico.
+
 ## Report periodico
 
 **Report** mostra l'andamento di un periodo: settimana scorsa, mese scorso, ultimi 30 giorni, mese corrente o un intervallo libero fino a un anno.

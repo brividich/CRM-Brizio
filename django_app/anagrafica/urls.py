@@ -11,6 +11,7 @@ from . import views_mansionario
 from . import views_struttura
 from . import views_struttura_org
 from . import views_coerenza_capi
+from . import views_capi_reparti
 from . import views_mio_team
 from . import views_mia_scheda
 from . import views_retention
@@ -249,7 +250,10 @@ urlpatterns = [
     path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
 
     # Aree aziendali + Reparti (gerarchia a due livelli)
-    path("aree/", views.aree_list, name="aree_list"),
+    path("aree/", views_capi_reparti.reparti_capi, name="aree_list"),
+    path("aree/capi/passaggio", views_capi_reparti.capi_passaggio, name="capi_passaggio"),
+    path("aree/capi/<int:mansione_id>/assegna", views_capi_reparti.capo_assegna, name="capo_assegna"),
+    path("aree/capi/togli/<int:abilitazione_id>", views_capi_reparti.capo_togli, name="capo_togli"),
     # Aree aziendali (livello padre)
     path("aree/area-aziendale/nuova", views.area_aziendale_create, name="area_aziendale_create"),
     path("aree/area-aziendale/<int:area_id>/modifica", views.area_aziendale_edit, name="area_aziendale_edit"),

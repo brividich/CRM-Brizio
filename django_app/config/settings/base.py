@@ -567,6 +567,7 @@ INSTALLED_APPS = [
     "schede_sicurezza.apps.SchedeSicurezzaConfig",
     "report_conformita.apps.ReportConformitaConfig",
     "sistema_gestione.apps.SistemaGestioneConfig",
+    "registro_ofi.apps.RegistroOfiConfig",
     "glossario_tecnico.apps.GlossarioTecnicoConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",

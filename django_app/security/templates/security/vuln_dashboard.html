@@ -30,6 +30,33 @@
 </section>
 {% endif %}
 
+{% if termini %}
+<section class="sec-panel" style="margin-top: 12px;" id="tempi-di-correzione">
+  <div class="sec-section-head"><h2>Tempi di correzione (ISO 27001 8.8, ultimi {{ termini.giorni }} giorni)</h2><span class="sec-small"><a href="{% url 'security:accettazioni_rischio' %}">Rischi accettati</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">Guida</a></span></div>
+  <p class="sec-small">
+    PC corretti nel termine: <strong>{% if termini.percentuale_in_tempo is not None %}{{ termini.percentuale_in_tempo }}%{% else %}—{% endif %}</strong> ({{ termini.in_tempo }} su {{ termini.corrette }}) ·
+    esposizioni aperte {{ termini.aperte }}, di cui <strong>{{ termini.aperte_scadute|length }} oltre il termine</strong>{% if termini.accettate %}, {{ termini.accettate }} con rischio accettato{% endif %}.
+    {% if not termini.attivo %}<span class="sec-badge warning">Segnalazione oltre il termine spenta</span>{% endif %}
+  </p>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Classe</th><th class="sec-num">Termine</th><th class="sec-num">Corrette</th><th class="sec-num">Nel termine</th><th class="sec-num">In ritardo</th><th class="sec-num">Aperte</th><th class="sec-num">Oltre il termine</th></tr></thead>
+      <tbody>{% for c in termini.classi %}<tr><td>{{ c.etichetta }}</td><td class="sec-num">{{ c.giorni }} gg</td><td class="sec-num">{{ c.corrette }}</td><td class="sec-num">{{ c.in_tempo }}</td><td class="sec-num">{{ c.in_ritardo }}</td><td class="sec-num">{{ c.aperte }}</td><td class="sec-num">{% if c.aperte_scadute %}<strong>{{ c.aperte_scadute }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% if termini.aperte_scadute %}
+  <details style="margin-top: 8px;"><summary>PC oltre il termine ({{ termini.aperte_scadute|length }}{% if termini.aperte_scadute|length == 15 %}, i primi 15{% endif %})</summary>
+    <div class="sec-table-wrap">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>CVE</th><th>PC</th><th>Classe</th><th>Scadenza</th><th class="sec-num">Ritardo</th><th>Rischio</th></tr></thead>
+        <tbody>{% for v in termini.aperte_scadute %}<tr><td><a href="{% url 'security:cve_detail' v.cve %}">{{ v.cve }}</a></td><td><a href="{% url 'security:pc_detail' %}?nome={{ v.host|urlencode }}">{{ v.host }}</a></td><td>{{ v.etichetta }}</td><td class="sec-nowrap">{{ v.scadenza|date:"d/m/Y" }}</td><td class="sec-num">{{ v.giorni_ritardo }} gg</td><td>{% if v.accettata %}<span class="sec-badge sec-badge-muted">accettato</span>{% else %}<span class="sec-badge sec-badge-critical">da correggere</span>{% endif %}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>CVE che impattano o da verificare</h2><span class="sec-muted sec-small">ordine: KEV, CVSS, EPSS, host impattati</span></div>
   <div class="sec-table-wrap">

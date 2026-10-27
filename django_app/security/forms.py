@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from .models import (
     SecurityMailboxSource,
     BackupExpectedJobConfig,
+    BackupRestoreTest,
     SecurityAlertRuleConfig,
     SecurityAlertSuppressionRule,
     SecurityCenterSetting,
@@ -480,3 +481,26 @@ class SecurityIncidentForm(forms.ModelForm):
         if cleaned.get("significance_criteria") and not cleaned.get("is_significant"):
             self.add_error("is_significant", "Hai indicato un criterio di significatività: l'incidente è significativo.")
         return cleaned
+
+
+class BackupRestoreTestForm(forms.ModelForm):
+    """Prova di ripristino (ISO 27001 8.13): registro in Backup › Prove di ripristino."""
+
+    class Meta:
+        model = BackupRestoreTest
+        fields = ["data", "sistema", "job", "cosa_ripristinato", "esito", "durata_minuti", "eseguito_da", "note", "allegato"]
+        labels = {
+            "data": "Data della prova", "sistema": "Sistema", "job": "Job di backup", "cosa_ripristinato": "Cosa è stato ripristinato",
+            "esito": "Esito", "durata_minuti": "Durata (minuti)", "eseguito_da": "Eseguita da", "note": "Note", "allegato": "Allegato (facoltativo)",
+        }
+        widgets = {
+            "data": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "cosa_ripristinato": forms.Textarea(attrs={"rows": 2}),
+            "note": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def clean_allegato(self):
+        allegato = self.cleaned_data.get("allegato")
+        if allegato and allegato.size > 10 * 1024 * 1024:
+            raise ValidationError("L'allegato supera i 10 MB.")
+        return allegato

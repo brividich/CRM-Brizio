@@ -45,6 +45,8 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
 </style>
 {% endblock %}
 
+{% block subnav %}{% include "registro_ofi/components/subnav.html" %}{% endblock %}
+
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
@@ -56,7 +58,8 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
     <div class="fmd-hero-inner">
       <div>
         <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Qualità / SGI · Costruzioni Novicrom · MOD.174 Rev.0</div>
-        <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>Registro OFI / NC{% if modulo %} — {{ modulo_label }}{% endif %}</h1>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>Registro OFI / NC{% if modulo %} — {{ modulo_label }}{% endif %}{% if processo_obj %} — {{ processo_obj }}{% endif %}</h1>
+        {% if processo_obj %}<p class="fmd-sub">Solo le voci del processo <a href="{% url 'sistema_gestione:processo_dettaglio' processo_obj.pk %}#ofi" style="color:inherit;font-weight:700;text-decoration:underline;">{{ processo_obj }}</a>. <a href="{% url 'registro_ofi:lista' %}">Tutto il registro</a></p>{% elif processo == "0" %}<p class="fmd-sub">Solo le voci senza processo del catalogo: aprile e scegli il processo per collegarle. <a href="{% url 'registro_ofi:lista' %}">Tutto il registro</a></p>{% endif %}
         <p class="fmd-sub">Registro trasversale delle Opportunità di miglioramento e non conformità con ciclo <strong>PLAN-DO-CHECK-ACT</strong>, normative, priorità, owner di processo e scadenza con reminder. {% if modulo %}<a href="{% url 'registro_ofi:lista' %}">← Registro unico (tutti i moduli)</a>{% else %}Filtra per modulo per vedere il registro del singolo modulo.{% endif %}</p>
       </div>
       <div class="fmd-hero-side">
@@ -81,6 +84,17 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
         {% for val, lab in moduli_opts %}<option value="{{ val }}" {% if modulo == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
       </select>
       {% endif %}
+      <select class="fmd-select" name="origine" onchange="this.form.submit()" aria-label="Filtra per origine">
+        <option value="">Ogni origine</option>
+        {% for val, lab in ORIGINI %}<option value="{{ val }}" {% if origine == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select>
+      <select class="fmd-select" name="processo" onchange="this.form.submit()" aria-label="Filtra per processo del catalogo">
+        <option value="">Ogni processo</option>
+        <option value="0" {% if processo == "0" %}selected{% endif %}>Senza processo del catalogo</option>
+        {% for p in processi_opts %}<option value="{{ p.pk }}" {% if processo == p.pk|stringformat:"s" %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      {% if in_scadenza %}<input type="hidden" name="in_scadenza" value="1">{% endif %}
+      {% if senza_responsabile %}<input type="hidden" name="senza_responsabile" value="1">{% endif %}
       <select class="fmd-select" name="fase" onchange="this.form.submit()" aria-label="Filtra per fase">
         <option value="">Tutte le fasi</option>
         {% for val, lab in FASE_CHOICES %}<option value="{{ val }}" {% if fase == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
@@ -98,9 +112,10 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
       <label class="fmd-chip{% if solo_mie %} fmd-on{% endif %}" style="cursor:pointer;" title="Voci di cui sei responsabile">
         <input type="checkbox" name="mie" value="1" {% if solo_mie %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Le mie voci{% if n_mie %} ({{ n_mie }} aperte){% endif %}
       </label>
+      {% if in_scadenza %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">In scadenza entro 30 giorni ✕</a>{% endif %}
+      {% if senza_responsabile %}<a class="fmd-chip fmd-on" href="?{% if modulo %}modulo={{ modulo|urlencode }}{% endif %}" title="Togli il filtro">Senza responsabile ✕</a>{% endif %}
       <span class="fmd-spacer"></span>
-      <a href="{% url 'registro_ofi:guida' %}" class="fmd-btn fmd-btn-ghost">Guida</a>
-      <a href="{% url 'registro_ofi:cruscotto' %}{% if modulo %}?modulo={{ modulo|urlencode }}{% endif %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto</a>
+      <a href="{% url 'registro_ofi:home' %}{% if modulo %}?modulo={{ modulo|urlencode }}{% endif %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Dashboard</a>
       <a href="?{% if filtri_query %}{{ filtri_query }}&amp;{% endif %}export=xlsx" class="fmd-btn fmd-btn-ghost" title="Scarica le voci filtrate nel formato del MOD.174"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta Excel</a>
       {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo inserimento</a>{% endif %}
     </form>
@@ -162,7 +177,7 @@ body.theme-dark .ofi-mini-s{background:var(--surface)}
             <td class="ofi-txt">{{ v.fonte|default:"—" }}</td>
             <td><span class="ofi-norma">{% for sigla in v.norme_sigle %}<span class="fmd-badge fmd-b-cyan">{{ sigla }}</span>{% endfor %}</span></td>
             <td class="ofi-txt">{{ v.rif_norma|default:"—" }}</td>
-            <td class="ofi-txt">{{ v.processo|default:"—" }}</td>
+            <td class="ofi-txt">{% if v.processo_sgi %}<a class="fmd-data-link" href="{% url 'sistema_gestione:processo_dettaglio' v.processo_sgi_id %}#ofi" title="Apri la scheda del processo">{{ v.processo|default:v.processo_sgi }}</a>{% else %}{{ v.processo|default:"—" }}{% endif %}</td>
             <td class="ofi-txt" title="{{ v.opportunita }}">{{ v.opportunita|default:"—" }}</td>
             <td class="ofi-txt" title="{{ v.plan }}">{{ v.plan|default:"—" }}</td>
             <td class="ofi-txt">{% if v.allegato_link and not v.allegato_link_sicuro %}<span class="fmd-muted" title="{{ v.allegato_link }}">testo</span>{% elif v.allegato_link %}<a class="fmd-data-link" href="{{ v.allegato_link }}" target="_blank" rel="noopener">link</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>

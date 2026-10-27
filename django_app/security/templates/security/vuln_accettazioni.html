@@ -1,0 +1,57 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Rischi accettati | Security Center AI{% endblock %}
+{% block page_icon %}V{% endblock %}
+{% block page_marker %}Vulnerabilità{% endblock %}
+{% block page_title %}Accettazioni del rischio (CVE){% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-muted sec-small">
+    Un'accettazione del rischio è l'eccezione al termine di correzione di una CVE (ISO/IEC 27001:2022, controllo 8.8): finché è attiva,
+    il PC (o tutti i PC) non fa scattare l'alert «oltre il termine»; alla scadenza l'esposizione conta di nuovo, 30 giorni prima arriva
+    un promemoria. Si crea dalla scheda della CVE, con motivo e misure compensative; creazione, revoca e scadenza restano nell'audit sigillato.
+    <a href="{% url 'security:vulnerabilities' %}">Vulnerabilità</a> ·
+    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#accettazione-del-rischio">? Guida</a>
+  </p>
+  <div class="sec-kpi-strip sec-small">
+    <span><strong>{{ counts.attive }}</strong> attive</span> ·
+    <span><strong>{{ counts.in_scadenza }}</strong> in scadenza entro 30 giorni</span> ·
+    <span><strong>{{ counts.scadute }}</strong> scadute</span>
+  </div>
+  <div class="sec-actions" style="margin-top: 8px;">
+    {% for code, label in stati.items %}<a class="sec-button{% if stato == code %} sec-button-primary{% endif %}" href="?stato={{ code }}">{{ label }}</a>{% endfor %}
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>CVE</th><th>Ambito</th><th>Stato</th><th>Scadenza</th><th>Approvata</th><th>Motivo e misure compensative</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for a in righe %}
+        <tr>
+          <td class="sec-title-cell"><a href="{% url 'security:cve_detail' a.cve.cve_id %}">{{ a.cve.cve_id }}</a><br><small class="sec-muted">{% if a.cve.kev %}sfruttata (CISA KEV){% elif a.cve.cvss is not None %}CVSS {{ a.cve.cvss }}{% else %}CVSS n.d.{% endif %}</small></td>
+          <td>{{ a.host|default:"tutti i PC" }}</td>
+          <td>{% if a.stato == "attiva" %}<span class="sec-badge sec-badge-success">Attiva</span>{% elif a.stato == "scaduta" %}<span class="sec-badge warning">Scaduta</span>{% else %}<span class="sec-badge sec-badge-muted">Revocata</span>{% endif %}</td>
+          <td class="sec-nowrap">{% if a.stato == "attiva" and a.scadenza <= in_scadenza %}<span class="sec-badge warning">{{ a.scadenza|date:"d/m/Y" }}</span>{% else %}{{ a.scadenza|date:"d/m/Y" }}{% endif %}</td>
+          <td class="sec-small">{{ a.approvata_da.get_username|default:"—" }}<br>{{ a.approvata_il|date:"d/m/Y H:i" }}</td>
+          <td class="sec-small">{{ a.motivo|linebreaksbr }}{% if a.misure_compensative %}<br><em>Misure: {{ a.misure_compensative|linebreaksbr }}</em>{% endif %}{% if a.revocata_il %}<br><em>Revocata il {{ a.revocata_il|date:"d/m/Y" }} da {{ a.revocata_da.get_username|default:"—" }}{% if a.revoca_motivo %}: {{ a.revoca_motivo }}{% endif %}</em>{% endif %}</td>
+          {% if can_edit %}
+            <td>{% if a.stato == "attiva" %}
+              <form method="post" action="{% url 'security:accettazione_rischio_revoca' a.pk %}" class="sec-inline">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="text" name="motivo" maxlength="500" placeholder="Motivo della revoca" class="sec-input">
+                <button type="submit" class="sec-button" data-hub-confirm="Revocare l'accettazione del rischio? L'esposizione torna a contare per il termine di correzione.">Revoca</button>
+              </form>
+            {% endif %}</td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{% if can_edit %}7{% else %}6{% endif %}" class="sec-empty">Nessuna accettazione del rischio {% if stato != "tutte" %}in questo stato{% endif %}.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

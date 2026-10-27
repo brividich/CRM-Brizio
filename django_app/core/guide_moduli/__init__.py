@@ -51,6 +51,7 @@ _MODULI = (
     "procedure_refresh",
     "rentri",
     "sistema_gestione",
+    "registro_ofi",
     "gestione_specifiche",
     "report_conformita",
     "suggestion_corner",
