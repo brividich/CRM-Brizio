@@ -46,7 +46,7 @@ _ROUTE_BINDINGS = {
     "schede_sicurezza:prodotto_modifica": PERM_GESTISCI,
     "schede_sicurezza:presa_visione_list": PERM_GESTISCI,
     "schede_sicurezza:report_compliance": PERM_GESTISCI,
-    "schede_sicurezza:etichetta_impostazioni": PERM_GESTISCI,
+    "schede_sicurezza:etichetta_impostazioni": "schede_sicurezza.impostazioni.manage",
     "schede_sicurezza:etichetta_anteprima": PERM_GESTISCI,
 }
 
@@ -96,6 +96,10 @@ def _bootstrap_canonical() -> bool:
             changed = changed or created
 
         # 2) binding route -> permesso
+        # Le impostazioni hanno un permesso loro (azione «impostazioni»): core/permessi/impostazioni.py.
+        from core.permessi.impostazioni import assicura_permesso_impostazioni
+
+        assicura_permesso_impostazioni("schede_sicurezza")
         for route_name, code in _ROUTE_BINDINGS.items():
             binding, created = RoutePermissionBinding.objects.get_or_create(
                 route_name=route_name, path_pattern="",

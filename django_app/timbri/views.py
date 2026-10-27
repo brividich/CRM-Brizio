@@ -142,7 +142,10 @@ def _can_download_timbri(request) -> bool:
 
 
 def _can_manage_timbri_config(request) -> bool:
-    return _can_edit_timbri(request)
+    # Con il sistema dei ruoli acceso decide l'azione «impostazioni» della matrice.
+    from core.permessi.impostazioni import impostazioni_o
+
+    return impostazioni_o(request, "timbri", _can_edit_timbri)
 
 
 def _merge_duplicate_legacy_rows(rows: list[dict]) -> list[dict]:

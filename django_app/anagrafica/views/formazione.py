@@ -105,6 +105,7 @@ from ..forms import (
 )
 
 from . import _helpers  # noqa: E402
+from core.permessi.impostazioni import impostazioni_o
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +184,7 @@ def attestato_impostazioni(request):
     legale, logo) e del toggle privacy dei dati personali, da Impostazioni
     Anagrafica HR. Gated dallo stesso permesso di modifica della formazione.
     """
-    if not _helpers._can_edit_formazione(request):
+    if not impostazioni_o(request, "formazione", _helpers._can_edit_formazione):
         messages.error(request, "Non hai i permessi per modificare le impostazioni della formazione.")
         return redirect("anagrafica:formazione_dashboard")
 
@@ -4085,7 +4086,7 @@ def formazione_scansioni_impostazioni(request):
     configura deve poterlo sapere subito invece che dedurlo da una cartella
     che resta vuota.
     """
-    if not _helpers._can_edit_formazione(request):
+    if not impostazioni_o(request, "formazione", _helpers._can_edit_formazione):
         messages.error(request, "Non hai i permessi per modificare le impostazioni della formazione.")
         return redirect("anagrafica:formazione_dashboard")
 
@@ -5294,7 +5295,7 @@ def formazione_elearning_unassign(request, corso_id: int, assignment_id: int):
 def formazione_elearning_settings(request):
     """Impostazioni e-learning (singleton): default dei nuovi micro-corsi e percorso
     LibreOffice per l'import PowerPoint. Gated dal permesso di modifica formazione."""
-    if not _helpers._can_edit_formazione(request):
+    if not impostazioni_o(request, "formazione", _helpers._can_edit_formazione):
         messages.error(request, "Non hai i permessi per modificare le impostazioni e-learning.")
         return redirect("anagrafica:formazione_elearning_hub")
     cfg = ElearningConfig.get_instance()

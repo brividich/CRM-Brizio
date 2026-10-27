@@ -30,6 +30,7 @@ from .services import elearning_fruizione as fruizione
 from .services import elearning_quiz as quiz
 from .services import elearning_tracciamento as tracciamento
 from .services.elearning_regole import regola_corso
+from core.permessi.impostazioni import impostazioni_o
 
 logger = logging.getLogger(__name__)
 MODULE = "anagrafica"
@@ -498,7 +499,7 @@ def _risposta_range(request, campo_file, content_type: str):
 def elearning_impostazioni_corsi(request):
     """Elenco dei corsi con l'interruttore «erogabile online» e lo stato della regola FAD."""
     from .views import _can_edit_formazione
-    if not _can_edit_formazione(request):
+    if not impostazioni_o(request, "formazione", _can_edit_formazione):
         messages.error(request, "Non hai i permessi per le impostazioni e-learning.")
         return redirect("anagrafica:formazione_dashboard")
     from .models_formazione import TrainingCompletionRule

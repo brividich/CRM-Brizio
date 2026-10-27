@@ -159,7 +159,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_attendance": "tasks.kickoff.comment",
     # Gestione amministrativa
     "tasks:gestione_admin": "tasks.kickoff.admin",
-    "tasks:impostazioni": "tasks.kickoff.admin",
+    "tasks:impostazioni": "tasks.impostazioni.manage",
     "tasks:import_excel": "tasks.kickoff.admin",
     "tasks:copy_project_with_vrf": "tasks.kickoff.admin",
     "tasks:copy_project_with_vrf_without_pn": "tasks.kickoff.admin",
@@ -269,6 +269,10 @@ def _bootstrap_canonical_acl(*, seed_role_grants: bool = False) -> bool:
                 permission.save(update_fields=[*updates, "updated_at"])
                 changed = True
 
+        # Le impostazioni hanno un permesso loro (azione «impostazioni»): core/permessi/impostazioni.py.
+        from core.permessi.impostazioni import assicura_permesso_impostazioni
+
+        assicura_permesso_impostazioni("kickoff")
         for route_name, permission_code in _ROUTE_BINDINGS.items():
             binding, created = RoutePermissionBinding.objects.get_or_create(
                 route_name=route_name,

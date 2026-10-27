@@ -56,6 +56,15 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   controlla solo nelle view; con `pagine_azioni` dichiara anche i code di pagina che
   accende lei sola: quei code escono dalle azioni standard e da «vede tutto» (es.
   Assenze `impostazioni`, che toglie Impostazioni e area HR a «gestire»).
+- **Impostazioni dei moduli** (`core/permessi/impostazioni.py`, core 0096-0097): la tabella
+  `IMPOSTAZIONI` dice, per modulo, i permessi di pagina delle impostazioni e le rotte da legare
+  al primo; `registra_modulo` aggiunge da solo l'azione `impostazioni` («↳ Impostazioni del
+  modulo»). Le view di impostazioni usano `impostazioni_o(request, modulo, controllo_storico)`:
+  a sistema acceso decide il permesso delle impostazioni, spento il controllo storico. I
+  bootstrap che rilegano le rotte all'avvio (anagrafica skill matrix, carichi macchina, schede
+  di sicurezza, sistema di gestione, kickoff) usano il codice della tabella. Esclusa
+  «Procedure»: `/procedure-refresh/impostazioni/` è tutta la gestione del modulo. Modulo
+  nuovo con impostazioni = una riga nella tabella + migrazione dati come la 0097.
 - **Interruttore** (`SiteConfig permessi.sistema_ruoli_attivo`, scheda «Sistema»):
   - spento → valgono le regole storiche dei moduli (liste di utenti, ruolo legacy);
     la matrice si prepara senza effetti, salvo i ruoli già assegnati che concedono pagine;

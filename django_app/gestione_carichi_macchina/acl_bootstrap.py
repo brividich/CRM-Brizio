@@ -50,7 +50,7 @@ _ROUTE_BINDINGS = {
     "gestione_carichi_macchina:reschedule": PERM_EDIT,
     "gestione_carichi_macchina:reschedule_undo": PERM_EDIT,
     "gestione_carichi_macchina:pianificazione_duplica": PERM_EDIT,
-    "gestione_carichi_macchina:impostazioni": PERM_EDIT,
+    "gestione_carichi_macchina:impostazioni": "gestione_carichi_macchina.impostazioni.manage",
     "gestione_carichi_macchina:macchina_config": PERM_EDIT,
 }
 
@@ -94,6 +94,10 @@ def _bootstrap_canonical() -> bool:
             changed = changed or created
 
         # 2) binding route -> permesso
+        # Le impostazioni hanno un permesso loro (azione «impostazioni»): core/permessi/impostazioni.py.
+        from core.permessi.impostazioni import assicura_permesso_impostazioni
+
+        assicura_permesso_impostazioni("carichi_macchina")
         for route_name, code in _ROUTE_BINDINGS.items():
             binding, created = RoutePermissionBinding.objects.get_or_create(
                 route_name=route_name, path_pattern="",

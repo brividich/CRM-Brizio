@@ -102,7 +102,9 @@ def calendario(request):
 
 @login_required
 def impostazioni(request):
-    if not _has_perm(request, PERM_AUDIT_APPROVA):
+    from core.permessi.impostazioni import impostazioni_o
+
+    if not impostazioni_o(request, "sistema_gestione", lambda r: _has_perm(r, PERM_AUDIT_APPROVA)):
         return _nega(request, "Le impostazioni degli audit sono riservate a RSGI/Direzione.")
     form = ImpostazioniForm(request.POST or None)
     if request.method == "POST" and form.is_valid():

@@ -66,6 +66,7 @@ from ..services import avviso_it_ingresso
 
 
 from . import _helpers  # noqa: E402
+from core.permessi.impostazioni import impostazioni_o
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +179,7 @@ def api_dipendente_widget_layout(request):
 @login_required
 def widget_permissions(request):
     legacy_user = get_legacy_user(request.user)
-    if not _helpers._is_anagrafica_admin(request):
+    if not impostazioni_o(request, "anagrafica", _helpers._is_anagrafica_admin):
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:index")
 
@@ -607,7 +608,7 @@ def impostazioni(request):
     from django.utils import timezone as tz
 
     legacy_user = get_legacy_user(request.user)
-    is_admin = _helpers._is_anagrafica_admin(request)
+    is_admin = impostazioni_o(request, "anagrafica", _helpers._is_anagrafica_admin)
 
     active_tab = (request.GET.get("tab") or "mansioni").strip().lower()
 
