@@ -34,6 +34,25 @@ def capi_legacy_ids() -> list[int]:
     })
 
 
+def destinatari_legacy_ids() -> list[int]:
+    """Chi riceve il digest: i caporeparto + chi deve approvare almeno una richiesta
+    DPI in attesa (responsabile d'area, co-responsabile, preposto: ``dpi.flusso``)."""
+    ids = set(capi_legacy_ids())
+    try:
+        from dpi.flusso import approvatori_di
+        from dpi.models import RichiestaDPI, StatoRichiesta
+
+        richiedenti = set(
+            RichiestaDPI.objects.filter(stato=StatoRichiesta.INVIATA, richiedente_legacy_id__isnull=False)
+            .values_list("richiedente_legacy_id", flat=True)
+        )
+        for legacy_id in richiedenti:
+            ids.update(approvatori_di(legacy_id))
+    except Exception:
+        logger.debug("destinatari_legacy_ids: approvatori DPI non risolti", exc_info=True)
+    return sorted(ids)
+
+
 def reparto_names_for_capo(capo_legacy_id: int) -> list[str]:
     """Nomi dei reparti attivi guidati da questo caporeparto."""
     from anagrafica.models import Reparto
@@ -92,8 +111,12 @@ def build_caporeparto_digest(capo_legacy_id: int) -> dict:
 
     dpi_in_attesa = []
     try:
+        from dpi.flusso import dipendenti_di_approvatore
         from dpi.models import RichiestaDPI, StatoRichiesta
 
+        # Oltre ai dipendenti assegnati al caporeparto, quelli di cui approva le
+        # richieste DPI (area guidata, co-responsabile, preposto).
+        emp_ids = set(emp_ids) | dipendenti_di_approvatore(capo_legacy_id)
         if emp_ids:
             dpi_in_attesa = list(
                 RichiestaDPI.objects.filter(
