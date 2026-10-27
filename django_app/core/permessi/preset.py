@@ -207,7 +207,7 @@ PRESETS: tuple[Preset, ...] = (
         "hr", "Gestione personale", 460,
         "Incarico: anagrafica completa con dati riservati, gestione assenze, scadenziario visite e referti in custodia.",
         celle=_celle(
-            assenze={"vedere": A, "esportare": A, "creare": A, "gestire": A},
+            assenze={"vedere": A, "esportare": A, "creare": A, "gestire": A, "impostazioni": A},
             anagrafica={**_tutte(senza=("approvare",)), "dati_riservati": A},
             visite_mediche={**_tutte(senza=("approvare", "cancellare")), "referti": A},
             notizie=_tutte(senza=("approvare",)),

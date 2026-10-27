@@ -97,6 +97,19 @@ def codici_per_modulo() -> dict[str, list[str]]:
     return risultato
 
 
+def pagine_azioni_proprie() -> dict[str, dict[str, str]]:
+    """chiave modulo -> {code: azione propria che, sola, lo accende}.
+
+    Sono le pagine dichiarate con ``pagine_azioni`` nel registro: le azioni
+    standard non le toccano, ne' le accende «vede tutto».
+    """
+    return {
+        spec.chiave: {code: azione for azione, codes in spec.pagine_azioni for code in codes}
+        for spec in moduli_registrati().values()
+        if spec.pagine_azioni
+    }
+
+
 @dataclass
 class EsitoSync:
     ruolo: str
@@ -115,14 +128,22 @@ def codici_desiderati(ruolo, *, capacita=None, per_modulo=None) -> tuple[set[str
     per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
     specs = moduli_registrati()
 
+    riservate = pagine_azioni_proprie()
+
     governati = {code for codes in per_modulo.values() for code in codes}
     desiderati: set[str] = set()
     for cella in RuoloPermessoModulo.objects.filter(ruolo=ruolo, consentito=True):
+        proprie = riservate.get(cella.modulo, {})
         capacita_azione = AZIONE_CAPACITA.get(cella.azione)
         if not capacita_azione:
-            continue  # azioni proprie del modulo: si controllano dentro le view
+            # Azioni proprie del modulo: accendono solo le pagine dichiarate nel
+            # registro, il resto si controlla dentro le view.
+            desiderati.update(
+                code for code in per_modulo.get(cella.modulo, []) if proprie.get(code) == cella.azione
+            )
+            continue
         for code in per_modulo.get(cella.modulo, []):
-            if capacita.get(code, CAPABILITY_IGNOTO) in capacita_azione:
+            if code not in proprie and capacita.get(code, CAPABILITY_IGNOTO) in capacita_azione:
                 desiderati.add(code)
 
     if ruolo.vede_tutto:
@@ -132,7 +153,8 @@ def codici_desiderati(ruolo, *, capacita=None, per_modulo=None) -> tuple[set[str
             spec = specs.get(chiave)
             if spec is None or spec.solo_amministratore:
                 continue
-            desiderati.update(c for c in codes if capacita.get(c) == CAPABILITY_LETTURA)
+            proprie = riservate.get(chiave, {})
+            desiderati.update(c for c in codes if c not in proprie and capacita.get(c) == CAPABILITY_LETTURA)
     return desiderati, governati
 
 
@@ -185,8 +207,9 @@ def stato_pagine_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict[tuple[s
 
     E' il verso inverso della sincronizzazione, in sola lettura: la matrice
     mostra cosa i grant di gruppo concedono davvero, compresi quelli messi o
-    tolti a mano dalla pagina Accessi. Solo le azioni standard: le azioni
-    proprie dei moduli non hanno pagine. Le celle senza pagine non compaiono.
+    tolti a mano dalla pagina Accessi. Le azioni proprie dei moduli compaiono
+    solo se il registro dichiara loro delle pagine. Le celle senza pagine non
+    compaiono.
     """
     from core.models import GroupPermissionGrant
 
@@ -197,10 +220,19 @@ def stato_pagine_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict[tuple[s
         g.permission_id: g
         for g in GroupPermissionGrant.objects.filter(group=ruolo)
     }
+    riservate = pagine_azioni_proprie()
     risultato: dict[tuple[str, str], StatoPagine] = {}
     for chiave, codes in per_modulo.items():
-        for azione, capacita_azione in AZIONE_CAPACITA.items():
-            pagine = [c for c in codes if capacita.get(c, CAPABILITY_IGNOTO) in capacita_azione]
+        proprie = riservate.get(chiave, {})
+        pagine_per_azione = [
+            (azione, [c for c in codes if c not in proprie and capacita.get(c, CAPABILITY_IGNOTO) in caps])
+            for azione, caps in AZIONE_CAPACITA.items()
+        ]
+        pagine_per_azione += [
+            (azione, [c for c in codes if proprie.get(c) == azione])
+            for azione in sorted(set(proprie.values()))
+        ]
+        for azione, pagine in pagine_per_azione:
             if not pagine:
                 continue
             stato = StatoPagine(totale=len(pagine))
@@ -234,20 +266,29 @@ def dati_anteprima_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict:
     capacita = capacita if capacita is not None else capacita_permessi()
     per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
     specs = moduli_registrati()
+    riservate = pagine_azioni_proprie()
     grant = {g.permission_id: g for g in GroupPermissionGrant.objects.filter(group=ruolo)}
+    azioni = {azione: sorted(caps) for azione, caps in AZIONE_CAPACITA.items()}
     moduli = {}
     for chiave, codes in per_modulo.items():
+        proprie = riservate.get(chiave, {})
         righe = []
         for code in codes:
             g = grant.get(code)
             a_mano = g is not None and g.enabled and g.note != NOTA_MATRICE
             # Un grant della matrice spento lo riaccende la sincronizzazione: non e' un diniego.
             negata = g is not None and not g.enabled and g.note != NOTA_MATRICE
-            righe.append([code, capacita.get(code, CAPABILITY_IGNOTO), int(a_mano), int(negata)])
+            if code in proprie:
+                # Pagina di un'azione propria: per la pagina la «capacita'» e' l'azione stessa.
+                cap = f"azione:{proprie[code]}"
+                azioni.setdefault(proprie[code], [cap])
+            else:
+                cap = capacita.get(code, CAPABILITY_IGNOTO)
+            righe.append([code, cap, int(a_mano), int(negata)])
         spec = specs.get(chiave)
         moduli[chiave] = {"solo_admin": bool(spec and spec.solo_amministratore), "pagine": righe}
     return {
-        "azioni": {azione: sorted(caps) for azione, caps in AZIONE_CAPACITA.items()},
+        "azioni": azioni,
         "lettura": CAPABILITY_LETTURA,
         "vede_tutto": bool(ruolo.vede_tutto),
         "moduli": moduli,

@@ -314,6 +314,7 @@ def _ctx_matrice(request) -> dict:
                         "azione": azione,
                         "label": spec.etichetta_azione(azione),
                         "valore": celle.get((spec.chiave, azione), ""),
+                        "pagine": pagine.get((spec.chiave, azione)),
                     }
                     for azione, _label in spec.azioni_extra
                 ],
