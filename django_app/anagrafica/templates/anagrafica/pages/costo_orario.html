@@ -45,6 +45,11 @@
       </div>
     </section>
 
+    <nav class="fmd-chips" style="margin:0 0 14px;" aria-label="Vista del costo orario">
+      <a class="fmd-chip fmd-on" href="{% url 'anagrafica:costo_orario' %}" aria-current="page">Un mese</a>
+      <a class="fmd-chip" href="{% url 'anagrafica:costo_orario_storico' %}">Storico</a>
+    </nav>
+
     {% if righe %}
     <section class="fmd-kpi fmd-kpi-auto" aria-label="Costo orario in sintesi">
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media label="Costo orario medio" sub="€/h, con i filtri attivi" %}
@@ -82,7 +87,7 @@
       {% if righe %}
       <div class="fmd-tablewrap">
         <table class="fmd-table">
-          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th></tr></thead>
+          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th><th></th></tr></thead>
           <tbody>
             {% for x in righe %}
             <tr>
@@ -91,6 +96,7 @@
               <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansioni_coefficienti' x.legacy_id %}" title="Classificazione e coefficienti delle sue mansioni">{{ x.classe|default:"da indicare" }}</a>{% else %}—{% endif %}</td>
               <td class="fmd-num" data-sort-value="{{ x.c.rml|stringformat:'s' }}">€ {{ x.c.rml|floatformat:"2g" }}{% if x.c.rml_manuale %} <span class="fmd-pill fmd-pill-amber" title="Voce RML corretta a mano da HR">a mano</span>{% endif %}</td>
               <td class="fmd-num" data-sort-value="{{ x.c.costo_orario|stringformat:'s' }}"><strong>€ {{ x.c.costo_orario|floatformat:"2g" }}</strong>{% if x.c.divisore_giorni != giorni or x.c.divisore_ore != ore %}<div class="fmd-muted" style="font-size:11.5px;">con {{ x.c.divisore_giorni.normalize }} × {{ x.c.divisore_ore.normalize }}</div>{% endif %}</td>
+              <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:costo_orario_storico' %}?persona={{ x.legacy_id }}" title="Costo orario mese per mese">Storico →</a>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>

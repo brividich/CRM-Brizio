@@ -169,3 +169,115 @@ def costo_orario(request):
 
 def _euro(valore) -> str:
     return f"{valore:.2f}".replace(".", ",")
+
+
+# ── Storico del costo orario (27/10/2026) ───────────────────────────────────────
+
+MESI_DEFAULT = 12
+
+
+def _mese_da(valore, mesi):
+    try:
+        d = date.fromisoformat(valore) if valore else None
+    except ValueError:
+        return None
+    return d.replace(day=1) if d else None
+
+
+def _storico(request) -> dict:
+    """Una riga per dipendente, una colonna per mese (dal più vecchio al più recente).
+
+    Filtri: «dal»/«al» (mesi, di serie gli ultimi 12 con dati), reparto, ricerca,
+    persona (dalla scheda). Ogni cella ha il costo, il confronto con il mese prima
+    e l'RML; in fondo la media di ogni mese; a destra la variazione nel periodo.
+    """
+    from decimal import ROUND_HALF_UP, Decimal
+
+    from core import naming
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    tutti = list(CostoOrarioMensile.objects.order_by("mese").values_list("mese", flat=True).distinct())
+    g = request.GET
+    al = _mese_da(g.get("al"), tutti) or (tutti[-1] if tutti else None)
+    dal = _mese_da(g.get("dal"), tutti)
+    if dal is None and al is not None:
+        prima = [m for m in tutti if m <= al]
+        dal = prima[-MESI_DEFAULT:][0] if prima else al
+    if dal and al and dal > al:
+        dal, al = al, dal
+    mesi = [m for m in tutti if dal and al and dal <= m <= al]
+    qs = CostoOrarioMensile.objects.filter(mese__in=mesi)
+    persona = g.get("persona") or ""
+    if persona.isdigit():
+        qs = qs.filter(legacy_anagrafica_id=int(persona))
+    per_chiave: dict = {}
+    for c in qs:
+        chiave = c.legacy_anagrafica_id or c.tax_code
+        per_chiave.setdefault(chiave, {})[c.mese] = c
+    ids = [k for k in per_chiave if isinstance(k, int)]
+    anag = {int(d["id"]): d for d in fetch_anagrafica_rows(ids=ids)} if ids else {}
+    righe = []
+    for chiave, valori in per_chiave.items():
+        d = anag.get(chiave) if isinstance(chiave, int) else None
+        celle, prec = [], None
+        for m in mesi:
+            c = valori.get(m)
+            delta = (c.costo_orario - prec.costo_orario) if c and prec else None
+            celle.append({"c": c, "delta": delta, "su": bool(delta and delta > 0), "giu": bool(delta and delta < 0)})
+            if c:
+                prec = c
+        presenti = [x["c"] for x in celle if x["c"]]
+        primo, ultimo = (presenti[0], presenti[-1]) if presenti else (None, None)
+        var = (ultimo.costo_orario - primo.costo_orario) if primo and ultimo and primo is not ultimo else None
+        var_pct = ((var / primo.costo_orario * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+                   if var is not None and primo.costo_orario else None)
+        righe.append({
+            "legacy_id": chiave if isinstance(chiave, int) else None,
+            "nome": naming.nome_completo(d.get("nome"), d.get("cognome")) if d else str(next(iter(valori.values())).tax_code),
+            "ordine": naming.chiave_ordinamento(d.get("nome"), d.get("cognome")) if d else str(chiave),
+            "reparto": ((d or {}).get("reparto") or "").strip(),
+            "celle": celle, "ultimo": ultimo, "var": var, "var_pct": var_pct,
+        })
+    reparti = sorted({r["reparto"] for r in righe if r["reparto"]}, key=str.casefold)
+    q = (g.get("q") or "").strip().casefold()
+    reparto = (g.get("reparto") or "").strip()
+    if q:
+        righe = [r for r in righe if q in r["nome"].casefold()
+                 or any(x["c"] and q in x["c"].tax_code.casefold() for x in r["celle"])]
+    if reparto:
+        righe = [r for r in righe if r["reparto"] == reparto]
+    righe.sort(key=lambda r: r["ordine"])
+    medie = []
+    for i, _m in enumerate(mesi):
+        valori = [r["celle"][i]["c"].costo_orario for r in righe if r["celle"][i]["c"]]
+        medie.append(sum(valori) / len(valori) if valori else None)
+    media_prima = next((x for x in medie if x is not None), None)
+    media_ultima = next((x for x in reversed(medie) if x is not None), None)
+    persona_nome = righe[0]["nome"] if persona.isdigit() and righe else ""
+    return {
+        "tutti_mesi": list(reversed(tutti)), "mesi": mesi, "dal": dal, "al": al, "righe": righe, "medie": medie,
+        "reparti": reparti, "reparto": reparto, "q": g.get("q", ""), "persona": persona if persona.isdigit() else "",
+        "persona_nome": persona_nome,
+        "kpi": {
+            "mesi": len(mesi),
+            "media_ultima": _euro(media_ultima) if media_ultima is not None else "—",
+            "variazione": (f"{(media_ultima - media_prima) / media_prima * 100:+.1f}%".replace(".", ",")
+                           if media_prima and media_ultima is not None and len(mesi) > 1 else "—"),
+            "aumenti": sum(1 for r in righe if r["var"] is not None and r["var"] > 0),
+            "cali": sum(1 for r in righe if r["var"] is not None and r["var"] < 0),
+        },
+    }
+
+
+@login_required
+def costo_orario_storico(request):
+    if not _puo_costo(request):
+        messages.error(request, "Accesso non autorizzato ai dati HR.")
+        return redirect("anagrafica:index")
+    log_consultazione(request, "COSTO_ORARIO_STORICO_VISUALIZZATO", MODULE,
+                      {"filtri": sorted(k for k in request.GET.keys())}, chiave="costo_orario_storico")
+    ctx = _storico(request)
+    giorni, ore = costo_svc.divisori()
+    return render(request, "anagrafica/pages/costo_orario_storico.html", {
+        **ctx, "page_title": "Storico del costo orario", "giorni": giorni, "ore": ore, "ore_mese": giorni * ore,
+    })
