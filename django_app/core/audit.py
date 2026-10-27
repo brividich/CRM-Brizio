@@ -82,6 +82,13 @@ def log_action(
         impersonator_legacy_user = getattr(request, "impersonator_legacy_user", None)
         impersonator_user = getattr(request, "impersonator_user", None)
         effective_legacy_user = getattr(request, "legacy_user", None)
+        if effective_legacy_user is None:
+            # Login, logout, 2FA, monitoraggio e gli altri percorsi esenti non passano dal
+            # middleware che imposta ``request.legacy_user``: senza questo ripiego la voce
+            # restava «senza utente» pur avendo una persona autenticata.
+            from core.legacy_utils import get_legacy_user
+
+            effective_legacy_user = get_legacy_user(getattr(request, "user", None))
         actor_legacy_user = impersonator_legacy_user or effective_legacy_user
         actor_display = display_name_for_user(
             django_user=impersonator_user or getattr(request, "user", None),
@@ -117,6 +124,29 @@ def log_action(
         )
     except Exception:
         logger.exception("audit log fallito: azione=%s modulo=%s", azione, modulo)
+
+
+AUTORI_AUDIT = (
+    ("persone", "Persone"),
+    ("automatico", "Processi automatici"),
+    ("tutti", "Tutte le voci"),
+)
+
+
+def filtra_per_autore(qs, chi: str):
+    """Persone (voce con un utente) o processi automatici (task, raccoglitori, comandi).
+
+    I processi automatici scrivono la gran parte delle righe: senza questo filtro le
+    azioni delle persone finivano sepolte e il registro sembrava fermo.
+    """
+    from django.db.models import Q
+
+    senza_autore = Q(legacy_user_id__isnull=True) & Q(utente_display="")
+    if chi == "persone":
+        return qs.exclude(senza_autore)
+    if chi == "automatico":
+        return qs.filter(senza_autore)
+    return qs
 
 
 def storico_oggetto(oggetto=None, *, oggetto_tipo: str = "", oggetto_id: str = "", limit: int = 50):

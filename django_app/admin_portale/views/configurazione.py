@@ -1348,13 +1348,18 @@ def api_anagrafica_voce_delete(request):
 
 
 def _audit_queryset_from_request(request):
+    from core.audit import AUTORI_AUDIT, filtra_per_autore
     from core.models import AuditLog
 
     qs = AuditLog.objects.all()
     filtro_modulo = (request.GET.get("modulo") or "").strip()
     filtro_azione = (request.GET.get("azione") or "").strip()
     filtro_data = (request.GET.get("data") or "").strip()
+    filtro_chi = (request.GET.get("chi") or "persone").strip()
+    if filtro_chi not in dict(AUTORI_AUDIT):
+        filtro_chi = "persone"
 
+    qs = filtra_per_autore(qs, filtro_chi)
     if filtro_modulo:
         qs = qs.filter(modulo=filtro_modulo)
     if filtro_azione:
@@ -1362,15 +1367,16 @@ def _audit_queryset_from_request(request):
     if filtro_data:
         qs = qs.filter(created_at__date=filtro_data)
 
-    return qs, filtro_modulo, filtro_azione, filtro_data
+    return qs, filtro_modulo, filtro_azione, filtro_data, filtro_chi
 
 
 @legacy_admin_required
 def audit_log_view(request):
+    from core.audit import AUTORI_AUDIT
     from core.models import AuditLog
     from django.core.paginator import Paginator
 
-    qs, filtro_modulo, filtro_azione, filtro_data = _audit_queryset_from_request(request)
+    qs, filtro_modulo, filtro_azione, filtro_data, filtro_chi = _audit_queryset_from_request(request)
     export_format = (request.GET.get("export") or "").strip().lower()
     if export_format in {"csv", "xlsx"}:
         return export_rows_response(
@@ -1399,6 +1405,8 @@ def audit_log_view(request):
         "filtro_modulo": filtro_modulo,
         "filtro_azione": filtro_azione,
         "filtro_data": filtro_data,
+        "filtro_chi": filtro_chi,
+        "autori": AUTORI_AUDIT,
         "moduli_disponibili": moduli_disponibili,
     })
 
