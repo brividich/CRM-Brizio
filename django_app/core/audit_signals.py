@@ -221,6 +221,10 @@ def _audit_post_save(sender, instance, created, update_fields=None, **kwargs):
     if kwargs.get("raw", False) or _should_skip(sender):
         return
 
+    if not created and audit_policy.chiave_tecnica(sender, instance):
+        # Battito o cursore di un task salvato fra le impostazioni: non è configurazione.
+        return
+
     meta = sender._meta
     azione = "auto_insert" if created else "auto_update"
     dettaglio = _base_dettaglio(meta, instance)

@@ -43,6 +43,8 @@
     .confirm-text { font-size: 13px; color: #475569; line-height: 1.5; }
     .divider { border: none; border-top: 1px solid #e2e8f0; }
     .rule-name { font-size: 13px; font-weight: 700; color: #1d4ed8; background: #eff6ff; padding: 3px 10px; border-radius: 6px; display: inline-block; }
+    .calendar-opt { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; border: 1px solid #bfdbfe; border-radius: 12px; background: #eff6ff; font-size: 13px; color: #1e3a8a; line-height: 1.5; cursor: pointer; }
+    .calendar-opt input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
     .expiry-warn { font-size: 12px; color: #92400e; background: #fef3c7; padding: 6px 12px; border-radius: 8px; }
   </style>
 </head>
@@ -137,6 +139,9 @@
         <div class="alert alert-success">
           La decisione è stata registrata il {{ approval.decided_at|date:"d-m-Y \a\l\l\e H:i" }}.
         </div>
+        {% if calendario_richiesto %}
+        <div class="alert alert-info">L'assenza comparirà entro 10 minuti nel tuo calendario Outlook «Assenze del team (NOVICROM HUB)».</div>
+        {% endif %}
         <div class="meta-grid">
           <div class="meta-item">
             <div class="meta-label">Stato</div>
@@ -227,13 +232,20 @@
           <div class="confirm-text">La decisione sarà registrata a nome di <strong>{{ decider_email }}</strong>.</div>
           {% endif %}
         </div>
+        {% if calendario_opzione %}
+        <label class="calendar-opt">
+          <input type="checkbox" name="calendario" value="1" form="approval-decision-form"{% if calendario_spuntato %} checked{% endif %}>
+          <span><strong>Metti nel mio calendario Outlook</strong><br>
+            L'assenza compare entro 10 minuti nel calendario «Assenze del team (NOVICROM HUB)»{% if decider_email %} di {{ decider_email }}{% endif %}, come evento libero. Se la richiesta cambia o viene annullata, l'evento si aggiorna o sparisce.</span>
+        </label>
+        {% endif %}
       {% endif %}
 
     </div>
 
     <div class="card-footer">
       {% if not error and not status_only and not result and not already_decided and not is_expired and not just_done %}
-        <form method="post" action="" style="display:contents;">
+        <form method="post" action="" id="approval-decision-form" style="display:contents;">
           {% csrf_token %}
           <button type="submit" class="btn {% if decision == 'approved' %}btn-approve{% else %}btn-reject{% endif %}">
             {% if decision == "approved" %}✅ Conferma Approvazione{% else %}❌ Conferma Rifiuto{% endif %}

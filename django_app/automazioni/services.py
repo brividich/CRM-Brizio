@@ -2448,11 +2448,12 @@ def _send_approval_email(
     html_body_override: str | None = None,
     text_body_override: str | None = None,
     calendar_event: dict | None = None,
+    calendar_opt_in: bool = False,
 ) -> str:
     """
     Invia l'email di approvazione.
     Con ``calendar_event`` (richieste di assenza) aggiunge «Aggiungi al calendario
-    Outlook» (vedi ``calendario_outlook``).
+    Outlook»; con ``calendar_opt_in`` «Approva e metti in calendario» (vedi ``calendario_outlook``).
     Se html_body_override / text_body_override sono valorizzati (rendering da ApprovalEmailTemplate),
     vengono usati direttamente. Altrimenti viene generato il corpo inline (comportamento legacy).
     """
@@ -2493,6 +2494,10 @@ def _send_approval_email(
             from .calendario_outlook import pulsante_html
 
             cta_buttons += f'<div style="margin-top:12px;">{pulsante_html(calendar_event)}</div>'
+        elif calendar_opt_in:
+            from .calendario_outlook import pulsante_approva_calendario_html
+
+            cta_buttons += f'<div style="margin-top:12px;">{pulsante_approva_calendario_html(approve_url)}</div>'
 
         # Preserva gli a-capo del message_template: prima si escapa l'HTML (sicurezza),
         # poi i newline diventano <br> cosi' il corpo non collassa su una riga unica.
@@ -2514,6 +2519,10 @@ def _send_approval_email(
             from .calendario_outlook import ETICHETTA, link_outlook
 
             text_body += f"{ETICHETTA}: {link_outlook(calendar_event)}\n"
+        elif calendar_opt_in:
+            from .calendario_outlook import ETICHETTA_APPROVA, url_con_calendario
+
+            text_body += f"{ETICHETTA_APPROVA}: {url_con_calendario(approve_url)}\n"
 
     for approver_email in approver_emails:
         message = EmailMultiAlternatives(
@@ -4295,13 +4304,15 @@ def execute_action(
             email_template = _resolve_approval_email_template(config)
 
             # Assenze: «Aggiungi al calendario Outlook» per il capo (best-effort).
+            # Con Graph acceso «su richiesta»: pulsante «Approva e metti in calendario».
             try:
-                from .calendario_outlook import evento_assenza
+                from .calendario_outlook import evento_assenza, opzione_calendario
 
                 calendar_event = evento_assenza(getattr(action.rule, "source_code", ""), payload_context)
+                calendar_opt_in = opzione_calendario(getattr(action.rule, "source_code", ""), payload_context)
             except Exception:
                 logger.warning("send_approval: evento calendario non costruito", exc_info=True)
-                calendar_event = None
+                calendar_event, calendar_opt_in = None, False
             serie_text, serie_html, serie_info = _blocco_serie_assenze(action, payload_context, approvazione=True)
             if serie_info:
                 from assenze.serie import suffisso_oggetto
@@ -4350,6 +4361,13 @@ def execute_action(
 
                         extra_html = pulsante_html(calendar_event)
                         extra_text = f"{ETICHETTA}: {link_outlook(calendar_event)}\n"
+                    elif calendar_opt_in:
+                        from .calendario_outlook import (
+                            ETICHETTA_APPROVA, pulsante_approva_calendario_html, url_con_calendario,
+                        )
+
+                        extra_html = pulsante_approva_calendario_html(approve_url)
+                        extra_text = f"{ETICHETTA_APPROVA}: {url_con_calendario(approve_url)}\n"
                     rendered = render_approval_email(
                         email_template,
                         tpl_context,
@@ -4407,6 +4425,7 @@ def execute_action(
                             html_body_override=html_override,
                             text_body_override=text_override,
                             calendar_event=calendar_event,
+                            calendar_opt_in=calendar_opt_in,
                         )
                     result_message_parts.append(
                         f"Email approvazione inviata a {', '.join(email_approver_emails)}."

@@ -11,7 +11,8 @@ modelli. Questa politica decide **quanto** registrare per ciascun modello:
   corpi email, testi estratti) → solo chi/cosa/quando/quale record e i **nomi**
   dei campi, mai i valori (minimizzazione GDPR);
 - classe **D** (``IGNORED_FIELDS``): audit completo, ma un update che tocca
-  solo campi tecnici di stato non produce righe.
+  solo campi tecnici di stato non produce righe. Stessa logica, per chiave, per le
+  impostazioni che i task usano come battito o cursore (``IGNORED_CONFIG_KEYS``).
 
 Le chiamate esplicite ``log_action(...)`` e ``login_fallito`` non passano da qui
 e restano invariate. Modificare questa politica è una modifica della politica di
@@ -22,7 +23,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-AUDIT_POLICY_VERSION = 2
+AUDIT_POLICY_VERSION = 3
 
 # Esclusioni storiche (precedenti alla politica): ricorsione, cache, log già dedicati.
 _LEGACY_EXCLUDED_MODELS: frozenset[str] = frozenset({
@@ -47,6 +48,12 @@ TECHNICAL_EXCLUDED_MODELS: frozenset[str] = frozenset({
     "security.securitykpisnapshot",
     "security.securityreportmetric",
     "contatori.rilevazionesnmp",
+    # v3 (27/10/2026): misurati in produzione, ~20k righe a settimana senza alcuna persona dietro.
+    "automazioni.clusterwatchdogstate",   # stato del watchdog, riscritto a ogni controllo
+    "security.securityletturalog",        # è già il registro delle letture dei collettori
+    "security.securitymailboxingestionrun",  # è già il registro dei giri della casella
+    "assets.periodostatomacchina",        # derivato dalle letture MTConnect
+    "contatori.macportaswitch",           # ricalcolato a ogni lettura degli switch
 })
 
 EXCLUDED_MODELS: frozenset[str] = _LEGACY_EXCLUDED_MODELS | TECHNICAL_EXCLUDED_MODELS
@@ -96,6 +103,33 @@ IGNORED_FIELDS: dict[str, frozenset[str]] = {
         "nvd_fetched_at", "impact_computed_at", "epss", "epss_percentile", "nvd_error",
     }),
     "core.notifica": frozenset({"popup_shown", "letta", "letta_il"}),
+    # v3 (27/10/2026): campi riscritti dai collettori a ogni giro. Chi cambia la
+    # configurazione (indirizzo, macchina, spunte…) resta in audit.
+    "assets.collegamentomtconnect": frozenset({
+        # lettura del collector CNC ogni pochi secondi; i cambi di stato restano
+        # nella storia di PeriodoStatoMacchina
+        "controllato_il", "letto_il", "ore_grezzo", "stato", "stato_dal",
+        "esecuzione", "allarmi", "programma", "modalita",
+    }),
+    "assets.indirizzorete": frozenset({"ultima_vista"}),
+    "assets.macrete": frozenset({"ultima_vista"}),
+    "monitoring.issue": frozenset({"last_seen_at", "occurrences_count"}),
+    "anagrafica.trainingscanintakeconfig": frozenset({"ultima_esecuzione"}),
+    "anagrafica.refertointakeconfig": frozenset({"ultima_esecuzione"}),
+    "security.watchguardpatch": frozenset({"vista_il"}),
+    "security.watchguarddispositivo": frozenset({"letto_il", "ultima_connessione"}),
+    "security.securitymailboxsource": frozenset({"last_run_at"}),
+    "contatori.macchina": frozenset({"snmp_ultimo_controllo", "dati_stampante_il", "dati_stampante"}),
+}
+
+# Chiavi di configurazione usate dai task come battito o cursore (v3): una loro
+# modifica non è una modifica di configurazione. Modello → (campo chiave, modelli
+# fnmatch). Le altre chiavi degli stessi modelli restano in audit completo.
+IGNORED_CONFIG_KEYS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "core.siteconfig": ("chiave", ("*.battito", "*.ultimo_giro")),
+    "security.securitycentersetting": ("key", (
+        "*.ultimo_giro", "*.cursore", "*.cursore_*", "entra.ultimo_controllo_account",
+    )),
 }
 
 # Campi «di servizio» mai considerati una modifica reale (oltre ai campi auto_now=True).
@@ -145,9 +179,22 @@ def ignored_fields(model) -> frozenset[str]:
     return frozenset(names)
 
 
+def chiave_tecnica(model, instance) -> bool:
+    """True se ``instance`` è una chiave di configurazione usata come battito o cursore."""
+    from fnmatch import fnmatchcase
+
+    concrete = getattr(model._meta, "concrete_model", None) or model
+    regola = IGNORED_CONFIG_KEYS.get(model_key(concrete))
+    if regola is None:
+        return False
+    campo, modelli = regola
+    chiave = str(getattr(instance, campo, "") or "")
+    return any(fnmatchcase(chiave, modello) for modello in modelli)
+
+
 def configured_keys() -> frozenset[str]:
     """Tutte le chiavi dichiarate (per la verifica dei refusi)."""
-    return EXCLUDED_MODELS | METADATA_ONLY_MODELS | frozenset(IGNORED_FIELDS)
+    return EXCLUDED_MODELS | METADATA_ONLY_MODELS | frozenset(IGNORED_FIELDS) | frozenset(IGNORED_CONFIG_KEYS)
 
 
 def summary() -> dict:
