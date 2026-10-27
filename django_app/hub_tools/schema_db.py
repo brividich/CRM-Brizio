@@ -50,7 +50,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "rentri": ("Sicurezza sul lavoro", "#84cc16", "Registro rifiuti RENTRI"),
     "procedure_refresh": ("Qualità", "#22c55e", "Presa visione procedure, sync SGI"),
     "sistema_gestione": ("Qualità", "#15803d", "Audit interni ed esterni, certificazioni, SoA, threat intelligence; audit ISMS "
-                         "MOD.171/168 (sistema_gestione_auditisms, _auditismsrequisito, _auditismscontrollo)"),
+                         "MOD.171/168 (sistema_gestione_auditisms, _auditismsrequisito, _auditismscontrollo); analisi "
+                         "del rischio MOD.165 (sistema_gestione_rischiominaccia, _scenariorischioot)"),
     "gestione_specifiche": ("Qualità", "#4d7c0f", "Specifiche cliente, MOD.133 e tabelle del Registro OFI / NC "
                             "(il modulo con dashboard e viste è registro_ofi)"),
     "suggestion_corner": ("Qualità", "#65a30d", "Segnalazioni di miglioramento PDCA"),

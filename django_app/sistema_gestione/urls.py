@@ -8,6 +8,7 @@ from . import audit_views, views, processi_views, automation_views, programma_vi
 from . import esterni_views
 from . import isms_views
 from . import checklist_views
+from . import rischio_views
 
 app_name = "sistema_gestione"
 
@@ -65,6 +66,12 @@ urlpatterns = [
     path("soa/rev/<int:numero>/approva/", views.soa_approva, name="soa_approva"),
     path("soa/rev/<int:numero>/copia-firmata/", views.soa_copia_firmata, name="soa_copia_firmata"),
     path("soa/rev/<int:numero>/copia-firmata/carica/", views.soa_carica_firmata, name="soa_carica_firmata"),
+    path("soa/rev/<int:numero>/rischi/", rischio_views.soa_rischi, name="soa_rischi"),
+    path("soa/rev/<int:numero>/rischi/soglia/", rischio_views.soa_rischio_soglia, name="soa_rischio_soglia"),
+    path("soa/rev/<int:numero>/rischi/minaccia/nuova/", rischio_views.soa_rischio_minaccia, name="soa_rischio_minaccia_nuova"),
+    path("soa/rev/<int:numero>/rischi/minaccia/<int:pk>/", rischio_views.soa_rischio_minaccia, name="soa_rischio_minaccia"),
+    path("soa/rev/<int:numero>/rischi/ot/nuovo/", rischio_views.soa_rischio_ot, name="soa_rischio_ot_nuovo"),
+    path("soa/rev/<int:numero>/rischi/ot/<int:pk>/", rischio_views.soa_rischio_ot, name="soa_rischio_ot"),
     path("threat-intelligence/", views.threat_intelligence, name="threat_intelligence"),
     path("threat-intelligence/nuova/", views.threat_intelligence_nuova, name="threat_intelligence_nuova"),
     path("audit/", audit_views.audit_index, name="audit_index"),
