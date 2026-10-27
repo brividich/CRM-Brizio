@@ -87,6 +87,33 @@ def provenienze_per_utenti(utenti_ids) -> dict[int, dict[int, list[str]]]:
     return esito
 
 
+def utenti_del_gruppo(gruppo_id) -> set[int]:
+    """``utenti.id`` di chi riceve oggi il ruolo del portale dall'organigramma (vuoto se amministratore)."""
+    from anagrafica.models import RuoloOperativo
+    from core.legacy_models import AnagraficaDipendente
+    from core.permessi.team import _assegnazioni_attive
+
+    if not gruppo_id:
+        return set()
+    try:
+        ruoli = list(
+            RuoloOperativo.profili_permessi.through.objects.filter(
+                accessgroup_id=int(gruppo_id), accessgroup__is_active=True, accessgroup__amministratore=False,
+            ).values_list("ruolooperativo_id", flat=True)
+        )
+        if not ruoli:
+            return set()
+        anagrafiche = list(_assegnazioni_attive().filter(ruolo_id__in=ruoli)
+                           .values_list("legacy_anagrafica_id", flat=True))
+        return {
+            int(u) for u in AnagraficaDipendente.objects.filter(id__in=anagrafiche)
+            .exclude(utente_id__isnull=True).values_list("utente_id", flat=True)
+        }
+    except DatabaseError:
+        logger.warning("permessi.organigramma: persone del ruolo %s non leggibili", gruppo_id, exc_info=True)
+        return set()
+
+
 def ruoli_spiegati(legacy_user_id: int | None) -> list[dict]:
     """Ruoli del portale della persona con la provenienza, dal piu' alto in ordine.
 

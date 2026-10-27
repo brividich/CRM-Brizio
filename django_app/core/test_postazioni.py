@@ -412,6 +412,42 @@ class AdminPostazioniTests(TestCase):
         self.client.post(url, {"azione": "operatori", "id": pc.pk})
         self.assertFalse(OperatorePostazione.objects.exists())
 
+    def test_operatori_dal_ruolo_d_organigramma(self):
+        # Il ruolo del portale arriva dall'organigramma, senza appartenenza a mano: è comunque fra i candidati.
+        from django.db import connection
+
+        from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
+        from core.tests_permessi import ensure_anagrafica_table
+
+        ensure_anagrafica_table()
+        self._salva(self.l_pc.id)
+        pc = PostazioneCondivisa.objects.get()
+        op = UtenteLegacy.objects.create(nome="Op Organigramma Test", email="op.org@example.local", password="x",
+                                         ruolo="operatore", attivo=True, ruolo_id=2)
+        ruolo = RuoloOperativo.objects.create(nome="Operatore misure TEST")
+        ruolo.profili_permessi.add(self.gruppo)
+        with connection.cursor() as c:
+            c.execute("INSERT INTO anagrafica_dipendenti (id, nome, utente_id) VALUES (%s, %s, %s)",
+                      [9000 + op.id, op.nome, op.id])
+        assegnazione = DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=9000 + op.id, ruolo=ruolo)
+        self.assertEqual([u.id for u in postazioni.candidati(pc)], [op.id])
+        self.assertContains(self.client.get(reverse("admin_portale:postazioni_condivise") + f"?operatori={pc.pk}"),
+                            "Op Organigramma Test")
+        # Un ruolo amministratore non arriva mai dall'organigramma.
+        self.gruppo.amministratore = True
+        self.gruppo.save()
+        self.assertEqual(postazioni.candidati(pc), [])
+        self.gruppo.amministratore = False
+        self.gruppo.save()
+        # Chiusa l'assegnazione, la persona esce dai candidati.
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        assegnazione.data_fine = timezone.localdate() - timedelta(days=1)
+        assegnazione.save()
+        self.assertEqual(postazioni.candidati(pc), [])
+
     def test_azzera_pin(self):
         self._salva(self.l_pc.id)
         postazioni.imposta_pin(4242, PIN)
