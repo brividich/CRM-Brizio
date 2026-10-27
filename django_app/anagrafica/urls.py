@@ -330,7 +330,6 @@ urlpatterns = [
     path("retribuzioni/globale/", views.retribuzioni_globale, name="retribuzioni_globale"),
     path("retribuzioni/globale/export.xlsx", views.retribuzioni_globale_export, name="retribuzioni_globale_export"),
     path("retribuzioni/costo-orario/", views_coefficienti.costo_orario, name="costo_orario"),
-    path("retribuzioni/costo-orario/export.xlsx", views_coefficienti.costo_orario_export, name="costo_orario_export"),
     path("dipendenti/<int:legacy_id>/retribuzioni/", views.dipendente_retribuzioni, name="dipendente_retribuzioni"),
     path("dipendenti/<int:legacy_id>/retribuzioni/export.xlsx",
          views.dipendente_retribuzioni_export_xlsx, name="dipendente_retribuzioni_export_xlsx"),
