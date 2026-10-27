@@ -191,7 +191,11 @@ GUIDA = {
                     ("Dati personali sensibili", "visite e referti, dati civili e familiari, retribuzioni e cedolini, candidati, "
                                                  "certificazioni di presenza, consegne DPI con firma, chat dell'AI: dal 21/10/2026 "
                                                  "l'audit dice chi, quando e quali campi, mai i valori (GDPR). Il valore resta solo nella scheda."),
-                    ("Registri tecnici", "esecuzioni delle automazioni, job del Monitoraggio, letture SNMP, impatti CVE: non entrano nell'audit perché hanno già il loro registro."),
+                    ("Registri tecnici", "esecuzioni delle automazioni, job del Monitoraggio, letture SNMP, impatti CVE, letture dei collettori SOC, "
+                                         "giri della casella, storia degli stati macchina, MAC sulle porte degli switch: non entrano nell'audit perché hanno già il loro registro."),
+                    ("Battiti e letture dei collettori", "dal 27/10/2026 (politica v3) non scrivono righe: l'ultima lettura delle macchine CNC, "
+                                                         "«ultima vista» di IP e MAC, i cursori e gli «ultimo giro» di Entra, Defender e Veeam, il battito del collector CNC. "
+                                                         "Chi cambia la configurazione resta in audit come prima."),
                     ("Contenuti di file e mail", "file e messaggi del Security Center, testi estratti dai documenti SGI: l'audit dice chi, quando e quali campi sono cambiati, mai il contenuto."),
                     ("Campi tecnici", "«ultima esecuzione» di una regola, «letta» di una notifica, stato SNMP di un dispositivo: da soli non generano righe."),
                 ]),

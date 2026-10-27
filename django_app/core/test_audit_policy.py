@@ -148,6 +148,35 @@ class ClasseATests(TestCase):
         self.assertIn("…[troncato, 5000 caratteri", riga.dettaglio["valori"]["valore"])
 
 
+class ChiaviTecnicheTests(TestCase):
+    """v3: battiti e cursori dei task salvati fra le impostazioni non scrivono righe."""
+
+    def test_battito_non_scrive_le_altre_chiavi_si(self):
+        battito = SiteConfig.objects.create(chiave="assets.collector_cnc.battito", valore="1")
+        normale = SiteConfig.objects.create(chiave="login_titolo", valore="Ciao")
+        battito.valore = "2"
+        battito.save()
+        normale.valore = "Benvenuti"
+        normale.save()
+        oggetti = [r.dettaglio["oggetto"] for r in _righe("core", "SiteConfig", "auto_update")]
+        self.assertEqual(oggetti, ["SiteConfig<login_titolo>"])
+
+    def test_modelli_delle_chiavi(self):
+        from security.models import SecurityCenterSetting
+
+        for chiave in ("defender.cursore", "entra.cursore_audit", "veeam.ultimo_giro", "entra.ultimo_controllo_account"):
+            self.assertTrue(audit_policy.chiave_tecnica(SecurityCenterSetting, SecurityCenterSetting(key=chiave)), chiave)
+        for chiave in ("watchguard.api.credenziali", "defender.severita_minima"):
+            self.assertFalse(audit_policy.chiave_tecnica(SecurityCenterSetting, SecurityCenterSetting(key=chiave)), chiave)
+
+    def test_campi_v3_ignorati_ma_configurazione_tracciata(self):
+        from assets.models import IndirizzoRete
+
+        campi = audit_policy.ignored_fields(IndirizzoRete)
+        self.assertIn("ultima_vista", campi)
+        self.assertEqual(audit_policy.classify(IndirizzoRete), "full")
+
+
 class ClasseBTests(TestCase):
     def test_nessuna_riga(self):
         from automazioni.models import ClusterHeartbeat
