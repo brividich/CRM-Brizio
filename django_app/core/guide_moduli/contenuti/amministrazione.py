@@ -33,7 +33,7 @@ GUIDA = {
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
                     ("Ruoli e permessi", "un ruolo solo per persona, quello in azienda: i ruoli del portale sono gli accessi che concede e si vedono come «Ruolo in azienda · accessi» (a mano = eccezione). Il sistema unico: matrice ruolo × modulo × azione; le impostazioni di ogni modulo (configurazione, cataloghi) hanno una sotto-riga loro, «↳ Impostazioni del modulo», separata da «Chiudere / gestire»: chi gestisce un modulo non ne vede le impostazioni se non gliele dai; in cima alla matrice «Chi ha il ruolo … oggi» elenca le persone che lo hanno, a mano (con nota e scadenza) o dall'organigramma (con il ruolo d'organigramma che lo dà). Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Scheda «Per modulo», «Chi può aprirla» sotto ogni pagina: le persone che la aprono oggi, perché e da dove (secondario e ad interim indicati). Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
-                    ("Navigation Builder", "le voci dei menu."),
+                    ("Navigation Builder", "le voci dei menu. Con «Ruoli e permessi» acceso una voce compare a chi può aprire la pagina a cui porta: decide il permesso della pagina. Il permission code scritto sulla voce la restringe solo se protegge davvero qualche pagina (allora servono entrambi); i badge gialli segnalano «Permesso vecchio» (non protegge nessuna pagina, ignorato), «Voce + pagina» e «Senza permesso» (la vedono solo gli amministratori). I «Ruoli abilitati» della voce sono i ruoli storici: con il sistema acceso non contano. In «Override navigazione utente» «eredita ✓» vuol dire che la persona vede la voce, calcolato come per le pagine."),
                     ("Branding", "logo, favicon, nome e colori."),
                     ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
@@ -364,6 +364,15 @@ GUIDA = {
             "fare": [
                 "Centrale di comando: ci sono migrazioni da applicare? Se sì, il rilascio non è completo (Manuale di emergenza → «Dopo un aggiornamento»).",
                 "Svuota la cache del browser (Ctrl+F5).",
+            ],
+        },
+        {
+            "sintomo": "Una persona apre la pagina ma non trova la voce nel menu (o la voce porta ad «Accesso negato»)",
+            "fare": [
+                "Apri il Navigation Builder e cerca la voce: un badge giallo dice cosa la decide.",
+                "«Permesso vecchio»: dal terminale riallinea_permessi_menu (elenco), poi --apply. La voce torna a seguire la pagina.",
+                "«Voce + pagina»: la persona deve avere entrambi i permessi; se la restrizione non serve, svuota il permission code della voce e salva.",
+                "In «Override navigazione utente» scegli la persona: il tooltip di ogni voce dice perché la vede o no. Il menu si aggiorna entro 5 minuti.",
             ],
         },
         {
