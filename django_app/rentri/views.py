@@ -83,6 +83,7 @@ def _validate_rentri_allegato(uploaded_file):
     return None
 
 from .models import RegistroRifiuti, RentriImpostazioni
+from core.permessi.impostazioni import impostazioni_o
 
 # ── Helpers Graph / SharePoint ────────────────────────────────────────────────
 
@@ -1523,7 +1524,7 @@ def api_sync_pull(request):
 @login_required
 def impostazioni(request):
     """Impostazioni modulo Rentri — superuser, admin legacy o grant canonico."""
-    if not _can_manage_rentri(request):
+    if not impostazioni_o(request, "rentri", _can_manage_rentri):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden()
 

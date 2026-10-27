@@ -35,6 +35,7 @@ from .services.etichetta import impagina, logo_url
 from .services.ingestion import estrai_sds, pittogrammi_proposti
 from .services.qr import genera_qr_png
 from core.upload_limits import DOCUMENT_MAX_BYTES
+from core.permessi.impostazioni import impostazioni_o
 
 logger = logging.getLogger(__name__)
 
@@ -465,7 +466,7 @@ def _prodotto_per_anteprima(request):
 
 @login_required
 def etichetta_impostazioni(request):
-    if not _can_gestire(request):
+    if not impostazioni_o(request, "schede_sicurezza", _can_gestire):
         raise Http404()
     impostazioni = ImpostazioniEtichetta.correnti()
     logo_precedente = impostazioni.logo.name if impostazioni.logo else ""

@@ -15,7 +15,7 @@ riceverne i permessi e il test ``core.tests_permessi`` fallisce.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable
 
 from core.permission_taxonomy import (
@@ -139,11 +139,27 @@ _LOCK = threading.Lock()
 _SCOPERTI = False
 
 
+def _con_impostazioni(modulo: ModuloPermessi) -> ModuloPermessi:
+    """Aggiunge l'azione «impostazioni» ai moduli dichiarati in ``core.permessi.impostazioni``."""
+    from core.permessi.impostazioni import AZIONE_IMPOSTAZIONI, pagine_impostazioni
+
+    pagine = pagine_impostazioni(modulo.chiave)
+    if pagine is None or any(azione == AZIONE_IMPOSTAZIONI for azione, _label in modulo.azioni_extra):
+        return modulo
+    return replace(
+        modulo,
+        azioni_extra=modulo.azioni_extra + ((AZIONE_IMPOSTAZIONI, pagine.etichetta),),
+        pagine_azioni=modulo.pagine_azioni + ((AZIONE_IMPOSTAZIONI, pagine.codici),),
+        codici_acl=modulo.codici_acl + tuple(c for c in pagine.codici if c not in modulo.codici_acl),
+    )
+
+
 def registra_modulo(modulo: ModuloPermessi) -> ModuloPermessi:
     """Dichiara un modulo. Chiave duplicata = errore di programmazione."""
     chiave = str(modulo.chiave or "").strip().lower()
     if not chiave:
         raise ValueError("ModuloPermessi senza chiave.")
+    modulo = _con_impostazioni(modulo)
     for azione, _label in modulo.azioni_extra:
         if azione in AZIONI_STANDARD:
             raise ValueError(f"{chiave}: l'azione «{azione}» e' gia' standard.")

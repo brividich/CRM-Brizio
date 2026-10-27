@@ -98,7 +98,7 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:programma_cicli": PERM_AUDIT_VIEW,
     "sistema_gestione:programma_ciclo": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_calendario": PERM_AUDIT_VIEW,
-    "sistema_gestione:audit_impostazioni": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_impostazioni": "sistema_gestione.impostazioni.manage",
     "sistema_gestione:programma_rifiuta": PERM_AUDIT_APPROVA,
     "sistema_gestione:audit_approva_deroga": PERM_AUDIT_APPROVA,
     "sistema_gestione:audit_annulla": PERM_AUDIT_EDIT,
@@ -215,6 +215,10 @@ def _bootstrap_canonical() -> bool:
             )
             changed = changed or created
 
+        # Le impostazioni hanno un permesso loro (azione «impostazioni»): core/permessi/impostazioni.py.
+        from core.permessi.impostazioni import assicura_permesso_impostazioni
+
+        assicura_permesso_impostazioni("sistema_gestione")
         for route_name, code in _ROUTE_BINDINGS.items():
             binding, created = RoutePermissionBinding.objects.get_or_create(
                 route_name=route_name, path_pattern="",

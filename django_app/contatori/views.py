@@ -619,9 +619,15 @@ def leggi_snmp(request):
 
 # --- Gestione stampanti & SNMP ---------------------------------------------
 
-@richiede_gestione
 def impostazioni(request):
     """Parametri SNMP globali (singleton) e intervalli/storico della videosorveglianza."""
+    # Con il sistema dei ruoli acceso decide l'azione «impostazioni» della matrice.
+    from core.permessi.impostazioni import impostazioni_o
+
+    from .permessi import nega, puo_gestire
+
+    if not impostazioni_o(request, "contatori", puo_gestire):
+        return nega(request)
     cfg = ImpostazioniSNMP.get_solo()
     if request.method == "POST":
         form = ImpostazioniSNMPForm(request.POST, instance=cfg)

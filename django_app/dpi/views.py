@@ -48,6 +48,7 @@ from .models import (
 )
 from core import naming
 from core.upload_limits import DOCUMENT_MAX_BYTES
+from core.permessi.impostazioni import impostazioni_o
 
 logger = logging.getLogger(__name__)
 
@@ -1180,7 +1181,7 @@ def aggiungi_commento(request, pk: int):
 
 @login_required
 def impostazioni(request):
-    if not _is_gestore(request):
+    if not impostazioni_o(request, "dpi", _is_gestore):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
@@ -1207,7 +1208,7 @@ def impostazioni(request):
 
 @login_required
 def categoria_edit(request, pk: int | None = None):
-    if not _is_gestore(request):
+    if not impostazioni_o(request, "dpi", _is_gestore):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
@@ -1266,7 +1267,7 @@ def categoria_edit(request, pk: int | None = None):
 
 @login_required
 def tipo_edit(request, pk: int | None = None):
-    if not _is_gestore(request):
+    if not impostazioni_o(request, "dpi", _is_gestore):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
@@ -1319,7 +1320,7 @@ def tipo_edit(request, pk: int | None = None):
 
 @login_required
 def modello_edit(request, pk: int | None = None):
-    if not _is_gestore(request):
+    if not impostazioni_o(request, "dpi", _is_gestore):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
@@ -1395,7 +1396,7 @@ def modello_edit(request, pk: int | None = None):
 
 @login_required
 def taglia_edit(request, pk: int | None = None):
-    if not _is_gestore(request):
+    if not impostazioni_o(request, "dpi", _is_gestore):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
@@ -1451,7 +1452,7 @@ def taglia_edit(request, pk: int | None = None):
 @login_required
 @require_POST
 def categoria_elimina(request, pk: int):
-    if not _is_gestore(request):
+    if not impostazioni_o(request, "dpi", _is_gestore):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
     cat = get_object_or_404(CategoriaDPI, pk=pk)
