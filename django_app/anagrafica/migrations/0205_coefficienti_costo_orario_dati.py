@@ -15,7 +15,6 @@ PASSO = Decimal("0.0001")
 ROTTE = {
     "anagrafica:mansioni_coefficienti": "anagrafica:mansionario_persona",
     "anagrafica:costo_orario": "anagrafica:retribuzioni_globale",
-    "anagrafica:costo_orario_export": "anagrafica:retribuzioni_globale",
 }
 NOTA = "[COEFF_0205] copiato da {}"
 

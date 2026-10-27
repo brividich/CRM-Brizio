@@ -1670,7 +1670,8 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     <div class="dp-card-head">
       <div class="dp-card-title">🧭 Posizione nella struttura</div>
       <span class="dp-pos-azioni">
-        {% if legacy_id %}<a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:mansionario_persona' legacy_id %}">Competenze e lacune →</a>{% endif %}
+        {% if legacy_id %}<a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:mansionario_persona' legacy_id %}">Competenze e lacune →</a>
+        {% if posizione.abilitazioni %}<a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:mansioni_coefficienti' legacy_id %}">Classificazione e coefficienti →</a>{% endif %}{% endif %}
         <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:struttura_org' %}">Struttura organizzativa →</a>
       </span>
     </div>
@@ -1691,7 +1692,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
       <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }}{% if posizione.abilitazioni %}, {{ posizione.n_operative }} operativ{{ posizione.n_operative|pluralize:"a,e" }}{% endif %})</div>
       {% if posizione.abilitazioni and legacy_id %}
-      <p class="dp-pos-meta dp-pos-coeff">{% with c=posizione.coefficienti %}{% if c.classe_principale_label %}Prevalente: <strong>{{ c.classe_principale_label }}</strong> · {% endif %}coefficienti {% if c.in_regola %}in regola (somma 1){% else %}<span class="dp-pos-warn">da sistemare: la somma non fa 1</span>{% endif %}{% if c.da_rivedere %} · <span class="dp-pos-warn">da rivedere</span>{% endif %}{% if c.turni_misti %} · <span class="dp-pos-warn">turni misti</span>{% endif %}{% if c.senza_classe %} · {{ c.senza_classe }} senza classificazione{% endif %}{% endwith %} · <a href="{% url 'anagrafica:mansioni_coefficienti' legacy_id %}">Classificazione e coefficienti →</a></p>
+      <p class="dp-pos-meta dp-pos-coeff">{% with c=posizione.coefficienti %}{% if c.classe_principale_label %}Prevalente: <strong>{{ c.classe_principale_label }}</strong> · {% endif %}coefficienti {% if c.in_regola %}in regola (somma 1){% else %}<span class="dp-pos-warn">la somma non fa 1</span>{% endif %}{% if c.da_rivedere %} · <span class="dp-pos-warn">da rivedere</span>{% endif %}{% if c.turni_misti %} · <span class="dp-pos-warn">turni misti</span>{% endif %}{% if c.senza_classe %} · {{ c.senza_classe }} senza classificazione{% endif %}{% endwith %}</p>
       {% endif %}
       {% if posizione.abilitazioni %}
       <ul class="dp-pos-list">

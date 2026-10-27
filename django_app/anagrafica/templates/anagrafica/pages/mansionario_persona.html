@@ -21,6 +21,7 @@
         <p class="fmd-ph-sub">Reparto principale: <strong>{{ scheda.reparto_principale|default:"—" }}</strong> (mansione con il livello più alto, poi la più vecchia).</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansioni_coefficienti' legacy_id %}">Classificazione e coefficienti</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendente_detail' legacy_id %}">Scheda dipendente</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
       </div>
@@ -31,13 +32,15 @@
       {% if scheda.righe %}
       <div class="fmd-tablewrap">
         <table class="fmd-table">
-          <thead><tr><th>Mansione</th><th>Reparto</th><th>Livello</th><th>Esito</th><th>Cosa manca</th></tr></thead>
+          <thead><tr><th>Mansione</th><th>Reparto</th><th>Livello</th><th>Classificazione</th><th class="fmd-num">Coefficiente</th><th>Esito</th><th>Cosa manca</th></tr></thead>
           <tbody>
             {% for r in scheda.righe %}
             <tr>
               <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' r.mansione.pk %}">{{ r.mansione.nome }}</a> <span class="fmd-muted">{{ r.mansione.get_tipo_display|lower }}</span></td>
               <td class="fmd-muted">{{ r.mansione.reparto_effettivo|default:"—" }}</td>
               <td><span class="fmd-badge {% if r.abilitazione.livello == 'O' or r.abilitazione.livello == 'U' %}fmd-b-green{% elif r.abilitazione.livello == 'L' %}fmd-b-orange{% else %}fmd-b-grey{% endif %}">{{ r.abilitazione.livello }}</span></td>
+              <td class="fmd-muted">{{ r.abilitazione.get_classificazione_display|default:"—" }}</td>
+              <td class="fmd-num">{% if r.abilitazione.coefficiente is not None %}{{ r.abilitazione.coefficiente|floatformat:"-4" }}{% else %}—{% endif %}</td>
               <td>{% if r.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif r.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
               <td class="fmd-muted" style="font-size:12.5px;">{{ r.valutazione.mancanze|join:" · "|default:"—" }}</td>
             </tr>

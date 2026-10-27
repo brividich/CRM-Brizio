@@ -66,6 +66,7 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-legal:#fda4af;--pl-o
 .pl-pin:focus-visible,.pl-pin:hover{outline:2px solid var(--primary-mid);outline-offset:3px;z-index:4}
 .pl-pin.is-selected{outline:3px solid var(--primary-mid);outline-offset:4px;z-index:5}
 .pl-pin.is-dim{opacity:.18}
+.pl-pin-altrui{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--text-light,#94a3b8);opacity:.45;transform:translate(-50%,-50%) scale(calc(1 / var(--pl-z)));box-shadow:0 0 0 2px #fff;cursor:default;z-index:1}
 .pl-pin-badge{position:absolute;top:-9px;left:-10px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--pl-ticket);color:#fff;font-size:9px;font-weight:900;line-height:15px;text-align:center;box-shadow:0 0 0 2px #fff}
 .pl-pin-label{position:absolute;left:18px;top:50%;transform:translateY(-50%);background:#fff;color:#0f172a;border-radius:4px;padding:0 4px;font-size:10px;font-weight:800;line-height:14px;white-space:nowrap;box-shadow:0 0 0 1px rgba(15,23,42,.18);display:none}
 .pl-view.show-labels .pl-pin:not(.is-ok) .pl-pin-label,.pl-view.is-zoomed .pl-pin-label,.pl-pin.is-selected .pl-pin-label{display:block}
@@ -311,6 +312,9 @@ body.theme-dark .pl-back{color:#93c5fd}
                 aria-label="Reparto {{ area.name }}, {{ area.machine_count }} macchine{% if area.alert_count %}, {{ area.alert_count }} da guardare{% endif %}">
                 <span class="pl-area-label"><span class="pl-area-name">{{ area.name }}</span>{% if area.alert_count %}<span class="pl-area-alert">{{ area.alert_count }}</span>{% endif %}</span>
               </button>
+              {% endfor %}
+              {% for altro in plant_layout_payload.altrui %}
+              <span class="pl-pin-altrui" style="left:{{ altro.x_percent }}%;top:{{ altro.y_percent }}%;" title="{{ altro.label }} · non di tua competenza" aria-hidden="true"></span>
               {% endfor %}
               {% for marker in plant_layout_payload.markers %}
               <button type="button" class="pl-pin is-{{ marker.alert }}{% if marker.machine.live %} is-cnc{% endif %}" data-marker-id="{{ marker.id }}"{% if marker.machine.live %} data-live="{{ marker.machine.live.stato }}"{% endif %}

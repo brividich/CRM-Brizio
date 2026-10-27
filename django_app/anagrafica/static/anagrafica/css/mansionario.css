@@ -356,9 +356,6 @@ body.theme-dark .fmd .mns-chi-sub{ color:#fdba74; }
 .mcf-ok{ color:var(--hr-ok-fg, #15803d); }
 .mcf-ko{ color:var(--hr-ko-fg, #c53030); }
 .mcf-azioni{ display:flex; justify-content:flex-end; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap; }
-.mcf-divisori input{ width:110px; }
-.mcf-flag{ display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; background:var(--hr-alert-bg, #ffe7d6); color:var(--hr-alert-fg, #c2410c); }
-body.theme-dark .fmd .mcf-flag{ background:rgba(249,115,22,.18); color:#fdba74; }
 body.theme-dark .fmd .mcf-ok{ color:#86efac; }
 body.theme-dark .fmd .mcf-ko{ color:#fca5a5; }
 @media (max-width:640px){

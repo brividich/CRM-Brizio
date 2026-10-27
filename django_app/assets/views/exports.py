@@ -279,10 +279,12 @@ def _asset_export_row(a: "Asset") -> list:
 def asset_list_export(request: HttpRequest) -> HttpResponse:
     scope = request.GET.get("scope", "filtered")
     fmt = request.GET.get("format", "xlsx")
+    from ..services.visibilita import filtra as filtra_visibili
+
     if scope == "full":
-        assets = list(Asset.objects.select_related("asset_category").distinct().order_by("name", "asset_tag"))
+        assets = list(filtra_visibili(request, Asset.objects.select_related("asset_category")).distinct().order_by("name", "asset_tag"))
     else:
-        assets = list(_apply_asset_export_filters(request.GET))
+        assets = list(filtra_visibili(request, _apply_asset_export_filters(request.GET)))
 
     today = timezone.localdate().strftime("%Y%m%d")
     rows = [_asset_export_row(a) for a in assets]
@@ -390,11 +392,13 @@ def workorder_list_export(request: HttpRequest) -> HttpResponse:
 @login_required
 def work_machine_export_pdf(request: HttpRequest) -> HttpResponse:
     scope = request.GET.get("scope", "filtered")
+    from ..services.visibilita import filtra as filtra_visibili
+
     if scope == "full":
-        qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+        qs = filtra_visibili(request, Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine"))
     else:
         form = WorkMachineFilterForm(request.GET or None)
-        qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+        qs = filtra_visibili(request, Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine"))
         if form.is_valid():
             q = _clean_string(form.cleaned_data.get("q"))
             reparto = _clean_string(form.cleaned_data.get("reparto"))
@@ -450,8 +454,10 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
 
     from core.excel_export import write_cell, write_row
 
+    from ..services.visibilita import filtra as filtra_visibili
+
     form = WorkMachineFilterForm(request.GET or None)
-    machines_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+    machines_qs = filtra_visibili(request, Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine"))
 
     if form.is_valid():
         q = _clean_string(form.cleaned_data.get("q"))
