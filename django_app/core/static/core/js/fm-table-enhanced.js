@@ -1691,6 +1691,15 @@
     }
     updateMoreFooter(table, cols, matched.length, Math.min(limit, matched.length));
     syncColgroup(table, cols, state);
+    // Colonne mostrate/nascoste: si riadattano le larghezze; altrimenti
+    // basta marcare le righe nuove.
+    const visSig = (state.visible || []).join(",");
+    if (table._fmFitReady && table._fmFitSig !== visSig) {
+      table._fmFitSig = visSig;
+      fitTable(table, cols);
+    } else {
+      markHugCells(table, cols);
+    }
     refreshViewportMode(table);
   }
 
@@ -1920,10 +1929,185 @@
   function markNarrowHeaders(cols) {
     cols.forEach((col) => {
       if (!col.key || col.th.style.display === "none") return;
-      const narrow = col.th.getBoundingClientRect().width < 92;
+      const narrow = col.th.classList.contains("fm-col-hug") || col.th.getBoundingClientRect().width < 92;
       col.th.classList.toggle("fm-th-narrow", narrow);
       if (narrow && !col.th.title) col.th.title = col.label || col.key;
     });
+  }
+
+  // ─── Colonne adattate al contenuto ───────────────────────────────────────
+  //
+  // A layout automatico il browser spalma lo spazio libero su tutte le
+  // colonne: un elenco di 5 colonne su uno schermo largo si riempie di buchi,
+  // e le colonne strette imposte dalla pagina tagliano le intestazioni. Qui
+  // le colonne «corte» (numeri, date, importi, codici, badge, pulsanti) si
+  // stringono sul loro contenuto (`fm-col-hug`: width 1% + niente a capo) e
+  // lo spazio che avanza va alle colonne di testo. Se la tabella non entra
+  // comunque, la pagina usa tutta la larghezza dello schermo
+  // (`fm-tbl-wide`) e poi le celle si compattano (`fm-tbl-dense`). Su
+  // smartphone le tabelle sono schede (mobile-tables.js): qui non si fa nulla.
+  // Spegnibile per tabella con data-fm-autofit="0".
+
+  const HUG_MAX_CHARS = 26;
+  const RE_SHORT_VALUE = /^[-–—+]?[\d\s.,:/%€$£'°hHmM-]*$/;
+  const mqCards = window.matchMedia ? window.matchMedia("(max-width:720px)") : { matches: false };
+
+  function autofitAllowed(table) {
+    return table.dataset.fmAutofit !== "0" && !table.closest("[data-fm-autofit='0']") && !mqCards.matches;
+  }
+
+  function classifyColumns(table, cols) {
+    const rows = bodyRows(table).slice(0, 80);
+    cols.forEach((col) => {
+      let hug = col.type === "number" || col.type === "date";
+      let seen = 0, long = 0, ctl = 0;
+      for (const tr of rows) {
+        const td = tr.cells[col.idx];
+        if (!td) continue;
+        const text = cleanText(td.textContent);
+        const hasCtl = !!td.querySelector("button, .btn, select, input");
+        if (!text && !hasCtl) continue;
+        seen++;
+        // Solo controlli (casella, pulsante «Scheda», selettori): colonna corta.
+        if (hasCtl && text.length <= 30) { ctl++; continue; }
+        if (text.length > HUG_MAX_CHARS && !RE_SHORT_VALUE.test(text)) long++;
+      }
+      if (!hug) hug = long === 0;
+      // Le colonne di soli comandi non ricevono spazio in più.
+      col._fmCtl = !col.key || (seen > 0 && ctl === seen);
+      col._fmHug = hug;
+      col.th.classList.toggle("fm-col-hug", hug);
+    });
+    // Almeno una colonna deve poter prendere lo spazio libero: se sono tutte
+    // corte, la più ricca di testo torna elastica.
+    const visibleCols = cols.filter(c => c.th.style.display !== "none");
+    if (visibleCols.length && visibleCols.every(c => c._fmHug)) {
+      const text = visibleCols.filter(c => c.type !== "number" && c.type !== "date");
+      const pick = (text.length ? text : visibleCols)[0];
+      pick._fmHug = false;
+      pick.th.classList.remove("fm-col-hug");
+    }
+  }
+
+  // Le celle delle colonne corte non vanno a capo: chiamata a ogni
+  // applyState, così valgono anche per le righe arrivate passo passo.
+  function markHugCells(table, cols) {
+    if (!table.classList.contains("fm-tbl-fit")) return;
+    const idx = cols.filter(c => c._fmHug).map(c => c.idx);
+    if (!idx.length) return;
+    bodyRows(table).forEach((tr) => {
+      if (tr._fmHugDone) return;
+      idx.forEach((i) => { const td = tr.cells[i]; if (td) td.classList.add("fm-col-hug"); });
+      tr._fmHugDone = true;
+    });
+  }
+
+  // Colonne fisse a sinistra (position:sticky) dichiarate dalla pagina con
+  // un `left` scritto a mano: lo si ricalcola sulla larghezza vera delle
+  // colonne precedenti, altrimenti un nome lungo finisce sotto la seconda.
+  function fixStickyOffsets(table) {
+    const head = table.tHead && table.tHead.rows[0];
+    if (!head) return;
+    let left = 0;
+    const offsets = [];
+    for (const th of head.cells) {
+      if (window.getComputedStyle(th).position !== "sticky") break;
+      offsets.push(left);
+      left += th.getBoundingClientRect().width;
+    }
+    if (offsets.length < 2) return;
+    const apply = (cells) => offsets.forEach((x, i) => { if (cells[i]) cells[i].style.left = Math.round(x) + "px"; });
+    apply(head.cells);
+    Array.from(table.tBodies).forEach(tb => Array.from(tb.rows).forEach(tr => apply(tr.cells)));
+  }
+
+  // Larghezza minima (intestazione a capo tra le parole, celle corte su una
+  // riga) e larghezza «comoda» (tutto su una riga) di ogni colonna.
+  function measureColumns(table, cols) {
+    const prev = { width: table.style.width, minWidth: table.style.minWidth };
+    const read = () => {
+      const out = {};
+      cols.forEach((c) => { if (c.th.style.display !== "none") out[c.idx] = c.th.getBoundingClientRect().width; });
+      return out;
+    };
+    table.style.minWidth = "0";
+    table.style.width = "min-content";
+    const min = read();
+    table.classList.add("fm-tbl-measuring");
+    table.style.width = "max-content";
+    const max = read();
+    table.classList.remove("fm-tbl-measuring");
+    table.style.width = prev.width;
+    table.style.minWidth = prev.minWidth;
+    return { min, max };
+  }
+
+  // Le colonne di testo arrivano alla loro misura comoda (al massimo
+  // FLUID_MAX_W, oltre vanno a capo); lo spazio che avanza ancora si divide
+  // in parti uguali fra tutte le colonne, così non si apre un buco in una
+  // sola. Le larghezze sono in percentuale: tengono finché non cambia la
+  // finestra (allora si ricalcola).
+  const FLUID_MAX_W = 380;
+
+  function distributeWidths(table, cols) {
+    const shown = cols.filter(c => c.th.style.display !== "none" && !c._fmFixedW);
+    if (!shown.length) return;
+    const total = table.getBoundingClientRect().width;
+    // Larghezza scritta dalla pagina: vale quella dichiarata, non quella che
+    // il layout automatico le ha dato nel frattempo.
+    const fixed = cols.filter(c => c.th.style.display !== "none" && c._fmFixedW)
+      .reduce((s, c) => {
+        const px = /px$/.test(c.th.style.width) ? parseFloat(c.th.style.width) : NaN;
+        return s + (Number.isFinite(px) ? px : c.th.getBoundingClientRect().width);
+      }, 0);
+    const { min, max } = measureColumns(table, cols);
+    const w = {};
+    let used = fixed;
+    shown.forEach((c) => { w[c.idx] = min[c.idx] || 0; used += w[c.idx]; });
+    let slack = total - used;
+    if (slack <= 2) return;
+    const fluid = shown.filter(c => !c._fmHug);
+    const want = fluid.map(c => Math.max(0, Math.min(max[c.idx] || 0, FLUID_MAX_W) - w[c.idx]));
+    const wantSum = want.reduce((a, b) => a + b, 0);
+    if (wantSum > 0) {
+      const k = Math.min(1, slack / wantSum);
+      fluid.forEach((c, i) => { w[c.idx] += want[i] * k; });
+      slack -= wantSum * k;
+    }
+    const share = shown.filter(c => !c._fmCtl);
+    const to = share.length ? share : shown;
+    if (slack > 0) to.forEach((c) => { w[c.idx] += slack / to.length; });
+    shown.forEach((c) => {
+      c.th.style.width = (w[c.idx] / total * 100).toFixed(3) + "%";
+      c._fmAutoW = true;
+    });
+  }
+
+  function fitTable(table, cols) {
+    const fit = autofitAllowed(table) && !table._fmSized;
+    // Si riparte sempre dalle larghezze della pagina.
+    cols.forEach((c) => {
+      if (c._fmAutoW) { c.th.style.width = ""; c._fmAutoW = false; }
+      // Larghezza scritta dalla pagina (es. vista configurata): la si rispetta.
+      if (c._fmFixedW === undefined) c._fmFixedW = !!c.th.style.width;
+    });
+    table.classList.toggle("fm-tbl-fit", fit);
+    table.classList.remove("fm-tbl-wide", "fm-tbl-dense");
+    if (!fit) {
+      cols.forEach(c => c.th.classList.remove("fm-col-hug"));
+      fixStickyOffsets(table);
+      return;
+    }
+    classifyColumns(table, cols);
+    bodyRows(table).forEach((tr) => { tr._fmHugDone = false; Array.from(tr.cells).forEach(td => td.classList.remove("fm-col-hug")); });
+    markHugCells(table, cols);
+    markNarrowHeaders(cols);
+    const vp = table._fmViewport || table.parentElement;
+    const overflows = () => vp && table.offsetWidth > vp.clientWidth + 2;
+    if (overflows()) table.classList.add("fm-tbl-wide");
+    if (overflows()) table.classList.add("fm-tbl-dense");
+    else distributeWidths(table, cols);
+    fixStickyOffsets(table);
   }
 
   function fullscreenTitle(table) {
@@ -1979,6 +2163,8 @@
     $$(":scope > colgroup", table).forEach(cg => { if (!cg.classList.contains("fm-colgroup")) cg.remove(); });
     table._fmSized = true;
     table.classList.add("fm-tbl-sized");
+    // Da qui comandano le larghezze dell'utente, non l'adattamento automatico.
+    table.classList.remove("fm-tbl-fit", "fm-tbl-wide", "fm-tbl-dense");
   }
 
   function syncColgroup(table, cols, state) {
@@ -2015,7 +2201,9 @@
     }
     table.style.tableLayout = "fixed";
     table.style.width = total + "px";
-    table.style.minWidth = "0";
+    // Colonne più strette della pagina: la tabella resta a tutta larghezza e
+    // lo spazio in più si divide tra le colonne in proporzione.
+    table.style.minWidth = "100%";
     table.style.maxWidth = "none";
   }
 
@@ -2024,15 +2212,17 @@
     // senza andare a capo: la larghezza dell'intestazione è allora quella
     // naturale della colonna.
     const cg = table._fmColgroup;
-    const prev = { layout: table.style.tableLayout, width: table.style.width };
+    const prev = { layout: table.style.tableLayout, width: table.style.width, minWidth: table.style.minWidth };
     if (cg && cg.parentNode) cg.parentNode.removeChild(cg);
     table.classList.add("fm-tbl-measuring");
     table.style.tableLayout = "auto";
     table.style.width = "max-content";
+    table.style.minWidth = "0";
     const w = col.th.getBoundingClientRect().width;
     table.classList.remove("fm-tbl-measuring");
     table.style.tableLayout = prev.layout;
     table.style.width = prev.width;
+    table.style.minWidth = prev.minWidth;
     return clampWidth(w + 6);
   }
 
@@ -2548,7 +2738,12 @@
     }
 
     wireMoreFooter(table, cols, state, statusEl);
-    if (vp) window.addEventListener("resize", () => refreshViewportMode(table), { passive: true });
+    let fitTimer = 0;
+    window.addEventListener("resize", () => {
+      if (vp) refreshViewportMode(table);
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(() => fitTable(table, cols), 150);
+    }, { passive: true });
 
     // API programmatica per impostare/azzerare un filtro di colonna dall'esterno
     // (es. click su un KPI che filtra la tabella per anno). Aggiorna lo stato,
@@ -2590,6 +2785,9 @@
       enterSizedMode(table, cols);
       syncColgroup(table, cols, state);
     }
+    table._fmFitSig = (state.visible || []).join(",");
+    table._fmFitReady = true;
+    fitTable(table, cols);
     markNarrowHeaders(cols);
     maybeLoadAll();
     // Colonne e ordinamento della vista diventano le preferenze correnti.

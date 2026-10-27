@@ -158,6 +158,15 @@ Ordinamento (26/10/2026), indipendente dal tipo dichiarato:
 - Smartphone: `.fm-tbl-msort` «Ordina per…» + direzione, visibile solo ≤720px (le tabelle a schede non hanno intestazione).
 - Inferenza del tipo: etichette «da data» a parola intera (`DATE_LABEL_WORDS`) e confermate sui valori («Definizione» non è più una data).
 
+Larghezze adattate al contenuto (27/10/2026, `fitTable`), senza larghezze utente (`_fmSized`) e sopra i 720px:
+- `classifyColumns`: colonna **corta** (`fm-col-hug`: th `width:1%`, td `nowrap`) se `data-col-type` number/date o se nessuna cella supera 26 caratteri (numeri/date/importi a qualsiasi lunghezza); **comandi** (`_fmCtl`) se le celle hanno solo controlli (casella, pulsante, select) o il th non ha chiave. Almeno una colonna resta elastica.
+- `distributeWidths`: misura min-content e max-content; le colonne di testo crescono fino alla misura comoda (max `FLUID_MAX_W` 380px), lo spazio rimanente va **in parti uguali** alle colonne non-comando; larghezze in % sul th, ricalcolate al resize. Un `style="width:…px"` scritto dalla pagina (es. vista configurata) viene rispettato.
+- Tabella più larga del riquadro: `fm-tbl-wide` (`.content:has(...)` a tutta larghezza dello schermo), poi `fm-tbl-dense` (padding orizzontale 7px). Solo dopo scorre.
+- `fixStickyOffsets`: colonne sticky iniziali con `left` scritto a mano (es. `left:160px` in Ferie e permessi) ricalcolate sulla larghezza vera.
+- Colonne corte = icone ordina/filtra nell'angolo al passaggio (`fm-th-narrow`).
+- In modo «larghezze utente» la tabella ha `min-width:100%`: colonne più strette della pagina non lasciano il riquadro mezzo vuoto.
+- Spegnere per una tabella: `data-fm-autofit="0"` (anche su un antenato).
+
 ---
 
 ## 7. Roadmap patch
