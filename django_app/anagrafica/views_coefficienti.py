@@ -163,8 +163,18 @@ def costo_orario(request):
         "manuali": sum(1 for x in ctx["righe"] if x["c"].rml_manuale),
     }
     return render(request, "anagrafica/pages/costo_orario.html", {
-        **ctx, "page_title": "Costo orario", "giorni": giorni, "ore": ore, "ore_mese": giorni * ore, "kpi": kpi,
+        **ctx, "page_title": "Costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore, "kpi": kpi,
     })
+
+
+def _report_costi(request) -> int | None:
+    """Il modello pronto «Costo orario del personale» della Reportistica, se c'è e se si può aprire."""
+    from .models_reportistica import ReportModello
+    from .reportistica.permessi import can_view
+
+    if not can_view(request):
+        return None
+    return ReportModello.objects.filter(codice_sistema="costo_personale").values_list("pk", flat=True).first()
 
 
 def _euro(valore) -> str:
@@ -279,5 +289,5 @@ def costo_orario_storico(request):
     ctx = _storico(request)
     giorni, ore = costo_svc.divisori()
     return render(request, "anagrafica/pages/costo_orario_storico.html", {
-        **ctx, "page_title": "Storico del costo orario", "giorni": giorni, "ore": ore, "ore_mese": giorni * ore,
+        **ctx, "page_title": "Storico del costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore,
     })

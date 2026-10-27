@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=7">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -60,19 +60,18 @@
         {% if puo_valutare %}
         <form method="post" action="{% url 'anagrafica:mansionario_assegna' mansione.pk %}" class="mns-add">
           {% csrf_token %}
-          <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi una persona alla mansione</div>
-          <div class="fm-form-field" style="flex:0 1 220px;"><label for="mm-persona-q">Cerca</label>
-            <input id="mm-persona-q" type="search" class="fm-input" placeholder="Cognome o nome…" autocomplete="off" data-mns-filtra="mm-persona"></div>
-          <div class="fm-form-field" style="flex:1 1 260px;max-width:360px;"><label for="mm-persona">Persona</label>
-            <select id="mm-persona" name="persona" class="fm-input fm-select" required>
-              <option value="">— scegli ({{ candidati|length }} disponibili) —</option>
-              {% for c in candidati %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+          <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi persone alla mansione</div>
+          <div class="fm-form-field mns-add-pick"><label for="mm-persona">Persone <span class="fmd-muted">({{ candidati|length }} disponibili)</span></label>
+            <select id="mm-persona" name="persona" class="fm-input" multiple size="8" data-picker data-picker-placeholder="Cognome, nome, reparto o area…">
+              {% for c in candidati %}<option value="{{ c.id }}">{{ c.nome }}{% if c.reparto %} — {{ c.reparto }}{% if c.area and c.area != c.reparto %} · {{ c.area }}{% endif %}{% endif %}</option>{% endfor %}
             </select></div>
-          <div class="fm-form-field" style="min-width:180px;"><label for="mm-livello">Livello di partenza</label>
-            <select id="mm-livello" name="livello" class="fm-input fm-select">
-              {% for k, v in livelli_label %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}
-            </select></div>
-          <button type="submit" class="fmd-btn fmd-btn-primary">Assegna</button>
+          <div class="mns-add-side">
+            <div class="fm-form-field"><label for="mm-livello">Livello di partenza</label>
+              <select id="mm-livello" name="livello" class="fm-input fm-select">
+                {% for k, v in livelli_label %}<option value="{{ k }}">{{ k }} · {{ v }}</option>{% endfor %}
+              </select></div>
+            <button type="submit" class="fmd-btn fmd-btn-primary" data-mns-conta="mm-persona" data-mns-testo="Assegna">Assegna</button>
+          </div>
         </form>
         {% endif %}
 
@@ -84,7 +83,7 @@
               {% for p in persone %}
               <tr>
                 <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a></td>
-                <td><span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b>{{ p.livello_label }}</span></td>
+                <td data-sort-value="{{ p.livello }}">{% if puo_valutare and not competenze %}<form method="post" action="{% url 'anagrafica:mansionario_livello' mansione.pk p.abilitazione.pk %}" class="mns-lv-form">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}#persone"><select name="livello" class="fm-input fm-select mns-lv-sel" data-mns-auto aria-label="Livello di {{ p.nome }}" title="Cambia il livello: si salva subito e resta nello storico">{% for k, v in livelli_label %}<option value="{{ k }}"{% if k == p.livello %} selected{% endif %}>{{ k }} · {{ v }}</option>{% endfor %}</select><noscript><button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button></noscript></form>{% else %}<span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b>{{ p.livello_label }}</span>{% endif %}</td>
                 <td>{% if p.sospesa %}<span class="fmd-badge fmd-b-red">sospesa</span>{% elif p.da_valutare %}<span class="fmd-badge fmd-b-grey" title="Esito calcolato: {{ p.valutazione.esito_label|lower }}">da valutare</span>{% elif p.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif p.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
                 <td class="mns-manca">
                   {% if p.da_valutare %}<span class="fmd-muted">Competenze non ancora valutate</span>
@@ -285,14 +284,15 @@
   if(nome&&avvRin)nome.addEventListener('input',function(){avvRin.hidden=nome.value.trim()===nome.dataset.originale;});
   var att=document.querySelector('[data-mns-attiva]'),avvSp=document.querySelector('[data-mns-spegni]');
   if(att&&avvSp)att.addEventListener('change',function(){avvSp.hidden=att.checked;});
-  // Ricerca nella tendina delle persone: filtra le voci mentre si scrive.
-  document.querySelectorAll('[data-mns-filtra]').forEach(function(inp){
-    var sel=document.getElementById(inp.dataset.mnsFiltra);if(!sel)return;
-    inp.addEventListener('input',function(){
-      var q=inp.value.trim().toLowerCase(),primo=null;
-      Array.prototype.forEach.call(sel.options,function(o,i){if(!i)return;var ok=!q||o.text.toLowerCase().indexOf(q)>=0;o.hidden=!ok;if(ok&&!primo)primo=o;});
-      if(q&&primo)sel.value=primo.value;else if(!q)sel.value='';
-    });
+  // Il pulsante dice quante persone si stanno assegnando; spento finché non se ne sceglie una.
+  document.querySelectorAll('[data-mns-conta]').forEach(function(btn){
+    var sel=document.getElementById(btn.dataset.mnsConta);if(!sel)return;
+    function conta(){var n=sel.selectedOptions.length;btn.disabled=!n;btn.textContent=btn.dataset.mnsTesto+(n>1?' a '+n+' persone':'');}
+    sel.addEventListener('change',conta);conta();
+  });
+  // Livello in riga: si salva appena si cambia (storico + audit lato server).
+  document.querySelectorAll('[data-mns-auto]').forEach(function(s){
+    s.addEventListener('change',function(){s.form.submit();});
   });
 })();
 </script>

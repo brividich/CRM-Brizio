@@ -403,6 +403,27 @@ _PAGINE_AUDIT = [
         ],
     },
     {
+        "id": "pagina-checklist-norme",
+        "titolo": "Pagina «Checklist di audit per norma»",
+        "blocchi": [
+            ("p", "Da «Audit interni» › «Checklist per norma». Ogni norma ha le sue revisioni di checklist: quella "
+                  "«Attiva» viene caricata all'avvio degli audit che hanno la norma spuntata nel piano (EN 9100, ISO 45001, "
+                  "UNI/PdR 125). Più norme spuntate = più checklist nello stesso audit, ognuna con le sue sezioni."),
+            ("ul", [
+                "EN 9100: la checklist è il Folder B del MOD.035B, importata dagli amministratori.",
+                "ISO 45001 e UNI/PdR 125: non c'è un modulo aziendale. «Crea la bozza di base» propone sezioni per punto "
+                "norma o area, domande guida scritte per il portale e i riferimenti alle procedure MT CN. La bozza nasce "
+                "«Non attiva»: va verificata da RSGI, adattata ai processi e poi attivata.",
+                "Aprendo una revisione non attiva e mai usata si modificano sezioni (codice, titolo, criteri, ordine) e "
+                "domande (punti norma, domanda guida, ordine, attiva), si aggiungono o rimuovono.",
+                "«Attiva questa revisione» la mette in uso e spegne la precedente della stessa norma. «Disattiva» lascia la "
+                "norma senza domande negli audit avviati da quel momento.",
+                "Una revisione attiva o già usata in un audit non si modifica: «Apri una nuova revisione» ne crea una copia "
+                "non attiva, con il motivo. Gli audit già avviati conservano le domande che hanno usato.",
+            ]),
+        ],
+    },
+    {
         "id": "pagina-efficacia",
         "titolo": "Verifica efficacia di un rilievo",
         "blocchi": [
@@ -797,6 +818,8 @@ PAGE_HELP = {
     "sistema_gestione:audit_elemento_modifica": ("audit", "pagina-audit"),
     "sistema_gestione:audit_dettaglio": ("audit", "pagina-audit"),
     "sistema_gestione:audit_isms": ("audit", "pagina-isms"),
+    "sistema_gestione:checklist_norme": ("audit", "pagina-checklist-norme"),
+    "sistema_gestione:checklist_modello": ("audit", "pagina-checklist-norme"),
     "sistema_gestione:procedura_preparazione": ("audit", "pagina-preparazione"),
     "sistema_gestione:audit_esito_editor": ("audit", "pagina-verifica"),
     "sistema_gestione:audit_verifica_efficacia": ("audit", "pagina-efficacia"),

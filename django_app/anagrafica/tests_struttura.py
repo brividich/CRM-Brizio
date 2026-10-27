@@ -371,6 +371,84 @@ class MansioniInBloccoTests(_Base):
         self.assertEqual({p["legacy_id"] for p in r.context["persone"]}, {self.p1.pk, self.p2.pk})
 
 
+class AssegnazioneMultiplaTests(_Base):
+    """Più persone su una mansione (scheda mansione) e più mansioni a una persona (scheda persona)."""
+
+    def test_scheda_mansione_assegna_piu_persone(self):
+        r = self.client.post(reverse("anagrafica:mansionario_assegna", args=[self.processo.pk]),
+                             {"persona": [self.p1.pk, self.p2.pk], "livello": "L"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(set(AbilitazioneMacchina.objects.filter(competenza=self.processo, in_lista=True, livello="L")
+                             .values_list("legacy_anagrafica_id", flat=True)), {self.p1.pk, self.p2.pk})
+        pagina = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.processo.pk]))
+        self.assertEqual(pagina.context["candidati"], [])  # chi è già in lista non si offre più
+
+    def test_scheda_persona_assegna_piu_mansioni_e_salta_le_gia_presenti(self):
+        from .services import mansioni_in_blocco as mb
+
+        svc.assegna(self.fresa, legacy_anagrafica_id=self.p1.pk, livello="U")
+        self.assertEqual([m.pk for m in mb.mansioni_assegnabili(self.p1.pk)], [self.processo.pk])
+        r = self.client.post(reverse("anagrafica:mansionario_persona_assegna", args=[self.p1.pk]),
+                             {"mansione": [self.fresa.pk, self.processo.pk], "livello": "I"})
+        self.assertRedirects(r, reverse("anagrafica:mansionario_persona", args=[self.p1.pk]),
+                             fetch_redirect_response=False)
+        self.assertEqual(AbilitazioneMacchina.objects.get(legacy_anagrafica_id=self.p1.pk, competenza=self.fresa).livello,
+                         "U")  # già presente: non si tocca
+        self.assertEqual(AbilitazioneMacchina.objects.get(legacy_anagrafica_id=self.p1.pk,
+                                                          competenza=self.processo).livello, "I")
+        pagina = self.client.get(reverse("anagrafica:mansionario_persona", args=[self.p1.pk]))
+        self.assertContains(pagina, "Nessuna altra mansione attiva da assegnare.")
+        self.assertContains(pagina, reverse("anagrafica:mansionario_togli",
+                                            args=[self.fresa.pk, pagina.context["scheda"]["righe"][0]["abilitazione"].pk]))
+
+    def test_scheda_persona_rifiuta_spente_responsabilita_e_livello_assente(self):
+        from .services import mansioni_in_blocco as mb
+
+        self.processo.attiva = False
+        self.processo.save()
+        resp = CompetenzaSkm.objects.create(competenza_key="R-SBA", display="Capo sbavatura",
+                                            tipo=CompetenzaSkm.TIPO_PROCESSO, responsabilita_reparto=self.reparto)
+        self.assertEqual(mb.mansioni_assegnabili(self.p1.pk), [self.fresa])
+        esiti = mb.assegna_mansioni(self.p1.pk, [self.processo.pk, resp.pk, self.fresa.pk], livello="L")
+        self.assertEqual([a for _, a, _ in esiti], ["errore", "errore", "cambia"])
+        with self.assertRaises(ValueError):
+            mb.assegna_mansioni(self.p1.pk, [self.fresa.pk], livello="")
+        with self.assertRaises(ValueError):
+            mb.assegna_mansioni(self.p1.pk, [], livello="L")
+
+    def test_livello_in_riga_tracciato(self):
+        ab = svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="I")
+        persona = reverse("anagrafica:mansionario_persona", args=[self.p1.pk])
+        url = reverse("anagrafica:mansionario_livello", args=[self.processo.pk, ab.pk])
+        self.assertContains(self.client.get(persona), url)
+        r = self.client.post(url, {"livello": "U", "next": persona})
+        self.assertRedirects(r, persona, fetch_redirect_response=False)
+        ab.refresh_from_db()
+        self.assertEqual(ab.livello, "U")
+        ultimo = AbilitazioneMacchinaStorico.objects.filter(competenza=self.processo).order_by("-id").first()
+        self.assertEqual((ultimo.livello, ultimo.note), ("U", "Mansionario: livello I → U (str_admin)"))
+        self.assertContains(self.client.get(persona), "Mansionario: livello I → U (str_admin)")
+        n = AbilitazioneMacchinaStorico.objects.count()
+        self.client.post(url, {"livello": "U"})  # stesso livello: niente scatto doppio
+        self.assertEqual(AbilitazioneMacchinaStorico.objects.count(), n)
+
+    def test_livello_in_riga_rifiutato_con_competenze(self):
+        comp.salva_competenza(self.processo, nome="Uso sbavatore")
+        ab = svc.assegna(self.processo, legacy_anagrafica_id=self.p1.pk, livello="I")
+        self.client.post(reverse("anagrafica:mansionario_livello", args=[self.processo.pk, ab.pk]), {"livello": "O"})
+        ab.refresh_from_db()
+        self.assertEqual(ab.livello, "I")
+        self.assertNotContains(self.client.get(reverse("anagrafica:mansionario_persona", args=[self.p1.pk])),
+                               reverse("anagrafica:mansionario_livello", args=[self.processo.pk, ab.pk]))
+
+    def test_senza_permesso_non_assegna(self):
+        utente = User.objects.create_user("str_nessuno", "n@example.invalid", "x")
+        self.client.force_login(utente)
+        self.client.post(reverse("anagrafica:mansionario_persona_assegna", args=[self.p1.pk]),
+                         {"mansione": [self.processo.pk], "livello": "L"})
+        self.assertFalse(AbilitazioneMacchina.objects.exists())
+
+
 class AssegnazioniExcelTests(_Base):
     def _file(self, ruoli=(), mansioni=()):
         from .services import assegnazioni_excel as ax

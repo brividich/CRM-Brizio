@@ -40,6 +40,7 @@ from .models import (
     AuditPersona,
     Auditor,
     CellaProgramma,
+    ChecklistModello,
     Processo,
     ProgrammaAudit,
     RigaProgramma,
@@ -468,7 +469,7 @@ def audit_dettaglio(request, pk: int):
         if sezione:
             by_section.setdefault(sezione, []).append(esito)
     car = {c.sezione_id: c for c in audit.car_sezioni.all()}
-    for sezione in sorted(by_section, key=lambda s: (s.ordine, s.pk)):
+    for sezione in sorted(by_section, key=ChecklistModello.chiave_sezione):
         gruppi.append({"sezione": sezione, "esiti": by_section[sezione], "car": car.get(sezione.pk)})
     executor_assegnato = _assigned_executor(request, audit)
     puo_approvare = _has_perm(request, PERM_AUDIT_APPROVA)

@@ -1,0 +1,21 @@
+{% extends "core/base.html" %}
+{% block title %}Checklist di audit{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">Checklist di audit per norma</div><div class="page-sub">La revisione attiva di ogni norma viene caricata all'avvio degli audit che hanno quella norma spuntata.</div></div></div>
+  {% for n in norme %}
+  <section class="rc-card sg-section" id="norma-{{ n.codice }}"><h2>{{ n.info.titolo }}</h2>
+    <p class="sg-muted">{{ n.info.norma }} · {% if n.attiva %}in uso la <strong>Rev.{{ n.attiva.revisione }}</strong>{% else %}nessuna revisione attiva: gli audit con questa norma partono senza domande della norma{% endif %}</p>
+    {% if n.revisioni %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Revisione</th><th>Stato</th><th>Domande attive</th><th>Origine e motivo</th><th>Attivata</th></tr></thead><tbody>
+      {% for m in n.revisioni %}<tr><td><a href="{% url 'sistema_gestione:checklist_modello' m.pk %}">Rev.{{ m.revisione }}</a></td><td>{% if m.attivo %}<span class="sg-badge ok">Attiva</span>{% else %}<span class="sg-badge">Non attiva</span>{% endif %}</td><td>{{ m.n_domande }}</td><td>{{ m.origine }}{% if m.motivo %} · {{ m.motivo }}{% endif %}</td><td>{% if m.attivato_il %}{{ m.attivato_il|date:"d/m/Y H:i" }} · {{ m.attivato_da|default:"" }}{% else %}—{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
+    {% if n.bozza_disponibile %}
+      <p>Non esiste un modulo aziendale di checklist per questa norma. Il portale può proporre una <strong>bozza di base</strong>: domande guida per punto norma e riferimenti alle procedure MT CN, da verificare e completare prima di attivarla.</p>
+      {% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:checklist_proponi' n.codice %}">{% csrf_token %}<button class="btn" type="submit">Crea la bozza di base</button></form>{% endif %}
+    {% elif not n.revisioni %}<p>La checklist si importa dal modulo aziendale MOD.035B con il comando <code>importa_checklist_mod035b</code> (amministratori).</p>{% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}{{ modello.titolo }} Rev.{{ modello.revisione }}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:checklist_norme' %}">← Checklist di audit</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{{ modello.titolo }} · Rev.{{ modello.revisione }}</div><div class="page-sub">{% if modello.attivo %}<span class="sg-badge ok">Attiva</span>{% else %}<span class="sg-badge">Non attiva</span>{% endif %} · {{ modello.norma }} · {{ modello.origine }}{% if modello.motivo %} · {{ modello.motivo }}{% endif %}</div></div></div>
+
+  <section class="rc-card sg-section" id="stato"><h2>Stato della revisione</h2>
+    {% if modificabile %}<p>Revisione modificabile: correggi sezioni, criteri e domande, poi attivala. All'attivazione la revisione precedente della stessa norma smette di essere usata.</p>
+    {% elif usato %}<p>Revisione già usata in almeno un audit: il testo resta com'è (gli audit conservano le domande che hanno usato). Per cambiarla apri una nuova revisione.</p>
+    {% elif modello.attivo %}<p>Revisione attiva: per cambiarla apri una nuova revisione, oppure disattivala.</p>{% endif %}
+    {% if modello.origine|slice:":5" == "Bozza" and not modello.attivato_il %}<div class="sg-alert warn" role="status">Bozza proposta dal portale: le domande guida sono scritte per il portale e non sostituiscono la norma. Verificale con RSGI, adattale ai processi aziendali e completa i criteri prima dell'attivazione.</div>{% endif %}
+    {% if puo_modificare %}<div class="sg-actions">
+      {% if not modello.attivo %}<form method="post" action="{% url 'sistema_gestione:checklist_revisione' modello.pk %}">{% csrf_token %}<input type="hidden" name="azione" value="attiva"><button class="btn" type="submit">Attiva questa revisione</button></form>
+      {% else %}<form method="post" action="{% url 'sistema_gestione:checklist_revisione' modello.pk %}">{% csrf_token %}<input type="hidden" name="azione" value="disattiva"><button class="btn btn-secondary" type="submit" data-hub-confirm="Disattivare la revisione? Gli audit avviati da ora non caricheranno domande per questa norma.">Disattiva</button></form>{% endif %}
+    </div>
+    <details style="margin-top:10px"><summary>Apri una nuova revisione (copia di questa)</summary><form method="post" action="{% url 'sistema_gestione:checklist_revisione' modello.pk %}" class="sg-inline-form">{% csrf_token %}<input type="hidden" name="azione" value="nuova"><input name="motivo" required maxlength="255" placeholder="Motivo della revisione" aria-label="Motivo della revisione"><button class="btn btn-secondary" type="submit">Crea revisione</button></form></details>{% endif %}
+  </section>
+
+  {% for s in sezioni %}
+  <section class="rc-card sg-section" id="sez-{{ s.sezione.pk }}"><h2>{{ s.sezione.codice }} · {{ s.sezione.titolo }}</h2>
+    {% if modificabile %}
+      <form method="post" class="sg-form-grid">{% csrf_token %}<input type="hidden" name="azione" value="sezione"><input type="hidden" name="id" value="{{ s.sezione.pk }}">{% for field in s.form %}<div class="{% if field.name == 'criteri' %}full{% endif %}">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}<div class="full sg-actions"><button class="btn btn-secondary" type="submit">Salva sezione</button></div></form>
+    {% else %}<p class="sg-muted">Criteri: {{ s.sezione.criteri|default:"—" }}</p>{% endif %}
+    {% if modificabile %}<div class="sg-chk-elenco">{% for d in s.domande %}<div class="sg-chk-riga" id="dom-{{ d.domanda.pk }}">
+      <form method="post" class="sg-chk-form">{% csrf_token %}<input type="hidden" name="azione" value="domanda"><input type="hidden" name="id" value="{{ d.domanda.pk }}">
+        <label>Punti{{ d.form.punti }}</label><label class="sg-chk-testo">Domanda guida{{ d.form.testo }}</label><label>Ordine{{ d.form.ordine }}</label><label class="sg-chk-check">{{ d.form.attiva }} Attiva</label>
+        <button class="btn btn-secondary" type="submit">Salva</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="azione" value="rimuovi_domanda"><input type="hidden" name="id" value="{{ d.domanda.pk }}"><button class="btn btn-secondary" type="submit" data-hub-confirm="Rimuovere la domanda {{ d.domanda.punti }}?" aria-label="Rimuovi la domanda {{ d.domanda.punti }}">Rimuovi</button></form>
+    </div>{% empty %}<p>Nessuna domanda.</p>{% endfor %}</div>
+    {% else %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Punti</th><th>Domanda guida</th><th>Attiva</th></tr></thead><tbody>
+      {% for d in s.domande %}<tr id="dom-{{ d.domanda.pk }}"><td>{{ d.domanda.punti }}</td><td>{{ d.domanda.testo|linebreaksbr }}</td><td>{% if d.domanda.attiva %}Sì{% else %}No{% endif %}</td></tr>{% empty %}<tr><td colspan="3">Nessuna domanda.</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
+    {% if modificabile %}<details style="margin-top:10px"><summary>Aggiungi una domanda</summary><form method="post" class="sg-form-grid">{% csrf_token %}<input type="hidden" name="azione" value="nuova_domanda"><input type="hidden" name="id" value="{{ s.sezione.pk }}">{% for field in s.nuova %}<div class="{% if field.name == 'testo' %}full{% endif %}">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}<div class="full"><button class="btn" type="submit">Aggiungi</button></div></form></details>
+    <form method="post" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="azione" value="rimuovi_sezione"><input type="hidden" name="id" value="{{ s.sezione.pk }}"><button class="btn btn-secondary" type="submit" data-hub-confirm="Rimuovere la sezione {{ s.sezione.codice }} con tutte le sue domande?">Rimuovi sezione</button></form>{% endif %}
+  </section>
+  {% empty %}<section class="rc-card sg-section"><p>Nessuna sezione.</p></section>{% endfor %}
+
+  {% if modificabile %}<section class="rc-card sg-section" id="nuova-sezione"><h2>Aggiungi una sezione</h2><form method="post" class="sg-form-grid">{% csrf_token %}<input type="hidden" name="azione" value="nuova_sezione">{% for field in nuova_sezione %}<div class="{% if field.name == 'criteri' %}full{% endif %}">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}<div class="full"><button class="btn" type="submit">Aggiungi sezione</button></div></form></section>{% endif %}
+</div>
+{% endblock %}

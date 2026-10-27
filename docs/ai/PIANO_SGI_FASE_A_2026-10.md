@@ -18,6 +18,9 @@
 
 ## 0. Stato in sintesi
 
+> Migrazioni: le `sistema_gestione` 0019 (audit ISMS) e 0020 (checklist per norma) sono già occupate dal
+> 27/10/2026; i numeri 0019-0021 indicati nei blocchi qui sotto vanno presi come «la prossima libera».
+
 | Blocco | Contenuto | Effort | Stato | Commit / note |
 |---|---|---|---|---|
 | 0 | Affidabilità A1.1–A1.4 del doc 16 (timeout MSAL, `DB_QUERY_TIMEOUT` web, FAIL anche di notte, sonda esterna `/readyz`) | 1–2 gg | `[ ]` | — |

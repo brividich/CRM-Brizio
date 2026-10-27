@@ -88,7 +88,7 @@ def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compat
     """
     sezioni = []
     for s in catalogo.catalogo():
-        if not s.consentita(request):
+        if not s.in_chat or not s.consentita(request):
             continue
         voce = {"chiave": s.key, "titolo": s.titolo,
                 "descrizione": s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]}
@@ -333,7 +333,7 @@ def normalizza_specifica(grezza, request, scelte_perimetro: dict, dipendenti) ->
         voce = voce if isinstance(voce, dict) else {"sezione": voce}
         chiave = str(voce.get("sezione") or "").strip()
         sezione = catalogo.get(chiave)
-        if sezione is None:
+        if sezione is None or not sezione.in_chat:
             avvisi.append(f"Sezione «{_testo(chiave, 60)}» non esiste: ignorata.")
             continue
         if not sezione.consentita(request):
