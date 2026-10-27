@@ -1,0 +1,66 @@
+{% if planimetria_layouts %}
+<div class="sic-field rip-field" data-rip>
+  <label for="rip-layout">Dove è successo (facoltativo)</label>
+  <p class="rip-help">Scegli la pianta e clicca il punto: serve alla mappa di calore degli incidenti.</p>
+  <div class="rip-bar">
+    <select id="rip-layout" data-rip-layout>
+      <option value="">Nessun punto</option>
+      {% for l in planimetria_layouts %}<option value="{{ l.id }}" data-image="{{ l.image_url }}">{{ l.name }}</option>{% endfor %}
+    </select>
+    <button type="button" class="rip-clear" data-rip-clear hidden>Togli il punto</button>
+  </div>
+  <input type="hidden" name="planimetria_punto" value="{{ punto|default:'' }}" data-rip-value>
+  <div class="rip-map" data-rip-map hidden>
+    <img alt="Planimetria" data-rip-img draggable="false">
+    <span class="rip-dot" data-rip-dot hidden></span>
+  </div>
+</div>
+<style>
+.rip-help{margin:0 0 6px;color:var(--text-mid,#64748b);font-size:12px}
+.rip-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rip-bar select{min-width:240px}
+.rip-clear{border:1px solid var(--border,#cbd5e1);background:var(--surface,#fff);color:var(--text,#0f172a);border-radius:8px;padding:6px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.rip-clear[hidden],.rip-map[hidden],.rip-dot[hidden]{display:none}
+.rip-map{position:relative;margin-top:8px;border:1px solid var(--border,#cbd5e1);border-radius:10px;overflow:hidden;cursor:crosshair;max-width:900px;background:#fff}
+.rip-map img{display:block;width:100%;height:auto;user-select:none}
+.rip-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:#dc2626;transform:translate(-50%,-50%);box-shadow:0 0 0 3px #fff,0 0 0 6px rgba(220,38,38,.35);pointer-events:none}
+
+/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
+body.theme-dark .rip-map{background:var(--surface)}
+</style>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling.previousElementSibling;
+  if (!root || !root.hasAttribute("data-rip")) return;
+  var sel = root.querySelector("[data-rip-layout]"), val = root.querySelector("[data-rip-value]");
+  var map = root.querySelector("[data-rip-map]"), img = root.querySelector("[data-rip-img]");
+  var dotNode = root.querySelector("[data-rip-dot]"), clear = root.querySelector("[data-rip-clear]");
+  function parse(v) { var p = String(v || "").split(";"); return p.length === 3 ? { id: p[0], x: Number(p[1]), y: Number(p[2]) } : null; }
+  function showDot(pt) {
+    dotNode.hidden = !pt;
+    clear.hidden = !pt;
+    if (pt) { dotNode.style.left = pt.x + "%"; dotNode.style.top = pt.y + "%"; }
+  }
+  function showMap() {
+    var opt = sel.options[sel.selectedIndex];
+    var src = opt && opt.getAttribute("data-image");
+    map.hidden = !src;
+    if (src && img.getAttribute("src") !== src) img.src = src;
+    if (!src) { val.value = ""; showDot(null); }
+  }
+  var start = parse(val.value);
+  if (start) { sel.value = start.id; if (sel.value !== start.id) { val.value = ""; start = null; } }
+  showMap();
+  showDot(start);
+  sel.addEventListener("change", function () { val.value = ""; showDot(null); showMap(); });
+  map.addEventListener("click", function (e) {
+    var r = img.getBoundingClientRect();
+    var x = Math.round((e.clientX - r.left) / r.width * 10000) / 100, y = Math.round((e.clientY - r.top) / r.height * 10000) / 100;
+    if (x < 0 || x > 100 || y < 0 || y > 100) return;
+    val.value = sel.value + ";" + x.toFixed(2) + ";" + y.toFixed(2);
+    showDot({ x: x, y: y });
+  });
+  clear.addEventListener("click", function () { val.value = ""; showDot(null); });
+})();
+</script>
+{% endif %}

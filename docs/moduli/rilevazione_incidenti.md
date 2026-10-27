@@ -19,7 +19,7 @@ Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come 
 - **Workflow** apertura → analisi → azioni correttive → verifica → chiusura
 - **Allegati** salvati su SharePoint (foto scena, medicazioni, referti)
 - **KPI sicurezza**: TRIR, giorni senza infortuni, headcount anagrafica e trend mensile pubblicati anche nel dashboard hub
-- **Heatmap planimetria** in `/rilevazione-incidenti/heatmap/` con FK opzionale ad area layout e overlay SVG dei punti incidente
+- **Heatmap planimetria** in `/rilevazione-incidenti/heatmap/`: posizione presa, nell'ordine, dal **punto indicato** nel modulo (`planimetria_layout` + `planimetria_x/y`, migrazione 0008, selettore «Dove è successo» in nuovo/modifica, solo in modalità database locale come l'area), dalla **macchina coinvolta** (`asset` con marker collocato), dall'**area** scelta o dal riquadro con lo stesso reparto, dal **baricentro delle macchine collocate dello stesso reparto** (`heatmap_points`); punti raggruppati su griglia del 2%, disegnati in HTML (prima: SVG stirato con coordinate localizzate «25,3» che il browser scartava). Sotto la pianta il conteggio per fonte e le rilevazioni non collocabili
 - **Statistiche** per reparto, causa, gravità e categoria evento
 
 ## Hardening ottobre 2026

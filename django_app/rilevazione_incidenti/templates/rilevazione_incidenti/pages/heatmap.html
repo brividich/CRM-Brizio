@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load l10n %}
 
 {% block title %}Heatmap Incidenti | Portale Applicativo{% endblock %}
 
@@ -16,9 +17,14 @@
 .sic-map-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
 .sic-map-wrap { position:relative; width:100%; background:#f8fafc; }
 .sic-map-wrap img { display:block; width:100%; height:auto; }
-.sic-map-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .sic-empty { padding:42px; text-align:center; color:#94a3b8; }
-.sic-point-label { font:700 12px system-ui,-apple-system,Segoe UI,sans-serif; fill:#fff; paint-order:stroke; stroke:#7f1d1d; stroke-width:3px; }
+.sic-sources { display:flex; flex-wrap:wrap; gap:6px 14px; padding:10px 16px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; }
+.sic-sources b { color:#0f172a; }
+.sic-map-dots { position:absolute; inset:0; }
+/* raggio in % della larghezza della pianta: i punti non si deformano con l'immagine */
+.sic-dot { position:absolute; transform:translate(-50%,-50%); width:calc(var(--sic-r) * 2%); aspect-ratio:1; display:grid; place-items:center; cursor:help; }
+.sic-dot-halo { position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle, rgba(220,38,38,.55) 0%, rgba(220,38,38,.22) 55%, rgba(220,38,38,0) 72%); }
+.sic-dot b { position:relative; min-width:22px; height:22px; padding:0 6px; border-radius:11px; background:#b91c1c; color:#fff; font:800 12px/22px system-ui,-apple-system,"Segoe UI",sans-serif; text-align:center; box-shadow:0 0 0 2px #fff; }
 body.theme-dark .sic-filter, body.theme-dark .sic-map-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sic-filter label { color:var(--text-mid); }
 body.theme-dark .sic-filter select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
@@ -26,6 +32,8 @@ body.theme-dark .sic-filter select { background:var(--surface-alt); border-color
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .sic-btn{background:rgba(255,255,255,.06)}
 body.theme-dark .sic-map-wrap{background:var(--surface-alt,#0f1b2d)}
+body.theme-dark .sic-sources{border-color:var(--border);color:var(--text-mid)}
+body.theme-dark .sic-sources b{color:var(--text)}
 </style>
 {% endblock %}
 
@@ -35,7 +43,7 @@ body.theme-dark .sic-map-wrap{background:var(--surface-alt,#0f1b2d)}
     <div>
       <div><a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn">Torna alla lista</a></div>
       <div class="sic-hero-title" style="margin-top:12px;">Heatmap incidenti</div>
-      <div class="sic-hero-sub">Overlay delle rilevazioni associate alle aree della planimetria attiva</div>
+      <div class="sic-hero-sub">Dove succedono le rilevazioni: punto indicato, macchina coinvolta o reparto, sulla planimetria scelta</div>
     </div>
   </div>
 
@@ -60,16 +68,28 @@ body.theme-dark .sic-map-wrap{background:var(--surface-alt,#0f1b2d)}
   <div class="sic-map-card">
     <div class="sic-map-wrap">
       <img src="{{ layout.image.url }}" alt="{{ layout.name }}">
-      <svg class="sic-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {% localize off %}
+      <div class="sic-map-dots" aria-label="Rilevazioni sulla planimetria">
         {% for p in points %}
-        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.radius|floatformat:1 }}" fill="#dc2626" fill-opacity=".22"></circle>
-        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="1.6" fill="#dc2626" stroke="#fff" stroke-width=".5"></circle>
-        <text x="{{ p.x }}" y="{{ p.label_y }}" text-anchor="middle" class="sic-point-label">{{ p.count }}</text>
+        <span class="sic-dot" style="left:{{ p.x }}%;top:{{ p.y }}%;--sic-r:{{ p.radius }}" title="{{ p.count }} rilevazion{{ p.count|pluralize:"e,i" }} · {{ p.titolo }} · {{ p.tipi }}">
+          <span class="sic-dot-halo"></span><b>{{ p.count }}</b>
+        </span>
         {% endfor %}
-      </svg>
+      </div>
+      {% endlocalize %}
     </div>
     {% if not points %}
-    <div class="sic-empty">Nessuna rilevazione associata alle aree di questa planimetria.</div>
+    <div class="sic-empty">Nessuna rilevazione collocabile su questa planimetria: indica il punto nel modulo della rilevazione, collega la macchina o scegli un reparto che ha macchine su questa pianta.</div>
+    {% endif %}
+    {% if fonti %}
+    <div class="sic-sources">
+      <span>Posizione presa da:</span>
+      {% if fonti.punto %}<span><b>{{ fonti.punto }}</b> punto indicato</span>{% endif %}
+      {% if fonti.macchina %}<span><b>{{ fonti.macchina }}</b> macchina coinvolta</span>{% endif %}
+      {% if fonti.area %}<span><b>{{ fonti.area }}</b> riquadro del reparto</span>{% endif %}
+      {% if fonti.reparto %}<span><b>{{ fonti.reparto }}</b> zona delle macchine del reparto</span>{% endif %}
+      {% if fonti.fuori %}<span><b>{{ fonti.fuori }}</b> su altre piante o senza indizi</span>{% endif %}
+    </div>
     {% endif %}
   </div>
   {% else %}
