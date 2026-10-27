@@ -2225,7 +2225,10 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
     personal_scope = bool(re.search(r"\b(miei|mie|mio|personali|assegnati a me|assegnate a me)\b", text))
     filters: list[str] = []
 
-    assets_qs = Asset.objects.select_related("asset_category")
+    from assets.services.visibilita import filtra as filtra_visibili
+
+    # Ambito «Propri / team» del ruolo: l'assistente vede gli stessi asset dell'elenco.
+    assets_qs = filtra_visibili(request, Asset.objects.select_related("asset_category"))
     if personal_scope:
         name, email, legacy_id = _legacy_identity(request)
         identity_q = Q()

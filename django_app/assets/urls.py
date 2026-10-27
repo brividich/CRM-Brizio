@@ -378,3 +378,29 @@ urlpatterns = [
     path("api/assets/calendario/json/", views.calendario_asset_json, name="calendario_asset_json"),
     path("api/assets/view/<int:id>/calendario/json/", views.asset_calendar_json, name="asset_calendar_json"),
 ]
+
+# Ambito «Propri / team» (ruoli attivi): le pagine di un singolo asset rispondono 403
+# se l'asset non è visibile alla persona (services/visibilita.py).
+_PAGINE_ASSET_PER_ID = {
+    "asset_view", "asset_edit", "work_machine_edit", "chemical_edit", "asset_detail_export_xlsx",
+    "asset_report_pdf", "asset_qr_label", "asset_qr_image", "asset_qr_panel", "asset_qr_public_link",
+    "asset_field_history", "asset_rete_edit", "asset_rete_prefisso", "asset_image_upload",
+    "asset_assign", "wo_create", "asset_calendar_json",
+}
+
+
+def _proteggi_pagine_asset(patterns):
+    from django.urls import URLPattern
+
+    from .services.visibilita import richiede_asset_visibile
+
+    for p in patterns:
+        if not isinstance(p, URLPattern):
+            continue
+        if "<int:asset_id>" in str(p.pattern):
+            p.callback = richiede_asset_visibile("asset_id")(p.callback)
+        elif p.name in _PAGINE_ASSET_PER_ID:
+            p.callback = richiede_asset_visibile("id")(p.callback)
+
+
+_proteggi_pagine_asset(urlpatterns)

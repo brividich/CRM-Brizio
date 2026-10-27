@@ -171,7 +171,13 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
         (row for row in active_layouts if _clean_string(row.category).casefold() == _clean_string(selected_category).casefold()),
         active_layouts[0] if active_layouts else None,
     )
-    payload = _plant_layout_public_payload(layout)
+    from ..services.visibilita import ids_visibili
+    from ._helpers_c import _plant_layout_ambito
+
+    visibili = ids_visibili(request)
+    payload = _plant_layout_ambito(_plant_layout_public_payload(layout), visibili)
+    if visibili is not None and focus_asset_id not in visibili:
+        focus_asset_id = 0
     if wants_json:
         return JsonResponse({
             "ok": True,

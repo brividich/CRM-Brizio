@@ -1010,7 +1010,10 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             return response
 
     form = AssetFilterForm(request.GET or None)
-    assets = Asset.objects.select_related("asset_category").all().prefetch_related("endpoints")
+    from ..services.visibilita import filtra as filtra_visibili
+
+    # Ambito «Propri / team» del ruolo: solo i beni propri (o del team) e le macchine dei reparti guidati.
+    assets = filtra_visibili(request, Asset.objects.select_related("asset_category").all().prefetch_related("endpoints"))
 
     # Contesto "Asset produzione": la vecchia pagina dedicata (work_machine_list)
     # e' confluita qui. ?group=production restringe l'inventario ai soli asset
@@ -1158,7 +1161,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     list_options = list(AssetListOption.objects.filter(is_active=True).order_by("field_key", "sort_order", "value", "id"))
     asset_categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"))
     # KPI: scope by structural filters (category + type) to reflect the current view
-    kpi_qs = Asset.objects.all()
+    kpi_qs = filtra_visibili(request, Asset.objects.all())
     if form.is_valid():
         _kf_type = _clean_string(form.cleaned_data.get("asset_type"))
         _kf_cat = form.cleaned_data.get("asset_category")
