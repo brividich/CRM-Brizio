@@ -12,6 +12,8 @@ Gli avvisi partono verso i **canali** (mail o Teams) definiti in **Configurazion
 | --- | --- | --- |
 | Scadenze incidenti NIS2 e GDPR | Avvisa quando una notifica entra nell'anticipo scelto e quando scade | Spenta, anticipo 6 ore |
 | Backup dei PC e dei server | Avvisa per i PC senza backup riuscito oltre la soglia e, se scelto, quando l'ultimo backup è fallito | Spenta, soglia 3 giorni |
+| Gestione degli incidenti (ISO 27001 5.24-5.28) | Tempi di presa in carico per gravità (critica 1 h, alta 4 h, media 24 h, bassa 72 h; chiusura 30 giorni), promemoria per i riesami mancanti (dopo 7 giorni) e per le azioni correttive, ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore). Vedi [Incidenti e report](/soc/docs/14-incidenti-e-report/#lezioni-apprese-e-azioni-correttive) | Spenta; i ruoli vanno scritti |
+| Prove di ripristino dei backup (ISO 27001 8.13) | Avvisa quando l'ultima prova riuscita è più vecchia della cadenza; la prova fallita apre un alert comunque. Vedi [Prove di ripristino](/soc/docs/15-backup-vpn-kpi-asset/#prove-di-ripristino) | Spenta, cadenza 90 giorni |
 | Report periodico automatico | Manda il report settimanale (il lunedì, sulla settimana prima) o mensile (il giorno 1, sul mese prima), dalle 7 | Spento |
 | Soppressione appresa | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#soppressione-appresa) | Accesa |
 | Impatto CVE sugli asset | Vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#impatto-cve-sugli-asset) | Arricchimento spento |

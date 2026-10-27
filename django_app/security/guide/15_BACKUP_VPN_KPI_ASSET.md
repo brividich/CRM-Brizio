@@ -34,6 +34,13 @@ Se un PC non compare, il report del job non lo elenca: controlla la configurazio
 
 Con la lettura dall'API di Veeam accesa ([Impostazioni](/soc/docs/16-impostazioni-e-ai/#backup-letti-direttamente-da-veeam)) compare il riquadro **Lettura diretta da Veeam**: stato del collegamento («collegata», «errore» con il motivo), esito dell'ultimo giro e lo **spazio libero di ogni repository**, dal più pieno. Le righe sotto la soglia sono evidenziate e hanno un alert «Repository di backup quasi pieno».
 
+### Prove di ripristino
+
+Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
+
+- Prova **fallita**: il SOC apre da solo un alert alto «Prova di ripristino fallita» collegato alla prova.
+- Prova **in ritardo** (o mai fatta): con l'avviso acceso in [Impostazioni](/soc/docs/16-impostazioni-e-ai/#avvisi-automatici) parte un promemoria, uno per scadenza.
+
 ## Accessi VPN
 
 **Accessi VPN** raccoglie ogni accesso consentito o negato letto dai report di autenticazione del firewall. Il tipo distingue VPN, accessi al firewall e rete Guest.

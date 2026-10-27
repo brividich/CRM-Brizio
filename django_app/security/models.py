@@ -418,6 +418,12 @@ class SecurityEvidenceContainer(models.Model):
     status = models.CharField(max_length=24, choices=Status.choices, default=Status.OPEN, db_index=True)
     decision_trace = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # Integrità delle prove (ISO 27001 5.28): impronta SHA-256 del contenuto al momento del sigillo,
+    # esito dell'ultima verifica («verified» = coincide, «altered» = il contenuto è cambiato).
+    sha256 = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    sigillata_il = models.DateTimeField(null=True, blank=True)
+    integrita = models.CharField(max_length=12, blank=True, default="")
+    integrita_verificata_il = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -426,6 +432,25 @@ class SecurityEvidenceContainer(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class SecurityEvidenceCustody(models.Model):
+    """Catena di custodia di un contenitore di prove: chi l'ha creato, guardato, esportato, verificato."""
+
+    container = models.ForeignKey(SecurityEvidenceContainer, on_delete=models.CASCADE, related_name="custodia")
+    azione = models.CharField(max_length=24, db_index=True)  # created | sealed | viewed | exported | verified
+    actor = models.CharField(max_length=150, default="system")
+    esito = models.CharField(max_length=12, blank=True, default="")
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Custodia evidenza"
+        verbose_name_plural = "Custodia evidenze"
+
+    def __str__(self):
+        return f"{self.azione} {self.actor} {self.container_id}"
 
 
 class SecurityEvidenceItem(models.Model):
@@ -1827,3 +1852,72 @@ class SecurityPropostaAi(models.Model):
     def applicabile(self):
         """«Accetta» ha un effetto solo se l'AI ha preso posizione (non su «resta da verificare»)."""
         return self.proposta != self.DA_VERIFICARE
+
+
+# --- ISO 27001 5.24-5.28 e 8.13: riesame degli incidenti, azioni correttive, prove di ripristino ------
+
+
+class SecurityIncidentReview(models.Model):
+    """Lezioni apprese di un incidente (ISO 27001 5.27): senza questo riesame l'incidente non si chiude."""
+
+    incident = models.OneToOneField(SecurityIncident, on_delete=models.CASCADE, related_name="riesame")
+    causa = models.TextField(help_text="Perché è successo (causa radice).")
+    cosa_ha_funzionato = models.TextField(blank=True, default="")
+    cosa_migliorare = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Riesame {self.incident.code or self.incident_id}"
+
+
+class SecurityCorrectiveAction(models.Model):
+    """Azione correttiva nata dal riesame di un incidente, con responsabile e scadenza."""
+
+    incident = models.ForeignKey(SecurityIncident, on_delete=models.CASCADE, related_name="azioni_correttive")
+    titolo = models.CharField(max_length=255)
+    responsabile = models.CharField(max_length=150, blank=True, default="")
+    scadenza = models.DateField(db_index=True)
+    fatta_il = models.DateTimeField(null=True, blank=True)
+    fatta_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    note = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["fatta_il", "scadenza", "id"]
+
+    def __str__(self):
+        return self.titolo
+
+    @property
+    def scaduta(self):
+        return self.fatta_il is None and self.scadenza < timezone.localdate()
+
+
+class BackupRestoreTest(models.Model):
+    """Prova di ripristino di un backup (ISO 27001 8.13): data, sistema, cosa è stato ripristinato, esito."""
+
+    ESITO_OK = "ok"
+    ESITO_KO = "ko"
+    ESITI = [(ESITO_OK, "Riuscita"), (ESITO_KO, "Fallita")]
+
+    data = models.DateField(default=timezone.localdate, db_index=True)
+    sistema = models.CharField(max_length=200, help_text="Server, PC o servizio ripristinato.")
+    job = models.CharField(max_length=255, blank=True, default="")
+    cosa_ripristinato = models.TextField(help_text="File, cartelle, macchina intera, database…")
+    esito = models.CharField(max_length=4, choices=ESITI, default=ESITO_OK, db_index=True)
+    durata_minuti = models.PositiveIntegerField(null=True, blank=True)
+    eseguito_da = models.CharField(max_length=150, blank=True, default="")
+    note = models.TextField(blank=True, default="")
+    allegato = models.FileField(upload_to="security/ripristini/%Y/", blank=True)
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-id"]
+
+    def __str__(self):
+        return f"{self.data} {self.sistema} ({self.get_esito_display()})"

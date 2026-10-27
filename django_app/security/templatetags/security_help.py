@@ -32,6 +32,7 @@ PAGE_HELP = {
     "report": ("14-incidenti-e-report", "report-periodico"),
     "backup": ("15-backup-vpn-kpi-asset", "backup"),
     "backup_log": ("15-backup-vpn-kpi-asset", "backup"),
+    "backup_ripristini": ("15-backup-vpn-kpi-asset", "prove-di-ripristino"),
     "backup_device": ("15-backup-vpn-kpi-asset", "backup"),
     "vpn_history": ("15-backup-vpn-kpi-asset", "accessi-vpn"),
     "kpis": ("15-backup-vpn-kpi-asset", "kpi-e-trend"),

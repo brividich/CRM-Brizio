@@ -184,10 +184,106 @@ def check_report(now=None):
                  subject=f"[SOC] Report {label}", body=body, attachment=pdf)
 
 
+# --- ISO 27001: presa in carico, riesami, azioni correttive, prove di ripristino -------------
+
+EVENT_TRIAGE = "triage_overdue"
+EVENT_RIESAME = "incident_review_missing"
+EVENT_AZIONE = "corrective_action_due"
+EVENT_RIPRISTINO = "restore_test_overdue"
+
+
+def check_triage(now=None):
+    """Alert attivi mai presi in carico oltre l'obiettivo della loro gravità: un avviso per alert."""
+    if not soc_settings.value("iso.triage.attivo"):
+        return 0
+    from security.services import triage_tempi
+
+    channels = _channels("iso.triage.canali")
+    sent = 0
+    for alert in triage_tempi.alert_oltre_tempo(now):
+        t = alert.triage
+        subject = f"[SOC] Alert senza presa in carico da {t['ore_oltre']} h oltre il tempo: {alert.title[:80]}"
+        body = "\n".join([
+            f"Alert      : #{alert.pk} - {alert.title}",
+            f"Gravità    : {alert.severity} (presa in carico entro {t['target_ore']} h)",
+            f"Creato il  : {timezone.localtime(alert.created_at):%d/%m/%Y %H:%M}",
+            f"Sorgente   : {alert.source.name}",
+            "",
+            "Prendilo in carico dalla scheda dell'alert: la presa in carico ferma questo avviso.",
+            _link(f"/soc/alerts/{alert.pk}/"),
+        ])
+        sent += _send(channels, event_kind=EVENT_TRIAGE, severity=Severity.HIGH if t["classe"] in {"critical", "high"} else Severity.WARNING,
+                      dedup_hash=make_hash("triage", alert.pk), subject=subject, body=body)
+    return sent
+
+
+def check_riesami(now=None):
+    """Incidenti risolti/chiusi senza Lezioni apprese oltre N giorni, e azioni correttive scadute o in scadenza."""
+    if not soc_settings.value("iso.triage.attivo"):
+        return 0
+    from security.services import riesame
+
+    channels = _channels("iso.triage.canali")
+    sent = 0
+    for incident in riesame.incidenti_senza_riesame(now, solo_da_avvisare=True):
+        subject = f"[SOC] {incident.code}: riesame mancante (Lezioni apprese)"
+        body = "\n".join([
+            f"Incidente : {incident.code} - {incident.title}",
+            f"Stato     : {incident.get_status_display()} dal {timezone.localtime(incident.resolved_at or incident.updated_at):%d/%m/%Y}",
+            "",
+            "Compila le Lezioni apprese nella scheda: causa, cosa ha funzionato, cosa migliorare, azioni correttive.",
+            _link(f"/soc/incidenti/{incident.pk}/"),
+        ])
+        sent += _send(channels, event_kind=EVENT_RIESAME, severity=Severity.WARNING,
+                      dedup_hash=make_hash("riesame", incident.pk, (incident.resolved_at or incident.updated_at).isoformat()),
+                      subject=subject, body=body)
+    oggi = timezone.localdate(now or timezone.now())
+    for azione, fase in [(a, "scaduta") for a in riesame.azioni_scadute(oggi)] + [(a, "in_scadenza") for a in riesame.azioni_in_scadenza(oggi)]:
+        incident = azione.incident
+        subject = f"[SOC] Azione correttiva {'SCADUTA' if fase == 'scaduta' else 'in scadenza'}: {azione.titolo[:80]}"
+        body = "\n".join([
+            f"Incidente    : {incident.code} - {incident.title}",
+            f"Azione       : {azione.titolo}",
+            f"Responsabile : {azione.responsabile or '-'}",
+            f"Scadenza     : {azione.scadenza:%d/%m/%Y}",
+            "",
+            "Segnala l'azione come fatta nella scheda dell'incidente.",
+            _link(f"/soc/incidenti/{incident.pk}/"),
+        ])
+        sent += _send(channels, event_kind=EVENT_AZIONE, severity=Severity.WARNING if fase == "scaduta" else Severity.INFO,
+                      dedup_hash=make_hash("azione", azione.pk, fase, azione.scadenza.isoformat()), subject=subject, body=body)
+    return sent
+
+
+def check_ripristini(now=None):
+    """Prova di ripristino più vecchia della cadenza (o mai fatta): un avviso per scadenza."""
+    if not soc_settings.value("iso.ripristini.attivo"):
+        return 0
+    from security.services import ripristini
+
+    s = ripristini.stato(timezone.localdate(now or timezone.now()))
+    if not s["in_ritardo"]:
+        return 0
+    ultima = s["ultima_riuscita"]
+    subject = "[SOC] Prova di ripristino dei backup in ritardo"
+    body = "\n".join([
+        f"Ultima prova riuscita : {ultima.data:%d/%m/%Y} ({ultima.sistema})" if ultima else "Ultima prova riuscita : mai registrata",
+        f"Cadenza attesa        : ogni {s['cadenza_giorni']} giorni",
+        f"Ritardo               : {s['giorni_ritardo']} giorni" if ultima else "",
+        "",
+        "Esegui una prova di ripristino e registrala in Backup › Prove di ripristino.",
+        _link("/soc/backup/ripristini/"),
+    ])
+    dedup = make_hash("ripristino", s["prossima_entro"].isoformat() if s["prossima_entro"] else "mai", s["cadenza_giorni"])
+    return _send(_channels("iso.ripristini.canali"), event_kind=EVENT_RIPRISTINO, severity=Severity.WARNING,
+                 dedup_hash=dedup, subject=subject, body=body)
+
+
 def run_scheduled_notifications(now=None):
     """Passo del ciclo periodico: ogni controllo è isolato dagli altri."""
     result = {}
-    for name, check in (("incidenti", check_incidents), ("backup", check_backups), ("report", check_report)):
+    for name, check in (("incidenti", check_incidents), ("backup", check_backups), ("report", check_report),
+                        ("triage", check_triage), ("riesami", check_riesami), ("ripristini", check_ripristini)):
         try:
             result[name] = check(now)
         except Exception as exc:  # noqa: BLE001 - un controllo che fallisce non blocca gli altri
