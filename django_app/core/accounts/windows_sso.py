@@ -138,6 +138,19 @@ def windows_sso_view(request):
         return redirect("login")
 
     login(request, django_user, backend="core.accounts.backends.LDAPBackend")
+    # Come il login con password: senza questa riga gli accessi SSO non comparivano nell'audit.
+    try:
+        from core.audit import _get_client_ip, log_action
+        from core.audit_signals import _ip_origin_label
+        ip = _get_client_ip(request)
+        log_action(request, "login_ok", "core", {
+            "username": django_user.username,
+            "ip": ip,
+            "origine": _ip_origin_label(ip),
+            "metodo": "sso_windows",
+        })
+    except Exception:
+        logger.warning("audit login_ok SSO non registrato", exc_info=True)
     response = redirect(next_url)
     response.delete_cookie("_sso_ctx")
     return response

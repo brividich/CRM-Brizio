@@ -2835,6 +2835,7 @@ def api_user_modulo_perm_set(request, user_id: int):
 @legacy_admin_required
 def user_activity_view(request):
     from datetime import timedelta
+    from core.audit import AUTORI_AUDIT, filtra_per_autore
     from core.models import AuditLog
     from django.core.paginator import Paginator
 
@@ -2847,8 +2848,11 @@ def user_activity_view(request):
     legacy_user_id = (request.GET.get("legacy_user_id") or "").strip()
     modulo = (request.GET.get("modulo") or "").strip()
     q = (request.GET.get("q") or "").strip()
+    chi = (request.GET.get("chi") or "persone").strip()
+    if chi not in dict(AUTORI_AUDIT):
+        chi = "persone"
 
-    qs = AuditLog.objects.filter(created_at__gte=since)
+    qs = filtra_per_autore(AuditLog.objects.filter(created_at__gte=since), chi)
     if legacy_user_id:
         qs = qs.filter(legacy_user_id=legacy_user_id)
     if modulo:
@@ -2898,6 +2902,8 @@ def user_activity_view(request):
         "legacy_user_id": legacy_user_id,
         "modulo": modulo,
         "q": q,
+        "chi": chi,
+        "autori": AUTORI_AUDIT,
         "users": users,
         "moduli_disponibili": moduli_disponibili,
         "by_module": by_module,
