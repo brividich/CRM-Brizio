@@ -8,6 +8,9 @@ from .models import (
     Audit,
     AuditAgenda,
     AuditEsito,
+    AuditIsms,
+    AuditIsmsControllo,
+    AuditIsmsRequisito,
     AuditPersona,
     Auditor,
     ChecklistSezione,
@@ -89,7 +92,7 @@ class AuditForm(forms.ModelForm):
     class Meta:
         model = Audit
         fields = [
-            "numero", "programma", "righe", "tipo", "en9100", "iso45001", "iso14001", "iso27001", "pdr125", "part145",
+            "numero", "programma", "righe", "tipo", "modulo", "en9100", "iso45001", "iso14001", "iso27001", "pdr125", "part145",
             "lead_auditor", "auditor", "processi_catalogo", "processi", "punti_norma", "procedure_criteri", "esclusioni",
             "data_inizio", "data_fine", "durata_stimata", "sede",
             "metodo_intervista", "metodo_esame_documenti", "metodo_osservazione_diretta",
@@ -114,6 +117,7 @@ class AuditForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["numero"].required = False
+        self.fields["modulo"].required = False
         for nome, label in {"en9100": "EN 9100", "iso45001": "ISO 45001", "iso14001": "ISO 14001", "iso27001": "ISO/IEC 27001", "pdr125": "UNI/PdR 125", "righe": "Righe del programma (facoltativo)"}.items():
             self.fields[nome].label = label
         self.fields["processi"].required = False
@@ -134,8 +138,14 @@ class AuditForm(forms.ModelForm):
             programma = None
         self.fields["righe"].queryset = RigaProgramma.objects.filter(programma_id=programma).order_by("ordine", "id")
 
+    def clean_modulo(self):
+        return self.cleaned_data.get("modulo") or self.instance.modulo or Audit.MODULO_SGI
+
     def clean(self):
         dati = super().clean()
+        if dati.get("modulo") == Audit.MODULO_ISMS:
+            # MT CN 276: l'audit ISMS verifica sempre ISO/IEC 27001 e 27002:2022.
+            dati["iso27001"] = True
         processi = list(dati.get("processi_catalogo") or [])
         precedenti = {} if dati.get("aggiorna_schede") else {p["id"]: p for p in (self.instance.processi_snapshot or [])}
         schede = [precedenti.get(p.pk, p.snapshot()) for p in processi]
@@ -371,3 +381,82 @@ class ValutazioneRddForm(forms.ModelForm):
             "valutazione_rdd": forms.Textarea(attrs={"rows": 4}),
             "car_autorizzate": forms.Textarea(attrs={"rows": 2}),
         }
+
+
+# ---------------------------------------------------------------------------
+# Audit ISMS: MOD.171 (siti) e MOD.168 (testata, modifiche, valutazioni, righe)
+# ---------------------------------------------------------------------------
+
+class AuditIsmsPianoForm(forms.ModelForm):
+    class Meta:
+        model = AuditIsms
+        fields = ["sito_id", "sito_campo", "sito_remoto", "sito_funzioni"]
+        widgets = {
+            "sito_campo": forms.Textarea(attrs={"rows": 2}),
+            "sito_funzioni": forms.Textarea(attrs={"rows": 2}),
+        }
+        labels = {"sito_campo": "Campo d'applicazione / indirizzo del sito", "sito_remoto": "Attività da remoto (S/N)"}
+
+
+class AuditIsmsRapportoForm(forms.ModelForm):
+    class Meta:
+        model = AuditIsms
+        fields = [
+            "remoto_percentuale", "remoto_date", "remoto_ore", "campo_date", "campo_ore",
+            "sito_indirizzo", "campo_applicazione", "numero_addetti", "turni",
+            "modifiche_sistema", "modifiche_sistema_note", "modifiche_campo", "modifiche_campo_note",
+            "modifiche_addetti", "modifiche_addetti_note", "modifiche_altro",
+            "efficacia_ncmi", "report_precedenti", "commenti_precedenti",
+        ]
+        widgets = {
+            "sito_indirizzo": forms.Textarea(attrs={"rows": 2}),
+            "campo_applicazione": forms.Textarea(attrs={"rows": 3}),
+            "modifiche_sistema_note": forms.Textarea(attrs={"rows": 2}),
+            "modifiche_campo_note": forms.Textarea(attrs={"rows": 2}),
+            "modifiche_addetti_note": forms.Textarea(attrs={"rows": 2}),
+            "modifiche_altro": forms.Textarea(attrs={"rows": 2}),
+        }
+        help_texts = {
+            "numero_addetti": "Gli addetti comprendono titolari, soci e personale dipendente di tutti i turni.",
+            "efficacia_ncmi": "Se non efficaci, rilascia una NC maggiore.",
+        }
+
+    def clean_remoto_percentuale(self):
+        valore = self.cleaned_data.get("remoto_percentuale")
+        if valore is not None and valore > 100:
+            raise ValidationError("La percentuale va da 0 a 100.")
+        return valore
+
+
+class _RigaIsmsForm(forms.ModelForm):
+    def clean(self):
+        dati = super().clean()
+        if dati.get("rilievo") == "NC" and not dati.get("gravita"):
+            self.add_error("gravita", "Indica se la NC è maggiore o minore.")
+        if dati.get("rilievo") and not (dati.get("evidenze") or "").strip():
+            self.add_error("evidenze", "Descrivi l'evidenza del rilievo.")
+        return dati
+
+
+class AuditIsmsRequisitoForm(_RigaIsmsForm):
+    class Meta:
+        model = AuditIsmsRequisito
+        fields = ["evidenze", "rilievo", "gravita"]
+        widgets = {"evidenze": forms.Textarea(attrs={"rows": 2})}
+
+
+class AuditIsmsControlloForm(_RigaIsmsForm):
+    class Meta:
+        model = AuditIsmsControllo
+        fields = ["livello", "evidenze", "rilievo", "gravita"]
+        widgets = {"evidenze": forms.Textarea(attrs={"rows": 2})}
+        labels = {"evidenze": "Commento / note"}
+
+    def clean(self):
+        dati = super().clean()
+        istanza = self.instance
+        livello = dati.get("livello")
+        if livello is not None and istanza.livello_soa is not None and livello != istanza.livello_soa \
+                and not (dati.get("evidenze") or "").strip():
+            self.add_error("evidenze", f"Il livello differisce dalla SoA ({istanza.livello_soa}): motiva nel commento.")
+        return dati

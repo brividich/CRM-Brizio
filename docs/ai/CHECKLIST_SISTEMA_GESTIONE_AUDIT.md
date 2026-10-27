@@ -21,7 +21,7 @@ prod fino a **0016**; in `release/prod` (non deployate) **0017-0018**.
 | 1 | Dichiarazione di applicabilità (SoA) ISO 27001 = MOD.165 Control Matrix + threat intelligence | **FATTA e DEPLOYATA** (in prod dal deploy del 23/10/2026) | feature `e525875a`, main `a784d330`, release/prod `e59c3223`; resta da verificare in prod l'import `importa_soa_mod165 --apply` (§8 punto 4) |
 | 2 | Audit interni EN 9100: MOD.034 programma, MOD.035A piano, MOD.035B rapporto, auditor, collegamento al Registro OFI | **FATTA e DEPLOYATA** (migrazioni 0003-0016) | `37e4aa8f` + fix `411151c6` (25/09); catalogo processi `d7f28081`, automatismi `113c1009`, CAR/KPI `6cd61801` (28-29/09); prompt 08 `c4d44e4b`…`6f5dc71c` (11/10); verifica MT CN 11/12 + guida `41f65e0d` (12/10); PART 145 `34602a1c` (0015); struttura Qualità `4f31aeae` (0016) |
 | 2+ | Certificazioni e audit esterni, preparazione all'audit dell'ente, scheda processo ridisegnata, Registro OFI come modulo dedicato | **FATTA — in `release/prod`, NON deployata** | `476a29fc` (0017-0018), `1ecfc7f5`, `1f0ab328`, `f05e5197` (26/10); impostazioni modulo `29d48bea` (27/10) |
-| 3 | Audit interni ISMS: MOD.171 piano, MOD.168 rapporto (punteggio 1-4 dei 93 controlli precompilato dalla SoA) | **DA FARE** — nessun codice MOD.171/168; non compresa nel piano SGI Fase A | il modello `Audit` ha già il flag `iso27001` e `ChecklistProcesso.norma` accetta ISO/IEC 27001 |
+| 3 | Audit interni ISMS: MOD.171 piano, MOD.168 rapporto (punteggio 0-4 dei 93 controlli precompilato dalla SoA) | **FATTA — branch `feature/sistema-gestione-audit-isms`, NON deployata** | migrazione 0019; dettaglio e scelte al §7 |
 | 4 | Estensioni: checklist ISO 45001 e UNI/PdR 125, flag PdR 125 nel Registro OFI, (eventuale) analisi del rischio completa del MOD.165 | **IN PARTE** | flag `norma_pdr125` nel Registro OFI **fatto e deployato** (`gestione_specifiche` 0014); audit e checklist di processo accettano 45001/14001/PdR 125 (0011); checklist importate dai moduli 45001/PdR 125 e analisi del rischio MOD.165 **non fatte**; KPI PdR 125 pianificati nel blocco 6 di [PIANO_SGI_FASE_A_2026-10.md](PIANO_SGI_FASE_A_2026-10.md) |
 
 ---|---|---|---|
@@ -123,7 +123,9 @@ trattamento e threat intelligence.
 - [ ] MOD.035B richiama «MOD.034 Rev.19»; in cartella c'è la Rev.18.
 - [ ] Punteggi dei controlli nel MOD.168 e nella tabella del MT CN 276 molto diversi dal MOD.165 (es. 5.1 = 1 contro 4). Confermato dall'utente: la scala giusta è quella del MOD.165 (4 = applicato); i valori nei moduli di audit sono d'esempio o da aggiornare.
 - [ ] MOD.165: controllo **6.5** con rischio residuo non accettabile e nessuna azione pianificata; controllo **8.11** livello 1 nella Control Matrix ma 3 nel Threat Monitoring; righe con errori `#N/D` / `#RIF!` nel foglio Inherent Risk.
-- [ ] Registro OFI (portale) senza la spunta **UNI/PdR 125** (serve per gli audit PdR 125, fase 4).
+- [x] Registro OFI (portale) senza la spunta **UNI/PdR 125**: risolto nel portale (`gestione_specifiche` 0014, deployato).
+- [ ] MOD.168 / MT CN 276: le sigle dei rilievi **NC, COM, AP** non sono definite in nessun documento SGI. Nel portale: NC = non conformità (maggiore/minore), COM = commento, AP = area di miglioramento — **da confermare con l'RDD**.
+- [ ] MOD.168: intestazione «Applicazione controllo (1-4)» ma il modulo usa anche 0 (8.4, 8.28 «Non applicato»). Nel portale: scala 0-4 del MOD.165.
 
 ---
 
@@ -233,20 +235,29 @@ Permessi nuovi aggiunti in `acl_bootstrap.py`, con binding di **ogni** route:
 
 ---
 
-## 7. Fase 3 — Audit ISMS (DA FARE)
+## 7. Fase 3 — Audit ISMS (FATTA — NON DEPLOYATA)
 
-- [ ] Tipo audit ISMS che usa lo stesso modello `Audit` con impaginazione **MOD.171** (piano: team, siti, attività da remoto S/N, agenda con riunione iniziale, formazione, intervista IT per controlli tecnici, intervista direzione per controlli non tecnici, presentazione risultati, termine) e **MOD.168** (rapporto).
-- [ ] MOD.168: attività da remoto (%) / in campo con date e durata; siti e campo di applicazione; team; «Modifiche significative dopo il precedente audit» (4 domande sì/no + specificare); efficacia delle azioni sulle NC minori precedenti (efficaci / non efficaci ⇒ NC maggiore / non presenti); valutazione dei report degli ultimi due audit; analisi dei commenti del precedente audit; tabella requisiti ISO 27001 (4.3, 5.2, 6.1.2, 6.1.3 d, 6.1.3/8.2/8.3, 6.2, 7.2, 7.5, 8.1, 9.1, 9.2, 9.3, 10.1, obblighi di conformità, famiglie di controlli) con evidenze e rilievi (NC / COM / AP); tabella dei 93 controlli con **applicazione 1-4 precompilata dal livello della SoA in vigore** (modificabile dall'auditor, differenze evidenziate) e commento; elenco azioni correttive (NC, azione, responsabile, scadenza).
-- [ ] NC/COM/AP → Registro OFI con `norma_iso27001=True`, `rif_norma` = controllo o requisito.
-- [ ] Alla chiusura: proposta di aggiornamento della SoA (apre una nuova revisione in bozza con i livelli emersi dall'audit, da approvare).
-- [ ] PDF MOD.171 e MOD.168 identici ai moduli.
+Implementata il 2026-10-27 sul branch `feature/sistema-gestione-audit-isms` (migrazione `0019_audit_isms`).
+
+- [x] `Audit.modulo` (`SGI` = MOD.035A/B, `ISMS` = MOD.171/168): stesso modello `Audit`, stesso flusso (piano, approvazioni, comunicazione, avvio, firma, convalida ente, valutazione RDD, emissione SHA-256). Con `ISMS` il form imposta sempre `iso27001=True`.
+- [x] Modelli `AuditIsms` (siti MOD.171; testata, modifiche significative e tre valutazioni MOD.168; `soa_revisione` di partenza e `soa_proposta`), `AuditIsmsRequisito` (15 righe del MOD.168) e `AuditIsmsControllo` (93 controlli, `livello_soa` + `livello` 0-4). Creati una volta da `services/audit_isms.assicura_isms` (alla creazione del piano, all'avvio, all'apertura della pagina), senza sovrascrivere.
+- [x] MOD.171: team dal piano, «Elenco siti oggetto di audit» (ID, campo, remoto S/N, funzioni/processi), «Piano di audit» = agenda del piano (data, ora, processo, responsabile del processo, attività, auditor). Le righe fisse del modulo (riunione iniziale, formazione, interviste IT/Direzione) **non** sono generate: si pianificano come attività dei processi del catalogo.
+- [x] MOD.168: tutte le sezioni del modulo + «Conclusioni e approvazioni» del portale (giudizio, firme, valutazione RDD). Righe a livello 0 evidenziate come nel modulo; livello diverso dalla SoA mostrato «(SoA n)».
+- [x] Rilievi: NC (maggiore/minore) → `RegistroOFI` tipo NC; AP → tipo OFI; **COM non va nel registro** (è un commento). `norma_iso27001=True`, `rif_norma` = «ISO/IEC 27001:2022 <req>» o «ISO/IEC 27002:2022 <controllo>», fonte «Audit interno ISMS», una sola voce per riga (content type), il tipo non si cambia dopo la registrazione.
+- [x] Completezza prima della firma (`problemi_rapporto_isms`, dentro `verifica_completezza`): date attività, % remoto, risposte e specifiche delle modifiche, tre valutazioni, evidenze su ogni requisito, livello su ogni controllo, commento se il livello differisce dalla SoA, voce MOD.174 per NC/AP, NC maggiore se le azioni sulle NCMi sono «non efficaci». Chiusura: CAR approvata per ogni NC (stessa regola configurabile degli audit EN 9100).
+- [x] Dopo la chiusura: «Apri una revisione della SoA con questi livelli» (`proponi_aggiornamento_soa`, permesso `soa.edit`) → nuova SoA in bozza con i livelli diversi e la nota nella giustificazione; una sola proposta per audit; da proporre e approvare con il flusso SoA.
+- [x] PDF MOD.171 e MOD.168 (testata ripetuta con codice/revisione e titolo in blu, tabelle con intestazione blu come i moduli); confrontati con i PDF aziendali renderizzati.
+- [x] Route con binding ACL e controllo nella view: `audit_isms` (audit.view), `audit_isms_piano` (audit.edit, solo pianificato), `audit_isms_testata`/`_requisito`/`_controllo` (audit.esegui, solo team assegnato e rapporto non firmato), `audit_isms_proponi_soa` (soa.edit).
+- [x] Guida in-app (capitolo «Audit ISMS ISO/IEC 27001»), Centro guide, scheda modulo, CHANGELOG, test `tests_audit_isms.py`.
+- [x] Verifica a video chiaro/scuro e smartphone su dati sintetici (Playwright, SQLite del worktree): salvataggio per riga via HTMX, errore se il livello cambia senza commento; PDF MOD.171/168 confrontati con i moduli. Test: 296 verdi in `sistema_gestione`, `report_conformita`, `registro_ofi`.
+- [ ] Deploy (§8).
 
 ---
 
 ## 8. Deploy (per ogni fase)
 
 1. Pacchetto da `release/prod` (vedi `docs/ai/06_TESTING_AND_QUALITY_GATES.md` e `deployment/scripts/package-release.ps1`).
-2. `manage.py migrate` (fase 1: `sistema_gestione 0001-0002`; fase 2: anche `0003_audit_*`).
+2. `manage.py migrate` (fase 1: `sistema_gestione 0001-0002`; fase 2: anche `0003_audit_*`; fase 3: `0019_audit_isms`).
 3. `manage.py riorganizza_topbar` (dry-run) e poi `--apply`.
 4. Fase 1: `manage.py importa_soa_mod165 "\\novisrv\Sistema Gestione Integrato\27001_Sistemi Informatici\MOD.165 - RAR RiskAssessmentAndRegister Rev.3.pdf" --numero 3` (controllare l'output) e poi con `--apply` → Rev.3 in bozza da verificare e proporre.
 5. Fase 2: `manage.py importa_checklist_mod035b "\\novisrv\Sistema Gestione Integrato\9100_Qualità\_Modelli\MOD.035B RAIS Rapporto di Audit Interno di Sistema Rev0.pdf" --revisione 0` (dry-run: verificare sezioni/domande), poi ripetere con `--apply` nell'ambiente autorizzato.

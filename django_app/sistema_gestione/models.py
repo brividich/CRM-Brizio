@@ -526,6 +526,17 @@ class Audit(models.Model):
     )
     righe = models.ManyToManyField(RigaProgramma, blank=True, related_name="audit_collegati")
     tipo = models.CharField(max_length=24, choices=TIPO_CHOICES, default=TIPO_SISTEMA)
+    # Modulistica: MOD.035A/B (MT CN 12) oppure MOD.171/168 dell'audit ISMS (MT CN 276).
+    MODULO_SGI = "SGI"
+    MODULO_ISMS = "ISMS"
+    MODULO_CHOICES = [
+        (MODULO_SGI, "Audit di sistema SGI (MOD.035A / MOD.035B)"),
+        (MODULO_ISMS, "Audit ISMS ISO/IEC 27001 (MOD.171 / MOD.168)"),
+    ]
+    modulo = models.CharField(
+        "Modulistica", max_length=4, choices=MODULO_CHOICES, default=MODULO_SGI,
+        help_text="L'audit ISMS usa il piano MOD.171 e il rapporto MOD.168 con i 93 controlli precompilati dalla SoA.",
+    )
     en9100 = models.BooleanField(default=True)
     iso45001 = models.BooleanField(default=False)
     iso14001 = models.BooleanField(default=False)
@@ -633,6 +644,18 @@ class Audit(models.Model):
     @property
     def norme_codici(self) -> set[str]:
         return {codice for codice, _label in Auditor.NORME if getattr(self, codice, False)}
+
+    @property
+    def is_isms(self) -> bool:
+        return self.modulo == self.MODULO_ISMS
+
+    @property
+    def codice_piano(self) -> str:
+        return "MOD.171" if self.is_isms else "MOD.035A"
+
+    @property
+    def codice_rapporto(self) -> str:
+        return "MOD.168" if self.is_isms else "MOD.035B"
 
     def utente_e_auditor(self, user) -> bool:
         if not user or not getattr(user, "is_authenticated", False):
@@ -1198,3 +1221,157 @@ class AuditEsterno(models.Model):
         if self.altre_norme.strip():
             sigle.append(self.altre_norme.strip())
         return sigle
+
+
+# ---------------------------------------------------------------------------
+# Audit ISMS (MT CN 276): piano MOD.171 e rapporto MOD.168
+# ---------------------------------------------------------------------------
+
+RILIEVO_ISMS_NC = "NC"
+RILIEVO_ISMS_COM = "COM"
+RILIEVO_ISMS_AP = "AP"
+RILIEVO_ISMS_CHOICES = [
+    ("", "Nessun rilievo"),
+    (RILIEVO_ISMS_NC, "NC - Non conformità"),
+    (RILIEVO_ISMS_COM, "COM - Commento"),
+    (RILIEVO_ISMS_AP, "AP - Area di miglioramento"),
+]
+GRAVITA_ISMS_CHOICES = [("", "-"), ("MAGGIORE", "NC maggiore"), ("MINORE", "NC minore")]
+LIVELLO_ISMS_CHOICES = [(n, str(n)) for n in range(0, 5)]
+
+
+class AuditIsms(models.Model):
+    """Dati propri del MOD.171 (siti oggetto di audit) e del MOD.168 (testata e valutazioni)."""
+
+    SI_NO_CHOICES = [("", "Da indicare"), ("NO", "No"), ("SI", "Sì")]
+    EFFICACIA_NCMI_CHOICES = [
+        ("", "Da indicare"), ("EFFICACI", "Efficaci"),
+        ("NON_EFFICACI", "Non efficaci (rilasciare una NC maggiore)"), ("NON_PRESENTI", "Non presenti"),
+    ]
+    REPORT_PRECEDENTI_CHOICES = [
+        ("", "Da indicare"), ("EFFICACE", "Efficace"), ("NON_EFFICACE", "Non efficace"),
+        ("NA", "Non applicabile (per assenza di rilievi)"),
+    ]
+    COMMENTI_PRECEDENTI_CHOICES = [("", "Da indicare"), ("SI", "Sì"), ("NO", "No"), ("NON_PRESENTI", "Non presenti")]
+
+    audit = models.OneToOneField(Audit, on_delete=models.CASCADE, related_name="isms")
+    # MOD.171 - Elenco siti oggetto di audit
+    sito_id = models.CharField("ID sito", max_length=10, blank=True, default="1")
+    sito_campo = models.TextField("Campo d'applicazione (sito)", blank=True, default="")
+    sito_remoto = models.BooleanField("Attività da remoto", default=False)
+    sito_funzioni = models.TextField("Funzione e/o processi", blank=True, default="Tutti i processi in scopo")
+    # MOD.168 - testata
+    remoto_percentuale = models.PositiveSmallIntegerField("Attività in remoto (%)", null=True, blank=True)
+    remoto_date = models.CharField("Data/e attività in remoto", max_length=200, blank=True, default="")
+    remoto_ore = models.CharField("Durata in remoto (ore)", max_length=50, blank=True, default="")
+    campo_date = models.CharField("Data/e attività in campo", max_length=200, blank=True, default="")
+    campo_ore = models.CharField("Durata in campo (ore)", max_length=50, blank=True, default="")
+    sito_indirizzo = models.TextField("Indirizzo del sito", blank=True, default="")
+    campo_applicazione = models.TextField("Campo d'applicazione", blank=True, default="")
+    numero_addetti = models.CharField("N.ro addetti", max_length=50, blank=True, default="")
+    turni = models.CharField("Turni di lavoro", max_length=200, blank=True, default="")
+    # MOD.168 - Modifiche significative avvenute dopo il precedente audit
+    modifiche_sistema = models.CharField("Sistema di gestione / informazioni documentate", max_length=2, choices=SI_NO_CHOICES, blank=True, default="")
+    modifiche_sistema_note = models.TextField("Modifiche al sistema: specificare", blank=True, default="")
+    modifiche_campo = models.CharField("Campo di applicazione del sistema di gestione", max_length=2, choices=SI_NO_CHOICES, blank=True, default="")
+    modifiche_campo_note = models.TextField("Modifiche al campo: specificare", blank=True, default="")
+    modifiche_addetti = models.CharField("Numero addetti", max_length=2, choices=SI_NO_CHOICES, blank=True, default="")
+    modifiche_addetti_note = models.TextField("Modifiche agli addetti: specificare", blank=True, default="")
+    modifiche_altro = models.TextField(
+        "Altro (prodotti/servizi, processi, installazioni, impianti, infrastrutture)", blank=True, default="",
+    )
+    # MOD.168 - valutazioni del team di audit
+    efficacia_ncmi = models.CharField(
+        "Azioni sulle NC minori del precedente audit", max_length=12, choices=EFFICACIA_NCMI_CHOICES, blank=True, default="",
+    )
+    report_precedenti = models.CharField(
+        "Trattamento dei rilievi degli ultimi due audit", max_length=12, choices=REPORT_PRECEDENTI_CHOICES, blank=True, default="",
+    )
+    commenti_precedenti = models.CharField(
+        "Analisi dei commenti del precedente audit", max_length=12, choices=COMMENTI_PRECEDENTI_CHOICES, blank=True, default="",
+    )
+    # SoA usata per precompilare i livelli e revisione proposta dopo la chiusura.
+    soa_revisione = models.ForeignKey(
+        SoaRevisione, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_isms",
+    )
+    soa_proposta = models.ForeignKey(
+        SoaRevisione, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_isms_proposte",
+    )
+    soa_proposta_il = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Dati audit ISMS"
+        verbose_name_plural = "Dati audit ISMS"
+
+    def __str__(self) -> str:
+        return f"ISMS {self.audit.numero}"
+
+
+class _RilievoIsms(models.Model):
+    evidenze = models.TextField("Evidenze e rilievi", blank=True, default="")
+    rilievo = models.CharField(max_length=3, choices=RILIEVO_ISMS_CHOICES, blank=True, default="")
+    gravita = models.CharField(max_length=8, choices=GRAVITA_ISMS_CHOICES, blank=True, default="")
+    ofi = models.ForeignKey(
+        "gestione_specifiche.RegistroOFI", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    aggiornato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def clean(self):
+        super().clean()
+        if self.rilievo and not self.evidenze.strip():
+            raise ValidationError({"evidenze": "Descrivi l'evidenza del rilievo."})
+        if self.rilievo != RILIEVO_ISMS_NC:
+            self.gravita = ""
+        elif not self.gravita:
+            raise ValidationError({"gravita": "Indica se la NC è maggiore o minore."})
+
+
+class AuditIsmsRequisito(_RilievoIsms):
+    """Riga della tabella «ISO 27001:2022 - Evidenze e rilievi» del MOD.168."""
+
+    audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="isms_requisiti")
+    codice = models.CharField(max_length=40)
+    titolo = models.CharField(max_length=255)
+    ordine = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        constraints = [models.UniqueConstraint(fields=["audit", "codice"], name="sg_isms_requisito_unico")]
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.titolo}"
+
+    @property
+    def riferimento(self) -> str:
+        return f"ISO/IEC 27001:2022 {self.codice}"
+
+
+class AuditIsmsControllo(_RilievoIsms):
+    """Riga della tabella dei 93 controlli ISO/IEC 27002:2022 del MOD.168 (applicazione 0-4)."""
+
+    audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="isms_controlli")
+    controllo = models.ForeignKey(ControlloIso27002, on_delete=models.PROTECT, related_name="audit_isms")
+    livello_soa = models.PositiveSmallIntegerField(choices=LIVELLO_ISMS_CHOICES, null=True, blank=True)
+    livello = models.PositiveSmallIntegerField("Applicazione controllo", choices=LIVELLO_ISMS_CHOICES, null=True, blank=True)
+
+    class Meta:
+        ordering = ["controllo__ordine", "id"]
+        constraints = [models.UniqueConstraint(fields=["audit", "controllo"], name="sg_isms_controllo_unico")]
+
+    def __str__(self) -> str:
+        return f"{self.audit.numero} {self.controllo.codice}"
+
+    @property
+    def riferimento(self) -> str:
+        return f"ISO/IEC 27002:2022 {self.controllo.codice}"
+
+    @property
+    def differisce_da_soa(self) -> bool:
+        return self.livello is not None and self.livello_soa is not None and self.livello != self.livello_soa
