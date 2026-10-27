@@ -9,6 +9,16 @@ della lavorazione, se il pezzo è stato recuperato e se è prevista una segnalaz
 al cliente. È lo strumento per tracciare i problemi di qualità e seguirne la
 risoluzione.
 
+## A chi è in carico un'anomalia?
+
+Un'anomalia è in carico al **capocommessa** dell'OP a cui appartiene: è lui che
+decide anomalia per anomalia (avanzamento, RDC, segnalazione al cliente, note),
+dal portale o dal link della mail che riceve. Il **CAR**, il caporeparto
+responsabile dell'OP, è in copia e, se abilitato, decide anche lui sugli OP di cui
+è incaricato. Per vedere le anomalie in carico a te apri «Segnalazioni in Carico»
+oppure, in Gestione anomalie, il filtro «In carico a me»: mostrano gli OP di cui
+sei capocommessa o CAR.
+
 ## Come chiedo le anomalie all'assistente AI?
 
 Puoi chiedere ad esempio "anomalie aperte nel mio reparto", "anomalie dell'OP X"
