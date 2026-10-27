@@ -8558,7 +8558,8 @@ class PlantLayoutOpenTicketsTests(TestCase):
         by_asset = {m["asset_id"]: m for m in payload["markers"]}
         # il ticket vince sulla manutenzione scaduta dello stesso tornio
         self.assertEqual(by_asset[tornio.id]["alert"], "ticket")
-        self.assertEqual(by_asset[fresa.id]["alert"], "overdue")
+        # scaduta da un giorno: «da poco»; il rosso pieno è per oltre 30 giorni
+        self.assertEqual(by_asset[fresa.id]["alert"], "late")
         self.assertEqual(by_asset[pressa.id]["alert"], "workorder")
         self.assertEqual(by_asset[pressa.id]["machine"]["workorders"][0]["titolo"], "Cambio olio")
         self.assertEqual(by_asset[sega.id]["alert"], "due_soon")

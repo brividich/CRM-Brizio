@@ -10,7 +10,8 @@ from urllib.parse import quote
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse
+from django.contrib.auth.views import redirect_to_login
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
@@ -149,8 +150,13 @@ def _plant_layout_category_switches(
     return switches
 
 
-@login_required
 def plant_layout_map(request: HttpRequest) -> HttpResponse:
+    # ?format=json: lo stato aggiornato che la pagina rilegge ogni minuto (JSON 401, mai redirect)
+    wants_json = request.GET.get("format") == "json"
+    if not request.user.is_authenticated:
+        if wants_json:
+            return JsonResponse({"ok": False, "error": "Sessione scaduta: accedi di nuovo."}, status=401)
+        return redirect_to_login(request.get_full_path())
     focus_asset_id = _as_int(request.GET.get("asset"), default=0)
     requested_category = _clean_string(request.GET.get("category"))
     if not requested_category and focus_asset_id:
@@ -166,7 +172,27 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
         active_layouts[0] if active_layouts else None,
     )
     payload = _plant_layout_public_payload(layout)
+    if wants_json:
+        return JsonResponse({
+            "ok": True,
+            "layout_id": getattr(layout, "id", None),
+            "aggiornato": timezone.localtime().strftime("%H:%M"),
+            "payload": payload,
+        })
     image_size = _plant_layout_image_size(layout)
+    if request.GET.get("stampa") == "1" and layout is not None:
+        return render(
+            request,
+            "assets/pages/plant_layout_print.html",
+            {
+                "layout": layout,
+                "rows": _plant_layout_print_rows(payload),
+                "image_width": image_size[0],
+                "image_height": image_size[1],
+                "printed_at": timezone.localtime(),
+                "alert_labels": _PLANT_ALERT_LABELS,
+            },
+        )
     category_switches = _plant_layout_category_switches(
         active_layouts=active_layouts,
         selected_category=selected_category,
@@ -202,6 +228,35 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
             ),
         },
     )
+
+
+def _plant_layout_print_rows(payload: dict[str, object]) -> list[dict[str, object]]:
+    """Macchine numerate per la stampa: per reparto, poi da sinistra a destra, dall'alto in basso."""
+    markers = sorted(
+        payload.get("markers") or [],
+        key=lambda m: (
+            _clean_string(str((m.get("machine") or {}).get("reparto") or "")).casefold() or "~",
+            round(float(m["y_percent"]) / 10),
+            float(m["x_percent"]),
+        ),
+    )
+    rows = []
+    for number, marker in enumerate(markers, start=1):
+        machine = marker.get("machine") or {}
+        rows.append({
+            "n": number,
+            "x": marker["x_percent"],
+            "y": marker["y_percent"],
+            "label": marker["label"],
+            "name": machine.get("name") or marker["label"],
+            "asset_tag": machine.get("asset_tag") or "",
+            "internal_number": machine.get("internal_number") or "",
+            "reparto": machine.get("reparto") or "",
+            "alert": marker["alert"],
+            "alert_label": marker["alert_label"],
+            "cnc": bool(machine.get("live")),
+        })
+    return rows
 
 
 def _plant_layout_check_links() -> list[dict[str, object]]:
@@ -314,6 +369,35 @@ def _plant_layout_category_counts() -> dict[str, dict[str, int]]:
     return counts
 
 
+_POSITION_TITLES = {
+    "collocata": "Collocata sulla planimetria",
+    "spostata": "Spostata sulla planimetria",
+    "tolta": "Tolta dalla planimetria",
+}
+
+
+def _record_plant_position_changes(request: HttpRequest, layout: PlantLayout, changes) -> None:
+    """Ogni collocazione/spostamento finisce nella timeline della macchina (chi, quando, quale pianta)."""
+    from ..models import AssetTimelineEntry
+
+    if not changes:
+        return
+    user = request.user if getattr(request.user, "is_authenticated", False) else None
+    today = timezone.localdate()
+    # una create per riga: su SQL Server l'INSERT a lotti rompe i savepoint
+    for asset_id, kind in changes:
+        AssetTimelineEntry.objects.create(
+            asset_id=asset_id,
+            event_date=today,
+            title=_POSITION_TITLES[kind],
+            tag="PLANIMETRIA",
+            meta=layout.name[:120],
+            description=f"Pianta «{layout.name}» ({layout.category}), dall'editor delle planimetrie.",
+            color=AssetTimelineEntry.COLOR_BLUE,
+            created_by=user,
+        )
+
+
 @login_required
 def plant_layout_editor(request: HttpRequest) -> HttpResponse:
     all_layouts = list(
@@ -374,6 +458,17 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             category_qs = f"&category={quote(selected_layout.category)}" if selected_layout else ""
             return redirect(f"{reverse('assets:plant_layout_editor')}?layout={layout_id}{category_qs}")
 
+        if action == "deactivate_layout":
+            if selected_layout is None:
+                messages.error(request, "Planimetria non trovata.")
+            else:
+                selected_layout.is_active = False
+                selected_layout.save()
+                messages.success(request, f"Planimetria \"{selected_layout.name}\" tolta dalla mappa: resta come bozza.")
+            layout_id = selected_layout.id if selected_layout else ""
+            category_qs = f"&category={quote(selected_layout.category)}" if selected_layout else ""
+            return redirect(f"{reverse('assets:plant_layout_editor')}?layout={layout_id}{category_qs}")
+
         if action == "delete_layout":
             if selected_layout is None:
                 messages.error(request, "Planimetria non trovata.")
@@ -396,6 +491,7 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             if create_new and _clean_string(request.POST.get("copy_previous")) == "1":
                 copy_source = _plant_layout_previous_version(form.cleaned_data.get("category"))
             layout = form.save()
+            _record_plant_position_changes(request, layout, getattr(form, "position_changes", []))
             if copy_source is not None:
                 from ..services.plant_layout_image import copy_layout_content
 

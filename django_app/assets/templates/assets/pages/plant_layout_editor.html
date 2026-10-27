@@ -143,6 +143,13 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
         <input type="hidden" name="layout_id" value="{{ selected_layout.id }}">
         <button class="btn btn-primary btn-sm" type="submit">Pubblica come attiva</button>
       </form>
+      {% elif selected_layout and not create_new %}
+      <form method="post" data-hub-confirm="Togliere questa planimetria dalla mappa officina? Resta salvata come bozza con reparti e posizioni e si può ripubblicare.">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="deactivate_layout">
+        <input type="hidden" name="layout_id" value="{{ selected_layout.id }}">
+        <button class="btn btn-secondary btn-sm" type="submit">Togli dalla mappa</button>
+      </form>
       {% endif %}
     </div>
     <details class="plx-settings" {% if create_new or not selected_layout or form.errors %}open{% endif %}>
@@ -287,6 +294,10 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
         </div>
         <div class="plx-body" data-panel="areas" hidden>
           <p class="plx-note">Disegna un reparto con «Disegna reparto». Il codice reparto collega le macchine (campo reparto della scheda).</p>
+          <div class="plx-cleanup" id="plx-suggest" hidden>
+            <span id="plx-suggest-text"></span>
+            <button type="button" class="plx-tool" id="plx-suggest-run">Proponi i reparti</button>
+          </div>
           <ul class="plx-list" id="plx-area-list"></ul>
         </div>
       </article>
@@ -556,7 +567,54 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
     touch(); renderAll();
     setStatus("Tolti " + (before - state.markers.length) + " segnaposti: premi «Salva» per confermare.", [], false);
   });
+  /* ---------- reparti proposti dalle macchine collocate ---------- */
+  var PALETTE = ["#2563EB", "#16A34A", "#D97706", "#9333EA", "#DC2626", "#0891B2", "#65A30D", "#DB2777", "#4F46E5", "#0D9488"];
+  function suggestedAreas() {
+    var have = {};
+    state.areas.forEach(function (a) { if (a.reparto_code) have[norm(a.reparto_code)] = true; });
+    var groups = {};
+    state.markers.forEach(function (m) {
+      if (m.unplaced) return;
+      var mm = machineById[m.asset_id], rep = mm && String(mm.reparto || "").trim();
+      if (!rep || have[norm(rep)] || mm.status_code === "RETIRED") return;
+      (groups[rep] = groups[rep] || []).push(m);
+    });
+    var PAD = 2.5, MIN = 6;
+    return Object.keys(groups).sort().map(function (rep, i) {
+      var pts = groups[rep];
+      var x0 = Math.min.apply(null, pts.map(function (p) { return p.x; })) - PAD;
+      var y0 = Math.min.apply(null, pts.map(function (p) { return p.y; })) - PAD;
+      var x1 = Math.max.apply(null, pts.map(function (p) { return p.x; })) + PAD;
+      var y1 = Math.max.apply(null, pts.map(function (p) { return p.y; })) + PAD;
+      if (x1 - x0 < MIN) { var cx = (x0 + x1) / 2; x0 = cx - MIN / 2; x1 = cx + MIN / 2; }
+      if (y1 - y0 < MIN) { var cy = (y0 + y1) / 2; y0 = cy - MIN / 2; y1 = cy + MIN / 2; }
+      x0 = clamp(x0, 0, 100); y0 = clamp(y0, 0, 100);
+      return { rep: rep, n: pts.length, x: r2(x0), y: r2(y0), w: r2(clamp(x1, 0, 100) - x0), h: r2(clamp(y1, 0, 100) - y0),
+        color: PALETTE[(state.areas.length + i) % PALETTE.length] };
+    });
+  }
+  var suggestBox = document.getElementById("plx-suggest");
+  function renderSuggest() {
+    if (!suggestBox) return;
+    var rows = suggestedAreas();
+    suggestBox.hidden = !rows.length;
+    if (!rows.length) return;
+    document.getElementById("plx-suggest-text").textContent = rows.length === 1
+      ? "1 reparto con macchine collocate non ha ancora il suo riquadro."
+      : rows.length + " reparti con macchine collocate non hanno ancora il loro riquadro.";
+  }
+  if (suggestBox) document.getElementById("plx-suggest-run").addEventListener("click", function () {
+    var rows = suggestedAreas();
+    rows.forEach(function (r) {
+      state.areas.push({ cid: cid("a", null), id: null, name: r.rep, reparto_code: r.rep, color: r.color, notes: "",
+        x: r.x, y: r.y, w: r.w, h: r.h, sort_order: (state.areas.length + 1) * 10 });
+    });
+    touch(); renderAll();
+    setStatus("Aggiunti " + rows.length + " reparti attorno alle loro macchine: controlla i riquadri (si spostano e ridimensionano) e premi «Salva».", [], false);
+  });
+
   function renderAreas() {
+    renderSuggest();
     areaList.innerHTML = "";
     if (!state.areas.length) { areaList.appendChild(el("li", "plx-empty-note", "Nessun reparto disegnato.")); return; }
     state.areas.forEach(function (a) {

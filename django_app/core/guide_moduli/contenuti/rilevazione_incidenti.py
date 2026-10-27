@@ -28,7 +28,7 @@ GUIDA = {
                     "Scegli il tipo di evento, la «Data e ora rilevazione» e il «Reparto».",
                     "In «Descrizione avvenimento» racconta cosa è successo, con parole semplici.",
                     "Indica le «Persone coinvolte» e, se c'entra una macchina, il suo nome.",
-                    "Se puoi, indica il punto sulla piantina in «Area planimetria».",
+                    "Se puoi, in «Dove è successo» scegli la pianta e clicca il punto (oppure scegli l'«Area planimetria»).",
                     "Clicca «Salva rilevazione».",
                 ]),
             ],
@@ -40,6 +40,9 @@ GUIDA = {
                 ("ul", [
                     "La lista si filtra per tipo, reparto e periodo con «Filtra».",
                     "«Statistiche» mostra i numeri per reparto, causa e gravità; «Heatmap» mostra sulla piantina dove succedono più eventi.",
+                    "La heatmap prende la posizione dal punto indicato, poi dalla macchina coinvolta, poi dal riquadro del reparto, "
+                    "poi dalla zona delle macchine dello stesso reparto; sotto la pianta dice quante rilevazioni vengono da ogni fonte "
+                    "e quante restano fuori (altre piante o senza indizi). Passando sul cerchio: reparti e tipi di evento.",
                     "Nel dettaglio: «Modifica», «PDF», «Gestisci RSPP» (analisi delle cause e misure da adottare, per l'RSPP).",
                     "«Export CSV» scarica l'elenco.",
                     "Il dipendente vede le proprie segnalazioni, preposto e responsabile quelle del team, la Sicurezza tutte.",

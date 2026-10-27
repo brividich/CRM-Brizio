@@ -2456,6 +2456,26 @@ class SoftwareLicenseRenewalForm(forms.ModelForm):
         return cleaned_data
 
 
+def _plant_marker_position_changes(before: dict, after: dict) -> list[tuple[int, str]]:
+    """(asset_id, «collocata»|«spostata»|«tolta») tra le posizioni prima e dopo il salvataggio.
+
+    Il segnaposto 50/50 vale come «non collocata»; sotto i 2 punti percentuali di
+    distanza è un ritocco, non uno spostamento."""
+    def placed(pos):
+        return pos is not None and not (abs(pos[0] - 50) < 0.01 and abs(pos[1] - 50) < 0.01)
+
+    changes: list[tuple[int, str]] = []
+    for asset_id in sorted(set(before) | set(after)):
+        old, new = before.get(asset_id), after.get(asset_id)
+        if placed(new) and not placed(old):
+            changes.append((asset_id, "collocata"))
+        elif placed(old) and not placed(new):
+            changes.append((asset_id, "tolta"))
+        elif placed(old) and placed(new) and max(abs(old[0] - new[0]), abs(old[1] - new[1])) >= 2:
+            changes.append((asset_id, "spostata"))
+    return changes
+
+
 class PlantLayoutForm(forms.ModelForm):
     # FileField e non ImageField: il campo immagine di Django scarterebbe il PDF
     # prima di clean_image, che lo converte in PNG e poi verifica il raster.
@@ -2674,6 +2694,7 @@ class PlantLayoutForm(forms.ModelForm):
 
         existing_markers = {row.id: row for row in PlantLayoutMarker.objects.filter(layout=layout)}
         existing_by_asset = {row.asset_id: row for row in existing_markers.values()}
+        before = {row.asset_id: (float(row.x_percent), float(row.y_percent)) for row in existing_markers.values()}
         # Un asset puo' avere un solo marker per layout (UniqueConstraint
         # layout+asset): deduplichiamo il payload tenendo l'ultima riga per
         # asset, cosi due righe sullo stesso asset non causano un INSERT
@@ -2712,6 +2733,9 @@ class PlantLayoutForm(forms.ModelForm):
             marker.is_visible = True
             marker.save()
 
+        self.position_changes = _plant_marker_position_changes(
+            before, {row["asset_id"]: (float(row["x_percent"]), float(row["y_percent"])) for row in deduped_rows.values()}
+        )
         return layout
 
 

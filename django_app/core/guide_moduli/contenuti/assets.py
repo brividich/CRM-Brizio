@@ -50,6 +50,14 @@ GUIDA = {
                     "Clicca sulla pianta il punto in cui si trova la macchina; usa la rotellina per ingrandire.",
                     "Premi «Salva».",
                 ]),
+                ("ul", [
+                    "La mappa officina si aggiorna da sola ogni minuto: va bene anche su un monitor in reparto.",
+                    "Colori dal più grave: allarme CNC, ticket, verifica o scadenza di legge superata, manutenzione scaduta "
+                    "da oltre 30 giorni (rosso) o da poco (arancione), OdL aperto, in scadenza, in riparazione.",
+                    "La ricerca trova la macchina anche sulle altre piante («Su altre piante» → apre quella pianta).",
+                    "«Stampa A3»: la pianta con le macchine numerate e la legenda per reparto, da appendere.",
+                    "Sulla mappa ci sono solo macchine collocate e in servizio; il riquadro sopra la pianta conta quelle da collocare.",
+                ]),
             ],
         },
         {
@@ -134,8 +142,11 @@ GUIDA = {
             "titolo": "Stato reale delle CNC (collector OPC UA, MTConnect) sulla mappa officina",
             "blocchi": [
                 ("passi", [
-                    "Apri la mappa officina: una macchina con il pallino rosso scuro è «In allarme» sul suo controllo.",
-                    "Clicca la macchina: «Dal controllo della macchina» dice stato e da quando, programma, pezzi, ore in lavoro di oggi e gli allarmi attivi.",
+                    "Apri la mappa officina: le CNC collegate hanno il pin quadrato con l'anello dello stato "
+                    "(verde in lavoro e gira, giallo ferma, rosso in allarme); in alto «CNC collegate» conta quante sono in lavoro.",
+                    "Clicca la macchina: il pannello CNC mostra torretta luminosa, stato e da quanto, programma, modo, esecuzione, pezzi, "
+                    "ore in lavoro e utilizzo di oggi, la linea del giorno (00–24 colorata per stato) e gli allarmi del controllo.",
+                    "Nella colonna a destra il «Quadro CNC» riassume tutte le CNC della pianta: un clic apre la macchina.",
                     "Elenco di tutte le macchine collegate, con stato e contatori: Configurazione → «Macchine collegate».",
                     "Scheda della macchina, scheda Panoramica: riquadro «Stato della CNC» con stato e da quando, ore in lavoro di oggi, "
                     "programma, pezzi, avvisi e allarmi e gli ultimi 10 cambi di stato con la durata.",
@@ -198,6 +209,12 @@ GUIDA = {
                     "«Copia reparti e macchine da …» per non ricollocare tutto.",
                     "L'elenco macchine distingue «Da posizionare» (su nessuna pianta) da «Su altre piante»; "
                     "«Togli i segnaposti» elimina quelli creati in automatico e mai collocati.",
+                    "Scheda «Reparti» → «Proponi i reparti»: un riquadro attorno alle macchine collocate di ogni reparto che non ne ha uno; "
+                    "controlla e salva. I reparti servono anche alla mappa di calore degli incidenti.",
+                    "«Togli dalla mappa» toglie una pianta doppia o non usata dalla mappa officina senza cancellarla (resta bozza).",
+                    "Ogni collocazione o spostamento finisce nella timeline della macchina (etichetta PLANIMETRIA) con data e autore.",
+                    "Verifiche di legge sulla mappa: collega le macchine (es. i carroponti) al piano in Manutenzione → Verifiche periodiche, "
+                    "campo «Asset coinvolti»; senza collegamento la mappa non le vede.",
                 ]),
             ],
         },
@@ -470,6 +487,20 @@ GUIDA = {
                 "Una macchina già collocata a mano su una pianta resta lì: la scheda mostra sempre quella posizione, "
                 "anche se la macchina compare «da posizionare» su altre planimetrie.",
                 "Una pianta piena di macchine «da collocare» che stanno già altrove: nell'editor premi «Togli i segnaposti» e «Salva».",
+            ],
+        },
+        {
+            "sintomo": "La mappa officina dice «Non aggiornata: ricarica la pagina»",
+            "fare": [
+                "La pagina non riesce a rileggere lo stato da oltre 3 minuti: di solito è scaduta la sessione o è caduta la rete. Ricarica la pagina.",
+                "Una CNC con «Dato non aggiornato» invece è un problema del collegamento: Configurazione → «Macchine collegate» → «Prova».",
+            ],
+        },
+        {
+            "sintomo": "Un carroponte risulta «In ordine» sulla mappa anche se la verifica è scaduta",
+            "fare": [
+                "La mappa legge solo le verifiche periodiche collegate alla macchina: apri il piano in Manutenzione → Verifiche periodiche "
+                "e aggiungi la macchina in «Asset coinvolti».",
             ],
         },
         {

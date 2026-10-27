@@ -40,6 +40,7 @@ from ..models import (
     MaintenanceRule,
     PeriodicVerification,
     PlantLayout,
+    PlantLayoutMarker,
     WorkMachine,
     WorkOrder,
     WorkOrderAttachment,
@@ -480,6 +481,7 @@ def _plant_layout_machine_queryset():
     )
     return (
         Asset.objects.exclude(asset_type__in=IT_DEVICE_TYPES)
+        .exclude(asset_type=Asset.TYPE_CHEMICAL)
         .exclude(asset_category_id__in=excluded_category_ids)
         .select_related("work_machine")
         .order_by("reparto", "name", "asset_tag", "id")
@@ -565,32 +567,39 @@ def _open_tickets_by_asset(asset_ids) -> dict[int, list[dict[str, object]]]:
 
 
 # Stato di ogni macchina sulla mappa officina, dal piu' grave: allarme attivo sul
-# controllo (MTConnect), ticket aperti, manutenzione scaduta, OdL aperti, manutenzione in
-# scadenza, in riparazione.
-_PLANT_ALERT_LEVELS = ("alarm", "ticket", "overdue", "workorder", "due_soon", "repair", "ok")
+# controllo (MTConnect), ticket aperti, verifica di legge o scadenza amministrativa
+# superata, manutenzione scaduta da oltre 30 giorni, scaduta da poco, OdL aperti,
+# manutenzione o verifica in scadenza, in riparazione.
+_PLANT_ALERT_LEVELS = ("alarm", "ticket", "legal", "overdue", "late", "workorder", "due_soon", "repair", "ok")
 _PLANT_ALERT_LABELS = {
     "alarm": "Allarme sulla CNC",
     "ticket": "Ticket aperto",
-    "overdue": "Manutenzione scaduta",
+    "legal": "Verifica o scadenza di legge superata",
+    "overdue": "Manutenzione scaduta da oltre 30 giorni",
+    "late": "Manutenzione scaduta da poco",
     "workorder": "OdL aperto",
-    "due_soon": "Manutenzione in scadenza",
+    "due_soon": "Manutenzione o verifica in scadenza",
     "repair": "In riparazione",
     "ok": "In ordine",
 }
+# Oltre questa soglia una manutenzione scaduta è «vecchia»: rosso pieno, non arancione.
+_PLANT_OVERDUE_OLD_DAYS = 30
+# Verifiche periodiche: «in scadenza» nei 30 giorni prima.
+_PLANT_VERIFICATION_WARNING_DAYS = 30
 
 
 def _plant_layout_machine_alerts(assets, *, today=None) -> dict[int, dict[str, object]]:
-    """asset_id -> OdL aperti, manutenzioni scadute/in scadenza, in riparazione.
+    """asset_id -> OdL aperti, manutenzioni scadute/in scadenza, verifiche e scadenze di legge, in riparazione.
 
-    Due query batch per tutta la mappa; i ticket arrivano da ``_open_tickets_by_asset``."""
-    from ..models import MaintenanceOccurrence
+    Query batch per tutta la mappa; i ticket arrivano da ``_open_tickets_by_asset``."""
+    from ..models import AssetAdministrativeDeadline, MaintenanceOccurrence, PeriodicVerification
 
     today = today or timezone.localdate()
     now = timezone.now()
     ids = [a.id for a in assets]
     result: dict[int, dict[str, object]] = {
-        a.id: {"workorders": [], "workorders_total": 0, "overdue": 0, "due_soon": 0, "next_due": "",
-               "in_repair": a.status == Asset.STATUS_IN_REPAIR}
+        a.id: {"workorders": [], "workorders_total": 0, "overdue": 0, "overdue_days": 0, "due_soon": 0, "next_due": "",
+               "legal": [], "in_repair": a.status == Asset.STATUS_IN_REPAIR}
         for a in assets
     }
     if not ids:
@@ -621,21 +630,49 @@ def _plant_layout_machine_alerts(assets, *, today=None) -> dict[int, dict[str, o
             row["next_due"] = occ.due_date.strftime("%d/%m/%Y")
         if occ.due_date < today:
             row["overdue"] += 1
+            row["overdue_days"] = max(row["overdue_days"], (today - occ.due_date).days)
         elif (occ.due_date - today).days <= (occ.warning_days or 0):
             row["due_soon"] += 1
+
+    def legal(asset_id, kind, title, due, url):
+        days = (due - today).days
+        if days > _PLANT_VERIFICATION_WARNING_DAYS and kind == "Verifica periodica":
+            return
+        result[asset_id]["legal"].append({
+            "tipo": kind, "titolo": title, "scadenza": due.strftime("%d/%m/%Y"), "scaduta": days < 0, "giorni": days, "url": url,
+        })
+
+    verifications_url = reverse("assets:periodic_verifications")
+    for pv in (
+        PeriodicVerification.objects.filter(is_active=True, assets__id__in=ids, next_verification_date__isnull=False)
+        .values("id", "name", "next_verification_date", "assets__id")
+    ):
+        legal(pv["assets__id"], "Verifica periodica", pv["name"], pv["next_verification_date"], verifications_url)
+    for dl in (
+        AssetAdministrativeDeadline.objects.filter(is_active=True, asset_id__in=ids)
+        .only("id", "asset_id", "title", "due_date", "warning_days", "deadline_type")
+    ):
+        if (dl.due_date - today).days <= (dl.warning_days or 0):
+            legal(dl.asset_id, dl.get_deadline_type_display(), dl.title, dl.due_date,
+                  reverse("assets:asset_view", kwargs={"id": dl.asset_id}))
+    for row in result.values():
+        row["legal"].sort(key=lambda r: r["giorni"])
     return result
 
 
 def _plant_alert_level(alerts: dict[str, object], open_tickets: int) -> str:
+    legal = alerts.get("legal") or []
     if alerts.get("cnc_alarm"):
         return "alarm"
     if open_tickets:
         return "ticket"
+    if any(r["scaduta"] for r in legal):
+        return "legal"
     if alerts.get("overdue"):
-        return "overdue"
+        return "overdue" if (alerts.get("overdue_days") or 0) > _PLANT_OVERDUE_OLD_DAYS else "late"
     if alerts.get("workorders_total"):
         return "workorder"
-    if alerts.get("due_soon"):
+    if alerts.get("due_soon") or legal:
         return "due_soon"
     if alerts.get("in_repair"):
         return "repair"
@@ -646,14 +683,27 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
     empty_counts = {level: 0 for level in _PLANT_ALERT_LEVELS}
     if layout is None:
         return {"layout": None, "areas": [], "markers": [], "markers_with_tickets": 0,
-                "alert_counts": empty_counts, "alert_labels": _PLANT_ALERT_LABELS}
+                "alert_counts": empty_counts, "alert_labels": _PLANT_ALERT_LABELS,
+                "unplaced_count": 0, "retired_hidden": 0, "reparti": [], "cnc": {"total": 0}, "elsewhere": []}
+    from ..services.plant_layout_image import marker_is_unplaced
+
+    # Sulla mappa solo le macchine collocate davvero e ancora in servizio: i
+    # segnaposti 50/50 si sistemano dall'editor, le dismesse non si cercano più lì.
+    all_markers = list(layout.markers.select_related("asset").order_by("sort_order", "id"))
+    unplaced_count = sum(1 for m in all_markers if marker_is_unplaced(m))
+    retired_hidden = sum(
+        1 for m in all_markers if not marker_is_unplaced(m) and m.asset.status == Asset.STATUS_RETIRED
+    )
+    shown_markers = [
+        m for m in all_markers if not marker_is_unplaced(m) and m.asset.status != Asset.STATUS_RETIRED
+    ]
 
     machines = list(_plant_layout_machine_queryset())
     machine_catalog = _plant_layout_machine_catalog(machines)
     alerts = _plant_layout_machine_alerts(machines)
     # ticket solo per le macchine posizionate o nei reparti mappati: sono quelle che la mappa mostra
     area_repartos = {_clean_string(code) for code in layout.areas.values_list("reparto_code", flat=True) if _clean_string(code)}
-    shown_ids = set(layout.markers.values_list("asset_id", flat=True)) | {
+    shown_ids = {m.asset_id for m in shown_markers} | {
         row["id"] for row in machine_catalog if _clean_string(str(row.get("reparto") or "")) in area_repartos
     }
     ticket_map = _open_tickets_by_asset(shown_ids)
@@ -672,12 +722,16 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         row["workorders"] = info.get("workorders", [])
         row["workorders_total"] = info.get("workorders_total", 0)
         row["overdue"] = info.get("overdue", 0)
+        row["overdue_days"] = info.get("overdue_days", 0)
+        row["legal"] = info.get("legal", [])
         row["due_soon"] = info.get("due_soon", 0)
         row["next_due"] = info.get("next_due", "") or row.get("next_maintenance_date", "")
         row["create_wo_url"] = reverse("assets:wo_create", args=[row["id"]])
     machines_by_id = {row["id"]: row for row in machine_catalog}
     reparto_machine_rows: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in machine_catalog:
+        if row.get("status_code") == Asset.STATUS_RETIRED:
+            continue
         reparto_machine_rows[_clean_string(str(row.get("reparto") or ""))].append(row)
 
     reparto_area_ids: dict[str, list[int]] = defaultdict(list)
@@ -710,7 +764,7 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
     marker_payload: list[dict[str, object]] = []
     alert_counts = dict(empty_counts)
     markers_with_tickets = 0
-    for marker in layout.markers.all().order_by("sort_order", "id"):
+    for marker in shown_markers:
         asset_payload = dict(machines_by_id.get(marker.asset_id) or {})
         tickets = ticket_map.get(marker.asset_id, [])
         alert = asset_payload.get("alert") or ("ticket" if tickets else "ok")
@@ -747,7 +801,78 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         "markers_with_tickets": markers_with_tickets,
         "alert_counts": alert_counts,
         "alert_labels": _PLANT_ALERT_LABELS,
+        "unplaced_count": unplaced_count,
+        "retired_hidden": retired_hidden,
+        "reparti": _plant_layout_reparto_summary(marker_payload),
+        "cnc": _plant_layout_cnc_summary(marker_payload),
+        "elsewhere": _plant_layout_elsewhere_index(layout),
     }
+
+
+def _plant_layout_reparto_summary(marker_payload: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Per reparto (dal campo della scheda): macchine sulla pianta e quante da guardare.
+
+    Funziona anche senza riquadri disegnati: e' il riepilogo nella colonna laterale."""
+    groups: dict[str, dict[str, object]] = {}
+    for m in marker_payload:
+        name = _clean_string(str((m.get("machine") or {}).get("reparto") or "")) or "Senza reparto"
+        row = groups.setdefault(name, {"name": name, "total": 0, "alerts": 0, "worst": "ok", "marker_ids": []})
+        row["total"] += 1
+        row["marker_ids"].append(m["id"])
+        if m["alert"] != "ok":
+            row["alerts"] += 1
+        if _PLANT_ALERT_LEVELS.index(m["alert"]) < _PLANT_ALERT_LEVELS.index(row["worst"]):
+            row["worst"] = m["alert"]
+    return sorted(groups.values(), key=lambda r: (-int(r["alerts"]), r["name"] == "Senza reparto", str(r["name"]).casefold()))
+
+
+def _plant_layout_cnc_summary(marker_payload: list[dict[str, object]]) -> dict[str, object]:
+    """Le CNC collegate sulla pianta: quante in lavoro, ferme, in allarme (il «quadro andon»)."""
+    counts = {"in_lavoro": 0, "setup": 0, "ferma": 0, "allarme": 0, "spenta": 0}
+    total = 0
+    for m in marker_payload:
+        live = (m.get("machine") or {}).get("live")
+        if not live:
+            continue
+        total += 1
+        stato = live.get("stato")
+        if stato in {"allarme", "emergenza"}:
+            counts["allarme"] += 1
+        elif stato in {"in_lavoro", "setup"}:
+            counts[stato] += 1
+        elif stato in {"pronta", "ferma"}:
+            counts["ferma"] += 1
+        else:
+            counts["spenta"] += 1
+    return {"total": total, **counts}
+
+
+def _plant_layout_elsewhere_index(layout: PlantLayout) -> list[dict[str, object]]:
+    """Macchine collocate sulle ALTRE piante attive: la ricerca le propone con «apri»."""
+    from ..services.plant_layout_image import marker_is_unplaced
+
+    base_url = reverse("assets:plant_layout_map")
+    rows: list[dict[str, object]] = []
+    for marker in (
+        PlantLayoutMarker.objects.filter(layout__is_active=True)
+        .exclude(layout=layout)
+        .exclude(asset__status=Asset.STATUS_RETIRED)
+        .select_related("layout", "asset")
+        .order_by("layout__category", "asset__name")
+    ):
+        if marker_is_unplaced(marker):
+            continue
+        asset = marker.asset
+        rows.append({
+            "asset_id": asset.id,
+            "name": asset.name,
+            "asset_tag": asset.asset_tag,
+            "internal_number": _clean_string(asset.internal_number),
+            "reparto": _clean_string(asset.reparto),
+            "layout": marker.layout.category,
+            "url": f"{base_url}?{urlencode({'category': marker.layout.category, 'asset': asset.id})}",
+        })
+    return rows
 
 
 def _handle_detail_field_request(request: HttpRequest) -> tuple[bool, str]:
