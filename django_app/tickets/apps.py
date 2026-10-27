@@ -7,6 +7,9 @@ class TicketsConfig(AppConfig):
     verbose_name = "Ticket"
 
     def ready(self):
+        from .sharepoint_man import collega_segnali
+
+        collega_segnali()
         try:
             from .acl_bootstrap import bootstrap_tickets_acl_endpoints
 

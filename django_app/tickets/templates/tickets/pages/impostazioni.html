@@ -310,6 +310,21 @@ body.theme-dark .tkt-import-result ul{color:#fca5a5}
         <span id="man-test-result" style="font-size:12px;margin-top:4px;"></span>
         <span class="tkt-field-hint">Recuperabile dall'URL della lista SharePoint.</span>
       </div>
+      <div class="tkt-field">
+        <label>Site ID SharePoint (sito della lista Manutenzione)</label>
+        <input type="text" id="man-sp-site" placeholder="tenant.sharepoint.com,xxxxxxxx-…,xxxxxxxx-…"
+          value="{{ cfg_man.sharepoint_site_id }}">
+        <span class="tkt-field-hint">Il sito CNManutenzioni, diverso da quello delle altre liste del portale.</span>
+      </div>
+      <div class="tkt-field">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="man-sp-sync" {% if cfg_man.sharepoint_sync_attivo %}checked{% endif %}>
+          Sincronizza con SharePoint in entrambe le direzioni
+        </label>
+        <span class="tkt-field-hint">Ogni 5 minuti: le modifiche fatte sul portale (apertura, stato, chiusura, priorità, note) vanno sulla lista, e le modifiche e i nuovi ticket della lista arrivano sul portale. Commenti, allegati e interventi restano solo sul portale.</span>
+        <span class="tkt-field-hint"><a href="{% url 'guida_modulo' 'tickets' %}?vista=admin#sharepoint-man" title="Come funziona la sincronizzazione">? Guida</a></span>
+        <span class="tkt-field-hint">In coda verso SharePoint: {{ sp_man_stato.in_coda }}{% if sp_man_stato.ultimo_errore %} · Ultimo errore: {{ sp_man_stato.ultimo_errore|truncatechars:200 }}{% endif %}</span>
+      </div>
 
       <!-- Team gestori -->
       <div class="tkt-field">
@@ -780,6 +795,8 @@ async function saveImpostazioni(tipo) {
       body: JSON.stringify({
         tipo,
         sharepoint_list_id: spId,
+        sharepoint_site_id: tipo === 'MAN' ? document.getElementById('man-sp-site').value.trim() : '',
+        sharepoint_sync_attivo: tipo === 'MAN' ? document.getElementById('man-sp-sync').checked : false,
         team_gestori:  state[tipo].team_gestori,
         acl_apertura:  state[tipo].acl_apertura,
         acl_gestione:  state[tipo].acl_gestione,
@@ -923,7 +940,8 @@ async function testSP(tipo) {
     const r = await fetch("{% url 'tickets:api_test_sp' %}", {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({tipo, sharepoint_list_id: spId})
+      body: JSON.stringify({tipo, sharepoint_list_id: spId,
+        sharepoint_site_id: tipo === 'MAN' ? document.getElementById('man-sp-site').value.trim() : ''})
     });
     const d = await r.json();
     if (d.ok) {

@@ -473,6 +473,10 @@ class TicketAllegato(models.Model):
 class TicketImpostazioni(models.Model):
     tipo                = models.CharField(max_length=5, choices=TipoTicket.choices, unique=True)
     sharepoint_list_id  = models.CharField(max_length=100, blank=True)
+    # Sincronizzazione bidirezionale con la lista SharePoint (solo MAN): sito
+    # Graph della lista e interruttore. Spento = nessuna chiamata a SharePoint.
+    sharepoint_site_id     = models.CharField(max_length=200, blank=True)
+    sharepoint_sync_attivo = models.BooleanField(default=False)
     # [{"nome": "Mario Rossi", "email": "mario@example.com"}, ...]
     team_gestori        = models.JSONField(default=list)
     # Lista di username/email autorizzati ad aprire. Vuota = tutti.
@@ -492,6 +496,26 @@ class TicketImpostazioni(models.Model):
     def get_or_create_for(cls, tipo: str) -> "TicketImpostazioni":
         obj, _ = cls.objects.get_or_create(tipo=tipo)
         return obj
+
+
+class TicketSharePointOutbox(models.Model):
+    """Ticket MAN con modifiche locali ancora da inviare a SharePoint.
+
+    Una riga per ticket: il giro di sincronizzazione invia lo stato attuale del
+    ticket e cancella la riga. Finche' la riga esiste la lettura da SharePoint
+    non sovrascrive il ticket: vince la modifica locale non ancora inviata.
+    """
+    ticket     = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name="sharepoint_outbox")
+    queued_at  = models.DateTimeField(auto_now=True)
+    tentativi  = models.PositiveIntegerField(default=0)
+    ultimo_errore = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Ticket da inviare a SharePoint"
+        verbose_name_plural = "Ticket da inviare a SharePoint"
+
+    def __str__(self):
+        return f"Outbox SharePoint {self.ticket_id}"
 
 
 # ---------------------------------------------------------------------------
