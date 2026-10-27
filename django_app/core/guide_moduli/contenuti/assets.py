@@ -160,6 +160,11 @@ GUIDA = {
                 ("p", "Le DMG MORI arrivano dal collector OPC UA dell'officina (a ogni cambio di stato e almeno ogni minuto); "
                       "le macchine con un agent MTConnect si leggono ogni 2 minuti. «Dato non aggiornato» = nessuna lettura negli "
                       "ultimi 15 minuti (collector o agent fermo): in quel caso la macchina non conta come in allarme."),
+                ("p", "«Non leggibile» = la macchina risponde ma non dà lo stato: per esempio un controllo Heidenhain senza "
+                      "l'opzione software #18 (DNC) o la libreria Fanuc Fwlib mancante sul PC del collector. Il motivo è scritto "
+                      "in «Macchine collegate»; nel report di utilizzo conta come ore offline."),
+                ("p", "Se il portale resta fermo, il collector tiene i cambi di stato in coda e li manda in ordine appena il "
+                      "portale torna raggiungibile: i periodi di stato non hanno buchi e un reinvio non li duplica."),
             ],
         },
         {

@@ -439,6 +439,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
 
     <section class="ag-sec" id="mtconnect">
       <h2>Macchine collegate (collector OPC UA e MTConnect)</h2>
+<p>Stato <strong>«Non leggibile»</strong>: la macchina risponde ma non dà lo stato (es. Heidenhain senza l'opzione software #18 DNC, libreria Fanuc Fwlib mancante). Il motivo è nella colonna dello stato di «Macchine collegate». Con il portale fermo il collector tiene i cambi in coda e li manda in ordine quando il portale torna: niente buchi, niente doppioni.</p>
       <p>Le macchine DMG MORI dell'officina arrivano dal <strong>collector OPC UA</strong>, un programma che gira su un PC dell'officina e legge i controlli in sola lettura. <strong>Si configura tutto dalla pagina</strong> <a href="{% url 'assets:mtconnect_collegamenti' %}">Macchine collegate</a>:</p>
       <ol>
         <li>«Collega una macchina» › <em>Collector OPC UA</em>: scegli la macchina e scrivi l'<strong>indirizzo OPC UA</strong> (IP), la <strong>porta</strong> (di solito 4840), il <strong>codice</strong> breve (per esempio DM6) e, solo se la macchina non accetta l'accesso anonimo, <strong>utente e password OPC UA</strong> (la password è salvata cifrata e non si rivede). Lascia spuntato «Crea i contatori Ore e Cicli se mancano».</li>
