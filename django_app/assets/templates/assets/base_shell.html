@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load impostazioni_tags %}
 {% load static %}
 
 {% block extra_head %}
@@ -460,7 +461,9 @@ body.theme-dark details.as-collapse > summary:hover::after{color:#93c5fd}
       {% endfor %}
       {% if can_gestione_admin %}
         <div class="as-nav-head">Amministrazione</div>
+        {% impostazioni_visibili "assets" True as mostra_impostazioni %}{% if mostra_impostazioni %}
         <a class="as-link as-link-top{% if request.resolver_match.url_name == 'gestione_admin' %} active{% endif %}" href="{% url 'assets:gestione_admin' %}"><svg class="as-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ assets_sidebar_icone.impostazioni|safe }}</svg><span>Impostazioni</span></a>
+        {% endif %}
       {% endif %}
       <a class="as-link as-link-top as-link-guida{% if request.resolver_match.url_name == 'guida' %} active{% endif %}" href="{% url 'assets:guida' %}"><svg class="as-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ assets_sidebar_icone.guida|safe }}</svg><span>Guida del modulo</span></a>
       <p class="as-nav-empty" data-as-nav-empty hidden>Nessuna voce corrisponde.</p>

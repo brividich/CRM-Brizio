@@ -142,10 +142,10 @@ GUIDA = {
             "titolo": "Dove si configura",
             "blocchi": [
                 ("p", "Tutto è in Assenze → «Impostazioni» (voce visibile solo agli amministratori del modulo)."),
-                ("p", "Chi apre «Impostazioni» e «Area HR» lo decide la matrice dei ruoli (Admin portale → Ruoli portale), "
-                      "riga Assenze, sotto-riga «↳ Impostazioni e area HR»: Propri, Team o Tutti la aprono, «No» o «—» no. "
-                      "È separata da «Chiudere / gestire»: un ruolo può gestire le richieste senza vedere le Impostazioni. "
-                      "Dopo la modifica premi «Salva matrice»."),
+                ("p", "Chi apre «Impostazioni» lo decide la matrice dei ruoli (Admin portale → Ruoli portale), "
+                      "riga Assenze, sotto-riga «↳ Impostazioni del modulo»: Propri, Team o Tutti la aprono, «No» o «—» no. "
+                      "Vale solo per la pagina Impostazioni: «Area HR», «Certifica presenza» e la gestione di tutte le "
+                      "richieste restano a «Chiudere / gestire». Dopo la modifica premi «Salva matrice»."),
                 ("def", [
                     ("Chi vede le assenze altrui", "riepilogo in sola lettura di chi vede tutta l'azienda, solo il reparto o solo le proprie richieste."),
                     ("Flessibilità", "elenco delle persone abilitate e orari ammessi di entrata e uscita (predefiniti 07:00/08:00/09:00 e 16:00/17:00/18:00). Si salva con «Salva flessibilità»."),

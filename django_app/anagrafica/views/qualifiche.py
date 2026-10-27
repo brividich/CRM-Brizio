@@ -1866,10 +1866,8 @@ def skm_impostazioni(request):
     le cadenze continuità/refresh e le etichette della scala. Sola configurazione,
     nessun dato personale. Accesso: ``anagrafica.skillmatrix.manage``.
     """
-    from core.permessi.impostazioni import impostazioni_o
-
     from ..acl_bootstrap import PERM_SKM_MANAGE
-    if not impostazioni_o(request, "anagrafica", lambda r: _check_skm_permission(r, PERM_SKM_MANAGE)):
+    if not _check_skm_permission(request, PERM_SKM_MANAGE):
         messages.error(request, "Non hai i permessi per gestire la configurazione Skill Matrix.")
         return redirect("anagrafica:index")
 

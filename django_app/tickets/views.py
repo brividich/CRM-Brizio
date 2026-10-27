@@ -28,7 +28,7 @@ from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
 from core.acl_v2 import request_has_permission_code
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
-from core.permessi import puo_fare, sistema_ruoli_attivo, utenti_visibili
+from core.permessi import decisione, puo_fare, sistema_ruoli_attivo, utenti_visibili
 
 from .models import (
     CategoriaTicket,
@@ -867,11 +867,40 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
 
 
 # ---------------------------------------------------------------------------
-# Dashboard utente (miei ticket)
+# «I miei ticket» (solo i propri) e «Ticket» (tutti quelli che il ruolo vede)
 # ---------------------------------------------------------------------------
 
+def puo_vedere_altri_ticket(request) -> bool:
+    """La persona vede ticket di altri? (sezione «Ticket»).
+
+    A sistema ruoli acceso: «vedere» con ambito team o tutti su Ticket IT o
+    manutenzione. Spento: gestori e amministratori, come la lista storica.
+    """
+    if not request.user.is_authenticated:
+        return False
+    if request.user.is_superuser:
+        return True
+    if sistema_ruoli_attivo():
+        for chiave in MODULO_PER_TIPO.values():
+            esito = decisione(request, chiave, "vedere")
+            if esito.consentito and esito.ambito in ("team", "tutti"):
+                return True
+        return False
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    return bool(legacy_user and is_legacy_admin(legacy_user)) or _can_manage_tickets(request)
+
+
 @login_required
-def ticket_dashboard(request):
+def ticket_elenco(request):
+    """Sezione «Ticket»: tutti i ticket visibili al ruolo. Sui ticket di altri si
+    legge soltanto: si agisce sui propri da «I miei ticket» (o da gestore)."""
+    if not puo_vedere_altri_ticket(request):
+        return redirect("tickets:dashboard")
+    return ticket_dashboard(request, sezione="tutti")
+
+
+@login_required
+def ticket_dashboard(request, sezione: str = "miei"):
     name, email, legacy_id = _legacy_identity(request)
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin    = bool(legacy_user and is_legacy_admin(legacy_user))
@@ -880,16 +909,27 @@ def ticket_dashboard(request):
     qs = Ticket.objects.select_related("asset")
     kpi_qs = Ticket.objects.all()
 
+    if sezione == "miei":
+        # «I miei ticket»: solo quelli aperti dalla persona, per tutti (anche gestori
+        # e CAR che vedono l'azienda: quelli stanno nella sezione «Ticket»).
+        from django.db.models import Q
+        own = Q(richiedente_user=request.user)
+        if legacy_id:
+            own |= Q(richiedente_legacy_user_id=legacy_id)
+        if email:
+            own |= Q(richiedente_email__iexact=email)
+        qs = qs.filter(own)
+        kpi_qs = kpi_qs.filter(own)
     # SEC: chi NON è gestore/admin vede solo i ticket di cui è richiedente.
     # Senza questo filtro la dashboard esponeva numero/titolo/categoria/asset e
     # flag "Sicurezza" di TUTTI i ticket a qualsiasi utente autenticato. Si usano
     # gli identificatori stabili (account Django, id legacy, email); il match
     # solo-per-nome è escluso di proposito perché ambiguo tra omonimi.
-    if sistema_ruoli_attivo() and not is_admin:
+    elif sistema_ruoli_attivo() and not is_admin:
         visibili = filtro_ticket_visibili(request)
         qs = qs.filter(visibili)
         kpi_qs = kpi_qs.filter(visibili)
-    elif not (is_admin or is_gestore):
+    elif not (is_admin or is_gestore or request.user.is_superuser):
         from django.db.models import Q
         own = Q(richiedente_user=request.user)
         if legacy_id:
@@ -921,6 +961,7 @@ def ticket_dashboard(request):
 
     ctx = {
         "tickets":       qs,
+        "sezione":       sezione,
         "is_admin":      is_admin,
         "is_gestore":    is_gestore,
         "can_open_it":   can_open_it,

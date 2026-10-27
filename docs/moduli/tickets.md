@@ -29,3 +29,9 @@ Sistema ticket per richieste interne con capabilities analitiche avanzate.
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) Ticket IT e Ticket manutenzione sono **due moduli distinti** in matrice (`ticket_it`, `ticket_manutenzione`): gestire uno non dà la gestione dell'altro, e la lista di gestione mostra solo i tipi gestiti. Ognuno vede i propri ticket; preposti e responsabili anche quelli del team d'organigramma (manutenzione), la Direzione tutti. Le liste di utenti «apertura/gestione» nelle impostazioni valgono solo a sistema spento. Sempre, anche a sistema spento: il richiedente si riconosce solo da account, id utente o email aziendale (mai dal nome), e la ricerca globale mostra solo i ticket visibili.
+
+## Sezioni «I miei ticket» e «Ticket» (27/10/2026)
+
+- **I miei ticket** (`/tickets/`, `tickets:dashboard`): solo i ticket aperti dalla persona (account, id legacy o email), per tutti, gestori compresi.
+- **Ticket** (`/tickets/elenco/`, `tickets:elenco`, migration `tickets 0014` per il binding): tutti i ticket che il ruolo vede (`filtro_ticket_visibili`, «vedere» team o tutti su Ticket IT / manutenzione; a sistema ruoli spento gestori e amministratori). La voce compare solo a chi vede ticket di altri (`puo_vedere_altri_ticket`, tag `tickets_nav.vede_altri_ticket`). Sui ticket altrui il dettaglio è in sola lettura: niente riquadro commenti (l'API `api_commento` lo nega comunque). Resta l'eccezione storica degli allegati sui ticket legati a un asset (rapportino dal QR).
+- **Gestione ticket**: invariata, a chi gestisce.
