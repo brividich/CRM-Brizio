@@ -74,7 +74,7 @@ MENU = [
     ]),
     ("Dispositivi", "pc_copertura", [
         ("Elenco", "pc_copertura", ("pc_copertura", "pc_detail", "assets"), False),
-        ("Backup", "backup", ("backup", "backup_device", "backup_log"), False),
+        ("Backup", "backup", ("backup", "backup_device", "backup_log", "backup_ripristini"), False),
         ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),

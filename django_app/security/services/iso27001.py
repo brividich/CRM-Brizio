@@ -202,15 +202,17 @@ def _v_5_24(dal, al):
     if r is None:
         return _non_disponibile("Ruoli della gestione incidenti: dato non disponibile.", [_AZIONE_ISO_INCIDENTI], ev)
     ruoli = r.get("ruoli") or {}
-    completi, mancanti = int(ruoli.get("completi") or 0), int(ruoli.get("mancanti") or 0)
-    numeri = {"ruoli_assegnati": completi, "ruoli_mancanti": mancanti}
+    # iso_incidenti: {"completi": bool, "mancanti": [etichette dei ruoli senza un nome]}
+    mancanti = [str(x) for x in (ruoli.get("mancanti") or [])]
+    numeri = {"ruoli_mancanti": len(mancanti)}
     if mancanti:
-        return _esito(NON_CONFORME, f"{_plurale(mancanti, 'ruolo', 'ruoli')} della gestione incidenti senza una persona assegnata.", numeri, ev,
-                      ["Assegnare i ruoli mancanti (responsabile incidenti, sostituto, referente privacy) nelle impostazioni del SOC."])
-    if not completi:
-        return _esito(ATTENZIONE, "Nessun ruolo della gestione incidenti definito.", numeri, ev,
+        return _esito(NON_CONFORME, f"Ruoli della gestione incidenti da assegnare: {', '.join(mancanti)}.", numeri, ev,
+                      ["Scriverli in Impostazioni › Avvisi e automatismi › «Gestione degli incidenti»: compaiono nella "
+                       "scheda di ogni incidente e nel PDF."])
+    if not ruoli.get("completi"):
+        return _esito(ATTENZIONE, "Ruoli della gestione incidenti non verificabili.", numeri, ev,
                       ["Definire chi guida la risposta agli incidenti e chi lo sostituisce."])
-    return _esito(OK, f"Ruoli della gestione incidenti tutti assegnati ({completi}).", numeri, ev)
+    return _esito(OK, "Ruoli e contatti della gestione incidenti tutti assegnati.", numeri, ev)
 
 
 def _v_5_25(dal, al):

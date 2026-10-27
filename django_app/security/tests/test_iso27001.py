@@ -23,7 +23,7 @@ INCIDENTI_OK = {
     "triage": {"target": "4 ore", "presi_in_tempo": 3, "presi_in_ritardo": 0, "non_presi": 0, "mediana_ore": 1.5},
     "incidenti": {"aperti": 1, "chiusi": 2, "chiusi_con_riesame": 2, "senza_riesame": [], "azioni_scadute": 0},
     "evidenze": {"totali": 4, "verificate": 4, "alterate": 0},
-    "ruoli": {"completi": 3, "mancanti": 0},
+    "ruoli": {"completi": True, "mancanti": []},
     "ripristini": {"ultimo_test": "2026-10-10", "esito_ultimo": "riuscito", "in_ritardo": False, "test_periodo": 1, "falliti_periodo": 0},
 }
 SLA_OK = {"classi": [{"classe": "critica", "etichetta": "Critica", "giorni": 7, "corrette": 2, "in_tempo": 2, "in_ritardo": 0, "aperte": 0, "aperte_scadute": 0}],
@@ -66,7 +66,7 @@ class ControlliTests(TestCase):
             self.assertEqual(self._esito(codice, iso_incidenti=_finto(INCIDENTI_OK))["stato"], iso27001.OK, codice)
         ko = {**INCIDENTI_OK, "incidenti": {"aperti": 0, "chiusi": 1, "chiusi_con_riesame": 0, "senza_riesame": [{"id": 1, "titolo": "Phishing", "chiuso_il": "2026-10-03"}], "azioni_scadute": 2},
               "triage": {"target": "4 ore", "presi_in_tempo": 1, "presi_in_ritardo": 1, "non_presi": 0, "mediana_ore": 5},
-              "ruoli": {"completi": 2, "mancanti": 1}, "evidenze": {"totali": 2, "verificate": 1, "alterate": 1},
+              "ruoli": {"completi": False, "mancanti": ["Responsabile degli incidenti"]}, "evidenze": {"totali": 2, "verificate": 1, "alterate": 1},
               "ripristini": {"ultimo_test": None, "esito_ultimo": "", "in_ritardo": True, "test_periodo": 0, "falliti_periodo": 0}}
         self.assertEqual(self._esito("5.24", iso_incidenti=_finto(ko))["stato"], iso27001.NON_CONFORME)
         self.assertEqual(self._esito("5.25", iso_incidenti=_finto(ko))["stato"], iso27001.ATTENZIONE)
