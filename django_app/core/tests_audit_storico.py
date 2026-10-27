@@ -11,10 +11,15 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
-from core.audit import log_action, storico_oggetto
+from core.audit import log_action, storico_leggibile, storico_oggetto
 from core.models import AuditLog, SiteConfig
 
 User = get_user_model()
+
+
+def _esplicite(voci) -> list[str]:
+    """Le azioni di ``log_action``: le ``auto_*`` dei segnali ora sono agganciate anche loro."""
+    return [v.azione for v in voci if not v.azione.startswith("auto_")]
 
 
 class AuditOggettoTests(TestCase):
@@ -74,17 +79,16 @@ class AuditOggettoTests(TestCase):
         log_action(self._request(), "tocca_secondo", "core", {}, oggetto=secondo)
         log_action(self._request(), "senza_oggetto", "core", {})
 
-        azioni = [v.azione for v in storico_oggetto(primo)]
+        azioni = _esplicite(storico_oggetto(primo))
         self.assertEqual(sorted(azioni), ["tocca_primo", "tocca_primo_ancora"])
-        self.assertEqual([v.azione for v in storico_oggetto(secondo)], ["tocca_secondo"])
+        self.assertEqual(_esplicite(storico_oggetto(secondo)), ["tocca_secondo"])
 
     def test_storico_ordinato_dal_piu_recente(self):
         config = SiteConfig.objects.create(chiave="ordine", valore="1")
         for i in range(3):
             log_action(self._request(), f"azione_{i}", "core", {}, oggetto=config)
 
-        voci = list(storico_oggetto(config))
-        self.assertEqual([v.azione for v in voci], ["azione_2", "azione_1", "azione_0"])
+        self.assertEqual(_esplicite(storico_oggetto(config)), ["azione_2", "azione_1", "azione_0"])
 
     def test_storico_rispetta_il_limite(self):
         config = SiteConfig.objects.create(chiave="limite", valore="1")
@@ -98,6 +102,23 @@ class AuditOggettoTests(TestCase):
         self.assertEqual(list(storico_oggetto()), [])
         self.assertEqual(list(storico_oggetto(oggetto_tipo="solo.tipo")), [])
         self.assertEqual(list(storico_oggetto(oggetto_id="123")), [])
+
+    def test_audit_automatico_agganciato_al_record(self):
+        """I segnali scrivono la voce con l'aggancio: prima restava fuori dallo storico."""
+        config = SiteConfig.objects.create(chiave="auto-aggancio", valore="1")
+        config.valore = "2"
+        config.save()
+        azioni = [v.azione for v in storico_oggetto(config)]
+        self.assertEqual(azioni[:2], ["auto_update", "auto_insert"])
+
+    def test_storico_leggibile_righe_prima_dopo(self):
+        config = SiteConfig.objects.create(chiave="leggibile", valore="vecchio")
+        config.valore = "nuovo"
+        config.save()
+        voce = next(v for v in storico_leggibile(storico_oggetto(config)) if v.azione == "auto_update")
+        self.assertEqual(voce.azione_label, "Modifica")
+        self.assertIn(("vecchio", "nuovo"), [(r["prima"], r["dopo"]) for r in voce.righe])
+        self.assertEqual(voce.dettaglio, {})
 
     def test_id_lungo_troncato_senza_errore(self):
         log_action(

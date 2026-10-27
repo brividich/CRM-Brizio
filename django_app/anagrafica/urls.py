@@ -93,6 +93,8 @@ urlpatterns = [
     path("ruoli-operativi/<int:ruolo_id>/modifica", views.ruolo_operativo_edit, name="ruolo_operativo_edit"),
     path("ruoli-operativi/<int:ruolo_id>/elimina", views.ruolo_operativo_delete, name="ruolo_operativo_delete"),
     path("ruoli-operativi/<int:ruolo_id>/dipendenti", views.ruolo_operativo_dipendenti, name="ruolo_operativo_dipendenti"),
+    path("ruoli-operativi/storico/", views.ruoli_operativi_storico, name="ruoli_operativi_storico"),
+    path("ruoli-operativi/<int:ruolo_id>/storico/", views.ruolo_operativo_storico, name="ruolo_operativo_storico"),
     path("ruoli-operativi/<int:ruolo_id>/qualifiche/aggiungi", views.ruolo_qualifica_aggiungi, name="ruolo_qualifica_aggiungi"),
     path("ruoli-operativi/<int:ruolo_id>/qualifiche/<int:assoc_id>/rimuovi", views.ruolo_qualifica_rimuovi, name="ruolo_qualifica_rimuovi"),
     # Ambiti dei ruoli (produttivo, esecutivo, ISO 45001, ISO 27001, …)
@@ -248,6 +250,8 @@ urlpatterns = [
     path("mansioni/<int:mansione_id>/modifica", views.mansione_edit, name="mansione_edit"),
     path("mansioni/<int:mansione_id>/requisiti", views.mansione_requisiti, name="mansione_requisiti"),
     path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
+    path("mansioni/storico/", views.mansioni_storico, name="mansioni_storico"),
+    path("mansioni/<int:mansione_id>/storico/", views.mansione_storico, name="mansione_storico"),
 
     # Aree aziendali + Reparti (gerarchia a due livelli)
     path("aree/", views_capi_reparti.reparti_capi, name="aree_list"),

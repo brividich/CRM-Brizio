@@ -613,7 +613,10 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
               <div class="imp-card-title">Mansioni di rischio</div>
               <div class="imp-card-sub">Mansioni del DVR: da qui partono visite, DPI, schede di sicurezza e corsi obbligatori</div>
             </div>
-            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansioni_list' %}">Catalogo completo →</a>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              {% if is_admin %}<a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansioni_storico' %}">🕘 Storico modifiche</a>{% endif %}
+              <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansioni_list' %}">Catalogo completo →</a>
+            </div>
           </div>
           {% if is_admin %}
           <form method="post" action="{% url 'anagrafica:mansione_create' %}" class="imp-add-form" data-add-label="Nuova mansione">
@@ -662,6 +665,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                   <div class="imp-row-actions">
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm"
                             data-modal="mansione-edit-{{ m.id }}">Modifica</button>
+                    <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:mansione_storico' m.id %}">Storico</a>
                     <form method="post" action="{% url 'anagrafica:mansione_delete' m.id %}" style="display:inline;"
                           data-hub-confirm="Eliminare la mansione &quot;{{ m.nome }}&quot;?">
                       {% csrf_token %}

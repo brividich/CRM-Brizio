@@ -262,6 +262,26 @@ GUIDA = {
             ],
         },
         {
+            "id": "storico-cataloghi",
+            "titolo": "Storico modifiche di mansioni e ruoli",
+            "blocchi": [
+                ("p", "Chi gestisce i cataloghi vede chi ha creato, modificato o eliminato una mansione di rischio o un "
+                      "ruolo, e quando. «🕘 Storico modifiche» in testata (Mansioni di rischio, Ruoli, e la scheda "
+                      "«Mansioni» di Impostazioni) apre le ultime 200 modifiche dell'intero catalogo, comprese le voci "
+                      "eliminate; il nome della voce apre il suo storico. «Storico» sulla singola mansione o «🕘 Storico» "
+                      "sul singolo ruolo mostra le ultime 100 modifiche di quella voce."),
+                ("p", "Ogni riga dice l'azione (Creazione, Modifica, Eliminazione), la data, chi l'ha fatta e i campi "
+                      "toccati nella forma «campo: prima → dopo», con i nomi veri al posto dei codici (livello di "
+                      "rischio, ambito, «riporta a»). Per la mansione ci sono anche le «Visite richieste» e i «DPI "
+                      "richiesti» cambiati da «Requisiti · DPI · visite»; per il ruolo le qualifiche aggiunte o tolte "
+                      "(«Ruolo qualifica aggiunta» / «Ruolo qualifica tolta»). Lo storico dei ruoli comprende anche gli "
+                      "ambiti."),
+                ("p", "Le modifiche dei singoli dipendenti (chi faceva quale mansione e ruolo, da quando) restano nella "
+                      "scheda: Anagrafica → Spostamenti e «Storico cambiamenti organizzativi». Le modifiche fatte da un "
+                      "comando o da un task compaiono senza nome utente."),
+            ],
+        },
+        {
             "id": "mod128-attrezzature",
             "titolo": "MOD.128: attrezzature dei processi qualificati",
             "blocchi": [
@@ -748,6 +768,10 @@ GUIDA = {
                                                   "--apply per cancellare. Il report settimanale in Monitoraggio dice "
                                                   "quanti sono."),
                     ("report_ruoli_disallineati", "elenca i ruoli diversi tra anagrafica e account."),
+                    ("collega_audit_oggetti", "aggancia al record le modifiche automatiche registrate prima del "
+                                              "27/10/2026, così compaiono negli storici di mansioni, ruoli e asset. "
+                                              "--dry-run per contarle, --app anagrafica per limitarlo a un modulo. Si "
+                                              "lancia una volta dopo il deploy; i sigilli dell'audit restano validi."),
                     ("importa_mansioni_idoneita", "assegna la mansione di rischio ai dipendenti che non l'hanno, dall'elenco "
                                                   "idoneità del medico (codice fiscale e «MANSIONE DI RISCHIO»). In prova di "
                                                   "default, --commit per scrivere."),
@@ -771,6 +795,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Lo storico di una mansione o di un ruolo è vuoto, ma la voce è stata modificata",
+            "perche": "le modifiche registrate prima del 27/10/2026 non erano agganciate al record, oppure il cambio è "
+                      "avvenuto fuori dal portale (import, scrittura diretta in tabella).",
+            "fare": [
+                "Sul server: python manage.py collega_audit_oggetti --app anagrafica (prima con --dry-run).",
+                "Se ancora vuoto, cerca nel registro generale: Amministrazione → Audit, modulo anagrafica.",
+            ],
+        },
         {
             "sintomo": "«Emetti la revisione» non c'è o dice che solo l'MSM può emetterla",
             "perche": "la revisione della struttura la emette solo chi ricopre oggi il ruolo con sigla MSM.",
