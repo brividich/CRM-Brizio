@@ -30,7 +30,11 @@ from core.acl_v2 import (
 )
 from core.legacy_models import AnagraficaDipendente, Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.navigation_registry import (
+    PERMESSO_ASSENTE,
+    PERMESSO_ESPLICITO_E_PAGINA,
+    PERMESSO_ESPLICITO_IGNORATO,
     bump_navigation_registry_version,
+    describe_navigation_items_permission,
     export_navigation_state,
     publish_navigation_snapshot,
     restore_navigation_snapshot,
@@ -378,9 +382,31 @@ def _apply_navigation_role_access(item: NavigationItem, role_ids: list[int]) -> 
     NavigationRoleAccess.objects.bulk_create(rows)
 
 
-def _navigation_item_payload(item: NavigationItem, role_ids_map: dict[int, list[int]]) -> dict:
+def _explicit_code_to_store(code: str, *, route_name: str, url_path: str) -> str:
+    """Il permission code da salvare sulla voce.
+
+    Vuoto o uguale a quello della pagina -> si salva vuoto: la voce segue il
+    permesso della pagina anche quando la rotta viene rilegata (es. le
+    impostazioni dei moduli separate da «gestire»). Copiarlo qui lo
+    congelerebbe e il menu tornerebbe a dire una cosa diversa dalla pagina.
+    """
+    if not code:
+        return ""
+    target = resolve_canonical_target(path=url_path or None, route_name=route_name or None)
+    binding = target.get("binding") or {}
+    if normalize_permission_code(str(binding.get("permission_code") or "")) == code:
+        return ""
+    return code
+
+
+def _navigation_item_payload(
+    item: NavigationItem,
+    role_ids_map: dict[int, list[int]],
+    perm_info_map: dict[int, dict] | None = None,
+) -> dict:
     role_ids = role_ids_map.get(int(item.id), [])
     required_permission_code = _helpers._navigation_item_permission_code(item)
+    perm_info = (perm_info_map or {}).get(int(item.id)) or {}
     return {
         "id": int(item.id),
         "code": item.code,
@@ -400,7 +426,77 @@ def _navigation_item_payload(item: NavigationItem, role_ids_map: dict[int, list[
         "description": item.description or "",
         "role_ids": role_ids,
         "role_ids_csv": ",".join(str(v) for v in role_ids),
+        # Cosa decide davvero la voce (badge del builder).
+        "perm_explicit": perm_info.get("explicit", ""),
+        "perm_target": perm_info.get("target", ""),
+        "perm_stato": perm_info.get("stato", ""),
     }
+
+
+def _nav_preview_rows(nav_override_user, items, user_grants: dict[int, bool], perm_info_map: dict[int, dict]) -> list[dict]:
+    """Per ogni voce: la vede l'utente? Con lo stesso risolutore delle pagine.
+
+    Prima si guardava solo il ruolo legacy (``utenti.ruolo_id``): con i ruoli
+    del portale, l'organigramma e il ruolo base l'anteprima mentiva.
+    """
+    from core.acl_resolver import resolve_permission_decision
+    from core.legacy_utils import is_legacy_admin
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
+    is_admin = bool(is_legacy_admin(nav_override_user))
+    role_id = _helpers._int_or_none(getattr(nav_override_user, "ruolo_id", None))
+    legacy_access: dict[int, set[int]] = {}
+    for row in NavigationRoleAccess.objects.filter(item_id__in=[int(i.id) for i in items], can_view=True):
+        legacy_access.setdefault(int(row.item_id), set()).add(int(row.legacy_role_id))
+    decisions: dict[str, tuple[bool, str]] = {}
+
+    def _decide(code: str) -> tuple[bool, str]:
+        if code not in decisions:
+            decision = resolve_permission_decision(permission_code=code, legacy_user=nav_override_user)
+            decisions[code] = (bool(decision.allowed), str(decision.reason or ""))
+        return decisions[code]
+
+    rows: list[dict] = []
+    for ni in items:
+        iid = int(ni.id)
+        info = perm_info_map.get(iid) or {}
+        if ruoli_attivi:
+            codes = list(info.get("codes") or [])
+        else:
+            code = info.get("explicit") or info.get("target") or ""
+            codes = [code] if code else []
+        if is_admin:
+            role_allowed, reason = True, "Amministratore: vede tutto il menu."
+        elif codes:
+            esiti = [_decide(code) for code in codes]
+            role_allowed = all(ok for ok, _r in esiti)
+            reason = next((r for ok, r in esiti if not ok), esiti[0][1])
+        elif ruoli_attivi:
+            role_allowed, reason = False, "Voce senza permesso: con i ruoli del portale la vedono solo gli amministratori."
+        else:
+            role_allowed = bool(role_id is not None and role_id in legacy_access.get(iid, set()))
+            reason = "Ruoli abilitati della voce (regole storiche)."
+        override = user_grants.get(iid)
+        if override is False:
+            state = "ov-hide"
+        elif role_allowed:
+            state = "role-show"
+        else:
+            state = "role-hide"
+        rows.append({
+            "item_id": iid,
+            "item_code": ni.code,
+            "item_label": ni.label,
+            "item_section": ni.section,
+            "item_icon": ni.icon or "",
+            "required_permission_code": info.get("effective", "") if ruoli_attivi else (codes[0] if codes else ""),
+            "role_allowed": role_allowed,
+            "reason": reason,
+            "override": False if override is False else None,
+            "state": state,
+        })
+    return rows
 
 
 def _normalize_navigation_icon(value) -> str:
@@ -451,13 +547,23 @@ def navigation_builder(request):
     for row in access_rows:
         role_ids_map.setdefault(int(row.item_id), []).append(int(row.legacy_role_id))
 
-    item_rows_all = [_navigation_item_payload(item, role_ids_map) for item in items_all]
-    item_rows = [_navigation_item_payload(item, role_ids_map) for item in items]
+    perm_info_map = describe_navigation_items_permission(items_all)
+    item_rows_all = [_navigation_item_payload(item, role_ids_map, perm_info_map) for item in items_all]
+    item_rows = [_navigation_item_payload(item, role_ids_map, perm_info_map) for item in items]
 
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
     try:
         ruoli = list(Ruolo.objects.all().order_by("nome").values("id", "nome"))
     except DatabaseError:
         ruoli = []
+    perm_ignorati = sum(1 for r in item_rows_all if r["perm_stato"] == PERMESSO_ESPLICITO_IGNORATO)
+    perm_doppi = sum(1 for r in item_rows_all if r["perm_stato"] == PERMESSO_ESPLICITO_E_PAGINA)
+    perm_assenti = sum(
+        1 for r in item_rows_all
+        if r["perm_stato"] == PERMESSO_ASSENTE and r["section"] != "admin_subnav" and r["is_visible"]
+    )
 
     snapshots = list(NavigationSnapshot.objects.all().order_by("-version", "-id")[:20])
     redirects = list(LegacyRedirect.objects.all().order_by("legacy_path", "id")[:200])
@@ -486,39 +592,16 @@ def navigation_builder(request):
                 int(ov.item_id): bool(ov.enabled)
                 for ov in UserNavigationOverride.objects.filter(legacy_user_id=nav_override_user_id)
             }
-            role_id_for_nav = None
-            if getattr(nav_override_user, "ruolo_id", None):
-                try:
-                    role_id_for_nav = int(nav_override_user.ruolo_id)
-                except Exception:
-                    pass
-            role_grants_map = _helpers._canonical_grants_map_for_role(role_id_for_nav)
             nav_visible_items = list(NavigationItem.objects.filter(
                 is_visible=True, is_enabled=True,
                 section__in=["topbar", "subnav", "sidebar", "page"],
             ).order_by("section", "order", "label"))
-            for ni in nav_visible_items:
-                iid = int(ni.id)
-                permission_code = _helpers._navigation_item_permission_code(ni)
-                role_allowed = bool(permission_code and role_grants_map.get(permission_code, False))
-                override = user_grants.get(iid)
-                if override is False:
-                    state = "ov-hide"
-                elif role_allowed:
-                    state = "role-show"
-                else:
-                    state = "role-hide"
-                nav_override_rows.append({
-                    "item_id": iid,
-                    "item_code": ni.code,
-                    "item_label": ni.label,
-                    "item_section": ni.section,
-                    "item_icon": ni.icon or "",
-                    "required_permission_code": permission_code,
-                    "role_allowed": role_allowed,
-                    "override": False if override is False else None,
-                    "state": state,
-                })
+            nav_override_rows = _nav_preview_rows(
+                nav_override_user,
+                nav_visible_items,
+                user_grants,
+                describe_navigation_items_permission(nav_visible_items),
+            )
             # Raggruppamento per section
             nav_sections_order = ["topbar", "subnav", "sidebar", "page"]
             nav_override_by_section: dict[str, list] = {s: [] for s in nav_sections_order}
@@ -564,6 +647,10 @@ def navigation_builder(request):
             "item_rows": item_rows,
             "route_catalog": _helpers._route_catalog(),
             "ruoli": ruoli,
+            "ruoli_attivi": ruoli_attivi,
+            "perm_ignorati": perm_ignorati,
+            "perm_doppi": perm_doppi,
+            "perm_assenti": perm_assenti,
             "snapshots": snapshots,
             "redirects": redirects,
             "icon_library": _navigation_icon_library_items(),
@@ -608,10 +695,7 @@ def api_navigation_item_create(request):
         is_valid_code, validation_error = validate_permission_code(required_permission_code)
         if not is_valid_code:
             return _helpers._json_error(validation_error or "Permission code non valido.")
-    if not required_permission_code:
-        target = resolve_canonical_target(path=url_path or None, route_name=route_name or None)
-        binding = target.get("binding") or {}
-        required_permission_code = normalize_permission_code(str(binding.get("permission_code") or ""))
+    required_permission_code = _explicit_code_to_store(required_permission_code, route_name=route_name, url_path=url_path)
 
     section = str(payload.get("section") or "topbar").strip().lower() or "topbar"
     parent_code = str(payload.get("parent_code") or "").strip().lower()
@@ -676,10 +760,7 @@ def api_navigation_item_update(request):
         is_valid_code, validation_error = validate_permission_code(required_permission_code)
         if not is_valid_code:
             return _helpers._json_error(validation_error or "Permission code non valido.")
-    if not required_permission_code:
-        target = resolve_canonical_target(path=url_path or None, route_name=route_name or None)
-        binding = target.get("binding") or {}
-        required_permission_code = normalize_permission_code(str(binding.get("permission_code") or ""))
+    required_permission_code = _explicit_code_to_store(required_permission_code, route_name=route_name, url_path=url_path)
 
     section = str(payload.get("section") or "topbar").strip().lower() or "topbar"
     parent_code = str(payload.get("parent_code") or "").strip().lower()
