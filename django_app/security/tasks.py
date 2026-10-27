@@ -59,6 +59,18 @@ def _periodic_recoveries():
     return run_periodic_recoveries()
 
 
+def _termini_correzione_cve():
+    """Termini di correzione (ISO 27001 8.8): accettazioni scadute o in scadenza, esposizioni oltre il termine.
+
+    Gira prima della valutazione delle regole dopo l'heartbeat, così gli eventi diventano alert nello stesso giro.
+    """
+    from security.services import accettazione_rischio, cve_sla
+
+    accettazioni = accettazione_rischio.controlla_scadenze()
+    eventi, chiusi = cve_sla.segnala_scadute()
+    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi}
+
+
 def _cleanup_inventory_previews():
     """File di inventario caricati e mai importati: eliminati dopo 2 giorni."""
     from security.services.software_inventory import cleanup_stale_previews
@@ -170,6 +182,7 @@ def run_security_cycle_task():
         ("parsers", run_pending_parsers),
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
+        ("termini_cve", _termini_correzione_cve),
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),

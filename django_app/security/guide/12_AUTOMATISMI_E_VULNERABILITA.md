@@ -313,6 +313,42 @@ La regola arriva **accesa**: chiude solo con due fonti indipendenti d'accordo su
 
 **Dalla segnalazione alla correzione.** In cima alla pagina **Vulnerabilità** il riquadro con i numeri degli ultimi 90 giorni: PC corretti, giorni medi da «esposto dal» alla correzione (anche solo per le CVE critiche o sfruttate), alert CVE chiusi con la quota di chiusure automatiche e di chiusure a mano, recidive, alert ancora aperti.
 
+### Tempi di correzione
+
+La norma ISO/IEC 27001:2022 (controllo 8.8, gestione delle vulnerabilità tecniche) chiede che ogni vulnerabilità venga corretta **entro un tempo stabilito** in base al rischio, e che si sappia dimostrare quando è stata vista, quando è stata corretta e cosa si è deciso nel frattempo. Il SOC lo fa da solo.
+
+Ogni PC esposto (esito **Impatta**) ha un **termine di correzione** che parte da «esposto dal» e dipende dalla **classe** della CVE:
+
+| Classe | Quando | Termine (di serie) |
+| --- | --- | --- |
+| **Sfruttata (CISA KEV)** | la CVE è nel catalogo CISA delle vulnerabilità sfruttate | la data chiesta da CISA, se c'è; altrimenti **14 giorni** |
+| **Critica** | CVSS 9 o più | **15 giorni** |
+| **Alta** | CVSS 7 o più | **30 giorni** |
+| **Media** | CVSS 4 o più | **90 giorni** |
+| **Bassa** | sotto 4, o senza punteggio | **180 giorni** |
+
+I giorni si cambiano in **Impostazioni › Avvisi e automatismi › Vulnerabilità: tempi di correzione (ISO 27001 8.8)**. Gli esiti «da verificare» non hanno termine: prima si decide se impattano (a mano o accettando una proposta dell'AI).
+
+Dove si vede:
+
+- **Scheda CVE**: il riquadro «Tempi di correzione e accettazione del rischio» dice la classe e i giorni; la colonna **Termine** della tabella degli host dice per ogni PC «entro il …» con i giorni che restano, **«Oltre il termine di N giorni»** o «Rischio accettato fino al …».
+- **Pannello laterale della CVE** (catalogo software, scheda asset): in «Cosa fare» la classe e il termine, con quanti PC sono oltre; per ogni PC la riga «Da correggere entro il …» o «Oltre il termine di N giorni».
+- **Vulnerabilità**: il riquadro **Tempi di correzione** con, per classe, i PC corretti negli ultimi 90 giorni divisi tra **nel termine** e **in ritardo**, le esposizioni aperte e quelle oltre il termine, più la percentuale complessiva di correzioni nel termine e l'elenco dei PC oltre il termine. Una correzione è «nel termine» se la data della risoluzione (programma aggiornato o disinstallato, vedi «Quando un PC viene aggiornato») non supera il termine calcolato da «esposto dal».
+
+**Cosa succede da solo.** Nel ciclo del SOC (ogni 15 minuti), per ogni PC oltre il termine senza accettazione del rischio attiva nasce l'evento «CVE oltre il termine di correzione» e un alert — **uno per CVE, PC e termine**: lo stesso ritardo non lo ripete, un termine nuovo (per esempio dopo una recidiva) sì. Severità **alta** per le CVE sfruttate o critiche, **media** per le altre. L'alert si chiude da solo quando il ricalcolo degli impatti non vede più il PC esposto oppure quando qualcuno accetta il rischio, con il motivo scritto. L'interruttore «Segnala le esposizioni oltre il termine di correzione» arriva **acceso**; la regola facoltativa `cve_sla_scaduta` in Configurazione › Regole alert permette di cambiarne la severità.
+
+### Accettazione del rischio
+
+Quando la correzione non si può fare nel termine (il produttore non ha una patch, la macchina comanda un impianto e non si può toccare, il programma gira isolato) la norma chiede un'**eccezione formale**: chi decide, perché, con quali misure compensative e fino a quando. Nel SOC è l'**accettazione del rischio**.
+
+- Si crea dalla **scheda CVE**, riquadro «Tempi di correzione e accettazione del rischio», pulsante **Accetta il rischio**: solo chi ha il **permesso di configurazione** del SOC. Si sceglie il PC (o **tutti i PC**), si scrive il **motivo** (almeno 20 caratteri, obbligatorio), le **misure compensative** (facoltative ma consigliate: rete isolata, funzione disattivata, monitoraggio rafforzato) e la **scadenza**, al massimo **12 mesi**: dopo va riesaminata, non si rinnova da sola.
+- Finché è **attiva**, il PC non fa scattare l'alert «oltre il termine»; se l'alert era già aperto si chiude da solo con il riferimento all'accettazione. Nelle pagine il PC compare come «Rischio accettato fino al …» e nel riquadro Tempi di correzione conta tra le esposizioni «con rischio accettato».
+- **30 giorni prima** della scadenza (si cambia in Impostazioni) nasce un alert di attenzione «Accettazione del rischio in scadenza fra N giorni». Alla **scadenza** l'accettazione finisce da sola: alert «Accettazione del rischio scaduta: … torna da correggere» e, se il PC è ancora esposto oltre il termine, l'alert «oltre il termine» riparte. L'interruttore «Alert quando un'accettazione del rischio sta per scadere o è scaduta» arriva acceso.
+- La pagina **Dispositivi › Rischi accettati** elenca tutte le accettazioni con lo stato (**attiva**, **scaduta**, **revocata**), la scadenza (evidenziata se entro 30 giorni), chi ha approvato, motivo e misure. **Revoca** (con motivo) la chiude prima: l'esposizione torna a contare subito.
+- Non si può accettare due volte lo stesso ambito (stessa CVE, stesso PC o «tutti i PC») finché la prima è attiva, né accettare il rischio su un PC che non è tra quelli valutati per la CVE.
+
+**Traccia sigillata.** Creazione, revoca, promemoria e scadenza delle accettazioni, gli alert «oltre il termine» e i loro rientri, ogni chiusura automatica degli alert e dei casi, l'esclusione di un PC dalla verifica, le recidive e anche le decisioni a mano sugli alert e sui casi (presa in carico, chiusura, falso positivo, silenzio, riapertura) finiscono nel **registro audit del portale** (modulo «security»), oltre che nella timeline del SOC. Il registro viene sigillato ogni mese e non si modifica: è ciò che si mostra in un audit ISO 27001 per dimostrare chi ha deciso cosa e quando. In ogni riga restano solo identificativi, regola, motivo, riferimento alla prova e chi ha deciso («system» per gli automatismi): mai il contenuto delle mail o dati personali.
+
 ## Software non conforme
 
 Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su ogni programma dell'inventario (i nomi diversi dello stesso programma sono una riga sola e il dettaglio mostra le versioni presenti): **Consentito**, **Da rimuovere**, **Non autorizzato**, ed eventualmente una **versione minima**. Il SOC confronta l'inventario con queste decisioni dopo ogni import dell'inventario e ogni modifica al catalogo.

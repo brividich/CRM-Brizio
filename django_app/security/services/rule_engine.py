@@ -463,6 +463,49 @@ def _evaluate_backup_repository_space(event):
                             f"({payload.get('free_pct')}% libero, {payload.get('free_gb')} GB)", event.severity, trace)
 
 
+def _evaluate_cve_sla_scaduta(event):
+    """PC esposto a una CVE oltre il termine di correzione (ISO 27001 8.8, ``cve_sla``): un alert per CVE, PC e termine.
+
+    Severità alta per CVE sfruttate (KEV) o critiche, media per le altre (dall'evento, o dalla
+    regola facoltativa ``cve_sla_scaduta`` se definita). Si chiude da solo quando l'esposizione
+    rientra o viene accettata (``cve_sla.chiudi_rientrate``).
+    """
+    from security.services import cve_sla
+
+    payload = event.payload or {}
+    rule = _get_rule(cve_sla.EVENT_SLA)
+    if not soc_settings_value("cve.sla.attivo") or (rule and not rule.enabled):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Segnalazione dei termini di correzione spenta in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Esposizione a una CVE oltre il termine di correzione della sua classe => alert",
+        "cve": payload.get("cve"), "host": payload.get("host"), "classe": payload.get("classe"),
+        "scadenza": payload.get("scadenza"), "giorni_ritardo": payload.get("giorni_ritardo"), "aperta_dal": payload.get("aperta_dal"),
+    }
+    _alert_da_evento(event, cve_sla.titolo_evento(payload), rule.severity if rule else event.severity, trace)
+    _mark_rule_triggered(rule)
+
+
+def _evaluate_accettazione_rischio(event):
+    """Accettazione del rischio in scadenza o scaduta (``accettazione_rischio``): un alert di attenzione per fase."""
+    from security.services import accettazione_rischio
+
+    payload = event.payload or {}
+    if not soc_settings_value("cve.sla.accettazione_alert"):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Alert sulle accettazioni del rischio spenti in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Accettazione del rischio in scadenza o scaduta => alert",
+        "accettazione_id": payload.get("accettazione_id"), "fase": payload.get("fase"), "cve": payload.get("cve"),
+        "host": payload.get("host"), "scadenza": payload.get("scadenza"),
+    }
+    _alert_da_evento(event, accettazione_rischio.titolo_evento(payload), event.severity, trace)
+
+
 def soc_settings_value(key):
     from security.services import soc_settings
 
@@ -952,4 +995,6 @@ _HANDLERS = {
     "apparato_irraggiungibile": _evaluate_apparato_irraggiungibile,
     "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
     "backup_repository_space": _evaluate_backup_repository_space,
+    "cve_sla_scaduta": _evaluate_cve_sla_scaduta,
+    "accettazione_rischio": _evaluate_accettazione_rischio,
 }

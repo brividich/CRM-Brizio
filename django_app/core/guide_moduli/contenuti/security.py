@@ -94,6 +94,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "tempi-di-correzione",
+            "titolo": "Tempi di correzione e accettazione del rischio (ISO 27001 8.8)",
+            "blocchi": [
+                ("p", "Ogni PC esposto a una CVE ha un termine di correzione che parte da «esposto dal»: sfruttata (CISA KEV) la data "
+                      "chiesta da CISA o 14 giorni, critica 15, alta 30, media 90, bassa 180 (si cambiano in Impostazioni › «Vulnerabilità: "
+                      "tempi di correzione»). Lo vedi nella scheda CVE (colonna «Termine»), nel pannello della CVE e nel riquadro «Tempi di "
+                      "correzione» della pagina Vulnerabilità, con la percentuale di PC corretti nel termine per classe."),
+                ("p", "Passato il termine nasce da solo un alert «Oltre il termine di correzione» (uno per CVE, PC e termine; alto per "
+                      "sfruttate e critiche, medio per le altre), che si chiude da solo quando il PC non risulta più esposto."),
+                ("p", "Se la correzione non si può fare nel termine, chi configura il SOC accetta il rischio dalla scheda CVE: PC o tutti i "
+                      "PC, motivo (almeno 20 caratteri), misure compensative, scadenza entro 12 mesi. Finché è attiva l'alert non scatta; 30 "
+                      "giorni prima arriva un promemoria e alla scadenza l'esposizione torna a contare. Elenco e revoca in Dispositivi › "
+                      "«Rischi accettati». Tutto, comprese le decisioni a mano sugli alert, resta nel registro audit sigillato del portale."),
+            ],
+        },
+        {
             "id": "registro-accessi",
             "titolo": "Registro accessi: log dei server e amministratori di sistema",
             "blocchi": [

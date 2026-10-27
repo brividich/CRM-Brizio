@@ -9,6 +9,8 @@ LABELS = {
     "endpoint_detections": "Rilevamenti endpoint",
     "backup_job": "Job di backup",
     "backup_repository_space": "Repository di backup quasi pieno",
+    "cve_sla_scaduta": "CVE oltre il termine di correzione",
+    "accettazione_rischio": "Accettazione del rischio (CVE)",
     "acknowledged": "Preso in carico",
     "closed": "Chiuso",
     "critical": "Critico",

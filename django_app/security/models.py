@@ -1583,6 +1583,55 @@ class SecurityCveRisoluzione(models.Model):
         return self.come in self.CORREZIONI
 
 
+class SecurityAccettazioneRischio(models.Model):
+    """Accettazione formale del rischio di una CVE (eccezione, ISO/IEC 27001:2022 8.8).
+
+    Una persona con il permesso di configurazione del SOC decide che per una CVE (su un PC o su
+    tutti) la correzione non si fa entro il termine, scrive il motivo e le misure compensative e
+    fissa una scadenza (al massimo 12 mesi). Finché è attiva, l'esposizione non fa scattare
+    l'alert «oltre il termine di correzione»; alla scadenza l'esposizione conta di nuovo. Tutto
+    (creazione, revoca, scadenza, promemoria) resta nell'audit sigillato del portale.
+    """
+
+    MESI_MASSIMI = 12
+    MOTIVO_MIN = 20
+
+    cve = models.ForeignKey(SecurityCveRecord, on_delete=models.CASCADE, related_name="accettazioni")
+    host = models.CharField(max_length=255, blank=True, default="", help_text="Vuoto = tutti i PC.")
+    motivo = models.TextField()
+    misure_compensative = models.TextField(blank=True, default="")
+    approvata_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    approvata_il = models.DateTimeField(default=timezone.now)
+    scadenza = models.DateField(db_index=True)
+    revocata_il = models.DateTimeField(null=True, blank=True)
+    revocata_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    revoca_motivo = models.CharField(max_length=500, blank=True, default="")
+    # Scritti dagli automatismi, una volta sola: promemoria mandato, scadenza registrata.
+    promemoria_il = models.DateTimeField(null=True, blank=True)
+    scaduta_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-approvata_il"]
+        indexes = [models.Index(fields=["cve", "host"], name="sec_acc_rischio_cve_host_idx")]
+
+    def __str__(self):
+        return f"{self.cve_id} {self.host or 'tutti i PC'}: fino al {self.scadenza:%d/%m/%Y}"
+
+    def attiva(self, oggi=None):
+        oggi = oggi or timezone.localdate()
+        return self.revocata_il is None and self.scadenza >= oggi
+
+    @property
+    def stato(self):
+        if self.revocata_il is not None:
+            return "revocata"
+        return "attiva" if self.attiva() else "scaduta"
+
+    @property
+    def stato_label(self):
+        return {"attiva": "Attiva", "scaduta": "Scaduta", "revocata": "Revocata"}[self.stato]
+
+
 class WatchGuardDispositivo(models.Model):
     """Un PC visto da WatchGuard Endpoint Security (API): gestito (con agente) o trovato in rete senza agente.
 

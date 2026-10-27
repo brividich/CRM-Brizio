@@ -43,6 +43,7 @@ PAGE_HELP = {
     "automation": ("12-automatismi-e-vulnerabilita", "automatismi-di-rientro"),
     "vulnerabilities": ("12-automatismi-e-vulnerabilita", "impatto-cve-sugli-asset"),
     "cve_detail": ("12-automatismi-e-vulnerabilita", "come-si-legge-lesito"),
+    "accettazioni_rischio": ("12-automatismi-e-vulnerabilita", "accettazione-del-rischio"),
     "inventory": ("12-automatismi-e-vulnerabilita", "importare-un-inventario"),
     "inventory_map": ("12-automatismi-e-vulnerabilita", "importare-un-inventario"),
     "software_mapping": ("12-automatismi-e-vulnerabilita", "collegare-i-software-alle-cve-cpe"),
