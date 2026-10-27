@@ -17,6 +17,9 @@ GUIDA = {
                 ("def", [
                     ("Audit interni", "programma annuale (MOD.034), piano (MOD.035A), checklist, rilievi e rapporto con PDF. "
                      "Con «Perimetro Part 145» nel piano l'audit compare nel Dossier PART 145 del modulo Asset."),
+                    ("Checklist per norma", "EN 9100, ISO 45001 e UNI/PdR 125 hanno ciascuna una checklist a revisioni; "
+                     "quella attiva si carica negli audit con la norma spuntata. Per ISO 45001 e PdR 125 il portale "
+                     "propone una bozza da verificare e attivare."),
                     ("Audit ISMS", "con «Modulistica: Audit ISMS» nel piano l'audit usa il MOD.171 e il rapporto MOD.168: "
                      "requisiti ISO/IEC 27001 e i 93 controlli ISO/IEC 27002 con il livello 0-4 già preso dalla SoA "
                      "approvata. NC e AP vanno nel Registro OFI, i COM restano nel rapporto; dopo la chiusura i livelli "

@@ -145,6 +145,11 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:audit_export": PERM_AUDIT_VIEW,
     # Audit ISMS (MOD.171/168): il controllo fine (esecutore assegnato, stato) è nella view.
     "sistema_gestione:audit_isms": PERM_AUDIT_VIEW,
+    # Checklist per norma (EN 9100, ISO 45001, UNI/PdR 125): modifiche in view con audit.edit.
+    "sistema_gestione:checklist_norme": PERM_AUDIT_VIEW,
+    "sistema_gestione:checklist_modello": PERM_AUDIT_VIEW,
+    "sistema_gestione:checklist_proponi": PERM_AUDIT_EDIT,
+    "sistema_gestione:checklist_revisione": PERM_AUDIT_EDIT,
     "sistema_gestione:audit_isms_piano": PERM_AUDIT_EDIT,
     "sistema_gestione:audit_isms_testata": PERM_AUDIT_ESEGUI,
     "sistema_gestione:audit_isms_requisito": PERM_AUDIT_ESEGUI,

@@ -17,7 +17,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from core.pdf import PdfTheme
 
-from .models import Audit, AuditEsito, CellaProgramma, ProgrammaAudit
+from .models import Audit, AuditEsito, CellaProgramma, ChecklistModello, ProgrammaAudit
 from .services.audit import contatori_rilievi
 from .services.audit_automation import testo_evidenza
 
@@ -385,7 +385,15 @@ def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False, nota: str = "") -> 
         people.append(["", "", "", ""])
     pt = _table(people, [50 * mm, 67 * mm, 31 * mm, width - 148 * mm], section_rows=(0,))
     pt.setStyle(TableStyle([("SPAN", (0, 0), (-1, 0))]))
-    story += [head, Spacer(1, 4 * mm), pt, Spacer(1, 4 * mm), _p("C. FOLDER B - AUDIT DI SISTEMA EN 9100:2018", styles["head"])]
+    modelli = []
+    for esito in audit.esiti.select_related("domanda__sezione__modello", "sezione__modello"):
+        sezione = esito.sezione_effettiva
+        if sezione and sezione.modello not in modelli:
+            modelli.append(sezione.modello)
+    ordine_norme = list(ChecklistModello.CODICE_PER_NORMA.values())
+    modelli.sort(key=lambda m: (ordine_norme.index(m.codice) if m.codice in ordine_norme else len(ordine_norme), m.pk))
+    titolo_c = " · ".join(m.titolo.upper() for m in modelli) or "FOLDER B - AUDIT DI SISTEMA EN 9100:2018"
+    story += [head, Spacer(1, 4 * mm), pt, Spacer(1, 4 * mm), _p(f"C. {titolo_c}", styles["head"])]
     checklist = [[_p("§", styles["head"]), _p("Requisito / Domande guida", styles["head"]), _p("Evidenze riscontrate", styles["head"]), _p("Rilievo", styles["head"])]]
     section_rows = []
     gruppi = {}
@@ -394,9 +402,11 @@ def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False, nota: str = "") -> 
         if sezione:
             gruppi.setdefault(sezione, []).append(esito)
     car = {c.sezione_id: c.car_aperta for c in audit.car_sezioni.all()}
-    for sezione in sorted(gruppi, key=lambda s: (s.ordine, s.pk)):
+    piu_norme = len(modelli) > 1
+    for sezione in sorted(gruppi, key=ChecklistModello.chiave_sezione):
         section_rows.append(len(checklist))
-        checklist.append([_p(f"{sezione.codice} - {sezione.titolo}   Criteri: {sezione.criteri}", styles["head"]), "", "", ""])
+        norma = f"{sezione.modello.norma} · " if piu_norme else ""
+        checklist.append([_p(f"{norma}{sezione.codice} - {sezione.titolo}   Criteri: {sezione.criteri}", styles["head"]), "", "", ""])
         for esito in gruppi[sezione]:
             rilievo = "  ".join([
                 _check(esito.esito in {AuditEsito.ESITO_CONFORME, AuditEsito.ESITO_PUNTO_FORZA}) + " ✓",
