@@ -2571,6 +2571,18 @@ class CoreBacklogCFeatureTests(TestCase):
         self.assertIn("text/csv", export_response["Content-Type"])
         self.assertIn("test_action", export_response.content.decode("utf-8"))
 
+    def test_log_center_mostra_modifiche_prima_dopo(self):
+        AuditLog.objects.create(
+            legacy_user_id=self.legacy_user.id, utente_display="Core User", modulo="tickets", azione="auto_update",
+            dettaglio={"model": "Ticket", "oggetto": "Ticket #7", "modifiche": {"stato": {"old": "aperto", "new": "chiuso"}}},
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("admin_portale:audit_log"), {"giorni": 1})
+        self.assertContains(response, "Modificato")
+        self.assertContains(response, "Ticket #7")
+        self.assertContains(response, '<span class="old">aperto</span>', html=False)
+        self.assertContains(response, '<span class="new">chiuso</span>', html=False)
+
     def test_attivita_e_audit_separano_persone_e_processi_automatici(self):
         AuditLog.objects.create(legacy_user_id=self.legacy_user.id, utente_display="Core User", modulo="core", azione="azione_persona")
         AuditLog.objects.create(modulo="assets", azione="azione_task_notturno")

@@ -1347,68 +1347,11 @@ def api_anagrafica_voce_delete(request):
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
-def _audit_queryset_from_request(request):
-    from core.audit import AUTORI_AUDIT, filtra_per_autore
-    from core.models import AuditLog
-
-    qs = AuditLog.objects.all()
-    filtro_modulo = (request.GET.get("modulo") or "").strip()
-    filtro_azione = (request.GET.get("azione") or "").strip()
-    filtro_data = (request.GET.get("data") or "").strip()
-    filtro_chi = (request.GET.get("chi") or "persone").strip()
-    if filtro_chi not in dict(AUTORI_AUDIT):
-        filtro_chi = "persone"
-
-    qs = filtra_per_autore(qs, filtro_chi)
-    if filtro_modulo:
-        qs = qs.filter(modulo=filtro_modulo)
-    if filtro_azione:
-        qs = qs.filter(azione__icontains=filtro_azione)
-    if filtro_data:
-        qs = qs.filter(created_at__date=filtro_data)
-
-    return qs, filtro_modulo, filtro_azione, filtro_data, filtro_chi
-
-
 @legacy_admin_required
 def audit_log_view(request):
-    from core.audit import AUTORI_AUDIT
-    from core.models import AuditLog
-    from django.core.paginator import Paginator
+    from admin_portale.log_center import pagina
 
-    qs, filtro_modulo, filtro_azione, filtro_data, filtro_chi = _audit_queryset_from_request(request)
-    export_format = (request.GET.get("export") or "").strip().lower()
-    if export_format in {"csv", "xlsx"}:
-        return export_rows_response(
-            rows=qs.order_by("-created_at"),
-            columns=[
-                ("Data/Ora", "created_at"),
-                ("Utente", lambda e: (e.utente_display or "").upper()),
-                ("Legacy user ID", "legacy_user_id"),
-                ("Modulo", "modulo"),
-                ("Azione", "azione"),
-                ("IP", "ip_address"),
-                ("Dettaglio", "dettaglio"),
-            ],
-            filename="audit_log",
-            fmt=export_format,
-        )
-
-    moduli_disponibili = AuditLog.objects.values_list("modulo", flat=True).distinct().order_by("modulo")
-
-    paginator = Paginator(qs, 50)
-    page_obj = paginator.get_page(request.GET.get("page"))
-
-    return render(request, "admin_portale/pages/audit_log.html", {
-        "page_title": "Audit Log",
-        "page_obj": page_obj,
-        "filtro_modulo": filtro_modulo,
-        "filtro_azione": filtro_azione,
-        "filtro_data": filtro_data,
-        "filtro_chi": filtro_chi,
-        "autori": AUTORI_AUDIT,
-        "moduli_disponibili": moduli_disponibili,
-    })
+    return pagina(request, "audit")
 
 
 def _notifiche_display_names(legacy_ids) -> dict:
