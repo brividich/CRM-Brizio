@@ -120,6 +120,10 @@ urlpatterns = [
     path("vulnerabilita/pannello/asset/<int:asset_id>/", views_vuln.cve_pannello_asset, name="cve_pannello_asset"),
     path("vulnerabilita/pannello/cve/<str:cve_id>/", views_vuln.cve_pannello_cve, name="cve_pannello_cve"),
     path("vulnerabilita/proposte-ai/<int:pk>/decidi/", views_vuln.proposta_ai_decidi, name="proposta_ai_decidi"),
+    # Accettazione del rischio (eccezioni ai termini di correzione, ISO 27001 8.8)
+    path("vulnerabilita/accettazioni/", views_vuln.rischio_accettazioni, name="accettazioni_rischio"),
+    path("vulnerabilita/accettazioni/<int:pk>/revoca/", views_vuln.rischio_revoca, name="accettazione_rischio_revoca"),
+    path("vulnerabilita/<str:cve_id>/accetta-rischio/", views_vuln.rischio_accetta, name="cve_accetta_rischio"),
     path("vulnerabilita/<str:cve_id>/", views_vuln.cve_detail, name="cve_detail"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),

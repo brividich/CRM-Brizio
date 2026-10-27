@@ -111,6 +111,26 @@ SECTIONS = [
         ],
     },
     {
+        "code": "vulnerabilita_termini",
+        "title": "Vulnerabilità: tempi di correzione (ISO 27001 8.8)",
+        "intro": "Ogni PC esposto a una CVE ha un termine di correzione che parte da «esposto dal» e dipende dalla classe della "
+                 "CVE: sfruttata (CISA KEV: la data chiesta da CISA, altrimenti i giorni qui sotto), critica (CVSS 9 o più), alta "
+                 "(7 o più), media (4 o più), bassa. Passato il termine nasce un evento e un alert (uno per CVE, PC e termine), "
+                 "salvo accettazione del rischio attiva. Le accettazioni in scadenza e scadute aprono un alert di attenzione.",
+        "channels_optional": True,
+        "options": [
+            Option("cve.sla.attivo", True, "Segnala le esposizioni oltre il termine di correzione"),
+            Option("cve.sla.kev_giorni", 14, "Sfruttata (CISA KEV) senza data CISA", "Giorni dal rilevamento.", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("cve.sla.critica_giorni", 15, "Critica (CVSS 9 o più)", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("cve.sla.alta_giorni", 30, "Alta (CVSS 7 o più)", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("cve.sla.media_giorni", 90, "Media (CVSS 4 o più)", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("cve.sla.bassa_giorni", 180, "Bassa (sotto 4 o senza punteggio)", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("cve.sla.accettazione_alert", True, "Alert quando un'accettazione del rischio sta per scadere o è scaduta"),
+            Option("cve.sla.accettazione_promemoria_giorni", 30, "Promemoria prima della scadenza", "Giorni prima della scadenza dell'accettazione.",
+                   "int", min_value=1, max_value=120, unit="giorni"),
+        ],
+    },
+    {
         "code": "software_conformita",
         "title": "Software non conforme",
         "intro": "Confronta l'inventario software con le decisioni del Catalogo software (modulo Asset): un alert per prodotto quando "

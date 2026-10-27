@@ -95,7 +95,24 @@ def vulnerabilities_dashboard(request):
         "can_edit": can_manage_security_config(request.user),
         "software_policy": _software_policy_summary(),
         "ciclo": _ciclo_cve(),
+        "termini": _termini_cve(),
     })
+
+
+def _termini_cve(giorni=90):
+    """Riquadro «Tempi di correzione» (ISO 27001 8.8): accessorio, la pagina resta leggibile senza."""
+    try:
+        from .services import cve_sla
+
+        oggi = timezone.localdate()
+        dati = cve_sla.riepilogo(oggi - timezone.timedelta(days=giorni), oggi)
+        dati["giorni"] = giorni
+        dati["aperte_scadute"] = dati["aperte_scadute"][:15]
+        dati["attivo"] = cve_sla.soc_settings.value("cve.sla.attivo")
+        return dati
+    except Exception:  # noqa: BLE001
+        logger.exception("Tempi di correzione delle CVE non disponibili")
+        return None
 
 
 def _ciclo_cve():
@@ -136,8 +153,118 @@ def cve_detail(request, cve_id):
     return render(request, "security/vuln_cve_detail.html", {
         "record": record, "summary": cve_impact.summary(record), "impacts": impacts, "outcome": outcome,
         "outcomes": SecurityCveImpact.OUTCOME_CHOICES, "can_edit": can_manage_security_config(request.user),
-        "proposte_ai": len(proposte),
+        "proposte_ai": len(proposte), **_termini_record(record, impacts),
     })
+
+
+def _termini_record(record, impacts):
+    """Termine di correzione per ogni PC impattato e accettazioni del rischio della CVE (scheda CVE)."""
+    from .services import accettazione_rischio, cve_sla
+
+    oggi = timezone.localdate()
+    try:
+        coperture = accettazione_rischio.attive(oggi)
+        for imp in impacts:
+            imp.termine = (cve_sla.stato(record, imp.aperta_dal or imp.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, imp.host))
+                           if imp.outcome == SecurityCveImpact.IMPACTS else None)
+        return {
+            "termine": {"classe": cve_sla.classe(record), "etichetta": cve_sla.ETICHETTE[cve_sla.classe(record)],
+                        "giorni": cve_sla.giorni(cve_sla.classe(record)), "kev_due": record.kev_due if record.kev else None,
+                        "attivo": cve_sla.soc_settings.value("cve.sla.attivo"),
+                        "scaduti": sum(1 for i in impacts if getattr(i, "termine", None) and i.termine["scaduta"] and not i.termine["accettata"])},
+            "accettazioni": accettazione_rischio.per_cve(record, oggi),
+            "accettazione_host": sorted({i.host for i in record.impacts.filter(outcome=SecurityCveImpact.IMPACTS)}),
+            "accettazione_scadenza_max": oggi + timezone.timedelta(days=365),
+            "accettazione_motivo_min": accettazione_rischio.SecurityAccettazioneRischio.MOTIVO_MIN,
+        }
+    except Exception:  # noqa: BLE001 - il riquadro è un di più: la scheda CVE resta leggibile
+        logger.exception("Termini di correzione della CVE %s non disponibili", record.cve_id)
+        for imp in impacts:
+            imp.termine = None
+        return {"termine": None, "accettazioni": []}
+
+
+# --- Accettazione del rischio (ISO 27001 8.8) ------------------------------------------------
+
+@require_POST
+def rischio_accetta(request, cve_id):
+    """«Accetta il rischio» dalla scheda CVE: solo chi configura il SOC, con motivo e scadenza (audit sigillato)."""
+    from .services import accettazione_rischio
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    raw = request.POST.get("scadenza", "").strip()
+    try:
+        scadenza = timezone.datetime.fromisoformat(raw).date() if raw else None
+    except ValueError:
+        scadenza = None
+    try:
+        acc = accettazione_rischio.crea(record, host=request.POST.get("host", ""), motivo=request.POST.get("motivo", ""),
+                                        misure=request.POST.get("misure", ""), scadenza=scadenza, user=request.user, request=request)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"Rischio accettato per {record.cve_id} {'su ' + acc.host if acc.host else 'su tutti i PC'} fino al "
+                                  f"{acc.scadenza:%d/%m/%Y}: resta nell'audit, e {acc.scadenza - timezone.timedelta(days=30):%d/%m/%Y} arriva il promemoria.")
+    return redirect("security:cve_detail", cve_id=record.cve_id)
+
+
+def rischio_accettazioni(request):
+    """Elenco delle accettazioni del rischio con stato (attiva, scaduta, revocata) e revoca."""
+    from .models import SecurityAccettazioneRischio
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    stato = request.GET.get("stato", "attive")
+    stato = stato if stato in STATI_ACCETTAZIONI else "attive"
+    oggi = timezone.localdate()
+    qs = SecurityAccettazioneRischio.objects.select_related("cve", "approvata_da", "revocata_da")
+    if stato == "attive":
+        qs = qs.filter(revocata_il__isnull=True, scadenza__gte=oggi)
+    elif stato == "scadute":
+        qs = qs.filter(revocata_il__isnull=True, scadenza__lt=oggi)
+    elif stato == "revocate":
+        qs = qs.filter(revocata_il__isnull=False)
+    righe = list(qs.order_by("scadenza", "-approvata_il")[:500])
+    tutte = SecurityAccettazioneRischio.objects.all()
+    return render(request, "security/vuln_accettazioni.html", {
+        "righe": righe, "stato": stato, "stati": STATI_ACCETTAZIONI, "oggi": oggi,
+        "in_scadenza": oggi + timezone.timedelta(days=30),
+        "counts": {
+            "attive": tutte.filter(revocata_il__isnull=True, scadenza__gte=oggi).count(),
+            "in_scadenza": tutte.filter(revocata_il__isnull=True, scadenza__gte=oggi, scadenza__lte=oggi + timezone.timedelta(days=30)).count(),
+            "scadute": tutte.filter(revocata_il__isnull=True, scadenza__lt=oggi).count(),
+        },
+        "can_edit": can_manage_security_config(request.user),
+    })
+
+
+STATI_ACCETTAZIONI = {"attive": "Attive", "scadute": "Scadute", "revocate": "Revocate", "tutte": "Tutte"}
+
+
+@require_POST
+def rischio_revoca(request, pk):
+    from .models import SecurityAccettazioneRischio
+    from .services import accettazione_rischio
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    acc = get_object_or_404(SecurityAccettazioneRischio.objects.select_related("cve"), pk=pk)
+    try:
+        accettazione_rischio.revoca(acc, user=request.user, motivo=request.POST.get("motivo", ""), request=request)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"Accettazione del rischio per {acc.cve.cve_id} revocata: l'esposizione torna a contare per il termine di correzione.")
+    return _redirect_sicuro(request, reverse("security:accettazioni_rischio"))
 
 
 # --- Proposte dell'AI locale (CPE ed esiti da verificare) -------------------------------------

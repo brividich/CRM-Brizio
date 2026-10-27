@@ -229,6 +229,7 @@ def dettaglio(cve_id, *, key="", asset=None):
     impatti = list(record.impacts.filter(outcome__in=ESITI).select_related("installation", "hub_asset").order_by("outcome", "host"))
     tono, etichetta = gravita(record)
     patch = _patch({record.cve_id}, {i.host for i in impatti})
+    termini = _termini(record, impatti)
     pc = [{
         "host": i.host,
         "asset": i.hub_asset,
@@ -239,6 +240,7 @@ def dettaglio(cve_id, *, key="", asset=None):
         "questo": bool(asset is not None and i.hub_asset_id == asset.pk),
         "patch": patch.get((record.cve_id, i.host)),
         "defender": None,
+        "termine": termini.get(i.host),
     } for i in impatti]
     from security.services import defender_vuln
 
@@ -275,5 +277,34 @@ def dettaglio(cve_id, *, key="", asset=None):
         "priorita_motivo": prio_motivo,
         "pc_con_patch": sum(1 for r in pc if r["patch"]),
         "defender": defender,
+        "termine": _termine_cve(record),
+        "pc_oltre_termine": sum(1 for r in pc if r["termine"] and r["termine"]["scaduta"] and not r["termine"]["accettata"]),
+        "pc_accettati": sum(1 for r in pc if r["termine"] and r["termine"]["accettata"]),
         **_conta_risolte(_risolte(record.risoluzioni.all())),
     }
+
+
+def _termine_cve(record):
+    """Classe e giorni del termine di correzione della CVE (ISO 27001 8.8); None se il calcolo non è disponibile."""
+    try:
+        from security.services import cve_sla
+
+        cls = cve_sla.classe(record)
+        return {"classe": cls, "etichetta": cve_sla.ETICHETTE[cls], "giorni": cve_sla.giorni(cls)}
+    except Exception:  # noqa: BLE001 - il pannello non deve rompersi per i termini
+        return None
+
+
+def _termini(record, impatti):
+    """{host: stato del termine} per i PC colpiti (non per quelli da verificare)."""
+    try:
+        from security.services import accettazione_rischio, cve_sla
+
+        oggi = timezone.localdate()
+        coperture = accettazione_rischio.attive(oggi)
+        return {
+            i.host: cve_sla.stato(record, i.aperta_dal or i.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, i.host))
+            for i in impatti if i.outcome == SecurityCveImpact.IMPACTS
+        }
+    except Exception:  # noqa: BLE001
+        return {}
