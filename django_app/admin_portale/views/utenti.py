@@ -22,11 +22,10 @@ from django.core.validators import validate_email
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
@@ -39,7 +38,6 @@ from automazioni.approval_mailbox_runtime import (
     save_approval_imap_settings,
 )
 from core.audit import log_action
-from core.exporting import export_rows_response
 from core.caporeparto_utils import (
     format_caporeparto_label,
     normalize_caporeparto_option,
@@ -2834,79 +2832,6 @@ def api_user_modulo_perm_set(request, user_id: int):
 
 @legacy_admin_required
 def user_activity_view(request):
-    from datetime import timedelta
-    from core.audit import AUTORI_AUDIT, filtra_per_autore
-    from core.models import AuditLog
-    from django.core.paginator import Paginator
+    from admin_portale.log_center import pagina
 
-    days_raw = (request.GET.get("days") or "30").strip()
-    try:
-        days = max(1, min(365, int(days_raw)))
-    except ValueError:
-        days = 30
-    since = timezone.now() - timedelta(days=days)
-    legacy_user_id = (request.GET.get("legacy_user_id") or "").strip()
-    modulo = (request.GET.get("modulo") or "").strip()
-    q = (request.GET.get("q") or "").strip()
-    chi = (request.GET.get("chi") or "persone").strip()
-    if chi not in dict(AUTORI_AUDIT):
-        chi = "persone"
-
-    qs = filtra_per_autore(AuditLog.objects.filter(created_at__gte=since), chi)
-    if legacy_user_id:
-        qs = qs.filter(legacy_user_id=legacy_user_id)
-    if modulo:
-        qs = qs.filter(modulo=modulo)
-    if q:
-        qs = qs.filter(
-            Q(utente_display__icontains=q)
-            | Q(azione__icontains=q)
-            | Q(modulo__icontains=q)
-            | Q(ip_address__icontains=q)
-        )
-
-    export_format = (request.GET.get("export") or "").strip().lower()
-    if export_format in {"csv", "xlsx"}:
-        return export_rows_response(
-            rows=qs.order_by("-created_at"),
-            columns=[
-                ("Data/Ora", "created_at"),
-                ("Utente", lambda e: (e.utente_display or "").upper()),
-                ("Legacy user ID", "legacy_user_id"),
-                ("Modulo", "modulo"),
-                ("Azione", "azione"),
-                ("IP", "ip_address"),
-                ("Dettaglio", "dettaglio"),
-            ],
-            filename="attivita_utente",
-            fmt=export_format,
-        )
-
-    by_module = list(qs.values("modulo").annotate(total=Count("id")).order_by("-total", "modulo")[:12])
-    by_action = list(qs.values("azione").annotate(total=Count("id")).order_by("-total", "azione")[:12])
-    users = list(
-        AuditLog.objects.filter(created_at__gte=since)
-        .exclude(legacy_user_id__isnull=True)
-        .values("legacy_user_id", "utente_display")
-        .annotate(total=Count("id"))
-        .order_by("utente_display", "legacy_user_id")[:200]
-    )
-    moduli_disponibili = AuditLog.objects.values_list("modulo", flat=True).distinct().order_by("modulo")
-    paginator = Paginator(qs.order_by("-created_at"), 50)
-    page_obj = paginator.get_page(request.GET.get("page"))
-
-    return render(request, "admin_portale/pages/user_activity.html", {
-        "page_title": "Attivita utenti",
-        "page_obj": page_obj,
-        "days": days,
-        "legacy_user_id": legacy_user_id,
-        "modulo": modulo,
-        "q": q,
-        "chi": chi,
-        "autori": AUTORI_AUDIT,
-        "users": users,
-        "moduli_disponibili": moduli_disponibili,
-        "by_module": by_module,
-        "by_action": by_action,
-        "total_events": qs.count(),
-    })
+    return pagina(request, "attivita")

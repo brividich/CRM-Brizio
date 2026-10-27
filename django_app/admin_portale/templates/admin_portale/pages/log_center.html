@@ -1,0 +1,208 @@
+{% extends "core/base.html" %}
+{% load static l10n %}
+
+{% block title %}{{ page_title }} | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/log_center.css' %}">
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title=page_title page_subtitle="Chi ha fatto cosa nel portale: accessi, modifiche ai dati e azioni, separati dai processi automatici." %}
+
+  <nav class="lc-tabs" aria-label="Viste del registro">
+    <a class="btn{% if vista != 'audit' %} btn-secondary{% endif %}" href="{% url 'admin_portale:audit_log' %}?{{ query }}">Audit Log</a>
+    <a class="btn{% if vista != 'attivita' %} btn-secondary{% endif %}" href="{% url 'admin_portale:user_activity' %}?{{ query }}">Attività utenti</a>
+    <span class="lc-spacer"></span>
+    <a class="btn btn-secondary" href="?{{ query }}{% if query %}&amp;{% endif %}export=csv">CSV</a>
+    <a class="btn btn-secondary" href="?{{ query }}{% if query %}&amp;{% endif %}export=xlsx">Excel</a>
+    <a class="btn btn-secondary" href="{% url 'guida_modulo' 'amministrazione' %}#log-center">? Guida</a>
+  </nav>
+
+  <section class="lc-filters" aria-label="Filtri">
+    <div class="lc-filters-row">
+      <span><span class="lc-filters-label">Periodo</span>
+        <span class="lc-seg">
+          {% for g in periodi %}<a href="?{{ query_senza_periodo }}{% if query_senza_periodo %}&amp;{% endif %}giorni={{ g }}" class="{% if not filtri.data and filtri.giorni == g %}is-on{% endif %}">{% if g == 1 %}Oggi{% elif g == 365 %}1 anno{% else %}{{ g }} giorni{% endif %}</a>{% endfor %}
+        </span>
+      </span>
+      <span><span class="lc-filters-label">Chi</span>
+        <span class="lc-seg">
+          {% for val, label in autori %}<a href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi={{ val }}" class="{% if filtri.chi == val %}is-on{% endif %}">{{ label }}</a>{% endfor %}
+        </span>
+      </span>
+    </div>
+    <form method="get" class="lc-form">
+      <input type="hidden" name="chi" value="{{ filtri.chi }}">
+      {% if not filtri.data %}<input type="hidden" name="giorni" value="{{ filtri.giorni }}">{% endif %}
+      <label>Persona
+        <select name="legacy_user_id">
+          <option value="">Tutte</option>
+          {% for u in utenti %}<option value="{{ u.legacy_user_id }}" {% if filtri.utente == u.legacy_user_id|stringformat:"s" %}selected{% endif %}>{{ u.utente_display|default:u.legacy_user_id }} ({{ u.n }})</option>{% endfor %}
+        </select>
+      </label>
+      <label>Modulo
+        <select name="modulo">
+          <option value="">Tutti</option>
+          {% for m in moduli_disponibili %}<option value="{{ m }}" {% if m == filtri.modulo %}selected{% endif %}>{{ m }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Giorno
+        <input type="date" name="data" value="{{ filtri.data|date:'Y-m-d' }}">
+      </label>
+      <label>Cerca
+        <input type="search" name="q" value="{{ filtri.q }}" placeholder="persona, azione, modulo, IP">
+      </label>
+      <span class="lc-actions">
+        <button type="submit" class="btn">Filtra</button>
+        {% if filtri.utente or filtri.modulo or filtri.q or filtri.data or filtri.chi != "persone" %}<a class="btn btn-secondary" href="?">Azzera</a>{% endif %}
+      </span>
+    </form>
+  </section>
+
+  <section class="lc-kpis" aria-label="Riepilogo del periodo">
+    <a class="lc-kpi is-people" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=persone">
+      <span class="lc-kpi-label">Persone attive</span>
+      <span class="lc-kpi-value">{{ indicatori.persone }}</span>
+      <span class="lc-kpi-sub">{{ indicatori.persone_righe }} azioni</span>
+    </a>
+    <a class="lc-kpi is-ok" href="?chi=persone&amp;q=login_ok{% if filtri.data %}&amp;data={{ filtri.data|date:'Y-m-d' }}{% else %}&amp;giorni={{ filtri.giorni }}{% endif %}">
+      <span class="lc-kpi-label">Accessi</span>
+      <span class="lc-kpi-value">{{ indicatori.accessi }}</span>
+      <span class="lc-kpi-sub">login riusciti</span>
+    </a>
+    <a class="lc-kpi{% if indicatori.falliti %} is-ko{% endif %}" href="?chi=tutti&amp;q=login_fallito{% if filtri.data %}&amp;data={{ filtri.data|date:'Y-m-d' }}{% else %}&amp;giorni={{ filtri.giorni }}{% endif %}">
+      <span class="lc-kpi-label">Accessi non riusciti</span>
+      <span class="lc-kpi-value">{{ indicatori.falliti }}</span>
+      <span class="lc-kpi-sub">{% if indicatori.falliti %}da controllare{% else %}nessuno{% endif %}</span>
+    </a>
+    <a class="lc-kpi is-auto" href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=automatico">
+      <span class="lc-kpi-label">Processi automatici</span>
+      <span class="lc-kpi-value">{{ indicatori.automatici }}</span>
+      <span class="lc-kpi-sub">{{ indicatori.quota_automatici }}% delle righe</span>
+    </a>
+    <div class="lc-kpi">
+      <span class="lc-kpi-label">Periodo</span>
+      <span class="lc-kpi-value" style="font-size:20px;">{% if dal == al %}{{ dal|date:"d/m/Y" }}{% else %}{{ dal|date:"d/m" }} – {{ al|date:"d/m" }}{% endif %}</span>
+      <span class="lc-kpi-sub">{{ indicatori.totale }} righe in tutto</span>
+    </div>
+  </section>
+
+  <div class="lc-grid">
+    <section class="lc-panel lc-chart">
+      <div class="lc-panel-head">
+        <h3>Attività per giorno</h3>
+        <small>clic su un giorno per aprirlo</small>
+      </div>
+      {% if serie and not serie.vuota %}
+        {% localize off %}
+        <svg viewBox="0 0 {{ serie.larghezza }} {{ serie.altezza }}" role="img" aria-label="Righe per giorno: persone e processi automatici">
+          <line class="lc-axis" x1="0" x2="{{ serie.larghezza }}" y1="{{ serie.base_y }}" y2="{{ serie.base_y }}"></line>
+          {% for g in serie.giorni %}
+            <a class="lc-day" href="?{{ query_senza_periodo }}{% if query_senza_periodo %}&amp;{% endif %}data={{ g.data|date:'Y-m-d' }}">
+              <title>{{ g.data|date:"D d/m" }}: {{ g.persone }} di persone, {{ g.automatici }} automatiche</title>
+              <rect x="{{ g.x }}" y="0" width="{{ g.w }}" height="{{ serie.base_y }}" fill="transparent"></rect>
+              {% if g.h_a %}<rect class="lc-bar-a" x="{{ g.x }}" y="{{ g.y_a }}" width="{{ g.w }}" height="{{ g.h_a }}" rx="3"></rect>{% endif %}
+              {% if g.h_p %}<rect class="lc-bar-p" x="{{ g.x }}" y="{{ g.y_p }}" width="{{ g.w }}" height="{{ g.h_p }}" rx="3"></rect>{% endif %}
+              {% if g.etichetta %}<text x="{{ g.cx }}" y="{{ serie.altezza|add:-6 }}" text-anchor="middle">{{ g.data|date:"d/m" }}</text>{% endif %}
+            </a>
+          {% endfor %}
+        </svg>
+        {% endlocalize %}
+        <div class="lc-legend"><span><i class="p"></i>Persone</span><span><i class="a"></i>Processi automatici</span></div>
+      {% elif serie %}
+        <div class="lc-empty"><strong>Nessuna riga nel periodo</strong>Prova un periodo più lungo o togli qualche filtro.</div>
+      {% else %}
+        <div class="lc-empty"><strong>{% if dal == al %}Un solo giorno{% else %}Periodo troppo lungo per il grafico{% endif %}</strong>{% if dal == al %}L'elenco sotto mostra tutte le righe del giorno.{% else %}Il grafico copre al massimo 90 giorni.{% endif %}</div>
+      {% endif %}
+    </section>
+
+    <section class="lc-panel lc-span-left">
+      <div class="lc-panel-head"><h3>Azioni più frequenti</h3><small>{% for val, label in autori %}{% if val == filtri.chi %}{{ label }}{% endif %}{% endfor %}</small></div>
+      <ul class="lc-rank lc-rank-cols">
+        {% for a in top_azioni %}
+          <li><a href="?{{ query }}{% if query %}&amp;{% endif %}q={{ a.nome|urlencode }}" title="{{ a.nome }}">
+            <span class="lc-badge {{ a.tono }}">{{ a.etichetta }}</span>
+            <span class="lc-rank-name"></span><span class="lc-rank-n">{{ a.n }}</span>
+            <span class="lc-rank-bar" style="--w: {{ a.quota|unlocalize }}%;"></span>
+          </a></li>
+        {% empty %}<li class="lc-empty" style="padding:12px;">Nessuna azione.</li>{% endfor %}
+      </ul>
+    </section>
+
+    <div class="lc-side">
+      <section class="lc-panel">
+        <div class="lc-panel-head"><h3>Persone più attive</h3></div>
+        <ul class="lc-rank">
+          {% for p in top_persone %}
+            <li><a href="?{{ query_senza_chi }}{% if query_senza_chi %}&amp;{% endif %}chi=persone{% if p.id %}&amp;legacy_user_id={{ p.id }}{% endif %}" title="{{ p.n }} azioni">
+              <span class="lc-avatar sm" style="--lc-av: {{ p.colore }};">{{ p.iniziali }}</span>
+              <span class="lc-rank-name">{{ p.nome }}</span><span class="lc-rank-n">{{ p.n }}</span>
+              <span class="lc-rank-bar" style="--w: {{ p.quota|unlocalize }}%;"></span>
+            </a></li>
+          {% empty %}<li class="lc-empty" style="padding:12px;">Nessuna persona nel periodo.</li>{% endfor %}
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="lc-feed" aria-label="Eventi">
+    <div class="lc-feed-head">
+      <h3>Eventi</h3>
+      <small>{{ page_obj.paginator.count }} righe · pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</small>
+    </div>
+    {% for r in righe %}
+      {% ifchanged r.giorno %}<div class="lc-day-head">{% if r.giorno_label %}{{ r.giorno_label }} · {% endif %}{{ r.giorno|date:"l j F Y" }}</div>{% endifchanged %}
+      <article class="lc-row{% if r.tono == 'ko' %} is-ko{% endif %}">
+        <span class="lc-avatar is-{{ r.tipo_autore }}"{% if r.colore %} style="--lc-av: {{ r.colore }};"{% endif %} aria-hidden="true">{{ r.iniziali }}</span>
+        <div>
+          <div class="lc-line">
+            <span class="lc-who{% if r.tipo_autore != 'persona' %} is-muted{% endif %}">{{ r.autore }}</span>
+            <span class="lc-badge {{ r.tono }}">{{ r.etichetta }}</span>
+            {% if r.oggetto %}<span class="lc-what">{{ r.oggetto }}</span>{% endif %}
+          </div>
+          <div class="lc-meta">
+            <span class="lc-pill">{{ r.voce.modulo }}</span>
+            <span title="Codice azione"><code>{{ r.voce.azione }}</code></span>
+            {% if r.voce.ip_address %}<span>IP {{ r.voce.ip_address }}</span>{% endif %}
+          {% if r.ha_dettaglio %}
+            <details class="lc-detail">
+              <summary>{% if r.modifiche %}{{ r.modifiche|length }} campo{{ r.modifiche|length|pluralize:"i" }} modificat{{ r.modifiche|length|pluralize:"o,i" }}{% elif r.valori %}Valori{% elif r.campi %}Campi{% else %}Dettagli{% endif %}</summary>
+              {% if r.modifiche %}
+                <div class="lc-kv"><table>
+                  {% for m in r.modifiche %}<tr><th>{{ m.campo }}</th><td><span class="old">{{ m.prima }}</span><span class="arrow">→</span><span class="new">{{ m.dopo }}</span></td></tr>{% endfor %}
+                </table></div>
+              {% endif %}
+              {% if r.valori %}
+                <div class="lc-kv"><table>
+                  {% for v in r.valori %}<tr><th>{{ v.campo }}</th><td>{{ v.valore }}</td></tr>{% endfor %}
+                </table></div>
+              {% endif %}
+              {% if r.campi %}<div class="lc-tags">{% for c in r.campi %}<span>{{ c }}</span>{% endfor %}</div>{% endif %}
+              {% if r.altri %}
+                <div class="lc-kv"><table>
+                  {% for v in r.altri %}<tr><th>{{ v.campo }}</th><td>{{ v.valore }}</td></tr>{% endfor %}
+                </table></div>
+              {% endif %}
+            </details>
+          {% endif %}
+          </div>
+        </div>
+        <div class="lc-time" title="{{ r.quando|date:'d/m/Y H:i:s' }}">{{ r.quando|date:"H:i" }}<small>:{{ r.quando|date:"s" }}</small></div>
+      </article>
+    {% empty %}
+      <div class="lc-empty"><strong>Nessun evento</strong>Nessuna riga con questi filtri. Prova «Tutte le voci» o un periodo più lungo.</div>
+    {% endfor %}
+    {% if page_obj.has_other_pages %}
+      <nav class="lc-pager" aria-label="Pagine">
+        {% if page_obj.has_previous %}<a class="btn btn-secondary" href="?{{ query }}{% if query %}&amp;{% endif %}page={{ page_obj.previous_page_number }}">← Più recenti</a>{% endif %}
+        <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a class="btn btn-secondary" href="?{{ query }}{% if query %}&amp;{% endif %}page={{ page_obj.next_page_number }}">Più vecchi →</a>{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}
