@@ -958,6 +958,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # TICKETS — ticket MAN <-> lista SharePoint «Ticket» (CNManutenzioni):
+        # invia la coda delle modifiche locali e legge solo gli elementi cambiati
+        # (delta query). No-op finche' l'interruttore in Impostazioni e' spento.
+        "name": "tickets_man_sharepoint_sync",
+        "func": "tickets.tasks.run_ticket_man_sharepoint_sync",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 5,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ASSENZE — convivenza con la lista SharePoint: invia la coda delle
         # modifiche locali e legge da SharePoint solo gli elementi cambiati
         # (delta query). No-op se Graph non e' configurato.

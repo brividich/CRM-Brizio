@@ -256,3 +256,18 @@ def run_ticket_daily_digest() -> dict:
     except Exception:
         logger.exception("run_ticket_daily_digest: eccezione inattesa")
         raise
+
+
+@system_job_run("tickets_man_sharepoint_sync")
+def run_ticket_man_sharepoint_sync() -> dict:
+    """Giro periodico ticket MAN: coda locale -> SharePoint, poi modifiche SharePoint -> portale."""
+    from tickets.sharepoint_man import sincronizza
+
+    return sincronizza()
+
+
+def run_ticket_man_sharepoint_push() -> dict:
+    """Invio immediato della coda dopo un salvataggio; la svuota comunque il giro periodico."""
+    from tickets.sharepoint_man import invia_subito
+
+    return invia_subito()
