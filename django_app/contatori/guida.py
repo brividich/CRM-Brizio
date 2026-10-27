@@ -253,6 +253,17 @@ SEZIONI: list[dict] = [
                                     "«Chi interviene» è quello indicato dalla stampante. In grigio gli eventi "
                                     "normali (accensione, pronta a stampare). Gli avvisi chiusi da oltre 400 "
                                     "giorni si cancellano."),
+                ("Sostituzioni consumabili", "ogni cambio di toner, tamburo, fusore o altro consumabile: "
+                                             "quando il livello risale di più di 5 punti fra due letture il "
+                                             "portale registra «Rilevato il» (prima lettura con il consumabile "
+                                             "nuovo), «Lettura precedente» (il cambio è avvenuto fra le due), "
+                                             "«Livello» prima e dopo e «Durata del precedente» (giorni dal cambio "
+                                             "precedente dello stesso consumabile). In alto quanti cambi per "
+                                             "consumabile negli ultimi 12 mesi. Un cambio visto due volte nei 2 "
+                                             "giorni attorno (le MFC lo vedono sia dalla lettura ogni 15 minuti sia "
+                                             "da quella giornaliera dei consumabili) si registra una volta sola. Il "
+                                             "registro parte dal giorno dell'aggiornamento: i cambi precedenti non "
+                                             "ci sono."),
                 ("Finisce verso il", "sotto ogni toner: la data in cui si esaurisce al ritmo di consumo "
                                      "dall'ultima sostituzione (letture degli ultimi 60 giorni). Servono almeno 3 "
                                      "giorni di letture e un calo di almeno 2 punti; il contenitore di scarto non "

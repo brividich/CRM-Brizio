@@ -5,6 +5,8 @@
   la stampante non lo segnala più.
 - :func:`stime` dice quante pagine si stampano al giorno e fra quanti giorni finisce ogni
   toner, dalle letture già salvate (una al giorno, ultimi 60 giorni). Nessuna lettura in più.
+- :func:`registra_sostituzioni` tiene il registro dei cambi di toner e degli altri consumabili:
+  un livello che risale di più di 5 punti fra due letture è un consumabile nuovo.
 """
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ GIORNI_STIME = 60
 GIORNI_REGISTRO = 400  # gli avvisi chiusi da più tempo si cancellano
 MIN_GIORNI_STIMA = 3
 MIN_CALO_PCT = 2
+SOGLIA_RISALITA_PCT = 5  # un livello che sale di più è un consumabile nuovo
+GIORNI_DOPPIONE = 2
 
 
 def _chiavi_avvisi(dati):
@@ -70,8 +74,58 @@ def registra_avvisi(stampante, dati, adesso=None):
     AvvisoStampante.objects.filter(chiuso_il__lt=adesso - timedelta(days=GIORNI_REGISTRO), **chi).delete()
 
 
+def _livelli(consumabili):
+    """{(nome, indice): (pct, tipo)} dei consumabili con un livello in %."""
+    return {((c.get("nome") or "Consumabile")[:120], c.get("indice")): (c["pct"], c.get("tipo") or "")
+            for c in consumabili or [] if type(c.get("pct")) is int and 0 <= c["pct"] <= 100}
+
+
+def registra_sostituzioni(stampante, prima, dopo, adesso=None, prima_il=None):
+    """Registra un cambio per ogni consumabile risalito di più di 5 punti fra due letture.
+
+    ``prima`` e ``dopo`` sono liste di consumabili (``nome``, ``pct``, facoltativi ``indice`` e
+    ``tipo``). Un cambio dello stesso consumabile già registrato nei 2 giorni attorno (l'MFC lo
+    vede sia dalla lettura dello stato sia da quella giornaliera dei consumabili) non si ripete.
+    Ritorna quante sostituzioni ha registrato.
+    """
+    from .models import SostituzioneConsumabile
+
+    adesso = adesso or timezone.now()
+    chi = _proprietario(stampante)
+    precedenti = _livelli(prima)
+    nuove = []
+    for (nome, indice), (pct, tipo) in _livelli(dopo).items():
+        vecchio = precedenti.get((nome, indice))
+        if vecchio is None or pct <= vecchio[0] + SOGLIA_RISALITA_PCT:
+            continue
+        vicino = (adesso - timedelta(days=GIORNI_DOPPIONE), adesso + timedelta(days=GIORNI_DOPPIONE))
+        if SostituzioneConsumabile.objects.filter(nome=nome, rilevata_il__range=vicino, **chi).exists():
+            continue
+        nuove.append(SostituzioneConsumabile(nome=nome, tipo=tipo[:40], pct_prima=vecchio[0], pct_dopo=pct,
+                                             ultima_lettura_prima=prima_il, rilevata_il=adesso, **chi))
+    SostituzioneConsumabile.objects.bulk_create(nuove)
+    return len(nuove)
+
+
+def registro_sostituzioni(stampante, limite=60):
+    """Ultime sostituzioni, ognuna con i giorni durati dal cambio precedente dello stesso consumabile."""
+    righe = list(stampante.sostituzioni_consumabili.all())  # dalla più recente
+    successiva = {}
+    for r in reversed(righe):
+        prec = successiva.get(r.nome)
+        r.giorni_durata = round(_giorni(prec, r.rilevata_il)) if prec else None
+        successiva[r.nome] = r.rilevata_il
+    anno_fa = timezone.now() - timedelta(days=365)
+    per_nome = {}
+    for r in righe:
+        if r.rilevata_il >= anno_fa:
+            per_nome[r.nome] = per_nome.get(r.nome, 0) + 1
+    return {"sostituzioni_registro": righe[:limite],
+            "sostituzioni_anno": sorted(per_nome.items(), key=lambda v: (-v[1], v[0]))}
+
+
 def contesto_pannello(stampante, dati):
-    """Dati del pannello «La stampante adesso» e del registro avvisi, uguali per MFC e Monitor."""
+    """Dati del pannello «La stampante adesso», del registro avvisi e delle sostituzioni, uguali per MFC e Monitor."""
     from .printer_snmp import problemi_stampante
 
     problemi = problemi_stampante(dati or {})
@@ -81,6 +135,7 @@ def contesto_pannello(stampante, dati):
         "problemi_gravi": any(livello == "ERROR" for _t, livello in problemi),
         "avvisi_aperti": [a for a in registro if a.chiuso_il is None and not a.informativo],
         "avvisi_registro": registro,
+        **registro_sostituzioni(stampante),
     }
 
 
@@ -130,7 +185,7 @@ def stime(dispositivo, adesso=None):
         if "scarto" in (info["tipo"] or "") or "waste" in (info["nome"] or "").lower():
             continue  # il contenitore di scarto si riempie: non è un consumo da stimare così
         # Dall'ultima sostituzione: un livello che sale di più di 5 punti è un toner nuovo.
-        inizio = max((i for i in range(1, len(punti)) if punti[i][1] > punti[i - 1][1] + 5), default=0)
+        inizio = max((i for i in range(1, len(punti)) if punti[i][1] > punti[i - 1][1] + SOGLIA_RISALITA_PCT), default=0)
         primo, ultimo = punti[inizio], punti[-1]
         giorni = _giorni(primo[0], ultimo[0])
         calo = primo[1] - ultimo[1]
@@ -173,6 +228,7 @@ def leggi_stato_mfc(macchina, adesso=None):
     if not dati.get("contatori") and not dati.get("consumabili") and "avvisi" not in dati:
         return None  # nessuna risposta utile: si tiene l'ultima lettura buona
     adesso = adesso or timezone.now()
+    prima, prima_il = (macchina.dati_stampante or {}).get("consumabili"), macchina.dati_stampante_il
     macchina.dati_stampante, macchina.dati_stampante_il = dati, adesso
     campi = ["dati_stampante", "dati_stampante_il", "snmp_ultimo_controllo"]
     # La stampante ha risposto: è un contatto, come per il Monitor. Un errore delle letture
@@ -183,4 +239,5 @@ def leggi_stato_mfc(macchina, adesso=None):
         campi.append("snmp_stato")
     macchina.save(update_fields=campi)
     registra_avvisi(macchina, dati, adesso)
+    registra_sostituzioni(macchina, prima, dati.get("consumabili"), adesso, prima_il)
     return dati

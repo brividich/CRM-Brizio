@@ -54,3 +54,25 @@
   </table></div>
   {% else %}<p class="muted">Nessun avviso registrato. Il registro si riempie con le interrogazioni: se la stampante non ha la tabella avvisi, registra gli errori che segnala (carta inceppata, sportello aperto…).</p>{% endif %}
 </section>
+
+<section class="panel" id="sostituzioni-consumabili">
+  <div class="panel-head"><div><h2>Sostituzioni consumabili</h2>
+    <p>Cambi di toner, tamburo e altri consumabili, riconosciuti dalle letture: un livello che risale di più di 5 punti è un consumabile nuovo. Il cambio è avvenuto fra la lettura precedente e quella indicata.</p>
+  </div></div>
+  {% if sostituzioni_anno %}
+    <p><strong>Ultimi 12 mesi:</strong> {% for nome, n in sostituzioni_anno %}<span class="pill">{{ nome }}: {{ n }}</span> {% endfor %}</p>
+  {% endif %}
+  {% if sostituzioni_registro %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Consumabile</th><th>Rilevato il</th><th>Lettura precedente</th><th class="num">Livello</th><th class="num">Durata del precedente</th></tr></thead>
+    <tbody>{% for s in sostituzioni_registro %}
+      <tr>
+        <td><strong>{{ s.nome }}</strong>{% if s.tipo %}<div class="muted">{{ s.tipo|capfirst }}</div>{% endif %}</td>
+        <td>{{ s.rilevata_il|date:"d/m/Y H:i" }}</td>
+        <td>{% if s.ultima_lettura_prima %}{{ s.ultima_lettura_prima|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+        <td class="num">{{ s.pct_prima }}% → {{ s.pct_dopo }}%</td>
+        <td class="num">{% if s.giorni_durata != None %}{{ s.giorni_durata }} giorni{% else %}<span class="muted">primo registrato</span>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Nessuna sostituzione registrata. Il registro si riempie con le letture: la prima compare al prossimo cambio di toner o di un altro consumabile.</p>{% endif %}
+</section>

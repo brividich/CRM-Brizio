@@ -54,6 +54,7 @@ GUIDA = {
                     "«La stampante adesso» dice lo stato, cosa c'è scritto sul display e cosa va sistemato (carta inceppata, sportello aperto, cassetto vuoto).",
                     "«Registro avvisi» elenca gli avvisi con quando sono comparsi, quando sono spariti e quanto sono durati.",
                     "Sotto ogni toner «Finisce verso il» dice la data prevista di esaurimento, calcolata sul consumo dall'ultima sostituzione.",
+                    "«Sostituzioni consumabili» elenca i cambi di toner e degli altri consumabili (riconosciuti quando il livello risale di più di 5 punti), con quanto è durato il precedente e quanti cambi negli ultimi 12 mesi.",
                 ]),
             ],
         },
