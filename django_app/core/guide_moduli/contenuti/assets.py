@@ -23,6 +23,9 @@ GUIDA = {
                 ("p", "Responsabile: una macchina CNC o di lavoro senza una persona assegnata ha come responsabile il caporeparto del suo "
                       "reparto (Persone → «Reparti, aree e capi»), mostrato con «Caporeparto <reparto>». Una persona assegnata a mano vince; "
                       "gli asset IT si assegnano al dipendente."),
+                ("p", "Chi vede cosa (ruoli attivi, modulo «Assets e manutenzione», azione «vedere»): «Tutti» l'intero inventario; "
+                      "«Propri» i beni assegnati a te e le macchine dei reparti che guidi; «Propri e del team» anche quelli delle persone "
+                      "che ti riportano. Sulla mappa officina le altre macchine sono punti grigi senza dettagli."),
                 ("p", "Sotto il cruscotto della scheda, «Lo stesso apparato in» porta alla stampante in Contatori e al dispositivo nel SOC; "
                       "lì trovi la stessa testata dell'asset, con il link «Scheda asset» per tornare."),
             ],

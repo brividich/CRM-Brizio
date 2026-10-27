@@ -352,7 +352,12 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
         today=today,
     )
 
-    machine_base_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine").prefetch_related("documents")
+    from ..services.visibilita import filtra as filtra_visibili
+
+    machine_base_qs = filtra_visibili(
+        request,
+        Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine").prefetch_related("documents"),
+    )
     if reparto_filter:
         machine_base_qs = machine_base_qs.filter(reparto=reparto_filter)
 

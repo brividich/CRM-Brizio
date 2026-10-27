@@ -809,6 +809,40 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
     }
 
 
+def _plant_layout_ambito(payload: dict[str, object], visibili: set[int] | None) -> dict[str, object]:
+    """Ambito «Propri / team»: le macchine non di competenza restano sulla pianta come punti grigi.
+
+    Niente stato, ticket o link per quelle: in ``altrui`` solo posizione e sigla. Riepiloghi,
+    riquadri dei reparti e ricerca sulle altre piante contano solo le macchine visibili.
+    """
+    if visibili is None or not payload.get("layout"):
+        return payload
+    markers = [m for m in payload["markers"] if m["asset_id"] in visibili]
+    altrui = [
+        {"label": m["label"], "x_percent": m["x_percent"], "y_percent": m["y_percent"]}
+        for m in payload["markers"] if m["asset_id"] not in visibili
+    ]
+    alert_counts = {level: 0 for level in _PLANT_ALERT_LEVELS}
+    for m in markers:
+        alert_counts[m["alert"]] += 1
+    areas = []
+    for area in payload["areas"]:
+        rows = [r for r in area["machines"] if r["id"] in visibili]
+        areas.append({**area, "machines": rows, "machine_count": len(rows),
+                      "alert_count": sum(1 for r in rows if r["alert"] != "ok")})
+    return {
+        **payload,
+        "areas": areas,
+        "markers": markers,
+        "altrui": altrui,
+        "markers_with_tickets": sum(1 for m in markers if m["open_tickets"]),
+        "alert_counts": alert_counts,
+        "reparti": _plant_layout_reparto_summary(markers),
+        "cnc": _plant_layout_cnc_summary(markers),
+        "elsewhere": [r for r in payload["elsewhere"] if r["asset_id"] in visibili],
+    }
+
+
 def _plant_layout_reparto_summary(marker_payload: list[dict[str, object]]) -> list[dict[str, object]]:
     """Per reparto (dal campo della scheda): macchine sulla pianta e quante da guardare.
 

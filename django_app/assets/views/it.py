@@ -45,8 +45,10 @@ from ._helpers_c import (  # noqa: F401
 def device_list(request: HttpRequest) -> HttpResponse:
     """Lista dispositivi IT (PC, portatili, server, ecc.) con card layout."""
     form = DeviceFilterForm(request.GET or None)
+    from ..services.visibilita import filtra as filtra_visibili
+
     devices_qs = (
-        Asset.objects
+        filtra_visibili(request, Asset.objects)
         .filter(asset_type__in=IT_DEVICE_TYPES)
         .select_related("asset_category")
         .order_by("asset_type", "reparto", "name", "asset_tag")
@@ -85,7 +87,7 @@ def device_list(request: HttpRequest) -> HttpResponse:
         coverage_filter = ""
     devices_qs = apply_coverage_filter(devices_qs, coverage_filter)
 
-    device_base_qs = Asset.objects.filter(asset_type__in=IT_DEVICE_TYPES)
+    device_base_qs = filtra_visibili(request, Asset.objects.filter(asset_type__in=IT_DEVICE_TYPES))
     total = device_base_qs.count()
     in_use_total = device_base_qs.filter(status=Asset.STATUS_IN_USE).count()
     in_stock_total = device_base_qs.filter(status=Asset.STATUS_IN_STOCK).count()

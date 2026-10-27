@@ -140,8 +140,10 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     # --- Asset -------------------------------------------------------------
     asset_list = reverse("assets:asset_list")
     if _allows(request, asset_list):
+        from .visibilita import filtra as filtra_visibili
+
         qs = (
-            Asset.objects.filter(
+            filtra_visibili(request, Asset.objects).filter(
                 _asset_q(term, prefix="")
                 | Q(serial_number__icontains=term)
                 | Q(manufacturer__icontains=term)

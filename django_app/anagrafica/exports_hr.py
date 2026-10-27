@@ -8,6 +8,7 @@ Copertura:
 - ``ruoli_operativi``        → `/anagrafica/ruoli-operativi/`
 - ``ratei``                  → `/anagrafica/ratei/`
 - ``retribuzioni_globale``   → `/anagrafica/retribuzioni/globale/`
+- ``costo_orario``           → `/anagrafica/retribuzioni/costo-orario/`
 - ``visite_mediche`` / ``visite_mediche_copertura`` → `/anagrafica/visite-mediche/`
 
 Privacy/GDPR: ratei, retribuzioni e visite mediche sono dati sensibili. Oltre al
@@ -489,6 +490,64 @@ register(ExportSpec(
     dataset=_retribuzioni_globale_rows,
     filters_label=_retribuzioni_globale_filters,
     permission=_hr_gate("/anagrafica/retribuzioni/globale/"),
+))
+
+
+# ── Costo orario (27/10/2026) ─────────────────────────────────────────────────
+# Stessa pipeline della pagina (`views_coefficienti._righe_costo`): «risultati
+# filtrati» = mese, reparto e ricerca della pagina; «tutto» = tutti i mesi.
+
+def _costo_orario_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import CostoOrarioMensile
+    from anagrafica.views_coefficienti import _righe_costo
+
+    if scope == "full":
+        from types import SimpleNamespace
+
+        from django.http import QueryDict
+
+        mesi = list(CostoOrarioMensile.objects.order_by("-mese").values_list("mese", flat=True).distinct())
+        righe = []
+        for m in mesi:
+            q = QueryDict(mutable=True)
+            q["mese"] = m.isoformat()
+            righe += _righe_costo(SimpleNamespace(GET=q))["righe"]
+    else:
+        righe = _righe_costo(request)["righe"]
+    return [{
+        "dipendente": x["nome"], "reparto": x["reparto"], "classificazione": x["classe"],
+        "mese": x["c"].mese.strftime("%m-%Y"), "rml": x["c"].rml, "giorni": x["c"].divisore_giorni,
+        "ore": x["c"].divisore_ore, "costo": x["c"].costo_orario, "manuale": _si_no(x["c"].rml_manuale),
+    } for x in righe]
+
+
+def _costo_orario_filters(request: HttpRequest) -> str:
+    parts = []
+    for chiave, etichetta in (("mese", "Mese"), ("reparto", "Reparto"), ("q", "Ricerca")):
+        valore = (request.GET.get(chiave) or "").strip()
+        if valore:
+            parts.append(f"{etichetta}: {valore}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="costo_orario",
+    title="Costo orario",
+    sheet_title="Costo orario",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Reparto", "reparto"),
+        ("Classificazione", "classificazione"),
+        ("Mese", "mese"),
+        ("RML (€)", "rml"),
+        ("Giorni", "giorni"),
+        ("Ore al giorno", "ore"),
+        ("Costo orario (€)", "costo"),
+        ("RML corretta a mano", "manuale"),
+    ],
+    dataset=_costo_orario_rows,
+    filters_label=_costo_orario_filters,
+    permission=_hr_gate("/anagrafica/retribuzioni/costo-orario/"),
 ))
 
 

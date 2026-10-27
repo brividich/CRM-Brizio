@@ -181,6 +181,26 @@ GUIDA = {
             ],
         },
         {
+            "id": "log-center",
+            "titolo": "Audit Log e Attività utenti: leggere il registro",
+            "blocchi": [
+                ("p", "Admin portale → «Audit Log» o «Attività utenti»: è la stessa pagina, le due voci cambiano solo il periodo di partenza "
+                      "(7 giorni l'Audit Log, 30 giorni Attività utenti)."),
+                ("def", [
+                    ("Periodo", "Oggi, 7, 30, 90 giorni o 1 anno; «Giorno» apre un giorno solo. Il grafico copre fino a 90 giorni."),
+                    ("Chi", "«Persone» (di partenza), «Processi automatici» (task, raccoglitori, comandi) o «Tutte le voci»."),
+                    ("Tessere", "persone attive, accessi riusciti, accessi non riusciti (in rosso se ce ne sono), righe dei processi "
+                                "automatici con la loro quota. Un clic sulla tessera filtra l'elenco."),
+                    ("Attività per giorno", "barre blu = righe delle persone, grigie = processi automatici. Clic su una barra per aprire quel giorno."),
+                    ("Persone più attive / Azioni più frequenti", "clic su un nome o su un'azione per filtrare."),
+                    ("Eventi", "raggruppati per giorno, dal più recente: chi, cosa (Accesso, Creato, Modificato, Eliminato…), su quale record, "
+                               "modulo, codice azione e IP. «N campi modificati» mostra ogni campo come prima → dopo; «Valori» i dati di un record "
+                               "creato. «Processo automatico» = nessuna persona dietro; «Non autenticato» = richiesta senza login."),
+                    ("CSV / Excel", "scaricano le righe con gli stessi filtri."),
+                ]),
+            ],
+        },
+        {
             "id": "audit-politica",
             "titolo": "Cosa registra l'audit automatico",
             "blocchi": [

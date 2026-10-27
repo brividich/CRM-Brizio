@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=6">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -116,7 +116,7 @@
           <option value="">Tutte le persone</option>{% for p in filtri.persone %}<option value="{{ p.id }}">{{ p.nome }}{% if p.reparto %} · {{ p.reparto }}{% endif %}</option>{% endfor %}
         </select>
         <select class="mns-sel" data-mns-f="classe" aria-label="Filtra per classificazione">
-          <option value="">Diretto e indiretto</option>{% for v, t in filtri.classi %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
+          <option value="">Tutte le classificazioni</option>{% for v, t in filtri.classi %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
         </select>
         <div class="fmd-chips" role="group" aria-label="Filtra per tipo">
           <button type="button" class="fmd-chip fmd-on" data-mns-tipo="" aria-pressed="true">Tutte</button>
