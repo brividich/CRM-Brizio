@@ -5267,9 +5267,10 @@ class WorkOrderFlowTests(TestCase):
         response = self.client.get(reverse("assets:wo_close", args=[workorder.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Esito e chiusura")
+        self.assertContains(response, "Com&#x27;è andata?")
         self.assertContains(response, "Giorni di esecuzione")
-        self.assertContains(response, "Tempo indicativo totale")
+        self.assertContains(response, "Tempo impiegato")
+        self.assertContains(response, "Non eseguito, annulla l&#x27;intervento")
         self.assertContains(response, 'id="id_closed_at"', html=False)
         self.assertContains(response, 'name="intervention_duration_hours"', html=False)
         self.assertContains(response, "Chiudi definitivamente")

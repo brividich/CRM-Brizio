@@ -111,6 +111,10 @@ GUIDA = {
                     "fresca la lettura. Un valore non può scendere: per un azzeramento serve la nota. I piani «a "
                     "contatore» chiedono il valore letto quando si registra la manutenzione.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
+                    "«Chiudi intervento» è uguale per asset IT e di produzione: «Com'è andata?» (Risolto già scelto, "
+                    "Risolto temporaneamente, Non risolto, Non eseguito - annulla), poi Esecuzione (data e ora, "
+                    "eseguito da, tempo impiegato, fermo macchina, «Cosa è stato fatto» obbligatorio) e rapportino. "
+                    "Giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli».",
                     "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
                     "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
                     "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "

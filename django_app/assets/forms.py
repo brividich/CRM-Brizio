@@ -3175,13 +3175,17 @@ class WorkOrderForm(forms.ModelForm):
 
 
 class WorkOrderCloseForm(forms.Form):
+    # Lo stato non si chiede piu' a parte: lo decide l'esito (``ESITO_CANCELED``
+    # annulla). Resta nel POST per compatibilita' con chi lo manda esplicito.
     status = forms.ChoiceField(
         choices=[
             (WorkOrder.STATUS_DONE, "Chiusa"),
             (WorkOrder.STATUS_CANCELED, "Annullata"),
         ],
         initial=WorkOrder.STATUS_DONE,
+        required=False,
         label="Esito finale",
+        widget=forms.HiddenInput(),
     )
     closed_at = forms.DateTimeField(
         required=False,
@@ -3189,10 +3193,11 @@ class WorkOrderCloseForm(forms.Form):
         input_formats=["%Y-%m-%dT%H:%M"],
         widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
     )
+    ESITO_CANCELED = "CANCELED"
     esito = forms.ChoiceField(
-        choices=WorkOrder.OUTCOME_CHOICES,
+        choices=list(WorkOrder.OUTCOME_CHOICES) + [(ESITO_CANCELED, "Non eseguito, annulla l'intervento")],
         required=False,
-        label="Esito",
+        label="Com'è andata?",
         widget=forms.RadioSelect,
     )
     follow_up_date = forms.DateField(
@@ -3201,7 +3206,9 @@ class WorkOrderCloseForm(forms.Form):
         widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
     )
     execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
-    resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
+    resolution = forms.CharField(
+        required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Cosa è stato fatto"
+    )
     failure_cause = forms.ChoiceField(
         choices=[("", "Non specificata")] + list(WorkOrder.FAILURE_CAUSE_CHOICES),
         required=False,
@@ -3264,7 +3271,7 @@ class WorkOrderCloseForm(forms.Form):
             )
             self.fields["resolve_ticket"].help_text = (
                 "Vale solo con esito «Risolto». Con «Risolto temporaneamente» o «Non risolto» "
-                "la segnalazione resta com'e'."
+                "la segnalazione resta com'è."
             )
         # Codici guasto: globali + categoria dell'asset e sue antenate.
         from .models import FailureCode
@@ -3312,7 +3319,7 @@ class WorkOrderCloseForm(forms.Form):
         else:
             self.fields["claim_on_close"].help_text = (
                 "L'intervento non risulta assegnato a nessuno: chiudendolo diventa tuo, "
-                "cosi' lo storico dice chi ci e' andato. Togli la spunta se stai "
+                "così lo storico dice chi ci è andato. Togli la spunta se stai "
                 "registrando il lavoro di un altro."
             )
         self.fields["cost_eur"].help_text = "Opzionale: se compilato sostituisce la somma manodopera + materiali."
@@ -3339,10 +3346,14 @@ class WorkOrderCloseForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        status = cleaned_data.get("status")
+        if cleaned_data.get("esito") == self.ESITO_CANCELED:
+            cleaned_data["status"] = WorkOrder.STATUS_CANCELED
+            cleaned_data["esito"] = ""
+        status = cleaned_data.get("status") or WorkOrder.STATUS_DONE
+        cleaned_data["status"] = status
         resolution = (cleaned_data.get("resolution") or "").strip()
         if status == WorkOrder.STATUS_DONE and not resolution:
-            self.add_error("resolution", "Descrivi la risoluzione prima di chiudere l'intervento.")
+            self.add_error("resolution", "Scrivi cosa è stato fatto prima di chiudere l'intervento.")
 
         closed_at = cleaned_data.get("closed_at") or timezone.now()
         cleaned_data["closed_at"] = closed_at
