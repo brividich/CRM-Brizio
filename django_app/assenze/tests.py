@@ -868,6 +868,71 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
 
         self.assertEqual(resolved, "capo.hr@example.com")
 
+    @patch("assenze.views._helpers._resolve_anagrafica_hr_effective_capo_ids", return_value=(None, None))
+    @patch("assenze.views._helpers._find_reparto_for_user", return_value="")
+    def test_resolve_default_capo_non_propone_mai_il_dipendente(self, _mock_reparto, _mock_effective):
+        # Il CAR responsabile della propria area: lo storico lo indica come
+        # capo di se stesso, ma la proposta deve restare vuota, non lui.
+        capi = [
+            {
+                "Value": "Car Reparto",
+                "Email": "car@example.com",
+                "LookupId": "legacy_user:12",
+                "LegacyLookupId": "",
+                "LegacyUserId": "12",
+                "AnagraficaLegacyId": "301",
+            }
+        ]
+        with patch("assenze.views._helpers._table_exists", return_value=True), patch(
+            "assenze.views._helpers._fetch_all_dict",
+            return_value=[{"capo_reparto_id": 12, "capo_reparto_lookup_id": None}],
+        ):
+            resolved = _resolve_default_capo_for_user(
+                name="Car Reparto", email="car@example.com", username="c.reparto", capi=capi, legacy_user_id=12,
+            )
+        self.assertEqual(resolved, "")
+
+    @patch("anagrafica.services.capo_team.capo_effettivo", return_value=401)
+    @patch("anagrafica.services.reparto_canonico.resolve_responsabile_effettivo", return_value=301)
+    @patch("assenze.views._helpers._capo_regola_unica", return_value=None)
+    @patch("assenze.views._helpers._resolve_anagrafica_employee_id_for_user", return_value=301)
+    def test_capo_di_se_stesso_sale_al_superiore(self, _mock_emp, _mock_regola, _mock_resp, _mock_team):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        from assenze.views._helpers import _resolve_anagrafica_hr_effective_capo_ids
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=301)
+        with patch("assenze.views._helpers._legacy_user_id_from_anagrafica_employee_id", side_effect=lambda i: i):
+            _user_id, capo_id = _resolve_anagrafica_hr_effective_capo_ids(
+                legacy_user_id=12, email="car@example.com", username="c.reparto", name="Car Reparto",
+            )
+        self.assertEqual(capo_id, 401)
+
+    def test_superiore_per_ruolo_segue_il_ruolo_piu_alto(self):
+        # CAR con anche il ruolo di Preposto: la linea e' quella del ruolo piu'
+        # vicino alla cima (Caporeparto -> OPM), non Preposto -> ESM.
+        from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
+        from anagrafica.services.capo_team import superiore_per_ruolo
+
+        ceo = RuoloOperativo.objects.create(nome="Ceo test")
+        mr = RuoloOperativo.objects.create(nome="Mr test", riporta_a=ceo)
+        esm = RuoloOperativo.objects.create(nome="Esm test", riporta_a=mr)
+        opm = RuoloOperativo.objects.create(nome="Opm test", riporta_a=ceo)
+        car = RuoloOperativo.objects.create(nome="Car test", riporta_a=opm)
+        preposto = RuoloOperativo.objects.create(nome="Preposto test", riporta_a=esm)
+        for legacy_id, ruolo in ((301, car), (301, preposto), (200, esm), (202, opm), (306, ceo)):
+            DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=legacy_id, ruolo=ruolo)
+
+        self.assertEqual(superiore_per_ruolo(301), 202)
+        self.assertEqual(superiore_per_ruolo(202), 306)
+        self.assertIsNone(superiore_per_ruolo(306))
+
+    @patch("anagrafica.services.capo_team.capo_effettivo", return_value=301)
+    def test_capo_mai_se_stesso_senza_superiore(self, _mock_team):
+        from assenze.views._helpers import _capo_mai_se_stesso
+
+        self.assertIsNone(_capo_mai_se_stesso(301))
+
     @patch("assenze.views._helpers._load_anagrafica_hr_capi_options")
     def test_resolve_capo_local_id_from_anagrafica_hr_options(self, mock_hr_options):
         mock_hr_options.return_value = [
