@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from django.utils import timezone
 
@@ -80,6 +81,14 @@ REGISTRO: dict[str, Colonna] = {c.chiave: c for c in [
     Colonna("visita_scadenza", "Prossima scadenza visita", "visite", "scadenza", tipo="date", permesso="visite", sensibile=True, sezione="Salute e sicurezza"),
     Colonna("visita_scaduta", "Visita scaduta", "visite", "scaduta", tipo="bool", permesso="visite", sensibile=True, sezione="Salute e sicurezza"),
     Colonna("timbri", "Timbri attivi", "timbri", tipo="number", sezione="Qualità"),
+    # --- mansioni: classificazione e coefficienti (ottobre 2026) ---
+    Colonna("n_mansioni", "Mansioni svolte", "mansioni", "n", tipo="number", sezione="Mansioni"),
+    Colonna("classificazione", "Classificazione", "mansioni", "classe", sezione="Mansioni"),
+    Colonna("coefficienti", "Coefficienti", "mansioni", "stato", sezione="Mansioni"),
+    # --- costo orario: dato retributivo, solo con permesso HR ---
+    Colonna("costo_orario", "Costo orario (€/h)", "costo", "costo", tipo="number", permesso="hr", sensibile=True,
+            sezione="Costi"),
+    Colonna("costo_orario_mese", "Costo orario: mese", "costo", "mese", permesso="hr", sezione="Costi"),
 ]}
 
 DEFAULT_COLONNE = ["reparto", "mansione", "email"]
@@ -224,6 +233,37 @@ def _carica_timbri(ids):
     return out
 
 
+def _carica_mansioni(ids):
+    """Classificazione prevalente e stato dei coefficienti (``mansioni_coefficienti.stati``)."""
+    from .mansioni_coefficienti import stati
+
+    out = {}
+    for blocco in _blocchi(ids):
+        for lid, s in stati(blocco).items():
+            if not s["n"]:
+                continue
+            if not s["in_regola"]:
+                stato = "la somma non fa 1"
+            elif s["da_rivedere"]:
+                stato = "da rivedere"
+            elif s["turni_misti"]:
+                stato = "turni misti"
+            else:
+                stato = "in regola"
+            out[lid] = {"n": s["n"], "classe": s["classe_principale_label"] or "da indicare", "stato": stato}
+    return out
+
+
+def _carica_costo(ids):
+    from .costo_orario import ultimi
+
+    out = {}
+    for blocco in _blocchi(ids):
+        for lid, c in ultimi(blocco).items():
+            out[lid] = {"costo": c.costo_orario, "mese": c.mese.strftime("%m/%Y")}
+    return out
+
+
 def _fmt(valore, tipo):
     if valore is None or valore == "":
         return ""
@@ -231,6 +271,8 @@ def _fmt(valore, tipo):
         return "Sì" if valore else "No"
     if tipo == "date" and isinstance(valore, date):
         return valore.strftime("%d/%m/%Y")
+    if isinstance(valore, Decimal):
+        return f"{valore:.2f}".replace(".", ",")
     return str(valore)
 
 
@@ -249,6 +291,10 @@ def arricchisci(rows: list[dict], colonne: list[Colonna]) -> None:
         dati["formazione"] = _carica_formazione(ids, None)
     if "visite" in gruppi:
         dati["visite"] = _carica_visite(ids, None)
+    if "mansioni" in gruppi:
+        dati["mansioni"] = _carica_mansioni(ids)
+    if "costo" in gruppi:
+        dati["costo"] = _carica_costo(ids)
     account = _carica_account(rows) if "account" in gruppi else {}
     timbri = _carica_timbri(ids) if "timbri" in gruppi else {}
     if "ruoli" in gruppi and not all("ruoli" in r for r in rows):
@@ -274,6 +320,11 @@ def arricchisci(rows: list[dict], colonne: list[Colonna]) -> None:
             else:
                 grezzo = (dati.get(c.gruppo, {}).get(lid) or {}).get(c.campo)
             testo = _fmt(grezzo, c.tipo)
-            ordine = grezzo.isoformat() if isinstance(grezzo, date) else testo
+            if isinstance(grezzo, date):
+                ordine = grezzo.isoformat()
+            elif isinstance(grezzo, (Decimal, int)) and not isinstance(grezzo, bool):
+                ordine = f"{float(grezzo):015.4f}"  # i numeri si ordinano come numeri, non come testo
+            else:
+                ordine = testo
             valori[c.chiave] = (testo, ordine)
         r["valori"] = valori

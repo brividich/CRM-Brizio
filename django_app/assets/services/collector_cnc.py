@@ -242,8 +242,10 @@ def cnc_da_sistemare():
     from assets.models import Asset
 
     macchina = Asset.TYPE_WORK_MACHINE
+    # Tipo CNC o macchina di lavoro senza scheda: compaiono gia' nel menu (vedi views_mtconnect._macchine).
     return (Asset.objects.filter(work_machine__isnull=True).exclude(status=Asset.STATUS_RETIRED)
-            .filter(Q(asset_type__in=[Asset.TYPE_CNC, macchina]) | Q(asset_category__base_asset_type=macchina)
+            .exclude(asset_type__in=[Asset.TYPE_CNC, macchina])
+            .filter(Q(asset_category__base_asset_type=macchina)
                     | Q(asset_category__children__base_asset_type=macchina) | Q(asset_category__label__icontains="cnc"))
             .select_related("asset_category").distinct().order_by("name", "asset_tag"))
 

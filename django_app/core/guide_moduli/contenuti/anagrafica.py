@@ -475,7 +475,9 @@ GUIDA = {
                 ]),
                 ("nota", "Mansione aggiunta o tolta: i coefficienti si ripartiscono da soli (la nuova 1/n, le altre "
                          "in proporzione) e la persona è «da rivedere» finché qualcuno non salva. 1T e 2T sulla "
-                         "stessa persona = «turni misti» (avviso). Nel Mansionario il filtro «Diretto e indiretto»; "
+                         "stessa persona = «turni misti» (avviso). Si vede anche nel riepilogo della scheda, nel Mansionario "
+                         "della persona e nell'elenco dipendenti (vista «Mansioni e costi», colonne «Mansioni svolte», "
+                         "«Classificazione», «Coefficienti»). Nel Mansionario il filtro «Tutte le classificazioni»; "
                          "in blocco ed Excel la colonna «Classificazione» e «Coefficiente»."),
             ],
         },
@@ -488,7 +490,9 @@ GUIDA = {
                 ("passi", [
                     "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, ricerca; «Esporta ▾» "
                     "(Excel o PDF; «tutto» = tutti i mesi).",
-                    "Scheda del dipendente, retribuzioni: ultimi 12 mesi con il calcolo.",
+                    "Scheda del dipendente: ultimo valore nel riepilogo, ultimi 12 mesi con il calcolo tra le retribuzioni.",
+                    "Elenco dipendenti: colonne «Costo orario (€/h)» e «Costo orario: mese» (vista «Mansioni e costi»), "
+                    "solo per chi ha il permesso HR.",
                     "In fondo alla pagina «Divisori»: «Salva e ricalcola» rifà tutti i mesi; «Ricalcola tutto» senza "
                     "cambiarli.",
                 ]),
