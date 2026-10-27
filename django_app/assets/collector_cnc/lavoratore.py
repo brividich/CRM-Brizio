@@ -62,7 +62,7 @@ class Ritmo:
 
     def backoff(self, tentativi: int) -> float:
         """Attesa dopo ``tentativi`` fallimenti consecutivi: poll, 2×poll, 4×poll… fino a 300 s."""
-        base = min(self.poll * (2 ** max(0, tentativi - 1)), BACKOFF_MASSIMO)
+        base = min(self.poll * (2.0 ** max(0, tentativi - 1)), BACKOFF_MASSIMO)
         return max(POLL_MINIMO, min(BACKOFF_MASSIMO, base * (1 + self.rng.uniform(-JITTER, JITTER))))
 
 

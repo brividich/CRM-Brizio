@@ -51,8 +51,24 @@ class ControlloStaticoTests(unittest.TestCase):
         self.assertTrue({"write_value", "cnc_wrparam", "pmc_wrpmcrng", "send_file"} <= {n for n in nomi if vietati.vietato(n)})
 
     def test_whitelist_senza_nomi_vietati(self) -> None:
-        for nome in opcua.CLIENT_AMMESSI | opcua.NODO_AMMESSI:
+        from assets.collector_cnc.drivers import focas, lsv2
+
+        for nome in (opcua.CLIENT_AMMESSI | opcua.NODO_AMMESSI | lsv2.LSV2_AMMESSI | lsv2.DATI_AMMESSI
+                     | focas.FWLIB_AMMESSE):
             self.assertFalse(vietati.vietato(nome), nome)
+
+    def test_whitelist_esatte(self) -> None:
+        """Le whitelist sono quelle decise: cambiarle richiede di cambiare anche questo test (e l'ADR)."""
+        from assets.collector_cnc.drivers import focas, lsv2
+
+        self.assertEqual(lsv2.LSV2_AMMESSI, {"connect", "disconnect", "versions", "execution_state", "program_status",
+                                             "program_stack", "override_state", "get_error_messages"})
+        self.assertEqual(focas.FWLIB_AMMESSE, {"cnc_startupprocess", "cnc_exitprocess", "cnc_allclibhndl3",
+                                               "cnc_freelibhndl", "cnc_statinfo", "cnc_exeprgname", "cnc_actf",
+                                               "cnc_acts", "cnc_rdparam"})
+        self.assertEqual(opcua.CLIENT_AMMESSI, {"connect", "disconnect", "get_namespace_array", "get_node",
+                                                "read_attributes", "read_values"})
+        self.assertEqual(opcua.NODO_AMMESSI, {"nodeid", "read_browse_name", "get_children", "read_value"})
 
 
 class _Finto:

@@ -344,29 +344,5 @@
    7200,
    9000
   ]
- ],
- "stdout": [
-  "SIM   connessa (umati) - 10 segnali",
-  "SIM            - -> FERMA     ",
-  "SIM        FERMA -> LAVORO      prog=DM9_0014_R1_3",
-  "SIM   + msg M10 (sev 500) Lubrificazione centralizzata",
-  "SIM   + msg A100 (sev 900) Asse X fuori limite",
-  "SIM       LAVORO -> ALLARME     prog=DM9_0014_R1_3  allarme=A100",
-  "SIM   - msg A100 rientrato",
-  "SIM   - msg M10 rientrato",
-  "SIM      ALLARME -> LAVORO      prog=DM9_0014_R1_3",
-  "SIM       LAVORO -> SETUP       prog=DM9_0014_R1_3",
-  "SIM        SETUP -> INTERROTTA  prog=DM9_0014_R1_3",
-  "SIM   INTERROTTA -> EMERGENZA   prog=DM9_0014_R1_3",
-  "SIM    EMERGENZA -> FERMA       prog=DM9_0014_R1_3",
-  "SIM   + msg A200 (sev 850) Pressione aria bassa",
-  "SIM        FERMA -> ALLARME     prog=DM9_0014_R1_3  allarme=A200",
-  "SIM   - msg A200 rientrato",
-  "SIM      ALLARME -> FERMA       prog=DM9_0014_R1_3",
-  "SIM        FERMA -> OFFLINE   ",
-  "SIM   connessa (umati) - 10 segnali",
-  "SIM      OFFLINE -> FERMA     ",
-  "SIM        FERMA -> LAVORO      prog=DM9_0014_R1_3",
-  "SIM       LAVORO -> SETUP       prog=DM9_0014_R1_3"
  ]
 }

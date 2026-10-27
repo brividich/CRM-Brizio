@@ -53,6 +53,7 @@ pydantic-core==2.46.4     # via pydantic
 pyjwt==2.15.0             # via msal, pyjwt
 pymupdf==1.28.2         # via -r requirements.in
 pyodbc==5.3.0             # via -r requirements.in, mssql-django
+pylsv2==1.8.0             # via -r requirements.in (collector CNC Heidenhain LSV2)
 pyopenssl==26.4.0         # via asyncua, -r requirements.in
 pyotp==2.10.0              # via -r requirements.in
 pyspnego==0.12.4          # via -r requirements.in

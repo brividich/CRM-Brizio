@@ -17,8 +17,10 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from asyncua import Client, ua
+from asyncua import ua
+from asyncua.client.client import Client
 from asyncua.common.node import Node
+from asyncua.ua.status_codes import StatusCodes
 
 from .base import ProxySolaLettura
 
@@ -152,26 +154,39 @@ def client_sola_lettura(url: str, timeout: float = CONNECT_TIMEOUT, username: st
     return ProxySolaLettura(client, CLIENT_AMMESSI, NOME_DRIVER, _avvolgi_nodi)
 
 
+async def _disconnetti(client: Any, log: Any) -> None:
+    try:
+        await asyncio.wait_for(client.disconnect(), DISCONNECT_TIMEOUT)
+    except Exception as e:  # noqa: BLE001 - la sessione si chiude comunque lato server
+        log.debug("disconnessione non pulita: %s", e)
+
+
 @contextlib.asynccontextmanager
-async def sessione(url: str, username: str | None, password: str | None, nome: str) -> AsyncIterator[Any]:
-    """Sessione OPC UA aperta per tutto il blocco; la disconnessione è tentata sempre all'uscita."""
+async def sessione(url: str, username: str | None, password: str | None, nome: str,
+                   log_m: Any = None) -> AsyncIterator[Any]:
+    """Sessione OPC UA aperta per tutto il blocco; la chiusura è tentata su ogni percorso,
+    anche quando l'apertura fallisce a metà (socket aperto, sessione non attivata, timeout)."""
+    lg = log_m or log
     client = client_sola_lettura(url, CONNECT_TIMEOUT, username, password)
-    await asyncio.wait_for(client.connect(), CONNECT_TIMEOUT + 2)
+    try:
+        await asyncio.wait_for(client.connect(), CONNECT_TIMEOUT + 2)
+    except BaseException:
+        await _disconnetti(client, lg)
+        raise
     try:
         yield client
     finally:
-        try:
-            await asyncio.wait_for(client.disconnect(), DISCONNECT_TIMEOUT)
-        except Exception as e:  # noqa: BLE001 - la sessione si chiude comunque lato server
-            log.debug("%s: disconnessione non pulita: %s", nome, e)
+        await _disconnetti(client, lg)
 
 
 class DriverOpcUa:
     """Letture di una sessione OPC UA aperta: modello dati, nodi, segnali, contatori, allarmi."""
 
-    def __init__(self, client: Any, nome: str, ns: int, data_model: str, found_serial: str) -> None:
+    def __init__(self, client: Any, nome: str, ns: int, data_model: str, found_serial: str,
+                 log_m: Any = None) -> None:
         self.client = client
         self.nome = nome
+        self.log = log_m or log
         self.ns = ns
         self.data_model = data_model
         self.spec: dict[str, Any] = MODELS[data_model]
@@ -179,17 +194,18 @@ class DriverOpcUa:
         self.alarm_nodes: dict[str, dict[str, Any]] = {}   # nodeid condition -> nodi figli (per sessione)
 
     @classmethod
-    async def rileva(cls, client: Any, nome: str) -> DriverOpcUa:
+    async def rileva(cls, client: Any, nome: str, log_m: Any = None) -> DriverOpcUa:
         """Riconosce il modello dati dal namespace DMG MORI; RuntimeError se non è una DMG."""
         nsarr = await client.get_namespace_array()
         ns = next((i for i, u in enumerate(nsarr) if DMG_MACHINE_URI in u), None)
         if ns is None:
             raise RuntimeError("namespace DMG MORI non trovato")
         data_model = "umati" if UMATI_URI in nsarr else "bds"
-        return cls(client, nome, ns, data_model, nsarr[ns].rstrip("/").split("/")[-1])
+        return cls(client, nome, ns, data_model, nsarr[ns].rstrip("/").split("/")[-1], log_m)
 
     def node(self, s: str) -> Any:
-        return self.client.get_node(ua.NodeId(s, self.ns))
+        # NodeId stringa nel namespace DMG MORI (gli alias di tipo di asyncua non accettano str/int nudi)
+        return self.client.get_node(ua.NodeId(s, self.ns))  # type: ignore[arg-type]
 
     async def resolve(self, group: dict[str, str]) -> dict[str, Any]:
         """Verifica dei nodi: scarta quelli che su questa macchina non esistono."""
@@ -198,8 +214,8 @@ class DriverOpcUa:
         dvs = await self.client.read_attributes(nodes)
         ok = {}
         for n, nd, dv in zip(names, nodes, dvs, strict=True):
-            if dv.StatusCode.value == ua.StatusCodes.BadNodeIdUnknown:
-                log.info("%s: nodo %s assente, ignorato", self.nome, group[n])
+            if dv.StatusCode.value == StatusCodes.BadNodeIdUnknown:
+                self.log.info("nodo %s assente, ignorato", group[n])
             else:
                 ok[n] = nd
         return ok
@@ -211,7 +227,7 @@ class DriverOpcUa:
         try:
             return str(await self.node("VendorServerInfo").read_value())
         except Exception as e:  # noqa: BLE001 - la versione del server è solo informativa
-            log.debug("%s: versione del server non letta: %s", self.nome, e)
+            self.log.debug("versione del server non letta: %s", e)
             return ""
 
     async def colors(self, static: dict[str, Any]) -> dict[str, str]:
@@ -267,7 +283,7 @@ class DriverOpcUa:
         try:
             children = await folder.get_children()
         except Exception as e:  # noqa: BLE001 - cartella allarmi non leggibile: si riprova al giro dopo
-            log.debug("%s: allarmi non letti: %s", self.nome, e)
+            self.log.debug("allarmi non letti: %s", e)
             return None
         for ch in children:
             key = ch.nodeid.to_string()
@@ -275,7 +291,7 @@ class DriverOpcUa:
                 try:
                     self.alarm_nodes[key] = await self.describe_condition(ch)
                 except Exception as e:  # noqa: BLE001 - condition non descrivibile: ignorata
-                    log.debug("%s: condition %s ignorata: %s", self.nome, key, e)
+                    self.log.debug("condition %s ignorata: %s", key, e)
                     self.alarm_nodes[key] = {"active": None}
         conds = [(k, i) for k, i in self.alarm_nodes.items() if i.get("active") is not None]
         if not conds:

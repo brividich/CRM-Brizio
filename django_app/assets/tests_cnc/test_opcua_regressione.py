@@ -3,7 +3,8 @@
 Un server OPC UA simulato (``sim_opcua``) recita lo stesso copione per i due modelli dati (umati e
 BasicDataSet): lavoro, messaggi, allarme vero, condition segnaposto, MDI, interruzione, emergenza,
 server spento e riacceso. Il collector vero (``Machine.run``) lo legge; il contenuto di machines.db
-e le righe stampate, senza gli orari, devono essere identici al riferimento in ``dati/``.
+senza gli orari, deve essere identico al riferimento in ``dati/`` (generato prima del refactor
+nei driver; dalla Fase 1 le righe a video sono diventate righe di log e non fanno più parte del confronto).
 
 Rigenerare il riferimento solo per un cambio di comportamento voluto e motivato nel commit:
 ``CNC_REGRESSIONE_RIGENERA=1`` prima del comando di test.
@@ -12,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import io
 import json
 import logging
 import os
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from assets.collector_cnc import collector
+from assets.collector_cnc import collector, lavoratore
 from assets.collector_cnc.drivers import opcua
 from assets.collector_cnc.drivers.base import spia
 from assets.tests_cnc.sim_opcua import CncSimulata
@@ -129,14 +129,14 @@ class RegressioneOpcUaTests(unittest.TestCase):
         await sim.avvia()
         cartella = tempfile.mkdtemp(prefix="cnc_regr_")
         db_path = os.path.join(cartella, "machines.db")
-        out = io.StringIO()
         task = None
         try:
-            with spia() as chiamate, contextlib.redirect_stdout(out), mock.patch.multiple(
-                    collector, FAST_PERIOD=0.05, ALARM_PERIOD=0, COUNTER_PERIOD=0, RETRY_MIN=0.1, RETRY_MAX=0.4):
+            with spia() as chiamate, mock.patch.object(lavoratore, "POLL_MINIMO", 0.01), mock.patch.multiple(
+                    collector, ALARM_PERIOD=0, COUNTER_PERIOD=0):
                 db = collector.DB(db_path)
                 m = collector.Machine({"name": "SIM", "ip": "127.0.0.1", "port": sim.porta, "serial": sim.matricola,
-                                       "model": "DMC 85", "department": "R1", "asset_tag": "SIM-1"}, db)
+                                       "model": "DMC 85", "department": "R1", "asset_tag": "SIM-1",
+                                       "poll_seconds": 0.05}, db)
                 giri = [0]
                 tocca = m.touch
 
@@ -177,10 +177,8 @@ class RegressioneOpcUaTests(unittest.TestCase):
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
             await sim.ferma()
-        db.conn.close()
+        db.chiudi()
         risultato: dict[str, Any] = _tabelle(db_path)
-        # righe a video senza l'orario iniziale (HH:MM:SS + 2 spazi)
-        risultato["stdout"] = [r[10:] for r in out.getvalue().splitlines() if r.strip()]
         # spia: ogni accesso alla libreria OPC UA è nella whitelist (client o nodo)
         usati = {nome for driver, nome in chiamate if driver == "opcua"}
         self.assertTrue(usati, "la spia non ha registrato niente")

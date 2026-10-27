@@ -204,7 +204,7 @@ class DriverFocas:
             raw: dict[str, Any] = {}
         else:
             stato, esecuzione, modo = stati.stato_fanuc(st.aut, st.run, st.emergency, st.alarm)
-            raw = {k: getattr(st, k) for k, _t in ODBST._fields_}
+            raw = {campo[0]: getattr(st, campo[0]) for campo in ODBST._fields_}
         prg = f.chiama("cnc_exeprgname", lambda: self._leggi("cnc_exeprgname", ODBEXEPRG()))
         actf = f.chiama("cnc_actf", lambda: self._leggi("cnc_actf", ODBACT()))
         acts = f.chiama("cnc_acts", lambda: self._leggi("cnc_acts", ODBACT()))

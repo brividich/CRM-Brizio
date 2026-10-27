@@ -8,14 +8,22 @@ Niente scritture e niente metodi. Prima l'accesso anonimo, poi le credenziali gi
 
 Lo usa la pagina Macchine collegate («Cerca le macchine in rete»): rete al massimo /24, solo IPv4 interni.
 """
+from __future__ import annotations
+
 import asyncio
 import ipaddress
 import logging
+from typing import Any
 
 try:
     from .drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, UMATI_URI, client_sola_lettura   # dentro il portale
 except ImportError:
-    from drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, UMATI_URI, client_sola_lettura    # sul PC dell'officina
+    from drivers.opcua import (  # type: ignore[no-redef]  # sul PC dell'officina
+        CONNECT_TIMEOUT,
+        DMG_MACHINE_URI,
+        UMATI_URI,
+        client_sola_lettura,
+    )
 
 TCP_TIMEOUT = 1.0        # s - attesa della porta aperta
 MAX_TCP = 128            # prove TCP in parallelo
@@ -25,7 +33,7 @@ MAX_INDIRIZZI = 256      # al massimo una /24
 log = logging.getLogger("collector.cerca")
 
 
-def indirizzi(rete):
+def indirizzi(rete: str) -> list[str]:
     """Gli host di una rete IPv4 interna (al massimo /24); ValueError con il motivo."""
     try:
         net = ipaddress.ip_network(str(rete or "").strip(), strict=False)
@@ -38,7 +46,7 @@ def indirizzi(rete):
     return [str(h) for h in (list(net.hosts()) or [net.network_address])]
 
 
-async def _porta_aperta(ip, porta, sem):
+async def _porta_aperta(ip: str, porta: int, sem: asyncio.Semaphore) -> bool:
     async with sem:
         try:
             _lettore, scrittore = await asyncio.wait_for(asyncio.open_connection(ip, porta), TCP_TIMEOUT)
@@ -52,19 +60,20 @@ async def _porta_aperta(ip, porta, sem):
         return True
 
 
-def _accesso_negato(errore):
+def _accesso_negato(errore: BaseException) -> bool:
     nome = type(errore).__name__
     return "Identity" in nome or "UserAccessDenied" in nome
 
 
-async def _leggi_server(ip, porta, credenziali, sem):
+async def _leggi_server(ip: str, porta: int, credenziali: list[tuple[str, str, Any]],
+                        sem: asyncio.Semaphore) -> dict[str, Any]:
     """``{"ip", "porta", "dmg", "matricola", "modello", "credenziali", "errore"}`` di un server che risponde.
 
     ``credenziali``: ``[(utente, password, chiave)]`` da provare dopo l'accesso anonimo; in uscita
     ``credenziali`` e' la chiave di quelle che hanno funzionato (None = anonimo).
     ``errore``: "" | "accesso" (servono utente e password) | testo breve dell'errore OPC UA.
     """
-    esito = {"ip": ip, "porta": porta, "dmg": False, "matricola": "", "modello": "", "credenziali": None, "errore": ""}
+    esito: dict[str, Any] = {"ip": ip, "porta": porta, "dmg": False, "matricola": "", "modello": "", "credenziali": None, "errore": ""}
     async with sem:
         for cred in [None, *credenziali]:
             client = client_sola_lettura(f"opc.tcp://{ip}:{porta}", CONNECT_TIMEOUT,
@@ -98,7 +107,7 @@ async def _leggi_server(ip, porta, credenziali, sem):
     return esito
 
 
-async def cerca(rete, porta=4840, credenziali=()):
+async def cerca(rete: str, porta: int = 4840, credenziali: Any = ()) -> list[dict[str, Any]]:
     """I server OPC UA della rete, in ordine di indirizzo (vedi ``_leggi_server``)."""
     host = indirizzi(rete)
     sem_tcp = asyncio.Semaphore(MAX_TCP)

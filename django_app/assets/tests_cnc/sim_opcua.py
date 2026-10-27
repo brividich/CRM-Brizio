@@ -92,11 +92,31 @@ class CncSimulata:
     def url(self) -> str:
         return f"opc.tcp://127.0.0.1:{self.porta}"
 
-    async def avvia(self) -> None:
+    async def avvia_con_certificato(self, etichetta: str) -> None:
+        """Avvio con un certificato del server nuovo (autofirmato, generato al volo)."""
+        await self.avvia(certificato=etichetta)
+
+    async def avvia(self, certificato: str | None = None) -> None:
         server = Server()
         await server.init()
         server.set_endpoint(self.url + "/")
         server.set_server_name("CNC simulata")
+        if certificato:
+            from asyncua.crypto.cert_gen import (
+                dump_private_key_as_pem,
+                generate_private_key,
+                generate_self_signed_app_certificate,
+            )
+            from cryptography import x509
+            from cryptography.hazmat.primitives.serialization import Encoding
+            from cryptography.x509.oid import ExtendedKeyUsageOID
+
+            chiave = generate_private_key()
+            cert = generate_self_signed_app_certificate(
+                chiave, f"CNC simulata {certificato}", {}, [x509.UniformResourceIdentifier("urn:cnc:simulata")],
+                [ExtendedKeyUsageOID.SERVER_AUTH])
+            await server.load_certificate(cert.public_bytes(Encoding.DER))
+            await server.load_private_key(dump_private_key_as_pem(chiave), None, "pem")
         if self.modello == "umati":
             await server.register_namespace(UMATI_URI)
         ns = await server.register_namespace(f"http://DMGMORI.com/Machines/{self.matricola}/")

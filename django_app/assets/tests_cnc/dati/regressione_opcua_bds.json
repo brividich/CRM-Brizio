@@ -359,29 +359,5 @@
    7200,
    720000
   ]
- ],
- "stdout": [
-  "SIM   connessa (bds, v2.1.0) - 11 segnali",
-  "SIM            - -> FERMA     ",
-  "SIM        FERMA -> LAVORO      prog=DM12-0055-R0-1",
-  "SIM   + msg M10 (sev 500) Lubrificazione centralizzata",
-  "SIM   + msg A100 (sev 900) Asse X fuori limite",
-  "SIM       LAVORO -> ALLARME     prog=DM12-0055-R0-1  allarme=A100",
-  "SIM   - msg A100 rientrato",
-  "SIM   - msg M10 rientrato",
-  "SIM      ALLARME -> LAVORO      prog=DM12-0055-R0-1",
-  "SIM       LAVORO -> SETUP       prog=DM12-0055-R0-1",
-  "SIM        SETUP -> INTERROTTA  prog=DM12-0055-R0-1",
-  "SIM   INTERROTTA -> EMERGENZA   prog=DM12-0055-R0-1",
-  "SIM    EMERGENZA -> FERMA       prog=DM12-0055-R0-1",
-  "SIM   + msg A200 (sev 850) Pressione aria bassa",
-  "SIM        FERMA -> ALLARME     prog=DM12-0055-R0-1  allarme=A200",
-  "SIM   - msg A200 rientrato",
-  "SIM      ALLARME -> FERMA       prog=DM12-0055-R0-1",
-  "SIM        FERMA -> OFFLINE   ",
-  "SIM   connessa (bds, v2.1.0) - 11 segnali",
-  "SIM      OFFLINE -> FERMA     ",
-  "SIM        FERMA -> LAVORO      prog=DM12-0055-R0-1",
-  "SIM       LAVORO -> SETUP       prog=DM12-0055-R0-1"
  ]
 }
