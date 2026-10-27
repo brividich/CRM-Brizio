@@ -12,6 +12,7 @@ GUIDA = {
         ("Lavoro quotidiano", "/soc/docs/13-lavoro-quotidiano/"),
         ("Risoluzione problemi", "/soc/docs/09-troubleshooting/"),
         ("Registro accessi", "/soc/docs/18-registro-accessi/"),
+        ("Conformità ISO 27001", "/soc/docs/19-conformita-iso27001/"),
     ],
     "uso": [
         {
@@ -25,6 +26,19 @@ GUIDA = {
                     "Decidi: prendi in carico, chiudi come risolto o scarta come falso allarme (scrivendo il perché).",
                 ]),
                 ("p", "La guida completa del Security Center ha un capitolo per ogni pagina: i collegamenti sono in cima."),
+            ],
+        },
+        {
+            "id": "iso_incidenti",
+            "titolo": "Incidenti secondo ISO 27001: tempi, riesame, prove, ripristini",
+            "blocchi": [
+                ("ul", [
+                    "Ogni alert va preso in carico entro un tempo per gravità (critica 1 ora, alta 4, media 24, bassa 72): oltre, l'alert mostra «oltre il tempo di presa in carico» e, se acceso, parte un avviso.",
+                    "Incidente risolto o chiuso: compila «Lezioni apprese» (causa, cosa ha funzionato, cosa migliorare) e le azioni correttive con responsabile e scadenza. Finché manca, l'incidente dice «Riesame mancante» e dopo 7 giorni arriva un promemoria; nessuna chiusura viene bloccata.",
+                    "Evidenze di un alert: «Verifica integrità» ricalcola l'impronta SHA-256 e dice se sono integre o alterate; «Esporta» scarica tutto con la catena di custodia.",
+                    "Backup › Prove di ripristino: registra ogni prova di ripristino; una fallita apre un alert, una in ritardo oltre i 90 giorni manda un promemoria.",
+                ]),
+                ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
             ],
         },
         {
@@ -94,6 +108,22 @@ GUIDA = {
             ],
         },
         {
+            "id": "tempi-di-correzione",
+            "titolo": "Tempi di correzione e accettazione del rischio (ISO 27001 8.8)",
+            "blocchi": [
+                ("p", "Ogni PC esposto a una CVE ha un termine di correzione che parte da «esposto dal»: sfruttata (CISA KEV) la data "
+                      "chiesta da CISA o 14 giorni, critica 15, alta 30, media 90, bassa 180 (si cambiano in Impostazioni › «Vulnerabilità: "
+                      "tempi di correzione»). Lo vedi nella scheda CVE (colonna «Termine»), nel pannello della CVE e nel riquadro «Tempi di "
+                      "correzione» della pagina Vulnerabilità, con la percentuale di PC corretti nel termine per classe."),
+                ("p", "Passato il termine nasce da solo un alert «Oltre il termine di correzione» (uno per CVE, PC e termine; alto per "
+                      "sfruttate e critiche, medio per le altre), che si chiude da solo quando il PC non risulta più esposto."),
+                ("p", "Se la correzione non si può fare nel termine, chi configura il SOC accetta il rischio dalla scheda CVE: PC o tutti i "
+                      "PC, motivo (almeno 20 caratteri), misure compensative, scadenza entro 12 mesi. Finché è attiva l'alert non scatta; 30 "
+                      "giorni prima arriva un promemoria e alla scadenza l'esposizione torna a contare. Elenco e revoca in Dispositivi › "
+                      "«Rischi accettati». Tutto, comprese le decisioni a mano sugli alert, resta nel registro audit sigillato del portale."),
+            ],
+        },
+        {
             "id": "registro-accessi",
             "titolo": "Registro accessi: log dei server e amministratori di sistema",
             "blocchi": [
@@ -111,6 +141,24 @@ GUIDA = {
                     "«Indagini» (solo chi configura il SOC): accessi ai file, stampe e chiavette USB si consultano solo "
                     "aprendo un'indagine con motivo, persone e periodo (es. sospetto furto di file); tutto resta nell'audit. "
                     "Si raccolgono solo dopo la conferma «Informativa ai dipendenti e accordi verificati» in Fonti.",
+                ]),
+            ],
+        },
+        {
+            "id": "iso27001",
+            "titolo": "Conformità ISO 27001: controlli verificati dai dati e pacchetto mensile",
+            "blocchi": [
+                ("p", "Menu del SOC › Report › «Conformità ISO 27001». Un riquadro per ogni controllo dell'Annex A che il SOC copre "
+                      "(5.7, 8.8, 8.7, 6.8, 5.24-5.28, 8.13, 5.30, 8.15, 8.16, 8.17, 9.1): cosa si aspetta l'audit, l'esito calcolato "
+                      "dai dati del SOC, i numeri, cosa fare e i collegamenti alle pagine che fanno da evidenza. Un dato che manca "
+                      "non vale mai come conforme."),
+                ("passi", [
+                    "Scegli il periodo in alto (mese corrente, mese scorso, 3 mesi, 12 mesi, libero).",
+                    "«Da sistemare» elenca i controlli non conformi o da guardare, dal più grave: ogni riga dice cosa fare.",
+                    "Il giorno 1 di ogni mese alle 06:30 il SOC archivia da solo il PDF «Evidenze SOC – ISO/IEC 27001» del mese "
+                    "prima (controlli, CVE corrette con versione prima e dopo, esposizioni scadute, incidenti con lezioni apprese), "
+                    "con impronta SHA-256 nell'audit; «Genera ora» lo fa subito per il periodo scelto (serve il permesso di configurazione).",
+                    "«Scarica PDF» in fondo alla pagina: ogni download è registrato nell'audit.",
                 ]),
             ],
         },
@@ -164,6 +212,10 @@ GUIDA = {
                     "(percorso | letture, scritture, eliminazioni), file copiati su chiavetta con «Controlla Archivio rimovibile». "
                     "Valgono le voci di controllo già messe per BusinessLog. Durante il passaggio: in BusinessLog spegnere "
                     "«Cancella Registro» e scrivere il suo account in Fonti › Impostazioni › «Account dei raccoglitori di log».",
+                    "Conformità ISO 27001: Impostazioni › Avvisi e automatismi › «Conformità ISO 27001» ha due voci che il SOC non può "
+                    "decidere da solo: il canale con cui il personale segnala un sospetto (controllo 6.8; vuoto = «da definire») e "
+                    "l'interruttore per copiare il pacchetto mensile nella cartella SharePoint dell'audit (sottocartella soc-iso27001, "
+                    "spento di serie). Schedule security_pacchetto_iso (1° del mese, 06:30), lettura «pacchetto_iso».",
                     "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
                     "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
                     "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
@@ -172,6 +224,20 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un incidente mostra «Riesame mancante» o arrivano promemoria sul riesame",
+            "fare": [
+                "Apri la scheda dell'incidente e compila «Lezioni apprese»: basta la causa per togliere l'avviso.",
+                "Aggiungi le azioni correttive con responsabile e scadenza e segnale fatte quando concluse: le scadute mandano un promemoria.",
+            ],
+        },
+        {
+            "sintomo": "Un'evidenza risulta «Alterata»",
+            "fare": [
+                "Il contenuto non corrisponde più all'impronta calcolata alla nascita: guarda la catena di custodia nell'esportazione per capire chi l'ha toccata.",
+                "Non si ripara da sola: segnalala a chi gestisce il SOC; se le prove servono a un'indagine è un fatto da registrare come incidente.",
+            ],
+        },
         {
             "sintomo": "Sembra che il SOC non legga più niente (alert, backup, CVE fermi)",
             "fare": [

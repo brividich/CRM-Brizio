@@ -172,6 +172,10 @@ def set_case_status(case, new_status, *, user, reason="", close_alerts=False):
         case.refresh_from_db()
         raise CaseConflict("Esiste già un caso attivo per lo stesso problema: lavora su quello.") from exc
     _log(case, "case_status_changed", actor, old_status=old_status, new_status=new_status, reason=reason)
+    from security.services import traccia
+
+    traccia.registra(traccia.CASO_STATO, {"caso_id": case.pk, "titolo": case.title, "old_status": old_status, "new_status": new_status,
+                                          "reason": reason}, oggetto=case, attore=actor)
 
     if close_alerts and new_status in CLOSED_CASE_STATUSES:
         closer = mark_false_positive if new_status == Status.FALSE_POSITIVE else close_alert

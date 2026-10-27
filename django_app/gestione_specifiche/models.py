@@ -426,6 +426,13 @@ class RegistroOFI(models.Model):
     fonte = models.CharField("Fonte del rilievo", max_length=100, blank=True, default="")
 
     processo = models.CharField("Processo/area", max_length=200, blank=True, default="")
+    # Processo del catalogo SGI: la voce compare nella scheda del processo, pesa sulla priorità
+    # dei suoi audit e ne propone il responsabile. Si ricava dal testo «Processo/area» quando
+    # corrisponde a un solo processo del catalogo (``registro_ofi.collega_processo``).
+    processo_sgi = models.ForeignKey(
+        "sistema_gestione.Processo", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="voci_ofi", verbose_name="Processo del catalogo SGI",
+    )
     opportunita = models.TextField("Opportunità / descrizione", blank=True, default="")
 
     # Ciclo PDCA.
@@ -484,6 +491,11 @@ class RegistroOFI(models.Model):
         return [sigla for campo, sigla in self.NORME if getattr(self, campo)]
 
     def save(self, *args, **kwargs):
+        # Qualunque sia la fonte (audit, ente, MOD.133, import, a mano), la voce si aggancia
+        # al catalogo processi quando il testo lo indica senza ambiguità.
+        from .registro_ofi import collega_processo  # lazy: evita import ciclico
+        if collega_processo(self) and kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = list({*kwargs["update_fields"], "processo_sgi", "processo"})
         # Nuova scadenza (proroga CAR o modifica manuale): il sollecito deve poter ripartire.
         if self.pk and self.reminder_inviato:
             prima = RegistroOFI.objects.filter(pk=self.pk).values_list("data_richiesta", flat=True).first()

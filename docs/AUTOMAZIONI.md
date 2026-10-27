@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 92
+**Totale automazioni disponibili:** 93
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -563,6 +563,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 15 minuti
 - **Task eseguito:** `security.tasks.run_security_cycle_task`
 - **Cosa fa:** SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole, heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+
+### `security_pacchetto_iso`
+
+- **Quando gira:** il giorno 1 del mese, alle 06:30
+- **Task eseguito:** `security.tasks.pacchetto_iso_task`
+- **Cosa fa:** SOC — pacchetto mensile di evidenze ISO/IEC 27001: il giorno 1 alle 06:30 genera il PDF del mese prima (esito dei controlli dell'Annex A, CVE corrette, esposizioni scadute, incidenti con lezioni apprese), lo archivia con l'impronta SHA-256 nell'audit e, se acceso in /soc/impostazioni/, lo copia nella cartella SharePoint dell'audit. Si vede in Letture automatiche e nel Battito del SOC.
 
 ### `sistema_gestione_car_solleciti`
 

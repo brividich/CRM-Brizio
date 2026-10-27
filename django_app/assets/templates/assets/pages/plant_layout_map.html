@@ -6,8 +6,8 @@
 {% block assets_shell_head %}
 <style>
 /* Mappa officina: solo token di tema (valgono anche in dark). Colori di stato su body. */
-body{--pl-alarm:#be123c;--pl-ticket:#dc2626;--pl-overdue:#ea580c;--pl-workorder:#2563eb;--pl-due_soon:#ca8a04;--pl-repair:#7c3aed;--pl-ok:#16a34a}
-body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;--pl-due_soon:#facc15;--pl-repair:#a78bfa;--pl-ok:#4ade80}
+body{--pl-alarm:#be123c;--pl-ticket:#dc2626;--pl-legal:#9f1239;--pl-overdue:#c2410c;--pl-late:#f97316;--pl-workorder:#2563eb;--pl-due_soon:#ca8a04;--pl-repair:#7c3aed;--pl-ok:#16a34a}
+body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-legal:#fda4af;--pl-overdue:#fb923c;--pl-late:#fdba74;--pl-workorder:#60a5fa;--pl-due_soon:#facc15;--pl-repair:#a78bfa;--pl-ok:#4ade80}
 .pl-page{display:grid;gap:14px}
 .pl-kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .pl-kpi{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:12px 14px;display:grid;gap:2px}
@@ -26,6 +26,7 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl
 .pl-chip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
 .pl-dot{width:9px;height:9px;border-radius:50%;background:var(--pl-dot,var(--text-light));flex:none;display:inline-block}
 .pl-dot.is-alarm{--pl-dot:var(--pl-alarm)}.pl-dot.is-ticket{--pl-dot:var(--pl-ticket)}.pl-dot.is-overdue{--pl-dot:var(--pl-overdue)}.pl-dot.is-workorder{--pl-dot:var(--pl-workorder)}
+.pl-dot.is-legal{--pl-dot:var(--pl-legal)}.pl-dot.is-late{--pl-dot:var(--pl-late)}
 .pl-dot.is-due_soon{--pl-dot:var(--pl-due_soon)}.pl-dot.is-repair{--pl-dot:var(--pl-repair)}.pl-dot.is-ok{--pl-dot:var(--pl-ok)}
 .pl-dot.is-state-overdue{--pl-dot:var(--pl-ticket)}.pl-dot.is-state-due_soon{--pl-dot:var(--pl-due_soon)}.pl-dot.is-state-ok{--pl-dot:var(--pl-ok)}
 .pl-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start}
@@ -57,8 +58,9 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl
 .pl-pin{position:absolute;padding:0;width:16px;height:16px;border-radius:50%;border:0;background:var(--pl-c,var(--pl-ok));
   transform:translate(-50%,-50%) scale(calc(1 / var(--pl-z)));box-shadow:0 0 0 3px #fff,0 4px 10px rgba(15,23,42,.3);cursor:pointer;z-index:2}
 .pl-pin.is-alarm{--pl-c:var(--pl-alarm)}.pl-pin.is-ticket{--pl-c:var(--pl-ticket)}.pl-pin.is-overdue{--pl-c:var(--pl-overdue)}.pl-pin.is-workorder{--pl-c:var(--pl-workorder)}
+.pl-pin.is-legal{--pl-c:var(--pl-legal)}.pl-pin.is-late{--pl-c:var(--pl-late)}
 .pl-pin.is-due_soon{--pl-c:var(--pl-due_soon)}.pl-pin.is-repair{--pl-c:var(--pl-repair)}.pl-pin.is-ok{--pl-c:var(--pl-ok);width:12px;height:12px}
-.pl-pin.is-alarm::after,.pl-pin.is-ticket::after,.pl-pin.is-overdue::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--pl-c);animation:pl-pulse 1.8s ease-out infinite}
+.pl-pin.is-alarm::after,.pl-pin.is-ticket::after,.pl-pin.is-legal::after,.pl-pin.is-overdue::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--pl-c);animation:pl-pulse 1.8s ease-out infinite}
 @keyframes pl-pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.7);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pl-pin::after{animation:none!important;opacity:.5}}
 .pl-pin:focus-visible,.pl-pin:hover{outline:2px solid var(--primary-mid);outline-offset:3px;z-index:4}
@@ -68,7 +70,18 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl
 .pl-pin-label{position:absolute;left:18px;top:50%;transform:translateY(-50%);background:#fff;color:#0f172a;border-radius:4px;padding:0 4px;font-size:10px;font-weight:800;line-height:14px;white-space:nowrap;box-shadow:0 0 0 1px rgba(15,23,42,.18);display:none}
 .pl-view.show-labels .pl-pin:not(.is-ok) .pl-pin-label,.pl-view.is-zoomed .pl-pin-label,.pl-pin.is-selected .pl-pin-label{display:block}
 .pl-view.hide-alarm .pl-pin.is-alarm,.pl-view.hide-ticket .pl-pin.is-ticket,.pl-view.hide-overdue .pl-pin.is-overdue,.pl-view.hide-workorder .pl-pin.is-workorder,
-.pl-view.hide-due_soon .pl-pin.is-due_soon,.pl-view.hide-repair .pl-pin.is-repair,.pl-view.hide-ok .pl-pin.is-ok{display:none}
+.pl-view.hide-due_soon .pl-pin.is-due_soon,.pl-view.hide-repair .pl-pin.is-repair,.pl-view.hide-ok .pl-pin.is-ok,
+.pl-view.hide-legal .pl-pin.is-legal,.pl-view.hide-late .pl-pin.is-late{display:none}
+/* CNC collegata: pin quadrato con anello dello stato letto dal controllo; in lavoro l'anello gira (mandrino) */
+.pl-pin.is-cnc{border-radius:4px;width:16px;height:16px}
+.pl-pin-ring{display:none}
+.pl-pin.is-cnc .pl-pin-ring{display:block;position:absolute;inset:-5px;border-radius:6px;border:2px solid var(--pl-ring,var(--text-light));pointer-events:none}
+.pl-pin.is-cnc[data-live="in_lavoro"],.pl-pin.is-cnc[data-live="setup"]{--pl-ring:#22c55e}
+.pl-pin.is-cnc[data-live="in_lavoro"] .pl-pin-ring{border-style:dashed;border-radius:50%;animation:pl-spin 2.4s linear infinite}
+.pl-pin.is-cnc[data-live="pronta"],.pl-pin.is-cnc[data-live="ferma"]{--pl-ring:#f59e0b}
+.pl-pin.is-cnc[data-live="allarme"],.pl-pin.is-cnc[data-live="emergenza"]{--pl-ring:#ef4444}
+@keyframes pl-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.pl-pin-ring{animation:none!important}}
 .pl-hint{margin:8px 0 0;color:var(--text-light);font-size:var(--fs-xs);text-align:center}
 .pl-side{display:grid;gap:0}
 .pl-side-body{padding:14px 16px;display:grid;gap:12px}
@@ -102,6 +115,79 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl
 .pl-live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pl-live,var(--text-light))}
 .pl-live.is-in_lavoro{--pl-live:var(--pl-ok)}.pl-live.is-ferma{--pl-live:var(--pl-overdue)}.pl-live.is-allarme,.pl-live.is-emergenza,.pl-live.is-non_raggiungibile{--pl-live:var(--pl-alarm)}.pl-live.is-pronta{--pl-live:var(--pl-workorder)}.pl-live.is-setup{--pl-live:var(--pl-due_soon)}
   
+.pl-note{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px dashed var(--border);border-radius:10px;padding:8px 12px;font-size:var(--fs-sm);color:var(--text-mid)}
+.pl-fresh{font-size:var(--fs-xs);color:var(--text-light);white-space:nowrap}
+.pl-fresh.is-stale{color:var(--pl-overdue);font-weight:800}
+.pl-away{display:grid;gap:2px;list-style:none;margin:0;padding:0}
+.pl-away a{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;text-decoration:none;color:var(--text);font-size:var(--fs-sm)}
+.pl-away a:hover{background:color-mix(in srgb,var(--primary-mid) 9%,transparent)}
+.pl-away small{color:var(--text-mid);white-space:nowrap}
+.pl-sheet-close{display:none}
+/* smartphone: la scheda della macchina sale dal basso sopra la mappa */
+@media (max-width:700px){
+  .pl-side.is-sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:calc(62 * var(--vh, 1vh));overflow:auto;border-radius:16px 16px 0 0;box-shadow:0 -10px 30px rgba(15,23,42,.25)}
+  .pl-side.is-sheet .pl-sheet-close{display:block;position:sticky;top:0;margin:8px auto 0;width:48px;height:6px;border:0;border-radius:3px;background:var(--border);cursor:pointer}
+  .pl-search{min-width:0;flex:1}
+}
+
+/* ── Pannello CNC: è un pannello operatore, scuro in entrambi i temi ── */
+.pl-hmi{--hmi-steel:#1d2329;--hmi-steel2:#2b333b;--hmi-edge:#3d4852;--hmi-dim:#8b98a5;--hmi-bright:#e6edf3;--hmi-go:#22c55e;--hmi-amber:#fbbf24;--hmi-stop:#ef4444;--hmi-glow:#0b0f13;
+  border-radius:12px;overflow:hidden;color:var(--hmi-bright);
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),linear-gradient(180deg,var(--hmi-steel2),var(--hmi-steel));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px var(--hmi-edge)}
+.pl-hmi-stripe{height:6px;background:repeating-linear-gradient(135deg,var(--hmi-amber) 0 10px,#111 10px 20px)}
+.pl-hmi.is-alarm .pl-hmi-stripe{background:repeating-linear-gradient(135deg,var(--hmi-stop) 0 10px,#111 10px 20px);animation:pl-blink 1s steps(2) infinite}
+@keyframes pl-blink{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.pl-hmi-stripe{animation:none!important}}
+.pl-hmi-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;padding:12px 14px 8px}
+.pl-tower{display:grid;gap:3px;padding:4px;border-radius:6px;background:var(--hmi-glow);box-shadow:inset 0 0 0 1px var(--hmi-edge)}
+.pl-lamp{width:18px;height:12px;border-radius:3px;background:#2a2f35;box-shadow:inset 0 -2px 0 rgba(0,0,0,.4)}
+.pl-lamp.is-red.is-on{background:var(--hmi-stop);box-shadow:0 0 10px var(--hmi-stop),inset 0 -2px 0 rgba(0,0,0,.25)}
+.pl-lamp.is-amber.is-on{background:var(--hmi-amber);box-shadow:0 0 10px var(--hmi-amber),inset 0 -2px 0 rgba(0,0,0,.25)}
+.pl-lamp.is-green.is-on{background:var(--hmi-go);box-shadow:0 0 10px var(--hmi-go),inset 0 -2px 0 rgba(0,0,0,.25)}
+.pl-hmi-title{min-width:0}
+.pl-hmi-kicker{font:800 10px/1.2 ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--hmi-dim)}
+.pl-hmi-state{font:900 20px/1.15 ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.04em;text-transform:uppercase}
+.pl-hmi-state.is-go{color:var(--hmi-go);text-shadow:0 0 12px rgba(34,197,94,.45)}
+.pl-hmi-state.is-amber{color:var(--hmi-amber);text-shadow:0 0 12px rgba(251,191,36,.4)}
+.pl-hmi-state.is-stop{color:var(--hmi-stop);text-shadow:0 0 12px rgba(239,68,68,.5)}
+.pl-hmi-state.is-off{color:var(--hmi-dim)}
+.pl-hmi-since{font:700 11px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--hmi-dim)}
+.pl-hmi-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 14px 10px}
+.pl-lcd{background:var(--hmi-glow);border-radius:6px;padding:6px 8px;box-shadow:inset 0 0 0 1px #000,inset 0 2px 6px rgba(0,0,0,.6);min-width:0}
+.pl-lcd.is-wide{grid-column:1/-1}
+.pl-lcd-k{display:block;font:800 9px/1.2 ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--hmi-dim)}
+.pl-lcd-v{display:block;font:800 16px/1.25 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--hmi-amber);text-shadow:0 0 8px rgba(251,191,36,.35);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-lcd-v small{font-size:11px;color:var(--hmi-dim);text-shadow:none;margin-left:3px}
+.pl-gauge{height:6px;border-radius:3px;background:#2a2f35;margin-top:4px;overflow:hidden}
+.pl-gauge i{display:block;height:100%;background:linear-gradient(90deg,var(--hmi-amber),var(--hmi-go))}
+.pl-day{padding:0 14px 10px}
+.pl-day-bar{position:relative;height:16px;border-radius:4px;background:var(--hmi-glow);box-shadow:inset 0 0 0 1px #000;overflow:hidden}
+.pl-day-seg{position:absolute;top:0;bottom:0}
+.pl-day-seg.is-in_lavoro{background:var(--hmi-go)}.pl-day-seg.is-setup{background:#86efac}
+.pl-day-seg.is-pronta,.pl-day-seg.is-ferma{background:var(--hmi-amber)}
+.pl-day-seg.is-allarme,.pl-day-seg.is-emergenza{background:var(--hmi-stop)}
+.pl-day-seg.is-spenta,.pl-day-seg.is-non_raggiungibile,.pl-day-seg.is-mai{background:#3a434c}
+.pl-day-now{position:absolute;top:0;bottom:0;width:2px;background:var(--hmi-bright);box-shadow:0 0 6px var(--hmi-bright)}
+.pl-day-ticks{display:flex;justify-content:space-between;font:700 9px/1.6 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--hmi-dim)}
+.pl-alm{margin:0 14px 10px;border-radius:6px;background:var(--hmi-glow);box-shadow:inset 0 0 0 1px #000;padding:6px 8px;display:grid;gap:3px}
+.pl-alm-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;font:700 11px/1.35 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--hmi-amber)}
+.pl-alm-row.is-stop{color:#fca5a5}
+.pl-alm-row b{color:var(--hmi-stop)}
+.pl-hmi-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;padding:6px 14px 9px;border-top:1px solid var(--hmi-edge);font:700 10px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--hmi-dim)}
+/* quadro CNC (andon) nella colonna laterale */
+.pl-andon{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.pl-andon button{display:grid;gap:2px;text-align:left;border:0;border-radius:8px;padding:7px 9px 7px 13px;cursor:pointer;
+  background:linear-gradient(180deg,#2b333b,#1d2329);color:#e6edf3;position:relative;font:inherit;box-shadow:0 0 0 1px #3d4852;min-width:0}
+.pl-andon button::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:8px 0 0 8px;background:var(--pl-andon,#3a434c)}
+.pl-andon button[data-live="in_lavoro"],.pl-andon button[data-live="setup"]{--pl-andon:#22c55e}
+.pl-andon button[data-live="pronta"],.pl-andon button[data-live="ferma"]{--pl-andon:#fbbf24}
+.pl-andon button[data-live="allarme"],.pl-andon button[data-live="emergenza"]{--pl-andon:#ef4444}
+.pl-andon b{font:800 12px/1.2 ui-monospace,"Cascadia Mono",Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-andon span{font:700 10px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;color:#8b98a5;text-transform:uppercase;letter-spacing:.06em}
+.pl-andon em{font:800 10px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;font-style:normal;color:#fbbf24;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-andon-sum{display:flex;gap:10px;flex-wrap:wrap;font:800 11px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--text-mid)}
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .pl-view{background:var(--surface)}
 body.theme-dark .pl-pin-label{background:var(--surface);color:var(--text)}
@@ -111,10 +197,11 @@ body.theme-dark .pl-back{color:#93c5fd}
 
 {% block assets_shell_title %}Planimetrie impianti{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Dove sono le macchine e cosa c'e' da fare: allarmi delle CNC collegate, ticket, OdL e manutenzioni direttamente sulla planimetria.</p>
+<p>Dove sono le macchine e cosa c'è da fare: stato delle CNC collegate, ticket, OdL, manutenzioni e verifiche direttamente sulla planimetria. Si aggiorna da sola ogni minuto.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
 <a class="btn" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
+{% if layout %}<a class="btn" href="{% url 'assets:plant_layout_map' %}?category={{ selected_layout_category|urlencode }}&amp;stampa=1" target="_blank" rel="noopener">Stampa A3</a>{% endif %}
 {% if can_manage_map %}
 <a class="btn btn-primary" href="{% url 'assets:plant_layout_editor' %}{% if selected_layout_category %}?category={{ selected_layout_category|urlencode }}{% endif %}">Apri editor mappa</a>
 {% endif %}
@@ -147,14 +234,21 @@ body.theme-dark .pl-back{color:#93c5fd}
       <span class="pl-kpi-value">{{ plant_layout_payload.markers|length }}</span>
       <span class="pl-kpi-sub">{{ plant_layout_payload.areas|length }} repart{{ plant_layout_payload.areas|length|pluralize:"o,i" }} disegnat{{ plant_layout_payload.areas|length|pluralize:"o,i" }}</span>
     </div>
+    {% if plant_layout_payload.cnc.total %}
+    <div class="pl-kpi {% if plant_layout_payload.cnc.allarme %}is-danger{% endif %}" data-pl-kpi="cnc">
+      <span class="pl-kpi-label">CNC collegate</span>
+      <span class="pl-kpi-value"><span data-pl-cnc-run>{{ plant_layout_payload.cnc.in_lavoro }}</span><small style="font-size:.55em;color:var(--text-mid)"> / {{ plant_layout_payload.cnc.total }} in lavoro</small></span>
+      <span class="pl-kpi-sub" data-pl-cnc-sub>{{ plant_layout_payload.cnc.ferma }} ferm{{ plant_layout_payload.cnc.ferma|pluralize:"a,e" }} · {{ plant_layout_payload.cnc.allarme }} in allarme · {{ plant_layout_payload.cnc.spenta }} offline</span>
+    </div>
+    {% endif %}
     <div class="pl-kpi {% if alert_total %}is-warn{% endif %}">
       <span class="pl-kpi-label">Da guardare</span>
-      <span class="pl-kpi-value">{{ alert_total }}</span>
-      <span class="pl-kpi-sub">macchine con ticket, OdL o manutenzioni</span>
+      <span class="pl-kpi-value" data-pl-kpi-alerts>{{ alert_total }}</span>
+      <span class="pl-kpi-sub">macchine con ticket, OdL, manutenzioni o verifiche</span>
     </div>
     <div class="pl-kpi {% if plant_layout_payload.alert_counts.ticket %}is-danger{% endif %}">
       <span class="pl-kpi-label">Con ticket aperti</span>
-      <span class="pl-kpi-value">{{ plant_layout_payload.markers_with_tickets }}</span>
+      <span class="pl-kpi-value" data-pl-kpi-tickets>{{ plant_layout_payload.markers_with_tickets }}</span>
       <span class="pl-kpi-sub">in rosso sulla mappa</span>
     </div>
     {% if plant_layout_payload.alert_counts.alarm %}
@@ -164,12 +258,21 @@ body.theme-dark .pl-back{color:#93c5fd}
       <span class="pl-kpi-sub">dal controllo della macchina (MTConnect)</span>
     </div>
     {% endif %}
-    <div class="pl-kpi {% if plant_layout_payload.alert_counts.overdue %}is-warn{% endif %}">
-      <span class="pl-kpi-label">Manutenzione scaduta</span>
-      <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.overdue }}</span>
-      <span class="pl-kpi-sub">in arancione sulla mappa</span>
+    <div class="pl-kpi {% if plant_layout_payload.alert_counts.overdue or plant_layout_payload.alert_counts.legal %}is-danger{% elif plant_layout_payload.alert_counts.late %}is-warn{% endif %}">
+      <span class="pl-kpi-label">Scadute</span>
+      <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.overdue|add:plant_layout_payload.alert_counts.late|add:plant_layout_payload.alert_counts.legal }}</span>
+      <span class="pl-kpi-sub">{{ plant_layout_payload.alert_counts.overdue }} da oltre 30 giorni · {{ plant_layout_payload.alert_counts.late }} da poco{% if plant_layout_payload.alert_counts.legal %} · {{ plant_layout_payload.alert_counts.legal }} verifiche di legge{% endif %}</span>
     </div>
   </section>
+  {% if plant_layout_payload.unplaced_count or plant_layout_payload.retired_hidden %}
+  <p class="pl-note">
+    <span>
+      {% if plant_layout_payload.unplaced_count %}{{ plant_layout_payload.unplaced_count }} macchin{{ plant_layout_payload.unplaced_count|pluralize:"a,e" }} di questa pianta non {{ plant_layout_payload.unplaced_count|pluralize:"è,sono" }} ancora stat{{ plant_layout_payload.unplaced_count|pluralize:"a,e" }} collocat{{ plant_layout_payload.unplaced_count|pluralize:"a,e" }} e non compa{{ plant_layout_payload.unplaced_count|pluralize:"re,iono" }} sulla mappa.{% endif %}
+      {% if plant_layout_payload.retired_hidden %}{{ plant_layout_payload.retired_hidden }} dismess{{ plant_layout_payload.retired_hidden|pluralize:"a,e" }} nascost{{ plant_layout_payload.retired_hidden|pluralize:"a,e" }}.{% endif %}
+    </span>
+    {% if can_manage_map and plant_layout_payload.unplaced_count %}<a class="btn btn-secondary btn-sm" href="{% url 'assets:plant_layout_editor' %}?layout={{ layout.id }}">Collocale nell'editor</a>{% endif %}
+  </p>
+  {% endif %}
   {% endif %}
 
   <section class="pl-grid">
@@ -189,7 +292,8 @@ body.theme-dark .pl-back{color:#93c5fd}
           {% if plant_layout_payload.areas %}<button type="button" class="pl-chip" data-pl-areas aria-pressed="true">Reparti</button>{% endif %}
         </div>
         <div class="pl-tools">
-          <input type="search" class="pl-search" data-pl-search placeholder="Cerca macchina, tag…" aria-label="Cerca macchina sulla mappa">
+          <span class="pl-fresh" data-pl-fresh title="La mappa rilegge stati, ticket e CNC ogni minuto">Aggiornata ora</span>
+          <input type="search" class="pl-search" data-pl-search placeholder="Cerca su tutte le piante…" aria-label="Cerca macchina su tutte le planimetrie">
           <button type="button" class="btn btn-secondary btn-sm" data-pl-zoom="out" aria-label="Riduci" title="Riduci">&minus;</button>
           <button type="button" class="btn btn-secondary btn-sm" data-pl-zoom="reset" title="Adatta allo schermo">Adatta</button>
           <button type="button" class="btn btn-secondary btn-sm" data-pl-zoom="in" aria-label="Ingrandisci" title="Ingrandisci">+</button>
@@ -209,10 +313,11 @@ body.theme-dark .pl-back{color:#93c5fd}
               </button>
               {% endfor %}
               {% for marker in plant_layout_payload.markers %}
-              <button type="button" class="pl-pin is-{{ marker.alert }}" data-marker-id="{{ marker.id }}"
+              <button type="button" class="pl-pin is-{{ marker.alert }}{% if marker.machine.live %} is-cnc{% endif %}" data-marker-id="{{ marker.id }}"{% if marker.machine.live %} data-live="{{ marker.machine.live.stato }}"{% endif %}
                 style="left:{{ marker.x_percent }}%;top:{{ marker.y_percent }}%;"
                 title="{{ marker.label }}{% if marker.machine.name %} · {{ marker.machine.name }}{% endif %} · {{ marker.alert_label }}"
                 aria-label="{{ marker.label }}, {{ marker.alert_label }}">
+                <span class="pl-pin-ring" aria-hidden="true"></span>
                 {% if marker.open_tickets %}<span class="pl-pin-badge">{{ marker.open_tickets }}</span>{% endif %}
                 <span class="pl-pin-label">{{ marker.label }}</span>
               </button>
@@ -221,7 +326,7 @@ body.theme-dark .pl-back{color:#93c5fd}
           </div>
         </div>
         {% endlocalize %}
-        <p class="pl-hint">Clicca una macchina o un reparto per il dettaglio · rotellina o +/&minus; per lo zoom, trascina per spostarti.</p>
+        <p class="pl-hint">Clicca una macchina o un reparto per il dettaglio · rotellina, +/&minus; o due dita per lo zoom, trascina per spostarti · quadrato = CNC collegata.</p>
       </div>
       {% else %}
       <div class="pl-empty">
@@ -231,7 +336,8 @@ body.theme-dark .pl-back{color:#93c5fd}
       {% endif %}
     </article>
 
-    <aside class="pl-card pl-side" aria-live="polite">
+    <aside class="pl-card pl-side" aria-live="polite" data-pl-side>
+      <button type="button" class="pl-sheet-close" data-pl-sheet-close aria-label="Chiudi la scheda"></button>
       <div class="pl-side-body" data-pl-panel></div>
     </aside>
   </section>
@@ -248,14 +354,17 @@ body.theme-dark .pl-back{color:#93c5fd}
   if (!dataNode || !panel) return;
   var payload = JSON.parse(dataNode.textContent || "{}");
   var focusAssetId = {{ focus_asset_id|default:0 }};
+  var stateUrl = window.location.pathname + "?format=json&category=" + encodeURIComponent("{{ selected_layout_category|escapejs }}");
   var areas = payload.areas || [];
   var markers = payload.markers || [];
   var labels = payload.alert_labels || {};
-  var ORDER = ["alarm", "ticket", "overdue", "workorder", "due_soon", "repair", "ok"];
+  var ORDER = ["alarm", "ticket", "legal", "overdue", "late", "workorder", "due_soon", "repair", "ok"];
   var view = document.querySelector("[data-pl-view]");
   var stage = document.querySelector("[data-pl-stage]");
+  var side = document.querySelector("[data-pl-side]");
   var pins = Array.prototype.slice.call(document.querySelectorAll("[data-marker-id]"));
   var areaButtons = Array.prototype.slice.call(document.querySelectorAll("[data-area-id]"));
+  var current = null; // {kind:"marker"|"area"|"overview", id}
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -267,8 +376,9 @@ body.theme-dark .pl-back{color:#93c5fd}
   function dot(code) { return el("span", "pl-dot is-" + code); }
   function byId(list, id) { return list.find(function (r) { return Number(r.id) === Number(id); }); }
   function severity(code) { var i = ORDER.indexOf(code); return i < 0 ? ORDER.length : i; }
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
 
-  /* ---- zoom e trascinamento ---- */
+  /* ---- zoom e trascinamento (mouse, dito, due dita) ---- */
   var z = 1, tx = 0, ty = 0, MAX = 8;
   function apply() {
     if (!view) return;
@@ -308,13 +418,32 @@ body.theme-dark .pl-back{color:#93c5fd}
       var r = view.getBoundingClientRect();
       zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
-    var drag = null, moved = false;
+    var drag = null, moved = false, touches = {}, pinch = null;
+    function pts() { return Object.keys(touches).map(function (k) { return touches[k]; }); }
     view.addEventListener("pointerdown", function (e) {
+      touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var p = pts();
+      if (p.length === 2) {
+        // due dita: zoom attorno al punto medio
+        var r = view.getBoundingClientRect();
+        pinch = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1, cx: (p[0].x + p[1].x) / 2 - r.left, cy: (p[0].y + p[1].y) / 2 - r.top };
+        drag = null; moved = true;
+        return;
+      }
       if (z === 1 || e.button !== 0) return;
       drag = { x: e.clientX, y: e.clientY, tx: tx, ty: ty };
       moved = false;
     });
     view.addEventListener("pointermove", function (e) {
+      if (touches[e.pointerId]) touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (pinch) {
+        var p = pts();
+        if (p.length < 2) return;
+        var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1;
+        zoomAt(d / pinch.d, pinch.cx, pinch.cy);
+        pinch.d = d;
+        return;
+      }
       if (!drag) return;
       var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
@@ -322,7 +451,11 @@ body.theme-dark .pl-back{color:#93c5fd}
       tx = drag.tx + dx; ty = drag.ty + dy;
       apply();
     });
-    function endDrag() { drag = null; view.classList.remove("is-dragging"); }
+    function endDrag(e) {
+      delete touches[e.pointerId];
+      if (pts().length < 2) pinch = null;
+      drag = null; view.classList.remove("is-dragging");
+    }
     view.addEventListener("pointerup", endDrag);
     view.addEventListener("pointercancel", endDrag);
     /* un trascinamento non deve aprire il reparto o la macchina su cui finisce */
@@ -345,6 +478,11 @@ body.theme-dark .pl-back{color:#93c5fd}
     if (view) view.classList.toggle("hide-areas", !on);
   });
 
+  /* ---- scheda dal basso sullo smartphone ---- */
+  function openSheet(on) { if (side) side.classList.toggle("is-sheet", !!on && window.matchMedia("(max-width:700px)").matches); }
+  var sheetClose = document.querySelector("[data-pl-sheet-close]");
+  if (sheetClose) sheetClose.addEventListener("click", function () { highlight([], []); showOverview(); });
+
   /* ---- selezione ---- */
   function highlight(markerIds, areaIds) {
     var ms = new Set((markerIds || []).map(String)), as = new Set((areaIds || []).map(String));
@@ -357,6 +495,7 @@ body.theme-dark .pl-back{color:#93c5fd}
     b.addEventListener("click", function () { highlight([], []); showOverview(); });
     return b;
   }
+  function liveText(live) { return live ? live.label + (live.da_quanto ? " · " + live.da_quanto : "") : ""; }
   function machineRow(machine, onClick) {
     var li = el("li"), b = el("button");
     b.type = "button";
@@ -371,9 +510,44 @@ body.theme-dark .pl-back{color:#93c5fd}
     li.appendChild(b);
     return li;
   }
+  function markerMachine(m) { return Object.assign({}, m.machine, { alert: m.alert, name: (m.machine && m.machine.name) || m.label }); }
+
+  /* quadro CNC: una tessera per macchina collegata, colore = stato letto dal controllo */
+  function andonBoard() {
+    var cncs = markers.filter(function (m) { return m.machine && m.machine.live; });
+    if (!cncs.length) return null;
+    var wrap = el("div");
+    var cnc = payload.cnc || {};
+    var head = el("h3", "pl-section-title", "Quadro CNC");
+    wrap.appendChild(head);
+    var sum = el("div", "pl-andon-sum");
+    sum.appendChild(el("span", "", "▶ " + (cnc.in_lavoro || 0) + " in lavoro"));
+    sum.appendChild(el("span", "", "❚❚ " + (cnc.ferma || 0) + " ferme"));
+    if (cnc.allarme) sum.appendChild(el("span", "", "⚠ " + cnc.allarme + " in allarme"));
+    sum.appendChild(el("span", "", "○ " + (cnc.spenta || 0) + " offline"));
+    wrap.appendChild(sum);
+    var grid = el("div", "pl-andon");
+    cncs.sort(function (a, b) { return String(a.machine.live.codice || a.label).localeCompare(String(b.machine.live.codice || b.label)); })
+      .forEach(function (m) {
+        var live = m.machine.live, b = el("button");
+        b.type = "button";
+        b.setAttribute("data-live", live.stato);
+        b.appendChild(el("b", "", live.codice || m.label));
+        b.appendChild(el("span", "", live.label + (live.utilizzo !== undefined ? " · " + live.utilizzo + "%" : "")));
+        if (live.programma) b.appendChild(el("em", "", live.programma));
+        b.addEventListener("click", function () { showMarker(m, true); });
+        grid.appendChild(b);
+      });
+    wrap.appendChild(grid);
+    return wrap;
+  }
 
   function showOverview() {
+    current = { kind: "overview" };
+    openSheet(false);
     panel.textContent = "";
+    var board = andonBoard();
+    if (board) panel.appendChild(board);
     var open = markers.filter(function (m) { return m.alert !== "ok"; })
       .sort(function (a, b) { return severity(a.alert) - severity(b.alert); });
     var head = el("h3", "pl-section-title");
@@ -382,17 +556,13 @@ body.theme-dark .pl-back{color:#93c5fd}
     panel.appendChild(head);
     if (open.length) {
       var ul = el("ul", "pl-list");
-      open.forEach(function (m) {
-        var machine = Object.assign({}, m.machine, { alert: m.alert, name: (m.machine && m.machine.name) || m.label });
-        ul.appendChild(machineRow(machine, function () { showMarker(m, true); }));
-      });
+      open.forEach(function (m) { ul.appendChild(machineRow(markerMachine(m), function () { showMarker(m, true); })); });
       panel.appendChild(ul);
     } else {
-      panel.appendChild(el("p", "pl-empty", markers.length ? "Nessun ticket, OdL o manutenzione in sospeso per le macchine posizionate." : "Nessuna macchina posizionata: si posizionano dall'editor mappa."));
+      panel.appendChild(el("p", "pl-empty", markers.length ? "Nessun ticket, OdL, manutenzione o verifica in sospeso per le macchine posizionate." : "Nessuna macchina posizionata: si posizionano dall'editor mappa."));
     }
     if (areas.length) {
-      var ah = el("h3", "pl-section-title", "Reparti");
-      panel.appendChild(ah);
+      panel.appendChild(el("h3", "pl-section-title", "Reparti"));
       var al = el("ul", "pl-list");
       areas.forEach(function (a) {
         var li = el("li"), b = el("button");
@@ -400,7 +570,7 @@ body.theme-dark .pl-back{color:#93c5fd}
         var sw = el("span", "pl-dot"); sw.style.setProperty("--pl-dot", a.color);
         b.appendChild(sw);
         var name = el("span", "pl-list-name", a.name);
-        name.appendChild(el("small", "", a.machine_count + " macchin" + (a.machine_count === 1 ? "a" : "e")));
+        name.appendChild(el("small", "", plural(a.machine_count, "macchina", "macchine")));
         b.appendChild(name);
         b.appendChild(el("span", "pl-list-state", a.alert_count ? a.alert_count + " da guardare" : ""));
         b.addEventListener("click", function () { showArea(a, true); });
@@ -408,15 +578,49 @@ body.theme-dark .pl-back{color:#93c5fd}
         al.appendChild(li);
       });
       panel.appendChild(al);
+    } else if ((payload.reparti || []).length > 1) {
+      // nessun riquadro disegnato: il riepilogo per reparto viene dal campo della scheda
+      panel.appendChild(el("h3", "pl-section-title", "Per reparto"));
+      var rl = el("ul", "pl-list");
+      payload.reparti.forEach(function (r) {
+        var li = el("li"), b = el("button");
+        b.type = "button";
+        b.appendChild(dot(r.worst));
+        var name = el("span", "pl-list-name", r.name);
+        name.appendChild(el("small", "", plural(r.total, "macchina", "macchine")));
+        b.appendChild(name);
+        b.appendChild(el("span", "pl-list-state", r.alerts ? r.alerts + " da guardare" : ""));
+        b.addEventListener("click", function () { showReparto(r); });
+        li.appendChild(b);
+        rl.appendChild(li);
+      });
+      panel.appendChild(rl);
     }
   }
 
+  function showReparto(r) {
+    current = { kind: "reparto", id: r.name };
+    openSheet(true);
+    panel.textContent = "";
+    panel.appendChild(backButton());
+    panel.appendChild(el("h3", "", r.name === "Senza reparto" ? r.name : "Reparto " + r.name));
+    panel.appendChild(el("p", "pl-detail-sub", plural(r.total, "macchina", "macchine") + " su questa pianta" + (r.alerts ? " · " + r.alerts + " da guardare" : "")));
+    var ul = el("ul", "pl-list");
+    markers.filter(function (m) { return r.marker_ids.indexOf(m.id) !== -1; })
+      .sort(function (a, b) { return severity(a.alert) - severity(b.alert); })
+      .forEach(function (m) { ul.appendChild(machineRow(markerMachine(m), function () { showMarker(m, true); })); });
+    panel.appendChild(ul);
+    highlight(r.marker_ids, []);
+  }
+
   function showArea(area, center) {
+    current = { kind: "area", id: area.id };
+    openSheet(true);
     panel.textContent = "";
     panel.appendChild(backButton());
     var box = el("div", "pl-detail");
     box.appendChild(el("h3", "", area.name));
-    box.appendChild(el("p", "pl-detail-sub", area.reparto_code ? "Reparto " + area.reparto_code + " · " + area.machine_count + " macchin" + (area.machine_count === 1 ? "a" : "e") : "Zona non collegata a un reparto"));
+    box.appendChild(el("p", "pl-detail-sub", area.reparto_code ? "Reparto " + area.reparto_code + " · " + plural(area.machine_count, "macchina", "macchine") : "Zona non collegata a un reparto"));
     panel.appendChild(box);
     if (area.notes) panel.appendChild(el("p", "pl-detail-sub", area.notes));
     if (area.list_url) {
@@ -442,7 +646,90 @@ body.theme-dark .pl-back{color:#93c5fd}
     if (center) centerOn(area.x_percent + area.width_percent / 2, area.y_percent + area.height_percent / 2, 1);
   }
 
+  /* pannello operatore della CNC: torretta luminosa, display, linea del giorno, allarmi */
+  function hmiPanel(live, machine) {
+    var stop = live.allarme || live.stato === "emergenza";
+    var go = live.stato === "in_lavoro" || live.stato === "setup";
+    var amber = live.stato === "pronta" || live.stato === "ferma";
+    var tone = stop ? "is-stop" : go ? "is-go" : amber ? "is-amber" : "is-off";
+    var box = el("section", "pl-hmi" + (stop ? " is-alarm" : ""));
+    box.setAttribute("aria-label", "Stato dal controllo della macchina");
+    box.appendChild(el("div", "pl-hmi-stripe"));
+    var head = el("div", "pl-hmi-head");
+    var tower = el("div", "pl-tower");
+    tower.setAttribute("aria-hidden", "true");
+    tower.appendChild(el("span", "pl-lamp is-red" + (stop ? " is-on" : "")));
+    tower.appendChild(el("span", "pl-lamp is-amber" + (amber ? " is-on" : "")));
+    tower.appendChild(el("span", "pl-lamp is-green" + (go ? " is-on" : "")));
+    head.appendChild(tower);
+    var title = el("div", "pl-hmi-title");
+    title.appendChild(el("div", "pl-hmi-kicker", ["CNC", live.codice || machine.internal_number || machine.asset_tag].filter(Boolean).join(" · ")));
+    title.appendChild(el("div", "pl-hmi-state " + tone, live.label));
+    title.appendChild(el("div", "pl-hmi-since", live.da_quanto ? "da " + live.da_quanto + (live.dal ? " · dalle " + live.dal.split(" ").pop() : "") : (live.dal ? "dal " + live.dal : "")));
+    head.appendChild(title);
+    box.appendChild(head);
+
+    var grid = el("div", "pl-hmi-grid");
+    function lcd(k, v, unit, wide) {
+      var c = el("div", "pl-lcd" + (wide ? " is-wide" : ""));
+      c.appendChild(el("span", "pl-lcd-k", k));
+      var val = el("span", "pl-lcd-v", v === "" || v === undefined || v === null ? "----" : String(v));
+      if (unit && v !== "" && v !== undefined && v !== null) val.appendChild(el("small", "", unit));
+      c.appendChild(val);
+      grid.appendChild(c);
+      return c;
+    }
+    lcd("Programma", live.programma, "", true);
+    lcd("Modo", live.modalita);
+    lcd("Esecuzione", live.esecuzione);
+    lcd("Pezzi", live.pezzi, "pz");
+    lcd("In lavoro oggi", live.ore_oggi, "h");
+    var util = lcd("Utilizzo oggi", live.utilizzo !== undefined ? live.utilizzo : "", "%", true);
+    var g = el("div", "pl-gauge"), gi = el("i");
+    gi.style.width = Math.max(0, Math.min(100, Number(live.utilizzo) || 0)) + "%";
+    g.appendChild(gi);
+    util.appendChild(g);
+    box.appendChild(grid);
+
+    var day = el("div", "pl-day");
+    day.appendChild(el("span", "pl-lcd-k", "Linea del giorno"));
+    var bar = el("div", "pl-day-bar");
+    (live.giornata || []).forEach(function (seg) {
+      var s = el("span", "pl-day-seg is-" + seg.stato);
+      s.style.left = seg.da + "%";
+      s.style.width = Math.max(0.3, seg.a - seg.da) + "%";
+      s.title = seg.label + " " + seg.dalle + "–" + seg.alle;
+      bar.appendChild(s);
+    });
+    if (live.ora !== undefined) { var now = el("span", "pl-day-now"); now.style.left = live.ora + "%"; now.title = "Adesso"; bar.appendChild(now); }
+    day.appendChild(bar);
+    var ticks = el("div", "pl-day-ticks");
+    ["00", "06", "12", "18", "24"].forEach(function (t) { ticks.appendChild(el("span", "", t)); });
+    day.appendChild(ticks);
+    box.appendChild(day);
+
+    var alarms = (live.allarmi || []).slice(0, 5);
+    if (alarms.length) {
+      var alm = el("div", "pl-alm");
+      alarms.forEach(function (a) {
+        var r = el("div", "pl-alm-row" + (a.livello === "allarme" ? " is-stop" : ""));
+        r.appendChild(el("b", "", (a.livello === "allarme" ? "ALM " : "MSG ") + (a.codice || "")));
+        r.appendChild(el("span", "", a.testo || a.tipo || ""));
+        alm.appendChild(r);
+      });
+      box.appendChild(alm);
+    }
+    var foot = el("div", "pl-hmi-foot");
+    foot.appendChild(el("span", "", live.fonte || "Controllo"));
+    foot.appendChild(el("span", "", live.letto ? "letto " + live.letto : ""));
+    box.appendChild(foot);
+    if (live.errore) { var err = el("div", "pl-hmi-foot", live.errore); box.appendChild(err); }
+    return box;
+  }
+
   function showMachine(machine, marker) {
+    current = marker ? { kind: "marker", id: marker.id } : null;
+    openSheet(true);
     panel.textContent = "";
     panel.appendChild(backButton());
     var alert = (marker && marker.alert) || machine.alert || "ok";
@@ -460,29 +747,7 @@ body.theme-dark .pl-back{color:#93c5fd}
       .filter(Boolean).forEach(function (t) { pills.appendChild(el("span", "pl-pill", t)); });
     if (pills.children.length) panel.appendChild(pills);
 
-    var live = machine.live;
-    if (live) {
-      var lb = el("div", "pl-box");
-      lb.style.setProperty("--pl-dot", live.allarme || live.stato === "non_raggiungibile" ? "var(--pl-alarm)" : live.stato === "in_lavoro" ? "var(--pl-ok)" : live.stato === "ferma" ? "var(--pl-overdue)" : "var(--border)");
-      lb.appendChild(el("div", "pl-box-title", "Dal controllo della macchina" + (live.fonte ? " · " + live.fonte : "")));
-      lb.appendChild(el("span", "pl-live is-" + live.stato, live.label + (live.dal ? " dal " + live.dal : "")));
-      var ldl = el("dl", "pl-dl");
-      function lrow(k, v) { if (!v) return; ldl.appendChild(el("dt", "", k)); ldl.appendChild(el("dd", "", String(v))); }
-      lrow("Programma", live.programma);
-      lrow("Modalità", live.modalita);
-      lrow("Pezzi sulla CNC", live.pezzi);
-      lrow("Oggi in lavoro", live.ore_oggi ? live.ore_oggi + " h" : "");
-      lrow("Letto alle", live.letto);
-      lb.appendChild(ldl);
-      (live.allarmi || []).slice(0, 5).forEach(function (a) {
-        var r = el("div", "pl-row");
-        r.appendChild(el("span", "pl-row-num", a.livello === "allarme" ? "Allarme" : "Avviso"));
-        r.appendChild(el("span", "pl-row-title", [a.codice, a.testo || a.tipo].filter(Boolean).join(" · ")));
-        lb.appendChild(r);
-      });
-      if (live.errore) lb.appendChild(el("p", "pl-detail-sub", live.errore));
-      panel.appendChild(lb);
-    }
+    if (machine.live) panel.appendChild(hmiPanel(machine.live, machine));
 
     var tickets = (marker && marker.tickets) || machine.tickets || [];
     if (tickets.length) {
@@ -496,6 +761,20 @@ body.theme-dark .pl-back{color:#93c5fd}
         tb.appendChild(r);
       });
       panel.appendChild(tb);
+    }
+    var legal = machine.legal || [];
+    if (legal.length) {
+      var lgb = el("div", "pl-box");
+      lgb.style.setProperty("--pl-dot", legal.some(function (r) { return r.scaduta; }) ? "var(--pl-legal)" : "var(--pl-due_soon)");
+      lgb.appendChild(el("div", "pl-box-title", "Verifiche e scadenze di legge"));
+      legal.forEach(function (r) {
+        var row = link(r.url, "pl-row");
+        row.appendChild(el("span", "pl-row-num", r.tipo));
+        row.appendChild(el("span", "pl-row-title", r.titolo));
+        row.appendChild(el("span", "pl-row-meta" + (r.scaduta ? " is-late" : ""), (r.scaduta ? "scaduta il " : "entro ") + r.scadenza));
+        lgb.appendChild(row);
+      });
+      panel.appendChild(lgb);
     }
     var wos = machine.workorders || [];
     if (wos.length) {
@@ -512,11 +791,12 @@ body.theme-dark .pl-back{color:#93c5fd}
       panel.appendChild(wb);
     }
     if (machine.overdue || machine.due_soon || machine.next_due) {
-      var mb = el("div", "pl-box"); mb.style.setProperty("--pl-dot", machine.overdue ? "var(--pl-overdue)" : machine.due_soon ? "var(--pl-due_soon)" : "var(--pl-ok)");
+      var mb = el("div", "pl-box");
+      mb.style.setProperty("--pl-dot", machine.overdue ? (machine.overdue_days > 30 ? "var(--pl-overdue)" : "var(--pl-late)") : machine.due_soon ? "var(--pl-due_soon)" : "var(--pl-ok)");
       mb.appendChild(el("div", "pl-box-title", "Manutenzione"));
       var dl = el("dl", "pl-dl");
       function row(k, v) { if (!v) return; dl.appendChild(el("dt", "", k)); dl.appendChild(el("dd", "", String(v))); }
-      row("Scadute", machine.overdue);
+      row("Scadute", machine.overdue ? machine.overdue + (machine.overdue_days ? " (la più vecchia da " + machine.overdue_days + " giorni)" : "") : "");
       row("In scadenza", machine.due_soon);
       row("Prossima", machine.next_due);
       mb.appendChild(dl);
@@ -545,35 +825,112 @@ body.theme-dark .pl-back{color:#93c5fd}
     });
   });
 
-  /* ---- ricerca ---- */
+  /* ---- ricerca: questa pianta, poi le altre ---- */
   var search = document.querySelector("[data-pl-search]");
-  if (search) {
-    search.addEventListener("input", function () {
-      var q = search.value.trim().toLowerCase();
-      var hits = [];
-      pins.forEach(function (p) {
-        var m = byId(markers, p.getAttribute("data-marker-id"));
-        var hay = [m.label, m.machine && m.machine.name, m.machine && m.machine.asset_tag, m.machine && m.machine.internal_number, m.machine && m.machine.reparto].join(" ").toLowerCase();
-        var hit = !q || hay.indexOf(q) !== -1;
-        p.classList.toggle("is-dim", !hit);
-        if (q && hit) hits.push(m);
-      });
-      if (!q) { showOverview(); return; }
-      panel.textContent = "";
-      panel.appendChild(el("h3", "pl-section-title", hits.length + " risultat" + (hits.length === 1 ? "o" : "i") + " sulla mappa"));
-      var ul = el("ul", "pl-list");
-      hits.forEach(function (m) {
-        ul.appendChild(machineRow(Object.assign({}, m.machine, { alert: m.alert, name: (m.machine && m.machine.name) || m.label }), function () { showMarker(m, true); }));
-      });
-      panel.appendChild(ul);
+  function hay(parts) { return parts.filter(Boolean).join(" ").toLowerCase(); }
+  function runSearch() {
+    var q = search.value.trim().toLowerCase();
+    var hits = [];
+    pins.forEach(function (p) {
+      var m = byId(markers, p.getAttribute("data-marker-id"));
+      var hit = !q || (m && hay([m.label, m.machine && m.machine.name, m.machine && m.machine.asset_tag, m.machine && m.machine.internal_number, m.machine && m.machine.reparto, m.machine && m.machine.live && m.machine.live.codice]).indexOf(q) !== -1);
+      p.classList.toggle("is-dim", !hit);
+      if (q && hit && m) hits.push(m);
     });
+    if (!q) { showOverview(); return; }
+    current = { kind: "search" };
+    panel.textContent = "";
+    panel.appendChild(el("h3", "pl-section-title", (hits.length === 1 ? "1 risultato" : hits.length + " risultati") + " su questa pianta"));
+    if (hits.length) {
+      var ul = el("ul", "pl-list");
+      hits.forEach(function (m) { ul.appendChild(machineRow(markerMachine(m), function () { showMarker(m, true); })); });
+      panel.appendChild(ul);
+    }
+    var away = (payload.elsewhere || []).filter(function (r) { return hay([r.name, r.asset_tag, r.internal_number, r.reparto]).indexOf(q) !== -1; });
+    if (away.length) {
+      panel.appendChild(el("h3", "pl-section-title", "Su altre piante"));
+      var al = el("ul", "pl-away");
+      away.slice(0, 30).forEach(function (r) {
+        var li = el("li"), a = link(r.url, "", "");
+        var name = el("span", "pl-list-name", r.name || r.asset_tag);
+        name.appendChild(el("small", "", [r.asset_tag, r.reparto].filter(Boolean).join(" · ")));
+        a.appendChild(name);
+        a.appendChild(el("small", "", r.layout + " →"));
+        li.appendChild(a);
+        al.appendChild(li);
+      });
+      panel.appendChild(al);
+    }
+    if (!hits.length && !away.length) panel.appendChild(el("p", "pl-empty", "Nessuna macchina trovata sulle planimetrie."));
+  }
+  if (search) {
+    search.addEventListener("input", runSearch);
     search.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
       e.preventDefault();
       var first = pins.find(function (p) { return !p.classList.contains("is-dim"); });
-      if (first && search.value.trim()) showMarker(byId(markers, first.getAttribute("data-marker-id")), true);
+      if (first && search.value.trim()) { showMarker(byId(markers, first.getAttribute("data-marker-id")), true); return; }
+      var q = search.value.trim().toLowerCase();
+      var away = (payload.elsewhere || []).find(function (r) { return hay([r.name, r.asset_tag, r.internal_number, r.reparto]).indexOf(q) !== -1; });
+      if (q && away) window.location.href = away.url;
     });
   }
+
+  /* ---- aggiornamento automatico: stati, ticket, CNC ogni minuto ---- */
+  var fresh = document.querySelector("[data-pl-fresh]");
+  var lastOk = Date.now();
+  function setText(sel, v) { var n = document.querySelector(sel); if (n) n.textContent = v; }
+  function refreshPins() {
+    pins.forEach(function (p) {
+      var m = byId(markers, p.getAttribute("data-marker-id"));
+      if (!m) return;
+      ORDER.forEach(function (code) { p.classList.remove("is-" + code); });
+      p.classList.add("is-" + m.alert);
+      var live = m.machine && m.machine.live;
+      p.classList.toggle("is-cnc", !!live);
+      if (live) p.setAttribute("data-live", live.stato); else p.removeAttribute("data-live");
+      p.title = m.label + (m.machine && m.machine.name ? " · " + m.machine.name : "") + " · " + (labels[m.alert] || "") + (live ? " · " + live.label : "");
+      var badge = p.querySelector(".pl-pin-badge");
+      if (m.open_tickets) {
+        if (!badge) { badge = el("span", "pl-pin-badge"); p.insertBefore(badge, p.firstChild); }
+        badge.textContent = m.open_tickets;
+      } else if (badge) { badge.remove(); }
+    });
+  }
+  function refreshKpis() {
+    var counts = payload.alert_counts || {};
+    var alerts = 0;
+    Object.keys(counts).forEach(function (k) { if (k !== "ok") alerts += counts[k]; });
+    setText("[data-pl-kpi-alerts]", alerts);
+    setText("[data-pl-kpi-tickets]", payload.markers_with_tickets || 0);
+    var cnc = payload.cnc || {};
+    setText("[data-pl-cnc-run]", cnc.in_lavoro || 0);
+    setText("[data-pl-cnc-sub]", (cnc.ferma || 0) + " ferm" + (cnc.ferma === 1 ? "a" : "e") + " · " + (cnc.allarme || 0) + " in allarme · " + (cnc.spenta || 0) + " offline");
+  }
+  function poll() {
+    if (document.hidden || !view) return;
+    fetch(stateUrl, { headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok || !data.payload || data.layout_id !== (payload.layout && payload.layout.id)) return;
+        payload = data.payload;
+        markers = payload.markers || [];
+        areas = payload.areas || [];
+        lastOk = Date.now();
+        refreshPins();
+        refreshKpis();
+        if (fresh) { fresh.textContent = "Aggiornata alle " + data.aggiornato; fresh.classList.remove("is-stale"); }
+        // ridisegna la colonna senza perdere quello che si sta guardando
+        if (!current || current.kind === "overview") showOverview();
+        else if (current.kind === "marker") { var m = byId(markers, current.id); if (m) showMachine(m.machine || {}, m); }
+        else if (current.kind === "area") { var a = byId(areas, current.id); if (a) showArea(a, false); }
+      })
+      .catch(function () {
+        if (fresh && Date.now() - lastOk > 3 * 60 * 1000) { fresh.textContent = "Non aggiornata: ricarica la pagina"; fresh.classList.add("is-stale"); }
+      });
+  }
+  window.setInterval(poll, 60 * 1000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && Date.now() - lastOk > 60 * 1000) poll(); });
 
   var focused = focusAssetId && markers.find(function (m) { return Number(m.asset_id) === focusAssetId; });
   if (focused) {

@@ -158,7 +158,7 @@ class HeatmapIncidentiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Heatmap incidenti")
         self.assertContains(response, "Layout test")
-        self.assertContains(response, ">1</text>")
+        self.assertContains(response, "<b>1</b>")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

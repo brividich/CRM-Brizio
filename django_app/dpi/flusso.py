@@ -77,6 +77,18 @@ def _team_regola_unica(legacy_id) -> set[int] | None:
         return None
 
 
+def _co_capi_regola_unica(legacy_id) -> set[int] | None:
+    """Co-capi dalla regola unica, se accesa (None = regola di prima)."""
+    try:
+        from anagrafica.services import capo_team
+
+        if not capo_team.regola_unica_attiva():
+            return None
+        return set(capo_team.co_capi_in_cache().get(int(legacy_id), []))
+    except Exception:
+        return None
+
+
 def approvatori_di(legacy_id: int | None) -> set[int]:
     """ID legacy anagrafica di chi puo' approvare le richieste di ``legacy_id``."""
     if not legacy_id:
@@ -88,14 +100,19 @@ def approvatori_di(legacy_id: int | None) -> set[int]:
     try:
         area, reparto = _area_reparto(legacy_id)
         principale = _capo_regola_unica(legacy_id)
-        if principale is None:
+        co_capi = _co_capi_regola_unica(legacy_id)
+        if principale is None and co_capi is None:
             principale = resolve_responsabile_effettivo(area=area, reparto=reparto)
         if principale:
             ids.add(int(principale))
-        if area is not None:
-            ids.update(int(i) for i in area.responsabili.values_list("id", flat=True))
-        if reparto is not None:
-            ids.update(int(i) for i in reparto.responsabili.values_list("id", flat=True))
+        if co_capi is not None:
+            # Regola unica: i co-capi sono le altre persone con la mansione del capo.
+            ids.update(co_capi)
+        else:
+            if area is not None:
+                ids.update(int(i) for i in area.responsabili.values_list("id", flat=True))
+            if reparto is not None:
+                ids.update(int(i) for i in reparto.responsabili.values_list("id", flat=True))
         if area is not None:
             colleghi = DipendenteAnagraficaAziendale.objects.filter(area_aziendale=area).values_list(
                 "legacy_anagrafica_id", flat=True
@@ -130,12 +147,13 @@ def dipendenti_di_approvatore(approvatore_legacy_id: int | None) -> set[int]:
         # responsabile d'area proprio guidato da me (caporeparto = ripiego) o co-guidato.
         team_unico = _team_regola_unica(me)
         if team_unico is not None:
-            # Regola unica accesa: il capo diretto lo dice lei; restano i
-            # co-responsabili di area/reparto e il preposto (sotto).
+            # Regola unica accesa: il capo diretto e i co-capi (stessa mansione
+            # del capo) li dice lei; resta il preposto (sotto).
             result.update(team_unico)
-            aree = AreaAziendale.objects.filter(
-                Q(responsabili__id=me) | Q(reparto__responsabili__id=me)
-            ).values_list("id", flat=True)
+            from anagrafica.services import capo_team
+
+            result.update(p for p, co in capo_team.co_capi_in_cache().items() if me in co)
+            aree = AreaAziendale.objects.none().values_list("id", flat=True)
         else:
             aree = AreaAziendale.objects.filter(
                 Q(responsabile_legacy_id=me)

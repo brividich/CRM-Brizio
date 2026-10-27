@@ -16,6 +16,7 @@
   {% if d.pc_con_patch %}<span>WatchGuard ha già la patch per {{ d.pc_con_patch }} PC: si installa dalla console WatchGuard (Patch Management).</span>{% endif %}
   {% if d.correzione %}<span>Aggiornare: {{ d.correzione }}.</span>{% else %}<span>L'NVD non indica una versione corretta: controllare l'avviso del produttore.</span>{% endif %}
   {% if rec.kev and rec.kev_due %}<span>CISA chiede di correggerla entro il {{ rec.kev_due|date:"d/m/Y" }}.</span>{% endif %}
+  {% if d.termine %}<span>Termine di correzione (ISO 27001 8.8): classe {{ d.termine.etichetta|lower }}, {{ d.termine.giorni }} giorni da «esposto dal»{% if d.pc_oltre_termine %}; <strong>{{ d.pc_oltre_termine }} PC oltre il termine</strong>{% endif %}{% if d.pc_accettati %}; {{ d.pc_accettati }} PC con rischio accettato{% endif %}.</span>{% endif %}
 </div>
 <dl class="pv-facts">
   <div><dt>PC colpiti</dt><dd>{{ d.colpiti }}</dd></div>
@@ -32,6 +33,7 @@
       <span class="cvp-host">{% if p.asset %}<a href="{% url 'assets:asset_view' p.asset.pk %}">{{ p.host }}</a>{% else %}{{ p.host }}{% endif %}{% if p.questo %} <small>(questo PC)</small>{% endif %}</span>
       <span class="cvp-pill cvp-pill--{% if p.esito == 'impacts' %}high{% else %}muted{% endif %}">{% if p.esito == 'impacts' %}Colpito{% else %}Da verificare{% endif %}</span>
       <small class="cvp-host-why">{% if p.versione %}versione {{ p.versione }} · {% endif %}{% if p.aperta_dal %}esposto dal {{ p.aperta_dal|date:"d/m/Y" }} · {% endif %}{{ p.spiegazione|truncatechars:120 }}</small>
+      {% if p.termine %}<small class="cvp-host-why">{% if p.termine.accettata %}<span class="cvp-tag">Rischio accettato fino al {{ p.termine.accettazione.scadenza|date:"d/m/Y" }}</span>{% elif p.termine.scaduta %}<span class="cvp-tag is-ko">Oltre il termine di {{ p.termine.giorni_ritardo }} giorn{{ p.termine.giorni_ritardo|pluralize:"o,i" }} (scaduto il {{ p.termine.scadenza|date:"d/m/Y" }})</span>{% else %}<span class="cvp-tag">Da correggere entro il {{ p.termine.scadenza|date:"d/m/Y" }}</span>{% endif %}</small>{% endif %}
       {% if p.patch or p.defender is not None %}<small class="cvp-host-why">{% if p.patch %}<span class="cvp-tag{% if p.patch.esito_errore %} is-ko{% else %} is-ok{% endif %}">Patch {{ p.patch.nome|truncatechars:60 }}: {% if p.patch.esito %}{{ p.patch.esito_label|lower }}{% else %}{{ p.patch.disponibilita_label|lower|default:"da installare" }}{% endif %}</span>{% endif %}{% if p.defender is True %} <span class="cvp-tag">Defender conferma</span>{% elif p.defender is False %} <span class="cvp-tag is-warn" title="Defender conosce il PC ma non segnala questa CVE: controllare versione e CPE">Defender non la vede</span>{% endif %}</small>{% endif %}
     </li>
   {% endfor %}

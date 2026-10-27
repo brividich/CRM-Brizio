@@ -175,6 +175,12 @@ body.theme-dark .sic-why-text{color:var(--text)}
           <div class="sic-field-label">Categoria evento</div>
           <div class="sic-field-value">{{ f.Tipo_evento_label|default:"-" }}</div>
         </div>
+        {% if f.PlanimetriaPuntoNome %}
+        <div class="sic-field-item">
+          <div class="sic-field-label">Punto sulla planimetria</div>
+          <div class="sic-field-value">{{ f.PlanimetriaPuntoNome }} · <a href="{% url 'rilevazione_incidenti:heatmap' %}?layout={{ f.PlanimetriaPuntoLayoutId }}">vedi sulla mappa di calore</a></div>
+        </div>
+        {% endif %}
         {% if f.PlanimetriaAreaNome %}
         <div class="sic-field-item">
           <div class="sic-field-label">Area planimetria</div>

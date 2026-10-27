@@ -85,7 +85,7 @@
           <td><span class="sec-badge {{ incident.severity }}">{{ incident.severity|ui_label }}</span></td>
           <td class="sec-title-cell">
             <a href="{% url 'security:incident_detail' incident.pk %}"><strong>{{ incident.title }}</strong></a>
-            <small>{{ incident.get_category_display }}{% if incident.is_significant %} · <strong>significativo NIS2</strong>{% endif %}{% if incident.personal_data_breach %} · dati personali{% endif %}</small>
+            <small>{{ incident.get_category_display }}{% if incident.is_significant %} · <strong>significativo NIS2</strong>{% endif %}{% if incident.personal_data_breach %} · dati personali{% endif %}{% if incident.riesame_mancante %} · <span class="sec-badge sec-badge-warning">Riesame mancante</span>{% endif %}</small>
           </td>
           <td class="sec-nowrap">{{ incident.detected_at|date:"d M Y, H:i" }}</td>
           <td>

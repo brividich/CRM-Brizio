@@ -40,6 +40,52 @@ def moduli_presenti() -> list[tuple[str, str]]:
     return [(k, modulo_label(k)) for k in sorted(set(chiavi))]
 
 
+_SEPARATORI_CODICE = (" ", "-", "–", ":", "·", "/", ",")
+
+
+def processo_da_testo(testo: str, processi=None):
+    """Processo del catalogo SGI indicato dal testo «Processo/area», se è uno solo.
+
+    Vale il codice esatto, il nome esatto, oppure il codice in testa seguito da un
+    separatore («PRC-07 - Produzione»). Più processi o nessuno: None (resta il testo).
+    """
+    testo = (testo or "").strip().lower()
+    if not testo:
+        return None
+    if processi is None:
+        try:
+            from sistema_gestione.models import Processo
+        except Exception:  # pragma: no cover - sistema_gestione non installata
+            return None
+        processi = Processo.objects.only("pk", "codice", "nome")
+    trovati = {}
+    for p in processi:
+        codice = (p.codice or "").strip().lower()
+        nome = (p.nome or "").strip().lower()
+        if testo in (codice, nome, f"{codice} - {nome}") or (
+                codice and testo.startswith(codice) and testo[len(codice):len(codice) + 1] in _SEPARATORI_CODICE):
+            trovati[p.pk] = p
+    return next(iter(trovati.values())) if len(trovati) == 1 else None
+
+
+def collega_processo(voce) -> bool:
+    """Allinea processo del catalogo e testo «Processo/area» della voce (senza salvare).
+
+    Con il processo scelto e il testo vuoto il testo diventa «codice - nome»; senza
+    processo lo si ricava dal testo. Ritorna True se ha cambiato qualcosa.
+    """
+    if voce.processo_sgi_id:
+        if not (voce.processo or "").strip():
+            voce.processo = str(voce.processo_sgi)[:200]
+            return True
+        return False
+    trovato = processo_da_testo(voce.processo)
+    if trovato is None:
+        return False
+    voce.processo_sgi = trovato
+    return True
+
+
 def prossimo_numero() -> int:
     """Prossimo numero di registro OFI, senza collisione con l'OFI legacy."""
     from .models import AzioneOFI, RegistroOFI, RigaMOD133

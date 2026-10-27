@@ -11,8 +11,6 @@ Le viste di gestione e il template interattivo sono già in assets.views.
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
 
-from admin_portale.decorators import legacy_admin_or_acl_required
-
 
 @login_required
 def mappa(request):
@@ -20,7 +18,10 @@ def mappa(request):
     return redirect("assets:plant_layout_map")
 
 
-@legacy_admin_or_acl_required("planimetria", "editor")
+@login_required
 def editor(request):
-    """Editor planimetria (admin): redirect alla vista assets esistente."""
+    """Editor planimetria: redirect alla vista assets esistente.
+
+    Nessun permesso proprio: decide quello dell'editor di Asset (la pagina di
+    arrivo), così non esistono due permessi diversi per la stessa pagina."""
     return redirect("assets:plant_layout_editor")

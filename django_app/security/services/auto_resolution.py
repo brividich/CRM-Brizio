@@ -145,6 +145,10 @@ def resolve_alert(alert, reason, evidence_event=None, evidence_ref="", rule_code
     if evidence_ref:
         details["evidence"] = evidence_ref
     SecurityAlertActionLog.objects.create(alert=alert, action="auto_resolved", actor=AUTO_ACTOR, details=details)
+    # Audit sigillato del portale (ISO 27001 8.8/8.15): la chiusura automatica resta dimostrabile.
+    from security.services import traccia
+
+    traccia.registra(traccia.ALERT_AUTO_RISOLTO, {"alert_id": alert.pk, "titolo": alert.title, **details}, oggetto=alert)
     for case in _cases_of(alert):
         maybe_resolve_case(case)
     return alert
@@ -192,6 +196,10 @@ def maybe_resolve_case(case):
         ticket=case, action="case_auto_resolved", actor=AUTO_ACTOR,
         details={"old_status": old_status, "new_status": Status.RESOLVED, "reason": case.resolution},
     )
+    from security.services import traccia
+
+    traccia.registra(traccia.CASO_AUTO_CHIUSO, {"caso_id": case.pk, "old_status": old_status, "new_status": Status.RESOLVED,
+                                                "reason": case.resolution}, oggetto=case)
     return True
 
 

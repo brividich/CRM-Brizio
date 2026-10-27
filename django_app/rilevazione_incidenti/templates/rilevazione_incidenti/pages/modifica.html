@@ -153,6 +153,8 @@ body.theme-dark .sic-form-actions{border-color:var(--border)}
         </div>
         {% endif %}
 
+        {% include "rilevazione_incidenti/partials/punto_planimetria.html" with punto=f.PlanimetriaPunto %}
+
         <div class="sic-toggle-row">
           <label for="toggle-macchina">La causa è l'uso di una macchina/attrezzatura manuale?</label>
           <label class="sic-toggle">

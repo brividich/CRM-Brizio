@@ -334,26 +334,34 @@ GUIDA = {
         },
         {
             "id": "capo-team",
-            "titolo": "Capo e team: la regola unica e «Coerenza capi»",
+            "titolo": "Capo e team: la mansione del capo, «Reparti, aree e capi» e «Capo di ogni persona»",
             "blocchi": [
+                ("p", "Un criterio per tutti: il capo del reparto è chi ha la «mansione del capo» del reparto (vuota = la "
+                      "sua «Responsabilità del reparto»); un'area può avere una «mansione del responsabile» propria, "
+                      "altrimenti segue il reparto. La mansione si assegna come nel Mansionario."),
                 ("p", "Il capo di una persona si cerca in quest'ordine: 1) eccezione indicata a mano sulla persona; "
-                      "2) responsabile dell'area aziendale; 3) caporeparto del reparto; 4) organigramma: chi ha un ruolo "
-                      "sopra quello della persona («riporta a») e lavora nella stessa area, poi nello stesso reparto, poi "
-                      "chi non ha un reparto (ruolo trasversale); se nessuno, si sale di livello: chi guida un altro reparto "
-                      "non diventa mai il capo. In cima vale la persona unica dell'ultimo livello. Nessuno è capo di sé stesso. "
-                      "Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
-                ("p", "Organigramma → «Coerenza capi» (amministratori dell'anagrafica) mostra per ogni persona il capo di oggi "
-                      "(quello che approva assenze e DPI), il capo con la regola unica e come è stato trovato, chi ha oggi la "
-                      "persona nel team dei permessi. Filtri: «Il capo cambia», «Senza capo», «Più candidati», «Eccezioni»."),
-                ("p", "«Indica un'eccezione» fissa il capo di una persona (distacco, interim…): serve il motivo, la modifica "
-                      "va nel registro attività. «Nessuna eccezione» torna alla regola."),
-                ("p", "Il pannello «Regola unica» in cima alla pagina la accende o la spegne per tutto il portale (serve "
-                      "spuntare «Ho controllato i capi che cambiano»). Accesa: il team dei permessi, l'approvatore e il "
-                      "team del capo nelle assenze, l'approvatore delle richieste DPI, i solleciti dei corsi online e il "
-                      "«Caporeparto» della scheda (e del riepilogo mattutino) seguono la colonna «Capo con la regola unica». "
-                      "Spenta: ogni modulo torna alla regola di prima (area → reparto; per i permessi, la gerarchia dei ruoli)."),
-                ("nota", "Prima di accenderla guarda i filtri «Il capo cambia» e «Senza capo»: chi resta senza capo non ha "
-                         "nessuno che gli approvi le assenze."),
+                      "2) chi ha la mansione del responsabile della sua area; 3) chi ha la mansione del capo del suo "
+                      "reparto; 4) organigramma: chi ha un ruolo sopra quello della persona («riporta a») e lavora nella "
+                      "stessa area, poi nello stesso reparto, poi chi non ha un reparto (ruolo trasversale); se nessuno, "
+                      "si sale di livello: chi guida un altro reparto non diventa mai il capo. Nessuno è capo di sé stesso. "
+                      "Più persone con la stessa mansione sono co-capo: le assenze le approva la prima, le richieste DPI "
+                      "tutte. Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
+                ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Mansione del capo», "
+                      "«Capo», le aree con il «Responsabile» e gli avvisi («Scegli la mansione del capo», «Nessuno ha la "
+                      "mansione del capo: vale l'organigramma dei ruoli», persone senza capo). «Assegna la mansione a…» "
+                      "+ «Assegna» cambia il capo, la × lo toglie; «Modifica» su reparto o area sceglie la mansione."),
+                ("p", "Passaggio (una volta, dopo l'aggiornamento): il riquadro «Passaggio ai capi decisi dalla mansione» "
+                      "assegna la mansione del capo a chi oggi è capo (e agli «altri responsabili» indicati prima), "
+                      "elenca i reparti senza mansione del capo (vanno sistemati prima) e le aree con un responsabile "
+                      "diverso dal capo del reparto. «Ho controllato reparti e aree» + «Fai il passaggio»: nessuno cambia "
+                      "capo; da lì in poi team dei permessi, assenze, DPI, solleciti, digest, la tabella reparto → capo "
+                      "delle assenze e il «Caporeparto» delle schede seguono le mansioni."),
+                ("p", "«Capo di ogni persona» (da «Reparti, aree e capi» o dall'Organigramma) mostra per ogni persona il "
+                      "capo, da dove viene e chi la ha nel team dei permessi. Filtri: «Il capo cambia», «Senza capo», "
+                      "«Più candidati», «Eccezioni». L'eccezione fissa il capo di una persona (distacco, interim…): "
+                      "serve il motivo, la modifica va nel registro attività."),
+                ("nota", "Chi resta senza capo non ha nessuno che gli approvi le assenze: guarda il filtro «Senza capo» "
+                         "dopo ogni modifica."),
             ],
         },
         {
@@ -420,14 +428,15 @@ GUIDA = {
                       "MASCHERATURA…; il reparto UT ha le aree DIREZIONE, COMMERCIALE, UFFICIO TECNICO, OPERATIONS, "
                       "ACQUISTI, QUALITA, RISORSE UMANE, HSE e IT."),
                 ("def", [
-                    ("Reparti e aree", "un blocco per reparto con il ruolo responsabile (es. CAR), il caporeparto, le "
+                    ("Reparti e aree", "un blocco per reparto con il ruolo responsabile (es. CAR), il capo, le "
                                        "aree e, per ogni area, i ruoli con le loro mansioni. Gli amministratori "
                                        "dell'anagrafica cambiano qui il ruolo responsabile del reparto e dell'area "
-                                       "(vuoto = come il reparto). Il caporeparto (la persona) resta in «Reparti e aree»."),
+                                       "(vuoto = come il reparto). Il capo (la persona) si assegna in «Reparti, aree e capi»."),
                     ("Responsabilità del reparto", "ogni reparto con un ruolo responsabile ha la sua mansione "
                                                    "«Responsabilità del reparto <nome>», creata e aggiornata da sola: "
-                                                   "serve per scrivere le competenze del responsabile. Chi la ricopre è "
-                                                   "il caporeparto; se togli il ruolo responsabile la mansione si spegne."),
+                                                   "serve per scrivere le competenze del responsabile. Chi la ha assegnata è "
+                                                   "il capo del reparto (salvo una «mansione del capo» diversa); se togli "
+                                                   "il ruolo responsabile la mansione si spegne."),
                     ("Processi", "i processi del Sistema di Gestione con tipo (principale/ausiliario), owner (un ruolo), "
                                  "numero di mansioni e ruoli coinvolti. «Cambia» modifica tipo e owner: serve il motivo e "
                                  "si salva come nuova revisione della scheda processo, la stessa che si vede in Sistema di "

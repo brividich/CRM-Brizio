@@ -141,7 +141,7 @@ class CapoTeamTests(_Scenario):
         self.client.force_login(admin)
         resp = self.client.get(reverse("anagrafica:coerenza_capi"), {"filtro": "cambia"})
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Coerenza capi")
+        self.assertContains(resp, "Capo di ogni persona")
 
         url = reverse("anagrafica:coerenza_capi_eccezione", args=[self.rossi])
         self.client.post(url, {"capo": str(self.neri), "motivo": ""})
@@ -210,21 +210,6 @@ class RegolaUnicaPassaggioTests(_Scenario):
         with mock.patch.object(team, "_anagrafica_ids_di", return_value=[self.gialli]):
             # Gialli: Bianchi e Neri diretti; Rossi (eccezione → Bianchi) e Verdi (→ Neri) a cascata.
             self.assertEqual(team._team_regola_unica(999), {self.bianchi, self.neri, self.rossi, self.verdi})
-
-    def test_interruttore_dalla_pagina_con_conferma_e_schede_riallineate(self):
-        admin = User.objects.create_superuser(username="cc_switch", email="sw@x.local", password="x")
-        self.client.force_login(admin)
-        url = reverse("anagrafica:coerenza_capi")
-        self.client.post(url, {"azione": "regola", "attiva": "1"})
-        self.assertFalse(capo_team.regola_unica_attiva())  # senza conferma no
-        self.client.post(url, {"azione": "regola", "attiva": "1", "conferma": "1"})
-        self.assertTrue(capo_team.regola_unica_attiva())
-        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.rossi)
-        self.assertEqual(az.caporeparto_legacy_id, self.bianchi)
-        self.client.post(url, {"azione": "regola", "attiva": "0"})
-        self.assertFalse(capo_team.regola_unica_attiva())
-        az.refresh_from_db()
-        self.assertEqual(az.caporeparto_legacy_id, self.neri)
 
     def test_accesa_una_modifica_riallinea_le_schede_dopo_il_commit(self):
         capo_team.imposta_regola_unica(True)

@@ -101,7 +101,7 @@ VOCI: tuple[Voce, ...] = (
     # Qualità (le anomalie sono non conformita' legate agli ordini)
     Voce("gestione_anomalie", "anomalie_menu", "qualita", "", 61),
     Voce("gestione-specifiche", "gestione_specifiche:lista", "qualita", "", 62),
-    Voce("ofi_registro", "registro_ofi:lista", "qualita", "", 63),
+    Voce("ofi_registro", "registro_ofi:home", "qualita", "", 63),
     Voce("report-conformita", "report_conformita:index", "qualita", "", 64),
     Voce("sistema-gestione", "sistema_gestione:index", "qualita", "", 65),
     Voce("glossario-tecnico", "glossario_tecnico:index", "qualita", "", 66),

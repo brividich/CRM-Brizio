@@ -144,7 +144,7 @@ class VisteTests(TestCase):
 
     def _post(self, user, nome, dati=None, **kw):
         self.client.force_login(user)
-        with patch("gestione_specifiche.views_ofi.request_has_permission_code", return_value=False):
+        with patch("registro_ofi.views.request_has_permission_code", return_value=False):
             return self.client.post(reverse(f"registro_ofi:{nome}", args=[self.voce.pk]), dati or {}, **kw)
 
     def test_altro_utente_non_avanza(self):
@@ -181,12 +181,17 @@ class VisteTests(TestCase):
     def test_dettaglio_e_cruscotto_si_aprono(self):
         R.registra_evento(self.voce, RegistroOFIEvento.TIPO_CREATA, utente=self.resp, a="Plan")
         self.client.force_login(self.resp)
-        with patch("gestione_specifiche.views_ofi.request_has_permission_code", return_value=False):
+        with patch("registro_ofi.views.request_has_permission_code", return_value=False):
             r = self.client.get(reverse("registro_ofi:dettaglio", args=[self.voce.pk]))
             self.assertContains(r, "Passa a «Do (attua)»")
             self.assertContains(r, "Cronologia")
-            r = self.client.get(reverse("registro_ofi:cruscotto"))
-            self.assertContains(r, "Voci aperte")
+            # Il vecchio cruscotto porta alla dashboard; chi non consulta il registro vede il suo lavoro.
+            r = self.client.get(reverse("registro_ofi:cruscotto"), follow=True)
+            self.assertContains(r, "Il mio lavoro")
+            self.assertContains(r, f"{self.voce.tipo} {self.voce.numero}")
+            self.assertNotContains(r, "Da dove arrivano le voci")
+            r = self.client.get(reverse("registro_ofi:mie"))
+            self.assertContains(r, reverse("registro_ofi:dettaglio", args=[self.voce.pk]))
             r = self.client.get(reverse("registro_ofi:lista") + "?mie=1")
             self.assertContains(r, "Le mie voci")
 

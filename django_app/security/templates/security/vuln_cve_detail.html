@@ -19,6 +19,50 @@
 
 {% include "security/partials/cve_impact_summary.html" with summary=summary record=record %}
 
+{% if termine %}
+<section class="sec-panel" style="margin-top: 12px;" id="termini-correzione">
+  <div class="sec-section-head"><h2>Tempi di correzione e accettazione del rischio</h2><a class="sec-small" href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">? Guida</a></div>
+  <p class="sec-small">
+    Classe <strong>{{ termine.etichetta }}</strong>: da correggere entro <strong>{{ termine.giorni }} giorni</strong> da «esposto dal» (ISO/IEC 27001:2022, controllo 8.8){% if termine.kev_due %}; CISA chiede la correzione entro il <strong>{{ termine.kev_due|date:"d/m/Y" }}</strong>{% endif %}.
+    {% if not termine.attivo %}<span class="sec-badge warning">Segnalazione oltre il termine spenta in Impostazioni</span>{% elif termine.scaduti %}<span class="sec-badge sec-badge-critical">{{ termine.scaduti }} PC oltre il termine</span>{% endif %}
+    Il termine di ogni PC è nella colonna «Termine» qui sotto.
+  </p>
+  {% if accettazioni %}
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Ambito</th><th>Stato</th><th>Scadenza</th><th>Approvata</th><th>Motivo e misure compensative</th>{% if can_edit %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for a in accettazioni %}
+        <tr>
+          <td>{{ a.host|default:"tutti i PC" }}</td>
+          <td>{% if a.stato == "attiva" %}<span class="sec-badge sec-badge-success">Attiva</span>{% elif a.stato == "scaduta" %}<span class="sec-badge warning">Scaduta</span>{% else %}<span class="sec-badge sec-badge-muted">Revocata {{ a.revocata_il|date:"d/m/Y" }}</span>{% endif %}</td>
+          <td class="sec-nowrap">{{ a.scadenza|date:"d/m/Y" }}</td>
+          <td class="sec-small">{{ a.approvata_da.get_username|default:"—" }} il {{ a.approvata_il|date:"d/m/Y" }}</td>
+          <td class="sec-small">{{ a.motivo|linebreaksbr }}{% if a.misure_compensative %}<br><em>Misure: {{ a.misure_compensative|linebreaksbr }}</em>{% endif %}{% if a.revoca_motivo %}<br><em>Revoca: {{ a.revoca_motivo }}</em>{% endif %}</td>
+          {% if can_edit %}<td>{% if a.stato == "attiva" %}<form method="post" action="{% url 'security:accettazione_rischio_revoca' a.pk %}" class="sec-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="text" name="motivo" maxlength="500" placeholder="Motivo della revoca" class="sec-input"> <button type="submit" class="sec-button" data-hub-confirm="Revocare l'accettazione del rischio? L'esposizione torna a contare per il termine di correzione.">Revoca</button></form>{% endif %}</td>{% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if can_edit %}
+  <details style="margin-top: 8px;"><summary>Accetta il rischio (eccezione al termine di correzione)</summary>
+    <form method="post" action="{% url 'security:cve_accetta_rischio' record.cve_id %}" class="sec-form" style="margin-top: 8px;">{% csrf_token %}
+      <p class="sec-muted sec-small">Serve quando la correzione non si può fare nel termine (software senza patch, macchina isolata, fermo produzione). Motivo e misure restano nell'audit sigillato; alla scadenza l'esposizione conta di nuovo e 30 giorni prima arriva un promemoria.</p>
+      <div class="sec-grid sec-two-col">
+        <label>PC<br><select name="host" class="sec-input"><option value="">Tutti i PC</option>{% for h in accettazione_host %}<option value="{{ h }}">{{ h }}</option>{% endfor %}</select></label>
+        <label>Scadenza (al massimo 12 mesi)<br><input type="date" name="scadenza" required class="sec-input" max="{{ accettazione_scadenza_max|date:'Y-m-d' }}"></label>
+      </div>
+      <label>Motivo (almeno {{ accettazione_motivo_min }} caratteri)<br><textarea name="motivo" rows="2" required minlength="{{ accettazione_motivo_min }}" class="sec-input" style="width:100%"></textarea></label>
+      <label>Misure compensative (facoltative)<br><textarea name="misure" rows="2" class="sec-input" style="width:100%" placeholder="Es. PC isolato dalla rete, funzione disattivata, monitoraggio rafforzato"></textarea></label>
+      <p><button type="submit" class="sec-button sec-button-primary">Accetta il rischio</button></p>
+    </form>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Esito per host{% if proposte_ai %} <span class="sec-badge warning" title="Esiti «da verificare» per cui l'AI locale ha proposto una risposta: da accettare o rifiutare">{{ proposte_ai }} propost{{ proposte_ai|pluralize:"a,e" }} AI</span>{% endif %}</h2>
     <div class="sec-actions">
@@ -28,7 +72,7 @@
   </div>
   <div class="sec-table-wrap">
     <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th>Host</th><th>Esito</th><th>Spiegazione</th><th>Inventario</th></tr></thead>
+      <thead><tr><th>Host</th><th>Esito</th><th>Spiegazione</th><th>Inventario</th><th>Termine</th></tr></thead>
       <tbody>
       {% for imp in impacts %}
         <tr>
@@ -49,9 +93,10 @@
             {% endif %}
           </td>
           <td class="sec-nowrap">{{ imp.inventory_date|date:"d/m/Y"|default:"—" }}</td>
+          <td class="sec-small sec-nowrap">{% if imp.termine %}{% if imp.termine.accettata %}<span class="sec-badge sec-badge-muted" title="Accettazione del rischio #{{ imp.termine.accettazione.pk }}">Rischio accettato fino al {{ imp.termine.accettazione.scadenza|date:"d/m/Y" }}</span>{% elif imp.termine.scaduta %}<span class="sec-badge sec-badge-critical">Oltre il termine di {{ imp.termine.giorni_ritardo }} giorn{{ imp.termine.giorni_ritardo|pluralize:"o,i" }}</span><br>scaduto il {{ imp.termine.scadenza|date:"d/m/Y" }}{% else %}entro il {{ imp.termine.scadenza|date:"d/m/Y" }}<br><span class="sec-muted">{{ imp.termine.giorni_restanti }} giorn{{ imp.termine.giorni_restanti|pluralize:"o,i" }}</span>{% endif %}{% else %}—{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="4" class="sec-empty">Nessun host con il prodotto nell'inventario.</td></tr>
+        <tr><td colspan="5" class="sec-empty">Nessun host con il prodotto nell'inventario.</td></tr>
       {% endfor %}
       </tbody>
     </table>

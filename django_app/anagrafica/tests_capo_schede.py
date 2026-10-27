@@ -82,9 +82,15 @@ class SalvataggioRepartoAreaTests(TestCase):
             legacy_anagrafica_id=OPERAIO_AREA, area="Saldatura", area_aziendale=self.area,
         )
 
-    def test_salvare_il_reparto_non_scavalca_il_responsabile_d_area(self):
+    def test_salvare_il_reparto_non_sceglie_piu_il_capo_a_mano(self):
+        """Dal 26/10/2026 il capo è chi ha la mansione del capo: il form salva la mansione."""
+        from anagrafica.models_skillmatrix import CompetenzaSkm
+
+        mansione = CompetenzaSkm.objects.create(competenza_key="resp_sald", display="Responsabile saldatura",
+                                                tipo=CompetenzaSkm.TIPO_PROCESSO)
         self.client.post(reverse("anagrafica:area_edit", args=[self.rep.pk]), {
-            "nome": "Saldatura", "is_active": "1", "caporeparto_legacy_id": str(CAPO_REPARTO),
+            "nome": "Saldatura", "is_active": "1", "caporeparto_legacy_id": "4242", "mansione_capo": str(mansione.pk),
         })
-        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=OPERAIO_AREA)
-        self.assertEqual(az.caporeparto_legacy_id, RESP_AREA)
+        self.rep.refresh_from_db()
+        self.assertEqual(self.rep.caporeparto_legacy_id, CAPO_REPARTO)
+        self.assertEqual(self.rep.mansione_capo_id, mansione.pk)

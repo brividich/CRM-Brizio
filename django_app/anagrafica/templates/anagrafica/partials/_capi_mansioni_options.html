@@ -1,0 +1,4 @@
+{# Opzioni «mansione del capo»: vuota (default) + Responsabilità + altre mansioni. Serve mansioni_opts. #}
+<option value="">{{ vuota }}</option>
+<optgroup label="Responsabilità del reparto">{% for m in mansioni_opts %}{% if m.responsabilita_reparto_id %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endif %}{% endfor %}</optgroup>
+<optgroup label="Altre mansioni">{% for m in mansioni_opts %}{% if not m.responsabilita_reparto_id %}<option value="{{ m.pk }}">{{ m.nome }}</option>{% endif %}{% endfor %}</optgroup>

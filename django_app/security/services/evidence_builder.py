@@ -23,4 +23,9 @@ def build_evidence_container(source, title, alert=None, event=None, report=None,
             item_type="report",
             content={"parsed_payload": report.parsed_payload},
         )
+    # Sigillo e prima voce di custodia (ISO 27001 5.28): l'impronta nasce con il contenitore.
+    from security.services.evidenze import custodia, sigilla
+
+    custodia(container, "created")
+    sigilla(container)
     return container
