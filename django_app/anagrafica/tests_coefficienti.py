@@ -248,8 +248,13 @@ class CostoOrarioTests(_Base):
         self._voce("3463.20")
         r = self.client.get(reverse("anagrafica:costo_orario"))
         self.assertContains(r, "20,00")
-        r = self.client.get(reverse("anagrafica:costo_orario_export"))
+        r = self.client.get(reverse("anagrafica:export", args=["costo_orario"]), {"format": "xlsx", "scope": "full"})
         self.assertIn("spreadsheetml", r["Content-Type"])
+        from .exports import EXPORT_SPECS
+
+        righe = EXPORT_SPECS["costo_orario"].dataset(self.client.get(reverse("anagrafica:costo_orario")).wsgi_request,
+                                                     "filtered")
+        self.assertEqual([x["costo"] for x in righe], [D("20.0000")])
         normale = User.objects.create_user("co_normale", "co@example.invalid", "x")
         self.client.force_login(normale)
         r = self.client.get(reverse("anagrafica:costo_orario"))

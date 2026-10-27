@@ -13,7 +13,6 @@ from datetime import date
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
-from django.urls import reverse
 
 from core.audit import log_action, log_consultazione
 
@@ -156,30 +155,17 @@ def costo_orario(request):
                       {"filtri": sorted(k for k in request.GET.keys())}, chiave="costo_orario")
     ctx = _righe_costo(request)
     giorni, ore = costo_svc.divisori()
+    costi = [x["c"].costo_orario for x in ctx["righe"]]
+    kpi = {
+        "media": _euro(sum(costi) / len(costi)) if costi else "—",
+        "minimo": _euro(min(costi)) if costi else "—",
+        "massimo": _euro(max(costi)) if costi else "—",
+        "manuali": sum(1 for x in ctx["righe"] if x["c"].rml_manuale),
+    }
     return render(request, "anagrafica/pages/costo_orario.html", {
-        **ctx, "page_title": "Costo orario", "giorni": giorni, "ore": ore, "ore_mese": giorni * ore,
-        "export_url": f"{reverse('anagrafica:costo_orario_export')}?{request.GET.urlencode()}",
+        **ctx, "page_title": "Costo orario", "giorni": giorni, "ore": ore, "ore_mese": giorni * ore, "kpi": kpi,
     })
 
 
-@login_required
-def costo_orario_export(request):
-    if not _puo_costo(request):
-        messages.error(request, "Accesso non autorizzato ai dati HR.")
-        return redirect("anagrafica:index")
-    from core.excel_export import make_xlsx_response
-
-    ctx = _righe_costo(request)
-    log_action(request, "COSTO_ORARIO_ESPORTATO", MODULE,
-               {"mese": str(ctx["mese"] or ""), "righe": len(ctx["righe"])})
-    righe = [[x["nome"], x["reparto"], x["classe"], x["c"].mese, float(x["c"].rml),
-              float(x["c"].divisore_giorni), float(x["c"].divisore_ore), float(x["c"].costo_orario),
-              "sì" if x["c"].rml_manuale else ""] for x in ctx["righe"]]
-    mese = ctx["mese"]
-    return make_xlsx_response(
-        filename=f"costo_orario_{mese:%Y_%m}.xlsx" if mese else "costo_orario.xlsx",
-        columns=["Persona", "Reparto", "Classificazione", "Mese", "RML (€)", "Giorni", "Ore al giorno",
-                 "Costo orario (€)", "RML corretta a mano"],
-        rows=righe, sheet_title="Costo orario", title="Costo orario",
-        subtitle=f"RML ÷ giorni ÷ ore · {mese:%m/%Y}" if mese else "RML ÷ giorni ÷ ore",
-    )
+def _euro(valore) -> str:
+    return f"{valore:.2f}".replace(".", ",")
