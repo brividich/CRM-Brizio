@@ -199,6 +199,14 @@ class HomeStanzeRenderTests(TestCase):
             self.assertContains(resp, testo)
         self.assertContains(resp, reverse("home_portale:guida"))
 
+    def test_tessera_anomalie_apre_subito_il_modulo(self):
+        resp = self.client.get(reverse("home_portale:index"))
+        self.assertContains(resp, f'<a class="hp-tile" data-mod="anomalie" href="{reverse("gestione_anomalie_page")}">',
+                            html=False)
+        self.assertNotContains(resp, 'id="hp-panel-anomalie"')
+        # Le altre tessere restano con il pannello.
+        self.assertContains(resp, 'id="hp-panel-ticket"')
+
     def test_guida_mostra_tutte_le_sezioni(self):
         from django.utils.html import escape
 

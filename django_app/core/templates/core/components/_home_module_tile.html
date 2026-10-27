@@ -1,7 +1,11 @@
 {% if mod.accessible %}
 <div class="hp-tile-wrap hp-tone-{{ mod.tone }}" data-tile="{{ mod.id }}">
+  {% if mod.diretto %}
+  <a class="hp-tile" data-mod="{{ mod.id }}" href="{{ mod.url }}">
+  {% else %}
   <button type="button" class="hp-tile" data-mod="{{ mod.id }}"
           aria-expanded="false" aria-controls="hp-panel-{{ mod.id }}">
+  {% endif %}
     <span class="hp-tile-ico hp-tone-{{ mod.tone }}">
       {% if mod.icon_image %}
         <img src="{{ mod.icon_image }}" alt="" loading="lazy">
@@ -20,13 +24,14 @@
     </span>
     {% endif %}
     <span class="hp-tile-corner" aria-hidden="true"></span>
-  </button>
+  {% if mod.diretto %}</a>{% else %}</button>{% endif %}
   {% if home_star %}
   <button type="button" class="hp-star" data-hs-star="{{ mod.id }}"
           aria-pressed="{% if mod.id in home_preferiti_ids %}true{% else %}false{% endif %}"
           title="{% if mod.id in home_preferiti_ids %}Togli dai preferiti{% else %}Aggiungi ai preferiti{% endif %}"
           aria-label="{% if mod.id in home_preferiti_ids %}Togli {{ mod.label }} dai preferiti{% else %}Aggiungi {{ mod.label }} ai preferiti{% endif %}">{% if mod.id in home_preferiti_ids %}★{% else %}☆{% endif %}</button>
   {% endif %}
+  {% if not mod.diretto %}
   <div class="hp-tile-panel" id="hp-panel-{{ mod.id }}" hidden>
     <div class="hp-tile-panel-row">
       <div class="hp-tile-panel-info">
@@ -45,6 +50,7 @@
       <a href="{{ mod.url }}" class="hp-tile-go">Vai al modulo →</a>
     </div>
   </div>
+  {% endif %}
 </div>
 {% else %}
 <div class="hp-tile hp-tile-lock" aria-disabled="true" title="Modulo non accessibile con il tuo ruolo">

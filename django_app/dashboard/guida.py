@@ -125,7 +125,8 @@ SEZIONI: list[dict] = [
                 "Il riquadro a destra della tessera mostra il numero principale del modulo, per esempio le anomalie aperte. "
                 "Conta solo i dati che puoi vedere: i tuoi (o del tuo team) se il tuo ruolo non vede tutto; "
                 "una tessera senza numero vuol dire che il totale è riservato a chi vede tutta l'azienda.",
-                "Un clic sulla tessera apre un pannello con tutti i numeri del modulo e «Vai al modulo →».",
+                "Un clic sulla tessera apre un pannello con tutti i numeri del modulo e «Vai al modulo →». "
+                "«Anomalie» invece apre subito la gestione anomalie, senza pannello.",
                 "Le tessere non si aggiungono a mano: con «Ruoli e permessi» attivo compare ogni modulo che uno dei "
                 "tuoi ruoli ti lascia «Vedere» (lo stesso elenco di «Cosa vede questa persona»). "
                 "«Nessun modulo disponibile» vuol dire che nessun tuo ruolo concede «Vedere» su un modulo della home.",

@@ -81,7 +81,7 @@ _CATEGORIES = [
 # url_name: nome URL Django (con namespace se presente), o "#" se non esiste ancora.
 _MODULE_CATALOG: list[dict] = [
     # OPS
-    {"id": "anomalie",    "cat": "ops",   "label": "Anomalie",              "sub": "Eventi e segnalazioni",      "tone": "danger",  "kpi_unit": "aperte",      "url_name": "gestione_anomalie_page",          "pulsante_aliases": ("anomalie", "gestione-anomalie")},
+    {"id": "anomalie",    "cat": "ops",   "label": "Anomalie",              "sub": "Eventi e segnalazioni",      "tone": "danger",  "kpi_unit": "aperte",      "url_name": "gestione_anomalie_page",          "pulsante_aliases": ("anomalie", "gestione-anomalie"), "diretto": True},
     {"id": "ticket",      "cat": "ops",   "label": "Ticket",                "sub": "Interventi e richieste",     "tone": "warning", "kpi_unit": "attivi",      "url_name": "tickets:dashboard",               "pulsante_aliases": ("ticket", "tickets", "assistenza")},
     {"id": "task",        "cat": "ops",   "label": "Task / Kick-off",       "sub": "Attività di reparto",        "tone": "info",    "kpi_unit": "in corso",    "url_name": "tasks:list",                      "pulsante_aliases": ("task", "tasks", "vrf-kickoff", "kickoff")},
     {"id": "diario",      "cat": "ops",   "label": "Diario preposto",       "sub": "Giornale di sicurezza",      "tone": "warning", "kpi_unit": "da firmare",  "url_name": "diario_preposto:lista",           "pulsante_aliases": ("diario-preposto",)},
@@ -560,6 +560,8 @@ def _module_groups(request, accessible_set: set[str], is_admin: bool,
                 "icon_image": icon_image,
                 "tone":       spec["tone"],
                 "url":        url,
+                # Tessera che apre subito il modulo, senza il pannello «Vai al modulo».
+                "diretto":    bool(spec.get("diretto")) and url != "#",
                 "accessible": can,
                 "kpis":       raw_kpis,
                 "kpi_value":  first.get("value"),
