@@ -35,20 +35,18 @@ class EventoTests(SimpleTestCase):
         self.assertFalse(ev["giornata_intera"])
         q = parse_qs(urlparse(co.link_outlook(ev)).query)
         self.assertEqual(q["startdt"][0], "2026-10-27T08:00:00")
-        self.assertIn("DTSTART:20261027T070000Z", co.ics(ev).decode())  # 27/10: ora solare, UTC+1
 
-    def test_ics_evento_libero(self):
-        testo = co.ics(co.evento_assenza("assenze", _payload())).decode()
-        self.assertIn("DTSTART;VALUE=DATE:20261026", testo)
-        self.assertIn("DTEND;VALUE=DATE:20261031", testo)
-        self.assertIn("TRANSP:TRANSPARENT", testo)
-        self.assertIn("X-MICROSOFT-CDO-BUSYSTATUS:FREE", testo)
+    def test_pulsante_solo_se_il_capo_e_fra_i_destinatari(self):
+        payload = _payload(capo_email="Capo@Example.com")
+        self.assertTrue(co.per_il_capo(payload, ["assenze@example.com", "capo@example.com"]))
+        self.assertFalse(co.per_il_capo(payload, ["assenze@example.com"]))
+        self.assertFalse(co.per_il_capo(_payload(), ["assenze@example.com"]))
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
                    DEFAULT_FROM_EMAIL="noreply@example.com")
 class MailApprovazioneTests(SimpleTestCase):
-    def test_pulsante_e_allegato(self):
+    def test_pulsante_senza_allegato(self):
         ev = co.evento_assenza("assenze", _payload())
         _send_approval_email(approver_emails=["capo@example.com"], subject="Ferie", message_body="Richiesta",
                              approve_url="https://x/ok", reject_url="https://x/no", approve_label="Approva",
@@ -56,9 +54,7 @@ class MailApprovazioneTests(SimpleTestCase):
         msg = mail.outbox[0]
         self.assertIn(co.ETICHETTA, msg.alternatives[0][0])
         self.assertIn("outlook.office.com", msg.body)
-        nome, contenuto, tipo = msg.attachments[0]
-        self.assertEqual(nome, "assenza.ics")
-        self.assertTrue(tipo.startswith("text/calendar"))
+        self.assertEqual(msg.attachments, [])
 
     def test_senza_evento_nessun_allegato(self):
         _send_approval_email(approver_emails=["capo@example.com"], subject="X", message_body="Y",

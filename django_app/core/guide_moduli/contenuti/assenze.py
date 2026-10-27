@@ -88,10 +88,10 @@ GUIDA = {
                 ("p", "Sotto il nome del dipendente possono comparire avvisi gialli: saldo insufficiente, contatore oltre il limite "
                       "(es. assemblea sindacale), oppure «Copertura …: il gg/mm sarebbero assenti N persone (soglia M)». "
                       "Sono informazioni: puoi approvare lo stesso."),
-                ("p", "Nelle mail della richiesta (approvazione, avvisi, promemoria) c'è «Aggiungi al calendario Outlook»: "
-                      "apre Outlook web con l'assenza già compilata. Da Outlook sul PC puoi anche aprire l'allegato "
-                      "«assenza.ics» e salvarlo. L'evento è segnato «libero»: non occupa la tua agenda. "
-                      "Non compare per le richieste rifiutate."),
+                ("p", "Nelle mail che arrivano a te come caporeparto (approvazione, avvisi, promemoria) c'è il pulsante "
+                      "«Aggiungi al calendario Outlook»: apre Outlook web con l'assenza già compilata. L'evento è segnato "
+                      "«libero»: non occupa la tua agenda. Non compare per le richieste rifiutate né nelle mail "
+                      "all'ufficio assenze."),
                 ("p", "Se l'ufficio HR ha acceso «Assenze approvate nel calendario Outlook del capo», non devi fare niente: "
                       "le assenze che approvi compaiono da sole in Outlook, entro 10 minuti, nel calendario «Assenze del team "
                       "(NOVICROM HUB)» (puoi mostrarlo o nasconderlo accanto al tuo calendario). Se una richiesta cambia "
