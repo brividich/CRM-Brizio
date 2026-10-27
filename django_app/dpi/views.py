@@ -999,6 +999,7 @@ def rifiuta_richiesta(request, pk: int):
         messages.error(request, "Stato non valido per il rifiuto.")
         return redirect("dpi:gestione_detail", pk=pk)
     motivazione = request.POST.get("motivazione", "").strip()
+    era_approvata = richiesta.stato == StatoRichiesta.APPROVATA
     richiesta.stato = StatoRichiesta.RIFIUTATA
     if motivazione:
         richiesta.note_gestione = motivazione
@@ -1023,6 +1024,8 @@ def rifiuta_richiesta(request, pk: int):
             messaggio=f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata rifiutata.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
+    if era_approvata:
+        flusso.notifica_rifiutata_dopo_approvazione(richiesta)
     messages.success(request, f"Richiesta {richiesta.numero} rifiutata.")
     return redirect("dpi:gestione_detail", pk=pk)
 
