@@ -135,6 +135,130 @@ def storico_oggetto(oggetto=None, *, oggetto_tipo: str = "", oggetto_id: str = "
     ).order_by("-created_at")[:limit]
 
 
+AZIONI_AUTOMATICHE = {
+    "auto_insert": "Creazione",
+    "auto_update": "Modifica",
+    "auto_delete": "Eliminazione",
+}
+
+
+# verbose_name di default (dal nome del campo) dei campi più comuni senza etichetta.
+ETICHETTE_COMUNI = {
+    "is active": "Attivo",
+    "created at": "Creato il",
+    "updated at": "Aggiornato il",
+}
+
+
+def storico_leggibile(voci) -> list:
+    """Le voci di audit pronte per lo storico in pagina.
+
+    Ogni ``dettaglio["modifiche"]`` nella forma ``{campo: {"old", "new"}}`` (quello
+    dei segnali automatici, ma anche di ``log_action`` che lo usano) diventa una
+    riga «campo: prima → dopo»; creazioni ed eliminazioni automatiche mostrano i
+    valori. Etichette dei campi, valori delle scelte e nomi dei record collegati
+    (FK) vengono dal modello indicato in ``oggetto_tipo``, al posto del JSON
+    grezzo. Le altre voci restano com'erano (azione + dettaglio).
+    """
+    from types import SimpleNamespace
+
+    from django.apps import apps
+
+    from core import audit_policy
+
+    modelli: dict = {}
+    cache_fk: dict = {}
+
+    def _modello(etichetta: str):
+        if etichetta not in modelli:
+            try:
+                modelli[etichetta] = apps.get_model(etichetta) if "." in etichetta else None
+            except LookupError:
+                modelli[etichetta] = None
+        return modelli[etichetta]
+
+    def _valore(field, val):
+        if val is None or val == "":
+            return "—"
+        if isinstance(val, bool):
+            return "Sì" if val else "No"
+        if field is None:
+            return str(val)
+        if field.choices:
+            return str(dict(field.flatchoices).get(val, val))
+        if field.is_relation and field.related_model is not None:
+            chiave = (field.related_model, val)
+            if chiave not in cache_fk:
+                try:
+                    collegato = field.related_model._default_manager.filter(pk=val).first()
+                except Exception:
+                    collegato = None
+                cache_fk[chiave] = str(collegato) if collegato is not None else f"#{val}"
+            return cache_fk[chiave]
+        return str(val)
+
+    risultato = []
+    for voce in voci:
+        dettaglio = voce.dettaglio if isinstance(voce.dettaglio, dict) else {}
+        model = _modello(voce.oggetto_tipo or "")
+        campi = {f.attname: f for f in model._meta.concrete_fields} if model is not None else {}
+        ignorati = frozenset()
+        if model is not None:
+            # Fuori anche data di creazione e chiave: non dicono cosa è cambiato.
+            ignorati = audit_policy.ignored_fields(model) | {model._meta.pk.attname} | {
+                f.attname for f in model._meta.concrete_fields if getattr(f, "auto_now_add", False)
+            }
+
+        def _da_mostrare(attname, campi=campi, ignorati=ignorati) -> bool:
+            # Con il modello noto si mostrano solo i suoi campi veri: le M2M finiscono
+            # nello snapshot come testo del manager («app.Modello.None»), non come valori.
+            return attname not in ignorati and (not campi or attname in campi)
+
+        def _riga(attname, prima, dopo, campi=campi):
+            field = campi.get(attname)
+            etichetta = str(field.verbose_name) if field is not None else str(attname)
+            etichetta = ETICHETTE_COMUNI.get(etichetta, etichetta)
+            return {"campo": etichetta[:1].upper() + etichetta[1:],
+                    "prima": _valore(field, prima), "dopo": _valore(field, dopo)}
+
+        righe = []
+        modifiche = dettaglio.get("modifiche")
+        if isinstance(modifiche, dict):
+            for attname, diff in modifiche.items():
+                if not _da_mostrare(attname) or not isinstance(diff, dict):
+                    continue
+                righe.append(_riga(attname, diff.get("old"), diff.get("new")))
+        elif voce.azione in ("auto_insert", "auto_delete"):
+            chiave_valori = "valori" if "valori" in dettaglio else "nuovi_valori"
+            for attname, val in (dettaglio.get(chiave_valori) or {}).items():
+                if not _da_mostrare(attname) or val in (None, ""):
+                    continue
+                righe.append(_riga(attname, None, val) if voce.azione == "auto_insert" else _riga(attname, val, None))
+        if not righe and voce.azione in AZIONI_AUTOMATICHE:
+            # Modelli «metadata_only»: si sa quali campi, mai i valori.
+            for attname in dettaglio.get("campi") or dettaglio.get("campi_valorizzati") or []:
+                if _da_mostrare(attname):
+                    riga = _riga(attname, None, None)
+                    riga["dopo"] = "modificato" if voce.azione == "auto_update" else "valorizzato"
+                    righe.append(riga)
+        resto = {} if voce.azione in AZIONI_AUTOMATICHE else {
+            k: v for k, v in dettaglio.items() if k != "modifiche"
+        }
+        risultato.append(SimpleNamespace(
+            azione=voce.azione,
+            azione_label=AZIONI_AUTOMATICHE.get(voce.azione, voce.azione.replace("_", " ").capitalize()),
+            created_at=voce.created_at,
+            utente_display=voce.utente_display,
+            modulo=voce.modulo,
+            oggetto_tipo=voce.oggetto_tipo,
+            oggetto_id=voce.oggetto_id,
+            oggetto_label=str(dettaglio.get("oggetto") or ""),
+            righe=righe,
+            dettaglio=resto,
+        ))
+    return risultato
+
+
 def _get_client_ip(request) -> str | None:
     # Comandi di gestione e job non hanno una richiesta: niente IP, ma l'audit si scrive.
     from core.net import client_ip

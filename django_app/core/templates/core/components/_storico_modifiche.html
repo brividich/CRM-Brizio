@@ -11,7 +11,11 @@ e nel template della scheda:
 
     {% include "core/components/_storico_modifiche.html" with storico=storico %}
 
-Parametri opzionali: `titolo` (default «Storico modifiche»), `vuoto` (testo
+Con ``storico_leggibile(storico, Modello)`` ogni voce porta anche
+`azione_label` e `righe` (campo: prima → dopo), mostrate al posto del JSON.
+
+Parametri opzionali: `mostra_oggetto` (nome del record accanto all'azione,
+per gli storici di un intero catalogo; link se la voce ha `url`), `titolo` (default «Storico modifiche»), `vuoto` (testo
 mostrato quando non c'e' nulla). Nessuno stile nuovo: usa i token del tema
 (`--surface`, `--border`, `--text-mid`, `--text-light`) come il resto del portale.
 {% endcomment %}
@@ -22,13 +26,20 @@ mostrato quando non c'e' nulla). Nessuno stile nuovo: usa i token del tema
       {% for voce in storico %}
         <li class="audit-storico-item">
           <div class="audit-storico-riga">
-            <span class="audit-storico-azione">{{ voce.azione }}</span>
+            <span class="audit-storico-azione">{{ voce.azione_label|default:voce.azione }}{% if mostra_oggetto and voce.oggetto_label %} · {% if voce.url %}<a href="{{ voce.url }}">{{ voce.oggetto_label }}</a>{% else %}{{ voce.oggetto_label }}{% endif %}{% endif %}</span>
             <span class="audit-storico-quando">{{ voce.created_at|date:"d/m/Y H:i" }}</span>
           </div>
           <div class="audit-storico-meta">
             {{ voce.utente_display|upper|default:"—" }}
             {% if voce.modulo %} · {{ voce.modulo }}{% endif %}
           </div>
+          {% if voce.righe %}
+            <ul class="audit-storico-righe">
+              {% for r in voce.righe %}
+                <li><span class="audit-storico-campo">{{ r.campo }}</span>{% if r.prima != "—" %} <span class="audit-storico-prima">{{ r.prima|truncatechars:80 }}</span>{% if r.dopo != "—" %} →{% endif %}{% endif %}{% if r.dopo != "—" or r.prima == "—" %} <span class="audit-storico-dopo">{{ r.dopo|truncatechars:80 }}</span>{% endif %}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
           {% if voce.dettaglio %}
             <div class="audit-storico-dettaglio">
               {% for chiave, valore in voce.dettaglio.items %}
@@ -55,5 +66,10 @@ mostrato quando non c'e' nulla). Nessuno stile nuovo: usa i token del tema
 .audit-storico-meta { font-size: 11px; color: var(--text-mid); margin-top: 2px; }
 .audit-storico-dettaglio { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .audit-storico-tag { font-size: 10px; color: var(--text-mid); border: 1px solid var(--border); border-radius: 99px; padding: 1px 7px; }
+.audit-storico-righe { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.audit-storico-campo { color: var(--text-mid); font-weight: 600; }
+.audit-storico-campo::after { content: ":"; }
+.audit-storico-prima { color: var(--text-light); text-decoration: line-through; }
+.audit-storico-dopo { font-weight: 600; }
 .audit-storico-vuoto { font-size: 12px; color: var(--text-light); }
 </style>

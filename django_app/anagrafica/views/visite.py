@@ -817,7 +817,7 @@ def referto_gestione(request, doc_id: int):
         else:
             messages.error(request, "Azione non riconosciuta.")
 
-    from core.audit import storico_oggetto
+    from core.audit import storico_leggibile, storico_oggetto
 
     visita = _visita_del_referto(doc)
     ruolo = ""
@@ -834,7 +834,7 @@ def referto_gestione(request, doc_id: int):
         "dipendente_nome": _nome_dipendente_legacy(doc.legacy_anagrafica_id),
         "accessi": accessi,
         "accessi_count": len(accessi),
-        "storico": storico_oggetto(doc, limit=60),
+        "storico": storico_leggibile(storico_oggetto(doc, limit=60)),
         "can_delete_referto": can_delete,
         "motivo": motivo,
     })

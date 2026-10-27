@@ -20,7 +20,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from core.acl import user_can_modulo_action
-from core.audit import log_action, storico_oggetto
+from core.audit import log_action, storico_leggibile, storico_oggetto
 
 from core.legacy_models import AnagraficaDipendente
 from ..models import (
@@ -1376,9 +1376,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_status": asset_status,
             # Chi ha toccato QUESTO asset, e quando. Vedi core.audit.storico_oggetto:
             # compaiono le voci agganciate all'asset, non tutte quelle del modulo.
-            "storico_audit": storico_oggetto(
+            "storico_audit": storico_leggibile(storico_oggetto(
                 oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.id, limit=25,
-            ),
+            )),
             "recent_workorders": recent_workorders,
             "custom_fields": custom_fields,
             "unmapped_extra": unmapped_extra,
