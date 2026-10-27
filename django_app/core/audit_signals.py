@@ -264,7 +264,7 @@ def _audit_post_save(sender, instance, created, update_fields=None, **kwargs):
             elif new_snap:
                 dettaglio["nuovi_valori"] = new_snap
 
-    _write_audit(azione, meta.app_label, dettaglio)
+    _write_audit(azione, meta.app_label, dettaglio, instance)
 
 
 def _audit_post_delete(sender, instance, **kwargs):
@@ -279,7 +279,7 @@ def _audit_post_delete(sender, instance, **kwargs):
         if snap:
             dettaglio["valori"] = snap
 
-    _write_audit("auto_delete", meta.app_label, dettaglio)
+    _write_audit("auto_delete", meta.app_label, dettaglio, instance)
 
 
 def _dispatch_uid(signal_name: str, model) -> str:
@@ -333,21 +333,26 @@ def _audit_login_failed(sender, credentials, request, **kwargs):
 
 # ── Scrittura audit ───────────────────────────────────────────────────────────
 
-def _write_audit(azione: str, modulo: str, dettaglio: dict) -> None:
+def _write_audit(azione: str, modulo: str, dettaglio: dict, instance=None) -> None:
+    # La voce si aggancia al record (``oggetto_tipo``/``oggetto_id``): senza, le
+    # modifiche automatiche restavano fuori dagli storici per scheda.
     try:
-        from core.audit import log_action
+        from core.audit import _riferimento_oggetto, log_action
         from core.audit_middleware import get_current_request
 
         request = get_current_request()
         if request is not None:
-            log_action(request, azione, modulo, dettaglio)
+            log_action(request, azione, modulo, dettaglio, oggetto=instance)
         else:
             # Nessun contesto HTTP: management command, task async, ecc.
             from core.models import AuditLog
+            tipo, identificativo = _riferimento_oggetto(instance, "", "")
             AuditLog.objects.create(
                 azione=azione,
                 modulo=modulo,
                 dettaglio=dettaglio,
+                oggetto_tipo=tipo,
+                oggetto_id=identificativo,
             )
     except Exception:
         logger.exception("audit_signals: scrittura fallita azione=%s modulo=%s", azione, modulo)

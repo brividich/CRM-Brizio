@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Storico modifiche · {{ conf.titolo }} | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<style>
+.cs-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.cs-title { font-size:22px; font-weight:800; color:var(--text, #0f172a); letter-spacing:-.01em; }
+.cs-sub { font-size:13px; color:var(--text-mid, #64748b); margin-top:3px; max-width:760px; line-height:1.45; }
+.cs-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.cs-note { font-size:12px; color:var(--text-light, #94a3b8); margin-top:10px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+{% include "anagrafica/components/flash_messages.html" %}
+
+<div class="fmd">
+<div class="cs-head">
+  <div>
+    {% if oggetto_id %}
+      <div class="cs-title">Storico modifiche · {{ nome }}</div>
+      <div class="cs-sub">
+        Chi ha creato, modificato o eliminato questa voce del catalogo «{{ conf.titolo }}», con i valori prima e dopo.
+        {% if eliminato %}La voce è stata eliminata: lo storico resta consultabile.{% endif %}
+      </div>
+    {% else %}
+      <div class="cs-title">Storico modifiche · {{ conf.titolo }}</div>
+      <div class="cs-sub">Le ultime modifiche al catalogo, comprese le voci eliminate. Il nome apre lo storico della singola voce.</div>
+    {% endif %}
+  </div>
+  <div class="cs-actions">
+    <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#storico-cataloghi" title="Come funziona questa pagina">? Guida</a>
+    {% if oggetto_id %}
+      <a class="fmd-btn fmd-btn-ghost" href="{% if catalogo == 'mansioni' %}{% url 'anagrafica:mansioni_storico' %}{% else %}{% url 'anagrafica:ruoli_operativi_storico' %}{% endif %}">Tutto il catalogo</a>
+    {% endif %}
+    <a class="fmd-btn fmd-btn-ghost" href="{% url conf.lista %}">&larr; {{ conf.titolo }}</a>
+  </div>
+</div>
+
+{% if oggetto_id %}
+  {% include "core/components/_storico_modifiche.html" with storico=voci titolo="Modifiche" vuoto="Nessuna modifica registrata per questa voce." %}
+{% else %}
+  {% include "core/components/_storico_modifiche.html" with storico=voci titolo="Modifiche recenti" mostra_oggetto=True vuoto="Nessuna modifica registrata per questo catalogo." %}
+{% endif %}
+{% if voci|length >= limite %}<div class="cs-note">Sono mostrate le {{ limite }} modifiche più recenti; le precedenti restano nel registro di audit.</div>{% endif %}
+</div>
+{% endblock %}

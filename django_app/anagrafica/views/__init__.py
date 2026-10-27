@@ -478,6 +478,8 @@ from .struttura import (
     mansione_edit,
     mansione_requisiti,
     mansioni_list,
+    mansioni_storico,
+    mansione_storico,
     organigramma,
     organigramma_albero,
     organigramma_diagramma,
@@ -490,6 +492,8 @@ from .struttura import (
     ruolo_operativo_delete,
     ruolo_operativo_dipendenti,
     ruolo_operativo_edit,
+    ruolo_operativo_storico,
+    ruoli_operativi_storico,
     ruolo_qualifica_aggiungi,
     ruolo_qualifica_rimuovi,
 )

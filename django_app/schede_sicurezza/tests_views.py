@@ -635,16 +635,19 @@ class SchedaMobileRobustezzaTest(TestCase):
         # Anonimo: nessun pulsante e nessuna scrittura anche forzando la POST.
         self.assertNotContains(self.client.get(url), "Segnala scheda mancante")
         self.client.post(url, {"segnala": "1"})
-        self.assertEqual(list(storico_oggetto(orfano)), [])
+        # Le voci automatiche (creazione, contatore visite) sono agganciate anche
+        # loro: qui conta che non ci sia la segnalazione.
+        def _esplicite():
+            return [v.azione for v in storico_oggetto(orfano) if not v.azione.startswith("auto_")]
+
+        self.assertEqual(_esplicite(), [])
 
         operatore = User.objects.create_user(username="op-segnala", password="x")
         self.client.force_login(operatore)
         self.assertContains(self.client.get(url), "Segnala scheda mancante")
         resp = self.client.post(url, {"segnala": "1"})
         self.assertContains(resp, "Segnalazione registrata")
-        self.assertEqual(
-            [v.azione for v in storico_oggetto(orfano)], ["segnalazione_sds_mancante"],
-        )
+        self.assertEqual(_esplicite(), ["segnalazione_sds_mancante"])
 
     def test_presa_visione_resta_riservata_agli_autenticati(self):
         url = reverse("schede_sicurezza:presa_visione_conferma", args=[self.scheda.pk])
