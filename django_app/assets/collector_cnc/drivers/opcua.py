@@ -119,6 +119,64 @@ MODELS: dict[str, dict[str, Any]] = {
 }
 LUCI = ("light1", "light2", "light3", "light4")
 
+# Mappa di nodi scritta in configurazione (server che non sono DMG MORI, o modelli non ancora noti):
+# chiave del collector -> gruppo di lettura. I NodeId sono completi ("ns=2;s=...").
+CAMPI_NODI: dict[str, str] = {
+    "exec": "fast", "mode": "fast", "estop": "fast", "n_alarms": "fast", "program": "fast", "tool": "fast",
+    "feed_ovr": "fast", "spindle_ovr": "fast", "rapid_ovr": "fast",
+    "run_time": "counters", "part_counter": "counters", "parts_overall": "counters",
+    "operation_time": "counters", "power_on_time": "counters",
+}
+_MODI = {"AUTOMATIC": "AUTO", "AUTO": "AUTO", "MEM": "AUTO", "MDA": "MDI", "MDI": "MDI", "MDAMDI": "MDI",
+         "MANUAL_DATA_INPUT": "MDI", "MANUAL": "MANUAL", "JOG": "MANUAL", "JOGMANUAL": "MANUAL", "HANDLE": "MANUAL",
+         "EDIT": "EDIT", "REF": "REF"}
+
+
+class MappaEsecuzione(dict[Any, str]):
+    """``get`` che normalizza qualunque valore con ``norm_execution`` (codici dalla mappa di configurazione)."""
+
+    def __init__(self, personalizzata: dict[str, str] | None = None) -> None:
+        super().__init__()
+        self.personalizzata = {str(k): str(v) for k, v in (personalizzata or {}).items()}
+
+    def get(self, chiave: Any, default: Any = None) -> Any:
+        if chiave is None:
+            return default
+        try:
+            from .. import stati
+        except ImportError:   # sul PC dell'officina
+            import stati  # type: ignore[no-redef]
+        esito = stati.norm_execution(chiave, self.personalizzata)
+        return default if esito == "UNKNOWN" else esito
+
+
+class MappaModo(dict[Any, str]):
+    """``get`` che normalizza la modalità (codici dalla mappa di configurazione, poi nomi noti)."""
+
+    def __init__(self, personalizzata: dict[str, str] | None = None) -> None:
+        super().__init__()
+        self.personalizzata = {str(k): str(v).upper() for k, v in (personalizzata or {}).items()}
+
+    def get(self, chiave: Any, default: Any = None) -> Any:
+        if chiave is None:
+            return default
+        if str(chiave) in self.personalizzata:
+            return self.personalizzata[str(chiave)]
+        nome = str(getattr(chiave, "name", chiave)).strip().upper().replace(" ", "_")
+        return _MODI.get(nome, default)
+
+
+def spec_da_nodi(nodi: dict[str, str], execution_map: dict[str, str] | None = None,
+                 mode_map: dict[str, str] | None = None, hours_factor: float | None = None) -> dict[str, Any]:
+    """Spec del collector costruita da una mappa di nodi della configurazione."""
+    gruppi: dict[str, dict[str, str]] = {"fast": {}, "counters": {}, "static": {}}
+    for chiave, nodeid in nodi.items():
+        gruppo = CAMPI_NODI.get(chiave)
+        if gruppo and nodeid:
+            gruppi[gruppo][chiave] = str(nodeid)
+    return {**gruppi, "alarm_folder": None, "hours_factor": hours_factor, "nodeid_completi": True,
+            "exec_map": MappaEsecuzione(execution_map), "mode_map": MappaModo(mode_map), "color_map": {}}
+
 log = logging.getLogger("collector")
 
 
@@ -183,19 +241,25 @@ class DriverOpcUa:
     """Letture di una sessione OPC UA aperta: modello dati, nodi, segnali, contatori, allarmi."""
 
     def __init__(self, client: Any, nome: str, ns: int, data_model: str, found_serial: str,
-                 log_m: Any = None) -> None:
+                 log_m: Any = None, spec: dict[str, Any] | None = None) -> None:
         self.client = client
         self.nome = nome
         self.log = log_m or log
         self.ns = ns
         self.data_model = data_model
-        self.spec: dict[str, Any] = MODELS[data_model]
+        self.spec: dict[str, Any] = spec if spec is not None else MODELS[data_model]
         self.found_serial = found_serial
         self.alarm_nodes: dict[str, dict[str, Any]] = {}   # nodeid condition -> nodi figli (per sessione)
 
     @classmethod
-    async def rileva(cls, client: Any, nome: str, log_m: Any = None) -> DriverOpcUa:
-        """Riconosce il modello dati dal namespace DMG MORI; RuntimeError se non è una DMG."""
+    async def rileva(cls, client: Any, nome: str, log_m: Any = None, cfg: dict[str, Any] | None = None) -> DriverOpcUa:
+        """Riconosce il modello dati dal namespace DMG MORI; RuntimeError se non è una DMG.
+
+        Con ``nodes`` nella configurazione della macchina si usa quella mappa (modello «nodi»)."""
+        cfg = cfg or {}
+        if cfg.get("nodes"):
+            spec = spec_da_nodi(cfg["nodes"], cfg.get("execution_map"), cfg.get("mode_map"), cfg.get("hours_factor"))
+            return cls(client, nome, 0, "nodi", "", log_m, spec)
         nsarr = await client.get_namespace_array()
         ns = next((i for i, u in enumerate(nsarr) if DMG_MACHINE_URI in u), None)
         if ns is None:
@@ -204,6 +268,8 @@ class DriverOpcUa:
         return cls(client, nome, ns, data_model, nsarr[ns].rstrip("/").split("/")[-1], log_m)
 
     def node(self, s: str) -> Any:
+        if self.spec.get("nodeid_completi"):
+            return self.client.get_node(s)   # "ns=2;s=..." dalla configurazione
         # NodeId stringa nel namespace DMG MORI (gli alias di tipo di asyncua non accettano str/int nudi)
         return self.client.get_node(ua.NodeId(s, self.ns))  # type: ignore[arg-type]
 

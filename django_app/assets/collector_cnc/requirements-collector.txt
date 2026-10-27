@@ -1,0 +1,4 @@
+# Collector CNC fuori dal portale (PC dell'officina, NOVISQL per il pilota, VM Linux).
+# Solo libreria standard più queste due. FOCAS: la libreria Fwlib non è su PyPI (CNC_FWLIB_PATH).
+asyncua==2.0
+pyLSV2==1.8.0

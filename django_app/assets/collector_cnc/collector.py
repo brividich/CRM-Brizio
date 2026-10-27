@@ -22,14 +22,15 @@ Requisiti: pip install asyncua pyLSV2 (FOCAS: libreria Fwlib, vedi CNC_FWLIB_PAT
 """
 from __future__ import annotations
 
-import argparse
 import asyncio
 import contextlib
+import ctypes
 import datetime as dt
 import json
 import logging
-import signal
+import os
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -43,6 +44,7 @@ try:   # dentro il portale (manage.py collector_cnc)
     from .drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, MODELS, UMATI_URI, text
     from .lavoratore import Orologio, Ritmo, Sorvegliante, log_macchina
     from .portale import AGGIORNA_ELENCO, Portale
+    from .sink import Sink
 except ImportError:   # sul PC dell'officina (py collector.py)
     import stati  # type: ignore[no-redef]
     from archivio import DB  # type: ignore[no-redef]
@@ -51,6 +53,7 @@ except ImportError:   # sul PC dell'officina (py collector.py)
     from drivers.opcua import CONNECT_TIMEOUT, DMG_MACHINE_URI, MODELS, UMATI_URI, text  # type: ignore[no-redef]
     from lavoratore import Orologio, Ritmo, Sorvegliante, log_macchina  # type: ignore[no-redef]
     from portale import AGGIORNA_ELENCO, Portale  # type: ignore[no-redef]
+    from sink import Sink  # type: ignore[no-redef]
 
 __all__ = ["CONNECT_TIMEOUT", "DB", "DMG_MACHINE_URI", "MODELS", "UMATI_URI", "text"]   # usati da cerca.py e dai test
 
@@ -64,6 +67,8 @@ COUNTER_PERIOD = 60.0    # s - lettura contatori (OPC UA)
 HEARTBEAT_CONTATORI = 300.0  # s - riga dei contatori anche senza cambi (LSV2, FOCAS)
 STATUS_PRINT_PERIOD = 300.0  # s - riepilogo nel log (solo se qualcosa e' cambiato)
 CONTROLLO_OROLOGIO = 10.0    # s
+HEARTBEAT_USCITE = 300.0     # s - record di ogni macchina sulle uscite (--jsonl) anche senza cambi
+SALUTE = 600.0               # s - riga di salute del collector nel log (memoria, thread, code)
 ALARM_SEVERITY = 801     # da questa severita' un messaggio e' un allarme vero
 # condition "segnaposto" senza significato (es. 0/0000-0000 su DM13): ignorate
 IGNORE_CODES = {"0/0000-0000"}
@@ -123,8 +128,10 @@ class Machine:
         self.hours_unit: str = cfg.get("hours_unit") or ""  # unita' delle ore scelta nel portale (h | min | s), vuoto = dal modello
         self.found_serial = ""      # matricola letta dal namespace DMG MORI del server
         # credenziali OPC UA opzionali (per server che rifiutano l'accesso anonimo)
+        self.cfg = cfg
         self.username: str | None = cfg.get("username") or None
-        self.password: str | None = cfg.get("password") or None
+        # password: mai scritta in machines.json a mano; «password_env» = nome della variabile d'ambiente
+        self.password: str | None = cfg.get("password") or (os.environ.get(str(cfg["password_env"])) if cfg.get("password_env") else None)
         self.ignored: set[str] = set()        # condition segnaposto da non registrare
         self.url = f"opc.tcp://{self.ip}:{self.port}"
         self.db = db
@@ -142,6 +149,7 @@ class Machine:
         self.errore = ""            # perché la macchina è OFFLINE / NON_LEGGIBILE
         self.portale_cambiata = False
         self.notifica: Callable[[Machine], None] | None = None   # coda verso il portale (None = non si invia)
+        self.uscite: list[Sink] = []    # uscite facoltative (--jsonl): record a ogni cambio e a ogni battito
         self.counters_at: dt.datetime | None = None     # ultima lettura dei contatori (UTC)
         self.last_seen: dt.datetime | None = None
         self.last_err: str | None = None
@@ -171,7 +179,7 @@ class Machine:
         hard = [a for a in self.alarms.values() if (a["severity"] or 0) >= ALARM_SEVERITY]
         if hard:
             return ALLARME, hard[0]["code"]
-        if self.data_model == "bds" and (v.get("n_alarms") or 0) > 0:
+        if self.data_model in ("bds", "nodi") and (v.get("n_alarms") or 0) > 0:
             return ALLARME, None
         ex = spec["exec_map"].get(v.get("exec"))
         md = spec["mode_map"].get(v.get("mode"))
@@ -209,6 +217,32 @@ class Machine:
         self.portale_cambiata = True
         if self.notifica is not None:
             self.notifica(self)
+        self.scrivi_uscite()
+
+    def scrivi_uscite(self) -> None:
+        if not self.uscite or self.state is None:
+            return
+        record = self.record()
+        for uscita in self.uscite:
+            uscita.write(record)
+
+    def record(self) -> dict[str, Any]:
+        """Il record normalizzato della macchina in questo istante (stesso formato per tutti i driver)."""
+        leggibile = self.state not in (None, OFFLINE, NON_LEGGIBILE)
+        v = self.values
+        allarme = next(iter(self.alarms.values()), None)
+        return {
+            "ts": dt.datetime.now(dt.timezone.utc).isoformat(), "machine": self.name, "driver": self.driver_nome,
+            "online": leggibile, "stato": self.state, "dal": self.state_since.replace(tzinfo=dt.timezone.utc).isoformat()
+            if self.state_since else None,
+            "mode": self.modalita() if leggibile else "", "execution": (self.esecuzione() or "UNKNOWN") if leggibile else "OFFLINE",
+            "program": self.programma() if leggibile else None, "subprogram": None,
+            "feed_ovr": v.get("feed_ovr"), "spindle_ovr": v.get("spindle_ovr"), "rapid_ovr": v.get("rapid_ovr"),
+            "alarm": self.state in (ALLARME, EMERGENZA), "alarm_text": allarme["message"] if allarme else None,
+            "part_count": v.get("cnt_part_counter"), "parts_total": v.get("cnt_parts_overall"),
+            "errore": self.errore if not leggibile else "", "line": None, "feed": None, "speed": None,
+            "raw": {k: v[k] for k in ("exec", "mode", "tool", "estop", "n_alarms") if k in v},
+        }
 
     def touch(self) -> None:
         self.last_seen = utcnow()
@@ -235,7 +269,7 @@ class Machine:
             try:
                 async with opcua.sessione(self.url, self.username, self.password, self.name, self.log) as client:
                     tentativi = 0
-                    await self.session(await opcua.DriverOpcUa.rileva(client, self.name, self.log))
+                    await self.session(await opcua.DriverOpcUa.rileva(client, self.name, self.log, self.cfg))
                 self.last_err = None
             except asyncio.CancelledError:
                 raise
@@ -260,6 +294,38 @@ class Machine:
 
     async def session(self, drv: Any) -> None:
         """Una sessione aperta: ``drv`` è il ``DriverOpcUa`` (solo letture), qui stato e database."""
+        fast, counters, alarm_folder = await self.prepara(drv)
+
+        t_alarm = t_counter = 0.0
+        loop = asyncio.get_running_loop()
+        while True:
+            t0 = loop.time()
+            await self.read_fast(drv, fast)
+            if t0 >= t_alarm:
+                if alarm_folder is not None:
+                    await self.read_alarms(drv, alarm_folder)
+                t_alarm = t0 + ALARM_PERIOD
+            self.touch()
+            self.update_state()
+            if t0 >= t_counter:
+                await self.read_counters(drv, counters)
+                self.flush_last_seen()
+                t_counter = t0 + COUNTER_PERIOD
+            await asyncio.sleep(max(0.2, self.ritmo.attesa() - (loop.time() - t0)))
+
+    async def una_lettura(self, drv: Any) -> dict[str, Any]:
+        """Un solo giro di letture (``--once``): stesso percorso del servizio, poi il record."""
+        fast, counters, alarm_folder = await self.prepara(drv)
+        await self.read_fast(drv, fast)
+        if alarm_folder is not None:
+            await self.read_alarms(drv, alarm_folder)
+        self.touch()
+        self.update_state()
+        await self.read_counters(drv, counters)
+        return self.record()
+
+    async def prepara(self, drv: Any) -> tuple[dict[str, Any], dict[str, Any], Any]:
+        """Modello dati, nodi presenti, versione, colori: ``(fast, counters, cartella allarmi o None)``."""
         self.data_model = drv.data_model
         self.spec = drv.spec
         found_serial = drv.found_serial
@@ -281,25 +347,10 @@ class Machine:
         # colori del semaforo (configurazione statica)
         self.colors.update(await drv.colors(static))
 
-        alarm_folder = drv.node(self.spec["alarm_folder"])
+        alarm_folder = drv.node(self.spec["alarm_folder"]) if self.spec.get("alarm_folder") else None
         self.errore = ""
         self.log.info("connessa (%s%s) - %d segnali", self.data_model, ", v" + version if version else "", len(fast))
-
-        t_alarm = t_counter = 0.0
-        loop = asyncio.get_running_loop()
-        while True:
-            t0 = loop.time()
-            await self.read_fast(drv, fast)
-            if t0 >= t_alarm:
-                await self.read_alarms(drv, alarm_folder)
-                t_alarm = t0 + ALARM_PERIOD
-            self.touch()
-            self.update_state()
-            if t0 >= t_counter:
-                await self.read_counters(drv, counters)
-                self.flush_last_seen()
-                t_counter = t0 + COUNTER_PERIOD
-            await asyncio.sleep(max(0.2, self.ritmo.attesa() - (loop.time() - t0)))
+        return fast, counters, alarm_folder
 
     # ---------------- letture ----------------
     def registra_segnale(self, name: str, val: Any, now: str) -> None:
@@ -408,7 +459,6 @@ class MacchinaSincrona(Machine):
 
     def __init__(self, cfg: dict[str, Any], db: DB) -> None:
         super().__init__(cfg, db)
-        self.cfg = cfg
         self.data_model = self.driver_nome
         self.timeout = float(cfg.get("timeout") or 5.0)
         self.grezzo_iniziale, self.totale_iniziale = db.ultimi_contatori(self.name)
@@ -431,6 +481,15 @@ class MacchinaSincrona(Machine):
 
     def programma(self) -> str:
         return prog_name(self.lettura.program) if self.lettura else ""
+
+    def record(self) -> dict[str, Any]:
+        base = super().record()
+        if self.lettura is not None and base["online"]:
+            dati = self.lettura.come_dict()
+            dati.pop("messaggi", None)
+            base.update({k: dati[k] for k in ("subprogram", "feed_ovr", "spindle_ovr", "rapid_ovr", "line", "feed",
+                                              "speed", "raw", "part_count", "parts_total", "alarm_text")})
+        return base
 
     def compute_state(self, online: bool = True) -> tuple[str, str | None]:
         stato = self._stato or OFFLINE
@@ -555,8 +614,56 @@ async def sorveglia_orologio(orologio: Orologio) -> None:
         orologio.controlla()
 
 
+def memoria_mb() -> float | None:
+    """Memoria residente del processo in MB (solo libreria standard), None se non si riesce a leggere."""
+    try:
+        if sys.platform.startswith("win"):
+            class _Contatori(ctypes.Structure):
+                _fields_ = [("cb", ctypes.c_ulong), ("PageFaultCount", ctypes.c_ulong),
+                            ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                            ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
+
+            c = _Contatori()
+            c.cb = ctypes.sizeof(c)
+            k32 = ctypes.windll.kernel32  # type: ignore[attr-defined,unused-ignore]
+            psapi = ctypes.windll.psapi  # type: ignore[attr-defined,unused-ignore]
+            k32.GetCurrentProcess.restype = ctypes.c_void_p
+            psapi.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(_Contatori), ctypes.c_ulong]
+            if psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb):
+                return round(float(c.WorkingSetSize) / 1048576, 1)
+            return None
+        with open("/proc/self/statm", encoding="ascii") as f:
+            pagine = int(f.read().split()[1])
+        return round(pagine * os.sysconf("SC_PAGE_SIZE") / 1048576, 1)
+    except (OSError, AttributeError, ValueError) as e:
+        log.debug("memoria non letta: %s", e)
+        return None
+
+
+def riga_salute(macchine: list[Machine], db: DB, portale: Portale | None) -> str:
+    """Una riga per il pilota: memoria, thread, stati, thread bloccati, code."""
+    per_stato: dict[str, int] = {}
+    for m in macchine:
+        per_stato[m.state or "-"] = per_stato.get(m.state or "-", 0) + 1
+    bloccati = sum(m.sorvegliante.bloccati for m in macchine if isinstance(m, MacchinaSincrona) and m.sorvegliante)
+    mem = memoria_mb()
+    return (f"salute: memoria {mem if mem is not None else '?'} MB, thread {threading.active_count()}, "
+            f"macchine {len(macchine)} ({', '.join(f'{k} {v}' for k, v in sorted(per_stato.items())) or '-'}), "
+            f"thread bloccati {bloccati}, coda portale {db.in_coda() if portale is not None else 0}, "
+            f"scritture in attesa {len(db.in_attesa)}")
+
+
+async def ripeti(ogni: float, azione: Callable[[], None]) -> None:
+    while True:
+        await asyncio.sleep(ogni)
+        azione()
+
+
 async def avvia(portale: Portale | None, db_path: str, config_path: Path | None = None,
-                copia_path: Path | None = None) -> None:
+                copia_path: Path | None = None, uscite: list[Sink] | None = None,
+                elenco_iniziale: list[dict[str, Any]] | None = None) -> None:
     """Legge le macchine finché non viene fermato.
 
     ``portale``: dove prendere l'elenco e mandare stato e contatori (``Portale`` via HTTP dal PC
@@ -566,14 +673,15 @@ async def avvia(portale: Portale | None, db_path: str, config_path: Path | None 
     db = DB(db_path)
     db.close_dangling()
     log.info("collector CNC %s avviato, database %s", VERSIONE, Path(db_path).resolve())
-    elenco = None
+    elenco = elenco_iniziale
     if portale is not None:
         portale.collega(db)
-        elenco = await asyncio.to_thread(portale.scarica_macchine)
-        if elenco is not None:
+        scaricato = await asyncio.to_thread(portale.scarica_macchine)
+        elenco = scaricato if scaricato is not None else elenco
+        if scaricato is not None:
             if copia_path:
-                copia_path.write_text(json.dumps({"machines": elenco}, indent=1), encoding="utf-8")
-            log.info("elenco delle macchine dal portale: %d", len(elenco))
+                copia_path.write_text(json.dumps({"machines": scaricato}, indent=1), encoding="utf-8")
+            log.info("elenco delle macchine dal portale: %d", len(scaricato))
         elif copia_path and copia_path.exists():
             elenco = json.loads(copia_path.read_text(encoding="utf-8"))["machines"]
             log.warning("portale non raggiungibile: uso l'ultimo elenco scaricato (%d macchine)", len(elenco))
@@ -587,6 +695,7 @@ async def avvia(portale: Portale | None, db_path: str, config_path: Path | None 
 
     def parti(c: dict[str, Any]) -> None:
         m = nuova_macchina(c, db)
+        m.uscite = list(uscite or [])
         attive[m.name] = (m, asyncio.create_task(m.run(), name=m.name), dict(c))
 
     async def ferma(nome: str) -> None:
@@ -624,7 +733,17 @@ async def avvia(portale: Portale | None, db_path: str, config_path: Path | None 
 
     await applica(elenco)
     log.info("collector avviato: %d macchine", len(attive))
-    servizi = [status_printer(lambda: [m for m, _t, _c in attive.values()]), sorveglia_orologio(Orologio(log))]
+    def tutte() -> list[Machine]:
+        return [m for m, _t, _c in attive.values()]
+
+    def battito_uscite() -> None:
+        for m in tutte():
+            m.scrivi_uscite()
+
+    servizi = [status_printer(tutte), sorveglia_orologio(Orologio(log)),
+               ripeti(SALUTE, lambda: log.info("%s", riga_salute(tutte(), db, portale)))]
+    if uscite:
+        servizi.append(ripeti(HEARTBEAT_USCITE, battito_uscite))
     if portale is not None:
         servizi += [portale.run(), aggiorna_elenco()]
     try:
@@ -632,6 +751,9 @@ async def avvia(portale: Portale | None, db_path: str, config_path: Path | None 
     finally:
         for nome in list(attive):
             await ferma(nome)
+        for uscita in uscite or []:
+            uscita.close()
+        log.info("%s", riga_salute([], db, portale))
         db.chiudi()
         log.info("collector fermato")
 
@@ -642,25 +764,7 @@ def configura_log(debug: bool = False) -> None:
     for noisy in ("asyncua", "asyncio", "pyLSV2", "LSV2 Client"):
         logging.getLogger(noisy).setLevel(logging.ERROR)
 
-
-async def main() -> None:
-    """Avvio dal PC dell'officina: py collector.py [--config machines.json] [--db machines.db]."""
-    ap = argparse.ArgumentParser(description="Collector delle CNC (sola lettura)")
-    here = Path(__file__).resolve().parent   # file accanto allo script, da qualunque cartella lo lanci
-    ap.add_argument("--config", default=str(here / "machines.json"))
-    ap.add_argument("--db", default=str(here / "machines.db"))
-    ap.add_argument("--debug", action="store_true")
-    args = ap.parse_args()
-    configura_log(args.debug)
-    config = Path(args.config)
-    principale = asyncio.current_task()
-    if principale is not None and not sys.platform.startswith("win"):
-        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, principale.cancel)
-    await avvia(Portale.da_ambiente([], prog_name), args.db, config, config.with_name("machines.portale.json"))
-
-
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        pass
+    from cli import esegui   # sul PC dell'officina: la riga di comando sta in cli.py
+
+    sys.exit(esegui())
