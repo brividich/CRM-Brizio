@@ -9,6 +9,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **docs**: `docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md`, §0 «Stato in sintesi» riallineato a git/prod: fasi 1-2 deployate (migrazioni fino a 0016), estensioni del 26/10 in `release/prod` non deployate, fase 3 ISMS da fare, fase 4 in parte (flag PdR 125 nel Registro OFI fatto).
 - **docs**: nuovo `docs/ai/PIANO_SGI_FASE_A_2026-10.md` (piano di implementazione SGI Fase A in 7 blocchi: affidabilità, indici infortunistici, prescrizioni legali, catalogo KPI, riesame della direzione, registri ISMS, KPI PdR 125) e riga nell'indice `docs/ai/00_INDEX.md`.
 
 - **Classificazione, coefficienti e costo orario anche nell'elenco dipendenti e nella scheda** — elenco dei dipendenti in forza: nuove colonne «Mansioni svolte», «Classificazione», «Coefficienti» (in regola / da rivedere / la somma non fa 1 / turni misti) e, solo con permesso HR, «Costo orario (€/h)» e «Costo orario: mese»; nuova vista «Mansioni e costi» (migrazione `0207`); anche nell'export dell'elenco. Le colonne numeriche dell'elenco ora si ordinano come numeri. Riepilogo della scheda: «Classificazione» con lo stato dei coefficienti e, per HR, «Costo orario» dell'ultimo mese. File: `anagrafica/services/colonne_elenco.py`, `services/viste_elenco.py`, `migrations/0207_vista_elenco_mansioni_costi.py`, `templates/anagrafica/pages/dipendente_detail.html`, `guida_persone_account.html`, `core/guide_moduli/contenuti/anagrafica.py`, `docs/moduli/anagrafica.md`, test `anagrafica/tests_coefficienti.py`.
