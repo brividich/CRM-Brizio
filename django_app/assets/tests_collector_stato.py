@@ -39,6 +39,43 @@ class IngestStatoTests(TestCase):
         return {"asset_tag": tag, "stato": stato, "dal": (timezone.now() - timedelta(minutes=minuti_fa)).isoformat(),
                 "programma": "DM6_0014_R1", "modalita": "AUTO", **extra}
 
+    def test_eventi_reinviati_non_duplicano(self):
+        """Store-and-forward: la chiave ``evento`` scarta i reinvii, anche fuori ordine, senza periodi doppi."""
+        e1 = self._riga("LAVORO", 30, evento="ab12:000000000001")
+        e2 = self._riga("FERMA", 20, evento="ab12:000000000002")
+        e3 = self._riga("LAVORO", 10, evento="ab12:000000000003")
+        self.assertEqual(self._post([e1, e2, e3]).json()["accepted"], 3)
+        esito = self._post([e1, e2, e3]).json()   # tutto reinviato (es. crash prima di cancellare la coda)
+        self.assertEqual((esito["accepted"], esito["ignored"]), (1, 2))   # l'ultimo è il «battito»: aggiorna soltanto
+        self.assertEqual(esito["results"][0]["reason"], "evento già applicato (reinvio)")
+        coll = CollegamentoMTConnect.objects.get(asset=self.asset)
+        self.assertEqual(coll.ultimo_evento, "ab12:000000000003")
+        self.assertEqual(list(PeriodoStatoMacchina.objects.filter(collegamento=coll).order_by("dal").values_list("stato", flat=True)),
+                         ["in_lavoro", "pronta", "in_lavoro"])
+        # un collector nuovo (istanza diversa) riparte dal suo primo evento
+        self.assertEqual(self._post([self._riga("FERMA", 1, evento="cd34:000000000001")]).json()["accepted"], 1)
+        # una riga senza chiave (collector di versione precedente) si applica come prima
+        self.assertEqual(self._post([self._riga("LAVORO", 0)]).json()["accepted"], 1)
+
+    def test_non_leggibile_con_motivo(self):
+        motivo = "login DNC rifiutato: su questa macchina serve l'opzione software #18"
+        self.assertEqual(self._post([self._riga("NON_LEGGIBILE", 1, errore=motivo)]).json()["accepted"], 1)
+        coll = CollegamentoMTConnect.objects.get(asset=self.asset)
+        self.assertEqual((coll.stato, coll.get_stato_display(), coll.errore), ("non_leggibile", "Non leggibile", motivo))
+        self.assertEqual(mtconnect.STATO_ETICHETTE["non_leggibile"], "Non leggibile")
+        self._post([self._riga("LAVORO", 0)])
+        coll.refresh_from_db()
+        self.assertEqual(coll.errore, "")
+
+    def test_chiave_evento(self):
+        from assets.services.collector_cnc import evento_gia_applicato
+
+        self.assertTrue(evento_gia_applicato("x:000000000005", "x:000000000004"))
+        self.assertFalse(evento_gia_applicato("x:000000000005", "x:000000000005"))
+        self.assertFalse(evento_gia_applicato("x:000000000005", "y:000000000001"))
+        self.assertFalse(evento_gia_applicato("", "x:1"))
+        self.assertFalse(evento_gia_applicato("x:5", "rotta"))
+
     def test_primo_invio_crea_il_collegamento(self):
         resp = self._post([self._riga()])
         self.assertEqual(resp.status_code, 200)

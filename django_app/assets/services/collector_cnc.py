@@ -505,6 +505,24 @@ def applica_letture(readings, client=None, nota: str = "", source: str = "") -> 
     return {"results": results, **summary}
 
 
+def _chiave_evento(valore: str) -> tuple[str, int] | None:
+    istanza, _sep, numero = (valore or "").rpartition(":")
+    try:
+        return (istanza, int(numero)) if istanza else None
+    except ValueError:
+        return None
+
+
+def evento_gia_applicato(ultimo: str, evento: str) -> bool:
+    """True se ``evento`` è più vecchio dell'ultimo applicato dalla stessa istanza del collector.
+
+    Chiave ``<istanza di machines.db>:<progressivo>``. Lo stesso evento (battito) si riapplica: aggiorna
+    solo l'ultimo segnale. Un'istanza diversa (collector nuovo o database ricreato) riparte da capo.
+    """
+    a, b = _chiave_evento(ultimo), _chiave_evento(evento)
+    return a is not None and b is not None and a[0] == b[0] and b[1] < a[1]
+
+
 def applica_stati(macchine, client=None) -> dict:
     """Stato delle CNC ``[{asset_tag, stato, dal, programma, …}]``: esito per riga."""
     from django.utils import timezone
@@ -547,6 +565,12 @@ def applica_stati(macchine, client=None) -> dict:
         elif not coll.attivo:
             results.append(_riga(index, row, "ignored", "lettura sospesa nel portale"))
             continue
+        evento = str(row.get("evento") or "").strip()[:60]
+        if evento and coll.pk and evento_gia_applicato(coll.ultimo_evento, evento):
+            results.append(_riga(index, row, "ignored", "evento già applicato (reinvio)"))
+            continue
+        if evento:
+            coll.ultimo_evento = evento
         mtconnect.applica_stato_collector(coll, {**row, "stato": stato}, dal or ora, ora)
         results.append(_riga(index, row, "accepted"))
     summary = {status: sum(1 for r in results if r["status"] == status) for status in ("accepted", "ignored", "rejected")}

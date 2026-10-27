@@ -5526,6 +5526,7 @@ class CollegamentoMTConnect(models.Model):
     STATO_EMERGENZA = "emergenza"
     STATO_SPENTA = "spenta"
     STATO_NON_RAGGIUNGIBILE = "non_raggiungibile"
+    STATO_NON_LEGGIBILE = "non_leggibile"
     STATO_MAI = "mai"
     STATO_CHOICES = [
         (STATO_IN_LAVORO, "In lavoro"),
@@ -5536,6 +5537,7 @@ class CollegamentoMTConnect(models.Model):
         (STATO_EMERGENZA, "Emergenza"),
         (STATO_SPENTA, "Offline"),
         (STATO_NON_RAGGIUNGIBILE, "Non raggiungibile"),
+        (STATO_NON_LEGGIBILE, "Non leggibile"),
         (STATO_MAI, "Mai letta"),
     ]
     FONTE_MTCONNECT = "mtconnect"
@@ -5582,6 +5584,8 @@ class CollegamentoMTConnect(models.Model):
     letto_il = models.DateTimeField(null=True, blank=True)
     controllato_il = models.DateTimeField(null=True, blank=True)
     errore = models.CharField(max_length=300, blank=True, default="")
+    # Collector: chiave dell'ultimo evento di stato applicato («istanza:progressivo»), per scartare i reinvii.
+    ultimo_evento = models.CharField(max_length=60, blank=True, default="")
     creato_il = models.DateTimeField(auto_now_add=True)
     aggiornato_il = models.DateTimeField(auto_now=True)
 
