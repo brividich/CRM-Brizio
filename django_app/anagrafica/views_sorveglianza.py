@@ -27,6 +27,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.permessi.impostazioni import impostazioni_o
 
 logger = logging.getLogger(__name__)
 
@@ -624,7 +625,7 @@ def referti_impostazioni(request):
     sono il punto in cui un certificato scritto in modo mai visto smette di
     essere un problema di sviluppo e diventa una riga da inserire.
     """
-    if not _puo_modificare(request):
+    if not impostazioni_o(request, "visite_mediche", _puo_modificare):
         return _nega(request)
 
     from .forms import (

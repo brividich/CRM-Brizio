@@ -452,7 +452,8 @@ class SincronizzazioneEInterruttoreTests(PersoneMixin, TestCase):
                 and (a_mano or (not negata and (cap in voluti or (dati["vede_tutto"] and not info["solo_admin"] and cap == dati["lettura"]))))
             )
 
-        attesi = {k: previsto(*k) for k in [("dpi", "vedere"), ("dpi", "approvare"), (tk, "vedere"), (tk, "gestire")]}
+        # tickets.impostazioni.manage e' una pagina delle impostazioni: sta sotto l'azione «impostazioni».
+        attesi = {k: previsto(*k) for k in [("dpi", "vedere"), ("dpi", "approvare"), (tk, "vedere"), (tk, "impostazioni")]}
         for (modulo, azione), valore in nuove.items():
             if valore:
                 RuoloPermessoModulo.objects.update_or_create(
@@ -468,7 +469,7 @@ class SincronizzazioneEInterruttoreTests(PersoneMixin, TestCase):
         # Il diniego manuale resta e l'acceso a mano pure.
         self.assertEqual(attesi[("dpi", "vedere")], 0)
         self.assertEqual(attesi[("dpi", "approvare")], 1)
-        self.assertEqual(attesi[(tk, "gestire")], 1)
+        self.assertEqual(attesi[(tk, "impostazioni")], 1)
 
     def test_stato_pagine_non_scrive_nulla(self):
         from core.permessi.sync import sincronizza_tutti, stato_pagine_ruolo

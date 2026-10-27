@@ -390,7 +390,8 @@ class PaginaRuoliTests(PersoneMixin, TestCase):
         self.client.post(f"/admin-portale/ruoli-portale/matrice/{ruolo.id}/", {"c__kickoff__vedere": "tutti"})
         risposta = self.client.get("/admin-portale/ruoli-portale/?tab=modulo&modulo=kickoff")
         pagine = risposta.context["pagine"]
-        self.assertEqual([p["code"] for p in pagine], ["tasks.elenco.view"])
+        # Oltre alla pagina nuova c'e' il permesso delle impostazioni del kickoff.
+        self.assertEqual([p["code"] for p in pagine if p["code"] != "tasks.impostazioni.manage"], ["tasks.elenco.view"])
         colonna = [r.id for r in risposta.context["ruoli_colonne"]].index(ruolo.id)
         self.assertTrue(any(p["stati"][colonna] == "matrice" for p in pagine))
 

@@ -63,6 +63,23 @@ def configurazione_required(view_func):
     return _wrapped
 
 
+def impostazioni_required(view_func):
+    """Come ``configurazione_required``, per le pagine di impostazioni (task del catalogo):
+    con il sistema dei ruoli acceso decide l'azione «impostazioni» della matrice."""
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+        from core.permessi.impostazioni import impostazioni_o
+
+        if not impostazioni_o(request, "checklist_operativa", _can_configure):
+            return render(request, "core/pages/forbidden.html", status=403)
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
+
+
 def _current_dipendente(request) -> AnagraficaDipendente | None:
     if not request.user.is_authenticated:
         return None
@@ -170,7 +187,7 @@ def gestione_proposta_nuova(request):
 # Configurazione — riservata via ACL
 # ---------------------------------------------------------------------------
 
-@configurazione_required
+@impostazioni_required
 def configurazione_home(request):
     context = {
         "templates": (
@@ -186,7 +203,7 @@ def configurazione_home(request):
     return render(request, "checklist_operativa/pages/configurazione.html", context)
 
 
-@configurazione_required
+@impostazioni_required
 def configurazione_task_edit(request, pk: int | None = None):
     """Crea o modifica una mansione del template.
 
@@ -222,7 +239,7 @@ def configurazione_task_edit(request, pk: int | None = None):
     return render(request, "checklist_operativa/pages/task_form.html", contesto)
 
 
-@configurazione_required
+@impostazioni_required
 @require_POST
 def configurazione_task_toggle(request, pk: int):
     template = get_object_or_404(ChecklistTaskTemplate, pk=pk)

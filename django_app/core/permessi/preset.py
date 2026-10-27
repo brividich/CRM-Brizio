@@ -29,12 +29,23 @@ TUTTE = AZIONI_STANDARD
 _DOTAZIONE_BASE = {"bacheca": {"vedere": P, "creare": P, "modificare": P}, "notizie": {"vedere": A}}
 
 
+def _con_impostazioni(celle: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    """Le impostazioni dei moduli hanno un'azione loro: un preset che gestisce il
+    modulo le riceve con lo stesso ambito, salvo che le decida da se'."""
+    from core.permessi.impostazioni import AZIONE_IMPOSTAZIONI, IMPOSTAZIONI
+
+    for modulo, azioni in celle.items():
+        if modulo in IMPOSTAZIONI and "gestire" in azioni and AZIONE_IMPOSTAZIONI not in azioni:
+            azioni[AZIONE_IMPOSTAZIONI] = azioni["gestire"]
+    return celle
+
+
 def _celle(**moduli) -> dict[str, dict[str, str]]:
     """Celle di un preset: la dotazione base, poi le sue (che vincono)."""
     celle = {modulo: dict(azioni) for modulo, azioni in _DOTAZIONE_BASE.items()}
     for modulo, azioni in moduli.items():
         celle[modulo] = {**celle.get(modulo, {}), **azioni}
-    return celle
+    return _con_impostazioni(celle)
 
 
 def _tutte(ambito: str = A, *, senza: tuple[str, ...] = ()) -> dict[str, str]:
@@ -55,7 +66,7 @@ def _posizione(**moduli) -> dict[str, dict[str, str]]:
     celle = _celle(**_DOTAZIONE_POSIZIONE)
     for modulo, azioni in moduli.items():
         celle[modulo] = {**celle.get(modulo, {}), **azioni}
-    return celle
+    return _con_impostazioni(celle)
 
 
 @dataclass(frozen=True)
@@ -207,7 +218,7 @@ PRESETS: tuple[Preset, ...] = (
         "hr", "Gestione personale", 460,
         "Incarico: anagrafica completa con dati riservati, gestione assenze, scadenziario visite e referti in custodia.",
         celle=_celle(
-            assenze={"vedere": A, "esportare": A, "creare": A, "gestire": A, "impostazioni": A},
+            assenze={"vedere": A, "esportare": A, "creare": A, "gestire": A},
             anagrafica={**_tutte(senza=("approvare",)), "dati_riservati": A},
             visite_mediche={**_tutte(senza=("approvare", "cancellare")), "referti": A},
             notizie=_tutte(senza=("approvare",)),
