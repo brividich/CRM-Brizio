@@ -74,7 +74,8 @@ def proponi(*, solo_senza=True) -> int:
     # La «Responsabilità del reparto» non porta un rischio suo: quello del caporeparto
     # viene dalle mansioni che svolge davvero.
     qs = (CompetenzaSkm.objects.filter(tipo__in=(CompetenzaSkm.TIPO_MACCHINA, CompetenzaSkm.TIPO_PROCESSO),
-                                       attiva=True, responsabilita_reparto__isnull=True)
+                                       attiva=True, responsabilita_reparto__isnull=True,
+                                       responsabilita_area__isnull=True)
           .select_related("area").prefetch_related("ruoli", "mansioni_rischio", "mansioni_rischio_proposte"))
     for m in qs:
         if solo_senza and (m.mansioni_rischio.exists() or m.mansioni_rischio_proposte.exists()):
@@ -89,7 +90,8 @@ def proponi(*, solo_senza=True) -> int:
 def da_confermare():
     """Mansioni con una proposta in attesa (per la pagina HSE)."""
     return (CompetenzaSkm.objects.filter(attiva=True, mansioni_rischio_proposte__isnull=False,
-                                         responsabilita_reparto__isnull=True)
+                                         responsabilita_reparto__isnull=True,
+                                       responsabilita_area__isnull=True)
             .select_related("area", "area__reparto").prefetch_related("ruoli", "mansioni_rischio",
                                                                        "mansioni_rischio_proposte")
             .distinct().order_by("area__reparto__nome", "area__nome", "display"))

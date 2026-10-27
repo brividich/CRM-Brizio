@@ -83,14 +83,17 @@ class SalvataggioRepartoAreaTests(TestCase):
         )
 
     def test_salvare_il_reparto_non_sceglie_piu_il_capo_a_mano(self):
-        """Dal 26/10/2026 il capo è chi ha la mansione del capo: il form salva la mansione."""
-        from anagrafica.models_skillmatrix import CompetenzaSkm
+        """Dal 26/10/2026 il capo è chi ha la «Responsabilità»: il form salva il ruolo responsabile."""
+        from anagrafica.models import RuoloOperativo
 
-        mansione = CompetenzaSkm.objects.create(competenza_key="resp_sald", display="Responsabile saldatura",
-                                                tipo=CompetenzaSkm.TIPO_PROCESSO)
+        ruolo = RuoloOperativo.objects.create(nome="Caporeparto saldatura")
         self.client.post(reverse("anagrafica:area_edit", args=[self.rep.pk]), {
-            "nome": "Saldatura", "is_active": "1", "caporeparto_legacy_id": "4242", "mansione_capo": str(mansione.pk),
+            "nome": "Saldatura", "is_active": "1", "caporeparto_legacy_id": "4242", "ruolo_responsabile": str(ruolo.pk),
         })
         self.rep.refresh_from_db()
         self.assertEqual(self.rep.caporeparto_legacy_id, CAPO_REPARTO)
-        self.assertEqual(self.rep.mansione_capo_id, mansione.pk)
+        self.assertEqual(self.rep.ruolo_responsabile_id, ruolo.pk)
+        # Le Impostazioni non mandano il campo: il ruolo resta.
+        self.client.post(reverse("anagrafica:area_edit", args=[self.rep.pk]), {"nome": "Saldatura", "is_active": "1"})
+        self.rep.refresh_from_db()
+        self.assertEqual(self.rep.ruolo_responsabile_id, ruolo.pk)

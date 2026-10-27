@@ -228,6 +228,12 @@ class CompetenzaSkm(models.Model):
         "anagrafica.Reparto", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="mansioni_responsabilita",
     )
+    # «Responsabilità dell'area»: una per area con un ruolo responsabile proprio
+    # (le aree con il nome del reparto usano quella del reparto).
+    responsabilita_area = models.ForeignKey(
+        "anagrafica.AreaAziendale", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="mansioni_responsabilita",
+    )
     # Mansioni di rischio proposte dal portale, in attesa di conferma HSE.
     mansioni_rischio_proposte = models.ManyToManyField(
         "anagrafica.Mansione", blank=True, related_name="proposte_mansioni_skm",
@@ -252,6 +258,10 @@ class CompetenzaSkm(models.Model):
             models.UniqueConstraint(
                 fields=["responsabilita_reparto"], condition=models.Q(responsabilita_reparto__isnull=False),
                 name="skm_responsabilita_reparto_unica",
+            ),
+            models.UniqueConstraint(
+                fields=["responsabilita_area"], condition=models.Q(responsabilita_area__isnull=False),
+                name="skm_responsabilita_area_unica",
             ),
         ]
 
@@ -286,7 +296,7 @@ class CompetenzaSkm(models.Model):
 
     @property
     def is_responsabilita(self) -> bool:
-        return bool(self.responsabilita_reparto_id)
+        return bool(self.responsabilita_reparto_id or self.responsabilita_area_id)
 
 
 # ---------------------------------------------------------------------------

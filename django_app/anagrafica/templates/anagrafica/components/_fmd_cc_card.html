@@ -4,7 +4,7 @@ cc = dati della griglia (serve solo cc.legenda per l'etichetta accessibile della
 Usata da _fmd_cc_grid.html e dalle griglie raggruppate (es. Mansionario per ruolo).
 {% endcomment %}
 {% if s.href %}<a class="fmd-cc{% if s.attiva %} fmd-cc-on{% endif %}" href="{{ s.href }}"{% if s.attiva %} aria-current="true"{% endif %}{% else %}<div class="fmd-cc"{% endif %}
-   data-tags=" {{ s.tags }} "{% if s.q %} data-q="{{ s.q }}"{% endif %} data-alfa="{{ s.alfa }}"{% for k, v in s.ordini.items %} data-o-{{ k }}="{{ v }}"{% endfor %}>
+   data-tags=" {{ s.tags }} "{% if s.q %} data-q="{{ s.q }}"{% endif %} data-alfa="{{ s.alfa }}"{% for k, v in s.ordini.items %} data-o-{{ k }}="{{ v }}"{% endfor %}{% for k, v in s.filtri.items %} data-f-{{ k }}="{{ v }}"{% endfor %}>
   <span class="fmd-cc-h"><b>{{ s.titolo }}</b>{% if s.codice %}<span class="fmd-cc-code">{{ s.codice }}</span>{% endif %}</span>
   {% if s.meta %}<span class="fmd-cc-meta">{{ s.meta }}</span>{% endif %}
   {% if s.segmenti %}

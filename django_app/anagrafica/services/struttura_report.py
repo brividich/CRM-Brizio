@@ -61,7 +61,8 @@ def righe(*, reparto_id: int | None = None) -> list[list]:
         abil_di[ab.legacy_anagrafica_id].append(ab)
 
     mansioni = list(CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True,
-                                                 responsabilita_reparto__isnull=True)
+                                                 responsabilita_reparto__isnull=True,
+                                       responsabilita_area__isnull=True)
                     .prefetch_related("ruoli").order_by("display"))
     per_ruolo: dict[int, list] = defaultdict(list)
     for m in mansioni:

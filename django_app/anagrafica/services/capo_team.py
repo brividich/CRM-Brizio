@@ -5,10 +5,9 @@ Decisione del 16/10/2026: il ruolo dice il **livello** (chi sta sopra chi, con
 Le eccezioni indicate a mano vincono. Il capo si cerca in quest'ordine:
 
 1. **eccezione sulla persona** (``DipendenteAnagraficaAziendale.capo_eccezione_legacy_id``);
-2. **responsabile dell'area aziendale**: chi ha la mansione del responsabile
-   dell'area (``AreaAziendale.mansione_capo``, vuota = segue il reparto);
-3. **capo del reparto**: chi ha la mansione del capo del reparto
-   (``Reparto.mansione_capo``, vuota = «Responsabilità del reparto»);
+2. **responsabile dell'area aziendale**: chi ha la «Responsabilità dell'area»
+   (generata dal ruolo responsabile dell'area; senza, segue il reparto);
+3. **capo del reparto**: chi ha la «Responsabilità del reparto»;
 4. **organigramma**: chi ricopre un ruolo sopra quello della persona e lavora
    nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo
    trasversale); se nessuno, si sale di livello — chi guida un altro reparto

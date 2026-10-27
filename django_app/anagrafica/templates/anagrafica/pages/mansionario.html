@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=4">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -63,6 +63,24 @@
         <div class="fmd-mtr-lbl">Senza mansione di rischio</div>
         <div class="fmd-mtr-sub">DPI, visite e SDS non ricavabili · clic per filtrare</div>
       </button>
+      <button type="button" class="fmd-mtr fmd-t-orange" data-mns-flag="senza-titolare" aria-pressed="false">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.responsabilita_senza_titolare }}</span></div>
+        <div class="fmd-mtr-lbl">Responsabilità senza titolare</div>
+        <div class="fmd-mtr-sub">Reparti e aree senza capo dalla mansione · clic per filtrare</div>
+      </button>
+      <button type="button" class="fmd-mtr fmd-t-amber" data-mns-flag="uomo-solo" aria-pressed="false">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.uomo_solo }}</span></div>
+        <div class="fmd-mtr-lbl">Uomo solo</div>
+        <div class="fmd-mtr-sub">Meno operativi della soglia · clic per filtrare</div>
+      </button>
+      <button type="button" class="fmd-mtr fmd-t-amber" data-mns-flag="ruolo-senza-mansione" aria-pressed="false">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.ruolo_senza_mansione }}</span></div>
+        <div class="fmd-mtr-lbl">Con il ruolo, senza mansioni</div>
+        <div class="fmd-mtr-sub">Persone col ruolo e nessuna sua mansione · clic per filtrare</div>
+      </button>
       <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:mansionario_lacune' %}?esito=non_abilitato">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.non_abilitati }}</span></div>
@@ -86,8 +104,17 @@
       {% if gruppi %}
       <div class="mns-tools">
         <label class="mns-search"><svg class="fmd-ico" aria-hidden="true"><use href="#i-search"/></svg>
-          <input type="search" placeholder="Cerca mansione, reparto, ruolo o rischio…" aria-label="Cerca nel mansionario" data-mns-q autocomplete="off">
+          <input type="search" placeholder="Cerca mansione, persona, reparto, area, ruolo o rischio…" aria-label="Cerca nel mansionario" data-mns-q autocomplete="off">
         </label>
+        <select class="mns-sel" data-mns-f="reparto" aria-label="Filtra per reparto">
+          <option value="">Tutti i reparti</option>{% for v, t in filtri.reparti %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
+        </select>
+        <select class="mns-sel" data-mns-f="area" aria-label="Filtra per area">
+          <option value="">Tutte le aree</option>{% for v, t in filtri.aree %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
+        </select>
+        <select class="mns-sel" data-mns-f="persona" aria-label="Filtra per persona">
+          <option value="">Tutte le persone</option>{% for p in filtri.persone %}<option value="{{ p.id }}">{{ p.nome }}{% if p.reparto %} · {{ p.reparto }}{% endif %}</option>{% endfor %}
+        </select>
         <div class="fmd-chips" role="group" aria-label="Filtra per tipo">
           <button type="button" class="fmd-chip fmd-on" data-mns-tipo="" aria-pressed="true">Tutte</button>
           <button type="button" class="fmd-chip" data-mns-tipo="macchina" aria-pressed="false">Macchine</button>
@@ -104,7 +131,9 @@
       </div>
 
       {% for g in gruppi %}
-      <details class="mns-gruppo{% if g.da_collegare %} mns-gruppo-warn{% endif %}" open data-mns-gruppo>
+      <details class="mns-gruppo{% if g.da_collegare %} mns-gruppo-warn{% endif %}" open data-mns-gruppo
+               data-g-persone="{{ g.persone_ids }}" data-g-flag="{% if g.chi.senza_mansione or g.chi.senza_ruolo %} ruolo-senza-mansione {% endif %}"
+               data-g-q="{{ g.nome|lower }}{% for p in g.chi.persone %} {{ p.nome|lower }}{% endfor %}">
         <summary>
           <span class="mns-gruppo-h">
             <svg class="fmd-ico mns-chev" aria-hidden="true"><use href="#i-chevron-right"/></svg>
@@ -112,11 +141,26 @@
             <span class="fmd-count" data-mns-n>{{ g.schede|length }}</span>
           </span>
           <span class="mns-gruppo-meta">
-            {{ g.in_lista }} in lista
+            {% if g.chi %}{{ g.chi.persone|length }} con il ruolo · {% endif %}{{ g.in_lista }} in lista
             {% if g.scoperte %}<span class="fmd-c-ko">· {{ g.scoperte }} senza operativi</span>{% endif %}
             {% if g.ruolo %}<a class="mns-gruppo-link" href="{% url 'anagrafica:ruoli_operativi_list' %}" title="Catalogo dei ruoli">ruolo →</a>{% endif %}
           </span>
         </summary>
+        {% if g.chi %}
+        <details class="mns-chi"{% if g.chi.senza_mansione or g.chi.senza_ruolo %} open{% endif %} data-mns-chi>
+          <summary>Chi ha questo ruolo <b>{{ g.chi.persone|length }}</b>
+            {% if g.chi.senza_mansione %}<span class="fmd-c-ko">· {{ g.chi.senza_mansione }} senza nessuna sua mansione</span>{% endif %}
+            {% if g.chi.senza_ruolo %}<span class="fmd-c-s30">· {{ g.chi.senza_ruolo|length }} in lista senza il ruolo</span>{% endif %}
+          </summary>
+          <div class="mns-chips">
+            {% for p in g.chi.persone %}<a class="mns-chip{% if p.senza_mansione %} mns-chip-ko{% endif %}" href="{% url 'anagrafica:mansionario_persona' p.id %}" data-mns-pid="{{ p.id }}" title="{% if p.senza_mansione %}Ha il ruolo ma nessuna delle sue mansioni{% else %}Ha il ruolo e almeno una sua mansione{% endif %}">{{ p.nome }}{% if p.reparto or p.area %}<small>{{ p.reparto }}{% if p.area and p.area != p.reparto %} / {{ p.area }}{% endif %}</small>{% endif %}{% if p.senza_mansione %}<em>nessuna mansione</em>{% endif %}</a>{% empty %}<span class="fmd-muted">Nessuno ha questo ruolo.</span>{% endfor %}
+          </div>
+          {% if g.chi.senza_ruolo %}
+          <div class="mns-chi-sub">In lista su queste mansioni, ma senza il ruolo:</div>
+          <div class="mns-chips">{% for p in g.chi.senza_ruolo %}<a class="mns-chip mns-chip-warn" href="{% url 'anagrafica:mansionario_persona' p.id %}" data-mns-pid="{{ p.id }}">{{ p.nome }}{% if p.reparto %}<small>{{ p.reparto }}</small>{% endif %}</a>{% endfor %}</div>
+          {% endif %}
+        </details>
+        {% endif %}
         {% if g.da_collegare %}<p class="mns-gruppo-nota">Queste mansioni non stanno ancora sotto un ruolo: aprile e scegli il ruolo in «Impostazioni».</p>{% endif %}
         <div class="fmd-cgrid">
           {% for s in g.schede %}{% include "anagrafica/components/_fmd_cc_card.html" with cc=cc_card %}{% endfor %}
@@ -143,33 +187,73 @@
 <script>
 (function(){
   var box=document.querySelector('[data-mns-box]');if(!box)return;
-  var q=box.querySelector('[data-mns-q]'),tipo='',flag='';
-  var etichette={'scoperta':'Mansioni senza operativi','senza-ruolo':'Mansioni senza ruolo','senza-rischio':'Mansioni senza mansione di rischio'};
+  var q=box.querySelector('[data-mns-q]'),tipo='',flag='',sel={};
+  box.querySelectorAll('[data-mns-f]').forEach(function(x){sel[x.dataset.mnsF]=x;});
+  var etichette={'scoperta':'Mansioni senza operativi','senza-ruolo':'Mansioni senza ruolo','senza-rischio':'Mansioni senza mansione di rischio',
+    'senza-titolare':'Responsabilità senza titolare','uomo-solo':'Mansioni a rischio uomo solo','ruolo-senza-mansione':'Ruoli con persone senza le loro mansioni'};
+  var GRUPPO={'ruolo-senza-mansione':1};
+  function val(k){return sel[k]?sel[k].value:'';}
+  function salva(){
+    try{
+      var u=new URL(location.href),p={q:(q&&q.value||'').trim(),tipo:tipo,flag:flag,reparto:val('reparto'),area:val('area'),persona:val('persona')};
+      Object.keys(p).forEach(function(k){if(p[k])u.searchParams.set(k,p[k]);else u.searchParams.delete(k);});
+      history.replaceState(null,'',u);
+    }catch(e){}
+  }
   function applica(){
-    var testo=(q&&q.value||'').trim().toLowerCase(),tot=0,filtrando=!!(testo||tipo||flag);
+    var testo=(q&&q.value||'').trim().toLowerCase(),rep=val('reparto'),area=val('area'),pid=val('persona'),tot=0;
+    var filtrando=!!(testo||tipo||flag||rep||area||pid),flagCard=GRUPPO[flag]?'':flag;
     box.querySelectorAll('[data-mns-gruppo]').forEach(function(g){
-      var n=0;
+      var n=0,okG=!flag||!GRUPPO[flag]||(g.getAttribute('data-g-flag')||'').indexOf(' '+flag+' ')>=0;
       g.querySelectorAll('.fmd-cc').forEach(function(c){
-        var t=c.getAttribute('data-tags')||'',ok=(!tipo||t.indexOf(' '+tipo+' ')>=0)&&(!flag||t.indexOf(' '+flag+' ')>=0)&&(!testo||(c.getAttribute('data-q')||'').indexOf(testo)>=0);
+        var t=c.getAttribute('data-tags')||'',ok=okG&&(!tipo||t.indexOf(' '+tipo+' ')>=0)&&(!flagCard||t.indexOf(' '+flagCard+' ')>=0)
+          &&(!testo||(c.getAttribute('data-q')||'').indexOf(testo)>=0)
+          &&(!rep||c.getAttribute('data-f-reparto')===rep)&&(!area||c.getAttribute('data-f-area')===area)
+          &&(!pid||(c.getAttribute('data-f-persone')||'').indexOf(' '+pid+' ')>=0);
         c.hidden=!ok;if(ok)n++;
       });
-      g.hidden=n===0;g.querySelector('[data-mns-n]').textContent=n;
-      if(filtrando&&n)g.open=true;tot+=n;
+      // Il gruppo resta visibile anche senza schede se la persona cercata ha il ruolo.
+      var perChi=okG&&!tipo&&!flagCard&&!rep&&!area&&((pid&&(g.getAttribute('data-g-persone')||'').indexOf(' '+pid+' ')>=0)
+        ||(testo&&(g.getAttribute('data-g-q')||'').indexOf(testo)>=0));
+      var vis=n>0||!!perChi||(okG&&GRUPPO[flag]&&!testo&&!rep&&!area&&!pid&&!tipo);
+      g.hidden=!vis;g.querySelector('[data-mns-n]').textContent=n;
+      var chi=g.querySelector('[data-mns-chi]');
+      if(chi&&(perChi||GRUPPO[flag]))chi.open=true;
+      g.querySelectorAll('[data-mns-pid]').forEach(function(a){
+        var on=(pid&&a.dataset.mnsPid===pid)||(testo&&a.textContent.toLowerCase().indexOf(testo)>=0);
+        a.classList.toggle('mns-chip-on',!!on);
+      });
+      if(filtrando&&vis)g.open=true;if(vis)tot+=Math.max(n,1);
     });
     box.querySelector('[data-mns-vuoto]').hidden=tot>0;
-    var att=box.querySelector('[data-mns-attivo]');att.hidden=!flag;
-    if(flag)box.querySelector('[data-mns-attivo-testo]').textContent='Filtro: '+etichette[flag]+' ('+tot+')';
+    var att=box.querySelector('[data-mns-attivo]'),parti=[];
+    if(flag)parti.push(etichette[flag]);
+    ['reparto','area','persona'].forEach(function(k){if(val(k))parti.push(sel[k].options[sel[k].selectedIndex].text);});
+    att.hidden=!parti.length;
+    if(parti.length)box.querySelector('[data-mns-attivo-testo]').textContent='Filtri: '+parti.join(' · ');
     document.querySelectorAll('[data-mns-flag]').forEach(function(b){var on=b.dataset.mnsFlag===flag;b.classList.toggle('mns-on',on);b.setAttribute('aria-pressed',String(on));});
+    salva();
   }
+  function tipoChip(v){tipo=v;box.querySelectorAll('[data-mns-tipo]').forEach(function(x){var on=x.dataset.mnsTipo===v;x.classList.toggle('fmd-on',on);x.setAttribute('aria-pressed',String(on));});}
   if(q)q.addEventListener('input',applica);
+  Object.keys(sel).forEach(function(k){sel[k].addEventListener('change',applica);});
   document.addEventListener('click',function(e){
     var b=e.target.closest('[data-mns-tipo],[data-mns-flag],[data-mns-reset],[data-mns-espandi]');if(!b)return;
-    if(b.hasAttribute('data-mns-tipo')){tipo=b.dataset.mnsTipo;box.querySelectorAll('[data-mns-tipo]').forEach(function(x){var on=x===b;x.classList.toggle('fmd-on',on);x.setAttribute('aria-pressed',String(on));});}
+    if(b.hasAttribute('data-mns-tipo')){tipoChip(b.dataset.mnsTipo);}
     else if(b.hasAttribute('data-mns-flag')){flag=flag===b.dataset.mnsFlag?'':b.dataset.mnsFlag;if(flag)box.scrollIntoView({behavior:'smooth',block:'start'});}
-    else if(b.hasAttribute('data-mns-reset')){flag='';tipo='';if(q)q.value='';box.querySelectorAll('[data-mns-tipo]').forEach(function(x,i){x.classList.toggle('fmd-on',i===0);x.setAttribute('aria-pressed',String(i===0));});}
+    else if(b.hasAttribute('data-mns-reset')){flag='';tipoChip('');if(q)q.value='';Object.keys(sel).forEach(function(k){sel[k].value='';});}
     else{var apri=b.dataset.mnsEspandi==='1';box.querySelectorAll('[data-mns-gruppo]').forEach(function(g){g.open=apri;});return;}
     applica();
   });
+  // Filtri dall'indirizzo (link condivisibile).
+  try{
+    var u=new URL(location.href);
+    if(q&&u.searchParams.get('q'))q.value=u.searchParams.get('q');
+    if(u.searchParams.get('tipo'))tipoChip(u.searchParams.get('tipo'));
+    flag=u.searchParams.get('flag')||'';
+    ['reparto','area','persona'].forEach(function(k){if(sel[k]&&u.searchParams.get(k))sel[k].value=u.searchParams.get(k);});
+    if(u.search)applica();
+  }catch(e){}
 })();
 </script>
 {% endblock %}
