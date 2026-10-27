@@ -38,6 +38,8 @@
 .rc-panel p { font-size:13px; color:#475569; margin:0 0 10px; line-height:1.5; }
 .rc-list { margin:0 0 10px; padding-left:18px; font-size:13px; color:#334155; }
 .rc-list li { margin:2px 0; }
+.rc-list-check { list-style:none; padding-left:0; columns:2 260px; }
+.rc-list-check label { display:flex; gap:6px; align-items:center; cursor:pointer; }
 
 .rc-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap:14px; }
 .rc-card { background:#fff; border:1px solid #e2e8f0; border-top:4px solid var(--rc-color, #64748b); border-radius:14px; display:flex; flex-direction:column; min-width:0; }
@@ -107,7 +109,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
   <div class="rc-top">
     <div>
       <div class="rc-title">Reparti, aree e capi</div>
-      <div class="rc-sub">Un criterio per tutti: il <strong>capo del reparto</strong> è chi ha la sua <strong>mansione del capo</strong> (di solito «Responsabilità del reparto»). Un'area può avere una mansione propria per il suo responsabile, altrimenti segue il reparto. Assenze, DPI, permessi del team, solleciti e schede usano questo capo.</div>
+      <div class="rc-sub">Un criterio per tutti, quello della struttura della Qualità: il <strong>capo del reparto</strong> è chi ha la sua «Responsabilità del reparto», il <strong>responsabile dell'area</strong> chi ha la «Responsabilità dell'area». Le mansioni nascono dal <strong>ruolo responsabile</strong>; un'area senza ruolo responsabile, o senza nessuno sulla mansione, segue il reparto. Assenze, DPI, permessi del team, solleciti e schede usano questo capo.</div>
     </div>
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="coerenza-capi" %}
@@ -119,7 +121,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
 
   <div class="rc-kpis">
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti attivi</div></div>
-    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla mansione del capo</div></div>
+    <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla «Responsabilità del reparto»</div></div>
     <div class="rc-kpi {% if kpi.da_sistemare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_sistemare }}</div><div class="rc-kpi-l">Reparti da sistemare</div></div>
     <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></div>
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></div>
@@ -128,25 +130,38 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
   {% if not regola_attiva %}
   <section class="rc-panel rc-panel-warn" id="passaggio">
     <h2>Passaggio ai capi decisi dalla mansione</h2>
-    <p>Oggi i moduli usano ancora i capi scelti a mano. Il passaggio assegna la mansione del capo a chi oggi è capo, così nessuno cambia capo, e da lì in poi il capo si cambia solo assegnando o togliendo la mansione. Si fa una volta.</p>
+    <p>Oggi i moduli usano ancora i capi scelti a mano. Il passaggio assegna la «Responsabilità» a chi oggi è capo, così nessuno cambia capo, e da lì in poi il capo si cambia solo assegnando o togliendo la mansione. Si fa una volta.</p>
     {% if proposta.assegnazioni %}
       <div class="rc-label">Mansioni che verranno assegnate</div>
       <ul class="rc-list">{% for a in proposta.assegnazioni %}<li><strong>{{ a.dove }}</strong>: «{{ a.mansione.nome }}» a {{ a.nome|default:a.legacy_id }}</li>{% endfor %}</ul>
     {% endif %}
     {% if proposta.senza_mansione %}
-      <div class="rc-label">Prima scegli la mansione del capo (pulsante «Modifica»)</div>
+      <div class="rc-label">Prima scegli il ruolo responsabile (pulsante «Modifica»)</div>
       <ul class="rc-list">{% for r in proposta.senza_mansione %}<li><a href="#rep-{{ r.pk }}">{{ r.nome }}</a></li>{% endfor %}</ul>
     {% endif %}
     {% if proposta.aree_da_decidere %}
       <div class="rc-label">Aree con un responsabile diverso dal capo del reparto</div>
-      <p>Se il responsabile deve restare, scegli per l'area la mansione del responsabile; se no, dopo il passaggio l'area segue il capo del reparto.</p>
+      <p>Se il responsabile deve restare, scegli per l'area il ruolo responsabile: nasce la sua «Responsabilità dell'area» e il passaggio la assegna a lui. Se no, dopo il passaggio l'area segue il capo del reparto.</p>
       <ul class="rc-list">{% for a in proposta.aree_da_decidere %}<li><a href="#rep-{{ a.reparto_id }}">{{ a.reparto.nome }} / {{ a.nome }}</a></li>{% endfor %}</ul>
+    {% endif %}
+    {% if aree_senza_ruolo %}
+      <div class="rc-label">Aree senza ruolo responsabile ({{ aree_senza_ruolo|length }})</div>
+      <p>Nel file della Qualità ogni area ha la sua responsabilità, di solito del ruolo che guida il reparto (CAR). Spunta quelle da allineare: prendono il ruolo responsabile del reparto e ognuna avrà la sua «Responsabilità dell'area».</p>
+      {% if is_admin %}
+      <form method="post" action="{% url 'anagrafica:capi_ruolo_aree' %}">
+        {% csrf_token %}
+        <ul class="rc-list rc-list-check">{% for a in aree_senza_ruolo %}<li><label><input type="checkbox" name="area" value="{{ a.pk }}" {% if a.reparto.ruolo_responsabile_id %}checked{% else %}disabled{% endif %}> {{ a.reparto.nome }} / {{ a.nome }}{% if a.reparto.ruolo_responsabile_id %} <small>→ {{ a.reparto.ruolo_responsabile.nome }}</small>{% else %} <small>(il reparto non ha un ruolo responsabile)</small>{% endif %}</label></li>{% endfor %}</ul>
+        <button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Dai il ruolo del reparto alle aree spuntate</button>
+      </form>
+      {% else %}
+      <ul class="rc-list">{% for a in aree_senza_ruolo %}<li>{{ a.reparto.nome }} / {{ a.nome }}</li>{% endfor %}</ul>
+      {% endif %}
     {% endif %}
     {% if is_admin %}
     <form method="post" action="{% url 'anagrafica:capi_passaggio' %}" class="rc-actions">
       {% csrf_token %}
       <label style="display:flex;gap:6px;align-items:center;font-size:13px;"><input type="checkbox" name="conferma" value="1" required {% if proposta.bloccata %}disabled{% endif %}> Ho controllato reparti e aree</label>
-      <button type="submit" class="rc-btn rc-btn-primary" {% if proposta.bloccata %}disabled title="Prima scegli la mansione del capo dei reparti elencati"{% endif %}>Fai il passaggio</button>
+      <button type="submit" class="rc-btn rc-btn-primary" {% if proposta.bloccata %}disabled title="Prima scegli il ruolo responsabile dei reparti elencati"{% endif %}>Fai il passaggio</button>
     </form>
     {% endif %}
   </section>
@@ -165,7 +180,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
         <div class="rc-actions">
           <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm"
                   data-edit-rep-id="{{ r.pk }}" data-edit-rep-nome="{{ r.nome }}" data-edit-rep-desc="{{ r.descrizione }}"
-                  data-edit-rep-colore="{{ r.colore }}" data-edit-rep-mansione="{{ r.mansione_capo_id|default_if_none:'' }}"
+                  data-edit-rep-colore="{{ r.colore }}" data-edit-rep-ruolo="{{ r.ruolo_responsabile_id|default_if_none:'' }}"
                   data-edit-rep-active="{{ r.is_active|yesno:'1,0' }}">Modifica</button>
           <form method="post" action="{% url 'anagrafica:area_delete' r.pk %}" data-hub-confirm="Eliminare il reparto «{{ r.nome }}»?">
             {% csrf_token %}<button type="submit" class="rc-btn rc-btn-danger rc-btn-sm">Elimina</button>
@@ -175,8 +190,8 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
       </div>
       <div class="rc-card-body">
         <div class="rc-row">
-          <span class="rc-label">Mansione del capo</span>
-          <span class="rc-mansione">{% if s.mansione %}{% if is_admin %}<a href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}{{ s.mansione.nome }}{% endif %}{% if s.mansione_default %} <small>(predefinita)</small>{% endif %}{% else %}<span class="rc-none">da scegliere</span>{% endif %}</span>
+          <span class="rc-label">Ruolo responsabile</span>
+          <span class="rc-mansione">{% if r.ruolo_responsabile %}{{ r.ruolo_responsabile.nome }}{% if s.mansione %} · {% if is_admin %}<a href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}{{ s.mansione.nome }}{% endif %}{% endif %}{% else %}<span class="rc-none">da scegliere</span>{% endif %}</span>
         </div>
         <div class="rc-row">
           <span class="rc-label">Capo</span>
@@ -199,7 +214,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
         {% if is_admin and s.mansione %}
         <form method="post" action="{% url 'anagrafica:capo_assegna' s.mansione.pk %}" class="rc-assegna">
           {% csrf_token %}<input type="hidden" name="ancora" value="rep-{{ r.pk }}">
-          <select name="legacy_id" required aria-label="Persona a cui assegnare la mansione del capo di {{ r.nome }}">
+          <select name="legacy_id" required aria-label="Persona a cui assegnare la Responsabilità del reparto {{ r.nome }}">
             <option value="">Assegna la mansione a…</option>
             {% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}
           </select>
@@ -221,8 +236,10 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
               <td><strong>{{ a.area.nome }}</strong>{% if a.area.descrizione %}<div class="rc-old">{{ a.area.descrizione }}</div>{% endif %}</td>
               <td class="rc-n">{{ a.persone }}</td>
               <td>
-                {% if a.mansione %}
-                  <div class="rc-old">«{{ a.mansione.nome }}»</div>
+                {% if a.coincide %}
+                  <span class="rc-none">è il reparto: vale il suo capo</span>
+                {% elif a.mansione %}
+                  <div class="rc-old">{{ a.area.ruolo_responsabile.nome }} · «{{ a.mansione.nome }}»</div>
                   <div class="rc-chips">{% for p in a.responsabili %}<span class="rc-chip {% if not is_admin or not p.abilitazione %}solo{% endif %}">{{ p.nome }}
                     {% if is_admin and p.abilitazione %}<form method="post" action="{% url 'anagrafica:capo_togli' p.abilitazione %}" data-hub-confirm="Togliere a {{ p.nome }} la mansione «{{ a.mansione.nome }}»?" style="display:inline;">{% csrf_token %}<input type="hidden" name="ancora" value="area-{{ a.area.pk }}"><button type="submit" class="rc-btn rc-btn-x" aria-label="Togli la mansione a {{ p.nome }}">×</button></form>{% endif %}
                   </span>{% endfor %}</div>
@@ -230,12 +247,13 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
                   {% if is_admin %}
                   <form method="post" action="{% url 'anagrafica:capo_assegna' a.mansione.pk %}" class="rc-assegna" style="margin-top:4px;">
                     {% csrf_token %}<input type="hidden" name="ancora" value="area-{{ a.area.pk }}">
-                    <select name="legacy_id" required aria-label="Persona a cui assegnare la mansione del responsabile di {{ a.area.nome }}"><option value="">Assegna a…</option>{% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}</select>
+                    <select name="legacy_id" required aria-label="Persona a cui assegnare la Responsabilità dell'area {{ a.area.nome }}"><option value="">Assegna a…</option>{% for d in dipendenti_picker %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}</select>
                     <button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Assegna</button>
                   </form>
                   {% endif %}
                 {% else %}
                   <span class="rc-none">segue il reparto</span>
+                  {% if a.avviso %}<div class="rc-avviso">{{ a.avviso }}</div>{% endif %}
                   {% if not regola_attiva and a.a_mano %}<div class="rc-old">Oggi, scelto a mano: {{ a.a_mano }}</div>{% endif %}
                 {% endif %}
               </td>
@@ -243,7 +261,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
               <td class="rc-n">
                 <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm"
                         data-edit-area-id="{{ a.area.pk }}" data-edit-area-nome="{{ a.area.nome }}" data-edit-area-desc="{{ a.area.descrizione }}"
-                        data-edit-area-reparto="{{ r.pk }}" data-edit-area-mansione="{{ a.area.mansione_capo_id|default_if_none:'' }}"
+                        data-edit-area-reparto="{{ r.pk }}" data-edit-area-ruolo="{{ a.area.ruolo_responsabile_id|default_if_none:'' }}"
                         data-edit-area-active="{{ a.area.is_active|yesno:'1,0' }}">Modifica</button>
               </td>
               {% endif %}
@@ -266,7 +284,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
   <section class="rc-panel rc-panel-warn">
     <h2>Aree senza reparto ({{ aree_senza_reparto|length }})</h2>
     <p>Queste aree non hanno un capo: assegnale a un reparto.</p>
-    <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-mansione="{{ a.mansione_capo_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</li>{% endfor %}</ul>
+    <ul class="rc-list">{% for a in aree_senza_reparto %}<li>{{ a.nome }}{% if is_admin %} <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-edit-area-id="{{ a.pk }}" data-edit-area-nome="{{ a.nome }}" data-edit-area-desc="{{ a.descrizione }}" data-edit-area-reparto="" data-edit-area-ruolo="{{ a.ruolo_responsabile_id|default_if_none:'' }}" data-edit-area-active="{{ a.is_active|yesno:'1,0' }}">Modifica</button>{% endif %}</li>{% endfor %}</ul>
   </section>
   {% endif %}
 
@@ -281,9 +299,9 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
           <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione"></div>
           <div class="hub-field"><label>Colore</label><input type="color" name="colore" value="#1f87cd" style="padding:4px;cursor:pointer;"></div>
           <div class="hub-field">
-            <label>Mansione del capo</label>
-            <select name="mansione_capo">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Responsabilità del reparto (predefinita)" %}</select>
-            <p class="hub-help">Chi ha questa mansione nel Mansionario è il capo del reparto.</p>
+            <label>Ruolo responsabile</label>
+            <select name="ruolo_responsabile"><option value="">— Nessuno —</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
+            <p class="hub-help">Genera la «Responsabilità del reparto»: chi la ha nel Mansionario è il capo.</p>
           </div>
           <div><button type="submit" class="rc-btn rc-btn-primary">Crea reparto</button></div>
         </div>
@@ -298,8 +316,8 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
           <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione"></div>
           <div class="hub-field"><label>Reparto</label><select name="reparto_id"><option value="">— Nessuno —</option>{% for rep in reparti_opts %}<option value="{{ rep.pk }}">{{ rep.nome }}</option>{% endfor %}</select></div>
           <div class="hub-field">
-            <label>Mansione del responsabile</label>
-            <select name="mansione_capo">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Segue il capo del reparto" %}</select>
+            <label>Ruolo responsabile</label>
+            <select name="ruolo_responsabile"><option value="">Segue il capo del reparto</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
           </div>
           <div><button type="submit" class="rc-btn rc-btn-primary">Crea area</button></div>
         </div>
@@ -320,9 +338,9 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
         <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione" id="edit-rep-desc"></div>
         <div class="hub-field"><label>Colore</label><input type="color" name="colore" id="edit-rep-colore" style="padding:4px;cursor:pointer;"></div>
         <div class="hub-field">
-          <label>Mansione del capo</label>
-          <select name="mansione_capo" id="edit-rep-mansione">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Responsabilità del reparto (predefinita)" %}</select>
-          <p class="hub-help">Chi ha questa mansione nel Mansionario è il capo del reparto. Lasciala predefinita salvo casi come UT.</p>
+          <label>Ruolo responsabile</label>
+          <select name="ruolo_responsabile" id="edit-rep-ruolo"><option value="">— Nessuno —</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
+          <p class="hub-help">Genera la «Responsabilità del reparto»: chi la ha nel Mansionario è il capo.</p>
         </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" name="is_active" id="edit-rep-active" value="1"> Reparto attivo</label>
         <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Salva</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
@@ -341,9 +359,9 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
         <div class="hub-field"><label>Descrizione</label><input type="text" name="descrizione" id="edit-area-desc"></div>
         <div class="hub-field"><label>Reparto</label><select name="reparto_id" id="edit-area-reparto"><option value="">— Nessuno —</option>{% for rep in reparti_opts %}<option value="{{ rep.pk }}">{{ rep.nome }}</option>{% endfor %}</select></div>
         <div class="hub-field">
-          <label>Mansione del responsabile</label>
-          <select name="mansione_capo" id="edit-area-mansione">{% include "anagrafica/partials/_capi_mansioni_options.html" with vuota="Segue il capo del reparto" %}</select>
-          <p class="hub-help">Solo se l'area ha un responsabile diverso dal capo del reparto (es. HSE, IT, Qualità in UT).</p>
+          <label>Ruolo responsabile</label>
+          <select name="ruolo_responsabile" id="edit-area-ruolo"><option value="">Segue il capo del reparto</option>{% for ro in ruoli_opts %}<option value="{{ ro.pk }}">{{ ro.nome }}</option>{% endfor %}</select>
+          <p class="hub-help">Genera la «Responsabilità dell'area» (es. HSE → ESM, IT → ITM, aree di produzione → CAR). Un'area con lo stesso nome del reparto usa quella del reparto.</p>
         </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" name="is_active" id="edit-area-active" value="1"> Area attiva</label>
         <div style="display:flex;gap:8px;"><button type="submit" class="rc-btn rc-btn-primary">Salva</button><button type="button" class="rc-btn rc-btn-ghost" data-rc-chiudi>Annulla</button></div>
@@ -372,7 +390,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
       document.getElementById('edit-rep-nome').value = b.dataset.editRepNome || '';
       document.getElementById('edit-rep-desc').value = b.dataset.editRepDesc || '';
       document.getElementById('edit-rep-colore').value = b.dataset.editRepColore || '#64748b';
-      document.getElementById('edit-rep-mansione').value = b.dataset.editRepMansione || '';
+      document.getElementById('edit-rep-ruolo').value = b.dataset.editRepRuolo || '';
       document.getElementById('edit-rep-active').checked = b.dataset.editRepActive === '1';
       apri('edit-rep-modal');
     });
@@ -386,7 +404,7 @@ body.theme-dark #delete-area-form { border-color:var(--border) !important; }
       document.getElementById('edit-area-nome').value = b.dataset.editAreaNome || '';
       document.getElementById('edit-area-desc').value = b.dataset.editAreaDesc || '';
       document.getElementById('edit-area-reparto').value = b.dataset.editAreaReparto || '';
-      document.getElementById('edit-area-mansione').value = b.dataset.editAreaMansione || '';
+      document.getElementById('edit-area-ruolo').value = b.dataset.editAreaRuolo || '';
       document.getElementById('edit-area-active').checked = b.dataset.editAreaActive === '1';
       apri('edit-area-modal');
     });

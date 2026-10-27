@@ -23,7 +23,8 @@ from .mansionario_struttura import TIPI_MANSIONE
 def _mansioni():
     return list(
         CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True)
-        .select_related("area", "reparto", "processo_sgi", "asset", "responsabilita_reparto")
+        .select_related("area", "reparto", "processo_sgi", "asset", "responsabilita_reparto",
+                        "responsabilita_area")
         .prefetch_related("ruoli", "mansioni_rischio", "mansioni_rischio_proposte")
         .order_by("display", "competenza_key")
     )
@@ -53,7 +54,7 @@ def albero(mansioni=None) -> list[dict]:
     per_area: dict[int | None, list] = defaultdict(list)
     per_reparto_senza_area: dict[int, list] = defaultdict(list)
     for m in mansioni:
-        if m.responsabilita_reparto_id:
+        if m.is_responsabilita:
             continue
         if m.area_id:
             per_area[m.area_id].append(m)
@@ -62,6 +63,7 @@ def albero(mansioni=None) -> list[dict]:
     persone_area = Counter(DipendenteAnagraficaAziendale.objects.exclude(area_aziendale__isnull=True)
                            .values_list("area_aziendale_id", flat=True))
     responsabilita = {m.responsabilita_reparto_id: m for m in mansioni if m.responsabilita_reparto_id}
+    responsabilita_aree = {m.responsabilita_area_id: m for m in mansioni if m.responsabilita_area_id}
     reparti = list(Reparto.objects.filter(is_active=True).select_related("ruolo_responsabile")
                    .prefetch_related("aree_aziendali__ruolo_responsabile").order_by("nome"))
     capi = _nomi([r.caporeparto_legacy_id for r in reparti])
@@ -79,6 +81,7 @@ def albero(mansioni=None) -> list[dict]:
                     ruolo_di[chiave] = r
             aree.append({
                 "area": a, "persone": persone_area.get(a.pk, 0), "n_mansioni": len(ms),
+                "responsabilita": responsabilita_aree.get(a.pk),
                 # (etichetta, ruolo o None, mansioni): il ruolo serve per aprirne la scheda.
                 "ruoli": [(k, ruolo_di[k], v) for k, v in
                           sorted(per_ruolo.items(), key=lambda kv: (kv[0] == "Senza ruolo", kv[0].casefold()))],
@@ -124,7 +127,7 @@ def ruoli(mansioni=None) -> list[dict]:
 def da_completare(mansioni=None) -> list[dict]:
     """Cosa manca perché la struttura sia completa, voce per voce, con il link dove si risolve."""
     mansioni = mansioni if mansioni is not None else _mansioni()
-    lavorative = [m for m in mansioni if not m.responsabilita_reparto_id]
+    lavorative = [m for m in mansioni if not m.is_responsabilita]
     voci = [
         ("Mansioni senza area", [m for m in lavorative if not m.area_id], "mansione"),
         ("Mansioni senza processo SGI", [m for m in lavorative if not m.processo_sgi_id], "mansione"),
@@ -149,8 +152,8 @@ def kpi(alb, procs, rls, mans) -> dict:
         "reparti": len(alb),
         "aree": sum(len(r["aree"]) for r in alb),
         "ruoli": len(rls),
-        "mansioni": sum(1 for m in mans if not m.responsabilita_reparto_id),
+        "mansioni": sum(1 for m in mans if not m.is_responsabilita),
         "processi": len(procs),
         "rischi_da_confermare": sum(1 for m in mans if m.mansioni_rischio_proposte.all()
-                                    and not m.responsabilita_reparto_id),
+                                    and not m.is_responsabilita),
     }

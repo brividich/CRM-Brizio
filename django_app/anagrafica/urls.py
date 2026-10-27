@@ -252,6 +252,7 @@ urlpatterns = [
     # Aree aziendali + Reparti (gerarchia a due livelli)
     path("aree/", views_capi_reparti.reparti_capi, name="aree_list"),
     path("aree/capi/passaggio", views_capi_reparti.capi_passaggio, name="capi_passaggio"),
+    path("aree/capi/ruolo-aree", views_capi_reparti.capi_ruolo_aree, name="capi_ruolo_aree"),
     path("aree/capi/<int:mansione_id>/assegna", views_capi_reparti.capo_assegna, name="capo_assegna"),
     path("aree/capi/togli/<int:abilitazione_id>", views_capi_reparti.capo_togli, name="capo_togli"),
     # Aree aziendali (livello padre)

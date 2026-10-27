@@ -755,17 +755,18 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
     return value if value > 0 else None
 
 
-def _mansione_capo_da_post(raw: str | None):
-    """Mansione del capo scelta nel form (vuota = default del reparto / segue il reparto)."""
-    from anagrafica.models_skillmatrix import CompetenzaSkm
+def _ruolo_responsabile_da_post(raw: str | None):
+    """Ruolo responsabile scelto nel form: genera la mansione di responsabilità (vuoto = nessuna)."""
+    from anagrafica.models import RuoloOperativo
 
-    mid = _resolve_caporeparto_id(raw)
-    return CompetenzaSkm.objects.filter(pk=mid).first() if mid else None
+    rid = _resolve_caporeparto_id(raw)
+    return RuoloOperativo.objects.filter(pk=rid, is_active=True).first() if rid else None
 
 
 # ── Area Aziendale CRUD (ora il livello FIGLIO) ─────────────────────────────
-# Il responsabile non si sceglie più qui: è chi ha la mansione dell'area
-# (services.capi_mansione), assegnata dalla pagina «Reparti, aree e capi».
+# Il responsabile non si sceglie più qui: si sceglie il RUOLO responsabile,
+# che genera la «Responsabilità dell'area»; responsabile è chi ha quella
+# mansione (services.capi_mansione), assegnata dalla pagina «Reparti, aree e capi».
 
 @login_required
 @require_POST
@@ -791,7 +792,7 @@ def area_aziendale_create(request):
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "reparto": reparto,
-            "mansione_capo": _mansione_capo_da_post(request.POST.get("mansione_capo")),
+            "ruolo_responsabile": _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile")),
         },
     )
     if created:
@@ -823,7 +824,8 @@ def area_aziendale_edit(request, area_id: int):
     area.nome = nome
     area.descrizione = (request.POST.get("descrizione") or "").strip()
     area.reparto = reparto
-    area.mansione_capo = _mansione_capo_da_post(request.POST.get("mansione_capo"))
+    if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
+        area.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
     area.is_active = request.POST.get("is_active") == "1"
     area.save()  # segnali_capi: con la regola accesa riallinea capi e schede
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
@@ -893,7 +895,7 @@ def area_create(request):
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
-            "mansione_capo": _mansione_capo_da_post(request.POST.get("mansione_capo")),
+            "ruolo_responsabile": _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile")),
         },
     )
     if created:
@@ -920,7 +922,8 @@ def area_edit(request, area_id: int):
     rep.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     rep.is_active = request.POST.get("is_active") == "1"
     nome_prima = Reparto.objects.filter(pk=rep.pk).values_list("nome", flat=True).first()
-    rep.mansione_capo = _mansione_capo_da_post(request.POST.get("mansione_capo"))
+    if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
+        rep.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
     rep.save()  # segnali_capi: con la regola accesa riallinea capi, schede e mapping
     if nome_prima and nome_prima != rep.nome:
         from core.models import RepartoCapoMapping
