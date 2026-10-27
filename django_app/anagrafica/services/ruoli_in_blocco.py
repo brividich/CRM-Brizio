@@ -49,18 +49,29 @@ def ruoli_in_essere(legacy_ids) -> dict[int, list[DipendenteRuoloOperativo]]:
     return out
 
 
-def persone(*, reparto: str = "", ruolo_id: int | None = None, cerca: str = "") -> list[dict]:
-    """Dipendenti attivi con reparto, ruolo principale e ruoli in essere (filtri facoltativi)."""
+def persone(*, reparto: str = "", ruolo_id: int | None = None, cerca: str = "", area_id: int | None = None,
+            mansione_id: int | None = None, senza_ruoli: bool = False, con_mansioni: bool = False) -> list[dict]:
+    """Dipendenti attivi con reparto, area, ruolo principale e ruoli in essere (filtri facoltativi).
+
+    ``con_mansioni`` aggiunge le mansioni in lista (per la pagina in blocco, non per l'import).
+    """
     from core import naming
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
-    from ..models import DipendenteAnagraficaAziendale
+    from ..models import AbilitazioneMacchina, DipendenteAnagraficaAziendale
 
     righe = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo", True) and r.get("id")]
     ids = [int(r["id"]) for r in righe]
     ruoli = ruoli_in_essere(ids)
-    principali = dict(DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=ids)
-                      .values_list("legacy_anagrafica_id", "ruolo_aziendale"))
+    aziendale = {a.legacy_anagrafica_id: a for a in DipendenteAnagraficaAziendale.objects.filter(
+        legacy_anagrafica_id__in=ids).select_related("area_aziendale")}
+    mansioni: dict[int, list[str]] = {}
+    if con_mansioni or mansione_id:
+        for lid, mid, nome_m, key in (AbilitazioneMacchina.objects.filter(legacy_anagrafica_id__in=ids, in_lista=True,
+                                                                         competenza__isnull=False)
+                                      .values_list("legacy_anagrafica_id", "competenza_id", "competenza__display",
+                                                   "competenza__competenza_key")):
+            mansioni.setdefault(lid, []).append((mid, nome_m or key))
     cerca = (cerca or "").strip().casefold()
     out = []
     for r in righe:
@@ -68,16 +79,26 @@ def persone(*, reparto: str = "", ruolo_id: int | None = None, cerca: str = "") 
         rep = (r.get("reparto") or "").strip()
         if reparto and rep.casefold() != reparto.casefold():
             continue
+        az = aziendale.get(lid)
+        if area_id and not (az and az.area_aziendale_id == area_id):
+            continue
         assegnati = ruoli.get(lid, [])
         if ruolo_id and not any(a.ruolo_id == ruolo_id for a in assegnati):
             continue
+        if senza_ruoli and assegnati:
+            continue
+        sue = mansioni.get(lid, [])
+        if mansione_id and not any(mid == mansione_id for mid, _n in sue):
+            continue
         nome = naming.nome_completo(r.get("nome"), r.get("cognome"))
-        if cerca and cerca not in f"{nome} {rep}".casefold():
+        area = az.area_aziendale.nome if az and az.area_aziendale_id else ""
+        if cerca and cerca not in f"{nome} {rep} {area}".casefold():
             continue
         out.append({
-            "legacy_id": lid, "nome": nome, "reparto": rep,
-            "principale": (principali.get(lid) or "").strip(),
+            "legacy_id": lid, "nome": nome, "reparto": rep, "area": area,
+            "principale": ((az.ruolo_aziendale if az else "") or "").strip(),
             "ruoli": [a.ruolo.nome for a in assegnati],
+            "mansioni": sorted((n for _m, n in sue), key=str.casefold),
         })
     out.sort(key=lambda p: p["nome"].casefold())
     return out

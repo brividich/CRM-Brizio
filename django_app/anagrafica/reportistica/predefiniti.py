@@ -152,6 +152,24 @@ MODELLI += [
                          "valori": {"raggruppa_per": "mese"}}},
         ],
     },
+    {
+        "codice_sistema": "struttura_ruoli_capi",
+        "nome": "Struttura: ruoli, mansioni e capi",
+        "descrizione": "Capi e responsabilità di reparti e aree, chi ricopre ogni ruolo, copertura delle mansioni e "
+                       "ruoli e mansioni per persona, con cosa non torna.",
+        "titolo_documento": "Struttura organizzativa: ruoli, mansioni e responsabilità",
+        "sottotitolo": "Situazione al {{oggi}}",
+        "norme": ["ISO 9001", "ISO 45001"],
+        "riservatezza": "INTERNO",
+        "periodo_tipo": "ULTIMI_12_MESI",
+        "formato_predefinito": "xlsx",
+        "blocchi": [
+            {"tipo": "SEZIONE", "sezione": "capi_responsabilita"},
+            {"tipo": "SEZIONE", "sezione": "ruoli_persone"},
+            {"tipo": "SEZIONE", "sezione": "copertura_mansioni"},
+            {"tipo": "SEZIONE", "sezione": "ruoli_mansioni_persona"},
+        ],
+    },
 ]
 
 

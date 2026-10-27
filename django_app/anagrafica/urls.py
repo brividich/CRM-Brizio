@@ -397,6 +397,10 @@ urlpatterns = [
     path("mansionario/struttura/export.xlsx", views_struttura.struttura_export, name="mansionario_struttura_export"),
     path("mansionario/struttura/import/", views_struttura.struttura_import, name="mansionario_struttura_import"),
     path("ruoli-operativi/cambio-in-blocco/", views_struttura.ruoli_in_blocco, name="ruoli_in_blocco"),
+    path("ruoli-operativi/cambio-in-blocco/export.xlsx", views_struttura.assegnazioni_export,
+         name="assegnazioni_export"),
+    path("ruoli-operativi/cambio-in-blocco/import/", views_struttura.assegnazioni_import,
+         name="assegnazioni_import"),
     # Struttura organizzativa (struttura della Qualità): pagina dedicata, revisioni, conferme HSE
     path("struttura/", views_struttura_org.struttura_org, name="struttura_org"),
     path("struttura/reparto/<int:reparto_id>/", views_struttura_org.struttura_reparto_salva,

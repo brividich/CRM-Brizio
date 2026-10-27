@@ -338,3 +338,7 @@ body.theme-dark .fmd .mns-chip-ko{ background:rgba(197,48,48,.16); border-color:
 body.theme-dark .fmd .mns-chip-ko em{ color:#fca5a5; }
 body.theme-dark .fmd .mns-chip-warn{ background:rgba(194,65,12,.16); border-color:rgba(251,146,60,.45); }
 body.theme-dark .fmd .mns-chi-sub{ color:#fdba74; }
+
+.mst-config[hidden]{ display:none; }
+#da-excel .fmd-block-title{ white-space:normal; min-width:0; }
+#da-excel input[type=file]{ max-width:100%; }

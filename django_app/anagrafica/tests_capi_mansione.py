@@ -280,3 +280,42 @@ class PaginaRepartiCapiTests(_ScenarioMansioni):
         self.client.force_login(utente)
         self.client.post(reverse("anagrafica:capi_passaggio"), {"conferma": "1"})
         self.assertFalse(capo_team.regola_unica_attiva())
+
+
+class ReportStrutturaTests(_ScenarioMansioni):
+    def _calcola(self, chiave, **opzioni):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .reportistica import sezioni as catalogo
+        from .reportistica.dati import Contesto, Perimetro
+
+        oggi = timezone.localdate()
+        ctx = Contesto(date_from=oggi - timedelta(days=365), date_to=oggi, perimetro=Perimetro())
+        return catalogo.get(chiave).calcola(ctx, opzioni)
+
+    def test_capi_e_responsabilita(self):
+        self._assegna(self.resp_fres, self.neri)
+        res = self._calcola("capi_responsabilita")
+        righe = {(r["reparto"], r["area"]): (r, t) for r, t in zip(res.righe, res.toni)}
+        self.assertIn("NERI", righe[("Fresatura", "")][0]["titolari"].upper())
+        self.assertEqual(righe[("Saldatura", "")][1], "danger")  # nessun titolare
+        self.assertIn(("Fresatura", "IN1"), righe)
+
+    def test_chi_ricopre_ogni_ruolo(self):
+        self._assegna(self.resp_fres, self.neri)
+        res = self._calcola("ruoli_persone", ruoli=[str(self.capo.pk)])
+        per_nome = {r["nominativo"].upper(): r for r in res.righe}
+        self.assertEqual(per_nome[next(n for n in per_nome if "BIANCHI" in n)]["avviso"], "nessuna mansione del ruolo")
+        self.assertIn("Responsabilità del reparto Fresatura",
+                      per_nome[next(n for n in per_nome if "NERI" in n)]["mansioni_ruolo"])
+
+    def test_copertura_e_persona(self):
+        self._assegna(self.resp_fres, self.neri)
+        res = self._calcola("copertura_mansioni", tipo="responsabilita")
+        stati = {r["mansione"]: r["stato"] for r in res.righe}
+        self.assertEqual(stati["Responsabilità del reparto Fresatura"], "ok")
+        self.assertEqual(stati["Responsabilità del reparto Saldatura"], "nessun titolare")
+        res = self._calcola("ruoli_mansioni_persona", solo_disallineati=True)
+        self.assertTrue(any("nessuna mansione" in r["avvisi"] for r in res.righe))
