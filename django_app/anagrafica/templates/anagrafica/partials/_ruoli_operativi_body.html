@@ -135,7 +135,10 @@ body.theme-dark .ro-modal-title { color:var(--text); }
     <div class="ro-card-head">
       <div class="ro-card-title">Ruoli nel catalogo ({{ ruoli|length }})</div>
       {% if is_admin %}
-      <button type="button" class="ro-btn ro-btn-new ro-btn-sm" onclick="roApri('ro-new')">+ Nuovo ruolo</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="ro-btn ro-btn-ghost ro-btn-sm" href="{% url 'anagrafica:ruoli_operativi_storico' %}" title="Chi ha creato, modificato o eliminato ruoli, ambiti e qualifiche dei ruoli">🕘 Storico modifiche</a>
+        <button type="button" class="ro-btn ro-btn-new ro-btn-sm" onclick="roApri('ro-new')">+ Nuovo ruolo</button>
+      </div>
       {% endif %}
     </div>
     <div class="ro-card-body">
@@ -239,6 +242,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
                 onclick="roOpenEdit({{ r.id }}, '{{ r.nome|escapejs }}', '{{ r.descrizione|escapejs }}', '{{ r.colore }}', '{{ r.icona|escapejs }}', {{ r.is_active|yesno:'true,false' }}, '{{ r.certificazione_competenza|escapejs }}', '{{ r.riporta_a_id|default:'' }}', '{{ r.ambito_id|default:'' }}')">
                 ✏ Modifica
               </button>
+              <a class="ro-btn ro-btn-ghost ro-btn-sm" href="{% url 'anagrafica:ruolo_operativo_storico' r.id %}">🕘 Storico</a>
               {% if r.n_assegnati == 0 %}
               <form method="post" action="{% url 'anagrafica:ruolo_operativo_delete' r.id %}" style="display:inline;">
                 {% csrf_token %}

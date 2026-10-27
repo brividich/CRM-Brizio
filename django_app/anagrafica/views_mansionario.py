@@ -76,19 +76,50 @@ def _ids(request, nome) -> list[int]:
 LEGENDA_LIVELLI = [("ok", "autonomo o esperto"), ("s90", "intermedio"), ("mai", "in formazione")]
 
 
-def _scheda(r: dict, *, ruolo_gruppo=None) -> dict:
+def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
     """Una scheda per mansione: barra per livello I/L/U/O, operativi in evidenza.
 
     Dentro il gruppo del ruolo il ruolo non si ripete: la riga dice solo il tipo e,
-    se la mansione serve anche ad altri ruoli, quali.
+    se la mansione serve anche ad altri ruoli, quali. Le «Responsabilità» (una
+    persona per definizione) mostrano chi è il titolare, non operativi e «uomo solo».
+    ``persone``: ``legacy_id`` → dati della persona (nome, reparto, area) per
+    titolari, ricerca e filtri.
     """
     from .services import sezioni_c
 
+    persone = persone or {}
     m = r["mansione"]
     lv = r["livelli"]
     altri = [x.nome for x in r["ruoli"] if ruolo_gruppo is None or x.pk != ruolo_gruppo.pk]
     meta = m.get_tipo_display() + (f" · anche {', '.join(altri)}" if altri and ruolo_gruppo else "")
     rischi = ", ".join(x.nome for x in r["rischi"])
+    nomi = [persone[i]["nome"] for i in r["persone_ids"] if i in persone]
+    area = m.area.nome if m.area_id else ""
+    filtri = {
+        "reparto": sezioni_c.tag_slug(r["reparto"] or ""), "area": sezioni_c.tag_slug(area),
+        "persone": " " + " ".join(str(i) for i in r["persone_ids"]) + " ",
+    }
+    q = " ".join([r["nome"], r["reparto"] or "", area, rischi, *(x.nome for x in r["ruoli"]), *nomi]).casefold()
+    if m.is_responsabilita:
+        flag = ["responsabilita"] + ([] if nomi else ["senza-titolare", "scoperta"])
+        dove = f"dell'area {area}" if m.responsabilita_area_id else f"del reparto {r['reparto']}"
+        s = sezioni_c.scheda(
+            titolo=r["nome"],
+            href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
+            codice=r["reparto"] or "",
+            meta=f"Chi la ha è il capo {dove}",
+            tags=(m.tipo, *flag),
+            seg=[("ok", lv["O"] + lv["U"]), ("s90", lv["L"]), ("mai", lv["I"])],
+            principale=", ".join(nomi) if nomi else "",
+            principale_label="" if nomi else "",
+            principale_sub=" (co-capi)" if len(nomi) > 1 else "",
+            pillole=[None if nomi else sezioni_c.pillola("fmd-c-ko", "nessun titolare")],
+            piede="Titolare della responsabilità" if nomi else "Assegnala da «Reparti, aree e capi»",
+            piede_muted=not nomi,
+            vai="Apri →",
+        )
+        s["q"], s["filtri"] = q, filtri
+        return s
     flag = []
     if not r["operativi"]:
         flag.append("scoperta")
@@ -96,6 +127,8 @@ def _scheda(r: dict, *, ruolo_gruppo=None) -> dict:
         flag.append("senza-ruolo")
     if not r["rischi"]:
         flag.append("senza-rischio")
+    if r["uomo_solo"] and r["operativi"]:
+        flag.append("uomo-solo")
     s = sezioni_c.scheda(
         titolo=r["nome"],
         href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
@@ -115,14 +148,58 @@ def _scheda(r: dict, *, ruolo_gruppo=None) -> dict:
         piede_muted=not rischi,
         vai="Apri →",
     )
-    s["q"] = " ".join([r["nome"], r["reparto"] or "", rischi, *(x.nome for x in r["ruoli"])]).casefold()
+    s["q"], s["filtri"] = q, filtri
     return s
 
 
-def _gruppi_per_ruolo(righe: list[dict]) -> list[dict]:
+def _persone_in_forza() -> dict[int, dict]:
+    """``legacy_id`` → nome, reparto, area e ruoli di oggi, per chi è in forza."""
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from core import naming
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    from .models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+
+    out = {int(r["id"]): {"id": int(r["id"]), "nome": naming.nome_completo(r.get("nome"), r.get("cognome")),
+                          "reparto": "", "area": "", "ruoli": set()}
+           for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo", True) and r.get("id")}
+    for a in (DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=list(out),
+                                                           area_aziendale__isnull=False)
+              .select_related("area_aziendale__reparto")):
+        p = out[a.legacy_anagrafica_id]
+        p["area"] = a.area_aziendale.nome
+        p["reparto"] = a.area_aziendale.reparto.nome if a.area_aziendale.reparto_id else ""
+    oggi = timezone.localdate()
+    for lid, rid in (DipendenteRuoloOperativo.objects.filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi),
+                                                             legacy_anagrafica_id__in=list(out))
+                     .values_list("legacy_anagrafica_id", "ruolo_id")):
+        out[lid]["ruoli"].add(rid)
+    return out
+
+
+def _chi_ha_il_ruolo(ruolo, righe_g: list[dict], persone: dict[int, dict]) -> dict:
+    """Chi ricopre il ruolo, indipendentemente dalle mansioni, e i disallineamenti.
+
+    - con il ruolo ma su nessuna mansione del gruppo: «nessuna mansione»;
+    - in lista su una mansione del gruppo ma senza il ruolo: «senza il ruolo».
+    """
+    in_lista = {i for r in righe_g for i in r["persone_ids"]}
+    con_ruolo = [p for p in persone.values() if ruolo.pk in p["ruoli"]]
+    righe = [{**p, "senza_mansione": p["id"] not in in_lista} for p in con_ruolo]
+    righe.sort(key=lambda p: (not p["senza_mansione"], p["reparto"].casefold(), p["nome"].casefold()))
+    senza_ruolo = sorted((persone[i] for i in in_lista if i in persone and ruolo.pk not in persone[i]["ruoli"]),
+                         key=lambda p: p["nome"].casefold())
+    return {"persone": righe, "senza_mansione": sum(1 for p in righe if p["senza_mansione"]),
+            "senza_ruolo": senza_ruolo}
+
+
+def _gruppi_per_ruolo(righe: list[dict], persone: dict[int, dict] | None = None) -> list[dict]:
     """Ruolo → mansioni. Una mansione con più ruoli compare sotto ciascuno; quelle
     senza ruolo finiscono in fondo, in «Da collegare a un ruolo». Dentro il gruppo
-    prima le meno coperte."""
+    prima le meno coperte; il gruppo dice anche chi ricopre il ruolo."""
+    persone = persone if persone is not None else {}
     per_ruolo: dict[int, dict] = {}
     senza = []
     for r in righe:
@@ -133,11 +210,15 @@ def _gruppi_per_ruolo(righe: list[dict]) -> list[dict]:
 
     def _gruppo(nome, righe_g, *, ruolo=None, da_collegare=False):
         righe_g = sorted(righe_g, key=lambda x: (x["operativi"], x["in_lista"], x["nome"].casefold()))
+        chi = _chi_ha_il_ruolo(ruolo, righe_g, persone) if ruolo is not None else None
+        ids = {i for x in righe_g for i in x["persone_ids"]} | ({p["id"] for p in chi["persone"]} if chi else set())
         return {
             "nome": nome, "ruolo": ruolo, "da_collegare": da_collegare,
-            "schede": [_scheda(x, ruolo_gruppo=ruolo) for x in righe_g],
+            "schede": [_scheda(x, ruolo_gruppo=ruolo, persone=persone) for x in righe_g],
             "scoperte": sum(1 for x in righe_g if not x["operativi"]),
             "in_lista": sum(x["in_lista"] for x in righe_g),
+            "chi": chi,
+            "persone_ids": " " + " ".join(str(i) for i in sorted(ids)) + " ",
         }
 
     gruppi = [_gruppo(g["ruolo"].nome, g["righe"], ruolo=g["ruolo"])
@@ -167,13 +248,28 @@ def mansionario(request):
     kpi = svc.kpi(righe)
     kpi["non_abilitati"] = sum(1 for r in lacune if r["valutazione"].esito == comp_svc.NON_ABILITATO)
     kpi["in_addestramento"] = sum(1 for r in lacune if r["valutazione"].esito == comp_svc.IN_ADDESTRAMENTO)
-    gruppi = _gruppi_per_ruolo(righe)
+    persone = _persone_in_forza()
+    gruppi = _gruppi_per_ruolo(righe, persone)
     kpi["ruoli"] = sum(1 for g in gruppi if not g["da_collegare"])
+    kpi["responsabilita_senza_titolare"] = sum(
+        1 for r in righe if r["mansione"].is_responsabilita and not any(i in persone for i in r["persone_ids"]))
+    kpi["uomo_solo"] = sum(1 for r in righe if r["uomo_solo"] and r["operativi"]
+                           and not r["mansione"].is_responsabilita)
+    kpi["ruolo_senza_mansione"] = sum(g["chi"]["senza_mansione"] for g in gruppi if g["chi"])
+    from .services.sezioni_c import tag_slug
+
+    filtri = {  # (valore come nei data-f-* delle schede, etichetta)
+        "reparti": [(tag_slug(n), n) for n in sorted({r["reparto"] for r in righe if r["reparto"]}, key=str.casefold)],
+        "aree": [(tag_slug(n), n) for n in sorted({r["mansione"].area.nome for r in righe if r["mansione"].area_id},
+                                                  key=str.casefold)],
+        "persone": sorted(persone.values(), key=lambda p: p["nome"].casefold()),
+    }
     return render(request, "anagrafica/pages/mansionario.html", {
         "page_title": "Mansionario",
         "righe": righe,
         "kpi": kpi,
         "gruppi": gruppi,
+        "filtri": filtri,
         "legenda": LEGENDA_LIVELLI,
         "cc_card": {"legenda": LEGENDA_LIVELLI},
         "aree": aree,

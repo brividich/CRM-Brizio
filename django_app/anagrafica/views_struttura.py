@@ -363,29 +363,85 @@ def _data(valore):
         return None
 
 
-@login_required
-def ruoli_in_blocco(request):
-    if not _is_admin(request):
-        return _nega(request, "Il cambio ruoli in blocco è dell'amministrazione dell'anagrafica.")
-    from django.utils import timezone
+SESSIONE_IMPORT_PERSONE = "assegnazioni_import_file"
 
+
+def _contesto_in_blocco(request, **extra) -> dict:
+    from .services import mansioni_in_blocco as mb
     from .services import ruoli_in_blocco as blocco
+    from .services.mansionario_struttura import TIPI_MANSIONE
 
     sorgente = request.POST if request.method == "POST" else request.GET
     filtri = {
         "reparto": (sorgente.get("reparto") or "").strip(),
+        "area_id": _int_o_none(sorgente.get("filtro_area")),
         "ruolo_id": _int_o_none(sorgente.get("filtro_ruolo")),
+        "mansione_id": _int_o_none(sorgente.get("filtro_mansione")),
+        "senza_ruoli": sorgente.get("senza_ruoli") == "1",
         "cerca": (sorgente.get("cerca") or "").strip(),
     }
+    persone = blocco.persone(reparto=filtri["reparto"], ruolo_id=filtri["ruolo_id"], cerca=filtri["cerca"],
+                             area_id=filtri["area_id"], mansione_id=filtri["mansione_id"],
+                             senza_ruoli=filtri["senza_ruoli"], con_mansioni=True)
+    return {
+        "page_title": "Ruoli e mansioni in blocco",
+        "persone": persone,
+        "filtri": filtri,
+        "modi": list(blocco.MODI.items()),
+        "modi_mansione": list(mb.MODI.items()),
+        "livelli": list(mb.LIVELLI.items()),
+        "max_persone": blocco.MAX_PERSONE,
+        "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
+        "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
+        "aree_opts": list(AreaAziendale.objects.filter(is_active=True).select_related("reparto")
+                          .order_by("reparto__nome", "nome")),
+        "mansioni_opts": list(CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True)
+                              .order_by("display", "competenza_key")),
+        **extra,
+    }
+
+
+@login_required
+def ruoli_in_blocco(request):
+    if not _is_admin(request):
+        return _nega(request, "Il cambio ruoli e mansioni in blocco è dell'amministrazione dell'anagrafica.")
+    from django.utils import timezone
+
+    from .services import mansioni_in_blocco as mb
+    from .services import ruoli_in_blocco as blocco
+
+    sorgente = request.POST if request.method == "POST" else request.GET
     scelta = {
+        "cosa": "mansione" if sorgente.get("cosa") == "mansione" else "ruolo",
         "ruolo_id": _int_o_none(sorgente.get("ruolo")),
         "modo": sorgente.get("modo") or blocco.AGGIUNGI,
+        "mansione_id": _int_o_none(sorgente.get("mansione")),
+        "modo_mansione": sorgente.get("modo_mansione") or mb.ASSEGNA,
+        "livello": (sorgente.get("livello") or "U").strip().upper(),
         "data": sorgente.get("data") or timezone.localdate().isoformat(),
         "note": (sorgente.get("note") or "").strip()[:500],
         "persone": set(_ids(request, "persone")) if request.method == "POST" else set(),
     }
     esiti, applicato = None, False
-    if request.method == "POST":
+    if request.method == "POST" and scelta["cosa"] == "mansione":
+        mansione = CompetenzaSkm.objects.filter(pk=scelta["mansione_id"]).first()
+        applica = request.POST.get("azione") == "applica"
+        try:
+            esiti = mb.esegui(scelta["persone"], mansione=mansione, modo=scelta["modo_mansione"],
+                              livello=scelta["livello"], user=request.user, applica=applica)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        else:
+            applicato = applica
+            if applica:
+                fatti = sum(1 for e in esiti if e.azione == "cambia")
+                errori = sum(1 for e in esiti if e.azione == "errore")
+                log_action(request, "mansioni_in_blocco", MODULE, {
+                    "mansione": mansione.pk, "modo": scelta["modo_mansione"], "livello": scelta["livello"],
+                    "persone": sorted(scelta["persone"]), "registrati": fatti, "errori": errori,
+                }, oggetto=mansione)
+                messages.success(request, f"{fatti} persone aggiornate" + (f", {errori} con errore." if errori else "."))
+    elif request.method == "POST":
         ruolo = RuoloOperativo.objects.filter(pk=scelta["ruolo_id"]).select_related("ambito").first()
         applica = request.POST.get("azione") == "applica"
         if ruolo is None:
@@ -406,16 +462,78 @@ def ruoli_in_blocco(request):
                         "persone": sorted(scelta["persone"]), "registrati": fatti, "errori": errori,
                     }, oggetto=ruolo)
                     messages.success(request, f"{fatti} persone aggiornate" + (f", {errori} con errore." if errori else "."))
-    persone = blocco.persone(reparto=filtri["reparto"], ruolo_id=filtri["ruolo_id"], cerca=filtri["cerca"])
-    return render(request, "anagrafica/pages/ruoli_in_blocco.html", {
-        "page_title": "Cambio ruoli in blocco",
-        "persone": persone,
-        "filtri": filtri,
-        "scelta": scelta,
-        "esiti": esiti,
-        "applicato": applicato,
-        "modi": list(blocco.MODI.items()),
-        "max_persone": blocco.MAX_PERSONE,
-        "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).select_related("ambito").order_by("nome")),
-        "reparti_opts": list(Reparto.objects.filter(is_active=True).order_by("nome")),
-    })
+    return render(request, "anagrafica/pages/ruoli_in_blocco.html", _contesto_in_blocco(
+        request, scelta=scelta, esiti=esiti, applicato=applicato))
+
+
+@login_required
+def assegnazioni_export(request):
+    """File Excel con ruoli e mansioni delle persone (``?vuoto=1`` = solo il modello)."""
+    if not _is_admin(request):
+        return _nega(request, "L'export delle assegnazioni è dell'amministrazione dell'anagrafica.")
+    from .services import assegnazioni_excel
+
+    vuoto = request.GET.get("vuoto") == "1"
+    reparto = (request.GET.get("reparto") or "").strip()
+    contenuto = assegnazioni_excel.esporta_xlsx(reparto=reparto, vuoto=vuoto)
+    log_action(request, "assegnazioni_export", MODULE, {"reparto": reparto, "vuoto": vuoto})
+    nome = "modello_ruoli_mansioni_persone.xlsx" if vuoto else f"ruoli_mansioni_persone_{date.today():%Y%m%d}.xlsx"
+    resp = HttpResponse(contenuto, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resp
+
+
+@login_required
+@require_POST
+def assegnazioni_import(request):
+    """Prova (sempre) e conferma dell'import Excel di ruoli e mansioni delle persone."""
+    if not _is_admin(request):
+        return _nega(request, "L'import delle assegnazioni è dell'amministrazione dell'anagrafica.")
+    from .services import assegnazioni_excel
+
+    torna = redirect(reverse("anagrafica:ruoli_in_blocco") + "#da-excel")
+    azione = request.POST.get("azione")
+    if azione == "applica":
+        salvato = request.session.get(SESSIONE_IMPORT_PERSONE) or {}
+        if not salvato or salvato.get("sha") != request.POST.get("sha"):
+            messages.error(request, "Il file della prova non c'è più: ricaricalo e rifai la prova.")
+            return torna
+        contenuto = base64.b64decode(salvato["dati"])
+        nome_file = salvato.get("nome", "")
+    else:
+        f = request.FILES.get("file")
+        if f is None:
+            messages.error(request, "Scegli il file Excel.")
+            return torna
+        if not f.name.lower().endswith(".xlsx"):
+            messages.error(request, "Serve un file .xlsx (Excel).")
+            return torna
+        if f.size > MAX_FILE:
+            messages.error(request, "Il file supera i 5 MB.")
+            return torna
+        contenuto, nome_file = f.read(), f.name
+    try:
+        esito = assegnazioni_excel.importa(contenuto, applica=azione == "applica", user=request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return torna
+    sha = hashlib.sha256(contenuto).hexdigest()
+    if esito.applicato:
+        request.session.pop(SESSIONE_IMPORT_PERSONE, None)
+        log_action(request, "assegnazioni_import", MODULE, {
+            "file": nome_file[:120], "sha256": sha, "conteggi": esito.conteggi(), "errori": esito.errori,
+        })
+        messages.success(request, f"Import registrato: {esito.cambi} righe cambiate"
+                                  + (f", {esito.errori} scartate." if esito.errori else "."))
+    else:
+        request.session[SESSIONE_IMPORT_PERSONE] = {"sha": sha, "nome": nome_file[:120],
+                                                    "dati": base64.b64encode(contenuto).decode()}
+    righe = sorted(esito.righe, key=lambda r: ({"errore": 0, "nuovo": 1, "modificato": 2}.get(r.azione, 3),
+                                               r.foglio, r.numero))
+    from django.utils import timezone
+
+    scelta = {"cosa": "ruolo", "modo": "aggiungi", "modo_mansione": "assegna", "livello": "U",
+              "data": timezone.localdate().isoformat(), "note": "", "persone": set()}
+    return render(request, "anagrafica/pages/ruoli_in_blocco.html", _contesto_in_blocco(
+        request, scelta=scelta, import_esito=esito, import_righe=righe, import_conteggi=esito.conteggi(),
+        sha=sha, nome_file=nome_file))

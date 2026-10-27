@@ -11,12 +11,14 @@ from datetime import date
 from django.contrib import messages
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 # Alias esplicito: in questo file `timezone` è già importato dentro varie
 # funzioni (come `tz`/`_tz`) e `datetime.timezone` è un'altra cosa ancora.
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
 from core import naming
+from core.audit import log_action, storico_leggibile
 from core.legacy_anagrafica import (
     ensure_anagrafica_schema,
     fetch_anagrafica_rows,
@@ -290,6 +292,8 @@ def ruolo_qualifica_aggiungi(request, ruolo_id: int):
         },
     )
     if creata:
+        log_action(request, "ruolo_qualifica_aggiunta", "anagrafica",
+                   {"qualifica": qualifica.nome}, oggetto=ruolo)
         messages.success(request, f'"{qualifica.nome}" ora è richiesta dal ruolo "{ruolo.nome}".')
     else:
         messages.info(request, f'"{qualifica.nome}" era già associata a "{ruolo.nome}".')
@@ -305,7 +309,9 @@ def ruolo_qualifica_rimuovi(request, ruolo_id: int, assoc_id: int):
 
     assoc = get_object_or_404(RuoloQualifica, pk=assoc_id, ruolo_id=ruolo_id)
     nome = assoc.qualifica.nome
+    ruolo = assoc.ruolo
     assoc.delete()
+    log_action(request, "ruolo_qualifica_tolta", "anagrafica", {"qualifica": nome}, oggetto=ruolo)
     messages.success(request, f'"{nome}" non è più richiesta dal ruolo.')
     return _helpers._back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
@@ -683,6 +689,16 @@ def mansione_requisiti(request, mansione_id: int):
         # Protocollo sanitario: si modifica solo con il permesso visite (decisione
         # 10/10/2026, prima applicata al vecchio catalogo MansioneRischio). Senza
         # il permesso il form non lo invia e il server lo conserva.
+        # Le liste M2M non passano dall'audit automatico (``.set()`` non fa save):
+        # il confronto prima/dopo finisce nello storico della mansione.
+        def _nomi(relazione):
+            try:
+                return ", ".join(sorted(str(o) for o in relazione.all())) or ""
+            except Exception:
+                return ""
+
+        prima = {"Visite richieste": _nomi(mansione.visite_richieste),
+                 "DPI richiesti": _nomi(mansione.dpi_richiesti)}
         if _helpers._can_view_visite_mediche(request):
             visite_ids = [int(v) for v in request.POST.getlist("visite_richieste") if str(v).isdigit()]
             mansione.visite_richieste.set(
@@ -694,6 +710,11 @@ def mansione_requisiti(request, mansione_id: int):
             mansione.dpi_richiesti.set(CategoriaDPI.objects.filter(pk__in=dpi_ids, is_active=True))
         except Exception:
             logger.warning("Salvataggio DPI mansione fallito (modulo dpi?)", exc_info=True)
+        dopo = {"Visite richieste": _nomi(mansione.visite_richieste),
+                "DPI richiesti": _nomi(mansione.dpi_richiesti)}
+        modifiche = {k: {"old": prima[k], "new": dopo[k]} for k in prima if prima[k] != dopo[k]}
+        if modifiche:
+            log_action(request, "mansione_requisiti", "anagrafica", {"modifiche": modifiche}, oggetto=mansione)
         messages.success(request, f'Requisiti della mansione "{mansione.nome}" aggiornati.')
         return redirect("anagrafica:mansione_requisiti", mansione_id=mansione.pk)
 
@@ -755,17 +776,18 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
     return value if value > 0 else None
 
 
-def _mansione_capo_da_post(raw: str | None):
-    """Mansione del capo scelta nel form (vuota = default del reparto / segue il reparto)."""
-    from anagrafica.models_skillmatrix import CompetenzaSkm
+def _ruolo_responsabile_da_post(raw: str | None):
+    """Ruolo responsabile scelto nel form: genera la mansione di responsabilità (vuoto = nessuna)."""
+    from anagrafica.models import RuoloOperativo
 
-    mid = _resolve_caporeparto_id(raw)
-    return CompetenzaSkm.objects.filter(pk=mid).first() if mid else None
+    rid = _resolve_caporeparto_id(raw)
+    return RuoloOperativo.objects.filter(pk=rid, is_active=True).first() if rid else None
 
 
 # ── Area Aziendale CRUD (ora il livello FIGLIO) ─────────────────────────────
-# Il responsabile non si sceglie più qui: è chi ha la mansione dell'area
-# (services.capi_mansione), assegnata dalla pagina «Reparti, aree e capi».
+# Il responsabile non si sceglie più qui: si sceglie il RUOLO responsabile,
+# che genera la «Responsabilità dell'area»; responsabile è chi ha quella
+# mansione (services.capi_mansione), assegnata dalla pagina «Reparti, aree e capi».
 
 @login_required
 @require_POST
@@ -791,7 +813,7 @@ def area_aziendale_create(request):
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "reparto": reparto,
-            "mansione_capo": _mansione_capo_da_post(request.POST.get("mansione_capo")),
+            "ruolo_responsabile": _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile")),
         },
     )
     if created:
@@ -823,7 +845,8 @@ def area_aziendale_edit(request, area_id: int):
     area.nome = nome
     area.descrizione = (request.POST.get("descrizione") or "").strip()
     area.reparto = reparto
-    area.mansione_capo = _mansione_capo_da_post(request.POST.get("mansione_capo"))
+    if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
+        area.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
     area.is_active = request.POST.get("is_active") == "1"
     area.save()  # segnali_capi: con la regola accesa riallinea capi e schede
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
@@ -893,7 +916,7 @@ def area_create(request):
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
-            "mansione_capo": _mansione_capo_da_post(request.POST.get("mansione_capo")),
+            "ruolo_responsabile": _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile")),
         },
     )
     if created:
@@ -920,7 +943,8 @@ def area_edit(request, area_id: int):
     rep.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     rep.is_active = request.POST.get("is_active") == "1"
     nome_prima = Reparto.objects.filter(pk=rep.pk).values_list("nome", flat=True).first()
-    rep.mansione_capo = _mansione_capo_da_post(request.POST.get("mansione_capo"))
+    if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
+        rep.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
     rep.save()  # segnali_capi: con la regola accesa riallinea capi, schede e mapping
     if nome_prima and nome_prima != rep.nome:
         from core.models import RepartoCapoMapping
@@ -945,6 +969,93 @@ def area_delete(request, area_id: int):
     rep.delete()
     messages.success(request, f'Reparto "{nome}" eliminato.')
     return _helpers._back_to_caller(request, "anagrafica:aree_list")
+
+
+# ---------------------------------------------------------------------------
+# Storico modifiche del catalogo — chi ha cambiato mansioni e ruoli, e quando
+# ---------------------------------------------------------------------------
+
+# Cosa entra nello storico di ciascun catalogo. Le voci arrivano da
+# ``core.AuditLog`` agganciate al record (``oggetto_tipo``/``oggetto_id``):
+# l'audit automatico per creazioni/modifiche/eliminazioni, più le azioni
+# esplicite (requisiti della mansione, qualifiche del ruolo, rinomine).
+STORICO_CATALOGHI = {
+    "mansioni": {
+        "titolo": "Mansioni di rischio",
+        "modello": Mansione,
+        "tipi": ("anagrafica.mansione",),
+        "lista": "anagrafica:mansioni_list",
+        "voce": "anagrafica:mansione_storico",
+    },
+    "ruoli": {
+        "titolo": "Ruoli",
+        "modello": RuoloOperativo,
+        "tipi": ("anagrafica.ruolooperativo", "anagrafica.ambitoruolo", "anagrafica.ruoloqualifica"),
+        "lista": "anagrafica:ruoli_operativi_list",
+        "voce": "anagrafica:ruolo_operativo_storico",
+    },
+}
+STORICO_LIMITE_CATALOGO = 200
+STORICO_LIMITE_VOCE = 100
+
+
+def _storico_catalogo(request, catalogo: str, oggetto_id: int | None = None):
+    from core.models import AuditLog
+
+    conf = STORICO_CATALOGHI[catalogo]
+    if not _helpers._is_anagrafica_admin(request):
+        messages.error(request, "Lo storico delle modifiche è riservato a chi gestisce il catalogo.")
+        return redirect(conf["lista"])
+
+    modello = conf["modello"]
+    tipo_principale = conf["tipi"][0]
+    oggetto = None
+    if oggetto_id is not None:
+        # Anche un record eliminato ha il suo storico: la pagina resta aperta.
+        oggetto = modello.objects.filter(pk=oggetto_id).first()
+        qs = AuditLog.objects.filter(oggetto_tipo=tipo_principale, oggetto_id=str(oggetto_id))
+        limite = STORICO_LIMITE_VOCE
+    else:
+        qs = AuditLog.objects.filter(oggetto_tipo__in=conf["tipi"])
+        limite = STORICO_LIMITE_CATALOGO
+    voci = storico_leggibile(list(qs.order_by("-created_at")[:limite]))
+
+    nome = str(oggetto) if oggetto is not None else ""
+    if oggetto_id is not None and not nome:
+        nome = next((v.oggetto_label for v in voci if v.oggetto_label), f"#{oggetto_id}")
+    for v in voci:
+        v.url = (reverse(conf["voce"], args=[int(v.oggetto_id)])
+                 if oggetto_id is None and v.oggetto_tipo == tipo_principale and v.oggetto_id.isdigit() else "")
+    return render(request, "anagrafica/pages/catalogo_storico.html", {
+        "catalogo": catalogo,
+        "conf": conf,
+        "oggetto": oggetto,
+        "oggetto_id": oggetto_id,
+        "nome": nome,
+        "eliminato": oggetto_id is not None and oggetto is None,
+        "voci": voci,
+        "limite": limite,
+    })
+
+
+@login_required
+def mansioni_storico(request):
+    return _storico_catalogo(request, "mansioni")
+
+
+@login_required
+def mansione_storico(request, mansione_id: int):
+    return _storico_catalogo(request, "mansioni", mansione_id)
+
+
+@login_required
+def ruoli_operativi_storico(request):
+    return _storico_catalogo(request, "ruoli")
+
+
+@login_required
+def ruolo_operativo_storico(request, ruolo_id: int):
+    return _storico_catalogo(request, "ruoli", ruolo_id)
 
 
 # ---------------------------------------------------------------------------

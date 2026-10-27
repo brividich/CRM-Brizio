@@ -25,7 +25,8 @@ def proposte(ruoli_ids, *, area: AreaAziendale | None = None, escludi_ids=()) ->
     if not ruoli_ids:
         return []
     qs = (CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True, ruoli__in=ruoli_ids,
-                                       responsabilita_reparto__isnull=True)
+                                       responsabilita_reparto__isnull=True,
+                                       responsabilita_area__isnull=True)
           .exclude(pk__in=list(escludi_ids))
           .select_related("area", "processo_sgi").prefetch_related("ruoli").distinct())
     if area is not None:

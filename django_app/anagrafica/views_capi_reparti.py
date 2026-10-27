@@ -1,10 +1,10 @@
 """«Reparti, aree e capi» (26/10/2026): la struttura e chi ne è il capo, in una pagina.
 
-Un criterio per tutti (``services.capi_mansione``): il capo del reparto è chi
-ha la **mansione del capo** del reparto, il responsabile dell'area chi ha la
-mansione dell'area (vuota = segue il reparto). Da qui si sceglie la mansione,
-si assegna o si toglie la persona e si fa una volta il passaggio dai capi
-scelti a mano. Vedono tutti quelli con accesso a ``/anagrafica/aree/``;
+Un criterio per tutti (``services.capi_mansione``), quello del file della
+Qualità: il capo del reparto è chi ha la «Responsabilità del reparto», il
+responsabile dell'area chi ha la «Responsabilità dell'area» (area senza ruolo
+responsabile = segue il reparto). Da qui si sceglie il ruolo responsabile, si
+assegna o si toglie la persona e si fa una volta il passaggio dai capi scelti a mano. Vedono tutti quelli con accesso a ``/anagrafica/aree/``;
 cambiano solo gli amministratori dell'anagrafica.
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import AreaAziendale, Reparto
+from .models import AreaAziendale, Reparto, RuoloOperativo
 from .models_skillmatrix import AbilitazioneMacchina, CompetenzaSkm
 from .services import capi_mansione, capo_team, mansionario_struttura
 from .views import _helpers
@@ -32,16 +32,8 @@ def _torna(ancora: str = ""):
     return redirect(f"{url}#{ancora}" if ancora else url)
 
 
-def _mansioni_opts() -> list[dict]:
-    """Mansioni sceglibili: prima le «Responsabilità», poi le altre."""
-    righe = list(
-        CompetenzaSkm.objects.filter(tipo__in=mansionario_struttura.TIPI_MANSIONE, attiva=True)
-        .order_by("display", "competenza_key")
-        .values("pk", "display", "competenza_key", "responsabilita_reparto_id")
-    )
-    for r in righe:
-        r["nome"] = r["display"] or r["competenza_key"]
-    return sorted(righe, key=lambda r: (not r["responsabilita_reparto_id"], r["nome"].casefold()))
+def _ruoli_opts():
+    return list(RuoloOperativo.objects.filter(is_active=True).order_by("nome"))
 
 
 def _contesto(request) -> dict:
@@ -51,12 +43,14 @@ def _contesto(request) -> dict:
     picker = _helpers._dipendenti_picker_rows()
     nomi = {p["id"]: p["label"] for p in picker}
 
-    reparti = list(Reparto.objects.select_related("mansione_capo").order_by("nome"))
-    aree = list(AreaAziendale.objects.select_related("mansione_capo", "reparto").order_by("nome"))
+    from .services.struttura_v8 import area_coincide_col_reparto
+
+    reparti = list(Reparto.objects.select_related("ruolo_responsabile").order_by("nome"))
+    aree = list(AreaAziendale.objects.select_related("ruolo_responsabile", "reparto").order_by("nome"))
     responsabilita = capi_mansione.mansioni_responsabilita()
+    resp_aree = capi_mansione.mansioni_responsabilita_aree()
     mansioni = {m.pk: m for m in CompetenzaSkm.objects.filter(
-        pk__in=set(responsabilita.values()) | {r.mansione_capo_id for r in reparti} | {a.mansione_capo_id for a in aree}
-    )}
+        pk__in=set(responsabilita.values()) | set(resp_aree.values()))}
     tit_rep, tit_area = capi_mansione.titolari_struttura(reparti, aree, in_forza=in_forza)
     abilitazioni = {
         (ab.competenza_id, ab.legacy_anagrafica_id): ab.pk
@@ -91,26 +85,36 @@ def _contesto(request) -> dict:
         capi = persone(mid, tit_rep.get(r.pk, [])) if mid else []
         avvisi = []
         if not mid:
-            avvisi.append("Scegli la mansione del capo")
+            avvisi.append("Scegli il ruolo responsabile")
         elif not capi:
-            avvisi.append("Nessuno ha la mansione del capo: vale l'organigramma dei ruoli")
+            avvisi.append("Nessuno ha la «Responsabilità del reparto»: vale l'organigramma dei ruoli")
         elif len(capi) > 1:
             avvisi.append(f"{len(capi)} persone con la mansione: approva {capi[0]['nome']}, le altre sono co-capo")
         righe_aree = []
         for a in aree_per_reparto.get(r.pk, []):
-            resp = persone(a.mansione_capo_id, tit_area.get(a.pk, [])) if a.mansione_capo_id else []
+            amid = resp_aree.get(a.pk)
+            resp = persone(amid, tit_area.get(a.pk, [])) if amid else []
+            coincide = area_coincide_col_reparto(a)
+            if coincide:
+                avviso = ""
+            elif not a.ruolo_responsabile_id:
+                avviso = "Senza ruolo responsabile: segue il reparto"
+            elif not resp:
+                avviso = "Nessuno ha la «Responsabilità dell'area»: segue il reparto"
+            else:
+                avviso = ""
             righe_aree.append({
                 "area": a,
+                "coincide": coincide,
                 "persone": per_area.get(a.pk, 0),
-                "mansione": mansioni.get(a.mansione_capo_id) if a.mansione_capo_id else None,
+                "mansione": mansioni.get(amid) if amid else None,
                 "responsabili": resp,
                 "a_mano": a_mano(a.responsabile_legacy_id),
-                "avviso": "Nessuno ha la mansione: segue il reparto" if a.mansione_capo_id and not resp else "",
+                "avviso": avviso,
             })
         schede.append({
             "reparto": r,
             "mansione": mansioni.get(mid) if mid else None,
-            "mansione_default": not r.mansione_capo_id,
             "capi": capi,
             "a_mano": a_mano(r.caporeparto_legacy_id),
             "persone": per_reparto.get(r.pk, 0),
@@ -135,7 +139,8 @@ def _contesto(request) -> dict:
             "eccezioni": origini.get(capo_team.ORIGINE_PERSONA, 0),
         },
         "proposta": proposta,
-        "mansioni_opts": _mansioni_opts(),
+        "aree_senza_ruolo": capi_mansione.aree_senza_ruolo(),
+        "ruoli_opts": _ruoli_opts(),
         "dipendenti_picker": picker,
         "reparti_opts": [r for r in reparti if r.is_active],
         "is_admin": _helpers._is_anagrafica_admin(request),
@@ -157,7 +162,7 @@ def _solo_admin(request):
 @login_required
 @require_POST
 def capi_passaggio(request):
-    """Una volta: assegna la mansione del capo a chi oggi è capo e accende la regola unica."""
+    """Una volta: assegna le «Responsabilità» a chi oggi è capo e accende la regola unica."""
     if (negato := _solo_admin(request)) is not None:
         return negato
     if capo_team.regola_unica_attiva():
@@ -179,8 +184,21 @@ def capi_passaggio(request):
 
 @login_required
 @require_POST
+def capi_ruolo_aree(request):
+    """Le aree senza ruolo responsabile prendono quello del reparto (come nel file della Qualità)."""
+    if (negato := _solo_admin(request)) is not None:
+        return negato
+    ids = [int(v) for v in request.POST.getlist("area") if str(v).isdigit()]
+    fatte = capi_mansione.ruolo_del_reparto_alle_aree(ids or None)
+    log_action(request, "update", MODULE, {"oggetto": "capi_ruolo_aree", "aree": ids, "fatte": fatte})
+    messages.success(request, f"Ruolo responsabile dato a {fatte} aree: ognuna ha ora la sua «Responsabilità dell'area».")
+    return _torna("passaggio")
+
+
+@login_required
+@require_POST
 def capo_assegna(request, mansione_id: int):
-    """Mette una persona sulla mansione del capo (di un reparto o di un'area)."""
+    """Mette una persona sulla «Responsabilità» di un reparto o di un'area."""
     if (negato := _solo_admin(request)) is not None:
         return negato
     mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id)
@@ -213,5 +231,5 @@ def capo_togli(request, abilitazione_id: int):
     mansionario_struttura.togli(ab)
     log_action(request, "update", MODULE, {"oggetto": "capo_mansione_togli", "mansione": ab.competenza_id,
                                            "legacy_anagrafica_id": ab.legacy_anagrafica_id}, oggetto=ab)
-    messages.success(request, "Tolta la mansione del capo.")
+    messages.success(request, "Tolta la «Responsabilità».")
     return _torna(ancora)

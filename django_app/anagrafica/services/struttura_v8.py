@@ -490,6 +490,50 @@ def assicura_responsabilita(reparto: Reparto, processo=None) -> tuple[Competenza
     return m, cambiata
 
 
+RESPONSABILITA_AREA = "Responsabilità dell'area"
+
+
+def area_coincide_col_reparto(area: AreaAziendale) -> bool:
+    """L'area con lo stesso nome del reparto (CN5 in CN5) usa la responsabilità del reparto."""
+    return bool(area.reparto_id) and (area.nome or "").strip().casefold() == (
+        (area.reparto.nome if area.reparto else "") or "").strip().casefold()
+
+
+def assicura_responsabilita_area(area: AreaAziendale) -> tuple[CompetenzaSkm | None, bool]:
+    """La «Responsabilità dell'area» segue il ruolo responsabile dell'area (27/10/2026).
+
+    Come i 31 reparti del file della Qualità: ogni unità con un ruolo
+    responsabile proprio ha la sua mansione di responsabilità, e chi la ha
+    assegnata è il responsabile. Si spegne (non si cancella) se l'area non ha
+    più un ruolo responsabile, è spenta, non ha reparto o porta il nome del reparto.
+    """
+    m = CompetenzaSkm.objects.filter(responsabilita_area=area).first()
+    attiva = bool(area.ruolo_responsabile_id and area.is_active and area.reparto_id
+                  and not area_coincide_col_reparto(area))
+    if m is None and not attiva:
+        return None, False
+    nome = f"{RESPONSABILITA_AREA} {area.nome}"
+    cambiata = False
+    if m is None:
+        altro = CompetenzaSkm.objects.filter(tipo__in=mstr.TIPI_MANSIONE, display__iexact=nome,
+                                             responsabilita_reparto__isnull=True).first()
+        m = altro or CompetenzaSkm(competenza_key=mstr.chiave_nuova(nome), display=nome,
+                                   tipo=CompetenzaSkm.TIPO_PROCESSO)
+        m.responsabilita_area = area
+        cambiata = True
+    if m.display != nome:
+        mstr.rinomina(m, nome, salva=False)
+        cambiata = True
+    if m.area_id != area.pk or m.reparto_id != area.reparto_id or m.attiva != attiva:
+        m.area_id, m.reparto_id, m.attiva, cambiata = area.pk, area.reparto_id, attiva, True
+    if cambiata:
+        m.save()
+    if attiva and set(m.ruoli.values_list("pk", flat=True)) != {area.ruolo_responsabile_id}:
+        m.ruoli.set([area.ruolo_responsabile_id])
+        cambiata = True
+    return m, cambiata
+
+
 def _responsabilita(r: Rapporto, reparti, processi) -> None:
     # Processo della responsabilità: quello delle righe RESPONSABILE=Y del file per le aree del reparto.
     proc_per_reparto = {}

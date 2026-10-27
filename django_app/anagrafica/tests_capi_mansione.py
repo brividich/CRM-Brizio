@@ -1,4 +1,4 @@
-"""Capo del reparto deciso dalla mansione (26/10/2026) e pagina «Reparti, aree e capi».
+"""Capo di reparto e area decisi dalla «Responsabilità» (26-27/10/2026) e pagina «Reparti, aree e capi».
 
 Stesso scenario di ``tests_capo_team``: Responsabile produzione ← Caporeparto ←
 Operatore; Fresatura (IN1, IN2), Saldatura (SA1).
@@ -60,32 +60,47 @@ class CapoDaMansioneTests(_ScenarioMansioni):
         self.fresatura.save()
         self.assertEqual(capo_team.capo_di(self.rossi).legacy_id, self.gialli)
 
-    def test_mansione_del_capo_scelta_per_il_reparto(self):
-        """Caso UT: il capo ha un'altra mansione, non la «Responsabilità del reparto»."""
-        direttore_tecnico = self._mansione("Direttore tecnico")
-        self.fresatura.mansione_capo = direttore_tecnico
-        self.fresatura.save()
-        self._assegna(self.resp_fres, self.neri)
-        self._assegna(direttore_tecnico, self.gialli)
-        self._accendi()
-        self.assertEqual(capo_team.capo_di(self.rossi).legacy_id, self.gialli)
+    def _resp_area(self, area, ruolo=None):
+        """Il ruolo responsabile dell'area genera la sua «Responsabilità dell'area»."""
+        area.ruolo_responsabile = ruolo or self.capo
+        area.save()
+        return CompetenzaSkm.objects.get(responsabilita_area=area)
 
-    def test_area_con_mansione_propria_vince_sul_reparto(self):
-        hse = self._mansione("Responsabile HSE")
-        self.in1.mansione_capo = hse
+    def test_ruolo_responsabile_dell_area_genera_la_sua_responsabilita(self):
+        m = self._resp_area(self.in1, self.resp)
+        self.assertEqual(m.nome, "Responsabilità dell'area IN1")
+        self.assertEqual((m.area_id, m.reparto_id, m.attiva), (self.in1.pk, self.fresatura.pk, True))
+        self.assertEqual(list(m.ruoli.all()), [self.resp])
+        self.in1.ruolo_responsabile = None
         self.in1.save()
+        m.refresh_from_db()
+        self.assertFalse(m.attiva)  # spenta, non cancellata
+
+    def test_area_col_nome_del_reparto_usa_quella_del_reparto(self):
+        from .models import AreaAziendale
+
+        area = AreaAziendale.objects.create(nome="Fresatura", reparto=self.fresatura, ruolo_responsabile=self.capo)
+        self.assertFalse(CompetenzaSkm.objects.filter(responsabilita_area=area, attiva=True).exists())
+
+    def test_area_con_responsabilita_propria_vince_sul_reparto(self):
+        resp_in1 = self._resp_area(self.in1)
         self._assegna(self.resp_fres, self.neri)
-        self._assegna(hse, self.gialli)
+        self._assegna(resp_in1, self.gialli)
         self._accendi()
         capo = capo_team.capo_di(self.rossi)  # Rossi è in IN1
         self.assertEqual((capo.legacy_id, capo.origine), (self.gialli, capo_team.ORIGINE_AREA))
 
     def test_area_senza_titolari_segue_il_reparto(self):
-        self.in1.mansione_capo = self._mansione("Responsabile HSE")
-        self.in1.save()
+        self._resp_area(self.in1)
         self._assegna(self.resp_fres, self.neri)
         self._accendi()
         self.assertEqual(capo_team.capo_di(self.rossi).legacy_id, self.neri)
+
+    def test_ruolo_del_reparto_alle_aree(self):
+        self.assertEqual({a.pk for a in capi_mansione.aree_senza_ruolo()}, {self.in1.pk, self.in2.pk, self.sa1.pk})
+        self.assertEqual(capi_mansione.ruolo_del_reparto_alle_aree([self.in1.pk]), 1)
+        self.assertTrue(CompetenzaSkm.objects.filter(responsabilita_area=self.in1, attiva=True).exists())
+        self.assertFalse(CompetenzaSkm.objects.filter(responsabilita_area=self.in2).exists())
 
     def test_chi_ha_la_mansione_non_e_capo_di_se_stesso(self):
         self._assegna(self.resp_fres, self.bianchi)
@@ -184,6 +199,19 @@ class PassaggioTests(_ScenarioMansioni):
         self.in1.save()
         self.assertEqual([a.pk for a in capi_mansione.proposta().aree_da_decidere], [self.in1.pk])
 
+    def test_area_con_ruolo_responsabile_la_proposta_assegna_il_responsabile(self):
+        self.in1.responsabile_legacy_id = self.gialli
+        self.in1.ruolo_responsabile = self.capo
+        self.in1.save()
+        resp_in1 = CompetenzaSkm.objects.get(responsabilita_area=self.in1)
+        p = capi_mansione.proposta()
+        self.assertEqual(p.aree_da_decidere, [])
+        self.assertIn((resp_in1.pk, self.gialli), {(a["mansione"].pk, a["legacy_id"]) for a in p.assegnazioni})
+        prima = {pid: c.legacy_id for pid, c in capo_team.mappa_capi().items()}
+        capi_mansione.applica_passaggio()
+        cache.clear()
+        self.assertEqual(prima, {pid: c.legacy_id for pid, c in capo_team.mappa_capi().items()})
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class PaginaRepartiCapiTests(_ScenarioMansioni):
@@ -221,6 +249,27 @@ class PaginaRepartiCapiTests(_ScenarioMansioni):
         self.fresatura.refresh_from_db()
         self.assertIsNone(self.fresatura.caporeparto_legacy_id)
 
+    def test_ruolo_del_reparto_alle_aree_dalla_pagina(self):
+        self.client.post(reverse("anagrafica:capi_ruolo_aree"), {"area": [str(self.in2.pk)]})
+        self.in2.refresh_from_db()
+        self.assertEqual(self.in2.ruolo_responsabile_id, self.capo.pk)
+        resp = self.client.get(reverse("anagrafica:aree_list"))
+        self.assertContains(resp, "Responsabilità dell&#x27;area IN2")
+
+    def test_mansionario_mostra_titolare_e_chi_ha_il_ruolo(self):
+        self._assegna(self.resp_fres, self.neri)
+        resp = self.client.get(reverse("anagrafica:mansionario"))
+        self.assertEqual(resp.status_code, 200)
+        gruppo = next(g for g in resp.context["gruppi"] if g["ruolo"] and g["ruolo"].pk == self.capo.pk)
+        chi = {p["id"]: p["senza_mansione"] for p in gruppo["chi"]["persone"]}
+        self.assertEqual(chi, {self.neri: False, self.bianchi: True})  # Bianchi: ruolo, nessuna mansione
+        schede = {s["titolo"]: s for s in gruppo["schede"]}
+        self.assertIn("NERI", schede["Responsabilità del reparto Fresatura"]["principale"].upper())
+        self.assertIn("senza-titolare", schede["Responsabilità del reparto Saldatura"]["tags"])
+        self.assertNotIn("uomo solo", str(schede["Responsabilità del reparto Fresatura"]["pillole"]))
+        self.assertEqual(resp.context["kpi"]["responsabilita_senza_titolare"], 1)
+        self.assertContains(resp, "Chi ha questo ruolo")
+
     def test_assegna_solo_su_mansioni_del_capo(self):
         altra = self._mansione("Fresatura CNC")
         self.client.post(reverse("anagrafica:capo_assegna", args=[altra.pk]), {"legacy_id": str(self.neri)})
@@ -231,3 +280,42 @@ class PaginaRepartiCapiTests(_ScenarioMansioni):
         self.client.force_login(utente)
         self.client.post(reverse("anagrafica:capi_passaggio"), {"conferma": "1"})
         self.assertFalse(capo_team.regola_unica_attiva())
+
+
+class ReportStrutturaTests(_ScenarioMansioni):
+    def _calcola(self, chiave, **opzioni):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .reportistica import sezioni as catalogo
+        from .reportistica.dati import Contesto, Perimetro
+
+        oggi = timezone.localdate()
+        ctx = Contesto(date_from=oggi - timedelta(days=365), date_to=oggi, perimetro=Perimetro())
+        return catalogo.get(chiave).calcola(ctx, opzioni)
+
+    def test_capi_e_responsabilita(self):
+        self._assegna(self.resp_fres, self.neri)
+        res = self._calcola("capi_responsabilita")
+        righe = {(r["reparto"], r["area"]): (r, t) for r, t in zip(res.righe, res.toni)}
+        self.assertIn("NERI", righe[("Fresatura", "")][0]["titolari"].upper())
+        self.assertEqual(righe[("Saldatura", "")][1], "danger")  # nessun titolare
+        self.assertIn(("Fresatura", "IN1"), righe)
+
+    def test_chi_ricopre_ogni_ruolo(self):
+        self._assegna(self.resp_fres, self.neri)
+        res = self._calcola("ruoli_persone", ruoli=[str(self.capo.pk)])
+        per_nome = {r["nominativo"].upper(): r for r in res.righe}
+        self.assertEqual(per_nome[next(n for n in per_nome if "BIANCHI" in n)]["avviso"], "nessuna mansione del ruolo")
+        self.assertIn("Responsabilità del reparto Fresatura",
+                      per_nome[next(n for n in per_nome if "NERI" in n)]["mansioni_ruolo"])
+
+    def test_copertura_e_persona(self):
+        self._assegna(self.resp_fres, self.neri)
+        res = self._calcola("copertura_mansioni", tipo="responsabilita")
+        stati = {r["mansione"]: r["stato"] for r in res.righe}
+        self.assertEqual(stati["Responsabilità del reparto Fresatura"], "ok")
+        self.assertEqual(stati["Responsabilità del reparto Saldatura"], "nessun titolare")
+        res = self._calcola("ruoli_mansioni_persona", solo_disallineati=True)
+        self.assertTrue(any("nessuna mansione" in r["avvisi"] for r in res.righe))

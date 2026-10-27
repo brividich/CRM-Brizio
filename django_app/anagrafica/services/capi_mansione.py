@@ -1,10 +1,14 @@
-"""Capo del reparto e dell'area decisi da una mansione (26/10/2026).
+"""Capo del reparto e dell'area decisi da una mansione (26-27/10/2026).
 
-Un criterio solo per tutti: ogni reparto ha la **mansione del capo** (vuota =
-la sua «Responsabilità del reparto»), ogni area può averne una propria (vuota =
-segue il reparto). Il capo è **chi ha quella mansione assegnata** nel
-Mansionario (``AbilitazioneMacchina`` in lista e attiva); se sono più persone
-sono tutte capo, la prima per id approva e le altre si segnalano.
+Un criterio solo per tutti, quello del file MEGA SKILL MATRIX v8 («ogni
+reparto ha esattamente un record RESPONSABILE=Y»): ogni reparto ha la sua
+«Responsabilità del reparto» e ogni area con un ruolo responsabile proprio la
+sua «Responsabilità dell'area» (le 31 unità del file sono le aree del
+portale). Le mansioni si generano dal ruolo responsabile (``struttura_v8``);
+il capo è **chi ha quella mansione assegnata** nel Mansionario
+(``AbilitazioneMacchina`` in lista e attiva). Area senza ruolo responsabile, o
+senza nessuno sulla mansione: vale il capo del reparto. Più persone sulla
+stessa mansione sono tutte capo, la prima per id approva e le altre si segnalano.
 
 Il passaggio dai capi scelti a mano si fa una volta sola dalla pagina
 «Reparti, aree e capi»: la proposta assegna la mansione a chi oggi è capo,
@@ -32,12 +36,20 @@ def mansioni_responsabilita() -> dict[int, int]:
     )
 
 
+def mansioni_responsabilita_aree() -> dict[int, int]:
+    """``area_id`` → id della sua «Responsabilità dell'area» attiva."""
+    from ..models_skillmatrix import CompetenzaSkm
+
+    return dict(
+        CompetenzaSkm.objects.filter(responsabilita_area__isnull=False, attiva=True)
+        .values_list("responsabilita_area_id", "pk")
+    )
+
+
 def mansione_reparto(reparto, responsabilita: dict[int, int] | None = None) -> int | None:
     """Id della mansione che decide il capo del reparto."""
     if reparto is None:
         return None
-    if reparto.mansione_capo_id:
-        return reparto.mansione_capo_id
     responsabilita = responsabilita if responsabilita is not None else mansioni_responsabilita()
     return responsabilita.get(reparto.pk)
 
@@ -60,10 +72,11 @@ def titolari(mansione_ids, *, in_forza: set[int] | None = None) -> dict[int, lis
 
 
 def titolari_struttura(reparti, aree, *, in_forza: set[int] | None = None):
-    """(``reparto_id`` → titolari, ``area_id`` → titolari) secondo le mansioni del capo."""
+    """(``reparto_id`` → titolari, ``area_id`` → titolari) secondo le mansioni di responsabilità."""
     responsabilita = mansioni_responsabilita()
+    resp_aree = mansioni_responsabilita_aree()
     per_reparto = {r.pk: mansione_reparto(r, responsabilita) for r in reparti}
-    per_area = {a.pk: a.mansione_capo_id for a in aree if a.mansione_capo_id}
+    per_area = {a.pk: resp_aree[a.pk] for a in aree if a.pk in resp_aree}
     tit = titolari(set(per_reparto.values()) | set(per_area.values()), in_forza=in_forza)
     return (
         {rid: tit.get(mid, []) for rid, mid in per_reparto.items() if mid},
@@ -73,16 +86,45 @@ def titolari_struttura(reparti, aree, *, in_forza: set[int] | None = None):
 
 def e_mansione_capo(mansione_id) -> bool:
     """La mansione decide un capo (serve ai segnali per non ricalcolare a vuoto)."""
-    from ..models import AreaAziendale, Reparto
+    from django.db.models import Q
+
     from ..models_skillmatrix import CompetenzaSkm
 
     if not mansione_id:
         return False
-    return (
-        CompetenzaSkm.objects.filter(pk=mansione_id, responsabilita_reparto__isnull=False).exists()
-        or Reparto.objects.filter(mansione_capo_id=mansione_id).exists()
-        or AreaAziendale.objects.filter(mansione_capo_id=mansione_id).exists()
-    )
+    return CompetenzaSkm.objects.filter(
+        Q(responsabilita_reparto__isnull=False) | Q(responsabilita_area__isnull=False), pk=mansione_id,
+    ).exists()
+
+
+def aree_senza_ruolo() -> list:
+    """Aree attive con un nome proprio e senza ruolo responsabile: seguono il reparto."""
+    from ..models import AreaAziendale
+    from .struttura_v8 import area_coincide_col_reparto
+
+    return [a for a in AreaAziendale.objects.filter(is_active=True, reparto__isnull=False,
+                                                     ruolo_responsabile__isnull=True)
+            .select_related("reparto").order_by("reparto__nome", "nome")
+            if not area_coincide_col_reparto(a)]
+
+
+@transaction.atomic
+def ruolo_del_reparto_alle_aree(area_ids=None) -> int:
+    """Le aree senza ruolo responsabile prendono quello del loro reparto (es. CAR).
+
+    È la regola del file della Qualità per le aree di produzione: ognuna ha la
+    sua responsabilità, di solito del caporeparto. Il salvataggio genera la mansione.
+    """
+    scelte = set(area_ids) if area_ids is not None else None
+    fatte = 0
+    for a in aree_senza_ruolo():
+        if scelte is not None and a.pk not in scelte:
+            continue
+        if a.reparto.ruolo_responsabile_id:
+            a.ruolo_responsabile_id = a.reparto.ruolo_responsabile_id
+            a.save(update_fields=["ruolo_responsabile"])
+            fatte += 1
+    return fatte
 
 
 # ── Passaggio dai capi scelti a mano ─────────────────────────────────────────
@@ -91,8 +133,8 @@ def e_mansione_capo(mansione_id) -> bool:
 class Proposta:
     """Cosa fa il passaggio e cosa va deciso prima."""
     assegnazioni: list[dict] = field(default_factory=list)  # mansione → persona (capo di oggi)
-    senza_mansione: list = field(default_factory=list)      # reparti senza mansione del capo
-    aree_da_decidere: list = field(default_factory=list)    # responsabile diverso dal capo e niente mansione
+    senza_mansione: list = field(default_factory=list)      # reparti senza «Responsabilità» (niente ruolo responsabile)
+    aree_da_decidere: list = field(default_factory=list)    # responsabile diverso dal capo, area senza ruolo responsabile
 
     @property
     def bloccata(self) -> bool:
@@ -103,14 +145,16 @@ def proposta() -> Proposta:
     from ..models import AreaAziendale, Reparto
     from ..models_skillmatrix import CompetenzaSkm
     from . import capo_team
+    from .struttura_v8 import area_coincide_col_reparto
 
     in_forza = set(capo_team.mappa_capi(usa_mansioni=False))
     reparti = list(Reparto.objects.filter(is_active=True).prefetch_related("responsabili").order_by("nome"))
     aree = list(AreaAziendale.objects.filter(is_active=True).select_related("reparto")
                 .prefetch_related("responsabili").order_by("nome"))
     responsabilita = mansioni_responsabilita()
+    resp_aree = mansioni_responsabilita_aree()
     mansioni = {m.pk: m for m in CompetenzaSkm.objects.filter(
-        pk__in={mansione_reparto(r, responsabilita) for r in reparti} | {a.mansione_capo_id for a in aree})}
+        pk__in=set(responsabilita.values()) | set(resp_aree.values()))}
     tit_rep, tit_area = titolari_struttura(reparti, aree, in_forza=in_forza)
     p = Proposta()
     for r in reparti:
@@ -127,11 +171,13 @@ def proposta() -> Proposta:
         persone = [x for x in persone if x and x in in_forza]
         if not persone:
             continue
-        if a.mansione_capo_id:
+        mid = resp_aree.get(a.pk)
+        if mid:
             for persona in persone:
                 if persona not in tit_area.get(a.pk, []):
-                    _aggiungi(p, a.nome, mansioni.get(a.mansione_capo_id), persona)
-        elif a.reparto is not None and set(persone) - {a.reparto.caporeparto_legacy_id}:
+                    _aggiungi(p, a.nome, mansioni.get(mid), persona)
+        elif (a.reparto is not None and not area_coincide_col_reparto(a)
+              and set(persone) - {a.reparto.caporeparto_legacy_id}):
             p.aree_da_decidere.append(a)
     return p
 
@@ -148,7 +194,7 @@ def applica_passaggio(*, user=None) -> dict:
 
     p = proposta()
     if p.bloccata:
-        raise ValueError("Prima scegli la mansione del capo per: " + ", ".join(r.nome for r in p.senza_mansione))
+        raise ValueError("Prima scegli il ruolo responsabile per: " + ", ".join(r.nome for r in p.senza_mansione))
     fatte = 0
     for a in p.assegnazioni:
         if a["mansione"] is None:

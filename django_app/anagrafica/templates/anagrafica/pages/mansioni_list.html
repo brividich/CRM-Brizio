@@ -50,7 +50,7 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
         <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Safety</div>
         <h1><svg class="fmd-ico fmd-cap"><use href="#i-alert-tri"/></svg>Mansioni di rischio</h1>
         <p class="fmd-sub">Gruppi omogenei del DVR e del medico competente: DPI, protocollo sanitario, schede di sicurezza e livello ASR di ogni mansione di rischio. La mansione lavorativa (macchina o processo) arriverà con il Mansionario.</p>
-        {% if is_admin %}<div class="fmd-hero-actions"><a class="fmd-btn-template" href="#nuova-mansione" data-apri-nuovo><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione di rischio</a></div>{% endif %}
+        {% if is_admin %}<div class="fmd-hero-actions"><a class="fmd-btn-template" href="#nuova-mansione" data-apri-nuovo><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione di rischio</a><a class="fmd-btn-template" href="{% url 'anagrafica:mansioni_storico' %}" title="Chi ha creato, modificato o eliminato le mansioni">🕘 Storico modifiche</a></div>{% endif %}
       </div>
       <div class="fmd-hero-side">
         <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_visibili }}</span><span class="fmd-lbl">Mansioni di rischio</span></div>
@@ -120,6 +120,7 @@ body.theme-dark .mn-modal-title { color:#93c5fd; }
             {% if is_admin %}
             <button type="button" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;"
               onclick="openEdit({{ m.id }}, '{{ m.nome|escapejs }}', '{{ m.descrizione|escapejs }}', '{{ m.colore }}', '{{ m.categoria }}', '{{ m.livello_rischio }}', {{ m.is_active|yesno:'true,false' }})">Modifica</button>
+            <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'anagrafica:mansione_storico' m.id %}">Storico</a>
             {% if m.n_dipendenti == 0 %}
             <form method="post" action="{% url 'anagrafica:mansione_delete' m.id %}" style="display:inline;">
               {% csrf_token %}
