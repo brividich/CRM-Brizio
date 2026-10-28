@@ -92,7 +92,7 @@ body.theme-dark .sm-empty{color:var(--text-mid)}
       <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O {% info_hint "livelli_ilou" %}. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
     </div>
     <div style="display:flex;gap:8px;">
-      {% if can_manage %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}
+      {% if can_impostazioni %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}
       <a href="{% url 'anagrafica:skm_copertura' %}" class="hr-btn hr-btn-outline" title="Verifica copertura minima (AS/EN 9100)">🛡️ Copertura minima</a>
       <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Valida l'abbinamento competenza→asset (gate F2a)">🔧 Validazione match</a>
       <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}data={{ data_sel|date:'Y-m-d' }}&format=csv" class="hr-btn hr-btn-outline">⬇ CSV</a>

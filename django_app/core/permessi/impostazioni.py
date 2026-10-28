@@ -48,7 +48,12 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
     ),
     "anomalie": PagineImpostazioni(
         codici=("anomalie.configurazione.manage",),
-        rotte=("anomalie_configurazione_page",),
+        # Le API che la pagina Configurazione chiama per salvare (liste, notifiche, logo,
+        # modello del report): senza, «gestire» salvava la configurazione via API.
+        rotte=(
+            "anomalie_configurazione_page", "api_anomalie_config_liste", "api_anomalie_notifiche",
+            "api_anomalie_config_logo", "api_anomalie_config_logo_reset", "api_anomalie_config_report_template",
+        ),
         modulo_acl="anomalie",
     ),
     "ticket_manutenzione": PagineImpostazioni(
@@ -81,7 +86,8 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
             "dpi.categoria_modifica.view", "dpi.categoria_elimina.view",
         ),
         rotte=(
-            "dpi:impostazioni", "dpi:tipo_nuovo", "dpi:tipo_modifica", "dpi:modello_nuovo",
+            "dpi:impostazioni", "dpi:categoria_nuova", "dpi:categoria_modifica", "dpi:categoria_elimina",
+            "dpi:tipo_nuovo", "dpi:tipo_modifica", "dpi:modello_nuovo",
             "dpi:modello_modifica", "dpi:taglia_nuova", "dpi:taglia_modifica",
         ),
         modulo_acl="dpi",
@@ -129,6 +135,8 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
             "anagrafica:retention",
             "anagrafica:viste_elenco", "anagrafica:vista_elenco_nuova", "anagrafica:vista_elenco_modifica",
             "anagrafica:vista_elenco_azione", "anagrafica:vista_elenco_anteprima",
+            # Altre pagine «Impostazioni» del modulo: Skill Matrix e permessi dei widget statistici.
+            "anagrafica:skm_impostazioni", "anagrafica:widget_permissions",
         ),
         nuovo="Anagrafica · impostazioni",
         modulo_acl="anagrafica",
@@ -138,6 +146,8 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
         rotte=(
             "anagrafica:attestato_impostazioni", "anagrafica:formazione_elearning_settings",
             "anagrafica:formazione_scansioni_impostazioni",
+            # Sotto-pagine delle impostazioni e-learning: corsi online e regola FAD del corso.
+            "anagrafica:elearning_impostazioni_corsi", "anagrafica:elearning_regola_corso",
         ),
         nuovo="Formazione · impostazioni (attestati, e-learning, scansioni)",
         modulo_acl="anagrafica",
@@ -171,9 +181,42 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
         rotte=(
             "checklist_operativa:configurazione", "checklist_operativa:task_nuovo",
             "checklist_operativa:task_modifica", "checklist_operativa:task_toggle",
+            # Eventi e coda delle proposte: si aprono solo dalla pagina Configurazione.
+            "checklist_operativa:evento_nuovo", "checklist_operativa:evento_detail",
+            "checklist_operativa:evento_chiudi", "checklist_operativa:evento_riapri",
+            "checklist_operativa:voce_nuova", "checklist_operativa:voce_modifica",
+            "checklist_operativa:proposte", "checklist_operativa:proposta_decidi",
         ),
         nuovo="Checklist operativa · configurazione dei task",
         modulo_acl="checklist_operativa",
+    ),
+    # SOC: le pagine della voce di menu «Impostazioni» (Configurazione, Avvisi e automatismi,
+    # Battito, Letture, Soppressioni, Caselle mail, Inventario, Autoconfigurazione...). La
+    # Panoramica /soc/admin/config/ passa a un permesso nuovo: il suo vecchio permesso
+    # (security.config.view) resta a «gestire», perche' le view lo usano anche per la
+    # gestione operativa (chiusura CVE, rischi accettati, soppressioni dagli alert).
+    "soc": PagineImpostazioni(
+        codici=(
+            "security.impostazioni.manage",
+            "security.soc_settings.view", "security.soc_settings.run",
+            "security.watchguard_credenziali.view", "security.veeam_credenziali.view",
+            "security.letture.view", "security.lettura_esegui.view", "security.battito.view",
+            "security.config_general.view", "security.config_sources.view", "security.config_parsers.view",
+            "security.config_alert.view", "security.config_suppressions.view", "security.config_backups.view",
+            "security.config_notifications.view", "security.config_ticketing.view", "security.config_audit.view",
+            "security.automation.view", "security.automation_simulate.view", "security.automation.manage",
+            "security.inventory.view", "security.inventory_map.view", "security.inventory_discard.view",
+            "security.software_mapping.view",
+            "security.autoconfig.view", "security.autoconfig_apply.view", "security.autoconfig_fix.view",
+            "security.diagnostics.view", "security.docs.view", "security.addons.view", "security.addon.view",
+            "security.mailbox_sources.view", "security.mailbox_source.view",
+            "security.pipeline.view", "security.pipeline.run",
+            "security.suppressions.view", "security.suppression_revoke.view",
+        ),
+        rotte=("security:admin_config",),
+        nuovo="SOC · impostazioni e configurazione",
+        modulo_acl="security",
+        etichetta="Impostazioni e configurazione del SOC",
     ),
 }
 

@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from .models import SecurityAlertDismissal, SecurityAlertSuppressionRule
 from .permissions import can_view_security_center
 from .services import soc_settings
-from .services.configuration import can_manage_security_config
+from .services.configuration import can_configure_soc
 from .services.learned_suppression import revoke_rule
 
 EXPIRING_DAYS = 14
@@ -57,7 +57,7 @@ def suppressions_list(request):
     }
     return render(request, "security/suppressions.html", {
         "rules": rules, "kind": kind, "state": state, "kind_filters": KIND_FILTERS, "state_filters": STATE_FILTERS,
-        "counts": counts, "can_edit": can_manage_security_config(request.user), "expiring_days": EXPIRING_DAYS,
+        "counts": counts, "can_edit": can_configure_soc(request), "expiring_days": EXPIRING_DAYS,
         "learning_enabled": soc_settings.value("soppressione.appresa.attivo"),
         "threshold": soc_settings.value("soppressione.appresa.soglia"),
         "window_days": soc_settings.value("soppressione.appresa.finestra_giorni"),
@@ -69,7 +69,7 @@ def suppressions_list(request):
 def suppression_revoke(request, pk):
     if not can_view_security_center(request.user):
         return _denied(request)
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         messages.error(request, "Per revocare una soppressione serve il permesso di configurazione del SOC.")
         return redirect("security:suppressions")
     rule = get_object_or_404(SecurityAlertSuppressionRule, pk=pk)

@@ -65,6 +65,7 @@ from .services.backup_monitoring import last_seen_backup_status
 from .services.configuration import (
     audit_config_change,
     audit_model_form_changes,
+    can_configure_soc,
     can_manage_security_config,
     masked_setting_value,
     snapshot_instance,
@@ -524,7 +525,7 @@ def pipeline_run(request, action):
 @ensure_csrf_cookie
 def admin_config_dashboard(request):
     """Panoramica della configurazione: sezioni per compito e «Da sistemare» (services/config_hub.py)."""
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     from .services.config_hub import panoramica
 
@@ -536,7 +537,7 @@ def admin_config_dashboard(request):
 
 @ensure_csrf_cookie
 def admin_config_general(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     settings = SecurityCenterSetting.objects.order_by("category", "key")
     if request.method == "POST":
@@ -563,7 +564,7 @@ def admin_config_general(request):
 
 @ensure_csrf_cookie
 def admin_config_sources(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     test_result = None
     if request.method == "POST" and request.POST.get("action") == "test-match":
@@ -580,7 +581,7 @@ def admin_config_sources(request):
 
 @ensure_csrf_cookie
 def admin_config_parsers(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     test_result = None
     if request.method == "POST":
@@ -657,7 +658,7 @@ def _handle_parser_action(request, action):
 
 @ensure_csrf_cookie
 def admin_config_alert_rules(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     test_result = None
     if request.method == "POST" and request.POST.get("action") == "test-rule":
@@ -710,7 +711,7 @@ def admin_config_ticketing(request):
 
 @ensure_csrf_cookie
 def admin_config_audit(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     from core.paginazione import pagina_elenco
 
@@ -720,7 +721,7 @@ def admin_config_audit(request):
 
 @ensure_csrf_cookie
 def admin_diagnostics(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     match_input = None
     if request.method == "POST":
@@ -749,14 +750,14 @@ def _autoconfig_context(applied=None):
 @ensure_csrf_cookie
 def admin_autoconfig(request):
     """Autoconfigurazione: piano, applicazione e fix guidati dalla diagnostica."""
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     return render(request, "security/admin_autoconfig.html", _autoconfig_context())
 
 
 @require_POST
 def admin_autoconfig_apply(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     section = request.POST.get("section") or None
     overwrite = request.POST.get("overwrite") == "1"
@@ -778,7 +779,7 @@ def admin_autoconfig_apply(request):
 
 @require_POST
 def admin_autoconfig_fix(request, code):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     try:
         result = apply_fix(code, actor=request.user, request=request)
@@ -793,21 +794,21 @@ def admin_autoconfig_fix(request, code):
 
 @ensure_csrf_cookie
 def admin_docs(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     return render(request, "security/admin_docs.html", {"docs": SECURITY_CENTER_DOCS})
 
 
 @ensure_csrf_cookie
 def admin_addons(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     return render(request, "security/admin_addons.html", {"addons": get_addon_registry()})
 
 
 @ensure_csrf_cookie
 def admin_addon_detail(request, code):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     addon = get_addon_detail(code)
     if addon is None:
@@ -822,7 +823,7 @@ def _config_model_page(request, model, form_class, template, redirect_name, extr
     salvataggio rifiutato) e un errore di validazione si perdeva nel redirect, lasciando solo
     «Configurazione non salvata» senza dire quale campo era sbagliato.
     """
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _security_config_denied(request)
     editing = None
     form = form_class()
@@ -1312,7 +1313,7 @@ def admin_mailbox_sources_list(request):
     """
     if not can_view_security_center(request.user):
         return HttpResponseForbidden("Accesso negato")
-    can_manage = can_manage_security_config(request.user)
+    can_manage = can_configure_soc(request)
     form = SecurityMailboxSourceForm()
     if request.method == "POST":
         if not can_manage:
@@ -1347,7 +1348,7 @@ def admin_mailbox_source_detail(request, code):
     from security.services.mailbox_setup import build_subject_filters, load_folders, subject_filter_state
 
     source = get_object_or_404(SecurityMailboxSource, code=code)
-    can_manage = can_manage_security_config(request.user)
+    can_manage = can_configure_soc(request)
     form = MailboxGeneralForm(instance=source)
     content_form = MailboxContentForm(instance=source)
     active_presets, extra_subjects = subject_filter_state(source)

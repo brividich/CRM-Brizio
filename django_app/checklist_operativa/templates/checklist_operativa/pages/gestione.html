@@ -65,10 +65,10 @@ body.theme-dark .co-propose textarea,body.theme-dark .co-propose select{border-c
         {% if evento %}{{ evento.nome }} — dal {{ evento.data_inizio|date:"d/m/Y" }}{% if evento.data_fine %} al {{ evento.data_fine|date:"d/m/Y" }}{% endif %}{% else %}Nessuna chiusura aperta al momento{% endif %}
       </div>
     </div>
-    {% if can_configure %}
+    {% if can_configure or can_impostazioni %}
     <div class="co-hero-links">
-      <a href="{% url 'checklist_operativa:configurazione' %}">Configurazione</a>
-      <a href="{% url 'checklist_operativa:riepilogo' %}">Riepilogo</a>
+      {% if can_impostazioni %}<a href="{% url 'checklist_operativa:configurazione' %}">Configurazione</a>{% endif %}
+      {% if can_configure %}<a href="{% url 'checklist_operativa:riepilogo' %}">Riepilogo</a>{% endif %}
     </div>
     {% endif %}
   </div>

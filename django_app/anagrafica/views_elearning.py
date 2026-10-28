@@ -497,8 +497,10 @@ def _risposta_range(request, campo_file, content_type: str):
 @login_required
 def elearning_impostazioni_corsi(request):
     """Elenco dei corsi con l'interruttore «erogabile online» e lo stato della regola FAD."""
+    from core.permessi.impostazioni import impostazioni_o
+
     from .views import _can_edit_formazione
-    if not _can_edit_formazione(request):
+    if not impostazioni_o(request, "formazione", _can_edit_formazione):
         messages.error(request, "Non hai i permessi per le impostazioni e-learning.")
         return redirect("anagrafica:formazione_dashboard")
     from .models_formazione import TrainingCompletionRule
@@ -538,7 +540,9 @@ def elearning_regola_corso(request, corso_id: int):
     from .services.elearning_regole import CAMPI_FAD, puo_confermare_fad
     from .views import _can_edit_formazione
 
-    if not _can_edit_formazione(request):
+    from core.permessi.impostazioni import impostazioni_o
+
+    if not impostazioni_o(request, "formazione", _can_edit_formazione):
         messages.error(request, "Non hai i permessi per le impostazioni e-learning.")
         return redirect("anagrafica:formazione_dashboard")
     corso = get_object_or_404(TrainingCourse, pk=corso_id)

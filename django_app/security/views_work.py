@@ -21,7 +21,7 @@ from .models import (
 )
 from .permissions import can_view_security_center
 from .services import soc_settings
-from .services.configuration import can_manage_security_config
+from .services.configuration import can_configure_soc, can_manage_security_config
 from .templatetags.security_i18n import ui_label
 
 
@@ -36,7 +36,7 @@ def _denied(request):
 def settings_page(request):
     if not can_view_security_center(request.user):
         return _denied(request)
-    can_edit = can_manage_security_config(request.user)
+    can_edit = can_configure_soc(request)
     errors = []
     if request.method == "POST":
         if not can_edit:
@@ -86,7 +86,7 @@ def _next_report_date():
 
 @require_POST
 def settings_run_now(request):
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _denied(request)
     from .services.proactive_alerts import run_scheduled_notifications
 
@@ -293,7 +293,7 @@ def pc_detail(request):
 @require_POST
 def watchguard_credenziali(request):
     """Salva, prova o cancella le credenziali API WatchGuard (solo chi configura il SOC)."""
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _denied(request)
     from .services import watchguard_api as wg
 
@@ -321,7 +321,7 @@ def watchguard_credenziali(request):
 @require_POST
 def veeam_credenziali(request):
     """Salva, prova o cancella le credenziali API Veeam (solo chi configura il SOC)."""
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _denied(request)
     from .services import veeam_api
 
@@ -432,7 +432,7 @@ def letture_page(request):
         return _denied(request)
     from .services import letture
 
-    contesto = {**letture.stato_pagina(), "can_edit": can_manage_security_config(request.user)}
+    contesto = {**letture.stato_pagina(), "can_edit": can_configure_soc(request)}
     if request.GET.get("parziale") == "1":
         return render(request, "security/partials/letture_contenuto.html", contesto)
     return render(request, "security/letture.html", contesto)
@@ -450,7 +450,7 @@ def battito_page(request):
 @require_POST
 def lettura_esegui(request, codice):
     """«Esegui ora»: mette in coda un giro della lettura (solo chi configura il SOC)."""
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _denied(request)
     from .services import letture
 

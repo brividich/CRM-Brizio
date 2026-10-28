@@ -51,6 +51,19 @@ def can_manage_security_config(user):
     return bool(decision.get("allowed"))
 
 
+def can_configure_soc(request):
+    """Cancello delle pagine della voce «Impostazioni» del SOC (configurazione, avvisi, letture...).
+
+    Con il sistema dei ruoli acceso decide l'azione «impostazioni» della matrice
+    (``core/permessi/impostazioni.py``), non «gestire»; spento resta
+    ``can_manage_security_config``. La gestione operativa (CVE, rischi accettati,
+    soppressioni dagli alert) resta su ``can_manage_security_config``.
+    """
+    from core.permessi.impostazioni import impostazioni_o
+
+    return impostazioni_o(request, "soc", lambda r: can_manage_security_config(r.user))
+
+
 def require_security_config_access(user):
     if not can_manage_security_config(user):
         raise PermissionDenied

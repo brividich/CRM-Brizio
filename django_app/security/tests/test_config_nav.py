@@ -42,11 +42,15 @@ class ConfigNavTests(TestCase):
             reverse(f"security:{route}")
             self.assertIn(route, names)
 
-    def test_viewer_without_config_permission_sees_only_settings(self):
+    def test_viewer_without_settings_permission_sees_no_settings_tabs(self):
+        # Le pagine della voce «Impostazioni» le apre l'azione «impostazioni» della matrice.
         request = RequestFactory().get("/")
         request.user = self.user
-        with patch.object(nav, "can_manage_security_config", return_value=False):
+        with patch.object(nav, "can_configure_soc", return_value=False):
             self.assertEqual(nav.soc_config_home_url({"request": request}), reverse("security:soc_settings"))
             tabs = nav.soc_config_tabs({"request": request}, "soc_settings")
-        self.assertEqual([t["label"] for t in tabs["tabs"]], ["Avvisi e automatismi"])
+            menu = nav.soc_menu({"request": request}, "dashboard")
+        self.assertEqual(tabs["tabs"], [])
         self.assertFalse(tabs["show"])
+        impostazioni = next(v for v in menu["voci"] if v["label"] == "Impostazioni")
+        self.assertEqual([t["label"] for t in impostazioni["tabs"]], ["Guida"])
