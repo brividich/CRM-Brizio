@@ -169,6 +169,13 @@ GUIDA = {
                     ("Reset", "torna alle colonne e alle larghezze di partenza della tabella. Le viste salvate restano."),
                     ("Schermo intero", "porta la tabella a tutto lo schermo, con la sua barra. Esc o «Esci (Esc)» per tornare alla pagina."),
                 ]),
+                ("p", "Larghezza delle colonne: le tabelle si adattano da sole allo schermo. Le colonne corte (numeri, "
+                      "date, importi, codici, pulsanti) si stringono sul loro contenuto, quelle di testo prendono lo spazio "
+                      "che serve e il resto si divide in parti uguali, senza buchi. Le intestazioni vanno a capo tra le "
+                      "parole, mai a metà. Se la tabella non entra, la pagina usa tutta la larghezza dello schermo e le "
+                      "celle si compattano; solo se ancora non basta la tabella scorre di lato, con la prima colonna ferma. "
+                      "Sulle colonne strette ↕ e imbuto compaiono passando con il mouse sull'intestazione. Se allarghi "
+                      "o stringi una colonna a mano, da lì valgono le tue larghezze («Reset» torna all'adattamento automatico)."),
                 ("p", "Tabelle lunghe: quando la tabella è più alta dello schermo scorre dentro il suo riquadro e "
                       "l'intestazione resta sempre in vista. Oltre 150 righe circa se ne mostrano 100 alla volta: "
                       "in fondo alla tabella il piede dice «Visualizzate 100 di 1.340 righe»; scorrendo fino in fondo "

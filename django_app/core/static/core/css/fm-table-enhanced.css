@@ -235,6 +235,19 @@ th.fm-th-narrow .fm-th-filter.active{opacity:1}
 table.fm-tbl-measuring > thead > tr > th,
 table.fm-tbl-measuring > tbody > tr > td{white-space:nowrap !important;overflow-wrap:normal !important}
 
+/* ── Colonne adattate al contenuto (fitTable in fm-table-enhanced.js) ── */
+/* Le colonne corte (numeri, date, codici, badge, pulsanti) si stringono sul
+ * contenuto e non vanno a capo; lo spazio libero va alle colonne di testo.
+ * Le intestazioni vanno a capo solo tra le parole, mai a metà parola. */
+table.fm-tbl-fit > thead > tr > th.fm-col-hug{width:1%}
+table.fm-tbl-fit > thead > tr > th{overflow-wrap:normal;word-break:normal;hyphens:manual}
+table.fm-tbl-fit > tbody > tr > td.fm-col-hug{white-space:nowrap}
+/* Tabella più larga della pagina: la pagina usa tutto lo schermo... */
+.content:has(table.fm-tbl-wide){width:100%;max-width:none}
+/* ...e se non basta le celle si compattano. */
+table.fm-tbl-dense > thead > tr > th,
+table.fm-tbl-dense > tbody > tr > td{padding-left:7px !important;padding-right:7px !important}
+
 /* ── Caricamento passo passo (piede della tabella) ──────── */
 /* Il piede non fa da àncora di scorrimento: altrimenti, comparse le righe
  * nuove, il browser lo terrebbe in vista e caricherebbe blocchi a cascata. */

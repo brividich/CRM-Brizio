@@ -68,6 +68,8 @@
 .rl-kpi.red { background:#fee2e2; border-color:#fecaca; color:#b91c1c; }
 .rl-kpi.amber { background:#ffedd5; border-color:#fed7aa; color:#9a3412; }
 .rl-allerta-toggle { display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; padding-top:6px; }
+/* Il generatore del tema scuro non conosce il giallo chiaro delle colonne Ferie. */
+body.theme-dark .rl-ferie{background:rgba(234,179,8,.14);color:#fde68a}
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .rl-btn-ghost{background:var(--surface-alt,#0f1b2d);color:var(--text);border-color:var(--border)}
