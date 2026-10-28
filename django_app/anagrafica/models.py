@@ -1001,9 +1001,9 @@ class Reparto(models.Model):
         verbose_name="Caporeparto",
         help_text="ID legacy del dipendente assegnato come caporeparto.",
     )
-    # Co-responsabili opzionali, in aggiunta al caporeparto sopra: dato
-    # anagrafico/UI, non alimenta digest/RepartoCapoMapping/automazioni, che
-    # restano guidati solo da ``caporeparto_legacy_id``.
+    # Co-capi: con il caporeparto sopra, copia di chi ha la «Responsabilità del
+    # reparto» (services.capi_mansione, sempre collegati). Digest,
+    # RepartoCapoMapping e automazioni restano guidati da ``caporeparto_legacy_id``.
     responsabili = models.ManyToManyField(
         "core.AnagraficaDipendente",
         blank=True,
@@ -1012,9 +1012,9 @@ class Reparto(models.Model):
         help_text="Responsabili aggiuntivi del reparto. Se ne possono indicare più di uno.",
     )
     # Struttura della Qualità: QUALE ruolo è responsabile del reparto (CAR, LOG,
-    # ACM…). La PERSONA resta ``caporeparto_legacy_id``, unica fonte del capo:
-    # questo campo dice solo chi dovrebbe esserlo e genera la mansione
-    # «Responsabilità del reparto» (``CompetenzaSkm.responsabilita_reparto``).
+    # ACM…): genera la mansione «Responsabilità del reparto»
+    # (``CompetenzaSkm.responsabilita_reparto``); chi la ha è il capo, copiato in
+    # ``caporeparto_legacy_id`` (services.capi_mansione).
     ruolo_responsabile = models.ForeignKey(
         "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="reparti_responsabilita", verbose_name="Ruolo responsabile",

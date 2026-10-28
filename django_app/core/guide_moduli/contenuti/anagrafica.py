@@ -206,7 +206,8 @@ GUIDA = {
                     "Ogni dipendente sta in un'area aziendale; ogni area sta in un reparto.",
                     "Il responsabile dell'area è chi approva ferie e permessi dei suoi dipendenti; se manca, li approva il caporeparto.",
                     "Lo stesso collegamento decide chi vede i dati del proprio team in Assenze, DPI, Ticket e negli altri moduli.",
-                    "Il «Caporeparto» nella scheda del dipendente si aggiorna da solo quando si salva il reparto o l'area: "
+                    "Il «Caporeparto» nella scheda del dipendente si aggiorna da solo quando si salva il reparto o l'area "
+                    "o cambia chi ha la «Responsabilità» nel Mansionario: "
                     "il responsabile dell'area vince sul caporeparto, e il caporeparto non risulta mai capo di sé stesso.",
                     "Uno spostamento che cambia il ruolo (senza «Ruolo in parallelo») chiude il ruolo di prima il giorno "
                     "prima della decorrenza: resta nello storico dei ruoli come concluso, ma non dà più permessi né posto nel team.",
@@ -382,6 +383,14 @@ GUIDA = {
                       "responsabile diverso dal capo del reparto e le aree senza ruolo responsabile. «Ho controllato reparti e aree» + «Fai il passaggio»: nessuno cambia "
                       "capo; da lì in poi team dei permessi, assenze, DPI, solleciti, digest, la tabella reparto → capo "
                       "delle assenze e il «Caporeparto» delle schede seguono le mansioni."),
+                ("p", "Mansione e capo sono sempre la stessa persona, anche prima del passaggio: assegnare la "
+                      "«Responsabilità del reparto» (o dell'area) nel Mansionario la rende capo del reparto (o "
+                      "responsabile dell'area) e da lì il «Caporeparto» delle schede e il menu «Capo reparto» delle "
+                      "assenze; toglierla la toglie. Al contrario, il Caporeparto o il Responsabile scelto in "
+                      "Impostazioni → Reparti / Aree aziendali riceve la «Responsabilità» e chi la aveva la perde; "
+                      "gli «Altri responsabili» la ricevono come co-capo. Con più persone sulla mansione approva quella "
+                      "scelta come Caporeparto, le altre sono co-capo. Prima del passaggio chi era capo scelto a mano "
+                      "senza la mansione non sparisce: resta capo se nessuno la ha, altrimenti passa fra gli «Altri responsabili»."),
                 ("p", "«Capo di ogni persona» (da «Reparti, aree e capi» o dall'Organigramma) mostra per ogni persona il "
                       "capo, da dove viene e chi la ha nel team dei permessi. Filtri: «Il capo cambia», «Senza capo», "
                       "«Più candidati», «Eccezioni». L'eccezione fissa il capo di una persona (distacco, interim…): "

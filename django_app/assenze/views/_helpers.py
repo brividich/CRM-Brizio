@@ -2405,17 +2405,17 @@ def _anagrafica_hr_capo_ids() -> set[int]:
     except Exception:
         return set()
 
+    # Capo e co-capi di reparti e aree sono le copie di chi ha la
+    # «Responsabilità» nel Mansionario (anagrafica.services.capi_mansione).
     ids: set[int] = set()
     try:
-        for value in Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False).values_list(
-            "caporeparto_legacy_id", flat=True
-        ):
-            capo_id = _as_int(value)
-            if capo_id is not None and capo_id > 0:
-                ids.add(capo_id)
-        for value in AreaAziendale.objects.filter(
-            is_active=True, responsabile_legacy_id__isnull=False
-        ).values_list("responsabile_legacy_id", flat=True):
+        valori = [
+            *Reparto.objects.filter(is_active=True).values_list("caporeparto_legacy_id", flat=True),
+            *Reparto.objects.filter(is_active=True).values_list("responsabili", flat=True),
+            *AreaAziendale.objects.filter(is_active=True).values_list("responsabile_legacy_id", flat=True),
+            *AreaAziendale.objects.filter(is_active=True).values_list("responsabili", flat=True),
+        ]
+        for value in valori:
             capo_id = _as_int(value)
             if capo_id is not None and capo_id > 0:
                 ids.add(capo_id)

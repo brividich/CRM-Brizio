@@ -319,3 +319,148 @@ class ReportStrutturaTests(_ScenarioMansioni):
         self.assertEqual(stati["Responsabilità del reparto Saldatura"], "nessun titolare")
         res = self._calcola("ruoli_mansioni_persona", solo_disallineati=True)
         self.assertTrue(any("nessuna mansione" in r["avvisi"] for r in res.righe))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SempreCollegatiTests(_ScenarioMansioni):
+    """Mansione e capo del reparto/area sono la stessa cosa anche a regola spenta (28/10/2026)."""
+
+    def test_regola_spenta_la_responsabilita_fa_il_capo_del_reparto(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self._assegna(self.resp_fres, self.neri)
+        self.fresatura.refresh_from_db()
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.rossi)
+        self.assertEqual(az.caporeparto_legacy_id, self.neri)  # la scheda segue
+
+    def test_regola_spenta_menu_capi_delle_assenze_lo_contiene(self):
+        from assenze.views import _anagrafica_hr_capo_ids
+
+        self.assertNotIn(self.neri, _anagrafica_hr_capo_ids())
+        with self.captureOnCommitCallbacks(execute=True):
+            self._assegna(self.resp_fres, self.neri)
+        self.assertIn(self.neri, _anagrafica_hr_capo_ids())
+
+    def test_regola_spenta_togliere_la_responsabilita_toglie_il_capo(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            ab = self._assegna(self.resp_fres, self.neri)
+        with self.captureOnCommitCallbacks(execute=True):
+            ab.in_lista = False
+            ab.save()
+        self.fresatura.refresh_from_db()
+        self.assertIsNone(self.fresatura.caporeparto_legacy_id)
+
+    def test_regola_spenta_capo_a_mano_senza_titolari_resta(self):
+        Reparto.objects.filter(pk=self.saldatura.pk).update(caporeparto_legacy_id=self.neri)
+        capi_mansione.allinea_derivati()
+        self.saldatura.refresh_from_db()
+        self.assertEqual(self.saldatura.caporeparto_legacy_id, self.neri)
+
+    def test_secondo_titolare_e_co_capo_e_il_capo_scelto_approva(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self._assegna(self.resp_fres, self.neri)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._assegna(self.resp_fres, self.bianchi)  # id più basso, ma il capo resta Neri
+        self.fresatura.refresh_from_db()
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        self.assertEqual([d.pk for d in self.fresatura.responsabili.all()], [self.bianchi])
+        self._accendi()
+        self.assertEqual(capo_team.capo_di(self.rossi).legacy_id, self.neri)
+
+    def test_regola_spenta_capo_a_mano_senza_mansione_passa_co_capo(self):
+        Reparto.objects.filter(pk=self.fresatura.pk).update(caporeparto_legacy_id=self.gialli)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._assegna(self.resp_fres, self.neri)
+        self.fresatura.refresh_from_db()
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        self.assertEqual([d.pk for d in self.fresatura.responsabili.all()], [self.gialli])
+
+    def test_simula_non_scrive(self):
+        self._assegna(self.resp_fres, self.neri)
+        esito = capi_mansione.allinea_derivati(simula=True)
+        self.assertEqual(esito["dettaglio"][0]["capo"], (None, self.neri))
+        self.fresatura.refresh_from_db()
+        self.assertIsNone(self.fresatura.caporeparto_legacy_id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ImpostazioniCapoTests(_ScenarioMansioni):
+    """Il capo scelto in Impostazioni assegna o toglie la «Responsabilità»."""
+
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser(username="imp_admin", email="imp@x.local", password="x")
+        self.client.force_login(self.admin)
+
+    def _salva_reparto(self, rep, capo, altri=()):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("anagrafica:area_edit", args=[rep.pk]), {
+                "nome": rep.nome, "colore": "#64748b", "is_active": "1", "next_tab": "aree",
+                "caporeparto_legacy_id": str(capo or ""), "responsabili": [str(x) for x in altri],
+            })
+        rep.refresh_from_db()
+
+    def _titolari(self, mansione):
+        return set(AbilitazioneMacchina.objects.filter(
+            competenza=mansione, in_lista=True, stato=AbilitazioneMacchina.STATO_ATTIVA,
+        ).values_list("legacy_anagrafica_id", flat=True))
+
+    def test_capo_scelto_riceve_la_responsabilita(self):
+        self._salva_reparto(self.fresatura, self.neri)
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        self.assertEqual(self._titolari(self.resp_fres), {self.neri})
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.rossi)
+        self.assertEqual(az.caporeparto_legacy_id, self.neri)
+
+    def test_cambiare_capo_toglie_la_responsabilita_al_precedente(self):
+        self._salva_reparto(self.fresatura, self.neri)
+        self._salva_reparto(self.fresatura, self.bianchi)
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.bianchi)
+        self.assertEqual(self._titolari(self.resp_fres), {self.bianchi})
+
+    def test_altri_responsabili_sono_co_capi_con_la_mansione(self):
+        self._salva_reparto(self.fresatura, self.neri, [self.bianchi])
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        self.assertEqual(self._titolari(self.resp_fres), {self.neri, self.bianchi})
+        self.assertEqual([d.pk for d in self.fresatura.responsabili.all()], [self.bianchi])
+
+    def test_nessun_capo_toglie_la_responsabilita(self):
+        self._salva_reparto(self.fresatura, self.neri)
+        self._salva_reparto(self.fresatura, None)
+        self.assertIsNone(self.fresatura.caporeparto_legacy_id)
+        self.assertEqual(self._titolari(self.resp_fres), set())
+
+    def test_a_regola_accesa_il_capo_scelto_resta(self):
+        self._accendi()
+        self._salva_reparto(self.fresatura, self.neri, [self.bianchi])
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        cache.clear()
+        self.assertEqual(capo_team.capo_di(self.rossi).legacy_id, self.neri)
+
+    def test_reparto_senza_responsabilita_salva_il_capo_a_mano(self):
+        ut = Reparto.objects.create(nome="UT")
+        self._salva_reparto(ut, self.gialli)
+        self.assertEqual(ut.caporeparto_legacy_id, self.gialli)
+
+    def test_area_con_responsabilita_propria(self):
+        self.in1.ruolo_responsabile = self.capo
+        self.in1.save()
+        resp_in1 = CompetenzaSkm.objects.get(responsabilita_area=self.in1)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("anagrafica:area_aziendale_edit", args=[self.in1.pk]), {
+                "nome": "IN1", "reparto_id": str(self.fresatura.pk), "is_active": "1",
+                "responsabile_legacy_id": str(self.gialli),
+            })
+        self.in1.refresh_from_db()
+        self.assertEqual(self.in1.responsabile_legacy_id, self.gialli)
+        self.assertEqual(self._titolari(resp_in1), {self.gialli})
+
+    def test_form_senza_campo_capo_non_tocca_nulla(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self._assegna(self.resp_fres, self.neri)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("anagrafica:area_edit", args=[self.fresatura.pk]),
+                             {"nome": "Fresatura", "colore": "#64748b", "is_active": "1"})
+        self.fresatura.refresh_from_db()
+        self.assertEqual(self.fresatura.caporeparto_legacy_id, self.neri)
+        self.assertEqual(self._titolari(self.resp_fres), {self.neri})

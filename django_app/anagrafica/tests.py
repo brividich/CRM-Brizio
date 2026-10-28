@@ -4869,7 +4869,11 @@ class AreeRepartiCrudTests(TestCase):
         self.assertEqual(rep.colore, "#1f87cd")
         self.assertEqual(rep.ruolo_responsabile_id, ruolo.pk)
         self.assertTrue(CompetenzaSkm.objects.filter(responsabilita_reparto=rep, attiva=True).exists())
-        self.assertIsNone(rep.caporeparto_legacy_id)  # il capo non si sceglie più a mano
+        # Il capo scelto riceve la «Responsabilità del reparto» (sempre collegati, 28/10/2026).
+        self.assertEqual(rep.caporeparto_legacy_id, 401)
+        from .models_skillmatrix import AbilitazioneMacchina
+        self.assertTrue(AbilitazioneMacchina.objects.filter(
+            competenza__responsabilita_reparto=rep, legacy_anagrafica_id=401, in_lista=True).exists())
 
     def test_crea_area_aziendale_assegnata_a_reparto(self):
         from .models import AreaAziendale, Reparto
@@ -4881,7 +4885,7 @@ class AreeRepartiCrudTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         area = AreaAziendale.objects.get(nome="IN1")
         self.assertEqual(area.reparto_id, rep.pk)
-        self.assertIsNone(area.responsabile_legacy_id)
+        self.assertEqual(area.responsabile_legacy_id, 402)  # area senza Responsabilità: campo a mano
         self.assertIsNone(area.ruolo_responsabile_id)  # segue il reparto
 
     def test_modifica_area_aziendale_cambia_reparto(self):

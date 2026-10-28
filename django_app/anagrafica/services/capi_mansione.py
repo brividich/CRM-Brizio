@@ -8,14 +8,18 @@ portale). Le mansioni si generano dal ruolo responsabile (``struttura_v8``);
 il capo è **chi ha quella mansione assegnata** nel Mansionario
 (``AbilitazioneMacchina`` in lista e attiva). Area senza ruolo responsabile, o
 senza nessuno sulla mansione: vale il capo del reparto. Più persone sulla
-stessa mansione sono tutte capo, la prima per id approva e le altre si segnalano.
+stessa mansione sono tutte capo: approva quello scelto come capo (il campo
+del reparto o dell'area), altrimenti il primo per id; gli altri sono co-capo.
 
-Il passaggio dai capi scelti a mano si fa una volta sola dalla pagina
-«Reparti, aree e capi»: la proposta assegna la mansione a chi oggi è capo,
-poi la regola unica (``capo_team``) resta accesa e i campi di prima
+Mansione e campi sono **sempre collegati** (28/10/2026), a regola accesa o
+spenta: chi ha la «Responsabilità» diventa il capo del reparto o dell'area
 (``Reparto.caporeparto_legacy_id``, ``AreaAziendale.responsabile_legacy_id``,
-il «Caporeparto» delle schede e ``RepartoCapoMapping``) diventano copie
-derivate, riallineate a ogni modifica da ``segnali_capi``.
+co-capi in ``responsabili``) e da lì il «Caporeparto» delle schede e
+``RepartoCapoMapping`` (assenze, automazioni); il capo scelto in Impostazioni
+assegna o toglie la «Responsabilità» (:func:`imposta_capo`). A regola spenta un
+capo scelto a mano senza nessuno sulla mansione resta finché non gli si toglie
+la mansione. Il passaggio dalla pagina «Reparti, aree e capi» accende la regola
+unica (``capo_team``) per tutti i moduli.
 """
 from __future__ import annotations
 
@@ -54,7 +58,8 @@ def mansione_reparto(reparto, responsabilita: dict[int, int] | None = None) -> i
     return responsabilita.get(reparto.pk)
 
 
-def titolari(mansione_ids, *, in_forza: set[int] | None = None) -> dict[int, list[int]]:
+def titolari(mansione_ids, *, in_forza: set[int] | None = None,
+             esclusi: set[int] | None = None) -> dict[int, list[int]]:
     """``mansione_id`` → persone che l'hanno assegnata (in lista, attiva), ordinate per id."""
     from ..models_skillmatrix import AbilitazioneMacchina
 
@@ -67,20 +72,50 @@ def titolari(mansione_ids, *, in_forza: set[int] | None = None) -> dict[int, lis
     ).values_list("competenza_id", "legacy_anagrafica_id"):
         if in_forza is not None and int(legacy_id) not in in_forza:
             continue
+        if esclusi and int(legacy_id) in esclusi:
+            continue
         out.setdefault(int(mid), set()).add(int(legacy_id))
     return {mid: sorted(p) for mid, p in out.items()}
 
 
-def titolari_struttura(reparti, aree, *, in_forza: set[int] | None = None):
-    """(``reparto_id`` → titolari, ``area_id`` → titolari) secondo le mansioni di responsabilità."""
+def tolti(mansione_ids) -> dict[int, set[int]]:
+    """``mansione_id`` → persone che l'avevano e non l'hanno più (tolte dalla lista o sospese)."""
+    from django.db.models import Q
+
+    from ..models_skillmatrix import AbilitazioneMacchina
+
+    ids = {int(m) for m in mansione_ids if m}
+    out: dict[int, set[int]] = {}
+    if not ids:
+        return {}
+    for mid, legacy_id in AbilitazioneMacchina.objects.filter(competenza_id__in=ids).filter(
+        Q(in_lista=False) | ~Q(stato=AbilitazioneMacchina.STATO_ATTIVA)
+    ).values_list("competenza_id", "legacy_anagrafica_id"):
+        out.setdefault(int(mid), set()).add(int(legacy_id))
+    return out
+
+
+def _prima(lista: list[int], scelto) -> list[int]:
+    """Il capo scelto (campo del reparto o dell'area) in testa, se ha la mansione."""
+    if scelto and scelto in lista:
+        return [scelto] + [x for x in lista if x != scelto]
+    return lista
+
+
+def titolari_struttura(reparti, aree, *, in_forza: set[int] | None = None, esclusi: set[int] | None = None):
+    """(``reparto_id`` → titolari, ``area_id`` → titolari) secondo le mansioni di responsabilità.
+
+    In testa il capo scelto, se ha la mansione: è lui che approva, gli altri sono co-capo.
+    """
+    reparti, aree = list(reparti), list(aree)
     responsabilita = mansioni_responsabilita()
     resp_aree = mansioni_responsabilita_aree()
     per_reparto = {r.pk: mansione_reparto(r, responsabilita) for r in reparti}
     per_area = {a.pk: resp_aree[a.pk] for a in aree if a.pk in resp_aree}
-    tit = titolari(set(per_reparto.values()) | set(per_area.values()), in_forza=in_forza)
+    tit = titolari(set(per_reparto.values()) | set(per_area.values()), in_forza=in_forza, esclusi=esclusi)
     return (
-        {rid: tit.get(mid, []) for rid, mid in per_reparto.items() if mid},
-        {aid: tit.get(mid, []) for aid, mid in per_area.items()},
+        {r.pk: _prima(tit.get(per_reparto[r.pk], []), r.caporeparto_legacy_id) for r in reparti if per_reparto[r.pk]},
+        {a.pk: _prima(tit.get(per_area[a.pk], []), a.responsabile_legacy_id) for a in aree if a.pk in per_area},
     )
 
 
@@ -210,36 +245,148 @@ def applica_passaggio(*, user=None) -> dict:
 
 # ── Copie derivate ──────────────────────────────────────────────────────────
 
-def allinea_derivati(*, mappa=None) -> dict:
-    """Con la regola accesa riscrive capo di reparti, aree, schede e ``RepartoCapoMapping``.
+def _cessati() -> set[int]:
+    from django.utils import timezone
 
-    Usa ``update()``: nessun segnale, nessun ricalcolo a catena.
+    from ..models import DipendenteAnagraficaAziendale
+
+    return set(DipendenteAnagraficaAziendale.objects.filter(
+        data_cessazione__lt=timezone.localdate()).values_list("legacy_anagrafica_id", flat=True))
+
+
+def _voluti(attuale, altri_attuali: list[int], tit: list[int] | None, via: set[int], regola: bool):
+    """(capo, co-capi) di un reparto o di un'area con la sua «Responsabilità».
+
+    ``tit``: titolari, il capo scelto in testa (None = l'unità non ha la
+    mansione); ``via``: chi aveva la mansione e l'ha persa.
+    """
+    if tit is None:
+        return (None, []) if regola else (attuale, list(altri_attuali))
+    if regola:
+        return (tit[0], tit[1:]) if tit else (None, [])
+    # Regola spenta: comanda la mansione, ma chi è stato scelto a mano e non
+    # l'ha mai persa non sparisce: senza titolari resta capo, altrimenti
+    # passa fra i co-capi (salvando il reparto in Impostazioni riceve la mansione).
+    restano = [x for x in [attuale, *altri_attuali] if x and x not in via]
+    if not tit:
+        return (restano[0] if attuale in restano else None), [x for x in restano if x != attuale]
+    capo = tit[0]
+    return capo, [x for x in dict.fromkeys([*tit[1:], *restano]) if x != capo]
+
+
+def allinea_derivati(*, mappa=None, simula: bool = False) -> dict:
+    """Riscrive capo e co-capi di reparti e aree da chi ha la «Responsabilità», poi schede e mapping.
+
+    Sempre, a regola accesa o spenta (vedi la docstring del modulo). Usa
+    ``update()``: nessun segnale, nessun ricalcolo a catena. ``simula``: non
+    scrive, ritorna in ``"dettaglio"`` cosa cambierebbe.
     """
     from ..models import AreaAziendale, Reparto
     from . import capo_team
 
-    if not capo_team.regola_unica_attiva():
-        return {}
-    mappa = mappa if mappa is not None else capo_team.mappa_capi()
-    in_forza = set(mappa)
-    reparti = list(Reparto.objects.all())
-    aree = list(AreaAziendale.objects.all())
-    tit_rep, tit_area = titolari_struttura(reparti, aree, in_forza=in_forza)
-    cambi = {"reparti": 0, "aree": 0, "schede": 0, "mapping": 0}
-    for r in reparti:
-        capo = (tit_rep.get(r.pk) or [None])[0]
-        if r.caporeparto_legacy_id != capo:
-            Reparto.objects.filter(pk=r.pk).update(caporeparto_legacy_id=capo)
-            r.caporeparto_legacy_id = capo
-            cambi["reparti"] += 1
-    for a in aree:
-        resp = (tit_area.get(a.pk) or [None])[0]
-        if a.responsabile_legacy_id != resp:
-            AreaAziendale.objects.filter(pk=a.pk).update(responsabile_legacy_id=resp)
-            cambi["aree"] += 1
-    cambi["schede"] = capo_team.riallinea_tutte_le_schede(mappa=mappa)
-    cambi["mapping"] = allinea_mapping([r for r in reparti if r.is_active])
+    regola = capo_team.regola_unica_attiva()
+    if regola:
+        mappa = mappa if mappa is not None else capo_team.mappa_capi()
+        tit_rep, tit_area = titolari_struttura(Reparto.objects.all(), AreaAziendale.objects.all(),
+                                               in_forza=set(mappa))
+    else:
+        tit_rep, tit_area = titolari_struttura(Reparto.objects.all(), AreaAziendale.objects.all(),
+                                               esclusi=_cessati())
+    mansioni = {**{("r", k): v for k, v in mansioni_responsabilita().items()},
+                **{("a", k): v for k, v in mansioni_responsabilita_aree().items()}}
+    via = tolti(mansioni.values())
+    cambi = {"reparti": 0, "aree": 0, "schede": 0, "mapping": 0, "dettaglio": []}
+    toccati_rep, toccate_aree = [], []
+    for tipo, modello, campo, titolari_unita, toccate in (
+        ("r", Reparto, "caporeparto_legacy_id", tit_rep, toccati_rep),
+        ("a", AreaAziendale, "responsabile_legacy_id", tit_area, toccate_aree),
+    ):
+        for u in modello.objects.prefetch_related("responsabili"):
+            attuale = getattr(u, campo)
+            altri_attuali = sorted(d.pk for d in u.responsabili.all())
+            capo, altri = _voluti(attuale, altri_attuali, titolari_unita.get(u.pk),
+                                  via.get(mansioni.get((tipo, u.pk)), set()), regola)
+            if capo == attuale and sorted(altri) == altri_attuali:
+                continue
+            toccate.append(u)
+            cambi["reparti" if tipo == "r" else "aree"] += 1
+            cambi["dettaglio"].append({"tipo": "reparto" if tipo == "r" else "area", "nome": u.nome,
+                                       "capo": (attuale, capo), "co_capi": (altri_attuali, sorted(altri))})
+            if simula:
+                continue
+            if capo != attuale:
+                modello.objects.filter(pk=u.pk).update(**{campo: capo})
+                setattr(u, campo, capo)
+            if sorted(altri) != altri_attuali:
+                u.responsabili.set(altri)
+    if simula:
+        return cambi
+    if regola:
+        cambi["schede"] = capo_team.riallinea_tutte_le_schede(mappa=mappa)
+        cambi["mapping"] = allinea_mapping([r for r in Reparto.objects.all() if r.is_active])
+    else:
+        cambi["schede"], cambi["mapping"] = _copie_a_valle(toccati_rep, toccate_aree)
+    if toccati_rep or toccate_aree:
+        capo_team.invalida_cache()
     return cambi
+
+
+def _copie_a_valle(reparti, aree) -> tuple[int, int]:
+    """A regola spenta: «Caporeparto» delle schede e ``RepartoCapoMapping`` dei soli reparti e aree cambiati."""
+    from ..views.struttura import _sync_reparto_capo_mapping
+    from .reparto_canonico import riallinea_capo_schede
+
+    schede = 0
+    for r in reparti:
+        schede += riallinea_capo_schede(reparto=r)
+        _sync_reparto_capo_mapping(r)
+    for a in aree:
+        schede += riallinea_capo_schede(area=a)
+    return schede, len(reparti)
+
+
+@transaction.atomic
+def imposta_capo(unita, *, capo, altri=(), user=None) -> dict:
+    """Capo e co-capi scelti in Impostazioni per un ``Reparto`` o un'``AreaAziendale``.
+
+    Se l'unità ha la sua «Responsabilità», la mansione segue la scelta: la
+    ricevono il capo e i co-capi, la perde chi non c'è più. Poi il campo del
+    capo, i co-capi e, a valle, schede e mapping delle assenze.
+    """
+    from ..models import Reparto
+    from ..models_skillmatrix import AbilitazioneMacchina, CompetenzaSkm
+    from . import capo_team, mansionario_struttura
+
+    e_reparto = isinstance(unita, Reparto)
+    campo = "caporeparto_legacy_id" if e_reparto else "responsabile_legacy_id"
+    capo = int(capo) if capo else None
+    altri = [int(x) for x in dict.fromkeys(altri) if x and int(x) != capo]
+    voluti = [x for x in [capo, *altri] if x]
+    mid = (mansioni_responsabilita() if e_reparto else mansioni_responsabilita_aree()).get(unita.pk)
+    esito = {"assegnate": 0, "tolte": 0}
+    if mid:
+        mansione = CompetenzaSkm.objects.get(pk=mid)
+        for ab in AbilitazioneMacchina.objects.filter(competenza_id=mid, in_lista=True).exclude(
+            legacy_anagrafica_id__in=voluti
+        ):
+            mansionario_struttura.togli(ab)
+            esito["tolte"] += 1
+        hanno = set(AbilitazioneMacchina.objects.filter(
+            competenza_id=mid, in_lista=True, stato=AbilitazioneMacchina.STATO_ATTIVA,
+        ).values_list("legacy_anagrafica_id", flat=True))
+        for pid in voluti:
+            if pid not in hanno:
+                mansionario_struttura.assegna(mansione, legacy_anagrafica_id=pid, livello=LIVELLO_PASSAGGIO, user=user)
+                esito["assegnate"] += 1
+    type(unita).objects.filter(pk=unita.pk).update(**{campo: capo})
+    setattr(unita, campo, capo)
+    unita.responsabili.set(altri)
+    capo_team.invalida_cache()
+    if capo_team.regola_unica_attiva():
+        transaction.on_commit(lambda: allinea_derivati())
+    else:
+        _copie_a_valle([unita] if e_reparto else [], [] if e_reparto else [unita])
+    return esito
 
 
 def valore_mapping(legacy_anagrafica_id) -> str:

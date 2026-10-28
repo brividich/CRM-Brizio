@@ -82,17 +82,20 @@ class SalvataggioRepartoAreaTests(TestCase):
             legacy_anagrafica_id=OPERAIO_AREA, area="Saldatura", area_aziendale=self.area,
         )
 
-    def test_salvare_il_reparto_non_sceglie_piu_il_capo_a_mano(self):
-        """Dal 26/10/2026 il capo è chi ha la «Responsabilità»: il form salva il ruolo responsabile."""
+    def test_capo_scelto_nel_form_riceve_la_responsabilita(self):
+        """Dal 28/10/2026 il capo scelto nel form diventa chi ha la «Responsabilità» (sempre collegati)."""
         from anagrafica.models import RuoloOperativo
+        from anagrafica.models_skillmatrix import AbilitazioneMacchina
 
         ruolo = RuoloOperativo.objects.create(nome="Caporeparto saldatura")
         self.client.post(reverse("anagrafica:area_edit", args=[self.rep.pk]), {
             "nome": "Saldatura", "is_active": "1", "caporeparto_legacy_id": "4242", "ruolo_responsabile": str(ruolo.pk),
         })
         self.rep.refresh_from_db()
-        self.assertEqual(self.rep.caporeparto_legacy_id, CAPO_REPARTO)
+        self.assertEqual(self.rep.caporeparto_legacy_id, 4242)
         self.assertEqual(self.rep.ruolo_responsabile_id, ruolo.pk)
+        self.assertTrue(AbilitazioneMacchina.objects.filter(
+            competenza__responsabilita_reparto=self.rep, legacy_anagrafica_id=4242, in_lista=True).exists())
         # Le Impostazioni non mandano il campo: il ruolo resta.
         self.client.post(reverse("anagrafica:area_edit", args=[self.rep.pk]), {"nome": "Saldatura", "is_active": "1"})
         self.rep.refresh_from_db()

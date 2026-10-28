@@ -162,7 +162,9 @@ GUIDA = {
                     "Il capo proposto è il capo del dipendente in Anagrafica: eccezione sulla persona → chi ha la "
                     "mansione del responsabile dell'area → chi ha la mansione del capo del reparto → gerarchia dei "
                     "ruoli (prima del passaggio alle mansioni: responsabile dell'area e poi caporeparto scelti a mano). "
-                    "Si cambia in Anagrafica → Reparti, aree e capi, non qui.",
+                    "Si cambia in Anagrafica → Reparti, aree e capi, nel Mansionario («Responsabilità del reparto») "
+                    "o in Impostazioni → Reparti, non qui: sono collegati, cambiarlo in uno lo cambia negli altri. "
+                    "Il menu «Capo reparto» elenca caporeparto, responsabili delle aree e i loro co-capo.",
                     "Nessuno approva le proprie assenze: se il capo così trovato è il dipendente stesso (es. il CAR "
                     "capo del suo reparto), si propone chi gli sta sopra nella gerarchia dei ruoli, partendo dal suo "
                     "ruolo più alto (Caporeparto → Operations Manager, anche se lavora in un altro reparto).",
