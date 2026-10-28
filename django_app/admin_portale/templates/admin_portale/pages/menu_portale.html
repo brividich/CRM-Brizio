@@ -11,6 +11,9 @@
 <div class="mp" id="menu-portale"
      data-url-salva="{% url 'admin_portale:api_menu_voce_salva' %}"
      data-url-sistema="{% url 'admin_portale:api_menu_voce_sistema' %}"
+     data-url-cat-salva="{% url 'admin_portale:api_menu_categoria_salva' %}"
+     data-url-cat-elimina="{% url 'admin_portale:api_menu_categoria_elimina' %}"
+     data-url-barra="{% url 'admin_portale:api_menu_barra_riordina' %}"
      data-url-persona="{% url 'admin_portale:api_menu_vedi_persona' %}"
      data-url-cerca="{% url 'admin_portale:api_acl_v2_legacy_user_search' %}"
      data-url-riordina="{% url 'admin_portale:api_navigation_reorder' %}"
@@ -23,11 +26,12 @@
   <div class="mp-head">
     <div class="mp-head-text">
       <h1 class="mp-title">Menu del portale</h1>
-      <p class="mp-sub">Metti in ordine le voci e controlla cosa vede ognuno.</p>
+      <p class="mp-sub">La barra in alto, le sue tendine e chi vede cosa.</p>
     </div>
     <div class="mp-head-actions">
       <a class="mp-link" href="{% url 'guida_modulo' 'amministrazione' %}#menu-portale">? Guida</a>
       <a class="mp-btn mp-btn-light" href="{% url 'admin_portale:navigation_builder_avanzato' %}">Strumenti avanzati</a>
+      <button type="button" class="mp-btn mp-btn-light" id="mp-aggiungi-cat">+ Nuova categoria</button>
       <button type="button" class="mp-btn mp-btn-accent" id="mp-aggiungi">+ Aggiungi una voce</button>
     </div>
   </div>
@@ -50,10 +54,18 @@
 
   <div class="mp-problemi" id="mp-problemi" hidden></div>
 
+  <div class="mp-barra-box">
+    <div class="mp-barra-testa">
+      <span id="mp-barra-titolo">La barra in alto del portale</span>
+      <span class="mp-nota">clicca una tendina per aprirla · trascina per cambiare l'ordine</span>
+    </div>
+    <div class="mp-barra" id="mp-barra"></div>
+  </div>
+
   <div class="mp-corpo">
-    <nav class="mp-albero" aria-label="Voci del menu">
+    <nav class="mp-albero" aria-label="Cosa c'è in ogni tendina">
       <div class="mp-albero-testa">
-        <span id="mp-albero-titolo">Tutte le voci del menu</span>
+        <span>Cosa c'è in ogni tendina</span>
         <span class="mp-nota">trascina per riordinare</span>
       </div>
       <div id="mp-aree"></div>
@@ -77,7 +89,7 @@
     <form id="mp-nuova-form">
       <div class="mp-dialog-testa"><strong>Aggiungi una voce</strong><button type="button" class="mp-x" data-chiudi aria-label="Chiudi">×</button></div>
       <label class="mp-campo">Nome nel menu<input type="text" name="nome" required maxlength="120"></label>
-      <label class="mp-campo">Area<select name="categoria" id="mp-nuova-area"></select></label>
+      <label class="mp-campo">Categoria<select name="categoria" id="mp-nuova-area"></select></label>
       <label class="mp-campo">Pagina a cui porta
         <input type="text" name="pagina" list="mp-pagine" required placeholder="inizia a scrivere, es. /tickets/">
         <span class="mp-nota">Scegli dall'elenco delle pagine del portale, oppure un indirizzo esterno (https://…).</span>
@@ -89,6 +101,18 @@
       <div class="mp-dialog-azioni">
         <button type="button" class="mp-btn mp-btn-light" data-chiudi>Annulla</button>
         <button type="submit" class="mp-btn mp-btn-primary">Aggiungi</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="mp-dialog" id="mp-nuova-cat" aria-label="Nuova categoria">
+    <form id="mp-nuova-cat-form">
+      <div class="mp-dialog-testa"><strong>Nuova categoria</strong><button type="button" class="mp-x" data-chiudi aria-label="Chiudi">×</button></div>
+      <label class="mp-campo">Nome della tendina<input type="text" name="nome" required maxlength="80" placeholder="es. Commerciale"></label>
+      <p class="mp-nota">Va in fondo alla barra e compare quando ci sposti almeno una voce (dalla scheda della voce, «In quale categoria»).</p>
+      <div class="mp-dialog-azioni">
+        <button type="button" class="mp-btn mp-btn-light" data-chiudi>Annulla</button>
+        <button type="submit" class="mp-btn mp-btn-primary">Crea</button>
       </div>
     </form>
   </dialog>

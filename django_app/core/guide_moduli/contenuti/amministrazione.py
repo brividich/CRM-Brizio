@@ -33,7 +33,7 @@ GUIDA = {
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
                     ("Ruoli e permessi", "un ruolo solo per persona, quello in azienda: i ruoli del portale sono gli accessi che concede e si vedono come «Ruolo in azienda · accessi» (a mano = eccezione). Il sistema unico: matrice ruolo × modulo × azione; le impostazioni di ogni modulo (configurazione, cataloghi) hanno una sotto-riga loro, «↳ Impostazioni del modulo», separata da «Chiudere / gestire»: chi gestisce un modulo non ne vede le impostazioni se non gliele dai; in cima alla matrice «Chi ha il ruolo … oggi» elenca le persone che lo hanno, a mano (con nota e scadenza) o dall'organigramma (con il ruolo d'organigramma che lo dà). Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Scheda «Per modulo», «Chi può aprirla» sotto ogni pagina: le persone che la aprono oggi, perché e da dove (secondario e ad interim indicati). Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
-                    ("Menu del portale", "le voci dei menu e chi le vede (vecchio nome: Navigation Builder). Ha la sua sezione qui sotto."),
+                    ("Menu del portale", "la barra in alto, le categorie (tendine), le voci e chi le vede (vecchio nome: Navigation Builder). Ha la sua sezione qui sotto."),
                     ("Branding", "logo, favicon, nome e colori."),
                     ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
@@ -52,24 +52,35 @@ GUIDA = {
         },
         {
             "id": "menu-portale",
-            "titolo": "Menu del portale: mettere in ordine le voci e vedere chi le vede",
+            "titolo": "Menu del portale: la barra in alto, le tendine e chi vede cosa",
             "blocchi": [
-                ("p", "Amministrazione → «Menu del portale». A sinistra le voci del menu divise per area (le sottovoci sotto il loro modulo); "
-                      "a destra la voce scelta. Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, "
-                      "e si cambia in «Ruoli e permessi»."),
+                ("p", "Amministrazione → «Menu del portale». In alto la barra del portale com'è: le categorie (Per me, Produzione, Persone, Qualità, IT…) "
+                      "sono le tendine, le altre voci stanno da sole. Sotto, a sinistra, cosa c'è in ogni tendina, con i sottogruppi "
+                      "(es. «Da fare», «Richieste») e le sottovoci; a destra la scheda di quello che hai scelto. "
+                      "Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, e si cambia in «Ruoli e permessi»."),
                 ("def", [
                     ("Guarda il menu come", "«Tutti (amministratore)» mostra tutte le voci; il ruolo base (es. «Operatore (tutti)») e «Un altro ruolo…» "
                                             "mostrano il menu di una persona con quel ruolo; «una persona…» mostra il menu vero di quella persona. "
-                                            "Le voci che non vede diventano tratteggiate con «non la vede», e ogni area dice quante ne vede (es. «2 di 3»)."),
-                    ("La scheda della voce", "dice in una frase chi la vede e perché («Caporeparto non la vede: non può aprire la pagina…»)."),
+                                            "La barra in alto mostra solo le tendine che vede; a sinistra le voci che non vede diventano tratteggiate "
+                                            "con «non la vede» e ogni categoria dice quante ne vede (es. «2 di 3»)."),
+                    ("Categorie", "clicca una tendina nella barra (o il suo titolo a sinistra): la scheda dice chi la vede, mostra come si apre "
+                                  "e permette di cambiarle nome e icona. «+ Nuova categoria» la aggiunge in fondo alla barra; compare quando ci sposti "
+                                  "almeno una voce. «Elimina la categoria» funziona solo se è vuota."),
+                    ("Sottovoci", "sono la barra che compare dentro le pagine di una voce (es. Anagrafica → Dipendenti, Ex dipendenti). "
+                                  "Se una sottovoce sta in pagine che nessuna voce del menu apre, finisce in «Sottovoci senza voce nel menu»."),
+                    ("La scheda della voce", "in alto dice dove sta (es. «Nella tendina «Per me» › Richieste») e in una frase chi la vede e perché."),
                     ("Da sistemare", "le voci con un problema. «È rimasta legata al vecchio menu»: «Sistema da solo» la fa seguire la pagina. "
                                      "«Nessun ruolo può aprire la pagina»: la vedono solo gli amministratori, si dà l'accesso in «Ruoli e permessi». "
                                      "«Non è legata a una pagina protetta»: con «Ruoli e permessi» acceso la vedono solo gli amministratori."),
-                    ("Cosa vuoi fare", "cambia il nome (per i moduli il nome si cambia in Branding), spostala in un'altra area o sotto un altro modulo, "
+                    ("Cosa vuoi fare", "cambia il nome (per i moduli il nome si cambia in Branding); «In quale categoria» la sposta in un'altra tendina "
+                                       "o da sola nella barra, con il «Sottogruppo nella tendina»; per una sottovoce «Sotto quale voce»; "
                                        "cambia l'icona, «Nascondila solo a …» (dopo aver scelto una persona in alto), «Apri la pagina». Poi «Salva»."),
                     ("Nel menu / Tolta dal menu", "toglie o rimette la voce per tutti, subito."),
-                    ("Riordinare", "trascina una voce sopra un'altra della stessa area (o dello stesso modulo): l'ordine si salva da solo."),
-                    ("Aggiungi una voce", "nome, area e pagina (scegli dall'elenco o scrivi un indirizzo https://…). I link a siti esterni li vedono tutti."),
+                    ("Riordinare", "nella barra in alto trascina una tendina o una voce per cambiare l'ordine della barra; a sinistra trascina una voce "
+                                   "sopra un'altra della stessa tendina (o tra le sottovoci della stessa voce). L'ordine si salva da solo. "
+                                   "I sottogruppi seguono l'ordine: voci vicine con lo stesso sottogruppo stanno insieme."),
+                    ("Aggiungi una voce", "nome, categoria (o da sola nella barra) e pagina (scegli dall'elenco o scrivi un indirizzo https://…). "
+                                          "I link a siti esterni li vedono tutti."),
                     ("Strumenti avanzati", "la vecchia pagina con i campi tecnici, gli snapshot, i redirect legacy e l'import dal vecchio menu."),
                 ]),
                 ("p", "Il menu delle persone si aggiorna entro 5 minuti."),
