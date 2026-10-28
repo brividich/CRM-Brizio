@@ -218,3 +218,21 @@ class SicurezzaImpostazioni(models.Model):
     def get_singleton(cls) -> "SicurezzaImpostazioni":
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+def data_decisioni_dopo_automazione(pk, campi: list[str]) -> None:
+    """Dopo un'approvazione via automazione: data RLS / data chiusura RSPP se mancano.
+
+    L'azione «aggiorna il record» scrive solo l'esito (``approvazione_rls``,
+    ``chiusura_rspp``); la data e' quella della decisione, come quando la si
+    registra dal portale.
+    """
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
+    righe = RilevazioneIncidente.objects.filter(pk=pk)
+    if "approvazione_rls" in campi:
+        righe.exclude(approvazione_rls="").filter(data_approvazione_rls__isnull=True).update(
+            data_approvazione_rls=oggi
+        )
+    if "chiusura_rspp" in campi:
+        righe.filter(chiusura_rspp=True, data_chiusura_rspp__isnull=True).update(data_chiusura_rspp=oggi)
