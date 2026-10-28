@@ -19,7 +19,16 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import AbilitazioneMacchina, CompetenzaCatalogo, CompetenzaSkm, Mansione, Reparto, RuoloOperativo
+from .models import (
+    AbilitazioneMacchina,
+    AbilitazioneMacchinaVoce,
+    CompetenzaCatalogo,
+    CompetenzaSkm,
+    Mansione,
+    Reparto,
+    RuoloOperativo,
+    VoceMacchinaCatalogo,
+)
 from .services import mansionario_struttura as svc
 
 MODULE = "anagrafica"
@@ -329,6 +338,10 @@ def mansionario_mansione(request, mansione_id: int):
         # Nessun livello registrato sulle competenze: la cosa da fare è valutarla,
         # non leggere l'elenco di tutte le competenze «mancanti».
         p["da_valutare"] = bool(competenze) and not any(r["livello"] or r["requisito"] for r in val.voci)
+        # Matrice persone × competenze: il livello salvato (quello che si cambia) e
+        # quello che conta, col tetto quando manca il requisito formale.
+        salvati = {v.voce_id: v.livello for v in p["abilitazione"].voci.all()}
+        p["celle"] = [{**r, "salvato": salvati.get(r["voce"].pk, "")} for r in val.voci]
     # Ogni persona in una sola casella: sospesa, da valutare, poi l'esito calcolato.
     for p in persone:
         p["stato"] = "sospesa" if p["sospesa"] else "da_valutare" if p["da_valutare"] else p["valutazione"].esito
@@ -419,6 +432,37 @@ def _torna_a_next(request):
                                                      require_https=request.is_secure()):
         return redirect(prossima)
     return None
+
+
+@login_required
+@require_POST
+def mansionario_voce_livello(request, mansione_id: int, abilitazione_id: int, voce_id: int):
+    """Una cella della matrice persone × competenze: livello della competenza, poi il
+    livello sulla mansione si ricalcola (storico per competenza e per mansione + audit)."""
+    if not _puo_valutare(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    from .services import mansionario_competenze as comp_svc
+
+    ab = get_object_or_404(AbilitazioneMacchina.objects.select_related("competenza"),
+                           pk=abilitazione_id, competenza_id=mansione_id, in_lista=True)
+    voce = get_object_or_404(VoceMacchinaCatalogo, pk=voce_id, mansione_id=mansione_id, attiva=True)
+    livello = (request.POST.get("livello") or "").strip().upper()
+    if livello and livello not in svc.LIVELLI:
+        messages.error(request, "Livello non valido.")
+        return _torna_a_next(request) or _alla_scheda(mansione_id, "persone")
+    prima_voce = AbilitazioneMacchinaVoce.objects.filter(abilitazione=ab, voce=voce).values_list(
+        "livello", flat=True).first() or ""
+    if prima_voce != livello:
+        prima = ab.livello
+        val = comp_svc.registra_livelli(ab, {voce.pk: livello}, user=request.user)
+        log_action(request, "mansionario_voce_livello", MODULE, {
+            "mansione": mansione_id, "legacy_anagrafica_id": ab.legacy_anagrafica_id, "competenza": voce.nome,
+            "livello_prima": prima_voce, "livello": livello, "mansione_prima": prima, "mansione_dopo": ab.livello,
+            "esito": val.esito,
+        }, oggetto=ab)
+        messages.success(request, f"«{voce.nome}»: {prima_voce or '—'} → {livello or '—'}. "
+                                  f"Livello sulla mansione {prima or '—'} → {ab.livello or '—'} ({val.esito_label.lower()}).")
+    return _torna_a_next(request) or _alla_scheda(mansione_id, "persone")
 
 
 @login_required

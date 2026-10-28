@@ -94,7 +94,7 @@ def persone(mansione: CompetenzaSkm) -> list[dict]:
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
     soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
-    abil = list(AbilitazioneMacchina.objects.filter(competenza=mansione, in_lista=True))
+    abil = list(AbilitazioneMacchina.objects.filter(competenza=mansione, in_lista=True).prefetch_related("voci"))
     nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
             for r in fetch_anagrafica_rows(ids=[a.legacy_anagrafica_id for a in abil])} if abil else {}
     out = [{
@@ -156,12 +156,37 @@ def assegna(mansione: CompetenzaSkm, *, legacy_anagrafica_id: int, livello: str,
     if ab.data_assegnazione is None:
         ab.data_assegnazione = oggi
     ab.save()
+    nota = "Mansionario: assegnazione"
+    calcolato = _livello_da_competenze(ab, livello, user=user)
+    if calcolato and calcolato != ab.livello:
+        AbilitazioneMacchina.objects.filter(pk=ab.pk).update(livello=calcolato)
+        ab.livello = calcolato
+        nota += f" (partenza {livello} → {calcolato}: regole delle competenze)"
     AbilitazioneMacchinaStorico.objects.create(
         legacy_anagrafica_id=legacy_anagrafica_id, asset_id=mansione.asset_id, competenza=mansione,
-        livello=livello, data_rilevazione=oggi, fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
-        note="Mansionario: assegnazione",
+        livello=ab.livello, data_rilevazione=oggi, fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
+        note=nota,
     )
     return ab
+
+
+def _livello_da_competenze(ab: AbilitazioneMacchina, livello: str, *, user=None) -> str:
+    """Sulle mansioni con competenze il livello sulla mansione lo decide il calcolo.
+
+    Con competenze già valutate vale il livello calcolato; chi è ancora «da
+    valutare» tiene il livello di partenza, ma se non è abilitato (requisito
+    mancante, competenza bloccante) scende sotto la soglia operativa. Stessa
+    regola del ricalcolo automatico. '' = niente da cambiare.
+    """
+    from . import mansionario_competenze as comp
+    from .competenze_ricalcolo import livello_atteso
+
+    voci = list(comp.competenze(ab.competenza))
+    if not voci:
+        return ""
+    config = SkillMatrixConfig.get_instance()
+    ab = AbilitazioneMacchina.objects.prefetch_related("voci").get(pk=ab.pk)
+    return livello_atteso(ab, comp.valuta(ab, voci=voci, config=config), config.soglia_operativa_ordinale)
 
 
 @transaction.atomic

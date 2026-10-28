@@ -48,7 +48,11 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 
 - **Checklist per norma (fase 4)** (`checklist_views.py`, `services/checklist_norme.py`, migrazione `0020`): `ChecklistModello.CODICE_PER_NORMA` collega i flag dell'audit (`en9100`, `iso45001`, `pdr125`) ai codici `EN9100_FOLDER_B`, `ISO45001`, `PDR125`; `inizializza_checklist` carica la revisione attiva di ogni norma spuntata. Bozze di base ISO 45001 (§4-§10) e PdR 125 (sistema di gestione + 6 aree) scritte per il portale, non attive; modifica solo di revisioni non attive e mai usate (esiti o righe CAR), nuova revisione = copia con motivo, attivazione con autore e data. Route: `checklist_norme`, `checklist_modello` (audit.view; scritture con audit.edit nella view), `checklist_proponi`, `checklist_revisione` (audit.edit).
 
+- **Analisi del rischio MOD.165** (`rischio_views.py`, `services/rischio.py`, `services/mod165_rischi_import.py`, comando `importa_rischi_mod165`, migrazione `0021`): `RischioMinaccia` (gruppo, agente, minaccia, rischio inerente, M2M controlli, residuo letto dal modulo) e `ScenarioRischioOT` (piano OT) appesi alla `SoaRevisione`; `SoaRevisione.soglia_rischio` (30) e `SoaVoce.vulnerabilita_attesa`. Calcolo come nel MOD.165: vulnerabilità = massima fra i controlli collegati, residuo = inerente × vulnerabilità / 4, per controllo residuo = inerente massimo × vulnerabilità / 4 e futuro con la vulnerabilità attesa. Verificato sul MOD.165 Rev.4 reale: 80/80 residui uguali. `nuova_revisione` della SoA copia minacce, scenari, soglia e vulnerabilità attese. Pagina `/sistema-gestione/soa/rev/<n>/rischi/` (soa.view; modifiche soa.edit solo in bozza), export xlsx.
+
 ## Note di rilascio
+
+**Analisi del rischio MOD.165 (Unreleased, 28/10/2026):** deploy `migrate sistema_gestione` 0021 e bootstrap ACL; poi `importa_rischi_mod165 "<PDF MOD.165>" --numero N` (dry-run, controllare «uguali/diversi») e `--apply`. Sulla share c'è il MOD.165 **Rev.4**.
 
 **Checklist per norma ISO 45001 / UNI/PdR 125 (Unreleased, 27/10/2026):** deploy `migrate sistema_gestione` 0020 e bootstrap ACL; poi in «Checklist per norma» creare le bozze, farle verificare a RSGI e attivarle.
 

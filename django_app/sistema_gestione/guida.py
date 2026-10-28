@@ -423,6 +423,41 @@ _PAGINE_AUDIT = [
         ],
     },
     {
+        "id": "pagina-soa-rischi",
+        "titolo": "SoA e analisi del rischio (MOD.165)",
+        "blocchi": [
+            ("p", "La Dichiarazione di applicabilità (Sistema di gestione › SoA) riporta per ogni controllo ISO/IEC 27002 "
+                  "l'applicazione 0-4 e la vulnerabilità; dalla revisione, «Analisi del rischio» apre il registro dei "
+                  "rischi dello stesso MOD.165."),
+            ("def", [
+                ("Rischio per minaccia", "per ogni minaccia: gruppo, agente, rischio inerente, vulnerabilità (la più alta "
+                 "fra i controlli che la mitigano), rischio residuo = inerente × vulnerabilità / 4 e «Accettabile» (Sì "
+                 "fino alla soglia, predefinita 30). «Controlli che la determinano» indica i controlli con la "
+                 "vulnerabilità più alta: migliorarne l'applicazione nella SoA abbassa il residuo. «Solo oltre la soglia» "
+                 "filtra le minacce non accettabili."),
+                ("Monitoraggio dei controlli", "per ogni controllo: quante minacce mitiga, il rischio inerente più alto, "
+                 "il residuo con la vulnerabilità attuale, l'azione del piano di trattamento e il «Residuo futuro» con la "
+                 "«Vulnerabilità attesa dopo l'azione» indicata nella voce della SoA."),
+                ("Piano di trattamento OT", "scenari sugli asset di produzione (CNC e macchine): misure esistenti, "
+                 "controlli, rischio inerente, residuo attuale e atteso, azioni, opzione (ridurre, accettare…), "
+                 "responsabile, scadenza e stato."),
+            ]),
+            ("ul", [
+                "I colori seguono le fasce del MOD.165: verde fino a 10, giallo da 11 a 30, rosso oltre 30.",
+                "Il residuo si ricalcola da solo quando cambiano le vulnerabilità della SoA. Se differisce dal valore "
+                "letto dal MOD.165 all'import, sotto compare «MOD.165: n» e in alto un avviso.",
+                "In bozza (permesso di modifica della SoA) si aggiornano la soglia, le minacce (inerente, controlli "
+                "collegati, note) e gli scenari OT; «Aggiungi una minaccia» e «Aggiungi uno scenario OT» li inseriscono. "
+                "Revisioni proposte o approvate sono in sola lettura: «Apri nuova revisione» nella SoA copia anche "
+                "l'analisi del rischio.",
+                "«Excel» scarica il registro dei rischi per minaccia.",
+            ]),
+            ("nota", "L'analisi si carica dal PDF del MOD.165 con il comando degli amministratori «importa_rischi_mod165», "
+                     "dopo la Control Matrix della stessa revisione: il comando confronta il residuo del PDF con quello "
+                     "ricalcolato e segnala le differenze prima di scrivere."),
+        ],
+    },
+    {
         "id": "pagina-checklist-norme",
         "titolo": "Pagina «Checklist di audit per norma»",
         "blocchi": [
@@ -848,6 +883,14 @@ PAGE_HELP = {
     "sistema_gestione:audit_dettaglio": ("audit", "pagina-audit"),
     "sistema_gestione:audit_isms": ("audit", "pagina-isms"),
     "sistema_gestione:checklist_norme": ("audit", "pagina-checklist-norme"),
+    "sistema_gestione:soa": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_revisione": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_voce": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischi": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_minaccia": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_minaccia_nuova": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_ot": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_ot_nuovo": ("audit", "pagina-soa-rischi"),
     "sistema_gestione:checklist_modello": ("audit", "pagina-checklist-norme"),
     "sistema_gestione:procedura_preparazione": ("audit", "pagina-preparazione"),
     "sistema_gestione:audit_esito_editor": ("audit", "pagina-verifica"),

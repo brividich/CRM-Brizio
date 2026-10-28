@@ -19,6 +19,10 @@ class AnagraficaConfig(AppConfig):
         from .segnali_struttura import collega as collega_struttura
 
         collega_struttura()
+        # Livelli sulle mansioni con competenze: ricalcolati da soli (competenze, regole, qualifiche).
+        from .segnali_competenze import collega as collega_competenze
+
+        collega_competenze()
         # Coefficienti delle mansioni: ripartiti da soli quando una mansione entra o esce.
         # Costo orario: ricalcolato quando cambia una voce RML a mano.
         from .services import costo_orario, mansioni_coefficienti  # noqa: F401
