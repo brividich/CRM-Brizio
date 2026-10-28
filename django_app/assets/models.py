@@ -365,6 +365,21 @@ class Asset(models.Model):
         return self.completeness()["pct"]
 
 
+# Dispositivi IT: li assegna l'IT a una persona. Tutto il resto (macchine, impianti,
+# carroponti, prodotti chimici e ogni tipo futuro) risponde al reparto di installazione.
+IT_DEVICE_TYPES = [
+    Asset.TYPE_PC,
+    Asset.TYPE_NOTEBOOK,
+    Asset.TYPE_SERVER,
+    Asset.TYPE_VM,
+    Asset.TYPE_FIREWALL,
+    Asset.TYPE_STAMPANTE,
+    Asset.TYPE_HW,
+    Asset.TYPE_FONIA,
+    Asset.TYPE_CCTV,
+]
+
+
 class AssetCustomField(models.Model):
     TYPE_TEXT = "TEXT"
     TYPE_NUMBER = "NUMBER"

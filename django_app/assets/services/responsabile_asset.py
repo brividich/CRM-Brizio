@@ -1,25 +1,27 @@
-"""Responsabile di un asset: la persona assegnata o, per le macchine di produzione, il caporeparto.
+"""Responsabile di un asset: la persona assegnata o, per gli asset non IT, il caporeparto.
 
-Regola (27/10/2026): una macchina CNC o di lavoro senza una persona assegnata ha
-come responsabile il capo del suo reparto, «salvo diverse indicazioni». Il capo
+Regola (27/10/2026): un asset non IT (macchine, impianti, carroponti, compressori...)
+senza una persona assegnata ha come responsabile il capo del reparto in cui è
+installato, «salvo diverse indicazioni». Il capo
 si legge dalle copie che ``anagrafica`` tiene allineate al Mansionario
 (``AreaAziendale.responsabile_legacy_id``, altrimenti
 ``Reparto.caporeparto_legacy_id``); il campo ``Asset.reparto`` è testo e si
 confronta col nome dell'area o del reparto, senza badare a maiuscole.
 
 Non scrive niente: se cambia il caporeparto cambia anche il responsabile.
-Gli asset IT restano come sono, li assegna l'IT a mano.
+Gli asset IT restano come sono, li assegna l'IT a mano. I tipi che rispondono al
+reparto sono il complemento dei tipi IT: un tipo nuovo ci rientra da solo.
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from ..models import Asset
+from ..models import IT_DEVICE_TYPES, Asset
 
 logger = logging.getLogger(__name__)
 
-TIPI_PRODUZIONE = {Asset.TYPE_CNC, Asset.TYPE_WORK_MACHINE}
+TIPI_REPARTO = frozenset(v for v, _label in Asset.TYPE_CHOICES if v not in IT_DEVICE_TYPES)
 PREFISSO_REPARTO = "Reparto "  # assegnazione «a un reparto» del form asset
 
 
@@ -77,7 +79,7 @@ def _assegnato_a_persona(asset: Asset) -> bool:
 
 def responsabile(asset: Asset, capi: dict[str, tuple[int, str]] | None = None) -> Responsabile | None:
     """Chi risponde dell'asset, o ``None`` se nessuno."""
-    if _assegnato_a_persona(asset) or asset.asset_type not in TIPI_PRODUZIONE:
+    if _assegnato_a_persona(asset) or asset.asset_type not in TIPI_REPARTO:
         if asset.assignment_to:
             return Responsabile(asset.assignment_to.strip(), (asset.assignment_reparto or "").strip())
         return None
@@ -111,6 +113,6 @@ def utente_responsabile(asset: Asset) -> int | None:
 def applica(assets) -> None:
     """Mette ``asset.responsabile`` su ogni asset della pagina (una sola lettura dei capi)."""
     assets = list(assets)
-    capi = capi_per_reparto() if any(a.asset_type in TIPI_PRODUZIONE for a in assets) else {}
+    capi = capi_per_reparto() if any(a.asset_type in TIPI_REPARTO for a in assets) else {}
     for asset in assets:
         asset.responsabile = responsabile(asset, capi)

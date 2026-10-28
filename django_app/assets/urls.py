@@ -379,28 +379,83 @@ urlpatterns = [
     path("api/assets/view/<int:id>/calendario/json/", views.asset_calendar_json, name="asset_calendar_json"),
 ]
 
-# Ambito «Propri / team» (ruoli attivi): le pagine di un singolo asset rispondono 403
-# se l'asset non è visibile alla persona (services/visibilita.py).
+# Ambito «Propri / team» (ruoli attivi): le pagine di un singolo asset, o di un record
+# che appartiene a un asset (OdL, scadenza di manutenzione, piano, verifica), rispondono
+# 403 se non è visibile alla persona (services/visibilita.py). L'ambito si legge dal
+# modulo della matrice che governa la pagina (assets/registro_permessi.py).
 _PAGINE_ASSET_PER_ID = {
     "asset_view", "asset_edit", "work_machine_edit", "chemical_edit", "asset_detail_export_xlsx",
     "asset_report_pdf", "asset_qr_label", "asset_qr_image", "asset_qr_panel", "asset_qr_public_link",
     "asset_field_history", "asset_rete_edit", "asset_rete_prefisso", "asset_image_upload",
-    "asset_assign", "wo_create", "asset_calendar_json",
+    "asset_assign", "asset_calendar_json",
 }
+
+
+def _modulo_del_percorso(percorso: str) -> str:
+    from .registro_permessi import MODULO_INVENTARIO, MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE
+
+    if percorso.startswith(("assets/manutenzione/verifiche", "assets/scadenze/")):
+        return MODULO_VERIFICHE
+    if percorso.startswith("assets/manutenzione/"):
+        return MODULO_MANUTENZIONE
+    if percorso.startswith("assets/workorders/"):
+        return MODULO_ODL
+    return MODULO_INVENTARIO
+
+
+def _protezioni_per_record():
+    """kwarg dell'URL -> (modulo, (modello, filtro)) per i record che seguono il loro asset."""
+    from functools import partial
+
+    from . import models
+    from .registro_permessi import MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE
+    from .services.visibilita import filtra_odl, filtra_per_asset, filtra_piani
+
+    return {
+        "occurrence_id": (MODULO_MANUTENZIONE, (
+            models.MaintenanceOccurrence, partial(filtra_per_asset, modulo=MODULO_MANUTENZIONE))),
+        "plan_id": (MODULO_MANUTENZIONE, (models.MaintenanceInterventionTemplate, filtra_piani)),
+        "workorder_id": (MODULO_ODL, (models.WorkOrder, filtra_odl)),
+        "session_id": (MODULO_VERIFICHE, (models.PeriodicCheckSession, partial(
+            filtra_per_asset, modulo=MODULO_VERIFICHE, campo="check_type__system__asset"))),
+        "type_id": (MODULO_VERIFICHE, (models.PeriodicCheckType, partial(
+            filtra_per_asset, modulo=MODULO_VERIFICHE, campo="system__asset"))),
+        "attachment_id@verifiche": (MODULO_VERIFICHE, (models.PeriodicCheckAttachment, partial(
+            filtra_per_asset, modulo=MODULO_VERIFICHE, campo="session__check_type__system__asset"))),
+        "id@workorders": (MODULO_ODL, (models.WorkOrder, filtra_odl)),
+        "id@scadenze": (MODULO_VERIFICHE, (models.AssetAdministrativeDeadline, partial(
+            filtra_per_asset, modulo=MODULO_VERIFICHE))),
+    }
 
 
 def _proteggi_pagine_asset(patterns):
     from django.urls import URLPattern
 
-    from .services.visibilita import richiede_asset_visibile
+    from .registro_permessi import MODULO_ODL
+    from .services.visibilita import richiede_asset_visibile, richiede_record_visibile
 
+    protezioni = _protezioni_per_record()
     for p in patterns:
         if not isinstance(p, URLPattern):
             continue
-        if "<int:asset_id>" in str(p.pattern):
-            p.callback = richiede_asset_visibile("asset_id")(p.callback)
+        percorso = str(p.pattern)
+        modulo = _modulo_del_percorso(percorso)
+        if "<int:asset_id>" in percorso:
+            p.callback = richiede_asset_visibile("asset_id", modulo)(p.callback)
+        elif p.name == "wo_create" and "<int:id>" in percorso:
+            # Nuovo OdL su un asset: l'id è dell'asset.
+            p.callback = richiede_asset_visibile("id", MODULO_ODL)(p.callback)
         elif p.name in _PAGINE_ASSET_PER_ID:
-            p.callback = richiede_asset_visibile("id")(p.callback)
+            p.callback = richiede_asset_visibile("id", modulo)(p.callback)
+        elif "<int:id>" in percorso and percorso.startswith("assets/workorders/"):
+            p.callback = richiede_record_visibile("id", *protezioni["id@workorders"])(p.callback)
+        elif "<int:id>" in percorso and percorso.startswith("assets/scadenze/"):
+            p.callback = richiede_record_visibile("id", *protezioni["id@scadenze"])(p.callback)
+        if "<int:attachment_id>" in percorso and percorso.startswith("assets/manutenzione/verifiche-impianti/"):
+            p.callback = richiede_record_visibile("attachment_id", *protezioni["attachment_id@verifiche"])(p.callback)
+        for kwarg in ("occurrence_id", "plan_id", "workorder_id", "session_id", "type_id"):
+            if f"<int:{kwarg}>" in percorso:
+                p.callback = richiede_record_visibile(kwarg, *protezioni[kwarg])(p.callback)
 
 
 _proteggi_pagine_asset(urlpatterns)

@@ -19,6 +19,7 @@ from schede_sicurezza.models import ProdottoChimico
 
 from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
 from .upload_rules import clean_image_upload
+from .models import IT_DEVICE_TYPES as _IT_DEVICE_TYPES
 from .models import (
     Asset,
     AssetEndpoint,
@@ -75,6 +76,18 @@ def _attach_input_css(form: forms.Form | forms.ModelForm) -> None:
         widget = field.widget
         css = widget.attrs.get("class", "")
         widget.attrs["class"] = f"{css} input".strip()
+
+
+MESSAGGIO_REPARTO_OBBLIGATORIO = (
+    "Indica il reparto di installazione: per un asset non IT decide chi ne risponde "
+    "(il caporeparto) e chi ne vede manutenzioni, ordini di lavoro e verifiche."
+)
+
+
+def _richiedi_reparto(form, cleaned_data, *, non_it: bool) -> None:
+    """Asset non IT senza reparto di installazione: errore sul campo «Reparto»."""
+    if non_it and not str(cleaned_data.get("reparto") or "").strip():
+        form.add_error("reparto", MESSAGGIO_REPARTO_OBBLIGATORIO)
 
 
 class AssetAssignmentChooserMixin(forms.Form):
@@ -682,6 +695,11 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             self.add_error("asset_category", "Per questa categoria usa il form Macchine di lavoro.")
         elif selected_category and selected_category.base_asset_type == Asset.TYPE_CHEMICAL:
             self.add_error("asset_category", "Per questa categoria usa Schede di sicurezza (o \"+ Nuovo prodotto chimico\").")
+        e_it = (
+            (selected_category is not None and selected_category.pk in self.it_network_category_ids)
+            or (self.instance.pk and self.instance.asset_type in IT_DEVICE_TYPES)
+        )
+        _richiedi_reparto(self, cleaned_data, non_it=not e_it)
         return self._validate_category_fields(cleaned_data)
 
 
@@ -781,17 +799,7 @@ class WorkMachineFilterForm(forms.Form):
 # Tipi che popolano la pagina "Dispositivi IT". TYPE_OTHER e' escluso di
 # proposito: gli asset generici/di impianto (es. bruciatori) non sono IT e non
 # devono comparire qui. Per l'hardware IT generico usare TYPE_HW ("Dispositivo").
-IT_DEVICE_TYPES = [
-    Asset.TYPE_PC,
-    Asset.TYPE_NOTEBOOK,
-    Asset.TYPE_SERVER,
-    Asset.TYPE_VM,
-    Asset.TYPE_FIREWALL,
-    Asset.TYPE_STAMPANTE,
-    Asset.TYPE_HW,
-    Asset.TYPE_FONIA,
-    Asset.TYPE_CCTV,
-]
+IT_DEVICE_TYPES = _IT_DEVICE_TYPES
 
 PRODUCTION_ASSET_TYPES = [
     Asset.TYPE_CNC,
@@ -1904,6 +1912,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         selected_category = cleaned_data.get("asset_category")
         if selected_category and selected_category.base_asset_type != Asset.TYPE_WORK_MACHINE:
             self.add_error("asset_category", "Questa categoria non appartiene alle macchine di lavoro.")
+        _richiedi_reparto(self, cleaned_data, non_it=True)
         for field_name, meta in self.document_field_map.items():
             category = meta[0]
             cleaned_data[field_name] = json.dumps(

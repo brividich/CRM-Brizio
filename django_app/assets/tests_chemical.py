@@ -319,7 +319,7 @@ class AssetFormEsclusioneCategoriaChimicaTests(TestCase):
     def _payload(self, **overrides):
         payload = {
             "asset_tag": "", "name": "Bidone olio", "asset_category": "",
-            "reparto": "", "manufacturer": "", "model": "", "serial_number": "",
+            "reparto": "Magazzino", "manufacturer": "", "model": "", "serial_number": "",
             "status": Asset.STATUS_IN_USE, "sharepoint_folder_url": "", "sharepoint_folder_path": "",
             "assignment_to": "", "assignment_reparto": "", "assignment_location": "", "notes": "",
         }

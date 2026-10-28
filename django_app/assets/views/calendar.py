@@ -307,4 +307,12 @@ def calendario_asset_json(request: HttpRequest) -> JsonResponse:
     events = [row.as_json(today) for row in rows]
     if not requested or "machine_work" in requested:
         events += _machine_work_events(start, last_day, filters)
+    # Ambito della matrice ruoli (modulo Manutenzione): con «Propri / del team»
+    # restano solo gli eventi degli asset visibili.
+    from ..registro_permessi import MODULO_MANUTENZIONE
+    from ..services.visibilita import ids_visibili
+
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        events = [event for event in events if event.get("asset_id") in visibili]
     return JsonResponse({"ok": True, "today": today.isoformat(), "events": events})

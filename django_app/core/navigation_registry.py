@@ -254,6 +254,11 @@ def resolve_navigation_item_permission_code(item: NavigationItem) -> str:
     return _item_required_permission_code(item, target_cache={})
 
 
+def is_external_navigation_item(item: NavigationItem) -> bool:
+    """Link a un sito esterno (https://…): nessuna pagina del portale lo protegge."""
+    return not str(item.route_name or "").strip() and str(item.url_path or "").strip().lower().startswith(("http://", "https://"))
+
+
 def describe_navigation_items_permission(items) -> dict[int, dict]:
     """``item.id`` -> esplicito, pagina, effettivo e stato (per il Navigation Builder)."""
     target_cache: dict = {}
@@ -345,8 +350,9 @@ def _compiled_items_for_role(
                 allowed = all(_code_allowed(code) for code in required_codes)
             elif ruoli_attivi:
                 # Con i ruoli del portale il ruolo legacy non concede nulla:
-                # una voce senza permesso la vedono solo gli amministratori.
-                allowed = False
+                # una voce senza permesso la vedono solo gli amministratori,
+                # tranne i link esterni (nessuna pagina del portale dietro).
+                allowed = is_external_navigation_item(item)
             else:
                 item_access = access_map.get(int(item.id), {})
                 allowed = bool(role_id is not None and item_access.get(int(role_id), False))

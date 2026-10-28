@@ -32,6 +32,8 @@ from .forms_verifiche import (
     PeriodicCheckSystemForm,
     PeriodicCheckTypeForm,
 )
+from .registro_permessi import MODULO_VERIFICHE
+from .services.visibilita import filtra_per_asset
 from .models import (
     PeriodicCheckAttachment,
     PeriodicCheckCategory,
@@ -165,7 +167,8 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
     group_by = "categoria" if request.GET.get("raggruppa") == "categoria" else "impianto"
     categories = list(PeriodicCheckCategory.objects.filter(is_active=True))
     types = list(
-        PeriodicCheckType.objects.select_related("system", "supplier", "category")
+        filtra_per_asset(request, PeriodicCheckType.objects.all(), MODULO_VERIFICHE, "system__asset")
+        .select_related("system", "supplier", "category")
         .filter(is_active=True, system__is_active=True)
         .annotate(
             drafts=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_DRAFT), distinct=True),

@@ -40,12 +40,28 @@ def _con_impostazioni(celle: dict[str, dict[str, str]]) -> dict[str, dict[str, s
     return celle
 
 
+# «Assets» è diviso in quattro moduli (assets/registro_permessi.py): un preset che
+# dice qualcosa sull'inventario lo dice anche su Manutenzione, Ordini di lavoro e
+# Verifiche e scadenze, salvo che li decida da sé. Le Impostazioni restano all'inventario.
+_SOTTOMODULI_ASSETS = ("assets_manutenzione", "assets_odl", "assets_verifiche")
+
+
+def _con_sottomoduli_assets(celle: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    from core.permessi.impostazioni import AZIONE_IMPOSTAZIONI
+
+    if "assets" in celle:
+        for sotto in _SOTTOMODULI_ASSETS:
+            if sotto not in celle:
+                celle[sotto] = {a: amb for a, amb in celle["assets"].items() if a != AZIONE_IMPOSTAZIONI}
+    return celle
+
+
 def _celle(**moduli) -> dict[str, dict[str, str]]:
     """Celle di un preset: la dotazione base, poi le sue (che vincono)."""
     celle = {modulo: dict(azioni) for modulo, azioni in _DOTAZIONE_BASE.items()}
     for modulo, azioni in moduli.items():
         celle[modulo] = {**celle.get(modulo, {}), **azioni}
-    return _con_impostazioni(celle)
+    return _con_sottomoduli_assets(_con_impostazioni(celle))
 
 
 def _tutte(ambito: str = A, *, senza: tuple[str, ...] = ()) -> dict[str, str]:
@@ -66,7 +82,7 @@ def _posizione(**moduli) -> dict[str, dict[str, str]]:
     celle = _celle(**_DOTAZIONE_POSIZIONE)
     for modulo, azioni in moduli.items():
         celle[modulo] = {**celle.get(modulo, {}), **azioni}
-    return _con_impostazioni(celle)
+    return _con_sottomoduli_assets(_con_impostazioni(celle))
 
 
 @dataclass(frozen=True)
