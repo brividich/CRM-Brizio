@@ -149,9 +149,10 @@ GUIDA = {
             "id": "tabelle-viste",
             "titolo": "Tabelle: ordinare, filtrare, allargare, schermo intero",
             "blocchi": [
-                ("p", "Le tabelle del portale funzionano tutte allo stesso modo. Sopra c'è una barra con «Cerca…», "
-                      "«Colonne ▾», «Viste ▾», «Reset», «Schermo intero» e il numero di righe "
-                      "(«45 / 1.340» = righe trovate / righe totali). In Anagrafica la casella di ricerca è quella della pagina."),
+                ("p", "Le tabelle del portale funzionano tutte allo stesso modo. Sopra, a sinistra, il numero di righe "
+                      "(«45 / 1.340 righe» = righe trovate / righe totali); a destra «Colonne ▾», «Viste ▾» e l'icona ⛶ "
+                      "dello schermo intero. Le frecce per ordinare e l'imbuto per filtrare compaiono passando con il mouse "
+                      "sull'intestazione (restano sempre visibili se attivi). In Anagrafica la casella di ricerca è quella della pagina."),
                 ("def", [
                     ("↕ o nome della colonna", "ordina la colonna: primo clic crescente, secondo decrescente, terzo torna "
                      "all'ordine originale. Numeri («1.234,50 €», «35%»), date («26/10/2026», «26 ott 2026») e testi si "
@@ -162,12 +163,13 @@ GUIDA = {
                      "L'imbuto pieno indica un filtro attivo; «Pulisci» lo toglie."),
                     ("Bordo destro dell'intestazione", "trascinalo per allargare o stringere la colonna; doppio clic la adatta al contenuto. "
                      "Da tastiera: Tab fino al bordo, poi frecce ← →. Le larghezze restano salvate per te."),
-                    ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo."),
+                    ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo. "
+                     "In fondo al menu «Ripristina colonne predefinite» torna alle colonne e alle larghezze di partenza "
+                     "(le viste salvate restano)."),
                     ("Viste ▾", "«＋ Salva la vista attuale…» dà un nome a colonne, filtri, ricerca e ordinamento di adesso; "
                      "un clic sul nome la richiama, × la elimina. Fino a 12 viste per tabella, solo tue. "
                      "Quando una vista è attiva il pulsante dice «Vista: nome»."),
-                    ("Reset", "torna alle colonne e alle larghezze di partenza della tabella. Le viste salvate restano."),
-                    ("Schermo intero", "porta la tabella a tutto lo schermo, con la sua barra. Esc o «Esci (Esc)» per tornare alla pagina."),
+                    ("⛶ Schermo intero", "porta la tabella a tutto lo schermo, con la sua barra. Esc o «Esci (Esc)» per tornare alla pagina."),
                 ]),
                 ("p", "Larghezza delle colonne: le tabelle si adattano da sole allo schermo. Le colonne corte (numeri, "
                       "date, importi, codici, pulsanti) si stringono sul loro contenuto, quelle di testo prendono lo spazio "
@@ -175,7 +177,7 @@ GUIDA = {
                       "parole, mai a metà. Se la tabella non entra, la pagina usa tutta la larghezza dello schermo e le "
                       "celle si compattano; solo se ancora non basta la tabella scorre di lato, con la prima colonna ferma. "
                       "Sulle colonne strette ↕ e imbuto compaiono passando con il mouse sull'intestazione. Se allarghi "
-                      "o stringi una colonna a mano, da lì valgono le tue larghezze («Reset» torna all'adattamento automatico)."),
+                      "o stringi una colonna a mano, da lì valgono le tue larghezze («Colonne ▾ → Ripristina colonne predefinite» torna all'adattamento automatico)."),
                 ("p", "Tabelle lunghe: quando la tabella è più alta dello schermo scorre dentro il suo riquadro e "
                       "l'intestazione resta sempre in vista. Oltre 150 righe circa se ne mostrano 100 alla volta: "
                       "in fondo alla tabella il piede dice «Visualizzate 100 di 1.340 righe»; scorrendo fino in fondo "
@@ -282,10 +284,10 @@ GUIDA = {
             "fare": [
                 "Guarda il piede della tabella: «Visualizzate 100 di 1.340 righe» vuol dire che le altre arrivano scorrendo "
                 "fino in fondo o con «Mostra tutte».",
-                "Il numero sulla barra («45 / 1.340») dice quante righe passano ricerca e filtri: un imbuto pieno "
+                "Il numero sulla barra («45 / 1.340 righe») dice quante righe passano ricerca e filtri: un imbuto pieno "
                 "nell'intestazione è un filtro ancora attivo.",
                 "Testo tagliato: la colonna è stata stretta. Doppio clic sul bordo destro dell'intestazione la riadatta al "
-                "contenuto; «Reset» riporta tutte le larghezze di partenza.",
+                "contenuto; «Colonne ▾ → Ripristina colonne predefinite» riporta tutte le larghezze di partenza.",
                 "Oltre 5.000 righe la barra mostra «Limite 5000 righe raggiunto»: restringi con i filtri della pagina.",
             ],
         },

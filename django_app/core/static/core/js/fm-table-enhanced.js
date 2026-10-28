@@ -1074,15 +1074,16 @@
     // Reset
     const resetBtn = document.createElement("button");
     resetBtn.type = "button";
-    resetBtn.className = "fm-tbl-btn fm-tbl-btn-ghost";
-    resetBtn.textContent = "Reset";
+    resetBtn.className = "fm-tbl-reset";
+    resetBtn.textContent = "Ripristina colonne predefinite";
     resetBtn.addEventListener("click", async () => {
       if (!(await hubConfirm("Ripristinare le preferenze di default per questa tabella?"))) return;
       const tableId = table.dataset.tableId;
       await deletePrefs(tableId);
       location.reload();
     });
-    bar.appendChild(resetBtn);
+    // Sta in fondo al menu Colonne: una voce in meno nella barra.
+    colsMenu.appendChild(resetBtn);
 
     // Schermo intero: cablato in initTable, che conosce il contenitore da
     // portare a tutto schermo. Nascosto se il browser non lo supporta.
