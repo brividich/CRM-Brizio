@@ -2579,7 +2579,7 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
 
     def test_navigation_builder_renders_visual_board(self):
         response = self._as_admin_get(
-            reverse("admin_portale:navigation_builder"),
+            reverse("admin_portale:navigation_builder_avanzato"),
             {"section": "all"},
         )
         self.assertEqual(response.status_code, 200)
@@ -2598,7 +2598,7 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
 
     def test_navigation_builder_binds_visual_card_actions_with_async_click_handler(self):
         response = self._as_admin_get(
-            reverse("admin_portale:navigation_builder"),
+            reverse("admin_portale:navigation_builder_avanzato"),
             {"section": "all"},
         )
         self.assertEqual(response.status_code, 200)
@@ -2609,7 +2609,7 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
 
     def test_navigation_builder_advanced_mode_can_be_enabled_via_query_param(self):
         response = self._as_admin_get(
-            reverse("admin_portale:navigation_builder"),
+            reverse("admin_portale:navigation_builder_avanzato"),
             {"section": "all", "advanced": "1"},
         )
         self.assertEqual(response.status_code, 200)
@@ -2619,7 +2619,7 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
 
     def test_navigation_builder_exposes_parent_module_dropdown(self):
         response = self._as_admin_get(
-            reverse("admin_portale:navigation_builder"),
+            reverse("admin_portale:navigation_builder_avanzato"),
             {"section": "all"},
         )
         self.assertEqual(response.status_code, 200)

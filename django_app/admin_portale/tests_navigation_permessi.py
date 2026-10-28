@@ -108,13 +108,21 @@ class MenuSistemaRuoliTests(_Base):
 
     def test_voce_senza_permesso_non_la_apre_il_ruolo_storico(self):
         item = NavigationItem.objects.create(
-            code="senza-perm", label="Esterna", section="topbar", url_path="https://example.com/",
+            code="senza-perm", label="Senza pagina", section="topbar", url_path="/pagina-senza-protezione/",
             order=10, is_visible=True, is_enabled=True,
         )
         NavigationRoleAccess.objects.create(item=item, legacy_role_id=self.role.id, can_view=True)
         self.assertIn("senza-perm", self._codici_menu())
         self._accendi()
         self.assertNotIn("senza-perm", self._codici_menu())
+
+    def test_link_esterno_lo_vedono_tutti(self):
+        NavigationItem.objects.create(
+            code="sito-esterno", label="Sito", section="topbar", url_path="https://example.com/",
+            order=10, is_visible=True, is_enabled=True,
+        )
+        self._accendi()
+        self.assertIn("sito-esterno", self._codici_menu())
 
     def test_sistema_spento_resta_alle_regole_storiche(self):
         item = self._voce(required_permission_code=VECCHIO)
@@ -168,7 +176,7 @@ class AnteprimaBuilderTests(_Base):
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
             "admin_portale.decorators.is_legacy_admin", return_value=True
         ):
-            return self.client.get(reverse("admin_portale:navigation_builder"), params)
+            return self.client.get(reverse("admin_portale:navigation_builder_avanzato"), params)
 
     def test_anteprima_usa_i_ruoli_del_portale(self):
         item = self._voce(required_permission_code=VECCHIO)

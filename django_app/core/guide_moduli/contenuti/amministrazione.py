@@ -33,7 +33,7 @@ GUIDA = {
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
                     ("Ruoli e permessi", "un ruolo solo per persona, quello in azienda: i ruoli del portale sono gli accessi che concede e si vedono come «Ruolo in azienda · accessi» (a mano = eccezione). Il sistema unico: matrice ruolo × modulo × azione; le impostazioni di ogni modulo (configurazione, cataloghi) hanno una sotto-riga loro, «↳ Impostazioni del modulo», separata da «Chiudere / gestire»: chi gestisce un modulo non ne vede le impostazioni se non gliele dai; in cima alla matrice «Chi ha il ruolo … oggi» elenca le persone che lo hanno, a mano (con nota e scadenza) o dall'organigramma (con il ruolo d'organigramma che lo dà). Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Scheda «Per modulo», «Chi può aprirla» sotto ogni pagina: le persone che la aprono oggi, perché e da dove (secondario e ad interim indicati). Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
-                    ("Navigation Builder", "le voci dei menu. Con «Ruoli e permessi» acceso una voce compare a chi può aprire la pagina a cui porta: decide il permesso della pagina. Il permission code scritto sulla voce la restringe solo se protegge davvero qualche pagina (allora servono entrambi); i badge gialli segnalano «Permesso vecchio» (non protegge nessuna pagina, ignorato), «Voce + pagina» e «Senza permesso» (la vedono solo gli amministratori). I «Ruoli abilitati» della voce sono i ruoli storici: con il sistema acceso non contano. In «Override navigazione utente» «eredita ✓» vuol dire che la persona vede la voce, calcolato come per le pagine."),
+                    ("Menu del portale", "le voci dei menu e chi le vede (vecchio nome: Navigation Builder). Ha la sua sezione qui sotto."),
                     ("Branding", "logo, favicon, nome e colori."),
                     ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
@@ -48,6 +48,31 @@ GUIDA = {
                     ("Hub", "moduli accesi/spenti, database (statistiche, backup), Schema DB, guide."),
                     ("Crea Release", "pacchetto di rilascio (per lo sviluppo)."),
                 ]),
+            ],
+        },
+        {
+            "id": "menu-portale",
+            "titolo": "Menu del portale: mettere in ordine le voci e vedere chi le vede",
+            "blocchi": [
+                ("p", "Amministrazione → «Menu del portale». A sinistra le voci del menu divise per area (le sottovoci sotto il loro modulo); "
+                      "a destra la voce scelta. Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, "
+                      "e si cambia in «Ruoli e permessi»."),
+                ("def", [
+                    ("Guarda il menu come", "«Tutti (amministratore)» mostra tutte le voci; il ruolo base (es. «Operatore (tutti)») e «Un altro ruolo…» "
+                                            "mostrano il menu di una persona con quel ruolo; «una persona…» mostra il menu vero di quella persona. "
+                                            "Le voci che non vede diventano tratteggiate con «non la vede», e ogni area dice quante ne vede (es. «2 di 3»)."),
+                    ("La scheda della voce", "dice in una frase chi la vede e perché («Caporeparto non la vede: non può aprire la pagina…»)."),
+                    ("Da sistemare", "le voci con un problema. «È rimasta legata al vecchio menu»: «Sistema da solo» la fa seguire la pagina. "
+                                     "«Nessun ruolo può aprire la pagina»: la vedono solo gli amministratori, si dà l'accesso in «Ruoli e permessi». "
+                                     "«Non è legata a una pagina protetta»: con «Ruoli e permessi» acceso la vedono solo gli amministratori."),
+                    ("Cosa vuoi fare", "cambia il nome (per i moduli il nome si cambia in Branding), spostala in un'altra area o sotto un altro modulo, "
+                                       "cambia l'icona, «Nascondila solo a …» (dopo aver scelto una persona in alto), «Apri la pagina». Poi «Salva»."),
+                    ("Nel menu / Tolta dal menu", "toglie o rimette la voce per tutti, subito."),
+                    ("Riordinare", "trascina una voce sopra un'altra della stessa area (o dello stesso modulo): l'ordine si salva da solo."),
+                    ("Aggiungi una voce", "nome, area e pagina (scegli dall'elenco o scrivi un indirizzo https://…). I link a siti esterni li vedono tutti."),
+                    ("Strumenti avanzati", "la vecchia pagina con i campi tecnici, gli snapshot, i redirect legacy e l'import dal vecchio menu."),
+                ]),
+                ("p", "Il menu delle persone si aggiorna entro 5 minuti."),
             ],
         },
         {
@@ -369,10 +394,10 @@ GUIDA = {
         {
             "sintomo": "Una persona apre la pagina ma non trova la voce nel menu (o la voce porta ad «Accesso negato»)",
             "fare": [
-                "Apri il Navigation Builder e cerca la voce: un badge giallo dice cosa la decide.",
-                "«Permesso vecchio»: dal terminale riallinea_permessi_menu (elenco), poi --apply. La voce torna a seguire la pagina.",
-                "«Voce + pagina»: la persona deve avere entrambi i permessi; se la restrizione non serve, svuota il permission code della voce e salva.",
-                "In «Override navigazione utente» scegli la persona: il tooltip di ogni voce dice perché la vede o no. Il menu si aggiorna entro 5 minuti.",
+                "Apri «Menu del portale» e in «Guarda il menu come» cerca la persona: la scheda della voce dice se la vede e perché.",
+                "Se la voce è in «Da sistemare» con «È rimasta legata al vecchio menu», premi «Sistema da solo».",
+                "Se non può aprire la pagina, dalle l'accesso in «Ruoli e permessi»: la voce compare da sola.",
+                "Per sistemare tutte le voci in un colpo, dal terminale: riallinea_permessi_menu (elenco), poi --apply. Il menu si aggiorna entro 5 minuti.",
             ],
         },
         {

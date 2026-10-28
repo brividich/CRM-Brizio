@@ -36,6 +36,7 @@ from core.navigation_registry import (
     bump_navigation_registry_version,
     describe_navigation_items_permission,
     export_navigation_state,
+    is_external_navigation_item,
     publish_navigation_snapshot,
     restore_navigation_snapshot,
 )
@@ -472,6 +473,8 @@ def _nav_preview_rows(nav_override_user, items, user_grants: dict[int, bool], pe
             esiti = [_decide(code) for code in codes]
             role_allowed = all(ok for ok, _r in esiti)
             reason = next((r for ok, r in esiti if not ok), esiti[0][1])
+        elif ruoli_attivi and is_external_navigation_item(ni):
+            role_allowed, reason = True, "Link esterno: lo vedono tutti."
         elif ruoli_attivi:
             role_allowed, reason = False, "Voce senza permesso: con i ruoli del portale la vedono solo gli amministratori."
         else:
