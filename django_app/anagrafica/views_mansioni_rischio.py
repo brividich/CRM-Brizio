@@ -159,6 +159,10 @@ def dipendente_sicurezza_panel(request, legacy_id: int):
     """Mansioni di rischio effettive, stato operativo e timeline (HTMX lazy-load)."""
     from .services import eventi_sicurezza, mansionario, stato_operativo
     from .views import _can_view_visite_mediche
+    from .views.dipendenti import _nega_scheda
+
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
 
     can_view_visite = _can_view_visite_mediche(request)
     det = mansionario.requisiti_dipendente_dettaglio(legacy_id)

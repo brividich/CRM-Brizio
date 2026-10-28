@@ -59,6 +59,13 @@ def proprietario_asset(asset):
 
 registra_modulo(ModuloPermessi(
     chiave=MODULO_INVENTARIO,
+    # Permesso della pagina principale legato a un prefisso: «ereditava» le rotte di
+    # scrittura/gestione sotto e la matrice lo dava solo a «modificare»/«gestire», cosi'
+    # chi ha «vedere» non apriva il modulo ne' lo trovava nel menu. Le scritture hanno
+    # controlli propri nelle view (verificati il 28/10/2026).
+    capacita_forzate=(
+        ('legacy.assets.assets_list', 'lettura'),
+    ),
     nome="Assets · Inventario",
     descrizione="Elenco e scheda asset, dispositivi IT, macchine, componenti, software, rete, mappa officina.",
     area="Produzione",
