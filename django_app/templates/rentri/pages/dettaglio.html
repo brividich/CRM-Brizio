@@ -1,0 +1,134 @@
+{% extends "core/base.html" %}
+
+{% block title %}RENTRI | {{ registro.get_tipo_display }} {{ registro.id_registrazione }}{% endblock %}
+
+{% block extra_head %}
+{% include "rentri/components/sc_styles.html" %}
+<style>
+  .dt-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 20px; padding:16px; }
+  .dt-k { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
+  .dt-v { color:#0f172a; font-size:.92rem; margin-top:2px; word-break:break-word; }
+  .dt-stato { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.75rem; font-weight:800; }
+  .dt-stato-bozza { background:#dbeafe; color:#1e40af; }
+  .dt-stato-consolidata { background:#dcfce7; color:#166534; }
+  .dt-stato-annullata { background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1; }
+  .dt-banner { padding:12px 16px; font-size:.88rem; }
+  .dt-banner-ann { background:#f8fafc; color:#475569; }
+  .dt-banner-sync { background:#fff7ed; color:#9a3412; }
+  .dt-azioni { display:flex; gap:16px; flex-wrap:wrap; padding:16px; align-items:flex-start; }
+  .dt-azione { flex:1 1 260px; border:1px solid #e2e8f0; border-radius:12px; padding:14px; }
+  .dt-azione h3 { margin:0 0 6px; font-size:.95rem; color:#0f172a; }
+  .dt-azione p { margin:0 0 10px; font-size:.82rem; color:#64748b; }
+  .dt-azione textarea { width:100%; box-sizing:border-box; min-height:70px; border:1px solid #d1d5db; border-radius:8px; padding:8px; font:inherit; margin-bottom:8px; }
+  .sc-btn-danger { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+  .sc-btn-danger:hover { background:#fee2e2; }
+  .dt-annullato .dt-v { text-decoration:line-through; color:#94a3b8; }
+  body.theme-dark .dt-k { color:var(--text-mid); }
+  body.theme-dark .dt-v { color:var(--text); }
+  body.theme-dark .dt-stato-bozza { background:rgba(59,130,246,.18); color:#93c5fd; }
+  body.theme-dark .dt-stato-consolidata { background:rgba(56,161,105,.18); color:#86efac; }
+  body.theme-dark .dt-stato-annullata { background:var(--surface-alt,#17222f); color:var(--text-mid); border-color:var(--border); }
+  body.theme-dark .dt-banner-ann { background:var(--surface-alt,#17222f); color:var(--text-mid); }
+  body.theme-dark .dt-banner-sync { background:rgba(234,88,12,.16); color:#fdba74; }
+  body.theme-dark .dt-azione { border-color:var(--border); }
+  body.theme-dark .dt-azione h3 { color:var(--text); }
+  body.theme-dark .dt-azione p { color:var(--text-mid); }
+  body.theme-dark .dt-azione textarea { background:var(--surface); color:var(--text); border-color:var(--border); }
+  body.theme-dark .sc-btn-danger { background:rgba(229,62,62,.16); color:#fca5a5; border-color:rgba(229,62,62,.4); }
+  body.theme-dark .dt-annullato .dt-v { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="sc-wrap">
+  <div class="sc-head">
+    <div>
+      <h1 class="sc-title">{{ registro.get_tipo_display }} · {{ registro.id_registrazione|default:"—" }}</h1>
+      <p class="sc-sub">
+        {% if registro.annullato %}<span class="dt-stato dt-stato-annullata">ANNULLATA</span>
+        {% elif registro.salva %}<span class="dt-stato dt-stato-consolidata">CONSOLIDATA</span>
+        {% else %}<span class="dt-stato dt-stato-bozza">BOZZA</span>{% endif %}
+        {% if registro.rentri_si_no %} · trasmessa a RENTRI{% endif %}
+        · origine: {{ registro.get_origine_display }}
+      </p>
+    </div>
+    <div class="sc-actions">
+      {% if can_manage and not registro.bloccato %}<a class="sc-btn sc-btn-primary" href="{% url 'rentri_modifica' registro.pk %}">✎ Modifica</a>{% endif %}
+      <a class="sc-btn" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
+    </div>
+  </div>
+
+  <section class="sc-section{% if registro.annullato %} dt-annullato{% endif %}">
+    {% if registro.annullato %}
+    <div class="dt-banner dt-banner-ann">
+      Annullata il {{ registro.annullato_il|date:"d/m/Y H:i" }} da {{ registro.annullato_da|default:"—" }}.
+      Motivo: <strong>{{ registro.motivo_annullamento }}</strong>. Resta a registro ma non conta nelle giacenze.
+    </div>
+    {% endif %}
+    {% if registro.sync_errore %}
+    <div class="dt-banner dt-banner-sync">La copia sulla lista SharePoint non è allineata: {{ registro.sync_errore }}</div>
+    {% endif %}
+    <div class="dt-grid">
+      <div><div class="dt-k">Data</div><div class="dt-v">{{ registro.data|date:"d/m/Y"|default:"—" }}</div></div>
+      <div><div class="dt-k">Codice EER</div><div class="dt-v">{{ registro.codice|default:"—" }}</div></div>
+      <div><div class="dt-k">Quantità</div><div class="dt-v">{{ registro.quantita|default_if_none:"—" }} {{ registro.get_unita_display }}</div></div>
+      {% if registro.rettifica_scarico is not None %}<div><div class="dt-k">Rettifica scarico</div><div class="dt-v">{{ registro.rettifica_scarico }}</div></div>{% endif %}
+      {% if registro.pericolosita %}<div><div class="dt-k">Pericolosità</div><div class="dt-v">{{ registro.pericolosita }}</div></div>{% endif %}
+      {% if registro.arrivo_fir %}<div><div class="dt-k">Arrivo FIR</div><div class="dt-v">{{ registro.arrivo_fir }}</div></div>{% endif %}
+      <div><div class="dt-k">Rif. Op</div><div class="dt-v">{{ registro.rif_op|default:"—" }}</div></div>
+      <div><div class="dt-k">Inserito da</div><div class="dt-v">{{ registro.inserito_da|default:"—" }} · {{ registro.created_at|date:"d/m/Y H:i" }}</div></div>
+      {% if registro.salva %}<div><div class="dt-k">Consolidata</div><div class="dt-v">{{ registro.consolidato_il|date:"d/m/Y H:i"|default:"—" }} {{ registro.consolidato_da }}</div></div>{% endif %}
+      {% if registro.note_rentri %}<div style="grid-column:1/-1;"><div class="dt-k">Note RENTRI</div><div class="dt-v">{{ registro.note_rentri }}</div></div>{% endif %}
+      {% if registro.allegato %}<div><div class="dt-k">Allegato</div><div class="dt-v">presente</div></div>{% endif %}
+    </div>
+  </section>
+
+  {% if genitori or figli %}
+  <section class="sc-section">
+    <div class="sc-sec-head"><div><div class="sc-sec-label">Movimenti collegati</div><div class="sc-sec-desc">Da dove arriva e cosa ne è seguito (catena C → O → M → R).</div></div></div>
+    <table class="sc-table">
+      <thead><tr><th>Legame</th><th>Tipo</th><th>ID Reg.</th><th>Data</th><th>Quantità</th><th></th></tr></thead>
+      <tbody>
+        {% for g in genitori %}
+        <tr><td>Proviene da</td><td>{{ g.get_tipo_display }}{% if g.annullato %} (annullata){% endif %}</td><td class="sc-id">{{ g.id_registrazione }}</td><td>{{ g.data|date:"d/m/Y" }}</td><td>{{ g.quantita|default_if_none:"—" }}</td><td><a class="sc-link" href="{% url 'rentri_dettaglio' g.pk %}">Apri</a></td></tr>
+        {% endfor %}
+        {% for f in figli %}
+        <tr><td>Seguito da</td><td>{{ f.get_tipo_display }}</td><td class="sc-id">{{ f.id_registrazione }}</td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.quantita|default_if_none:"—" }}</td><td><a class="sc-link" href="{% url 'rentri_dettaglio' f.pk %}">Apri</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if can_manage and not registro.annullato %}
+  <section class="sc-section">
+    <div class="sc-sec-head"><div><div class="sc-sec-label">Azioni</div><div class="sc-sec-desc">Una registrazione non si elimina: si consolida quando è definitiva, si annulla se è sbagliata.</div></div></div>
+    <div class="dt-azioni">
+      {% if not registro.salva %}
+      <form class="dt-azione" method="post" action="{% url 'rentri_consolida' registro.pk %}">{% csrf_token %}
+        <h3>Consolida</h3>
+        <p>Rende definitiva la registrazione: da quel momento non si modifica più, si corregge solo con una rettifica (R) o annullandola.</p>
+        <button type="submit" class="sc-btn sc-btn-primary">Consolida</button>
+      </form>
+      {% endif %}
+      <form class="dt-azione" method="post" action="{% url 'rentri_trasmesso' registro.pk %}">{% csrf_token %}
+        <h3>Trasmissione a RENTRI</h3>
+        <p>{% if registro.rentri_si_no %}Risulta trasmessa. Toglila solo se la trasmissione non è andata a buon fine.{% else %}Segnala che il movimento è stato trasmesso al RENTRI.{% endif %}</p>
+        <input type="hidden" name="trasmesso" value="{% if registro.rentri_si_no %}0{% else %}1{% endif %}">
+        <button type="submit" class="sc-btn">{% if registro.rentri_si_no %}Segna da trasmettere{% else %}Segna trasmessa{% endif %}</button>
+      </form>
+      <form class="dt-azione" method="post" action="{% url 'rentri_annulla' registro.pk %}">{% csrf_token %}
+        <h3>Annulla</h3>
+        <p>{% if figli %}Prima vanno annullati i movimenti collegati qui sopra.{% else %}La registrazione resta a registro, barrata, e non conta più nelle giacenze. Il numero non viene riusato.{% endif %}</p>
+        <textarea name="motivo" required minlength="5" placeholder="Motivo dell'annullamento (obbligatorio)"></textarea>
+        <button type="submit" class="sc-btn sc-btn-danger"{% if figli %} disabled{% endif %}>Annulla registrazione</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+
+  {% include "core/components/_storico_modifiche.html" with storico=storico %}
+</div>
+{% endblock %}

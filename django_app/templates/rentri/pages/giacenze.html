@@ -94,7 +94,14 @@ body.theme-dark .gi-empty{color:#86efac}
     <div class="gi-kpi"><div class="gi-kpi-n">{{ totale }}</div><div class="gi-kpi-l">CER mostrati</div></div>
     <div class="gi-kpi warn"><div class="gi-kpi-n">{{ n_allerta }}</div><div class="gi-kpi-l">In allerta</div></div>
     <div class="gi-kpi bad"><div class="gi-kpi-n">{{ n_oltre }}</div><div class="gi-kpi-l">Oltre soglia</div></div>
+    <div class="gi-kpi{% if criterio.oltre %} bad{% endif %}" title="Criterio quantitativo del deposito temporaneo: giacenze aperte in m³ o litri">
+      <div class="gi-kpi-n">{{ criterio.m3_totale }} m³</div>
+      <div class="gi-kpi-l">In volume (limite {{ criterio.m3_max }} m³, pericolosi {{ criterio.m3_pericolosi }} di {{ criterio.m3_pericolosi_max }})</div>
+    </div>
   </div>
+  {% if criterio.non_convertibili %}
+  <p class="gi-note" style="margin-top:0;">{{ criterio.non_convertibili }} codic{{ criterio.non_convertibili|pluralize:"e,i" }} in giacenza registrat{{ criterio.non_convertibili|pluralize:"o,i" }} a peso, senza unità o con unità miste: non entra{{ criterio.non_convertibili|pluralize:",no" }} nel totale in volume.</p>
+  {% endif %}
 
   <form class="gi-filters" method="get" action="">
     <a class="gi-chip {% if q_aperte %}active{% endif %}" href="?{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_pericolosi %}pericolosi=1&amp;{% endif %}{% if q_search %}q={{ q_search|urlencode }}&amp;{% endif %}aperte={% if q_aperte %}0{% else %}1{% endif %}">Solo giacenze aperte</a>
@@ -115,7 +122,7 @@ body.theme-dark .gi-empty{color:#86efac}
           <th>Codice EER</th><th></th>
           <th class="num">Carichi</th><th class="num">Scarichi</th>
           <th class="num">Entrate</th><th class="num">Uscite</th>
-          <th class="num">Giacenza</th>
+          <th class="num">Giacenza</th><th>Unità</th>
           <th>Primo carico</th><th class="num">Giorni dep.</th><th>Stato</th>
         </tr>
       </thead>
@@ -129,6 +136,7 @@ body.theme-dark .gi-empty{color:#86efac}
           <td class="num">{{ g.entrate }}</td>
           <td class="num">{{ g.uscite }}</td>
           <td class="num gi-giac">{{ g.giacenza }}</td>
+          <td>{% if g.unita == "misto" %}<span class="gi-peric" title="Unità diverse sullo stesso codice">MISTE</span>{% elif g.unita == "m3" %}m³{% elif g.unita == "l" %}litri{% else %}{{ g.unita|default:"—" }}{% endif %}</td>
           <td style="white-space:nowrap;">{{ g.primo_carico|date:"d/m/Y"|default:"—" }}</td>
           <td class="num">
             {% if g.giorni_giacenza is not None %}
@@ -152,8 +160,8 @@ body.theme-dark .gi-empty{color:#86efac}
 
   <p class="gi-note">
     Giacenza = somma carichi (C) − scarichi effettivi (M) − rettifiche (R) per ogni codice EER;
-    lo scarico originale (O) non muove la giacenza. I «giorni in deposito» misurano l'età del carico
-    più vecchio finché la giacenza resta aperta. Soglie deposito temporaneo indicative
+    lo scarico originale (O) e i movimenti annullati non la muovono. I «giorni in deposito» misurano l'età
+    del carico più vecchio non ancora scaricato: gli scarichi consumano prima i carichi più vecchi. Soglie deposito temporaneo indicative
     ({{ soglie.giorni_warn }}gg avviso · {{ soglie.giorni_max }}gg limite): verificare con il responsabile ambientale.
   </p>
 </div>

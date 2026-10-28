@@ -55,7 +55,7 @@ class WizardStepByStepTests(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
         pdf = SimpleUploadedFile("scheda.pdf", b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n", content_type="application/pdf")
         r = self.client.post("/rentri/carico/", {
-            "tipo": "C", "data": "2026-01-01", "codice": "ZZ", "quantita": "3",
+            "tipo": "C", "data": "2026-01-01", "codice": "15 01 01", "quantita": "3", "unita": "kg",
             "rentri_si_no": "false", "allegato": pdf,
         })
         assert r.status_code == 200, r.content

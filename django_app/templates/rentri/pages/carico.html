@@ -180,6 +180,7 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
           <input type="number" id="f-quantita" class="cp-input" step="0.001"
             placeholder="0.000"
             value="{% if edit_mode %}{{ registro.quantita }}{% endif %}">
+          {% include "rentri/components/unita_select.html" %}
         </div>
       </div>
 
@@ -274,6 +275,7 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
     fd.append('data', document.getElementById('f-data').value);
     fd.append('codice', document.getElementById('f-codice').value);
     fd.append('quantita', document.getElementById('f-quantita').value);
+    fd.append('unita', document.getElementById('f-unita').value);
     fd.append('pericolosita', document.getElementById('f-pericolosita').value);
     fd.append('rentri_si_no', document.getElementById('f-rentri-si-no').checked ? 'true' : 'false');
     fd.append('note_rentri', document.getElementById('f-note-rentri').value);
@@ -295,6 +297,7 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
       .then(function (res) {
         btn.disabled = false;
         if (!res.ok) { showAlert('Errore: ' + res.error, true); return; }
+        if (res.avviso_sync) { showAlert('Registrazione salvata. ' + res.avviso_sync, false); }
         savedPk = res.id;
         isEdit = true;
         modal.classList.add('active');
@@ -312,7 +315,10 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
           document.getElementById('err-codice').textContent = '';
           if (!document.getElementById('f-codice').value.trim()) { document.getElementById('err-codice').textContent = 'Campo obbligatorio.'; return 'Il campo Codice CER è obbligatorio.'; }
         } },
-      { id: 'step-quantita', label: 'Quantità' },
+      { id: 'step-quantita', label: 'Quantità', validate: function () {
+          document.getElementById('err-unita').textContent = '';
+          if (!document.getElementById('f-unita').value) { document.getElementById('err-unita').textContent = 'Scegli l\'unità.'; return 'Scegli l\'unità di misura.'; }
+        } },
       { id: 'step-allegato', label: 'Allegato' },
       { id: 'step-extra', label: 'Altri dati' },
     ],

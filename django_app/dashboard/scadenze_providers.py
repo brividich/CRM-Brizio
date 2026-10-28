@@ -213,9 +213,10 @@ def collect_rentri(ctx: ScadenzeContext) -> list[ScadenzaItem]:
 
         gmax = soglie_deposito()["giorni_max"]
         for g in giacenze_per_cer():
-            if not g.aperta or not g.primo_carico:
+            # Stessa età della pagina Giacenze: il carico più vecchio non ancora scaricato (FIFO).
+            if not g.aperta or not g.carico_aperto:
                 continue
-            scad = g.primo_carico + timedelta(days=gmax)
+            scad = g.carico_aperto + timedelta(days=gmax)
             if scad > ctx.orizzonte:
                 continue
             items.append(

@@ -1,0 +1,10 @@
+{# Unità di misura della quantità: obbligatoria sui movimenti nuovi (vedi rentri/validazione.py). #}
+<div class="cp-field" style="margin-top:12px;">
+  <label class="cp-label" for="f-unita">Unità di misura <span class="req">*</span></label>
+  <select id="f-unita" class="cp-select">
+    <option value="">— scegli —</option>
+    {% for val, label in unita_choices %}<option value="{{ val }}"{% if edit_mode and registro.unita == val %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <div class="cp-error-msg" id="err-unita"></div>
+  <div class="rn-wizard-hint">Usa sempre la stessa unità per lo stesso codice CER: le giacenze sommano solo quantità omogenee. Con m³ o litri il portale controlla anche il limite in volume del deposito.</div>
+</div>

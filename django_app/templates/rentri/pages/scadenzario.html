@@ -3,65 +3,7 @@
 {% block title %}RENTRI | Scadenzario adempimenti{% endblock %}
 
 {% block extra_head %}
-<style>
-  .sc-wrap { max-width: 1100px; margin: 0 auto; padding: 8px 0 32px; }
-  .sc-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
-  .sc-title { font-size:1.5rem; font-weight:800; color:#1e3a5f; margin:0; }
-  .sc-sub { color:#64748b; font-size:.9rem; margin:4px 0 0; }
-  .sc-actions { display:flex; gap:8px; flex-wrap:wrap; }
-  .sc-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:.85rem; font-weight:700; text-decoration:none; border:1px solid #e2e8f0; background:#f1f5f9; color:#334155; cursor:pointer; }
-  .sc-btn:hover { background:#e2e8f0; }
-  .sc-btn-primary { background:#1e3a5f; color:#fff; border-color:#1e3a5f; }
-  .sc-btn-primary:hover { background:#163257; }
-  .sc-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:18px; overflow:hidden; }
-  .sc-sec-head { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid #eef2f7; }
-  .sc-dot { width:10px; height:10px; border-radius:50%; }
-  .sc-dot-danger { background:#dc2626; } .sc-dot-warning { background:#f59e0b; } .sc-dot-info { background:#2563eb; }
-  .sc-sec-label { font-weight:800; color:#0f172a; }
-  .sc-sec-desc { color:#64748b; font-size:.8rem; }
-  .sc-count { margin-left:auto; font-weight:800; border-radius:999px; padding:2px 11px; font-size:.8rem; }
-  .sc-count-danger { background:#fee2e2; color:#b91c1c; } .sc-count-warning { background:#ffedd5; color:#9a3412; } .sc-count-info { background:#dbeafe; color:#1e40af; }
-  table.sc-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-  .sc-table th { text-align:left; padding:8px 12px; background:#f8fafc; color:#64748b; font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid #eef2f7; white-space:nowrap; }
-  .sc-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#182232; }
-  .sc-table tr:hover td { background:#f8fafc; }
-  .sc-id { font-family: ui-monospace, monospace; font-size:.78rem; color:#475569; }
-  .sc-age { font-weight:700; }
-  .sc-age.warn { color:#b45309; } .sc-age.bad { color:#b91c1c; }
-  .sc-link { color:#1d4ed8; text-decoration:none; font-weight:700; }
-  .sc-link:hover { text-decoration:underline; }
-  .sc-empty { padding:16px; color:#94a3b8; font-size:.88rem; }
-  .sc-emptyall { text-align:center; padding:40px 16px; color:#16a34a; font-weight:700; }
-  /* Dark mode (additivo) */
-  body.theme-dark .sc-title { color: var(--text); }
-  body.theme-dark .sc-sub { color: var(--text-mid); }
-  body.theme-dark .sc-btn { border-color: var(--border); background: var(--surface-alt, #17222f); color: var(--text); }
-  body.theme-dark .sc-btn:hover { background: var(--border); }
-  body.theme-dark .sc-section { background: var(--surface); border-color: var(--border); }
-  body.theme-dark .sc-sec-head { border-bottom-color: var(--border); }
-  body.theme-dark .sc-sec-label { color: var(--text); }
-  body.theme-dark .sc-sec-desc { color: var(--text-mid); }
-  body.theme-dark .sc-table th { background: var(--surface-alt, #17222f); color: var(--text-mid); border-bottom-color: var(--border); }
-  body.theme-dark .sc-table td { border-bottom-color: var(--surface-alt, #17222f); color: var(--text); }
-  body.theme-dark .sc-table tr:hover td { background: var(--surface-alt, #17222f); }
-  body.theme-dark .sc-id { color: var(--text-mid); }
-  @media print {
-    .subnav, .sc-actions { display:none !important; }
-    .sc-section { border-color:#cbd5e1; break-inside:avoid; }
-  }
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .sc-sec-head{border-color:var(--border)}
-body.theme-dark .sc-count-danger{background:rgba(229,62,62,.16);color:#fca5a5}
-body.theme-dark .sc-count-warning{background:rgba(214,158,46,.16);color:#fdba74}
-body.theme-dark .sc-count-info{background:rgba(59,130,246,.18);color:#93c5fd}
-body.theme-dark .sc-table th{border-color:var(--border)}
-body.theme-dark .sc-table td{border-color:var(--border)}
-body.theme-dark .sc-age.warn{color:#fcd34d}
-body.theme-dark .sc-age.bad{color:#fca5a5}
-body.theme-dark .sc-link{color:#93c5fd}
-body.theme-dark .sc-emptyall{color:#86efac}
-</style>
+{% include "rentri/components/sc_styles.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
@@ -112,7 +54,21 @@ body.theme-dark .sc-emptyall{color:#86efac}
           <td>{{ r.quantita|default:"—" }}</td>
           <td class="sc-age {% if r.giorni >= 30 %}bad{% elif r.giorni >= 10 %}warn{% endif %}">{% if r.giorni is not None %}{{ r.giorni }}g{% else %}—{% endif %}</td>
           <td>{{ r.note|default:""|truncatechars:50 }}</td>
-          {% if can_manage %}<td><a class="sc-link" href="{% url 'rentri_modifica' r.pk %}">Apri</a></td>{% endif %}
+          {% if can_manage %}<td style="white-space:nowrap;">
+            <a class="sc-link" href="{% url 'rentri_dettaglio' r.pk %}">Apri</a>
+            {% if s.key == "bozze" %}
+            <form method="post" action="{% url 'rentri_consolida' r.pk %}" style="display:inline;">{% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'rentri_scadenzario' %}">
+              <button type="submit" class="sc-link" style="border:0;background:none;cursor:pointer;">Consolida</button>
+            </form>
+            {% elif s.key == "comunicare" %}
+            <form method="post" action="{% url 'rentri_trasmesso' r.pk %}" style="display:inline;">{% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'rentri_scadenzario' %}">
+              <input type="hidden" name="trasmesso" value="1">
+              <button type="submit" class="sc-link" style="border:0;background:none;cursor:pointer;">Segna trasmessa</button>
+            </form>
+            {% endif %}
+          </td>{% endif %}
         </tr>
         {% endfor %}
       </tbody>

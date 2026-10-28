@@ -4,7 +4,25 @@ from django.utils import timezone
 from core.private_attachments import PrivateAttachmentStorage
 
 
+class RegistroRifiutiQuerySet(models.QuerySet):
+    def attivi(self):
+        """Movimenti validi: gli annullati restano a registro ma non contano."""
+        return self.filter(annullato=False)
+
+
 class RegistroRifiuti(models.Model):
+    UNITA_CHOICES = [
+        ("kg", "kg"),
+        ("t", "t"),
+        ("l", "litri"),
+        ("m3", "m³"),
+    ]
+    ORIGINE_CHOICES = [
+        ("portale", "Portale"),
+        ("import", "Import CSV"),
+        ("sharepoint", "SharePoint"),
+        ("storico", "Storico"),
+    ]
     TIPO_CHOICES = [
         ("C", "C - Carico"),
         ("O", "O - Scarico originale"),
@@ -38,8 +56,25 @@ class RegistroRifiuti(models.Model):
     )
     sharepoint_item_id = models.CharField(max_length=64, blank=True, default="")
     inserito_da = models.CharField(max_length=200, blank=True, default="")
+    # Unità della quantità: vuota sui movimenti storici (non dichiarata).
+    unita = models.CharField(max_length=3, choices=UNITA_CHOICES, blank=True, default="")
+    # Da dove arriva il movimento: i termini di annotazione si controllano solo
+    # su quelli scritti dal portale (gli altri hanno created_at = data di import).
+    origine = models.CharField(max_length=12, choices=ORIGINE_CHOICES, default="portale")
+    # Consolidamento: dopo, i dati non si modificano più (si corregge con R o annullando).
+    consolidato_il = models.DateTimeField(null=True, blank=True)
+    consolidato_da = models.CharField(max_length=200, blank=True, default="")
+    # Annullamento: il movimento resta a registro, barrato, e non conta più.
+    annullato = models.BooleanField(default=False, db_index=True)
+    annullato_il = models.DateTimeField(null=True, blank=True)
+    annullato_da = models.CharField(max_length=200, blank=True, default="")
+    motivo_annullamento = models.TextField(blank=True, default="")
+    # Ultimo errore di invio a SharePoint (vuoto = allineato o non configurato).
+    sync_errore = models.CharField(max_length=500, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = RegistroRifiutiQuerySet.as_manager()
 
     class Meta:
         ordering = ["-data", "-id"]
@@ -56,6 +91,11 @@ class RegistroRifiuti(models.Model):
             anno = self.data.year if self.data else timezone.now().year
             self.id_registrazione = alloca_id_registrazione(anno)
         super().save(*args, **kwargs)
+
+    @property
+    def bloccato(self) -> bool:
+        """Consolidato o annullato: i dati non si toccano più."""
+        return bool(self.salva or self.annullato)
 
 
 class RentriRegistroCounter(models.Model):

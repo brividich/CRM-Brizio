@@ -8,6 +8,10 @@ Uso:
   python manage.py check_rentri_scadenze
   python manage.py check_rentri_scadenze --giorni 14
   python manage.py check_rentri_scadenze --email admin@example.com --dry-run
+
+Destinatari: --email se indicato, altrimenti i referenti delle Impostazioni
+RENTRI, altrimenti DEFAULT_FROM_EMAIL. La mail riporta anche i conteggi della
+verifica di coerenza (``rentri.verifica``).
 """
 from __future__ import annotations
 
@@ -55,7 +59,7 @@ class Command(BaseCommand):
             "--email",
             dest="email",
             default=None,
-            help="Indirizzo email destinatario. Se omesso usa DEFAULT_FROM_EMAIL da settings.",
+            help="Indirizzo email destinatario. Se omesso: referenti delle Impostazioni RENTRI, poi DEFAULT_FROM_EMAIL.",
         )
         parser.add_argument(
             "--dry-run",
@@ -66,13 +70,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         giorni: int = options["giorni"]
         dry_run: bool = options["dry_run"]
-        email_to: str = options["email"] or getattr(settings, "DEFAULT_FROM_EMAIL", "")
+        destinatari = _destinatari(options["email"])
 
         soglia = timezone.now() - timedelta(days=giorni)
 
         # 1. Non salvate/confermate (salva=False) oltre la soglia
         non_salvate = list(
-            RegistroRifiuti.objects.filter(
+            RegistroRifiuti.objects.attivi().filter(
                 salva=False,
                 created_at__lt=soglia,
             ).order_by("-created_at")
@@ -80,14 +84,17 @@ class Command(BaseCommand):
 
         # 2. Non inviate a RENTRI (rentri_si_no=False) ma confermate (salva=True) oltre la soglia
         non_inviate = list(
-            RegistroRifiuti.objects.filter(
+            RegistroRifiuti.objects.attivi().filter(
                 salva=True,
                 rentri_si_no=False,
                 created_at__lt=soglia,
             ).order_by("-created_at")
         )
 
-        totale = len(non_salvate) + len(non_inviate)
+        from rentri.verifica import verifica_registro
+
+        anomalie = [(s["label"], len(s["righe"])) for s in verifica_registro() if s["righe"]]
+        totale = len(non_salvate) + len(non_inviate) + sum(n for _, n in anomalie)
 
         if totale == 0:
             self.stdout.write(
@@ -117,17 +124,20 @@ class Command(BaseCommand):
             self.stdout.write("[dry-run] Email NON inviata.")
             return
 
-        if not email_to:
+        for label, n in anomalie:
+            self.stdout.write(f"  Verifica · {label}: {n}")
+
+        if not destinatari:
             self.stderr.write(
                 "Nessun destinatario email configurato. "
-                "Usa --email o imposta DEFAULT_FROM_EMAIL in settings."
+                "Usa --email, indica i referenti nelle Impostazioni RENTRI o imposta DEFAULT_FROM_EMAIL."
             )
             return
 
         # Costruisci email HTML
         subject = f"[RENTRI] {totale} registrazioni in scadenza — soglia {giorni} giorni"
-        body_text = _build_body_text(non_salvate, non_inviate, giorni)
-        body_html = _build_body_html(non_salvate, non_inviate, giorni)
+        body_text = _build_body_text(non_salvate, non_inviate, giorni, anomalie)
+        body_html = _build_body_html(non_salvate, non_inviate, giorni, anomalie)
 
         try:
             from core.email_utils import render_hub_email_html
@@ -140,14 +150,14 @@ class Command(BaseCommand):
             msg = EmailMultiAlternatives(
                 subject=subject,
                 body=body_text,
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", email_to),
-                to=[email_to],
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", destinatari[0]),
+                to=destinatari,
             )
             msg.attach_alternative(wrapped_html, "text/html")
             sent = msg.send(fail_silently=False)
             if sent:
                 self.stdout.write(
-                    self.style.SUCCESS(f"Email inviata a {email_to} — {totale} record segnalati.")
+                    self.style.SUCCESS(f"Email inviata a {', '.join(destinatari)} — {totale} segnalazioni.")
                 )
             else:
                 self.stderr.write("Email non inviata (send() ha restituito 0).")
@@ -156,9 +166,27 @@ class Command(BaseCommand):
             self.stderr.write(f"Errore invio email: {exc}")
 
 
+def _destinatari(email_opzione: str | None) -> list[str]:
+    if email_opzione:
+        return [email_opzione]
+    from rentri.models import RentriImpostazioni
+
+    cfg = RentriImpostazioni.get_singleton()
+    email = [
+        str(p.get("email") or "").strip()
+        for p in (cfg.responsabili or []) if isinstance(p, dict)
+    ]
+    email.append((cfg.responsabile_email or "").strip())
+    email = list(dict.fromkeys(e for e in email if e))
+    if email:
+        return email
+    fallback = getattr(settings, "DEFAULT_FROM_EMAIL", "")
+    return [fallback] if fallback else []
+
+
 # ── Builders testo/HTML ────────────────────────────────────────────────────────
 
-def _build_body_text(non_salvate: list, non_inviate: list, giorni: int) -> str:
+def _build_body_text(non_salvate: list, non_inviate: list, giorni: int, anomalie: list | None = None) -> str:
     lines = [
         f"Alert RENTRI — registrazioni in scadenza (soglia: {giorni} giorni)",
         "",
@@ -178,10 +206,15 @@ def _build_body_text(non_salvate: list, non_inviate: list, giorni: int) -> str:
                 f"  [{r.tipo}] {r.id_registrazione or '—'} | {r.data} | "
                 f"Codice: {r.codice or '—'} | Inserito: {r.created_at.strftime('%Y-%m-%d')}"
             )
+    if anomalie:
+        lines.append("")
+        lines.append("VERIFICA DI COERENZA (dettaglio in RENTRI > Verifica):")
+        for label, n in anomalie:
+            lines.append(f"  {label}: {n}")
     return "\n".join(lines)
 
 
-def _build_body_html(non_salvate: list, non_inviate: list, giorni: int) -> str:
+def _build_body_html(non_salvate: list, non_inviate: list, giorni: int, anomalie: list | None = None) -> str:
     def _rows(records: list, badge_color: str = "#e2e8f0", text_color: str = "#0f172a") -> str:
         rows = []
         for r in records:
@@ -243,9 +276,29 @@ def _build_body_html(non_salvate: list, non_inviate: list, giorni: int) -> str:
     <div style="padding:24px 28px;">
       {_section("Non salvate / non confermate", "#dc2626", non_salvate)}
       {_section("Non inviate a RENTRI", "#d97706", non_inviate)}
+      {_anomalie_html(anomalie or [])}
       <p style="font-size:11px;color:#94a3b8;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px;">
         Generato automaticamente da Portale Novicrom — check_rentri_scadenze
       </p>
     </div>
   </div>
 </body></html>"""
+
+
+def _anomalie_html(anomalie: list) -> str:
+    if not anomalie:
+        return ""
+    from html import escape
+
+    righe = "".join(
+        f'<tr><td style="padding:6px 10px;font-size:13px;">{escape(label)}</td>'
+        f'<td style="padding:6px 10px;font-size:13px;font-weight:700;text-align:right;">{n}</td></tr>'
+        for label, n in anomalie
+    )
+    return (
+        '<h3 style="font-size:14px;font-weight:700;color:#0f172a;margin:24px 0 8px;">'
+        "Verifica di coerenza del registro</h3>"
+        '<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;">'
+        f"{righe}</table>"
+        '<p style="font-size:12px;color:#64748b;">Dettaglio in RENTRI → Verifica.</p>'
+    )

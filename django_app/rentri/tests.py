@@ -45,7 +45,7 @@ class RentriWriteAuthorizationTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.post(
             reverse("rentri_carico"),
-            data='{"data": "2026-05-01"}',
+            data='{"data": "2026-05-01", "codice": "15 01 06", "quantita": "10", "unita": "kg"}',
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -68,12 +68,21 @@ class RentriWriteAuthorizationTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(RegistroRifiuti.objects.filter(pk=registro.pk).exists())
 
-    def test_admin_can_delete(self):
+    def test_admin_elimina_diventa_annullamento(self):
+        """Il registro non perde righe: «elimina» annulla, con motivo obbligatorio."""
         registro = RegistroRifiuti.objects.create(tipo="C", data=date(2026, 5, 1))
         self.client.force_login(self.admin)
         response = self.client.post(reverse("rentri_elimina", args=[registro.pk]))
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(
+            reverse("rentri_elimina", args=[registro.pk]),
+            data='{"motivo": "registrato due volte"}',
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(RegistroRifiuti.objects.filter(pk=registro.pk).exists())
+        registro.refresh_from_db()
+        self.assertTrue(registro.annullato)
+        self.assertEqual(registro.motivo_annullamento, "registrato due volte")
 
     def test_delete_rejects_get(self):
         registro = RegistroRifiuti.objects.create(tipo="C", data=date(2026, 5, 1))

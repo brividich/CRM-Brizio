@@ -114,6 +114,10 @@
 .cp-act-edit { background:#eff6ff; color:#1d4ed8; }
 .cp-act-edit:hover { background:#dbeafe; }
 .cp-act-del  { background:#fef2f2; color:#dc2626; }
+.cp-act-view { background:#f1f5f9; color:#334155; text-decoration:none; }
+.cp-act-view:hover { background:#e2e8f0; }
+.rn-state-annullato { background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1; }
+.rn-state-sync { background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; }
 .cp-act-del:hover { background:#fee2e2; }
 
 /* ── Buttons ── */
@@ -184,6 +188,9 @@ body.theme-dark .rn-bool-yes{color:#86efac}
 body.theme-dark .cp-act-edit{background:rgba(59,130,246,.18);color:#93c5fd}
 body.theme-dark .cp-act-edit:hover{background:rgba(59,130,246,.18)}
 body.theme-dark .cp-act-del{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .cp-act-view{background:var(--surface-alt,#17222f);color:var(--text)}
+body.theme-dark .rn-state-annullato{background:var(--surface-alt,#17222f);color:var(--text-mid);border-color:var(--border)}
+body.theme-dark .rn-state-sync{background:rgba(234,88,12,.16);color:#fdba74;border-color:rgba(234,88,12,.4)}
 body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
 </style>
 {% endblock %}
@@ -243,8 +250,12 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
           <option value="inserito_da" {% if q_group == 'inserito_da' %}selected{% endif %}>Inserito da</option>
         </select>
       </div>
+      <label class="cp-field" style="flex-direction:row;align-items:center;gap:6px;align-self:flex-end;padding-bottom:9px;">
+        <input type="checkbox" name="annullati" value="1" {% if q_annullati %}checked{% endif %}>
+        <span class="cp-label" style="margin:0;">Mostra annullati{% if n_annullati %} ({{ n_annullati }}){% endif %}</span>
+      </label>
       <button type="submit" class="cp-btn cp-btn-primary" style="align-self:flex-end;">Filtra</button>
-      {% if q_tipo or q_search or q_anno or q_group or q_stato %}
+      {% if q_tipo or q_search or q_anno or q_group or q_stato or q_annullati %}
         <a href="{% url 'rentri_elenco' %}" class="cp-btn cp-btn-ghost" style="align-self:flex-end;">&#10005; Reset</a>
       {% endif %}
     </form>
@@ -381,8 +392,10 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
               <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
               <td>
                 <div class="cp-row-actions">
-                  <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
-                  <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+                  {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
+                  {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
+                  {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
+                  <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
                 </div>
               </td>
             </tr>
@@ -403,8 +416,10 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
               <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
               <td>
                 <div class="cp-row-actions">
-                  <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
-                  <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+                  {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
+                  {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
+                  {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
+                  <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
                 </div>
               </td>
             </tr>
@@ -440,8 +455,10 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
             <td>
               <div class="cp-row-actions">
-                <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
-                <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+                {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
+                {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
+                {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
+                <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
               </div>
             </td>
           </tr>
@@ -464,8 +481,10 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
             <td>
               <div class="cp-row-actions">
-                <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
-                <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+                {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
+                {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
+                {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
+                <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
               </div>
             </td>
           </tr>
@@ -528,29 +547,5 @@ function espandiTutte(aperta) {
   document.querySelectorAll('tr.rn-fam-head').forEach(function(head) { _applicaStato(head, aperta); });
 }
 
-async function eliminaRecord(pk, btn) {
-  if (!(await hubConfirm('Eliminare questa registrazione? L\'azione non è reversibile.'))) return;
-  btn.disabled = true;
-  function getCsrf() {
-    var el = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
-    return el ? el.trim().split('=')[1] : '';
-  }
-  fetch('/rentri/' + pk + '/elimina/', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
-    body: '{}'
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(res) {
-    if (res.ok) {
-      var row = btn.closest('tr');
-      if (row) row.remove();
-    } else {
-      alert('Errore nell\'eliminazione.');
-      btn.disabled = false;
-    }
-  })
-  .catch(function() { alert('Errore di rete.'); btn.disabled = false; });
-}
 </script>
 {% endblock %}

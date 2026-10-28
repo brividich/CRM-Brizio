@@ -158,6 +158,7 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
           <label class="cp-label">Quantità</label>
           <input type="number" id="f-quantita" class="cp-input" step="0.001" placeholder="0.000"
             value="{% if edit_mode %}{{ registro.quantita }}{% endif %}">
+          {% include "rentri/components/unita_select.html" %}
         </div>
       </div>
 
@@ -175,6 +176,8 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
             <input type="text" id="f-arrivo-fir" class="cp-input" placeholder="Numero FIR arrivo"
               value="{% if edit_mode %}{{ registro.arrivo_fir }}{% endif %}">
           </div>
+
+          {% include "rentri/components/allegato_fir.html" %}
 
           <div class="cp-field cp-full">
             <label class="cp-label">Invio RENTRI</label>
@@ -261,6 +264,9 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
     fd.append('rif_op', Array.from(selectedRifOp).join(','));
     fd.append('codice', document.getElementById('f-codice').value);
     fd.append('quantita', document.getElementById('f-quantita').value);
+    fd.append('unita', document.getElementById('f-unita').value);
+    var file = document.getElementById('f-allegato').files[0];
+    if (file && !(overrides && overrides.rentri_si_no)) fd.append('allegato', file);
     fd.append('rettifica_scarico', document.getElementById('f-rettifica').value);
     fd.append('arrivo_fir', document.getElementById('f-arrivo-fir').value);
     fd.append('rentri_si_no', document.getElementById('f-rentri-si-no').checked ? 'true' : 'false');
@@ -279,6 +285,7 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
       .then(function (res) {
         btn.disabled = false;
         if (!res.ok) { showAlert('Errore: ' + res.error, true); return; }
+        if (res.avviso_sync) { showAlert('Registrazione salvata. ' + res.avviso_sync, false); }
         savedPk = res.id; isEdit = true;
         modal.classList.add('active');
       })
@@ -299,7 +306,10 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
           document.getElementById('err-rifop').textContent = '';
           if (selectedRifOp.size === 0) { document.getElementById('err-rifop').textContent = 'Seleziona almeno uno scarico originale.'; return 'Seleziona almeno uno scarico originale collegato.'; }
         } },
-      { id: 'step-quantita', label: 'Quantità' },
+      { id: 'step-quantita', label: 'Quantità', validate: function () {
+          document.getElementById('err-unita').textContent = '';
+          if (!document.getElementById('f-unita').value) { document.getElementById('err-unita').textContent = 'Scegli l\'unità.'; return 'Scegli l\'unità di misura.'; }
+        } },
       { id: 'step-extra', label: 'Altri dati' },
     ],
     dotsEl: document.getElementById('rn-dots'),
@@ -311,7 +321,7 @@ body.theme-dark .cp-alert-error{background:rgba(229,62,62,.16);color:#fca5a5}
   });
 
   document.getElementById('btn-reset').addEventListener('click', function() {
-    ['f-data','f-codice','f-quantita','f-rettifica','f-arrivo-fir','f-note-rentri'].forEach(function(id) {
+    ['f-data','f-codice','f-quantita','f-unita','f-allegato','f-rettifica','f-arrivo-fir','f-note-rentri'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
