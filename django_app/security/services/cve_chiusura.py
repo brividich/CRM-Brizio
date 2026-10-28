@@ -418,10 +418,10 @@ def metriche(giorni=90):
     from security.services.cve_impact import IMPACT_EVENT_TYPE
 
     dal = timezone.now() - timedelta(days=giorni)
-    corrette = list(
-        SecurityCveRisoluzione.objects.filter(risolta_il__gte=dal, come__in=SecurityCveRisoluzione.CORREZIONI, aperta_dal__isnull=False)
-        .select_related("cve")
-    )
+    from security.services.cve_gestione import correzioni_valide
+
+    # Stessa regola della pagina Correzioni CVE: ultima uscita per CVE + PC, PC non di nuovo esposto.
+    corrette = [r for r in correzioni_valide(dal) if r.aperta_dal is not None]
 
     def giorni_medi(righe):
         return round(mean((r.risolta_il - r.aperta_dal).total_seconds() / 86400 for r in righe), 1) if righe else None

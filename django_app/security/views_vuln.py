@@ -11,7 +11,7 @@ from pathlib import Path
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import Http404, HttpResponse
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -127,22 +127,19 @@ def cve_correzioni(request):
 
 
 def _correzioni_csv(request, dati):
-    import csv
-
+    """Tutte le righe del filtro (non solo quelle mostrate), con le celle protette dalle formule."""
     from core.audit import log_action
+    from core.csv_export import csv_download_response
 
-    risposta = HttpResponse(content_type="text/csv; charset=utf-8")
-    risposta["Content-Disposition"] = f'attachment; filename="correzioni-cve-{timezone.localdate():%Y%m%d}.csv"'
-    risposta.write("﻿")
-    w = csv.writer(risposta, delimiter=";")
+    risposta, w = csv_download_response(f"correzioni-cve-{timezone.localdate():%Y%m%d}.csv", delimiter=";")
     w.writerow(["Risolta il", "CVE", "Classe", "CVSS", "KEV", "PC", "Programma", "Versione prima", "Versione dopo",
-                "Come", "Esposta dal", "Giorni", "Nel termine"])
+                "Come", "Di nuovo esposto oggi", "Esposta dal", "Giorni", "Nel termine"])
     for x in dati["righe"]:
         r = x["r"]
         w.writerow([
             timezone.localtime(r.risolta_il).strftime("%d/%m/%Y %H:%M"), x["cve_id"], x["classe_label"],
             r.cve.cvss if r.cve.cvss is not None else "", "sì" if r.cve.kev else "", r.host_display or r.host,
-            r.software, r.versione_prima, r.versione_dopo, r.get_come_display(),
+            r.software, r.versione_prima, r.versione_dopo, r.get_come_display(), "sì" if x["di_nuovo"] else "",
             timezone.localtime(r.aperta_dal).strftime("%d/%m/%Y") if r.aperta_dal else "",
             x["giorni"] if x["giorni"] is not None else "",
             "" if x["nel_termine"] is None else ("sì" if x["nel_termine"] else "no"),
