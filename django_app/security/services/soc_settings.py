@@ -141,6 +141,10 @@ SECTIONS = [
                    "Solo per CVE critiche (CVSS 9 o più) o sfruttate attivamente (CISA KEV). Un alert per CVE, che si aggiorna se altri PC si aggiungono."),
             Option("cve.impatto.ticket", True, "Apri anche il ticket di rimedio",
                    "Se la CVE ha già un ticket aperto (per esempio da Defender), l'alert si collega a quello."),
+            Option("cve.windows.per_build", False, "Riconosci la release di Windows dalla build",
+                   "Abbina ogni PC Windows solo ai criteri NVD della sua release (21H2, 24H2, Server 2022…), letta dalla build "
+                   "(10.0.26200 = Windows 11 25H2). Le release che la CVE non elenca risultano «non impatta». Senza, ogni CVE di "
+                   "Windows lascia tutti i PC Windows «da verificare». Prima di accenderla: manage.py cve_windows_anteprima."),
         ],
     },
     {

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from statistics import mean
 
 from django.db.models import Max
@@ -413,22 +413,30 @@ def riapri_recidiva(event):
 
 # --- Metriche ------------------------------------------------------------------------------
 
-def metriche(giorni=90):
-    """Numeri per la pagina Vulnerabilità: tempo esposto → corretto, chiusure da sole o a mano, recidive."""
+def metriche(giorni=90, dal=None, al=None):
+    """Numeri per la pagina Vulnerabilità: tempo esposto → corretto, chiusure da sole o a mano, recidive.
+
+    Periodo a giorni interi, come ``cve_sla.riepilogo``: con ``dal``/``al`` (date) esattamente quei giorni
+    (pagina Conformità ISO 27001, anche per i mesi passati); senza, dal giorno di ``giorni`` giorni fa a oggi.
+    """
     from security.services.cve_impact import IMPACT_EVENT_TYPE
 
-    dal = timezone.now() - timedelta(days=giorni)
+    oggi = timezone.localdate()
+    dal_giorno = dal or (oggi - timedelta(days=giorni))
+    al_giorno = al or oggi
+    dal = timezone.make_aware(datetime.combine(dal_giorno, time.min))
+    al = timezone.make_aware(datetime.combine(al_giorno, time.max))
     from security.services.cve_gestione import correzioni_valide
 
     # Stessa regola della pagina Correzioni CVE: ultima uscita per CVE + PC, PC non di nuovo esposto.
-    corrette = [r for r in correzioni_valide(dal) if r.aperta_dal is not None]
+    corrette = [r for r in correzioni_valide(dal, al) if r.aperta_dal is not None]
 
     def giorni_medi(righe):
         return round(mean((r.risolta_il - r.aperta_dal).total_seconds() / 86400 for r in righe), 1) if righe else None
 
     gravi = [r for r in corrette if r.cve.kev or (r.cve.cvss or 0) >= 9]
     chiusi = list(
-        SecurityAlert.objects.filter(event__event_type=IMPACT_EVENT_TYPE, closed_at__gte=dal)
+        SecurityAlert.objects.filter(event__event_type=IMPACT_EVENT_TYPE, closed_at__gte=dal, closed_at__lte=al)
         .exclude(status__in=ACTIVE_ALERT_STATUSES).values_list("pk", "closed_at")
     )
     chiuso_il = dict(chiusi)
@@ -439,7 +447,7 @@ def metriche(giorni=90):
     }
     totale = len(chiuso_il)
     return {
-        "giorni": giorni,
+        "giorni": (al_giorno - dal_giorno).days,
         "correzioni": len(corrette),
         "correzioni_gravi": len(gravi),
         "giorni_medi": giorni_medi(corrette),
@@ -448,6 +456,6 @@ def metriche(giorni=90):
         "auto": len(automatici),
         "manuali": totale - len(automatici),
         "pct_auto": round(100 * len(automatici) / totale) if totale else None,
-        "recidive": SecurityAlertActionLog.objects.filter(action=AZIONE_RECIDIVA, created_at__gte=dal).count(),
+        "recidive": SecurityAlertActionLog.objects.filter(action=AZIONE_RECIDIVA, created_at__gte=dal, created_at__lte=al).count(),
         "aperti": SecurityAlert.objects.filter(event__event_type=IMPACT_EVENT_TYPE, status__in=ACTIVE_ALERT_STATUSES).count(),
     }

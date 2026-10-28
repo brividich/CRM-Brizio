@@ -203,3 +203,18 @@ class CveGestioneTests(TestCase):
             self._inst(f"pc-ges-{i:02d}", "2.3")
         cve_impact.recompute(self.record)
         self.assertEqual(conta(), prima)
+
+    def test_periodo_passato_conta_solo_quel_periodo(self):
+        """Conformità ISO «mese scorso»: prima contava gli ultimi N giorni da oggi, cioè il periodo sbagliato."""
+        from security.services import cve_chiusura, cve_sla
+
+        self._aggiorna_pc1()  # correzione di oggi
+        vecchia = timezone.now() - timezone.timedelta(days=40)
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-ges-30", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              versione_prima="1.0", versione_dopo="2.0", risolta_il=vecchia,
+                                              aperta_dal=vecchia - timezone.timedelta(days=3))
+        oggi = timezone.localdate()
+        dal, al = oggi - timezone.timedelta(days=45), oggi - timezone.timedelta(days=30)
+        self.assertEqual(cve_chiusura.metriche(dal=dal, al=al)["correzioni"], 1)
+        self.assertEqual(cve_sla.riepilogo(dal, al)["corrette"], 1)
+        self.assertEqual(cve_chiusura.metriche()["correzioni"], 2)
