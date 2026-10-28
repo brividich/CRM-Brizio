@@ -570,6 +570,49 @@ def _enrich_tickets_payload(payload: Any) -> Any:
     return enriched
 
 
+def _enrich_diario_preposto_payload(payload: Any) -> Any:
+    """Il trigger SQL non porta la descrizione (testo libero): la legge dal record."""
+    if not isinstance(payload, dict) or not payload.get("id") or payload.get("descrizione") not in (None, ""):
+        return payload
+    enriched = dict(payload)
+    try:
+        from diario_preposto.models import SegnalazionePreposto
+
+        row = SegnalazionePreposto.objects.filter(pk=payload["id"]).values("descrizione").first()
+        if row:
+            enriched["descrizione"] = row["descrizione"] or ""
+    except Exception:
+        logger.debug("enrich diario_preposto: record %s non letto", payload.get("id"), exc_info=True)
+    return enriched
+
+
+def _enrich_rilevazione_incidenti_payload(payload: Any) -> Any:
+    """Il trigger SQL porta solo i campi di stato: nominativo e descrizione si leggono dal record.
+
+    Servono alle mail di approvazione RLS/RSPP; restano fuori dal trigger perche'
+    la coda e i log non devono contenere testo libero se nessuna regola lo usa.
+    """
+    if not isinstance(payload, dict) or not payload.get("id"):
+        return payload
+    mancanti = [
+        campo for campo in ("nominativo", "descrizione_avvenimento", "tipo_evento")
+        if payload.get(campo) in (None, "")
+    ]
+    if not mancanti:
+        return payload
+    enriched = dict(payload)
+    try:
+        from rilevazione_incidenti.models import RilevazioneIncidente
+
+        row = RilevazioneIncidente.objects.filter(pk=payload["id"]).values(*mancanti).first()
+        if row:
+            for campo in mancanti:
+                enriched[campo] = row.get(campo) or ""
+    except Exception:
+        logger.debug("enrich rilevazione_incidenti: record %s non letto", payload.get("id"), exc_info=True)
+    return enriched
+
+
 def _resolve_anomalie_role_for_legacy_id(legacy_user_id: Any) -> str:
     """
     AU-GAP1: risolve il ruolo operativo anomalie (CAPOCOMMESSA/CAR) di chi ha modificato,
@@ -674,14 +717,18 @@ def _enrich_anomalie_payload(payload: Any) -> Any:
 
 # Mappa sorgente -> template di path (relativo a SITE_URL) per il link al record nel
 # portale. SOLO sorgenti con una URL di dettaglio per-record affidabile basata sulla PK
-# (`id`) presente nel payload. Le altre sorgenti (es. rilevazione_incidenti usa sp_id non
-# la PK; anomalie non ha una detail per-record; assenze/anagrafica/rentri/notizie/procedure
-# non hanno una vista di dettaglio stabile) restano fuori: per loro {object_url} sara' vuoto
-# e nei template il link semplicemente non comparira'. Meglio nessun link che un link rotto.
+# (`id`) presente nel payload. Le altre sorgenti (anomalie non ha una detail per-record;
+# assenze/anagrafica/rentri/notizie/procedure non hanno una vista di dettaglio stabile)
+# restano fuori: per loro {object_url} sara' vuoto e nei template il link semplicemente
+# non comparira'. Meglio nessun link che un link rotto.
+# rilevazione_incidenti: il dettaglio prende l'id SharePoint, che con l'archivio locale e'
+# la PK; con SharePoint le rilevazioni non passano dalla tabella e il trigger non scatta.
 _OBJECT_URL_PATH_BY_SOURCE = {
     "tickets": "/tickets/{id}/",
     "dpi": "/dpi/gestione/{id}/",
     "assets": "/assets/view/{id}/",
+    "diario_preposto": "/diario-preposto/{id}/",
+    "rilevazione_incidenti": "/rilevazione-incidenti/{id}/",
 }
 
 
@@ -712,6 +759,10 @@ def _enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
         enriched = _enrich_anomalie_payload(payload)
     elif normalized_source == "anagrafica_dipendenti":
         enriched = _enrich_anagrafica_dipendenti_payload(payload)
+    elif normalized_source == "diario_preposto":
+        enriched = _enrich_diario_preposto_payload(payload)
+    elif normalized_source == "rilevazione_incidenti":
+        enriched = _enrich_rilevazione_incidenti_payload(payload)
     else:
         enriched = payload
 
@@ -2027,6 +2078,11 @@ def _execute_update_trigger_record(
                 allinea_dopo_automazione(source_pk, [field_map[f]["db_column"] for f in coerced_update_fields])
             except Exception:
                 logger.warning("update_trigger_record: assenza %s non allineata a SharePoint", source_pk, exc_info=True)
+        if source_code == "rilevazione_incidenti" and rowcount:
+            # Approvazione RLS / chiusura RSPP decise via mail: la data e' quella della decisione.
+            from rilevazione_incidenti.models import data_decisioni_dopo_automazione
+
+            data_decisioni_dopo_automazione(source_pk, list(coerced_update_fields))
         return {
             "rowcount": rowcount,
             "source_pk": source_pk,
